@@ -67,6 +67,14 @@ def perfetto_deps():
     )
 
     _add_repo_if_not_existing(
+        new_git_repository,
+        name = "perfetto_dep_expat",
+        remote = "https://github.com/libexpat/libexpat",
+        commit = "fa75b96546c069d17b8f80d91e0f4ef0cde3790d",  # R_2_6_2
+        build_file = "//bazel:expat.BUILD",
+    )
+
+    _add_repo_if_not_existing(
         http_archive,
         name = "perfetto_dep_zlib",
         url = "https://storage.googleapis.com/perfetto/zlib-6d3f6aa0f87c9791ca7724c279ef61384f331dfd.tar.gz",
@@ -87,9 +95,11 @@ def perfetto_deps():
     _add_repo_if_not_existing(
         http_archive,
         name = "bazel_skylib",
-        sha256 = "bbccf674aa441c266df9894182d80de104cabd19be98be002f6d478aaa31574d",
-        strip_prefix = "bazel-skylib-2169ae1c374aab4a09aa90e65efe1a3aad4e279b",
-        url = "https://github.com/bazelbuild/bazel-skylib/archive/2169ae1c374aab4a09aa90e65efe1a3aad4e279b.tar.gz",
+        sha256 = "bc283cdfcd526a52c3201279cda4bc298652efa898b10b4db0837dc51652756f",
+        urls = [
+            "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.7.1/bazel-skylib-1.7.1.tar.gz",
+            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.7.1/bazel-skylib-1.7.1.tar.gz",
+        ]
     )
 
 def _add_repo_if_not_existing(repo_rule, name, **kwargs):

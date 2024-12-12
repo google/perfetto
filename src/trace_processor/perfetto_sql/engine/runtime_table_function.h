@@ -24,7 +24,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/perfetto_sql/engine/function_util.h"
+#include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/module_lifecycle_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"

@@ -13,13 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-
-import {
-  PerfettoPlugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin} from '../../public/plugin';
 import {Time, TimeSpan} from '../../base/time';
 import {redrawModal, showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/logging';
@@ -44,9 +39,10 @@ type SessionId = number;
  * their durations don't match. The initial viewport bound for each trace is
  * selected when the enable command is called.
  */
-class TimelineSync implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = PLUGIN_ID;
   private _chan?: BroadcastChannel;
-  private _ctx?: PluginContextTrace;
+  private _ctx?: Trace;
   private _traceLoadTime = 0;
   // Attached to broadcast messages to allow other windows to remap viewports.
   private readonly _clientId: ClientId = Math.floor(Math.random() * 1_000_000);
@@ -68,18 +64,18 @@ class TimelineSync implements PerfettoPlugin {
     ViewportBoundsSnapshot
   >();
 
-  onActivate(ctx: PluginContext): void {
-    ctx.registerCommand({
+  async onTraceLoad(ctx: Trace) {
+    ctx.commands.registerCommand({
       id: `dev.perfetto.SplitScreen#enableTimelineSync`,
       name: 'Enable timeline sync with other Perfetto UI tabs',
       callback: () => this.showTimelineSyncDialog(),
     });
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: `dev.perfetto.SplitScreen#disableTimelineSync`,
       name: 'Disable timeline sync',
       callback: () => this.disableTimelineSync(this._sessionId),
     });
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: `dev.perfetto.SplitScreen#toggleTimelineSync`,
       name: 'Toggle timeline sync with other PerfettoUI tabs',
       callback: () => this.toggleTimelineSync(),
@@ -102,24 +98,17 @@ class TimelineSync implements PerfettoPlugin {
         ? parseInt(m[1].substring(1))
         : DEFAULT_SESSION_ID;
     }
-  }
 
-  onDeactivate(_: PluginContext) {
-    this.disableTimelineSync(this._sessionId);
-  }
-
-  async onTraceLoad(ctx: PluginContextTrace) {
     this._ctx = ctx;
     this._traceLoadTime = Date.now();
     this.advertise();
     if (this._sessionidFromUrl !== 0) {
       this.enableTimelineSync(this._sessionidFromUrl);
     }
-  }
-
-  async onTraceUnload(_: PluginContextTrace) {
-    this.disableTimelineSync(this._sessionId);
-    this._ctx = undefined;
+    ctx.trash.defer(() => {
+      this.disableTimelineSync(this._sessionId);
+      this._ctx = undefined;
+    });
   }
 
   private advertise() {
@@ -283,6 +272,7 @@ class TimelineSync implements PerfettoPlugin {
   private onmessage(msg: MessageEvent) {
     if (this._ctx === undefined) return; // Trace unloaded
     if (!('perfettoSync' in msg.data)) return;
+    this._ctx.scheduleFullRedraw('force');
     const msgData = msg.data as SyncMessage;
     const sync = msgData.perfettoSync;
     switch (sync.cmd) {
@@ -401,7 +391,7 @@ class TimelineSync implements PerfettoPlugin {
   }
 
   private getCurrentViewportBounds(): ViewportBounds {
-    return this._ctx!.timeline.viewport;
+    return this._ctx!.timeline.visibleWindow.toTimeSpan();
   }
 
   private purgeInactiveClients() {
@@ -465,8 +455,3 @@ interface ClientInfo {
   lastHeartbeat: number; // Datetime.now() of the last MSG_ADVERTISE.
   traceLoadTime: number; // Datetime.now() of the onTraceLoad().
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: PLUGIN_ID,
-  plugin: TimelineSync,
-};

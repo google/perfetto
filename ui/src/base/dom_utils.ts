@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Vector2D} from './geom';
+
 // Check whether a DOM element contains another, or whether they're the same
 export function isOrContains(container: Element, target: Element): boolean {
   return container === target || container.contains(target);
@@ -68,17 +70,17 @@ export function elementIsEditable(target: EventTarget | null): boolean {
 // Similar to |offsetX|, |offsetY| but for |currentTarget| rather than |target|.
 // If the event has no currentTarget or it is not an element, offsetX & offsetY
 // are returned instead.
-export function currentTargetOffset(e: MouseEvent): {x: number; y: number} {
+export function currentTargetOffset(e: MouseEvent): Vector2D {
   if (e.currentTarget === e.target) {
-    return {x: e.offsetX, y: e.offsetY};
+    return new Vector2D({x: e.offsetX, y: e.offsetY});
   }
 
   if (e.currentTarget && e.currentTarget instanceof Element) {
     const rect = e.currentTarget.getBoundingClientRect();
     const offsetX = e.clientX - rect.left;
     const offsetY = e.clientY - rect.top;
-    return {x: offsetX, y: offsetY};
+    return new Vector2D({x: offsetX, y: offsetY});
   }
 
-  return {x: e.offsetX, y: e.offsetY};
+  return new Vector2D({x: e.offsetX, y: e.offsetY});
 }

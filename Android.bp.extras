@@ -135,7 +135,10 @@ filegroup {
 
 filegroup {
     name: "perfetto-trace-processor-python-srcs",
-    srcs: ["python/perfetto/trace_processor/*.py"],
+    srcs: [
+        "python/perfetto/common/*.py",
+        "python/perfetto/trace_processor/*.py",
+    ],
     path: "python",
 }
 
@@ -199,17 +202,20 @@ gensrcs {
 }
 
 java_library {
-    name: "perfetto_config_java_protos",
+    name: "perfetto_winscope-lite",
+    proto: {
+        type: "lite",
+        include_dirs: ["external/protobuf/src"],
+        canonical_path_from_root: false,
+    },
     srcs: [
-        ":perfetto_config_filegroup_proto",
+        ":libprotobuf-internal-descriptor-proto",
+        ":perfetto_winscope_filegroup_proto",
     ],
     static_libs: [
         "libprotobuf-java-lite",
     ],
-    proto: {
-        type: "lite",
-        canonical_path_from_root: false,
-    },
+    sdk_version: "current",
 }
 
 java_library {
@@ -245,5 +251,12 @@ phony {
         "mm_events",
         "traced_perf",
         "trigger_perfetto",
+    ],
+}
+
+filegroup {
+    name: "heap_profile",
+    srcs: [
+        "tools/heap_profile",
     ],
 }

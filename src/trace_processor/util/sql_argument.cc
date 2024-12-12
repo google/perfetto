@@ -34,17 +34,8 @@ std::optional<Type> ParseType(base::StringView str) {
   if (str.CaseInsensitiveEq("bool")) {
     return Type::kBool;
   }
-  if (str.CaseInsensitiveEq("int")) {
-    return Type::kInt;
-  }
-  if (str.CaseInsensitiveEq("uint")) {
-    return Type::kUint;
-  }
-  if (str.CaseInsensitiveEq("long")) {
+  if (str.CaseInsensitiveOneOf({"long", "timestamp", "duration", "id"})) {
     return Type::kLong;
-  }
-  if (str.CaseInsensitiveEq("float")) {
-    return Type::kFloat;
   }
   if (str.CaseInsensitiveEq("double")) {
     return Type::kDouble;
@@ -52,11 +43,23 @@ std::optional<Type> ParseType(base::StringView str) {
   if (str.CaseInsensitiveEq("string")) {
     return Type::kString;
   }
-  if (str.CaseInsensitiveEq("proto")) {
-    return Type::kProto;
-  }
   if (str.CaseInsensitiveEq("bytes")) {
     return Type::kBytes;
+  }
+
+  // Deprecated types.
+  // TODO(b/380259828): Remove.
+  if (str.CaseInsensitiveEq("int")) {
+    return Type::kInt;
+  }
+  if (str.CaseInsensitiveEq("uint")) {
+    return Type::kUint;
+  }
+  if (str.CaseInsensitiveEq("float")) {
+    return Type::kFloat;
+  }
+  if (str.CaseInsensitiveEq("proto")) {
+    return Type::kProto;
   }
   return std::nullopt;
 }

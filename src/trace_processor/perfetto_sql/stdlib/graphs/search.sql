@@ -53,7 +53,7 @@ CREATE PERFETTO MACRO graph_reachable_dfs(
   -- the BFS. This table must have a single column "node_id".
   start_nodes TableOrSubquery
 )
--- The returned table has the schema (node_id UINT32, parent_node_id UINT32).
+-- The returned table has the schema (node_id LONG, parent_node_id LONG).
 -- |node_id| is the id of the node from the input graph and |parent_node_id|
 -- is the id of the node which was the first encountered predecessor in a DFS
 -- search of the graph.
@@ -111,7 +111,7 @@ CREATE PERFETTO MACRO graph_reachable_bfs(
   -- the BFS. This table must have a single column "node_id".
   start_nodes TableOrSubquery
 )
--- The returned table has the schema (node_id UINT32, parent_node_id UINT32).
+-- The returned table has the schema (node_id LONG, parent_node_id LONG).
 -- |node_id| is the id of the node from the input graph and |parent_node_id|
 -- is the id of the node which was the first encountered predecessor in a BFS
 -- search of the graph.
@@ -152,7 +152,7 @@ CREATE PERFETTO MACRO graph_next_sibling(
   -- This table must have the columns "node_id", "node_parent_id" and "sort_key".
   graph_table TableOrSubquery
 )
--- The returned table has the schema (node_id UINT32, next_node_id UINT32).
+-- The returned table has the schema (node_id LONG, next_node_id LONG).
 -- |node_id| is the id of the node from the input graph and |next_node_id|
 -- is the id of the node which is its next sibling.
 RETURNS TableOrSubquery AS
@@ -228,7 +228,7 @@ CREATE PERFETTO MACRO graph_reachable_weight_bounded_dfs(
   is_target_weight_floor Expr
 
 )
--- The returned table has the schema (root_node_id, node_id UINT32, parent_node_id UINT32).
+-- The returned table has the schema (root_node_id, node_id LONG, parent_node_id LONG).
 -- |root_node_id| is the id of the starting node under which this edge was encountered.
 -- |node_id| is the id of the node from the input graph and |parent_node_id|
 -- is the id of the node which was the first encountered predecessor in a DFS

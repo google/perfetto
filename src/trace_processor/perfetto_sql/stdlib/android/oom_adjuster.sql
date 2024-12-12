@@ -22,7 +22,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 -- system.
 CREATE PERFETTO FUNCTION android_oom_adj_score_to_bucket_name(
   -- `oom_score` value
-  oom_score INT
+  oom_score LONG
 )
 -- Returns the sample bucket based on the oom score.
 RETURNS STRING
@@ -42,9 +42,9 @@ END;
 -- Deprecated: use `android_oom_adj_score_to_bucket_name` instead.
 CREATE PERFETTO FUNCTION android_oom_adj_score_to_detailed_bucket_name(
   -- oom_adj score.
-  value INT,
+  value LONG,
   -- android_app id of the process.
-  android_appid INT)
+  android_appid LONG)
 -- Returns the oom_adj bucket.
 RETURNS STRING
 AS
@@ -127,25 +127,25 @@ WHERE track.name = 'oom_score_adj';
 -- All oom adj state intervals across all processes along with the reason for the state update.
 CREATE PERFETTO VIEW android_oom_adj_intervals (
   -- Timestamp the oom_adj score of the process changed
-  ts INT,
+  ts TIMESTAMP,
   -- Duration until the next oom_adj score change of the process.
-  dur INT,
+  dur DURATION,
   -- oom_adj score of the process.
-  score INT,
+  score LONG,
   -- oom_adj bucket of the process.
   bucket STRING,
   -- Upid of the process having an oom_adj update.
-  upid INT,
+  upid LONG,
   -- Name of the process having an oom_adj update.
   process_name STRING,
   -- Slice id of the latest oom_adj update in the system_server.
-  oom_adj_id INT,
+  oom_adj_id LONG,
   -- Timestamp of the latest oom_adj update in the system_server.
-  oom_adj_ts INT,
+  oom_adj_ts TIMESTAMP,
   -- Duration of the latest oom_adj update in the system_server.
-  oom_adj_dur INT,
+  oom_adj_dur DURATION,
   -- Track id of the latest oom_adj update in the system_server
-  oom_adj_track_id INT,
+  oom_adj_track_id LONG,
   -- Thread name of the latest oom_adj update in the system_server.
   oom_adj_thread_name STRING,
   -- Reason for the latest oom_adj update in the system_server.

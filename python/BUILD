@@ -79,6 +79,16 @@ perfetto_py_binary(
     python_version = "PY3",
 )
 
+# GN target: //python:sql_processing
+perfetto_py_library(
+    name = "sql_processing",
+    srcs = [
+        "generators/sql_processing/docs_extractor.py",
+        "generators/sql_processing/docs_parse.py",
+        "generators/sql_processing/utils.py",
+    ],
+)
+
 # GN target: //python:common
 perfetto_py_library(
     name = "common",

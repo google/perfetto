@@ -41,6 +41,8 @@ source_set("common") {
     "global_args_tracker.h",
     "jit_cache.cc",
     "jit_cache.h",
+    "legacy_v8_cpu_profile_tracker.cc",
+    "legacy_v8_cpu_profile_tracker.h",
     "machine_tracker.cc",
     "machine_tracker.h",
     "mapping_tracker.cc",
@@ -54,8 +56,6 @@ source_set("common") {
     "sched_event_state.h",
     "sched_event_tracker.cc",
     "sched_event_tracker.h",
-    "scoped_active_trace_file.cc",
-    "scoped_active_trace_file.h",
     "slice_tracker.cc",
     "slice_tracker.h",
     "slice_translation_table.cc",
@@ -71,6 +71,7 @@ source_set("common") {
     "trace_parser.cc",
     "track_tracker.cc",
     "track_tracker.h",
+    "tracks.h",
     "virtual_memory_mapping.cc",
     "virtual_memory_mapping.h",
   ]
@@ -96,7 +97,6 @@ source_set("common") {
     "../../util:profiler_util",
     "../../util:trace_type",
     "../fuchsia:fuchsia_record",
-    "../perf:record",
     "../systrace:systrace_line",
   ]
 }

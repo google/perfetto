@@ -16,21 +16,19 @@
 
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h"
 
+#include "perfetto/ext/base/base64.h"
 #include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
-#include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 SurfaceFlingerLayersParser::SurfaceFlingerLayersParser(
     TraceProcessorContext* context)
-    : context_{context}, args_parser_{pool_} {
-  pool_.AddFromFileDescriptorSet(kWinscopeDescriptor.data(),
-                                 kWinscopeDescriptor.size());
-}
+    : context_{context}, args_parser_{*context->descriptor_pool_} {}
 
 void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
                                        protozero::ConstBytes blob) {
@@ -38,6 +36,10 @@ void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
                                                                 blob.size);
   tables::SurfaceFlingerLayersSnapshotTable::Row snapshot;
   snapshot.ts = timestamp;
+  snapshot.base64_proto =
+      context_->storage->mutable_string_pool()->InternString(
+          base::StringView(base::Base64Encode(blob.data, blob.size)));
+  snapshot.base64_proto_id = snapshot.base64_proto.raw_id();
   auto snapshot_id =
       context_->storage->mutable_surfaceflinger_layers_snapshot_table()
           ->Insert(snapshot)
@@ -45,9 +47,12 @@ void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
 
   auto inserter = context_->args_tracker->AddArgsTo(snapshot_id);
   ArgsParser writer(timestamp, inserter, *context_->storage);
-  base::Status status =
-      args_parser_.ParseMessage(blob, kLayersSnapshotProtoName,
-                                &kLayersSnapshotFieldsToArgsParse, writer);
+  const auto table_name = tables::SurfaceFlingerLayersSnapshotTable::Name();
+  auto allowed_fields =
+      util::winscope_proto_mapping::GetAllowedFields(table_name);
+  base::Status status = args_parser_.ParseMessage(
+      blob, *util::winscope_proto_mapping::GetProtoName(table_name),
+      &allowed_fields.value(), writer);
   if (!status.ok()) {
     context_->storage->IncrementStats(stats::winscope_sf_layers_parse_errors);
   }
@@ -65,14 +70,20 @@ void SurfaceFlingerLayersParser::ParseLayer(
     tables::SurfaceFlingerLayersSnapshotTable::Id snapshot_id) {
   tables::SurfaceFlingerLayerTable::Row layer;
   layer.snapshot_id = snapshot_id;
+  layer.base64_proto = context_->storage->mutable_string_pool()->InternString(
+      base::StringView(base::Base64Encode(blob.data, blob.size)));
+  layer.base64_proto_id = layer.base64_proto.raw_id();
   auto layerId =
       context_->storage->mutable_surfaceflinger_layer_table()->Insert(layer).id;
 
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(layerId);
   ArgsParser writer(timestamp, inserter, *context_->storage);
-  base::Status status = args_parser_.ParseMessage(
-      blob, kLayerProtoName, nullptr /* parse all fields */, writer);
+  base::Status status =
+      args_parser_.ParseMessage(blob,
+                                *util::winscope_proto_mapping::GetProtoName(
+                                    tables::SurfaceFlingerLayerTable::Name()),
+                                nullptr /* parse all fields */, writer);
   if (!status.ok()) {
     context_->storage->IncrementStats(stats::winscope_sf_layers_parse_errors);
   }

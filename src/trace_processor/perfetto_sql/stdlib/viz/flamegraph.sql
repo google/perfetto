@@ -14,7 +14,6 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE graphs.scan;
-INCLUDE PERFETTO MODULE metasql.column_list;
 
 CREATE PERFETTO MACRO _viz_flamegraph_hash_coalesce(col ColumnName)
 RETURNS _SqlFragment AS IFNULL($col, 0);
@@ -41,7 +40,7 @@ AS (
     $pivot AS isPivot,
     HASH(
       name,
-      _metasql_map_join_column_list!($grouping, _viz_flamegraph_hash_coalesce)
+      __intrinsic_token_apply!(_viz_flamegraph_hash_coalesce, $grouping)
     ) AS groupingHash
   FROM $tab
   ORDER BY id
@@ -214,8 +213,8 @@ AS (
     g.parentHash,
     g.depth,
     s.name,
-    _metasql_map_join_column_list!($grouping, _viz_flamegraph_s_prefix),
-    _metasql_map_join_column_list!($grouped, _viz_flamegraph_s_prefix),
+    __intrinsic_token_apply!(_viz_flamegraph_s_prefix, $grouping),
+    __intrinsic_token_apply!(_viz_flamegraph_s_prefix, $grouped),
     f.value,
     g.cumulativeValue
   FROM _graph_scan!(
@@ -271,8 +270,8 @@ AS (
     g.parentHash,
     g.depth,
     s.name,
-    _metasql_map_join_column_list!($grouping, _viz_flamegraph_s_prefix),
-    _metasql_map_join_column_list!($grouped, _viz_flamegraph_s_prefix),
+    __intrinsic_token_apply!(_viz_flamegraph_s_prefix, $grouping),
+    __intrinsic_token_apply!(_viz_flamegraph_s_prefix, $grouped),
     f.value,
     a.cumulativeValue
   FROM _graph_scan!(
@@ -295,18 +294,15 @@ AS (
   ORDER BY hash
 );
 
-CREATE PERFETTO MACRO _viz_flamegraph_merge_grouped(
-  col ColumnName
-)
-RETURNS _SqlFragment
-AS IIF(COUNT() = 1, $col, NULL) AS $col;
+CREATE PERFETTO MACRO _col_list_id(a ColumnName)
+RETURNS _SqlFragment AS $a;
 
 -- Converts a table of hashes and paretn hashes into ids and parent
 -- ids, grouping all hashes together.
 CREATE PERFETTO MACRO _viz_flamegraph_merge_hashes(
   hashed TableOrSubquery,
   grouping _ColumnNameList,
-  grouped _ColumnNameList
+  grouped_agged_exprs _ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -323,8 +319,8 @@ AS (
     -- The grouping columns should be passed through as-is because the
     -- hash took them into account: we would not merged any nodes where
     -- the grouping columns were different.
-    _metasql_unparenthesize_column_list!($grouping),
-    _metasql_map_join_column_list!($grouped, _viz_flamegraph_merge_grouped),
+    __intrinsic_token_apply!(_col_list_id, $grouping),
+    __intrinsic_token_apply!(_col_list_id, $grouped_agged_exprs),
     SUM(value) AS value,
     SUM(cumulativeValue) AS cumulativeValue
   FROM $hashed c
@@ -381,8 +377,8 @@ AS (
     s.id,
     IFNULL(s.parentId, -1) AS parentId,
     IIF(s.name = '', 'unknown', s.name) AS name,
-    _metasql_map_join_column_list!($grouping, _viz_flamegraph_s_prefix),
-    _metasql_map_join_column_list!($grouped, _viz_flamegraph_s_prefix),
+    __intrinsic_token_apply!(_viz_flamegraph_s_prefix, $grouping),
+    __intrinsic_token_apply!(_viz_flamegraph_s_prefix, $grouped),
     s.value AS selfValue,
     s.cumulativeValue,
     p.cumulativeValue AS parentCumulativeValue,

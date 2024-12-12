@@ -20,8 +20,6 @@ source_set("full") {
     "android_input_event_parser.h",
     "protolog_message_decoder.cc",
     "protolog_message_decoder.h",
-    "protolog_messages_tracker.cc",
-    "protolog_messages_tracker.h",
     "protolog_parser.cc",
     "protolog_parser.h",
     "shell_transitions_parser.cc",
@@ -57,6 +55,7 @@ source_set("full") {
     "../../common:parser_types",
     "../../proto:minimal",
     "../../proto:packet_sequence_state_generation_hdr",
+    "../../../util:winscope_proto_mapping"
   ]
 }
 

@@ -54,7 +54,25 @@ void EnsureSqliteInitialized() {
     // in trace processor when multiple instances are used in parallel.
     // Fix this by disabling the memstatus API which we don't make use of in
     // any case. See b/335019324 for more info on this.
-    PERFETTO_CHECK(sqlite3_config(SQLITE_CONFIG_MEMSTATUS, 0) == SQLITE_OK);
+    int ret = sqlite3_config(SQLITE_CONFIG_MEMSTATUS, 0);
+
+    // As much as it is painful, we need to catch instances of SQLITE_MISUSE
+    // here against all the advice of the SQLite developers and lalitm@'s
+    // intuition: SQLITE_MISUSE for sqlite3_config really means: that someone
+    // else has already initialized SQLite. As we are an embeddable library,
+    // it's very possible that the process embedding us has initialized SQLite
+    // in a different way to what we want to do and, if so, we should respect
+    // their choice.
+    //
+    // TODO(lalitm): ideally we would have an sqlite3_is_initialized API we
+    // could use to gate the above check but that doesn't exist: report this
+    // issue to SQLite developers and see if such an API could be added. If so
+    // we can remove this check.
+    if (ret == SQLITE_MISUSE) {
+      return true;
+    }
+
+    PERFETTO_CHECK(ret == SQLITE_OK);
     return sqlite3_initialize() == SQLITE_OK;
   }();
   PERFETTO_CHECK(init_once);

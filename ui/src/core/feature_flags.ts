@@ -16,20 +16,8 @@
 // ~everywhere and the are "statically" initialized (i.e. files construct Flags
 // at import time) if this file starts importing anything we will quickly run
 // into issues with initialization order which will be a pain.
-
-interface FlagSettings {
-  id: string;
-  defaultValue: boolean;
-  description: string;
-  name?: string;
-  devOnly?: boolean;
-}
-
-export enum OverrideState {
-  DEFAULT = 'DEFAULT',
-  TRUE = 'OVERRIDE_TRUE',
-  FALSE = 'OVERRIDE_FALSE',
-}
+import {z} from 'zod';
+import {Flag, FlagSettings, OverrideState} from '../public/feature_flag';
 
 export interface FlagStore {
   load(): object;
@@ -39,22 +27,6 @@ export interface FlagStore {
 // Stored state for a number of flags.
 interface FlagOverrides {
   [id: string]: OverrideState;
-}
-
-// Check if the given object is a valid FlagOverrides.
-// This is necessary since someone could modify the persisted flags
-// behind our backs.
-function isFlagOverrides(o: object): o is FlagOverrides {
-  const states = [
-    OverrideState.TRUE.toString(),
-    OverrideState.FALSE.toString(),
-  ];
-  for (const v of Object.values(o)) {
-    if (typeof v !== 'string' || !states.includes(v)) {
-      return false;
-    }
-  }
-  return true;
 }
 
 class Flags {
@@ -102,8 +74,17 @@ class Flags {
 
   load(): void {
     const o = this.store.load();
-    if (isFlagOverrides(o)) {
-      this.overrides = o;
+
+    // Check if the given object is a valid FlagOverrides.
+    // This is necessary since someone could modify the persisted flags
+    // behind our backs.
+    const flagsSchema = z.record(
+      z.string(),
+      z.union([z.literal(OverrideState.TRUE), z.literal(OverrideState.FALSE)]),
+    );
+    const {success, data} = flagsSchema.safeParse(o);
+    if (success) {
+      this.overrides = data;
     }
   }
 
@@ -118,39 +99,6 @@ class Flags {
 
     this.store.save(this.overrides);
   }
-}
-
-export interface Flag {
-  // A unique identifier for this flag ("magicSorting")
-  readonly id: string;
-
-  // The name of the flag the user sees ("New track sorting algorithm")
-  readonly name: string;
-
-  // A longer description which is displayed to the user.
-  // "Sort tracks using an embedded tfLite model based on your expression
-  // while waiting for the trace to load."
-  readonly description: string;
-
-  // Whether the flag defaults to true or false.
-  // If !flag.isOverridden() then flag.get() === flag.defaultValue
-  readonly defaultValue: boolean;
-
-  // Get the current value of the flag.
-  get(): boolean;
-
-  // Override the flag and persist the new value.
-  set(value: boolean): void;
-
-  // If the flag has been overridden.
-  // Note: A flag can be overridden to its default value.
-  isOverridden(): boolean;
-
-  // Reset the flag to its default setting.
-  reset(): void;
-
-  // Get the current state of the flag.
-  overriddenState(): OverrideState;
 }
 
 class FlagImpl implements Flag {
@@ -233,10 +181,3 @@ class LocalStorageStore implements FlagStore {
 
 export const FlagsForTesting = Flags;
 export const featureFlags = new Flags(new LocalStorageStore());
-
-export const RECORDING_V2_FLAG = featureFlags.register({
-  id: 'recordingv2',
-  name: 'Recording V2',
-  description: 'Record using V2 interface',
-  defaultValue: false,
-});

@@ -52,7 +52,7 @@ WITH
   ts,
   dur,
   utid,
-  CAST(STR_SPLIT(STR_SPLIT(bind_seq_name, 'bindSeq=', 1), ' ', 0) AS INT) AS bind_seq
+  cast_int!(STR_SPLIT(STR_SPLIT(bind_seq_name, 'bindSeq=', 1), ' ', 0)) AS bind_seq
 FROM service
 WHERE bind_seq_name GLOB 'requestServiceBinding*' AND name = 'binder transaction async';
 
@@ -68,48 +68,48 @@ SELECT
   STR_SPLIT(STR_SPLIT(name, 'act=', 1), ' ', 0) AS act,
   STR_SPLIT(STR_SPLIT(name, 'cmp=', 1), ' ', 0) AS cmp,
   STR_SPLIT(STR_SPLIT(name, 'flg=', 1), ' ', 0) AS flg,
-  CAST(STR_SPLIT(STR_SPLIT(name, 'bindSeq=', 1), '}', 0) AS INT) AS bind_seq
+  cast_int!(STR_SPLIT(STR_SPLIT(name, 'bindSeq=', 1), '}', 0)) AS bind_seq
 FROM slice
 WHERE name GLOB 'serviceBind:*';
 
 -- All service bindings from client app to server app.
 CREATE PERFETTO TABLE android_service_bindings(
   -- OOM score of client process making the binding.
-  client_oom_score INT,
+  client_oom_score LONG,
   -- Name of client process making the binding.
   client_process STRING,
   -- Name of client thread making the binding.
   client_thread STRING,
   -- Pid of client process making the binding.
-  client_pid INT,
+  client_pid LONG,
   -- Tid of client process making the binding.
-  client_tid INT,
+  client_tid LONG,
   -- Upid of client process making the binding.
-  client_upid INT,
+  client_upid LONG,
   -- Utid of client thread making the binding.
-  client_utid INT,
+  client_utid LONG,
   -- Timestamp the client process made the request.
-  client_ts INT,
+  client_ts TIMESTAMP,
   -- Duration of the client binding request.
-  client_dur INT,
+  client_dur DURATION,
   -- OOM score of server process getting bound to.
-  server_oom_score INT,
+  server_oom_score LONG,
   -- Name of server process getting bound to
   server_process STRING,
   -- Name of server thread getting bound to.
   server_thread STRING,
   -- Pid of server process getting bound to.
-  server_pid INT,
+  server_pid LONG,
   -- Tid of server process getting bound to.
-  server_tid INT,
+  server_tid LONG,
   -- Upid of server process getting bound to.
-  server_upid INT,
+  server_upid LONG,
   -- Utid of server process getting bound to.
-  server_utid INT,
+  server_utid LONG,
   -- Timestamp the server process got bound to.
-  server_ts INT,
+  server_ts TIMESTAMP,
   -- Duration of the server process handling the binding.
-  server_dur INT,
+  server_dur DURATION,
   -- Unique binder identifier for the Service binding.
   token STRING,
   -- Intent action name for the service binding.
@@ -119,7 +119,7 @@ CREATE PERFETTO TABLE android_service_bindings(
   -- Intent flag for the service binding.
   flg STRING,
   -- Monotonically increasing id for the service binding.
-  bind_seq INT)
+  bind_seq LONG)
 AS
 SELECT
   COALESCE(client_binder.client_oom_score, server_binder.client_oom_score) AS client_oom_score,

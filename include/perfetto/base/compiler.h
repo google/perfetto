@@ -17,8 +17,9 @@
 #ifndef INCLUDE_PERFETTO_BASE_COMPILER_H_
 #define INCLUDE_PERFETTO_BASE_COMPILER_H_
 
-#include <stddef.h>
+#include <cstddef>
 #include <type_traits>
+#include <variant>
 
 #include "perfetto/public/compiler.h"
 
@@ -107,15 +108,6 @@ extern "C" void __asan_unpoison_memory_region(void const volatile*, size_t);
 #define PERFETTO_EXPORT_ENTRYPOINT
 #endif
 
-// Disables thread safety analysis for functions where the compiler can't
-// accurate figure out which locks are being held.
-#if defined(__clang__)
-#define PERFETTO_NO_THREAD_SAFETY_ANALYSIS \
-  __attribute__((no_thread_safety_analysis))
-#else
-#define PERFETTO_NO_THREAD_SAFETY_ANALYSIS
-#endif
-
 // Disables undefined behavior analysis for a function.
 #if defined(__clang__)
 #define PERFETTO_NO_SANITIZE_UNDEFINED __attribute__((no_sanitize("undefined")))
@@ -135,13 +127,23 @@ extern "C" void __asan_unpoison_memory_region(void const volatile*, size_t);
 // Macro for telling -Wimplicit-fallthrough that a fallthrough is intentional.
 #define PERFETTO_FALLTHROUGH [[fallthrough]]
 
-namespace perfetto {
-namespace base {
+namespace perfetto::base {
 
 template <typename... T>
 inline void ignore_result(const T&...) {}
 
-}  // namespace base
-}  // namespace perfetto
+// Given a std::variant and a type T, returns the index of the T in the variant.
+template <typename VariantType, typename T, size_t i = 0>
+constexpr size_t variant_index() {
+  static_assert(i < std::variant_size_v<VariantType>,
+                "Type not found in variant");
+  if constexpr (std::is_same_v<std::variant_alternative_t<i, VariantType>, T>) {
+    return i;
+  } else {
+    return variant_index<VariantType, T, i + 1>();
+  }
+}
+
+}  // namespace perfetto::base
 
 #endif  // INCLUDE_PERFETTO_BASE_COMPILER_H_

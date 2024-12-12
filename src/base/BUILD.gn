@@ -82,6 +82,15 @@ perfetto_component("base") {
   }
 }
 
+perfetto_component("clock_snapshots") {
+  deps = [ "../../gn:default_deps" ]
+  public_deps = [
+    "../../include/perfetto/ext/base",
+    "../../protos/perfetto/common:zero",
+  ]
+  sources = [ "clock_snapshots.cc" ]
+}
+
 # This target needs to be named as such because it's exposed directly in Bazel
 # and Android.bp.
 perfetto_component("perfetto_base_default_platform") {

@@ -41,6 +41,5 @@ perfetto_proto_library("@TYPE@") {
     "lite",
     "zero",
     "cpp",
-    "source_set",
   ]
 }

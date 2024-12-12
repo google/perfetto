@@ -147,15 +147,19 @@ base::Status StepStatus(sqlite3_context* ctx,
       GetOrCreateAggregationContext(ctx);
   RETURN_IF_ERROR(slice_packer.status());
 
-  base::StatusOr<SqlValue> ts =
-      sqlite::utils::ExtractArgument(argc, argv, "ts", 0, SqlValue::kLong);
-  RETURN_IF_ERROR(ts.status());
+  ASSIGN_OR_RETURN(SqlValue ts, sqlite::utils::ExtractArgument(
+                                    argc, argv, "ts", 0, SqlValue::kLong));
+  if (ts.AsLong() < 0) {
+    return base::ErrStatus("ts cannot be negative.");
+  }
 
-  base::StatusOr<SqlValue> dur =
-      sqlite::utils::ExtractArgument(argc, argv, "dur", 1, SqlValue::kLong);
-  RETURN_IF_ERROR(dur.status());
+  ASSIGN_OR_RETURN(SqlValue dur, sqlite::utils::ExtractArgument(
+                                     argc, argv, "dur", 1, SqlValue::kLong));
+  if (dur.AsLong() < -1) {
+    return base::ErrStatus("dur cannot be < -1.");
+  }
 
-  return slice_packer.value()->AddSlice(ts->AsLong(), dur.value().AsLong());
+  return slice_packer.value()->AddSlice(ts.AsLong(), dur.AsLong());
 }
 
 struct InternalLayout : public SqliteWindowFunction {

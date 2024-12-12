@@ -47,7 +47,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 36.
+  // Next id: 38
   message ToFirstFrame {
     // The duration between the intent received and first frame.
     optional int64 dur_ns = 1;
@@ -96,6 +96,8 @@ message AndroidStartupMetric {
 
     optional Slice time_post_fork = 16;
 
+    // Total time on class initialization during app startup.
+    optional Slice time_class_initialization = 36;
     // The total time spent on opening dex files.
     optional Slice time_dex_open = 24;
     // Total time spent verifying classes during app startup.
@@ -103,6 +105,9 @@ message AndroidStartupMetric {
 
     // Number of methods that were compiled by JIT during app startup.
     optional uint32 jit_compiled_methods = 27;
+
+    // Number of class initializations during app startup.
+    optional uint32 class_initialization_count = 37;
 
     // Time spent running CPU on jit thread pool.
     optional Slice time_jit_thread_pool_on_cpu = 28;
@@ -298,8 +303,8 @@ message AndroidStartupMetric {
     // sorted by the duration in descending order.
     // By checking out the top slices/threads, developers can identify specific
     // slices or threads for further investigation.
-    repeated TraceSliceSection trace_slice_sections = 7;
-    repeated TraceThreadSection trace_thread_sections = 8;
+    optional TraceSliceSectionInfo trace_slice_sections = 7;
+    optional TraceThreadSectionInfo trace_thread_sections = 8;
 
     // Details specific for a reason.
     optional string additional_info = 9;
@@ -344,6 +349,17 @@ message AndroidStartupMetric {
     optional uint32 slice_id = 3;
 
     optional string slice_name = 4;
+
+    optional uint32 process_pid = 5;
+
+    optional uint32 thread_tid = 6;
+  }
+
+  // Information for the SliceSections
+  message TraceSliceSectionInfo {
+    repeated TraceSliceSection slice_section = 1;
+    optional int64 start_timestamp = 2;
+    optional int64 end_timestamp = 3;
   }
 
   // Contains information for a section of a thread.
@@ -352,18 +368,33 @@ message AndroidStartupMetric {
 
     optional int64 end_timestamp = 2;
 
+    // Deprecated as of 09/2024
     optional uint32 thread_utid = 3;
 
     optional string thread_name = 4;
+
+    optional uint32 process_pid = 5;
+
+    optional uint32 thread_tid = 6;
   }
 
-  // Next id: 25
+  // Information for the ThreadSections
+  message TraceThreadSectionInfo {
+    repeated TraceThreadSection thread_section = 1;
+    optional int64 start_timestamp  = 2;
+    optional int64 end_timestamp = 3;
+  }
+
+  // Next id: 26
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
 
     // Startup type (cold / warm / hot)
     optional string startup_type = 16;
+
+    // Number of CPUs the device has
+    optional uint32 cpu_count = 25;
 
     // Name of the package launched
     optional string package_name = 2;

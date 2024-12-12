@@ -68,7 +68,7 @@ class PerfettoTable(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_boot.pftrace'),
         query="""
-        SELECT * FROM perfetto_table_info('counter');
+        SELECT * FROM perfetto_table_info('__intrinsic_counter');
         """,
         out=Csv("""
         "id","type","name","col_type","nullable","sorted"
@@ -349,66 +349,260 @@ class PerfettoTable(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        CREATE PERFETTO INDEX foo ON __intrinsic_slice(track_id, name);
+          CREATE PERFETTO INDEX foo ON __intrinsic_slice(track_id, name);
 
-        SELECT
-          MIN(track_id) AS min_track_id,
-          MAX(name) AS min_name
-        FROM __intrinsic_slice
-        WHERE track_id = 13 AND name > "c"
+          WITH
+            ttid AS (
+              SELECT thread_track.id
+              FROM thread_track
+              JOIN thread USING (utid)
+              WHERE thread.name = 'android.bg'
+              LIMIT 1
+            ),
+            agg AS MATERIALIZED (
+              SELECT
+                MIN(track_id) AS min_track_id,
+                MAX(name) AS min_name
+              FROM __intrinsic_slice
+              WHERE track_id = (SELECT id FROM ttid) AND name > "c"
+            )
+            SELECT
+              min_track_id = (SELECT id FROM ttid) AS is_correct_track_id,
+              min_name
+            FROM agg
         """,
         out=Csv("""
-        "min_track_id","min_name"
-        13,"virtual bool art::ElfOatFile::Load(const std::string &, bool, bool, bool, art::MemMap *, std::string *)"
+          "is_correct_track_id","min_name"
+          1,"virtual bool art::ElfOatFile::Load(const std::string &, bool, bool, bool, art::MemMap *, std::string *)"
         """))
 
   def test_create_perfetto_index_multiple_smoke(self):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
-        CREATE PERFETTO TABLE bar AS SELECT * FROM slice;
+          CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
+          CREATE PERFETTO TABLE bar AS SELECT * FROM slice;
 
-       SELECT (
-          SELECT count()
-          FROM bar
-          WHERE track_id = 13 AND dur > 1000 AND name > "b"
-        ) AS non_indexes_stats,
-        (
-          SELECT count()
-          FROM slice
-          WHERE track_id = 13 AND dur > 1000 AND name > "b"
-        ) AS indexed_stats
+          WITH ttid AS (
+            SELECT thread_track.id
+            FROM thread_track
+            JOIN thread USING (utid)
+            WHERE thread.name = 'android.bg'
+            LIMIT 1
+          )
+          SELECT (
+            SELECT count()
+            FROM bar
+            WHERE track_id = (SELECT id FROM ttid) AND dur > 1000 AND name > "b"
+          ) AS non_indexes_stats,
+          (
+            SELECT count()
+            FROM __intrinsic_slice
+            WHERE track_id = (SELECT id FROM ttid) AND dur > 1000 AND name > "b"
+          ) AS indexed_stats
         """,
         out=Csv("""
-        "non_indexes_stats","indexed_stats"
-        39,39
+          "non_indexes_stats","indexed_stats"
+          39,39
         """))
 
   def test_create_or_replace_perfetto_index(self):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
-        CREATE OR REPLACE PERFETTO INDEX idx ON __intrinsic_slice(name);
+          CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
+          CREATE OR REPLACE PERFETTO INDEX idx ON __intrinsic_slice(name);
 
-       SELECT MAX(id) FROM slice WHERE track_id = 13;
+          WITH ttid AS (
+            SELECT thread_track.id
+            FROM thread_track
+            JOIN thread USING (utid)
+            WHERE thread.name = 'android.bg'
+            LIMIT 1
+          )
+          SELECT MAX(id)
+          FROM __intrinsic_slice
+          WHERE track_id = (SELECT id FROM ttid);
         """,
         out=Csv("""
         "MAX(id)"
         20745
         """))
 
-  def test_create_or_replace_perfetto_index(self):
+  def test_create_and_drop_perfetto_index(self):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
         CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
         DROP PERFETTO INDEX idx ON __intrinsic_slice;
 
-        SELECT MAX(id) FROM slice WHERE track_id = 13;
+        WITH ttid AS (
+          SELECT thread_track.id
+          FROM thread_track
+          JOIN thread USING (utid)
+          WHERE thread.name = 'android.bg'
+          LIMIT 1
+        )
+        SELECT MAX(id) FROM __intrinsic_slice
+        WHERE track_id = (SELECT id FROM ttid);
         """,
         out=Csv("""
         "MAX(id)"
         20745
+        """))
+
+  def test_winscope_proto_to_args_with_defaults_with_nested_fields(self):
+    return DiffTestBlueprint(
+        trace=Path('../parser/android/surfaceflinger_layers.textproto'),
+        query="""
+        SELECT flat_key, key, int_value, string_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('surfaceflinger_layer') AS sfl
+        ORDER BY sfl.base64_proto_id, key
+        LIMIT 95
+        """,
+        out=Csv("""
+        "flat_key","key","int_value","string_value","real_value"
+        "active_buffer","active_buffer","[NULL]","[NULL]","[NULL]"
+        "app_id","app_id",0,"[NULL]","[NULL]"
+        "background_blur_radius","background_blur_radius",0,"[NULL]","[NULL]"
+        "barrier_layer","barrier_layer","[NULL]","[NULL]","[NULL]"
+        "blur_regions","blur_regions","[NULL]","[NULL]","[NULL]"
+        "bounds.bottom","bounds.bottom","[NULL]","[NULL]",24000.000000
+        "bounds.left","bounds.left","[NULL]","[NULL]",-10800.000000
+        "bounds.right","bounds.right","[NULL]","[NULL]",10800.000000
+        "bounds.top","bounds.top","[NULL]","[NULL]",-24000.000000
+        "buffer_transform","buffer_transform","[NULL]","[NULL]","[NULL]"
+        "children","children[0]",4,"[NULL]","[NULL]"
+        "children","children[1]",35,"[NULL]","[NULL]"
+        "children","children[2]",43,"[NULL]","[NULL]"
+        "children","children[3]",45,"[NULL]","[NULL]"
+        "children","children[4]",44,"[NULL]","[NULL]"
+        "children","children[5]",77,"[NULL]","[NULL]"
+        "children","children[6]",87,"[NULL]","[NULL]"
+        "color.a","color.a","[NULL]","[NULL]",1.000000
+        "color.b","color.b","[NULL]","[NULL]",-1.000000
+        "color.g","color.g","[NULL]","[NULL]",-1.000000
+        "color.r","color.r","[NULL]","[NULL]",-1.000000
+        "color_transform","color_transform","[NULL]","[NULL]","[NULL]"
+        "corner_radius","corner_radius","[NULL]","[NULL]",0.000000
+        "corner_radius_crop","corner_radius_crop","[NULL]","[NULL]","[NULL]"
+        "crop.bottom","crop.bottom",-1,"[NULL]","[NULL]"
+        "crop.left","crop.left",0,"[NULL]","[NULL]"
+        "crop.right","crop.right",-1,"[NULL]","[NULL]"
+        "crop.top","crop.top",0,"[NULL]","[NULL]"
+        "curr_frame","curr_frame",0,"[NULL]","[NULL]"
+        "damage_region","damage_region","[NULL]","[NULL]","[NULL]"
+        "dataspace","dataspace","[NULL]","BT709 sRGB Full range","[NULL]"
+        "destination_frame.bottom","destination_frame.bottom",-1,"[NULL]","[NULL]"
+        "destination_frame.left","destination_frame.left",0,"[NULL]","[NULL]"
+        "destination_frame.right","destination_frame.right",-1,"[NULL]","[NULL]"
+        "destination_frame.top","destination_frame.top",0,"[NULL]","[NULL]"
+        "effective_scaling_mode","effective_scaling_mode",0,"[NULL]","[NULL]"
+        "effective_transform","effective_transform","[NULL]","[NULL]","[NULL]"
+        "final_crop","final_crop","[NULL]","[NULL]","[NULL]"
+        "flags","flags",2,"[NULL]","[NULL]"
+        "hwc_composition_type","hwc_composition_type","[NULL]","HWC_TYPE_UNSPECIFIED","[NULL]"
+        "hwc_crop","hwc_crop","[NULL]","[NULL]","[NULL]"
+        "hwc_frame","hwc_frame","[NULL]","[NULL]","[NULL]"
+        "hwc_transform","hwc_transform",0,"[NULL]","[NULL]"
+        "id","id",3,"[NULL]","[NULL]"
+        "input_window_info","input_window_info","[NULL]","[NULL]","[NULL]"
+        "invalidate","invalidate",1,"[NULL]","[NULL]"
+        "is_opaque","is_opaque",0,"[NULL]","[NULL]"
+        "is_protected","is_protected",0,"[NULL]","[NULL]"
+        "is_relative_of","is_relative_of",0,"[NULL]","[NULL]"
+        "is_trusted_overlay","is_trusted_overlay",0,"[NULL]","[NULL]"
+        "layer_stack","layer_stack",0,"[NULL]","[NULL]"
+        "metadata","metadata","[NULL]","[NULL]","[NULL]"
+        "name","name","[NULL]","Display 0 name=\"Built-in Screen\"#3","[NULL]"
+        "original_id","original_id",0,"[NULL]","[NULL]"
+        "owner_uid","owner_uid",1000,"[NULL]","[NULL]"
+        "parent","parent",0,"[NULL]","[NULL]"
+        "pixel_format","pixel_format","[NULL]","Unknown/None","[NULL]"
+        "position","position","[NULL]","[NULL]","[NULL]"
+        "queued_frames","queued_frames",0,"[NULL]","[NULL]"
+        "refresh_pending","refresh_pending",0,"[NULL]","[NULL]"
+        "relatives","relatives","[NULL]","[NULL]","[NULL]"
+        "requested_color.a","requested_color.a","[NULL]","[NULL]",1.000000
+        "requested_color.b","requested_color.b","[NULL]","[NULL]",-1.000000
+        "requested_color.g","requested_color.g","[NULL]","[NULL]",-1.000000
+        "requested_color.r","requested_color.r","[NULL]","[NULL]",-1.000000
+        "requested_corner_radius","requested_corner_radius","[NULL]","[NULL]",0.000000
+        "requested_position","requested_position","[NULL]","[NULL]","[NULL]"
+        "requested_transform.dsdx","requested_transform.dsdx","[NULL]","[NULL]",0.000000
+        "requested_transform.dsdy","requested_transform.dsdy","[NULL]","[NULL]",0.000000
+        "requested_transform.dtdx","requested_transform.dtdx","[NULL]","[NULL]",0.000000
+        "requested_transform.dtdy","requested_transform.dtdy","[NULL]","[NULL]",0.000000
+        "requested_transform.type","requested_transform.type",0,"[NULL]","[NULL]"
+        "screen_bounds.bottom","screen_bounds.bottom","[NULL]","[NULL]",24000.000000
+        "screen_bounds.left","screen_bounds.left","[NULL]","[NULL]",-10800.000000
+        "screen_bounds.right","screen_bounds.right","[NULL]","[NULL]",10800.000000
+        "screen_bounds.top","screen_bounds.top","[NULL]","[NULL]",-24000.000000
+        "shadow_radius","shadow_radius","[NULL]","[NULL]",0.000000
+        "size","size","[NULL]","[NULL]","[NULL]"
+        "source_bounds.bottom","source_bounds.bottom","[NULL]","[NULL]",24000.000000
+        "source_bounds.left","source_bounds.left","[NULL]","[NULL]",-10800.000000
+        "source_bounds.right","source_bounds.right","[NULL]","[NULL]",10800.000000
+        "source_bounds.top","source_bounds.top","[NULL]","[NULL]",-24000.000000
+        "transform.dsdx","transform.dsdx","[NULL]","[NULL]",0.000000
+        "transform.dsdy","transform.dsdy","[NULL]","[NULL]",0.000000
+        "transform.dtdx","transform.dtdx","[NULL]","[NULL]",0.000000
+        "transform.dtdy","transform.dtdy","[NULL]","[NULL]",0.000000
+        "transform.type","transform.type",0,"[NULL]","[NULL]"
+        "transparent_region","transparent_region","[NULL]","[NULL]","[NULL]"
+        "trusted_overlay","trusted_overlay","[NULL]","UNSET","[NULL]"
+        "type","type","[NULL]","[NULL]","[NULL]"
+        "visible_region","visible_region","[NULL]","[NULL]","[NULL]"
+        "window_type","window_type",0,"[NULL]","[NULL]"
+        "z","z",0,"[NULL]","[NULL]"
+        "z_order_relative_of","z_order_relative_of",0,"[NULL]","[NULL]"
+        "active_buffer","active_buffer","[NULL]","[NULL]","[NULL]"
+        """))
+
+  def test_winscope_proto_to_args_with_defaults_with_repeated_fields(self):
+    return DiffTestBlueprint(
+        trace=Path('../parser/android/surfaceflinger_layers.textproto'),
+        query="""
+        SELECT flat_key, key, int_value, string_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('surfaceflinger_layers_snapshot') AS sfs
+        WHERE key != "hwc_blob"
+        ORDER BY sfs.base64_proto_id DESC, key ASC
+        LIMIT 36
+        """,
+        out=Csv("""
+        "flat_key","key","int_value","string_value","real_value"
+        "displays.dpi_x","displays[0].dpi_x","[NULL]","[NULL]",0.000000
+        "displays.dpi_y","displays[0].dpi_y","[NULL]","[NULL]",0.000000
+        "displays.id","displays[0].id",4619827677550801152,"[NULL]","[NULL]"
+        "displays.is_virtual","displays[0].is_virtual",0,"[NULL]","[NULL]"
+        "displays.layer_stack","displays[0].layer_stack",0,"[NULL]","[NULL]"
+        "displays.layer_stack_space_rect.bottom","displays[0].layer_stack_space_rect.bottom",2400,"[NULL]","[NULL]"
+        "displays.layer_stack_space_rect.left","displays[0].layer_stack_space_rect.left",0,"[NULL]","[NULL]"
+        "displays.layer_stack_space_rect.right","displays[0].layer_stack_space_rect.right",1080,"[NULL]","[NULL]"
+        "displays.layer_stack_space_rect.top","displays[0].layer_stack_space_rect.top",0,"[NULL]","[NULL]"
+        "displays.name","displays[0].name","[NULL]","Common Panel","[NULL]"
+        "displays.size.h","displays[0].size.h",2400,"[NULL]","[NULL]"
+        "displays.size.w","displays[0].size.w",1080,"[NULL]","[NULL]"
+        "displays.transform.dsdx","displays[0].transform.dsdx","[NULL]","[NULL]",0.000000
+        "displays.transform.dsdy","displays[0].transform.dsdy","[NULL]","[NULL]",0.000000
+        "displays.transform.dtdx","displays[0].transform.dtdx","[NULL]","[NULL]",0.000000
+        "displays.transform.dtdy","displays[0].transform.dtdy","[NULL]","[NULL]",0.000000
+        "displays.transform.type","displays[0].transform.type",0,"[NULL]","[NULL]"
+        "displays.dpi_x","displays[1].dpi_x","[NULL]","[NULL]",0.000000
+        "displays.dpi_y","displays[1].dpi_y","[NULL]","[NULL]",0.000000
+        "displays.id","displays[1].id",4619827677550801153,"[NULL]","[NULL]"
+        "displays.is_virtual","displays[1].is_virtual",0,"[NULL]","[NULL]"
+        "displays.layer_stack","displays[1].layer_stack",0,"[NULL]","[NULL]"
+        "displays.layer_stack_space_rect.bottom","displays[1].layer_stack_space_rect.bottom",2400,"[NULL]","[NULL]"
+        "displays.layer_stack_space_rect.left","displays[1].layer_stack_space_rect.left",0,"[NULL]","[NULL]"
+        "displays.layer_stack_space_rect.right","displays[1].layer_stack_space_rect.right",1080,"[NULL]","[NULL]"
+        "displays.layer_stack_space_rect.top","displays[1].layer_stack_space_rect.top",0,"[NULL]","[NULL]"
+        "displays.name","displays[1].name","[NULL]","Common Panel","[NULL]"
+        "displays.size.h","displays[1].size.h",2400,"[NULL]","[NULL]"
+        "displays.size.w","displays[1].size.w",1080,"[NULL]","[NULL]"
+        "displays.transform","displays[1].transform","[NULL]","[NULL]","[NULL]"
+        "elapsed_realtime_nanos","elapsed_realtime_nanos",2749500341063,"[NULL]","[NULL]"
+        "excludes_composition_state","excludes_composition_state",0,"[NULL]","[NULL]"
+        "missed_entries","missed_entries",0,"[NULL]","[NULL]"
+        "vsync_id","vsync_id",24767,"[NULL]","[NULL]"
+        "where","where","[NULL]","bufferLatched","[NULL]"
+        "displays.dpi_x","displays[0].dpi_x","[NULL]","[NULL]",0.000000
         """))

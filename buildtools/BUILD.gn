@@ -1402,6 +1402,43 @@ source_set("jsoncpp") {
   deps = [ "//gn:default_deps" ]
 }
 
+config("no_format_warning") {
+  cflags = [ "-Wno-format" ]
+}
+
+if (enable_perfetto_trace_processor_mac_instruments) {
+  config("expat_public_config") {
+    defines = [ "XML_STATIC" ]
+    cflags = [
+      # Using -isystem instead of include_dirs (-I), so we don't need to
+      # suppress warnings coming from third-party headers. Doing so would mask
+      # warnings in our own code.
+      perfetto_isystem_cflag,
+      rebase_path("expat/src/expat/lib", root_build_dir),
+      perfetto_isystem_cflag,
+      rebase_path("expat/include", root_build_dir),
+    ]
+  }
+
+  source_set("expat") {
+    sources = [
+      "expat/src/expat/lib/expat.h",
+      "expat/src/expat/lib/xmlparse.c",
+      "expat/src/expat/lib/xmlrole.c",
+      "expat/src/expat/lib/xmltok.c",
+    ]
+
+    public_configs = [ ":expat_public_config" ]
+    configs -= [ "//gn/standalone:extra_warnings" ]
+    configs += [ ":no_format_warning" ]
+
+    defines = [
+      "_LIB",
+      "HAVE_EXPAT_CONFIG_H",
+    ]
+  }
+}
+
 config("linenoise_config") {
   visibility = _buildtools_visibility
   cflags = [

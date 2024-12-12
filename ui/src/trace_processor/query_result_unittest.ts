@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {QueryResult as QueryResultProto} from '../protos';
-
 import {
   createQueryResult,
   decodeInt64Varint,

@@ -16,12 +16,12 @@
 
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 AsyncTrackSetTracker::AsyncTrackSetTracker(TraceProcessorContext* context)
     : android_source_(context->storage->InternString("android")),
@@ -181,11 +181,15 @@ AsyncTrackSetTracker::GetOrCreateTrackForCookie(TrackSet& set, int64_t cookie) {
 
 TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
   switch (set.scope) {
-    case TrackSetScope::kGlobal:
-      // TODO(lalitm): propogate source from callers rather than just passing
-      // kNullStringId here.
-      return context_->track_tracker->CreateGlobalAsyncTrack(
-          set.global_track_name, kNullStringId);
+    case TrackSetScope::kGlobal: {
+      // TODO(lalitm): propogate source from callers as a dimension
+      TrackTracker::DimensionsBuilder builder =
+          context_->track_tracker->CreateDimensionsBuilder();
+      builder.AppendName(set.global_track_name);
+      return context_->track_tracker->CreateTrack(
+          tracks::unknown, std::move(builder).Build(),
+          TrackTracker::LegacyStringIdName{set.global_track_name});
+    }
     case TrackSetScope::kProcess:
       // TODO(lalitm): propogate source from callers rather than just passing
       // kNullStringId here.
@@ -193,11 +197,28 @@ TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
           set.nesting_behaviour == NestingBehaviour::kLegacySaturatingUnnestable
               ? android_source_
               : kNullStringId;
-      return context_->track_tracker->CreateProcessAsyncTrack(
-          set.process_tuple.name, set.process_tuple.upid, source);
+
+      const StringId name =
+          context_->process_track_translation_table->TranslateName(
+              set.process_tuple.name);
+      TrackTracker::DimensionsBuilder dims_builder =
+          context_->track_tracker->CreateDimensionsBuilder();
+      dims_builder.AppendName(name);
+      dims_builder.AppendUpid(set.process_tuple.upid);
+      TrackTracker::Dimensions dims_id = std::move(dims_builder).Build();
+
+      TrackId id = context_->track_tracker->CreateProcessTrack(
+          tracks::unknown, set.process_tuple.upid, dims_id,
+          TrackTracker::LegacyStringIdName{name});
+
+      if (!source.is_null()) {
+        context_->args_tracker->AddArgsTo(id).AddArg(source,
+                                                     Variadic::String(source));
+      }
+      return id;
   }
+
   PERFETTO_FATAL("For GCC");
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

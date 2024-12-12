@@ -18,17 +18,17 @@ INCLUDE PERFETTO MODULE linux.cpu.idle;
 -- Aggregates cpu idle statistics per core.
 CREATE PERFETTO TABLE cpu_idle_stats(
   -- CPU core number.
-  cpu INT,
+  cpu LONG,
   -- CPU idle state (C-states).
-  state INT,
+  state LONG,
   -- The count of entering idle state.
-  count INT,
-  -- Total CPU core idle state duration in nanoseconds.
-  dur INT,
-  -- Average CPU core idle state duration in nanoseconds.
-  avg_dur INT,
+  count LONG,
+  -- Total CPU core idle state duration.
+  dur DURATION,
+  -- Average CPU core idle state duration.
+  avg_dur DURATION,
   -- Idle state percentage of non suspend time (C-states + P-states).
-  idle_percent FLOAT
+  idle_percent DOUBLE
 )
 AS
 WITH grouped AS (

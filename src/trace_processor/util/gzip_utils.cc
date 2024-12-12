@@ -32,14 +32,6 @@ struct z_stream_s {};
 
 namespace perfetto::trace_processor::util {
 
-bool IsGzipSupported() {
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-  return true;
-#else
-  return false;
-#endif
-}
-
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)  // Real Implementation
 
 GzipDecompressor::GzipDecompressor(InputMode mode)

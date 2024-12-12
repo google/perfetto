@@ -15,27 +15,48 @@
 
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
-CREATE PERFETTO MACRO _linux_perf_callstacks_for_samples(
-  samples TableOrSubquery
-)
-RETURNS TableOrSubquery
-AS
-(
-  WITH metrics AS MATERIALIZED (
-    SELECT
-      callsite_id,
-      COUNT() AS self_count
-    FROM $samples
-    GROUP BY callsite_id
-  )
-  SELECT
-    c.id,
-    c.parent_id,
-    c.name,
-    c.mapping_name,
-    c.source_file,
-    c.line_number,
-    IFNULL(m.self_count, 0) AS self_count
-  FROM _callstacks_for_stack_profile_samples!(metrics) c
-  LEFT JOIN metrics m USING (callsite_id)
-);
+CREATE PERFETTO TABLE _linux_perf_raw_callstacks AS
+SELECT *
+FROM _callstacks_for_callsites!((
+  SELECT p.callsite_id
+  FROM perf_sample p
+)) c
+ORDER BY c.id;
+
+-- Table summarising the callstacks captured during all
+-- perf samples in the trace.
+--
+-- Specifically, this table returns a tree containing all
+-- the callstacks seen during the trace with `self_count`
+-- equal to the number of samples with that frame as the
+-- leaf and `cumulative_count` equal to the number of
+-- samples with the frame anywhere in the tree.
+CREATE PERFETTO TABLE linux_perf_samples_summary_tree(
+  -- The id of the callstack. A callstack in this context
+  -- is a unique set of frames up to the root.
+  id LONG,
+  -- The id of the parent callstack for this callstack.
+  parent_id LONG,
+  -- The function name of the frame for this callstack.
+  name STRING,
+  -- The name of the mapping containing the frame. This
+  -- can be a native binary, library, JAR or APK.
+  mapping_name STRING,
+  -- The name of the file containing the function.
+  source_file STRING,
+  -- The line number in the file the function is located at.
+  line_number LONG,
+  -- The number of samples with this function as the leaf
+  -- frame.
+  self_count LONG,
+  -- The number of samples with this function appearing
+  -- anywhere on the callstack.
+  cumulative_count LONG
+) AS
+SELECT r.*, a.cumulative_count
+FROM _callstacks_self_to_cumulative!((
+  SELECT id, parent_id, self_count
+  FROM _linux_perf_raw_callstacks
+)) a
+JOIN _linux_perf_raw_callstacks r USING (id)
+ORDER BY r.id;

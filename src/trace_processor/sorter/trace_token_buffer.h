@@ -72,6 +72,14 @@ class TraceTokenBuffer {
     return Append(TrackEventData(std::move(data)));
   }
 
+  // Gets a pointer an object of type |T| from the token buffer using an id
+  // previously returned by |Append|. This type *must* match the type added
+  // using Append. Mismatching types will caused undefined behaviour.
+  template <typename T>
+  PERFETTO_WARN_UNUSED_RESULT T* Get(Id id) {
+    return static_cast<T*>(allocator_.GetPointer(id.alloc_id));
+  }
+
   // Extracts an object of type |T| from the token buffer using an id previously
   // returned by |Append|. This type *must* match the type added using Append.
   // Mismatching types will caused undefined behaviour.

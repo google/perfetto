@@ -140,6 +140,8 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
                              const char* end,
                              const char** out);
 
+  base::Status ParseV8SampleEvent(base::StringView unparsed);
+
   base::Status HandleTraceEvent(const char* start,
                                 const char* end,
                                 const char** out);

@@ -16,10 +16,15 @@
 
 #include "src/trace_processor/importers/proto/profile_packet_sequence_state.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -131,7 +136,7 @@ TEST_F(HeapProfileTrackerDupTest, Mapping) {
   profile_packet_sequence_state().FinalizeProfile();
 
   EXPECT_THAT(context.storage->stack_profile_mapping_table()[0].build_id(),
-              context.storage->InternString({kBuildIDHexName}));
+              context.storage->InternString(kBuildIDHexName));
   EXPECT_THAT(context.storage->stack_profile_mapping_table()[0].exact_offset(),
               kMappingExactOffset);
   EXPECT_THAT(context.storage->stack_profile_mapping_table()[0].start_offset(),

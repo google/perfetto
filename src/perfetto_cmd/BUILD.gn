@@ -71,8 +71,6 @@ source_set("perfetto_cmd") {
     "packet_writer.h",
     "perfetto_cmd.cc",
     "perfetto_cmd.h",
-    "rate_limiter.cc",
-    "rate_limiter.h",
   ]
   if (is_android) {
     deps += [ "../android_internal:lazy_library_loader" ]
@@ -136,10 +134,7 @@ source_set("trigger_producer") {
 }
 
 perfetto_proto_library("protos_@TYPE@") {
-  proto_generators = [
-    "cpp",
-    "source_set",
-  ]
+  proto_generators = [ "cpp" ]
   sources = [ "perfetto_cmd_state.proto" ]
   proto_path = perfetto_root_path
 }
@@ -163,6 +158,5 @@ perfetto_unittest_source_set("unittests") {
     "config_unittest.cc",
     "packet_writer_unittest.cc",
     "pbtxt_to_pb_unittest.cc",
-    "rate_limiter_unittest.cc",
   ]
 }

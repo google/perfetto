@@ -41,7 +41,8 @@ class FieldDescriptor {
                   uint32_t number,
                   uint32_t type,
                   std::string raw_type_name,
-                  std::vector<uint8_t>,
+                  std::vector<uint8_t> options,
+                  std::optional<std::string> default_value,
                   bool is_repeated,
                   bool is_packed,
                   bool is_extension = false);
@@ -57,6 +58,9 @@ class FieldDescriptor {
 
   const std::vector<uint8_t>& options() const { return options_; }
   std::vector<uint8_t>* mutable_options() { return &options_; }
+  const std::optional<std::string>& default_value() const {
+    return default_value_;
+  }
 
   void set_resolved_type_name(const std::string& resolved_type_name) {
     resolved_type_name_ = resolved_type_name;
@@ -69,6 +73,7 @@ class FieldDescriptor {
   std::string raw_type_name_;
   std::string resolved_type_name_;
   std::vector<uint8_t> options_;
+  std::optional<std::string> default_value_;
   bool is_repeated_;
   bool is_packed_;
   bool is_extension_;

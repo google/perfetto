@@ -19,6 +19,7 @@ import protos from '../gen/protos';
 import AndroidLogConfig = protos.perfetto.protos.AndroidLogConfig;
 import AndroidLogId = protos.perfetto.protos.AndroidLogId;
 import AndroidPowerConfig = protos.perfetto.protos.AndroidPowerConfig;
+import AtomId = protos.perfetto.protos.AtomId;
 import BatteryCounters = protos.perfetto.protos.AndroidPowerConfig.BatteryCounters;
 import BufferConfig = protos.perfetto.protos.TraceConfig.BufferConfig;
 import ChromeConfig = protos.perfetto.protos.ChromeConfig;
@@ -71,10 +72,12 @@ import QueryServiceStateRequest = protos.perfetto.protos.QueryServiceStateReques
 import QueryServiceStateResponse = protos.perfetto.protos.QueryServiceStateResponse;
 import ReadBuffersRequest = protos.perfetto.protos.ReadBuffersRequest;
 import ReadBuffersResponse = protos.perfetto.protos.ReadBuffersResponse;
-import RegisterSqlModuleArgs = protos.perfetto.protos.RegisterSqlModuleArgs;
-import RegisterSqlModuleResult = protos.perfetto.protos.RegisterSqlModuleResult;
+import RegisterSqlPackageArgs = protos.perfetto.protos.RegisterSqlPackageArgs;
+import RegisterSqlPackageResult = protos.perfetto.protos.RegisterSqlPackageResult;
 import ResetTraceProcessorArgs = protos.perfetto.protos.ResetTraceProcessorArgs;
 import StatCounters = protos.perfetto.protos.SysStatsConfig.StatCounters;
+import StatsdPullAtomConfig = protos.perfetto.protos.StatsdPullAtomConfig;;
+import StatsdTracingConfig = protos.perfetto.protos.StatsdTracingConfig;
 import StatusResult = protos.perfetto.protos.StatusResult;
 import SysStatsConfig = protos.perfetto.protos.SysStatsConfig;
 import TraceConfig = protos.perfetto.protos.TraceConfig;
@@ -88,6 +91,7 @@ export {
   AndroidLogConfig,
   AndroidLogId,
   AndroidPowerConfig,
+  AtomId,
   BatteryCounters,
   BufferConfig,
   ChromeConfig,
@@ -140,10 +144,12 @@ export {
   QueryServiceStateResponse,
   ReadBuffersRequest,
   ReadBuffersResponse,
-  RegisterSqlModuleArgs,
-  RegisterSqlModuleResult,
+  RegisterSqlPackageArgs,
+  RegisterSqlPackageResult,
   ResetTraceProcessorArgs,
   StatCounters,
+  StatsdPullAtomConfig,
+  StatsdTracingConfig,
   StatusResult,
   SysStatsConfig,
   TraceConfig,

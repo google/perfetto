@@ -1,0 +1,35 @@
+# Chrome study hashes translation rules
+packet {
+  translation_table {
+    chrome_study {
+      hash_to_name { key: 10 value: "study_name1" }
+      hash_to_name { key: 20 value: "study_name2" }
+    }
+  }
+}
+# Known histogram hash, should be translated to a name
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1
+
+  chrome_trigger {
+    trigger_name_hash: 10
+  }
+}
+# Another known hash, should be translated to a name
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2
+  chrome_trigger {
+    trigger_name_hash: 20
+  }
+}
+# Unknown hash, should not be translated to any name
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 3
+  chrome_trigger {
+    trigger_name_hash: 30
+  }
+}
+

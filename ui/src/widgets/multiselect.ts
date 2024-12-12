@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Icons} from '../base/semantic_icons';
-
 import {Button} from './button';
 import {Checkbox} from './checkbox';
 import {EmptyState} from './empty_state';

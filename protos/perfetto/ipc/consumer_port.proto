@@ -287,9 +287,15 @@ message SaveTraceForBugreportResponse {
 
 // Arguments for rpc CloneSession.
 message CloneSessionRequest {
-  // The session ID to clone. If session_id == kBugreportSessionId (0xff...ff)
-  // the session with the highest bugreport score is cloned (if any exists).
-  optional uint64 session_id = 1;
+  oneof selector {
+    // The session ID to clone. If session_id == kBugreportSessionId (0xff...ff)
+    // the session with the highest bugreport score is cloned (if any exists).
+    uint64 session_id = 1;
+
+    // The unique_session_name of the tracing session to clone. Tracing sessions
+    // that are clones of other tracing sessions are ignored.
+    string unique_session_name = 4;
+  }
 
   // If set, the trace filter will not have effect on the cloned session.
   // Used for bugreports.
@@ -298,6 +304,19 @@ message CloneSessionRequest {
   // If set, affects the generation of the FlushFlags::CloneTarget to be set
   // to kBugreport when requesting the flush to the producers.
   optional bool for_bugreport = 3;
+
+  // If set, this is stored in the trace as name of the trigger that caused the
+  // clone.
+  optional string clone_trigger_name = 5;
+  // If set, this is stored in the trace as name of the producer that triggered
+  // the clone.
+  optional string clone_trigger_producer_name = 6;
+  // If set, this is stored in the trace as uid of the producer that triggered
+  // the clone.
+  optional int32 clone_trigger_trusted_producer_uid = 7;
+  // If set, this is stored in the trace as timestamp of the trigger that caused
+  // the clone.
+  optional uint64 clone_trigger_boot_time_ns = 8;
 }
 
 message CloneSessionResponse {

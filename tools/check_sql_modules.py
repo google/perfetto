@@ -106,7 +106,10 @@ def main():
 
       if (include_package == "common"):
         errors.append(
-            "Common module has been deprecated in the standard library.")
+            "Common module has been deprecated in the standard library. "
+            "Please check `slices.with_context` for a replacement for "
+            "`common.slices` and `time.conversion` for replacement for "
+            "`common.timestamps`")
 
       if (package != "viz" and include_package == "viz"):
         errors.append("No modules can depend on 'viz' outside 'viz' package.")
@@ -128,9 +131,8 @@ def main():
     ]
 
     if errors:
-      sys.stderr.write(
-          f"\nFound {len(errors)} errors in file '{path.split(ROOT_DIR)[1]}':\n- "
-      )
+      sys.stderr.write(f"\nFound {len(errors)} errors in file "
+                       f"'{os.path.normpath(path)}':\n- ")
       sys.stderr.write("\n- ".join(errors))
       sys.stderr.write("\n\n")
 

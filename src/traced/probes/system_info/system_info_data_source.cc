@@ -18,6 +18,7 @@
 
 #include <optional>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -37,6 +38,21 @@ const char kDefaultProcessor[] = "Processor";
 // Key for processor entry in /proc/cpuinfo. Used to determine whether a group
 // of lines describes a CPU.
 const char kProcessor[] = "processor";
+
+// Key for CPU implementer in /proc/cpuinfo. Arm only.
+const char kImplementer[] = "CPU implementer";
+
+// Key for CPU architecture in /proc/cpuinfo. Arm only.
+const char kArchitecture[] = "CPU architecture";
+
+// Key for CPU variant in /proc/cpuinfo. Arm only.
+const char kVariant[] = "CPU variant";
+
+// Key for CPU part in /proc/cpuinfo. Arm only.
+const char kPart[] = "CPU part";
+
+// Key for CPU revision in /proc/cpuinfo. Arm only.
+const char kRevision[] = "CPU revision";
 
 }  // namespace
 
@@ -68,6 +84,13 @@ void SystemInfoDataSource::Start() {
   std::string::iterator line_end = proc_cpu_info.end();
   std::string default_processor = "unknown";
   std::string cpu_index = "";
+
+  std::optional<uint32_t> implementer;
+  std::optional<uint32_t> architecture;
+  std::optional<uint32_t> variant;
+  std::optional<uint32_t> part;
+  std::optional<uint32_t> revision;
+
   uint32_t next_cpu_index = 0;
   while (line_start != proc_cpu_info.end()) {
     line_end = find(line_start, proc_cpu_info.end(), '\n');
@@ -95,6 +118,28 @@ void SystemInfoDataSource::Start() {
         cpu->add_frequencies(*it);
       }
       cpu_index = "";
+
+      // Set Arm CPU identifier if available
+      if (implementer || architecture || part || variant || revision) {
+        if (implementer && architecture && part && variant && revision) {
+          auto* identifier = cpu->set_arm_identifier();
+          identifier->set_implementer(implementer.value());
+          identifier->set_architecture(architecture.value());
+          identifier->set_variant(variant.value());
+          identifier->set_part(part.value());
+          identifier->set_revision(revision.value());
+        } else {
+          PERFETTO_ILOG(
+              "Failed to parse Arm specific fields from /proc/cpuinfo");
+        }
+      }
+
+      implementer = std::nullopt;
+      architecture = std::nullopt;
+      variant = std::nullopt;
+      part = std::nullopt;
+      revision = std::nullopt;
+
       next_cpu_index++;
       continue;
     }
@@ -108,6 +153,16 @@ void SystemInfoDataSource::Start() {
       default_processor = value;
     else if (key == kProcessor)
       cpu_index = value;
+    else if (key == kImplementer)
+      implementer = base::CStringToUInt32(value.data(), 16);
+    else if (key == kArchitecture)
+      architecture = base::CStringToUInt32(value.data(), 10);
+    else if (key == kVariant)
+      variant = base::CStringToUInt32(value.data(), 16);
+    else if (key == kPart)
+      part = base::CStringToUInt32(value.data(), 16);
+    else if (key == kRevision)
+      revision = base::CStringToUInt32(value.data(), 10);
   }
 
   packet->Finalize();

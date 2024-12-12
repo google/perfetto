@@ -23,6 +23,8 @@ import "protos/perfetto/metrics/chrome/args_class_names.proto";
 import "protos/perfetto/metrics/chrome/dropped_frames.proto";
 import "protos/perfetto/metrics/chrome/frame_times.proto";
 import "protos/perfetto/metrics/chrome/histogram_hashes.proto";
+import "protos/perfetto/metrics/chrome/study_hashes.proto";
+import "protos/perfetto/metrics/chrome/histogram_summaries.proto";
 import "protos/perfetto/metrics/chrome/long_latency.proto";
 import "protos/perfetto/metrics/chrome/media_metric.proto";
 import "protos/perfetto/metrics/chrome/performance_mark_hashes.proto";
@@ -53,4 +55,6 @@ extend TraceMetrics {
   optional ChromeUnsymbolizedArgs chrome_unsymbolized_args = 1014;
   optional ChromeArgsClassNames chrome_args_class_names = 1015;
   optional ChromeScrollJankV3 chrome_scroll_jank_v3 = 1017;
+  optional ChromeHistogramSummaries chrome_histogram_summaries = 1018;
+  optional ChromeStudyHashes chrome_study_hashes = 1019;
 }

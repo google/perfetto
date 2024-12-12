@@ -24,6 +24,7 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import WrappingSqlView
 
 from src.trace_processor.tables.track_tables import TRACK_TABLE, COUNTER_TRACK_TABLE
 
@@ -236,6 +237,7 @@ PERF_SESSION_TABLE = Table(
     columns=[
         C('cmdline', CppOptional(CppString())),
     ],
+    wrapping_sql_view=WrappingSqlView('perf_session'),
     tabledoc=TableDoc(
         doc='''Perf sessions.''',
         group='Callstack profilers',
@@ -279,6 +281,32 @@ PERF_SAMPLE_TABLE = Table(
             'perf_session_id':
                 '''Distinguishes samples from different profiling
                 streams (i.e. multiple data sources).'''
+        }))
+
+INSTRUMENTS_SAMPLE_TABLE = Table(
+    python_module=__file__,
+    class_name='InstrumentsSampleTable',
+    sql_name='instruments_sample',
+    columns=[
+        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
+        C('utid', CppUint32()),
+        C('cpu', CppOptional(CppUint32())),
+        C('callsite_id', CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Samples from MacOS Instruments.
+        ''',
+        group='Callstack profilers',
+        columns={
+            'ts':
+                '''Timestamp of the sample.''',
+            'utid':
+                '''Sampled thread.''',
+            'cpu':
+                '''Core the sampled thread was running on.''',
+            'callsite_id':
+                '''If set, unwound callstack of the sampled thread.''',
         }))
 
 SYMBOL_TABLE = Table(
@@ -638,6 +666,7 @@ ALL_TABLES = [
     HEAP_GRAPH_CLASS_TABLE,
     HEAP_GRAPH_OBJECT_TABLE,
     HEAP_GRAPH_REFERENCE_TABLE,
+    INSTRUMENTS_SAMPLE_TABLE,
     HEAP_PROFILE_ALLOCATION_TABLE,
     PACKAGE_LIST_TABLE,
     PERF_SAMPLE_TABLE,

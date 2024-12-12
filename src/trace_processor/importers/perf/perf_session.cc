@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
 #include "src/trace_processor/importers/perf/reader.h"
@@ -57,17 +58,20 @@ base::StatusOr<RefPtr<PerfSession>> PerfSession::Builder::Build() {
   auto perf_session_id =
       context_->storage->mutable_perf_session_table()->Insert({}).id;
 
-  PerfEventAttr base_attr(context_, perf_session_id, attr_with_ids_[0].attr);
+  RefPtr<PerfEventAttr> first_attr;
   base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id;
   for (const auto& entry : attr_with_ids_) {
     RefPtr<PerfEventAttr> attr(
         new PerfEventAttr(context_, perf_session_id, entry.attr));
-    if (base_attr.sample_id_all() != attr->sample_id_all()) {
+    if (!first_attr) {
+      first_attr = attr;
+    }
+    if (first_attr->sample_id_all() != attr->sample_id_all()) {
       return base::ErrStatus(
           "perf_event_attr with different sample_id_all values");
     }
 
-    if (!OffsetsMatch(base_attr, *attr)) {
+    if (!OffsetsMatch(*first_attr, *attr)) {
       return base::ErrStatus("perf_event_attr with different id offsets");
     }
 
@@ -79,14 +83,14 @@ base::StatusOr<RefPtr<PerfSession>> PerfSession::Builder::Build() {
     }
   }
   if (attr_with_ids_.size() > 1 &&
-      (!base_attr.id_offset_from_start().has_value() ||
-       (base_attr.sample_id_all() &&
-        !base_attr.id_offset_from_end().has_value()))) {
+      (!first_attr->id_offset_from_start().has_value() ||
+       (first_attr->sample_id_all() &&
+        !first_attr->id_offset_from_end().has_value()))) {
     return base::ErrStatus("No id offsets for multiple perf_event_attr");
   }
-  return RefPtr<PerfSession>(new PerfSession(context_, perf_session_id,
-                                             std::move(attrs_by_id),
-                                             attr_with_ids_.size() == 1));
+  return RefPtr<PerfSession>(
+      new PerfSession(context_, perf_session_id, std::move(first_attr),
+                      std::move(attrs_by_id), attr_with_ids_.size() == 1));
 }
 
 base::StatusOr<RefPtr<PerfEventAttr>> PerfSession::FindAttrForRecord(
@@ -96,13 +100,12 @@ base::StatusOr<RefPtr<PerfEventAttr>> PerfSession::FindAttrForRecord(
     return RefPtr<PerfEventAttr>();
   }
 
-  RefPtr<PerfEventAttr> first(attrs_by_id_.GetIterator().value().get());
   if (has_single_perf_event_attr_) {
-    return first;
+    return first_attr_;
   }
 
-  if (header.type != PERF_RECORD_SAMPLE && !first->sample_id_all()) {
-    return first;
+  if (header.type != PERF_RECORD_SAMPLE && !first_attr_->sample_id_all()) {
+    return first_attr_;
   }
 
   uint64_t id;
@@ -111,7 +114,7 @@ base::StatusOr<RefPtr<PerfEventAttr>> PerfSession::FindAttrForRecord(
   }
 
   if (id == 0) {
-    return first;
+    return first_attr_;
   }
 
   auto it = FindAttrForEventId(id);
@@ -188,6 +191,15 @@ void PerfSession::SetCmdline(const std::vector<std::string>& args) {
       ->FindById(perf_session_id_)
       ->set_cmdline(context_->storage->InternString(
           base::StringView(base::Join(args, " "))));
+}
+
+bool PerfSession::HasPerfClock() const {
+  for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
+    if (it.value()->clock_id() == protos::pbzero::BUILTIN_CLOCK_PERF) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace perfetto::trace_processor::perf_importer

@@ -27,8 +27,6 @@
   --selection-fill-color: #8398e64d;
   --overview-timeline-non-visible-color: #c8c8c8cc;
   --details-content-height: 280px;
-  --collapsed-background: hsla(190, 49%, 97%, 1);
-  --expanded-background: hsl(215, 22%, 19%);
 }
 
 @mixin transition($time: 0.1s) {
@@ -157,24 +155,6 @@ button.close {
   grid-area: page;
 }
 
-.alerts {
-  grid-area: alerts;
-  background-color: #f2f2f2;
-  > div {
-    font-family: "Roboto", sans-serif;
-    font-weight: 400;
-    letter-spacing: 0.25px;
-    padding: 1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    button {
-      width: 24px;
-      height: 24px;
-    }
-  }
-}
-
 @mixin table-font-size {
   font-size: 14px;
   line-height: 18px;
@@ -195,6 +175,10 @@ $bottom-tab-padding: 10px;
 
   thead {
     font-weight: normal;
+
+    td.reorderable-cell {
+      cursor: grab;
+    }
   }
 
   tr:hover td {
@@ -215,6 +199,10 @@ $bottom-tab-padding: 10px;
       // density a little bit.
       font-size: 16px;
     }
+
+    has-left-border {
+      border-left: 1px solid rgba(60, 76, 92, 0.4);
+    }
   }
 }
 
@@ -232,9 +220,6 @@ $bottom-tab-padding: 10px;
   td.first {
     border-left: 1px solid $table-border-color;
     padding-left: 6px;
-  }
-  thead td.reorderable-cell {
-    cursor: grab;
   }
   .disabled {
     cursor: default;

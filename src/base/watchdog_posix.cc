@@ -259,15 +259,16 @@ void Watchdog::ThreadMain() {
     // Check if any of the timers expired.
     int tid_to_kill = 0;
     WatchdogCrashReason crash_reason{};
-    std::unique_lock<std::mutex> guard(mutex_);
-    for (const auto& timer : timers_) {
-      if (now >= timer.deadline) {
-        tid_to_kill = timer.thread_id;
-        crash_reason = timer.crash_reason;
-        break;
+    {
+      std::lock_guard<std::mutex> guard(mutex_);
+      for (const auto& timer : timers_) {
+        if (now >= timer.deadline) {
+          tid_to_kill = timer.thread_id;
+          crash_reason = timer.crash_reason;
+          break;
+        }
       }
     }
-    guard.unlock();
 
     if (tid_to_kill)
       SerializeLogsAndKillThread(tid_to_kill, crash_reason);
@@ -282,15 +283,16 @@ void Watchdog::ThreadMain() {
         static_cast<uint64_t>(stat.rss_pages) * base::GetSysPageSize();
 
     bool threshold_exceeded = false;
-    guard.lock();
-    if (CheckMemory_Locked(rss_bytes) && !IsSyncMemoryTaggingEnabled()) {
-      threshold_exceeded = true;
-      crash_reason = WatchdogCrashReason::kMemGuardrail;
-    } else if (CheckCpu_Locked(cpu_time)) {
-      threshold_exceeded = true;
-      crash_reason = WatchdogCrashReason::kCpuGuardrail;
+    {
+      std::lock_guard<std::mutex> guard(mutex_);
+      if (CheckMemory_Locked(rss_bytes) && !IsSyncMemoryTaggingEnabled()) {
+        threshold_exceeded = true;
+        crash_reason = WatchdogCrashReason::kMemGuardrail;
+      } else if (CheckCpu_Locked(cpu_time)) {
+        threshold_exceeded = true;
+        crash_reason = WatchdogCrashReason::kCpuGuardrail;
+      }
     }
-    guard.unlock();
 
     if (threshold_exceeded)
       SerializeLogsAndKillThread(getpid(), crash_reason);

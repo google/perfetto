@@ -12,48 +12,80 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  LONG,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
-import {
-  SimpleSliceTrack,
-  SimpleSliceTrackConfig,
-} from '../../frontend/simple_slice_track';
+import {LONG} from '../../trace_processor/query_result';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin} from '../../public/plugin';
+import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {TrackNode} from '../../public/workspace';
+import {optimizationsTrack} from './optimizations';
 
-class AndroidStartup implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidStartup';
+
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
-    await e.query(`include perfetto module android.startup.startups;`);
+    await e.query(`
+          include perfetto module android.startup.startups;
+          include perfetto module android.startup.startup_breakdowns;
+         `);
 
     const cnt = await e.query('select count() cnt from android_startups');
     if (cnt.firstRow({cnt: LONG}).cnt === 0n) {
       return;
     }
 
-    const config: SimpleSliceTrackConfig = {
-      data: {
-        sqlSource: `
+    const trackSource = `
           SELECT l.ts AS ts, l.dur AS dur, l.package AS name
           FROM android_startups l
-        `,
+    `;
+    const trackBreakdownSource = `
+        SELECT
+          ts,
+          dur,
+          reason AS name
+          FROM android_startup_opinionated_breakdown
+    `;
+
+    const trackNode = await this.loadStartupTrack(
+      ctx,
+      trackSource,
+      `/android_startups`,
+      'Android App Startups',
+    );
+    const trackBreakdownNode = await this.loadStartupTrack(
+      ctx,
+      trackBreakdownSource,
+      `/android_startups_breakdown`,
+      'Android App Startups Breakdown',
+    );
+    const optimizations = await optimizationsTrack(ctx);
+    ctx.workspace.addChildInOrder(trackNode);
+    trackNode.addChildLast(trackBreakdownNode);
+    if (!!optimizations) {
+      trackNode.addChildLast(optimizations);
+    }
+  }
+
+  private async loadStartupTrack(
+    ctx: Trace,
+    sqlSource: string,
+    uri: string,
+    title: string,
+  ): Promise<TrackNode> {
+    const track = await createQuerySliceTrack({
+      trace: ctx,
+      uri,
+      data: {
+        sqlSource,
         columns: ['ts', 'dur', 'name'],
       },
-      columns: {ts: 'ts', dur: 'dur', name: 'name'},
-      argColumns: [],
-    };
-    const uri = `/android_startups`;
-    ctx.registerTrackAndShowOnTraceLoad({
-      uri,
-      title: 'Android App Startups',
-      track: new SimpleSliceTrack(ctx.engine, {trackUri: uri}, config),
     });
+    ctx.tracks.registerTrack({
+      uri,
+      title,
+      track,
+    });
+    // Needs a sort order lower than 'Ftrace Events' so that it is prioritized in the UI.
+    return new TrackNode({title, uri, sortOrder: -6});
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidStartup',
-  plugin: AndroidStartup,
-};

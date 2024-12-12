@@ -19,12 +19,14 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <set>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/util/zip_reader.h"
 
 namespace perfetto ::trace_processor {
@@ -44,22 +46,41 @@ class AndroidBugreportReader {
                             std::vector<util::ZipFile> zip_file_entries);
 
  private:
+  struct BugReportFile {
+    tables::TraceFileTable::Id id;
+    int32_t year;
+    util::ZipFile file;
+  };
+  struct LogFile {
+    tables::TraceFileTable::Id id;
+    int64_t timestamp;
+    util::ZipFile file;
+    // Sort files to ease the job of the line-based sort. Unfortunately
+    // lines within each file are not 100% timestamp-ordered, due to things like
+    // kernel messages where log time != event time.
+    bool operator<(const LogFile& other) const {
+      return timestamp < other.timestamp;
+    }
+  };
+
+  static std::optional<BugReportFile> ExtractBugReportFile(
+      std::vector<util::ZipFile>& vector);
+
   AndroidBugreportReader(TraceProcessorContext* context,
-                         std::vector<util::ZipFile> zip_file_entries);
+                         BugReportFile bug_report,
+                         std::set<LogFile> ordered_log_files);
   ~AndroidBugreportReader();
   util::Status ParseImpl();
 
-  bool DetectYearAndBrFilename();
   base::StatusOr<std::vector<TimestampedAndroidLogEvent>>
   ParsePersistentLogcat();
   base::Status ParseDumpstateTxt(std::vector<TimestampedAndroidLogEvent>);
 
   TraceProcessorContext* const context_;
-  std::vector<util::ZipFile> zip_file_entries_;
-  int32_t br_year_ = 0;  // The year when the bugreport has been taken.
-  const util::ZipFile* dumpstate_file_ =
-      nullptr;  // The bugreport-xxx-2022-08-04....txt file
-  std::string build_fpr_;
+  BugReportFile bug_report_;
+  // Log files conveniently sorted by their file timestamp (see operator< in
+  // LogFile)
+  std::set<LogFile> ordered_log_files_;
 };
 
 }  // namespace perfetto::trace_processor

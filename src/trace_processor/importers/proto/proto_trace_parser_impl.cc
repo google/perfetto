@@ -33,6 +33,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -175,7 +176,7 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
     // table to JSON export.
     for (auto it = bundle.metadata(); it; ++it) {
       protos::pbzero::ChromeMetadata::Decoder metadata(*it);
-      Variadic value;
+      Variadic value = Variadic::Null();
       if (metadata.has_string_value()) {
         value =
             Variadic::String(storage->InternString(metadata.string_value()));
@@ -354,7 +355,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       name_id = context_->storage->InternString(event.counter_name());
     }
     TrackId track =
-        context_->track_tracker->InternThreadCounterTrack(name_id, utid);
+        context_->track_tracker->LegacyInternThreadCounterTrack(name_id, utid);
     auto opt_id =
         context_->event_tracker->PushCounter(ts, event.counter_value(), track);
     if (opt_id) {

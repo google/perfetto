@@ -27,6 +27,7 @@ from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
+from python.generators.trace_processor_table.public import WrappingSqlView
 from .profiler_tables import STACK_PROFILE_FRAME_TABLE
 
 JIT_CODE_TABLE = Table(

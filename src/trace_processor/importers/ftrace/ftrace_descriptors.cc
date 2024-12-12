@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 540> descriptors{{
+std::array<FtraceMessageDescriptor, 548> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5971,6 +5971,97 @@ std::array<FtraceMessageDescriptor, 540> descriptors{{
             {},
             {"delta_nr_scanned", ProtoSchemaType::kUint64},
             {"delta_nr_reclaimed", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "sched_wakeup_task_attr",
+        5,
+        {
+            {},
+            {"pid", ProtoSchemaType::kInt32},
+            {"cpu_affinity", ProtoSchemaType::kUint64},
+            {"task_util", ProtoSchemaType::kUint64},
+            {"uclamp_min", ProtoSchemaType::kUint64},
+            {"vruntime", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "devfreq_frequency",
+        5,
+        {
+            {},
+            {"dev_name", ProtoSchemaType::kString},
+            {"freq", ProtoSchemaType::kUint64},
+            {"prev_freq", ProtoSchemaType::kUint64},
+            {"busy_time", ProtoSchemaType::kUint64},
+            {"total_time", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kprobe_event",
+        2,
+        {
+            {},
+            {"name", ProtoSchemaType::kString},
+            {"type", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "param_set_value_cpm",
+        3,
+        {
+            {},
+            {"body", ProtoSchemaType::kString},
+            {"value", ProtoSchemaType::kUint32},
+            {"timestamp", ProtoSchemaType::kInt64},
+        },
+    },
+    {
+        "do_sys_open",
+        3,
+        {
+            {},
+            {"filename", ProtoSchemaType::kString},
+            {"flags", ProtoSchemaType::kInt32},
+            {"mode", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "open_exec",
+        1,
+        {
+            {},
+            {"filename", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "block_io_start",
+        8,
+        {
+            {},
+            {"dev", ProtoSchemaType::kUint64},
+            {"sector", ProtoSchemaType::kUint64},
+            {"nr_sector", ProtoSchemaType::kUint32},
+            {"bytes", ProtoSchemaType::kUint32},
+            {"ioprio", ProtoSchemaType::kUint32},
+            {"rwbs", ProtoSchemaType::kString},
+            {"comm", ProtoSchemaType::kString},
+            {"cmd", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "block_io_done",
+        8,
+        {
+            {},
+            {"dev", ProtoSchemaType::kUint64},
+            {"sector", ProtoSchemaType::kUint64},
+            {"nr_sector", ProtoSchemaType::kUint32},
+            {"bytes", ProtoSchemaType::kUint32},
+            {"ioprio", ProtoSchemaType::kUint32},
+            {"rwbs", ProtoSchemaType::kString},
+            {"comm", ProtoSchemaType::kString},
+            {"cmd", ProtoSchemaType::kString},
         },
     },
 }};

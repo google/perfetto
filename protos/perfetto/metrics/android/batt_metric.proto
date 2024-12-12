@@ -27,6 +27,7 @@ message AndroidBatteryMetric {
     optional float capacity_percent = 3;
     optional double current_ua = 4;
     optional double current_avg_ua = 5;
+    optional double voltage_uv = 6;
   }
 
   message BatteryAggregates {
@@ -42,6 +43,10 @@ message AndroidBatteryMetric {
     optional int64 sleep_screen_off_ns = 6;
     optional int64 sleep_screen_on_ns = 7;
     optional int64 sleep_screen_doze_ns = 8;
+    // Average power over the duration of the trace.
+    optional double avg_power_mw = 9;
+    // Average power from charge difference at the start and end of the trace.
+    optional double avg_power_from_charge_diff_mw = 10;
   }
 
   // Period of time during the trace that the device went to sleep completely.

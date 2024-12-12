@@ -26,14 +26,17 @@ if (enable_perfetto_grpc) {
       "worker_main.cc",
     ]
     deps = [
+      "../../../gn:cpp_httplib",
       "../../../gn:default_deps",
       "../../../gn:grpc",
+      "../../../gn:jsoncpp",
       "../../../include/perfetto/ext/trace_processor/rpc:query_result_serializer",
       "../../../protos/perfetto/bigtrace:worker_grpc",
       "../../../protos/perfetto/bigtrace:worker_lite",
       "../../../src/trace_processor",
       "../../../src/trace_processor/rpc:rpc",
       "../../base",
+      "repository_policies:repository_policies",
     ]
   }
 }

@@ -223,11 +223,11 @@ android_boot_unagg {
       reclaimed_mb: 3.1430000000000002
       min_heap_mb: 2.754000
       max_heap_mb: 5.897000
-      mb_per_ms_of_running_gc: 0.3262420579054222
+      mb_per_ms_of_running_gc: 0.07341516044319213
       mb_per_ms_of_wall_gc: 0.004718018639325977
       gc_dur: 666169475
-      gc_running_dur: 9633951
-      gc_runnable_dur: 44371461
+      gc_running_dur: 42811321
+      gc_runnable_dur: 623358154
       gc_unint_io_dur: 0
       gc_unint_non_io_dur: 0
       gc_int_dur: 0
@@ -244,14 +244,14 @@ android_boot_unagg {
       reclaimed_mb: 10.640000
       min_heap_mb: 6.861000
       max_heap_mb: 17.501000
-      mb_per_ms_of_running_gc: 93.68918788028213
+      mb_per_ms_of_running_gc: 0.426417596041947
       mb_per_ms_of_wall_gc: 0.18073523433053545
       gc_dur: 58870646
-      gc_running_dur: 113567
-      gc_runnable_dur: 0
+      gc_running_dur: 24952066
+      gc_runnable_dur: 31236573
       gc_unint_io_dur: 0
       gc_unint_non_io_dur: 0
-      gc_int_dur: 0
+      gc_int_dur: 2682007
       gc_ts: 39849615741
       tid: 2534
       pid: 2523
@@ -263,8 +263,8 @@ android_boot_unagg {
       gc_type: "full"
       is_mark_compact: 1
       gc_dur: 168393585
-      gc_running_dur: 1714233
-      gc_runnable_dur: 28482219
+      gc_running_dur: 8950766
+      gc_runnable_dur: 69270710
       gc_unint_io_dur: 0
       gc_unint_non_io_dur: 0
       gc_int_dur: -1

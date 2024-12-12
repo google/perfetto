@@ -77,31 +77,39 @@ class StartupMetrics(TestSuite):
         out=TextProto(r"""
         android_batt{
            battery_counters{
-              timestamp_ns: 20
-              charge_counter_uah: 52
+              timestamp_ns: 100000000000
+              charge_counter_uah: 5500000
               capacity_percent: 0.2
-              current_ua: 10
+              current_ua: 990000
               current_avg_ua: 12
+              voltage_uv: 8448000.0
            }
            battery_counters {
-              timestamp_ns: 52
-              charge_counter_uah: 32
+              timestamp_ns: 200000000000
+              charge_counter_uah: 5490000
               capacity_percent: 0.8
-              current_ua: 8
+              current_ua: 710000
               current_avg_ua: 93
+              voltage_uv: 8448000.0
            }
            battery_counters {
-              timestamp_ns: 80
-              charge_counter_uah: 15
+              timestamp_ns: 300000000000
+              charge_counter_uah: 5480000
               capacity_percent: 0.5
-              current_ua: 9
+              current_ua: 510000
               current_avg_ua: 5
+              voltage_uv: 8452000.0
            }
            battery_counters {
-              timestamp_ns: 92
-              charge_counter_uah: 21
+              timestamp_ns: 400000000000
+              charge_counter_uah: 5470000
               capacity_percent: 0.3
               current_avg_ua: 25
+              voltage_uv: 8460000.0
+           }
+           battery_aggregates {
+              avg_power_mw: 6223.666666666667
+              avg_power_from_charge_diff_mw: 2253.599999999949
            }
         }
         """))

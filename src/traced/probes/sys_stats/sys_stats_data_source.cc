@@ -146,8 +146,8 @@ SysStatsDataSource::SysStatsDataSource(
     stat_enabled_fields_ |= 1ul << static_cast<uint32_t>(*counter);
   }
 
-  std::array<uint32_t, 10> periods_ms{};
-  std::array<uint32_t, 10> ticks{};
+  std::array<uint32_t, 11> periods_ms{};
+  std::array<uint32_t, 11> ticks{};
   static_assert(periods_ms.size() == ticks.size(), "must have same size");
 
   periods_ms[0] = ClampTo10Ms(cfg.meminfo_period_ms(), "meminfo_period_ms");
@@ -160,6 +160,7 @@ SysStatsDataSource::SysStatsDataSource(
   periods_ms[7] = ClampTo10Ms(cfg.psi_period_ms(), "psi_period_ms");
   periods_ms[8] = ClampTo10Ms(cfg.thermal_period_ms(), "thermal_period_ms");
   periods_ms[9] = ClampTo10Ms(cfg.cpuidle_period_ms(), "cpuidle_period_ms");
+  periods_ms[10] = ClampTo10Ms(cfg.gpufreq_period_ms(), "gpufreq_period_ms");
 
   tick_period_ms_ = 0;
   for (uint32_t ms : periods_ms) {
@@ -188,6 +189,7 @@ SysStatsDataSource::SysStatsDataSource(
   psi_ticks_ = ticks[7];
   thermal_ticks_ = ticks[8];
   cpuidle_ticks_ = ticks[9];
+  gpufreq_ticks_ = ticks[10];
 }
 
 void SysStatsDataSource::Start() {
@@ -248,6 +250,9 @@ void SysStatsDataSource::ReadSysStats() {
 
   if (cpuidle_ticks_ && tick_ % cpuidle_ticks_ == 0)
     ReadCpuIdleStates(sys_stats);
+
+  if (gpufreq_ticks_ && tick_ % gpufreq_ticks_ == 0)
+    ReadGpuFrequency(sys_stats);
 
   sys_stats->set_collection_end_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
@@ -373,6 +378,44 @@ void SysStatsDataSource::ReadCpuIdleStates(
       cpuidle_state->set_state(*cpuidle_state_name);
       cpuidle_state->set_duration_us(*time);
     }
+  }
+}
+
+std::optional<uint64_t> SysStatsDataSource::ReadAMDGpuFreq() {
+  std::optional<std::string> amd_gpu_freq =
+      ReadFileToString("/sys/class/drm/card0/device/pp_dpm_sclk");
+  if (!amd_gpu_freq) {
+    return std::nullopt;
+  }
+  for (base::StringSplitter lines(*amd_gpu_freq, '\n'); lines.Next();) {
+    base::StringView line(lines.cur_token(), lines.cur_token_size());
+    // Current frequency indicated with asterisk.
+    if (line.EndsWith("*")) {
+      for (base::StringSplitter words(line.ToStdString(), ' '); words.Next();) {
+        if (!base::EndsWith(words.cur_token(), "Mhz"))
+          continue;
+        // Strip suffix "Mhz".
+        std::string maybe_freq = std::string(words.cur_token())
+                                     .substr(0, words.cur_token_size() - 3);
+        auto freq = base::StringToUInt32(maybe_freq);
+        return freq;
+      }
+    }
+  }
+  return std::nullopt;
+}
+
+void SysStatsDataSource::ReadGpuFrequency(protos::pbzero::SysStats* sys_stats) {
+  std::optional<uint64_t> freq;
+  // Intel GPU Frequency.
+  freq = ReadFileToUInt64("/sys/class/drm/card0/gt_act_freq_mhz");
+  if (freq) {
+    sys_stats->add_gpufreq_mhz((*freq));
+    return;
+  }
+  freq = ReadAMDGpuFreq();
+  if (freq) {
+    sys_stats->add_gpufreq_mhz((*freq));
   }
 }
 

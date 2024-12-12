@@ -84,19 +84,19 @@ ORDER BY id;
 -- heap_graph_object prelude table.
 CREATE PERFETTO TABLE heap_graph_dominator_tree(
   -- Heap graph object id.
-  id INT,
+  id LONG,
   -- Immediate dominator object id of the object. If the immediate dominator
   -- is the "super-root" (i.e. the object is a root or is dominated by multiple
   -- roots) then `idom_id` will be NULL.
-  idom_id INT,
+  idom_id LONG,
   -- Count of all objects dominated by this object, self inclusive.
-  dominated_obj_count INT,
+  dominated_obj_count LONG,
   -- Total self_size of all objects dominated by this object, self inclusive.
-  dominated_size_bytes INT,
+  dominated_size_bytes LONG,
   -- Total native_size of all objects dominated by this object, self inclusive.
-  dominated_native_size_bytes INT,
+  dominated_native_size_bytes LONG,
   -- Depth of the object in the dominator tree. Depth of root objects are 1.
-  depth INT
+  depth LONG
 ) AS
 SELECT
   r.id,

@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {HTMLAttrs} from './common';
+import {classNames} from '../base/classnames';
 
 export interface IconAttrs extends HTMLAttrs {
   // The material icon name.
@@ -26,10 +26,13 @@ export interface IconAttrs extends HTMLAttrs {
 
 export class Icon implements m.ClassComponent<IconAttrs> {
   view({attrs}: m.Vnode<IconAttrs>): m.Child {
-    const {icon, filled, ...htmlAttrs} = attrs;
+    const {icon, filled, className, ...htmlAttrs} = attrs;
     return m(
-      filled ? 'i.material-icons-filled' : 'i.material-icons',
-      htmlAttrs,
+      'i.pf-icon',
+      {
+        ...htmlAttrs,
+        className: classNames(className, filled && 'pf-filled'),
+      },
       icon,
     );
   }

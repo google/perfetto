@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import {DisposableStack} from '../base/disposable_stack';
-import * as Geometry from '../base/geom';
+import {Bounds2D, Rect2D} from '../base/geom';
+import {scheduleFullRedraw} from './raf';
 
 export interface VirtualScrollHelperOpts {
   overdrawPx: number;
@@ -21,12 +22,12 @@ export interface VirtualScrollHelperOpts {
   // How close we can get to undrawn regions before updating
   tolerancePx: number;
 
-  callback: (r: Geometry.Rect) => void;
+  callback: (r: Rect2D) => void;
 }
 
 export interface Data {
   opts: VirtualScrollHelperOpts;
-  rect?: Geometry.Rect;
+  rect?: Bounds2D;
 }
 
 export class VirtualScrollHelper {
@@ -46,6 +47,7 @@ export class VirtualScrollHelper {
       this._data.forEach((data) =>
         recalculatePuckRect(sliderElement, containerElement, data),
       );
+      scheduleFullRedraw('force');
     };
 
     containerElement.addEventListener('scroll', recalculateRects, {
@@ -87,26 +89,23 @@ function recalculatePuckRect(
     callback(targetPuckRect);
     data.rect = targetPuckRect;
   } else {
-    const viewportRect = containerElement.getBoundingClientRect();
+    const viewportRect = new Rect2D(containerElement.getBoundingClientRect());
 
     // Expand the viewportRect by the tolerance
-    const viewportExpandedRect = Geometry.expandRect(viewportRect, tolerancePx);
+    const viewportExpandedRect = viewportRect.expand(tolerancePx);
 
     const sliderClientRect = sliderElement.getBoundingClientRect();
-    const viewportClamped = Geometry.intersectRects(
-      viewportExpandedRect,
-      sliderClientRect,
-    );
+    const viewportClamped = viewportExpandedRect.intersect(sliderClientRect);
 
     // Translate the puck rect into client space (currently in slider space)
-    const puckClientRect = Geometry.translateRect(data.rect, {
+    const puckClientRect = viewportClamped.translate({
       x: sliderClientRect.x,
       y: sliderClientRect.y,
     });
 
     // Check if the tolerance rect entirely contains the expanded viewport rect
     // If not, request an update
-    if (!Geometry.containsRect(puckClientRect, viewportClamped)) {
+    if (!puckClientRect.contains(viewportClamped)) {
       const targetPuckRect = getTargetPuckRect(
         sliderElement,
         containerElement,
@@ -125,26 +124,16 @@ function getTargetPuckRect(
   overdrawPx: number,
 ) {
   const sliderElementRect = sliderElement.getBoundingClientRect();
-  const containerRect = containerElement.getBoundingClientRect();
+  const containerRect = new Rect2D(containerElement.getBoundingClientRect());
 
   // Calculate the intersection of the container's viewport and the target
-  const intersection = Geometry.intersectRects(
-    containerRect,
-    sliderElementRect,
-  );
+  const intersection = containerRect.intersect(sliderElementRect);
 
   // Pad the intersection by the overdraw amount
-  const intersectionExpanded = Geometry.expandRect(intersection, overdrawPx);
+  const intersectionExpanded = intersection.expand(overdrawPx);
 
   // Intersect with the original target rect unless we want to avoid resizes
-  const targetRect = Geometry.intersectRects(
-    intersectionExpanded,
-    sliderElementRect,
-  );
+  const targetRect = intersectionExpanded.intersect(sliderElementRect);
 
-  return Geometry.rebaseRect(
-    targetRect,
-    sliderElementRect.x,
-    sliderElementRect.y,
-  );
+  return targetRect.reframe(sliderElementRect);
 }

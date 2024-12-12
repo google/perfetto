@@ -20,6 +20,7 @@
 #include "protos/perfetto/trace/memory_graph.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 
 namespace perfetto {
@@ -170,7 +171,12 @@ void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
   // For now, we use the existing global instant event track for chrome events,
   // since memory dumps are global.
   TrackId track_id = context_->track_tracker->InternGlobalTrack(
-      TrackTracker::GlobalTrackType::kChromeLegacyGlobalInstant);
+      tracks::legacy_chrome_global_instants, TrackTracker::AutoName(),
+      [this](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(
+            context_->storage->InternString("source"),
+            Variadic::String(context_->storage->InternString("chrome")));
+      });
 
   tables::MemorySnapshotTable::Row snapshot_row(
       ts, track_id, level_of_detail_ids_[static_cast<size_t>(level_of_detail)]);

@@ -257,7 +257,7 @@ bool UTF8ToWide(const std::string& source, std::wstring& output) {
 #endif // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...) {
-  if (PERFETTO_UNLIKELY(dst_size) == 0)
+  if (PERFETTO_UNLIKELY(dst_size == 0))
     return 0;
 
   va_list args;
@@ -265,7 +265,7 @@ size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...) {
   int src_size = vsnprintf(dst, dst_size, fmt, args);
   va_end(args);
 
-  if (PERFETTO_UNLIKELY(src_size) <= 0) {
+  if (PERFETTO_UNLIKELY(src_size <= 0)) {
     dst[0] = '\0';
     return 0;
   }

@@ -13,11 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.grouped;
+INCLUDE PERFETTO MODULE wattson.curves.estimates;
 INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 
-DROP VIEW IF EXISTS _wattson_period_windows;
-CREATE PERFETTO VIEW _wattson_period_windows AS
+DROP VIEW IF EXISTS _wattson_period_window;
+CREATE PERFETTO VIEW _wattson_period_window AS
 SELECT
   -- Requirement is there is exactly one pair of start/stop
   (SELECT ts FROM slice WHERE name == 'wattson_start') as ts,
@@ -28,42 +28,21 @@ SELECT
 SELECT RUN_METRIC(
   'android/wattson_tasks_attribution.sql',
   'window_table',
-  '_wattson_period_windows'
+  '_wattson_period_window'
 );
-
--- Group by unique thread ID and disregard CPUs, summing of power over all CPUs
--- and all instances of the thread
-DROP VIEW IF EXISTS _wattson_thread_attribution;
-CREATE PERFETTO VIEW _wattson_thread_attribution AS
-SELECT
-  -- active time of thread divided by total time where Wattson is defined
-  SUM(estimated_mw * dur) / 1000000000 as estimated_mws,
-  (
-    SUM(estimated_mw * dur) / (SELECT SUM(dur) from _windowed_wattson)
-  ) as estimated_mw,
-  thread_name,
-  process_name,
-  tid,
-  pid
-FROM _windowed_threads_system_state
-GROUP BY utid
-ORDER BY estimated_mw DESC;
 
 DROP VIEW IF EXISTS wattson_markers_threads_output;
 CREATE PERFETTO VIEW wattson_markers_threads_output AS
 SELECT AndroidWattsonTasksAttributionMetric(
-  'metric_version', 2,
-  'task_info', (
+  'metric_version', 4,
+  'power_model_version', 1,
+  'period_info', (
     SELECT RepeatedField(
-      AndroidWattsonTaskInfo(
-        'estimated_mws', ROUND(estimated_mws, 6),
-        'estimated_mw', ROUND(estimated_mw, 6),
-        'thread_name', thread_name,
-        'process_name', process_name,
-        'thread_id', tid,
-        'process_id', pid
+      AndroidWattsonTaskPeriodInfo(
+        'period_id', period_id,
+        'task_info', proto
       )
     )
-    FROM _wattson_thread_attribution
+    FROM _wattson_per_task
   )
 );

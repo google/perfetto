@@ -18,7 +18,7 @@ CREATE PERFETTO FUNCTION android_battery_stats_counter_to_string(
   -- The counter track name (e.g. 'battery_stats.audio').
   track STRING,
   -- The counter value.
-  value FLOAT)
+  value DOUBLE)
 -- The human-readable name for the counter value.
 RETURNS STRING AS
 SELECT
@@ -110,23 +110,23 @@ SELECT
           WHEN 22 THEN "Other"
           ELSE "unknown"
         END
-    ELSE CAST($value AS text)
+    ELSE cast_string!($value)
   END;
 
 -- View of human readable battery stats counter-based states. These are recorded
 -- by BatteryStats as a bitmap where each 'category' has a unique value at any
 -- given time.
 CREATE PERFETTO VIEW android_battery_stats_state(
-  -- Timestamp in nanoseconds.
-  ts INT,
-  -- The duration the state was active, may be negative for incomplete slices.
-  dur INT,
+  -- Start of the new barrary state.
+  ts TIMESTAMP,
+  -- The duration the state was active, -1 for incomplete slices.
+  dur DURATION,
   -- The same as `dur`, but extends to trace end for incomplete slices.
-  safe_dur INT,
+  safe_dur DURATION,
   -- The name of the counter track.
   track_name STRING,
   -- The counter value as a number.
-  value INT,
+  value LONG,
   -- The counter value as a human-readable string.
   value_name STRING
 ) AS
@@ -135,7 +135,7 @@ SELECT
   IFNULL(LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur,
   LEAD(ts, 1, TRACE_END()) OVER (PARTITION BY name ORDER BY ts) - ts AS safe_dur,
   name AS track_name,
-  CAST(value AS INT64) AS value,
+  cast_int!(value) AS value,
   android_battery_stats_counter_to_string(name, value) AS value_name
 FROM counter
 JOIN counter_track
@@ -161,18 +161,18 @@ WHERE counter_track.name GLOB 'battery_stats.*';
 --     str_value='com.google.android.apps.nexuslauncher'
 --     int_value=10215
 CREATE PERFETTO VIEW android_battery_stats_event_slices(
-  -- Timestamp in nanoseconds.
-  ts INT,
-  -- The duration the state was active, may be negative for incomplete slices.
-  dur INT,
+  -- Start of a new battery state.
+  ts TIMESTAMP,
+  -- The duration the state was active, -1 for incomplete slices.
+  dur DURATION,
   -- The same as `dur`, but extends to trace end for incomplete slices.
-  safe_dur INT,
+  safe_dur DURATION,
   -- The name of the counter track.
   track_name STRING,
   -- String value.
   str_value STRING,
   -- Int value.
-  int_value INT
+  int_value LONG
 ) AS
 WITH
   event_markers AS (
@@ -216,5 +216,5 @@ SELECT
   IFNULL(end_ts, TRACE_END()) - ts AS safe_dur,
   track_name,
   str_split(key, '"', 1) AS str_value,
-  CAST(str_split(key, ':', 0) AS INT64) AS int_value
+  cast_int!(str_split(key, ':', 0)) AS int_value
 FROM event_spans;

@@ -1,0 +1,165 @@
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@use "sass:math";
+@import "theme";
+
+.pf-track {
+  --text-color-dark: hsl(213, 22%, 30%);
+  --text-color-light: white;
+  --indent-size: 8px;
+  --drag-highlight-color: rgb(29, 85, 189);
+  --default-background: white;
+  --collapsed-background: hsla(190, 49%, 97%, 1);
+  --expanded-background: hsl(215, 22%, 19%);
+
+  // Layout
+  display: grid;
+  grid-template-columns:
+    calc(var(--indent) * var(--indent-size)) calc(
+      250px - (var(--indent) * var(--indent-size))
+    )
+    1fr;
+  grid-template-areas: "indent shell content";
+
+  // Appearance
+  font-family: "Roboto Condensed", sans-serif;
+  font-weight: 300;
+  font-size: 14px;
+  color: var(--text-color-dark);
+  background-color: var(--default-background);
+
+  &::before {
+    content: "";
+    grid-area: indent;
+    background: lightgray;
+    display: block;
+    height: 100%;
+  }
+
+  .pf-track-shell {
+    grid-area: shell;
+    background-color: inherit;
+    box-shadow: inset 0px -1px 0px 0px var(--track-border-color);
+
+    &.pf-drag-after {
+      box-shadow: inset 0 -6px 3px -3px var(--drag-highlight-color);
+    }
+
+    &.pf-drag-before {
+      box-shadow: inset 0 6px 3px -3px var(--drag-highlight-color);
+    }
+
+    &.pf-clickable {
+      cursor: pointer;
+    }
+
+    .pf-visible-on-hover {
+      visibility: hidden;
+
+      &.pf-active {
+        visibility: unset;
+      }
+    }
+
+    &:hover {
+      .pf-visible-on-hover {
+        visibility: unset;
+      }
+    }
+
+    .pf-track-menubar {
+      display: grid;
+      grid-template-columns: 1fr auto; // title, buttons
+      padding: 1px 2px;
+      gap: 2px;
+
+      h1.pf-track-title {
+        // Override h1 formatting
+        font-size: inherit;
+        margin: inherit;
+
+        display: flex;
+        flex-direction: row;
+        gap: 2px;
+        overflow: hidden;
+        margin-left: 2px;
+
+        // The chevron icon used is very thin - take some empty space out of
+        // left & right
+        .pf-icon {
+          margin-inline: -0.2em;
+        }
+
+        .pf-track-title-popup {
+          border-radius: 2px;
+          color: rgba(0, 0, 0, 0);
+          background: rgba(255, 255, 255, 0);
+          position: absolute;
+          text-overflow: unset;
+          pointer-events: none;
+          white-space: nowrap;
+          user-select: none;
+        }
+
+        &:hover .pf-track-title-popup.pf-visible {
+          box-shadow: 1px 1px 2px 2px var(--track-border-color);
+          background: white;
+          color: hsl(213, 22%, 30%);
+        }
+      }
+
+      .pf-track-buttons {
+        // Make the track buttons a little larger so they're easier to see &
+        // click
+        font-size: 16px;
+      }
+    }
+  }
+
+  &.pf-is-summary {
+    background-color: var(--collapsed-background);
+
+    &.pf-expanded {
+      background-color: var(--expanded-background);
+      color: var(--text-color-light);
+    }
+  }
+
+  &.pf-highlight {
+    .pf-track-shell {
+      background-color: #ffe263;
+      color: var(--text-color-dark);
+    }
+  }
+
+  .pf-track-content {
+    grid-area: content;
+    box-shadow: inset 1px -1px 0px 0px var(--track-border-color);
+
+    &.pf-track-content-error {
+      // Necessary trig because we have 45deg stripes
+      $pattern-density: 1px * math.sqrt(2);
+      $pattern-col: #ddd;
+
+      background: repeating-linear-gradient(
+        -45deg,
+        $pattern-col,
+        $pattern-col $pattern-density,
+        white $pattern-density,
+        white $pattern-density * 4
+      );
+    }
+  }
+}

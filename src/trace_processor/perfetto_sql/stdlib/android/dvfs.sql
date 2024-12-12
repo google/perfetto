@@ -18,11 +18,11 @@ CREATE PERFETTO VIEW android_dvfs_counters(
   -- Counter name.
   name STRING,
   -- Timestamp when counter value changed.
-  ts INT,
+  ts TIMESTAMP,
   -- Counter value.
   value DOUBLE,
   -- Counter duration.
-  dur INT
+  dur DURATION
 ) AS
 SELECT
   counter_track.name,
@@ -72,9 +72,9 @@ CREATE PERFETTO TABLE android_dvfs_counter_stats(
   -- Min of all counter values for the counter name.
   min DOUBLE,
   -- Duration between the first and last counter value for the counter name.
-  dur INT,
+  dur DURATION,
   -- Weighted avergate of all the counter values for the counter name.
-  wgt_avg FLOAT
+  wgt_avg DOUBLE
 ) AS
 SELECT
   name,
@@ -94,7 +94,7 @@ CREATE PERFETTO VIEW android_dvfs_counter_residency(
   -- Counter value.
   value DOUBLE,
   -- Counter duration.
-  dur INT,
+  dur DURATION,
   -- Counter duration as a percentage of total duration.
   pct DOUBLE
 ) AS

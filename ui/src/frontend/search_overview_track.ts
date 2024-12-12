@@ -12,67 +12,80 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Duration, Time, TimeSpan, duration, time} from '../base/time';
-import {Size} from '../base/geom';
-import {PxSpan, TimeScale} from './time_scale';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
-import {createVirtualTable} from '../trace_processor/sql_utils';
-import {SearchSummary} from '../common/search_data';
-import {escapeSearchQuery} from '../trace_processor/query_utils';
+import {Size2D} from '../base/geom';
+import {Duration, Time, TimeSpan, duration, time} from '../base/time';
+import {TimeScale} from '../base/time_scale';
 import {calculateResolution} from '../common/resolution';
-import {OmniboxState} from '../common/state';
-import {Optional} from '../base/utils';
-import {AppContext} from './app_context';
-import {Engine} from '../trace_processor/engine';
+import {TraceImpl} from '../core/trace_impl';
 import {LONG, NUM} from '../trace_processor/query_result';
+import {escapeSearchQuery} from '../trace_processor/query_utils';
+import {createVirtualTable} from '../trace_processor/sql_utils';
 
-export interface SearchOverviewTrack extends AsyncDisposable {
-  render(ctx: CanvasRenderingContext2D, size: Size): void;
+interface SearchSummary {
+  tsStarts: BigInt64Array;
+  tsEnds: BigInt64Array;
+  count: Uint8Array;
 }
 
 /**
- * This function describes a pseudo-track that renders the search overview
- * blobs.
- *
- * @param engine The engine to use for loading data.
- * @returns A new search overview renderer.
+ * This component is drawn on top of the timeline and creates small yellow
+ * rectangles that highlight the time span of search results (similarly to what
+ * Chrome does on the scrollbar when you Ctrl+F and type a search term).
+ * It reacts to changes in SearchManager and queries the quantized ranges of the
+ * search results.
  */
-export async function createSearchOverviewTrack(
-  engine: Engine,
-  app: AppContext,
-): Promise<SearchOverviewTrack> {
-  const trash = new AsyncDisposableStack();
-  trash.use(
-    await createVirtualTable(engine, 'search_summary_window', 'window'),
-  );
-  trash.use(
-    await createVirtualTable(
-      engine,
-      'search_summary_sched_span',
-      'span_join(sched PARTITIONED cpu, search_summary_window)',
-    ),
-  );
-  trash.use(
-    await createVirtualTable(
-      engine,
-      'search_summary_slice_span',
-      'span_join(slice PARTITIONED track_id, search_summary_window)',
-    ),
-  );
+export class SearchOverviewTrack implements AsyncDisposable {
+  private readonly trash = new AsyncDisposableStack();
+  private readonly trace: TraceImpl;
+  private readonly limiter = new AsyncLimiter();
+  private initialized = false;
+  private previousResolution: duration | undefined;
+  private previousSpan: TimeSpan | undefined;
+  private previousSearchGeneration = 0;
+  private searchSummary: SearchSummary | undefined;
 
-  let previousResolution: duration;
-  let previousSpan: TimeSpan;
-  let previousOmniboxState: OmniboxState;
-  let searchSummary: Optional<SearchSummary>;
-  const limiter = new AsyncLimiter();
+  constructor(trace: TraceImpl) {
+    this.trace = trace;
+  }
 
-  async function update(
+  render(ctx: CanvasRenderingContext2D, size: Size2D) {
+    this.maybeUpdate(size);
+    this.renderSearchOverview(ctx, size);
+  }
+
+  private async initialize() {
+    const engine = this.trace.engine;
+    this.trash.use(
+      await createVirtualTable(engine, 'search_summary_window', 'window'),
+    );
+    this.trash.use(
+      await createVirtualTable(
+        engine,
+        'search_summary_sched_span',
+        'span_join(sched PARTITIONED cpu, search_summary_window)',
+      ),
+    );
+    this.trash.use(
+      await createVirtualTable(
+        engine,
+        'search_summary_slice_span',
+        'span_join(slice PARTITIONED track_id, search_summary_window)',
+      ),
+    );
+  }
+
+  private async update(
     search: string,
     start: time,
     end: time,
     resolution: duration,
   ): Promise<SearchSummary> {
+    if (!this.initialized) {
+      this.initialized = true;
+      await this.initialize();
+    }
     const searchLiteral = escapeSearchQuery(search);
 
     const resolutionScalingFactor = 10n;
@@ -80,6 +93,7 @@ export async function createSearchOverviewTrack(
     start = Time.quantFloor(start, quantum);
 
     const windowDur = Duration.max(Time.diff(end, start), 1n);
+    const engine = this.trace.engine;
     await engine.query(`update search_summary_window set
       window_start=${start},
       window_dur=${windowDur},
@@ -95,9 +109,6 @@ export async function createSearchOverviewTrack(
       utids.push(it.utid);
     }
 
-    const cpus = app.traceContext.cpus;
-    const maxCpu = Math.max(...cpus, -1);
-
     const res = await engine.query(`
         select
           (quantum_ts * ${quantum} + ${start}) as tsStart,
@@ -107,7 +118,7 @@ export async function createSearchOverviewTrack(
               select
               quantum_ts
               from search_summary_sched_span
-              where utid in (${utids.join(',')}) and cpu <= ${maxCpu}
+              where utid in (${utids.join(',')})
             union all
               select
               quantum_ts
@@ -133,19 +144,20 @@ export async function createSearchOverviewTrack(
     return summary;
   }
 
-  function maybeUpdate(size: Size) {
-    const omniboxState = app.state.omniboxState;
-    if (omniboxState === undefined || omniboxState.mode === 'COMMAND') {
+  private maybeUpdate(size: Size2D) {
+    const searchManager = this.trace.search;
+    const timeline = this.trace.timeline;
+    if (!searchManager.hasResults) {
       return;
     }
-    const newSpan = app.timeline.visibleWindow;
-    const newOmniboxState = omniboxState;
+    const newSpan = timeline.visibleWindow;
+    const newSearchGeneration = searchManager.searchGeneration;
     const newResolution = calculateResolution(newSpan, size.width);
     const newTimeSpan = newSpan.toTimeSpan();
     if (
-      previousSpan?.containsSpan(newTimeSpan.start, newTimeSpan.end) &&
-      previousResolution === newResolution &&
-      previousOmniboxState === newOmniboxState
+      this.previousSpan?.containsSpan(newTimeSpan.start, newTimeSpan.end) &&
+      this.previousResolution === newResolution &&
+      this.previousSearchGeneration === newSearchGeneration
     ) {
       return;
     }
@@ -154,12 +166,12 @@ export async function createSearchOverviewTrack(
     // that is not easily available here.
     // N.B. Timestamps can be negative.
     const {start, end} = newTimeSpan.pad(newTimeSpan.duration);
-    previousSpan = new TimeSpan(start, end);
-    previousResolution = newResolution;
-    previousOmniboxState = newOmniboxState;
-    const search = newOmniboxState.omnibox;
-    if (search === '' || (search.length < 4 && !newOmniboxState.force)) {
-      searchSummary = {
+    this.previousSpan = new TimeSpan(start, end);
+    this.previousResolution = newResolution;
+    this.previousSearchGeneration = newSearchGeneration;
+    const search = searchManager.searchText;
+    if (search === '') {
+      this.searchSummary = {
         tsStarts: new BigInt64Array(0),
         tsEnds: new BigInt64Array(0),
         count: new Uint8Array(0),
@@ -167,29 +179,32 @@ export async function createSearchOverviewTrack(
       return;
     }
 
-    limiter.schedule(async () => {
-      const summary = await update(
-        newOmniboxState.omnibox,
+    this.limiter.schedule(async () => {
+      const summary = await this.update(
+        searchManager.searchText,
         start,
         end,
         newResolution,
       );
-      searchSummary = summary;
+      this.searchSummary = summary;
     });
   }
 
-  function renderSearchOverview(
+  private renderSearchOverview(
     ctx: CanvasRenderingContext2D,
-    size: Size,
+    size: Size2D,
   ): void {
-    const visibleWindow = app.timeline.visibleWindow;
-    const timescale = new TimeScale(visibleWindow, new PxSpan(0, size.width));
+    const visibleWindow = this.trace.timeline.visibleWindow;
+    const timescale = new TimeScale(visibleWindow, {
+      left: 0,
+      right: size.width,
+    });
 
-    if (!searchSummary) return;
+    if (!this.searchSummary) return;
 
-    for (let i = 0; i < searchSummary.tsStarts.length; i++) {
-      const tStart = Time.fromRaw(searchSummary.tsStarts[i]);
-      const tEnd = Time.fromRaw(searchSummary.tsEnds[i]);
+    for (let i = 0; i < this.searchSummary.tsStarts.length; i++) {
+      const tStart = Time.fromRaw(this.searchSummary.tsStarts[i]);
+      const tEnd = Time.fromRaw(this.searchSummary.tsEnds[i]);
       if (!visibleWindow.overlaps(tStart, tEnd)) {
         continue;
       }
@@ -203,9 +218,13 @@ export async function createSearchOverviewTrack(
         size.height,
       );
     }
-    const index = app.state.searchIndex;
-    if (index !== -1 && index < app.currentSearchResults.tses.length) {
-      const start = app.currentSearchResults.tses[index];
+    const results = this.trace.search.searchResults;
+    if (results === undefined) {
+      return;
+    }
+    const index = this.trace.search.resultIndex;
+    if (index !== -1 && index < results.tses.length) {
+      const start = results.tses[index];
       if (start !== -1n) {
         const triangleStart = Math.max(
           timescale.timeToPx(Time.fromRaw(start)),
@@ -225,13 +244,7 @@ export async function createSearchOverviewTrack(
     ctx.restore();
   }
 
-  return {
-    render(ctx: CanvasRenderingContext2D, size: Size) {
-      maybeUpdate(size);
-      renderSearchOverview(ctx, size);
-    },
-    async [Symbol.asyncDispose](): Promise<void> {
-      return await trash.asyncDispose();
-    },
-  };
+  async [Symbol.asyncDispose](): Promise<void> {
+    return await this.trash.asyncDispose();
+  }
 }

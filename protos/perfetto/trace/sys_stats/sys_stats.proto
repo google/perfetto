@@ -179,4 +179,7 @@ message SysStats {
     repeated CpuIdleStateEntry cpuidle_state_entry = 2;
   }
   repeated CpuIdleState cpuidle_state = 16;
+
+  // Read GPU frequency info on Intel/AMD devices.
+  repeated uint64 gpufreq_mhz = 17;
 }

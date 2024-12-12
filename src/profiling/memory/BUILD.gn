@@ -354,6 +354,7 @@ source_set("end_to_end_tests") {
     "../../../protos/perfetto/config/profiling:cpp",
     "../../../protos/perfetto/trace/interned_data:cpp",
     "../../../protos/perfetto/trace/profiling:cpp",
+    "../../../test:integrationtest_initializer",
     "../../../test:test_helper",
     "../../base",
     "../../base:test_support",

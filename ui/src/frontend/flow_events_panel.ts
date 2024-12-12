@@ -13,15 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Icons} from '../base/semantic_icons';
-import {Actions} from '../common/actions';
-import {getLegacySelection} from '../common/state';
 import {raf} from '../core/raf_scheduler';
-
-import {Flow, globals} from './globals';
-import {DurationWidget} from './widgets/duration';
-import {EmptyState} from '../widgets/empty_state';
+import {Flow} from '../core/flow_types';
+import {TraceImpl} from '../core/trace_impl';
 
 export const ALL_CATEGORIES = '_all_';
 
@@ -38,126 +33,15 @@ export function getFlowCategories(flow: Flow): string[] {
   return categories;
 }
 
-export class FlowEventsPanel implements m.ClassComponent {
-  view() {
-    const selection = getLegacySelection(globals.state);
-    if (!selection) {
-      return m(
-        EmptyState,
-        {
-          className: 'pf-noselection',
-          title: 'Nothing selected',
-        },
-        'Flow data will appear here',
-      );
-    }
-
-    if (selection.kind !== 'SLICE') {
-      return m(
-        EmptyState,
-        {
-          className: 'pf-noselection',
-          title: 'No flow data',
-          icon: 'warning',
-        },
-        `Flows are not applicable to the selection kind: '${selection.kind}'`,
-      );
-    }
-
-    const flowClickHandler = (sliceId: number, trackId: number) => {
-      const track = globals.trackManager
-        .getAllTracks()
-        .find((td) => td.tags?.trackIds?.includes(trackId));
-      if (track) {
-        globals.setLegacySelection(
-          {
-            kind: 'SLICE',
-            id: sliceId,
-            trackUri: track.uri,
-            table: 'slice',
-          },
-          {
-            clearSearch: true,
-            pendingScrollId: undefined,
-            switchToCurrentSelectionTab: false,
-          },
-        );
-      }
-    };
-
-    // Can happen only for flow events version 1
-    const haveCategories =
-      globals.connectedFlows.filter((flow) => flow.category).length > 0;
-
-    const columns = [
-      m('th', 'Direction'),
-      m('th', 'Duration'),
-      m('th', 'Connected Slice ID'),
-      m('th', 'Connected Slice Name'),
-      m('th', 'Thread Out'),
-      m('th', 'Thread In'),
-      m('th', 'Process Out'),
-      m('th', 'Process In'),
-    ];
-
-    if (haveCategories) {
-      columns.push(m('th', 'Flow Category'));
-      columns.push(m('th', 'Flow Name'));
-    }
-
-    const rows = [m('tr', columns)];
-
-    // Fill the table with all the directly connected flow events
-    globals.connectedFlows.forEach((flow) => {
-      if (
-        selection.id !== flow.begin.sliceId &&
-        selection.id !== flow.end.sliceId
-      ) {
-        return;
-      }
-
-      const outgoing = selection.id === flow.begin.sliceId;
-      const otherEnd = outgoing ? flow.end : flow.begin;
-
-      const args = {
-        onclick: () => flowClickHandler(otherEnd.sliceId, otherEnd.trackId),
-        onmousemove: () =>
-          globals.dispatch(
-            Actions.setHighlightedSliceId({sliceId: otherEnd.sliceId}),
-          ),
-        onmouseleave: () =>
-          globals.dispatch(Actions.setHighlightedSliceId({sliceId: -1})),
-      };
-
-      const data = [
-        m('td.flow-link', args, outgoing ? 'Outgoing' : 'Incoming'),
-        m('td.flow-link', args, m(DurationWidget, {dur: flow.dur})),
-        m('td.flow-link', args, otherEnd.sliceId.toString()),
-        m('td.flow-link', args, otherEnd.sliceName),
-        m('td.flow-link', args, flow.begin.threadName),
-        m('td.flow-link', args, flow.end.threadName),
-        m('td.flow-link', args, flow.begin.processName),
-        m('td.flow-link', args, flow.end.processName),
-      ];
-
-      if (haveCategories) {
-        data.push(m('td.flow-info', flow.category ?? '-'));
-        data.push(m('td.flow-info', flow.name ?? '-'));
-      }
-
-      rows.push(m('tr', data));
-    });
-
-    return m('.details-panel', [
-      m('.details-panel-heading', m('h2', `Flow events`)),
-      m('.flow-events-table', m('table', rows)),
-    ]);
-  }
+export interface FlowEventsAreaSelectedPanelAttrs {
+  trace: TraceImpl;
 }
 
-export class FlowEventsAreaSelectedPanel implements m.ClassComponent {
-  view() {
-    const selection = globals.state.selection;
+export class FlowEventsAreaSelectedPanel
+  implements m.ClassComponent<FlowEventsAreaSelectedPanelAttrs>
+{
+  view({attrs}: m.CVnode<FlowEventsAreaSelectedPanelAttrs>) {
+    const selection = attrs.trace.selection.selection;
     if (selection.kind !== 'area') {
       return;
     }
@@ -183,7 +67,8 @@ export class FlowEventsAreaSelectedPanel implements m.ClassComponent {
 
     const categoryToFlowsNum = new Map<string, number>();
 
-    globals.selectedFlows.forEach((flow) => {
+    const flows = attrs.trace.flows;
+    flows.selectedFlows.forEach((flow) => {
       const categories = getFlowCategories(flow);
       categories.forEach((cat) => {
         if (!categoryToFlowsNum.has(cat)) {
@@ -193,11 +78,11 @@ export class FlowEventsAreaSelectedPanel implements m.ClassComponent {
       });
     });
 
-    const allWasChecked = globals.visibleFlowCategories.get(ALL_CATEGORIES);
+    const allWasChecked = flows.visibleCategories.get(ALL_CATEGORIES);
     rows.push(
       m('tr.sum', [
         m('td.sum-data', 'All'),
-        m('td.sum-data', globals.selectedFlows.length),
+        m('td.sum-data', flows.selectedFlows.length),
         m(
           'td.sum-data',
           m(
@@ -205,17 +90,15 @@ export class FlowEventsAreaSelectedPanel implements m.ClassComponent {
             {
               onclick: () => {
                 if (allWasChecked) {
-                  globals.visibleFlowCategories.clear();
+                  for (const k of flows.visibleCategories.keys()) {
+                    flows.setCategoryVisible(k, false);
+                  }
                 } else {
                   categoryToFlowsNum.forEach((_, cat) => {
-                    globals.visibleFlowCategories.set(cat, true);
+                    flows.setCategoryVisible(cat, true);
                   });
                 }
-                globals.visibleFlowCategories.set(
-                  ALL_CATEGORIES,
-                  !allWasChecked,
-                );
-                raf.scheduleFullRedraw();
+                flows.setCategoryVisible(ALL_CATEGORIES, !allWasChecked);
               },
             },
             allWasChecked ? Icons.Checkbox : Icons.BlankCheckbox,
@@ -226,8 +109,8 @@ export class FlowEventsAreaSelectedPanel implements m.ClassComponent {
 
     categoryToFlowsNum.forEach((num, cat) => {
       const wasChecked =
-        globals.visibleFlowCategories.get(cat) ||
-        globals.visibleFlowCategories.get(ALL_CATEGORIES);
+        flows.visibleCategories.get(cat) ||
+        flows.visibleCategories.get(ALL_CATEGORIES);
       const data = [
         m('td.flow-info', cat),
         m('td.flow-info', num),
@@ -238,9 +121,9 @@ export class FlowEventsAreaSelectedPanel implements m.ClassComponent {
             {
               onclick: () => {
                 if (wasChecked) {
-                  globals.visibleFlowCategories.set(ALL_CATEGORIES, false);
+                  flows.setCategoryVisible(ALL_CATEGORIES, false);
                 }
-                globals.visibleFlowCategories.set(cat, !wasChecked);
+                flows.setCategoryVisible(cat, !wasChecked);
                 raf.scheduleFullRedraw();
               },
             },

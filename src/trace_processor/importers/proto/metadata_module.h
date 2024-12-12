@@ -52,8 +52,11 @@ class MetadataModule : public ProtoImporterModule {
   void ParseTraceUuid(ConstBytes);
 
   TraceProcessorContext* context_;
-  StringId producer_name_key_id_ = kNullStringId;
-  StringId trusted_producer_uid_key_id_ = kNullStringId;
+
+  const StringId producer_name_key_id_;
+  const StringId trusted_producer_uid_key_id_;
+  const StringId chrome_trigger_name_id_;
+  const StringId chrome_trigger_hash_id_;
 };
 
 }  // namespace trace_processor

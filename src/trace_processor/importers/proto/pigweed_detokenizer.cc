@@ -159,26 +159,28 @@ base::StatusOr<DetokenizedString> PigweedDetokenizer::Detokenize(
       formatted_size =
           perfetto::base::SprintfTrunc(buffer, kFormatBufferSize, fmt, value);
     } else {
-      uint64_t value;
+      uint64_t raw;
       auto old_ptr = ptr;
       ptr = protozero::proto_utils::ParseVarInt(ptr, bytes.data + bytes.size,
-                                                &value);
+                                                &raw);
       if (old_ptr == ptr) {
         return base::ErrStatus("Truncated Pigweed varint");
       }
+      // All Pigweed integers (including unsigned) are zigzag encoded.
+      int64_t value = ::protozero::proto_utils::ZigZagDecode(raw);
       if (arg.type == kSignedInt) {
-        int64_t value_signed;
-        memcpy(&value_signed, &value, sizeof(value_signed));
-        args.push_back(value_signed);
-        formatted_size = perfetto::base::SprintfTrunc(buffer, kFormatBufferSize,
-                                                      fmt, value_signed);
-      } else {
-        if (arg.type == kUnsigned32) {
-          value &= 0xFFFFFFFFu;
-        }
         args.push_back(value);
         formatted_size =
             perfetto::base::SprintfTrunc(buffer, kFormatBufferSize, fmt, value);
+      } else {
+        uint64_t value_unsigned;
+        memcpy(&value_unsigned, &value, sizeof(value_unsigned));
+        if (arg.type == kUnsigned32) {
+          value_unsigned &= 0xFFFFFFFFu;
+        }
+        args.push_back(value_unsigned);
+        formatted_size = perfetto::base::SprintfTrunc(buffer, kFormatBufferSize,
+                                                      fmt, value_unsigned);
       }
     }
     if (formatted_size == kFormatBufferSize - 1) {

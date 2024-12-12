@@ -19,13 +19,9 @@
 
 #include <functional>
 #include <memory>
-#include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-
 #include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto {

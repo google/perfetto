@@ -12,49 +12,44 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assetSrc} from '../base/assets';
 import {assertExists, assertTrue} from '../base/logging';
-import {EngineBase, LoadingTracker} from '../trace_processor/engine';
+import {EngineBase} from '../trace_processor/engine';
 
-let bundlePath: string;
 let idleWasmWorker: Worker;
-let activeWasmWorker: Worker;
 
-export function initWasm(root: string) {
-  bundlePath = root + 'engine_bundle.js';
-  idleWasmWorker = new Worker(bundlePath);
-}
-
-// This method is called trace_controller whenever a new trace is loaded.
-export function resetEngineWorker(): MessagePort {
-  const channel = new MessageChannel();
-  const port = channel.port1;
-
-  // We keep always an idle worker around, the first one is created by the
-  // main() below, so we can hide the latency of the Wasm initialization.
-  if (activeWasmWorker !== undefined) {
-    activeWasmWorker.terminate();
-  }
-
-  // Swap the active worker with the idle one and create a new idle worker
-  // for the next trace.
-  activeWasmWorker = assertExists(idleWasmWorker);
-  activeWasmWorker.postMessage(port, [port]);
-  idleWasmWorker = new Worker(bundlePath);
-  return channel.port2;
+export function initWasm() {
+  idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
 }
 
 /**
  * This implementation of Engine uses a WASM backend hosted in a separate
- * worker thread.
+ * worker thread. The entrypoint of the worker thread is engine/index.ts.
  */
-export class WasmEngineProxy extends EngineBase {
+export class WasmEngineProxy extends EngineBase implements Disposable {
+  readonly mode = 'WASM';
   readonly id: string;
   private port: MessagePort;
+  private worker: Worker;
 
-  constructor(id: string, port: MessagePort, loadingTracker?: LoadingTracker) {
-    super(loadingTracker);
+  constructor(id: string) {
+    super();
     this.id = id;
-    this.port = port;
+
+    const channel = new MessageChannel();
+    const port1 = channel.port1;
+    this.port = channel.port2;
+
+    // We keep an idle instance around to hide the latency of initializing the
+    // instance. Creating the worker (new Worker()) is ~instantaneous, but then
+    // the initialization in the worker thread (i.e. the call to
+    // `new WasmBridge()` that engine/index.ts makes) takes several seconds.
+    // Here we hide that initialization latency by always keeping an idle worker
+    // around. The latency is hidden by the fact that the user usually takes few
+    // seconds until they click on "open trace file" and pick a file.
+    this.worker = assertExists(idleWasmWorker);
+    idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
+    this.worker.postMessage(port1, [port1]);
     this.port.onmessage = this.onMessage.bind(this);
   }
 
@@ -68,5 +63,9 @@ export class WasmEngineProxy extends EngineBase {
     // same buffer when encoding messages (which is good, because creating a new
     // TypedArray for each decode operation would be too expensive).
     this.port.postMessage(data);
+  }
+
+  [Symbol.dispose]() {
+    this.worker.terminate();
   }
 }

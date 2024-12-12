@@ -162,14 +162,37 @@ TEST_F(SystemInfoDataSourceTest, CpuInfoAndroid) {
   ASSERT_THAT(cpu.frequencies(),
               ElementsAre(300000, 576000, 748800, 998400, 1209600, 1324800,
                           1516800, 1612800, 1708800));
+  ASSERT_TRUE(cpu.has_arm_identifier());
+  auto id = cpu.arm_identifier();
+  ASSERT_EQ(id.implementer(), 0x51U);
+  ASSERT_EQ(id.architecture(), 8U);
+  ASSERT_EQ(id.variant(), 0x7U);
+  ASSERT_EQ(id.part(), 0x803U);
+  ASSERT_EQ(id.revision(), 12U);
+
   ASSERT_EQ(cpu.capacity(), static_cast<uint32_t>(200));
   cpu = cpu_info.cpus()[1];
   ASSERT_EQ(cpu.processor(), "AArch64 Processor rev 13 (aarch64)");
   ASSERT_THAT(cpu.frequencies(),
               ElementsAre(300000, 652800, 825600, 979200, 1132800, 1363200,
                           1536000, 1747200, 1843200, 1996800, 2803200));
+  ASSERT_TRUE(cpu.has_arm_identifier());
+  id = cpu.arm_identifier();
+  ASSERT_EQ(id.implementer(), 0x51U);
+  ASSERT_EQ(id.architecture(), 8U);
+  ASSERT_EQ(id.variant(), 0x7U);
+  ASSERT_EQ(id.part(), 0x803U);
+  ASSERT_EQ(id.revision(), 12U);
+
   cpu = cpu_info.cpus()[7];
   ASSERT_EQ(cpu.capacity(), static_cast<uint32_t>(1024));
+  ASSERT_TRUE(cpu.has_arm_identifier());
+  id = cpu.arm_identifier();
+  ASSERT_EQ(id.implementer(), 0x51U);
+  ASSERT_EQ(id.architecture(), 8U);
+  ASSERT_EQ(id.variant(), 0x6U);
+  ASSERT_EQ(id.part(), 0x802U);
+  ASSERT_EQ(id.revision(), 13U);
 }
 
 }  // namespace

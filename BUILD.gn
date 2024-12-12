@@ -116,7 +116,11 @@ if (enable_perfetto_unittests) {
 if (enable_perfetto_integration_tests) {
   import("gn/perfetto_integrationtests.gni")
   test("perfetto_integrationtests") {
-    deps = perfetto_integrationtests_targets
+    deps = [
+      "gn:default_deps",
+      "test:integrationtest_main",
+    ]
+    deps += perfetto_integrationtests_targets
   }
   all_targets += [
     ":perfetto_integrationtests",

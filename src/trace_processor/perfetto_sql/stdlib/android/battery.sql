@@ -16,7 +16,7 @@
 -- Battery charge at timestamp.
 CREATE PERFETTO VIEW android_battery_charge(
   -- Timestamp.
-  ts INT,
+  ts TIMESTAMP,
   -- Current average micro ampers.
   current_avg_ua DOUBLE,
   -- Current capacity percentage.
@@ -24,14 +24,20 @@ CREATE PERFETTO VIEW android_battery_charge(
   -- Current charge in micro ampers.
   charge_uah DOUBLE,
   -- Current micro ampers.
-  current_ua DOUBLE
+  current_ua DOUBLE,
+  -- Current voltage in micro volts.
+  voltage_uv DOUBLE,
+  -- Current energy counter in microwatt-hours(µWh).
+  energy_counter_uwh DOUBLE
 )  AS
 SELECT
   all_ts.ts,
   current_avg_ua,
   capacity_percent,
   charge_uah,
-  current_ua
+  current_ua,
+  voltage_uv,
+  energy_counter_uwh
 FROM (
   SELECT DISTINCT(ts) AS ts
   FROM counter c
@@ -61,5 +67,17 @@ LEFT JOIN (
   FROM counter c
   JOIN counter_track t ON c.track_id = t.id
   WHERE name = 'batt.current_ua'
+) USING(ts)
+LEFT JOIN (
+  SELECT ts, value AS voltage_uv
+  FROM counter c
+  JOIN counter_track t ON c.track_id = t.id
+  WHERE name = 'batt.voltage_uv'
+) USING(ts)
+LEFT JOIN (
+  SELECT ts, value AS energy_counter_uwh
+  FROM counter c
+  JOIN counter_track t ON c.track_id = t.id
+  WHERE name = 'batt.energy_counter_uwh'
 ) USING(ts)
 ORDER BY ts;

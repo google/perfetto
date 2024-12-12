@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/profiling/perf/frame_pointer_unwinder.h"
 
 namespace {
 constexpr size_t kUnwindingMaxFrames = 1000;
@@ -43,18 +44,23 @@ Unwinder::Unwinder(Delegate* delegate, base::UnixTaskRunner* task_runner)
 }
 
 void Unwinder::PostStartDataSource(DataSourceInstanceID ds_id,
-                                   bool kernel_frames) {
+                                   bool kernel_frames,
+                                   UnwindMode unwind_mode) {
   // No need for a weak pointer as the associated task runner quits (stops
   // running tasks) strictly before the Unwinder's destruction.
-  task_runner_->PostTask(
-      [this, ds_id, kernel_frames] { StartDataSource(ds_id, kernel_frames); });
+  task_runner_->PostTask([this, ds_id, kernel_frames, unwind_mode] {
+    StartDataSource(ds_id, kernel_frames, unwind_mode);
+  });
 }
 
-void Unwinder::StartDataSource(DataSourceInstanceID ds_id, bool kernel_frames) {
+void Unwinder::StartDataSource(DataSourceInstanceID ds_id,
+                               bool kernel_frames,
+                               UnwindMode unwind_mode) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Unwinder::StartDataSource(%zu)", static_cast<size_t>(ds_id));
 
-  auto it_and_inserted = data_sources_.emplace(ds_id, DataSourceState{});
+  auto it_and_inserted =
+      data_sources_.emplace(ds_id, DataSourceState{unwind_mode});
   PERFETTO_DCHECK(it_and_inserted.second);
 
   if (kernel_frames) {
@@ -297,8 +303,9 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
           (proc_state.unwind_state.has_value()
                ? &proc_state.unwind_state.value()
                : nullptr);
-      CompletedSample unwound_sample = UnwindSample(
-          entry.sample, opt_user_state, proc_state.attempted_unwinding);
+      CompletedSample unwound_sample =
+          UnwindSample(entry.sample, opt_user_state,
+                       proc_state.attempted_unwinding, ds.unwind_mode);
       proc_state.attempted_unwinding = true;
 
       PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, PROFILER_UNWIND_CURRENT_PID, 0);
@@ -334,7 +341,8 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
 
 CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
                                        UnwindingMetadata* opt_user_state,
-                                       bool pid_unwound_before) {
+                                       bool pid_unwound_before,
+                                       UnwindMode unwind_mode) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   CompletedSample ret;
@@ -375,7 +383,7 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     UnwindResult& operator=(UnwindResult&&) = default;
   };
   auto attempt_unwind = [&sample, unwind_state, pid_unwound_before,
-                         &overlay_memory]() -> UnwindResult {
+                         &overlay_memory, unwind_mode]() -> UnwindResult {
     metatrace::ScopedEvent m(metatrace::TAG_PRODUCER,
                              pid_unwound_before
                                  ? metatrace::PROFILER_UNWIND_ATTEMPT
@@ -384,16 +392,29 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     // Unwindstack clobbers registers, so make a copy in case of retries.
     auto regs_copy = std::unique_ptr<unwindstack::Regs>{sample.regs->Clone()};
 
-    unwindstack::Unwinder unwinder(kUnwindingMaxFrames, &unwind_state->fd_maps,
-                                   regs_copy.get(), overlay_memory);
+    switch (unwind_mode) {
+      case UnwindMode::kFramePointer: {
+        FramePointerUnwinder unwinder(kUnwindingMaxFrames,
+                                      &unwind_state->fd_maps, regs_copy.get(),
+                                      overlay_memory, sample.stack.size());
+        unwinder.Unwind();
+        return {unwinder.LastErrorCode(), unwinder.warnings(),
+                unwinder.ConsumeFrames()};
+      }
+      case UnwindMode::kUnwindStack: {
+        unwindstack::Unwinder unwinder(kUnwindingMaxFrames,
+                                       &unwind_state->fd_maps, regs_copy.get(),
+                                       overlay_memory);
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-    unwinder.SetJitDebug(unwind_state->GetJitDebug(regs_copy->Arch()));
-    unwinder.SetDexFiles(unwind_state->GetDexFiles(regs_copy->Arch()));
+        unwinder.SetJitDebug(unwind_state->GetJitDebug(regs_copy->Arch()));
+        unwinder.SetDexFiles(unwind_state->GetDexFiles(regs_copy->Arch()));
 #endif
-    unwinder.Unwind(/*initial_map_names_to_skip=*/nullptr,
-                    /*map_suffixes_to_ignore=*/nullptr);
-    return {unwinder.LastErrorCode(), unwinder.warnings(),
-            unwinder.ConsumeFrames()};
+        unwinder.Unwind(/*initial_map_names_to_skip=*/nullptr,
+                        /*map_suffixes_to_ignore=*/nullptr);
+        return {unwinder.LastErrorCode(), unwinder.warnings(),
+                unwinder.ConsumeFrames()};
+      }
+    }
   };
 
   // first unwind attempt

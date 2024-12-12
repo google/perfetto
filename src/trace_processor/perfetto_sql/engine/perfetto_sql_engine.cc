@@ -44,11 +44,11 @@
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
-#include "src/trace_processor/perfetto_sql/engine/function_util.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/perfetto_sql/parser/function_util.h"
+#include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -682,7 +682,8 @@ base::Status PerfettoSqlEngine::EnableSqlFunctionMemoization(
       sqlite_engine()->GetFunctionContext(name, kSupportedArgCount));
   if (!ctx) {
     return base::ErrStatus(
-        "EXPERIMENTAL_MEMOIZE: Function %s(INT) does not exist", name.c_str());
+        "EXPERIMENTAL_MEMOIZE: Function '%s'(INT) does not exist",
+        name.c_str());
   }
   return CreatedFunction::EnableMemoization(ctx);
 }
@@ -696,19 +697,28 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
 
   std::string key = include.key;
   if (key == "*") {
-    for (auto moduleIt = modules_.GetIterator(); moduleIt; ++moduleIt) {
-      RETURN_IF_ERROR(IncludeModuleImpl(moduleIt.value(), key, parser));
+    for (auto package = packages_.GetIterator(); package; ++package) {
+      RETURN_IF_ERROR(IncludePackageImpl(package.value(), key, parser));
     }
     return base::OkStatus();
   }
 
-  std::string module_name = sql_modules::GetModuleName(key);
-  auto* module = FindModule(module_name);
-  if (!module) {
-    return base::ErrStatus("INCLUDE: Unknown module name provided - %s",
-                           key.c_str());
+  std::string package_name = sql_modules::GetPackageName(key);
+
+  auto* package = FindPackage(package_name);
+  if (!package) {
+    if (package_name == "common") {
+      return base::ErrStatus(
+          "INCLUDE: Package `common` has been removed and most of the "
+          "functionality has been moved to other packages. Check "
+          "`slices.with_context` for replacement for `common.slices` and "
+          "`time.conversion` for replacement for `common.timestamps`. The "
+          "documentation for Perfetto standard library can be found at "
+          "https://perfetto.dev/docs/analysis/stdlib-docs.");
+    }
+    return base::ErrStatus("INCLUDE: Package '%s' not found", key.c_str());
   }
-  return IncludeModuleImpl(*module, key, parser);
+  return IncludePackageImpl(*package, key, parser);
 }
 
 base::Status PerfettoSqlEngine::ExecuteCreateIndex(
@@ -758,35 +768,34 @@ base::Status PerfettoSqlEngine::ExecuteDropIndex(
   return base::OkStatus();
 }
 
-base::Status PerfettoSqlEngine::IncludeModuleImpl(
-    sql_modules::RegisteredModule& module,
-    const std::string& key,
+base::Status PerfettoSqlEngine::IncludePackageImpl(
+    sql_modules::RegisteredPackage& package,
+    const std::string& include_key,
     const PerfettoSqlParser& parser) {
-  if (!key.empty() && key.back() == '*') {
+  if (!include_key.empty() && include_key.back() == '*') {
     // If the key ends with a wildcard, iterate through all the keys in the
     // module and include matching ones.
-    std::string prefix = key.substr(0, key.size() - 1);
-    for (auto fileIt = module.include_key_to_file.GetIterator(); fileIt;
-         ++fileIt) {
-      if (!base::StartsWith(fileIt.key(), prefix))
+    std::string prefix = include_key.substr(0, include_key.size() - 1);
+    for (auto module = package.modules.GetIterator(); module; ++module) {
+      if (!base::StartsWith(module.key(), prefix))
         continue;
       PERFETTO_TP_TRACE(
           metatrace::Category::QUERY_TIMELINE,
           "Include (expanded from wildcard)",
-          [&](metatrace::Record* r) { r->AddArg("Module", fileIt.key()); });
-      RETURN_IF_ERROR(IncludeFileImpl(fileIt.value(), fileIt.key(), parser));
+          [&](metatrace::Record* r) { r->AddArg("Module", module.key()); });
+      RETURN_IF_ERROR(IncludeModuleImpl(module.value(), module.key(), parser));
     }
     return base::OkStatus();
   }
-  auto* module_file = module.include_key_to_file.Find(key);
+  auto* module_file = package.modules.Find(include_key);
   if (!module_file) {
-    return base::ErrStatus("INCLUDE: unknown module '%s'", key.c_str());
+    return base::ErrStatus("INCLUDE: unknown module '%s'", include_key.c_str());
   }
-  return IncludeFileImpl(*module_file, key, parser);
+  return IncludeModuleImpl(*module_file, include_key, parser);
 }
 
-base::Status PerfettoSqlEngine::IncludeFileImpl(
-    sql_modules::RegisteredModule::ModuleFile& file,
+base::Status PerfettoSqlEngine::IncludeModuleImpl(
+    sql_modules::RegisteredPackage::ModuleFile& file,
     const std::string& key,
     const PerfettoSqlParser& parser) {
   // INCLUDE is noop for already included files.

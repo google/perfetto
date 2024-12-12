@@ -14,9 +14,7 @@
 
 // Keep this import first.
 import '../base/static_initializers';
-
 import m from 'mithril';
-
 import {defer} from '../base/deferred';
 import {reportError, addErrorHandler, ErrorDetails} from '../base/logging';
 import {initLiveReloadIfLocalhost} from '../core/live_reload';

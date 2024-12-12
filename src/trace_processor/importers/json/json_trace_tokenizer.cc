@@ -22,15 +22,15 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
-#include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -551,25 +551,86 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
         break;
     }
 
+    // Metadata events may omit ts. In all other cases error:
+    std::optional<std::string> opt_raw_ph;
+    RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "ph", &opt_raw_ph));
+    if (PERFETTO_UNLIKELY(opt_raw_ph == "P")) {
+      RETURN_IF_ERROR(ParseV8SampleEvent(unparsed));
+      continue;
+    }
+
     std::optional<std::string> opt_raw_ts;
     RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "ts", &opt_raw_ts));
     std::optional<int64_t> opt_ts =
         opt_raw_ts ? json::CoerceToTs(*opt_raw_ts) : std::nullopt;
+    std::optional<std::string> opt_raw_dur;
+    RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "dur", &opt_raw_dur));
+    std::optional<int64_t> opt_dur =
+        opt_raw_dur ? json::CoerceToTs(*opt_raw_dur) : std::nullopt;
     int64_t ts = 0;
     if (opt_ts.has_value()) {
       ts = opt_ts.value();
     } else {
-      // Metadata events may omit ts. In all other cases error:
-      std::optional<std::string> opt_raw_ph;
-      RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "ph", &opt_raw_ph));
       if (!opt_raw_ph || *opt_raw_ph != "M") {
         context_->storage->IncrementStats(stats::json_tokenizer_failure);
         continue;
       }
     }
-    context_->sorter->PushJsonValue(ts, unparsed.ToStdString());
+    context_->sorter->PushJsonValue(ts, unparsed.ToStdString(), opt_dur);
   }
   return SetOutAndReturn(next, out);
+}
+
+base::Status JsonTraceTokenizer::ParseV8SampleEvent(base::StringView unparsed) {
+  auto opt_evt = json::ParseJsonString(unparsed);
+  if (!opt_evt) {
+    return base::OkStatus();
+  }
+  const auto& evt = *opt_evt;
+  std::optional<uint32_t> id = base::StringToUInt32(evt["id"].asString(), 16);
+  if (!id) {
+    return base::OkStatus();
+  }
+  uint32_t pid = evt["pid"].asUInt();
+  uint32_t tid = evt["tid"].asUInt();
+  const auto& val = evt["args"]["data"];
+  if (val.isMember("startTime")) {
+    context_->legacy_v8_cpu_profile_tracker->SetStartTsForSessionAndPid(
+        *id, pid, val["startTime"].asInt64() * 1000);
+    return base::OkStatus();
+  }
+  const auto& profile = val["cpuProfile"];
+  for (const auto& n : profile["nodes"]) {
+    uint32_t node_id = n["id"].asUInt();
+    std::optional<uint32_t> parent_node_id =
+        n.isMember("parent") ? std::make_optional(n["parent"].asUInt())
+                             : std::nullopt;
+    const auto& frame = n["callFrame"];
+    base::StringView url =
+        frame.isMember("url") ? frame["url"].asCString() : base::StringView();
+    base::StringView function_name = frame["functionName"].asCString();
+    base::Status status = context_->legacy_v8_cpu_profile_tracker->AddCallsite(
+        *id, pid, node_id, parent_node_id, url, function_name);
+    if (!status.ok()) {
+      context_->storage->IncrementStats(
+          stats::legacy_v8_cpu_profile_invalid_callsite);
+      continue;
+    }
+  }
+  const auto& samples = profile["samples"];
+  const auto& deltas = val["timeDeltas"];
+  if (samples.size() != deltas.size()) {
+    return base::ErrStatus(
+        "v8 legacy profile: samples and timestamps do not have same size");
+  }
+  for (uint32_t i = 0; i < samples.size(); ++i) {
+    ASSIGN_OR_RETURN(int64_t ts,
+                     context_->legacy_v8_cpu_profile_tracker->AddDeltaAndGetTs(
+                         *id, pid, deltas[i].asInt64() * 1000));
+    context_->sorter->PushLegacyV8CpuProfileEvent(ts, *id, pid, tid,
+                                                  samples[i].asUInt());
+  }
+  return base::OkStatus();
 }
 
 base::Status JsonTraceTokenizer::HandleDictionaryKey(const char* start,
@@ -687,7 +748,9 @@ base::Status JsonTraceTokenizer::HandleSystemTraceEvent(const char* start,
 }
 
 base::Status JsonTraceTokenizer::NotifyEndOfFile() {
-  return position_ == TracePosition::kEof
+  return position_ == TracePosition::kEof ||
+                 (position_ == TracePosition::kInsideTraceEventsArray &&
+                  format_ == TraceFormat::kOnlyTraceEvents)
              ? base::OkStatus()
              : base::ErrStatus("JSON trace file is incomplete");
 }

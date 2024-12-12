@@ -30,12 +30,12 @@ class PerfettoSqlEngineTest : public ::testing::Test {
   PerfettoSqlEngine engine_{&pool_, true};
 };
 
-sql_modules::RegisteredModule CreateTestModule(
+sql_modules::RegisteredPackage CreateTestPackage(
     std::vector<std::pair<std::string, std::string>> files) {
-  sql_modules::RegisteredModule result;
+  sql_modules::RegisteredPackage result;
   for (auto& file : files) {
-    result.include_key_to_file[file.first] =
-        sql_modules::RegisteredModule::ModuleFile{file.second, false};
+    result.modules[file.first] =
+        sql_modules::RegisteredPackage::ModuleFile{file.second, false};
   }
   return result;
 }
@@ -54,7 +54,7 @@ TEST_F(PerfettoSqlEngineTest, Function_Create) {
 
   res = engine_.Execute(
       SqlSource::FromExecuteQuery("creatE PeRfEttO FUNCTION foo(x INT, y LONG) "
-                                  "RETURNS INT AS select :x + :y"));
+                                  "RETURNS INT AS select $x + $y"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
@@ -283,43 +283,38 @@ TEST_F(PerfettoSqlEngineTest, Macro_Duplicates) {
 }
 
 TEST_F(PerfettoSqlEngineTest, Include_All) {
-  engine_.RegisterModule(
-      "foo", CreateTestModule(
+  engine_.RegisterPackage(
+      "foo", CreateTestPackage(
                  {{"foo.foo", "CREATE PERFETTO TABLE foo AS SELECT 42 AS x"}}));
-  engine_.RegisterModule(
+  engine_.RegisterPackage(
       "bar",
-      CreateTestModule(
+      CreateTestPackage(
           {{"bar.bar", "CREATE PERFETTO TABLE bar AS SELECT 42 AS x "}}));
 
   auto res_create =
       engine_.Execute(SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE *"));
   ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
-  ASSERT_TRUE(
-      engine_.FindModule("foo")->include_key_to_file["foo.foo"].included);
-  ASSERT_TRUE(
-      engine_.FindModule("bar")->include_key_to_file["bar.bar"].included);
+  ASSERT_TRUE(engine_.FindPackage("foo")->modules["foo.foo"].included);
+  ASSERT_TRUE(engine_.FindPackage("bar")->modules["bar.bar"].included);
 }
 
 TEST_F(PerfettoSqlEngineTest, Include_Module) {
-  engine_.RegisterModule(
-      "foo", CreateTestModule({
+  engine_.RegisterPackage(
+      "foo", CreateTestPackage({
                  {"foo.foo1", "CREATE PERFETTO TABLE foo1 AS SELECT 42 AS x"},
                  {"foo.foo2", "CREATE PERFETTO TABLE foo2 AS SELECT 42 AS x"},
              }));
-  engine_.RegisterModule(
+  engine_.RegisterPackage(
       "bar",
-      CreateTestModule(
+      CreateTestPackage(
           {{"bar.bar", "CREATE PERFETTO TABLE bar AS SELECT 42 AS x "}}));
 
   auto res_create = engine_.Execute(
       SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.*"));
   ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
-  ASSERT_TRUE(
-      engine_.FindModule("foo")->include_key_to_file["foo.foo1"].included);
-  ASSERT_TRUE(
-      engine_.FindModule("foo")->include_key_to_file["foo.foo2"].included);
-  ASSERT_FALSE(
-      engine_.FindModule("bar")->include_key_to_file["bar.bar"].included);
+  ASSERT_TRUE(engine_.FindPackage("foo")->modules["foo.foo1"].included);
+  ASSERT_TRUE(engine_.FindPackage("foo")->modules["foo.foo2"].included);
+  ASSERT_FALSE(engine_.FindPackage("bar")->modules["bar.bar"].included);
 }
 
 TEST_F(PerfettoSqlEngineTest, MismatchedRange) {

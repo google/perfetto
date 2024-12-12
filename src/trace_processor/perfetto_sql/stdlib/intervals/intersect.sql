@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE metasql.table_list;
-
 CREATE PERFETTO MACRO _ii_df_agg(x Expr, y Expr)
 RETURNS Expr AS __intrinsic_stringify!($x), input.$y;
 
@@ -37,11 +35,10 @@ RETURNS TableOrSubquery AS
     input.id,
     input.ts,
     input.dur
-    __intrinsic_prefixed_token_zip_join!(
-      $agg_columns,
-      $agg_columns,
+    __intrinsic_token_apply_prefix!(
       _ii_df_agg,
-      __intrinsic_token_comma!()
+      $agg_columns,
+      $agg_columns
     )
   )
   FROM (SELECT * FROM $tab ORDER BY ts) input
@@ -57,24 +54,25 @@ RETURNS TableOrSubquery AS
     c0 AS ts,
     c1 AS dur,
     -- Columns for tables ids, in the order of provided tables.
-    __intrinsic_token_zip_join!(
-      (c2 AS id_0, c3 AS id_1, c4 AS id_2, c5 AS id_3, c6 AS id_4),
-      $tabs,
+    __intrinsic_token_apply!(
       __first_arg,
-      __intrinsic_token_comma!()
+      (c2 AS id_0, c3 AS id_1, c4 AS id_2, c5 AS id_3, c6 AS id_4),
+      $tabs
     )
-    -- Columns for partitions, one for each column with partition. Prefixed to
-    -- handle case of no partitions.
-    __intrinsic_prefixed_token_zip_join!(
-      (c7, c8, c9, c10),
-      $agg_columns,
+    -- Columns for partitions, one for each column with partition.
+    __intrinsic_token_apply_prefix!(
       _ii_df_select,
-      __intrinsic_token_comma!()
+      (c7, c8, c9, c10),
+      $agg_columns
     )
   -- Interval intersect result table.
   FROM __intrinsic_table_ptr(
     __intrinsic_interval_intersect(
-      _metasql_map_join_table_list_with_capture!($tabs, _interval_agg, ($agg_columns)),
+      __intrinsic_token_apply!(
+        _interval_agg,
+        $tabs,
+        ($agg_columns, $agg_columns, $agg_columns, $agg_columns, $agg_columns)
+      ),
       __intrinsic_stringify!($agg_columns)
     )
   )
@@ -89,12 +87,11 @@ RETURNS TableOrSubquery AS
     AND __intrinsic_table_ptr_bind(c5, 'id_3')
     AND __intrinsic_table_ptr_bind(c6, 'id_4')
 
-    -- Partition columns. Prefixed to handle case of no partitions.
-    __intrinsic_prefixed_token_zip_join!(
-      (c7, c8, c9, c10),
-      $agg_columns,
+    -- Partition columns.
+    __intrinsic_token_apply_and_prefix!(
       _ii_df_bind,
-      AND
+      (c7, c8, c9, c10),
+      $agg_columns
     )
 );
 

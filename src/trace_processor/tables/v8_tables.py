@@ -29,6 +29,8 @@ from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import CppUint32 as CppBool
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
+from python.generators.trace_processor_table.public import WrappingSqlView
+
 from .jit_tables import JIT_CODE_TABLE
 
 V8_ISOLATE = Table(

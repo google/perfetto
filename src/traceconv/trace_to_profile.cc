@@ -110,12 +110,11 @@ int TraceToProfile(
   tp->Flush();
   MaybeSymbolize(tp.get());
   MaybeDeobfuscate(tp.get());
-
-  TraceToPprof(tp.get(), &profiles, conversion_mode, conversion_flags, pid,
-               timestamps);
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
     return -1;
   }
+  TraceToPprof(tp.get(), &profiles, conversion_mode, conversion_flags, pid,
+               timestamps);
   if (profiles.empty()) {
     return 0;
   }

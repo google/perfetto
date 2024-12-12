@@ -1,6 +1,7 @@
 android_startup {
   startup {
     startup_id: 0
+    cpu_count: 2
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
     zygote_new_process: false
@@ -80,10 +81,15 @@ android_startup {
       }
       launch_dur: 108000000000
       trace_thread_sections {
+        thread_section {
+          start_timestamp: 130000000000
+          end_timestamp: 210000000000
+          thread_name: "com.google.android.calendar"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 130000000000
         end_timestamp: 210000000000
-        thread_utid: 3
-        thread_name: "com.google.android.calendar"
       }
     }
     slow_start_reason_with_details {
@@ -100,10 +106,15 @@ android_startup {
       }
       launch_dur: 108000000000
       trace_thread_sections {
+        thread_section {
+          start_timestamp: 120000000000
+          end_timestamp: 125000000000
+          thread_name: "com.google.android.calendar"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 120000000000
         end_timestamp: 125000000000
-        thread_utid: 3
-        thread_name: "com.google.android.calendar"
       }
     }
     slow_start_reason_with_details {
@@ -120,10 +131,15 @@ android_startup {
       }
       launch_dur: 108000000000
       trace_thread_sections {
+        thread_section {
+          start_timestamp: 125000000000
+          end_timestamp: 130000000000
+          thread_name: "com.google.android.calendar"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 125000000000
         end_timestamp: 130000000000
-        thread_utid: 3
-        thread_name: "com.google.android.calendar"
       }
     }
     slow_start_reason_with_details {
@@ -140,10 +156,15 @@ android_startup {
       }
       launch_dur: 108000000000
       trace_thread_sections {
+        thread_section {
+          start_timestamp: 130000000000
+          end_timestamp: 210000000000
+          thread_name: "com.google.android.calendar"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 130000000000
         end_timestamp: 210000000000
-        thread_utid: 3
-        thread_name: "com.google.android.calendar"
       }
     }
   }

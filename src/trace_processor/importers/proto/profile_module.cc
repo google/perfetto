@@ -251,6 +251,16 @@ void ProfileModule::ParsePerfSample(
       ts, static_cast<double>(sample.timebase_count()),
       sampling_stream.timebase_track_id);
 
+  if (sample.has_follower_counts()) {
+    auto track_it = sampling_stream.follower_track_ids.begin();
+    auto track_end = sampling_stream.follower_track_ids.end();
+    for (auto it = sample.follower_counts(); it && track_it != track_end;
+         ++it, ++track_it) {
+      context_->event_tracker->PushCounter(ts, static_cast<double>(*it),
+                                           *track_it);
+    }
+  }
+
   const UniqueTid utid =
       context_->process_tracker->UpdateThread(sample.tid(), sample.pid());
   const UniquePid upid =

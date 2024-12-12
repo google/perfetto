@@ -94,4 +94,27 @@
   .time-selection-panel {
     height: 10px;
   }
+
+  .helpful-hint {
+    position: absolute;
+    z-index: 10;
+    right: 5px;
+    top: 5px;
+    width: 300px;
+    background-color: white;
+    font-size: 12px;
+    color: #3f4040;
+    display: grid;
+    border-radius: 5px;
+    padding: 8px;
+    box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
+  }
+}
+
+.pf-track-crash-popup {
+  font-family: $pf-font;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  row-gap: 6px;
 }

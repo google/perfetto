@@ -86,6 +86,8 @@ class VirtualMemoryMapping {
   VirtualMemoryMapping(TraceProcessorContext* context,
                        CreateMappingParams params);
 
+  TraceProcessorContext* context() const { return context_; }
+
  private:
   friend class MappingTracker;
 
@@ -147,6 +149,42 @@ class UserMemoryMapping : public VirtualMemoryMapping {
                     CreateMappingParams params);
 
   const UniquePid upid_;
+};
+
+// Dummy mapping to be able to create frames when we have no real pc addresses
+// or real mappings.
+class DummyMemoryMapping : public VirtualMemoryMapping {
+ public:
+  ~DummyMemoryMapping() override;
+
+  // Interns a frame based solely on function name and source file. This is
+  // useful for profilers that do not emit an address nor a mapping.
+  FrameId InternDummyFrame(base::StringView function_name,
+                           base::StringView source_file);
+
+ private:
+  friend class MappingTracker;
+  DummyMemoryMapping(TraceProcessorContext* context,
+                     CreateMappingParams params);
+
+  struct DummyFrameKey {
+    StringId function_name_id;
+    StringId source_file_id;
+
+    bool operator==(const DummyFrameKey& o) const {
+      return function_name_id == o.function_name_id &&
+             source_file_id == o.source_file_id;
+    }
+
+    struct Hasher {
+      size_t operator()(const DummyFrameKey& k) const {
+        return static_cast<size_t>(base::Hasher::Combine(
+            k.function_name_id.raw_id(), k.source_file_id.raw_id()));
+      }
+    };
+  };
+  base::FlatHashMap<DummyFrameKey, FrameId, DummyFrameKey::Hasher>
+      interned_dummy_frames_;
 };
 
 }  // namespace trace_processor

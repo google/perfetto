@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {length as utf8Len, write as utf8Write} from '@protobufjs/utf8';
-
 import {assertTrue} from '../base/logging';
 import {isString} from '../base/object_utils';
 

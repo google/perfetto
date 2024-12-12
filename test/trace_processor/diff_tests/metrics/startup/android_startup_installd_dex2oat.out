@@ -1,6 +1,7 @@
 android_startup {
   startup {
     startup_id: 1
+    cpu_count: 1
     package_name: "com.google.android.calendar"
     zygote_new_process: false
     to_first_frame {
@@ -32,6 +33,7 @@ android_startup {
   }
   startup {
     startup_id: 2
+    cpu_count: 1
     package_name: "com.google.android.calculator"
     zygote_new_process: false
     to_first_frame {
@@ -79,6 +81,7 @@ android_startup {
   }
   startup {
     startup_id: 3
+    cpu_count: 1
     package_name: "com.google.android.deskclock"
     zygote_new_process: false
     to_first_frame {
@@ -126,6 +129,7 @@ android_startup {
   }
   startup {
     startup_id: 4
+    cpu_count: 1
     package_name: "com.google.android.gm"
     zygote_new_process: false
     to_first_frame {

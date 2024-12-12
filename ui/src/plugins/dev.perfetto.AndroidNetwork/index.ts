@@ -12,37 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
-import {addDebugSliceTrack} from '../../public';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin} from '../../public/plugin';
+import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 
-class AndroidNetwork implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidNetwork';
   // Adds a debug track using the provided query and given columns. The columns
   // must be start with ts, dur, and a name column. The name column and all
   // following columns are shown as arguments in slice details.
   async addSimpleTrack(
-    ctx: PluginContextTrace,
+    ctx: Trace,
     trackName: string,
     tableOrQuery: string,
     columns: string[],
   ): Promise<void> {
-    await addDebugSliceTrack(
-      ctx,
-      {
+    await addDebugSliceTrack({
+      trace: ctx,
+      data: {
         sqlSource: `SELECT ${columns.join(',')} FROM ${tableOrQuery}`,
         columns: columns,
       },
-      trackName,
-      {ts: columns[0], dur: columns[1], name: columns[2]},
-      columns.slice(2),
-    );
+      title: trackName,
+      columns: {ts: columns[0], dur: columns[1], name: columns[2]},
+      argColumns: columns.slice(2),
+    });
   }
 
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerCommand({
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.AndroidNetwork#batteryEvents',
       name: 'Add track: battery events',
       callback: async (track) => {
@@ -63,7 +61,7 @@ class AndroidNetwork implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.AndroidNetwork#activityTrack',
       name: 'Add track: network activity',
       callback: async (groupby, filter, trackName) => {
@@ -101,8 +99,3 @@ class AndroidNetwork implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidNetwork',
-  plugin: AndroidNetwork,
-};

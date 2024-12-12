@@ -23,6 +23,7 @@
 #include <string>
 #include <utility>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/jit_cache.h"
@@ -117,6 +118,41 @@ std::pair<FrameId, bool> VirtualMemoryMapping::InternFrameImpl(
   interned_frames_.Insert(frame_key, frame_id);
 
   return {frame_id, true};
+}
+
+DummyMemoryMapping::~DummyMemoryMapping() = default;
+
+DummyMemoryMapping::DummyMemoryMapping(TraceProcessorContext* context,
+                                       CreateMappingParams params)
+    : VirtualMemoryMapping(context, std::move(params)) {}
+
+FrameId DummyMemoryMapping::InternDummyFrame(base::StringView function_name,
+                                             base::StringView source_file) {
+  DummyFrameKey key{context()->storage->InternString(function_name),
+                    context()->storage->InternString(source_file)};
+
+  if (FrameId* id = interned_dummy_frames_.Find(key); id) {
+    return *id;
+  }
+
+  uint32_t symbol_set_id = context()->storage->symbol_table().row_count();
+
+  tables::SymbolTable::Id symbol_id =
+      context()
+          ->storage->mutable_symbol_table()
+          ->Insert({symbol_set_id, key.function_name_id, key.source_file_id})
+          .id;
+
+  PERFETTO_CHECK(symbol_set_id == symbol_id.value);
+
+  const FrameId frame_id =
+      context()
+          ->storage->mutable_stack_profile_frame_table()
+          ->Insert({key.function_name_id, mapping_id(), 0, symbol_set_id})
+          .id;
+  interned_dummy_frames_.Insert(key, frame_id);
+
+  return frame_id;
 }
 
 }  // namespace trace_processor

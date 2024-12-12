@@ -20,6 +20,7 @@
 
 #include "ftrace_config_muxer.h"
 #include "perfetto/ext/base/utils.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
@@ -30,10 +31,12 @@
 using testing::_;
 using testing::AnyNumber;
 using testing::Contains;
+using testing::ElementsAre;
 using testing::ElementsAreArray;
 using testing::Eq;
 using testing::Invoke;
 using testing::IsEmpty;
+using testing::IsSupersetOf;
 using testing::MatchesRegex;
 using testing::NiceMock;
 using testing::Not;
@@ -64,6 +67,7 @@ class MockFtraceProcfs : public FtraceProcfs {
   MockFtraceProcfs() : FtraceProcfs("/root/") {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(1));
     ON_CALL(*this, WriteToFile(_, _)).WillByDefault(Return(true));
+    ON_CALL(*this, AppendToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, ClearFile(_)).WillByDefault(Return(true));
     EXPECT_CALL(*this, NumberOfCpus()).Times(AnyNumber());
   }
@@ -115,6 +119,10 @@ class MockProtoTranslationTable : public ProtoTranslationTable {
                               PrintkMap()) {}
   MOCK_METHOD(Event*,
               GetOrCreateEvent,
+              (const GroupAndName& group_and_name),
+              (override));
+  MOCK_METHOD(Event*,
+              GetOrCreateKprobeEvent,
               (const GroupAndName& group_and_name),
               (override));
   MOCK_METHOD(const Event*,
@@ -1204,6 +1212,28 @@ TEST_F(FtraceConfigMuxerFakeTableTest, PreserveFtraceBufferNotSetBufferSizeKb) {
   ASSERT_TRUE(model_.SetupConfig(id, config));
 }
 
+TEST_F(FtraceConfigMuxerFakeTableTest, KprobeNamesReserved) {
+  FtraceConfig config = CreateFtraceConfig(
+      {"perfetto_kprobes/fuse_file_write_iter",
+       "perfetto_kretprobes/fuse_file_write_iter", "unknown/unknown"});
+
+  ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
+      .WillByDefault(Return("nop"));
+  ON_CALL(ftrace_, ReadFileIntoString("/root/events/enable"))
+      .WillByDefault(Return("0"));
+
+  FtraceSetupErrors errors{};
+  FtraceConfigId id_a = 23;
+  ASSERT_TRUE(model_.SetupConfig(id_a, config, &errors));
+  // These event fail because the names "perfetto_kprobes" and
+  // "perfetto_kretprobes" are used internally by perfetto.
+  EXPECT_THAT(errors.failed_ftrace_events,
+              IsSupersetOf({"perfetto_kprobes/fuse_file_write_iter",
+                            "perfetto_kretprobes/fuse_file_write_iter"}));
+  // This event is just unknown
+  EXPECT_THAT(errors.unknown_ftrace_events, ElementsAre("unknown/unknown"));
+}
+
 // Fixture that constructs a FtraceConfigMuxer with a mock
 // ProtoTranslationTable.
 class FtraceConfigMuxerMockTableTest : public FtraceConfigMuxerTest {
@@ -1263,6 +1293,158 @@ TEST_F(FtraceConfigMuxerMockTableTest, AddGenericEvent) {
   const EventFilter* central_filter = model_.GetCentralEventFilterForTesting();
   ASSERT_THAT(central_filter->GetEnabledEvents(),
               ElementsAreArray({kExpectedEventId}));
+}
+
+class FtraceConfigMuxerMockTableParamTest
+    : public FtraceConfigMuxerMockTableTest,
+      public testing::WithParamInterface<
+          std::pair<perfetto::protos::gen::FtraceConfig_KprobeEvent_KprobeType,
+                    std::string>> {};
+
+TEST_P(FtraceConfigMuxerMockTableParamTest, AddKprobeEvent) {
+  auto kprobe_type = std::get<0>(GetParam());
+  std::string group_name(std::get<1>(GetParam()));
+
+  FtraceConfig config;
+  FtraceConfig::KprobeEvent kprobe_event;
+
+  kprobe_event.set_probe("fuse_file_write_iter");
+  kprobe_event.set_type(kprobe_type);
+  *config.add_kprobe_events() = kprobe_event;
+
+  EXPECT_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
+      .WillOnce(Return("nop"));
+  EXPECT_CALL(ftrace_, ReadOneCharFromFile("/root/tracing_on"))
+      .WillOnce(Return('1'));
+  EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_on", "0"));
+  EXPECT_CALL(ftrace_, WriteToFile("/root/events/enable", "0"));
+  EXPECT_CALL(ftrace_, ClearFile("/root/trace"));
+  EXPECT_CALL(ftrace_, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
+  ON_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
+      .WillByDefault(Return("[local] global boot"));
+  EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
+      .Times(AnyNumber());
+  EXPECT_CALL(ftrace_, WriteToFile("/root/buffer_size_kb", _));
+  EXPECT_CALL(ftrace_, WriteToFile("/root/trace_clock", "boot"));
+  EXPECT_CALL(ftrace_, WriteToFile("/root/events/" + group_name +
+                                       "/fuse_file_write_iter/enable",
+                                   "1"));
+  EXPECT_CALL(*mock_table_, GetEvent(GroupAndName("power", "cpu_frequency")))
+      .Times(AnyNumber());
+
+  static constexpr int kExpectedEventId = 77;
+  Event event_to_return_kprobe;
+  event_to_return_kprobe.name = "fuse_file_write_iter";
+  event_to_return_kprobe.group = group_name.c_str();
+  event_to_return_kprobe.ftrace_event_id = kExpectedEventId;
+  EXPECT_CALL(*mock_table_, GetOrCreateKprobeEvent(GroupAndName(
+                                group_name, "fuse_file_write_iter")))
+      .WillOnce(Return(&event_to_return_kprobe));
+
+  FtraceConfigId id = 7;
+  ASSERT_TRUE(model_.SetupConfig(id, config));
+
+  EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_on", "1"));
+  ASSERT_TRUE(model_.ActivateConfig(id));
+
+  const FtraceDataSourceConfig* ds_config = model_.GetDataSourceConfig(id);
+  ASSERT_TRUE(ds_config);
+  ASSERT_THAT(ds_config->event_filter.GetEnabledEvents(),
+              ElementsAre(kExpectedEventId));
+
+  const EventFilter* central_filter = model_.GetCentralEventFilterForTesting();
+  ASSERT_THAT(central_filter->GetEnabledEvents(),
+              ElementsAre(kExpectedEventId));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    KprobeTypes,
+    FtraceConfigMuxerMockTableParamTest,
+    testing::Values(
+        std::make_pair(
+            protos::gen::FtraceConfig::KprobeEvent::KPROBE_TYPE_KPROBE,
+            kKprobeGroup),
+        std::make_pair(
+            protos::gen::FtraceConfig::KprobeEvent::KPROBE_TYPE_KRETPROBE,
+            kKretprobeGroup)));
+
+TEST_F(FtraceConfigMuxerMockTableTest, AddKprobeBothEvent) {
+  FtraceConfig config;
+  FtraceConfig::KprobeEvent kprobe_event;
+
+  kprobe_event.set_probe("fuse_file_write_iter");
+  kprobe_event.set_type(
+      protos::gen::FtraceConfig::KprobeEvent::KPROBE_TYPE_BOTH);
+  *config.add_kprobe_events() = kprobe_event;
+
+  EXPECT_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
+      .WillOnce(Return("nop"));
+  EXPECT_CALL(ftrace_, ReadOneCharFromFile("/root/tracing_on"))
+      .WillOnce(Return('1'));
+  EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_on", "0"));
+  EXPECT_CALL(ftrace_, WriteToFile("/root/events/enable", "0"));
+  EXPECT_CALL(ftrace_, ClearFile("/root/trace"));
+  EXPECT_CALL(ftrace_, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
+  ON_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
+      .WillByDefault(Return("[local] global boot"));
+  EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
+      .Times(AnyNumber());
+  EXPECT_CALL(ftrace_, WriteToFile("/root/buffer_size_kb", _));
+  EXPECT_CALL(ftrace_, WriteToFile("/root/trace_clock", "boot"));
+  EXPECT_CALL(
+      ftrace_,
+      WriteToFile("/root/events/perfetto_kprobes/fuse_file_write_iter/enable",
+                  "1"));
+  EXPECT_CALL(
+      ftrace_,
+      WriteToFile(
+          "/root/events/perfetto_kretprobes/fuse_file_write_iter/enable", "1"));
+  EXPECT_CALL(
+      ftrace_,
+      AppendToFile(
+          "/root/kprobe_events",
+          "p:perfetto_kprobes/fuse_file_write_iter fuse_file_write_iter"));
+  EXPECT_CALL(
+      ftrace_,
+      AppendToFile("/root/kprobe_events",
+                   std::string("r") + std::string(kKretprobeDefaultMaxactives) +
+                       ":perfetto_kretprobes/fuse_file_write_iter "
+                       "fuse_file_write_iter"));
+
+  std::string g1(kKprobeGroup);
+  static constexpr int kExpectedEventId = 77;
+  Event event_to_return_kprobe;
+  event_to_return_kprobe.name = "fuse_file_write_iter";
+  event_to_return_kprobe.group = g1.c_str();
+  event_to_return_kprobe.ftrace_event_id = kExpectedEventId;
+  EXPECT_CALL(*mock_table_, GetOrCreateKprobeEvent(GroupAndName(
+                                "perfetto_kprobes", "fuse_file_write_iter")))
+      .WillOnce(Return(&event_to_return_kprobe));
+
+  std::string g2(kKretprobeGroup);
+  static constexpr int kExpectedEventId2 = 78;
+  Event event_to_return_kretprobe;
+  event_to_return_kretprobe.name = "fuse_file_write_iter";
+  event_to_return_kretprobe.group = g2.c_str();
+  event_to_return_kretprobe.ftrace_event_id = kExpectedEventId2;
+  EXPECT_CALL(*mock_table_, GetOrCreateKprobeEvent(GroupAndName(
+                                "perfetto_kretprobes", "fuse_file_write_iter")))
+      .WillOnce(Return(&event_to_return_kretprobe));
+
+  FtraceConfigId id = 7;
+  ASSERT_TRUE(model_.SetupConfig(id, config));
+
+  EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_on", "1"));
+  ASSERT_TRUE(model_.ActivateConfig(id));
+
+  const FtraceDataSourceConfig* ds_config = model_.GetDataSourceConfig(id);
+  ASSERT_TRUE(ds_config);
+  ASSERT_THAT(ds_config->event_filter.GetEnabledEvents(),
+              UnorderedElementsAre(kExpectedEventId, kExpectedEventId2));
+
+  const EventFilter* central_filter = model_.GetCentralEventFilterForTesting();
+  ASSERT_THAT(central_filter->GetEnabledEvents(),
+              UnorderedElementsAre(kExpectedEventId, kExpectedEventId2));
 }
 
 TEST_F(FtraceConfigMuxerMockTableTest, AddAllEvents) {

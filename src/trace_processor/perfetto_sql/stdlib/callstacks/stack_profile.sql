@@ -14,6 +14,7 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE graphs.hierarchy;
+INCLUDE PERFETTO MODULE graphs.scan;
 
 CREATE PERFETTO TABLE _callstack_spf_summary AS
 SELECT
@@ -68,7 +69,7 @@ SELECT
   -- significant fraction of the runtime on big traces.
   IFNULL(
     DEMANGLE(COALESCE(s.name, f.deobfuscated_name, f.name)),
-    COALESCE(s.name, f.deobfuscated_name, f.name)
+    COALESCE(s.name, f.deobfuscated_name, f.name, '[Unknown]')
   ) AS name,
   f.mapping AS mapping_id,
   s.source_file,
@@ -113,7 +114,7 @@ AS
   JOIN stack_profile_mapping m ON f.mapping_id = m.id
 );
 
-CREATE PERFETTO MACRO _callstacks_for_cpu_profile_stack_samples(
+CREATE PERFETTO MACRO _callstacks_for_callsites(
   samples TableOrSubquery
 )
 RETURNS TableOrSubquery
@@ -137,3 +138,38 @@ AS
   FROM _callstacks_for_stack_profile_samples!(metrics) c
   LEFT JOIN metrics m USING (callsite_id)
 );
+
+CREATE PERFETTO MACRO _callstacks_self_to_cumulative(
+  callstacks TableOrSubquery
+)
+RETURNS TableOrSubquery
+AS
+(
+  SELECT a.*
+  FROM _graph_aggregating_scan!(
+    (
+      SELECT id AS source_node_id, parent_id AS dest_node_id
+      FROM $callstacks
+      WHERE parent_id IS NOT NULL
+    ),
+    (
+      SELECT p.id, p.self_count AS cumulative_count
+      FROM $callstacks p
+      LEFT JOIN $callstacks c ON c.parent_id = p.id
+      WHERE c.id IS NULL
+    ),
+    (cumulative_count),
+    (
+      WITH agg AS (
+        SELECT t.id, SUM(t.cumulative_count) AS child_count
+        FROM $table t
+        GROUP BY t.id
+      )
+      SELECT
+        a.id,
+        a.child_count + r.self_count as cumulative_count
+      FROM agg a
+      JOIN $callstacks r USING (id)
+    )
+  ) a
+)

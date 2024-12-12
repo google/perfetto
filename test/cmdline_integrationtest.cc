@@ -47,9 +47,11 @@ namespace {
 
 using ::testing::ContainsRegex;
 using ::testing::Each;
+using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 using ::testing::Property;
 using ::testing::SizeIs;
 
@@ -99,12 +101,79 @@ TraceConfig CreateTraceConfigForBugreportTest(int score = 1,
   return trace_config;
 }
 
+// For the regular tests.
+TraceConfig CreateTraceConfigForTest(uint32_t test_msg_count = 11,
+                                     uint32_t test_msg_size = 32) {
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->mutable_for_testing()->set_message_count(test_msg_count);
+  ds_config->mutable_for_testing()->set_message_size(test_msg_size);
+  return trace_config;
+}
+
+void ExpectTraceContainsTestMessages(const protos::gen::Trace& trace,
+                                     uint32_t count) {
+  ssize_t actual_test_packets_count = std::count_if(
+      trace.packet().begin(), trace.packet().end(),
+      [](const protos::gen::TracePacket& tp) { return tp.has_for_testing(); });
+  EXPECT_EQ(count, static_cast<uint32_t>(actual_test_packets_count));
+}
+
+void ExpectTraceContainsTestMessagesWithSize(const protos::gen::Trace& trace,
+                                             uint32_t message_size) {
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_for_testing()) {
+      EXPECT_EQ(message_size, packet.for_testing().str().size());
+    }
+  }
+}
+
+void ExpectTraceContainsConfigWithTriggerMode(
+    const protos::gen::Trace& trace,
+    protos::gen::TraceConfig::TriggerConfig::TriggerMode trigger_mode) {
+  // GTest three level nested Property matcher is hard to read, so we use
+  // 'find_if' with lambda to ensure the trace config properly includes the
+  // trigger mode we set.
+  auto found =
+      std::find_if(trace.packet().begin(), trace.packet().end(),
+                   [trigger_mode](const protos::gen::TracePacket& tp) {
+                     return tp.has_trace_config() &&
+                            tp.trace_config().trigger_config().trigger_mode() ==
+                                trigger_mode;
+                   });
+  EXPECT_NE(found, trace.packet().end())
+      << "Trace config doesn't include expected trigger mode.";
+}
+
 class ScopedFileRemove {
  public:
   explicit ScopedFileRemove(const std::string& path) : path_(path) {}
   ~ScopedFileRemove() { remove(path_.c_str()); }
   std::string path_;
 };
+
+bool ParseNotEmptyTraceFromFile(const std::string& trace_path,
+                                protos::gen::Trace& out) {
+  std::string trace_str;
+  if (!base::ReadFile(trace_path, &trace_str))
+    return false;
+  if (trace_str.empty())
+    return false;
+  return out.ParseFromString(trace_str);
+}
+
+std::vector<std::string> GetReceivedTriggerNames(
+    const protos::gen::Trace& trace) {
+  std::vector<std::string> triggers;
+  for (const protos::gen::TracePacket& packet : trace.packet()) {
+    if (packet.has_trigger()) {
+      triggers.push_back(packet.trigger().trigger_name());
+    }
+  }
+  return triggers;
+}
 
 class PerfettoCmdlineTest : public ::testing::Test {
  public:
@@ -190,11 +259,8 @@ class PerfettoCmdlineTest : public ::testing::Test {
       // Read the trace written in the fixed location
       // (/data/misc/perfetto-traces/ on Android, /tmp/ on Linux/Mac) and make
       // sure it has the right contents.
-      std::string trace_str;
-      base::ReadFile(trace_path, &trace_str);
-      ASSERT_FALSE(trace_str.empty());
       protos::gen::Trace trace;
-      ASSERT_TRUE(trace.ParseFromString(trace_str));
+      ASSERT_TRUE(ParseNotEmptyTraceFromFile(trace_path, trace));
       uint32_t test_packets = 0;
       for (const auto& p : trace.packet())
         test_packets += p.has_for_testing() ? 1 : 0;
@@ -211,6 +277,11 @@ class PerfettoCmdlineTest : public ::testing::Test {
   // Tests are allowed to freely use these variables.
   std::string stderr_;
   base::TestTaskRunner task_runner_;
+
+  // We use these two constants to set test data payload parameters and assert
+  // it was correctly written to the trace.
+  static constexpr size_t kTestMessageCount = 11;
+  static constexpr size_t kTestMessageSize = 32;
 
  private:
   bool exec_allowed_ = true;
@@ -350,15 +421,8 @@ TEST_F(PerfettoCmdlineTest, DetachAndAttach) {
 }
 
 TEST_F(PerfettoCmdlineTest, StartTracingTrigger) {
-  // See |message_count| and |message_size| in the TraceConfig above.
-  constexpr size_t kMessageCount = 11;
-  constexpr size_t kMessageSize = 32;
-  protos::gen::TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(1024);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.perfetto.FakeProducer");
-  ds_config->mutable_for_testing()->set_message_count(kMessageCount);
-  ds_config->mutable_for_testing()->set_message_size(kMessageSize);
+  protos::gen::TraceConfig trace_config =
+      CreateTraceConfigForTest(kTestMessageCount, kTestMessageSize);
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
       protos::gen::TraceConfig::TriggerConfig::START_TRACING);
@@ -404,53 +468,25 @@ TEST_F(PerfettoCmdlineTest, StartTracingTrigger) {
   test_helper().WaitForProducerSetup();
   EXPECT_EQ(0, trigger_proc.Run(&stderr_));
 
-  // Wait for the producer to start, and then write out 11 packets.
+  // Wait for the producer to start, and then write out some test packets.
   test_helper().WaitForProducerEnabled();
   auto on_data_written = task_runner_.CreateCheckpoint("data_written");
   fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
   task_runner_.RunUntilCheckpoint("data_written");
   background_trace.join();
 
-  std::string trace_str;
-  base::ReadFile(path, &trace_str);
   protos::gen::Trace trace;
-  ASSERT_TRUE(trace.ParseFromString(trace_str));
-  size_t for_testing_packets = 0;
-  size_t trigger_packets = 0;
-  size_t trace_config_packets = 0;
-  for (const auto& packet : trace.packet()) {
-    if (packet.has_trace_config()) {
-      // Ensure the trace config properly includes the trigger mode we set.
-      auto kStartTrig = protos::gen::TraceConfig::TriggerConfig::START_TRACING;
-      EXPECT_EQ(kStartTrig,
-                packet.trace_config().trigger_config().trigger_mode());
-      ++trace_config_packets;
-    } else if (packet.has_trigger()) {
-      // validate that the triggers are properly added to the trace.
-      EXPECT_EQ("trigger_name", packet.trigger().trigger_name());
-      ++trigger_packets;
-    } else if (packet.has_for_testing()) {
-      // Make sure that the data size is correctly set based on what we
-      // requested.
-      EXPECT_EQ(kMessageSize, packet.for_testing().str().size());
-      ++for_testing_packets;
-    }
-  }
-  EXPECT_EQ(trace_config_packets, 1u);
-  EXPECT_EQ(trigger_packets, 1u);
-  EXPECT_EQ(for_testing_packets, kMessageCount);
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(path, trace));
+  ExpectTraceContainsConfigWithTriggerMode(
+      trace, protos::gen::TraceConfig::TriggerConfig::START_TRACING);
+  EXPECT_THAT(GetReceivedTriggerNames(trace), ElementsAre("trigger_name"));
+  ExpectTraceContainsTestMessages(trace, kTestMessageCount);
+  ExpectTraceContainsTestMessagesWithSize(trace, kTestMessageSize);
 }
 
 TEST_F(PerfettoCmdlineTest, StopTracingTrigger) {
-  // See |message_count| and |message_size| in the TraceConfig above.
-  constexpr size_t kMessageCount = 11;
-  constexpr size_t kMessageSize = 32;
-  protos::gen::TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(1024);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.perfetto.FakeProducer");
-  ds_config->mutable_for_testing()->set_message_count(kMessageCount);
-  ds_config->mutable_for_testing()->set_message_size(kMessageSize);
+  protos::gen::TraceConfig trace_config =
+      CreateTraceConfigForTest(kTestMessageCount, kTestMessageSize);
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
       protos::gen::TraceConfig::TriggerConfig::STOP_TRACING);
@@ -497,8 +533,8 @@ TEST_F(PerfettoCmdlineTest, StopTracingTrigger) {
   });
 
   test_helper().WaitForProducerEnabled();
-  // Wait for the producer to start, and then write out 11 packets, before the
-  // trace actually starts (the trigger is seen).
+  // Wait for the producer to start, and then write out some test packets,
+  // before the trace actually starts (the trigger is seen).
   auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
   fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
   task_runner_.RunUntilCheckpoint("data_written_1");
@@ -507,57 +543,23 @@ TEST_F(PerfettoCmdlineTest, StopTracingTrigger) {
 
   background_trace.join();
 
-  std::string trace_str;
-  base::ReadFile(path, &trace_str);
   protos::gen::Trace trace;
-  ASSERT_TRUE(trace.ParseFromString(trace_str));
-  bool seen_first_trigger = false;
-  size_t for_testing_packets = 0;
-  size_t trigger_packets = 0;
-  size_t trace_config_packets = 0;
-  for (const auto& packet : trace.packet()) {
-    if (packet.has_trace_config()) {
-      // Ensure the trace config properly includes the trigger mode we set.
-      auto kStopTrig = protos::gen::TraceConfig::TriggerConfig::STOP_TRACING;
-      EXPECT_EQ(kStopTrig,
-                packet.trace_config().trigger_config().trigger_mode());
-      ++trace_config_packets;
-    } else if (packet.has_trigger()) {
-      // validate that the triggers are properly added to the trace.
-      if (!seen_first_trigger) {
-        EXPECT_EQ("trigger_name", packet.trigger().trigger_name());
-        seen_first_trigger = true;
-      } else {
-        EXPECT_EQ("trigger_name_3", packet.trigger().trigger_name());
-      }
-      ++trigger_packets;
-    } else if (packet.has_for_testing()) {
-      // Make sure that the data size is correctly set based on what we
-      // requested.
-      EXPECT_EQ(kMessageSize, packet.for_testing().str().size());
-      ++for_testing_packets;
-    }
-  }
-  EXPECT_EQ(trace_config_packets, 1u);
-  EXPECT_EQ(trigger_packets, 2u);
-  EXPECT_EQ(for_testing_packets, kMessageCount);
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(path, trace));
+  ExpectTraceContainsConfigWithTriggerMode(
+      trace, protos::gen::TraceConfig::TriggerConfig::STOP_TRACING);
+  EXPECT_THAT(GetReceivedTriggerNames(trace),
+              ElementsAre("trigger_name", "trigger_name_3"));
+  ExpectTraceContainsTestMessages(trace, kTestMessageCount);
+  ExpectTraceContainsTestMessagesWithSize(trace, kTestMessageSize);
 }
 
 // Dropbox on the commandline client only works on android builds. So disable
 // this test on all other builds.
 TEST_F(PerfettoCmdlineTest, AndroidOnly(NoDataNoFileWithoutTrigger)) {
-  // See |message_count| and |message_size| in the TraceConfig above.
-  constexpr size_t kMessageCount = 11;
-  constexpr size_t kMessageSize = 32;
-  protos::gen::TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(1024);
-  trace_config.set_allow_user_build_tracing(true);
+  protos::gen::TraceConfig trace_config =
+      CreateTraceConfigForTest(kTestMessageCount, kTestMessageSize);
   auto* incident_config = trace_config.mutable_incident_report_config();
   incident_config->set_destination_package("foo.bar.baz");
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.perfetto.FakeProducer");
-  ds_config->mutable_for_testing()->set_message_count(kMessageCount);
-  ds_config->mutable_for_testing()->set_message_size(kMessageSize);
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
       protos::gen::TraceConfig::TriggerConfig::STOP_TRACING);
@@ -602,15 +604,8 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(NoDataNoFileWithoutTrigger)) {
 }
 
 TEST_F(PerfettoCmdlineTest, StopTracingTriggerFromConfig) {
-  // See |message_count| and |message_size| in the TraceConfig above.
-  constexpr size_t kMessageCount = 11;
-  constexpr size_t kMessageSize = 32;
-  protos::gen::TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(1024);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.perfetto.FakeProducer");
-  ds_config->mutable_for_testing()->set_message_count(kMessageCount);
-  ds_config->mutable_for_testing()->set_message_size(kMessageSize);
+  protos::gen::TraceConfig trace_config =
+      CreateTraceConfigForTest(kTestMessageCount, kTestMessageSize);
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
       protos::gen::TraceConfig::TriggerConfig::STOP_TRACING);
@@ -667,8 +662,8 @@ TEST_F(PerfettoCmdlineTest, StopTracingTriggerFromConfig) {
   });
 
   test_helper().WaitForProducerEnabled();
-  // Wait for the producer to start, and then write out 11 packets, before the
-  // trace actually starts (the trigger is seen).
+  // Wait for the producer to start, and then write out some test packets,
+  // before the trace actually starts (the trigger is seen).
   auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
   fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
   task_runner_.RunUntilCheckpoint("data_written_1");
@@ -677,44 +672,20 @@ TEST_F(PerfettoCmdlineTest, StopTracingTriggerFromConfig) {
 
   background_trace.join();
 
-  std::string trace_str;
-  base::ReadFile(path, &trace_str);
   protos::gen::Trace trace;
-  ASSERT_TRUE(trace.ParseFromString(trace_str));
-  EXPECT_LT(static_cast<int>(kMessageCount), trace.packet_size());
-  bool seen_first_trigger = false;
-  for (const auto& packet : trace.packet()) {
-    if (packet.has_trace_config()) {
-      // Ensure the trace config properly includes the trigger mode we set.
-      auto kStopTrig = protos::gen::TraceConfig::TriggerConfig::STOP_TRACING;
-      EXPECT_EQ(kStopTrig,
-                packet.trace_config().trigger_config().trigger_mode());
-    } else if (packet.has_trigger()) {
-      // validate that the triggers are properly added to the trace.
-      if (!seen_first_trigger) {
-        EXPECT_EQ("trigger_name", packet.trigger().trigger_name());
-        seen_first_trigger = true;
-      } else {
-        EXPECT_EQ("trigger_name_3", packet.trigger().trigger_name());
-      }
-    } else if (packet.has_for_testing()) {
-      // Make sure that the data size is correctly set based on what we
-      // requested.
-      EXPECT_EQ(kMessageSize, packet.for_testing().str().size());
-    }
-  }
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(path, trace));
+  EXPECT_LT(static_cast<int>(kTestMessageCount), trace.packet_size());
+  ExpectTraceContainsConfigWithTriggerMode(
+      trace, protos::gen::TraceConfig::TriggerConfig::STOP_TRACING);
+  EXPECT_THAT(GetReceivedTriggerNames(trace),
+              ElementsAre("trigger_name", "trigger_name_3"));
+  ExpectTraceContainsTestMessages(trace, kTestMessageCount);
+  ExpectTraceContainsTestMessagesWithSize(trace, kTestMessageSize);
 }
 
 TEST_F(PerfettoCmdlineTest, TriggerFromConfigStopsFileOpening) {
-  // See |message_count| and |message_size| in the TraceConfig above.
-  constexpr size_t kMessageCount = 11;
-  constexpr size_t kMessageSize = 32;
-  protos::gen::TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(1024);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.perfetto.FakeProducer");
-  ds_config->mutable_for_testing()->set_message_count(kMessageCount);
-  ds_config->mutable_for_testing()->set_message_size(kMessageSize);
+  protos::gen::TraceConfig trace_config =
+      CreateTraceConfigForTest(kTestMessageCount, kTestMessageSize);
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
       protos::gen::TraceConfig::TriggerConfig::STOP_TRACING);
@@ -773,15 +744,8 @@ TEST_F(PerfettoCmdlineTest, Query) {
 }
 
 TEST_F(PerfettoCmdlineTest, AndroidOnly(CmdTriggerWithUploadFlag)) {
-  // See |message_count| and |message_size| in the TraceConfig above.
-  constexpr size_t kMessageCount = 2;
-  constexpr size_t kMessageSize = 2;
-  protos::gen::TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(1024);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.perfetto.FakeProducer");
-  ds_config->mutable_for_testing()->set_message_count(kMessageCount);
-  ds_config->mutable_for_testing()->set_message_size(kMessageSize);
+  protos::gen::TraceConfig trace_config =
+      CreateTraceConfigForTest(kTestMessageCount, kTestMessageSize);
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
       protos::gen::TraceConfig::TriggerConfig::STOP_TRACING);
@@ -832,8 +796,8 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(CmdTriggerWithUploadFlag)) {
   });
 
   test_helper().WaitForProducerEnabled();
-  // Wait for the producer to start, and then write out 11 packets, before the
-  // trace actually starts (the trigger is seen).
+  // Wait for the producer to start, and then write out some test packets,
+  // before the trace actually starts (the trigger is seen).
   auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
   fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
   task_runner_.RunUntilCheckpoint("data_written_1");
@@ -842,11 +806,11 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(CmdTriggerWithUploadFlag)) {
 
   background_trace.join();
 
-  std::string trace_str;
-  base::ReadFile(path, &trace_str);
   protos::gen::Trace trace;
-  ASSERT_TRUE(trace.ParseFromString(trace_str));
-  EXPECT_LT(static_cast<int>(kMessageCount), trace.packet_size());
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(path, trace));
+  ExpectTraceContainsTestMessages(trace, kTestMessageCount);
+  ExpectTraceContainsTestMessagesWithSize(trace, kTestMessageSize);
+  EXPECT_LT(static_cast<int>(kTestMessageCount), trace.packet_size());
   EXPECT_THAT(trace.packet(),
               Contains(Property(&protos::gen::TracePacket::trigger,
                                 Property(&protos::gen::Trigger::trigger_name,
@@ -854,14 +818,8 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(CmdTriggerWithUploadFlag)) {
 }
 
 TEST_F(PerfettoCmdlineTest, TriggerCloneSnapshot) {
-  constexpr size_t kMessageCount = 2;
-  constexpr size_t kMessageSize = 2;
-  protos::gen::TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(1024);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.perfetto.FakeProducer");
-  ds_config->mutable_for_testing()->set_message_count(kMessageCount);
-  ds_config->mutable_for_testing()->set_message_size(kMessageSize);
+  protos::gen::TraceConfig trace_config =
+      CreateTraceConfigForTest(kTestMessageCount, kTestMessageSize);
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
       protos::gen::TraceConfig::TriggerConfig::CLONE_SNAPSHOT);
@@ -911,8 +869,8 @@ TEST_F(PerfettoCmdlineTest, TriggerCloneSnapshot) {
   });
 
   test_helper().WaitForProducerEnabled();
-  // Wait for the producer to start, and then write out 11 packets, before the
-  // trace actually starts (the trigger is seen).
+  // Wait for the producer to start, and then write out some test packets,
+  // before the trace actually starts (the trigger is seen).
   auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
   fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
   task_runner_.RunUntilCheckpoint("data_written_1");
@@ -932,15 +890,146 @@ TEST_F(PerfettoCmdlineTest, TriggerCloneSnapshot) {
   perfetto_proc.SendSigterm();
   background_trace.join();
 
-  std::string trace_str;
-  base::ReadFile(snapshot_path, &trace_str);
   protos::gen::Trace trace;
-  ASSERT_TRUE(trace.ParseFromString(trace_str));
-  EXPECT_LT(static_cast<int>(kMessageCount), trace.packet_size());
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(snapshot_path, trace));
+  ExpectTraceContainsTestMessages(trace, kTestMessageCount);
+  ExpectTraceContainsTestMessagesWithSize(trace, kTestMessageSize);
+  EXPECT_LT(static_cast<int>(kTestMessageCount), trace.packet_size());
   EXPECT_THAT(trace.packet(),
               Contains(Property(&protos::gen::TracePacket::trigger,
                                 Property(&protos::gen::Trigger::trigger_name,
                                          Eq("trigger_name")))));
+}
+
+TEST_F(PerfettoCmdlineTest, MultipleTriggersCloneSnapshot) {
+  protos::gen::TraceConfig trace_config =
+      CreateTraceConfigForTest(kTestMessageCount, kTestMessageSize);
+  auto* trigger_cfg = trace_config.mutable_trigger_config();
+  trigger_cfg->set_trigger_mode(
+      protos::gen::TraceConfig::TriggerConfig::CLONE_SNAPSHOT);
+  trigger_cfg->set_trigger_timeout_ms(600000);
+  // Add two triggers, the "trigger_name_2" hits before "trigger_name_1".
+  auto* trigger = trigger_cfg->add_triggers();
+  trigger->set_name("trigger_name_1");
+  trigger->set_stop_delay_ms(1500);
+  trigger = trigger_cfg->add_triggers();
+  trigger->set_name("trigger_name_2");
+  trigger->set_stop_delay_ms(500);
+
+  // We have to construct all the processes we want to fork before we start the
+  // service with |StartServiceIfRequired()|. this is because it is unsafe
+  // (could deadlock) to fork after we've spawned some threads which might
+  // printf (and thus hold locks).
+  const std::string path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(path);
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          path,
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  auto triggers_proc = ExecTrigger({"trigger_name_1", "trigger_name_2"});
+
+  // Start the service and connect a simple fake producer.
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  auto* fake_producer = test_helper().ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  std::thread background_trace([&perfetto_proc]() {
+    std::string stderr_str;
+    EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
+  });
+
+  test_helper().WaitForProducerEnabled();
+  // Wait for the producer to start, and then write out some test packets,
+  // before the trace actually starts (the trigger is seen).
+  auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
+  fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
+  task_runner_.RunUntilCheckpoint("data_written_1");
+
+  EXPECT_EQ(0, triggers_proc.Run(&stderr_)) << "stderr: " << stderr_;
+
+  // Wait for both clone triggers to hit and wait for two snapshot files.
+  std::string snapshot_path = path + ".0";
+  for (int i = 0; i < 100 && !base::FileExists(snapshot_path); i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  ASSERT_TRUE(base::FileExists(snapshot_path));
+
+  std::string snapshot_path_2 = path + ".1";
+  for (int i = 0; i < 100 && !base::FileExists(snapshot_path_2); i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  ASSERT_TRUE(base::FileExists(snapshot_path_2));
+
+  perfetto_proc.SendSigterm();
+  background_trace.join();
+
+  // We now have two traces, the first one was cloned by "trigger_name_2",
+  // the second was cloned by "trigger_name_1".
+
+  // Asserts for the first trace.
+  protos::gen::Trace trace;
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(snapshot_path, trace));
+  EXPECT_LT(static_cast<int>(kTestMessageCount), trace.packet_size());
+  EXPECT_THAT(GetReceivedTriggerNames(trace),
+              ElementsAre("trigger_name_1", "trigger_name_2"));
+
+  std::vector<protos::gen::TracePacket> clone_trigger_packets;
+  protos::gen::TracePacket trigger_packet;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_clone_snapshot_trigger()) {
+      clone_trigger_packets.push_back(packet);
+    } else if (packet.has_trigger() &&
+               packet.trigger().trigger_name() == "trigger_name_2") {
+      trigger_packet = packet;
+    }
+  }
+  ASSERT_EQ(clone_trigger_packets.size(), 1ul);
+  EXPECT_EQ(clone_trigger_packets[0].clone_snapshot_trigger().trigger_name(),
+            "trigger_name_2");
+  // Assert that all fields of 'clone_snapshot_trigger' equal to the same fields
+  // of a 'trigger'.
+  EXPECT_EQ(clone_trigger_packets[0].timestamp(), trigger_packet.timestamp());
+  EXPECT_EQ(clone_trigger_packets[0].clone_snapshot_trigger(),
+            trigger_packet.trigger());
+
+  // Asserts for the second trace.
+  protos::gen::Trace trace_2;
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(snapshot_path_2, trace_2));
+  EXPECT_LT(static_cast<int>(kTestMessageCount), trace_2.packet_size());
+  // List of received triggers from the main session was cleaned after the first
+  // clone operation happened, the list is empty in the second trace.
+  EXPECT_THAT(GetReceivedTriggerNames(trace_2), IsEmpty());
+
+  std::vector<protos::gen::TracePacket> clone_trigger_packets_2;
+  for (const auto& packet : trace_2.packet()) {
+    if (packet.has_clone_snapshot_trigger()) {
+      clone_trigger_packets_2.push_back(packet);
+    }
+  }
+  ASSERT_EQ(clone_trigger_packets_2.size(), 1ul);
+  EXPECT_EQ(clone_trigger_packets_2[0].clone_snapshot_trigger().trigger_name(),
+            "trigger_name_1");
+
+  // There is no triggers in the second snapshot, but we can compare the
+  // "clone_snapshot_trigger" with the trigger saved into the first snapshot.
+  protos::gen::TracePacket trigger_packet_from_first_snapshot;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_trigger() &&
+        packet.trigger().trigger_name() == "trigger_name_1") {
+      trigger_packet_from_first_snapshot = packet;
+    }
+  }
+  // Assert that all fields of 'clone_snapshot_trigger' equal to the same fields
+  // of a 'trigger'.
+  EXPECT_EQ(clone_trigger_packets_2[0].timestamp(),
+            trigger_packet_from_first_snapshot.timestamp());
+  EXPECT_EQ(clone_trigger_packets_2[0].clone_snapshot_trigger(),
+            trigger_packet_from_first_snapshot.trigger());
 }
 
 TEST_F(PerfettoCmdlineTest, SaveForBugreport) {
@@ -959,6 +1048,81 @@ TEST_F(PerfettoCmdlineTest, Clone) {
   TraceConfig trace_config = CreateTraceConfigForBugreportTest();
   RunBugreportTest(std::move(trace_config), /*check_original_trace=*/true,
                    /*use_explicit_clone=*/true);
+}
+
+TEST_F(PerfettoCmdlineTest, CloneByName) {
+  protos::gen::TraceConfig trace_config =
+      CreateTraceConfigForTest(kTestMessageCount, kTestMessageSize);
+  trace_config.set_unique_session_name("my_unique_session_name");
+
+  // We have to construct all the processes we want to fork before we start the
+  // service with |StartServiceIfRequired()|. this is because it is unsafe
+  // (could deadlock) to fork after we've spawned some threads which might
+  // printf (and thus hold locks).
+  const std::string path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(path);
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          path,
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  const std::string path_cloned = RandomTraceFileName();
+  ScopedFileRemove path_cloned_remove(path_cloned);
+  auto perfetto_proc_clone = ExecPerfetto({
+      "-o",
+      path_cloned,
+      "--clone-by-name",
+      "my_unique_session_name",
+  });
+
+  const std::string path_cloned_2 = RandomTraceFileName();
+  ScopedFileRemove path_cloned_2_remove(path_cloned_2);
+  auto perfetto_proc_clone_2 = ExecPerfetto({
+      "-o",
+      path_cloned_2,
+      "--clone-by-name",
+      "non_existing_session_name",
+  });
+
+  // Start the service and connect a simple fake producer.
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  auto* fake_producer = test_helper().ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  std::thread background_trace([&perfetto_proc]() {
+    std::string stderr_str;
+    EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
+  });
+
+  test_helper().WaitForProducerEnabled();
+
+  auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
+  fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
+  task_runner_.RunUntilCheckpoint("data_written_1");
+
+  EXPECT_EQ(0, perfetto_proc_clone.Run(&stderr_)) << "stderr: " << stderr_;
+  EXPECT_TRUE(base::FileExists(path_cloned));
+
+  // The command still returns 0, but doesn't create a file.
+  EXPECT_EQ(0, perfetto_proc_clone_2.Run(&stderr_)) << "stderr: " << stderr_;
+  EXPECT_FALSE(base::FileExists(path_cloned_2));
+
+  protos::gen::Trace cloned_trace;
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(path_cloned, cloned_trace));
+  ExpectTraceContainsTestMessages(cloned_trace, kTestMessageCount);
+  ExpectTraceContainsTestMessagesWithSize(cloned_trace, kTestMessageSize);
+
+  perfetto_proc.SendSigterm();
+  background_trace.join();
+
+  protos::gen::Trace trace;
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(path, trace));
+  ExpectTraceContainsTestMessages(trace, kTestMessageCount);
+  ExpectTraceContainsTestMessagesWithSize(trace, kTestMessageSize);
 }
 
 // Regression test for b/279753347: --save-for-bugreport would create an empty
@@ -1098,10 +1262,8 @@ TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_FourTraces) {
   auto check_trace = [&](std::string fname, int expected_score) {
     std::string fpath = GetBugreportTraceDir() + "/" + fname;
     ASSERT_TRUE(base::FileExists(fpath)) << fpath;
-    std::string trace_str;
-    base::ReadFile(fpath, &trace_str);
     protos::gen::Trace trace;
-    ASSERT_TRUE(trace.ParseFromString(trace_str)) << fpath;
+    ASSERT_TRUE(ParseNotEmptyTraceFromFile(fpath, trace)) << fpath;
     EXPECT_THAT(
         trace.packet(),
         Contains(Property(&protos::gen::TracePacket::trace_config,
@@ -1124,8 +1286,9 @@ TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_LargeTrace) {
   auto remove_on_exit = base::OnScopeExit(remove_br_files);
 
   const uint32_t kMsgCount = 10000;
+  const uint32_t kMsgSize = 1024;
   TraceConfig cfg = CreateTraceConfigForBugreportTest(
-      /*score=*/1, /*add_filter=*/false, kMsgCount, /*msg_size=*/1024);
+      /*score=*/1, /*add_filter=*/false, kMsgCount, kMsgSize);
 
   auto session_name = "bugreport_test_" +
                       std::to_string(base::GetWallTimeNs().count() % 1000000);
@@ -1176,14 +1339,10 @@ TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_LargeTrace) {
 
   std::string fpath = GetBugreportTraceDir() + "/systrace.pftrace";
   ASSERT_TRUE(base::FileExists(fpath)) << fpath;
-  std::string trace_str;
-  base::ReadFile(fpath, &trace_str);
   protos::gen::Trace trace;
-  ASSERT_TRUE(trace.ParseFromString(trace_str)) << fpath;
-  ssize_t num_test_packets = std::count_if(
-      trace.packet().begin(), trace.packet().end(),
-      [](const protos::gen::TracePacket& tp) { return tp.has_for_testing(); });
-  EXPECT_EQ(num_test_packets, static_cast<ssize_t>(kMsgCount));
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(fpath, trace)) << fpath;
+  ExpectTraceContainsTestMessages(trace, kMsgCount);
+  ExpectTraceContainsTestMessagesWithSize(trace, kMsgSize);
 }
 
 }  // namespace perfetto

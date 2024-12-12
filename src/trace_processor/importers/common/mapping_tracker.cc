@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/jit_cache.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
@@ -161,14 +162,15 @@ void MappingTracker::AddJitRange(UniquePid upid,
       });
 }
 
-VirtualMemoryMapping* MappingTracker::GetDummyMapping() {
-  if (!dummy_mapping_) {
-    CreateMappingParams params;
-    params.memory_range =
-        AddressRange::FromStartAndSize(0, std::numeric_limits<uint64_t>::max());
-    dummy_mapping_ = &InternMemoryMapping(params);
-  }
-  return dummy_mapping_;
+DummyMemoryMapping& MappingTracker::CreateDummyMapping(std::string name) {
+  CreateMappingParams params;
+  params.name = std::move(name);
+  params.memory_range =
+      AddressRange::FromStartAndSize(0, std::numeric_limits<uint64_t>::max());
+  std::unique_ptr<DummyMemoryMapping> mapping(
+      new DummyMemoryMapping(context_, std::move(params)));
+
+  return AddMapping(std::move(mapping));
 }
 
 }  // namespace trace_processor

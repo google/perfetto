@@ -47,6 +47,7 @@ namespace perfetto {
 namespace {
 
 using FtraceParseStatus = protos::pbzero::FtraceParseStatus;
+using protos::pbzero::KprobeEvent;
 
 // If the compact_sched buffer accumulates more unique strings, the reader will
 // flush it to reset the interning state (and make it cheap again).
@@ -746,6 +747,14 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
                  info.proto_field_id ==
                  protos::pbzero::FtraceEvent::kSysExitFieldNumber)) {
     success &= ParseSysExit(info, start, end, ds_config, nested, metadata);
+  } else if (PERFETTO_UNLIKELY(
+                 info.proto_field_id ==
+                 protos::pbzero::FtraceEvent::kKprobeEventFieldNumber)) {
+    KprobeEvent::KprobeType* elem = ds_config->kprobes.Find(ftrace_event_id);
+    nested->AppendString(KprobeEvent::kNameFieldNumber, info.name);
+    if (elem) {
+      nested->AppendVarInt(KprobeEvent::kTypeFieldNumber, *elem);
+    }
   } else {  // Parse all other events.
     for (const Field& field : info.fields) {
       success &= ParseField(field, start, end, table, nested, metadata);

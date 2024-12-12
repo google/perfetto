@@ -120,6 +120,9 @@ SELECT
       WHERE lp.startup_id =launches.startup_id
       LIMIT 1
     ),
+    'cpu_count', (
+      SELECT COUNT(DISTINCT cpu) from sched
+    ),
     'package_name', launches.package,
     'process_name', (
       SELECT p.name
@@ -238,6 +241,8 @@ SELECT
       dur_sum_slice_proto_for_launch(launches.startup_id, 'inflate'),
       'time_get_resources',
       dur_sum_slice_proto_for_launch(launches.startup_id, 'ResourcesManager#getResources'),
+      'time_class_initialization',
+      dur_sum_slice_proto_for_launch(launches.startup_id, 'L*/*;'),
       'time_dex_open',
       dur_sum_slice_proto_for_launch(launches.startup_id, 'OpenDexFilesFromOat*'),
       'time_verify_class',
@@ -289,6 +294,10 @@ SELECT
         SELECT IIF(COUNT(1) = 0, NULL, COUNT(1))
         FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(launches.startup_id, 'JIT compiling*')
         WHERE thread_name = 'Jit thread pool'
+      ),
+      'class_initialization_count', (
+        SELECT IIF(COUNT(1) = 0, NULL, COUNT(1))
+        FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(launches.startup_id, 'L*/*;')
       ),
       'other_processes_spawned_count', (
         SELECT COUNT(1)

@@ -36,11 +36,14 @@ package perfetto.protos;
 //     }
 //   }
 //
-// Next id: 19
+// Next id: 20
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
   optional PerfEvents.Timebase timebase = 15;
+
+  // Other events associated with the leader described in the timebase.
+  repeated FollowerEvent followers = 19;
 
   // If set, the profiler will sample userspace processes' callstacks at the
   // interval specified by the |timebase|.
@@ -214,5 +217,7 @@ message PerfEventConfig {
     UNWIND_SKIP = 1;
     // Use libunwindstack (default):
     UNWIND_DWARF = 2;
+    // Use userspace frame pointer unwinder:
+    UNWIND_FRAME_POINTER = 3;
   }
 }

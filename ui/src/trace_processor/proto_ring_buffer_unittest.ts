@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import protobuf from 'protobufjs/minimal';
-
 import {assertTrue} from '../base/logging';
-
 import {ProtoRingBuffer} from './proto_ring_buffer';
 
 let seed = 1;

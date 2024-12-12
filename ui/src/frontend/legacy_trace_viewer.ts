@@ -17,9 +17,9 @@ import {inflate} from 'pako';
 import {assertTrue} from '../base/logging';
 import {isString} from '../base/object_utils';
 import {showModal} from '../widgets/modal';
-import {globals} from './globals';
 import {utf8Decode} from '../base/string_utils';
 import {convertToJson} from './trace_converter';
+import {assetSrc} from '../base/assets';
 
 const CTRACE_HEADER = 'TRACE:\n';
 
@@ -142,7 +142,7 @@ function openBufferWithLegacyTraceViewer(
 
   // The location.pathname mangling is to make this code work also when hosted
   // in a non-root sub-directory, for the case of CI artifacts.
-  const catapultUrl = globals.root + 'assets/catapult_trace_viewer.html';
+  const catapultUrl = assetSrc('assets/catapult_trace_viewer.html');
   const newWin = window.open(catapultUrl);
   if (newWin) {
     // Popup succeedeed.
@@ -172,16 +172,21 @@ function openBufferWithLegacyTraceViewer(
   });
 }
 
-export function openInOldUIWithSizeCheck(trace: Blob) {
+export async function openInOldUIWithSizeCheck(trace: Blob): Promise<void> {
   // Perfetto traces smaller than 50mb can be safely opened in the legacy UI.
   if (trace.size < 1024 * 1024 * 50) {
-    convertToJson(trace, openBufferWithLegacyTraceViewer);
-    return;
+    return await convertToJson(trace, openBufferWithLegacyTraceViewer);
   }
 
   // Give the user the option to truncate larger perfetto traces.
   const size = Math.round(trace.size / (1024 * 1024));
-  showModal({
+
+  // If the user presses one of the buttons below, remember the promise that
+  // they trigger, so we await for it before returning.
+  let nextPromise: Promise<void> | undefined;
+  const setNextPromise = (p: Promise<void>) => (nextPromise = p);
+
+  await showModal({
     title: 'Legacy UI may fail to open this trace',
     content: m(
       'div',
@@ -206,30 +211,38 @@ export function openInOldUIWithSizeCheck(trace: Blob) {
     buttons: [
       {
         text: 'Open full trace (not recommended)',
-        action: () => convertToJson(trace, openBufferWithLegacyTraceViewer),
+        action: () =>
+          setNextPromise(convertToJson(trace, openBufferWithLegacyTraceViewer)),
       },
       {
         text: 'Open beginning of trace',
         action: () =>
-          convertToJson(
-            trace,
-            openBufferWithLegacyTraceViewer,
-            /* truncate*/ 'start',
+          setNextPromise(
+            convertToJson(
+              trace,
+              openBufferWithLegacyTraceViewer,
+              /* truncate*/ 'start',
+            ),
           ),
       },
       {
         text: 'Open end of trace',
         primary: true,
         action: () =>
-          convertToJson(
-            trace,
-            openBufferWithLegacyTraceViewer,
-            /* truncate*/ 'end',
+          setNextPromise(
+            convertToJson(
+              trace,
+              openBufferWithLegacyTraceViewer,
+              /* truncate*/ 'end',
+            ),
           ),
       },
     ],
   });
-  return;
+  // nextPromise is undefined if the user just dimisses the dialog with ESC.
+  if (nextPromise !== undefined) {
+    await nextPromise;
+  }
 }
 
 // TraceViewer method that we wire up to trigger the file load.

@@ -20,6 +20,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <utility>
 
 #include "perfetto/base/export.h"
 #include "perfetto/base/platform_handle.h"
@@ -45,7 +46,20 @@ class PERFETTO_EXPORT_COMPONENT SharedMemory {
   // this object region when destroyed.
   virtual ~SharedMemory();
 
-  virtual void* start() const = 0;
+  // Read/write and read-only access to underlying buffer. The non-const method
+  // is implemented in terms of the const one so subclasses need only provide a
+  // single implementation; implementing in the opposite order would be unsafe
+  // since subclasses could effectively mutate state from inside a const method.
+  //
+  // N.B. This signature implements "deep const" that ties the constness of this
+  // object to the constness of the underlying buffer, as opposed to "shallow
+  // const" that would have the signature `void* start() const;`; this is less
+  // flexible for callers but prevents corner cases where it's transitively
+  // possible to change this object's state via the controlled memory.
+  void* start() { return const_cast<void*>(std::as_const(*this).start()); }
+  virtual const void* start() const = 0;
+
+
   virtual size_t size() const = 0;
 };
 

@@ -18,6 +18,10 @@ import {oneDarkTheme} from '@codemirror/theme-one-dark';
 import {keymap} from '@codemirror/view';
 import {basicSetup, EditorView} from 'codemirror';
 import m from 'mithril';
+import {assertExists} from '../base/logging';
+import {DragGestureHandler} from '../base/drag_gesture_handler';
+import {DisposableStack} from '../base/disposable_stack';
+import {scheduleFullRedraw} from './raf';
 
 export interface EditorAttrs {
   // Initial state for the editor.
@@ -37,6 +41,7 @@ export interface EditorAttrs {
 export class Editor implements m.ClassComponent<EditorAttrs> {
   private editorView?: EditorView;
   private generation?: number;
+  private trash = new DisposableStack();
 
   oncreate({dom, attrs}: m.CVnodeDOM<EditorAttrs>) {
     const keymaps = [indentWithTab];
@@ -60,6 +65,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
             text = selectedText;
           }
           onExecute(text);
+          scheduleFullRedraw('force');
           return true;
         },
       });
@@ -71,6 +77,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
         view.update([tr]);
         const text = view.state.doc.toString();
         onUpdate(text);
+        scheduleFullRedraw('force');
       };
     }
 
@@ -82,6 +89,20 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
       parent: dom,
       dispatch,
     });
+
+    // Install the drag handler for the resize bar.
+    let initialH = 0;
+    this.trash.use(
+      new DragGestureHandler(
+        assertExists(dom.querySelector('.resize-handler')) as HTMLElement,
+        /* onDrag */
+        (_x, y) => ((dom as HTMLElement).style.height = `${initialH + y}px`),
+        /* onDragStarted */
+        () => (initialH = dom.clientHeight),
+        /* onDragFinished */
+        () => {},
+      ),
+    );
   }
 
   onupdate({attrs}: m.CVnodeDOM<EditorAttrs>): void {
@@ -103,9 +124,10 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
       this.editorView.destroy();
       this.editorView = undefined;
     }
+    this.trash.dispose();
   }
 
   view({}: m.Vnode<EditorAttrs, this>): void | m.Children {
-    return m('.pf-editor');
+    return m('.pf-editor', m('.resize-handler'));
   }
 }

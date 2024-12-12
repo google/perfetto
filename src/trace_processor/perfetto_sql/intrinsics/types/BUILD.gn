@@ -20,6 +20,7 @@ assert(enable_perfetto_trace_processor_sqlite)
 source_set("types") {
   sources = [
     "array.h",
+    "counter.h",
     "node.h",
     "partitioned_intervals.h",
     "row_dataframe.h",

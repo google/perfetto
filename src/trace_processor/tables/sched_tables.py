@@ -41,6 +41,7 @@ SCHED_SLICE_TABLE = Table(
         C('priority', CppInt32()),
         C('ucpu', CppTableId(CPU_TABLE)),
     ],
+    wrapping_sql_view=WrappingSqlView('sched'),
     tabledoc=TableDoc(
         doc='''
           This table holds slices with kernel thread scheduling information.
@@ -133,6 +134,7 @@ THREAD_STATE_TABLE = Table(
         C('irq_context', CppOptional(CppUint32())),
         C('ucpu', CppOptional(CppTableId(CPU_TABLE))),
     ],
+    wrapping_sql_view=WrappingSqlView('thread_state'),
     tabledoc=TableDoc(
         doc='''
           This table contains the scheduling state of every thread on the

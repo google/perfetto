@@ -55,15 +55,15 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // the returned iterator.
   virtual Iterator ExecuteQuery(const std::string& sql) = 0;
 
-  // Registers SQL files with the associated path under the module named
-  // |sql_module.name|. These modules can be run by using the |IMPORT| SQL
-  // function.
+  // Registers SQL files with the associated path under the package named
+  // |sql_package.name|.
   //
-  // For example, if you registered a module called "camera" with a file path
-  // "camera/cpu/metrics.sql" you can import it (run the file) using "SELECT
-  // IMPORT('camera.cpu.metrics');". The first word of the string has to be a
-  // module name and there can be only one module registered with a given name.
-  virtual base::Status RegisterSqlModule(SqlModule sql_module) = 0;
+  // For example, if you registered a package called "camera" with a file path
+  // "camera/cpu/metrics.sql" you can include it (run the file) using "INCLUDE
+  // PERFETTO MODULE camera.cpu.metrics". The first word of the string has to be
+  // a package name and there can be only one package registered with a given
+  // name.
+  virtual base::Status RegisterSqlPackage(SqlPackage) = 0;
 
   // Registers a metric at the given path which will run the specified SQL.
   virtual base::Status RegisterMetric(const std::string& path,
@@ -138,6 +138,11 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // loaded by trace processor shell at runtime. The message is encoded as
   // DescriptorSet, defined in perfetto/trace_processor/trace_processor.proto.
   virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
+
+  // Deprecated. Use |RegisterSqlPackage()| instead, which is identical in
+  // functionality to |RegisterSqlModule()| and the only difference is in
+  // the argument, which is directly translatable to |SqlPackage|.
+  virtual base::Status RegisterSqlModule(SqlModule) = 0;
 };
 
 }  // namespace trace_processor

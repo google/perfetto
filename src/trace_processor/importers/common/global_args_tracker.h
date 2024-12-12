@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <type_traits>
 #include <vector>
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/small_vector.h"
@@ -63,7 +64,7 @@ class GlobalArgsTracker {
                 "Args must be trivially destructible");
 
   struct ArgHasher {
-    uint64_t operator()(const Arg& arg) const noexcept {
+    uint64_t operator()(const CompactArg& arg) const noexcept {
       base::Hasher hash;
       hash.Update(arg.key.raw_id());
       // We don't hash arg.flat_key because it's a subsequence of arg.key.
@@ -99,33 +100,47 @@ class GlobalArgsTracker {
 
   explicit GlobalArgsTracker(TraceStorage* storage);
 
+  ArgSetId AddArgSet(const std::vector<Arg>& args,
+                     uint32_t begin,
+                     uint32_t end) {
+    return AddArgSet(args.data() + begin, args.data() + end, sizeof(Arg));
+  }
+  ArgSetId AddArgSet(Arg* args, uint32_t begin, uint32_t end) {
+    return AddArgSet(args + begin, args + end, sizeof(Arg));
+  }
+  ArgSetId AddArgSet(CompactArg* args, uint32_t begin, uint32_t end) {
+    return AddArgSet(args + begin, args + end, sizeof(CompactArg));
+  }
+
+ private:
+  using ArgSetHash = uint64_t;
+
   // Assumes that the interval [begin, end) of |args| has args with the same key
   // grouped together.
-  ArgSetId AddArgSet(const Arg* args, uint32_t begin, uint32_t end) {
-    base::SmallVector<uint32_t, 64> valid_indexes;
+  ArgSetId AddArgSet(const void* start, const void* end, uint32_t stride) {
+    base::SmallVector<const CompactArg*, 64> valid;
 
     // TODO(eseckler): Also detect "invalid" key combinations in args sets (e.g.
     // "foo" and "foo.bar" in the same arg set)?
-    for (uint32_t i = begin; i < end; i++) {
-      if (!valid_indexes.empty() &&
-          args[valid_indexes.back()].key == args[i].key) {
+    for (const void* ptr = start; ptr != end;
+         ptr = reinterpret_cast<const uint8_t*>(ptr) + stride) {
+      const auto& arg = *reinterpret_cast<const CompactArg*>(ptr);
+      if (!valid.empty() && valid.back()->key == arg.key) {
         // Last arg had the same key as this one. In case of kSkipIfExists, skip
         // this arg. In case of kAddOrUpdate, remove the last arg and add this
         // arg instead.
-        if (args[i].update_policy == UpdatePolicy::kSkipIfExists) {
+        if (arg.update_policy == UpdatePolicy::kSkipIfExists) {
           continue;
-        } else {
-          PERFETTO_DCHECK(args[i].update_policy == UpdatePolicy::kAddOrUpdate);
-          valid_indexes.pop_back();
         }
+        PERFETTO_DCHECK(arg.update_policy == UpdatePolicy::kAddOrUpdate);
+        valid.pop_back();
       }
-
-      valid_indexes.emplace_back(i);
+      valid.emplace_back(&arg);
     }
 
     base::Hasher hash;
-    for (uint32_t i : valid_indexes) {
-      hash.Update(ArgHasher()(args[i]));
+    for (const auto* it : valid) {
+      hash.Update(ArgHasher()(*it));
     }
 
     auto& arg_table = *storage_->mutable_arg_table();
@@ -141,9 +156,8 @@ class GlobalArgsTracker {
     // Taking size() after the Insert() ensures that nothing has an id == 0
     // (0 == kInvalidArgSetId).
     auto id = static_cast<uint32_t>(arg_row_for_hash_.size());
-    for (uint32_t i : valid_indexes) {
-      const auto& arg = args[i];
-
+    for (const CompactArg* ptr : valid) {
+      const auto& arg = *ptr;
       tables::ArgTable::Row row;
       row.arg_set_id = id;
       row.flat_key = arg.flat_key;
@@ -178,16 +192,6 @@ class GlobalArgsTracker {
     }
     return id;
   }
-
-  // Exposed for making tests easier to write.
-  ArgSetId AddArgSet(const std::vector<Arg>& args,
-                     uint32_t begin,
-                     uint32_t end) {
-    return AddArgSet(args.data(), begin, end);
-  }
-
- private:
-  using ArgSetHash = uint64_t;
 
   base::FlatHashMap<ArgSetHash, uint32_t, base::AlreadyHashed<ArgSetHash>>
       arg_row_for_hash_;

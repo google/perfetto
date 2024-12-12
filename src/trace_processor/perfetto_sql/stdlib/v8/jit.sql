@@ -36,11 +36,11 @@
 -- engine.
 CREATE PERFETTO VIEW v8_isolate(
   -- Unique V8 isolate id.
-  v8_isolate_id UINT,
+  v8_isolate_id LONG,
   -- Process the isolate was created in.
-  upid UINT,
+  upid LONG,
   -- Internal id used by the v8 engine. Unique in a process.
-  internal_isolate_id UINT,
+  internal_isolate_id LONG,
   -- Absolute start address of the embedded code blob.
   embedded_blob_code_start_address LONG,
   -- Size in bytes of the embedded code blob.
@@ -75,12 +75,12 @@ FROM
 -- will not (e.g. builtins).
 CREATE PERFETTO VIEW v8_js_script (
   -- Unique V8 JS script id.
-  v8_js_script_id UINT,
+  v8_js_script_id LONG,
   -- V8 isolate this script belongs to (joinable with
   -- `v8_isolate.v8_isolate_id`).
-  v8_isolate_id UINT,
+  v8_isolate_id LONG,
   -- Script id used by the V8 engine.
-  internal_script_id UINT,
+  internal_script_id LONG,
   -- Script type.
   script_type STRING,
   -- Script name.
@@ -102,12 +102,12 @@ FROM
 -- Represents one WASM script.
 CREATE PERFETTO VIEW v8_wasm_script (
   -- Unique V8 WASM script id.
-  v8_wasm_script_id UINT,
+  v8_wasm_script_id LONG,
   -- V8 Isolate this script belongs to (joinable with
   -- `v8_isolate.v8_isolate_id`).
-  v8_isolate_id UINT,
+  v8_isolate_id LONG,
   -- Script id used by the V8 engine.
-  internal_script_id UINT,
+  internal_script_id LONG,
   -- URL of the source.
   url STRING,
   -- Actual contents of the script.
@@ -126,20 +126,20 @@ FROM
 -- Represents a v8 Javascript function.
 CREATE PERFETTO VIEW v8_js_function (
   -- Unique V8 JS function id.
-  v8_js_function_id UINT,
+  v8_js_function_id LONG,
   -- Function name.
   name STRING,
   -- Script where the function is defined (joinable with
   -- `v8_js_script.v8_js_script_id`).
-  v8_js_script_id UINT,
+  v8_js_script_id LONG,
   -- Whether this function represents the top level script.
   is_toplevel BOOL,
   -- Function kind (e.g. regular function or constructor).
   kind STRING,
   -- Line in script where function is defined. Starts at 1.
-  line UINT,
+  line LONG,
   -- Column in script where function is defined. Starts at 1.
-  col UINT
+  col LONG
 ) AS
 SELECT
   id AS v8_js_function_id,
@@ -159,13 +159,13 @@ FROM
 -- TODO(carlscab): Make public once `_jit_code` is public too
 CREATE PERFETTO VIEW _v8_js_code(
   -- Unique id
-  id UINT,
+  id LONG,
   -- Associated jit code. Set for all tiers except IGNITION. Joinable with
   -- `_jit_code.jit_code_id`.
-  jit_code_id UINT,
+  jit_code_id LONG,
   -- JS function for this snippet. Joinable with
   -- `v8_js_function.v8_js_function_id`.
-  v8_js_function_id UINT,
+  v8_js_function_id LONG,
   -- Compilation tier
   tier STRING,
   -- V8 VM bytecode. Set only for the IGNITION tier.
@@ -185,12 +185,12 @@ FROM
 -- TODO(carlscab): Make public once `_jit_code` is public too
 CREATE PERFETTO VIEW _v8_internal_code(
   -- Unique id
-  id UINT,
+  id LONG,
   -- Associated jit code. Joinable with `_jit_code.jit_code_id`.
-  jit_code_id UINT,
+  jit_code_id LONG,
   -- V8 Isolate this code was created in. Joinable with
   -- `v8_isolate.v8_isolate_id`.
-  v8_isolate_id UINT,
+  v8_isolate_id LONG,
   -- Function name.
   function_name STRING,
   -- Type of internal code.
@@ -209,21 +209,21 @@ FROM
 -- TODO(carlscab): Make public once `_jit_code` is public too
 CREATE PERFETTO VIEW _v8_wasm_code(
   -- Unique id
-  id UINT,
+  id LONG,
   -- Associated jit code. Joinable with `_jit_code.jit_code_id`.
-  jit_code_id UINT,
+  jit_code_id LONG,
   -- V8 Isolate this code was created in. Joinable with
   -- `v8_isolate.v8_isolate_id`.
-  v8_isolate_id UINT,
+  v8_isolate_id LONG,
   -- Script where the function is defined. Joinable with
   -- `v8_wasm_script.v8_wasm_script_id`.
-  v8_wasm_script_id UINT,
+  v8_wasm_script_id LONG,
   -- Function name.
   function_name STRING,
   -- Compilation tier.
   tier STRING,
   -- Offset into the WASM module where the function starts.
-  code_offset_in_module INT
+  code_offset_in_module LONG
  ) AS
 SELECT
   id,
@@ -240,12 +240,12 @@ FROM
 -- TODO(carlscab): Make public once `_jit_code` is public too
 CREATE PERFETTO VIEW _v8_regexp_code(
   -- Unique id
-  id UINT,
+  id LONG,
   -- Associated jit code. Joinable with `_jit_code.jit_code_id`.
-  jit_code_id UINT,
+  jit_code_id LONG,
   -- V8 Isolate this code was created in. Joinable with
   -- `v8_isolate.v8_isolate_id`.
-  v8_isolate_id UINT,
+  v8_isolate_id LONG,
   -- The pattern the this regular expression was compiled from.
   pattern STRING
 ) AS

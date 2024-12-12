@@ -57,6 +57,11 @@ android_startup {
         dur_ns: 55
         dur_ms: 5.5e-05
       }
+      time_class_initialization {
+        dur_ns: 2
+        dur_ms: 2e-06
+      }
+      class_initialization_count: 2
     }
     activity_hosting_process_count: 1
     process {
@@ -126,6 +131,7 @@ android_startup {
     dlopen_file: "libandroid.so"
     dlopen_file: "libandroid2.so"
     startup_type: "hot"
+    cpu_count: 1
     slow_start_reason: "GC Activity"
     slow_start_reason: "Main Thread - Time spent in OpenDexFilesFromOat*"
     slow_start_reason: "Main Thread - Binder transactions blocked"
@@ -142,10 +148,16 @@ android_startup {
       }
       launch_dur: 999999900
       trace_slice_sections {
+        slice_section {
+          start_timestamp: 340
+          end_timestamp: 390
+          slice_id: 20
+          slice_name: "CollectorTransition mark sweep GC"
+          process_pid: 3
+          thread_tid: 5
+        }
         start_timestamp: 340
         end_timestamp: 390
-        slice_id: 18
-        slice_name: "CollectorTransition mark sweep GC"
       }
     }
     slow_start_reason_with_details {
@@ -163,16 +175,24 @@ android_startup {
       }
       launch_dur: 999999900
       trace_slice_sections {
-        start_timestamp: 170
-        end_timestamp: 500000000
-        slice_id: 9
-        slice_name: "OpenDexFilesFromOat(something else)"
-      }
-      trace_slice_sections {
+        slice_section {
+          start_timestamp: 170
+          end_timestamp: 500000000
+          slice_id: 9
+          slice_name: "OpenDexFilesFromOat(something else)"
+          process_pid: 3
+          thread_tid: 3
+        }
+        slice_section {
+          start_timestamp: 150
+          end_timestamp: 165
+          slice_id: 5
+          slice_name: "OpenDexFilesFromOat(something)"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 150
-        end_timestamp: 165
-        slice_id: 5
-        slice_name: "OpenDexFilesFromOat(something)"
+        end_timestamp: 500000000
       }
     }
     slow_start_reason_with_details {
@@ -188,10 +208,16 @@ android_startup {
       }
       launch_dur: 999999900
       trace_slice_sections {
+        slice_section {
+          start_timestamp: 10000000
+          end_timestamp: 50000000
+          slice_id: 21
+          slice_name: "binder transaction"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 10000000
         end_timestamp: 50000000
-        slice_id: 19
-        slice_name: "binder transaction"
       }
     }
   }

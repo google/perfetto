@@ -100,3 +100,59 @@ WHERE
 0
 """),
     )
+
+  def test_v8_cpu_samples(self):
+    return DiffTestBlueprint(
+        trace=DataPath('v8-samples.pftrace'),
+        query='''
+          include perfetto module stacks.cpu_profiling;
+
+          select name, source_file, self_count
+          from cpu_profiling_summary_tree
+          where self_count >= 15
+          order by self_count desc, source_file
+        ''',
+        out=Csv('''
+        "name","source_file","self_count"
+        "(program)","[NULL]",17083
+        "(program)","[NULL]",15399
+        "(program)","[NULL]",9853
+        "(program)","[NULL]",9391
+        "(program)","[NULL]",7299
+        "(program)","[NULL]",5245
+        "(program)","[NULL]",2443
+        "(garbage collector)","[NULL]",107
+        "_.mg","chrome-untrusted://new-tab-page/one-google-bar?paramsencoded=",38
+        "(garbage collector)","[NULL]",34
+        "","https://www.google.com/xjs/_/js/k=xjs.hd.en.nSJdbfIGUiE.O/am=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAACAEKAAAABR4AAAAgAAAAAAAAAAQIAQDEAQAAAgA4AAAEAQAEABQQAAAKEATgUTYAgAAwAQAIAAAQAAACQAAACAAAAAMAACAIAAAAAKAAAAAAAAAAAAAAAAAAYAABBAAAAAAAAAAAAIACAAAAoAMAAAAAgAAAgIAAANghAwgAAAQAAACgDwCCB8AghQcAAAAAAAAAAAAAAAKQIJgLCSgIQAAAAAAAAAAAAAAAAACkpIkLCw/d=1/ed=1/dg=3/br=1/rs=ACT90oH8sSQRHJq5R0DO9ABVW-vZJa5Baw/ee=ALeJib:B8gLwd;AfeaP:TkrAjf;BMxAGc:E5bFse;BgS6mb:fidj5d;BjwMce:cXX2Wb;CxXAWb:YyRLvc;DULqB:RKfG5c;Dkk6ge:wJqrrd;DpcR3d:zL72xf;EABSZ:MXZt9d;ESrPQc:mNTJvc;EVNhjf:pw70Gc;EmZ2Bf:zr1jrb;EnlcNd:WeHg4;Erl4fe:FloWmf,FloWmf;F9mqte:UoRcbe;Fmv9Nc:O1Tzwc;G0KhTb:LIaoZ;G6wU6e:hezEbd;GleZL:J1A7Od;HMDDWe:G8QUdb;HoYVKb:PkDN7e;HqeXPd:cmbnH;IBADCc:RYquRb;IZrNqe:P8ha2c;IoGlCf:b5lhvb;IsdWVc:qzxzOb;JXS8fb:Qj0suc;JbMT3:M25sS;JsbNhc:Xd8iUd;KOxcK:OZqGte;KQzWid:ZMKkN;KcokUb:KiuZBf;KpRAue:Tia57b;LBgRLc:SdcwHb,XVMNvd;LEikZe:byfTOb,lsjVmc;LXA8b:q7OdKd;LsNahb:ucGLNb;Me32dd:MEeYgc;NPKaK:SdcwHb;NSEoX:lazG7b;Np8Qkd:Dpx6qc;Nyt6ic:jn2sGd;OgagBe:",33
+        "_.m.Ddb","https://www.google.com/xjs/_/js/k=xjs.hd.en.nSJdbfIGUiE.O/am=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAACAEKAAAABR4AAAAgAAAAAAAAAAQIAQDEAQAAAgA4AAAEAQAEABQQAAAKEATgUTYAgAAwAQAIAAAQAAACQAAACAAAAAMAACAIAAAAAKAAAAAAAAAAAAAAAAAAYAABBAAAAAAAAAAAAIACAAAAoAMAAAAAgAAAgIAAANghAwgAAAQAAACgDwCCB8AghQcAAAAAAAAAAAAAAAKQIJgLCSgIQAAAAAAAAAAAAAAAAACkpIkLCw/d=1/ed=1/dg=3/br=1/rs=ACT90oH8sSQRHJq5R0DO9ABVW-vZJa5Baw/ee=ALeJib:B8gLwd;AfeaP:TkrAjf;BMxAGc:E5bFse;BgS6mb:fidj5d;BjwMce:cXX2Wb;CxXAWb:YyRLvc;DULqB:RKfG5c;Dkk6ge:wJqrrd;DpcR3d:zL72xf;EABSZ:MXZt9d;ESrPQc:mNTJvc;EVNhjf:pw70Gc;EmZ2Bf:zr1jrb;EnlcNd:WeHg4;Erl4fe:FloWmf,FloWmf;F9mqte:UoRcbe;Fmv9Nc:O1Tzwc;G0KhTb:LIaoZ;G6wU6e:hezEbd;GleZL:J1A7Od;HMDDWe:G8QUdb;HoYVKb:PkDN7e;HqeXPd:cmbnH;IBADCc:RYquRb;IZrNqe:P8ha2c;IoGlCf:b5lhvb;IsdWVc:qzxzOb;JXS8fb:Qj0suc;JbMT3:M25sS;JsbNhc:Xd8iUd;KOxcK:OZqGte;KQzWid:ZMKkN;KcokUb:KiuZBf;KpRAue:Tia57b;LBgRLc:SdcwHb,XVMNvd;LEikZe:byfTOb,lsjVmc;LXA8b:q7OdKd;LsNahb:ucGLNb;Me32dd:MEeYgc;NPKaK:SdcwHb;NSEoX:lazG7b;Np8Qkd:Dpx6qc;Nyt6ic:jn2sGd;OgagBe:",18
+        "da","https://www.google.com/",15
+        '''))
+
+  def test_v8_cpu_samples_json(self):
+    return DiffTestBlueprint(
+        trace=DataPath('v8-samples.json'),
+        query='''
+          include perfetto module stacks.cpu_profiling;
+
+          select name, source_file, self_count
+          from cpu_profiling_summary_tree
+          where self_count >= 15
+          order by self_count desc, name
+        ''',
+        out=Csv('''
+        "name","source_file","self_count"
+        "(program)","[NULL]",17083
+        "(program)","[NULL]",15399
+        "(program)","[NULL]",9853
+        "(program)","[NULL]",9391
+        "(program)","[NULL]",7299
+        "(program)","[NULL]",5245
+        "(program)","[NULL]",2443
+        "(garbage collector)","[NULL]",107
+        "_.mg","chrome-untrusted://new-tab-page/one-google-bar?paramsencoded=",38
+        "(garbage collector)","[NULL]",34
+        "","https://www.google.com/xjs/_/js/k=xjs.hd.en.nSJdbfIGUiE.O/am=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAACAEKAAAABR4AAAAgAAAAAAAAAAQIAQDEAQAAAgA4AAAEAQAEABQQAAAKEATgUTYAgAAwAQAIAAAQAAACQAAACAAAAAMAACAIAAAAAKAAAAAAAAAAAAAAAAAAYAABBAAAAAAAAAAAAIACAAAAoAMAAAAAgAAAgIAAANghAwgAAAQAAACgDwCCB8AghQcAAAAAAAAAAAAAAAKQIJgLCSgIQAAAAAAAAAAAAAAAAACkpIkLCw/d=1/ed=1/dg=3/br=1/rs=ACT90oH8sSQRHJq5R0DO9ABVW-vZJa5Baw/ee=ALeJib:B8gLwd;AfeaP:TkrAjf;BMxAGc:E5bFse;BgS6mb:fidj5d;BjwMce:cXX2Wb;CxXAWb:YyRLvc;DULqB:RKfG5c;Dkk6ge:wJqrrd;DpcR3d:zL72xf;EABSZ:MXZt9d;ESrPQc:mNTJvc;EVNhjf:pw70Gc;EmZ2Bf:zr1jrb;EnlcNd:WeHg4;Erl4fe:FloWmf,FloWmf;F9mqte:UoRcbe;Fmv9Nc:O1Tzwc;G0KhTb:LIaoZ;G6wU6e:hezEbd;GleZL:J1A7Od;HMDDWe:G8QUdb;HoYVKb:PkDN7e;HqeXPd:cmbnH;IBADCc:RYquRb;IZrNqe:P8ha2c;IoGlCf:b5lhvb;IsdWVc:qzxzOb;JXS8fb:Qj0suc;JbMT3:M25sS;JsbNhc:Xd8iUd;KOxcK:OZqGte;KQzWid:ZMKkN;KcokUb:KiuZBf;KpRAue:Tia57b;LBgRLc:SdcwHb,XVMNvd;LEikZe:byfTOb,lsjVmc;LXA8b:q7OdKd;LsNahb:ucGLNb;Me32dd:MEeYgc;NPKaK:SdcwHb;NSEoX:lazG7b;Np8Qkd:Dpx6qc;Nyt6ic:jn2sGd;OgagBe:",33
+        "_.m.Ddb","https://www.google.com/xjs/_/js/k=xjs.hd.en.nSJdbfIGUiE.O/am=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAACAEKAAAABR4AAAAgAAAAAAAAAAQIAQDEAQAAAgA4AAAEAQAEABQQAAAKEATgUTYAgAAwAQAIAAAQAAACQAAACAAAAAMAACAIAAAAAKAAAAAAAAAAAAAAAAAAYAABBAAAAAAAAAAAAIACAAAAoAMAAAAAgAAAgIAAANghAwgAAAQAAACgDwCCB8AghQcAAAAAAAAAAAAAAAKQIJgLCSgIQAAAAAAAAAAAAAAAAACkpIkLCw/d=1/ed=1/dg=3/br=1/rs=ACT90oH8sSQRHJq5R0DO9ABVW-vZJa5Baw/ee=ALeJib:B8gLwd;AfeaP:TkrAjf;BMxAGc:E5bFse;BgS6mb:fidj5d;BjwMce:cXX2Wb;CxXAWb:YyRLvc;DULqB:RKfG5c;Dkk6ge:wJqrrd;DpcR3d:zL72xf;EABSZ:MXZt9d;ESrPQc:mNTJvc;EVNhjf:pw70Gc;EmZ2Bf:zr1jrb;EnlcNd:WeHg4;Erl4fe:FloWmf,FloWmf;F9mqte:UoRcbe;Fmv9Nc:O1Tzwc;G0KhTb:LIaoZ;G6wU6e:hezEbd;GleZL:J1A7Od;HMDDWe:G8QUdb;HoYVKb:PkDN7e;HqeXPd:cmbnH;IBADCc:RYquRb;IZrNqe:P8ha2c;IoGlCf:b5lhvb;IsdWVc:qzxzOb;JXS8fb:Qj0suc;JbMT3:M25sS;JsbNhc:Xd8iUd;KOxcK:OZqGte;KQzWid:ZMKkN;KcokUb:KiuZBf;KpRAue:Tia57b;LBgRLc:SdcwHb,XVMNvd;LEikZe:byfTOb,lsjVmc;LXA8b:q7OdKd;LsNahb:ucGLNb;Me32dd:MEeYgc;NPKaK:SdcwHb;NSEoX:lazG7b;Np8Qkd:Dpx6qc;Nyt6ic:jn2sGd;OgagBe:",18
+        "da","https://www.google.com/",15
+        '''))

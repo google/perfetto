@@ -12,30 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin} from '../../public/plugin';
 
-class LargeScreensPerf implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerCommand({
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.LargeScreensPerf';
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.LargeScreensPerf#PinUnfoldLatencyTracks',
       name: 'Pin: Unfold latency tracks',
       callback: () => {
-        ctx.timeline.workspace.flatTracks.forEach((track) => {
+        ctx.workspace.flatTracks.forEach((track) => {
           if (
-            !!track.displayName.includes('UnfoldTransition') ||
-            track.displayName.includes('Screen on blocked') ||
-            track.displayName.includes('hingeAngle') ||
-            track.displayName.includes('UnfoldLightRevealOverlayAnimation') ||
-            track.displayName.startsWith('waitForAllWindowsDrawn') ||
-            track.displayName.endsWith('UNFOLD_ANIM>') ||
-            track.displayName.endsWith('UNFOLD>') ||
-            track.displayName == 'Waiting for KeyguardDrawnCallback#onDrawn' ||
-            track.displayName == 'FoldedState' ||
-            track.displayName == 'FoldUpdate'
+            !!track.title.includes('UnfoldTransition') ||
+            track.title.includes('Screen on blocked') ||
+            track.title.includes('hingeAngle') ||
+            track.title.includes('UnfoldLightRevealOverlayAnimation') ||
+            track.title.startsWith('waitForAllWindowsDrawn') ||
+            track.title.endsWith('UNFOLD_ANIM>') ||
+            track.title.endsWith('UNFOLD>') ||
+            track.title == 'Waiting for KeyguardDrawnCallback#onDrawn' ||
+            track.title == 'FoldedState' ||
+            track.title == 'FoldUpdate'
           ) {
             track.pin();
           }
@@ -44,8 +42,3 @@ class LargeScreensPerf implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.LargeScreensPerf',
-  plugin: LargeScreensPerf,
-};

@@ -212,7 +212,11 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
     }
     case RpcProto::TPM_FINALIZE_TRACE_DATA: {
       Response resp(tx_seq_id_++, req_type);
-      NotifyEndOfFile();
+      auto* result = resp->set_finalize_data_result();
+      base::Status res = NotifyEndOfFile();
+      if (!res.ok()) {
+        result->set_error(res.message());
+      }
       resp.Send(rpc_response_fn_);
       break;
     }
@@ -324,10 +328,10 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
-    case RpcProto::TPM_REGISTER_SQL_MODULE: {
+    case RpcProto::TPM_REGISTER_SQL_PACKAGE: {
       Response resp(tx_seq_id_++, req_type);
-      base::Status status = RegisterSqlModule(req.register_sql_module_args());
-      auto* res = resp->set_register_sql_module_result();
+      base::Status status = RegisterSqlPackage(req.register_sql_package_args());
+      auto* res = resp->set_register_sql_package_result();
       if (!status.ok()) {
         res->set_error(status.message());
       }
@@ -407,19 +411,31 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
             ? SoftDropFtraceDataBefore::kAllPerCpuBuffersValid
             : SoftDropFtraceDataBefore::kNoDrop;
   }
+  using Args = protos::pbzero::ResetTraceProcessorArgs;
+  switch (reset_trace_processor_args.parsing_mode()) {
+    case Args::ParsingMode::DEFAULT:
+      config.parsing_mode = ParsingMode::kDefault;
+      break;
+    case Args::ParsingMode::TOKENIZE_ONLY:
+      config.parsing_mode = ParsingMode::kTokenizeOnly;
+      break;
+    case Args::ParsingMode::TOKENIZE_AND_SORT:
+      config.parsing_mode = ParsingMode::kTokenizeAndSort;
+      break;
+  }
   ResetTraceProcessorInternal(config);
 }
 
-base::Status Rpc::RegisterSqlModule(protozero::ConstBytes bytes) {
-  protos::pbzero::RegisterSqlModuleArgs::Decoder args(bytes);
-  SqlModule module;
-  module.name = args.top_level_package_name().ToStdString();
-  module.allow_module_override = args.allow_module_override();
+base::Status Rpc::RegisterSqlPackage(protozero::ConstBytes bytes) {
+  protos::pbzero::RegisterSqlPackageArgs::Decoder args(bytes);
+  SqlPackage package;
+  package.name = args.package_name().ToStdString();
+  package.allow_override = args.allow_override();
   for (auto it = args.modules(); it; ++it) {
-    protos::pbzero::RegisterSqlModuleArgs::Module::Decoder m(*it);
-    module.files.emplace_back(m.name().ToStdString(), m.sql().ToStdString());
+    protos::pbzero::RegisterSqlPackageArgs::Module::Decoder m(*it);
+    package.modules.emplace_back(m.name().ToStdString(), m.sql().ToStdString());
   }
-  return trace_processor_->RegisterSqlModule(module);
+  return trace_processor_->RegisterSqlPackage(package);
 }
 
 void Rpc::MaybePrintProgress() {

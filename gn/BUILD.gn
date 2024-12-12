@@ -87,6 +87,7 @@ action("gen_buildflags") {
     "PERFETTO_TP_LINENOISE=$enable_perfetto_trace_processor_linenoise",
     "PERFETTO_TP_HTTPD=$enable_perfetto_trace_processor_httpd",
     "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
+    "PERFETTO_TP_INSTRUMENTS=$enable_perfetto_trace_processor_mac_instruments",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
     "PERFETTO_ZLIB=$enable_perfetto_zlib",
     "PERFETTO_TRACED_PERF=$enable_perfetto_traced_perf",
@@ -95,6 +96,7 @@ action("gen_buildflags") {
     "PERFETTO_X64_CPU_OPT=$enable_perfetto_x64_cpu_opt",
     "PERFETTO_LLVM_DEMANGLE=$enable_perfetto_llvm_demangle",
     "PERFETTO_SYSTEM_CONSUMER=$enable_perfetto_system_consumer",
+    "PERFETTO_THREAD_SAFETY_ANNOTATIONS=$perfetto_thread_safety_annotations",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
@@ -360,6 +362,16 @@ config("sqlite_third_party_include_path") {
     include_dirs = [ "//third_party/sqlite/dev" ]
   } else {
     include_dirs = [ "//third_party/sqlite" ]
+  }
+}
+
+if (enable_perfetto_trace_processor_mac_instruments) {
+  group("expat") {
+    if (perfetto_root_path == "//") {
+      public_deps = [ "//buildtools:expat" ]
+    } else {
+      public_deps = [ "//third_party/expat:expat" ]
+    }
   }
 }
 

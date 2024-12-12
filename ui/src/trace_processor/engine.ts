@@ -22,12 +22,11 @@ import {
   MetatraceCategories,
   QueryArgs,
   QueryResult as ProtoQueryResult,
-  RegisterSqlModuleArgs,
+  RegisterSqlPackageArgs,
   ResetTraceProcessorArgs,
   TraceProcessorRpc,
   TraceProcessorRpcStream,
 } from '../protos';
-
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   createQueryResult,
@@ -35,20 +34,12 @@ import {
   QueryResult,
   WritableQueryResult,
 } from './query_result';
-
 import TPM = TraceProcessorRpc.TraceProcessorMethod;
+import {exists} from '../base/utils';
+import {errResult, okResult, Result} from '../base/result';
 
-import {Result} from '../base/utils';
-
-export interface LoadingTracker {
-  beginLoading(): void;
-  endLoading(): void;
-}
-
-export class NullLoadingTracker implements LoadingTracker {
-  beginLoading(): void {}
-  endLoading(): void {}
-}
+export type EngineMode = 'WASM' | 'HTTP_RPC';
+export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE' | 'FORCE_BUILTIN_WASM';
 
 // This is used to skip the decoding of queryResult from protobufjs and deal
 // with it ourselves. See the comment below around `QueryResult.decode = ...`.
@@ -64,6 +55,9 @@ export interface TraceProcessorConfig {
 }
 
 export interface Engine {
+  readonly mode: EngineMode;
+  readonly engineId: string;
+
   /**
    * Execute a query against the database, returning a promise that resolves
    * when the query has completed but rejected when the query fails for whatever
@@ -89,7 +83,7 @@ export interface Engine {
    * @param sql The query to execute.
    * @param tag An optional tag used to trace the origin of the query.
    */
-  tryQuery(sql: string, tag?: string): Promise<Result<QueryResult, Error>>;
+  tryQuery(sql: string, tag?: string): Promise<Result<QueryResult>>;
 
   /**
    * Execute one or more metric and get the result.
@@ -101,6 +95,13 @@ export interface Engine {
     metrics: string[],
     format: 'json' | 'prototext' | 'proto',
   ): Promise<string | Uint8Array>;
+
+  enableMetatrace(categories?: MetatraceCategories): void;
+  stopAndGetMetatrace(): Promise<DisableAndReadMetatraceResult>;
+
+  getProxy(tag: string): EngineProxy;
+  readonly numRequestsPending: number;
+  readonly failed: string | undefined;
 }
 
 // Abstract interface of a trace proccessor.
@@ -114,9 +115,9 @@ export interface Engine {
 // 1. Implement the abstract rpcSendRequestBytes() function, sending the
 //    proto-encoded TraceProcessorRpc requests to the TraceProcessor instance.
 // 2. Call onRpcResponseBytes() when response data is received.
-export abstract class EngineBase implements Engine {
+export abstract class EngineBase implements Engine, Disposable {
   abstract readonly id: string;
-  private loadingTracker: LoadingTracker;
+  abstract readonly mode: EngineMode;
   private txSeqId = 0;
   private rxSeqId = 0;
   private rxBuf = new ProtoRingBuffer();
@@ -127,12 +128,13 @@ export abstract class EngineBase implements Engine {
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<DisableAndReadMetatraceResult>;
-  private pendingRegisterSqlModule?: Deferred<void>;
+  private pendingRegisterSqlPackage?: Deferred<void>;
   private _isMetatracingEnabled = false;
+  private _numRequestsPending = 0;
+  private _failed: string | undefined = undefined;
 
-  constructor(tracker?: LoadingTracker) {
-    this.loadingTracker = tracker ? tracker : new NullLoadingTracker();
-  }
+  // TraceController sets this to raf.scheduleFullRedraw().
+  onResponseReceived?: () => void;
 
   // Called to send data to the TraceProcessor instance. This turns into a
   // postMessage() or a HTTP request, depending on the Engine implementation.
@@ -189,15 +191,16 @@ export abstract class EngineBase implements Engine {
     const rpc = TraceProcessorRpc.decode(rpcMsgEncoded);
 
     if (rpc.fatalError !== undefined && rpc.fatalError.length > 0) {
-      throw new Error(`${rpc.fatalError}`);
+      this.fail(`${rpc.fatalError}`);
     }
 
     // Allow restarting sequences from zero (when reloading the browser).
     if (rpc.seq !== this.rxSeqId + 1 && this.rxSeqId !== 0 && rpc.seq !== 0) {
       // "(ERR:rpc_seq)" is intercepted by error_dialog.ts to show a more
       // graceful and actionable error.
-      throw new Error(
-        `RPC sequence id mismatch cur=${rpc.seq} last=${this.rxSeqId} (ERR:rpc_seq)`,
+      this.fail(
+        `RPC sequence id mismatch ` +
+          `cur=${rpc.seq} last=${this.rxSeqId} (ERR:rpc_seq)`,
       );
     }
 
@@ -206,18 +209,26 @@ export abstract class EngineBase implements Engine {
     let isFinalResponse = true;
 
     switch (rpc.response) {
-      case TPM.TPM_APPEND_TRACE_DATA:
+      case TPM.TPM_APPEND_TRACE_DATA: {
         const appendResult = assertExists(rpc.appendResult);
         const pendingPromise = assertExists(this.pendingParses.shift());
-        if (appendResult.error && appendResult.error.length > 0) {
+        if (exists(appendResult.error) && appendResult.error.length > 0) {
           pendingPromise.reject(appendResult.error);
         } else {
           pendingPromise.resolve();
         }
         break;
-      case TPM.TPM_FINALIZE_TRACE_DATA:
-        assertExists(this.pendingEOFs.shift()).resolve();
+      }
+      case TPM.TPM_FINALIZE_TRACE_DATA: {
+        const finalizeResult = assertExists(rpc.finalizeDataResult);
+        const pendingPromise = assertExists(this.pendingEOFs.shift());
+        if (exists(finalizeResult.error) && finalizeResult.error.length > 0) {
+          pendingPromise.reject(finalizeResult.error);
+        } else {
+          pendingPromise.resolve();
+        }
         break;
+      }
       case TPM.TPM_RESET_TRACE_PROCESSOR:
         assertExists(this.pendingResetTraceProcessors.shift()).resolve();
         break;
@@ -239,7 +250,7 @@ export abstract class EngineBase implements Engine {
         const pendingComputeMetric = assertExists(
           this.pendingComputeMetrics.shift(),
         );
-        if (metricRes.error && metricRes.error.length > 0) {
+        if (exists(metricRes.error) && metricRes.error.length > 0) {
           const error = new QueryError(
             `ComputeMetric() error: ${metricRes.error}`,
             {
@@ -263,10 +274,10 @@ export abstract class EngineBase implements Engine {
         assertExists(this.pendingReadMetatrace).resolve(metatraceRes);
         this.pendingReadMetatrace = undefined;
         break;
-      case TPM.TPM_REGISTER_SQL_MODULE:
-        const registerResult = assertExists(rpc.registerSqlModuleResult);
-        const res = assertExists(this.pendingRegisterSqlModule);
-        if (registerResult.error && registerResult.error.length > 0) {
+      case TPM.TPM_REGISTER_SQL_PACKAGE:
+        const registerResult = assertExists(rpc.registerSqlPackageResult);
+        const res = assertExists(this.pendingRegisterSqlPackage);
+        if (exists(registerResult.error) && registerResult.error.length > 0) {
           res.reject(registerResult.error);
         } else {
           res.resolve();
@@ -281,8 +292,10 @@ export abstract class EngineBase implements Engine {
     } // switch(rpc.response);
 
     if (isFinalResponse) {
-      this.loadingTracker.endLoading();
+      --this._numRequestsPending;
     }
+
+    this.onResponseReceived?.();
   }
 
   // TraceProcessor methods below this point.
@@ -428,16 +441,13 @@ export abstract class EngineBase implements Engine {
     }
   }
 
-  async tryQuery(
-    sql: string,
-    tag?: string,
-  ): Promise<Result<QueryResult, Error>> {
+  async tryQuery(sql: string, tag?: string): Promise<Result<QueryResult>> {
     try {
       const result = await this.query(sql, tag);
-      return {success: true, result};
-    } catch (error: unknown) {
-      // We know we only throw Error type objects so we can type assert safely
-      return {success: false, error: error as Error};
+      return okResult(result);
+    } catch (error) {
+      const msg = 'message' in error ? `${error.message}` : `${error}`;
+      return errResult(msg);
     }
   }
 
@@ -472,22 +482,23 @@ export abstract class EngineBase implements Engine {
     return result;
   }
 
-  registerSqlModules(p: {
+  registerSqlPackages(p: {
     name: string;
     modules: {name: string; sql: string}[];
   }): Promise<void> {
-    if (this.pendingRegisterSqlModule) {
+    if (this.pendingRegisterSqlPackage) {
       return Promise.reject(new Error('Already finalising a metatrace'));
     }
 
     const result = defer<void>();
 
     const rpc = TraceProcessorRpc.create();
-    rpc.request = TPM.TPM_REGISTER_SQL_MODULE;
-    const args = (rpc.registerSqlModuleArgs = new RegisterSqlModuleArgs());
-    args.topLevelPackageName = p.name;
+    rpc.request = TPM.TPM_REGISTER_SQL_PACKAGE;
+    const args = (rpc.registerSqlPackageArgs = new RegisterSqlPackageArgs());
+    args.packageName = p.name;
     args.modules = p.modules;
-    this.pendingRegisterSqlModule = result;
+    args.allowOverride = true;
+    this.pendingRegisterSqlPackage = result;
     this.rpcSendRequest(rpc);
     return result;
   }
@@ -501,13 +512,32 @@ export abstract class EngineBase implements Engine {
     const outerProto = TraceProcessorRpcStream.create();
     outerProto.msg.push(rpc);
     const buf = TraceProcessorRpcStream.encode(outerProto).finish();
-    this.loadingTracker.beginLoading();
+    ++this._numRequestsPending;
     this.rpcSendRequestBytes(buf);
+  }
+
+  get engineId(): string {
+    return this.id;
+  }
+
+  get numRequestsPending(): number {
+    return this._numRequestsPending;
   }
 
   getProxy(tag: string): EngineProxy {
     return new EngineProxy(this, tag);
   }
+
+  protected fail(reason: string) {
+    this._failed = reason;
+    throw new Error(reason);
+  }
+
+  get failed(): string | undefined {
+    return this._failed;
+  }
+
+  abstract [Symbol.dispose](): void;
 }
 
 // Lightweight engine proxy which annotates all queries with a tag
@@ -529,15 +559,9 @@ export class EngineProxy implements Engine, Disposable {
     return await this.engine.query(query, tag);
   }
 
-  async tryQuery(
-    query: string,
-    tag?: string,
-  ): Promise<Result<QueryResult, Error>> {
+  async tryQuery(query: string, tag?: string): Promise<Result<QueryResult>> {
     if (!this._isAlive) {
-      return {
-        success: false,
-        error: new Error(`EngineProxy ${this.tag} was disposed.`),
-      };
+      return errResult(`EngineProxy ${this.tag} was disposed`);
     }
     return await this.engine.tryQuery(query, tag);
   }
@@ -552,8 +576,32 @@ export class EngineProxy implements Engine, Disposable {
     return this.engine.computeMetric(metrics, format);
   }
 
+  enableMetatrace(categories?: MetatraceCategories): void {
+    this.engine.enableMetatrace(categories);
+  }
+
+  stopAndGetMetatrace(): Promise<DisableAndReadMetatraceResult> {
+    return this.engine.stopAndGetMetatrace();
+  }
+
   get engineId(): string {
     return this.engine.id;
+  }
+
+  getProxy(tag: string): EngineProxy {
+    return this.engine.getProxy(`${this.tag}/${tag}`);
+  }
+
+  get numRequestsPending() {
+    return this.engine.numRequestsPending;
+  }
+
+  get mode() {
+    return this.engine.mode;
+  }
+
+  get failed() {
+    return this.engine.failed;
   }
 
   [Symbol.dispose]() {
@@ -575,4 +623,9 @@ function captureStackTrace(e: Error): void {
       configurable: true,
     });
   }
+}
+
+// A convenience interface to inject the App in Mithril components.
+export interface EngineAttrs {
+  engine: Engine;
 }

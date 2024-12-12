@@ -42,8 +42,6 @@
 
 namespace perfetto {
 
-class RateLimiter;
-
 // Directory for local state and temporary files. This is automatically
 // created by the system by setting setprop persist.traced.enable=1.
 extern const char* kStateDir;
@@ -77,6 +75,8 @@ class PerfettoCmd : public Consumer {
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
  private:
+  struct SnapshotTriggerInfo;
+
   enum CloneThreadMode { kSingleExtraThread, kNewThreadPerRequest };
 
   bool OpenOutputFile();
@@ -85,14 +85,18 @@ class PerfettoCmd : public Consumer {
   void PrintUsage(const char* argv0);
   void PrintServiceState(bool success, const TracingServiceState&);
   void CloneAllBugreportTraces(bool success, const TracingServiceState&);
+
   void CloneSessionOnThread(TracingSessionID,
                             const std::string& cmdline,  // \0 separated.
                             CloneThreadMode,
-                            std::string clone_trigger_name,
+                            const std::optional<SnapshotTriggerInfo>& trigger,
                             std::function<void()> on_clone_callback);
   void OnTimeout();
   bool is_detach() const { return !detach_key_.empty(); }
   bool is_attach() const { return !attach_key_.empty(); }
+  bool is_clone() const {
+    return clone_tsid_.has_value() || !clone_name_.empty();
+  }
 
   // Once we call ReadBuffers we expect one or more calls to OnTraceData
   // with the last call having |has_more| set to false. However we should
@@ -130,7 +134,7 @@ class PerfettoCmd : public Consumer {
   void NotifyBgProcessPipe(BgProcessStatus status);
 
   void OnCloneSnapshotTriggerReceived(TracingSessionID,
-                                      std::string trigger_name);
+                                      const SnapshotTriggerInfo& trigger);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
@@ -145,7 +149,6 @@ class PerfettoCmd : public Consumer {
 
   base::UnixTaskRunner task_runner_;
 
-  std::unique_ptr<RateLimiter> limiter_;
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
       consumer_endpoint_;
   std::unique_ptr<TraceConfig> trace_config_;
@@ -177,6 +180,7 @@ class PerfettoCmd : public Consumer {
   bool connected_ = false;
   std::string uuid_;
   std::optional<TracingSessionID> clone_tsid_{};
+  std::string clone_name_;
   bool clone_for_bugreport_ = false;
   std::function<void()> on_session_cloned_;
 
@@ -190,7 +194,18 @@ class PerfettoCmd : public Consumer {
   std::list<base::ThreadTaskRunner> snapshot_threads_;
   int snapshot_count_ = 0;
   std::string snapshot_config_;
-  std::string snapshot_trigger_name_;
+  // If the trigger caused the clone operation, we want to save the information
+  // about that trigger to the trace We may get multiple triggers with the same
+  // name, so we pass the entire structure to uniquely identify the trigger
+  // later. This structure is identical to the
+  // `TracingServiceImpl::TriggerInfo`.
+  struct SnapshotTriggerInfo {
+    uint64_t boot_time_ns = 0;
+    std::string trigger_name;
+    std::string producer_name;
+    uid_t producer_uid = 0;
+  };
+  std::optional<SnapshotTriggerInfo> snapshot_trigger_info_;
 
   base::WeakPtrFactory<PerfettoCmd> weak_factory_{this};
 };

@@ -13,16 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {ErrorDetails} from '../base/logging';
-import {EXTENSION_URL} from '../common/recordingV2/recording_utils';
-import {GcsUploader} from '../common/gcs_uploader';
-import {RECORDING_V2_FLAG} from '../core/feature_flags';
+import {GcsUploader} from '../base/gcs_uploader';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
 import {getCurrentModalKey, showModal} from '../widgets/modal';
 import {globals} from './globals';
-import {Router} from './router';
+import {AppImpl} from '../core/app_impl';
+import {Router} from '../core/router';
 
 const MODAL_KEY = 'crash_modal';
 
@@ -47,22 +45,20 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
     return;
   }
 
-  if (!RECORDING_V2_FLAG.get()) {
-    if (err.message.includes('Unable to claim interface')) {
-      showWebUSBError();
-      timeLastReport = now;
-      return;
-    }
+  if (err.message.includes('Unable to claim interface')) {
+    showWebUSBError();
+    timeLastReport = now;
+    return;
+  }
 
-    if (
-      err.message.includes('A transfer error has occurred') ||
-      err.message.includes('The device was disconnected') ||
-      err.message.includes('The transfer was cancelled')
-    ) {
-      showConnectionLostError();
-      timeLastReport = now;
-      return;
-    }
+  if (
+    err.message.includes('A transfer error has occurred') ||
+    err.message.includes('The device was disconnected') ||
+    err.message.includes('The transfer was cancelled')
+  ) {
+    showConnectionLostError();
+    timeLastReport = now;
+    return;
   }
 
   if (err.message.includes('(ERR:fmt)')) {
@@ -72,6 +68,11 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
 
   if (err.message.includes('(ERR:rpc_seq)')) {
     showRpcSequencingError();
+    return;
+  }
+
+  if (err.message.includes('(ERR:ws)')) {
+    showWebsocketConnectionIssue(err.message);
     return;
   }
 
@@ -118,13 +119,13 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
 
   constructor() {
     this.traceState = 'NOT_AVAILABLE';
-    const engine = globals.getCurrentEngine();
-    if (engine === undefined) return;
-    this.traceType = engine.source.type;
+    const traceSource = AppImpl.instance.trace?.traceInfo.source;
+    if (traceSource === undefined) return;
+    this.traceType = traceSource.type;
     // If the trace is either already uploaded, or comes from a postmessage+url
     // we don't need any re-upload.
-    if ('url' in engine.source && engine.source.url !== undefined) {
-      this.traceUrl = engine.source.url;
+    if ('url' in traceSource && traceSource.url !== undefined) {
+      this.traceUrl = traceSource.url;
       this.traceState = 'UPLOADED';
       // The trace is already uploaded, so assume the user is fine attaching to
       // the bugreport (this make the checkbox ticked by default).
@@ -135,12 +136,12 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     // If the user is not a googler, don't even offer the option to upload it.
     if (!globals.isInternalUser) return;
 
-    if (engine.source.type === 'FILE') {
+    if (traceSource.type === 'FILE') {
       this.traceState = 'NOT_UPLOADED';
-      this.traceData = engine.source.file;
+      this.traceData = traceSource.file;
       // this.traceSize = this.traceData.size;
-    } else if (engine.source.type === 'ARRAY_BUFFER') {
-      this.traceData = engine.source.buffer;
+    } else if (traceSource.type === 'ARRAY_BUFFER') {
+      this.traceData = traceSource.buffer;
       // this.traceSize = this.traceData.byteLength;
     } else {
       return; // Can't upload HTTP+RPC.
@@ -241,7 +242,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
       this.uploadStatus = '';
       const uploader = new GcsUploader(this.traceData, {
         onProgress: () => {
-          raf.scheduleFullRedraw();
+          raf.scheduleFullRedraw('force');
           this.uploadStatus = uploader.getEtaString();
           if (uploader.state === 'UPLOADED') {
             this.traceState = 'UPLOADED';
@@ -351,131 +352,6 @@ function showWebUSBError() {
   });
 }
 
-export function showWebUSBErrorV2() {
-  showModal({
-    title: 'A WebUSB error occurred',
-    content: m(
-      'div',
-      m(
-        'span',
-        `Is adb already running on the host? Run this command and
-      try again.`,
-      ),
-      m('br'),
-      m('.modal-bash', '> adb kill-server'),
-      m('br'),
-      // The statement below covers the following edge case:
-      // 1. 'adb server' is running on the device.
-      // 2. The user selects the new Android target, so we try to fetch the
-      // OS version and do QSS.
-      // 3. The error modal is shown.
-      // 4. The user runs 'adb kill-server'.
-      // At this point we don't have a trigger to try fetching the OS version
-      // + QSS again. Therefore, the user will need to refresh the page.
-      m(
-        'span',
-        "If after running 'adb kill-server', you don't see " +
-          "a 'Start Recording' button on the page and you don't see " +
-          "'Allow USB debugging' on the device, " +
-          'you will need to reload this page.',
-      ),
-      m('br'),
-      m('br'),
-      m('span', 'For details see '),
-      m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
-    ),
-  });
-}
-
-export function showConnectionLostError(): void {
-  showModal({
-    title: 'Connection with the ADB device lost',
-    content: m(
-      'div',
-      m('span', `Please connect the device again to restart the recording.`),
-      m('br'),
-    ),
-  });
-}
-
-export function showAllowUSBDebugging(): void {
-  showModal({
-    title: 'Could not connect to the device',
-    content: m(
-      'div',
-      m('span', 'Please allow USB debugging on the device.'),
-      m('br'),
-    ),
-  });
-}
-
-export function showNoDeviceSelected(): void {
-  showModal({
-    title: 'No device was selected for recording',
-    content: m(
-      'div',
-      m(
-        'span',
-        `If you want to connect to an ADB device,
-           please select it from the list.`,
-      ),
-      m('br'),
-    ),
-  });
-}
-
-export function showExtensionNotInstalled(): void {
-  showModal({
-    title: 'Perfetto Chrome extension not installed',
-    content: m(
-      'div',
-      m(
-        '.note',
-        `To trace Chrome from the Perfetto UI, you need to install our `,
-        m('a', {href: EXTENSION_URL, target: '_blank'}, 'Chrome extension'),
-        ' and then reload this page.',
-      ),
-      m('br'),
-    ),
-  });
-}
-
-export function showWebsocketConnectionIssue(message: string): void {
-  showModal({
-    title: 'Unable to connect to the device via websocket',
-    content: m('div', m('span', message), m('br')),
-  });
-}
-
-export function showIssueParsingTheTracedResponse(message: string): void {
-  showModal({
-    title:
-      'A problem was encountered while connecting to' +
-      ' the Perfetto tracing service',
-    content: m('div', m('span', message), m('br')),
-  });
-}
-
-export function showFailedToPushBinary(message: string): void {
-  showModal({
-    title: 'Failed to push a binary to the device',
-    content: m(
-      'div',
-      m(
-        'span',
-        'This can happen if your Android device has an OS version lower ' +
-          'than Q. Perfetto tried to push the latest version of its ' +
-          'embedded binary but failed.',
-      ),
-      m('br'),
-      m('br'),
-      m('span', 'Error message:'),
-      m('br'),
-      m('span', message),
-    ),
-  });
-}
-
 function showRpcSequencingError() {
   showModal({
     title: 'A TraceProcessor RPC error occurred',
@@ -523,5 +399,27 @@ function showNewerStateError() {
         action: () => Router.navigate('#!/flags/releaseChannel'),
       },
     ],
+  });
+}
+
+function showWebsocketConnectionIssue(message: string): void {
+  showModal({
+    title: 'Unable to connect to the device via websocket',
+    content: m(
+      'div',
+      m('div', 'trace_processor_shell --httpd is unreachable or crashed.'),
+      m('pre', message),
+    ),
+  });
+}
+
+function showConnectionLostError(): void {
+  showModal({
+    title: 'Connection with the ADB device lost',
+    content: m(
+      'div',
+      m('span', `Please connect the device again to restart the recording.`),
+      m('br'),
+    ),
   });
 }

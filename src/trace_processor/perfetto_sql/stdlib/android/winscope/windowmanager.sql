@@ -16,14 +16,20 @@
 -- Android WindowManager (from android.windowmanager data source).
 CREATE PERFETTO VIEW android_windowmanager(
   -- Snapshot id
-  id INT,
+  id LONG,
   -- Timestamp when the snapshot was triggered
-  ts INT,
+  ts TIMESTAMP,
   -- Extra args parsed from the proto message
-  arg_set_id INT
+  arg_set_id LONG,
+  -- Raw proto message encoded in base64
+  base64_proto STRING,
+  -- String id for raw proto message
+  base64_proto_id LONG
 ) AS
 SELECT
   id,
   ts,
-  arg_set_id
+  arg_set_id,
+  base64_proto,
+  base64_proto_id
 FROM __intrinsic_windowmanager;

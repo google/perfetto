@@ -39,11 +39,14 @@ class PerfSampleTracker {
   struct SamplingStreamInfo {
     tables::PerfSessionTable::Id perf_session_id;
     TrackId timebase_track_id = kInvalidTrackId;
+    std::vector<TrackId> follower_track_ids;
 
     SamplingStreamInfo(tables::PerfSessionTable::Id _perf_session_id,
-                       TrackId _timebase_track_id)
+                       TrackId _timebase_track_id,
+                       std::vector<TrackId> _follower_track_ids)
         : perf_session_id(_perf_session_id),
-          timebase_track_id(_timebase_track_id) {}
+          timebase_track_id(_timebase_track_id),
+          follower_track_ids(std::move(_follower_track_ids)) {}
   };
 
   explicit PerfSampleTracker(TraceProcessorContext* context)
@@ -57,9 +60,12 @@ class PerfSampleTracker {
  private:
   struct CpuSequenceState {
     TrackId timebase_track_id = kInvalidTrackId;
+    std::vector<TrackId> follower_track_ids;
 
-    CpuSequenceState(TrackId _timebase_track_id)
-        : timebase_track_id(_timebase_track_id) {}
+    CpuSequenceState(TrackId _timebase_track_id,
+                     std::vector<TrackId> _follower_track_ids)
+        : timebase_track_id(_timebase_track_id),
+          follower_track_ids(std::move(_follower_track_ids)) {}
   };
 
   struct SequenceState {

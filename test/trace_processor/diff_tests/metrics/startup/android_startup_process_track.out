@@ -1,6 +1,7 @@
 android_startup {
   startup {
     startup_id: 0
+    cpu_count: 0
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar:debug"
     zygote_new_process: false
@@ -76,15 +77,21 @@ android_startup {
       }
       launch_dur: 7
       trace_thread_sections {
+        thread_section {
+          start_timestamp: 103
+          end_timestamp: 107
+          thread_name: "com.google.android.calendar"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 103
         end_timestamp: 107
-        thread_utid: 3
-        thread_name: "com.google.android.calendar"
       }
     }
   }
   startup {
     startup_id: 1
+    cpu_count: 0
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
     zygote_new_process: false
@@ -161,10 +168,15 @@ android_startup {
       }
       launch_dur: 7
       trace_thread_sections {
+        thread_section {
+          start_timestamp: 203
+          end_timestamp: 207
+          thread_name: "com.google.android.calendar"
+          process_pid: 4
+          thread_tid: 4
+        }
         start_timestamp: 203
         end_timestamp: 207
-        thread_utid: 4
-        thread_name: "com.google.android.calendar"
       }
     }
   }

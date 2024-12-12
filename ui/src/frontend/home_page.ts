@@ -13,13 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-
-import {channelChanged, getNextChannel, setChannel} from '../common/channels';
+import {channelChanged, getNextChannel, setChannel} from '../core/channels';
 import {Anchor} from '../widgets/anchor';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
-
-import {globals} from './globals';
-import {createPage} from './pages';
+import {PageAttrs} from '../public/page';
+import {assetSrc} from '../base/assets';
 
 export class Hints implements m.ClassComponent {
   view() {
@@ -68,7 +66,7 @@ export class Hints implements m.ClassComponent {
   }
 }
 
-export const HomePage = createPage({
+export class HomePage implements m.ClassComponent<PageAttrs> {
   view() {
     return m(
       '.page.home-page',
@@ -76,7 +74,7 @@ export const HomePage = createPage({
         '.home-page-center',
         m(
           '.home-page-title',
-          m(`img.logo[src=${globals.root}assets/logo-3d.png]`),
+          m(`img.logo[src=${assetSrc('assets/logo-3d.png')}]`),
           'Perfetto',
         ),
         m(Hints),
@@ -96,8 +94,8 @@ export const HomePage = createPage({
         'Privacy policy',
       ),
     );
-  },
-});
+  }
+}
 
 function mkChan(chan: string) {
   const checked = getNextChannel() === chan ? '[checked=true]' : '';

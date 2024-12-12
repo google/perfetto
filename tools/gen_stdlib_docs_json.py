@@ -26,10 +26,15 @@ sys.path.append(os.path.join(ROOT_DIR))
 from python.generators.sql_processing.docs_parse import parse_file
 
 
+def _summary_desc(s: str) -> str:
+  return s.split('. ')[0].replace('\n', ' ')
+
+
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--json-out', required=True)
   parser.add_argument('--input-list-file')
+  parser.add_argument('--minify')
   parser.add_argument('sql_files', nargs='*')
   args = parser.parse_args()
 
@@ -64,11 +69,11 @@ def main():
 
       sql_outputs[relpath] = f.read()
 
-  modules = defaultdict(list)
+  packages = defaultdict(list)
   # Add documentation from each file
   for path, sql in sql_outputs.items():
-    module_name = path.split("/")[0]
-    import_key = path.split(".sql")[0].replace("/", ".")
+    package_name = path.split("/")[0]
+    module_name = path.split(".sql")[0].replace("/", ".")
 
     docs = parse_file(path, sql)
 
@@ -81,69 +86,81 @@ def main():
         print(e)
       return 1
 
-    file_dict = {
-        'import_key':
-            import_key,
-        'imports': [{
-            'name': table.name,
-            'desc': table.desc,
-            'summary_desc': table.desc.split('\n\n')[0].replace('\n', ' '),
-            'type': table.type,
-            'cols': {
-                col_name: {
-                    'type': col.type,
-                    'desc': col.description,
-                } for (col_name, col) in table.cols.items()
-            },
+    module_dict = {
+        'module_name':
+            module_name,
+        'data_objects': [{
+            'name':
+                table.name,
+            'desc':
+                table.desc,
+            'summary_desc':
+                _summary_desc(table.desc),
+            'type':
+                table.type,
+            'cols': [{
+                'name': col_name,
+                'type': col.type,
+                'desc': col.description
+            } for (col_name, col) in table.cols.items()]
         } for table in docs.table_views],
         'functions': [{
             'name': function.name,
             'desc': function.desc,
-            'summary_desc': function.desc.split('\n\n')[0].replace('\n', ' '),
-            'args': {
-                arg_name: {
-                    'type': arg.type,
-                    'desc': arg.description,
-                } for (arg_name, arg) in function.args.items()
-            },
+            'summary_desc': _summary_desc(function.desc),
+            'args': [{
+                'name': arg_name,
+                'type': arg.type,
+                'desc': arg.description,
+            } for (arg_name, arg) in function.args.items()],
             'return_type': function.return_type,
             'return_desc': function.return_desc,
         } for function in docs.functions],
         'table_functions': [{
-            'name': function.name,
-            'desc': function.desc,
-            'summary_desc': function.desc.split('\n\n')[0].replace('\n', ' '),
-            'args': {
-                arg_name: {
-                    'type': arg.type,
-                    'desc': arg.description,
-                } for (arg_name, arg) in function.args.items()
-            },
-            'cols': {
-                col_name: {
-                    'type': col.type,
-                    'desc': col.description,
-                } for (col_name, col) in function.cols.items()
-            },
+            'name':
+                function.name,
+            'desc':
+                function.desc,
+            'summary_desc':
+                _summary_desc(function.desc),
+            'args': [{
+                'name': arg_name,
+                'type': arg.type,
+                'desc': arg.description,
+            } for (arg_name, arg) in function.args.items()],
+            'cols': [{
+                'name': col_name,
+                'type': col.type,
+                'desc': col.description
+            } for (col_name, col) in function.cols.items()]
         } for function in docs.table_functions],
         'macros': [{
-            'name': macro.name,
-            'desc': macro.desc,
-            'summary_desc': macro.desc.split('\n\n')[0].replace('\n', ' '),
-            'return_desc': macro.return_desc,
-            'return_type': macro.return_type,
-            'args': {
-                arg_name: {
-                    'type': arg.type,
-                    'desc': arg.description,
-                } for (arg_name, arg) in macro.args.items()
-            },
+            'name':
+                macro.name,
+            'desc':
+                macro.desc,
+            'summary_desc':
+                _summary_desc(macro.desc),
+            'return_desc':
+                macro.return_desc,
+            'return_type':
+                macro.return_type,
+            'args': [{
+                'name': arg_name,
+                'type': arg.type,
+                'desc': arg.description,
+            } for (arg_name, arg) in macro.args.items()],
         } for macro in docs.macros],
     }
-    modules[module_name].append(file_dict)
+    packages[package_name].append(module_dict)
+
+  packages_list = [{
+      "name": name,
+      "modules": modules
+  } for name, modules in packages.items()]
 
   with open(args.json_out, 'w+') as f:
-    json.dump(modules, f, indent=4)
+    json.dump(packages_list, f, indent=None if args.minify else 4)
 
   return 0
 

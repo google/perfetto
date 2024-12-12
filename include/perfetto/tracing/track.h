@@ -26,11 +26,15 @@
 #include "perfetto/tracing/internal/tracing_muxer.h"
 #include "perfetto/tracing/platform.h"
 #include "perfetto/tracing/string_helpers.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace/track_event/counter_descriptor.gen.h"
-#include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
-#include "protos/perfetto/trace/track_event/track_descriptor.gen.h"
-#include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"  // IWYU pragma: export
+#include "protos/perfetto/trace/track_event/counter_descriptor.gen.h"  // IWYU pragma: export
+#include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"  // IWYU pragma: export
+#include "protos/perfetto/trace/track_event/process_descriptor.gen.h"  // IWYU pragma: export
+#include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"  // IWYU pragma: export
+#include "protos/perfetto/trace/track_event/thread_descriptor.gen.h"  // IWYU pragma: export
+#include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"  // IWYU pragma: export
+#include "protos/perfetto/trace/track_event/track_descriptor.gen.h"  // IWYU pragma: export
+#include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"  // IWYU pragma: export
 
 #include <stdint.h>
 #include <map>
@@ -186,6 +190,52 @@ struct PERFETTO_EXPORT_COMPONENT ThreadTrack : public Track {
         tid(tid_),
         disallow_merging_with_system_tracks(
             disallow_merging_with_system_tracks_) {}
+};
+
+// A track that's identified by an explcit name, id and its parent.
+class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
+  // A random value mixed into named track uuids to avoid collisions with
+  // other types of tracks.
+  static constexpr uint64_t kNamedTrackMagic = 0xCD571EC5EAD37024ul;
+
+ public:
+  // `name` is hashed to get a uuid identifying the track. Optionally specify
+  // `id` to differentiate between multiple tracks with the same `name` and
+  // `parent`.
+  NamedTrack(DynamicString name,
+             uint64_t id = 0,
+             Track parent = MakeProcessTrack())
+      : Track(id ^ internal::Fnv1a(name.value, name.length) ^ kNamedTrackMagic,
+              parent),
+        static_name_(nullptr),
+        dynamic_name_(name) {}
+
+  constexpr NamedTrack(StaticString name,
+                       uint64_t id = 0,
+                       Track parent = MakeProcessTrack())
+      : Track(id ^ internal::Fnv1a(name.value) ^ kNamedTrackMagic, parent),
+        static_name_(name) {}
+
+  // Construct a track using `name` and `id` as identifier within thread-scope.
+  // Shorthand for `Track::NamedTrack("name", id, ThreadTrack::Current())`
+  // Usage: TRACE_EVENT_BEGIN("...", "...",
+  // perfetto::NamedTrack::ThreadScoped("rendering"))
+  template <class TrackEventName>
+  static Track ThreadScoped(TrackEventName name,
+                            uint64_t id = 0,
+                            Track parent = Track()) {
+    if (parent.uuid == 0)
+      return NamedTrack(std::forward<TrackEventName>(name), id,
+                        ThreadTrack::Current());
+    return NamedTrack(std::forward<TrackEventName>(name), id, parent);
+  }
+
+  void Serialize(protos::pbzero::TrackDescriptor*) const;
+  protos::gen::TrackDescriptor Serialize() const;
+
+ private:
+  StaticString static_name_;
+  DynamicString dynamic_name_;
 };
 
 // A track for recording counter values with the TRACE_COUNTER macro. Counter

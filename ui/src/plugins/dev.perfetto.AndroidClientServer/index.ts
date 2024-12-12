@@ -12,18 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  NUM,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-  STR,
-} from '../../public';
-import {addDebugSliceTrack} from '../../public';
+import {NUM, STR} from '../../trace_processor/query_result';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin} from '../../public/plugin';
+import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 
-class AndroidClientServer implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerCommand({
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidClientServer';
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.AndroidClientServer#ThreadRuntimeIPC',
       name: 'Show dependencies in client server model',
       callback: async (sliceId) => {
@@ -191,26 +188,19 @@ class AndroidClientServer implements PerfettoPlugin {
           name: STR,
         });
         for (; it.valid(); it.next()) {
-          await addDebugSliceTrack(
-            ctx,
-            {
+          await addDebugSliceTrack({
+            trace: ctx,
+            data: {
               sqlSource: `
                 SELECT ts, dur, name
                 FROM __enhanced_binder_for_slice_${sliceId}
                 WHERE binder_id = ${it.id}
               `,
             },
-            it.name,
-            {ts: 'ts', dur: 'dur', name: 'name'},
-            [],
-          );
+            title: it.name,
+          });
         }
       },
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidClientServer',
-  plugin: AndroidClientServer,
-};

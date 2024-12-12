@@ -147,7 +147,8 @@ class ProtoToArgsParser {
                             const std::string& type,
                             const std::vector<uint32_t>* allowed_fields,
                             Delegate& delegate,
-                            int* unknown_extensions = nullptr);
+                            int* unknown_extensions = nullptr,
+                            bool add_defaults = false);
 
   // This class is responsible for resetting the current key prefix to the old
   // value when deleted or reset.
@@ -249,14 +250,16 @@ class ProtoToArgsParser {
                           int repeated_field_number,
                           protozero::Field field,
                           Delegate& delegate,
-                          int* unknown_extensions);
+                          int* unknown_extensions,
+                          bool add_defaults);
 
   base::Status ParsePackedField(
       const FieldDescriptor& field_descriptor,
       std::unordered_map<size_t, int>& repeated_field_index,
       protozero::Field field,
       Delegate& delegate,
-      int* unknown_extensions);
+      int* unknown_extensions,
+      bool add_defaults);
 
   std::optional<base::Status> MaybeApplyOverrideForField(
       const protozero::Field&,
@@ -275,11 +278,18 @@ class ProtoToArgsParser {
                                     const std::string& type,
                                     const std::vector<uint32_t>* fields,
                                     Delegate& delegate,
-                                    int* unknown_extensions);
+                                    int* unknown_extensions,
+                                    bool add_defaults = false);
 
   base::Status ParseSimpleField(const FieldDescriptor& desciptor,
                                 const protozero::Field& field,
                                 Delegate& delegate);
+
+  base::Status AddDefault(const FieldDescriptor& desciptor, Delegate& delegate);
+
+  base::Status AddEnum(const FieldDescriptor& descriptor,
+                       int32_t value,
+                       Delegate& delegate);
 
   std::unordered_map<std::string, ParsingOverrideForField> field_overrides_;
   std::unordered_map<std::string, ParsingOverrideForType> type_overrides_;

@@ -12,139 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../../frontend/globals';
-import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
-import {
-  addDebugSliceTrack,
-  PluginContextTrace,
-  TrackDescriptor,
-} from '../../public';
-import {findCurrentSelection} from '../../frontend/keyboard_event_handler';
-import {time, Time} from '../../base/time';
-import {BigintMath} from '../../base/bigint_math';
-import {scrollToTrackAndTimeSpan} from '../../frontend/scroll_helper';
-
-/**
- * Adds debug tracks from SimpleSliceTrackConfig
- * Static tracks cannot be added on command
- * TODO: b/349502258 - To be removed later
- *
- * @param {PluginContextTrace} ctx Context for trace methods and properties
- * @param {SimpleSliceTrackConfig} config Track config to add
- * @param {string} trackName Track name to display
- */
-export function addDebugTrackOnCommand(
-  ctx: PluginContextTrace,
-  config: SimpleSliceTrackConfig,
-  trackName: string,
-) {
-  addDebugSliceTrack(
-    ctx,
-    config.data,
-    trackName,
-    config.columns,
-    config.argColumns,
-  );
-}
-
-/**
- * Registers and pins tracks on traceload or command
- *
- * @param {PluginContextTrace} ctx Context for trace methods and properties
- * @param {SimpleSliceTrackConfig} config Track config to add
- * @param {string} trackName Track name to display
- * type 'static' expects caller to pass uri string
- */
-export function addAndPinSliceTrack(
-  ctx: PluginContextTrace,
-  config: SimpleSliceTrackConfig,
-  trackName: string,
-) {
-  addDebugTrackOnCommand(ctx, config, trackName);
-}
-
-/**
- * Interface for slice identifier
- */
-export interface SliceIdentifier {
-  sliceId?: number;
-  trackId?: number;
-  ts?: time;
-  dur?: bigint;
-}
+import {Trace} from '../../public/trace';
 
 /**
  * Sets focus on a specific slice within the trace data.
  *
  * Takes and adds desired slice to current selection
  * Retrieves the track key and scrolls to the desired slice
- *
- * @param {SliceIdentifier} slice slice to focus on with trackId and sliceId
  */
-
-export function focusOnSlice(slice: SliceIdentifier) {
-  if (slice.sliceId == undefined || slice.trackId == undefined) {
-    return;
-  }
-  const trackId = slice.trackId;
-  const track = getTrackForTrackId(trackId);
-  globals.setLegacySelection(
-    {
-      kind: 'SLICE',
-      id: slice.sliceId,
-      trackUri: track?.uri,
-      table: 'slice',
-    },
-    {
-      clearSearch: true,
-      pendingScrollId: slice.sliceId,
-      switchToCurrentSelectionTab: true,
-    },
-  );
-  findCurrentSelection;
-}
-
-/**
- * Given the trackId of the track, retrieves its corresponding TrackDescriptor.
- *
- * @param trackId track_id of the track
- */
-function getTrackForTrackId(trackId: number): TrackDescriptor | undefined {
-  return globals.trackManager.getAllTracks().find((trackDescriptor) => {
-    return trackDescriptor?.tags?.trackIds?.includes(trackId);
+export function focusOnSlice(ctx: Trace, sqlSliceId: number) {
+  ctx.selection.selectSqlEvent('slice', sqlSliceId, {
+    scrollToSelection: true,
   });
-}
-
-/**
- * Sets focus on a specific time span and a track
- *
- * Takes a row object pans the view to that time span
- * Retrieves the track key and scrolls to the desired track
- *
- * @param {SliceIdentifier} slice slice to focus on with trackId and time data
- */
-
-export async function focusOnTimeAndTrack(slice: SliceIdentifier) {
-  if (
-    slice.trackId == undefined ||
-    slice.ts == undefined ||
-    slice.dur == undefined
-  ) {
-    return;
-  }
-  const trackId = slice.trackId;
-  const sliceStart = slice.ts;
-  // row.dur can be negative. Clamp to 1ns.
-  const sliceDur = BigintMath.max(slice.dur, 1n);
-  const track = getTrackForTrackId(trackId);
-  // true for whether to expand the process group the track belongs to
-  if (track == undefined) {
-    return;
-  }
-  scrollToTrackAndTimeSpan(
-    track.uri,
-    sliceStart,
-    Time.add(sliceStart, sliceDur),
-    true,
-  );
 }

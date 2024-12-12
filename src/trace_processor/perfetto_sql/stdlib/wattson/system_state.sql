@@ -19,54 +19,54 @@ INCLUDE PERFETTO MODULE wattson.cpu_split;
 -- needed by Wattson to estimate energy for the CPU subsystem.
 CREATE PERFETTO TABLE wattson_system_states(
   -- Starting timestamp of the current counter where system state is constant.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the current counter where system state is constant.
-  dur INT,
+  dur DURATION,
   -- Number of L3 hits the current system state.
-  l3_hit_count INT,
+  l3_hit_count LONG,
   -- Number of L3 misses in the current system state.
-  l3_miss_count INT,
+  l3_miss_count LONG,
   -- Frequency of CPU0.
-  freq_0 INT,
+  freq_0 LONG,
   -- Idle state of CPU0.
-  idle_0 INT,
+  idle_0 LONG,
   -- Frequency of CPU1.
-  freq_1 INT,
+  freq_1 LONG,
   -- Idle state of CPU1.
-  idle_1 INT,
+  idle_1 LONG,
   -- Frequency of CPU2.
-  freq_2 INT,
+  freq_2 LONG,
   -- Idle state of CPU2.
-  idle_2 INT,
+  idle_2 LONG,
   -- Frequency of CPU3.
-  freq_3 INT,
+  freq_3 LONG,
   -- Idle state of CPU3.
-  idle_3 INT,
+  idle_3 LONG,
   -- Frequency of CPU4.
-  freq_4 INT,
+  freq_4 LONG,
   -- Idle state of CPU4.
-  idle_4 INT,
+  idle_4 LONG,
   -- Frequency of CPU5.
-  freq_5 INT,
+  freq_5 LONG,
   -- Idle state of CPU5.
-  idle_5 INT,
+  idle_5 LONG,
   -- Frequency of CPU6.
-  freq_6 INT,
+  freq_6 LONG,
   -- Idle state of CPU6.
-  idle_6 INT,
+  idle_6 LONG,
   -- Frequency of CPU7.
-  freq_7 INT,
+  freq_7 LONG,
   -- Idle state of CPU7.
-  idle_7 INT,
+  idle_7 LONG,
   -- Flag indicating if current system state is suspended.
   suspended BOOL
 )
 AS
 SELECT
-  ts,
-  dur,
-  cast_int!(round(l3_hit_rate * dur, 0)) as l3_hit_count,
-  cast_int!(round(l3_miss_rate * dur, 0)) as l3_miss_count,
+  s.ts,
+  s.dur,
+  cast_int!(round(l3_hit_rate * s.dur, 0)) as l3_hit_count,
+  cast_int!(round(l3_miss_rate * s.dur, 0)) as l3_miss_count,
   freq_0,
   idle_0,
   freq_1,
@@ -84,7 +84,14 @@ SELECT
   freq_7,
   idle_7,
   IFNULL(suspended, FALSE) as suspended
-FROM _idle_freq_l3_hit_l3_miss_slice
+FROM _idle_freq_l3_hit_l3_miss_slice s
+JOIN _stats_cpu0 ON _stats_cpu0._auto_id = s.cpu0_id
+JOIN _stats_cpu1 ON _stats_cpu1._auto_id = s.cpu1_id
+JOIN _stats_cpu2 ON _stats_cpu2._auto_id = s.cpu2_id
+JOIN _stats_cpu3 ON _stats_cpu3._auto_id = s.cpu3_id
+LEFT JOIN _stats_cpu4 ON _stats_cpu4._auto_id = s.cpu4_id
+LEFT JOIN _stats_cpu5 ON _stats_cpu5._auto_id = s.cpu5_id
+LEFT JOIN _stats_cpu6 ON _stats_cpu6._auto_id = s.cpu6_id
+LEFT JOIN _stats_cpu7 ON _stats_cpu7._auto_id = s.cpu7_id
 -- Needs to be at least 1us to reduce inconsequential rows.
-WHERE dur > time_from_us(1);
-
+WHERE s.dur > time_from_us(1);

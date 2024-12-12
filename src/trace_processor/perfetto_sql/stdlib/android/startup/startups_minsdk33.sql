@@ -19,7 +19,7 @@ CREATE PERFETTO VIEW _startup_async_events AS
 SELECT
   ts,
   dur,
-  CAST(SUBSTR(name, 19) AS INT) AS startup_id
+  cast_int!(SUBSTR(name, 19) ) AS startup_id
 FROM slice
 WHERE
   name GLOB 'launchingActivity#*'
@@ -28,7 +28,7 @@ WHERE
 
 CREATE PERFETTO VIEW _startup_complete_events AS
 SELECT
-  CAST(STR_SPLIT(completed, ':', 0) AS INT) AS startup_id,
+  cast_int!(STR_SPLIT(completed, ':', 0)) AS startup_id,
   STR_SPLIT(completed, ':', 2) AS package_name,
   CASE
     WHEN STR_SPLIT(completed, ':', 1) = 'completed-hot' THEN 'hot'
@@ -45,6 +45,7 @@ FROM (
     -- Originally completed was unqualified, but at some point we introduced
     -- the startup type as well
     AND name GLOB 'launchingActivity#*:completed*:*'
+    AND NOT name GLOB '*:completed-same-process:*'
 )
 GROUP BY 1, 2, 3;
 

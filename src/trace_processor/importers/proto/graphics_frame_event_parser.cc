@@ -132,7 +132,7 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
 
   tables::GpuTrackTable::Row track(track_name_id);
   track.scope = graphics_event_scope_id_;
-  TrackId track_id = context_->track_tracker->InternGpuTrack(track);
+  TrackId track_id = context_->track_tracker->LegacyInternGpuTrack(track);
 
   auto* graphics_frame_slice_table =
       context_->storage->mutable_graphics_frame_slice_table();
@@ -247,7 +247,7 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
           context_->storage->InternString(track_name.GetStringView());
       tables::GpuTrackTable::Row app_track(track_name_id);
       app_track.scope = graphics_event_scope_id_;
-      track_id = context_->track_tracker->InternGpuTrack(app_track);
+      track_id = context_->track_tracker->LegacyInternGpuTrack(app_track);
 
       // Error handling
       auto dequeue_time = dequeue_map_.find(event_key);
@@ -301,7 +301,7 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
           context_->storage->InternString(track_name.GetStringView());
       tables::GpuTrackTable::Row gpu_track(track_name_id);
       gpu_track.scope = graphics_event_scope_id_;
-      track_id = context_->track_tracker->InternGpuTrack(gpu_track);
+      track_id = context_->track_tracker->LegacyInternGpuTrack(gpu_track);
       queue_map_[event_key] = track_id;
       break;
     }
@@ -332,7 +332,7 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
           context_->storage->InternString(track_name.GetStringView());
       tables::GpuTrackTable::Row sf_track(track_name_id);
       sf_track.scope = graphics_event_scope_id_;
-      track_id = context_->track_tracker->InternGpuTrack(sf_track);
+      track_id = context_->track_tracker->LegacyInternGpuTrack(sf_track);
       latch_map_[event_key] = track_id;
       break;
     }
@@ -356,7 +356,7 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
           context_->storage->InternString(track_name.GetStringView());
       tables::GpuTrackTable::Row display_track(track_name_id);
       display_track.scope = graphics_event_scope_id_;
-      track_id = context_->track_tracker->InternGpuTrack(display_track);
+      track_id = context_->track_tracker->LegacyInternGpuTrack(display_track);
       display_map_[layer_name_id] = track_id;
       break;
     }

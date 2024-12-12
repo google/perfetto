@@ -44,6 +44,7 @@
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -251,8 +252,8 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
 }
 
 TEST_F(ExportJsonTest, SystemEventsIgnored) {
-  TrackId track = context_.track_tracker->CreateProcessAsyncTrack(
-      /*name=*/kNullStringId, /*upid=*/0, /*source=*/kNullStringId);
+  TrackId track =
+      context_.track_tracker->InternProcessTrack(tracks::unknown, 0);
   context_.args_tracker->Flush();  // Flush track args.
 
   // System events have no category.
@@ -769,7 +770,12 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   // Global legacy track.
   TrackId track = context_.track_tracker->InternGlobalTrack(
-      TrackTracker::GlobalTrackType::kChromeLegacyGlobalInstant);
+      tracks::legacy_chrome_global_instants, TrackTracker::AutoName(),
+      [this](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(
+            context_.storage->InternString("source"),
+            Variadic::String(context_.storage->InternString("chrome")));
+      });
   context_.args_tracker->Flush();  // Flush track args.
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
@@ -784,7 +790,9 @@ TEST_F(ExportJsonTest, InstantEvent) {
       {kTimestamp2, 0, track2, cat_id, name_id, 0, 0, 0});
 
   // Async event track.
-  track_event_tracker.ReserveDescriptorChildTrack(1234, 0, kNullStringId);
+  TrackEventTracker::DescriptorTrackReservation reservation;
+  reservation.parent_uuid = 0;
+  track_event_tracker.ReserveDescriptorTrack(1234, reservation);
   TrackId track3 = *track_event_tracker.GetDescriptorTrack(1234);
   context_.args_tracker->Flush();  // Flush track args.
   context_.storage->mutable_slice_table()->Insert(
@@ -982,11 +990,11 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   StringId name3_id = context_.storage->InternString(base::StringView(kName3));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   constexpr int64_t kSourceId2 = 236;
-  TrackId track2 = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track2 = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name3_id, upid, kSourceId2, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
@@ -1129,11 +1137,11 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
   };
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   constexpr int64_t kSourceId2 = 236;
-  TrackId track2 = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track2 = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name3_id, upid, kSourceId2, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
@@ -1252,7 +1260,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
@@ -1308,7 +1316,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
@@ -1353,7 +1361,7 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
@@ -1806,7 +1814,8 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
   const char* kModuleDebugPath = "debugpath";
 
   UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
-  TrackId track = context_.track_tracker->InternProcessTrack(upid);
+  TrackId track =
+      context_.track_tracker->InternProcessTrack(tracks::track_event, upid);
   StringId level_of_detail_id =
       context_.storage->InternString(base::StringView(kLevelOfDetail));
   auto snapshot_id = context_.storage->mutable_memory_snapshot_table()
@@ -1816,7 +1825,7 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
   StringId peak_resident_set_size_id =
       context_.storage->InternString("chrome.peak_resident_set_kb");
   TrackId peak_resident_set_size_counter =
-      context_.track_tracker->InternProcessCounterTrack(
+      context_.track_tracker->LegacyInternProcessCounterTrack(
           peak_resident_set_size_id, upid);
   context_.event_tracker->PushCounter(kTimestamp, kPeakResidentSetSize,
                                       peak_resident_set_size_counter);
@@ -1824,7 +1833,7 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
   StringId private_footprint_bytes_id =
       context_.storage->InternString("chrome.private_footprint_kb");
   TrackId private_footprint_bytes_counter =
-      context_.track_tracker->InternProcessCounterTrack(
+      context_.track_tracker->LegacyInternProcessCounterTrack(
           private_footprint_bytes_id, upid);
   context_.event_tracker->PushCounter(kTimestamp, kPrivateFootprintBytes,
                                       private_footprint_bytes_counter);
@@ -1927,7 +1936,8 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
 
   UniquePid os_upid =
       context_.process_tracker->GetOrCreateProcess(kOsProcessID);
-  TrackId track = context_.track_tracker->InternProcessTrack(os_upid);
+  TrackId track =
+      context_.track_tracker->InternProcessTrack(tracks::track_event, os_upid);
   StringId level_of_detail_id =
       context_.storage->InternString(base::StringView(kLevelOfDetail));
   auto snapshot_id = context_.storage->mutable_memory_snapshot_table()

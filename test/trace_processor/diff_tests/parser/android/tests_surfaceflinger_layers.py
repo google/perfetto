@@ -81,3 +81,19 @@ class SurfaceFlingerLayers(TestSuite):
         2,1,"surfaceflinger_layer"
         3,1,"surfaceflinger_layer"
         """))
+
+  def test_tables_have_raw_protos(self):
+    return DiffTestBlueprint(
+        trace=Path('surfaceflinger_layers.textproto'),
+        query="""
+        SELECT COUNT(*) FROM surfaceflinger_layers_snapshot
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        UNION ALL
+        SELECT COUNT(*) FROM surfaceflinger_layer
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        """,
+        out=Csv("""
+        "COUNT(*)"
+        2
+        4
+        """))

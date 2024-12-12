@@ -19,7 +19,6 @@ test('classnames', () => {
   expect(classNames('foo', '', 'bar')).toEqual('foo bar');
   expect(classNames(false, 'foo', 'bar')).toEqual('foo bar');
   expect(classNames(undefined, 'foo', 'bar')).toEqual('foo bar');
-  expect(classNames('foo', 'bar', ['baz', 'qux'])).toEqual('foo bar baz qux');
   expect(classNames('foo bar', 'baz')).toEqual('foo bar baz');
 });
 

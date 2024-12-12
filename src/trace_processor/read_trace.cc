@@ -26,8 +26,8 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/importers/archive/gzip_trace_parser.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/util/gzip_utils.h"
@@ -94,10 +94,7 @@ base::Status DecompressTrace(const uint8_t* data,
     std::unique_ptr<ChunkedTraceReader> reader(
         new SerializingProtoTraceReader(output));
     GzipTraceParser parser(std::move(reader));
-
     RETURN_IF_ERROR(parser.ParseUnowned(data, size));
-    if (parser.needs_more_input())
-      return base::ErrStatus("Cannot decompress partial trace file");
     return parser.NotifyEndOfFile();
   }
 

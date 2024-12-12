@@ -20,6 +20,13 @@ package perfetto.protos;
 
 // Events emitted by the tracing service.
 message TracingServiceEvent {
+  message DataSources {
+    message DataSource {
+      optional string producer_name = 1;
+      optional string data_source_name = 2;
+    }
+    repeated DataSource data_source = 1;
+  }
   oneof event_type {
     // When each of the following booleans are set to true, they report the
     // point in time (through TracePacket's timestamp) where the condition
@@ -38,6 +45,9 @@ message TracingServiceEvent {
     // This identifies the point in time when it's safe to assume that all data
     // sources have been recording events.
     bool all_data_sources_started = 1;
+
+    // Emitted when a flush is started.
+    bool flush_started = 9;
 
     // Emitted when all data sources have been flushed successfully or with an
     // error (including timeouts). This can generally happen many times over the
@@ -63,5 +73,13 @@ message TracingServiceEvent {
     // Deprecated since Android U, where --save-for-bugreport uses
     // non-destructive cloning.
     bool seized_for_bugreport = 6;
+
+    // Emitted when not all data sources in all producers reply to a start
+    // request after some time.
+    DataSources slow_starting_data_sources = 7;
+
+    // Emitted when the last flush request has failed. Lists data sources that
+    // did not reply on time.
+    DataSources last_flush_slow_data_sources = 8;
   }
 }

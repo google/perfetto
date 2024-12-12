@@ -28,9 +28,11 @@ import "protos/perfetto/trace/ftrace/cgroup.proto";
 import "protos/perfetto/trace/ftrace/clk.proto";
 import "protos/perfetto/trace/ftrace/cma.proto";
 import "protos/perfetto/trace/ftrace/compaction.proto";
+import "protos/perfetto/trace/ftrace/cpm_trace.proto";
 import "protos/perfetto/trace/ftrace/cpuhp.proto";
 import "protos/perfetto/trace/ftrace/cros_ec.proto";
 import "protos/perfetto/trace/ftrace/dcvsh.proto";
+import "protos/perfetto/trace/ftrace/devfreq.proto";
 import "protos/perfetto/trace/ftrace/dma_fence.proto";
 import "protos/perfetto/trace/ftrace/dmabuf_heap.proto";
 import "protos/perfetto/trace/ftrace/dpu.proto";
@@ -40,6 +42,7 @@ import "protos/perfetto/trace/ftrace/f2fs.proto";
 import "protos/perfetto/trace/ftrace/fastrpc.proto";
 import "protos/perfetto/trace/ftrace/fence.proto";
 import "protos/perfetto/trace/ftrace/filemap.proto";
+import "protos/perfetto/trace/ftrace/fs.proto";
 import "protos/perfetto/trace/ftrace/ftrace.proto";
 import "protos/perfetto/trace/ftrace/g2d.proto";
 import "protos/perfetto/trace/ftrace/google_icc_trace.proto";
@@ -677,5 +680,13 @@ message FtraceEvent {
     KgslAdrenoCmdbatchRetiredFtraceEvent kgsl_adreno_cmdbatch_retired = 537;
     PixelMmKswapdWakeFtraceEvent pixel_mm_kswapd_wake = 538;
     PixelMmKswapdDoneFtraceEvent pixel_mm_kswapd_done = 539;
+    SchedWakeupTaskAttrFtraceEvent sched_wakeup_task_attr = 540;
+    DevfreqFrequencyFtraceEvent devfreq_frequency = 541;
+    KprobeEvent kprobe_event = 542;
+    ParamSetValueCpmFtraceEvent param_set_value_cpm = 543;
+    DoSysOpenFtraceEvent do_sys_open = 544;
+    OpenExecFtraceEvent open_exec = 545;
+    BlockIoStartFtraceEvent block_io_start = 546;
+    BlockIoDoneFtraceEvent block_io_done = 547;
   }
 }

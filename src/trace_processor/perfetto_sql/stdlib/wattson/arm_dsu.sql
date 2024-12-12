@@ -15,7 +15,7 @@
 
 -- Converts event counter from count to rate (num of accesses per ns).
 CREATE PERFETTO FUNCTION _get_rate(event STRING)
-RETURNS TABLE(ts LONG, dur INT, access_rate INT)
+RETURNS TABLE(ts TIMESTAMP, dur DURATION, access_rate LONG)
 AS
 SELECT
   ts,

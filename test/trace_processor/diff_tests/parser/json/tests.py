@@ -106,3 +106,47 @@ class JsonParser(TestSuite):
           "Event2","args.01.step1",1
           "Event2","args.02.step2",2
         """))
+
+  def test_x_event_order(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "name": "Child",
+            "ph": "X",
+            "ts": 1,
+            "dur": 5,
+            "pid": 1
+          },
+          {
+            "name": "Parent",
+            "ph": "X",
+            "ts": 1,
+            "dur": 10,
+            "pid": 1,
+            "tid": 1
+          }
+        ]'''),
+        query='''
+          SELECT ts, dur, name, depth
+          FROM slice
+        ''',
+        out=Csv("""
+          "ts","dur","name","depth"
+          1000,10000,"Parent",0
+          1000,5000,"Child",1
+        """))
+
+  def test_json_incomplete(self):
+    return DiffTestBlueprint(
+      trace=Json('''
+        [
+        {"name":"typecheck","ph":"X","ts":4619295550.000,"dur":8000.000,"pid":306339,"tid":3},
+      '''),
+      query='''
+        select ts from slice
+      ''',
+      out=Csv('''
+      "ts"
+      4619295550000
+      ''')
+    )

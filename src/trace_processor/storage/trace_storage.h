@@ -36,7 +36,6 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column/types.h"
@@ -48,6 +47,7 @@
 #include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/perf_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
@@ -57,8 +57,7 @@
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // UniquePid is an offset into |unique_processes_|. This is necessary because
 // Unix pids are reused and thus not guaranteed to be unique over a long
@@ -230,6 +229,12 @@ class TraceStorage {
   virtual StringId InternString(base::StringView str) {
     return string_pool_.InternString(str);
   }
+  virtual StringId InternString(const char* str) {
+    return InternString(base::StringView(str));
+  }
+  virtual StringId InternString(const std::string& str) {
+    return InternString(base::StringView(str));
+  }
 
   // Example usage: SetStats(stats::android_log_num_failed, 42);
   void SetStats(size_t key, int64_t value) {
@@ -268,6 +273,12 @@ class TraceStorage {
       return kv->second;
     }
     return std::nullopt;
+  }
+
+  int64_t GetStats(size_t key) {
+    PERFETTO_DCHECK(key < stats::kNumKeys);
+    PERFETTO_DCHECK(stats::kTypes[key] == stats::kSingle);
+    return stats_[key].value;
   }
 
   class ScopedStatsTracer {
@@ -379,43 +390,6 @@ class TraceStorage {
     return &gpu_counter_track_table_;
   }
 
-  const tables::EnergyCounterTrackTable& energy_counter_track_table() const {
-    return energy_counter_track_table_;
-  }
-  tables::EnergyCounterTrackTable* mutable_energy_counter_track_table() {
-    return &energy_counter_track_table_;
-  }
-
-  const tables::LinuxDeviceTrackTable& linux_device_track_table() const {
-    return linux_device_track_table_;
-  }
-  tables::LinuxDeviceTrackTable* mutable_linux_device_track_table() {
-    return &linux_device_track_table_;
-  }
-
-  const tables::UidCounterTrackTable& uid_counter_track_table() const {
-    return uid_counter_track_table_;
-  }
-  tables::UidCounterTrackTable* mutable_uid_counter_track_table() {
-    return &uid_counter_track_table_;
-  }
-
-  const tables::EnergyPerUidCounterTrackTable&
-  energy_per_uid_counter_track_table() const {
-    return energy_per_uid_counter_track_table_;
-  }
-  tables::EnergyPerUidCounterTrackTable*
-  mutable_energy_per_uid_counter_track_table() {
-    return &energy_per_uid_counter_track_table_;
-  }
-
-  const tables::IrqCounterTrackTable& irq_counter_track_table() const {
-    return irq_counter_track_table_;
-  }
-  tables::IrqCounterTrackTable* mutable_irq_counter_track_table() {
-    return &irq_counter_track_table_;
-  }
-
   const tables::PerfCounterTrackTable& perf_counter_track_table() const {
     return perf_counter_track_table_;
   }
@@ -456,13 +430,6 @@ class TraceStorage {
   }
   tables::ThreadCounterTrackTable* mutable_thread_counter_track_table() {
     return &thread_counter_track_table_;
-  }
-
-  const tables::SoftirqCounterTrackTable& softirq_counter_track_table() const {
-    return softirq_counter_track_table_;
-  }
-  tables::SoftirqCounterTrackTable* mutable_softirq_counter_track_table() {
-    return &softirq_counter_track_table_;
   }
 
   const tables::SchedSliceTable& sched_slice_table() const {
@@ -659,6 +626,13 @@ class TraceStorage {
     return &perf_sample_table_;
   }
 
+  const tables::InstrumentsSampleTable& instruments_sample_table() const {
+    return instruments_sample_table_;
+  }
+  tables::InstrumentsSampleTable* mutable_instruments_sample_table() {
+    return &instruments_sample_table_;
+  }
+
   const tables::SymbolTable& symbol_table() const { return symbol_table_; }
 
   tables::SymbolTable* mutable_symbol_table() { return &symbol_table_; }
@@ -695,18 +669,6 @@ class TraceStorage {
     return gpu_track_table_;
   }
   tables::GpuTrackTable* mutable_gpu_track_table() { return &gpu_track_table_; }
-
-  const tables::UidTrackTable& uid_track_table() const {
-    return uid_track_table_;
-  }
-  tables::UidTrackTable* mutable_uid_track_table() { return &uid_track_table_; }
-
-  const tables::GpuWorkPeriodTrackTable& gpu_work_period_track_table() const {
-    return gpu_work_period_track_table_;
-  }
-  tables::GpuWorkPeriodTrackTable* mutable_gpu_work_period_track_table() {
-    return &gpu_work_period_track_table_;
-  }
 
   const tables::VulkanMemoryAllocationsTable& vulkan_memory_allocations_table()
       const {
@@ -838,6 +800,19 @@ class TraceStorage {
     return jit_frame_table_;
   }
   tables::JitFrameTable* mutable_jit_frame_table() { return &jit_frame_table_; }
+
+  tables::MmapRecordTable* mutable_mmap_record_table() {
+    return &mmap_record_table_;
+  }
+  const tables::MmapRecordTable& mmap_record_table() const {
+    return mmap_record_table_;
+  }
+  const tables::SpeRecordTable& spe_record_table() const {
+    return spe_record_table_;
+  }
+  tables::SpeRecordTable* mutable_spe_record_table() {
+    return &spe_record_table_;
+  }
 
   const tables::InputMethodClientsTable& inputmethod_clients_table() const {
     return inputmethod_clients_table_;
@@ -978,12 +953,8 @@ class TraceStorage {
   Variadic GetArgValue(uint32_t row) const {
     auto rr = arg_table_[row];
 
-    Variadic v;
+    Variadic v = Variadic::Null();
     v.type = *GetVariadicTypeForId(rr.value_type());
-
-    // Force initialization of union to stop GCC complaining.
-    v.int_value = 0;
-
     switch (v.type) {
       case Variadic::Type::kBool:
         v.bool_value = static_cast<bool>(*rr.int_value());
@@ -1058,13 +1029,8 @@ class TraceStorage {
   tables::ThreadStateTable thread_state_table_{&string_pool_};
   tables::CpuTrackTable cpu_track_table_{&string_pool_, &track_table_};
   tables::GpuTrackTable gpu_track_table_{&string_pool_, &track_table_};
-  tables::UidTrackTable uid_track_table_{&string_pool_, &track_table_};
-  tables::GpuWorkPeriodTrackTable gpu_work_period_track_table_{
-      &string_pool_, &uid_track_table_};
   tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
   tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};
-  tables::LinuxDeviceTrackTable linux_device_track_table_{&string_pool_,
-                                                          &track_table_};
 
   // Track tables for counter events.
   tables::CounterTrackTable counter_track_table_{&string_pool_, &track_table_};
@@ -1074,18 +1040,8 @@ class TraceStorage {
       &string_pool_, &counter_track_table_};
   tables::CpuCounterTrackTable cpu_counter_track_table_{&string_pool_,
                                                         &counter_track_table_};
-  tables::IrqCounterTrackTable irq_counter_track_table_{&string_pool_,
-                                                        &counter_track_table_};
-  tables::SoftirqCounterTrackTable softirq_counter_track_table_{
-      &string_pool_, &counter_track_table_};
   tables::GpuCounterTrackTable gpu_counter_track_table_{&string_pool_,
                                                         &counter_track_table_};
-  tables::EnergyCounterTrackTable energy_counter_track_table_{
-      &string_pool_, &counter_track_table_};
-  tables::UidCounterTrackTable uid_counter_track_table_{&string_pool_,
-                                                        &counter_track_table_};
-  tables::EnergyPerUidCounterTrackTable energy_per_uid_counter_track_table_{
-      &string_pool_, &uid_counter_track_table_};
   tables::GpuCounterGroupTable gpu_counter_group_table_{&string_pool_};
   tables::PerfCounterTrackTable perf_counter_track_table_{
       &string_pool_, &counter_track_table_};
@@ -1151,6 +1107,7 @@ class TraceStorage {
       &string_pool_};
   tables::PerfSessionTable perf_session_table_{&string_pool_};
   tables::PerfSampleTable perf_sample_table_{&string_pool_};
+  tables::InstrumentsSampleTable instruments_sample_table_{&string_pool_};
   tables::PackageListTable package_list_table_{&string_pool_};
   tables::AndroidGameInterventionListTable
       android_game_intervention_list_table_{&string_pool_};
@@ -1201,6 +1158,10 @@ class TraceStorage {
   tables::JitCodeTable jit_code_table_{&string_pool_};
   tables::JitFrameTable jit_frame_table_{&string_pool_};
 
+  // Perf tables
+  tables::MmapRecordTable mmap_record_table_{&string_pool_};
+  tables::SpeRecordTable spe_record_table_{&string_pool_};
+
   // Winscope tables
   tables::InputMethodClientsTable inputmethod_clients_table_{&string_pool_};
   tables::InputMethodManagerServiceTable inputmethod_manager_service_table_{
@@ -1232,8 +1193,7 @@ class TraceStorage {
   std::array<StringId, Variadic::kMaxType + 1> variadic_type_ids_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 template <>
 struct std::hash<::perfetto::trace_processor::BaseId> {

@@ -163,7 +163,7 @@ void WritePerfEventDefaultsPacket(const EventConfig& event_config,
     timebase_pb->set_period(perf_attr->sample_period);
   }
 
-  // event:
+  // timebase event:
   const PerfCounter& timebase = event_config.timebase_event();
   switch (timebase.event_type()) {
     case PerfCounter::Type::kBuiltinCounter: {
@@ -190,6 +190,34 @@ void WritePerfEventDefaultsPacket(const EventConfig& event_config,
   // optional name to identify the counter during parsing:
   if (!timebase.name.empty()) {
     timebase_pb->set_name(timebase.name);
+  }
+
+  // follower events:
+  for (const auto& e : event_config.follower_events()) {
+    auto* followers_pb = perf_defaults->add_followers();
+    followers_pb->set_name(e.name);
+
+    switch (e.event_type()) {
+      case PerfCounter::Type::kBuiltinCounter: {
+        followers_pb->set_counter(
+            static_cast<protos::pbzero::PerfEvents::Counter>(e.counter));
+        break;
+      }
+      case PerfCounter::Type::kTracepoint: {
+        auto* tracepoint_pb = followers_pb->set_tracepoint();
+        tracepoint_pb->set_name(e.tracepoint_name);
+        tracepoint_pb->set_filter(e.tracepoint_filter);
+        break;
+      }
+      case PerfCounter::Type::kRawEvent: {
+        auto* raw_pb = followers_pb->set_raw_event();
+        raw_pb->set_type(e.attr_type);
+        raw_pb->set_config(e.attr_config);
+        raw_pb->set_config1(e.attr_config1);
+        raw_pb->set_config2(e.attr_config2);
+        break;
+      }
+    }
   }
 
   // Not setting timebase.timestamp_clock since the field that matters during
@@ -472,8 +500,12 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
 
   // Inform unwinder of the new data source instance, and optionally start a
   // periodic task to clear its cached state.
-  unwinding_worker_->PostStartDataSource(ds_id,
-                                         ds.event_config.kernel_frames());
+  auto unwind_mode = (ds.event_config.unwind_mode() ==
+                      protos::gen::PerfEventConfig::UNWIND_FRAME_POINTER)
+                         ? Unwinder::UnwindMode::kFramePointer
+                         : Unwinder::UnwindMode::kUnwindStack;
+  unwinding_worker_->PostStartDataSource(ds_id, ds.event_config.kernel_frames(),
+                                         unwind_mode);
   if (ds.event_config.unwind_state_clear_period_ms()) {
     unwinding_worker_->PostClearCachedStatePeriodic(
         ds_id, ds.event_config.unwind_state_clear_period_ms());
@@ -947,6 +979,11 @@ void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
   perf_sample->set_tid(static_cast<uint32_t>(sample.common.tid));
   perf_sample->set_cpu_mode(ToCpuModeEnum(sample.common.cpu_mode));
   perf_sample->set_timebase_count(sample.common.timebase_count);
+
+  for (size_t i = 0; i < sample.common.follower_counts.size(); ++i) {
+    perf_sample->add_follower_counts(sample.common.follower_counts[i]);
+  }
+
   perf_sample->set_callstack_iid(callstack_iid);
   if (sample.unwind_error != unwindstack::ERROR_NONE) {
     perf_sample->set_unwind_error(ToProtoEnum(sample.unwind_error));
@@ -1015,6 +1052,10 @@ void PerfProducer::EmitSkippedSample(DataSourceInstanceID ds_id,
   perf_sample->set_tid(static_cast<uint32_t>(sample.common.tid));
   perf_sample->set_cpu_mode(ToCpuModeEnum(sample.common.cpu_mode));
   perf_sample->set_timebase_count(sample.common.timebase_count);
+
+  for (size_t i = 0; i < sample.common.follower_counts.size(); ++i) {
+    perf_sample->add_follower_counts(sample.common.follower_counts[i]);
+  }
 
   using PerfSample = protos::pbzero::PerfSample;
   switch (reason) {

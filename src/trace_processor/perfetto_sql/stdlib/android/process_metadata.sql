@@ -21,13 +21,13 @@ FROM package_list
 GROUP BY 1;
 
 CREATE PERFETTO FUNCTION _android_package_for_process(
-  uid INT,
-  uid_count INT,
+  uid LONG,
+  uid_count LONG,
   process_name STRING
 )
 RETURNS TABLE(
   package_name STRING,
-  version_code INT,
+  version_code LONG,
   debuggable BOOL
 )
 AS
@@ -64,21 +64,21 @@ FROM min_distance;
 -- Data about packages running on the process.
 CREATE PERFETTO TABLE android_process_metadata(
   -- Process upid.
-  upid INT,
+  upid LONG,
   -- Process pid.
-  pid INT,
+  pid LONG,
   -- Process name.
   process_name STRING,
   -- Android app UID.
-  uid INT,
+  uid LONG,
   -- Whether the UID is shared by multiple packages.
   shared_uid BOOL,
   -- Name of the packages running in this process.
   package_name STRING,
   -- Package version code.
-  version_code INT,
+  version_code LONG,
   -- Whether package is debuggable.
-  debuggable INT
+  debuggable LONG
 ) AS
 SELECT
   process.upid,

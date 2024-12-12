@@ -47,7 +47,10 @@ void ThreadPool::PostTask(std::function<void()> fn) {
   thread_waiter_.notify_one();
 }
 
-void ThreadPool::RunThreadLoop() {
+void ThreadPool::RunThreadLoop() PERFETTO_NO_THREAD_SAFETY_ANALYSIS {
+  // 'std::unique_lock' lock doesn't work well with thread annotations
+  // (see https://github.com/llvm/llvm-project/issues/63239),
+  // so we suppress thread safety static analysis for this method.
   for (;;) {
     std::function<void()> fn;
     {
@@ -57,8 +60,10 @@ void ThreadPool::RunThreadLoop() {
       }
       if (pending_tasks_.empty()) {
         thread_waiting_count_++;
-        thread_waiter_.wait(
-            guard, [this]() { return quit_ || !pending_tasks_.empty(); });
+        thread_waiter_.wait(guard,
+                            [this]() PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+                              return quit_ || !pending_tasks_.empty();
+                            });
         thread_waiting_count_--;
         continue;
       }

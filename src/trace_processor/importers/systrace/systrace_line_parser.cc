@@ -137,7 +137,8 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
 
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::CpuCounterTrackType::kFrequency, event_cpu.value());
+        tracks::cpu_frequency, event_cpu.value(),
+        TrackTracker::LegacyCharArrayName{"cpufreq"});
     context_->event_tracker->PushCounter(line.ts, new_state.value(), track);
   } else if (line.event_name == "cpu_idle") {
     std::optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
@@ -150,7 +151,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
 
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::CpuCounterTrackType::kIdle, event_cpu.value());
+        tracks::cpu_idle, event_cpu.value());
     context_->event_tracker->PushCounter(line.ts, new_state.value(), track);
   } else if (line.event_name == "binder_transaction") {
     auto id = base::StringToInt32(args["transaction"]);
@@ -228,7 +229,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     std::string clock_name_str = args["name"] + subtitle;
     StringId clock_name =
         context_->storage->InternString(base::StringView(clock_name_str));
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kClockFrequency, clock_name);
     context_->event_tracker->PushCounter(line.ts, rate.value(), track);
   } else if (line.event_name == "workqueue_execute_start") {
@@ -244,7 +245,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     std::string thermal_zone = args["thermal_zone"] + " Temperature";
     StringId track_name =
         context_->storage->InternString(base::StringView(thermal_zone));
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kThermals, track_name);
     auto temp = base::StringToInt32(args["temp"]);
     if (!temp.has_value()) {
@@ -255,7 +256,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     std::string type = args["type"] + " Cooling Device";
     StringId track_name =
         context_->storage->InternString(base::StringView(type));
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kThermals, track_name);
     auto target = base::StringToDouble(args["target"]);
     if (!target.has_value()) {

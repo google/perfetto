@@ -24,6 +24,7 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import WrappingSqlView
 
 from src.trace_processor.tables.metadata_tables import THREAD_TABLE
 
@@ -164,6 +165,8 @@ ANDROID_MOTION_EVENTS_TABLE = Table(
         C('event_id', CppUint32()),
         C('ts', CppInt64()),
         C('arg_set_id', CppUint32()),
+        C('base64_proto', CppString()),
+        C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='Contains Android MotionEvents processed by the system',
@@ -180,6 +183,8 @@ ANDROID_MOTION_EVENTS_TABLE = Table(
                 ColumnDoc(
                     doc='Details of the motion event parsed from the proto message.',
                     joinable='args.arg_set_id'),
+            'base64_proto': 'Raw proto message encoded in base64',
+            'base64_proto_id': 'String id for raw proto message',
         }))
 
 ANDROID_KEY_EVENTS_TABLE = Table(
@@ -190,6 +195,8 @@ ANDROID_KEY_EVENTS_TABLE = Table(
         C('event_id', CppUint32()),
         C('ts', CppInt64()),
         C('arg_set_id', CppUint32()),
+        C('base64_proto', CppString()),
+        C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='Contains Android KeyEvents processed by the system',
@@ -206,6 +213,8 @@ ANDROID_KEY_EVENTS_TABLE = Table(
                 ColumnDoc(
                     doc='Details of the key event parsed from the proto message.',
                     joinable='args.arg_set_id'),
+            'base64_proto': 'Raw proto message encoded in base64',
+            'base64_proto_id': 'String id for raw proto message',
         }))
 
 ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
@@ -217,10 +226,11 @@ ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
         C('arg_set_id', CppUint32()),
         C('vsync_id', CppInt64()),
         C('window_id', CppInt32()),
+        C('base64_proto', CppString()),
+        C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
-        doc=
-            '''
+        doc='''
                 Contains records of Android input events being dispatched to input windows
                 by the Android Framework.
             ''',
@@ -242,6 +252,8 @@ ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
                 ''',
             'window_id':
                 'The id of the window to which the event was dispatched.',
+            'base64_proto': 'Raw proto message encoded in base64',
+            'base64_proto_id': 'String id for raw proto message',
         }))
 
 # Keep this list sorted.

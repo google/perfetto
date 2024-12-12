@@ -5,32 +5,31 @@ to emit trace events and add more app-specific context to a Perfetto trace.
 
 When using the Tracing SDK there are two main aspects to consider:
 
-1. Whether you are interested only in tracing events coming from your own app
-   or want to collect full-stack traces that overlay app trace events with
-   system trace events like scheduler traces, syscalls or any other Perfetto
-   data source.
+1. Whether you are interested only in tracing events coming from your own app or
+   want to collect full-stack traces that overlay app trace events with system
+   trace events like scheduler traces, syscalls or any other Perfetto data
+   source.
 
 2. For app-specific tracing, whether you need to trace simple types of timeline
-  events (e.g., slices, counters) or need to define complex data sources with a
-  custom strongly-typed schema (e.g., for dumping the state of a subsystem of
-  your app into the trace).
+   events (e.g., slices, counters) or need to define complex data sources with a
+   custom strongly-typed schema (e.g., for dumping the state of a subsystem of
+   your app into the trace).
 
 For Android-only instrumentation, the advice is to keep using the existing
-[android.os.Trace (SDK)][atrace-sdk] / [ATrace_* (NDK)][atrace-ndk] if they
+[android.os.Trace (SDK)][atrace-sdk] / [ATrace\_\* (NDK)][atrace-ndk] if they
 are sufficient for your use cases. Atrace-based instrumentation is fully
-supported in Perfetto.
-See the [Data Sources -> Android System -> Atrace Instrumentation][atrace-ds]
-for details.
+supported in Perfetto. See the [Data Sources -> Android System -> Atrace
+Instrumentation][atrace-ds] for details.
 
 ## Getting started
 
-TIP: The code from these examples is also available [in the
-repository](/examples/sdk/README.md).
+TIP: The code from these examples is also available
+[in the repository](/examples/sdk/README.md).
 
 To start using the Client API, first check out the latest SDK release:
 
 ```bash
-git clone https://android.googlesource.com/platform/external/perfetto -b v47.0
+git clone https://android.googlesource.com/platform/external/perfetto -b v48.1
 ```
 
 The SDK consists of two files, `sdk/perfetto.h` and `sdk/perfetto.cc`. These are
@@ -105,9 +104,8 @@ each other, which trade off code complexity vs expressive power:
 
 Track events are the suggested option when dealing with app-specific tracing as
 they take care of a number of subtleties (e.g., thread safety, flushing, string
-interning).
-Track events are time bounded events (e.g., slices, counter) based on simple
-`TRACE_EVENT` annotation tags in the codebase, like this:
+interning). Track events are time bounded events (e.g., slices, counter) based
+on simple `TRACE_EVENT` annotation tags in the codebase, like this:
 
 ```c++
 #include <perfetto.h>
@@ -167,15 +165,14 @@ See the [Track events page](track-events.md) for full instructions.
 ### Custom data sources
 
 For most uses, track events are the most straightforward way of instrumenting
-apps for tracing. However, in some rare circumstances they are not
-flexible enough, e.g., when the data doesn't fit the notion of a track or is
-high volume enough that it needs a strongly typed schema to minimize the size of
-each event. In this case, you can implement a *custom data source* for
-Perfetto.
+apps for tracing. However, in some rare circumstances they are not flexible
+enough, e.g., when the data doesn't fit the notion of a track or is high volume
+enough that it needs a strongly typed schema to minimize the size of each event.
+In this case, you can implement a _custom data source_ for Perfetto.
 
 Unlike track events, when working with custom data sources, you will also need
-corresponding changes in [trace processor](/docs/analysis/trace-processor.md)
-to enable importing your data format.
+corresponding changes in [trace processor](/docs/analysis/trace-processor.md) to
+enable importing your data format.
 
 A custom data source is a subclass of `perfetto::DataSource`. Perfetto will
 automatically create one instance of the class for each tracing session it is
@@ -248,9 +245,9 @@ CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
 ```
 
 If necessary the `Trace()` method can access the custom data source state
-(`my_custom_state` in the example above). Doing so, will take a mutex to
-ensure data source isn't destroyed (e.g., because of stopping tracing) while
-the `Trace()` method is called on another thread. For example:
+(`my_custom_state` in the example above). Doing so, will take a mutex to ensure
+data source isn't destroyed (e.g., because of stopping tracing) while the
+`Trace()` method is called on another thread. For example:
 
 ```C++
 CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
@@ -261,9 +258,9 @@ CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
 
 ## In-process vs System mode
 
-The two modes are not mutually exclusive. An app can be configured to work
-in both modes and respond both to in-process tracing requests and system
-tracing requests. Both modes generate the same trace file format.
+The two modes are not mutually exclusive. An app can be configured to work in
+both modes and respond both to in-process tracing requests and system tracing
+requests. Both modes generate the same trace file format.
 
 ### In-process mode
 
@@ -275,8 +272,8 @@ In-process mode can be enabled by setting
 `TracingInitArgs.backends = perfetto::kInProcessBackend` when initializing the
 SDK, see examples below.
 
-This mode is used to generate traces that contain only events emitted by
-the app, but not other types of events (e.g. scheduler traces).
+This mode is used to generate traces that contain only events emitted by the
+app, but not other types of events (e.g. scheduler traces).
 
 The main advantage is that by running fully in-process, it doesn't require any
 special OS privileges and the profiled process can control the lifecycle of
@@ -293,32 +290,32 @@ System mode can be enabled by setting
 `TracingInitArgs.backends = perfetto::kSystemBackend` when initializing the SDK,
 see examples below.
 
-The main advantage of this mode is that it is possible to create fused traces where
-app events are overlaid on the same timeline of OS events. This enables
+The main advantage of this mode is that it is possible to create fused traces
+where app events are overlaid on the same timeline of OS events. This enables
 full-stack performance investigations, looking all the way through syscalls and
 kernel scheduling events.
 
-The main limitation of this mode is that it requires the external `traced` daemon
-to be up and running and reachable through the UNIX socket connection.
+The main limitation of this mode is that it requires the external `traced`
+daemon to be up and running and reachable through the UNIX socket connection.
 
 This is suggested for local debugging or lab testing scenarios where the user
 (or the test harness) can control the OS deployment (e.g., sideload binaries on
 Android).
 
 When using system mode, the tracing session must be controlled from the outside,
-using the `perfetto` command-line client
-(See [reference](/docs/reference/perfetto-cli)). This is because when collecting
+using the `perfetto` command-line client (See
+[reference](/docs/reference/perfetto-cli)). This is because when collecting
 system traces, tracing data producers are not allowed to read back the trace
 data as it might disclose information about other processes and allow
 side-channel attacks.
 
-* On Android 9 (Pie) and beyond, traced is shipped as part of the platform.
-* On older versions of Android, traced can be built from sources using the
-  the [standalone NDK-based workflow](/docs/contributing/build-instructions.md)
-  and sideloaded via adb shell.
-* On Linux and MacOS and Windows `traced` must be built and run separately. See
+- On Android 9 (Pie) and beyond, traced is shipped as part of the platform.
+- On older versions of Android, traced can be built from sources using the the
+  [standalone NDK-based workflow](/docs/contributing/build-instructions.md) and
+  sideloaded via adb shell.
+- On Linux and MacOS and Windows `traced` must be built and run separately. See
   the [Linux quickstart](/docs/quickstart/linux-tracing.md) for instructions.
-* On Windows the tracing protocol works over TCP/IP (
+- On Windows the tracing protocol works over TCP/IP (
   [127.0.0.1:32278](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/src/tracing/ipc/default_socket.cc;l=75;drc=4f88a2fdfd3801c109d5e927b8206f9756288b12)
   ) + named shmem.
 
@@ -370,12 +367,12 @@ tracing_session->StartBlocking();
 ```
 
 TIP: API methods with `Blocking` in their name will suspend the calling thread
-     until the respective operation is complete. There are also asynchronous
-     variants that don't have this limitation.
+until the respective operation is complete. There are also asynchronous variants
+that don't have this limitation.
 
-Now that tracing is active, instruct your app to perform the operation you
-want to record. After that, stop tracing and collect the
-protobuf-formatted trace data:
+Now that tracing is active, instruct your app to perform the operation you want
+to record. After that, stop tracing and collect the protobuf-formatted trace
+data:
 
 ```C++
 tracing_session->StopBlocking();
@@ -388,9 +385,9 @@ output.write(&trace_data[0], trace_data.size());
 output.close();
 ```
 
-To save memory with longer traces, you can also tell Perfetto to write
-directly into a file by passing a file descriptor into Setup(), remembering
-to close the file after tracing is done:
+To save memory with longer traces, you can also tell Perfetto to write directly
+into a file by passing a file descriptor into Setup(), remembering to close the
+file after tracing is done:
 
 ```C++
 int fd = open("example.perfetto-trace", O_RDWR | O_CREAT | O_TRUNC, 0600);
@@ -401,8 +398,9 @@ tracing_session->StopBlocking();
 close(fd);
 ```
 
-The resulting trace file can be directly opened in the [Perfetto
-UI](https://ui.perfetto.dev) or the [Trace Processor](/docs/analysis/trace-processor.md).
+The resulting trace file can be directly opened in the
+[Perfetto UI](https://ui.perfetto.dev) or the
+[Trace Processor](/docs/analysis/trace-processor.md).
 
 [ipc]: /docs/design-docs/api-and-abi.md#socket-protocol
 [atrace-ds]: /docs/data-sources/atrace.md

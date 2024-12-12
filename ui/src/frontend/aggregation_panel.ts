@@ -13,31 +13,35 @@
 // limitations under the License.
 
 import m from 'mithril';
-
-import {Actions} from '../common/actions';
 import {
   AggregateData,
   Column,
   ThreadStateExtra,
   isEmptyData,
-} from '../common/aggregation_data';
-import {colorForState} from '../core/colorizer';
-import {translateState} from '../common/thread_state';
-
-import {globals} from './globals';
-import {DurationWidget} from './widgets/duration';
+} from '../public/aggregation';
+import {colorForState} from '../components/colorizer';
+import {DurationWidget} from '../components/widgets/duration';
 import {EmptyState} from '../widgets/empty_state';
 import {Anchor} from '../widgets/anchor';
 import {Icons} from '../base/semantic_icons';
+import {translateState} from '../components/sql_utils/thread_state';
+import {TraceImpl} from '../core/trace_impl';
 
 export interface AggregationPanelAttrs {
   data?: AggregateData;
-  kind: string;
+  aggregatorId: string;
+  trace: TraceImpl;
 }
 
 export class AggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
 {
+  private trace: TraceImpl;
+
+  constructor({attrs}: m.CVnode<AggregationPanelAttrs>) {
+    this.trace = attrs.trace;
+  }
+
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
     if (!attrs.data || isEmptyData(attrs.data)) {
       return m(
@@ -51,7 +55,7 @@ export class AggregationPanel
           {
             icon: Icons.ChangeTab,
             onclick: () => {
-              globals.dispatch(Actions.showTab({uri: 'current_selection'}));
+              this.trace.tabs.showCurrentSelectionTab();
             },
           },
           'Go to current selection tab',
@@ -73,7 +77,7 @@ export class AggregationPanel
           m(
             'tr',
             attrs.data.columns.map((col) =>
-              this.formatColumnHeading(col, attrs.kind),
+              this.formatColumnHeading(attrs.trace, col, attrs.aggregatorId),
             ),
           ),
           m(
@@ -89,20 +93,20 @@ export class AggregationPanel
     );
   }
 
-  formatColumnHeading(col: Column, id: string) {
-    const pref = globals.state.aggregatePreferences[id];
+  formatColumnHeading(trace: TraceImpl, col: Column, aggregatorId: string) {
+    const pref = trace.selection.aggregation.getSortingPrefs(aggregatorId);
     let sortIcon = '';
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (pref && pref.sorting && pref.sorting.column === col.columnId) {
+    if (pref && pref.column === col.columnId) {
       sortIcon =
-        pref.sorting.direction === 'DESC' ? 'arrow_drop_down' : 'arrow_drop_up';
+        pref.direction === 'DESC' ? 'arrow_drop_down' : 'arrow_drop_up';
     }
     return m(
       'th',
       {
         onclick: () => {
-          globals.dispatch(
-            Actions.updateAggregateSorting({id, column: col.columnId}),
+          trace.selection.aggregation.toggleSortingColumn(
+            aggregatorId,
+            col.columnId,
           );
         },
       },
@@ -145,7 +149,7 @@ export class AggregationPanel
   }
 
   showTimeRange() {
-    const selection = globals.state.selection;
+    const selection = this.trace.selection.selection;
     if (selection.kind !== 'area') return undefined;
     const duration = selection.end - selection.start;
     return m(

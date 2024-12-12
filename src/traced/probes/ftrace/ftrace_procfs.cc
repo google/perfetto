@@ -144,6 +144,46 @@ bool FtraceProcfs::EnableEvent(const std::string& group,
   return AppendToFile(path, group + ":" + name);
 }
 
+bool FtraceProcfs::CreateKprobeEvent(const std::string& group,
+                                     const std::string& name,
+                                     bool is_retprobe) {
+  std::string path = root_ + "kprobe_events";
+  std::string probe =
+      (is_retprobe ? std::string("r") + std::string(kKretprobeDefaultMaxactives)
+                   : "p") +
+      std::string(":") + group + "/" + name + " " + name;
+
+  PERFETTO_DLOG("Writing \"%s >> %s\"", probe.c_str(), path.c_str());
+
+  bool ret = AppendToFile(path, probe);
+  if (!ret) {
+    if (errno == EEXIST) {
+      // The kprobe event defined by group/name already exists.
+      // TODO maybe because the /sys/kernel/tracing/kprobe_events file has not
+      // been properly cleaned up after tracing
+      PERFETTO_DLOG("Kprobe event %s::%s already exists", group.c_str(),
+                    name.c_str());
+      return true;
+    }
+    PERFETTO_PLOG("Failed writing '%s' to '%s'", probe.c_str(), path.c_str());
+  }
+
+  return ret;
+}
+
+// Utility function to remove kprobe event from the system
+bool FtraceProcfs::RemoveKprobeEvent(const std::string& group,
+                                     const std::string& name) {
+  PERFETTO_DLOG("RemoveKprobeEvent %s::%s", group.c_str(), name.c_str());
+  std::string path = root_ + "kprobe_events";
+  return AppendToFile(path, "-:" + group + "/" + name);
+}
+
+std::string FtraceProcfs::ReadKprobeStats() const {
+  std::string path = root_ + "/kprobe_profile";
+  return ReadFileIntoString(path);
+}
+
 bool FtraceProcfs::DisableEvent(const std::string& group,
                                 const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/enable";

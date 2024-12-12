@@ -15,54 +15,42 @@
 // Keep this import first.
 import '../base/disposable_polyfill';
 import '../base/static_initializers';
-import '../gen/all_plugins';
-import '../gen/all_core_plugins';
-
-import {Draft} from 'immer';
+import NON_CORE_PLUGINS from '../gen/all_plugins';
+import CORE_PLUGINS from '../gen/all_core_plugins';
 import m from 'mithril';
-
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
-import {Store} from '../base/store';
-import {Actions, DeferredAction, StateActions} from '../common/actions';
-import {flattenArgs, traceEvent} from '../common/metatracing';
-import {pluginManager} from '../common/plugins';
-import {State} from '../common/state';
-import {initController, runControllers} from '../controller';
-import {isGetCategoriesResponse} from '../controller/chrome_proxy_record_controller';
-import {RECORDING_V2_FLAG, featureFlags} from '../core/feature_flags';
+import {featureFlags} from '../core/feature_flags';
 import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 import {initWasm} from '../trace_processor/wasm_engine_proxy';
 import {setScheduleFullRedraw} from '../widgets/raf';
-
-import {App} from './app';
+import {UiMain} from './ui_main';
 import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
-import {FlagsPage} from './flags_page';
 import {globals} from './globals';
 import {HomePage} from './home_page';
-import {InsightsPage} from './insights_page';
-import {MetricsPage} from './metrics_page';
-import {PluginsPage} from './plugins_page';
 import {postMessageHandler} from './post_message_handler';
-import {QueryPage} from './query_page';
-import {RecordPage, updateAvailableAdbDevices} from './record_page';
-import {RecordPageV2} from './record_page_v2';
-import {Route, Router} from './router';
+import {Route, Router} from '../core/router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
-import {TraceInfoPage} from './trace_info_page';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {ViewerPage} from './viewer_page';
-import {VizPage} from './viz_page';
-import {WidgetsPage} from './widgets_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
-import {initAnalytics} from './analytics';
-
-const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
+import {IdleDetector} from './idle_detector';
+import {IdleDetectorWindow} from './idle_detector_interface';
+import {AppImpl} from '../core/app_impl';
+import {addSqlTableTab} from '../components/details/sql_table_tab';
+import {configureExtensions} from '../components/extensions';
+import {
+  addDebugCounterTrack,
+  addDebugSliceTrack,
+} from '../components/tracks/debug_tracks';
+import {addVisualizedArgTracks} from '../components/tracks/visualized_args_tracks';
+import {addQueryResultsTab} from '../components/query_table/query_result_tab';
+import {assetSrc, initAssets} from '../base/assets';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -74,28 +62,19 @@ const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   defaultValue: false,
 });
 
-function setExtensionAvailability(available: boolean) {
-  globals.dispatch(
-    Actions.setExtensionAvailable({
-      available,
-    }),
-  );
-}
-
 function routeChange(route: Route) {
-  raf.scheduleFullRedraw();
-  maybeOpenTraceFromRoute(route);
-  if (route.fragment) {
-    // This needs to happen after the next redraw call. It's not enough
-    // to use setTimeout(..., 0); since that may occur before the
-    // redraw scheduled above.
-    raf.addPendingCallback(() => {
+  raf.scheduleFullRedraw('force', () => {
+    if (route.fragment) {
+      // This needs to happen after the next redraw call. It's not enough
+      // to use setTimeout(..., 0); since that may occur before the
+      // redraw scheduled above.
       const e = document.getElementById(route.fragment);
       if (e) {
         e.scrollIntoView();
       }
-    });
-  }
+    }
+  });
+  maybeOpenTraceFromRoute(route);
 }
 
 function setupContentSecurityPolicy() {
@@ -161,92 +140,54 @@ function setupContentSecurityPolicy() {
 }
 
 function main() {
-  // Wire up raf for widgets.
-  setScheduleFullRedraw(() => raf.scheduleFullRedraw());
-
+  // Setup content security policy before anything else.
   setupContentSecurityPolicy();
+  initAssets();
+  AppImpl.initialize({
+    initialRouteArgs: Router.parseUrl(window.location.href).args,
+  });
+
+  // Wire up raf for widgets.
+  setScheduleFullRedraw((force?: 'force') => raf.scheduleFullRedraw(force));
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
   // appendChild returns.
   const cssLoadPromise = defer<void>();
   const css = document.createElement('link');
   css.rel = 'stylesheet';
-  css.href = globals.root + 'perfetto.css';
+  css.href = assetSrc('perfetto.css');
   css.onload = () => cssLoadPromise.resolve();
   css.onerror = (err) => cssLoadPromise.reject(err);
   const favicon = document.head.querySelector('#favicon');
   if (favicon instanceof HTMLLinkElement) {
-    favicon.href = globals.root + 'assets/favicon.png';
+    favicon.href = assetSrc('assets/favicon.png');
   }
 
   // Load the script to detect if this is a Googler (see comments on globals.ts)
   // and initialize GA after that (or after a timeout if something goes wrong).
+  function initAnalyticsOnScriptLoad() {
+    AppImpl.instance.analytics.initialize(globals.isInternalUser);
+  }
   const script = document.createElement('script');
   script.src =
     'https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js';
   script.async = true;
-  script.onerror = () => globals.logging.initialize();
-  script.onload = () => globals.logging.initialize();
-  setTimeout(() => globals.logging.initialize(), 5000);
+  script.onerror = () => initAnalyticsOnScriptLoad();
+  script.onload = () => initAnalyticsOnScriptLoad();
+  setTimeout(() => initAnalyticsOnScriptLoad(), 5000);
 
   document.head.append(script, css);
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).
   addErrorHandler(maybeShowErrorDialog);
-  addErrorHandler((e) => globals.logging.logError(e));
+  addErrorHandler((e) => AppImpl.instance.analytics.logError(e));
 
   // Add Error handlers for JS error and for uncaught exceptions in promises.
   window.addEventListener('error', (e) => reportError(e));
   window.addEventListener('unhandledrejection', (e) => reportError(e));
 
-  const extensionLocalChannel = new MessageChannel();
-
-  initWasm(globals.root);
-  initController(extensionLocalChannel.port1);
-
-  // These need to be set before globals.initialize.
-  const route = Router.parseUrl(window.location.href);
-  globals.embeddedMode = route.args.mode === 'embedded';
-  globals.hideSidebar = route.args.hideSidebar === true;
-
-  globals.initialize(stateActionDispatcher, initAnalytics);
-
-  globals.serviceWorkerController.install();
-
-  globals.store.subscribe(scheduleRafAndRunControllersOnStateChange);
-  globals.publishRedraw = () => raf.scheduleFullRedraw();
-
-  // We proxy messages between the extension and the controller because the
-  // controller's worker can't access chrome.runtime.
-  const extensionPort =
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    window.chrome && chrome.runtime
-      ? chrome.runtime.connect(EXTENSION_ID)
-      : undefined;
-
-  setExtensionAvailability(extensionPort !== undefined);
-
-  if (extensionPort) {
-    extensionPort.onDisconnect.addListener((_) => {
-      setExtensionAvailability(false);
-      void chrome.runtime.lastError; // Needed to not receive an error log.
-    });
-    // This forwards the messages from the extension to the controller.
-    extensionPort.onMessage.addListener(
-      (message: object, _port: chrome.runtime.Port) => {
-        if (isGetCategoriesResponse(message)) {
-          globals.dispatch(Actions.setChromeCategories(message));
-          return;
-        }
-        extensionLocalChannel.port2.postMessage(message);
-      },
-    );
-  }
-
-  // This forwards the messages from the controller to the extension
-  extensionLocalChannel.port2.onmessage = ({data}) => {
-    if (extensionPort) extensionPort.postMessage(data);
-  };
+  initWasm();
+  AppImpl.instance.serviceWorkerController.install();
 
   // Put debug variables in the global scope for better debugging.
   registerDebugGlobals();
@@ -262,9 +203,13 @@ function main() {
 
   cssLoadPromise.then(() => onCssLoaded());
 
-  if (globals.testing) {
+  if (AppImpl.instance.testingMode) {
     document.body.classList.add('testing');
   }
+
+  (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
+    return new IdleDetector().waitForPerfettoIdle(ms);
+  };
 }
 
 function onCssLoaded() {
@@ -273,46 +218,23 @@ function onCssLoaded() {
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
 
-  const router = new Router({
-    '/': HomePage,
-    '/viewer': ViewerPage,
-    '/record': RECORDING_V2_FLAG.get() ? RecordPageV2 : RecordPage,
-    '/query': QueryPage,
-    '/insights': InsightsPage,
-    '/flags': FlagsPage,
-    '/metrics': MetricsPage,
-    '/info': TraceInfoPage,
-    '/widgets': WidgetsPage,
-    '/viz': VizPage,
-    '/plugins': PluginsPage,
-  });
+  const pages = AppImpl.instance.pages;
+  const traceless = true;
+  pages.registerPage({route: '/', traceless, page: HomePage});
+  pages.registerPage({route: '/viewer', page: ViewerPage});
+  const router = new Router();
   router.onRouteChanged = routeChange;
 
-  raf.domRedraw = () => {
-    m.render(document.body, m(App, router.resolve()));
-  };
+  // Mount the main mithril component. This also forces a sync render pass.
+  raf.mount(document.body, UiMain);
 
   if (
     (location.origin.startsWith('http://localhost:') ||
       location.origin.startsWith('http://127.0.0.1:')) &&
-    !globals.embeddedMode &&
-    !globals.testing
+    !AppImpl.instance.embeddedMode &&
+    !AppImpl.instance.testingMode
   ) {
     initLiveReload();
-  }
-
-  if (!RECORDING_V2_FLAG.get()) {
-    updateAvailableAdbDevices();
-    try {
-      navigator.usb.addEventListener('connect', () =>
-        updateAvailableAdbDevices(),
-      );
-      navigator.usb.addEventListener('disconnect', () =>
-        updateAvailableAdbDevices(),
-      );
-    } catch (e) {
-      console.error('WebUSB API not supported');
-    }
   }
 
   // Will update the chip on the sidebar footer that notifies that the RPC is
@@ -324,26 +246,14 @@ function onCssLoaded() {
   maybeChangeRpcPortFromFragment();
   CheckHttpRpcConnection().then(() => {
     const route = Router.parseUrl(window.location.href);
-    globals.dispatch(
-      Actions.maybeSetPendingDeeplink({
-        ts: route.args.ts,
-        tid: route.args.tid,
-        dur: route.args.dur,
-        pid: route.args.pid,
-        query: route.args.query,
-        visStart: route.args.visStart,
-        visEnd: route.args.visEnd,
-      }),
-    );
-
-    if (!globals.embeddedMode) {
+    if (!AppImpl.instance.embeddedMode) {
       installFileDropHandler();
     }
 
     // Don't allow postMessage or opening trace from route when the user says
     // that they want to reuse the already loaded trace in trace processor.
-    const engine = globals.getCurrentEngine();
-    if (engine && engine.source.type === 'HTTP_RPC') {
+    const traceSource = AppImpl.instance.trace?.traceInfo.source;
+    if (traceSource && traceSource.type === 'HTTP_RPC') {
       return;
     }
 
@@ -355,11 +265,13 @@ function onCssLoaded() {
     routeChange(route);
   });
 
-  // Force one initial render to get everything in place
-  m.render(document.body, m(App, router.resolve()));
-
-  // Initialize plugins, now that we are ready to go
-  pluginManager.initialize();
+  // Initialize plugins, now that we are ready to go.
+  const pluginManager = AppImpl.instance.plugins;
+  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
+  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
+  const route = Router.parseUrl(window.location.href);
+  const overrides = (route.args.enablePlugins ?? '').split(',');
+  pluginManager.activatePlugins(overrides);
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.
@@ -394,34 +306,15 @@ function maybeChangeRpcPortFromFragment() {
   }
 }
 
-function stateActionDispatcher(actions: DeferredAction[]) {
-  const edits = actions.map((action) => {
-    return traceEvent(
-      `action.${action.type}`,
-      () => {
-        return (draft: Draft<State>) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (StateActions as any)[action.type](draft, action.args);
-        };
-      },
-      {
-        args: flattenArgs(action.args),
-      },
-    );
-  });
-  globals.store.edit(edits);
-}
-
-function scheduleRafAndRunControllersOnStateChange(
-  store: Store<State>,
-  oldState: State,
-) {
-  // Only redraw if something actually changed
-  if (oldState !== store.state) {
-    raf.scheduleFullRedraw();
-  }
-  // Run in a separate task to avoid avoid reentry.
-  setTimeout(runControllers, 0);
-}
+// TODO(primiano): this injection is to break a cirular dependency. See
+// comment in sql_table_tab_interface.ts. Remove once we add an extension
+// point for context menus.
+configureExtensions({
+  addDebugCounterTrack,
+  addDebugSliceTrack,
+  addVisualizedArgTracks,
+  addSqlTableTab,
+  addQueryResultsTab,
+});
 
 main();

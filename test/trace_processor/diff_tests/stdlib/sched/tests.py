@@ -187,3 +187,33 @@ class StdlibSched(TestSuite):
         538177,537492,537492
         538175,538174,524613
         """))
+
+  def test_sched_latency(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE sched.latency;
+
+        SELECT 
+          thread_state_id, 
+          sched_id, 
+          utid, 
+          runnable_latency_id, 
+          latency_dur
+        FROM sched_latency_for_running_interval
+        ORDER BY thread_state_id DESC
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "thread_state_id","sched_id","utid","runnable_latency_id","latency_dur"
+        538199,269427,2,538191,91919
+        538197,269425,2,538191,91919
+        538195,269423,2,538191,91919
+        538190,269422,1330,538136,1437215
+        538188,269420,2,538088,826823
+        538184,269419,91,538176,131388
+        538181,269418,319,538178,4883
+        538179,269417,1022,524619,469849
+        538177,269416,319,537492,670736
+        538175,269415,91,538174,12532
+        """))

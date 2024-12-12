@@ -14,13 +14,20 @@
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE linux.cpu.utilization.thread;
+INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
+INCLUDE PERFETTO MODULE slices.with_context;
+INCLUDE PERFETTO MODULE slices.cpu_time;
+
 SELECT RUN_METRIC('android/android_cpu.sql');
+SELECT RUN_METRIC('android/android_powrails.sql');
 
 -- Attaching thread proto with media thread name
 DROP VIEW IF EXISTS core_type_proto_per_thread_name;
 CREATE PERFETTO VIEW core_type_proto_per_thread_name AS
 SELECT
-thread.name as thread_name,
+utid,
+thread.name AS thread_name,
 core_type_proto_per_thread.proto AS proto
 FROM core_type_proto_per_thread
 JOIN thread using(utid)
@@ -28,54 +35,32 @@ WHERE thread.name = 'MediaCodec_loop' OR
       thread.name = 'CodecLooper'
 GROUP BY thread.name;
 
--- aggregate all cpu the codec threads
-DROP VIEW IF EXISTS codec_per_thread_cpu_use;
-CREATE PERFETTO VIEW codec_per_thread_cpu_use AS
-SELECT
-  upid,
-  process.name AS process_name,
-  thread.name AS thread_name,
-  CAST(SUM(sched.dur) as INT64) AS cpu_time_ns,
-  COUNT(DISTINCT utid) AS num_threads
-FROM sched
-JOIN thread USING(utid)
-JOIN process USING(upid)
-WHERE thread.name = 'MediaCodec_loop' OR
-      thread.name = 'CodecLooper'
-GROUP BY process.name, thread.name;
-
 -- All process that has codec thread
-DROP VIEW IF EXISTS android_codec_process;
-CREATE PERFETTO VIEW android_codec_process AS
+DROP TABLE IF EXISTS android_codec_process;
+CREATE PERFETTO TABLE android_codec_process AS
 SELECT
+  utid,
   upid,
-  process.name as process_name
-FROM sched
-JOIN thread using(utid)
+  process.name AS process_name
+FROM thread
 JOIN process using(upid)
 WHERE thread.name = 'MediaCodec_loop' OR
       thread.name = 'CodecLooper'
-GROUP BY process_name;
+GROUP BY process_name, thread.name;
 
--- Total cpu for a process
-DROP VIEW IF EXISTS codec_total_per_process_cpu_use;
-CREATE PERFETTO VIEW codec_total_per_process_cpu_use AS
+-- Getting cpu cycles for the threads
+DROP VIEW IF EXISTS cpu_cycles_runtime;
+CREATE PERFETTO VIEW cpu_cycles_runtime AS
 SELECT
-  upid,
+  utid,
+  megacycles,
+  runtime,
+  proto,
   process_name,
-  CAST(SUM(sched.dur) as INT64) AS media_process_cpu_time_ns
-FROM sched
-JOIN thread using(utid)
-JOIN android_codec_process using(upid)
-GROUP BY process_name;
-
--- Joining total process with media thread table
-DROP VIEW IF EXISTS codec_per_process_thread_cpu_use;
-CREATE PERFETTO VIEW codec_per_process_thread_cpu_use AS
-SELECT
-  *
-FROM codec_total_per_process_cpu_use
-JOIN codec_per_thread_cpu_use using(process_name);
+  thread_name
+FROM android_codec_process
+JOIN cpu_cycles_per_thread using(utid)
+JOIN core_type_proto_per_thread_name using(utid);
 
 -- Traces are collected using specific traits in codec framework. These traits
 -- are mapped to actual names of slices and then combined with other tables to
@@ -92,68 +77,75 @@ SELECT CASE
   ELSE $slice_name
 END;
 
--- traits strings from codec framework
+-- Traits strings from codec framework
 DROP TABLE IF EXISTS trace_trait_table;
-CREATE TABLE trace_trait_table(
-  trace_trait  varchar(100));
-insert into trace_trait_table (trace_trait) values
-  ('MediaCodec'),
-  ('CCodec'),
-  ('C2PooledBlockPool'),
-  ('C2BufferQueueBlockPool'),
-  ('Codec2'),
-  ('ACodec'),
-  ('FrameDecoder');
+CREATE TABLE trace_trait_table(trace_trait TEXT UNIQUE);
+INSERT INTO trace_trait_table VALUES
+  ('MediaCodec::'),
+  ('CCodec::'),
+  ('CCodecBufferChannel::'),
+  ('C2PooledBlockPool::'),
+  ('C2hal::'),
+  ('ACodec::'),
+  ('FrameDecoder::');
 
 -- Maps traits to slice strings. Any string with '@' is considered to indicate
 -- the same trace with different information.Hence those strings are delimited
--- using '@' and considered as part of single trace.
-DROP VIEW IF EXISTS codec_slices;
-CREATE PERFETTO VIEW codec_slices AS
+-- using '@' and considered as part of single slice.
+
+-- View to hold slice ids(sid) and the assigned slice ids for codec slices.
+DROP TABLE IF EXISTS codec_slices;
+CREATE PERFETTO TABLE codec_slices AS
+WITH
+  __codec_slices AS (
+    SELECT DISTINCT
+      extract_codec_string(name, '@') AS codec_string,
+      slice.id AS sid,
+      slice.name AS sname
+    FROM slice
+    JOIN trace_trait_table ON slice.name glob trace_trait || '*'
+  ),
+  _codec_slices AS (
+    SELECT DISTINCT codec_string,
+      ROW_NUMBER() OVER() AS codec_slice_idx
+    FROM __codec_slices
+    GROUP BY codec_string
+  )
 SELECT
-  DISTINCT extract_codec_string(slice.name, '@') as codec_slice_string
-FROM slice
-JOIN trace_trait_table ON slice.name glob  '*' || trace_trait || '*';
+  codec_slice_idx,
+  a.codec_string,
+  sid
+FROM __codec_slices a
+JOIN _codec_slices b USING(codec_string);
 
--- combine slice and thread info
-DROP VIEW IF EXISTS slice_with_utid;
-CREATE PERFETTO VIEW slice_with_utid AS
-SELECT
-  extract_codec_string(slice.name, '@') as codec_string,
-  ts,
-  dur,
-  upid,
-  slice.name as slice_name,
-  slice.id as slice_id, utid,
-  thread.name as thread_name
-FROM slice
-JOIN thread_track ON thread_track.id = slice.track_id
-JOIN thread USING (utid);
-
--- Combine with thread_state info
-DROP TABLE IF EXISTS slice_thread_state_breakdown;
-CREATE VIRTUAL TABLE slice_thread_state_breakdown
-USING SPAN_LEFT_JOIN(
-  slice_with_utid PARTITIONED utid,
-  thread_state PARTITIONED utid
-);
-
--- Get cpu_running_time for all the slices of interest
-DROP VIEW IF EXISTS slice_cpu_running;
-CREATE PERFETTO VIEW slice_cpu_running AS
+-- Combine slice and and cpu dur and cycles info
+DROP TABLE IF EXISTS codec_slice_cpu_running;
+CREATE PERFETTO TABLE codec_slice_cpu_running AS
 SELECT
   codec_string,
-  sum(dur) as cpu_time,
-  sum(case when state = 'Running' then dur else 0 end) as cpu_run_ns,
-  thread_name,
-  process.name as process_name,
-  slice_id,
-  slice_name
-FROM slice_thread_state_breakdown
-LEFT JOIN process using(upid)
-where codec_string in (select codec_slice_string from codec_slices)
-GROUP BY codec_string, thread_name, process_name;
+  MIN(ts) AS ts,
+  MAX(ts + t.dur) AS max_ts,
+  SUM(t.dur) AS dur,
+  SUM(ct.cpu_time) AS cpu_run_ns,
+  SUM(megacycles) AS cpu_cycles,
+  cc.thread_name,
+  cc.process_name
+FROM codec_slices
+JOIN thread_slice t ON(sid = t.id)
+JOIN thread_slice_cpu_cycles cc ON(sid = cc.id)
+JOIN thread_slice_cpu_time ct ON(sid = ct.id)
+GROUP BY codec_slice_idx, cc.thread_name, cc.process_name;
 
+-- POWER consumed during codec use.
+DROP VIEW IF EXISTS codec_power_mw;
+CREATE PERFETTO VIEW codec_power_mw AS
+SELECT
+  AndroidCodecMetrics_Rail_Info (
+    'energy', tot_used_power,
+    'power_mw', tot_used_power / (powrail_end_ts - powrail_start_ts)
+  ) AS proto,
+  name
+FROM avg_used_powers;
 
 -- Generate proto for the trace
 DROP VIEW IF EXISTS metrics_per_slice_type;
@@ -163,26 +155,25 @@ SELECT
   codec_string,
   AndroidCodecMetrics_Detail(
     'thread_name', thread_name,
-    'total_cpu_ns', CAST(cpu_time as INT64),
-    'running_cpu_ns', CAST(cpu_run_ns as INT64)
+    'total_cpu_ns', CAST(dur AS INT64),
+    'running_cpu_ns', CAST(cpu_run_ns AS INT64),
+    'cpu_cycles', CAST(cpu_cycles AS INT64)
   ) AS proto
-FROM slice_cpu_running;
+FROM codec_slice_cpu_running;
 
 -- Generating codec framework cpu metric
 DROP VIEW IF EXISTS codec_metrics_output;
 CREATE PERFETTO VIEW codec_metrics_output AS
-SELECT AndroidCodecMetrics(
+SELECT AndroidCodecMetrics (
   'cpu_usage', (
     SELECT RepeatedField(
       AndroidCodecMetrics_CpuUsage(
         'process_name', process_name,
         'thread_name', thread_name,
-        'thread_cpu_ns', CAST((cpu_time_ns) as INT64),
-        'num_threads', num_threads,
-        'core_data', core_type_proto_per_thread_name.proto
+        'thread_cpu_ns', CAST((runtime) AS INT64),
+        'core_data', proto
       )
-    ) FROM codec_per_process_thread_cpu_use
-      JOIN core_type_proto_per_thread_name using(thread_name)
+    ) FROM cpu_cycles_runtime
   ),
   'codec_function', (
     SELECT RepeatedField (
@@ -192,5 +183,20 @@ SELECT AndroidCodecMetrics(
         'detail', metrics_per_slice_type.proto
       )
     ) FROM metrics_per_slice_type
+  ),
+  'energy', (
+    AndroidCodecMetrics_Energy(
+      'total_energy', (SELECT SUM(tot_used_power) FROM avg_used_powers),
+      'duration', (SELECT MAX(powrail_end_ts) - MIN(powrail_start_ts)  FROM avg_used_powers),
+      'power_mw', (SELECT SUM(tot_used_power) /  (MAX(powrail_end_ts) - MIN(powrail_start_ts)) FROM avg_used_powers),
+      'rail', (
+        SELECT RepeatedField (
+          AndroidCodecMetrics_Rail (
+            'name', name,
+            'info', codec_power_mw.proto
+          )
+        ) FROM codec_power_mw
+      )
+    )
   )
 );

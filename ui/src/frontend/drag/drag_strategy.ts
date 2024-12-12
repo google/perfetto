@@ -11,14 +11,17 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {HighPrecisionTime} from '../../common/high_precision_time';
-import {HighPrecisionTimeSpan} from '../../common/high_precision_time_span';
-import {raf} from '../../core/raf_scheduler';
-import {globals} from '../globals';
-import {TimeScale} from '../time_scale';
+import {HighPrecisionTime} from '../../base/high_precision_time';
+import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
+import {TimeScale} from '../../base/time_scale';
+
+export type DragStrategyUpdateTimeFn = (ts: HighPrecisionTimeSpan) => void;
 
 export abstract class DragStrategy {
-  constructor(protected map: TimeScale) {}
+  constructor(
+    protected map: TimeScale,
+    private updateVizTime: DragStrategyUpdateTimeFn,
+  ) {}
 
   abstract onDrag(x: number): void;
 
@@ -29,7 +32,6 @@ export abstract class DragStrategy {
       tStart,
       tEnd.sub(tStart).toNumber(),
     );
-    globals.timeline.updateVisibleTimeHP(vizTime);
-    raf.scheduleRedraw();
+    this.updateVizTime(vizTime);
   }
 }

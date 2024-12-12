@@ -15,10 +15,7 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  proto_generators = [
-    "lite",
-    "source_set",
-  ]
+  proto_generators = [ "lite" ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
   deps = [
     "..:@TYPE@",
@@ -30,6 +27,7 @@ perfetto_proto_library("@TYPE@") {
     "dropped_frames.proto",
     "frame_times.proto",
     "histogram_hashes.proto",
+    "histogram_summaries.proto",
     "long_latency.proto",
     "media_metric.proto",
     "performance_mark_hashes.proto",
@@ -37,17 +35,12 @@ perfetto_proto_library("@TYPE@") {
     "scroll_jank.proto",
     "scroll_jank_v3.proto",
     "slice_names.proto",
+    "study_hashes.proto",
     "test_chrome_metric.proto",
     "touch_jank.proto",
     "unsymbolized_args.proto",
     "user_event_hashes.proto",
   ]
-}
-
-perfetto_proto_library("descriptor") {
-  proto_generators = [ "descriptor" ]
-  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
   generate_descriptor = "all_chrome_metrics.descriptor"
-  deps = [ ":source_set" ]
-  sources = [ "all_chrome_metrics.proto" ]
+  descriptor_root_source = "all_chrome_metrics.proto"
 }

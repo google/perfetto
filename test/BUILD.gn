@@ -159,6 +159,24 @@ if (enable_perfetto_benchmarks || is_fuzzer ||
   }
 }
 
+if (enable_perfetto_integration_tests) {
+  source_set("integrationtest_initializer") {
+    testonly = true
+    deps = [ "../gn:default_deps" ]
+    sources = [ "integrationtest_initializer.h" ]
+  }
+  source_set("integrationtest_main") {
+    testonly = true
+    deps = [
+      ":integrationtest_initializer",
+      "../src/base",
+      "../gn:default_deps",
+      "../gn:gtest_and_gmock",
+    ]
+    sources = [ "integrationtest_main.cc" ]
+  }
+}
+
 if (enable_perfetto_benchmarks) {
   source_set("end_to_end_benchmarks") {
     testonly = true

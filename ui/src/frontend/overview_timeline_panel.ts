@@ -13,11 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-
-import {Time, TimeSpan, time} from '../base/time';
-import {colorForCpu} from '../core/colorizer';
-import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
-
+import {Duration, Time, TimeSpan, duration, time} from '../base/time';
+import {colorForCpu} from '../components/colorizer';
+import {timestampFormat} from '../core/timestamp_format';
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
   TRACK_SHELL_WIDTH,
@@ -26,42 +24,57 @@ import {BorderDragStrategy} from './drag/border_drag_strategy';
 import {DragStrategy} from './drag/drag_strategy';
 import {InnerDragStrategy} from './drag/inner_drag_strategy';
 import {OuterDragStrategy} from './drag/outer_drag_strategy';
-import {DragGestureHandler} from './drag_gesture_handler';
-import {globals} from './globals';
+import {DragGestureHandler} from '../base/drag_gesture_handler';
 import {
   getMaxMajorTicks,
   MIN_PX_PER_STEP,
   generateTicks,
   TickType,
 } from './gridline_helper';
-import {Size} from '../base/geom';
+import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
-import {PxSpan, TimeScale} from './time_scale';
-import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
+import {TimeScale} from '../base/time_scale';
+import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
+import {TraceImpl} from '../core/trace_impl';
+import {LONG, NUM} from '../trace_processor/query_result';
+import {raf} from '../core/raf_scheduler';
+import {getOrCreate} from '../base/utils';
+import {assertUnreachable} from '../base/logging';
+import {TimestampFormat} from '../public/timeline';
+
+const tracesData = new WeakMap<TraceImpl, OverviewDataLoader>();
 
 export class OverviewTimelinePanel implements Panel {
   private static HANDLE_SIZE_PX = 5;
   readonly kind = 'panel';
   readonly selectable = false;
-
   private width = 0;
   private gesture?: DragGestureHandler;
   private timeScale?: TimeScale;
   private dragStrategy?: DragStrategy;
   private readonly boundOnMouseMove = this.onMouseMove.bind(this);
+  private readonly overviewData: OverviewDataLoader;
+
+  constructor(private trace: TraceImpl) {
+    this.overviewData = getOrCreate(
+      tracesData,
+      trace,
+      () => new OverviewDataLoader(trace),
+    );
+  }
 
   // Must explicitly type now; arguments types are no longer auto-inferred.
   // https://github.com/Microsoft/TypeScript/issues/1373
   onupdate({dom}: m.CVnodeDOM) {
     this.width = dom.getBoundingClientRect().width;
-    const traceTime = globals.traceContext;
+    const traceTime = this.trace.traceInfo;
     if (this.width > TRACK_SHELL_WIDTH) {
-      const pxSpan = new PxSpan(TRACK_SHELL_WIDTH, this.width);
+      const pxBounds = {left: TRACK_SHELL_WIDTH, right: this.width};
       const hpTraceTime = HighPrecisionTimeSpan.fromTime(
         traceTime.start,
         traceTime.end,
       );
-      this.timeScale = new TimeScale(hpTraceTime, pxSpan);
+      this.timeScale = new TimeScale(hpTraceTime, pxBounds);
       if (this.gesture === undefined) {
         this.gesture = new DragGestureHandler(
           dom as HTMLElement,
@@ -102,19 +115,20 @@ export class OverviewTimelinePanel implements Panel {
     });
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
     if (this.width === undefined) return;
     if (this.timeScale === undefined) return;
+
     const headerHeight = 20;
     const tracksHeight = size.height - headerHeight;
     const traceContext = new TimeSpan(
-      globals.traceContext.start,
-      globals.traceContext.end,
+      this.trace.traceInfo.start,
+      this.trace.traceInfo.end,
     );
 
     if (size.width > TRACK_SHELL_WIDTH && traceContext.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(this.width - TRACK_SHELL_WIDTH);
-      const offset = globals.timestampOffset();
+      const offset = this.trace.timeline.timestampOffset();
       const tickGen = generateTicks(traceContext, maxMajorTicks, offset);
 
       // Draw time labels
@@ -126,7 +140,7 @@ export class OverviewTimelinePanel implements Panel {
         if (xPos > this.width) break;
         if (type === TickType.MAJOR) {
           ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
-          const domainTime = globals.toDomainTime(time);
+          const domainTime = this.trace.timeline.toDomainTime(time);
           renderTimestamp(ctx, domainTime, xPos + 5, 18, MIN_PX_PER_STEP);
         } else if (type == TickType.MEDIUM) {
           ctx.fillRect(xPos - 1, 0, 1, 8);
@@ -137,12 +151,13 @@ export class OverviewTimelinePanel implements Panel {
     }
 
     // Draw mini-tracks with quanitzed density for each process.
-    if (globals.overviewStore.size > 0) {
-      const numTracks = globals.overviewStore.size;
+    const overviewData = this.overviewData.overviewData;
+    if (overviewData.size > 0) {
+      const numTracks = overviewData.size;
       let y = 0;
       const trackHeight = (tracksHeight - 1) / numTracks;
-      for (const key of globals.overviewStore.keys()) {
-        const loads = globals.overviewStore.get(key)!;
+      for (const key of overviewData.keys()) {
+        const loads = overviewData.get(key)!;
         for (let i = 0; i < loads.length; i++) {
           const xStart = Math.floor(this.timeScale.timeToPx(loads[i].start));
           const xEnd = Math.ceil(this.timeScale.timeToPx(loads[i].end));
@@ -161,9 +176,7 @@ export class OverviewTimelinePanel implements Panel {
     ctx.fillRect(0, size.height - 1, this.width, 1);
 
     // Draw semi-opaque rects that occlude the non-visible time range.
-    const [vizStartPx, vizEndPx] = OverviewTimelinePanel.extractBounds(
-      this.timeScale,
-    );
+    const [vizStartPx, vizEndPx] = this.extractBounds(this.timeScale);
 
     ctx.fillStyle = OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
     ctx.fillRect(
@@ -205,9 +218,7 @@ export class OverviewTimelinePanel implements Panel {
 
   private chooseCursor(x: number) {
     if (this.timeScale === undefined) return 'default';
-    const [startBound, endBound] = OverviewTimelinePanel.extractBounds(
-      this.timeScale,
-    );
+    const [startBound, endBound] = this.extractBounds(this.timeScale);
     if (
       OverviewTimelinePanel.inBorderRange(x, startBound) ||
       OverviewTimelinePanel.inBorderRange(x, endBound)
@@ -229,16 +240,22 @@ export class OverviewTimelinePanel implements Panel {
 
   onDragStart(x: number) {
     if (this.timeScale === undefined) return;
-    const pixelBounds = OverviewTimelinePanel.extractBounds(this.timeScale);
+
+    const cb = (vizTime: HighPrecisionTimeSpan) => {
+      this.trace.timeline.updateVisibleTimeHP(vizTime);
+      raf.scheduleCanvasRedraw();
+    };
+    const pixelBounds = this.extractBounds(this.timeScale);
+    const timeScale = this.timeScale;
     if (
       OverviewTimelinePanel.inBorderRange(x, pixelBounds[0]) ||
       OverviewTimelinePanel.inBorderRange(x, pixelBounds[1])
     ) {
-      this.dragStrategy = new BorderDragStrategy(this.timeScale, pixelBounds);
+      this.dragStrategy = new BorderDragStrategy(timeScale, pixelBounds, cb);
     } else if (x < pixelBounds[0] || pixelBounds[1] < x) {
-      this.dragStrategy = new OuterDragStrategy(this.timeScale);
+      this.dragStrategy = new OuterDragStrategy(timeScale, cb);
     } else {
-      this.dragStrategy = new InnerDragStrategy(this.timeScale, pixelBounds);
+      this.dragStrategy = new InnerDragStrategy(timeScale, pixelBounds, cb);
     }
     this.dragStrategy.onDragStart(x);
   }
@@ -247,8 +264,8 @@ export class OverviewTimelinePanel implements Panel {
     this.dragStrategy = undefined;
   }
 
-  private static extractBounds(timeScale: TimeScale): [number, number] {
-    const vizTime = globals.timeline.visibleWindow;
+  private extractBounds(timeScale: TimeScale): [number, number] {
+    const vizTime = this.trace.timeline.visibleWindow;
     return [
       Math.floor(timeScale.hpTimeToPx(vizTime.start)),
       Math.ceil(timeScale.hpTimeToPx(vizTime.end)),
@@ -275,18 +292,23 @@ function renderTimestamp(
     case TimestampFormat.Timecode:
       renderTimecode(ctx, time, x, y, minWidth);
       break;
-    case TimestampFormat.Raw:
+    case TimestampFormat.TraceNs:
       ctx.fillText(time.toString(), x, y, minWidth);
       break;
-    case TimestampFormat.RawLocale:
+    case TimestampFormat.TraceNsLocale:
       ctx.fillText(time.toLocaleString(), x, y, minWidth);
       break;
     case TimestampFormat.Seconds:
       ctx.fillText(Time.formatSeconds(time), x, y, minWidth);
       break;
+    case TimestampFormat.Milliseconds:
+      ctx.fillText(Time.formatMilliseconds(time), x, y, minWidth);
+      break;
+    case TimestampFormat.Microseconds:
+      ctx.fillText(Time.formatMicroseconds(time), x, y, minWidth);
+      break;
     default:
-      const z: never = fmt;
-      throw new Error(`Invalid timestamp ${z}`);
+      assertUnreachable(fmt);
   }
 }
 
@@ -303,4 +325,127 @@ function renderTimecode(
   const timecode = Time.toTimecode(time);
   const {dhhmmss} = timecode;
   ctx.fillText(dhhmmss, x, y, minWidth);
+}
+
+interface QuantizedLoad {
+  start: time;
+  end: time;
+  load: number;
+}
+
+// Kicks of a sequence of promises that load the overiew data in steps.
+// Each step schedules an animation frame.
+class OverviewDataLoader {
+  overviewData = new Map<string, QuantizedLoad[]>();
+
+  constructor(private trace: TraceImpl) {
+    this.beginLoad();
+  }
+
+  async beginLoad() {
+    const traceSpan = new TimeSpan(
+      this.trace.traceInfo.start,
+      this.trace.traceInfo.end,
+    );
+    const engine = this.trace.engine;
+    const stepSize = Duration.max(1n, traceSpan.duration / 100n);
+    const hasSchedSql = 'select ts from sched limit 1';
+    const hasSchedOverview = (await engine.query(hasSchedSql)).numRows() > 0;
+    if (hasSchedOverview) {
+      await this.loadSchedOverview(traceSpan, stepSize);
+    } else {
+      await this.loadSliceOverview(traceSpan, stepSize);
+    }
+  }
+
+  async loadSchedOverview(traceSpan: TimeSpan, stepSize: duration) {
+    const stepPromises = [];
+    for (
+      let start = traceSpan.start;
+      start < traceSpan.end;
+      start = Time.add(start, stepSize)
+    ) {
+      const progress = start - traceSpan.start;
+      const ratio = Number(progress) / Number(traceSpan.duration);
+      this.trace.omnibox.showStatusMessage(
+        'Loading overview ' + `${Math.round(ratio * 100)}%`,
+      );
+      const end = Time.add(start, stepSize);
+      // The (async() => {})() queues all the 100 async promises in one batch.
+      // Without that, we would wait for each step to be rendered before
+      // kicking off the next one. That would interleave an animation frame
+      // between each step, slowing down significantly the overall process.
+      stepPromises.push(
+        (async () => {
+          const schedResult = await this.trace.engine.query(
+            `select cast(sum(dur) as float)/${stepSize} as load, cpu from sched ` +
+              `where ts >= ${start} and ts < ${end} and utid != 0 ` +
+              'group by cpu order by cpu',
+          );
+          const schedData: {[key: string]: QuantizedLoad} = {};
+          const it = schedResult.iter({load: NUM, cpu: NUM});
+          for (; it.valid(); it.next()) {
+            const load = it.load;
+            const cpu = it.cpu;
+            schedData[cpu] = {start, end, load};
+          }
+          this.appendData(schedData);
+        })(),
+      );
+    } // for(start = ...)
+    await Promise.all(stepPromises);
+  }
+
+  async loadSliceOverview(traceSpan: TimeSpan, stepSize: duration) {
+    // Slices overview.
+    const sliceResult = await this.trace.engine.query(`select
+            bucket,
+            upid,
+            ifnull(sum(utid_sum) / cast(${stepSize} as float), 0) as load
+          from thread
+          inner join (
+            select
+              ifnull(cast((ts - ${traceSpan.start})/${stepSize} as int), 0) as bucket,
+              sum(dur) as utid_sum,
+              utid
+            from slice
+            inner join thread_track on slice.track_id = thread_track.id
+            group by bucket, utid
+          ) using(utid)
+          where upid is not null
+          group by bucket, upid`);
+
+    const slicesData: {[key: string]: QuantizedLoad[]} = {};
+    const it = sliceResult.iter({bucket: LONG, upid: NUM, load: NUM});
+    for (; it.valid(); it.next()) {
+      const bucket = it.bucket;
+      const upid = it.upid;
+      const load = it.load;
+
+      const start = Time.add(traceSpan.start, stepSize * bucket);
+      const end = Time.add(start, stepSize);
+
+      const upidStr = upid.toString();
+      let loadArray = slicesData[upidStr];
+      if (loadArray === undefined) {
+        loadArray = slicesData[upidStr] = [];
+      }
+      loadArray.push({start, end, load});
+    }
+    this.appendData(slicesData);
+  }
+
+  appendData(data: {[key: string]: QuantizedLoad | QuantizedLoad[]}) {
+    for (const [key, value] of Object.entries(data)) {
+      if (!this.overviewData.has(key)) {
+        this.overviewData.set(key, []);
+      }
+      if (value instanceof Array) {
+        this.overviewData.get(key)!.push(...value);
+      } else {
+        this.overviewData.get(key)!.push(value);
+      }
+    }
+    raf.scheduleCanvasRedraw();
+  }
 }

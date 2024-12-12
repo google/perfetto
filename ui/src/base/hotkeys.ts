@@ -46,7 +46,6 @@
 // these keys.
 
 import {elementIsEditable} from './dom_utils';
-import {Optional} from './utils';
 
 type Alphabet =
   | 'A'
@@ -89,7 +88,9 @@ type Special =
   | 'ArrowLeft'
   | 'ArrowRight'
   | '['
-  | ']';
+  | ']'
+  | ','
+  | '.';
 export type Key = Alphabet | Number | Special;
 export type Modifier =
   | ''
@@ -170,7 +171,7 @@ export interface HotkeyParts {
 
 // Deconstruct a hotkey from its string representation into its constituent
 // parts.
-export function parseHotkey(hotkey: Hotkey): Optional<HotkeyParts> {
+export function parseHotkey(hotkey: Hotkey): HotkeyParts | undefined {
   const regex = /^(!?)((?:Mod\+|Shift\+|Alt\+|Ctrl\+)*)(.*)$/;
   const result = hotkey.match(regex);
 
@@ -189,7 +190,7 @@ export function parseHotkey(hotkey: Hotkey): Optional<HotkeyParts> {
 export function formatHotkey(
   hotkey: Hotkey,
   spoof?: Platform,
-): Optional<string> {
+): string | undefined {
   const parsed = parseHotkey(hotkey);
   return parsed && formatHotkeyParts(parsed, spoof);
 }
@@ -280,4 +281,27 @@ export type Platform = 'Mac' | 'PC';
 // Get the current platform (PC or Mac).
 export function getPlatform(): Platform {
   return window.navigator.platform.indexOf('Mac') !== -1 ? 'Mac' : 'PC';
+}
+
+// Returns a cross-platform check for whether the event has "Mod" key pressed
+// (e.g. as a part of Mod-Click UX pattern).
+// On Mac, Mod-click is actually Command-click and on PC it's Control-click,
+// so this function handles this for all platforms.
+export function hasModKey(event: {
+  readonly metaKey: boolean;
+  readonly ctrlKey: boolean;
+}): boolean {
+  if (getPlatform() === 'Mac') {
+    return event.metaKey;
+  } else {
+    return event.ctrlKey;
+  }
+}
+
+export function modKey(): {metaKey?: boolean; ctrlKey?: boolean} {
+  if (getPlatform() === 'Mac') {
+    return {metaKey: true};
+  } else {
+    return {ctrlKey: true};
+  }
 }

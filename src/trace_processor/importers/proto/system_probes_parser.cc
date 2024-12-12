@@ -16,14 +16,27 @@
 
 #include "src/trace_processor/importers/proto/system_probes_parser.h"
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/public/compiler.h"
+#include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
+#include "src/kernel_utils/syscall_table.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -31,8 +44,12 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -40,6 +57,7 @@
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/system_info.pbzero.h"
 #include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace {
 
@@ -49,8 +67,7 @@ bool IsSupportedDiskStatDevice(const std::string& device_name) {
 
 }  // namespace
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -108,11 +125,21 @@ std::optional<int> FingerprintToSdkVersion(const std::string& fingerprint) {
   return VersionStringToSdkVersion(version);
 }
 
+struct ArmCpuIdentifier {
+  uint32_t implementer;
+  uint32_t architecture;
+  uint32_t variant;
+  uint32_t part;
+  uint32_t revision;
+};
+
 struct CpuInfo {
   uint32_t cpu = 0;
   std::optional<uint32_t> capacity;
   std::vector<uint32_t> frequencies;
   protozero::ConstChars processor;
+  // Extend the variant to support additional identifiers
+  std::variant<std::nullopt_t, ArmCpuIdentifier> identifier = std::nullopt;
 };
 
 struct CpuMaxFrequency {
@@ -129,12 +156,24 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       bytes_unit_id_(context->storage->InternString("bytes")),
       available_chunks_unit_id_(
           context->storage->InternString("available chunks")),
+      irq_id_(context->storage->InternString("irq")),
       num_forks_name_id_(context->storage->InternString("num_forks")),
       num_irq_total_name_id_(context->storage->InternString("num_irq_total")),
       num_softirq_total_name_id_(
           context->storage->InternString("num_softirq_total")),
       oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
-      thermal_unit_id_(context->storage->InternString("C")) {
+      thermal_unit_id_(context->storage->InternString("C")),
+      gpufreq_id(context->storage->InternString("gpufreq")),
+      gpufreq_unit_id(context->storage->InternString("MHz")),
+      cpu_stat_counter_name_id_(context->storage->InternString("counter_name")),
+      cpu_idle_state_id_(context_->storage->InternString("cpu_idle_state")),
+      arm_cpu_implementer(
+          context->storage->InternString("arm_cpu_implementer")),
+      arm_cpu_architecture(
+          context->storage->InternString("arm_cpu_architecture")),
+      arm_cpu_variant(context->storage->InternString("arm_cpu_variant")),
+      arm_cpu_part(context->storage->InternString("arm_cpu_part")),
+      arm_cpu_revision(context->storage->InternString("arm_cpu_revision")) {
   for (const auto& name : BuildMeminfoCounterNames()) {
     meminfo_strs_id_.emplace_back(context->storage->InternString(name));
   }
@@ -212,7 +251,7 @@ void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
     base::StackString<512> track_name("%s.%s", tag_prefix.c_str(),
                                       counter_name);
     StringId string_id = context_->storage->InternString(track_name.c_str());
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kIo, string_id);
     context_->event_tracker->PushCounter(ts, value, track);
   };
@@ -287,7 +326,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
       continue;
     }
     // /proc/meminfo counters are in kB, convert to bytes
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kMemory, meminfo_strs_id_[key], {},
         bytes_unit_id_);
     context_->event_tracker->PushCounter(
@@ -304,7 +343,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
         "%.*s %.*s", int(key.size()), key.data(), int(devfreq_subtitle.size()),
         devfreq_subtitle.data());
     StringId name = context_->storage->InternString(counter_name.string_view());
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kClockFrequency, name);
     context_->event_tracker->PushCounter(ts, static_cast<double>(vm.value()),
                                          track);
@@ -313,7 +352,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   uint32_t c = 0;
   for (auto it = sys_stats.cpufreq_khz(); it; ++it, ++c) {
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::CpuCounterTrackType::kFrequency, c);
+        tracks::cpu_frequency, c, TrackTracker::LegacyCharArrayName{"cpufreq"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(*it), track);
   }
 
@@ -325,7 +364,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
       context_->storage->IncrementStats(stats::vmstat_unknown_keys);
       continue;
     }
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kMemory, vmstat_strs_id_[key]);
     context_->event_tracker->PushCounter(ts, static_cast<double>(vm.value()),
                                          track);
@@ -339,76 +378,77 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
       continue;
     }
 
-    TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::CpuCounterTrackType::kUserTime, ct.cpu_id());
-    context_->event_tracker->PushCounter(ts, static_cast<double>(ct.user_ns()),
-                                         track);
-
-    track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::CpuCounterTrackType::kNiceUserTime, ct.cpu_id());
+    auto intern_track =
+        [&, this](TrackTracker::LegacyCharArrayName name) -> TrackId {
+      auto builder = context_->track_tracker->CreateDimensionsBuilder();
+      builder.AppendDimension(
+          cpu_stat_counter_name_id_,
+          Variadic::String(context_->storage->InternString(name.name)));
+      builder.AppendCpu(ct.cpu_id());
+      return context_->track_tracker->InternCounterTrack(
+          tracks::cpu_stat, std::move(builder).Build(), name);
+    };
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(ct.user_nice_ns()), track);
-
-    track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::CpuCounterTrackType::kSystemModeTime, ct.cpu_id());
+        ts, static_cast<double>(ct.user_ns()),
+        intern_track(TrackTracker::LegacyCharArrayName{"cpu.times.user_ns"}));
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(ct.system_mode_ns()), track);
-
-    track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::CpuCounterTrackType::kIdleTime, ct.cpu_id());
-    context_->event_tracker->PushCounter(ts, static_cast<double>(ct.idle_ns()),
-                                         track);
-
-    track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::CpuCounterTrackType::kIoWaitTime, ct.cpu_id());
+        ts, static_cast<double>(ct.user_nice_ns()),
+        intern_track(
+            TrackTracker::LegacyCharArrayName{"cpu.times.user_nice_ns"}));
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(ct.io_wait_ns()), track);
-
-    track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::CpuCounterTrackType::kIrqTime, ct.cpu_id());
-    context_->event_tracker->PushCounter(ts, static_cast<double>(ct.irq_ns()),
-                                         track);
-
-    track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::CpuCounterTrackType::kSoftIrqTime, ct.cpu_id());
+        ts, static_cast<double>(ct.system_mode_ns()),
+        intern_track(
+            TrackTracker::LegacyCharArrayName{"cpu.times.system_mode_ns"}));
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(ct.softirq_ns()), track);
+        ts, static_cast<double>(ct.idle_ns()),
+        intern_track(TrackTracker::LegacyCharArrayName{"cpu.times.idle_ns"}));
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(ct.io_wait_ns()),
+        intern_track(
+            TrackTracker::LegacyCharArrayName{"cpu.times.io_wait_ns"}));
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(ct.irq_ns()),
+        intern_track(TrackTracker::LegacyCharArrayName{"cpu.times.irq_ns"}));
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(ct.softirq_ns()),
+        intern_track(
+            TrackTracker::LegacyCharArrayName{"cpu.times.softirq_ns"}));
   }
 
   for (auto it = sys_stats.num_irq(); it; ++it) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
-
-    TrackId track = context_->track_tracker->InternIrqCounterTrack(
-        TrackTracker::IrqCounterTrackType::kCount, ic.irq());
+    TrackId track = context_->track_tracker->InternSingleDimensionTrack(
+        tracks::irq_counter, irq_id_, Variadic::Integer(ic.irq()),
+        TrackTracker::LegacyCharArrayName{"num_irq"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
   }
 
   for (auto it = sys_stats.num_softirq(); it; ++it) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
-
-    TrackId track = context_->track_tracker->InternSoftirqCounterTrack(
-        TrackTracker::SoftIrqCounterTrackType::kCount, ic.irq());
+    TrackId track = context_->track_tracker->InternSingleDimensionTrack(
+        tracks::softirq_counter, irq_id_, Variadic::Integer(ic.irq()),
+        TrackTracker::LegacyCharArrayName{"num_softirq"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
   }
 
   if (sys_stats.has_num_forks()) {
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kDeviceState, num_forks_name_id_);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_forks()), track);
   }
 
   if (sys_stats.has_num_irq_total()) {
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kDeviceState, num_irq_total_name_id_);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_irq_total()), track);
   }
 
   if (sys_stats.has_num_softirq_total()) {
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kDeviceState, num_softirq_total_name_id_);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_softirq_total()), track);
@@ -429,7 +469,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
                                           chunk_size_kb);
       StringId name =
           context_->storage->InternString(counter_name.string_view());
-      TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+      TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
           TrackTracker::Group::kMemory, name, {}, available_chunks_unit_id_);
       context_->event_tracker->PushCounter(ts, static_cast<double>(*order_it),
                                            track);
@@ -456,7 +496,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     // Unit = total blocked time on this resource in nanoseconds.
     // TODO(b/315152880): Consider moving psi entries for cpu/io/memory into
     // groups specific to that resource (e.g., `Group::kMemory`).
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kDeviceState,
         sys_stats_psi_resource_names_[resource], {}, ns_unit_id_);
     context_->event_tracker->PushCounter(
@@ -466,7 +506,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   for (auto it = sys_stats.thermal_zone(); it; ++it) {
     protos::pbzero::SysStats::ThermalZone::Decoder thermal(*it);
     StringId track_name = context_->storage->InternString(thermal.type());
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kThermals, track_name, {}, thermal_unit_id_);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(thermal.temp()), track);
@@ -474,6 +514,12 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
 
   for (auto it = sys_stats.cpuidle_state(); it; ++it) {
     ParseCpuIdleStats(ts, *it);
+  }
+
+  for (auto it = sys_stats.gpufreq_mhz(); it; ++it, ++c) {
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
+        TrackTracker::Group::kPower, gpufreq_id, {}, gpufreq_unit_id);
+    context_->event_tracker->PushCounter(ts, static_cast<double>(*it), track);
   }
 }
 
@@ -484,8 +530,15 @@ void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
        ++cpuidle_field) {
     protos::pbzero::SysStats::CpuIdleStateEntry::Decoder idle(*cpuidle_field);
 
-    TrackId track = context_->track_tracker->InternCpuIdleStateTrack(
-        cpu_id, context_->storage->InternString(idle.state()));
+    TrackTracker::DimensionsBuilder dims_builder =
+        context_->track_tracker->CreateDimensionsBuilder();
+    dims_builder.AppendDimension(
+        cpu_idle_state_id_,
+        Variadic::String(context_->storage->InternString(idle.state())));
+    dims_builder.AppendCpu(cpu_id);
+    TrackId track = context_->track_tracker->InternTrack(
+        tracks::cpu_idle_state, std::move(dims_builder).Build());
+
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(idle.duration_us()), track);
   }
@@ -543,7 +596,7 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     // single cmdline element. This will be wrong for binaries that have spaces
     // in their path and are invoked without additional arguments, but those are
     // very rare. The full cmdline will still be correct either way.
-    if (bool(++proc.cmdline()) == false) {
+    if (!static_cast<bool>(++proc.cmdline())) {
       size_t delim_pos = argv0.find(' ');
       if (delim_pos != base::StringView::npos) {
         argv0 = argv0.substr(0, delim_pos);
@@ -665,7 +718,7 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
       const StringId& name = proc_stats_process_names_[field_id];
       UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
       TrackId track =
-          context_->track_tracker->InternProcessCounterTrack(name, upid);
+          context_->track_tracker->LegacyInternProcessCounterTrack(name, upid);
       int64_t value = counter_values[field_id];
       context_->event_tracker->PushCounter(ts, static_cast<double>(value),
                                            track);
@@ -752,6 +805,13 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
             packet.android_build_fingerprint())));
   }
 
+  if (packet.has_android_device_manufacturer()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::android_device_manufacturer,
+        Variadic::String(context_->storage->InternString(
+            packet.android_device_manufacturer())));
+  }
+
   // If we have the SDK version in the trace directly just use that.
   // Otherwise, try and parse it from the fingerprint.
   std::optional<int64_t> opt_sdk_version;
@@ -774,6 +834,13 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
             context_->storage->InternString(packet.android_soc_model())));
   }
 
+  if (packet.has_android_guest_soc_model()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::android_guest_soc_model,
+        Variadic::String(
+            context_->storage->InternString(packet.android_guest_soc_model())));
+  }
+
   if (packet.has_android_hardware_revision()) {
     context_->metadata_tracker->SetMetadata(
         metadata::android_hardware_revision,
@@ -784,15 +851,15 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
   if (packet.has_android_storage_model()) {
     context_->metadata_tracker->SetMetadata(
         metadata::android_storage_model,
-        Variadic::String(context_->storage->InternString(
-            packet.android_storage_model())));
+        Variadic::String(
+            context_->storage->InternString(packet.android_storage_model())));
   }
 
   if (packet.has_android_ram_model()) {
     context_->metadata_tracker->SetMetadata(
         metadata::android_ram_model,
-        Variadic::String(context_->storage->InternString(
-            packet.android_ram_model())));
+        Variadic::String(
+            context_->storage->InternString(packet.android_ram_model())));
   }
 
   page_size_ = packet.page_size();
@@ -813,9 +880,11 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   uint32_t cpu_id = 0;
   for (auto it = packet.cpus(); it; it++, cpu_id++) {
     protos::pbzero::CpuInfo::Cpu::Decoder cpu(*it);
+
     CpuInfo current_cpu_info;
     current_cpu_info.cpu = cpu_id;
     current_cpu_info.processor = cpu.processor();
+
     for (auto freq_it = cpu.frequencies(); freq_it; freq_it++) {
       uint32_t current_cpu_frequency = *freq_it;
       current_cpu_info.frequencies.push_back(current_cpu_frequency);
@@ -823,6 +892,18 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     if (cpu.has_capacity()) {
       current_cpu_info.capacity = cpu.capacity();
     }
+
+    if (cpu.has_arm_identifier()) {
+      protos::pbzero::CpuInfo::ArmCpuIdentifier::Decoder identifier(
+          cpu.arm_identifier());
+
+      current_cpu_info.identifier = ArmCpuIdentifier{
+          identifier.implementer(), identifier.architecture(),
+          identifier.variant(),     identifier.part(),
+          identifier.revision(),
+      };
+    }
+
     cpu_infos.push_back(current_cpu_info);
   }
 
@@ -833,13 +914,13 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
 
   // Capacities are defined as existing on all CPUs if present and so we set
   // them as invalid if any is missing
-  bool valid_capacities =
-      std::all_of(cpu_infos.begin(), cpu_infos.end(),
-                  [](CpuInfo info) { return info.capacity.has_value(); });
+  bool valid_capacities = std::all_of(
+      cpu_infos.begin(), cpu_infos.end(),
+      [](const CpuInfo& info) { return info.capacity.has_value(); });
 
-  bool valid_frequencies =
-      std::all_of(cpu_infos.begin(), cpu_infos.end(),
-                  [](CpuInfo info) { return !info.frequencies.empty(); });
+  bool valid_frequencies = std::all_of(
+      cpu_infos.begin(), cpu_infos.end(),
+      [](const CpuInfo& info) { return !info.frequencies.empty(); });
 
   std::vector<uint32_t> cluster_ids(cpu_infos.size());
   uint32_t cluster_id = 0;
@@ -892,8 +973,18 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
       cpu_freq_row.freq = frequency;
       context_->storage->mutable_cpu_freq_table()->Insert(cpu_freq_row);
     }
+
+    if (auto* id = std::get_if<ArmCpuIdentifier>(&cpu_info.identifier)) {
+      context_->args_tracker->AddArgsTo(ucpu)
+          .AddArg(arm_cpu_implementer,
+                  Variadic::UnsignedInteger(id->implementer))
+          .AddArg(arm_cpu_architecture,
+                  Variadic::UnsignedInteger(id->architecture))
+          .AddArg(arm_cpu_variant, Variadic::UnsignedInteger(id->variant))
+          .AddArg(arm_cpu_part, Variadic::UnsignedInteger(id->part))
+          .AddArg(arm_cpu_revision, Variadic::UnsignedInteger(id->revision));
+    }
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

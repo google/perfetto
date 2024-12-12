@@ -274,27 +274,31 @@ base::Status RuntimeTable::Builder::AddText(uint32_t idx, const char* ptr) {
 }
 
 base::Status RuntimeTable::Builder::AddIntegers(uint32_t idx,
-                                                int64_t res,
+                                                int64_t val,
                                                 uint32_t count) {
   auto* col = storage_[idx].get();
   if (auto* leading_nulls_ptr = std::get_if<uint32_t>(col)) {
     *col = Fill<NullIntStorage>(*leading_nulls_ptr, std::nullopt);
   }
   if (auto* doubles = std::get_if<NullDoubleStorage>(col)) {
-    if (!IsPerfectlyRepresentableAsDouble(res)) {
+    if (!IsPerfectlyRepresentableAsDouble(val)) {
       return base::ErrStatus("Column %s contains %" PRId64
                              " which cannot be represented as a double",
-                             col_names_[idx].c_str(), res);
+                             col_names_[idx].c_str(), val);
     }
-    doubles->AppendMultiple(static_cast<double>(res), count);
+    doubles->AppendMultiple(static_cast<double>(val), count);
     return base::OkStatus();
   }
-  auto* ints = std::get_if<NullIntStorage>(col);
+  if (auto* null_ints = std::get_if<NullIntStorage>(col)) {
+    null_ints->AppendMultiple(val, count);
+    return base::OkStatus();
+  }
+  auto* ints = std::get_if<IntStorage>(col);
   if (!ints) {
     return base::ErrStatus("Column %s does not have consistent types",
                            col_names_[idx].c_str());
   }
-  ints->AppendMultiple(res, count);
+  ints->AppendMultiple(val, count);
   return base::OkStatus();
 }
 
@@ -369,9 +373,28 @@ void RuntimeTable::Builder::AddNonNullIntegersUnchecked(
   std::get<IntStorage>(*storage_[idx]).Append(res);
 }
 
+void RuntimeTable::Builder::AddNullIntegersUnchecked(
+    uint32_t idx,
+    const std::vector<int64_t>& res) {
+  std::get<NullIntStorage>(*storage_[idx]).Append(res);
+}
+
+void RuntimeTable::Builder::AddNonNullDoublesUnchecked(
+    uint32_t idx,
+    const std::vector<double>& vals) {
+  std::get<DoubleStorage>(*storage_[idx]).Append(vals);
+}
+
+void RuntimeTable::Builder::AddNullDoublesUnchecked(
+    uint32_t idx,
+    const std::vector<double>& vals) {
+  std::get<NullDoubleStorage>(*storage_[idx]).Append(vals);
+}
+
 base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
     uint32_t rows) && {
-  std::vector<RefPtr<column::StorageLayer>> storage_layers(col_names_.size() + 1);
+  std::vector<RefPtr<column::StorageLayer>> storage_layers(col_names_.size() +
+                                                           1);
   std::vector<RefPtr<column::OverlayLayer>> null_layers(col_names_.size() + 1);
 
   std::vector<ColumnLegacy> legacy_columns;
@@ -422,12 +445,24 @@ base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
           i, col_names_[i].c_str(), std::get_if<IntStorage>(col),
           storage_layers, overlay_layers, legacy_columns, legacy_overlays);
 
-    } else if (auto* doubles = std::get_if<NullDoubleStorage>(col)) {
-      // The doubles column.
+    } else if (auto* doubles = std::get_if<DoubleStorage>(col)) {
+      // The `doubles` column for tables where column types was provided before.
       PERFETTO_CHECK(doubles->size() == rows);
-      if (doubles->non_null_size() == doubles->size()) {
+      bool is_sorted =
+          std::is_sorted(doubles->vector().begin(), doubles->vector().end());
+      uint32_t flags =
+          is_sorted ? ColumnLegacy::Flag::kNonNull | ColumnLegacy::Flag::kSorted
+                    : ColumnLegacy::Flag::kNonNull;
+      legacy_columns.emplace_back(col_names_[i].c_str(), doubles, flags, i, 0);
+      storage_layers[i].reset(new column::NumericStorage<double>(
+          &doubles->vector(), ColumnType::kDouble, is_sorted));
+
+    } else if (auto* null_doubles = std::get_if<NullDoubleStorage>(col)) {
+      // The doubles column.
+      PERFETTO_CHECK(null_doubles->size() == rows);
+      if (null_doubles->non_null_size() == null_doubles->size()) {
         // The column is not nullable.
-        *col = DoubleStorage::CreateFromAssertNonNull(std::move(*doubles));
+        *col = DoubleStorage::CreateFromAssertNonNull(std::move(*null_doubles));
 
         auto* non_null_doubles = std::get_if<DoubleStorage>(col);
         bool is_sorted = std::is_sorted(non_null_doubles->vector().begin(),
@@ -441,12 +476,12 @@ base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
             &non_null_doubles->vector(), ColumnType::kDouble, is_sorted));
       } else {
         // The column is nullable.
-        legacy_columns.emplace_back(col_names_[i].c_str(), doubles,
+        legacy_columns.emplace_back(col_names_[i].c_str(), null_doubles,
                                     ColumnLegacy::Flag::kNoFlag, i, 0);
         storage_layers[i].reset(new column::NumericStorage<double>(
-            &doubles->non_null_vector(), ColumnType::kDouble, false));
+            &null_doubles->non_null_vector(), ColumnType::kDouble, false));
         null_layers[i].reset(
-            new column::NullOverlay(&doubles->non_null_bit_vector()));
+            new column::NullOverlay(&null_doubles->non_null_bit_vector()));
       }
 
     } else if (auto* strings = std::get_if<StringStorage>(col)) {

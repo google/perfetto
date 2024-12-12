@@ -37,7 +37,7 @@ package perfetto.protos;
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 11.
+// Next id: 14.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -62,6 +62,9 @@ message TrackDescriptor {
     // This field is only set by the SDK when perfetto::StaticString is
     // provided.
     string static_name = 10;
+    // Equivalent to name, used just to mark that the data is coming from
+    // android.os.Trace.
+    string atrace_name = 13;
   }
 
   // Associate the track with a process, making it the process-global track.
@@ -96,4 +99,33 @@ message TrackDescriptor {
   // system events use nanoseconds. It results in broken event nesting when
   // track events and system events share a track.
   optional bool disallow_merging_with_system_tracks = 9;
+
+  // Specifies how the UI should display child tracks of this track (i.e. tracks
+  // where `parent_uuid` is specified to this track `uuid`). Note that this
+  // value is simply a *hint* to the UI: the UI is not guarnateed to respect
+  // this if it has a good reason not to do so.
+  enum ChildTracksOrdering {
+    // The default ordering, with no bearing on how the UI will visualise the
+    // tracks.
+    UNKNOWN = 0;
+
+    // Order tracks by `name` or `static_name` depending on which one has been
+    // specified.
+    LEXICOGRAPHIC = 1;
+
+    // Order tracks by the first `ts` event in a track.
+    CHRONOLOGICAL = 2;
+
+    // Order tracks by `sibling_order_rank` of child tracks. Child tracks with
+    // the lower values will be shown before tracks with higher values. Tracks
+    // with no value will be treated as having 0 rank.
+    EXPLICIT = 3;
+  }
+  optional ChildTracksOrdering child_ordering = 11;
+
+  // An opaque value which allows specifying how two sibling tracks should be
+  // ordered relative to each other: tracks with lower ranks will appear before
+  // tracks with higher ranks. An unspecified rank will be treated as a rank of
+  // 0.
+  optional int32 sibling_order_rank = 12;
 }

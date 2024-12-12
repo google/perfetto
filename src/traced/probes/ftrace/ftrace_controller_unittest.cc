@@ -656,6 +656,72 @@ TEST(FtraceStatsTest, Write) {
   EXPECT_EQ(result.cpu(), 0u);
   EXPECT_EQ(result.entries(), 1u);
   EXPECT_EQ(result.overrun(), 2u);
+  auto kprobe_stats = result_packet.ftrace_stats().kprobe_stats();
+  EXPECT_EQ(kprobe_stats.hits(), 0u);
+  EXPECT_EQ(kprobe_stats.misses(), 0u);
+}
+
+TEST(FtraceStatsTest, WriteKprobeStats) {
+  FtraceStats stats{};
+  FtraceKprobeStats kprobe_stats{};
+  kprobe_stats.hits = 1;
+  kprobe_stats.misses = 2;
+  stats.kprobe_stats = kprobe_stats;
+
+  std::unique_ptr<TraceWriterForTesting> writer =
+      std::unique_ptr<TraceWriterForTesting>(new TraceWriterForTesting());
+  {
+    auto packet = writer->NewTracePacket();
+    auto* out = packet->set_ftrace_stats();
+    stats.Write(out);
+  }
+
+  protos::gen::TracePacket result_packet = writer->GetOnlyTracePacket();
+  auto result = result_packet.ftrace_stats();
+  EXPECT_EQ(result.kprobe_stats().hits(), 1u);
+  EXPECT_EQ(result.kprobe_stats().misses(), 2u);
+}
+
+TEST(FtraceStatsTest, KprobeProfileParseEmpty) {
+  std::string text = "";
+
+  FtraceStats stats{};
+  EXPECT_TRUE(DumpKprobeStats(text, &stats));
+}
+
+TEST(FtraceStatsTest, KprobeProfileParseEmptyLines) {
+  std::string text = R"(
+
+)";
+
+  FtraceStats stats{};
+  EXPECT_TRUE(DumpKprobeStats(text, &stats));
+}
+
+TEST(FtraceStatsTest, KprobeProfileParseValid) {
+  std::string text = R"(  _binder_inner_proc_lock  1   8
+  _binder_inner_proc_unlock                        2   9
+  _binder_node_inner_unlock                        3  10
+  _binder_node_unlock                              4  11
+)";
+
+  FtraceStats stats{};
+  EXPECT_TRUE(DumpKprobeStats(text, &stats));
+
+  EXPECT_EQ(stats.kprobe_stats.hits, 10u);
+  EXPECT_EQ(stats.kprobe_stats.misses, 38u);
+}
+
+TEST(FtraceStatsTest, KprobeProfileMissingValuesParseInvalid) {
+  std::string text = R"(  _binder_inner_proc_lock  1   8
+  _binder_inner_proc_unlock                        2
+)";
+
+  FtraceStats stats{};
+  EXPECT_FALSE(DumpKprobeStats(text, &stats));
+
+  EXPECT_EQ(stats.kprobe_stats.hits, 0u);
+  EXPECT_EQ(stats.kprobe_stats.misses, 0u);
 }
 
 TEST(FtraceControllerTest, OnlySecondaryInstance) {
@@ -822,27 +888,24 @@ TEST(FtraceControllerTest, PollSupportedOnKernelVersion) {
   auto test = [](auto s) {
     return FtraceController::PollSupportedOnKernelVersion(s);
   };
-  // Linux 6.1 or above are ok
-  EXPECT_TRUE(test("6.5.13-1-amd64"));
-  EXPECT_TRUE(test("6.1.0-1-amd64"));
-  EXPECT_TRUE(test("6.1.25-android14-11-g"));
-  // before 6.1
+  // Linux 6.9 or above are ok
+  EXPECT_TRUE(test("6.9.13-1-amd64"));
+  EXPECT_TRUE(test("6.9.0-1-amd64"));
+  EXPECT_TRUE(test("6.9.25-android14-11-g"));
+  // before 6.9
   EXPECT_FALSE(test("5.15.200-1-amd"));
 
   // Android: check allowlisted GKI versions
 
   // sublevel matters:
-  EXPECT_TRUE(test("5.10.198-android13-4-0"));
-  EXPECT_FALSE(test("5.10.189-android13-4-0"));
+  EXPECT_TRUE(test("6.1.87-android14-4-0"));
+  EXPECT_FALSE(test("6.1.80-android14-4-0"));
   // sublevel matters:
-  EXPECT_TRUE(test("5.15.137-android14-8-suffix"));
-  EXPECT_FALSE(test("5.15.130-android14-8-suffix"));
-  // sublevel matters:
-  EXPECT_TRUE(test("5.15.137-android13-8-0"));
-  EXPECT_FALSE(test("5.15.129-android13-8-0"));
-  // android12 instead of android13 (clarification: this is part of the kernel
+  EXPECT_TRUE(test("6.6.27-android15-8-suffix"));
+  EXPECT_FALSE(test("6.6.26-android15-8-suffix"));
+  // android13 instead of android14 (clarification: this is part of the kernel
   // version, and is unrelated to the system image version).
-  EXPECT_FALSE(test("5.10.198-android12-4-0"));
+  EXPECT_FALSE(test("6.1.87-android13-4-0"));
 }
 
 }  // namespace perfetto

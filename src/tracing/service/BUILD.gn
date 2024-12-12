@@ -31,17 +31,23 @@ source_set("service") {
     "../../../protos/perfetto/trace/perfetto:zero",  # For MetatraceWriter.
     "../../android_stats",
     "../../base",
+    "../../base:clock_snapshots",
     "../../base:version",
     "../../protozero/filtering:message_filter",
     "../../protozero/filtering:string_filter",
     "../core",
   ]
   sources = [
+    "clock.cc",
+    "clock.h",
+    "dependencies.h",
     "histogram.h",
     "metatrace_writer.cc",
     "metatrace_writer.h",
     "packet_stream_validator.cc",
     "packet_stream_validator.h",
+    "random.cc",
+    "random.h",
     "trace_buffer.cc",
     "trace_buffer.h",
     "tracing_service_impl.cc",

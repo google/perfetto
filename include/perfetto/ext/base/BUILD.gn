@@ -19,6 +19,7 @@ source_set("base") {
     "android_utils.h",
     "base64.h",
     "circular_queue.h",
+    "clock_snapshots.h",
     "container_annotations.h",
     "crash_keys.h",
     "ctrl_c_handler.h",

@@ -19,9 +19,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <ctime>
 #include <optional>
 
 #include "perfetto/ext/base/string_view.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -93,18 +95,51 @@ std::optional<size_t> IdOffsetFromEndOfNonSampleRecord(
 
   return std::nullopt;
 }
+
+size_t GetSampleIdSize(const perf_event_attr& attr) {
+  constexpr uint64_t kSampleIdFlags = PERF_SAMPLE_TID | PERF_SAMPLE_TIME |
+                                      PERF_SAMPLE_ID | PERF_SAMPLE_STREAM_ID |
+                                      PERF_SAMPLE_CPU | PERF_SAMPLE_IDENTIFIER;
+  return CountSetFlags(attr.sample_type & kSampleIdFlags) * kBytesPerField;
+}
+
+ClockTracker::ClockId ExtractClockId(const perf_event_attr& attr) {
+  if (!attr.use_clockid) {
+    return protos::pbzero::BUILTIN_CLOCK_PERF;
+  }
+  switch (attr.clockid) {
+    // Linux perf uses the values in <time.h> not sure if these are portable
+    // across platforms, so using the actual values here just in case.
+    case 0:  // CLOCK_REALTIME
+      return protos::pbzero::BUILTIN_CLOCK_REALTIME;
+    case 1:  // CLOCK_MONOTONIC
+      return protos::pbzero::BUILTIN_CLOCK_MONOTONIC;
+    case 4:  // CLOCK_MONOTONIC_RAW
+      return protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW;
+    case 5:  // CLOCK_REALTIME_COARSE
+      return protos::pbzero::BUILTIN_CLOCK_REALTIME_COARSE;
+    case 6:  // CLOCK_MONOTONIC_COARSE
+      return protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE;
+    case 7:  // CLOCK_BOOTTIME
+      return protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
+    default:
+      return protos::pbzero::BUILTIN_CLOCK_UNKNOWN;
+  }
+}
 }  // namespace
 
 PerfEventAttr::PerfEventAttr(TraceProcessorContext* context,
                              tables::PerfSessionTable::Id perf_session_id,
                              perf_event_attr attr)
     : context_(context),
+      clock_id_(ExtractClockId(attr)),
       perf_session_id_(perf_session_id),
       attr_(attr),
       time_offset_from_start_(TimeOffsetFromStartOfSampleRecord(attr_)),
       time_offset_from_end_(TimeOffsetFromEndOfNonSampleRecord(attr_)),
       id_offset_from_start_(IdOffsetFromStartOfSampleRecord(attr_)),
-      id_offset_from_end_(IdOffsetFromEndOfNonSampleRecord(attr_)) {}
+      id_offset_from_end_(IdOffsetFromEndOfNonSampleRecord(attr_)),
+      sample_id_size_(GetSampleIdSize(attr_)) {}
 
 PerfEventAttr::~PerfEventAttr() = default;
 

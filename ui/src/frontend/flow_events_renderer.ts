@@ -13,14 +13,13 @@
 // limitations under the License.
 
 import {ArrowHeadStyle, drawBezierArrow} from '../base/canvas/bezier_arrow';
-import {Size, Vector} from '../base/geom';
-import {Optional} from '../base/utils';
-
+import {Size2D, Point2D, HorizontalBounds} from '../base/geom';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
-import {Flow, globals} from './globals';
+import {Flow} from '../core/flow_types';
 import {RenderedPanelInfo} from './panel_container';
-import {PxSpan, TimeScale} from './time_scale';
-import {TrackNode} from './workspace';
+import {TimeScale} from '../base/time_scale';
+import {TrackNode} from '../public/workspace';
+import {TraceImpl} from '../core/trace_impl';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;
@@ -38,49 +37,37 @@ const FOCUSED_FLOW_INTENSITY = 55;
 const DEFAULT_FLOW_INTENSITY = 70;
 
 type VerticalEdgeOrPoint =
-  | ({kind: 'vertical_edge'} & Vector)
-  | ({kind: 'point'} & Vector);
+  | ({kind: 'vertical_edge'} & Point2D)
+  | ({kind: 'point'} & Point2D);
 
 /**
  * Renders the flows overlay on top of the timeline, given the set of panels and
  * a canvas to draw on.
  *
- * Note: the actual flow data is retrieved from globals, which are produced by
- * the flow events controller.
+ * Note: the actual flow data is retrieved from trace.flows, which are produced
+ * by FlowManager.
  *
+ * @param trace - The Trace instance, which holds onto the FlowManager.
  * @param ctx - The canvas to draw on.
  * @param size - The size of the canvas.
  * @param panels - A list of panels and their locations on the canvas.
  */
 export function renderFlows(
+  trace: TraceImpl,
   ctx: CanvasRenderingContext2D,
-  size: Size,
+  size: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
+  trackRoot: TrackNode,
 ): void {
-  const timescale = new TimeScale(
-    globals.timeline.visibleWindow,
-    new PxSpan(0, size.width),
-  );
+  const timescale = new TimeScale(trace.timeline.visibleWindow, {
+    left: 0,
+    right: size.width,
+  });
 
-  // Create indexes for the tracks and groups by key for quick access
-  const trackPanelsByKey = new Map(
-    panels.map((panel) => [panel.panel.trackUri, panel]),
-  );
-  const groupPanelsByKey = new Map(
-    panels.map((panel) => [panel.panel.groupUri, panel]),
-  );
-
-  // Build a track index on trackIds. Note: We need to find the track nodes
-  // specifically here (not just the URIs) because we might need to navigate up
-  // the tree to find containing groups.
-
-  const trackIdToTrack = new Map<number, TrackNode>();
-  globals.workspace.flatTracks.forEach((track) =>
-    globals.trackManager
-      .getTrack(track.uri)
-      ?.tags?.trackIds?.forEach((trackId) =>
-        trackIdToTrack.set(trackId, track),
-      ),
+  // Create an index of track node instances to panels. This doesn't need to be
+  // a WeakMap because it's thrown away every render cycle.
+  const panelsByTrackNode = new Map(
+    panels.map((panel) => [panel.panel.trackNode, panel]),
   );
 
   const drawFlow = (flow: Flow, hue: number) => {
@@ -94,20 +81,21 @@ export function renderFlows(
     const startX = timescale.timeToPx(flowStartTs);
     const endX = timescale.timeToPx(flowEndTs);
 
-    // If the flow is entirely outside the visible viewport don't render anything
-    if (
-      (startX < 0 || startX > size.width) &&
-      (endX < 0 || startX > size.width)
-    ) {
+    const flowBounds = {
+      left: Math.min(startX, endX),
+      right: Math.max(startX, endX),
+    };
+
+    if (!isInViewport(flowBounds, size)) {
       return;
     }
 
     const highlighted =
-      flow.end.sliceId === globals.state.highlightedSliceId ||
-      flow.begin.sliceId === globals.state.highlightedSliceId;
+      flow.end.sliceId === trace.timeline.highlightedSliceId ||
+      flow.begin.sliceId === trace.timeline.highlightedSliceId;
     const focused =
-      flow.id === globals.state.focusedFlowIdLeft ||
-      flow.id === globals.state.focusedFlowIdRight;
+      flow.id === trace.flows.focusedFlowIdLeft ||
+      flow.id === trace.flows.focusedFlowIdRight;
 
     let intensity = DEFAULT_FLOW_INTENSITY;
     let width = DEFAULT_FLOW_WIDTH;
@@ -120,11 +108,11 @@ export function renderFlows(
     }
 
     const start = getConnectionTarget(
-      flow.begin.trackId,
+      flow.begin.trackUri,
       flow.begin.depth,
       startX,
     );
-    const end = getConnectionTarget(flow.end.trackId, flow.end.depth, endX);
+    const end = getConnectionTarget(flow.end.trackUri, flow.end.depth, endX);
 
     if (start && end) {
       drawArrow(ctx, start, end, intensity, hue, width);
@@ -132,16 +120,20 @@ export function renderFlows(
   };
 
   const getConnectionTarget = (
-    trackId: number,
+    trackUri: string | undefined,
     depth: number,
     x: number,
-  ): Optional<VerticalEdgeOrPoint> => {
-    const track = trackIdToTrack.get(trackId);
+  ): VerticalEdgeOrPoint | undefined => {
+    if (trackUri === undefined) {
+      return undefined;
+    }
+
+    const track = trackRoot.findTrackByUri(trackUri);
     if (!track) {
       return undefined;
     }
 
-    const trackPanel = trackPanelsByKey.get(track.uri);
+    const trackPanel = panelsByTrackNode.get(track);
     if (trackPanel) {
       const trackRect = trackPanel.rect;
       const sliceRectRaw = trackPanel.panel.getSliceVerticalBounds?.(depth);
@@ -166,8 +158,8 @@ export function renderFlows(
       }
     } else {
       // If we didn't find a track, it might inside a group, so check for the group
-      const group = track.closestVisibleAncestor;
-      const groupPanel = group && groupPanelsByKey.get(group.uri);
+      const containerNode = track.findClosestVisibleAncestor();
+      const groupPanel = panelsByTrackNode.get(containerNode);
       if (groupPanel) {
         return {
           kind: 'point',
@@ -181,23 +173,29 @@ export function renderFlows(
   };
 
   // Render the connected flows
-  globals.connectedFlows.forEach((flow) => {
+  trace.flows.connectedFlows.forEach((flow) => {
     drawFlow(flow, CONNECTED_FLOW_HUE);
   });
 
   // Render the selected flows
-  globals.selectedFlows.forEach((flow) => {
+  trace.flows.selectedFlows.forEach((flow) => {
     const categories = getFlowCategories(flow);
     for (const cat of categories) {
       if (
-        globals.visibleFlowCategories.get(cat) ||
-        globals.visibleFlowCategories.get(ALL_CATEGORIES)
+        trace.flows.visibleCategories.get(cat) ||
+        trace.flows.visibleCategories.get(ALL_CATEGORIES)
       ) {
         drawFlow(flow, SELECTED_FLOW_HUE);
         break;
       }
     }
   });
+}
+
+// Check if an object defined by the horizontal bounds |bounds| is inside the
+// viewport defined by |viewportSizeZ.
+function isInViewport(bounds: HorizontalBounds, viewportSize: Size2D): boolean {
+  return bounds.right >= 0 && bounds.left < viewportSize.width;
 }
 
 function drawArrow(

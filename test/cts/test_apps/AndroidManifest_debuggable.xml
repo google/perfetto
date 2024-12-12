@@ -18,7 +18,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="android.perfetto.cts.app.debuggable">
 
-    <application android:debuggable="true">
+    <!-- vmSafeMode="true" disables the JIT.
+
+      HeapprofdJavaCtsTest cover Java heap dumps.
+
+      Java heap dumps are not 100% reliable because they fork the app process,
+      which is multithreaded. If another thread is holding a lock, the forked
+      process can get stuck. This is a known limitation of java heap dumps.
+
+      debuggable apps are not AOT-compiled, so there's a high chance that the
+      JIT is in use. The JIT runs on another thread and can hold locks. To
+      reduce the chance of running into the fork deadlock described earlier,
+      we simply disable the JIT for debuggable apps in tests.
+    -->
+    <application android:debuggable="true" android:vmSafeMode="true">
         <activity
           android:name="android.perfetto.cts.app.MainActivity"
           android:exported="true">
@@ -65,6 +78,19 @@
         <activity-alias
           android:name="android.perfetto.cts.app.debuggable.JavaOomActivity"
           android:targetActivity="android.perfetto.cts.app.JavaOomActivity"
+          android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity
+          android:name="android.perfetto.cts.app.NoopActivity"
+          android:exported="true">
+        </activity>
+        <activity-alias
+          android:name="android.perfetto.cts.app.debuggable.NoopActivity"
+          android:targetActivity="android.perfetto.cts.app.NoopActivity"
           android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

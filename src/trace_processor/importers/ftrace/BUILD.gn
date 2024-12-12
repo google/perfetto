@@ -74,6 +74,7 @@ source_set("full") {
     "../../../protozero",
     "../../sorter",
     "../../storage",
+    "../../tables",
     "../../types",
     "../common",
     "../common:parser_types",

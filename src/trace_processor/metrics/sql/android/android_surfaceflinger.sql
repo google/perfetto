@@ -29,17 +29,6 @@ SELECT RUN_METRIC(
   'output', 'gpu_frame_missed'
 );
 
-DROP VIEW IF EXISTS android_surfaceflinger_event;
-CREATE PERFETTO VIEW android_surfaceflinger_event AS
-SELECT
-  'slice' AS track_type,
-  'Android Missed Frames' AS track_name,
-  ts,
-  dur,
-  'Frame missed' AS slice_name
-FROM frame_missed
-WHERE value = 1 AND ts IS NOT NULL;
-
 DROP VIEW IF EXISTS surfaceflinger_track;
 CREATE PERFETTO VIEW surfaceflinger_track AS
 SELECT tr.id AS track_id, t.utid, t.tid

@@ -159,6 +159,10 @@ void TracingSession::WaitForStopped() {
   stopped_->WaitForNotification();
 }
 
+void TracingSession::StopAsync() {
+  PerfettoTracingSessionStopAsync(session_);
+}
+
 void TracingSession::StopBlocking() {
   PerfettoTracingSessionStopBlocking(session_);
 }

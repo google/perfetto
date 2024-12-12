@@ -20,17 +20,21 @@
 #include <stdint.h>
 #include <cstdint>
 #include <optional>
+#include <string>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/perf/mmap_record.h"
 #include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/perf/sample.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/util/build_id.h"
 
 namespace perfetto {
 namespace trace_processor {
 
+class DummyMemoryMapping;
 class MappingTracker;
 class TraceProcessorContext;
 
@@ -51,8 +55,9 @@ class RecordParser : public PerfRecordParser {
   base::Status ParseRecord(int64_t timestamp, Record record);
   base::Status ParseSample(int64_t ts, Record record);
   base::Status ParseComm(Record record);
-  base::Status ParseMmap(Record record);
-  base::Status ParseMmap2(Record record);
+  base::Status ParseMmap(int64_t trace_ts, Record record);
+  base::Status ParseMmap2(int64_t trace_ts, Record record);
+  base::Status ParseItraceStart(Record record);
 
   base::Status InternSample(Sample sample);
 
@@ -66,8 +71,11 @@ class RecordParser : public PerfRecordParser {
 
   UniquePid GetUpid(const CommonMmapRecordFields& fields) const;
 
-  TraceProcessorContext* const context_ = nullptr;
+  DummyMemoryMapping* GetDummyMapping(UniquePid upid);
+
+  TraceProcessorContext* const context_;
   MappingTracker* const mapping_tracker_;
+  base::FlatHashMap<UniquePid, DummyMemoryMapping*> dummy_mappings_;
 };
 
 }  // namespace perf_importer

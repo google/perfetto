@@ -1141,18 +1141,6 @@ class Parsing(TestSuite):
         9
         """))
 
-  def test_otheruuids_android_other_traces(self):
-    return DiffTestBlueprint(
-        trace=Path('otheruuids.textproto'),
-        query=Metric('android_other_traces'),
-        out=TextProto(r"""
-        android_other_traces {
-          finalized_traces_uuid: "75e4c6d0-d8f6-4f82-fa4b-9e09c5512288"
-          finalized_traces_uuid: "ad836701-3113-3fb1-be4f-f7731e23fbbf"
-          finalized_traces_uuid: "0de1a010-efa1-a081-2345-969b1186a6ab"
-        }
-        """))
-
   # Per-process Binder transaction metrics
   def test_android_binder(self):
     return DiffTestBlueprint(
@@ -1324,6 +1312,35 @@ class Parsing(TestSuite):
         "name","int_value"
         "all_data_source_flushed_ns",12344
         "all_data_source_flushed_ns",12345
+        """))
+
+  def test_slow_starting_data_sources(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 108227060089867
+          trusted_uid: 679634
+          trusted_packet_sequence_id: 1
+          service_event {
+            slow_starting_data_sources {
+              data_source {
+                producer_name: "producer2"
+                data_source_name: "track_event"
+              }
+              data_source {
+                producer_name: "producer3"
+                data_source_name: "track_event"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT str_value FROM metadata WHERE name = 'slow_start_data_source'""",
+        out=Csv("""
+        "str_value"
+        "producer2 track_event"
+        "producer3 track_event"
         """))
 
   def test_ftrace_abi_errors_skipped_zero_data_length(self):
@@ -1552,4 +1569,77 @@ class Parsing(TestSuite):
         5230422048874,0,1306,"[NULL]"
         5230422153284,0,1306,"[NULL]"
         5230425693562,0,10,1
+        """))
+
+  # Kernel idle tasks created by /sbin/init should be filtered.
+  def test_task_newtask_swapper_by_init(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          first_packet_on_sequence: true
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 1000000
+              pid: 0
+              task_newtask {
+                pid: 1
+                comm: "swapper/0"
+                clone_flags: 8389376
+                oom_score_adj: 0
+              }
+            }
+            event {
+              timestamp: 1000000
+              pid: 0
+              task_newtask {
+                pid: 2
+                comm: "swapper/0"
+                clone_flags: 8390400
+                oom_score_adj: 0
+              }
+            }
+            event {
+              timestamp: 17000000
+              pid: 1
+              task_newtask {
+                pid: 0
+                comm: "swapper/0"
+                clone_flags: 256
+                oom_score_adj: 0
+              }
+            }
+            event {
+              timestamp: 17000000
+              pid: 1
+              task_newtask {
+                pid: 0
+                comm: "swapper/0"
+                clone_flags: 256
+                oom_score_adj: 0
+              }
+            }
+            event {
+              timestamp: 17000000
+              pid: 1
+              task_newtask {
+                pid: 0
+                comm: "swapper/0"
+                clone_flags: 256
+                oom_score_adj: 0
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+          trusted_pid: 521
+          previous_packet_dropped: true
+        }
+        """),
+        query="""
+        SELECT utid, tid, name from thread where tid = 0
+        """,
+        out=Csv("""
+        "utid","tid","name"
+        0,0,"swapper"
         """))

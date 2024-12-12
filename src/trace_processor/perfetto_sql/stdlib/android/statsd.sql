@@ -19,37 +19,37 @@
 -- A subset of the slice table containing statsd atom instant events.
 CREATE PERFETTO VIEW android_statsd_atoms(
   -- Unique identifier for this slice.
-  id INT,
+  id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
-  -- The timestamp at the start of the slice (in nanoseconds).
-  ts INT,
-  -- The duration of the slice (in nanoseconds).
-  dur INT,
+  -- The timestamp at the start of the slice.
+  ts TIMESTAMP,
+  -- The duration of the slice.
+  dur DURATION,
   -- The id of the argument set associated with this slice.
-  arg_set_id INT,
+  arg_set_id LONG,
   -- The value of the CPU instruction counter at the start of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
-  thread_instruction_count INT,
+  thread_instruction_count LONG,
   -- The change in value of the CPU instruction counter between the start and end of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
-  thread_instruction_delta INT,
+  thread_instruction_delta LONG,
   -- The id of the track this slice is located on.
-  track_id INT,
+  track_id LONG,
   -- The "category" of the slice. If this slice originated with track_event, this column contains the category emitted. Otherwise, it is likely to be null (with limited exceptions).
   category STRING,
   -- The name of the slice. The name describes what was happening during the slice.
   name STRING,
   -- The depth of the slice in the current stack of slices.
-  depth INT,
+  depth LONG,
   -- A unique identifier obtained from the names of all slices in this stack. This is rarely useful and kept around only for legacy reasons.
-  stack_id INT,
+  stack_id LONG,
   -- The stack_id for the parent of this slice. Rarely useful.
-  parent_stack_id INT,
+  parent_stack_id LONG,
   -- The id of the parent (i.e. immediate ancestor) slice for this slice.
-  parent_id INT,
+  parent_id LONG,
   -- The thread timestamp at the start of the slice. This column will only be populated if thread timestamp collection is enabled with track_event.
-  thread_ts INT,
+  thread_ts TIMESTAMP,
   -- The thread time used by this slice. This column will only be populated if thread timestamp collection is enabled with track_event.
-  thread_dur INT
+  thread_dur LONG
 ) AS
 SELECT
   slice.id AS id,
@@ -80,7 +80,7 @@ WHERE
 -- `ATOM_PERFETTO_TRIGGER` push atom to be configured.
 CREATE PERFETTO TABLE _android_statsd_perfetto_triggers(
   -- Timestamp of the trigger.
-  ts INT,
+  ts TIMESTAMP,
   -- The name of the trigger.
   trigger_name STRING
 )

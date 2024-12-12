@@ -191,8 +191,7 @@ class TablesCounters(TestSuite):
           value
         FROM counter c
         JOIN cpu_counter_track t ON c.track_id = t.id
-        JOIN cpu ON t.ucpu = cpu.id
-        WHERE cpu.cpu = 1;
+        WHERE t.cpu = 1;
         """,
         out=Csv("""
         "ts","dur","value"

@@ -21,9 +21,9 @@
 -- periods.
 CREATE PERFETTO TABLE android_suspend_state(
   -- Timestamp
-  ts INT,
+  ts TIMESTAMP,
   -- Duration
-  dur INT,
+  dur DURATION,
   -- 'awake' or 'suspended'
   power_state STRING) AS
 WITH suspend_slice_from_minimal AS (
@@ -49,11 +49,11 @@ suspend_slice as (
     AND NOT EXISTS(SELECT * FROM suspend_slice_from_minimal)
 ),
 awake_slice AS (
-  -- If we don't have any rows, use the trace bounds.
+  -- If we don't have any rows, use the trace bounds if bounds are defined.
   SELECT
     trace_start() AS ts,
     trace_dur() AS dur
-  WHERE (SELECT COUNT(*) FROM suspend_slice) = 0
+  WHERE (SELECT COUNT(*) FROM suspend_slice) = 0 AND dur > 0
   UNION ALL
   -- If we do have rows, create one slice from the trace start to the first suspend.
   SELECT
@@ -82,9 +82,9 @@ ORDER BY ts; -- Order by will cause Perfetto table to index by ts.
 -- If there was no CPU suspend, the result is same as |dur|.
 CREATE PERFETTO FUNCTION _extract_duration_without_suspend(
   -- Timestamp of event.
-  ts INT,
+  ts TIMESTAMP,
   -- Duration of event.
-  dur INT)
-RETURNS INT
+  dur DURATION)
+RETURNS LONG
 AS
 SELECT to_monotonic($ts + $dur) - to_monotonic($ts);

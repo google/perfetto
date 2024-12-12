@@ -71,9 +71,8 @@ Options:
                                          -w -p -n EXCLUSIVELY)
  -r --name_resolution_scheme SCHEME     Specify the name resolution
                                         scheme for gRPC (e.g. ipv4:, dns://)
- -t -thread_pool_size POOL_SIZE         Specify the size of the thread pool
-                                        which determines number of concurrent
-                                        gRPCs from the Orchestrator
+ -t -max_query_concurrency              Specify the number of concurrent
+  MAX_QUERY_CONCURRENCY                 queries/gRPCs from the Orchestrator
                                         )",
                 argv[0]);
 }
@@ -157,7 +156,6 @@ base::Status OrchestratorMain(int argc, char** argv) {
   std::string worker_address_list = options->worker_address_list;
   uint64_t worker_count = options->worker_count;
 
-  // TODO(ivankc) Replace with DNS resolver
   std::string target_address = options->name_resolution_scheme.empty()
                                    ? "ipv4:"
                                    : options->name_resolution_scheme;

@@ -126,7 +126,6 @@ source_set("storage_minimal") {
     "importers/ftrace:minimal",
     "importers/fuchsia:fuchsia_record",
     "importers/memory_tracker:graph_processor",
-    "importers/perf:tracker",
     "importers/proto:gen_cc_android_track_event_descriptor",
     "importers/proto:gen_cc_chrome_track_event_descriptor",
     "importers/proto:gen_cc_track_event_descriptor",
@@ -156,7 +155,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "trace_processor_impl.cc",
       "trace_processor_impl.h",
     ]
-
     deps = [
       ":metatrace",
       ":storage_minimal",
@@ -166,22 +164,23 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../protos/perfetto/trace/perfetto:zero",
       "../../protos/perfetto/trace_processor:zero",
       "../base",
+      "../base:clock_snapshots",
       "../protozero",
       "db",
       "importers/android_bugreport",
+      "importers/archive",
+      "importers/art_method",
       "importers/common",
       "importers/etw:full",
       "importers/ftrace:full",
       "importers/fuchsia:full",
-      "importers/gzip:full",
-      "importers/json:full",
       "importers/json:minimal",
       "importers/ninja",
       "importers/perf",
+      "importers/perf_text",
       "importers/proto:full",
       "importers/proto:minimal",
       "importers/systrace:full",
-      "importers/zip:full",
       "metrics",
       "perfetto_sql/engine",
       "perfetto_sql/intrinsics/functions",
@@ -204,6 +203,15 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../gn:sqlite",  # iterator_impl.h includes sqlite3.h.
       "../../include/perfetto/trace_processor",
     ]
+    if (enable_perfetto_trace_processor_mac_instruments) {
+      deps += [ "importers/instruments" ]
+    }
+    if (enable_perfetto_trace_processor_json) {
+      deps += [
+        "importers/gecko",
+        "importers/json",
+      ]
+    }
   }
 
   executable("trace_processor_shell") {
@@ -238,7 +246,7 @@ if (enable_perfetto_trace_processor_sqlite) {
         "../../protos/perfetto/trace:descriptor",
         "../../protos/perfetto/trace:test_extensions_descriptor",
         "../../protos/perfetto/trace_processor:stack_descriptor",
-        "../../protos/third_party/pprof:profile_descriptor",
+        "../../protos/third_party/pprof:descriptor",
       ]
     }
   }
@@ -324,6 +332,9 @@ perfetto_unittest_source_set("unittests") {
       "perfetto_sql/intrinsics/functions:unittests",
       "perfetto_sql/intrinsics/operators:unittests",
       "perfetto_sql/intrinsics/table_functions:unittests",
+      "perfetto_sql/parser:unittests",
+      "perfetto_sql/preprocessor:unittests",
+      "perfetto_sql/tokenizer:unittests",
       "sqlite:unittests",
     ]
   }
@@ -331,7 +342,7 @@ perfetto_unittest_source_set("unittests") {
 
 perfetto_cc_proto_descriptor("gen_cc_test_messages_descriptor") {
   descriptor_name = "test_messages.descriptor"
-  descriptor_target = "../protozero:test_messages_descriptor"
+  descriptor_target = "../protozero:testing_messages_descriptor"
 }
 
 source_set("integrationtests") {

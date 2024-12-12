@@ -116,6 +116,16 @@ message HeapGraphObject {
   //
   // N.B. This is not the native size of this object.
   optional int64 native_allocation_registry_size_field = 8;
+
+  enum HeapType {
+    HEAP_TYPE_UNKNOWN = 0;
+    HEAP_TYPE_APP = 1;
+    HEAP_TYPE_ZYGOTE = 2;
+    HEAP_TYPE_BOOT_IMAGE = 3;
+  }
+  // To reduce the space required we only emit the heap type if it has changed
+  // from the previous object we recorded.
+  optional HeapType heap_type_delta = 9;
 }
 
 message HeapGraph {

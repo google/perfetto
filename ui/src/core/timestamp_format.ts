@@ -13,15 +13,7 @@
 // limitations under the License.
 
 import {isEnumValue} from '../base/object_utils';
-
-export enum TimestampFormat {
-  Timecode = 'timecode',
-  Raw = 'raw',
-  RawLocale = 'rawLocale',
-  Seconds = 'seconds',
-  UTC = 'utc',
-  TraceTz = 'traceTz',
-}
+import {DurationPrecision, TimestampFormat} from '../public/timeline';
 
 let timestampFormatCached: TimestampFormat | undefined;
 
@@ -45,11 +37,6 @@ export function timestampFormat(): TimestampFormat {
 export function setTimestampFormat(format: TimestampFormat) {
   timestampFormatCached = format;
   localStorage.setItem(TIMESTAMP_FORMAT_KEY, format);
-}
-
-export enum DurationPrecision {
-  Full = 'full',
-  HumanReadable = 'human_readable',
 }
 
 let durationFormatCached: DurationPrecision | undefined;

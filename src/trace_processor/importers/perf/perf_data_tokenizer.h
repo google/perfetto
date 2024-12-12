@@ -19,15 +19,23 @@
 
 #include <stdint.h>
 #include <cstdint>
+#include <map>
+#include <memory>
 #include <optional>
 #include <vector>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
+#include "src/trace_processor/importers/perf/aux_stream_manager.h"
+#include "src/trace_processor/importers/perf/auxtrace_info_record.h"
+#include "src/trace_processor/importers/perf/auxtrace_record.h"
 #include "src/trace_processor/importers/perf/perf_file.h"
 #include "src/trace_processor/importers/perf/perf_session.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
@@ -38,7 +46,11 @@ class TraceProcessorContext;
 
 namespace perf_importer {
 
+class AuxDataTokenizer;
+class AuxDataTokenizerFactory;
 struct Record;
+class SampleId;
+struct AuxRecord;
 
 class PerfDataTokenizer : public ChunkedTraceReader {
  public:
@@ -57,6 +69,7 @@ class PerfDataTokenizer : public ChunkedTraceReader {
     kParseAttrs,
     kSeekRecords,
     kParseRecords,
+    kParseAuxtraceData,
     kParseFeatureSections,
     kParseFeatures,
     kDone,
@@ -67,14 +80,21 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   base::StatusOr<ParsingResult> ParseAttrs();
   base::StatusOr<ParsingResult> SeekRecords();
   base::StatusOr<ParsingResult> ParseRecords();
+  base::StatusOr<ParsingResult> ParseAuxtraceData();
   base::StatusOr<ParsingResult> ParseFeatureSections();
   base::StatusOr<ParsingResult> ParseFeatures();
 
   base::StatusOr<PerfDataTokenizer::ParsingResult> ParseRecord(Record& record);
-  bool PushRecord(Record record);
+  void MaybePushRecord(Record record);
   base::Status ParseFeature(uint8_t feature_id, TraceBlobView payload);
 
-  base::StatusOr<int64_t> ToTraceTimestamp(std::optional<uint64_t> time);
+  base::Status ProcessRecord(Record record);
+  base::Status ProcessAuxRecord(Record record);
+  base::Status ProcessAuxtraceInfoRecord(Record record);
+  base::Status ProcessTimeConvRecord(Record record);
+  base::Status ProcessItraceStartRecord(Record record);
+
+  base::StatusOr<int64_t> ExtractTraceTimestamp(const Record& record);
 
   TraceProcessorContext* context_;
 
@@ -93,6 +113,9 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   util::TraceBlobViewReader buffer_;
 
   int64_t latest_timestamp_ = 0;
+
+  std::optional<AuxtraceRecord> current_auxtrace_;
+  AuxStreamManager aux_manager_;
 };
 
 }  // namespace perf_importer

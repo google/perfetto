@@ -127,7 +127,15 @@ export class AsyncDisposableStack implements AsyncDisposable {
       if (res === undefined) {
         break;
       }
+      const timerId = setTimeout(() => {
+        throw new Error(
+          'asyncDispose timed out. This might be due to a Disposable ' +
+            'resource  trying to issue cleanup queries on trace unload, ' +
+            'while the Wasm module was already destroyed ',
+        );
+      }, 10_000);
       await res[Symbol.asyncDispose]();
+      clearTimeout(timerId);
     }
   }
 

@@ -25,4 +25,6 @@ message ChromeTrigger {
   optional string trigger_name = 1;
   // SHA1 hash of the trigger name.
   optional fixed32 trigger_name_hash = 2;
+  // Flow id which should terminate on this trigger.
+  optional fixed64 flow_id = 3;
 }

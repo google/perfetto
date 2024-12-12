@@ -79,7 +79,7 @@ CREATE PERFETTO MACRO tree_structural_partition_by_group(
   tree_table TableOrSubquery
 )
 -- The returned table has the schema
--- (id UINT32, parent_id UINT32, group_key UINT32).
+-- (id LONG, parent_id LONG, group_key LONG).
 RETURNS TableOrSubquery AS
 (
   -- Rename the generic columns of __intrinsic_table_ptr to the actual columns.

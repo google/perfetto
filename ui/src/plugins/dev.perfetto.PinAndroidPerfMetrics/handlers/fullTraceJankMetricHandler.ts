@@ -18,9 +18,8 @@ import {
   JankType,
   MetricHandler,
 } from './metricUtils';
-import {PluginContextTrace} from '../../../public';
-import {addAndPinSliceTrack} from '../../dev.perfetto.AndroidCujs/trackUtils';
-import {SimpleSliceTrackConfig} from '../../../frontend/simple_slice_track';
+import {Trace} from '../../../public/trace';
+import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
 class FullTraceJankMetricHandler implements MetricHandler {
   /**
@@ -47,35 +46,31 @@ class FullTraceJankMetricHandler implements MetricHandler {
    * Adds the debug track for full trace jank metrics
    *
    * @param {FullTraceMetricData} metricData Parsed metric data for the full trace jank
-   * @param {PluginContextTrace} ctx PluginContextTrace for trace related properties and methods
+   * @param {Trace} ctx PluginContextTrace for trace related properties and methods
    * @returns {void} Adds one track for Jank slice
    */
-  public async addMetricTrack(
-    metricData: FullTraceMetricData,
-    ctx: PluginContextTrace,
-  ) {
+  public async addMetricTrack(metricData: FullTraceMetricData, ctx: Trace) {
     const INCLUDE_PREQUERY = `
     INCLUDE PERFETTO MODULE android.frames.jank_type;
     INCLUDE PERFETTO MODULE slices.slices;
     `;
-    const {config: fullTraceJankConfig, trackName: trackName} =
-      this.fullTraceJankConfig(metricData);
+    const config = this.fullTraceJankConfig(metricData);
     await ctx.engine.query(INCLUDE_PREQUERY);
-    addAndPinSliceTrack(ctx, fullTraceJankConfig, trackName);
+    addDebugSliceTrack({trace: ctx, ...config});
   }
 
-  private fullTraceJankConfig(metricData: FullTraceMetricData): {
-    config: SimpleSliceTrackConfig;
-    trackName: string;
-  } {
+  private fullTraceJankConfig(metricData: FullTraceMetricData) {
     let jankTypeFilter;
-    let jankTypeDisplayName = 'all';
+    let jankTypeDisplayName;
     if (metricData.jankType?.includes('app')) {
       jankTypeFilter = ' android_is_app_jank_type(display_value)';
       jankTypeDisplayName = 'app';
     } else if (metricData.jankType?.includes('sf')) {
       jankTypeFilter = ' android_is_sf_jank_type(display_value)';
       jankTypeDisplayName = 'sf';
+    } else {
+      jankTypeFilter = " display_value != 'None'";
+      jankTypeDisplayName = 'all';
     }
     const processName = metricData.process;
 
@@ -115,18 +110,18 @@ class FullTraceJankMetricHandler implements MetricHandler {
       'process_name',
       'pid',
     ];
-    const fullTraceJankConfig: SimpleSliceTrackConfig = {
+
+    const trackName = jankTypeDisplayName + ' missed frames in ' + processName;
+
+    return {
       data: {
         sqlSource: fullTraceJankQuery,
         columns: fullTraceJankColumns,
       },
       columns: {ts: 'ts', dur: 'dur', name: 'name'},
       argColumns: fullTraceJankColumns,
+      tableName: trackName,
     };
-
-    const trackName = jankTypeDisplayName + ' missed frames in ' + processName;
-
-    return {config: fullTraceJankConfig, trackName: trackName};
   }
 }
 

@@ -241,6 +241,52 @@ int32_t ToClockId(protos::gen::PerfEvents::PerfClock pb_enum) {
   }
 }
 
+// Build a singular event from an event description provided by either
+// a PerfEvents::Timebase or a FollowerEvent materialized by the
+// polymorphic parameter event_desc.
+template <typename T>
+std::optional<PerfCounter> MakePerfCounter(
+    EventConfig::tracepoint_id_fn_t& tracepoint_id_lookup,
+    const std::string& name,
+    const T& event_desc) {
+  if (event_desc.has_counter()) {
+    auto maybe_counter = ToPerfCounter(name, event_desc.counter());
+    if (!maybe_counter)
+      return std::nullopt;
+    return *maybe_counter;
+  } else if (event_desc.has_tracepoint()) {
+    const auto& tracepoint_pb = event_desc.tracepoint();
+    std::optional<uint32_t> maybe_id =
+        ParseTracepointAndResolveId(tracepoint_pb, tracepoint_id_lookup);
+    if (!maybe_id)
+      return std::nullopt;
+    return PerfCounter::Tracepoint(name, tracepoint_pb.name(),
+                                   tracepoint_pb.filter(), *maybe_id);
+  } else if (event_desc.has_raw_event()) {
+    const auto& raw = event_desc.raw_event();
+    return PerfCounter::RawEvent(name, raw.type(), raw.config(), raw.config1(),
+                                 raw.config2());
+  } else {
+    return PerfCounter::BuiltinCounter(
+        name, protos::gen::PerfEvents::PerfEvents::SW_CPU_CLOCK,
+        PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK);
+  }
+}
+
+bool IsSupportedUnwindMode(
+    protos::gen::PerfEventConfig::UnwindMode unwind_mode) {
+  using protos::gen::PerfEventConfig;
+  switch (static_cast<int>(unwind_mode)) {  // cast to pacify -Wswitch-enum
+    case PerfEventConfig::UNWIND_UNKNOWN:
+    case PerfEventConfig::UNWIND_SKIP:
+    case PerfEventConfig::UNWIND_DWARF:
+    case PerfEventConfig::UNWIND_FRAME_POINTER:
+      return true;
+    default:
+      return false;
+  }
+}
+
 }  // namespace
 
 // static
@@ -314,63 +360,43 @@ std::optional<EventConfig> EventConfig::Create(
   PERFETTO_DCHECK(sampling_period && !sampling_frequency ||
                   !sampling_period && sampling_frequency);
 
-  // Timebase event. Default: CPU timer.
+  // Leader event. Default: CPU timer.
   PerfCounter timebase_event;
   std::string timebase_name = pb_config.timebase().name();
-  if (pb_config.timebase().has_counter()) {
-    auto maybe_counter =
-        ToPerfCounter(timebase_name, pb_config.timebase().counter());
-    if (!maybe_counter)
+
+  // Build timebase.
+  auto maybe_perf_counter = MakePerfCounter(tracepoint_id_lookup, timebase_name,
+                                            pb_config.timebase());
+  if (!maybe_perf_counter) {
+    return std::nullopt;
+  }
+  timebase_event = std::move(*maybe_perf_counter);
+
+  // Build the followers.
+  std::vector<PerfCounter> followers;
+  for (const auto& event : pb_config.followers()) {
+    const auto& name = event.name();
+    auto maybe_follower_counter =
+        MakePerfCounter(tracepoint_id_lookup, name, event);
+    if (!maybe_follower_counter) {
       return std::nullopt;
-    timebase_event = *maybe_counter;
-
-  } else if (pb_config.timebase().has_tracepoint()) {
-    const auto& tracepoint_pb = pb_config.timebase().tracepoint();
-    std::optional<uint32_t> maybe_id =
-        ParseTracepointAndResolveId(tracepoint_pb, tracepoint_id_lookup);
-    if (!maybe_id)
-      return std::nullopt;
-    timebase_event = PerfCounter::Tracepoint(
-        timebase_name, tracepoint_pb.name(), tracepoint_pb.filter(), *maybe_id);
-
-  } else if (pb_config.timebase().has_raw_event()) {
-    const auto& raw = pb_config.timebase().raw_event();
-    timebase_event = PerfCounter::RawEvent(
-        timebase_name, raw.type(), raw.config(), raw.config1(), raw.config2());
-
-  } else {
-    timebase_event = PerfCounter::BuiltinCounter(
-        timebase_name, protos::gen::PerfEvents::PerfEvents::SW_CPU_CLOCK,
-        PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK);
+    }
+    followers.push_back(std::move(*maybe_follower_counter));
   }
 
   // Callstack sampling.
-  bool user_frames = false;
   bool kernel_frames = false;
+  // Disable user_frames by default.
+  auto unwind_mode = protos::gen::PerfEventConfig::UNWIND_SKIP;
+
   TargetFilter target_filter;
   bool legacy_config = pb_config.all_cpus();  // all_cpus was mandatory before
   if (pb_config.has_callstack_sampling() || legacy_config) {
-    user_frames = true;
-
     // Userspace callstacks.
-    using protos::gen::PerfEventConfig;
-    switch (static_cast<int>(pb_config.callstack_sampling().user_frames())) {
-      case PerfEventConfig::UNWIND_UNKNOWN:
-        // default to true, both for backwards compatibility and because it's
-        // almost always what the user wants.
-        user_frames = true;
-        break;
-      case PerfEventConfig::UNWIND_SKIP:
-        user_frames = false;
-        break;
-      case PerfEventConfig::UNWIND_DWARF:
-        user_frames = true;
-        break;
-      default:
-        // enum value from the future that we don't yet know, refuse the config
-        // TODO(rsavitski): double-check that both pbzero and ::gen propagate
-        // unknown enum values.
-        return std::nullopt;
+    unwind_mode = pb_config.callstack_sampling().user_frames();
+    if (!IsSupportedUnwindMode(unwind_mode)) {
+      // enum value from the future that we don't yet know, refuse the config
+      return std::nullopt;
     }
 
     // Process scoping. Sharding parameter is supplied from outside as it is
@@ -456,7 +482,7 @@ std::optional<EventConfig> EventConfig::Create(
   pe.clockid = ToClockId(pb_config.timebase().timestamp_clock());
   pe.use_clockid = true;
 
-  if (user_frames) {
+  if (IsUserFramesEnabled(unwind_mode)) {
     pe.sample_type |= PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER;
     // PERF_SAMPLE_STACK_USER:
     // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
@@ -473,19 +499,65 @@ std::optional<EventConfig> EventConfig::Create(
     pe.exclude_callchain_user = true;
   }
 
+  // Build the events associated with the timebase event (pe).
+  // The timebase event drives the capture with its frequency or period
+  // parameter. When linux captures the timebase event it also reads and report
+  // the values of associated events.
+  std::vector<perf_event_attr> pe_followers;
+  if (!followers.empty()) {
+    pe.read_format = PERF_FORMAT_GROUP;
+    pe_followers.reserve(followers.size());
+  }
+
+  for (const auto& e : followers) {
+    perf_event_attr pe_follower = {};
+    pe_follower.size = sizeof(perf_event_attr);
+    pe_follower.disabled = 0;  // activated when the timebase is activated
+    pe_follower.type = e.attr_type;
+    pe_follower.config = e.attr_config;
+    pe_follower.config1 = e.attr_config1;
+    pe_follower.config2 = e.attr_config2;
+    pe_follower.sample_type =
+        PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_READ;
+    pe_follower.freq = 0;
+    pe_follower.sample_period = 0;
+    pe_follower.clockid = ToClockId(pb_config.timebase().timestamp_clock());
+    pe_follower.use_clockid = true;
+
+    pe_followers.push_back(pe_follower);
+  }
+
   return EventConfig(
-      raw_ds_config, pe, timebase_event, user_frames, kernel_frames,
-      std::move(target_filter), ring_buffer_pages.value(), read_tick_period_ms,
-      samples_per_tick_limit, remote_descriptor_timeout_ms,
-      pb_config.unwind_state_clear_period_ms(), max_enqueued_footprint_bytes,
-      pb_config.target_installed_by());
+      raw_ds_config, pe, std::move(pe_followers), timebase_event, followers,
+      kernel_frames, unwind_mode, std::move(target_filter),
+      ring_buffer_pages.value(), read_tick_period_ms, samples_per_tick_limit,
+      remote_descriptor_timeout_ms, pb_config.unwind_state_clear_period_ms(),
+      max_enqueued_footprint_bytes, pb_config.target_installed_by());
+}
+
+// static
+bool EventConfig::IsUserFramesEnabled(
+    const protos::gen::PerfEventConfig::UnwindMode unwind_mode) {
+  using protos::gen::PerfEventConfig;
+  switch (unwind_mode) {
+    case PerfEventConfig::UNWIND_UNKNOWN:
+    // default to true, both for backwards compatibility and because it's
+    // almost always what the user wants.
+    case PerfEventConfig::UNWIND_DWARF:
+    case PerfEventConfig::UNWIND_FRAME_POINTER:
+      return true;
+    case PerfEventConfig::UNWIND_SKIP:
+      return false;
+  }
 }
 
 EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
-                         const perf_event_attr& pe,
+                         const perf_event_attr& pe_timebase,
+                         std::vector<perf_event_attr> pe_followers,
                          const PerfCounter& timebase_event,
-                         bool user_frames,
+                         std::vector<PerfCounter> follower_events,
                          bool kernel_frames,
+                         protos::gen::PerfEventConfig::UnwindMode unwind_mode,
                          TargetFilter target_filter,
                          uint32_t ring_buffer_pages,
                          uint32_t read_tick_period_ms,
@@ -494,10 +566,12 @@ EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
                          uint32_t unwind_state_clear_period_ms,
                          uint64_t max_enqueued_footprint_bytes,
                          std::vector<std::string> target_installed_by)
-    : perf_event_attr_(pe),
+    : perf_event_attr_(pe_timebase),
+      perf_event_followers_(std::move(pe_followers)),
       timebase_event_(timebase_event),
-      user_frames_(user_frames),
+      follower_events_(std::move(follower_events)),
       kernel_frames_(kernel_frames),
+      unwind_mode_(unwind_mode),
       target_filter_(std::move(target_filter)),
       ring_buffer_pages_(ring_buffer_pages),
       read_tick_period_ms_(read_tick_period_ms),

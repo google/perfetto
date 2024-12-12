@@ -36,8 +36,8 @@ import dataclasses
 
 from dataclasses import dataclass
 
-EXPECTED_ANY_COUNT = 61
-EXPECTED_RUN_METRIC_COUNT = 5
+EXPECTED_ANY_COUNT = 50
+EXPECTED_RUN_METRIC_COUNT = 4
 
 ROOT_DIR = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

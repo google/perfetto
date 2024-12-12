@@ -16,10 +16,12 @@
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from typing import List, Optional
 from urllib import request, error
 
+from perfetto.common.exceptions import PerfettoException
 from perfetto.trace_processor.platform import PlatformDelegate
 
 # Default port that trace_processor_shell runs on
@@ -32,6 +34,7 @@ def load_shell(bin_path: str,
                ingest_ftrace_in_raw: bool,
                enable_dev_features: bool,
                platform_delegate: PlatformDelegate,
+               load_timeout: int = 2,
                extra_flags: Optional[List[str]] = None):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
@@ -53,27 +56,31 @@ def load_shell(bin_path: str,
   if extra_flags:
     args.extend(extra_flags)
 
+  temp_stdout = tempfile.TemporaryFile()
+  temp_stderr = tempfile.TemporaryFile()
   p = subprocess.Popen(
       tp_exec + args,
       stdin=subprocess.DEVNULL,
-      stdout=subprocess.DEVNULL,
-      stderr=None if verbose else subprocess.DEVNULL)
+      stdout=temp_stdout,
+      stderr=None if verbose else temp_stderr)
 
   success = False
-  for _ in range(3):
+  for _ in range(load_timeout + 1):
     try:
       if p.poll() is None:
         _ = request.urlretrieve(f'http://{url}/status')
         success = True
       break
-    except error.URLError:
+    except (error.URLError, ConnectionError):
       time.sleep(1)
 
   if not success:
-    raise Exception(
-        "Trace processor failed to start. Try rerunning with "
-        "verbose=True in TraceProcessorConfig for more detailed "
-        "information and file a bug at https://goto.google.com/perfetto-bug "
-        "or https://github.com/google/perfetto/issues if necessary.")
+    p.kill()
+    temp_stdout.seek(0)
+    stdout = temp_stdout.read().decode("utf-8")
+    temp_stderr.seek(0)
+    stderr = temp_stderr.read().decode("utf-8")
+    raise PerfettoException("Trace processor failed to start.\n"
+                            f"stdout: {stdout}\nstderr: {stderr}\n")
 
   return url, p

@@ -13,208 +13,206 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE linux.cpu.frequency;
+INCLUDE PERFETTO MODULE android.suspend;
+INCLUDE PERFETTO MODULE intervals.intersect;
 INCLUDE PERFETTO MODULE time.conversion;
 INCLUDE PERFETTO MODULE wattson.arm_dsu;
-INCLUDE PERFETTO MODULE wattson.cpu_idle;
+INCLUDE PERFETTO MODULE wattson.cpu_freq_idle;
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
-CREATE PERFETTO TABLE _cpu_freq
-AS
-SELECT
-  ts,
-  dur,
-  freq,
-  cf.cpu,
-  d_map.policy
-FROM cpu_frequency_counters as cf
-JOIN _dev_cpu_policy_map as d_map
-ON cf.cpu = d_map.cpu;
-
--- Combines idle and freq tables of all CPUs to create system state.
-CREATE VIRTUAL TABLE _idle_freq
-USING
-  SPAN_OUTER_JOIN(
-    _cpu_freq partitioned cpu, _adjusted_deep_idle partitioned cpu
-  );
-
--- Add extra column indicating that frequency info are present
-CREATE PERFETTO TABLE _valid_window
-AS
-WITH window_start AS (
-  SELECT ts as start_ts
-  FROM _idle_freq
-  WHERE cpu = 0 and freq GLOB '*[0-9]*'
-  ORDER BY ts ASC
-  LIMIT 1
-),
-window_end AS (
-  SELECT ts + dur as end_ts
-  FROM cpu_frequency_counters
-  ORDER by ts DESC
-  LIMIT 1
+-- Helper macro to do pivot function without policy information
+CREATE PERFETTO MACRO _stats_wo_policy_subquery(
+  cpu Expr, curve_col ColumnName, freq_col ColumnName, idle_col ColumnName
 )
-SELECT
-  start_ts as ts,
-  end_ts - start_ts as dur
-FROM window_start, window_end;
+RETURNS TableOrSubquery AS (
+  SELECT
+    ts,
+    dur,
+    curve_value as $curve_col,
+    freq as $freq_col,
+    idle as $idle_col
+  FROM _idle_freq_materialized
+  WHERE cpu = $cpu
+);
 
-CREATE VIRTUAL TABLE _idle_freq_filtered
+-- Helper macro to do pivot function with policy information
+CREATE PERFETTO MACRO _stats_w_policy_subquery(
+  cpu Expr,
+  policy_col ColumnName,
+  curve_col ColumnName,
+  freq_col ColumnName,
+  idle_col ColumnName
+)
+RETURNS TableOrSubquery AS (
+  SELECT
+    ts,
+    dur,
+    policy AS $policy_col,
+    curve_value as $curve_col,
+    freq as $freq_col,
+    idle as $idle_col
+  FROM _idle_freq_materialized
+  WHERE cpu = $cpu
+);
+
+CREATE PERFETTO TABLE _stats_cpu0 AS
+SELECT * FROM _stats_wo_policy_subquery!(0, cpu0_curve, freq_0, idle_0);
+
+CREATE PERFETTO TABLE _stats_cpu1 AS
+SELECT * FROM _stats_wo_policy_subquery!(1, cpu1_curve, freq_1, idle_1);
+
+CREATE PERFETTO TABLE _stats_cpu2 AS
+SELECT * FROM _stats_wo_policy_subquery!(2, cpu2_curve, freq_2, idle_2);
+
+CREATE PERFETTO TABLE _stats_cpu3 AS
+SELECT * FROM _stats_wo_policy_subquery!(3, cpu3_curve, freq_3, idle_3);
+
+CREATE PERFETTO TABLE _stats_cpu4 AS
+SELECT * FROM _stats_w_policy_subquery!(4, policy_4, cpu4_curve, freq_4, idle_4);
+
+CREATE PERFETTO TABLE _stats_cpu5 AS
+SELECT * FROM _stats_w_policy_subquery!(5, policy_5, cpu5_curve, freq_5, idle_5);
+
+CREATE PERFETTO TABLE _stats_cpu6 AS
+SELECT * FROM _stats_w_policy_subquery!(6, policy_6, cpu6_curve, freq_6, idle_6);
+
+CREATE PERFETTO TABLE _stats_cpu7 AS
+SELECT * FROM _stats_w_policy_subquery!(7, policy_7, cpu7_curve, freq_7, idle_7);
+
+CREATE PERFETTO TABLE _stats_cpu0123_suspend AS
+SELECT
+  ii.ts,
+  ii.dur,
+  id_0 as cpu0_id, id_1 as cpu1_id, id_2 as cpu2_id, id_3 as cpu3_id,
+  ss.power_state = 'suspended' as suspended
+FROM _interval_intersect!(
+  (
+    _ii_subquery!(_stats_cpu0),
+    _ii_subquery!(_stats_cpu1),
+    _ii_subquery!(_stats_cpu2),
+    _ii_subquery!(_stats_cpu3),
+    -- Includes suspend AND awake portions, which will cover entire trace and
+    -- allows us to use _interval_intersect instead of SPAN_OUTER_JOIN()
+    _ii_subquery!(android_suspend_state)
+  ),
+  ()
+) as ii
+JOIN android_suspend_state AS ss ON ss._auto_id = id_4;
+
+CREATE PERFETTO TABLE _stats_cpu4567 AS
+SELECT
+  ii.ts,
+  ii.dur,
+  id_0 as cpu4_id, id_1 as cpu5_id, id_2 as cpu6_id, id_3 as cpu7_id
+FROM _interval_intersect!(
+  (
+    _ii_subquery!(_stats_cpu4),
+    _ii_subquery!(_stats_cpu5),
+    _ii_subquery!(_stats_cpu6),
+    _ii_subquery!(_stats_cpu7)
+  ),
+  ()
+) as ii;
+
+-- SPAN OUTER JOIN because sometimes CPU4/5/6/7 are empty tables
+CREATE VIRTUAL TABLE _stats_cpu01234567_suspend
 USING
-  SPAN_JOIN(_valid_window, _idle_freq);
-
--- Start matching split CPUs with curves
-CREATE PERFETTO TABLE _idle_freq_materialized
-AS
-SELECT
-  iff.ts, iff.dur, iff.cpu, iff.policy, iff.freq, iff.idle, lut.curve_value
-FROM _idle_freq_filtered iff
--- Left join since some CPUs may only match the 2D LUT
-LEFT JOIN _filtered_curves_1d lut ON
-  iff.policy = lut.policy AND
-  iff.freq = lut.freq_khz AND
-  iff.idle = lut.idle;
-
-CREATE PERFETTO TABLE _stats_cpu0
-AS
-SELECT
-  ts,
-  dur,
-  curve_value as cpu0_curve,
-  freq as freq_0,
-  idle as idle_0
-FROM _idle_freq_materialized
-WHERE cpu = 0;
-
-CREATE PERFETTO TABLE _stats_cpu1
-AS
-SELECT
-  ts,
-  dur,
-  curve_value as cpu1_curve,
-  freq as freq_1,
-  idle as idle_1
-FROM _idle_freq_materialized
-WHERE cpu = 1;
-
-CREATE PERFETTO TABLE _stats_cpu2
-AS
-SELECT
-  ts,
-  dur,
-  curve_value as cpu2_curve,
-  freq as freq_2,
-  idle as idle_2
-FROM _idle_freq_materialized
-WHERE cpu = 2;
-
-CREATE PERFETTO TABLE _stats_cpu3
-AS
-SELECT
-  ts,
-  dur,
-  curve_value as cpu3_curve,
-  freq as freq_3,
-  idle as idle_3
-FROM _idle_freq_materialized
-WHERE cpu = 3;
-
-CREATE PERFETTO TABLE _stats_cpu4
-AS
-SELECT
-  ts,
-  dur,
-  policy as policy_4,
-  curve_value as cpu4_curve,
-  freq as freq_4,
-  idle as idle_4
-FROM _idle_freq_materialized
-WHERE cpu = 4;
-
-CREATE PERFETTO TABLE _stats_cpu5
-AS
-SELECT
-  ts,
-  dur,
-  policy as policy_5,
-  curve_value as cpu5_curve,
-  freq as freq_5,
-  idle as idle_5
-FROM _idle_freq_materialized
-WHERE cpu = 5;
-
-CREATE PERFETTO TABLE _stats_cpu6
-AS
-SELECT
-  ts,
-  dur,
-  policy as policy_6,
-  curve_value as cpu6_curve,
-  freq as freq_6,
-  idle as idle_6
-FROM _idle_freq_materialized
-WHERE cpu = 6;
-
-CREATE PERFETTO TABLE _stats_cpu7
-AS
-SELECT
-  ts,
-  dur,
-  policy as policy_7,
-  curve_value as cpu7_curve,
-  freq as freq_7,
-  idle as idle_7
-FROM _idle_freq_materialized
-WHERE cpu = 7;
-
-CREATE VIRTUAL TABLE _stats_cpu01
-USING
-  SPAN_OUTER_JOIN(_stats_cpu1, _stats_cpu0);
-
-CREATE VIRTUAL TABLE _stats_cpu012
-USING
-  SPAN_OUTER_JOIN(_stats_cpu2, _stats_cpu01);
-
-CREATE VIRTUAL TABLE _stats_cpu0123
-USING
-  SPAN_OUTER_JOIN(_stats_cpu3, _stats_cpu012);
-
-CREATE VIRTUAL TABLE _stats_cpu01234
-USING
-  SPAN_OUTER_JOIN(_stats_cpu4, _stats_cpu0123);
-
-CREATE VIRTUAL TABLE _stats_cpu012345
-USING
-  SPAN_OUTER_JOIN(_stats_cpu5, _stats_cpu01234);
-
-CREATE VIRTUAL TABLE _stats_cpu0123456
-USING
-  SPAN_OUTER_JOIN(_stats_cpu6, _stats_cpu012345);
-
-CREATE VIRTUAL TABLE _stats_cpu01234567
-USING
-  SPAN_OUTER_JOIN(_stats_cpu7, _stats_cpu0123456);
-
--- get suspend resume state as logged by ftrace.
-CREATE PERFETTO TABLE _suspend_slice
-AS
-SELECT
-  ts, dur, TRUE AS suspended
-FROM slice
-WHERE name GLOB "timekeeping_freeze(0)";
-
--- Combine suspend information with CPU idle and frequency system states.
-CREATE VIRTUAL TABLE _idle_freq_suspend_slice
-USING
-  SPAN_OUTER_JOIN(_stats_cpu01234567, _suspend_slice);
+  SPAN_OUTER_JOIN(_stats_cpu0123_suspend, _stats_cpu4567);
 
 -- Combine system state so that it has idle, freq, and L3 hit info.
 CREATE VIRTUAL TABLE _idle_freq_l3_hit_slice
 USING
-  SPAN_OUTER_JOIN(_idle_freq_suspend_slice, _arm_l3_hit_rate);
+  SPAN_OUTER_JOIN(_stats_cpu01234567_suspend, _arm_l3_hit_rate);
 
 -- Combine system state so that it has idle, freq, L3 hit, and L3 miss info.
 CREATE VIRTUAL TABLE _idle_freq_l3_hit_l3_miss_slice
 USING
   SPAN_OUTER_JOIN(_idle_freq_l3_hit_slice, _arm_l3_miss_rate);
+
+-- Does calculations for CPUs that are independent of other CPUs or frequencies
+-- This is the last generic table before going to device specific table calcs
+CREATE PERFETTO TABLE _w_independent_cpus_calc
+AS
+SELECT
+  base.ts,
+  base.dur,
+  cast_int!(l3_hit_rate * base.dur) as l3_hit_count,
+  cast_int!(l3_miss_rate * base.dur) as l3_miss_count,
+  freq_0,
+  idle_0,
+  freq_1,
+  idle_1,
+  freq_2,
+  idle_2,
+  freq_3,
+  idle_3,
+  freq_4,
+  idle_4,
+  freq_5,
+  idle_5,
+  freq_6,
+  idle_6,
+  freq_7,
+  idle_7,
+  policy_4,
+  policy_5,
+  policy_6,
+  policy_7,
+  IIF(
+    suspended,
+    1,
+    MIN(
+      IFNULL(idle_0, 1),
+      IFNULL(idle_1, 1),
+      IFNULL(idle_2, 1),
+      IFNULL(idle_3, 1)
+    )
+  ) as no_static,
+  IIF(suspended, 0.0, cpu0_curve) as cpu0_curve,
+  IIF(suspended, 0.0, cpu1_curve) as cpu1_curve,
+  IIF(suspended, 0.0, cpu2_curve) as cpu2_curve,
+  IIF(suspended, 0.0, cpu3_curve) as cpu3_curve,
+  IIF(suspended, 0.0, cpu4_curve) as cpu4_curve,
+  IIF(suspended, 0.0, cpu5_curve) as cpu5_curve,
+  IIF(suspended, 0.0, cpu6_curve) as cpu6_curve,
+  IIF(suspended, 0.0, cpu7_curve) as cpu7_curve,
+  -- If dependency CPUs are active, then that CPU could contribute static power
+  IIF(idle_4 = -1, lut4.curve_value, -1) as static_4,
+  IIF(idle_5 = -1, lut5.curve_value, -1) as static_5,
+  IIF(idle_6 = -1, lut6.curve_value, -1) as static_6,
+  IIF(idle_7 = -1, lut7.curve_value, -1) as static_7
+FROM _idle_freq_l3_hit_l3_miss_slice as base
+-- Get CPU power curves for CPUs guaranteed on device
+JOIN _stats_cpu0 ON _stats_cpu0._auto_id = base.cpu0_id
+JOIN _stats_cpu1 ON _stats_cpu1._auto_id = base.cpu1_id
+JOIN _stats_cpu2 ON _stats_cpu2._auto_id = base.cpu2_id
+JOIN _stats_cpu3 ON _stats_cpu3._auto_id = base.cpu3_id
+-- Get CPU power curves for CPUs that aren't always present
+LEFT JOIN _stats_cpu4 ON _stats_cpu4._auto_id = base.cpu4_id
+LEFT JOIN _stats_cpu5 ON _stats_cpu5._auto_id = base.cpu5_id
+LEFT JOIN _stats_cpu6 ON _stats_cpu6._auto_id = base.cpu6_id
+LEFT JOIN _stats_cpu7 ON _stats_cpu7._auto_id = base.cpu7_id
+-- Match power curves if possible on CPUs that decide 2D dependence
+LEFT JOIN _filtered_curves_2d lut4 ON
+  _stats_cpu0.freq_0 = lut4.freq_khz AND
+  _stats_cpu4.policy_4 = lut4.other_policy AND
+  _stats_cpu4.freq_4 = lut4.other_freq_khz AND
+  lut4.idle = 255
+LEFT JOIN _filtered_curves_2d lut5 ON
+  _stats_cpu0.freq_0 = lut5.freq_khz AND
+  _stats_cpu5.policy_5 = lut5.other_policy AND
+  _stats_cpu5.freq_5 = lut5.other_freq_khz AND
+  lut5.idle = 255
+LEFT JOIN _filtered_curves_2d lut6 ON
+  _stats_cpu0.freq_0 = lut6.freq_khz AND
+  _stats_cpu6.policy_6 = lut6.other_policy AND
+  _stats_cpu6.freq_6 = lut6.other_freq_khz AND
+  lut6.idle = 255
+LEFT JOIN _filtered_curves_2d lut7 ON
+  _stats_cpu0.freq_0 = lut7.freq_khz AND
+  _stats_cpu7.policy_7 = lut7.other_policy AND
+  _stats_cpu7.freq_7 = lut7.other_freq_khz AND
+  lut7.idle = 255
+-- Needs to be at least 1us to reduce inconsequential rows.
+WHERE base.dur > time_from_us(1);

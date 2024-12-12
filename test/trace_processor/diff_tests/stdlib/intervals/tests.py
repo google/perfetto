@@ -53,6 +53,46 @@ class StdlibIntervals(TestSuite):
         90,1
         """))
 
+  def test_intervals_overlap_count_by_group(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH data(ts, dur, group_name) AS (
+          VALUES
+            (10, 40, "A"),
+            (15, 30, "B"),
+            (20, 10, "A"),
+            (25, 10, "B"),
+            (30, 10, "B"),
+            (60, 10, "A"),
+            (60, -1, "B"),
+            (70, 20, "A"),
+            (80, -1, "A")
+        )
+        SELECT *
+        FROM intervals_overlap_count_by_group!(data, ts, dur, group_name)
+        """,
+        out=Csv("""
+        "ts","value","group_name"
+        10,1,"A"
+        15,1,"B"
+        20,2,"A"
+        25,2,"B"
+        30,1,"A"
+        30,3,"B"
+        35,2,"B"
+        40,1,"B"
+        45,0,"B"
+        50,0,"A"
+        60,1,"A"
+        60,1,"B"
+        70,1,"A"
+        80,2,"A"
+        90,1,"A"
+        """))
+
   def test_intervals_overlap_in_table(self):
     return DiffTestBlueprint(
         trace=TextProto(""),
@@ -117,4 +157,73 @@ class StdlibIntervals(TestSuite):
         7,1,6,0
         8,1,0,0
         9,1,1,1
+        """))
+
+  def test_intervals_flatten_by_intersection(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        CREATE PERFETTO TABLE foo AS
+        WITH roots_data (id, ts, dur, utid) AS (
+          VALUES
+            (0, 0, 9, 0),
+            (0, 0, 9, 1),
+            (1, 9, 1, 2)
+        ), children_data (id, parent_id, ts, dur, utid) AS (
+          VALUES
+            (2, 0, 1, 3, 0),
+            (3, 0, 5, 1, 0),
+            (4, 0, 6, 1, 0),
+            (5, 0, 7, 0, 0),
+            (6, 0, 7, 1, 0),
+            (7, 2, 2, 1, 0)
+        )
+        SELECT *
+        FROM _intervals_merge_root_and_children_by_intersection!(roots_data, children_data, utid);
+
+        SELECT ts, dur, id, root_id FROM _intervals_flatten!(foo) ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id","root_id"
+        0,1,0,0
+        1,1,2,0
+        2,1,7,0
+        3,1,2,0
+        4,1,0,0
+        5,1,3,0
+        6,1,4,0
+        7,1,6,0
+        8,1,0,0
+        """))
+
+  def test_intervals_flatten_by_intersection_no_matching_key(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        CREATE PERFETTO TABLE foo AS
+        WITH roots_data (id, ts, dur, utid) AS (
+          VALUES
+            (0, 0, 9, 1),
+            (0, 0, 9, 2),
+            (1, 9, 1, 3)
+        ), children_data (id, parent_id, ts, dur, utid) AS (
+          VALUES
+            (2, 0, 1, 3, 0),
+            (3, 0, 5, 1, 0),
+            (4, 0, 6, 1, 0),
+            (5, 0, 7, 0, 0),
+            (6, 0, 7, 1, 0),
+            (7, 2, 2, 1, 0)
+        )
+        SELECT *
+        FROM _intervals_merge_root_and_children_by_intersection!(roots_data, children_data, utid);
+
+        SELECT ts, dur, id, root_id FROM _intervals_flatten!(foo) ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id","root_id"
         """))

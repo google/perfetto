@@ -58,7 +58,7 @@ class Bigtrace:
           repeated_batches.extend(result.batch)
         iterator = QueryResultIterator(column_names, repeated_batches)
         df = iterator.as_pandas_dataframe()
-        # TODO(ivankc) Investigate whether this is the
+        # TODO(b/366409021) Investigate whether this is the
         # best place to insert these addresses for performance
         df.insert(0, '_trace_address', response.trace)
         tables.append(df)

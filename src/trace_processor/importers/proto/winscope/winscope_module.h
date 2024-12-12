@@ -36,6 +36,13 @@ class WinscopeModule : public ProtoImporterModule {
  public:
   explicit WinscopeModule(TraceProcessorContext* context);
 
+  ModuleResult TokenizePacket(
+    const protos::pbzero::TracePacket::Decoder& decoder,
+    TraceBlobView* packet,
+    int64_t packet_timestamp,
+    RefPtr<PacketSequenceStateGeneration> state,
+    uint32_t field_id) override;
+
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder&,
                             int64_t ts,
                             const TracePacketData&,
@@ -56,18 +63,7 @@ class WinscopeModule : public ProtoImporterModule {
                             PacketSequenceStateGeneration* sequence_state);
   void ParseWindowManagerData(int64_t timestamp, protozero::ConstBytes blob);
 
-  static constexpr auto* kInputMethodClientsProtoName =
-      ".perfetto.protos.InputMethodClientsTraceProto";
-  static constexpr auto* kInputMethodManagerServiceProtoName =
-      ".perfetto.protos.InputMethodManagerServiceTraceProto";
-  static constexpr auto* kInputMethodServiceProtoName =
-      ".perfetto.protos.InputMethodServiceTraceProto";
-  static constexpr auto* kViewCaptureProtoName = ".perfetto.protos.ViewCapture";
-  static constexpr auto* kWindowManagerProtoName =
-      ".perfetto.protos.WindowManagerTraceEntry";
-
   TraceProcessorContext* const context_;
-  DescriptorPool pool_;
   util::ProtoToArgsParser args_parser_;
 
   SurfaceFlingerLayersParser surfaceflinger_layers_parser_;

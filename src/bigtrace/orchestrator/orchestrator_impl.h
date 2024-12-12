@@ -14,42 +14,38 @@
  * limitations under the License.
  */
 
+#ifndef SRC_BIGTRACE_ORCHESTRATOR_ORCHESTRATOR_IMPL_H_
+#define SRC_BIGTRACE_ORCHESTRATOR_ORCHESTRATOR_IMPL_H_
+
+#include <grpcpp/client_context.h>
+#include <memory>
+#include <mutex>
+#include <optional>
 #include "perfetto/ext/base/threading/thread_pool.h"
 #include "protos/perfetto/bigtrace/orchestrator.grpc.pb.h"
 #include "protos/perfetto/bigtrace/worker.grpc.pb.h"
 
-#ifndef SRC_BIGTRACE_ORCHESTRATOR_ORCHESTRATOR_IMPL_H_
-#define SRC_BIGTRACE_ORCHESTRATOR_ORCHESTRATOR_IMPL_H_
-
 namespace perfetto::bigtrace {
+namespace {
+const uint64_t kDefaultMaxQueryConcurrency = 8;
+}  // namespace
 
 class OrchestratorImpl final : public protos::BigtraceOrchestrator::Service {
  public:
   explicit OrchestratorImpl(std::unique_ptr<protos::BigtraceWorker::Stub> stub,
-                            uint32_t pool_size);
+                            uint32_t max_query_concurrency);
+
   grpc::Status Query(
       grpc::ServerContext*,
       const protos::BigtraceQueryArgs* args,
       grpc::ServerWriter<protos::BigtraceQueryResponse>* writer) override;
 
  private:
-  class Semaphore {
-   public:
-    explicit Semaphore(uint32_t count) : count_(count) {}
-    void Acquire();
-    void Release();
-
-   private:
-    std::mutex mutex_;
-    std::condition_variable cv_;
-    uint32_t count_;
-  };
   std::unique_ptr<protos::BigtraceWorker::Stub> stub_;
   std::unique_ptr<base::ThreadPool> pool_;
-  std::mutex buffer_lock_;
-  // Used to interleave requests to the Orchestrator to distribute jobs more
-  // fairly
-  Semaphore semaphore_;
+  uint32_t max_query_concurrency_ = kDefaultMaxQueryConcurrency;
+  uint32_t query_count_ = 0;
+  std::mutex query_count_mutex_;
 };
 
 }  // namespace perfetto::bigtrace

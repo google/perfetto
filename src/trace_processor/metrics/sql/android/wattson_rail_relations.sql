@@ -16,13 +16,7 @@
 -- This file established the tables that define the relationships between rails
 -- and subrails as well as the hierarchical power estimates of each rail
 
-INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
-
--- Take only the Wattson estimations that are in the window of interest
-DROP TABLE IF EXISTS _windowed_wattson;
-CREATE VIRTUAL TABLE _windowed_wattson
-USING
-  SPAN_JOIN({{window_table}}, _system_state_mw);
+INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
 -- The most basic rail components that form the "building blocks" from which all
 -- other rails and components are derived. Average power over the entire trace
@@ -39,19 +33,27 @@ SELECT
   (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 6) as cpu6_poli,
   (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 7) as cpu7_poli,
   -- Converts all mW of all slices into average mW of total trace
-  SUM(dur * cpu0_mw) / SUM(dur) as cpu0_mw,
-  SUM(dur * cpu1_mw) / SUM(dur) as cpu1_mw,
-  SUM(dur * cpu2_mw) / SUM(dur) as cpu2_mw,
-  SUM(dur * cpu3_mw) / SUM(dur) as cpu3_mw,
-  SUM(dur * cpu4_mw) / SUM(dur) as cpu4_mw,
-  SUM(dur * cpu5_mw) / SUM(dur) as cpu5_mw,
-  SUM(dur * cpu6_mw) / SUM(dur) as cpu6_mw,
-  SUM(dur * cpu7_mw) / SUM(dur) as cpu7_mw,
-  SUM(dur * dsu_scu_mw) / SUM(dur) as dsu_scu_mw,
-  SUM(dur) as period_dur,
-  period_id
-FROM _windowed_wattson
-GROUP BY period_id;
+  SUM(ii.dur * ss.cpu0_mw) / SUM(ii.dur) as cpu0_mw,
+  SUM(ii.dur * ss.cpu1_mw) / SUM(ii.dur) as cpu1_mw,
+  SUM(ii.dur * ss.cpu2_mw) / SUM(ii.dur) as cpu2_mw,
+  SUM(ii.dur * ss.cpu3_mw) / SUM(ii.dur) as cpu3_mw,
+  SUM(ii.dur * ss.cpu4_mw) / SUM(ii.dur) as cpu4_mw,
+  SUM(ii.dur * ss.cpu5_mw) / SUM(ii.dur) as cpu5_mw,
+  SUM(ii.dur * ss.cpu6_mw) / SUM(ii.dur) as cpu6_mw,
+  SUM(ii.dur * ss.cpu7_mw) / SUM(ii.dur) as cpu7_mw,
+  SUM(ii.dur * ss.dsu_scu_mw) / SUM(ii.dur) as dsu_scu_mw,
+  SUM(ii.dur) as period_dur,
+  w.period_id
+FROM _interval_intersect!(
+  (
+    (SELECT period_id AS id, * FROM {{window_table}}),
+    _ii_subquery!(_system_state_mw)
+  ),
+  ()
+) ii
+JOIN {{window_table}} AS w ON w.period_id = id_0
+JOIN _system_state_mw AS ss ON ss._auto_id = id_1
+GROUP BY w.period_id;
 
 -- Macro that filters out CPUs that are unrelated to the policy of the table
 -- passed in, and does some bookkeeping to put data in expected format
@@ -77,46 +79,76 @@ RETURNS TableOrSubquery AS
     period_id,
     period_dur,
     cast_double!(IIF(is_defined, sum_mw, NULL)) as estimated_mw,
+    cast_double!(
+      IIF(is_defined, sum_mw * period_dur / 1e9, NULL)
+    ) as estimated_mws,
     AndroidWattsonPolicyEstimate(
       'estimated_mw', cast_double!(IIF(is_defined, sum_mw, NULL)),
+      'estimated_mws', cast_double!(
+        IIF(is_defined, sum_mw * period_dur / 1e9, NULL)
+      ),
       'cpu0', IIF(
         cpu0_mw,
-        AndroidWattsonCpuEstimate('estimated_mw', cpu0_mw),
+        AndroidWattsonCpuEstimate(
+          'estimated_mw', cpu0_mw,
+          'estimated_mws', cpu0_mw * period_dur / 1e9
+        ),
         NULL
       ),
       'cpu1', IIF(
         cpu1_mw,
-        AndroidWattsonCpuEstimate('estimated_mw', cpu1_mw),
+        AndroidWattsonCpuEstimate(
+          'estimated_mw', cpu1_mw,
+          'estimated_mws', cpu1_mw * period_dur / 1e9
+        ),
         NULL
       ),
       'cpu2', IIF(
         cpu2_mw,
-        AndroidWattsonCpuEstimate('estimated_mw', cpu2_mw),
+        AndroidWattsonCpuEstimate(
+          'estimated_mw', cpu2_mw,
+          'estimated_mws', cpu2_mw * period_dur / 1e9
+        ),
         NULL
       ),
       'cpu3', IIF(
         cpu3_mw,
-        AndroidWattsonCpuEstimate('estimated_mw', cpu3_mw),
+        AndroidWattsonCpuEstimate(
+          'estimated_mw', cpu3_mw,
+          'estimated_mws', cpu3_mw * period_dur / 1e9
+        ),
         NULL
       ),
       'cpu4', IIF(
         cpu4_mw,
-        AndroidWattsonCpuEstimate('estimated_mw', cpu4_mw),
+        AndroidWattsonCpuEstimate(
+          'estimated_mw', cpu4_mw,
+          'estimated_mws', cpu4_mw * period_dur / 1e9
+        ),
         NULL
       ),
       'cpu5', IIF(
         cpu5_mw,
-        AndroidWattsonCpuEstimate('estimated_mw', cpu5_mw),
+        AndroidWattsonCpuEstimate(
+          'estimated_mw', cpu5_mw,
+          'estimated_mws', cpu5_mw * period_dur / 1e9
+        ),
         NULL
       ),
       'cpu6', IIF(
         cpu6_mw,
-        AndroidWattsonCpuEstimate('estimated_mw', cpu6_mw),
+        AndroidWattsonCpuEstimate(
+          'estimated_mw', cpu6_mw,
+          'estimated_mws', cpu6_mw * period_dur / 1e9
+        ),
         NULL
       ),
       'cpu7', IIF(
         cpu7_mw,
-        AndroidWattsonCpuEstimate('estimated_mw', cpu7_mw),
+        AndroidWattsonCpuEstimate(
+          'estimated_mw', cpu7_mw,
+          'estimated_mws', cpu7_mw * period_dur / 1e9
+        ),
         NULL
       )
     ) AS proto
@@ -345,6 +377,7 @@ SELECT
   period_dur,
   AndroidWattsonCpuSubsystemEstimate(
     'estimated_mw', sum_mw,
+    'estimated_mws', sum_mw * period_dur / 1e9,
     'policy0', p0_proto,
     'policy1', p1_proto,
     'policy2', p2_proto,
@@ -353,7 +386,10 @@ SELECT
     'policy5', p5_proto,
     'policy6', p6_proto,
     'policy7', p7_proto,
-    'dsu_scu', AndroidWattsonDsuScuEstimate('estimated_mw', dsu_scu_mw)
+    'dsu_scu', AndroidWattsonDsuScuEstimate(
+      'estimated_mw', dsu_scu_mw,
+      'estimated_mws', dsu_scu_mw * period_dur / 1e9
+    )
   ) as proto
 FROM components_w_sum;
 

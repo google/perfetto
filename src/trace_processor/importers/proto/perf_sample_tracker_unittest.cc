@@ -16,29 +16,34 @@
 
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include <cstdint>
+#include <memory>
 #include <string>
 
-#include "perfetto/base/logging.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/perf_events.gen.h"
 #include "protos/perfetto/trace/profiling/profile_packet.gen.h"
-#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.gen.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 class PerfSampleTrackerTest : public ::testing::Test {
  public:
   PerfSampleTrackerTest() {
-    context.storage.reset(new TraceStorage());
-    context.track_tracker.reset(new TrackTracker(&context));
-    context.perf_sample_tracker.reset(new PerfSampleTracker(&context));
+    context.storage = std::make_shared<TraceStorage>();
+    context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
+    context.cpu_tracker = std::make_unique<CpuTracker>(&context);
+    context.global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(context.storage.get());
+    context.track_tracker = std::make_unique<TrackTracker>(&context);
+    context.perf_sample_tracker = std::make_unique<PerfSampleTracker>(&context);
   }
 
  protected:
@@ -183,6 +188,67 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_ConfigSuppliedName) {
   ASSERT_EQ(track_name, "test-name");
 }
 
+// Validate that associated counters in the description create related tracks.
+TEST_F(PerfSampleTrackerTest, FollowersTracks) {
+  uint32_t seq_id = 42;
+  uint32_t cpu_id = 0;
+
+  protos::gen::TracePacketDefaults defaults;
+  auto* perf_defaults = defaults.mutable_perf_sample_defaults();
+  perf_defaults->mutable_timebase()->set_name("leader");
+
+  // Associate a raw event.
+  auto* raw_follower = perf_defaults->add_followers();
+  raw_follower->set_name("raw");
+  auto* raw_event = raw_follower->mutable_raw_event();
+  raw_event->set_type(8);
+  raw_event->set_config(18);
+
+  // Associate a tracepoint.
+  auto* tracepoint_follower = perf_defaults->add_followers();
+  tracepoint_follower->set_name("tracepoint");
+  tracepoint_follower->mutable_tracepoint()->set_name("sched:sched_switch");
+
+  // Associate a HW counter.
+  auto* counter_follower = perf_defaults->add_followers();
+  counter_follower->set_name("pmu");
+  counter_follower->set_counter(protos::gen::PerfEvents::HW_CACHE_MISSES);
+
+  // Serialize the packet.
+  auto defaults_pb = defaults.SerializeAsString();
+  protos::pbzero::TracePacketDefaults::Decoder defaults_decoder(defaults_pb);
+
+  auto stream = context.perf_sample_tracker->GetSamplingStreamInfo(
+      seq_id, cpu_id, &defaults_decoder);
+
+  ASSERT_EQ(stream.follower_track_ids.size(), 3u);
+
+  std::vector<TrackId> track_ids;
+  track_ids.push_back(stream.timebase_track_id);
+  track_ids.insert(track_ids.end(), stream.follower_track_ids.begin(),
+                   stream.follower_track_ids.end());
+  std::vector<std::string> track_names = {"leader", "raw", "tracepoint", "pmu"};
+
+  ASSERT_EQ(track_ids.size(), track_names.size());
+
+  for (size_t i = 0; i < track_ids.size(); ++i) {
+    TrackId track_id = track_ids[i];
+    const auto& track_table = context.storage->perf_counter_track_table();
+    auto row_id = track_table.id().IndexOf(track_id);
+
+    // Check the track exists and looks sensible.
+    ASSERT_TRUE(row_id.has_value());
+    EXPECT_EQ(track_table.perf_session_id()[*row_id], stream.perf_session_id);
+    EXPECT_EQ(track_table.cpu()[*row_id], cpu_id);
+    EXPECT_TRUE(track_table.is_timebase()[*row_id]);
+
+    // Using the config-supplied name for the track.
+    std::string track_name =
+        context.storage->GetString(track_table.name()[*row_id]).ToStdString();
+    ASSERT_EQ(track_name, track_names[i]);
+  }
+}
+
 TEST_F(PerfSampleTrackerTest, ProcessShardingStatsEntries) {
   uint32_t cpu0 = 0;
   uint32_t cpu1 = 1;
@@ -238,5 +304,4 @@ TEST_F(PerfSampleTrackerTest, ProcessShardingStatsEntries) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

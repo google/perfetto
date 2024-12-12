@@ -32,9 +32,9 @@ CREATE PERFETTO FUNCTION _get_flattened_thread_state(
 RETURNS
   TABLE(
     -- Timestamp.
-    ts LONG,
+    ts TIMESTAMP,
     -- Duration.
-    dur LONG,
+    dur DURATION,
     -- Utid.
     utid LONG,
     -- Depth.
@@ -46,11 +46,11 @@ RETURNS
     -- Track id.
     track_id LONG,
     -- CPU.
-    cpu INT,
+    cpu LONG,
     -- State.
     state STRING,
     -- IO wait.
-    io_wait INT,
+    io_wait LONG,
     -- Thread state's blocked_function.
     blocked_function STRING,
     -- Thread state's waker utid.
@@ -138,7 +138,7 @@ RETURNS TABLE(
   -- Time (ns) spent in Idle
   Idle LONG,
   -- Total duration of the slice
-  dur LONG,
+  dur DURATION,
   -- Depth of the slice in Perfetto
   depth LONG)
 AS

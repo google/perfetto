@@ -21,6 +21,13 @@
   // When width = 0 it can cause layout issues in popup content, so we give this
   // element some width manually
   width: 100%;
+
+  // Move the portal to the top of the page. This appears to fix issues where
+  // popups can sometimes be rendered below the rest of the page momentarily,
+  // causing the whole page to judder up and down while popper.js sorts out the
+  // positioning.
+  // TODO(stevegolton): There is probably a better way to fix this issue.
+  top: 0;
 }
 
 .pf-popup {

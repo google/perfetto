@@ -54,7 +54,7 @@ class BumpAllocator {
  public:
   // The limit on the total number of bits which can be used to represent
   // the chunk id.
-  static constexpr uint64_t kMaxIdBits = 60;
+  static constexpr uint64_t kMaxIdBits = 58;
 
   // The limit on the total amount of memory which can be allocated.
   static constexpr uint64_t kAllocLimit = 1ull << kMaxIdBits;

@@ -464,17 +464,34 @@ void ConsumerIPCClientImpl::SaveTraceForBugreport(
   consumer_port_.SaveTraceForBugreport(req, std::move(async_response));
 }
 
-void ConsumerIPCClientImpl::CloneSession(TracingSessionID tsid,
-                                         CloneSessionArgs args) {
+void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
   if (!connected_) {
     PERFETTO_DLOG("Cannot CloneSession(), not connected to tracing service");
     return;
   }
 
   protos::gen::CloneSessionRequest req;
-  req.set_session_id(tsid);
+  if (args.tsid) {
+    req.set_session_id(args.tsid);
+  }
+  if (!args.unique_session_name.empty()) {
+    req.set_unique_session_name(args.unique_session_name);
+  }
   req.set_skip_trace_filter(args.skip_trace_filter);
   req.set_for_bugreport(args.for_bugreport);
+  if (!args.clone_trigger_name.empty()) {
+    req.set_clone_trigger_name(args.clone_trigger_name);
+  }
+  if (!args.clone_trigger_producer_name.empty()) {
+    req.set_clone_trigger_producer_name(args.clone_trigger_producer_name);
+  }
+  if (args.clone_trigger_trusted_producer_uid != 0) {
+    req.set_clone_trigger_trusted_producer_uid(
+        static_cast<int32_t>(args.clone_trigger_trusted_producer_uid));
+  }
+  if (args.clone_trigger_boot_time_ns != 0) {
+    req.set_clone_trigger_boot_time_ns(args.clone_trigger_boot_time_ns);
+  }
   ipc::Deferred<protos::gen::CloneSessionResponse> async_response;
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
 

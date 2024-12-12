@@ -257,6 +257,15 @@ BUILD_DEPS_HOST = [
         'all',
         'all'),
 
+    # Libexpat for Instruments XML import.
+    # If updating the version, also update bazel/deps.bzl.
+    Dependency(
+        'buildtools/expat/src',
+        'https://chromium.googlesource.com/external/github.com/libexpat/libexpat.git',
+        'fa75b96546c069d17b8f80d91e0f4ef0cde3790d',  # refs/tags/upstream/R_2_6_2.
+        'all',
+        'all'),
+
     # Archive with only the demangling sources from llvm-project.
     # See tools/repackage_llvm_demangler.sh on how to update this.
     # File suffix is the git reference to the commit at which we rearchived the

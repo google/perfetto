@@ -12,47 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {hex} from 'color-convert';
 import m from 'mithril';
-
+import {removeFalsyValues} from '../base/array_utils';
+import {canvasClip, canvasSave} from '../base/canvas_utils';
 import {findRef, toHTMLElement} from '../base/dom_utils';
+import {Size2D, VerticalBounds} from '../base/geom';
+import {assertExists} from '../base/logging';
 import {clamp} from '../base/math_utils';
-import {Time} from '../base/time';
-import {Actions} from '../common/actions';
-import {TrackCacheEntry} from '../common/track_manager';
+import {Time, TimeSpan} from '../base/time';
+import {TimeScale} from '../base/time_scale';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-import {TrackTags} from '../public';
-
-import {TRACK_SHELL_WIDTH} from './css_constants';
-import {globals} from './globals';
+import {TrackNode} from '../public/workspace';
+import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
+import {renderFlows} from './flow_events_renderer';
+import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {NotesPanel} from './notes_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
-import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {
   PanelContainer,
   PanelOrGroup,
   RenderedPanelInfo,
 } from './panel_container';
-import {publishShowPanningHint} from './publish';
 import {TabPanel} from './tab_panel';
 import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {TimeSelectionPanel} from './time_selection_panel';
-import {DISMISSED_PANNING_HINT_KEY} from './topbar';
-import {TrackGroupPanel} from './track_group_panel';
-import {TrackPanel, getTitleFontSize} from './track_panel';
-import {assertExists} from '../base/logging';
-import {PxSpan, TimeScale} from './time_scale';
-import {GroupNode, Node, TrackNode} from './workspace';
-import {fuzzyMatch, FuzzySegment} from '../base/fuzzy';
-
-import {exists, Optional} from '../base/utils';
-import {EmptyState} from '../widgets/empty_state';
-import {removeFalsyValues} from '../base/array_utils';
-import {renderFlows} from './flow_events_renderer';
-import {Size} from '../base/geom';
-import {canvasClip, canvasSave} from '../common/canvas_utils';
+import {TrackPanel} from './track_panel';
+import {drawVerticalLineAtTime} from './vertical_line_helper';
+import {TraceImpl} from '../core/trace_impl';
+import {PageWithTraceImplAttrs} from '../core/page_manager';
+import {AppImpl} from '../core/app_impl';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -64,15 +56,16 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
 // Checks if the mousePos is within 3px of the start or end of the
 // current selected time range.
 function onTimeRangeBoundary(
+  trace: TraceImpl,
   timescale: TimeScale,
   mousePos: number,
 ): 'START' | 'END' | null {
-  const selection = globals.state.selection;
+  const selection = trace.selection.selection;
   if (selection.kind === 'area') {
     // If frontend selectedArea exists then we are in the process of editing the
     // time range and need to use that value instead.
-    const area = globals.timeline.selectedArea
-      ? globals.timeline.selectedArea
+    const area = trace.timeline.selectedArea
+      ? trace.timeline.selectedArea
       : selection;
     const start = timescale.timeToPx(area.start);
     const end = timescale.timeToPx(area.end);
@@ -88,64 +81,79 @@ function onTimeRangeBoundary(
   return null;
 }
 
+interface SelectedContainer {
+  readonly containerClass: string;
+  readonly dragStartAbsY: number;
+  readonly dragEndAbsY: number;
+}
+
 /**
  * Top-most level component for the viewer page. Holds tracks, brush timeline,
  * panels, and everything else that's part of the main trace viewer page.
  */
-class TraceViewer implements m.ClassComponent {
+export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
   private zoomContent?: PanAndZoomHandler;
   // Used to prevent global deselection if a pan/drag select occurred.
   private keepCurrentSelection = false;
 
-  private overviewTimelinePanel = new OverviewTimelinePanel();
-  private timeAxisPanel = new TimeAxisPanel();
-  private timeSelectionPanel = new TimeSelectionPanel();
-  private notesPanel = new NotesPanel();
-  private tickmarkPanel = new TickmarkPanel();
+  private overviewTimelinePanel: OverviewTimelinePanel;
+  private timeAxisPanel: TimeAxisPanel;
+  private timeSelectionPanel: TimeSelectionPanel;
+  private notesPanel: NotesPanel;
+  private tickmarkPanel: TickmarkPanel;
   private timelineWidthPx?: number;
+  private selectedContainer?: SelectedContainer;
+  private showPanningHint = false;
 
   private readonly PAN_ZOOM_CONTENT_REF = 'pan-and-zoom-content';
 
-  oncreate(vnode: m.CVnodeDOM) {
-    const panZoomElRaw = findRef(vnode.dom, this.PAN_ZOOM_CONTENT_REF);
+  constructor(vnode: m.CVnode<PageWithTraceImplAttrs>) {
+    this.notesPanel = new NotesPanel(vnode.attrs.trace);
+    this.timeAxisPanel = new TimeAxisPanel(vnode.attrs.trace);
+    this.timeSelectionPanel = new TimeSelectionPanel(vnode.attrs.trace);
+    this.tickmarkPanel = new TickmarkPanel(vnode.attrs.trace);
+    this.overviewTimelinePanel = new OverviewTimelinePanel(vnode.attrs.trace);
+    this.notesPanel = new NotesPanel(vnode.attrs.trace);
+    this.timeSelectionPanel = new TimeSelectionPanel(vnode.attrs.trace);
+  }
+
+  oncreate({dom, attrs}: m.CVnodeDOM<PageWithTraceImplAttrs>) {
+    const panZoomElRaw = findRef(dom, this.PAN_ZOOM_CONTENT_REF);
     const panZoomEl = toHTMLElement(assertExists(panZoomElRaw));
 
+    const {top: panTop} = panZoomEl.getBoundingClientRect();
     this.zoomContent = new PanAndZoomHandler({
       element: panZoomEl,
       onPanned: (pannedPx: number) => {
-        const timeline = globals.timeline;
+        const timeline = attrs.trace.timeline;
 
         if (this.timelineWidthPx === undefined) return;
 
         this.keepCurrentSelection = true;
-        const timescale = new TimeScale(
-          timeline.visibleWindow,
-          new PxSpan(0, this.timelineWidthPx),
-        );
+        const timescale = new TimeScale(timeline.visibleWindow, {
+          left: 0,
+          right: this.timelineWidthPx,
+        });
         const tDelta = timescale.pxToDuration(pannedPx);
         timeline.panVisibleWindow(tDelta);
-
-        // If the user has panned they no longer need the hint.
-        localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
-        raf.scheduleRedraw();
       },
       onZoomed: (zoomedPositionPx: number, zoomRatio: number) => {
-        const timeline = globals.timeline;
+        const timeline = attrs.trace.timeline;
         // TODO(hjd): Avoid hardcoding TRACK_SHELL_WIDTH.
         // TODO(hjd): Improve support for zooming in overview timeline.
         const zoomPx = zoomedPositionPx - TRACK_SHELL_WIDTH;
-        const rect = vnode.dom.getBoundingClientRect();
+        const rect = dom.getBoundingClientRect();
         const centerPoint = zoomPx / (rect.width - TRACK_SHELL_WIDTH);
         timeline.zoomVisibleWindow(1 - zoomRatio, centerPoint);
-        raf.scheduleRedraw();
+        raf.scheduleCanvasRedraw();
       },
       editSelection: (currentPx: number) => {
         if (this.timelineWidthPx === undefined) return false;
-        const timescale = new TimeScale(
-          globals.timeline.visibleWindow,
-          new PxSpan(0, this.timelineWidthPx),
-        );
-        return onTimeRangeBoundary(timescale, currentPx) !== null;
+        const timescale = new TimeScale(attrs.trace.timeline.visibleWindow, {
+          left: 0,
+          right: this.timelineWidthPx,
+        });
+        return onTimeRangeBoundary(attrs.trace, timescale, currentPx) !== null;
       },
       onSelection: (
         dragStartX: number,
@@ -155,8 +163,8 @@ class TraceViewer implements m.ClassComponent {
         currentY: number,
         editing: boolean,
       ) => {
-        const traceTime = globals.traceContext;
-        const timeline = globals.timeline;
+        const traceTime = attrs.trace.traceInfo;
+        const timeline = attrs.trace.timeline;
 
         if (this.timelineWidthPx === undefined) return;
 
@@ -166,22 +174,26 @@ class TraceViewer implements m.ClassComponent {
         const timespan = visibleWindow.toTimeSpan();
         this.keepCurrentSelection = true;
 
-        const timescale = new TimeScale(
-          timeline.visibleWindow,
-          new PxSpan(0, this.timelineWidthPx),
-        );
+        const timescale = new TimeScale(timeline.visibleWindow, {
+          left: 0,
+          right: this.timelineWidthPx,
+        });
 
         if (editing) {
-          const selection = globals.state.selection;
+          const selection = attrs.trace.selection.selection;
           if (selection.kind === 'area') {
-            const area = globals.timeline.selectedArea
-              ? globals.timeline.selectedArea
+            const area = attrs.trace.timeline.selectedArea
+              ? attrs.trace.timeline.selectedArea
               : selection;
             let newTime = timescale
               .pxToHpTime(currentX - TRACK_SHELL_WIDTH)
               .toTime();
             // Have to check again for when one boundary crosses over the other.
-            const curBoundary = onTimeRangeBoundary(timescale, prevX);
+            const curBoundary = onTimeRangeBoundary(
+              attrs.trace,
+              timescale,
+              prevX,
+            );
             if (curBoundary == null) return;
             const keepTime = curBoundary === 'START' ? area.end : area.start;
             // Don't drag selection outside of current screen.
@@ -208,30 +220,62 @@ class TraceViewer implements m.ClassComponent {
             timescale.pxToHpTime(startPx).toTime('floor'),
             timescale.pxToHpTime(endPx).toTime('ceil'),
           );
-          timeline.areaY.start = dragStartY;
-          timeline.areaY.end = currentY;
-          publishShowPanningHint();
+
+          const absStartY = dragStartY + panTop;
+          const absCurrentY = currentY + panTop;
+          if (this.selectedContainer === undefined) {
+            for (const c of dom.querySelectorAll('.pf-panel-container')) {
+              const {top, bottom} = c.getBoundingClientRect();
+              if (top <= absStartY && absCurrentY <= bottom) {
+                const stack = assertExists(c.querySelector('.pf-panel-stack'));
+                const stackTop = stack.getBoundingClientRect().top;
+                this.selectedContainer = {
+                  containerClass: Array.from(c.classList).filter(
+                    (x) => x !== 'pf-panel-container',
+                  )[0],
+                  dragStartAbsY: -stackTop + absStartY,
+                  dragEndAbsY: -stackTop + absCurrentY,
+                };
+                break;
+              }
+            }
+          } else {
+            const c = assertExists(
+              dom.querySelector(`.${this.selectedContainer.containerClass}`),
+            );
+            const {top, bottom} = c.getBoundingClientRect();
+            const boundedCurrentY = Math.min(
+              Math.max(top, absCurrentY),
+              bottom,
+            );
+            const stack = assertExists(c.querySelector('.pf-panel-stack'));
+            const stackTop = stack.getBoundingClientRect().top;
+            this.selectedContainer = {
+              ...this.selectedContainer,
+              dragEndAbsY: -stackTop + boundedCurrentY,
+            };
+          }
+          this.showPanningHint = true;
         }
-        raf.scheduleRedraw();
+        raf.scheduleCanvasRedraw();
       },
       endSelection: (edit: boolean) => {
-        globals.timeline.areaY.start = undefined;
-        globals.timeline.areaY.end = undefined;
-        const area = globals.timeline.selectedArea;
+        this.selectedContainer = undefined;
+        const area = attrs.trace.timeline.selectedArea;
         // If we are editing we need to pass the current id through to ensure
         // the marked area with that id is also updated.
         if (edit) {
-          const selection = globals.state.selection;
+          const selection = attrs.trace.selection.selection;
           if (selection.kind === 'area' && area) {
-            globals.dispatch(Actions.selectArea({...area}));
+            attrs.trace.selection.selectArea({...area});
           }
         } else if (area) {
-          globals.makeSelection(Actions.selectArea({...area}));
+          attrs.trace.selection.selectArea({...area});
         }
         // Now the selection has ended we stored the final selected area in the
         // global state and can remove the in progress selection from the
         // timeline.
-        globals.timeline.deselectArea();
+        attrs.trace.timeline.deselectArea();
         // Full redraw to color track shell.
         raf.scheduleFullRedraw();
       },
@@ -242,8 +286,8 @@ class TraceViewer implements m.ClassComponent {
     if (this.zoomContent) this.zoomContent[Symbol.dispose]();
   }
 
-  view() {
-    const scrollingPanels = renderToplevelPanels(globals.state.trackFilterTerm);
+  view({attrs}: m.CVnode<PageWithTraceImplAttrs>) {
+    const scrollingPanels = renderToplevelPanels(attrs.trace);
 
     const result = m(
       '.page.viewer-page',
@@ -257,12 +301,13 @@ class TraceViewer implements m.ClassComponent {
               this.keepCurrentSelection = false;
               return;
             }
-            globals.clearSelection();
+            attrs.trace.selection.clear();
           },
         },
         m(
           '.pf-timeline-header',
           m(PanelContainer, {
+            trace: attrs.trace,
             className: 'header-panel-container',
             panels: removeFalsyValues([
               OVERVIEW_PANEL_FLAG.get() && this.overviewTimelinePanel,
@@ -271,54 +316,116 @@ class TraceViewer implements m.ClassComponent {
               this.notesPanel,
               this.tickmarkPanel,
             ]),
+            selectedYRange: this.getYRange('header-panel-container'),
           }),
           m('.scrollbar-spacer-vertical'),
         ),
         m(PanelContainer, {
+          trace: attrs.trace,
           className: 'pinned-panel-container',
-          panels: globals.workspace.pinnedTracks.map((track) => {
-            const trackBundle = resolveTrack(track.uri, track.displayName);
-            return new TrackPanel({
-              track: track,
-              title: trackBundle.displayName,
-              tags: trackBundle.tags,
-              trackFSM: trackBundle.trackFSM,
-              revealOnCreate: true,
-              chips: trackBundle.chips,
-              pluginId: trackBundle.pluginId,
-            });
-          }),
-          renderOverlay,
+          panels: AppImpl.instance.isLoadingTrace
+            ? []
+            : attrs.trace.workspace.pinnedTracks.map((trackNode) => {
+                if (trackNode.uri) {
+                  const tr = attrs.trace.tracks.getTrackRenderer(trackNode.uri);
+                  return new TrackPanel({
+                    trace: attrs.trace,
+                    reorderable: true,
+                    node: trackNode,
+                    trackRenderer: tr,
+                    revealOnCreate: true,
+                    indentationLevel: 0,
+                    topOffsetPx: 0,
+                  });
+                } else {
+                  return new TrackPanel({
+                    trace: attrs.trace,
+                    node: trackNode,
+                    revealOnCreate: true,
+                    indentationLevel: 0,
+                    topOffsetPx: 0,
+                  });
+                }
+              }),
+          renderUnderlay: (ctx, size) => renderUnderlay(attrs.trace, ctx, size),
+          renderOverlay: (ctx, size, panels) =>
+            renderOverlay(
+              attrs.trace,
+              ctx,
+              size,
+              panels,
+              attrs.trace.workspace.pinnedTracksNode,
+            ),
+          selectedYRange: this.getYRange('pinned-panel-container'),
         }),
-        scrollingPanels.length === 0 &&
-          filterTermIsValid(globals.state.trackFilterTerm)
-          ? m(
-              EmptyState,
-              {title: 'No matching tracks'},
-              `No tracks match filter term "${globals.state.trackFilterTerm}"`,
-            )
-          : m(PanelContainer, {
-              className: 'scrolling-panel-container',
-              panels: scrollingPanels,
-              onPanelStackResize: (width) => {
-                const timelineWidth = width - TRACK_SHELL_WIDTH;
-                this.timelineWidthPx = timelineWidth;
-              },
-              renderOverlay,
-            }),
+        m(PanelContainer, {
+          trace: attrs.trace,
+          className: 'scrolling-panel-container',
+          panels: AppImpl.instance.isLoadingTrace ? [] : scrollingPanels,
+          onPanelStackResize: (width) => {
+            const timelineWidth = width - TRACK_SHELL_WIDTH;
+            this.timelineWidthPx = timelineWidth;
+          },
+          renderUnderlay: (ctx, size) => renderUnderlay(attrs.trace, ctx, size),
+          renderOverlay: (ctx, size, panels) =>
+            renderOverlay(
+              attrs.trace,
+              ctx,
+              size,
+              panels,
+              attrs.trace.workspace.tracks,
+            ),
+          selectedYRange: this.getYRange('scrolling-panel-container'),
+        }),
       ),
-      m(TabPanel),
+      m(TabPanel, {
+        trace: attrs.trace,
+      }),
+      this.showPanningHint && m(HelpPanningNotification),
     );
 
-    globals.trackManager.flushOldTracks();
+    attrs.trace.tracks.flushOldTracks();
     return result;
+  }
+
+  private getYRange(cls: string): VerticalBounds | undefined {
+    if (this.selectedContainer?.containerClass !== cls) {
+      return undefined;
+    }
+    const {dragStartAbsY, dragEndAbsY} = this.selectedContainer;
+    return {
+      top: Math.min(dragStartAbsY, dragEndAbsY),
+      bottom: Math.max(dragStartAbsY, dragEndAbsY),
+    };
   }
 }
 
-function renderOverlay(
+function renderUnderlay(
+  trace: TraceImpl,
   ctx: CanvasRenderingContext2D,
-  canvasSize: Size,
+  canvasSize: Size2D,
+): void {
+  const size = {
+    width: canvasSize.width - TRACK_SHELL_WIDTH,
+    height: canvasSize.height,
+  };
+
+  using _ = canvasSave(ctx);
+  ctx.translate(TRACK_SHELL_WIDTH, 0);
+
+  const timewindow = trace.timeline.visibleWindow;
+  const timescale = new TimeScale(timewindow, {left: 0, right: size.width});
+
+  // Just render the gridlines - these should appear underneath all tracks
+  drawGridLines(trace, ctx, timewindow.toTimeSpan(), timescale, size);
+}
+
+function renderOverlay(
+  trace: TraceImpl,
+  ctx: CanvasRenderingContext2D,
+  canvasSize: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
+  trackContainer: TrackNode,
 ): void {
   const size = {
     width: canvasSize.width - TRACK_SHELL_WIDTH,
@@ -328,186 +435,223 @@ function renderOverlay(
   using _ = canvasSave(ctx);
   ctx.translate(TRACK_SHELL_WIDTH, 0);
   canvasClip(ctx, 0, 0, size.width, size.height);
-  renderFlows(ctx, size, panels);
-}
 
-// Given a set of fuzzy matched results, render the matching segments in bold
-function renderFuzzyMatchedTrackTitle(title: FuzzySegment[]): m.Children {
-  return title.map(({matching, value}) => {
-    return matching ? m('b', value) : value;
-  });
-}
+  // TODO(primiano): plumb the TraceImpl obj throughout the viwer page.
+  renderFlows(trace, ctx, size, panels, trackContainer);
 
-function filterTermIsValid(
-  filterTerm: undefined | string,
-): filterTerm is string {
-  // Note: Boolean(filterTerm) returns the same result, but this is clearer
-  return filterTerm !== undefined && filterTerm !== '';
-}
+  const timewindow = trace.timeline.visibleWindow;
+  const timescale = new TimeScale(timewindow, {left: 0, right: size.width});
 
-// Split filter term on commas into a list of tokens, cleaning up any whitespace
-// before and after the token and removing any blank tokens
-function tokenizeFilterTerm(term: string): ReadonlyArray<string> {
-  return term
-    .split(',')
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0);
+  renderHoveredNoteVertical(trace, ctx, timescale, size);
+  renderHoveredCursorVertical(trace, ctx, timescale, size);
+  renderWakeupVertical(trace, ctx, timescale, size);
+  renderNoteVerticals(trace, ctx, timescale, size);
 }
 
 // Render the toplevel "scrolling" tracks and track groups
-function renderToplevelPanels(filterTerm: Optional<string>): PanelOrGroup[] {
-  return renderNodes(globals.workspace.children, filterTerm);
+function renderToplevelPanels(trace: TraceImpl): PanelOrGroup[] {
+  return renderNodes(trace, trace.workspace.children, 0, 0);
 }
 
 // Given a list of tracks and a filter term, return a list pf panels filtered by
 // the filter term
 function renderNodes(
-  nodes: ReadonlyArray<Node>,
-  filterTerm?: string,
+  trace: TraceImpl,
+  nodes: ReadonlyArray<TrackNode>,
+  indent: number,
+  topOffsetPx: number,
 ): PanelOrGroup[] {
   return nodes.flatMap((node) => {
-    if (node instanceof GroupNode) {
-      if (node.headless) {
-        return renderNodes(node.children, filterTerm);
-      } else {
-        if (filterTermIsValid(filterTerm)) {
-          const tokens = tokenizeFilterTerm(filterTerm);
-          const match = fuzzyMatch(node.displayName, ...tokens);
-          if (match.matches) {
-            return {
-              kind: 'group',
-              collapsed: node.collapsed,
-              header: renderGroupHeaderPanel(
-                node,
-                true,
-                node.collapsed,
-                renderFuzzyMatchedTrackTitle(match.segments),
-              ),
-              childPanels: node.collapsed ? [] : renderNodes(node.children),
-            };
-          } else {
-            const childPanels = renderNodes(node.children, filterTerm);
-            if (childPanels.length > 0) {
-              return {
-                kind: 'group',
-                collapsed: false,
-                header: renderGroupHeaderPanel(node, false, node.collapsed),
-                childPanels,
-              };
-            }
-            return [];
-          }
-        } else {
-          return {
-            kind: 'group',
-            collapsed: node.collapsed,
-            header: renderGroupHeaderPanel(node, true, node.collapsed),
-            childPanels: node.collapsed
-              ? []
-              : renderNodes(node.children, filterTerm),
-          };
-        }
-      }
+    if (node.headless) {
+      // Render children as if this node doesn't exist
+      return renderNodes(trace, node.children, indent, topOffsetPx);
+    } else if (node.children.length === 0) {
+      return renderTrackPanel(trace, node, indent, topOffsetPx);
     } else {
-      if (filterTermIsValid(filterTerm)) {
-        const tokens = tokenizeFilterTerm(filterTerm);
-        const match = fuzzyMatch(node.displayName, ...tokens);
-        if (match.matches) {
-          return renderTrackPanel(
-            node,
-            renderFuzzyMatchedTrackTitle(match.segments),
-          );
-        } else {
-          return [];
-        }
-      } else {
-        return renderTrackPanel(node);
-      }
+      const headerPanel = renderTrackPanel(trace, node, indent, topOffsetPx);
+      const isSticky = node.isSummary;
+      const nextTopOffsetPx = isSticky
+        ? topOffsetPx + headerPanel.heightPx
+        : topOffsetPx;
+      return {
+        kind: 'group',
+        collapsed: node.collapsed,
+        header: headerPanel,
+        sticky: isSticky, // && node.collapsed??
+        topOffsetPx,
+        childPanels: node.collapsed
+          ? []
+          : renderNodes(trace, node.children, indent + 1, nextTopOffsetPx),
+      };
     }
   });
 }
 
-function renderTrackPanel(track: TrackNode, title?: m.Children) {
-  const trackBundle = resolveTrack(track.uri, track.displayName);
+function renderTrackPanel(
+  trace: TraceImpl,
+  trackNode: TrackNode,
+  indent: number,
+  topOffsetPx: number,
+) {
+  let tr = undefined;
+  if (trackNode.uri) {
+    tr = trace.tracks.getTrackRenderer(trackNode.uri);
+  }
   return new TrackPanel({
-    track: track,
-    title: m(
-      'span',
-      {
-        style: {
-          'font-size': getTitleFontSize(trackBundle.displayName),
-        },
-      },
-      Boolean(title) ? title : trackBundle.displayName,
-    ),
-    tags: trackBundle.tags,
-    trackFSM: trackBundle.trackFSM,
-    chips: trackBundle.chips,
-    pluginId: trackBundle.pluginId,
+    trace,
+    node: trackNode,
+    trackRenderer: tr,
+    indentationLevel: indent,
+    topOffsetPx,
   });
 }
 
-function renderGroupHeaderPanel(
-  group: GroupNode,
-  collapsable: boolean,
-  collapsed: boolean,
-  title?: m.Children,
-): TrackGroupPanel {
-  if (group.headerTrackUri !== undefined) {
-    const trackBundle = resolveTrack(group.headerTrackUri, group.displayName);
-    return new TrackGroupPanel({
-      groupNode: group,
-      trackFSM: trackBundle.trackFSM,
-      subtitle: trackBundle.subtitle,
-      tags: trackBundle.tags,
-      chips: trackBundle.chips,
-      collapsed,
-      title: exists(title) ? title : group.displayName,
-      tooltip: group.displayName,
-      collapsable,
-    });
-  } else {
-    return new TrackGroupPanel({
-      groupNode: group,
-      collapsed,
-      title: exists(title) ? title : group.displayName,
-      tooltip: group.displayName,
-      collapsable,
-    });
+export function drawGridLines(
+  trace: TraceImpl,
+  ctx: CanvasRenderingContext2D,
+  timespan: TimeSpan,
+  timescale: TimeScale,
+  size: Size2D,
+): void {
+  ctx.strokeStyle = TRACK_BORDER_COLOR;
+  ctx.lineWidth = 1;
+
+  if (size.width > 0 && timespan.duration > 0n) {
+    const maxMajorTicks = getMaxMajorTicks(size.width);
+    const offset = trace.timeline.timestampOffset();
+    for (const {type, time} of generateTicks(timespan, maxMajorTicks, offset)) {
+      const px = Math.floor(timescale.timeToPx(time));
+      if (type === TickType.MAJOR) {
+        ctx.beginPath();
+        ctx.moveTo(px + 0.5, 0);
+        ctx.lineTo(px + 0.5, size.height);
+        ctx.stroke();
+      }
+    }
   }
 }
 
-// Resolve a track and its metadata through the track cache
-function resolveTrack(uri: string, displayName: string): TrackBundle {
-  const trackDesc = globals.trackManager.getTrack(uri);
-  const trackCacheEntry =
-    trackDesc && globals.trackManager.getTrackRenderer(trackDesc);
-  const trackFSM = trackCacheEntry;
-  const tags = trackCacheEntry?.desc.tags;
-  const subtitle = trackCacheEntry?.desc.subtitle;
-  const chips = trackCacheEntry?.desc.chips;
-  const plugin = trackCacheEntry?.desc.pluginId;
-  return {
-    displayName,
-    subtitle,
-    tags,
-    trackFSM,
-    chips,
-    pluginId: plugin,
-  };
+export function renderHoveredCursorVertical(
+  trace: TraceImpl,
+  ctx: CanvasRenderingContext2D,
+  timescale: TimeScale,
+  size: Size2D,
+) {
+  if (trace.timeline.hoverCursorTimestamp !== undefined) {
+    drawVerticalLineAtTime(
+      ctx,
+      timescale,
+      trace.timeline.hoverCursorTimestamp,
+      size.height,
+      `#344596`,
+    );
+  }
 }
 
-interface TrackBundle {
-  readonly displayName: string;
-  readonly subtitle?: string;
-  readonly trackFSM?: TrackCacheEntry;
-  readonly tags?: TrackTags;
-  readonly chips?: ReadonlyArray<string>;
-  readonly pluginId?: string;
+export function renderHoveredNoteVertical(
+  trace: TraceImpl,
+  ctx: CanvasRenderingContext2D,
+  timescale: TimeScale,
+  size: Size2D,
+) {
+  if (trace.timeline.hoveredNoteTimestamp !== undefined) {
+    drawVerticalLineAtTime(
+      ctx,
+      timescale,
+      trace.timeline.hoveredNoteTimestamp,
+      size.height,
+      `#aaa`,
+    );
+  }
 }
 
-export const ViewerPage = createPage({
+export function renderWakeupVertical(
+  trace: TraceImpl,
+  ctx: CanvasRenderingContext2D,
+  timescale: TimeScale,
+  size: Size2D,
+) {
+  const selection = trace.selection.selection;
+  if (selection.kind === 'track_event' && selection.wakeupTs) {
+    drawVerticalLineAtTime(
+      ctx,
+      timescale,
+      selection.wakeupTs,
+      size.height,
+      `black`,
+    );
+  }
+}
+
+export function renderNoteVerticals(
+  trace: TraceImpl,
+  ctx: CanvasRenderingContext2D,
+  timescale: TimeScale,
+  size: Size2D,
+) {
+  // All marked areas should have semi-transparent vertical lines
+  // marking the start and end.
+  for (const note of trace.notes.notes.values()) {
+    if (note.noteType === 'SPAN') {
+      const transparentNoteColor =
+        'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';
+      drawVerticalLineAtTime(
+        ctx,
+        timescale,
+        note.start,
+        size.height,
+        transparentNoteColor,
+        1,
+      );
+      drawVerticalLineAtTime(
+        ctx,
+        timescale,
+        note.end,
+        size.height,
+        transparentNoteColor,
+        1,
+      );
+    } else if (note.noteType === 'DEFAULT') {
+      drawVerticalLineAtTime(
+        ctx,
+        timescale,
+        note.timestamp,
+        size.height,
+        note.color,
+      );
+    }
+  }
+}
+
+class HelpPanningNotification implements m.ClassComponent {
+  private readonly PANNING_HINT_KEY = 'dismissedPanningHint';
+  private dismissed = localStorage.getItem(this.PANNING_HINT_KEY) === 'true';
+
   view() {
-    return m(TraceViewer);
-  },
-});
+    // Do not show the help notification in embedded mode because local storage
+    // does not persist for iFrames. The host is responsible for communicating
+    // to users that they can press '?' for help.
+    if (AppImpl.instance.embeddedMode || this.dismissed) {
+      return;
+    }
+    return m(
+      '.helpful-hint',
+      m(
+        '.hint-text',
+        'Are you trying to pan? Use the WASD keys or hold shift to click ' +
+          "and drag. Press '?' for more help.",
+      ),
+      m(
+        'button.hint-dismiss-button',
+        {
+          onclick: () => {
+            this.dismissed = true;
+            localStorage.setItem(this.PANNING_HINT_KEY, 'true');
+            raf.scheduleFullRedraw();
+          },
+        },
+        'Dismiss',
+      ),
+    );
+  }
+}

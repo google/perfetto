@@ -15,10 +15,7 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  proto_generators = [
-    "lite",
-    "source_set",
-  ]
+  proto_generators = [ "lite" ]
   sources = [
     "ad_services_metric.proto",
     "android_anomaly_metric.proto",
@@ -32,7 +29,6 @@ perfetto_proto_library("@TYPE@") {
     "android_garbage_collection_unagg_metric.proto",
     "android_oom_adjuster_metric.proto",
     "android_sysui_notifications_blocking_calls_metric.proto",
-    "android_trusty_workqueues.proto",
     "anr_metric.proto",
     "app_process_starts_metric.proto",
     "auto_metric.proto",
@@ -66,7 +62,6 @@ perfetto_proto_library("@TYPE@") {
     "monitor_contention_metric.proto",
     "multiuser_metric.proto",
     "network_metric.proto",
-    "other_traces.proto",
     "package_list.proto",
     "powrails_metric.proto",
     "process_metadata.proto",

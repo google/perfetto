@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {getPlatform, Hotkey, Key, parseHotkey, Platform} from '../base/hotkeys';
-
 import {Icon} from './icon';
 
 export interface HotkeyGlyphsAttrs {

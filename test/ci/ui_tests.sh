@@ -15,6 +15,8 @@
 
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
+export CI=1
+
 infra/perfetto.dev/build
 
 ui/build --out ${OUT_PATH}
@@ -24,11 +26,30 @@ cp -a ${OUT_PATH}/ui/dist/ /ci/artifacts/ui
 ui/run-unittests --out ${OUT_PATH} --no-build
 
 set +e
+
+# Install chrome
+(
+  mkdir /ci/ramdisk/chrome
+  cd /ci/ramdisk/chrome
+  CHROME_VERSION=128.0.6613.137
+  curl -Ls -o chrome.deb https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${CHROME_VERSION}-1_amd64.deb
+  dpkg-deb -x chrome.deb  .
+)
 ui/run-integrationtests --out ${OUT_PATH} --no-build
 RES=$?
+
+set +x
 
 # Copy the output of screenshots diff testing.
 if [ -d ${OUT_PATH}/ui-test-artifacts ]; then
   cp -a ${OUT_PATH}/ui-test-artifacts /ci/artifacts/ui-test-artifacts
+  echo "UI integration test report with screnshots:"
+  echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_TEST_JOB/ui-test-artifacts/index.html"
+  echo ""
+  echo "To download locally the changed screenshots run:"
+  echo "tools/download_changed_screenshots.py $PERFETTO_TEST_JOB"
+  echo ""
+  echo "Perfetto UI build for this CL"
+  echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_TEST_JOB/ui/index.html"
   exit $RES
 fi

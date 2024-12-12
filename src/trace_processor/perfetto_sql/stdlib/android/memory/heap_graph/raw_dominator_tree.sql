@@ -22,7 +22,7 @@ INCLUDE PERFETTO MODULE graphs.dominator_tree;
 -- connected component, so that the dominator tree algorithm can be performed.
 CREATE PERFETTO FUNCTION _heap_graph_super_root_fn()
 -- The assigned id of the "super root".
-RETURNS INT AS
+RETURNS LONG AS
 SELECT id + 1
 FROM heap_graph_object
 ORDER BY id DESC

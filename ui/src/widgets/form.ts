@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Button} from './button';
 import {HTMLAttrs, HTMLLabelAttrs} from './common';
 import {Popup} from './popup';

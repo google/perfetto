@@ -12,17 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin} from '../../public/plugin';
+import {addDebugCounterTrack} from '../../components/tracks/debug_tracks';
 
-import {addDebugCounterTrack} from '../../frontend/debug_tracks/debug_tracks';
+export default class implements PerfettoPlugin {
+  static readonly id = 'com.google.PixelMemory';
 
-class PixelMemory implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerCommand({
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.PixelMemory#ShowTotalMemory',
       name: 'Add tracks: show a process total memory',
       callback: async (pid) => {
@@ -44,9 +42,9 @@ class PixelMemory implements PerfettoPlugin {
             );
         `;
         await ctx.engine.query(RSS_ALL);
-        await addDebugCounterTrack(
-          ctx,
-          {
+        await addDebugCounterTrack({
+          trace: ctx,
+          data: {
             sqlSource: `
                 SELECT
                   ts,
@@ -56,15 +54,9 @@ class PixelMemory implements PerfettoPlugin {
             `,
             columns: ['ts', 'value'],
           },
-          pid + '_rss_anon_file_swap_shmem_gpu',
-          {ts: 'ts', value: 'value'},
-        );
+          title: pid + '_rss_anon_file_swap_shmem_gpu',
+        });
       },
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'com.google.PixelMemory',
-  plugin: PixelMemory,
-};

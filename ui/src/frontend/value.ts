@@ -13,10 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Tree, TreeNode} from '../widgets/tree';
-
-import {PopupMenuButton, PopupMenuItem} from './popup_menu';
+import {PopupMenu2} from '../widgets/menu';
+import {Button} from '../widgets/button';
 
 // This file implements a component for rendering JSON-like values (with
 // customisation options like context menu and action buttons).
@@ -111,7 +110,7 @@ type ButtonParams = {
 
 // Customisation parameters which apply to any Value (e.g. context menu).
 interface ValueParams {
-  contextMenu?: PopupMenuItem[];
+  contextMenu?: m.Child[];
 }
 
 // Customisation parameters which apply for a primitive value (e.g. showing
@@ -139,10 +138,15 @@ function renderValue(name: string, value: Value): m.Children {
   const left = [
     name,
     value.contextMenu
-      ? m(PopupMenuButton, {
-          icon: 'arrow_drop_down',
-          items: value.contextMenu,
-        })
+      ? m(
+          PopupMenu2,
+          {
+            trigger: m(Button, {
+              icon: 'arrow_drop_down',
+            }),
+          },
+          value.contextMenu,
+        )
       : null,
   ];
   if (isArray(value)) {

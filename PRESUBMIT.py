@@ -470,7 +470,11 @@ def CheckAbsolutePathsInGn(input_api, output_api):
     return input_api.FilterSourceFile(
         x,
         files_to_check=[r'.*\.gni?$'],
-        files_to_skip=['^.gn$', '^gn/.*', '^buildtools/.*'])
+        files_to_skip=[
+            '^.gn$',
+            '^gn/.*',
+            '^buildtools/.*',
+        ])
 
   error_lines = []
   for f in input_api.AffectedSourceFiles(file_filter):

@@ -126,7 +126,7 @@ TrackId DrmTracker::InternVblankTrack(int32_t crtc) {
   base::StackString<256> track_name("vblank-%d", crtc);
   StringId track_name_id =
       context_->storage->InternString(track_name.string_view());
-  return context_->track_tracker->InternGpuTrack(
+  return context_->track_tracker->LegacyInternGpuTrack(
       tables::GpuTrackTable::Row(track_name_id));
 }
 
@@ -163,7 +163,7 @@ DrmTracker::SchedRing& DrmTracker::GetSchedRingByName(base::StringView name) {
   base::StackString<64> track_name("sched-%.*s", int(name.size()), name.data());
   StringId track_name_id =
       context_->storage->InternString(track_name.string_view());
-  TrackId track_id = context_->track_tracker->InternGpuTrack(
+  TrackId track_id = context_->track_tracker->LegacyInternGpuTrack(
       tables::GpuTrackTable::Row(track_name_id));
 
   // no std::make_unique until C++14..
@@ -260,7 +260,7 @@ DrmTracker::FenceTimeline& DrmTracker::GetFenceTimelineByContext(
                                    name.data(), context);
   StringId track_name_id =
       context_->storage->InternString(track_name.string_view());
-  TrackId track_id = context_->track_tracker->InternGpuTrack(
+  TrackId track_id = context_->track_tracker->LegacyInternGpuTrack(
       tables::GpuTrackTable::Row(track_name_id));
 
   // no std::make_unique until C++14..

@@ -13,19 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-
-import {Actions} from '../common/actions';
-import {tryGetTrace} from '../common/cache_manager';
+import {tryGetTrace} from '../core/cache_manager';
 import {showModal} from '../widgets/modal';
-
 import {loadPermalink} from './permalink';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
-import {globals} from './globals';
-import {Route, Router} from './router';
+import {Route, Router} from '../core/router';
 import {taskTracker} from './task_tracker';
+import {AppImpl} from '../core/app_impl';
 
 function getCurrentTraceUrl(): undefined | string {
-  const source = globals.getCurrentEngine()?.source;
+  const source = AppImpl.instance.trace?.traceInfo.source;
   if (source && source.type === 'URL') {
     return source.url;
   }
@@ -84,13 +81,13 @@ export function maybeOpenTraceFromRoute(route: Route) {
  * 3. '' -> URL with a ?local_cache_key=xxx arg:
  *  - Same as case 2.
  * 4. URL with local_cache_key=1 -> URL with local_cache_key=2:
- *  a) If 2 != uuid of the trace currently loaded (globals.state.traceUuid):
+ *  a) If 2 != uuid of the trace currently loaded (TraceImpl.traceInfo.uuid):
  *  - Ask the user if they intend to switch trace and load 2.
  *  b) If 2 == uuid of current trace (e.g., after a new trace has loaded):
  *  - no effect (except redrawing).
  * 5. URL with local_cache_key -> URL without local_cache_key:
  *  - Redirect to ?local_cache_key=1234 where 1234 is the UUID of the previous
- *    URL (this might or might not match globals.state.traceUuid).
+ *    URL (this might or might not match traceInfo.uuid).
  *
  * Backward navigation cases:
  * 6. URL without local_cache_key <- URL with local_cache_key:
@@ -101,7 +98,10 @@ export function maybeOpenTraceFromRoute(route: Route) {
  *  - Same as case 5: re-append the local_cache_key.
  */
 async function maybeOpenCachedTrace(traceUuid: string) {
-  if (traceUuid === globals.state.traceUuid) {
+  const curTrace = AppImpl.instance.trace?.traceInfo;
+  const curCacheUuid = curTrace?.cached ? curTrace.uuid : '';
+
+  if (traceUuid === curCacheUuid) {
     // Do nothing, matches the currently loaded trace.
     return;
   }
@@ -119,22 +119,20 @@ async function maybeOpenCachedTrace(traceUuid: string) {
   // This early out prevents to re-trigger the openTraceFromXXX() action if the
   // URL changes (e.g. if the user navigates back/fwd) while the new trace is
   // being loaded.
-  if (globals.state.engine !== undefined) {
-    const eng = globals.state.engine;
-    if (eng.source.type === 'ARRAY_BUFFER' && eng.source.uuid === traceUuid) {
-      return;
-    }
+  if (
+    curTrace !== undefined &&
+    curTrace.source.type === 'ARRAY_BUFFER' &&
+    curTrace.source.uuid === traceUuid
+  ) {
+    return;
   }
 
   // Fetch the trace from the cache storage. If available load it. If not, show
   // a dialog informing the user about the cache miss.
   const maybeTrace = await tryGetTrace(traceUuid);
 
-  const navigateToOldTraceUuid = () => {
-    Router.navigate(
-      `#!/viewer?local_cache_key=${globals.state.traceUuid ?? ''}`,
-    );
-  };
+  const navigateToOldTraceUuid = () =>
+    Router.navigate(`#!/viewer?local_cache_key=${curCacheUuid}`);
 
   if (!maybeTrace) {
     showModal({
@@ -163,8 +161,8 @@ async function maybeOpenCachedTrace(traceUuid: string) {
   // the trace without showing any further dialog. This is the case of tab
   // discarding, reloading or pasting a url with a local_cache_key in an empty
   // instance.
-  if (globals.state.traceUuid === undefined) {
-    globals.dispatch(Actions.openTraceFromBuffer(maybeTrace));
+  if (curTrace === undefined) {
+    AppImpl.instance.openTraceFromBuffer(maybeTrace);
     return;
   }
 
@@ -190,7 +188,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
       ),
       m(
         'pre',
-        `Old trace: ${globals.state.traceUuid || '<no trace>'}\n` +
+        `Old trace: ${curTrace !== undefined ? curCacheUuid : '<no trace>'}\n` +
           `New trace: ${traceUuid}`,
       ),
     ),
@@ -201,7 +199,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
         primary: true,
         action: () => {
           hasOpenedNewTrace = true;
-          globals.dispatch(Actions.openTraceFromBuffer(maybeTrace));
+          AppImpl.instance.openTraceFromBuffer(maybeTrace);
         },
       },
       {text: 'Cancel'},
@@ -229,39 +227,20 @@ function loadTraceFromUrl(url: string) {
     const fileName = url.split('/').pop() ?? 'local_trace.pftrace';
     const request = fetch(url)
       .then((response) => response.blob())
-      .then((blob) => {
-        globals.dispatch(
-          Actions.openTraceFromFile({
-            file: new File([blob], fileName),
-          }),
-        );
-      })
+      .then((b) => AppImpl.instance.openTraceFromFile(new File([b], fileName)))
       .catch((e) => alert(`Could not load local trace ${e}`));
     taskTracker.trackPromise(request, 'Downloading local trace');
   } else {
-    globals.dispatch(Actions.openTraceFromUrl({url}));
+    AppImpl.instance.openTraceFromUrl(url);
   }
 }
 
 function openTraceFromAndroidBugTool() {
-  // TODO(hjd): Unify updateStatus and TaskTracker
-  globals.dispatch(
-    Actions.updateStatus({
-      msg: 'Loading trace from ABT extension',
-      timestamp: Date.now() / 1000,
-    }),
-  );
+  const msg = 'Loading trace from ABT extension';
+  AppImpl.instance.omnibox.showStatusMessage(msg);
   const loadInfo = loadAndroidBugToolInfo();
-  taskTracker.trackPromise(loadInfo, 'Loading trace from ABT extension');
+  taskTracker.trackPromise(loadInfo, msg);
   loadInfo
-    .then((info) => {
-      globals.dispatch(
-        Actions.openTraceFromFile({
-          file: info.file,
-        }),
-      );
-    })
-    .catch((e) => {
-      console.error(e);
-    });
+    .then((info) => AppImpl.instance.openTraceFromFile(info.file))
+    .catch((e) => console.error(e));
 }

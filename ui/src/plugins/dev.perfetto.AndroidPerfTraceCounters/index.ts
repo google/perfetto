@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
-import {addDebugSliceTrack} from '../../public';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin} from '../../public/plugin';
+import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
+import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 
 const PERF_TRACE_COUNTERS_PRECONDITION = `
   SELECT
@@ -28,11 +26,12 @@ const PERF_TRACE_COUNTERS_PRECONDITION = `
     AND str_value GLOB '*ftrace_events: "perf_trace_counters/sched_switch_with_ctrs"*'
 `;
 
-class AndroidPerfTraceCounters implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidPerfTraceCounters';
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const resp = await ctx.engine.query(PERF_TRACE_COUNTERS_PRECONDITION);
     if (resp.numRows() === 0) return;
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.AndroidPerfTraceCounters#ThreadRuntimeIPC',
       name: 'Add a track to show a thread runtime ipc',
       callback: async (tid) => {
@@ -86,20 +85,26 @@ class AndroidPerfTraceCounters implements PerfettoPlugin {
             )
         `;
 
-        await addDebugSliceTrack(
-          ctx,
-          {
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
             sqlSource:
               sqlPrefix +
               `
               SELECT * FROM target_thread_ipc_slice WHERE ts IS NOT NULL`,
           },
-          'Rutime IPC:' + tid,
-          {ts: 'ts', dur: 'dur', name: 'ipc'},
-          ['instruction', 'cycle', 'stall_backend_mem', 'l3_cache_miss'],
-        );
-        ctx.tabs.openQuery(
-          sqlPrefix +
+          title: 'Rutime IPC:' + tid,
+          columns: {ts: 'ts', dur: 'dur', name: 'ipc'},
+          argColumns: [
+            'instruction',
+            'cycle',
+            'stall_backend_mem',
+            'l3_cache_miss',
+          ],
+        });
+        addQueryResultsTab(ctx, {
+          query:
+            sqlPrefix +
             `
             SELECT
               (sum(instruction) * 1.0 / sum(cycle)*1.0) AS avg_ipc,
@@ -109,14 +114,9 @@ class AndroidPerfTraceCounters implements PerfettoPlugin {
               sum(stall_backend_mem) as total_stall_backend_mem,
               sum(l3_cache_miss) as total_l3_cache_miss
             FROM target_thread_ipc_slice WHERE ts IS NOT NULL`,
-          'target thread ipc statistic',
-        );
+          title: 'target thread ipc statistic',
+        });
       },
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidPerfTraceCounters',
-  plugin: AndroidPerfTraceCounters,
-};

@@ -1,6 +1,7 @@
 android_startup {
   startup {
     startup_id: 0
+    cpu_count: 1
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
     zygote_new_process: true
@@ -127,10 +128,16 @@ android_startup {
       }
       launch_dur: 108000000000
       trace_slice_sections {
+        slice_section {
+          start_timestamp: 204000000000
+          end_timestamp: 205000000000
+          slice_id: 13
+          slice_name: "location=/system/framework/oat/arm/com.google.android.calendar.odex status=up-to-date filter=speed reason=install-dm"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 204000000000
         end_timestamp: 205000000000
-        slice_id: 13
-        slice_name: "location=/system/framework/oat/arm/com.google.android.calendar.odex status=up-to-date filter=speed reason=install-dm"
       }
     }
     slow_start_reason_with_details {
@@ -146,10 +153,16 @@ android_startup {
       }
       launch_dur: 108000000000
       trace_slice_sections {
+        slice_section {
+          start_timestamp: 200000000000
+          end_timestamp: 202000000000
+          slice_id: 12
+          slice_name: "location=error status=io-error-no-oat filter=run-from-apk reason=unknown"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 200000000000
         end_timestamp: 202000000000
-        slice_id: 12
-        slice_name: "location=error status=io-error-no-oat filter=run-from-apk reason=unknown"
       }
     }
     slow_start_reason_with_details {
@@ -166,10 +179,16 @@ android_startup {
       }
       launch_dur: 108000000000
       trace_slice_sections {
+        slice_section {
+          start_timestamp: 185000000000
+          end_timestamp: 187000000000
+          slice_id: 4
+          slice_name: "bindApplication"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 185000000000
         end_timestamp: 187000000000
-        slice_id: 4
-        slice_name: "bindApplication"
       }
     }
     slow_start_reason_with_details {
@@ -186,16 +205,24 @@ android_startup {
       }
       launch_dur: 108000000000
       trace_slice_sections {
+        slice_section {
+          start_timestamp: 188000000000
+          end_timestamp: 189000000000
+          slice_id: 6
+          slice_name: "inflate"
+          process_pid: 3
+          thread_tid: 3
+        }
+        slice_section {
+          start_timestamp: 191000000000
+          end_timestamp: 192000000000
+          slice_id: 8
+          slice_name: "inflate"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 188000000000
-        end_timestamp: 189000000000
-        slice_id: 6
-        slice_name: "inflate"
-      }
-      trace_slice_sections {
-        start_timestamp: 191000000000
         end_timestamp: 192000000000
-        slice_id: 8
-        slice_name: "inflate"
       }
     }
     slow_start_reason_with_details {
@@ -212,10 +239,16 @@ android_startup {
       }
       launch_dur: 108000000000
       trace_slice_sections {
+        slice_section {
+          start_timestamp: 188000000000
+          end_timestamp: 189000000000
+          slice_id: 7
+          slice_name: "ResourcesManager#getResources"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 188000000000
         end_timestamp: 189000000000
-        slice_id: 7
-        slice_name: "ResourcesManager#getResources"
       }
     }
     slow_start_reason_with_details {
@@ -232,10 +265,15 @@ android_startup {
       }
       launch_dur: 108000000000
       trace_thread_sections {
+        thread_section {
+          start_timestamp: 205000000000
+          end_timestamp: 210000000000
+          thread_name: "com.google.android.calendar"
+          process_pid: 3
+          thread_tid: 3
+        }
         start_timestamp: 205000000000
         end_timestamp: 210000000000
-        thread_utid: 3
-        thread_name: "com.google.android.calendar"
       }
     }
     startup_type: "cold"

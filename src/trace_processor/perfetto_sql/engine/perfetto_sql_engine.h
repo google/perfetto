@@ -33,12 +33,12 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
-#include "src/trace_processor/perfetto_sql/engine/function_util.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/perfetto_sql/parser/function_util.h"
+#include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
@@ -194,16 +194,16 @@ class PerfettoSqlEngine {
 
   SqliteEngine* sqlite_engine() { return engine_.get(); }
 
-  // Makes new SQL module available to import.
-  void RegisterModule(const std::string& name,
-                      sql_modules::RegisteredModule module) {
-    modules_.Erase(name);
-    modules_.Insert(name, std::move(module));
+  // Makes new SQL package available to include.
+  void RegisterPackage(const std::string& name,
+                       sql_modules::RegisteredPackage package) {
+    packages_.Erase(name);
+    packages_.Insert(name, std::move(package));
   }
 
-  // Fetches registered SQL module.
-  sql_modules::RegisteredModule* FindModule(const std::string& name) {
-    return modules_.Find(name);
+  // Fetches registered SQL package.
+  sql_modules::RegisteredPackage* FindPackage(const std::string& name) {
+    return packages_.Find(name);
   }
 
   // Returns the number of objects (tables, views, functions etc) registered
@@ -317,18 +317,17 @@ class PerfettoSqlEngine {
       const std::vector<sql_argument::ArgumentDefinition>& schema,
       const char* tag) const;
 
-  // Given a module and a key, include the correct file(s) from the module.
+  // Given a package and a key, include the correct file(s) from the package.
   // The key can contain a wildcard to include all files in the module with the
   // matching prefix.
-  base::Status IncludeModuleImpl(sql_modules::RegisteredModule& module,
-                                 const std::string& key,
-                                 const PerfettoSqlParser& parser);
+  base::Status IncludePackageImpl(sql_modules::RegisteredPackage&,
+                                  const std::string& key,
+                                  const PerfettoSqlParser&);
 
-  // Import a given file.
-  base::Status IncludeFileImpl(
-      sql_modules::RegisteredModule::ModuleFile& module,
-      const std::string& key,
-      const PerfettoSqlParser& parser);
+  // Include a given module.
+  base::Status IncludeModuleImpl(sql_modules::RegisteredPackage::ModuleFile&,
+                                 const std::string& key,
+                                 const PerfettoSqlParser&);
 
   StringPool* pool_ = nullptr;
   // If true, engine will perform additional consistency checks when e.g.
@@ -344,7 +343,7 @@ class PerfettoSqlEngine {
   DbSqliteModule::Context* runtime_table_context_ = nullptr;
   DbSqliteModule::Context* static_table_context_ = nullptr;
   DbSqliteModule::Context* static_table_fn_context_ = nullptr;
-  base::FlatHashMap<std::string, sql_modules::RegisteredModule> modules_;
+  base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
   base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
   std::unique_ptr<SqliteEngine> engine_;
 };

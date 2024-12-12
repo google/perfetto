@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
 DROP VIEW IF EXISTS _wattson_period_windows;
 CREATE PERFETTO VIEW _wattson_period_windows AS
@@ -33,7 +33,8 @@ SELECT RUN_METRIC(
 DROP VIEW IF EXISTS wattson_markers_rails_output;
 CREATE PERFETTO VIEW wattson_markers_rails_output AS
 SELECT AndroidWattsonTimePeriodMetric(
-  'metric_version', 3,
+  'metric_version', 4,
+  'power_model_version', 1,
   'period_info', (
     SELECT RepeatedField(
       AndroidWattsonEstimateInfo(

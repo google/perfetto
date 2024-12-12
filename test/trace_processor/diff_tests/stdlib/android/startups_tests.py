@@ -168,3 +168,35 @@ class Startups(TestSuite):
         "startup_id","time_to_initial_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
         0,143980066,620815843,5873276,5873353,229
         """))
+
+  def test_android_startup_breakdown(self):
+    return DiffTestBlueprint(
+        trace=DataPath('api31_startup_cold.perfetto-trace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.startup.startup_breakdowns;
+        SELECT
+          SUM(dur) AS dur,
+          reason
+          FROM android_startup_opinionated_breakdown
+          GROUP BY reason ORDER BY dur DESC;
+        """,
+        out=Csv("""
+        "dur","reason"
+        28663023,"choreographer_do_frame"
+        22564487,"binder"
+        22011252,"launch_delay"
+        16351925,"Running"
+        13212137,"activity_start"
+        10264635,"io"
+        6779947,"inflate"
+        6240207,"bind_application"
+        5214375,"R+"
+        3072397,"resources_manager_get_resources"
+        2722869,"D"
+        2574273,"open_dex_files_from_oat"
+        2392761,"S"
+        2353124,"activity_resume"
+        1325727,"R"
+        43698,"art_lock_contention"
+        5573,"verify_class"
+        """))

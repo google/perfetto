@@ -1,6 +1,7 @@
 android_startup {
   startup {
     startup_id: 1
+    cpu_count: 0
     package_name: "com.google.android.calendar"
     zygote_new_process: false
     to_first_frame {
@@ -45,22 +46,29 @@ android_startup {
       }
       launch_dur: 100
       trace_slice_sections {
+        slice_section {
+          start_timestamp: 105
+          end_timestamp: 106
+          slice_id: 6
+          slice_name: "Broadcast dispatched from android (2005:system/1000) x"
+          thread_tid: 1
+        }
+        slice_section {
+          start_timestamp: 106
+          end_timestamp: 107
+          slice_id: 8
+          slice_name: "Broadcast dispatched from android (2005:system/1000) x"
+          thread_tid: 1
+        }
+        slice_section {
+          start_timestamp: 107
+          end_timestamp: 108
+          slice_id: 10
+          slice_name: "Broadcast dispatched from android (2005:system/1000) x"
+          thread_tid: 1
+        }
         start_timestamp: 105
-        end_timestamp: 106
-        slice_id: 6
-        slice_name: "Broadcast dispatched from android (2005:system/1000) x"
-      }
-      trace_slice_sections {
-        start_timestamp: 106
-        end_timestamp: 107
-        slice_id: 8
-        slice_name: "Broadcast dispatched from android (2005:system/1000) x"
-      }
-      trace_slice_sections {
-        start_timestamp: 107
         end_timestamp: 108
-        slice_id: 10
-        slice_name: "Broadcast dispatched from android (2005:system/1000) x"
       }
     }
     slow_start_reason_with_details {
@@ -77,22 +85,29 @@ android_startup {
       }
       launch_dur: 100
       trace_slice_sections {
+        slice_section {
+          start_timestamp: 100
+          end_timestamp: 101
+          slice_id: 1
+          slice_name: "broadcastReceiveReg: x"
+          thread_tid: 2
+        }
+        slice_section {
+          start_timestamp: 101
+          end_timestamp: 102
+          slice_id: 2
+          slice_name: "broadcastReceiveReg: x"
+          thread_tid: 2
+        }
+        slice_section {
+          start_timestamp: 102
+          end_timestamp: 103
+          slice_id: 3
+          slice_name: "broadcastReceiveReg: x"
+          thread_tid: 2
+        }
         start_timestamp: 100
-        end_timestamp: 101
-        slice_id: 1
-        slice_name: "broadcastReceiveReg: x"
-      }
-      trace_slice_sections {
-        start_timestamp: 101
-        end_timestamp: 102
-        slice_id: 2
-        slice_name: "broadcastReceiveReg: x"
-      }
-      trace_slice_sections {
-        start_timestamp: 102
         end_timestamp: 103
-        slice_id: 3
-        slice_name: "broadcastReceiveReg: x"
       }
     }
   }

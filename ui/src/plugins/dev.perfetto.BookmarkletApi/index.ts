@@ -12,41 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  PerfettoPlugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Trace} from '../../public/trace';
+import {App} from '../../public/app';
+import {PerfettoPlugin} from '../../public/plugin';
 
 declare global {
   interface Window {
-    ctx: PluginContext | PluginContextTrace | undefined;
+    ctx: App | Trace | undefined;
   }
 }
 
-class BookmarkletApi implements PerfettoPlugin {
-  private pluginCtx?: PluginContext;
+export default class Plugin implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.BookmarkletApi';
+  static bookmarkletPluginCtx: App;
 
-  onActivate(pluginCtx: PluginContext): void {
-    this.pluginCtx = pluginCtx;
+  static onActivate(pluginCtx: App): void {
+    this.bookmarkletPluginCtx = pluginCtx;
     window.ctx = pluginCtx;
   }
 
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    window.ctx = ctx;
-  }
-
-  async onTraceUnload(_: PluginContextTrace): Promise<void> {
-    window.ctx = this.pluginCtx;
-  }
-
-  onDeactivate(_: PluginContext): void {
-    window.ctx = undefined;
+  async onTraceLoad(trace: Trace): Promise<void> {
+    window.ctx = trace;
+    trace.trash.defer(() => {
+      window.ctx = Plugin.bookmarkletPluginCtx;
+    });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.BookmarkletApi',
-  plugin: BookmarkletApi,
-};

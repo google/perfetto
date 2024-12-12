@@ -17,13 +17,13 @@
 -- Events when CPU entered hypervisor.
 CREATE PERFETTO VIEW pkvm_hypervisor_events(
   -- Id of the corresponding slice in slices table.
-  slice_id INT,
+  slice_id LONG,
   -- CPU that entered hypervisor.
-  cpu INT,
-  -- Timestamp when CPU entered hypervisor (in nanoseconds).
-  ts INT,
-  -- How much time CPU spent in hypervisor (in nanoseconds).
-  dur INT,
+  cpu LONG,
+  -- Timestamp when CPU entered hypervisor.
+  ts TIMESTAMP,
+  -- How much time CPU spent in hypervisor.
+  dur DURATION,
   -- Reason for entering hypervisor (e.g. host_hcall, host_mem_abort), or NULL if unknown.
   reason STRING
 ) AS

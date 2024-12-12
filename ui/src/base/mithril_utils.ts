@@ -52,3 +52,36 @@ export const Gate = {
     );
   },
 };
+
+/**
+ * Utility function to pre-bind some mithril attrs of a component, and leave
+ * the others unbound and passed at run-time.
+ * Example use case: the Page API Passes to the registered page a PageAttrs,
+ * which is {subpage:string}. Imagine you write a MyPage component that takes
+ * some extra input attrs (e.g. the App object) and you want to bind them
+ * onActivate(). The results looks like this:
+ *
+ * interface MyPageAttrs extends PageAttrs { app: App; }
+ *
+ * class MyPage extends m.classComponent<MyPageAttrs> {... view() {...} }
+ *
+ * onActivate(app: App) {
+ *   pages.register(... bindMithrilApps(MyPage, {app: app});
+ * }
+ *
+ * The return value of bindMithrilApps is a mithril component that takes in
+ * input only a {subpage: string} and passes down to MyPage the combination
+ * of pre-bound and runtime attrs, that is {subpage, app}.
+ */
+export function bindMithrilAttrs<BaseAttrs, Attrs>(
+  component: m.ComponentTypes<Attrs>,
+  boundArgs: Omit<Attrs, keyof BaseAttrs>,
+): m.Component<BaseAttrs> {
+  return {
+    view(vnode: m.Vnode<BaseAttrs>) {
+      const attrs = {...vnode.attrs, ...boundArgs} as Attrs;
+      const emptyAttrs: m.CommonAttributes<Attrs, {}> = {}; // Keep tsc happy.
+      return m<Attrs, {}>(component, {...attrs, ...emptyAttrs});
+    },
+  };
+}

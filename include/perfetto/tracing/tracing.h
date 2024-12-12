@@ -344,6 +344,30 @@ class PERFETTO_EXPORT_COMPONENT TracingSession {
   // started.
   virtual void StartBlocking() = 0;
 
+  // Struct passed as argument to the callback passed to CloneTrace().
+  struct CloneTraceCallbackArgs {
+    bool success;
+    std::string error;
+    // UUID of the cloned session.
+    int64_t uuid_msb;
+    int64_t uuid_lsb;
+  };
+
+  // Struct passed as argument to CloneTrace().
+  struct CloneTraceArgs {
+    // The unique_session_name of the session that should be cloned.
+    std::string unique_session_name;
+  };
+
+  // Clones an existing initialized tracing session from the same `BackendType`
+  // as this tracing session, and attaches to it. The session is cloned in
+  // read-only mode and can only be used to read a snapshot of an existing
+  // tracing session. For each session, only one CloneTrace call can be pending
+  // at the same time; subsequent calls after the callback is executed are
+  // supported.
+  using CloneTraceCallback = std::function<void(CloneTraceCallbackArgs)>;
+  virtual void CloneTrace(CloneTraceArgs args, CloneTraceCallback);
+
   // This callback will be invoked when all data sources have acknowledged that
   // tracing has started. This callback will be invoked on an internal perfetto
   // thread.

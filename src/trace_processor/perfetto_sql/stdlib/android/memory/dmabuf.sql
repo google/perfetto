@@ -13,30 +13,35 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.binder;
-INCLUDE PERFETTO MODULE slices.with_context;
-
 -- Raw ftrace events
 CREATE PERFETTO TABLE _raw_dmabuf_events AS
 SELECT
   (SELECT int_value FROM args WHERE arg_set_id = c.arg_set_id AND key = 'inode') AS inode,
   tt.utid,
   c.ts,
-  CAST(c.value AS INT) AS buf_size
+  cast_int!(c.value) AS buf_size
 FROM thread_counter_track tt
   JOIN counter c ON c.track_id = tt.id
 WHERE tt.name = 'mem.dma_heap_change';
 
 -- gralloc binder reply slices
 CREATE PERFETTO TABLE _gralloc_binders AS
+WITH gralloc_threads AS (
+  SELECT utid
+  FROM process JOIN thread USING (upid)
+  WHERE process.name GLOB '/vendor/bin/hw/android.hardware.graphics.allocator*'
+)
 SELECT
-  id AS gralloc_binder_reply_id,
-  utid,
-  ts,
-  dur
-FROM thread_slice
-WHERE process_name GLOB '/vendor/bin/hw/android.hardware.graphics.allocator*'
-AND name = 'binder reply';
+  flow.slice_out AS client_slice_id,
+  gralloc_slice.ts,
+  gralloc_slice.dur,
+  thread_track.utid
+FROM slice gralloc_slice
+JOIN thread_track ON gralloc_slice.track_id = thread_track.id
+JOIN gralloc_threads USING (utid)
+JOIN flow ON gralloc_slice.id = flow.slice_in
+WHERE gralloc_slice.name = 'binder reply'
+;
 
 -- Match gralloc thread allocations to inbound binders
 CREATE PERFETTO TABLE _attributed_dmabufs AS
@@ -44,14 +49,14 @@ SELECT
   r.inode,
   r.ts,
   r.buf_size,
-  IFNULL(b.client_utid, r.utid) AS attr_utid
+  IFNULL(client_thread.utid, r.utid) AS attr_utid
 FROM _raw_dmabuf_events r
 LEFT JOIN _gralloc_binders gb ON r.utid = gb.utid AND r.ts BETWEEN gb.ts AND gb.ts + gb.dur
-LEFT JOIN android_binder_txns b ON gb.gralloc_binder_reply_id = b.binder_reply_id
+LEFT JOIN thread_track client_thread ON gb.client_slice_id = client_thread.id
 ORDER BY r.inode, r.ts;
 
-CREATE PERFETTO FUNCTION _alloc_source(is_alloc BOOL, inode INT, ts INT)
-RETURNS INT AS
+CREATE PERFETTO FUNCTION _alloc_source(is_alloc BOOL, inode LONG, ts TIMESTAMP)
+RETURNS LONG AS
 SELECT attr_utid
 FROM _attributed_dmabufs
 WHERE
@@ -67,23 +72,23 @@ LIMIT 1;
 -- (if binder transactions to gralloc are recorded).
 CREATE PERFETTO TABLE android_dmabuf_allocs (
   -- timestamp of the allocation
-  ts INT,
+  ts TIMESTAMP,
   -- allocation size (will be negative for release)
-  buf_size INT,
+  buf_size LONG,
   -- dmabuf inode
-  inode INT,
+  inode LONG,
   -- utid of thread responsible for the allocation
   -- if a dmabuf is allocated by gralloc we follow the binder transaction
   -- to the requesting thread (requires binder tracing)
-  utid INT,
+  utid LONG,
   -- tid of thread responsible for the allocation
-  tid INT,
+  tid LONG,
   -- thread name
   thread_name STRING,
   -- upid of process responsible for the allocation (matches utid)
-  upid INT,
+  upid LONG,
   -- pid of process responsible for the allocation
-  pid INT,
+  pid LONG,
   -- process name
   process_name STRING
 ) AS
