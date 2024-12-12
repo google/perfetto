@@ -17,7 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_FRAME_EVENT_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_FRAME_EVENT_PARSER_H_
 
+#include <array>
+#include <cstdint>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 #include "perfetto/ext/base/string_writer.h"
@@ -54,7 +57,6 @@ class GraphicsFrameEventParser {
                             bool reset_name = false);
 
   TraceProcessorContext* const context_;
-  const StringId graphics_event_scope_id_;
   const StringId unknown_event_name_id_;
   const StringId no_layer_name_name_id_;
   const StringId layer_name_key_id_;
