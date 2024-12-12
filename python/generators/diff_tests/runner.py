@@ -22,7 +22,6 @@ import sys
 import tempfile
 from binascii import unhexlify
 from dataclasses import dataclass
-from itertools import chain, product
 from typing import List, Tuple, Optional
 
 from google.protobuf import text_format, message_factory, descriptor_pool
@@ -212,8 +211,6 @@ class TestCaseRunner:
         tmp_perf_file.name,
         trace_path,
     ]
-    if self.test.register_files_dir:
-      cmd += ['--register-files-dir', self.test.register_files_dir]
     for sql_module_path in self.override_sql_module_paths:
       cmd += ['--override-sql-module', sql_module_path]
     tp = subprocess.Popen(
@@ -277,8 +274,6 @@ class TestCaseRunner:
         tmp_perf_file.name,
         trace_path,
     ]
-    if self.test.register_files_dir:
-      cmd += ['--register-files-dir', self.test.register_files_dir]
     for sql_module_path in self.override_sql_module_paths:
       cmd += ['--override-sql-module', sql_module_path]
     tp = subprocess.Popen(

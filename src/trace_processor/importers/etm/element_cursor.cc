@@ -23,8 +23,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/etm/etm_v4_decoder.h"
-#include "src/trace_processor/importers/etm/mapping_version.h"
-#include "src/trace_processor/importers/etm/sql_values.h"
 #include "src/trace_processor/importers/etm/storage_handle.h"
 #include "src/trace_processor/importers/etm/target_memory.h"
 #include "src/trace_processor/importers/etm/target_memory_reader.h"
@@ -131,26 +129,6 @@ ocsd_datapath_resp_t ElementCursor::TraceElemIn(const ocsd_trc_index_t,
   element_ = &elem;
   mapping_ = mapping;
   return OCSD_RESP_WAIT;
-}
-
-std::unique_ptr<InstructionRangeSqlValue> ElementCursor::GetInstructionRange()
-    const {
-  auto r = std::make_unique<InstructionRangeSqlValue>();
-  AddressRange range(element_->st_addr, element_->en_addr);
-  r->config_id = *config_id_;
-  r->isa = element_->isa;
-  r->st_addr = range.start();
-  // How did we get a range if there is no mapping.
-  PERFETTO_CHECK(mapping_);
-
-  if (!mapping_->Contains(range) || !mapping_->data()) {
-    r->start = nullptr;
-    r->end = nullptr;
-  } else {
-    r->start = mapping_->data() + (range.start() - mapping_->start());
-    r->end = r->start + range.size();
-  }
-  return r;
 }
 
 }  // namespace perfetto::trace_processor::etm

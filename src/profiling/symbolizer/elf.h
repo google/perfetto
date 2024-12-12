@@ -155,21 +155,15 @@ struct Elf64 {
 };
 
 template <typename E>
-const typename E::Shdr* GetShdr(const void* mem,
-                                const typename E::Ehdr* ehdr,
-                                size_t i) {
-  return reinterpret_cast<const typename E::Shdr*>(
-      static_cast<const char*>(mem) + ehdr->e_shoff +
-      i * sizeof(typename E::Shdr));
+typename E::Shdr* GetShdr(void* mem, const typename E::Ehdr* ehdr, size_t i) {
+  return reinterpret_cast<typename E::Shdr*>(
+      static_cast<char*>(mem) + ehdr->e_shoff + i * sizeof(typename E::Shdr));
 }
 
 template <typename E>
-const typename E::Phdr* GetPhdr(const void* mem,
-                                const typename E::Ehdr* ehdr,
-                                size_t i) {
-  return reinterpret_cast<const typename E::Phdr*>(
-      static_cast<const char*>(mem) + ehdr->e_phoff +
-      i * sizeof(typename E::Phdr));
+typename E::Phdr* GetPhdr(void* mem, const typename E::Ehdr* ehdr, size_t i) {
+  return reinterpret_cast<typename E::Phdr*>(
+      static_cast<char*>(mem) + ehdr->e_phoff + i * sizeof(typename E::Phdr));
 }
 
 }  // namespace profiling

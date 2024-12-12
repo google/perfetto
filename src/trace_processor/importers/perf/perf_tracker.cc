@@ -29,11 +29,6 @@
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/spe_tokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/perf_tables_py.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-#include "src/trace_processor/importers/etm/elf_tracker.h"
-#endif
 
 namespace perfetto::trace_processor::perf_importer {
 namespace {
@@ -168,37 +163,22 @@ void PerfTracker::CreateKernelMemoryMapping(int64_t trace_ts,
       params.memory_range.size() == std::numeric_limits<uint64_t>::max()) {
     return;
   }
-  AddMapping(
-      trace_ts, std::nullopt,
-      context_->mapping_tracker->CreateKernelMemoryMapping(std::move(params)));
+  const KernelMemoryMapping* mapping =
+      &context_->mapping_tracker->CreateKernelMemoryMapping(std::move(params));
+
+  context_->storage->mutable_mmap_record_table()->Insert(
+      {trace_ts, std::nullopt, mapping->mapping_id()});
 }
 
 void PerfTracker::CreateUserMemoryMapping(int64_t trace_ts,
                                           UniquePid upid,
                                           CreateMappingParams params) {
-  AddMapping(trace_ts, upid,
-             context_->mapping_tracker->CreateUserMemoryMapping(
-                 upid, std::move(params)));
-}
+  const UserMemoryMapping* mapping =
+      &context_->mapping_tracker->CreateUserMemoryMapping(upid,
+                                                          std::move(params));
 
-void PerfTracker::AddMapping(int64_t trace_ts,
-                             std::optional<UniquePid> upid,
-                             const VirtualMemoryMapping& mapping) {
-  tables::MmapRecordTable::Row row;
-  row.ts = trace_ts;
-  row.upid = upid;
-  row.mapping_id = mapping.mapping_id();
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  if (mapping.build_id()) {
-    if (auto id = etm::ElfTracker::GetOrCreate(context_)->FindBuildId(
-            *mapping.build_id());
-        id) {
-      row.file_id =
-          context_->storage->elf_file_table().FindById(*id)->file_id();
-    }
-  }
-#endif
-  context_->storage->mutable_mmap_record_table()->Insert(row);
+  context_->storage->mutable_mmap_record_table()->Insert(
+      {trace_ts, upid, mapping->mapping_id()});
 }
 
 void PerfTracker::NotifyEndOfFile() {
