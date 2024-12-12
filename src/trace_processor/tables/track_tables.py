@@ -82,18 +82,8 @@ THREAD_TRACK_TABLE = Table(
                 )
         }))
 
-CPU_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='CpuTrackTable',
-    sql_name='__intrinsic_cpu_track',
-    columns=[
-        C('cpu', CppUint32()),
-    ],
-    parent=TRACK_TABLE)
-
 # Keep this list sorted.
 ALL_TABLES = [
-    CPU_TRACK_TABLE,
     PROCESS_TRACK_TABLE,
     THREAD_TRACK_TABLE,
     TRACK_TABLE,
