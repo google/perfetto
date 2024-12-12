@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/proto/track_event_parser.h"
 
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -380,6 +381,12 @@ class TrackEventParser::EventImporter {
         track_event_tracker_->ReserveDescriptorTrack(track_uuid_, r);
         opt_track_id = track_event_tracker_->GetDescriptorTrack(
             track_uuid_, name_id_, packet_sequence_id_);
+
+        if (!opt_track_id) {
+          return base::ErrStatus(
+              "track_event_parser: unable to find track matching UUID %" PRIu64,
+              track_uuid_);
+        }
       }
       track_id_ = *opt_track_id;
 
@@ -1539,8 +1546,12 @@ void TrackEventParser::ParseTrackDescriptor(
 
   // Ensure that the track and its parents are resolved. This may start a new
   // process and/or thread (i.e. new upid/utid).
-  TrackId track_id = *track_event_tracker_->GetDescriptorTrack(
+  std::optional<TrackId> track_id = track_event_tracker_->GetDescriptorTrack(
       decoder.uuid(), kNullStringId, packet_sequence_id);
+  if (!track_id) {
+    context_->storage->IncrementStats(stats::track_event_parser_errors);
+    return;
+  }
 
   if (decoder.has_thread()) {
     UniqueTid utid = ParseThreadDescriptor(decoder.thread());
@@ -1567,7 +1578,7 @@ void TrackEventParser::ParseTrackDescriptor(
     const StringId raw_name_id = context_->storage->InternString(name);
     const StringId name_id =
         context_->process_track_translation_table->TranslateName(raw_name_id);
-    tracks->FindById(track_id)->set_name(name_id);
+    tracks->FindById(*track_id)->set_name(name_id);
   }
 }
 
