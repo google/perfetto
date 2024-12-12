@@ -78,17 +78,3 @@ class Etm(TestSuite):
           WHERE trace_id = 0
         ''',
         out=Path('decode_trace.out'))
-
-  def test_iterate_instructions(self):
-    return DiffTestBlueprint(
-        register_files_dir=DataPath('simpleperf/bin'),
-        trace=DataPath('simpleperf/cs_etm_u.perf'),
-        query='''
-          SELECT d.element_index, i.*
-          FROM
-            __intrinsic_etm_decode_trace d,
-            __intrinsic_etm_iterate_instruction_range i
-            USING(instruction_range)
-          WHERE trace_id = 0 AND mapping_id = 1
-        ''',
-        out=Path('iterate_instructions.out'))

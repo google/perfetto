@@ -49,6 +49,8 @@ class MappingVersion {
     return content_.data();
   }
 
+  const uint8_t* FindData(AddressRange range) const;
+
   MappingVersion SplitFront(uint64_t mid);
 
  private:
