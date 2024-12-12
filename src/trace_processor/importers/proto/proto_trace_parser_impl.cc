@@ -161,7 +161,7 @@ void ProtoTraceParserImpl::ParseInlineSchedWaking(uint32_t cpu,
 
 void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   TraceStorage* storage = context_->storage.get();
-  protos::pbzero::ChromeEventBundle::Decoder bundle(blob.data, blob.size);
+  protos::pbzero::ChromeEventBundle::Decoder bundle(blob);
   ArgsTracker args(context_);
   if (bundle.has_metadata()) {
     auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);

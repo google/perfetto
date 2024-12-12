@@ -55,13 +55,13 @@ util::Status EtwParser::ParseEtwEvent(uint32_t cpu,
 }
 
 void EtwParser::ParseCswitch(int64_t timestamp, uint32_t cpu, ConstBytes blob) {
-  protos::pbzero::CSwitchEtwEvent::Decoder cs(blob.data, blob.size);
+  protos::pbzero::CSwitchEtwEvent::Decoder cs(blob);
   PushSchedSwitch(cpu, timestamp, cs.old_thread_id(), cs.old_thread_state(),
                   cs.new_thread_id(), cs.new_thread_priority());
 }
 
 void EtwParser::ParseReadyThread(int64_t timestamp, ConstBytes blob) {
-  protos::pbzero::ReadyThreadEtwEvent::Decoder rt(blob.data, blob.size);
+  protos::pbzero::ReadyThreadEtwEvent::Decoder rt(blob);
   UniqueTid utid =
       context_->process_tracker->GetOrCreateThread(rt.t_thread_id());
   ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(timestamp, utid,

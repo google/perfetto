@@ -32,8 +32,7 @@ SurfaceFlingerLayersParser::SurfaceFlingerLayersParser(
 
 void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
                                        protozero::ConstBytes blob) {
-  protos::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(blob.data,
-                                                                blob.size);
+  protos::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(blob);
   tables::SurfaceFlingerLayersSnapshotTable::Row snapshot;
   snapshot.ts = timestamp;
   snapshot.base64_proto =
@@ -58,7 +57,7 @@ void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
   }
 
   protos::pbzero::LayersProto::Decoder layers_decoder(
-      snapshot_decoder.layers().data, snapshot_decoder.layers().size);
+      snapshot_decoder.layers());
   for (auto it = layers_decoder.layers(); it; ++it) {
     ParseLayer(timestamp, *it, snapshot_id);
   }

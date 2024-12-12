@@ -135,7 +135,7 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
       vk_queue_submit_id_(context->storage->InternString("vkQueueSubmit")) {}
 
 void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::GpuCounterEvent::Decoder event(blob.data, blob.size);
+  protos::pbzero::GpuCounterEvent::Decoder event(blob);
 
   protos::pbzero::GpuCounterDescriptor::Decoder descriptor(
       event.counter_descriptor());
@@ -342,12 +342,12 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     int64_t ts,
     PacketSequenceStateGeneration* sequence_state,
     ConstBytes blob) {
-  protos::pbzero::GpuRenderStageEvent::Decoder event(blob.data, blob.size);
+  protos::pbzero::GpuRenderStageEvent::Decoder event(blob);
 
   int32_t pid = 0;
   if (event.has_specifications()) {
     protos::pbzero::GpuRenderStageEvent_Specifications::Decoder spec(
-        event.specifications().data, event.specifications().size);
+        event.specifications());
     for (auto it = spec.hw_queue(); it; ++it) {
       protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
           hw_queue(*it);
@@ -633,7 +633,7 @@ void GpuEventParser::ParseVulkanMemoryEvent(
     PacketSequenceStateGeneration* sequence_state,
     ConstBytes blob) {
   using protos::pbzero::InternedData;
-  VulkanMemoryEvent::Decoder vulkan_memory_event(blob.data, blob.size);
+  VulkanMemoryEvent::Decoder vulkan_memory_event(blob);
   tables::VulkanMemoryAllocationsTable::Row vulkan_memory_event_row;
   vulkan_memory_event_row.source = vulkan_memory_tracker_.FindSourceString(
       static_cast<VulkanMemoryEvent::Source>(vulkan_memory_event.source()));
@@ -719,7 +719,7 @@ void GpuEventParser::ParseVulkanMemoryEvent(
 }
 
 void GpuEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
-  protos::pbzero::GpuLog::Decoder event(blob.data, blob.size);
+  protos::pbzero::GpuLog::Decoder event(blob);
 
   tables::GpuTrackTable::Row track(gpu_log_track_name_id_);
   track.scope = gpu_log_scope_id_;
@@ -754,7 +754,7 @@ void GpuEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
 }
 
 void GpuEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::VulkanApiEvent::Decoder vk_event(blob.data, blob.size);
+  protos::pbzero::VulkanApiEvent::Decoder vk_event(blob);
   if (vk_event.has_vk_debug_utils_object_name()) {
     protos::pbzero::VulkanApiEvent_VkDebugUtilsObjectName::Decoder event(
         vk_event.vk_debug_utils_object_name());
