@@ -196,7 +196,7 @@ FrameTimelineEventParser::FrameTimelineEventParser(
 void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(
     int64_t timestamp,
     ConstBytes bufferBlob) {
-  ExpectedDisplayFrameStartDecoder event(bufferBlob.data, bufferBlob.size);
+  ExpectedDisplayFrameStartDecoder event(bufferBlob);
   if (!event.has_cookie()) {
     context_->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
@@ -246,7 +246,7 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(
 void FrameTimelineEventParser::ParseActualDisplayFrameStart(
     int64_t timestamp,
     ConstBytes bufferBlob) {
-  ActualDisplayFrameStartDecoder event(bufferBlob.data, bufferBlob.size);
+  ActualDisplayFrameStartDecoder event(bufferBlob);
   if (!event.has_cookie()) {
     context_->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
@@ -368,7 +368,7 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
 void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(
     int64_t timestamp,
     ConstBytes bufferBlob) {
-  ExpectedSurfaceFrameStartDecoder event(bufferBlob.data, bufferBlob.size);
+  ExpectedSurfaceFrameStartDecoder event(bufferBlob);
 
   if (!event.has_cookie()) {
     context_->storage->IncrementStats(
@@ -447,7 +447,7 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(
 void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
     int64_t timestamp,
     ConstBytes bufferBlob) {
-  ActualSurfaceFrameStartDecoder event(bufferBlob.data, bufferBlob.size);
+  ActualSurfaceFrameStartDecoder event(bufferBlob);
 
   if (!event.has_cookie()) {
     context_->storage->IncrementStats(
@@ -590,7 +590,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
 
 void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
                                              ConstBytes bufferBlob) {
-  FrameEndDecoder event(bufferBlob.data, bufferBlob.size);
+  FrameEndDecoder event(bufferBlob);
 
   if (!event.has_cookie()) {
     context_->storage->IncrementStats(
@@ -612,7 +612,7 @@ void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
 
 void FrameTimelineEventParser::ParseFrameTimelineEvent(int64_t timestamp,
                                                        ConstBytes blob) {
-  protos::pbzero::FrameTimelineEvent_Decoder frame_event(blob.data, blob.size);
+  protos::pbzero::FrameTimelineEvent_Decoder frame_event(blob);
 
   // Due to platform bugs, negative timestamps can creep into into traces.
   // Ensure that it doesn't make it into the tables.

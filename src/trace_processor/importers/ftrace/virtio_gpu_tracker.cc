@@ -237,8 +237,7 @@ void VirtioGpuTracker::VirtioGpuQueue::HandleCmdResponse(int64_t timestamp,
 void VirtioGpuTracker::ParseVirtioGpuCmdQueue(int64_t timestamp,
                                               uint32_t /*pid*/,
                                               protozero::ConstBytes blob) {
-  protos::pbzero::VirtioGpuCmdQueueFtraceEvent::Decoder evt(blob.data,
-                                                            blob.size);
+  protos::pbzero::VirtioGpuCmdQueueFtraceEvent::Decoder evt(blob);
 
   auto name = base::StringView(evt.name());
   if (name == "control") {
@@ -255,8 +254,7 @@ void VirtioGpuTracker::ParseVirtioGpuCmdQueue(int64_t timestamp,
 void VirtioGpuTracker::ParseVirtioGpuCmdResponse(int64_t timestamp,
                                                  uint32_t /*pid*/,
                                                  protozero::ConstBytes blob) {
-  protos::pbzero::VirtioGpuCmdResponseFtraceEvent::Decoder evt(blob.data,
-                                                               blob.size);
+  protos::pbzero::VirtioGpuCmdResponseFtraceEvent::Decoder evt(blob);
   auto name = base::StringView(evt.name());
   if (name == "control") {
     virtgpu_control_queue_.HandleNumFree(timestamp, evt.num_free());

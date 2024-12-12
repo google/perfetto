@@ -98,7 +98,7 @@ void PkvmHypervisorCpuTracker::ParseHypExit(uint32_t cpu, int64_t timestamp) {
 
 void PkvmHypervisorCpuTracker::ParseHostHcall(uint32_t cpu,
                                               protozero::ConstBytes blob) {
-  protos::pbzero::HostHcallFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::HostHcallFtraceEvent::Decoder evt(blob);
   TrackId track_id = context_->track_tracker->InternCpuTrack(
       tracks::pkvm_hypervisor, cpu, GetTrackName(cpu));
 
@@ -116,7 +116,7 @@ void PkvmHypervisorCpuTracker::ParseHostHcall(uint32_t cpu,
 
 void PkvmHypervisorCpuTracker::ParseHostSmc(uint32_t cpu,
                                             protozero::ConstBytes blob) {
-  protos::pbzero::HostSmcFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::HostSmcFtraceEvent::Decoder evt(blob);
   TrackId track_id = context_->track_tracker->InternCpuTrack(
       tracks::pkvm_hypervisor, cpu, GetTrackName(cpu));
 
@@ -134,7 +134,7 @@ void PkvmHypervisorCpuTracker::ParseHostSmc(uint32_t cpu,
 
 void PkvmHypervisorCpuTracker::ParseHostMemAbort(uint32_t cpu,
                                                  protozero::ConstBytes blob) {
-  protos::pbzero::HostMemAbortFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::HostMemAbortFtraceEvent::Decoder evt(blob);
   TrackId track_id = context_->track_tracker->InternCpuTrack(
       tracks::pkvm_hypervisor, cpu, GetTrackName(cpu));
 
