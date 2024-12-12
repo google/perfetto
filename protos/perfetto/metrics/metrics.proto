@@ -21,6 +21,7 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/ad_services_metric.proto";
 import "protos/perfetto/metrics/android/android_boot.proto";
 import "protos/perfetto/metrics/android/android_boot_unagg.proto";
+import "protos/perfetto/metrics/android/android_garbage_collection_stats.proto";
 import "protos/perfetto/metrics/android/android_garbage_collection_unagg_metric.proto";
 import "protos/perfetto/metrics/android/auto_metric.proto";
 import "protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto";
@@ -128,7 +129,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 76
+// Next id: 77
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -345,6 +346,9 @@ message TraceMetrics {
 
   // Android Wattson estimate during time windows defined by atrace apps.
   optional AndroidWattsonTimePeriodMetric wattson_atrace_apps_rails = 75;
+
+  // Android GC stats.
+  optional AndroidGarbageCollectionStats android_garbage_collection_stats = 76;
 
   // Android
   // Demo extensions.
