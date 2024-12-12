@@ -1246,15 +1246,6 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseDeviceFrequency(ts, fld_bytes);
         break;
       }
-      case FtraceEvent::kMaliMaliKCPUCQSSETFieldNumber:
-      case FtraceEvent::kMaliMaliKCPUCQSWAITSTARTFieldNumber:
-      case FtraceEvent::kMaliMaliKCPUCQSWAITENDFieldNumber:
-      case FtraceEvent::kMaliMaliKCPUFENCESIGNALFieldNumber:
-      case FtraceEvent::kMaliMaliKCPUFENCEWAITSTARTFieldNumber:
-      case FtraceEvent::kMaliMaliKCPUFENCEWAITENDFieldNumber: {
-        mali_gpu_event_tracker_.ParseMaliGpuEvent(ts, fld.id(), pid);
-        break;
-      }
       case FtraceEvent::kMaliMaliCSFINTERRUPTSTARTFieldNumber:
       case FtraceEvent::kMaliMaliCSFINTERRUPTENDFieldNumber: {
         mali_gpu_event_tracker_.ParseMaliGpuIrqEvent(ts, fld.id(), cpu,
