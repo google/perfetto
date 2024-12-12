@@ -337,7 +337,6 @@ class FtraceParser {
   const StringId sched_waking_name_id_;
   const StringId cpu_id_;
   const StringId suspend_resume_name_id_;
-  const StringId suspend_resume_minimal_name_id_;
   const StringId suspend_resume_minimal_slice_name_id_;
   const StringId ion_total_id_;
   const StringId ion_change_id_;
@@ -356,7 +355,6 @@ class FtraceParser {
   const StringId tcp_event_id_;
   const StringId protocol_arg_id_;
   const StringId napi_gro_id_;
-  const StringId tcp_retransmited_name_id_;
   const StringId ret_arg_id_;
   const StringId len_arg_id_;
   const StringId direct_reclaim_nr_reclaimed_id_;

@@ -17,23 +17,28 @@
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.h"
 
 #include <cstdint>
+#include <optional>
+#include <string>
+#include <unordered_map>
 #include <utility>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_view_splitter.h"
 #include "src/trace_processor/importers/android_bugreport/android_battery_stats_history_string_tracker.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
-#include "src/trace_processor/tables/android_tables_py.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -275,16 +280,21 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryEvent(
   ASSIGN_OR_RETURN(uint64_t hsp_index, StringToStatusOrUInt64(item.value));
   const int32_t uid = history_string_tracker->GetUid(hsp_index);
   const std::string& event_str = history_string_tracker->GetString(hsp_index);
-  StringId track_name_id = context_->storage->InternString(
-      std::string("battery_stats.").append(item_name));
-  base::StackString<255> slice_name(
-      "%s%s=%d:\"%s\"", item.prefix.ToStdString().c_str(), item_name.c_str(),
-      uid, event_str.c_str());
+
+  static constexpr auto kBlueprint = tracks::SliceBlueprint(
+      "battery_stats",
+      tracks::Dimensions(tracks::StringDimensionBlueprint("bstats_item_name")),
+      tracks::FnNameBlueprint([](base::StringView item) {
+        return base::StackString<1024>("battery_stats.%.*s", int(item.size()),
+                                       item.data());
+      }));
+
+  base::StackString<255> slice_name("%s%s=%d:\"%s\"",
+                                    item.prefix.ToStdString().c_str(),
+                                    item_name.c_str(), uid, event_str.c_str());
   StringId name_id = context_->storage->InternString(slice_name.c_str());
-  AsyncTrackSetTracker::TrackSetId track_set_id =
-      context_->async_track_set_tracker->InternGlobalTrackSet(track_name_id);
-  TrackId track_id =
-      context_->async_track_set_tracker->Scoped(track_set_id, item.ts, 0);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBlueprint, tracks::Dimensions(base::StringView(item_name)));
   context_->slice_tracker->Scoped(item.ts, track_id, kNullStringId, name_id, 0);
   return true;
 }
