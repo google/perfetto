@@ -401,7 +401,7 @@ FROM
   __intrinsic_sched_upid;
 
 -- Tracks which are associated to a single CPU.
-CREATE PERFETTO VIEW cpu_track (
+CREATE PERFETTO TABLE cpu_track (
   -- Unique identifier for this cpu track.
   id ID,
   -- The name of the "most-specific" child table containing this row.
@@ -421,15 +421,16 @@ CREATE PERFETTO VIEW cpu_track (
   cpu LONG
 ) AS
 SELECT
-  id,
-  type,
-  name,
-  parent_id,
-  source_arg_set_id,
-  machine_id,
-  cpu
-FROM
-  __intrinsic_cpu_track;
+  t.id,
+  t.type,
+  t.name,
+  t.parent_id,
+  t.source_arg_set_id,
+  t.machine_id,
+  a.int_value AS cpu
+FROM __intrinsic_track t
+JOIN args a ON t.dimension_arg_set_id = a.arg_set_id
+WHERE t.event_type = 'slice' AND a.key = 'cpu';
 
 -- Table containing tracks which are loosely tied to a GPU.
 --

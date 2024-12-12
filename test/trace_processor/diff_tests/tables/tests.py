@@ -289,16 +289,14 @@ class Tables(TestSuite):
         }
         """),
         query="""
-        SELECT
-          type,
-          cpu
+        SELECT cpu
         FROM cpu_track
         ORDER BY type, cpu;
         """,
         out=Csv("""
-        "type","cpu"
-        "__intrinsic_cpu_track",0
-        "__intrinsic_cpu_track",1
+        "cpu"
+        0
+        1
         """))
 
   def test_thread_state_flattened_aggregated(self):
@@ -474,7 +472,6 @@ class Tables(TestSuite):
         """),
         query="""
         SELECT
-          ct.type,
           c.ucpu,
           ct.cpu,
           c.machine_id
@@ -483,7 +480,7 @@ class Tables(TestSuite):
         ORDER BY ct.type, c.cpu
         """,
         out=Csv("""
-        "type","ucpu","cpu","machine_id"
-        "__intrinsic_cpu_track",4096,0,1
-        "__intrinsic_cpu_track",4097,1,1
+        "ucpu","cpu","machine_id"
+        4096,0,1
+        4097,1,1
         """))

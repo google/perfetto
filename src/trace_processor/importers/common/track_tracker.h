@@ -29,7 +29,6 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -216,26 +215,7 @@ class TrackTracker {
   struct LegacyStringIdName {
     StringId id;
   };
-  // Indicates that the track name is synthesied in trace processor as a
-  // StackString and works this way due to legacy reasons.
-  //
-  // Tracks *MUST NOT* use this method: this only exists for legacy tracks which
-  // we named before the introduction of classification/dimension system.
-  struct LegacyCharArrayName {
-    template <size_t N>
-    explicit LegacyCharArrayName(const char (&_name)[N]) {
-      static_assert(N > 0 && N <= 512);
-      base::StringCopy(name, _name, N);
-    }
-    template <size_t N>
-    explicit LegacyCharArrayName(const base::StackString<N>& _name) {
-      static_assert(N > 0 && N <= 512);
-      base::StringCopy(name, _name.c_str(), N);
-    }
-    char name[512];
-  };
-  using TrackName = std::
-      variant<AutoName, LegacyStringIdName, LegacyCharArrayName>;
+  using TrackName = std::variant<AutoName, LegacyStringIdName>;
 
   DimensionsBuilder CreateDimensionsBuilder() {
     return DimensionsBuilder(this);
@@ -248,11 +228,6 @@ class TrackTracker {
   TrackId InternProcessTrack(tracks::TrackClassification,
                              UniquePid,
                              const TrackName& = AutoName());
-
-  // Interns a global track keyed by track type + CPU into the storage.
-  TrackId InternCpuTrack(tracks::TrackClassification,
-                         uint32_t cpu,
-                         const TrackName& = AutoName());
 
   // Everything below this point are legacy functions and should no longer be
   // used.

@@ -41,16 +41,6 @@ bool IsLegacyStringIdNameAllowed(tracks::TrackClassification classification) {
   return classification == tracks::unknown;
 }
 
-bool IsLegacyCharArrayNameAllowed(tracks::TrackClassification classification) {
-  // **DO NOT** add new values here. Use TrackTracker::AutoName instead.
-  return classification == tracks::cpu_funcgraph ||
-         classification == tracks::cpu_irq ||
-         classification == tracks::cpu_mali_irq ||
-         classification == tracks::cpu_napi_gro ||
-         classification == tracks::cpu_softirq ||
-         classification == tracks::pkvm_hypervisor;
-}
-
 }  // namespace
 
 TrackTracker::TrackTracker(TraceProcessorContext* context)
@@ -150,30 +140,6 @@ TrackId TrackTracker::InternThreadTrack(UniqueTid utid, const TrackName& name) {
   return track_id;
 }
 
-TrackId TrackTracker::InternCpuTrack(tracks::TrackClassification classification,
-                                     uint32_t cpu,
-                                     const TrackName& name) {
-  MarkCpuValid(cpu);
-
-  Dimensions dims_id = SingleDimension(cpu_id_, Variadic::Integer(cpu));
-  auto* it = tracks_.Find({classification, dims_id});
-  if (it) {
-    return *it;
-  }
-
-  tables::CpuTrackTable::Row row(StringIdFromTrackName(classification, name));
-  row.cpu = cpu;
-  row.machine_id = context_->machine_id();
-  row.classification =
-      context_->storage->InternString(tracks::ToString(classification));
-  row.dimension_arg_set_id = dims_id.arg_set_id;
-
-  TrackId track_id =
-      context_->storage->mutable_cpu_track_table()->Insert(row).id;
-  tracks_[{classification, dims_id}] = track_id;
-  return track_id;
-}
-
 TrackId TrackTracker::LegacyInternLegacyChromeAsyncTrack(
     StringId raw_name,
     uint32_t upid,
@@ -241,10 +207,6 @@ StringId TrackTracker::StringIdFromTrackName(
     case base::variant_index<TrackName, LegacyStringIdName>():
       PERFETTO_DCHECK(IsLegacyStringIdNameAllowed(classification));
       return std::get<LegacyStringIdName>(name).id;
-    case base::variant_index<TrackName, LegacyCharArrayName>():
-      PERFETTO_DCHECK(IsLegacyCharArrayNameAllowed(classification));
-      return context_->storage->InternString(
-          std::get<LegacyCharArrayName>(name).name);
   }
   PERFETTO_FATAL("For GCC");
 }

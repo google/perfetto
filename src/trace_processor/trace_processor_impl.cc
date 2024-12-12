@@ -967,7 +967,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_track_table());
   RegisterStaticTable(storage->mutable_thread_track_table());
   RegisterStaticTable(storage->mutable_process_track_table());
-  RegisterStaticTable(storage->mutable_cpu_track_table());
 
   RegisterStaticTable(storage->mutable_counter_table());
 
