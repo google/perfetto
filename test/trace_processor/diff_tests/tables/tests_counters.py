@@ -246,3 +246,116 @@ class TablesCounters(TestSuite):
         "utid_count"
         141
         """))
+
+  def test_cpu_counter_track_args_multi_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 2244000533469
+          sys_stats {
+            cpu_stat {
+              cpu_id: 0
+              user_ns: 119650000000
+            }
+            cpu_stat {
+              cpu_id: 1
+              user_ns: 88530000000
+            }
+          }
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          timestamp: 22440005334670
+          sys_stats {
+            cpu_stat {
+              cpu_id: 0
+              user_ns: 119650000000
+            }
+            cpu_stat {
+              cpu_id: 1
+              user_ns: 88530000000
+            }
+          }
+          trusted_packet_sequence_id: 1
+          machine_id: 1001
+        }
+        """),
+        query="""
+        SELECT id, arg_set_id
+        FROM args
+        WHERE flat_key="cpustat_key" AND display_value="user_ns"
+        """,
+        out=Csv("""
+        "id","arg_set_id"
+        1,1
+        15,8
+        """))
+
+  def test_cpu_counter_track_multi_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 2244000533469
+          sys_stats {
+            cpu_stat {
+              cpu_id: 0
+              user_ns: 119650000000
+            }
+            cpu_stat {
+              cpu_id: 1
+              user_ns: 88530000000
+            }
+          }
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          timestamp: 22440005334670
+          sys_stats {
+            cpu_stat {
+              cpu_id: 0
+              user_ns: 119650000000
+            }
+            cpu_stat {
+              cpu_id: 1
+              user_ns: 88530000000
+            }
+          }
+          trusted_packet_sequence_id: 1
+          machine_id: 1001
+        }
+        """),
+        query="""
+        SELECT id, name, machine_id, cpu
+        FROM cpu_counter_track;
+        """,
+        out=Csv("""
+        "id","name","machine_id","cpu"
+        0,"cpu.times.user_ns","[NULL]",0
+        1,"cpu.times.user_nice_ns","[NULL]",0
+        2,"cpu.times.system_mode_ns","[NULL]",0
+        3,"cpu.times.idle_ns","[NULL]",0
+        4,"cpu.times.io_wait_ns","[NULL]",0
+        5,"cpu.times.irq_ns","[NULL]",0
+        6,"cpu.times.softirq_ns","[NULL]",0
+        7,"cpu.times.user_ns","[NULL]",1
+        8,"cpu.times.user_nice_ns","[NULL]",1
+        9,"cpu.times.system_mode_ns","[NULL]",1
+        10,"cpu.times.idle_ns","[NULL]",1
+        11,"cpu.times.io_wait_ns","[NULL]",1
+        12,"cpu.times.irq_ns","[NULL]",1
+        13,"cpu.times.softirq_ns","[NULL]",1
+        14,"cpu.times.user_ns",1,0
+        15,"cpu.times.user_nice_ns",1,0
+        16,"cpu.times.system_mode_ns",1,0
+        17,"cpu.times.idle_ns",1,0
+        18,"cpu.times.io_wait_ns",1,0
+        19,"cpu.times.irq_ns",1,0
+        20,"cpu.times.softirq_ns",1,0
+        21,"cpu.times.user_ns",1,1
+        22,"cpu.times.user_nice_ns",1,1
+        23,"cpu.times.system_mode_ns",1,1
+        24,"cpu.times.idle_ns",1,1
+        25,"cpu.times.io_wait_ns",1,1
+        26,"cpu.times.irq_ns",1,1
+        27,"cpu.times.softirq_ns",1,1
+        """))
