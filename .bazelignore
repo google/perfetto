@@ -1,1 +1,17 @@
 ui
+
+# Blaze 8 has an API to specify a glob of dirs to ignore:
+# https://bazel.build/versions/8.0.0/rules/lib/globals/repo#ignore_directories.
+# But we are using Blaze 7 and so explicitly lists the directories.
+#
+# We want to exclude all the dirs that contains a BUILD or BUILD.bazel file,
+# because Bazel considers such dirs as part of the project, EXEPT for the
+# 'buildtools/expat' dir, that is a part of the build and should be kept.
+# The following command is used to generate the list:
+# $ find buildtools -regex ".*/BUILD\(\.bazel\)?" | \
+# xargs -I {} sh -c 'echo "{}" | awk "{ print \$1, \$2 }" FS=/ OFS=/' | \
+# uniq | grep -v expat
+buildtools/googletest
+buildtools/protobuf
+buildtools/ndk
+buildtools/benchmark
