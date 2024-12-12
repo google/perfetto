@@ -120,7 +120,16 @@ inline std::optional<T> StringViewToNumber(const base::StringView& sv,
 
 inline std::optional<uint32_t> StringViewToUInt32(const base::StringView& sv,
                                                   int base = 10) {
-  return StringViewToNumber<uint32_t>(sv, base);
+  // std::from_chars() does not recognize the leading '-' character for
+  // unsigned conversions, but strtol does. To Mimic the behavior of strtol,
+  // attempt a signed converion if we see a leading '-', and then cast the
+  // result back to unsigned.
+  if (sv.size() > 0 && sv.at(0) == '-') {
+    return static_cast<std::optional<uint32_t> >(
+        StringViewToNumber<int32_t>(sv, base));
+  } else {
+    return StringViewToNumber<uint32_t>(sv, base);
+  }
 }
 
 inline std::optional<int32_t> StringViewToInt32(const base::StringView& sv,
@@ -130,7 +139,16 @@ inline std::optional<int32_t> StringViewToInt32(const base::StringView& sv,
 
 inline std::optional<uint64_t> StringViewToUInt64(const base::StringView& sv,
                                                   int base = 10) {
-  return StringViewToNumber<uint64_t>(sv, base);
+  // std::from_chars() does not recognize the leading '-' character for
+  // unsigned conversions, but strtol does. To Mimic the behavior of strtol,
+  // attempt a signed converion if we see a leading '-', and then cast the
+  // result back to unsigned.
+  if (sv.size() > 0 && sv.at(0) == '-') {
+    return static_cast<std::optional<uint64_t> >(
+        StringViewToNumber<int64_t>(sv, base));
+  } else {
+    return StringViewToNumber<uint64_t>(sv, base);
+  }
 }
 
 inline std::optional<int64_t> StringViewToInt64(const base::StringView& sv,
