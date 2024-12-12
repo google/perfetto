@@ -23,7 +23,7 @@ export const AUTOREDRAW_FLAG = featureFlags.register({
   id: 'mithrilAutoredraw',
   name: 'Enable Mithril autoredraw',
   description: 'Turns calls to schedulefullRedraw() a no-op',
-  defaultValue: false,
+  defaultValue: true,
 });
 
 // This class orchestrates all RAFs in the UI. It ensures that there is only
