@@ -24,8 +24,11 @@
 
 #include <sys/socket.h>
 
-#ifdef AF_VSOCK
-// Use system vm_socket.h if avaialbe.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+// Requires the QNX Advanced Virtualization Framework
+#include <vm_sockets.h>
+#elif defined(AF_VSOCK)
+// Use system vm_socket.h if available.
 #include <linux/vm_sockets.h>
 #else  // defined(AF_SOCK)
 // Fallback and use the stripped copy from the UAPI vm_sockets.h.
