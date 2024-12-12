@@ -76,6 +76,7 @@ export class VirtualCanvas implements Disposable {
   private _viewportLimits: Rect2D;
   private _layoutShiftListener?: LayoutShiftListener;
   private _canvasResizeListener?: CanvasResizeListener;
+  private _dpr?: number;
 
   /**
    * @param targetElement The element to turn into a virtual canvas. The
@@ -143,8 +144,11 @@ export class VirtualCanvas implements Disposable {
 
       if (
         canvasRectPrev.width !== canvasRect.width ||
-        canvasRectPrev.height !== canvasRect.height
+        canvasRectPrev.height !== canvasRect.height ||
+        devicePixelRatio !== this._dpr
       ) {
+        this._dpr = devicePixelRatio;
+
         // Canvas needs to change size, update its size
         canvas.style.width = `${canvasRect.width}px`;
         canvas.style.height = `${canvasRect.height}px`;
