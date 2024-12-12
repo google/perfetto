@@ -55,26 +55,19 @@ if (enable_perfetto_etm_importer) {
       ":etm",
       ":etm_impl",
     ]
-    sources = [
-      "etm_decode_trace_vtable.h",
-      "etm_iterate_range_vtable.h",
-    ]
+    sources = [ "etm_decode_trace_vtable.h" ]
     deps = [
       "../../../../../gn:default_deps",
       "../../../../../gn:sqlite",
       "../../../../../include/perfetto/base",
       "../../../../../include/perfetto/ext/base:base",
       "../../../sqlite",
-      "../../../storage",
     ]
   }
 
   source_set("etm_impl") {
     visibility = [ ":etm" ]
-    sources = [
-      "etm_decode_trace_vtable.cc",
-      "etm_iterate_range_vtable.cc",
-    ]
+    sources = [ "etm_decode_trace_vtable.cc" ]
     deps = [
       ":etm_hdr",
       "../../../../../gn:default_deps",

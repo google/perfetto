@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ETM_TARGET_MEMORY_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"

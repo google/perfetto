@@ -106,9 +106,6 @@ class TraceProcessorImpl : public TraceProcessor,
     return RegisterSqlPackage(package);
   }
 
-  base::Status RegisterFileContent(const std::string& path,
-                                   TraceBlobView content) override;
-
  private:
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
