@@ -213,6 +213,21 @@ export class Rect2D implements Bounds2D, Size2D {
   }
 
   /**
+   * Checks if this rectangle overlaps another set of bounds.
+   *
+   * @param bounds - The bounds to check overlap for.
+   * @returns rue if this rectangle overlaps the given bounds, false otherwise.
+   */
+  overlaps(bounds: Bounds2D): boolean {
+    return (
+      this.left < bounds.right &&
+      this.right > bounds.left &&
+      this.top < bounds.bottom &&
+      this.bottom > bounds.top
+    );
+  }
+
+  /**
    * Translates the rectangle by the given point and returns a new rectangle.
    *
    * @param point - The point by which to translate the rectangle.
