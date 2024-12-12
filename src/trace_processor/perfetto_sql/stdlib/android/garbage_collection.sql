@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE android.startup.startups;
+INCLUDE PERFETTO MODULE intervals.intersect;
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- Collect all GC slices. There's typically one enclosing slice but sometimes the
@@ -216,3 +218,196 @@ SELECT
   SUM(IIF(state = 'S', dur, 0)) AS gc_int_dur
 FROM agg_events
 GROUP BY gc_id;
+
+-- A window of the trace to use for GC stats.
+-- We can't reliably use trace_dur(), because often it spans far outside the
+-- range of relevant data. Instead pick the window based on when we have
+-- 'Heap size (KB)' data available.
+CREATE PERFETTO TABLE _gc_stats_window
+AS
+SELECT
+  MIN(ts) AS gc_stats_window_start,
+  MAX(ts) AS gc_stats_window_end,
+  MAX(ts) - MIN(ts) AS gc_stats_window_dur
+FROM counter AS c
+LEFT JOIN process_counter_track AS t on c.track_id = t.id
+WHERE t.name='Heap size (KB)';
+
+-- Count heap allocations by summing positive changes to the 'Heap size (KB)'
+-- counter.
+CREATE PERFETTO TABLE _gc_heap_allocated
+AS
+SELECT
+  ts,
+  ts - LAG(ts) OVER (PARTITION BY upid ORDER BY ts) as dur,
+  value,
+  CASE WHEN LAG(c.value) OVER (PARTITION BY upid ORDER BY ts) < c.value THEN c.value - LAG(c.value) OVER (PARTITION BY upid ORDER BY ts) ELSE 0 END as allocated
+FROM counter AS c
+LEFT JOIN process_counter_track AS t on c.track_id = t.id
+WHERE t.name='Heap size (KB)';
+
+-- Intersection of startup events and gcs, for understanding what GCs are
+-- happining during app startup.
+CREATE PERFETTO TABLE _gc_during_android_startup AS
+WITH
+  startups_for_intersect AS (
+    SELECT
+      ts,
+      dur,
+      startup_id as id
+    FROM android_startups
+  ),
+  gcs_for_intersect AS (
+    SELECT
+      gc_ts as ts,
+      gc_dur as dur,
+      gc_id as id
+    FROM android_garbage_collection_events
+  )
+SELECT
+  ts,
+  dur,
+  id_0 as startup_id,
+  id_1 as gc_id
+FROM _interval_intersect!((startups_for_intersect, gcs_for_intersect), ());
+
+-- Estimate heap utilization across the trace.
+-- We weight the utilization by gc_period, which is meant to represent the time
+-- since the previous GC. We approximate gc_period as time to the start of the
+-- process or metrics utilization in case there is no previous GC for the
+-- process.
+CREATE PERFETTO TABLE _gc_heap_utilization AS
+WITH
+  -- The first GC for a process doesn't have a previous GC to calculate
+  -- gc_period from. Create pretend GCs at the start of each process to use
+  -- for computing gc_period for all the real GCs.
+  before_first_gcs AS (
+    SELECT
+      upid,
+      CASE
+        WHEN start_ts IS NULL THEN gc_stats_window_start
+        ELSE MAX(start_ts, gc_stats_window_start)
+      END as gc_ts,
+      0 as gc_dur,
+      0 as min_heap_mb,
+      0 as max_heap_mb
+    FROM process
+    JOIN _gc_stats_window
+  ),
+  combined_gcs AS (
+    SELECT
+      upid, gc_ts, gc_dur, min_heap_mb, max_heap_mb
+    FROM android_garbage_collection_events
+    UNION SELECT * FROM before_first_gcs
+  ),
+  gc_periods AS (
+    SELECT
+      gc_ts + gc_dur - LAG(gc_ts + gc_dur) OVER (PARTITION BY upid ORDER BY gc_ts) AS gc_period,
+      min_heap_mb,
+      max_heap_mb
+    FROM combined_gcs
+  )
+SELECT
+  SUM(gc_period * min_heap_mb)/1e9 AS heap_live_mbs,
+  SUM(gc_period * max_heap_mb)/1e9 AS heap_total_mbs
+FROM gc_periods where min_heap_mb IS NOT NULL;
+
+-- Summary stats about how garbage collection is behaving across the device,
+-- including causes, costs and other information relevant for tuning the
+-- garbage collector.
+CREATE PERFETTO TABLE _android_garbage_collection_stats (
+  -- The start of the window of time that the stats cover in the trace.
+  ts TIMESTAMP,
+  -- The duration of the window of time that the stats cover in the trace.
+  dur DURATION,
+  -- Megabyte-seconds of heap size across the device, used in the calculation
+  -- of heap_size_mb.
+  heap_size_mbs DOUBLE,
+  -- Combined size of heaps across processes on the device on average, in MB.
+  heap_size_mb DOUBLE,
+  -- Total number of bytes allocated over the course of the trace.
+  heap_allocated_mb DOUBLE,
+  -- Combined rate of heap allocations in MB per second. This gives a sense of
+  -- how much allocation activity is going on during the trace.
+  heap_allocation_rate DOUBLE,
+  -- Megabyte-seconds of live heap for processes that had GC events.
+  heap_live_mbs DOUBLE,
+  -- Megabyte-seconds of total heap for processes that had GC events.
+  heap_total_mbs DOUBLE,
+  -- Overall heap utilization. This gives a sense of how aggressive GC is
+  -- during this trace.
+  heap_utilization DOUBLE,
+  -- CPU time spent running GC. Used in the calculation of gc_running_rate.
+  gc_running_dur DURATION,
+  -- CPU time spent doing GC, as a fraction of the duration of the trace.
+  -- This gives a sense of the battery cost of GC.
+  gc_running_rate DOUBLE,
+  -- A measure of how efficient GC is with respect to cpu, independent of how
+  -- aggressively GC is tuned. Larger values indicate more efficient GC, so
+  -- larger is better.
+  gc_running_efficiency DOUBLE,
+  -- Time GC is running during app startup. Used in the calculation of
+  -- gc_during_android_startup_rate.
+  gc_during_android_startup_dur DURATION,
+  -- Total startup time in the trace, used to normalize
+  -- the gc_during_android_startup_rate.
+  total_android_startup_dur DURATION,
+  -- Time GC is running during app startup, as a fraction of startup time in
+  -- the trace. This gives a sense of how much potential interference there
+  -- is between GC and application startup.
+  gc_during_android_startup_rate DOUBLE,
+  -- A measure of how efficient GC is with regards to gc during application
+  -- startup, independent of how aggressively GC is tuned. Larger values
+  -- indicate more efficient GC, so larger is better.
+  gc_during_android_startup_efficiency DOUBLE
+  )
+AS
+WITH
+  gc_running_stats AS (
+    SELECT
+      SUM(gc_running_dur) AS gc_running_dur
+    FROM android_garbage_collection_events
+  ),
+  heap_size_stats AS (
+    SELECT
+      SUM(allocated)/1e3 AS heap_allocated_mb,
+      SUM(value * dur)/(1e3 * 1e9) AS heap_size_mbs
+    FROM _gc_heap_allocated
+  ),
+  gc_startup_stats AS (
+    SELECT
+      SUM(dur) AS gc_during_android_startup_dur
+    FROM _gc_during_android_startup
+  ),
+  startup_stats AS (
+    SELECT
+      SUM(dur) AS total_android_startup_dur
+    FROM android_startups
+  ),
+  pre_normalized_stats AS (
+    SELECT *
+    FROM _gc_stats_window, gc_running_stats, heap_size_stats,
+         gc_startup_stats, startup_stats, _gc_heap_utilization
+  ),
+  normalized_stats AS (
+    SELECT
+      gc_running_dur * 1.0 / gc_stats_window_dur AS gc_running_rate,
+      gc_during_android_startup_dur * 1.0 / total_android_startup_dur AS gc_during_android_startup_rate,
+      heap_allocated_mb * 1e9 / gc_stats_window_dur AS heap_allocation_rate,
+      heap_size_mbs * 1e9 / gc_stats_window_dur AS heap_size_mb,
+      heap_live_mbs / heap_total_mbs AS heap_utilization
+    FROM pre_normalized_stats
+  )
+SELECT
+  gc_stats_window_start AS ts,
+  gc_stats_window_dur AS dur,
+  heap_size_mbs, heap_size_mb,
+  heap_allocated_mb, heap_allocation_rate,
+  heap_live_mbs, heap_total_mbs, heap_utilization,
+  gc_running_dur, gc_running_rate,
+  heap_allocation_rate * heap_utilization / (gc_running_rate * (1 - heap_utilization)) AS gc_running_efficiency,
+  gc_during_android_startup_dur,
+  total_android_startup_dur,
+  gc_during_android_startup_rate,
+  heap_allocation_rate * heap_utilization / (gc_during_android_startup_rate * (1 - heap_utilization)) AS gc_during_android_startup_efficiency
+FROM pre_normalized_stats, normalized_stats;
