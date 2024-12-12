@@ -52,6 +52,8 @@ TEST(StringUtilsTest, CStringToUInt32) {
   EXPECT_EQ(CStringToUInt32("0"), std::make_optional<uint32_t>(0U));
   EXPECT_EQ(CStringToUInt32("1"), std::make_optional<uint32_t>(1U));
   EXPECT_EQ(CStringToUInt32("42"), std::make_optional<uint32_t>(42U));
+  EXPECT_EQ(CStringToUInt32("-42"),
+            std::make_optional<uint32_t>(static_cast<uint32_t>(-42)));
   EXPECT_EQ(CStringToUInt32(""), std::nullopt);
   EXPECT_EQ(CStringToUInt32("!?"), std::nullopt);
   EXPECT_EQ(CStringToUInt32("abc"), std::nullopt);
@@ -83,6 +85,8 @@ TEST(StringUtilsTest, StringToUInt32) {
   EXPECT_EQ(StringToUInt32("0"), std::make_optional<uint32_t>(0U));
   EXPECT_EQ(StringToUInt32("1"), std::make_optional<uint32_t>(1U));
   EXPECT_EQ(StringToUInt32("42"), std::make_optional<uint32_t>(42U));
+  EXPECT_EQ(StringToUInt32("-42"),
+            std::make_optional<uint32_t>(static_cast<uint32_t>(-42)));
   EXPECT_EQ(StringToUInt32("a", 16), std::make_optional<uint32_t>(10U));
   EXPECT_EQ(StringToUInt32("fffffff0", 16),
             std::make_optional<uint32_t>(0xfffffff0));
@@ -112,6 +116,8 @@ TEST(StringUtilsTest, StringToInt32) {
 TEST(StringUtilsTest, StringToUInt64) {
   EXPECT_EQ(StringToUInt64("0"), std::make_optional<uint64_t>(0u));
   EXPECT_EQ(StringToUInt64("1"), std::make_optional<uint64_t>(1u));
+  EXPECT_EQ(StringToUInt64("-5000000000"),
+            std::make_optional<uint64_t>(static_cast<uint64_t>(-5000000000LL)));
   EXPECT_EQ(StringToUInt64("5000000000"),
             std::make_optional<uint64_t>(5000000000ULL));
   EXPECT_EQ(StringToUInt64("7ffffffffffffffe", 16),
@@ -159,6 +165,8 @@ TEST(StringUtilsTest, StringViewToUInt32) {
   EXPECT_EQ(StringViewToUInt32("0"), std::make_optional<uint32_t>(0U));
   EXPECT_EQ(StringViewToUInt32("1"), std::make_optional<uint32_t>(1U));
   EXPECT_EQ(StringViewToUInt32("42"), std::make_optional<uint32_t>(42U));
+  EXPECT_EQ(StringViewToUInt32("-42"),
+            std::make_optional<uint32_t>(static_cast<uint32_t>(-42)));
   EXPECT_EQ(StringViewToUInt32("a", 16), std::make_optional<uint32_t>(10U));
   EXPECT_EQ(StringViewToUInt32("fffffff0", 16),
             std::make_optional<uint32_t>(0xfffffff0));
@@ -188,6 +196,8 @@ TEST(StringUtilsTest, StringViewToInt32) {
 TEST(StringUtilsTest, StringViewToUInt64) {
   EXPECT_EQ(StringViewToUInt64("0"), std::make_optional<uint64_t>(0u));
   EXPECT_EQ(StringViewToUInt64("1"), std::make_optional<uint64_t>(1u));
+  EXPECT_EQ(StringViewToUInt64("-5000000000"),
+            std::make_optional<uint64_t>(static_cast<uint64_t>(-5000000000LL)));
   EXPECT_EQ(StringViewToUInt64("5000000000"),
             std::make_optional<uint64_t>(5000000000ULL));
   EXPECT_EQ(StringViewToUInt64("7ffffffffffffffe", 16),
