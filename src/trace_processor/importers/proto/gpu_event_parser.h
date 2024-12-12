@@ -80,9 +80,10 @@ class GpuEventParser {
   StringId GetFullStageName(
       PacketSequenceStateGeneration* sequence_state,
       const protos::pbzero::GpuRenderStageEvent_Decoder& event) const;
-  void InsertGpuTrack(
-      const protos::pbzero::
-          GpuRenderStageEvent_Specifications_Description_Decoder& hw_queue);
+  void InsertTrackForUninternedRenderStage(
+      uint32_t id,
+      const protos::pbzero::GpuRenderStageEvent::Specifications::Description::
+          Decoder&);
   std::optional<std::string> FindDebugName(int32_t vk_object_type,
                                            uint64_t vk_handle) const;
   StringId ParseRenderSubpasses(
@@ -94,9 +95,7 @@ class GpuEventParser {
   std::unordered_map<uint32_t, TrackId> gpu_counter_track_ids_;
   // For GpuRenderStageEvent
   const StringId description_id_;
-  const StringId gpu_render_stage_scope_id_;
   std::vector<std::optional<TrackId>> gpu_hw_queue_ids_;
-  size_t gpu_hw_queue_counter_ = 0;
   // Map of stage ID -> pair(stage name, stage description)
   std::vector<std::pair<StringId, StringId>> gpu_render_stage_ids_;
   // For VulkanMemoryEvent
@@ -109,8 +108,6 @@ class GpuEventParser {
   std::unordered_map<uint32_t /*memory_type*/, int64_t /*counter_value*/>
       vulkan_device_memory_counters_bind_;
   // For GpuLog
-  const StringId gpu_log_track_name_id_;
-  const StringId gpu_log_scope_id_;
   const StringId tag_id_;
   const StringId log_message_id_;
   std::array<StringId, 7> log_severity_ids_;
@@ -122,7 +119,6 @@ class GpuEventParser {
   std::unordered_map<int32_t, DebugMarkerMap> debug_marker_names_;
   // For VulkanApiEvent.VkQueueSubmit.
   StringId vk_event_track_id_;
-  StringId vk_event_scope_id_;
   StringId vk_queue_submit_id_;
 };
 }  // namespace trace_processor
