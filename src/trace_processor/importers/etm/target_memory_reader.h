@@ -19,7 +19,6 @@
 
 #include <cstdint>
 #include <optional>
-#include "src/trace_processor/importers/common/address_range.h"
 
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/etm/opencsd.h"
@@ -27,8 +26,6 @@ namespace perfetto::trace_processor::etm {
 
 class MappingVersion;
 class TargetMemory;
-class MemoryContentProvider;
-class BinaryIndex;
 
 class TargetMemoryReader : public ITargetMemAccess {
  public:

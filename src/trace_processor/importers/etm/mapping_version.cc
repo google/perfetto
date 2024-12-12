@@ -15,47 +15,15 @@
  */
 
 #include "src/trace_processor/importers/etm/mapping_version.h"
-
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <optional>
-
 #include "perfetto/base/logging.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/common/address_range.h"
 
 namespace perfetto::trace_processor::etm {
-
-MappingVersion::MappingVersion(MappingId id,
-                               int64_t create_ts,
-                               AddressRange range,
-                               std::optional<TraceBlobView> content)
-    : id_(id), create_ts_(create_ts), range_(range) {
-  if (content) {
-    content_ = std::move(*content);
-  }
-  PERFETTO_CHECK(content_.size() == range.length() ||
-                 content_.data() == nullptr);
-}
 
 MappingVersion MappingVersion::SplitFront(uint64_t mid) {
   PERFETTO_CHECK(range_.start() < mid && mid < range_.end());
   AddressRange head(range_.start(), mid);
   AddressRange tail(mid, range_.end());
-  uint64_t offset = mid - range_.start();
-
-  TraceBlobView head_content;
-  TraceBlobView tail_content;
-  if (content_.size() != 0) {
-    head_content = content_.slice_off(0, offset);
-    tail_content = content_.slice_off(offset, content_.size() - offset);
-  }
-
   range_ = tail;
-  content_ = std::move(tail_content);
-
-  return MappingVersion(id_, create_ts_, head, std::move(head_content));
+  return MappingVersion(id_, create_ts_, head);
 }
-
 }  // namespace perfetto::trace_processor::etm

@@ -24,9 +24,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/common/address_range.h"
-#include "src/trace_processor/importers/etm/file_tracker.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/perf_tables_py.h"
@@ -43,25 +40,7 @@ void VirtualAddressSpace::Builder::AddMapping(
       static_cast<uint64_t>(mapping.end())) {
     return;
   }
-
-  AddressRange range(static_cast<uint64_t>(mapping.start()),
-                     static_cast<uint64_t>(mapping.end()));
-
-  std::optional<TraceBlobView> content;
-  if (mmap.file_id()) {
-    content = FileTracker::GetOrCreate(context_)->GetContent(*mmap.file_id());
-    auto file_range = AddressRange::FromStartAndSize(0, content->size());
-    auto required_file_range = AddressRange::FromStartAndSize(
-        static_cast<uint64_t>(mapping.exact_offset()), range.size());
-
-    PERFETTO_CHECK(file_range.Contains(required_file_range));
-
-    content = content->slice_off(required_file_range.start(),
-                                 required_file_range.length());
-  }
-
-  auto [it, success] = mappings_.insert(
-      MappingVersion(mmap.mapping_id(), mmap.ts(), range, std::move(content)));
+  auto [it, success] = mappings_.insert(MappingVersion(mmap.ts(), mapping));
   PERFETTO_CHECK(success);
   vertices_.insert(it->start());
   vertices_.insert(it->end());

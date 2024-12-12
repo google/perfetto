@@ -17,8 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_ETM_DECODE_TRACE_VTABLE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_ETM_DECODE_TRACE_VTABLE_H_
 
-#include <memory>
-
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 
 namespace perfetto::trace_processor {
