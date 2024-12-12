@@ -429,6 +429,7 @@ perfetto_cc_library(
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
+            ":src_profiling_symbolizer_symbolizer",
             ":src_trace_processor_importers_elf_binary_info",
             ":src_trace_processor_importers_etm_etm_impl",
             ":src_trace_processor_importers_etm_file_tracker",
@@ -2911,6 +2912,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h",
         "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/symbolize_vtable.h",
     ],
 )
 
@@ -2920,6 +2922,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/symbolize_vtable.cc",
     ],
 )
 
@@ -7338,6 +7341,7 @@ perfetto_cc_library(
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
+            ":src_profiling_symbolizer_symbolizer",
             ":src_trace_processor_importers_elf_binary_info",
             ":src_trace_processor_importers_etm_etm_impl",
             ":src_trace_processor_importers_etm_file_tracker",
