@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {
+  bindEventListener,
   elementIsEditable,
   findRef,
   isOrContains,
@@ -119,5 +120,45 @@ describe('elementIsEditable', () => {
     const nested = document.createElement('div');
     el.appendChild(nested);
     expect(elementIsEditable(nested)).toBeTruthy();
+  });
+});
+
+describe('bindEventListener', () => {
+  let element: HTMLElement;
+  let handler: jest.Mock;
+
+  beforeEach(() => {
+    element = document.createElement('div');
+    handler = jest.fn();
+  });
+
+  test('adds the event listener and triggers the handler', () => {
+    const disposable = bindEventListener(element, 'click', handler);
+
+    // Simulate a click event
+    const event = new Event('click');
+    element.dispatchEvent(event);
+
+    // Ensure the handler was called
+    expect(handler).toHaveBeenCalledWith(event);
+
+    // Dispose of the event listener
+    disposable[Symbol.dispose]();
+
+    // Reset the mock and dispatch the event again
+    handler.mockReset();
+    element.dispatchEvent(event);
+
+    // Ensure the handler was not called after disposing
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  test('does not throw when disposing multiple times', () => {
+    const disposable = bindEventListener(element, 'click', handler);
+
+    expect(() => {
+      disposable[Symbol.dispose]();
+      disposable[Symbol.dispose]();
+    }).not.toThrow();
   });
 });
