@@ -15,6 +15,7 @@
 import {defer} from '../base/deferred';
 import {raf} from '../core/raf_scheduler';
 import {AppImpl} from '../core/app_impl';
+import {taskTracker} from './task_tracker';
 
 /**
  * This class is exposed by index.ts as window.waitForPerfettoIdle() and is used
@@ -70,8 +71,10 @@ export class IdleDetector {
   private idleIndicators() {
     const reqsPending = AppImpl.instance.trace?.engine.numRequestsPending ?? 0;
     return [
+      !AppImpl.instance.isLoadingTrace,
       reqsPending === 0,
       !raf.hasPendingRedraws,
+      !taskTracker.hasPendingTasks(),
       !document.getAnimations().some((a) => a.playState === 'running'),
       document.querySelector('.progress.progress-anim') == null,
       document.querySelector('.omnibox.message-mode') == null,
