@@ -60,7 +60,7 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
                                  const ConstBytes& bytes) {
   switch (fld_id) {
     case FtraceEvent::kV4l2QbufFieldNumber: {
-      V4l2QbufFtraceEvent::Decoder pb_evt(bytes.data, bytes.size);
+      V4l2QbufFtraceEvent::Decoder pb_evt(bytes);
       BufferEvent evt;
       evt.device_minor = pb_evt.minor();
       evt.index = pb_evt.index();
@@ -101,7 +101,7 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       break;
     }
     case FtraceEvent::kV4l2DqbufFieldNumber: {
-      V4l2DqbufFtraceEvent::Decoder pb_evt(bytes.data, bytes.size);
+      V4l2DqbufFtraceEvent::Decoder pb_evt(bytes);
       BufferEvent evt;
       evt.device_minor = pb_evt.minor();
       evt.index = pb_evt.index();
@@ -147,7 +147,7 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       break;
     }
     case FtraceEvent::kVb2V4l2BufQueueFieldNumber: {
-      Vb2V4l2BufQueueFtraceEvent::Decoder pb_evt(bytes.data, bytes.size);
+      Vb2V4l2BufQueueFtraceEvent::Decoder pb_evt(bytes);
       BufferEvent evt;
       evt.device_minor = pb_evt.minor();
       evt.index = std::nullopt;
@@ -178,7 +178,7 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       break;
     }
     case FtraceEvent::kVb2V4l2BufDoneFieldNumber: {
-      Vb2V4l2BufDoneFtraceEvent::Decoder pb_evt(bytes.data, bytes.size);
+      Vb2V4l2BufDoneFtraceEvent::Decoder pb_evt(bytes);
       BufferEvent evt;
       evt.device_minor = pb_evt.minor();
       evt.index = std::nullopt;
@@ -209,7 +209,7 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       break;
     }
     case FtraceEvent::kVb2V4l2QbufFieldNumber: {
-      Vb2V4l2QbufFtraceEvent::Decoder pb_evt(bytes.data, bytes.size);
+      Vb2V4l2QbufFtraceEvent::Decoder pb_evt(bytes);
       BufferEvent evt;
       evt.device_minor = pb_evt.minor();
       evt.index = std::nullopt;
@@ -240,7 +240,7 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       break;
     }
     case FtraceEvent::kVb2V4l2DqbufFieldNumber: {
-      Vb2V4l2DqbufFtraceEvent::Decoder pb_evt(bytes.data, bytes.size);
+      Vb2V4l2DqbufFtraceEvent::Decoder pb_evt(bytes);
       BufferEvent evt;
       evt.device_minor = pb_evt.minor();
       evt.index = std::nullopt;

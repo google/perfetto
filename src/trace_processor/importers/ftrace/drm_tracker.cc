@@ -15,18 +15,30 @@
  */
 
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
+
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <utility>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "protos/perfetto/trace/ftrace/dma_fence.pbzero.h"
-#include "protos/perfetto/trace/ftrace/drm.pbzero.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
-#include "protos/perfetto/trace/ftrace/gpu_scheduler.pbzero.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include "protos/perfetto/trace/ftrace/dma_fence.pbzero.h"
+#include "protos/perfetto/trace/ftrace/drm.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "protos/perfetto/trace/ftrace/gpu_scheduler.pbzero.h"
+
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -60,55 +72,48 @@ void DrmTracker::ParseDrm(int64_t timestamp,
 
   switch (field_id) {
     case FtraceEvent::kDrmVblankEventFieldNumber: {
-      protos::pbzero::DrmVblankEventFtraceEvent::Decoder evt(blob.data,
-                                                             blob.size);
+      protos::pbzero::DrmVblankEventFtraceEvent::Decoder evt(blob);
       DrmVblankEvent(timestamp, evt.crtc(), evt.seq());
       break;
     }
     case FtraceEvent::kDrmVblankEventDeliveredFieldNumber: {
-      protos::pbzero::DrmVblankEventDeliveredFtraceEvent::Decoder evt(
-          blob.data, blob.size);
+      protos::pbzero::DrmVblankEventDeliveredFtraceEvent::Decoder evt(blob);
       DrmVblankEventDelivered(timestamp, evt.crtc(), evt.seq());
       break;
     }
 
     case FtraceEvent::kDrmSchedJobFieldNumber: {
-      protos::pbzero::DrmSchedJobFtraceEvent::Decoder evt(blob.data, blob.size);
+      protos::pbzero::DrmSchedJobFtraceEvent::Decoder evt(blob);
       DrmSchedJob(timestamp, pid, evt.name(), evt.id());
       break;
     }
     case FtraceEvent::kDrmRunJobFieldNumber: {
-      protos::pbzero::DrmRunJobFtraceEvent::Decoder evt(blob.data, blob.size);
+      protos::pbzero::DrmRunJobFtraceEvent::Decoder evt(blob);
       DrmRunJob(timestamp, evt.name(), evt.id(), evt.fence());
       break;
     }
     case FtraceEvent::kDrmSchedProcessJobFieldNumber: {
-      protos::pbzero::DrmSchedProcessJobFtraceEvent::Decoder evt(blob.data,
-                                                                 blob.size);
+      protos::pbzero::DrmSchedProcessJobFtraceEvent::Decoder evt(blob);
       DrmSchedProcessJob(timestamp, evt.fence());
       break;
     }
     case FtraceEvent::kDmaFenceInitFieldNumber: {
-      protos::pbzero::DmaFenceInitFtraceEvent::Decoder evt(blob.data,
-                                                           blob.size);
+      protos::pbzero::DmaFenceInitFtraceEvent::Decoder evt(blob);
       DmaFenceInit(timestamp, evt.timeline(), evt.context(), evt.seqno());
       break;
     }
     case FtraceEvent::kDmaFenceEmitFieldNumber: {
-      protos::pbzero::DmaFenceEmitFtraceEvent::Decoder evt(blob.data,
-                                                           blob.size);
+      protos::pbzero::DmaFenceEmitFtraceEvent::Decoder evt(blob);
       DmaFenceEmit(timestamp, evt.timeline(), evt.context(), evt.seqno());
       break;
     }
     case FtraceEvent::kDmaFenceSignaledFieldNumber: {
-      protos::pbzero::DmaFenceSignaledFtraceEvent::Decoder evt(blob.data,
-                                                               blob.size);
+      protos::pbzero::DmaFenceSignaledFtraceEvent::Decoder evt(blob);
       DmaFenceSignaled(timestamp, evt.timeline(), evt.context(), evt.seqno());
       break;
     }
     case FtraceEvent::kDmaFenceWaitStartFieldNumber: {
-      protos::pbzero::DmaFenceWaitStartFtraceEvent::Decoder evt(blob.data,
-                                                                blob.size);
+      protos::pbzero::DmaFenceWaitStartFtraceEvent::Decoder evt(blob);
       DmaFenceWaitStart(timestamp, pid, evt.context(), evt.seqno());
       break;
     }
@@ -166,8 +171,7 @@ DrmTracker::SchedRing& DrmTracker::GetSchedRingByName(base::StringView name) {
   TrackId track_id = context_->track_tracker->LegacyInternGpuTrack(
       tables::GpuTrackTable::Row(track_name_id));
 
-  // no std::make_unique until C++14..
-  auto ring = std::unique_ptr<SchedRing>(new SchedRing());
+  auto ring = std::make_unique<SchedRing>();
   ring->track_id = track_id;
 
   SchedRing& ret = *ring;
@@ -374,5 +378,4 @@ void DrmTracker::DmaFenceWaitEnd(int64_t timestamp, uint32_t pid) {
   context_->slice_tracker->End(timestamp, track_id);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
