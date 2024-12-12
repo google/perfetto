@@ -19,6 +19,7 @@
 #include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
+#include "src/trace_processor/tables/macros_internal.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/perf_tables_py.h"
@@ -30,8 +31,7 @@
 #include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace macros_internal {
 // macros_internal.h
 MacroTable::~MacroTable() = default;
@@ -115,7 +115,6 @@ AndroidNetworkPacketsTable::~AndroidNetworkPacketsTable() = default;
 TrackTable::~TrackTable() = default;
 ProcessTrackTable::~ProcessTrackTable() = default;
 ThreadTrackTable::~ThreadTrackTable() = default;
-CpuTrackTable::~CpuTrackTable() = default;
 
 // trace_proto_tables_py.h
 ExperimentalProtoPathTable::~ExperimentalProtoPathTable() = default;
@@ -155,5 +154,4 @@ WindowManagerShellTransitionHandlersTable::
 
 }  // namespace tables
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

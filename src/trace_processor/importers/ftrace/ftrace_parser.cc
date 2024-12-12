@@ -32,6 +32,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -2547,18 +2548,16 @@ void FtraceParser::ParseShrinkSlabStart(
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
-
-  auto args_inserter = [this, &shrink_slab_start,
-                        shrink_name](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(shrink_name_id_, Variadic::String(shrink_name));
-    inserter->AddArg(shrink_total_scan_id_,
-                     Variadic::UnsignedInteger(shrink_slab_start.total_scan()));
-    inserter->AddArg(shrink_priority_id_,
-                     Variadic::Integer(shrink_slab_start.priority()));
-  };
-
-  context_->slice_tracker->Begin(timestamp, track, kNullStringId,
-                                 shrink_slab_id_, args_inserter);
+  context_->slice_tracker->Begin(
+      timestamp, track, kNullStringId, shrink_slab_id_,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(shrink_name_id_, Variadic::String(shrink_name));
+        inserter->AddArg(
+            shrink_total_scan_id_,
+            Variadic::UnsignedInteger(shrink_slab_start.total_scan()));
+        inserter->AddArg(shrink_priority_id_,
+                         Variadic::Integer(shrink_slab_start.priority()));
+      });
 }
 
 void FtraceParser::ParseShrinkSlabEnd(int64_t timestamp,
@@ -2568,13 +2567,12 @@ void FtraceParser::ParseShrinkSlabEnd(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
 
-  auto args_inserter =
-      [this, &shrink_slab_end](ArgsTracker::BoundInserter* inserter) {
+  context_->slice_tracker->End(
+      timestamp, track, kNullStringId, kNullStringId,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(shrink_freed_id_,
                          Variadic::Integer(shrink_slab_end.retval()));
-      };
-  context_->slice_tracker->End(timestamp, track, kNullStringId, kNullStringId,
-                               args_inserter);
+      });
 }
 
 void FtraceParser::ParseWorkqueueExecuteStart(
@@ -2589,11 +2587,11 @@ void FtraceParser::ParseWorkqueueExecuteStart(
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
 
-  auto args_inserter = [this, cpu](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(cpu_id_, Variadic::Integer(cpu));
-  };
-  context_->slice_tracker->Begin(timestamp, track, workqueue_id_, name_id,
-                                 args_inserter);
+  context_->slice_tracker->Begin(
+      timestamp, track, workqueue_id_, name_id,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(cpu_id_, Variadic::Integer(cpu));
+      });
 }
 
 void FtraceParser::ParseWorkqueueExecuteEnd(int64_t timestamp,
@@ -2605,20 +2603,30 @@ void FtraceParser::ParseWorkqueueExecuteEnd(int64_t timestamp,
   context_->slice_tracker->End(timestamp, track, workqueue_id_);
 }
 
+namespace {
+
+constexpr auto kIrqBlueprint = tracks::SliceBlueprint(
+    "cpu_irq",
+    tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
+    tracks::FnNameBlueprint([](uint32_t cpu) {
+      return base::StackString<255>("Irq Cpu %u", cpu);
+    }));
+
+}  // namespace
+
 void FtraceParser::ParseIrqHandlerEntry(uint32_t cpu,
                                         int64_t timestamp,
                                         protozero::ConstBytes blob) {
   protos::pbzero::IrqHandlerEntryFtraceEvent::Decoder evt(blob);
+
+  TrackId track = context_->track_tracker->InternTrack(kIrqBlueprint,
+                                                       tracks::Dimensions(cpu));
 
   base::StringView irq_name = evt.name();
   base::StackString<255> slice_name("IRQ (%.*s)", int(irq_name.size()),
                                     irq_name.data());
   StringId slice_name_id =
       context_->storage->InternString(slice_name.string_view());
-  TrackId track = context_->track_tracker->InternCpuTrack(
-      tracks::cpu_irq, cpu,
-      TrackTracker::LegacyCharArrayName{
-          base::StackString<255>("Irq Cpu %u", cpu)});
   context_->slice_tracker->Begin(timestamp, track, irq_id_, slice_name_id);
 }
 
@@ -2626,35 +2634,42 @@ void FtraceParser::ParseIrqHandlerExit(uint32_t cpu,
                                        int64_t timestamp,
                                        protozero::ConstBytes blob) {
   protos::pbzero::IrqHandlerExitFtraceEvent::Decoder evt(blob);
-  TrackId track = context_->track_tracker->InternCpuTrack(
-      tracks::cpu_irq, cpu,
-      TrackTracker::LegacyCharArrayName{
-          base::StackString<255>("Irq Cpu %u", cpu)});
 
-  base::StackString<255> status("%s", evt.ret() == 1 ? "handled" : "unhandled");
-  StringId status_id = context_->storage->InternString(status.string_view());
-  auto args_inserter = [this,
-                        &status_id](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(ret_arg_id_, Variadic::String(status_id));
-  };
-  context_->slice_tracker->End(timestamp, track, irq_id_, {}, args_inserter);
+  TrackId track = context_->track_tracker->InternTrack(kIrqBlueprint,
+                                                       tracks::Dimensions(cpu));
+  context_->slice_tracker->End(
+      timestamp, track, irq_id_, {},
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(ret_arg_id_,
+                         Variadic::String(context_->storage->InternString(
+                             evt.ret() == 1 ? "handled" : "unhandled")));
+      });
 }
+
+namespace {
+
+constexpr auto kSoftIrqBlueprint = tracks::SliceBlueprint(
+    "cpu_softirq",
+    tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
+    tracks::FnNameBlueprint([](uint32_t cpu) {
+      return base::StackString<255>("SoftIrq Cpu %u", cpu);
+    }));
+
+}  // namespace
 
 void FtraceParser::ParseSoftIrqEntry(uint32_t cpu,
                                      int64_t timestamp,
                                      protozero::ConstBytes blob) {
   protos::pbzero::SoftirqEntryFtraceEvent::Decoder evt(blob);
-  auto num_actions = sizeof(kActionNames) / sizeof(*kActionNames);
-  if (evt.vec() >= num_actions) {
+  if (evt.vec() >= base::ArraySize(kActionNames)) {
     PERFETTO_DFATAL("No action name at index %d for softirq event.", evt.vec());
     return;
   }
-  base::StringView slice_name = kActionNames[evt.vec()];
-  StringId slice_name_id = context_->storage->InternString(slice_name);
-  TrackId track = context_->track_tracker->InternCpuTrack(
-      tracks::cpu_softirq, cpu,
-      TrackTracker::LegacyCharArrayName{
-          base::StackString<255>("SoftIrq Cpu %u", cpu)});
+
+  TrackId track = context_->track_tracker->InternTrack(kSoftIrqBlueprint,
+                                                       tracks::Dimensions(cpu));
+  StringId slice_name_id =
+      context_->storage->InternString(kActionNames[evt.vec()]);
   context_->slice_tracker->Begin(timestamp, track, irq_id_, slice_name_id);
 }
 
@@ -2662,15 +2677,14 @@ void FtraceParser::ParseSoftIrqExit(uint32_t cpu,
                                     int64_t timestamp,
                                     protozero::ConstBytes blob) {
   protos::pbzero::SoftirqExitFtraceEvent::Decoder evt(blob);
-  TrackId track = context_->track_tracker->InternCpuTrack(
-      tracks::cpu_softirq, cpu,
-      TrackTracker::LegacyCharArrayName{
-          base::StackString<255>("SoftIrq Cpu %u", cpu)});
-  auto vec = evt.vec();
-  auto args_inserter = [this, vec](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(vec_arg_id_, Variadic::Integer(vec));
-  };
-  context_->slice_tracker->End(timestamp, track, irq_id_, {}, args_inserter);
+
+  TrackId track = context_->track_tracker->InternTrack(kSoftIrqBlueprint,
+                                                       tracks::Dimensions(cpu));
+  context_->slice_tracker->End(timestamp, track, irq_id_, {},
+                               [&, this](ArgsTracker::BoundInserter* inserter) {
+                                 inserter->AddArg(vec_arg_id_,
+                                                  Variadic::Integer(evt.vec()));
+                               });
 }
 
 void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
@@ -2941,38 +2955,44 @@ void FtraceParser::ParseTcpRetransmitSkb(int64_t timestamp,
                                   slice_name_id, 0);
 }
 
+namespace {
+
+constexpr auto kNapiGroBlueprint = tracks::SliceBlueprint(
+    "cpu_napi_gro",
+    tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
+    tracks::FnNameBlueprint([](uint32_t cpu) {
+      return base::StackString<255>("Napi Gro Cpu %u", cpu);
+    }));
+
+}  // namespace
+
 void FtraceParser::ParseNapiGroReceiveEntry(uint32_t cpu,
                                             int64_t timestamp,
                                             protozero::ConstBytes blob) {
   protos::pbzero::NapiGroReceiveEntryFtraceEvent::Decoder evt(blob);
-  base::StringView net_device = evt.name();
-  StringId slice_name_id = context_->storage->InternString(net_device);
-  TrackId track = context_->track_tracker->InternCpuTrack(
-      tracks::cpu_napi_gro, cpu,
-      TrackTracker::LegacyCharArrayName{
-          base::StackString<255>("Napi Gro Cpu %u", cpu)});
-  auto len = evt.len();
-  auto args_inserter = [this, len](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(len_arg_id_, Variadic::Integer(len));
-  };
-  context_->slice_tracker->Begin(timestamp, track, napi_gro_id_, slice_name_id,
-                                 args_inserter);
+
+  TrackId track = context_->track_tracker->InternTrack(kNapiGroBlueprint,
+                                                       tracks::Dimensions(cpu));
+  StringId slice_name_id = context_->storage->InternString(evt.name());
+  context_->slice_tracker->Begin(
+      timestamp, track, napi_gro_id_, slice_name_id,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(len_arg_id_, Variadic::Integer(evt.len()));
+      });
 }
 
 void FtraceParser::ParseNapiGroReceiveExit(uint32_t cpu,
                                            int64_t timestamp,
                                            protozero::ConstBytes blob) {
   protos::pbzero::NapiGroReceiveExitFtraceEvent::Decoder evt(blob);
-  TrackId track = context_->track_tracker->InternCpuTrack(
-      tracks::cpu_napi_gro, cpu,
-      TrackTracker::LegacyCharArrayName{
-          base::StackString<255>("Napi Gro Cpu %u", cpu)});
-  auto ret = evt.ret();
-  auto args_inserter = [this, ret](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(ret_arg_id_, Variadic::Integer(ret));
-  };
+
+  TrackId track = context_->track_tracker->InternTrack(kNapiGroBlueprint,
+                                                       tracks::Dimensions(cpu));
   context_->slice_tracker->End(timestamp, track, napi_gro_id_, {},
-                               args_inserter);
+                               [&, this](ArgsTracker::BoundInserter* inserter) {
+                                 inserter->AddArg(ret_arg_id_,
+                                                  Variadic::Integer(evt.ret()));
+                               });
 }
 
 void FtraceParser::ParseCpuFrequencyLimits(int64_t timestamp,
@@ -3615,6 +3635,17 @@ void FtraceParser::ParseSchedCpuUtilCfs(int64_t timestamp,
       timestamp, static_cast<double>(evt.nr_running()), nr_track);
 }
 
+namespace {
+
+constexpr auto kFuncgraphBlueprint = tracks::SliceBlueprint(
+    "cpu_funcgraph",
+    tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
+    tracks::FnNameBlueprint([](uint32_t cpu) {
+      return base::StackString<255>("swapper%u -funcgraph", cpu);
+    }));
+
+}  // namespace
+
 void FtraceParser::ParseFuncgraphEntry(
     int64_t timestamp,
     uint32_t cpu,
@@ -3634,12 +3665,9 @@ void FtraceParser::ParseFuncgraphEntry(
     // 0. Therefore we cannot use a thread-scoped track because many instances
     // of swapper might be running concurrently. Fall back onto global tracks
     // (one per cpu).
-    track = context_->track_tracker->InternCpuTrack(
-        tracks::cpu_funcgraph, cpu,
-        TrackTracker::LegacyCharArrayName{
-            base::StackString<255>("swapper%u -funcgraph", cpu)});
+    track = context_->track_tracker->InternTrack(kFuncgraphBlueprint,
+                                                 tracks::Dimensions(cpu));
   }
-
   context_->slice_tracker->Begin(timestamp, track, kNullStringId, name_id);
 }
 
@@ -3659,12 +3687,9 @@ void FtraceParser::ParseFuncgraphExit(
     track = context_->track_tracker->InternThreadTrack(utid);
   } else {
     // special case: see |ParseFuncgraphEntry|
-    track = context_->track_tracker->InternCpuTrack(
-        tracks::cpu_funcgraph, cpu,
-        TrackTracker::LegacyCharArrayName{
-            base::StackString<255>("swapper%u -funcgraph", cpu)});
+    track = context_->track_tracker->InternTrack(kFuncgraphBlueprint,
+                                                 tracks::Dimensions(cpu));
   }
-
   context_->slice_tracker->End(timestamp, track, kNullStringId, name_id);
 }
 

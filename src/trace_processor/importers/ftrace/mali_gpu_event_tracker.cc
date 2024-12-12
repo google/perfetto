@@ -21,17 +21,30 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
-#include "protos/perfetto/trace/ftrace/mali.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
 
+#include "protos/perfetto/trace/ftrace/mali.pbzero.h"
+
 namespace perfetto::trace_processor {
+namespace {
+
+constexpr auto kMaliIrqBlueprint = tracks::SliceBlueprint(
+    "cpu_mali_irq",
+    tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
+    tracks::FnNameBlueprint([](uint32_t cpu) {
+      return base::StackString<255>("Mali Irq Cpu %u", cpu);
+    }));
+
+}  // namespace
 
 namespace {
 
@@ -113,22 +126,18 @@ void MaliGpuEventTracker::ParseMaliGpuIrqEvent(int64_t ts,
                                                uint32_t field_id,
                                                uint32_t cpu,
                                                protozero::ConstBytes blob) {
-  using protos::pbzero::FtraceEvent;
-
   // Since these events are called from an interrupt context they cannot be
   // associated to a single process or thread. Add to a custom Mali Irq track
   // instead.
-  TrackId track_id = context_->track_tracker->InternCpuTrack(
-      tracks::cpu_mali_irq, cpu,
-      TrackTracker::LegacyCharArrayName{
-          base::StackString<255>("Mali Irq Cpu %u", cpu)});
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kMaliIrqBlueprint, tracks::Dimensions(cpu));
 
   switch (field_id) {
-    case FtraceEvent::kMaliMaliCSFINTERRUPTSTARTFieldNumber: {
+    case protos::pbzero::FtraceEvent::kMaliMaliCSFINTERRUPTSTARTFieldNumber: {
       ParseMaliCSFInterruptStart(ts, track_id, blob);
       break;
     }
-    case FtraceEvent::kMaliMaliCSFINTERRUPTENDFieldNumber: {
+    case protos::pbzero::FtraceEvent::kMaliMaliCSFINTERRUPTENDFieldNumber: {
       ParseMaliCSFInterruptEnd(ts, track_id, blob);
       break;
     }
