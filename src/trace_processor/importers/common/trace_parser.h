@@ -37,6 +37,7 @@ namespace perf_text_importer {
 struct PerfTextEvent;
 }
 
+struct AndroidDumpstateEvent;
 struct AndroidLogEvent;
 class PacketSequenceStateGeneration;
 class TraceBlobView;
@@ -89,6 +90,12 @@ class InstrumentsRowParser {
  public:
   virtual ~InstrumentsRowParser();
   virtual void ParseInstrumentsRow(int64_t, instruments_importer::Row) = 0;
+};
+
+class AndroidDumpstateEventParser {
+ public:
+  virtual ~AndroidDumpstateEventParser();
+  virtual void ParseAndroidDumpstateEvent(int64_t, AndroidDumpstateEvent) = 0;
 };
 
 class AndroidLogEventParser {

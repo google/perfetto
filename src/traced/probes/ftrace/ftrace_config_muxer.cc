@@ -762,12 +762,15 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
 
     const Event* event = table_->GetOrCreateKprobeEvent(group_and_name);
     if (!event) {
+      ftrace_->RemoveKprobeEvent(group_and_name.group(), group_and_name.name());
+
       PERFETTO_ELOG("Can't enable kprobe %s",
                     group_and_name.ToString().c_str());
       if (errors)
         errors->unknown_ftrace_events.push_back(group_and_name.ToString());
       continue;
     }
+    current_state_.installed_kprobes.insert(group_and_name);
     EnableFtraceEvent(event, group_and_name, &filter, errors);
     kprobes[event->ftrace_event_id] = type;
   }
@@ -960,11 +963,6 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
     PERFETTO_DCHECK(event);
     if (ftrace_->DisableEvent(event->group, event->name))
       current_state_.ftrace_events.DisableEvent(event->ftrace_event_id);
-
-    if (event->group == kKprobeGroup || event->group == kKretprobeGroup) {
-      ftrace_->RemoveKprobeEvent(event->group, event->name);
-      table_->RemoveEvent({event->group, event->name});
-    }
   }
 
   auto active_it = active_configs_.find(config_id);
@@ -991,6 +989,14 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
     ftrace_->DisableAllEvents();
     ftrace_->ClearTrace();
     ftrace_->SetTracingOn(current_state_.saved_tracing_on);
+
+    // Kprobe cleanup cannot happen while we're still tracing as uninstalling
+    // kprobes clears all tracing buffers in the kernel.
+    for (const GroupAndName& probe : current_state_.installed_kprobes) {
+      ftrace_->RemoveKprobeEvent(probe.group(), probe.name());
+      table_->RemoveEvent(probe);
+    }
+    current_state_.installed_kprobes.clear();
   }
 
   if (current_state_.atrace_on) {

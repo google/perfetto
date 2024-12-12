@@ -88,6 +88,12 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
         limit: 1,
       })
     )[0];
+
+    // note: this might be valid even if there is no |waker| slice, in the case
+    // of an interrupt wakeup while in the idle process (which is omitted from
+    // the thread_state table).
+    relatedStates.wakerInterruptCtx = this.threadState.wakerInterruptCtx;
+
     if (this.threadState.wakerId !== undefined) {
       relatedStates.waker = await getThreadState(
         this.trace.engine,
@@ -97,15 +103,13 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
       this.threadState.state == 'Running' &&
       relatedStates.prev.wakerId != undefined
     ) {
+      // For running slices, extract waker info from the preceding runnable.
       relatedStates.waker = await getThreadState(
         this.trace.engine,
         relatedStates.prev.wakerId,
       );
+      relatedStates.wakerInterruptCtx = relatedStates.prev.wakerInterruptCtx;
     }
-    // note: this might be valid even if there is no |waker| slice, in the case
-    // of an interrupt wakeup while in the idle process (which is omitted from
-    // the thread_state table).
-    relatedStates.wakerInterruptCtx = this.threadState.wakerInterruptCtx;
 
     relatedStates.wakee = await getThreadStateFromConstraints(
       this.trace.engine,

@@ -92,11 +92,11 @@ class ParsingMemoryCounters(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('memory_counters.pb'),
         query="""
-        SELECT ts, value, name
-        FROM counter
-        JOIN counter_track ON counter.track_id = counter_track.id
-        WHERE name = 'MemAvailable' AND counter_track.type = 'counter_track'
-        LIMIT 10;
+          SELECT ts, value, name
+          FROM counter
+          JOIN counter_track ON counter.track_id = counter_track.id
+          WHERE name = 'MemAvailable'
+          LIMIT 10;
         """,
         out=Csv("""
         "ts","value","name"

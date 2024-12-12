@@ -77,8 +77,8 @@
 #include "src/perfetto_cmd/bugreport_path.h"
 #include "src/perfetto_cmd/config.h"
 #include "src/perfetto_cmd/packet_writer.h"
-#include "src/perfetto_cmd/pbtxt_to_pb.h"
 #include "src/perfetto_cmd/trigger_producer.h"
+#include "src/trace_config_utils/txt_to_pb.h"
 
 #include "protos/perfetto/common/ftrace_descriptor.gen.h"
 #include "protos/perfetto/common/tracing_service_state.gen.h"
@@ -100,60 +100,15 @@ std::atomic<perfetto::PerfettoCmd*> g_perfetto_cmd;
 const uint32_t kOnTraceDataTimeoutMs = 3000;
 const uint32_t kCloneTimeoutMs = 30000;
 
-class LoggingErrorReporter : public ErrorReporter {
- public:
-  LoggingErrorReporter(std::string file_name, const char* config)
-      : file_name_(std::move(file_name)), config_(config) {}
-
-  void AddError(size_t row,
-                size_t column,
-                size_t length,
-                const std::string& message) override {
-    parsed_successfully_ = false;
-    std::string line = ExtractLine(row - 1).ToStdString();
-    if (!line.empty() && line[line.length() - 1] == '\n') {
-      line.erase(line.length() - 1);
-    }
-
-    std::string guide(column + length, ' ');
-    for (size_t i = column; i < column + length; i++) {
-      guide[i - 1] = i == column ? '^' : '~';
-    }
-    fprintf(stderr, "%s:%zu:%zu error: %s\n", file_name_.c_str(), row, column,
-            message.c_str());
-    fprintf(stderr, "%s\n", line.c_str());
-    fprintf(stderr, "%s\n", guide.c_str());
-  }
-
-  bool Success() const { return parsed_successfully_; }
-
- private:
-  base::StringView ExtractLine(size_t line) {
-    const char* start = config_;
-    const char* end = config_;
-
-    for (size_t i = 0; i < line + 1; i++) {
-      start = end;
-      char c;
-      while ((c = *end++) && c != '\n')
-        ;
-    }
-    return base::StringView(start, static_cast<size_t>(end - start));
-  }
-
-  bool parsed_successfully_ = true;
-  std::string file_name_;
-  const char* config_;
-};
-
 bool ParseTraceConfigPbtxt(const std::string& file_name,
                            const std::string& pbtxt,
                            TraceConfig* config) {
-  LoggingErrorReporter reporter(file_name, pbtxt.c_str());
-  std::vector<uint8_t> buf = PbtxtToPb(pbtxt, &reporter);
-  if (!reporter.Success())
+  auto res = TraceConfigTxtToPb(pbtxt, file_name);
+  if (!res.ok()) {
+    fprintf(stderr, "%s\n", res.status().c_message());
     return false;
-  if (!config->ParseFromArray(buf.data(), buf.size()))
+  }
+  if (!config->ParseFromArray(res->data(), res->size()))
     return false;
   return true;
 }
@@ -1426,12 +1381,13 @@ void PerfettoCmd::PrintServiceState(bool success,
 
 PRODUCER PROCESSES CONNECTED:
 
-ID         PID        UID        NAME                             SDK
-==         ===        ===        ====                             ===
+ID     PID      UID      FLAGS  NAME                                       SDK
+==     ===      ===      =====  ====                                       ===
 )");
   for (const auto& producer : svc_state.producers()) {
-    printf("%-10d %-10d %-10d %-32s %s\n", producer.id(), producer.pid(),
-           producer.uid(), producer.name().c_str(),
+    base::StackString<8> status("%s", producer.frozen() ? "F" : "");
+    printf("%-6d %-8d %-8d %-6s %-42s %s\n", producer.id(), producer.pid(),
+           producer.uid(), status.c_str(), producer.name().c_str(),
            producer.sdk_version().c_str());
   }
 

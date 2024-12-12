@@ -400,73 +400,76 @@ LEFT JOIN _oom_score server_oom
 -- Breakdown binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction async.
 CREATE PERFETTO TABLE android_binder_txns(
-  -- name of the binder interface if existing.
+  -- Fully qualified name of the binder endpoint if existing.
   aidl_name STRING,
+  -- Interface of the binder endpoint if existing.
+  interface STRING,
   -- Timestamp the binder interface name was emitted. Proxy to 'ts' and 'dur' for async txns.
   aidl_ts TIMESTAMP,
   -- Duration of the binder interface name. Proxy to 'ts' and 'dur' for async txns.
   aidl_dur DURATION,
-  -- slice id of the binder txn.
-  binder_txn_id LONG,
-  -- name of the client process.
+  -- Slice id of the binder txn.
+  binder_txn_id JOINID(slice.id),
+  -- Name of the client process.
   client_process STRING,
-  -- name of the client thread.
+  -- Name of the client thread.
   client_thread STRING,
   -- Upid of the client process.
-  client_upid LONG,
+  client_upid JOINID(process.id),
   -- Utid of the client thread.
-  client_utid LONG,
+  client_utid JOINID(thread.id),
   -- Tid of the client thread.
   client_tid LONG,
   -- Pid of the client thread.
   client_pid LONG,
   -- Whether the txn was initiated from the main thread of the client process.
   is_main_thread BOOL,
-  -- timestamp of the client txn.
+  -- Timestamp of the client txn.
   client_ts TIMESTAMP,
-  -- wall clock dur of the client txn.
+  -- Wall clock dur of the client txn.
   client_dur DURATION,
-  -- slice id of the binder reply.
-  binder_reply_id LONG,
-  -- name of the server process.
+  -- Slice id of the binder reply.
+  binder_reply_id JOINID(slice.id),
+  -- Name of the server process.
   server_process STRING,
-  -- name of the server thread.
+  -- Name of the server thread.
   server_thread STRING,
   -- Upid of the server process.
-  server_upid LONG,
+  server_upid JOINID(process.id),
   -- Utid of the server thread.
-  server_utid LONG,
+  server_utid JOINID(thread.id),
   -- Tid of the server thread.
   server_tid LONG,
   -- Pid of the server thread.
   server_pid LONG,
-  -- timestamp of the server txn.
+  -- Timestamp of the server txn.
   server_ts TIMESTAMP,
-  -- wall clock dur of the server txn.
+  -- Wall clock dur of the server txn.
   server_dur DURATION,
-  -- oom score of the client process at the start of the txn.
+  -- Oom score of the client process at the start of the txn.
   client_oom_score LONG,
-  -- oom score of the server process at the start of the reply.
+  -- Oom score of the server process at the start of the reply.
   server_oom_score LONG,
-  -- whether the txn is synchronous or async (oneway).
+  -- Whether the txn is synchronous or async (oneway).
   is_sync BOOL,
-  -- monotonic clock dur of the client txn.
+  -- Monotonic clock dur of the client txn.
   client_monotonic_dur DURATION,
-  -- monotonic clock dur of the server txn.
+  -- Monotonic clock dur of the server txn.
   server_monotonic_dur DURATION,
   -- Client package version_code.
   client_package_version_code LONG,
   -- Server package version_code.
   server_package_version_code LONG,
   -- Whether client package is debuggable.
-  is_client_package_debuggable LONG,
+  is_client_package_debuggable BOOL,
   -- Whether server package is debuggable.
-  is_server_package_debuggable LONG
+  is_server_package_debuggable BOOL
 ) AS WITH all_binder AS (
   SELECT *, 1 AS is_sync FROM _sync_binder_metrics_by_txn
 UNION ALL
 SELECT *, 0 AS is_sync FROM _async_binder_metrics_by_txn
 ) SELECT
+  STR_SPLIT(aidl_name, '::', 2) AS interface,
   all_binder.*,
   _extract_duration_without_suspend(client_ts, client_dur) AS client_monotonic_dur,
   _extract_duration_without_suspend(server_ts, server_dur) AS server_monotonic_dur,
@@ -486,7 +489,7 @@ LEFT JOIN android_process_metadata server_process_metadata
 -- The weights of each node represent the wall execution time in the server_process.
 CREATE PERFETTO FUNCTION android_binder_outgoing_graph(
   -- Upid of process to generate an outgoing graph for.
-  upid LONG)
+  upid JOINID(process.id))
 RETURNS TABLE(
   -- Pprof of outgoing binder txns.
   pprof BYTES) AS
@@ -517,7 +520,7 @@ WITH threads AS (
 -- The weights of each node represent the wall execution time in the server_process.
 CREATE PERFETTO FUNCTION android_binder_incoming_graph(
   -- Upid of process to generate an incoming graph for.
-  upid LONG)
+  upid JOINID(process.id))
 RETURNS TABLE(
   -- Pprof of incoming binder txns.
   pprof BYTES) AS

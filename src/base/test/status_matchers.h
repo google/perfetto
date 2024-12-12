@@ -45,12 +45,14 @@ MATCHER(IsError, negation ? "is not error" : "is error") {
 
 // Macros for testing the results of function returning base::StatusOr<T>.
 #define PERFETTO_TEST_STATUS_MATCHER_CONCAT(x, y) x##y
-#define ASSERT_OK_AND_ASSIGN(lhs, rhs)                                    \
-  PERFETTO_TEST_STATUS_MATCHER_CONCAT(auto status_or, __LINE__) = rhs;    \
-  ASSERT_OK(                                                              \
-      PERFETTO_TEST_STATUS_MATCHER_CONCAT(status_or, __LINE__).status()); \
-  lhs = std::move(                                                        \
-      PERFETTO_TEST_STATUS_MATCHER_CONCAT(status_or, __LINE__).value())
+#define PERFETTO_TEST_STATUS_MATCHER_CONCAT2(x, y) \
+  PERFETTO_TEST_STATUS_MATCHER_CONCAT(x, y)
+#define ASSERT_OK_AND_ASSIGN(lhs, rhs)                                     \
+  PERFETTO_TEST_STATUS_MATCHER_CONCAT2(auto status_or, __LINE__) = rhs;    \
+  ASSERT_OK(                                                               \
+      PERFETTO_TEST_STATUS_MATCHER_CONCAT2(status_or, __LINE__).status()); \
+  lhs = std::move(                                                         \
+      PERFETTO_TEST_STATUS_MATCHER_CONCAT2(status_or, __LINE__).value())
 
 }  // namespace gtest_matchers
 

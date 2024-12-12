@@ -26,8 +26,10 @@
 #include <iterator>
 #include <limits>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -36,6 +38,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column/types.h"
@@ -43,6 +46,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
+#include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
@@ -55,9 +59,13 @@
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
+#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
+namespace etm {
+class TargetMemory;
+}
 
 // UniquePid is an offset into |unique_processes_|. This is necessary because
 // Unix pids are reused and thus not guaranteed to be unique over a long
@@ -235,6 +243,9 @@ class TraceStorage {
   virtual StringId InternString(const std::string& str) {
     return InternString(base::StringView(str));
   }
+  virtual StringId InternString(std::string_view str) {
+    return InternString(base::StringView(str.data(), str.size()));
+  }
 
   // Example usage: SetStats(stats::android_log_num_failed, 42);
   void SetStats(size_t key, int64_t value) {
@@ -362,46 +373,11 @@ class TraceStorage {
   const tables::TrackTable& track_table() const { return track_table_; }
   tables::TrackTable* mutable_track_table() { return &track_table_; }
 
-  const tables::CounterTrackTable& counter_track_table() const {
-    return counter_track_table_;
-  }
-  tables::CounterTrackTable* mutable_counter_track_table() {
-    return &counter_track_table_;
-  }
-
-  const tables::CpuCounterTrackTable& cpu_counter_track_table() const {
-    return cpu_counter_track_table_;
-  }
-  tables::CpuCounterTrackTable* mutable_cpu_counter_track_table() {
-    return &cpu_counter_track_table_;
-  }
-
   const tables::GpuCounterGroupTable& gpu_counter_group_table() const {
     return gpu_counter_group_table_;
   }
   tables::GpuCounterGroupTable* mutable_gpu_counter_group_table() {
     return &gpu_counter_group_table_;
-  }
-
-  const tables::GpuCounterTrackTable& gpu_counter_track_table() const {
-    return gpu_counter_track_table_;
-  }
-  tables::GpuCounterTrackTable* mutable_gpu_counter_track_table() {
-    return &gpu_counter_track_table_;
-  }
-
-  const tables::PerfCounterTrackTable& perf_counter_track_table() const {
-    return perf_counter_track_table_;
-  }
-  tables::PerfCounterTrackTable* mutable_perf_counter_track_table() {
-    return &perf_counter_track_table_;
-  }
-
-  const tables::ProcessCounterTrackTable& process_counter_track_table() const {
-    return process_counter_track_table_;
-  }
-  tables::ProcessCounterTrackTable* mutable_process_counter_track_table() {
-    return &process_counter_track_table_;
   }
 
   const tables::ProcessTrackTable& process_track_table() const {
@@ -423,13 +399,6 @@ class TraceStorage {
   }
   tables::ThreadStateTable* mutable_thread_state_table() {
     return &thread_state_table_;
-  }
-
-  const tables::ThreadCounterTrackTable& thread_counter_track_table() const {
-    return thread_counter_track_table_;
-  }
-  tables::ThreadCounterTrackTable* mutable_thread_counter_track_table() {
-    return &thread_counter_track_table_;
   }
 
   const tables::SchedSliceTable& sched_slice_table() const {
@@ -793,6 +762,43 @@ class TraceStorage {
     return &v8_regexp_code_table_;
   }
 
+  const tables::EtmV4ConfigurationTable& etm_v4_configuration_table() const {
+    return etm_v4_configuration_table_;
+  }
+  tables::EtmV4ConfigurationTable* mutable_etm_v4_configuration_table() {
+    return &etm_v4_configuration_table_;
+  }
+  const std::vector<std::unique_ptr<Destructible>>& etm_v4_configuration_data()
+      const {
+    return etm_v4_configuration_data_;
+  }
+  std::vector<std::unique_ptr<Destructible>>*
+  mutable_etm_v4_configuration_data() {
+    return &etm_v4_configuration_data_;
+  }
+  const tables::EtmV4SessionTable& etm_v4_session_table() const {
+    return etm_v4_session_table_;
+  }
+  tables::EtmV4SessionTable* mutable_etm_v4_session_table() {
+    return &etm_v4_session_table_;
+  }
+  const tables::EtmV4TraceTable& etm_v4_trace_table() const {
+    return etm_v4_trace_table_;
+  }
+  tables::EtmV4TraceTable* mutable_etm_v4_trace_table() {
+    return &etm_v4_trace_table_;
+  }
+  const std::vector<TraceBlobView>& etm_v4_trace_data() const {
+    return etm_v4_trace_data_;
+  }
+  std::vector<TraceBlobView>* mutable_etm_v4_trace_data() {
+    return &etm_v4_trace_data_;
+  }
+  const tables::FileTable& file_table() const { return file_table_; }
+  tables::FileTable* mutable_file_table() { return &file_table_; }
+  const tables::ElfFileTable& elf_file_table() const { return elf_file_table_; }
+  tables::ElfFileTable* mutable_elf_file_table() { return &elf_file_table_; }
+
   const tables::JitCodeTable& jit_code_table() const { return jit_code_table_; }
   tables::JitCodeTable* mutable_jit_code_table() { return &jit_code_table_; }
 
@@ -1010,6 +1016,12 @@ class TraceStorage {
   TraceStorage(TraceStorage&&) = delete;
   TraceStorage& operator=(TraceStorage&&) = delete;
 
+  friend etm::TargetMemory;
+  Destructible* etm_target_memory() { return etm_target_memory_.get(); }
+  void set_etm_target_memory(std::unique_ptr<Destructible> target_memory) {
+    etm_target_memory_ = std::move(target_memory);
+  }
+
   // One entry for each unique string in the trace.
   StringPool string_pool_;
 
@@ -1033,18 +1045,7 @@ class TraceStorage {
   tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};
 
   // Track tables for counter events.
-  tables::CounterTrackTable counter_track_table_{&string_pool_, &track_table_};
-  tables::ThreadCounterTrackTable thread_counter_track_table_{
-      &string_pool_, &counter_track_table_};
-  tables::ProcessCounterTrackTable process_counter_track_table_{
-      &string_pool_, &counter_track_table_};
-  tables::CpuCounterTrackTable cpu_counter_track_table_{&string_pool_,
-                                                        &counter_track_table_};
-  tables::GpuCounterTrackTable gpu_counter_track_table_{&string_pool_,
-                                                        &counter_track_table_};
   tables::GpuCounterGroupTable gpu_counter_group_table_{&string_pool_};
-  tables::PerfCounterTrackTable perf_counter_track_table_{
-      &string_pool_, &counter_track_table_};
 
   // Args for all other tables.
   tables::ArgTable arg_table_{&string_pool_};
@@ -1157,6 +1158,18 @@ class TraceStorage {
   // Jit tables
   tables::JitCodeTable jit_code_table_{&string_pool_};
   tables::JitFrameTable jit_frame_table_{&string_pool_};
+
+  // ETM tables
+  tables::EtmV4ConfigurationTable etm_v4_configuration_table_{&string_pool_};
+  // Indexed by tables::EtmV4ConfigurationTable::Id
+  std::vector<std::unique_ptr<Destructible>> etm_v4_configuration_data_;
+  tables::EtmV4SessionTable etm_v4_session_table_{&string_pool_};
+  tables::EtmV4TraceTable etm_v4_trace_table_{&string_pool_};
+  // Indexed by tables::EtmV4TraceTable::Id
+  std::vector<TraceBlobView> etm_v4_trace_data_;
+  std::unique_ptr<Destructible> etm_target_memory_;
+  tables::FileTable file_table_{&string_pool_};
+  tables::ElfFileTable elf_file_table_{&string_pool_};
 
   // Perf tables
   tables::MmapRecordTable mmap_record_table_{&string_pool_};

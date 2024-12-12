@@ -160,6 +160,8 @@ class PerfettoSqlParser {
   struct RawArgument {
     SqliteTokenizer::Token name;
     SqliteTokenizer::Token type;
+    std::optional<std::pair<SqliteTokenizer::Token, SqliteTokenizer::Token>>
+        complex_arg_table_and_column;
   };
 
   bool ParseCreatePerfettoFunction(
@@ -191,8 +193,14 @@ class PerfettoSqlParser {
       RawArgument arg);
   // Parse the arguments in their raw token form.
   bool ParseRawArguments(std::vector<RawArgument>&);
+
   // Same as above, but also convert the raw tokens into argument definitions.
   bool ParseArguments(std::vector<sql_argument::ArgumentDefinition>&);
+
+  // Parse brackets of argument type. Supports arguments of type:
+  // `{type name}({table name}.{column name})`.
+  bool ParseComplexArgumentType(
+      std::pair<SqliteTokenizer::Token, SqliteTokenizer::Token>& table_and_col);
 
   bool ErrorAtToken(const SqliteTokenizer::Token&, const char* error, ...);
 

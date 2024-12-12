@@ -1,0 +1,175 @@
+wattson_atrace_apps_rails {
+  metric_version: 4
+  power_model_version: 1
+  period_info {
+    period_id: 3
+    period_name: "NOTIFICATION_SHADE_EXPAND_COLLAPSE::Expand"
+    period_dur: 1033882989
+    cpu_subsystem {
+      estimated_mw: 588.551453
+      estimated_mws: 608.493347
+      policy0 {
+        estimated_mw: 206.885727
+        estimated_mws: 213.895630
+        cpu0 {
+          estimated_mw: 48.200874
+          estimated_mws: 49.834064
+        }
+        cpu1 {
+          estimated_mw: 52.758167
+          estimated_mws: 54.545773
+        }
+        cpu2 {
+          estimated_mw: 54.796875
+          estimated_mws: 56.653557
+        }
+        cpu3 {
+          estimated_mw: 51.129807
+          estimated_mws: 52.862240
+        }
+      }
+      policy4 {
+        estimated_mw: 238.698257
+        estimated_mws: 246.786057
+        cpu4 {
+          estimated_mw: 136.624969
+          estimated_mws: 141.254242
+        }
+        cpu5 {
+          estimated_mw: 102.073280
+          estimated_mws: 105.531822
+        }
+      }
+      policy6 {
+        estimated_mw: 124.599953
+        estimated_mws: 128.821777
+        cpu6 {
+          estimated_mw: 59.473373
+          estimated_mws: 61.488510
+        }
+        cpu7 {
+          estimated_mw: 65.126579
+          estimated_mws: 67.333260
+        }
+      }
+      dsu_scu {
+        estimated_mw: 18.367506
+        estimated_mws: 18.989853
+      }
+    }
+  }
+  period_info {
+    period_id: 4
+    period_name: "NOTIFICATION_SHADE_QS_EXPAND_COLLAPSE"
+    period_dur: 1102956461
+    cpu_subsystem {
+      estimated_mw: 495.969849
+      estimated_mws: 547.033142
+      policy0 {
+        estimated_mw: 176.800064
+        estimated_mws: 195.002777
+        cpu0 {
+          estimated_mw: 46.978123
+          estimated_mws: 51.814823
+        }
+        cpu1 {
+          estimated_mw: 38.306576
+          estimated_mws: 42.250484
+        }
+        cpu2 {
+          estimated_mw: 42.787342
+          estimated_mws: 47.192577
+        }
+        cpu3 {
+          estimated_mw: 48.728027
+          estimated_mws: 53.744892
+        }
+      }
+      policy4 {
+        estimated_mw: 196.383987
+        estimated_mws: 216.602982
+        cpu4 {
+          estimated_mw: 97.974754
+          estimated_mws: 108.061882
+        }
+        cpu5 {
+          estimated_mw: 98.409233
+          estimated_mws: 108.541100
+        }
+      }
+      policy6 {
+        estimated_mw: 104.246399
+        estimated_mws: 114.979240
+        cpu6 {
+          estimated_mw: 45.691574
+          estimated_mws: 50.395817
+        }
+        cpu7 {
+          estimated_mw: 58.554829
+          estimated_mws: 64.583427
+        }
+      }
+      dsu_scu {
+        estimated_mw: 18.539404
+        estimated_mws: 20.448156
+      }
+    }
+  }
+  period_info {
+    period_id: 5
+    period_name: "NOTIFICATION_SHADE_EXPAND_COLLAPSE::Collapse"
+    period_dur: 1102797607
+    cpu_subsystem {
+      estimated_mw: 495.587769
+      estimated_mws: 546.533020
+      policy0 {
+        estimated_mw: 176.701065
+        estimated_mws: 194.865509
+        cpu0 {
+          estimated_mw: 46.844067
+          estimated_mws: 51.659523
+        }
+        cpu1 {
+          estimated_mw: 38.327526
+          estimated_mws: 42.267502
+        }
+        cpu2 {
+          estimated_mw: 42.806507
+          estimated_mws: 47.206913
+        }
+        cpu3 {
+          estimated_mw: 48.722961
+          estimated_mws: 53.731564
+        }
+      }
+      policy4 {
+        estimated_mw: 196.306625
+        estimated_mws: 216.486481
+        cpu4 {
+          estimated_mw: 98.009254
+          estimated_mws: 108.084373
+        }
+        cpu5 {
+          estimated_mw: 98.297379
+          estimated_mws: 108.402115
+        }
+      }
+      policy6 {
+        estimated_mw: 104.057350
+        estimated_mws: 114.754196
+        cpu6 {
+          estimated_mw: 45.671753
+          estimated_mws: 50.366699
+        }
+        cpu7 {
+          estimated_mw: 58.385597
+          estimated_mws: 64.387497
+        }
+      }
+      dsu_scu {
+        estimated_mw: 18.522726
+        estimated_mws: 20.426819
+      }
+    }
+  }
+}

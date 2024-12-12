@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 
@@ -39,12 +40,12 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
                                                    protozero::ConstBytes blob) {
   protos::pbzero::GpuWorkPeriodFtraceEvent::Decoder evt(blob);
 
-  TrackTracker::DimensionsBuilder dims_builder =
-      context_->track_tracker->CreateDimensionsBuilder();
-  dims_builder.AppendGpu(evt.gpu_id());
-  dims_builder.AppendUid(static_cast<int32_t>(evt.uid()));
+  static constexpr auto kTrackBlueprint = tracks::SliceBlueprint(
+      "android_gpu_work_period",
+      tracks::DimensionBlueprints(tracks::kGpuDimensionBlueprint,
+                                  tracks::kUidDimensionBlueprint));
   TrackId track_id = context_->track_tracker->InternTrack(
-      tracks::android_gpu_work_period, std::move(dims_builder).Build());
+      kTrackBlueprint, {evt.gpu_id(), static_cast<int32_t>(evt.uid())});
 
   const auto duration =
       static_cast<int64_t>(evt.end_time_ns() - evt.start_time_ns());

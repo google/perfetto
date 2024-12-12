@@ -241,6 +241,19 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
                                    uint16_t target_buffer_reservation_id,
                                    BufferID target_buffer_id);
 
+  // Returns some statistics about chunks/pages in the shared memory buffer.
+  struct Stats {
+    size_t chunks_free = 0;
+    size_t chunks_being_written = 0;
+    size_t chunks_being_read = 0;
+    size_t chunks_complete = 0;
+
+    // No chunks are included from free/malformed pages.
+    size_t pages_free = 0;
+    size_t pages_unexpected = 0;
+  };
+  Stats GetStats();
+
   // If any flush callbacks were queued up while the arbiter or any target
   // buffer reservation was unbound, this wraps the pending callbacks into a new
   // std::function and returns it. Otherwise returns an invalid std::function.

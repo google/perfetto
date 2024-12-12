@@ -150,7 +150,7 @@ CREATE PERFETTO TABLE android_startup_time_to_display(
   -- `android_frames.frame_id` of frame for full display
   ttfd_frame_id LONG,
   -- `process.upid` of the startup
-  upid LONG
+  upid JOINID(process.id)
 ) AS
 SELECT
   startup_id,

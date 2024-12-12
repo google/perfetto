@@ -39,6 +39,53 @@ source_set("operators") {
     "../../../util",
     "../../engine",
   ]
+  if (enable_perfetto_etm_importer) {
+    deps += [ ":etm" ]
+  }
+}
+
+if (enable_perfetto_etm_importer) {
+  group("etm") {
+    public_deps = [ ":etm_hdr" ]
+    deps = [ ":etm_impl" ]
+  }
+
+  source_set("etm_hdr") {
+    visibility = [
+      ":etm",
+      ":etm_impl",
+    ]
+    sources = [
+      "etm_decode_trace_vtable.h",
+      "etm_iterate_range_vtable.h",
+    ]
+    deps = [
+      "../../../../../gn:default_deps",
+      "../../../../../gn:sqlite",
+      "../../../../../include/perfetto/base",
+      "../../../../../include/perfetto/ext/base:base",
+      "../../../sqlite",
+      "../../../storage",
+    ]
+  }
+
+  source_set("etm_impl") {
+    visibility = [ ":etm" ]
+    sources = [
+      "etm_decode_trace_vtable.cc",
+      "etm_iterate_range_vtable.cc",
+    ]
+    deps = [
+      ":etm_hdr",
+      "../../../../../gn:default_deps",
+      "../../../../../gn:sqlite",
+      "../../../../base",
+      "../../../importers/etm:etm_impl",
+      "../../../sqlite",
+      "../../../storage",
+      "../../../util",
+    ]
+  }
 }
 
 perfetto_unittest_source_set("unittests") {

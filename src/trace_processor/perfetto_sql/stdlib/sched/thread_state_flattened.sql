@@ -26,9 +26,9 @@ CREATE VIRTUAL TABLE __span_joined_thread USING
 -- of _slice_flattened.
 CREATE PERFETTO FUNCTION _get_flattened_thread_state(
   -- Id of the slice of interest.
-  slice_id LONG,
+  slice_id JOINID(slice.id),
   -- Utid.
-  utid LONG)
+  utid JOINID(thread.id))
 RETURNS
   TABLE(
     -- Timestamp.
@@ -36,15 +36,15 @@ RETURNS
     -- Duration.
     dur DURATION,
     -- Utid.
-    utid LONG,
+    utid JOINID(thread.id),
     -- Depth.
     depth LONG,
     -- Name.
     name STRING,
     -- Slice id.
-    slice_id LONG,
+    slice_id JOINID(slice.id),
     -- Track id.
-    track_id LONG,
+    track_id JOINID(track.id),
     -- CPU.
     cpu LONG,
     -- State.
@@ -54,7 +54,7 @@ RETURNS
     -- Thread state's blocked_function.
     blocked_function STRING,
     -- Thread state's waker utid.
-    waker_utid LONG,
+    waker_utid JOINID(thread.id),
     -- Thread state's IRQ context.
     irq_context LONG
 ) AS
@@ -97,12 +97,12 @@ WHERE
 -- of _slice_flattened.
 CREATE PERFETTO FUNCTION _get_flattened_thread_state_aggregated(
   -- Slice id.
-  slice_id LONG,
+  slice_id JOINID(slice.id),
   -- Utid.
-  utid LONG)
+  utid JOINID(thread.id))
 RETURNS TABLE(
   -- Id of a slice.
-  slice_id LONG,
+  slice_id JOINID(slice.id),
   -- Name of the slice.
   slice_name STRING,
   -- Time (ns) spent in Uninterruptible Sleep (non-IO)

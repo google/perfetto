@@ -19,16 +19,16 @@ INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
 -- Time each thread slice spent running on CPU.
 -- Requires scheduling data to be available in the trace.
 CREATE PERFETTO TABLE thread_slice_cpu_time(
-  -- Id of a slice. Alias of `slice.id`.
-  id LONG,
+  -- Slice.
+  id JOINID(slice.id),
   -- Name of the slice.
   name STRING,
-  -- Id of the thread the slice is running on. Alias of `thread.id`.
-  utid LONG,
+  -- Id of the thread the slice is running on.
+  utid JOINID(thread.id),
   -- Name of the thread.
   thread_name STRING,
-  -- Id of the process the slice is running on. Alias of `process.id`.
-  upid LONG,
+  -- Id of the process the slice is running on.
+  upid JOINID(process.id),
   -- Name of the process.
   process_name STRING,
   -- Duration of the time the slice was running.
@@ -51,16 +51,16 @@ ORDER BY id;
 
 -- CPU cycles per each slice.
 CREATE PERFETTO VIEW thread_slice_cpu_cycles(
-  -- Id of a slice. Alias of `slice.id`.
-  id LONG,
+  -- Id of a slice.
+  id JOINID(slice.id),
   -- Name of the slice.
   name STRING,
-  -- Id of the thread the slice is running on. Alias of `thread.id`.
-  utid LONG,
+  -- Id of the thread the slice is running on.
+  utid JOINID(thread.id),
   -- Name of the thread.
   thread_name STRING,
-  -- Id of the process the slice is running on. Alias of `process.id`.
-  upid LONG,
+  -- Id of the process the slice is running on.
+  upid JOINID(process.id),
   -- Name of the process.
   process_name STRING,
   -- Sum of CPU millicycles. Null if frequency couldn't be fetched for any

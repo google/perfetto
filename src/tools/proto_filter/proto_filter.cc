@@ -20,9 +20,9 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
 #include "protos/perfetto/config/trace_config.gen.h"
-#include "src/perfetto_cmd/pbtxt_to_pb.h"
 #include "src/protozero/filtering/filter_util.h"
 #include "src/protozero/filtering/message_filter.h"
+#include "src/trace_config_utils/txt_to_pb.h"
 
 namespace perfetto {
 namespace proto_filter {
@@ -80,52 +80,6 @@ Example usage:
                [-g protos.Message:string_field_to_filter] \
                -f /tmp/bytecode
 )";
-
-class LoggingErrorReporter : public ErrorReporter {
- public:
-  LoggingErrorReporter(std::string file_name, const char* config)
-      : file_name_(file_name), config_(config) {}
-
-  void AddError(size_t row,
-                size_t column,
-                size_t length,
-                const std::string& message) override {
-    parsed_successfully_ = false;
-    std::string line = ExtractLine(row - 1).ToStdString();
-    if (!line.empty() && line[line.length() - 1] == '\n') {
-      line.erase(line.length() - 1);
-    }
-
-    std::string guide(column + length, ' ');
-    for (size_t i = column; i < column + length; i++) {
-      guide[i - 1] = i == column ? '^' : '~';
-    }
-    fprintf(stderr, "%s:%zu:%zu error: %s\n", file_name_.c_str(), row, column,
-            message.c_str());
-    fprintf(stderr, "%s\n", line.c_str());
-    fprintf(stderr, "%s\n", guide.c_str());
-  }
-
-  bool Success() const { return parsed_successfully_; }
-
- private:
-  base::StringView ExtractLine(size_t line) {
-    const char* start = config_;
-    const char* end = config_;
-
-    for (size_t i = 0; i < line + 1; i++) {
-      start = end;
-      char c;
-      while ((c = *end++) && c != '\n')
-        ;
-    }
-    return base::StringView(start, static_cast<size_t>(end - start));
-  }
-
-  bool parsed_successfully_ = true;
-  std::string file_name_;
-  const char* config_;
-};
 
 using TraceFilter = protos::gen::TraceConfig::TraceFilter;
 std::optional<protozero::StringFilter::Policy> ConvertPolicy(
@@ -309,12 +263,13 @@ int Main(int argc, char** argv) {
       PERFETTO_ELOG("Could not open config file %s", config_in.c_str());
       return 1;
     }
-    LoggingErrorReporter reporter(config_in, config_data.c_str());
-    auto config_bytes = PbtxtToPb(config_data, &reporter);
-    if (!reporter.Success()) {
+    auto res = TraceConfigTxtToPb(config_data, config_in);
+    if (!res.ok()) {
+      fprintf(stderr, "%s\n", res.status().c_message());
       return 1;
     }
 
+    std::vector<uint8_t>& config_bytes = res.value();
     protos::gen::TraceConfig config;
     config.ParseFromArray(config_bytes.data(), config_bytes.size());
 

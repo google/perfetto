@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/profiling/symbolizer/binary_info.h"
 #include "src/profiling/symbolizer/elf.h"
 #include "src/profiling/symbolizer/filesystem.h"
 
@@ -88,6 +89,35 @@ namespace profiling {
 
 namespace {
 
+std::optional<BinaryInfo> ReadBinaryInfoFromFile(const char* fname) {
+  if (!base::FileExists(fname)) {
+    return std::nullopt;
+  }
+  // Openfile opens the file with an exclusive lock on windows.
+  std::optional<uint64_t> file_size = base::GetFileSize(fname);
+  if (!file_size.has_value()) {
+    PERFETTO_PLOG("Failed to get file size %s", fname);
+    return std::nullopt;
+  }
+
+  static_assert(sizeof(size_t) <= sizeof(uint64_t));
+  size_t size = static_cast<size_t>(
+      std::min<uint64_t>(std::numeric_limits<size_t>::max(), *file_size));
+
+  if (size == 0) {
+    return std::nullopt;
+  }
+
+  base::ScopedMmap map = base::ReadMmapFilePart(fname, size);
+  if (!map.IsValid()) {
+    PERFETTO_PLOG("Failed to mmap %s", fname);
+    return std::nullopt;
+  }
+  const uint8_t* mem = static_cast<const uint8_t*>(map.data());
+
+  return GetBinaryInfo(mem, size);
+}
+
 std::string GetLine(std::function<int64_t(char*, size_t)> fn_read) {
   std::string line;
   char buffer[512];
@@ -107,84 +137,6 @@ std::string GetLine(std::function<int64_t(char*, size_t)> fn_read) {
   return line;
 }
 
-bool InRange(const void* base,
-             size_t total_size,
-             const void* ptr,
-             size_t size) {
-  return ptr >= base && static_cast<const char*>(ptr) + size <=
-                            static_cast<const char*>(base) + total_size;
-}
-
-template <typename E>
-std::optional<uint64_t> GetElfLoadBias(void* mem, size_t size) {
-  const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
-  if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    PERFETTO_ELOG("Corrupted ELF.");
-    return std::nullopt;
-  }
-  for (size_t i = 0; i < ehdr->e_phnum; ++i) {
-    typename E::Phdr* phdr = GetPhdr<E>(mem, ehdr, i);
-    if (!InRange(mem, size, phdr, sizeof(typename E::Phdr))) {
-      PERFETTO_ELOG("Corrupted ELF.");
-      return std::nullopt;
-    }
-    if (phdr->p_type == PT_LOAD && phdr->p_flags & PF_X) {
-      return phdr->p_vaddr - phdr->p_offset;
-    }
-  }
-  return 0u;
-}
-
-template <typename E>
-std::optional<std::string> GetElfBuildId(void* mem, size_t size) {
-  const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
-  if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    PERFETTO_ELOG("Corrupted ELF.");
-    return std::nullopt;
-  }
-  for (size_t i = 0; i < ehdr->e_shnum; ++i) {
-    typename E::Shdr* shdr = GetShdr<E>(mem, ehdr, i);
-    if (!InRange(mem, size, shdr, sizeof(typename E::Shdr))) {
-      PERFETTO_ELOG("Corrupted ELF.");
-      return std::nullopt;
-    }
-
-    if (shdr->sh_type != SHT_NOTE)
-      continue;
-
-    auto offset = shdr->sh_offset;
-    while (offset < shdr->sh_offset + shdr->sh_size) {
-      typename E::Nhdr* nhdr =
-          reinterpret_cast<typename E::Nhdr*>(static_cast<char*>(mem) + offset);
-
-      if (!InRange(mem, size, nhdr, sizeof(typename E::Nhdr))) {
-        PERFETTO_ELOG("Corrupted ELF.");
-        return std::nullopt;
-      }
-      if (nhdr->n_type == NT_GNU_BUILD_ID && nhdr->n_namesz == 4) {
-        char* name = reinterpret_cast<char*>(nhdr) + sizeof(*nhdr);
-        if (!InRange(mem, size, name, 4)) {
-          PERFETTO_ELOG("Corrupted ELF.");
-          return std::nullopt;
-        }
-        if (memcmp(name, "GNU", 3) == 0) {
-          const char* value = reinterpret_cast<char*>(nhdr) + sizeof(*nhdr) +
-                              base::AlignUp<4>(nhdr->n_namesz);
-
-          if (!InRange(mem, size, value, nhdr->n_descsz)) {
-            PERFETTO_ELOG("Corrupted ELF.");
-            return std::nullopt;
-          }
-          return std::string(value, nhdr->n_descsz);
-        }
-      }
-      offset += sizeof(*nhdr) + base::AlignUp<4>(nhdr->n_namesz) +
-                base::AlignUp<4>(nhdr->n_descsz);
-    }
-  }
-  return std::nullopt;
-}
-
 std::string SplitBuildID(const std::string& hex_build_id) {
   if (hex_build_id.size() < 3) {
     PERFETTO_DFATAL_OR_ELOG("Invalid build-id (< 3 char) %s",
@@ -195,175 +147,16 @@ std::string SplitBuildID(const std::string& hex_build_id) {
   return hex_build_id.substr(0, 2) + "/" + hex_build_id.substr(2);
 }
 
-bool IsElf(const char* mem, size_t size) {
-  if (size <= EI_MAG3)
-    return false;
-  return (mem[EI_MAG0] == ELFMAG0 && mem[EI_MAG1] == ELFMAG1 &&
-          mem[EI_MAG2] == ELFMAG2 && mem[EI_MAG3] == ELFMAG3);
-}
-
-constexpr uint32_t kMachO64Magic = 0xfeedfacf;
-
-bool IsMachO64(const char* mem, size_t size) {
-  if (size < sizeof(kMachO64Magic))
-    return false;
-  return memcmp(mem, &kMachO64Magic, sizeof(kMachO64Magic)) == 0;
-}
-
-struct mach_header_64 {
-  uint32_t magic;      /* mach magic number identifier */
-  int32_t cputype;     /* cpu specifier */
-  int32_t cpusubtype;  /* machine specifier */
-  uint32_t filetype;   /* type of file */
-  uint32_t ncmds;      /* number of load commands */
-  uint32_t sizeofcmds; /* the size of all the load commands */
-  uint32_t flags;      /* flags */
-  uint32_t reserved;   /* reserved */
-};
-
-struct load_command {
-  uint32_t cmd;     /* type of load command */
-  uint32_t cmdsize; /* total size of command in bytes */
-};
-
-struct segment_64_command {
-  uint32_t cmd;      /* LC_SEGMENT_64 */
-  uint32_t cmdsize;  /* includes sizeof section_64 structs */
-  char segname[16];  /* segment name */
-  uint64_t vmaddr;   /* memory address of this segment */
-  uint64_t vmsize;   /* memory size of this segment */
-  uint64_t fileoff;  /* file offset of this segment */
-  uint64_t filesize; /* amount to map from the file */
-  uint32_t maxprot;  /* maximum VM protection */
-  uint32_t initprot; /* initial VM protection */
-  uint32_t nsects;   /* number of sections in segment */
-  uint32_t flags;    /* flags */
-};
-
-struct BinaryInfo {
-  std::string build_id;
-  uint64_t load_bias;
-  BinaryType type;
-};
-
-std::optional<BinaryInfo> GetMachOBinaryInfo(char* mem, size_t size) {
-  if (size < sizeof(mach_header_64))
-    return {};
-
-  mach_header_64 header;
-  memcpy(&header, mem, sizeof(mach_header_64));
-
-  if (size < sizeof(mach_header_64) + header.sizeofcmds)
-    return {};
-
-  std::optional<std::string> build_id;
-  uint64_t load_bias = 0;
-
-  char* pcmd = mem + sizeof(mach_header_64);
-  char* pcmds_end = pcmd + header.sizeofcmds;
-  while (pcmd < pcmds_end) {
-    load_command cmd_header;
-    memcpy(&cmd_header, pcmd, sizeof(load_command));
-
-    constexpr uint32_t LC_SEGMENT_64 = 0x19;
-    constexpr uint32_t LC_UUID = 0x1b;
-
-    switch (cmd_header.cmd) {
-      case LC_UUID: {
-        build_id = std::string(pcmd + sizeof(load_command),
-                               cmd_header.cmdsize - sizeof(load_command));
-        break;
-      }
-      case LC_SEGMENT_64: {
-        segment_64_command seg_cmd;
-        memcpy(&seg_cmd, pcmd, sizeof(segment_64_command));
-        if (strcmp(seg_cmd.segname, "__TEXT") == 0) {
-          load_bias = seg_cmd.vmaddr;
-        }
-        break;
-      }
-      default:
-        break;
-    }
-
-    pcmd += cmd_header.cmdsize;
-  }
-
-  if (build_id) {
-    constexpr uint32_t MH_DSYM = 0xa;
-    BinaryType type = header.filetype == MH_DSYM ? BinaryType::kMachODsym
-                                                 : BinaryType::kMachO;
-    return BinaryInfo{*build_id, load_bias, type};
-  }
-  return {};
-}
-
-std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
-  static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
-  if (size <= EI_CLASS)
-    return std::nullopt;
-  base::ScopedMmap map = base::ReadMmapFilePart(fname, size);
-  if (!map.IsValid()) {
-    PERFETTO_PLOG("Failed to mmap %s", fname);
-    return std::nullopt;
-  }
-  char* mem = static_cast<char*>(map.data());
-
-  std::optional<std::string> build_id;
-  std::optional<uint64_t> load_bias;
-  if (IsElf(mem, size)) {
-    switch (mem[EI_CLASS]) {
-      case ELFCLASS32:
-        build_id = GetElfBuildId<Elf32>(mem, size);
-        load_bias = GetElfLoadBias<Elf32>(mem, size);
-        break;
-      case ELFCLASS64:
-        build_id = GetElfBuildId<Elf64>(mem, size);
-        load_bias = GetElfLoadBias<Elf64>(mem, size);
-        break;
-      default:
-        return std::nullopt;
-    }
-    if (build_id && load_bias) {
-      return BinaryInfo{*build_id, *load_bias, BinaryType::kElf};
-    }
-  } else if (IsMachO64(mem, size)) {
-    return GetMachOBinaryInfo(mem, size);
-  }
-  return std::nullopt;
-}
-
 std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
   std::map<std::string, FoundBinary> result;
-  WalkDirectories(std::move(dirs), [&result](const char* fname, size_t size) {
-    static_assert(EI_MAG3 + 1 == sizeof(kMachO64Magic));
-    char magic[EI_MAG3 + 1];
-    // Scope file access. On windows OpenFile opens an exclusive lock.
-    // This lock needs to be released before mapping the file.
-    {
-      base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
-      if (!fd) {
-        PERFETTO_PLOG("Failed to open %s", fname);
-        return;
-      }
-      ssize_t rd = base::Read(*fd, &magic, sizeof(magic));
-      if (rd != sizeof(magic)) {
-        PERFETTO_PLOG("Failed to read %s", fname);
-        return;
-      }
-      if (!IsElf(magic, static_cast<size_t>(rd)) &&
-          !IsMachO64(magic, static_cast<size_t>(rd))) {
-        PERFETTO_DLOG("%s not an ELF or Mach-O 64.", fname);
-        return;
-      }
-    }
-    std::optional<BinaryInfo> binary_info = GetBinaryInfo(fname, size);
-    if (!binary_info) {
+  WalkDirectories(std::move(dirs), [&result](const char* fname, size_t) {
+    std::optional<BinaryInfo> binary_info = ReadBinaryInfoFromFile(fname);
+    if (!binary_info || !binary_info->build_id) {
       PERFETTO_DLOG("Failed to extract build id from %s.", fname);
       return;
     }
     auto it = result.emplace(
-        binary_info->build_id,
+        *binary_info->build_id,
         FoundBinary{fname, binary_info->load_bias, binary_info->type});
 
     // If there was already an existing FoundBinary, the emplace wouldn't insert
@@ -374,16 +167,16 @@ std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
       if (it.first->second.type == BinaryType::kMachO &&
           binary_info->type == BinaryType::kMachODsym) {
         PERFETTO_LOG("Overwriting index entry for %s to %s.",
-                     base::ToHex(binary_info->build_id).c_str(), fname);
+                     base::ToHex(*binary_info->build_id).c_str(), fname);
         it.first->second =
             FoundBinary{fname, binary_info->load_bias, binary_info->type};
       } else {
         PERFETTO_DLOG("Ignoring %s, index entry for %s already exists.", fname,
-                      base::ToHex(binary_info->build_id).c_str());
+                      base::ToHex(*binary_info->build_id).c_str());
       }
     } else {
       PERFETTO_LOG("Indexed: %s (%s)", fname,
-                   base::ToHex(binary_info->build_id).c_str());
+                   base::ToHex(*binary_info->build_id).c_str());
     }
   });
   return result;
@@ -683,26 +476,8 @@ std::optional<FoundBinary> LocalBinaryFinder::FindBinary(
 std::optional<FoundBinary> LocalBinaryFinder::IsCorrectFile(
     const std::string& symbol_file,
     const std::string& build_id) {
-  if (!base::FileExists(symbol_file)) {
-    return std::nullopt;
-  }
-  // Openfile opens the file with an exclusive lock on windows.
-  std::optional<uint64_t> file_size = base::GetFileSize(symbol_file);
-  if (!file_size.has_value()) {
-    PERFETTO_PLOG("Failed to get file size %s", symbol_file.c_str());
-    return std::nullopt;
-  }
-
-  static_assert(sizeof(size_t) <= sizeof(uint64_t));
-  size_t size = static_cast<size_t>(
-      std::min<uint64_t>(std::numeric_limits<size_t>::max(), *file_size));
-
-  if (size == 0) {
-    return std::nullopt;
-  }
-
   std::optional<BinaryInfo> binary_info =
-      GetBinaryInfo(symbol_file.c_str(), size);
+      ReadBinaryInfoFromFile(symbol_file.c_str());
   if (!binary_info)
     return std::nullopt;
   if (binary_info->build_id != build_id) {

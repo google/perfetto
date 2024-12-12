@@ -2,6 +2,9 @@ Unreleased:
   Tracing service and probes:
     * Add `--clone-by-name` to the perfetto command line. This allows cloning a
       tracing session by its unique_session_name.
+    * Fixed a bug that would delay the trace start acknowledgement, resulting
+      in a 30s when using --background-wait, if an Android producer process is
+      frozen, as it would be considered unresponsive.
   SQL Standard library:
     * Removed the `linux_device_track` table. Linux RPM (runtime power
       management) tracks formerly in this table now can be found in the `track`
@@ -28,6 +31,14 @@ Unreleased:
       functionality has been moved into other packages. Notably, the time
       conversion functions can be found in `time.conversion` module, and
       `thread_slice` is available with `slices.with_context`.
+    * Deprecated UINT and INT integer types in Perfetto SQL. Please use LONG in
+      Perfetto SQL schema.
+    * Deprecated FLOAT flating type in Perfetto SQL. Please use DOUBLE in
+      Perfetto SQL schema.
+    * Added TIMESTAMP, DURATION, ID and JOINID types to Perfetto SQL schema.
+      TIMESTAMP and DURATION refers to time columns in nanoseconds. ID column
+      is a primary key for the column and JOINID is referencing ID
+      column of other table.
   Trace Processor:
     *
   UI:

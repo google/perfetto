@@ -16,7 +16,6 @@ import {Duration, Time} from '../../base/time';
 import {
   BASE_ROW,
   BaseSliceTrack,
-  OnSliceClickArgs,
   OnSliceOverArgs,
 } from '../../components/tracks/base_slice_track';
 import {
@@ -71,10 +70,6 @@ export class HeapProfileTrack extends BaseSliceTrack<
 
   onSliceOver(args: OnSliceOverArgs<HeapProfileSlice>) {
     args.tooltip = [args.slice.type];
-  }
-
-  onSliceClick(args: OnSliceClickArgs<HeapProfileSlice>) {
-    this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
   }
 
   async getSelectionDetails(

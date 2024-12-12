@@ -14,22 +14,10 @@
 
 import m from 'mithril';
 import {PageWithTraceAttrs} from '../../public/page';
-import {Trace} from '../../public/trace';
-import {
-  DurationColumn,
-  ProcessColumnSet,
-  StandardColumn,
-  ThreadColumnSet,
-  TimestampColumn,
-} from '../../components/widgets/sql/table/well_known_columns';
-import {SqlTableState} from '../../components/widgets/sql/table/state';
-import {SqlTable} from '../../components/widgets/sql/table/table';
+import {SqlTableState as SqlTableViewState} from '../../components/widgets/sql/legacy_table/state';
+import {SqlTable as SqlTableView} from '../../components/widgets/sql/legacy_table/table';
 import {exists} from '../../base/utils';
 import {Menu, MenuItem, MenuItemAttrs} from '../../widgets/menu';
-import {
-  TableColumn,
-  TableColumnSet,
-} from '../../components/widgets/sql/table/column';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -44,109 +32,72 @@ import {
   CollapsiblePanel,
   CollapsiblePanelVisibility,
 } from '../../components/widgets/collapsible_panel';
+import {Trace} from '../../public/trace';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {scheduleFullRedraw} from '../../widgets/raf';
 
-interface ExploreTableState {
-  sqlTableState?: SqlTableState;
-  selectedTable?: ExplorableTable;
+export interface ExploreTableState {
+  sqlTableViewState?: SqlTableViewState;
+  selectedTableName?: string;
 }
 
-interface ExplorableTable {
-  name: string;
-  module: string;
-  columns: (TableColumn | TableColumnSet)[];
+interface ExplorePageAttrs extends PageWithTraceAttrs {
+  readonly state: ExploreTableState;
+  readonly charts: Set<Chart>;
 }
 
-export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
-  private readonly state: ExploreTableState;
-  private readonly charts: Chart[];
-  private visibility: CollapsiblePanelVisibility;
-
-  constructor() {
-    this.charts = [];
-    this.state = {};
-    this.visibility = CollapsiblePanelVisibility.VISIBLE;
-  }
+export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
+  private visibility = CollapsiblePanelVisibility.VISIBLE;
 
   // Show menu with standard library tables
   private renderSelectableTablesMenuItems(
     trace: Trace,
+    state: ExploreTableState,
   ): m.Vnode<MenuItemAttrs, unknown>[] {
-    // TODO (lydiatse@): The following is purely for prototyping and
-    // should be derived from the actual stdlib itself rather than
-    // being hardcoded.
-    const explorableTables: ExplorableTable[] = [
-      {
-        name: 'android_binder_txns',
-        module: 'android.binder',
-        columns: [
-          new StandardColumn('aidl_name'),
-          new StandardColumn('aidl_ts'),
-          new StandardColumn('aidl_dur'),
-          new StandardColumn('binder_txn_id', {startsHidden: true}),
-          new ProcessColumnSet('client_upid', {title: 'client_upid'}),
-          new ThreadColumnSet('client_utid', {title: 'client_utid'}),
-          new StandardColumn('is_main_thread'),
-          new TimestampColumn('client_ts'),
-          new DurationColumn('client_dur'),
-          new StandardColumn('binder_reply_id', {startsHidden: true}),
-          new ProcessColumnSet('server_upid', {title: 'server_upid'}),
-          new ThreadColumnSet('server_utid', {title: 'server_utid'}),
-          new TimestampColumn('server_ts'),
-          new DurationColumn('server_dur'),
-          new StandardColumn('client_oom_score', {aggregationType: 'nominal'}),
-          new StandardColumn('server_oom_score', {aggregationType: 'nominal'}),
-          new StandardColumn('is_sync', {startsHidden: true}),
-          new StandardColumn('client_monotonic_dur', {startsHidden: true}),
-          new StandardColumn('server_monotonic_dur', {startsHidden: true}),
-          new StandardColumn('client_package_version_code', {
-            startsHidden: true,
-          }),
-          new StandardColumn('server_package_version_code', {
-            startsHidden: true,
-          }),
-          new StandardColumn('is_client_package_debuggable', {
-            startsHidden: true,
-          }),
-          new StandardColumn('is_server_package_debuggable', {
-            startsHidden: true,
-          }),
-        ],
-      },
-    ];
+    const sqlModules = trace.plugins
+      .getPlugin(SqlModulesPlugin)
+      .getSqlModules();
+    return sqlModules.listTables().map((tableName) => {
+      const sqlTable = sqlModules
+        .getModuleForTable(tableName)
+        ?.getTable(tableName);
+      const sqlTableViewDescription = sqlModules
+        .getModuleForTable(tableName)
+        ?.getSqlTableDescription(tableName);
 
-    return explorableTables.map((table) => {
       return m(MenuItem, {
-        label: table.name,
+        label: tableName,
         onclick: () => {
           if (
-            this.state.selectedTable &&
-            table.name === this.state.selectedTable.name
+            (state.selectedTableName &&
+              tableName === state.selectedTableName) ||
+            sqlTable === undefined ||
+            sqlTableViewDescription === undefined
           ) {
             return;
           }
 
-          this.state.selectedTable = table;
-
-          this.state.sqlTableState = new SqlTableState(
+          state.selectedTableName = sqlTable.name;
+          state.sqlTableViewState = new SqlTableViewState(
             trace,
             {
-              name: table.name,
-              columns: table.columns,
+              name: tableName,
+              columns: sqlTable.getTableColumns(),
             },
-            {imports: [table.module]},
+            {imports: sqlTableViewDescription.imports},
           );
         },
       });
     });
   }
 
-  private renderSqlTable() {
-    const sqlTableState = this.state.sqlTableState;
+  private renderSqlTable(state: ExploreTableState, charts: Set<Chart>) {
+    const sqlTableViewState = state.sqlTableViewState;
 
-    if (sqlTableState === undefined) return;
+    if (sqlTableViewState === undefined) return;
 
-    const range = sqlTableState.getDisplayedRange();
-    const rowCount = sqlTableState.getTotalRowCount();
+    const range = sqlTableViewState.getDisplayedRange();
+    const rowCount = sqlTableViewState.getTotalRowCount();
 
     const navigation = [
       exists(range) &&
@@ -154,13 +105,13 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
         `Showing rows ${range.from}-${range.to} of ${rowCount}`,
       m(Button, {
         icon: Icons.GoBack,
-        disabled: !sqlTableState.canGoBack(),
-        onclick: () => sqlTableState!.goBack(),
+        disabled: !sqlTableViewState.canGoBack(),
+        onclick: () => sqlTableViewState!.goBack(),
       }),
       m(Button, {
         icon: Icons.GoForward,
-        disabled: !sqlTableState.canGoForward(),
-        onclick: () => sqlTableState!.goForward(),
+        disabled: !sqlTableViewState.canGoForward(),
+        onclick: () => sqlTableViewState!.goForward(),
       }),
     ];
 
@@ -171,37 +122,61 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
         buttons: navigation,
         fillParent: false,
       },
-      m(SqlTable, {
-        state: sqlTableState,
+      m(SqlTableView, {
+        state: sqlTableViewState,
         addColumnMenuItems: (column, columnAlias) =>
           m(AddChartMenuItem, {
             chartConfig: createChartConfigFromSqlTableState(
               column,
               columnAlias,
-              sqlTableState,
+              sqlTableViewState,
             ),
             chartOptions: [ChartOption.HISTOGRAM],
-            addChart: (chart) => this.charts.push(chart),
+            addChart: (chart) => charts.add(chart),
           }),
       }),
     );
   }
 
-  view({attrs}: m.CVnode<PageWithTraceAttrs>) {
+  private renderRemovableChart(chart: Chart, charts: Set<Chart>) {
+    return m(
+      '.chart-card',
+      {
+        key: `${chart.option}-${chart.config.columnTitle}`,
+      },
+      m(Button, {
+        icon: Icons.Close,
+        onclick: () => {
+          charts.delete(chart);
+          scheduleFullRedraw();
+        },
+      }),
+      renderChartComponent(chart),
+    );
+  }
+
+  view({attrs}: m.CVnode<ExplorePageAttrs>) {
+    const {trace, state, charts} = attrs;
+
     return m(
       '.page.explore-page',
       m(
         '.chart-container',
-        m(Menu, this.renderSelectableTablesMenuItems(attrs.trace)),
-        this.charts.map((chart) => renderChartComponent(chart)),
+        m(Menu, this.renderSelectableTablesMenuItems(trace, state)),
       ),
-      this.state.selectedTable &&
+      m(
+        '.chart-container',
+        Array.from(charts.values()).map((chart) =>
+          this.renderRemovableChart(chart, charts),
+        ),
+      ),
+      state.selectedTableName &&
         m(CollapsiblePanel, {
           visibility: this.visibility,
           setVisibility: (visibility) => {
             this.visibility = visibility;
           },
-          tabs: [this.renderSqlTable()],
+          tabs: [this.renderSqlTable(state, charts)],
         }),
     );
   }

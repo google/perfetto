@@ -64,7 +64,7 @@ ORDER BY id;
 -- Per type name aggregates the object stats and the dominator tree stats.
 CREATE PERFETTO TABLE android_heap_graph_class_aggregation (
   -- Process upid
-  upid LONG,
+  upid JOINID(process.id),
   -- Heap dump timestamp
   graph_sample_ts TIMESTAMP,
   -- Class type id

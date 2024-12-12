@@ -129,6 +129,24 @@ export class Rect2D implements Bounds2D, Size2D {
   readonly width: number;
   readonly height: number;
 
+  /**
+   * Creates a new rect given a point and size.
+   *
+   * E.g. Rect2D.fromPointAndSize({x: 10, y: 20, width: 100, height: 80})
+   *
+   * @param pointAndSize - The combined point and size.
+   * @returns A new Rect2D object.
+   */
+  static fromPointAndSize(pointAndSize: Point2D & Size2D) {
+    const {x, y, width, height} = pointAndSize;
+    return new Rect2D({
+      top: y,
+      left: x,
+      right: x + width,
+      bottom: y + height,
+    });
+  }
+
   constructor({left, top, right, bottom}: Bounds2D) {
     this.left = left;
     this.top = top;
@@ -158,16 +176,28 @@ export class Rect2D implements Bounds2D, Size2D {
    * Expands the rectangle by the given amount on all sides and returns a new
    * rectangle.
    *
-   * @param amount - The amount to expand the rectangle by.
+   * @param amount - The amount to expand the rectangle by. This can be a number
+   * which is applied evenly to each side, or it can be a Size2D object which
+   * applies a different expansion amount in the x and y dimensions.
    * @returns A new Rect2D instance representing the expanded rectangle.
    */
-  expand(amount: number): Rect2D {
-    return new Rect2D({
-      top: this.top - amount,
-      left: this.left - amount,
-      bottom: this.bottom + amount,
-      right: this.right + amount,
-    });
+  expand(amount: number | Size2D): Rect2D {
+    if (typeof amount === 'number') {
+      return new Rect2D({
+        top: this.top - amount,
+        left: this.left - amount,
+        bottom: this.bottom + amount,
+        right: this.right + amount,
+      });
+    } else {
+      const {width, height} = amount;
+      return new Rect2D({
+        top: this.top - height,
+        left: this.left - width,
+        bottom: this.bottom + height,
+        right: this.right + width,
+      });
+    }
   }
 
   /**
@@ -197,6 +227,36 @@ export class Rect2D implements Bounds2D, Size2D {
       bounds.bottom > this.bottom ||
       bounds.left < this.left ||
       bounds.right > this.right
+    );
+  }
+
+  /**
+   * Checks if this rectangle contains a point in 2D space.
+   *
+   * @param point - The point to check.
+   * @returns True if this rectangle contains the given point, false otherwise.
+   */
+  containsPoint(point: Point2D): boolean {
+    return (
+      point.y >= this.top &&
+      point.y < this.bottom &&
+      point.x >= this.left &&
+      point.x < this.right
+    );
+  }
+
+  /**
+   * Checks if this rectangle overlaps another set of bounds.
+   *
+   * @param bounds - The bounds to check overlap for.
+   * @returns rue if this rectangle overlaps the given bounds, false otherwise.
+   */
+  overlaps(bounds: Bounds2D): boolean {
+    return (
+      this.left < bounds.right &&
+      this.right > bounds.left &&
+      this.top < bounds.bottom &&
+      this.bottom > bounds.top
     );
   }
 

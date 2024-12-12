@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_TOKENIZER_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -83,11 +84,13 @@ class TrackEventTokenizer {
       const protos::pbzero::TrackEvent_LegacyEvent_Decoder&,
       PacketSequenceStateGeneration& state);
 
-  TraceProcessorContext* context_;
-  TrackEventTracker* track_event_tracker_;
+  TraceProcessorContext* const context_;
+  TrackEventTracker* const track_event_tracker_;
 
   const StringId counter_name_thread_time_id_;
   const StringId counter_name_thread_instruction_count_id_;
+
+  std::array<StringId, 4> counter_unit_ids_;
 };
 
 }  // namespace trace_processor

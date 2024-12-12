@@ -23,7 +23,10 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_view.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "src/trace_processor/importers/android_bugreport/android_battery_stats_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -34,11 +37,16 @@ AndroidDumpstateReader::AndroidDumpstateReader(
     TraceProcessorContext* context,
     int32_t year,
     std::vector<TimestampedAndroidLogEvent> logcat_events)
-    : context_(context), log_reader_(context, year, std::move(logcat_events)) {}
+    : context_(context),
+      battery_stats_reader_(context),
+      log_reader_(context, year, std::move(logcat_events)) {}
 
 AndroidDumpstateReader::~AndroidDumpstateReader() = default;
 
 base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
+  context_->clock_tracker->SetTraceTimeClock(
+      protos::pbzero::BUILTIN_CLOCK_REALTIME);
+
   // Dumpstate is organized in a two level hierarchy, beautifully flattened into
   // one text file with load bearing ----- markers:
   // 1. Various dumpstate sections, examples:
@@ -94,6 +102,8 @@ base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
         // Coalesce all the block stats into one section. Otherwise they
         // pollute the table with one section per block device.
         current_section_id_ = context_->storage->InternString("BLOCK STAT");
+      } else if (section.StartsWith("CHECKIN BATTERYSTATS")) {
+        current_section_ = Section::kBatteryStats;
       }
     }
     return base::OkStatus();
@@ -108,6 +118,11 @@ base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
       line.StartsWith("----------------------------------------------")) {
     return base::OkStatus();
   }
+  // if we get the start of a standalone battery stats checkin, then set the
+  // section and deliberately fall though so we we can parse the line.
+  if (line.StartsWith("9,0,i,vers,")) {
+    current_section_ = Section::kBatteryStats;
+  }
   if (current_section_ == Section::kDumpsys &&
       line.StartsWith("DUMP OF SERVICE")) {
     // DUMP OF SERVICE [CRITICAL|HIGH] ServiceName:
@@ -116,6 +131,8 @@ base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
     current_service_id_ = context_->storage->InternString(svc);
   } else if (current_section_ == Section::kLog) {
     RETURN_IF_ERROR(log_reader_.ParseLine(line));
+  } else if (current_section_ == Section::kBatteryStats) {
+    RETURN_IF_ERROR(battery_stats_reader_.ParseLine(line));
   }
 
   // Append the line to the android_dumpstate table.

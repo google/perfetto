@@ -22,11 +22,11 @@ CREATE PERFETTO VIEW counter(
   -- Time of fetching the counter value.
   ts TIMESTAMP,
   -- Track this counter value belongs to.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Value.
   value DOUBLE,
   -- Additional information about the counter value.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Legacy column, should no longer be used.
   type STRING
 ) AS
@@ -38,33 +38,6 @@ SELECT
   arg_set_id,
   type
 FROM __intrinsic_counter;
-
-
--- Alias of the `counter` table.
-CREATE PERFETTO VIEW counters(
-  -- Alias of `counter.id`.
-  id LONG,
-  -- Alias of `counter.type`.
-  type STRING,
-  -- Alias of `counter.ts`.
-  ts TIMESTAMP,
-  -- Alias of `counter.track_id`.
-  track_id LONG,
-  -- Alias of `counter.value`.
-  value DOUBLE,
-  -- Alias of `counter.arg_set_id`.
-  arg_set_id LONG,
-  -- Legacy column, should no longer be used.
-  name STRING,
-  -- Legacy column, should no longer be used.
-  unit STRING,
-  -- Legacy column, should no longer be used.
-  description STRING
-) AS
-SELECT v.*, t.name, t.unit, t.description
-FROM counter v
-JOIN counter_track t ON v.track_id = t.id
-ORDER BY ts;
 
 -- Contains slices from userspace which explains what threads were doing
 -- during the trace.
@@ -78,7 +51,7 @@ CREATE PERFETTO VIEW slice(
   -- The duration of the slice.
   dur DURATION,
   -- The id of the track this slice is located on.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- The "category" of the slice. If this slice originated with track_event,
   -- this column contains the category emitted.
   -- Otherwise, it is likely to be null (with limited exceptions).
@@ -94,9 +67,9 @@ CREATE PERFETTO VIEW slice(
   -- The stack_id for the parent of this slice. Rarely useful.
   parent_stack_id LONG,
   -- The id of the parent (i.e. immediate ancestor) slice for this slice.
-  parent_id LONG,
+  parent_id JOINID(slice.id),
   -- The id of the argument set associated with this slice.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- The thread timestamp at the start of the slice. This column will only be
   -- populated if thread timestamp collection is enabled with track_event.
   thread_ts TIMESTAMP,
@@ -114,7 +87,7 @@ CREATE PERFETTO VIEW slice(
   -- Alias of `category`.
   cat STRING,
   -- Alias of `id`.
-  slice_id LONG
+  slice_id JOINID(slice.id)
 ) AS
 SELECT *, category AS cat, id AS slice_id
 FROM __intrinsic_slice;
@@ -125,12 +98,12 @@ CREATE PERFETTO VIEW instant(
   -- The timestamp of the instant.
   ts TIMESTAMP,
   -- The id of the track this instant is located on.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- The name of the instant. The name describes what happened during the
   -- instant.
   name STRING,
   -- The id of the argument set associated with this instant.
-  arg_set_id LONG
+  arg_set_id ARGSETID
 ) AS
 SELECT ts, track_id, name, arg_set_id
 FROM slice
@@ -139,7 +112,7 @@ WHERE dur = 0;
 -- Alternative alias of table `slice`.
 CREATE PERFETTO VIEW slices(
   -- Alias of `slice.id`.
-  id LONG,
+  id JOINID(slice.id),
   -- Alias of `slice.type`.
   type STRING,
   -- Alias of `slice.ts`.
@@ -147,7 +120,7 @@ CREATE PERFETTO VIEW slices(
   -- Alias of `slice.dur`.
   dur DURATION,
   -- Alias of `slice.track_id`.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Alias of `slice.category`.
   category STRING,
   -- Alias of `slice.name`.
@@ -159,9 +132,9 @@ CREATE PERFETTO VIEW slices(
   -- Alias of `slice.parent_stack_id`.
   parent_stack_id LONG,
   -- Alias of `slice.parent_id`.
-  parent_id LONG,
+  parent_id JOINID(slice.id),
   -- Alias of `slice.arg_set_id`.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Alias of `slice.thread_ts`.
   thread_ts TIMESTAMP,
   -- Alias of `slice.thread_dur`.
@@ -173,7 +146,7 @@ CREATE PERFETTO VIEW slices(
   -- Alias of `slice.cat`.
   cat STRING,
   -- Alias of `slice.slice_id`.
-  slice_id LONG
+  slice_id JOINID(slice.id)
 ) AS
 SELECT * FROM slice;
 
@@ -202,7 +175,7 @@ CREATE PERFETTO VIEW thread(
   -- on Linux/Android).
   end_ts TIMESTAMP,
   -- The process hosting this thread.
-  upid LONG,
+  upid JOINID(process.id),
   -- Boolean indicating if this thread is the main thread in the process.
   is_main_thread BOOL,
   -- Machine identifier, non-null for threads on a remote machine.
@@ -220,7 +193,7 @@ CREATE PERFETTO VIEW process(
   -- Unique process id. This is != the OS pid. This is a monotonic number
   -- associated to each process. The OS process id (pid) cannot be used as
   -- primary key because tids and pids are recycled by most kernels.
-  upid LONG,
+  upid JOINID(process.id),
   -- The OS id for this process. Note: this is *not* unique over the lifetime of
   -- the trace so cannot be used as a primary key. Use |upid| instead.
   pid LONG,
@@ -236,7 +209,7 @@ CREATE PERFETTO VIEW process(
   -- event on Linux/Android).
   end_ts TIMESTAMP,
   -- The upid of the process which caused this process to be spawned.
-  parent_upid LONG,
+  parent_upid JOINID(process.id),
   -- The Unix user id of the process.
   uid LONG,
   -- Android appid of this process.
@@ -244,7 +217,7 @@ CREATE PERFETTO VIEW process(
   -- /proc/cmdline for this process.
   cmdline STRING,
   -- Extra args for this process.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Machine identifier, non-null for processes on a remote machine.
   machine_id LONG
 ) AS
@@ -261,7 +234,7 @@ CREATE PERFETTO VIEW args(
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- The id for a single set of arguments.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- The "flat key" of the arg: this is the key without any array indexes.
   flat_key STRING,
   -- The key for the arg.
@@ -304,7 +277,26 @@ CREATE PERFETTO VIEW perf_session(
   perf_session_id LONG,
   -- Command line used to collect the data.
   cmdline STRING
-)
-AS
+) AS
 SELECT *, id AS perf_session_id
 FROM __intrinsic_perf_session;
+
+-- Log entries from Android logcat.
+--
+-- NOTE: this table is not sorted by timestamp.
+CREATE PERFETTO VIEW android_logs(
+-- Which row in the table the log corresponds to.
+id ID,
+-- Timestamp of log entry.
+ts TIMESTAMP,
+-- Thread writing the log entry.
+utid JOINID(thread.id),
+-- Priority of the log. 3=DEBUG, 4=INFO, 5=WARN, 6=ERROR.
+prio LONG,
+-- Tag of the log entry.
+tag STRING,
+-- Content of the log entry
+msg STRING
+) AS
+SELECT id, ts, utid, prio, tag, msg
+FROM __intrinsic_android_logs;

@@ -428,19 +428,23 @@ class PERFETTO_EXPORT_COMPONENT TrackRegistry {
   // If |track| exists in the registry, write out the serialized track
   // descriptor for it into |packet|. Otherwise just the ephemeral track object
   // is serialized without any additional metadata.
+  //
+  // Returns the parent track uuid.
   template <typename TrackType>
-  void SerializeTrack(
+  uint64_t SerializeTrack(
       const TrackType& track,
       protozero::MessageHandle<protos::pbzero::TracePacket> packet) {
     // If the track has extra metadata (recorded with UpdateTrack), it will be
     // found in the registry. To minimize the time the lock is held, make a copy
     // of the data held in the registry and write it outside the lock.
     std::string desc_copy;
+    uint64_t parent_uuid = 0;
     {
       std::lock_guard<std::mutex> lock(mutex_);
       const auto& it = tracks_.find(track.uuid);
       if (it != tracks_.end()) {
-        desc_copy = it->second;
+        desc_copy = it->second.desc;
+        parent_uuid = it->second.parent_uuid;
         PERFETTO_DCHECK(!desc_copy.empty());
       }
     }
@@ -450,7 +454,9 @@ class PERFETTO_EXPORT_COMPONENT TrackRegistry {
       // Otherwise we just write the basic descriptor for this type of track
       // (e.g., just uuid, no name).
       track.Serialize(packet->set_track_descriptor());
+      parent_uuid = track.parent_uuid;
     }
+    return parent_uuid;
   }
 
   static void WriteTrackDescriptor(
@@ -458,8 +464,12 @@ class PERFETTO_EXPORT_COMPONENT TrackRegistry {
       protozero::MessageHandle<protos::pbzero::TracePacket> packet);
 
  private:
+  struct TrackInfo {
+    SerializedTrackDescriptor desc;
+    uint64_t parent_uuid = 0;
+  };
   std::mutex mutex_;
-  std::map<uint64_t /* uuid */, SerializedTrackDescriptor> tracks_;
+  std::map<uint64_t /* uuid */, TrackInfo> tracks_;
 
   static TrackRegistry* instance_;
 };

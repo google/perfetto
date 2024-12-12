@@ -24,6 +24,7 @@ import {
 } from '../../frontend/legacy_trace_viewer';
 import {AppImpl} from '../../core/app_impl';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import {featureFlags} from '../../core/feature_flags';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -91,6 +92,13 @@ group by
 order by total_self_size desc
 limit 100;`;
 
+const SHOW_OPEN_WITH_LEGACY_UI_BUTTON = featureFlags.register({
+  id: 'showOpenWithLegacyUiButton',
+  name: 'Show "Open with legacy UI" button',
+  description: 'Show "Open with legacy UI" button in the sidebar',
+  defaultValue: false,
+});
+
 export default class implements PerfettoPlugin {
   static readonly id = 'perfetto.CoreCommands';
   static onActivate(ctx: App) {
@@ -137,11 +145,13 @@ export default class implements PerfettoPlugin {
         input.click();
       },
     });
-    ctx.sidebar.addMenuItem({
-      commandId: OPEN_LEGACY_COMMAND_ID,
-      section: 'navigation',
-      icon: 'filter_none',
-    });
+    if (SHOW_OPEN_WITH_LEGACY_UI_BUTTON.get()) {
+      ctx.sidebar.addMenuItem({
+        commandId: OPEN_LEGACY_COMMAND_ID,
+        section: 'navigation',
+        icon: 'filter_none',
+      });
+    }
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -281,15 +291,10 @@ export default class implements PerfettoPlugin {
       callback: async () => {
         const workspaces = AppImpl.instance.trace?.workspaces;
         if (workspaces === undefined) return; // No trace loaded.
-        const options = workspaces.all.map((ws) => {
-          return {key: ws.id, displayName: ws.title};
+        const workspace = await ctx.omnibox.prompt('Choose a workspace...', {
+          values: workspaces.all,
+          getName: (ws) => ws.title,
         });
-        const workspaceId = await ctx.omnibox.prompt(
-          'Choose a workspace...',
-          options,
-        );
-        if (workspaceId === undefined) return;
-        const workspace = workspaces.all.find((ws) => ws.id === workspaceId);
         if (workspace) {
           workspaces.switchWorkspace(workspace);
         }

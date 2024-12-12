@@ -51,9 +51,14 @@ action("gen_buildflags") {
   # We can't just use (is_linux || is_android) in perfetto.gni because that
   # doesn't work in Android Mac host builds. We lose the GN notion of OS once
   # we run the tools/gen_xxx generators.
+  #
+  # Currently, QNX has the OS_LINUX flag enabled to remain as compatible as
+  # possible. Watchdog is an exception where it uses Linux-specific system
+  # calls. Therefore we skip enabling the watchdog in QNX.
   if (enable_perfetto_watchdog) {
-    perfetto_watchdog = "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_ANDROID() || " +
-                        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_LINUX()"
+    perfetto_watchdog =
+        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_ANDROID() || " +
+        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_LINUX_BUT_NOT_QNX()"
   } else {
     perfetto_watchdog = "0"
   }
@@ -77,6 +82,7 @@ action("gen_buildflags") {
     "PERFETTO_IPC=$enable_perfetto_ipc",
     "PERFETTO_WATCHDOG=$perfetto_watchdog",
     "PERFETTO_COMPONENT_BUILD=$perfetto_component_build",
+    "PERFETTO_ENABLE_ETM_IMPORTER=$enable_perfetto_etm_importer",
     "PERFETTO_FORCE_DLOG_ON=$perfetto_force_dlog_on",
     "PERFETTO_FORCE_DLOG_OFF=$perfetto_force_dlog_off",
     "PERFETTO_FORCE_DCHECK_ON=$perfetto_force_dcheck_on",
@@ -469,4 +475,11 @@ perfetto_py_library("tp_vendor_py") {
 perfetto_py_library("tp_resolvers_py") {
 }
 perfetto_py_library("protobuf_py") {
+}
+
+if (enable_perfetto_etm_importer) {
+  group("open_csd") {
+    visibility = [ "//src/trace_processor/importers/etm:etm_impl" ]
+    public_deps = [ "//buildtools:open_csd" ]
+  }
 }

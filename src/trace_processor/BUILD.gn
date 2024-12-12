@@ -57,6 +57,7 @@ source_set("export_json") {
     "../../include/perfetto/ext/trace_processor:export_json",
     "../base",
     "containers",
+    "importers/common",
     "importers/json:minimal",
     "storage",
     "tables",
@@ -199,6 +200,15 @@ if (enable_perfetto_trace_processor_sqlite) {
       "util:stdlib",
       "util:trace_type",
     ]
+
+    if (enable_perfetto_etm_importer) {
+      deps += [
+        "importers/etm",
+        "importers/etm:file_tracker",
+        "perfetto_sql/intrinsics/operators:etm",
+      ]
+    }
+
     public_deps = [
       "../../gn:sqlite",  # iterator_impl.h includes sqlite3.h.
       "../../include/perfetto/trace_processor",
@@ -337,6 +347,9 @@ perfetto_unittest_source_set("unittests") {
       "perfetto_sql/tokenizer:unittests",
       "sqlite:unittests",
     ]
+  }
+  if (enable_perfetto_etm_importer) {
+    deps += [ "importers/etm:unittests" ]
   }
 }
 

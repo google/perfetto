@@ -16,18 +16,18 @@ import {colorForState} from '../../components/colorizer';
 import {
   BASE_ROW,
   BaseSliceTrack,
-  OnSliceClickArgs,
 } from '../../components/tracks/base_slice_track';
 import {
   SLICE_LAYOUT_FLAT_DEFAULTS,
   SliceLayout,
 } from '../../components/tracks/slice_layout';
-import {NUM_NULL, STR} from '../../trace_processor/query_result';
+import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {translateState} from '../../components/sql_utils/thread_state';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {ThreadStateDetailsPanel} from './thread_state_details_panel';
 import {Trace} from '../../public/trace';
+import {Dataset, SourceDataset} from '../../trace_processor/dataset';
 
 export const THREAD_STATE_ROW = {
   ...BASE_ROW,
@@ -71,6 +71,25 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
     `;
   }
 
+  getDataset(): Dataset | undefined {
+    return new SourceDataset({
+      src: 'thread_state',
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        cpu: NUM,
+        state: STR,
+        io_wait: NUM_NULL,
+        utid: NUM,
+      },
+      filter: {
+        col: 'utid',
+        eq: this.utid,
+      },
+    });
+  }
+
   rowToSlice(row: ThreadStateRow): Slice {
     const baseSlice = this.rowToSliceBase(row);
     const ioWait = row.ioWait === null ? undefined : !!row.ioWait;
@@ -83,10 +102,6 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
     for (const slice of slices) {
       slice.isHighlighted = slice === this.hoveredSlice;
     }
-  }
-
-  onSliceClick(args: OnSliceClickArgs<Slice>) {
-    this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
   }
 
   // Add utid to selection details

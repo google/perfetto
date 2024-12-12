@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/periodic_task.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
+#include "perfetto/ext/base/weak_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
@@ -56,10 +57,6 @@ class MessageFilter;
 }
 
 namespace perfetto {
-
-namespace base {
-class TaskRunner;
-}  // namespace base
 
 namespace protos {
 namespace gen {
@@ -156,6 +153,7 @@ class TracingServiceImpl : public TracingService {
       return std::nullopt;
     }
 
+    bool IsAndroidProcessFrozen();
     uid_t uid() const { return client_identity_.uid(); }
     pid_t pid() const { return client_identity_.pid(); }
     const ClientIdentity& client_identity() const { return client_identity_; }
@@ -168,7 +166,6 @@ class TracingServiceImpl : public TracingService {
     ProducerID const id_;
     ClientIdentity const client_identity_;
     TracingServiceImpl* const service_;
-    base::TaskRunner* const task_runner_;
     Producer* producer_;
     std::unique_ptr<SharedMemory> shared_memory_;
     size_t shared_buffer_page_size_kb_ = 0;
@@ -200,7 +197,7 @@ class TracingServiceImpl : public TracingService {
     std::unique_ptr<SharedMemoryArbiterImpl> inproc_shmem_arbiter_;
 
     PERFETTO_THREAD_CHECKER(thread_checker_)
-    base::WeakPtrFactory<ProducerEndpointImpl> weak_ptr_factory_;  // Keep last.
+    base::WeakRunner weak_runner_;
   };
 
   // The implementation behind the service endpoint exposed to each consumer.
@@ -885,10 +882,8 @@ class TracingServiceImpl : public TracingService {
                             const std::string& trigger_name);
   size_t PurgeExpiredAndCountTriggerInWindow(int64_t now_ns,
                                              uint64_t trigger_name_hash);
-  static void StopOnDurationMsExpiry(base::WeakPtr<TracingServiceImpl>,
-                                     TracingSessionID);
+  void StopOnDurationMsExpiry(TracingSessionID);
 
-  base::TaskRunner* const task_runner_;
   std::unique_ptr<tracing_service::Clock> clock_;
   std::unique_ptr<tracing_service::Random> random_;
   const InitOpts init_opts_;
@@ -905,7 +900,6 @@ class TracingServiceImpl : public TracingService {
 
   std::multimap<std::string /*name*/, RegisteredDataSource> data_sources_;
   std::map<ProducerID, ProducerEndpointImpl*> producers_;
-  std::set<ConsumerEndpointImpl*> consumers_;
   std::map<RelayClientID, RelayEndpointImpl*> relay_clients_;
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
   std::map<BufferID, std::unique_ptr<TraceBuffer>> buffers_;
@@ -928,8 +922,7 @@ class TracingServiceImpl : public TracingService {
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 
-  base::WeakPtrFactory<TracingServiceImpl>
-      weak_ptr_factory_;  // Keep at the end.
+  base::WeakRunner weak_runner_;
 };
 
 }  // namespace perfetto

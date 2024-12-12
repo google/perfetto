@@ -148,8 +148,9 @@ ssize_t writev(int fd, const struct iovec* iov, int iovcnt) {
 
 #define IOV_MAX 1024  // Linux compatible limit.
 
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) ||
-        // PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+#define IOV_MAX 1024  // Linux compatible limit.
+#endif
 
 // Partially encodes a CommitDataRequest in an int32 for the purposes of
 // metatracing. Note that it encodes only the bottom 10 bits of the producer id
@@ -346,15 +347,14 @@ TracingServiceImpl::TracingServiceImpl(
     base::TaskRunner* task_runner,
     tracing_service::Dependencies deps,
     InitOpts init_opts)
-    : task_runner_(task_runner),
-      clock_(std::move(deps.clock)),
+    : clock_(std::move(deps.clock)),
       random_(std::move(deps.random)),
       init_opts_(init_opts),
       shm_factory_(std::move(shm_factory)),
       uid_(base::GetCurrentUserId()),
       buffer_ids_(kMaxTraceBufferID),
-      weak_ptr_factory_(this) {
-  PERFETTO_DCHECK(task_runner_);
+      weak_runner_(task_runner) {
+  PERFETTO_DCHECK(task_runner);
 }
 
 TracingServiceImpl::~TracingServiceImpl() {
@@ -400,8 +400,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   }
 
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
-      id, client_identity, this, task_runner_, producer, producer_name,
-      sdk_version, in_process, smb_scraping_enabled));
+      id, client_identity, this, weak_runner_.task_runner(), producer,
+      producer_name, sdk_version, in_process, smb_scraping_enabled));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
@@ -409,11 +409,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
 
   // Producer::OnConnect() should run before Producer::OnTracingSetup(). The
   // latter may be posted by SetupSharedMemory() below, so post OnConnect() now.
-  auto weak_ptr = endpoint->weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_ptr] {
-    if (weak_ptr)
-      weak_ptr->producer_->OnConnect();
-  });
+  endpoint->weak_runner_.PostTask(
+      [endpoint = endpoint.get()] { endpoint->producer_->OnConnect(); });
 
   if (shm) {
     // The producer supplied an SMB. This is used only by Chrome; in the most
@@ -483,14 +480,12 @@ TracingServiceImpl::ConnectConsumer(Consumer* consumer, uid_t uid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Consumer %p connected from UID %" PRIu64,
                 reinterpret_cast<void*>(consumer), static_cast<uint64_t>(uid));
-  std::unique_ptr<ConsumerEndpointImpl> endpoint(
-      new ConsumerEndpointImpl(this, task_runner_, consumer, uid));
-  auto it_and_inserted = consumers_.emplace(endpoint.get());
-  PERFETTO_DCHECK(it_and_inserted.second);
+  std::unique_ptr<ConsumerEndpointImpl> endpoint(new ConsumerEndpointImpl(
+      this, weak_runner_.task_runner(), consumer, uid));
   // Consumer might go away before we're able to send the connect notification,
   // if that is the case just bail out.
   auto weak_ptr = endpoint->weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_ptr] {
+  weak_runner_.task_runner()->PostTask([weak_ptr = std::move(weak_ptr)] {
     if (weak_ptr)
       weak_ptr->consumer_->OnConnect();
   });
@@ -500,11 +495,9 @@ TracingServiceImpl::ConnectConsumer(Consumer* consumer, uid_t uid) {
 void TracingServiceImpl::DisconnectConsumer(ConsumerEndpointImpl* consumer) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Consumer %p disconnected", reinterpret_cast<void*>(consumer));
-  PERFETTO_DCHECK(consumers_.count(consumer));
 
   if (consumer->tracing_session_id_)
     FreeBuffers(consumer->tracing_session_id_);  // Will also DisableTracing().
-  consumers_.erase(consumer);
 
   // At this point no more pointers to |consumer| should be around.
   PERFETTO_DCHECK(!std::any_of(
@@ -518,7 +511,6 @@ bool TracingServiceImpl::DetachConsumer(ConsumerEndpointImpl* consumer,
                                         const std::string& key) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Consumer %p detached", reinterpret_cast<void*>(consumer));
-  PERFETTO_DCHECK(consumers_.count(consumer));
 
   TracingSessionID tsid = consumer->tracing_session_id_;
   TracingSession* tracing_session;
@@ -561,7 +553,6 @@ bool TracingServiceImpl::AttachConsumer(ConsumerEndpointImpl* consumer,
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Consumer %p attaching to session %s",
                 reinterpret_cast<void*>(consumer), key.c_str());
-  PERFETTO_DCHECK(consumers_.count(consumer));
 
   if (consumer->tracing_session_id_) {
     PERFETTO_ELOG(
@@ -945,7 +936,8 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   TracingSession* tracing_session =
       &tracing_sessions_
            .emplace(std::piecewise_construct, std::forward_as_tuple(tsid),
-                    std::forward_as_tuple(tsid, consumer, cfg, task_runner_))
+                    std::forward_as_tuple(tsid, consumer, cfg,
+                                          weak_runner_.task_runner()))
            .first->second;
 
   tracing_session->trace_uuid = uuid;
@@ -1084,7 +1076,6 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   }
 
   bool has_start_trigger = false;
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   switch (GetTriggerMode(cfg)) {
     case TraceConfig::TriggerConfig::UNSPECIFIED:
       // no triggers are specified so this isn't a trace that is using triggers.
@@ -1094,11 +1085,8 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       // For traces which use START_TRACE triggers we need to ensure that the
       // tracing session will be cleaned up when it times out.
       has_start_trigger = true;
-      task_runner_->PostDelayedTask(
-          [weak_this, tsid]() {
-            if (weak_this)
-              weak_this->OnStartTriggersTimeout(tsid);
-          },
+      weak_runner_.PostDelayedTask(
+          [tsid, this]() { OnStartTriggersTimeout(tsid); },
           cfg.trigger_config().trigger_timeout_ms());
       break;
     case TraceConfig::TriggerConfig::STOP_TRACING:
@@ -1267,7 +1255,6 @@ uint32_t TracingServiceImpl::DelayToNextWritePeriodMs(
 void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   TracingSession* tracing_session = GetTracingSession(tsid);
   if (!tracing_session) {
     PERFETTO_ELOG("StartTracing() failed, invalid session ID %" PRIu64, tsid);
@@ -1319,10 +1306,7 @@ void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   snapshot_task_args.use_suspend_aware_timer =
       tracing_session->config.builtin_data_sources()
           .prefer_suspend_clock_for_snapshot();
-  snapshot_task_args.task = [weak_this, tsid] {
-    if (weak_this)
-      weak_this->PeriodicSnapshotTask(tsid);
-  };
+  snapshot_task_args.task = [this, tsid] { PeriodicSnapshotTask(tsid); };
   snapshot_task_args.period_ms =
       tracing_session->config.builtin_data_sources().snapshot_interval_ms();
   if (!snapshot_task_args.period_ms)
@@ -1333,7 +1317,7 @@ void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   const uint32_t trace_duration_ms = tracing_session->config.duration_ms();
   if (trace_duration_ms > 0) {
     auto stop_task =
-        std::bind(&TracingServiceImpl::StopOnDurationMsExpiry, weak_this, tsid);
+        std::bind(&TracingServiceImpl::StopOnDurationMsExpiry, this, tsid);
     if (tracing_session->config.prefer_suspend_clock_for_duration()) {
       base::PeriodicTask::Args stop_args;
       stop_args.use_suspend_aware_timer = true;
@@ -1342,18 +1326,14 @@ void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
       stop_args.task = std::move(stop_task);
       tracing_session->timed_stop_task.Start(stop_args);
     } else {
-      task_runner_->PostDelayedTask(std::move(stop_task), trace_duration_ms);
+      weak_runner_.PostDelayedTask(std::move(stop_task), trace_duration_ms);
     }
   }  // if (trace_duration_ms > 0).
 
   // Start the periodic drain tasks if we should to save the trace into a file.
   if (tracing_session->config.write_into_file()) {
-    task_runner_->PostDelayedTask(
-        [weak_this, tsid] {
-          if (weak_this)
-            weak_this->ReadBuffersIntoFile(tsid);
-        },
-        DelayToNextWritePeriodMs(*tracing_session));
+    weak_runner_.PostDelayedTask([this, tsid] { ReadBuffersIntoFile(tsid); },
+                                 DelayToNextWritePeriodMs(*tracing_session));
   }
 
   // Start the periodic flush tasks if the config specified a flush period.
@@ -1380,24 +1360,14 @@ void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   // `did_notify_all_data_source_started` is only set if a consumer is
   // connected.
   if (tracing_session->consumer_maybe_null) {
-    task_runner_->PostDelayedTask(
-        [weak_this, tsid] {
-          if (weak_this)
-            weak_this->OnAllDataSourceStartedTimeout(tsid);
-        },
+    weak_runner_.PostDelayedTask(
+        [this, tsid] { OnAllDataSourceStartedTimeout(tsid); },
         kAllDataSourceStartedTimeout);
   }
 }
 
-// static
-void TracingServiceImpl::StopOnDurationMsExpiry(
-    base::WeakPtr<TracingServiceImpl> weak_this,
-    TracingSessionID tsid) {
-  // Skip entirely the flush if the trace session doesn't exist anymore.
-  // This is to prevent misleading error messages to be logged.
-  if (!weak_this)
-    return;
-  auto* tracing_session_ptr = weak_this->GetTracingSession(tsid);
+void TracingServiceImpl::StopOnDurationMsExpiry(TracingSessionID tsid) {
+  auto* tracing_session_ptr = GetTracingSession(tsid);
   if (!tracing_session_ptr)
     return;
   // If this trace was using STOP_TRACING triggers and we've seen
@@ -1409,7 +1379,7 @@ void TracingServiceImpl::StopOnDurationMsExpiry(
     return;
   // In all other cases (START_TRACING or no triggers) we flush
   // after |trace_duration_ms| unconditionally.
-  weak_this->FlushAndDisableTracing(tsid);
+  FlushAndDisableTracing(tsid);
 }
 
 void TracingServiceImpl::StartDataSourceInstance(
@@ -1417,7 +1387,19 @@ void TracingServiceImpl::StartDataSourceInstance(
     TracingSession* tracing_session,
     TracingServiceImpl::DataSourceInstance* instance) {
   PERFETTO_DCHECK(instance->state == DataSourceInstance::CONFIGURED);
-  if (instance->will_notify_on_start) {
+
+  bool start_immediately = !instance->will_notify_on_start;
+
+  if (producer->IsAndroidProcessFrozen()) {
+    PERFETTO_DLOG(
+        "skipping waiting of data source \"%s\" on producer \"%s\" (pid=%u) "
+        "because it is frozen",
+        instance->data_source_name.c_str(), producer->name_.c_str(),
+        producer->pid());
+    start_immediately = true;
+  }
+
+  if (!start_immediately) {
     instance->state = DataSourceInstance::STARTING;
   } else {
     instance->state = DataSourceInstance::STARTED;
@@ -1510,13 +1492,8 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
     return DisableTracingNotifyConsumerAndFlushFile(tracing_session);
 
   tracing_session->state = TracingSession::DISABLING_WAITING_STOP_ACKS;
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostDelayedTask(
-      [weak_this, tsid] {
-        if (weak_this)
-          weak_this->OnDisableTracingTimeout(tsid);
-      },
-      tracing_session->data_source_stop_timeout_ms());
+  weak_runner_.PostDelayedTask([this, tsid] { OnDisableTracingTimeout(tsid); },
+                               tracing_session->data_source_stop_timeout_ms());
 
   // Deliberately NOT removing the session from |tracing_session_|, it's still
   // needed to call ReadBuffers(). FreeBuffers() will erase() the session.
@@ -1756,7 +1733,6 @@ void TracingServiceImpl::ActivateTriggers(
       const TriggerInfo trigger = {static_cast<uint64_t>(now_ns), iter->name(),
                                    producer->name_, producer->uid()};
       tracing_session.received_triggers.push_back(trigger);
-      auto weak_this = weak_ptr_factory_.GetWeakPtr();
       switch (trigger_mode) {
         case TraceConfig::TriggerConfig::START_TRACING:
           // If the session has already been triggered and moved past
@@ -1792,13 +1768,13 @@ void TracingServiceImpl::ActivateTriggers(
 
           // Now that we've seen a trigger we need to stop, flush, and disable
           // this session after the configured |stop_delay_ms|.
-          task_runner_->PostDelayedTask(
-              [weak_this, tsid] {
+          weak_runner_.PostDelayedTask(
+              [this, tsid] {
                 // Skip entirely the flush if the trace session doesn't exist
                 // anymore. This is to prevent misleading error messages to be
                 // logged.
-                if (weak_this && weak_this->GetTracingSession(tsid))
-                  weak_this->FlushAndDisableTracing(tsid);
+                if (GetTracingSession(tsid))
+                  FlushAndDisableTracing(tsid);
               },
               // If this trigger is zero this will immediately executable and
               // will happen shortly.
@@ -1810,11 +1786,9 @@ void TracingServiceImpl::ActivateTriggers(
           MaybeLogUploadEvent(
               tracing_session.config, tracing_session.trace_uuid,
               PerfettoStatsdAtom::kTracedTriggerCloneSnapshot, iter->name());
-          task_runner_->PostDelayedTask(
-              [weak_this, tsid, trigger] {
-                if (!weak_this)
-                  return;
-                auto* tsess = weak_this->GetTracingSession(tsid);
+          weak_runner_.PostDelayedTask(
+              [this, tsid, trigger] {
+                auto* tsess = GetTracingSession(tsid);
                 if (!tsess || !tsess->consumer_maybe_null)
                   return;
                 tsess->consumer_maybe_null->NotifyCloneSnapshotTrigger(trigger);
@@ -1967,7 +1941,14 @@ void TracingServiceImpl::FlushDataSourceInstances(
   for (const auto& [producer_id, data_sources] : data_source_instances) {
     ProducerEndpointImpl* producer = GetProducer(producer_id);
     producer->Flush(flush_request_id, data_sources, flush_flags);
-    pending_flush.producers.insert(producer_id);
+    if (!producer->IsAndroidProcessFrozen()) {
+      pending_flush.producers.insert(producer_id);
+    } else {
+      PERFETTO_DLOG(
+          "skipping waiting flush for on producer \"%s\" (pid=%" PRIu32
+          ") because it is frozen",
+          producer->name_.c_str(), static_cast<uint32_t>(producer->pid()));
+    }
   }
 
   // If there are no producers to flush (realistically this happens only in
@@ -1975,11 +1956,9 @@ void TracingServiceImpl::FlushDataSourceInstances(
   if (data_source_instances.empty())
     timeout_ms = 0;
 
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostDelayedTask(
-      [weak_this, tsid = tracing_session->id, flush_request_id, flush_flags] {
-        if (weak_this)
-          weak_this->OnFlushTimeout(tsid, flush_request_id, flush_flags);
+  weak_runner_.PostDelayedTask(
+      [this, tsid = tracing_session->id, flush_request_id, flush_flags] {
+        OnFlushTimeout(tsid, flush_request_id, flush_flags);
       },
       timeout_ms);
 }
@@ -1995,21 +1974,18 @@ void TracingServiceImpl::NotifyFlushDoneForProducer(
       PendingFlush& pending_flush = it->second;
       pending_flush.producers.erase(producer_id);
       if (pending_flush.producers.empty()) {
-        auto weak_this = weak_ptr_factory_.GetWeakPtr();
         TracingSessionID tsid = kv.first;
         auto callback = std::move(pending_flush.callback);
-        task_runner_->PostTask([weak_this, tsid, callback]() {
-          if (weak_this) {
-            weak_this->CompleteFlush(tsid, std::move(callback),
-                                     /*success=*/true);
-          }
+        weak_runner_.PostTask([this, tsid, callback = std::move(callback)]() {
+          CompleteFlush(tsid, std::move(callback),
+                        /*success=*/true);
         });
         it = pending_flushes.erase(it);
       } else {
         it++;
       }
     }  // for (pending_flushes)
-  }  // for (tracing_session)
+  }    // for (tracing_session)
 }
 
 void TracingServiceImpl::OnFlushTimeout(TracingSessionID tsid,
@@ -2123,18 +2099,18 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
 
   // Find and copy any uncommitted chunks from the SMB.
   //
-  // In nominal conditions, the page layout of the used SMB pages should never
-  // change because the service is the only one who is supposed to modify used
-  // pages (to make them free again).
+  // In nominal conditions, the page header bitmap of the used SMB pages should
+  // never change because the service is the only one who is supposed to modify
+  // used pages (to make them free again).
   //
   // However, the code here needs to deal with the case of a malicious producer
   // altering the SMB in unpredictable ways. Thankfully the SMB size is
   // immutable, so a chunk will always point to some valid memory, even if the
   // producer alters the intended layout and chunk header concurrently.
-  // Ultimately a malicious producer altering the SMB's chunk layout while we
-  // are iterating in this function is not any different from the case of a
-  // malicious producer asking to commit a chunk made of random data, which is
-  // something this class has to deal with regardless.
+  // Ultimately a malicious producer altering the SMB's chunk header bitamp
+  // while we are iterating in this function is not any different from the case
+  // of a malicious producer asking to commit a chunk made of random data,
+  // which is something this class has to deal with regardless.
   //
   // The only legitimate mutations that can happen from sane producers,
   // concurrently to this function, are:
@@ -2146,9 +2122,10 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
   // num_pages() is immutable after the SMB is initialized and cannot be changed
   // even by a producer even if malicious.
   for (size_t page_idx = 0; page_idx < abi->num_pages(); page_idx++) {
-    uint32_t layout = abi->GetPageLayout(page_idx);
+    uint32_t header_bitmap = abi->GetPageHeaderBitmap(page_idx);
 
-    uint32_t used_chunks = abi->GetUsedChunks(layout);  // Returns a bitmap.
+    uint32_t used_chunks =
+        abi->GetUsedChunks(header_bitmap);  // Returns a bitmap.
     // Skip empty pages.
     if (used_chunks == 0)
       continue;
@@ -2160,13 +2137,14 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
         continue;
 
       SharedMemoryABI::ChunkState state =
-          SharedMemoryABI::GetChunkStateFromLayout(layout, chunk_idx);
+          SharedMemoryABI::GetChunkStateFromHeaderBitmap(header_bitmap,
+                                                         chunk_idx);
       PERFETTO_DCHECK(state == SharedMemoryABI::kChunkBeingWritten ||
                       state == SharedMemoryABI::kChunkComplete);
       bool chunk_complete = state == SharedMemoryABI::kChunkComplete;
 
       SharedMemoryABI::Chunk chunk =
-          abi->GetChunkUnchecked(page_idx, layout, chunk_idx);
+          abi->GetChunkUnchecked(page_idx, header_bitmap, chunk_idx);
 
       uint16_t packet_count;
       uint8_t flags;
@@ -2215,16 +2193,13 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
 void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Triggering final flush for %" PRIu64, tsid);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   Flush(
       tsid, 0,
-      [weak_this, tsid](bool success) {
+      [this, tsid](bool success) {
         // This was a DLOG up to Jun 2021 (v16, Android S).
         PERFETTO_LOG("FlushAndDisableTracing(%" PRIu64 ") done, success=%d",
                      tsid, success);
-        if (!weak_this)
-          return;
-        TracingSession* session = weak_this->GetTracingSession(tsid);
+        TracingSession* session = GetTracingSession(tsid);
         if (!session) {
           return;
         }
@@ -2234,13 +2209,13 @@ void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
         if (session->consumer_maybe_null) {
           // If the consumer is still attached, just disable the session but
           // give it a chance to read the contents.
-          weak_this->DisableTracing(tsid);
+          DisableTracing(tsid);
         } else {
           // If the consumer detached, destroy the session. If the consumer did
           // start the session in long-tracing mode, the service will have saved
           // the contents to the passed file. If not, the contents will be
           // destroyed.
-          weak_this->FreeBuffers(tsid);
+          FreeBuffers(tsid);
         }
       },
       FlushFlags(FlushFlags::Initiator::kTraced,
@@ -2255,12 +2230,8 @@ void TracingServiceImpl::PeriodicFlushTask(TracingSessionID tsid,
     return;
 
   uint32_t flush_period_ms = tracing_session->config.flush_period_ms();
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostDelayedTask(
-      [weak_this, tsid] {
-        if (weak_this)
-          weak_this->PeriodicFlushTask(tsid, /*post_next_only=*/false);
-      },
+  weak_runner_.PostDelayedTask(
+      [this, tsid] { PeriodicFlushTask(tsid, /*post_next_only=*/false); },
       flush_period_ms - static_cast<uint32_t>(clock_->GetWallTimeMs().count() %
                                               flush_period_ms));
 
@@ -2288,12 +2259,9 @@ void TracingServiceImpl::PeriodicClearIncrementalStateTask(
 
   uint32_t clear_period_ms =
       tracing_session->config.incremental_state_config().clear_period_ms();
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostDelayedTask(
-      [weak_this, tsid] {
-        if (weak_this)
-          weak_this->PeriodicClearIncrementalStateTask(
-              tsid, /*post_next_only=*/false);
+  weak_runner_.PostDelayedTask(
+      [this, tsid] {
+        PeriodicClearIncrementalStateTask(tsid, /*post_next_only=*/false);
       },
       clear_period_ms - static_cast<uint32_t>(clock_->GetWallTimeMs().count() %
                                               clear_period_ms));
@@ -2368,12 +2336,12 @@ bool TracingServiceImpl::ReadBuffersIntoConsumer(
 
   if (has_more) {
     auto weak_consumer = consumer->weak_ptr_factory_.GetWeakPtr();
-    auto weak_this = weak_ptr_factory_.GetWeakPtr();
-    task_runner_->PostTask([weak_this, weak_consumer, tsid] {
-      if (!weak_this || !weak_consumer)
-        return;
-      weak_this->ReadBuffersIntoConsumer(tsid, weak_consumer.get());
-    });
+    weak_runner_.PostTask(
+        [this, weak_consumer = std::move(weak_consumer), tsid] {
+          if (!weak_consumer)
+            return;
+          ReadBuffersIntoConsumer(tsid, weak_consumer.get());
+        });
   }
 
   // Keep this as tail call, just in case the consumer re-enters.
@@ -2425,13 +2393,8 @@ bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
     return true;
   }
 
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostDelayedTask(
-      [weak_this, tsid] {
-        if (weak_this)
-          weak_this->ReadBuffersIntoFile(tsid);
-      },
-      DelayToNextWritePeriodMs(*tracing_session));
+  weak_runner_.PostDelayedTask([this, tsid] { ReadBuffersIntoFile(tsid); },
+                               DelayToNextWritePeriodMs(*tracing_session));
   return true;
 }
 
@@ -2600,7 +2563,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       did_hit_threshold = packets_bytes >= threshold;
       packets.emplace_back(std::move(packet));
     }  // for(packets...)
-  }  // for(buffers...)
+  }    // for(buffers...)
 
   *has_more = did_hit_threshold;
 
@@ -2823,12 +2786,13 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid) {
   for (const auto& id_to_clone_op : pending_clones) {
     const PendingClone& clone_op = id_to_clone_op.second;
     if (clone_op.weak_consumer) {
-      task_runner_->PostTask([weak_consumer = clone_op.weak_consumer] {
-        if (weak_consumer) {
-          weak_consumer->consumer_->OnSessionCloned(
-              {false, "Original session ended", {}});
-        }
-      });
+      weak_runner_.task_runner()->PostTask(
+          [weak_consumer = clone_op.weak_consumer] {
+            if (weak_consumer) {
+              weak_consumer->consumer_->OnSessionCloned(
+                  {false, "Original session ended", {}});
+            }
+          });
     }
   }
 
@@ -2946,6 +2910,14 @@ void TracingServiceImpl::StopDataSourceInstance(ProducerEndpointImpl* producer,
                                                 DataSourceInstance* instance,
                                                 bool disable_immediately) {
   const DataSourceInstanceID ds_inst_id = instance->instance_id;
+  if (producer->IsAndroidProcessFrozen()) {
+    PERFETTO_DLOG(
+        "skipping waiting of data source \"%s\" on producer \"%s\" (pid=%u) "
+        "because it is frozen",
+        instance->data_source_name.c_str(), producer->name_.c_str(),
+        producer->pid());
+    disable_immediately = true;
+  }
   if (instance->will_notify_on_stop && !disable_immediately) {
     instance->state = DataSourceInstance::STOPPING;
   } else {
@@ -3696,8 +3668,8 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
           wri_stats->add_chunk_payload_histogram_sum(hist.GetBucketSum(i));
         }
       }  // for each sequence (writer).
-    }  // for each buffer.
-  }  // if (!disable_chunk_usage_histograms)
+    }    // for each buffer.
+  }      // if (!disable_chunk_usage_histograms)
 
   return trace_stats;
 }
@@ -4066,7 +4038,6 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
     }
   }
 
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   auto weak_consumer = consumer->GetWeakPtr();
 
   const PendingCloneID clone_id = session->last_pending_clone_id_++;
@@ -4108,11 +4079,8 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
     FlushDataSourceInstances(
         session, 0,
         GetFlushableDataSourceInstancesForBuffers(session, buf_group),
-        [tsid = session->id, clone_id, buf_group, weak_this](bool final_flush) {
-          if (!weak_this)
-            return;
-          weak_this->OnFlushDoneForClone(tsid, clone_id, buf_group,
-                                         final_flush);
+        [tsid = session->id, clone_id, buf_group, this](bool final_flush) {
+          OnFlushDoneForClone(tsid, clone_id, buf_group, final_flush);
         },
         FlushFlags(FlushFlags::Initiator::kTraced,
                    FlushFlags::Reason::kTraceClone, clone_target));
@@ -4271,9 +4239,9 @@ base::Status TracingServiceImpl::FinishCloneSession(
   const TracingSessionID tsid = ++last_tracing_session_id_;
   TracingSession* cloned_session =
       &tracing_sessions_
-           .emplace(
-               std::piecewise_construct, std::forward_as_tuple(tsid),
-               std::forward_as_tuple(tsid, consumer, src->config, task_runner_))
+           .emplace(std::piecewise_construct, std::forward_as_tuple(tsid),
+                    std::forward_as_tuple(tsid, consumer, src->config,
+                                          weak_runner_.task_runner()))
            .first->second;
 
   // Generate a new UUID for the cloned session, but preserve the LSB. In some
@@ -4382,8 +4350,8 @@ TracingServiceImpl::ConsumerEndpointImpl::~ConsumerEndpointImpl() {
 void TracingServiceImpl::ConsumerEndpointImpl::NotifyOnTracingDisabled(
     const std::string& error) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, error /* deliberate copy */] {
+  task_runner_->PostTask([weak_this = weak_ptr_factory_.GetWeakPtr(),
+                          error /* deliberate copy */] {
     if (weak_this)
       weak_this->consumer_->OnTracingDisabled(error);
   });
@@ -4464,7 +4432,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::Detach(const std::string& key) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   bool success = service_->DetachConsumer(this, key);
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, success] {
+  task_runner_->PostTask([weak_this = std::move(weak_this), success] {
     if (weak_this)
       weak_this->consumer_->OnDetach(success);
   });
@@ -4473,8 +4441,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::Detach(const std::string& key) {
 void TracingServiceImpl::ConsumerEndpointImpl::Attach(const std::string& key) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   bool success = service_->AttachConsumer(this, key);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, success] {
+  task_runner_->PostTask([weak_this = weak_ptr_factory_.GetWeakPtr(), success] {
     if (!weak_this)
       return;
     Consumer* consumer = weak_this->consumer_;
@@ -4498,10 +4465,11 @@ void TracingServiceImpl::ConsumerEndpointImpl::GetTraceStats() {
     stats = service_->GetTraceStats(session);
   }
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, success, stats] {
-    if (weak_this)
-      weak_this->consumer_->OnTraceStats(success, stats);
-  });
+  task_runner_->PostTask(
+      [weak_this = std::move(weak_this), success, stats = std::move(stats)] {
+        if (weak_this)
+          weak_this->consumer_->OnTraceStats(success, stats);
+      });
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::ObserveEvents(
@@ -4582,8 +4550,7 @@ TracingServiceImpl::ConsumerEndpointImpl::AddObservableEvents() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!observable_events_) {
     observable_events_.reset(new ObservableEvents());
-    auto weak_this = weak_ptr_factory_.GetWeakPtr();
-    task_runner_->PostTask([weak_this] {
+    task_runner_->PostTask([weak_this = weak_ptr_factory_.GetWeakPtr()] {
       if (!weak_this)
         return;
 
@@ -4619,6 +4586,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
     producer->set_sdk_version(kv.second->sdk_version_);
     producer->set_uid(static_cast<int32_t>(kv.second->uid()));
     producer->set_pid(static_cast<int32_t>(kv.second->pid()));
+    producer->set_frozen(kv.second->IsAndroidProcessFrozen());
   }
 
   for (const auto& kv : service_->data_sources_) {
@@ -4727,13 +4695,12 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     : id_(id),
       client_identity_(client_identity),
       service_(service),
-      task_runner_(task_runner),
       producer_(producer),
       name_(producer_name),
       sdk_version_(sdk_version),
       in_process_(in_process),
       smb_scraping_enabled_(smb_scraping_enabled),
-      weak_ptr_factory_(this) {}
+      weak_runner_(task_runner) {}
 
 TracingServiceImpl::ProducerEndpointImpl::~ProducerEndpointImpl() {
   service_->DisconnectProducer(id_);
@@ -4879,7 +4846,7 @@ void TracingServiceImpl::ProducerEndpointImpl::SetupSharedMemory(
     inproc_shmem_arbiter_.reset(new SharedMemoryArbiterImpl(
         shared_memory_->start(), shared_memory_->size(),
         SharedMemoryABI::ShmemMode::kDefault,
-        shared_buffer_page_size_kb_ * 1024, this, task_runner_));
+        shared_buffer_page_size_kb_ * 1024, this, weak_runner_.task_runner()));
     inproc_shmem_arbiter_->SetDirectSMBPatchingSupportedByService();
   }
 
@@ -4908,11 +4875,8 @@ void TracingServiceImpl::ProducerEndpointImpl::StopDataSource(
   // should send the Producer a TearDownTracing if all its data sources have
   // been disabled (see b/77532839 and aosp/655179 PS1).
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, ds_inst_id] {
-    if (weak_this)
-      weak_this->producer_->StopDataSource(ds_inst_id);
-  });
+  weak_runner_.PostTask(
+      [this, ds_inst_id] { producer_->StopDataSource(ds_inst_id); });
 }
 
 SharedMemoryArbiter*
@@ -4951,11 +4915,7 @@ void TracingServiceImpl::ProducerEndpointImpl::NotifyFlushComplete(
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::OnTracingSetup() {
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this] {
-    if (weak_this)
-      weak_this->producer_->OnTracingSetup();
-  });
+  weak_runner_.PostTask([this] { producer_->OnTracingSetup(); });
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::Flush(
@@ -4963,14 +4923,10 @@ void TracingServiceImpl::ProducerEndpointImpl::Flush(
     const std::vector<DataSourceInstanceID>& data_sources,
     FlushFlags flush_flags) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask(
-      [weak_this, flush_request_id, data_sources, flush_flags] {
-        if (weak_this) {
-          weak_this->producer_->Flush(flush_request_id, data_sources.data(),
-                                      data_sources.size(), flush_flags);
-        }
-      });
+  weak_runner_.PostTask([this, flush_request_id, data_sources, flush_flags] {
+    producer_->Flush(flush_request_id, data_sources.data(), data_sources.size(),
+                     flush_flags);
+  });
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::SetupDataSource(
@@ -4978,10 +4934,8 @@ void TracingServiceImpl::ProducerEndpointImpl::SetupDataSource(
     const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   allowed_target_buffers_.insert(static_cast<BufferID>(config.target_buffer()));
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, ds_id, config] {
-    if (weak_this)
-      weak_this->producer_->SetupDataSource(ds_id, std::move(config));
+  weak_runner_.PostTask([this, ds_id, config] {
+    producer_->SetupDataSource(ds_id, std::move(config));
   });
 }
 
@@ -4989,10 +4943,8 @@ void TracingServiceImpl::ProducerEndpointImpl::StartDataSource(
     DataSourceInstanceID ds_id,
     const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, ds_id, config] {
-    if (weak_this)
-      weak_this->producer_->StartDataSource(ds_id, std::move(config));
+  weak_runner_.PostTask([this, ds_id, config] {
+    producer_->StartDataSource(ds_id, std::move(config));
   });
 }
 
@@ -5019,19 +4971,37 @@ void TracingServiceImpl::ProducerEndpointImpl::OnFreeBuffers(
 void TracingServiceImpl::ProducerEndpointImpl::ClearIncrementalState(
     const std::vector<DataSourceInstanceID>& data_sources) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, data_sources] {
-    if (weak_this) {
-      base::StringView producer_name(weak_this->name_);
-      weak_this->producer_->ClearIncrementalState(data_sources.data(),
-                                                  data_sources.size());
-    }
+  weak_runner_.PostTask([this, data_sources] {
+    base::StringView producer_name(name_);
+    producer_->ClearIncrementalState(data_sources.data(), data_sources.size());
   });
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::Sync(
     std::function<void()> callback) {
-  task_runner_->PostTask(callback);
+  weak_runner_.task_runner()->PostTask(callback);
+}
+
+bool TracingServiceImpl::ProducerEndpointImpl::IsAndroidProcessFrozen() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (in_process_ || uid() == base::kInvalidUid || pid() == base::kInvalidPid)
+    return false;
+  base::StackString<255> path(
+      "/sys/fs/cgroup/uid_%" PRIu32 "/pid_%" PRIu32 "/cgroup.freeze",
+      static_cast<uint32_t>(uid()), static_cast<uint32_t>(pid()));
+  char frozen = '0';
+  auto fd = base::OpenFile(path.c_str(), O_RDONLY);
+  ssize_t rsize = 0;
+  if (fd) {
+    rsize = base::Read(*fd, &frozen, sizeof(frozen));
+    if (rsize > 0) {
+      return frozen == '1';
+    }
+  }
+  PERFETTO_DLOG("Failed to read %s (fd=%d, rsize=%d)", path.c_str(), !!fd,
+                static_cast<int>(rsize));
+#endif
+  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

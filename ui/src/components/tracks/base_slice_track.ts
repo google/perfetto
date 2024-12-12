@@ -221,7 +221,11 @@ export abstract class BaseSliceTrack<
   protected abstract getRowSpec(): RowT;
   onSliceOver(_args: OnSliceOverArgs<SliceT>): void {}
   onSliceOut(_args: OnSliceOutArgs<SliceT>): void {}
-  onSliceClick(_args: OnSliceClickArgs<SliceT>): void {}
+
+  // By default, clicked slices create track selections
+  onSliceClick({slice}: OnSliceClickArgs<Slice>): void {
+    this.trace.selection.selectTrackEvent(this.uri, slice.id);
+  }
 
   // The API contract of onUpdatedSlices() is:
   //  - I am going to draw these slices in the near future.

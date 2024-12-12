@@ -73,9 +73,10 @@ message ChromeFrameReporter {
     SCROLL_NONE = 0;
     SCROLL_MAIN_THREAD = 1;
     SCROLL_COMPOSITOR_THREAD = 2;
+    SCROLL_RASTER = 3;
 
     // Used when it can't be determined whether a scroll is in progress or not.
-    SCROLL_UNKNOWN = 3;
+    SCROLL_UNKNOWN = 4;
   }
 
   // The type of active scroll.

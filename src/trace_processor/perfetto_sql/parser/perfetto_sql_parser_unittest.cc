@@ -363,6 +363,26 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoViewWithSchema) {
   ASSERT_FALSE(parser.Next());
 }
 
+TEST_F(PerfettoSqlParserTest, ParseComplexArgumentType) {
+  auto res = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO VIEW foo(foo JOINID(foo.bar), bar LONG) AS SELECT "
+      "'a' as foo, 42 "
+      "AS bar");
+  PerfettoSqlParser parser(res, macros_);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(),
+            Statement(CreateView{
+                false,
+                "foo",
+                SqlSource::FromExecuteQuery("SELECT 'a' as foo, 42 AS bar"),
+                SqlSource::FromExecuteQuery(
+                    "CREATE VIEW foo AS SELECT 'a' as foo, 42 AS bar"),
+                {{"$foo", sql_argument::Type::kLong},
+                 {"$bar", sql_argument::Type::kLong}},
+            }));
+  ASSERT_FALSE(parser.Next());
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

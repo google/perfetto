@@ -22,7 +22,6 @@
 #include <string>
 #include <utility>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/hash.h"
@@ -35,12 +34,16 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
 
@@ -51,7 +54,7 @@ std::optional<uint64_t> MaybeExtractFlowIdentifier(const Json::Value& value,
   std::string id_key = (version2 ? "bind_id" : "id");
   if (!value.isMember(id_key))
     return std::nullopt;
-  auto id = value[id_key];
+  const auto& id = value[id_key];
   if (id.isNumeric())
     return id.asUInt64();
   if (!id.isString())
@@ -87,7 +90,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
   FlowTracker* flow_tracker = context_->flow_tracker.get();
 
   const Json::Value& value = *opt_value;
-  auto& ph = value["ph"];
+  const auto& ph = value["ph"];
   if (!ph.isString())
     return;
   char phase = *ph.asCString();
@@ -271,10 +274,9 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
           continue;
         }
         std::string counter_name = counter_name_prefix + " " + it.name();
-        StringId counter_name_id =
-            context_->storage->InternString(base::StringView(counter_name));
+        StringId nid = context_->storage->InternString(counter_name);
         context_->event_tracker->PushProcessCounterForThread(
-            timestamp, counter, counter_name_id, utid);
+            EventTracker::JsonCounter{nid}, timestamp, counter, utid);
       }
       break;
     }
@@ -288,8 +290,9 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
 
       TrackId track_id;
       if (scope == "g") {
-        track_id = context_->track_tracker->InternGlobalTrack(
-            tracks::legacy_chrome_global_instants, TrackTracker::AutoName(),
+        track_id = context_->track_tracker->InternTrack(
+            tracks::kLegacyGlobalInstantsBlueprint, tracks::Dimensions(),
+            tracks::BlueprintName(),
             [this](ArgsTracker::BoundInserter& inserter) {
               inserter.AddArg(
                   context_->storage->InternString("source"),

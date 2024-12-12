@@ -336,8 +336,12 @@ namespace perfetto::trace_processor::stats {
   F(spe_no_timestamp,                     kSingle,  kInfo,     kTrace,         \
       "SPE record with no timestamp. Will try our best to assign a "           \
       "timestamp."),                                                           \
-  F(spe_record_dropped,                    kSingle,  kDataLoss, kTrace,        \
+  F(spe_record_dropped,                   kSingle,  kDataLoss, kTrace,         \
       "SPE record dropped. E.g. Unable to assign it a timestamp."),            \
+  F(etm_no_importer,                      kSingle,  kError,    kAnalysis,      \
+      "Unable to parse ETM data because TraceProcessor was not compiled to  "  \
+      " support it. Make sure you enable the `enable_perfetto_etm_importer` "  \
+      " GN flag."),                                                            \
   F(memory_snapshot_parser_failure,       kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_out_of_order,    kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_unknown_cpu_freq,                                     \

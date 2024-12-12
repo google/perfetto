@@ -13,7 +13,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 19.853703
       estimated_mw: 2.295390
-      idle_transitions_mws: 0.220895
+      idle_transitions_mws: 0.270100
       thread_name: "RenderThread"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 1986
@@ -22,7 +22,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 17.530441
       estimated_mw: 2.026786
-      idle_transitions_mws: 0.028812
+      idle_transitions_mws: 0.030073
       thread_name: "Jit thread pool"
       process_name: "system_server"
       thread_id: 1344
@@ -31,7 +31,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 16.980274
       estimated_mw: 1.963178
-      idle_transitions_mws: 0.387957
+      idle_transitions_mws: 0.398730
       thread_name: "surfaceflinger"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 755
@@ -40,7 +40,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 14.908094
       estimated_mw: 1.723603
-      idle_transitions_mws: 0.455047
+      idle_transitions_mws: 0.528185
       thread_name: ".wearable.sysui"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 1926
@@ -49,7 +49,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 13.373355
       estimated_mw: 1.546164
-      idle_transitions_mws: 0.011711
+      idle_transitions_mws: 0.013739
       thread_name: "binder:685_3"
       process_name: "/vendor/bin/hw/vendor.qti.hardware.display.composer-service"
       thread_id: 804
@@ -58,7 +58,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 6.747261
       estimated_mw: 0.780086
-      idle_transitions_mws: 0.021185
+      idle_transitions_mws: 0.025555
       thread_name: "binder:1302_7"
       process_name: "system_server"
       thread_id: 1671
@@ -67,7 +67,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 6.504173
       estimated_mw: 0.751981
-      idle_transitions_mws: 0.055166
+      idle_transitions_mws: 0.064584
       thread_name: "binder:1302_A"
       process_name: "system_server"
       thread_id: 2015
@@ -76,7 +76,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 4.858775
       estimated_mw: 0.561748
-      idle_transitions_mws: 0.082958
+      idle_transitions_mws: 0.091347
       thread_name: "android.anim"
       process_name: "system_server"
       thread_id: 1419
@@ -85,7 +85,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 4.769800
       estimated_mw: 0.551462
-      idle_transitions_mws: 0.094492
+      idle_transitions_mws: 0.130765
       thread_name: "RenderEngine"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 788
@@ -94,7 +94,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 4.672233
       estimated_mw: 0.540181
-      idle_transitions_mws: 0.012303
+      idle_transitions_mws: 0.013688
       thread_name: "kswapd0"
       process_name: "kswapd0"
       thread_id: 63
@@ -128,7 +128,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 3.723955
       estimated_mw: 0.430546
-      idle_transitions_mws: 0.046603
+      idle_transitions_mws: 0.051347
       thread_name: "binder:1302_6"
       process_name: "system_server"
       thread_id: 1662
@@ -137,7 +137,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 3.666289
       estimated_mw: 0.423879
-      idle_transitions_mws: 0.147155
+      idle_transitions_mws: 0.160538
       thread_name: "e.watchface.rwf"
       process_name: "com.google.android.wearable.watchface.rwf"
       thread_id: 1999
@@ -164,7 +164,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 3.459922
       estimated_mw: 0.400020
-      idle_transitions_mws: 0.022780
+      idle_transitions_mws: 0.023804
       thread_name: "logcat"
       process_name: "logcat"
       thread_id: 1230
@@ -173,7 +173,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 3.429554
       estimated_mw: 0.396509
-      idle_transitions_mws: 0.020454
+      idle_transitions_mws: 0.023964
       thread_name: "system_server"
       process_name: "system_server"
       thread_id: 1302
@@ -182,7 +182,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 3.300661
       estimated_mw: 0.381607
-      idle_transitions_mws: 1.010862
+      idle_transitions_mws: 1.140017
       thread_name: "crtc_commit:80"
       process_name: "crtc_commit:80"
       thread_id: 244
@@ -191,7 +191,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 3.194881
       estimated_mw: 0.369377
-      idle_transitions_mws: 0.163208
+      idle_transitions_mws: 0.215115
       thread_name: "InputDispatcher"
       process_name: "system_server"
       thread_id: 1783
@@ -200,7 +200,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 3.011913
       estimated_mw: 0.348223
-      idle_transitions_mws: 0.261953
+      idle_transitions_mws: 0.307284
       thread_name: "binder:755_1"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 782
@@ -209,7 +209,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 3.006022
       estimated_mw: 0.347542
-      idle_transitions_mws: 0.064213
+      idle_transitions_mws: 0.075851
       thread_name: "android.display"
       process_name: "system_server"
       thread_id: 1418
@@ -227,7 +227,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 2.712443
       estimated_mw: 0.313600
-      idle_transitions_mws: 0.314323
+      idle_transitions_mws: 0.338758
       thread_name: "traced_probes"
       process_name: "/system/bin/traced_probes"
       thread_id: 904
@@ -236,7 +236,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 2.553161
       estimated_mw: 0.295184
-      idle_transitions_mws: 0.751582
+      idle_transitions_mws: 0.804868
       thread_name: "kworker/u8:0"
       process_name: "kworker/u8:0"
       thread_id: 8
@@ -245,7 +245,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 2.487099
       estimated_mw: 0.287547
-      idle_transitions_mws: 0.509790
+      idle_transitions_mws: 0.582339
       thread_name: "surfaceflinger"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 883
@@ -263,7 +263,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 2.258779
       estimated_mw: 0.261149
-      idle_transitions_mws: 0.219690
+      idle_transitions_mws: 0.222334
       thread_name: "logd.reader.per"
       process_name: "/system/bin/logd"
       thread_id: 1274
@@ -281,7 +281,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 2.143151
       estimated_mw: 0.247781
-      idle_transitions_mws: 0.052887
+      idle_transitions_mws: 0.073333
       thread_name: "InputReader"
       process_name: "system_server"
       thread_id: 1784
@@ -290,7 +290,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 2.091430
       estimated_mw: 0.241801
-      idle_transitions_mws: 2.681956
+      idle_transitions_mws: 2.790028
       thread_name: "rcu_preempt"
       process_name: "rcu_preempt"
       thread_id: 14
@@ -299,7 +299,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 2.048920
       estimated_mw: 0.236886
-      idle_transitions_mws: 0.122795
+      idle_transitions_mws: 0.143005
       thread_name: "binder:1926_4"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 2262
@@ -308,7 +308,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.914560
       estimated_mw: 0.221352
-      idle_transitions_mws: 0.033359
+      idle_transitions_mws: 0.044056
       thread_name: "arable.systemui"
       process_name: "com.google.android.apps.wearable.systemui"
       thread_id: 2171
@@ -317,7 +317,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.854433
       estimated_mw: 0.214401
-      idle_transitions_mws: 0.046845
+      idle_transitions_mws: 0.061487
       thread_name: "android.ui"
       process_name: "system_server"
       thread_id: 1416
@@ -326,7 +326,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.777087
       estimated_mw: 0.205458
-      idle_transitions_mws: 0.428240
+      idle_transitions_mws: 0.506194
       thread_name: "kworker/u8:4"
       process_name: "kworker/u8:4"
       thread_id: 431
@@ -335,7 +335,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.773777
       estimated_mw: 0.205076
-      idle_transitions_mws: 0.584214
+      idle_transitions_mws: 0.652785
       thread_name: "TimerDispatch"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 865
@@ -344,7 +344,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.760400
       estimated_mw: 0.203529
-      idle_transitions_mws: 0.078772
+      idle_transitions_mws: 0.082179
       thread_name: "ActivityManager"
       process_name: "system_server"
       thread_id: 1431
@@ -353,7 +353,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.733169
       estimated_mw: 0.200381
-      idle_transitions_mws: 0.039163
+      idle_transitions_mws: 0.047175
       thread_name: "PowerManagerSer"
       process_name: "system_server"
       thread_id: 1506
@@ -370,7 +370,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.631037
       estimated_mw: 0.188573
-      idle_transitions_mws: 0.170842
+      idle_transitions_mws: 0.195435
       thread_name: "binder:755_5"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 1987
@@ -379,7 +379,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.605931
       estimated_mw: 0.185670
-      idle_transitions_mws: 0.400486
+      idle_transitions_mws: 0.453262
       thread_name: "kgsl_dispatcher"
       process_name: "kgsl_dispatcher"
       thread_id: 111
@@ -397,7 +397,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.476619
       estimated_mw: 0.170720
-      idle_transitions_mws: 0.013637
+      idle_transitions_mws: 0.014720
       thread_name: "lowpool[5]"
       process_name: "com.google.android.gms.persistent"
       thread_id: 3489
@@ -414,7 +414,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.469958
       estimated_mw: 0.169950
-      idle_transitions_mws: 0.002534
+      idle_transitions_mws: 0.003491
       thread_name: "binder:1302_B"
       process_name: "system_server"
       thread_id: 2033
@@ -423,7 +423,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.390635
       estimated_mw: 0.160779
-      idle_transitions_mws: 0.083044
+      idle_transitions_mws: 0.095628
       thread_name: "binder:755_4"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 1125
@@ -432,7 +432,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.327049
       estimated_mw: 0.153427
-      idle_transitions_mws: 0.029246
+      idle_transitions_mws: 0.033579
       thread_name: "batterystats-ha"
       process_name: "system_server"
       thread_id: 1484
@@ -449,7 +449,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.252738
       estimated_mw: 0.144836
-      idle_transitions_mws: 0.705073
+      idle_transitions_mws: 0.749319
       thread_name: "kworker/u8:2"
       process_name: "kworker/u8:2"
       thread_id: 62
@@ -458,7 +458,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.251944
       estimated_mw: 0.144744
-      idle_transitions_mws: 0.206733
+      idle_transitions_mws: 0.239992
       thread_name: "app"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 867
@@ -476,7 +476,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.228813
       estimated_mw: 0.142070
-      idle_transitions_mws: 0.785543
+      idle_transitions_mws: 0.879467
       thread_name: "irq/33-4520300."
       process_name: "irq/33-4520300.qcom,bwmon-ddr"
       thread_id: 95
@@ -485,7 +485,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.068197
       estimated_mw: 0.123500
-      idle_transitions_mws: 0.111670
+      idle_transitions_mws: 0.118891
       thread_name: "logd.klogd"
       process_name: "/system/bin/logd"
       thread_id: 234
@@ -494,7 +494,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 1.007070
       estimated_mw: 0.116433
-      idle_transitions_mws: 0.029416
+      idle_transitions_mws: 0.032934
       thread_name: "android.fg"
       process_name: "system_server"
       thread_id: 1415
@@ -503,7 +503,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.969980
       estimated_mw: 0.112144
-      idle_transitions_mws: 0.455999
+      idle_transitions_mws: 0.486809
       thread_name: "rcuog/0"
       process_name: "rcuog/0"
       thread_id: 15
@@ -512,7 +512,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.952077
       estimated_mw: 0.110075
-      idle_transitions_mws: 0.102993
+      idle_transitions_mws: 0.116404
       thread_name: "binder:1926_3"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 1940
@@ -530,7 +530,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.930774
       estimated_mw: 0.107612
-      idle_transitions_mws: 0.738786
+      idle_transitions_mws: 0.795078
       thread_name: "crtc_event:80"
       process_name: "crtc_event:80"
       thread_id: 245
@@ -539,7 +539,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.907425
       estimated_mw: 0.104912
-      idle_transitions_mws: 0.009862
+      idle_transitions_mws: 0.013800
       thread_name: "binder:755_3"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 1124
@@ -548,7 +548,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.897620
       estimated_mw: 0.103779
-      idle_transitions_mws: 0.007379
+      idle_transitions_mws: 0.008218
       thread_name: "init"
       process_name: "/system/bin/init"
       thread_id: 143
@@ -557,7 +557,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.880853
       estimated_mw: 0.101840
-      idle_transitions_mws: 0.013499
+      idle_transitions_mws: 0.015121
       thread_name: "wmshell.main"
       process_name: "com.google.android.apps.wearable.systemui"
       thread_id: 2260
@@ -566,7 +566,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.870598
       estimated_mw: 0.100654
-      idle_transitions_mws: 0.005937
+      idle_transitions_mws: 0.006826
       thread_name: "Primes-1"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 1944
@@ -592,7 +592,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.844958
       estimated_mw: 0.097690
-      idle_transitions_mws: 0.202229
+      idle_transitions_mws: 0.243134
       thread_name: "surfaceflinger"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 786
@@ -601,7 +601,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.833920
       estimated_mw: 0.096414
-      idle_transitions_mws: 0.342121
+      idle_transitions_mws: 0.366656
       thread_name: "kworker/u8:5"
       process_name: "kworker/u8:5"
       thread_id: 5304
@@ -610,7 +610,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.780835
       estimated_mw: 0.090276
-      idle_transitions_mws: 0.182034
+      idle_transitions_mws: 0.211885
       thread_name: "kworker/2:4"
       process_name: "kworker/2:4"
       thread_id: 4995
@@ -628,7 +628,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.746488
       estimated_mw: 0.086305
-      idle_transitions_mws: 0.043573
+      idle_transitions_mws: 0.048623
       thread_name: "binder:1999_5"
       process_name: "com.google.android.wearable.watchface.rwf"
       thread_id: 3678
@@ -637,7 +637,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.744159
       estimated_mw: 0.086036
-      idle_transitions_mws: 0.120816
+      idle_transitions_mws: 0.121714
       thread_name: "servicemanager"
       process_name: "/system/bin/servicemanager"
       thread_id: 213
@@ -646,7 +646,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.717520
       estimated_mw: 0.082956
-      idle_transitions_mws: 0.004484
+      idle_transitions_mws: 0.005619
       thread_name: "wmshell.anim"
       process_name: "com.google.android.apps.wearable.systemui"
       thread_id: 2269
@@ -689,7 +689,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.631830
       estimated_mw: 0.073049
-      idle_transitions_mws: 0.013282
+      idle_transitions_mws: 0.014652
       thread_name: "binder:1926_6"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 5211
@@ -715,7 +715,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.624294
       estimated_mw: 0.072178
-      idle_transitions_mws: 0.431093
+      idle_transitions_mws: 0.454881
       thread_name: "rcuog/2"
       process_name: "rcuog/2"
       thread_id: 37
@@ -724,7 +724,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.623909
       estimated_mw: 0.072133
-      idle_transitions_mws: 0.274820
+      idle_transitions_mws: 0.296743
       thread_name: "kworker/0:6"
       process_name: "kworker/0:6"
       thread_id: 586
@@ -767,7 +767,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.565566
       estimated_mw: 0.065388
-      idle_transitions_mws: 0.016823
+      idle_transitions_mws: 0.023547
       thread_name: "lmkd"
       process_name: "/system/bin/lmkd"
       thread_id: 212
@@ -785,7 +785,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.517529
       estimated_mw: 0.059834
-      idle_transitions_mws: 0.084239
+      idle_transitions_mws: 0.094618
       thread_name: "appSf"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 868
@@ -794,7 +794,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.514221
       estimated_mw: 0.059452
-      idle_transitions_mws: 0.542479
+      idle_transitions_mws: 0.594392
       thread_name: "kworker/1:1"
       process_name: "kworker/1:1"
       thread_id: 47
@@ -812,7 +812,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.504068
       estimated_mw: 0.058278
-      idle_transitions_mws: 0.058645
+      idle_transitions_mws: 0.078223
       thread_name: "Primes-Jank"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 2389
@@ -821,7 +821,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.493578
       estimated_mw: 0.057065
-      idle_transitions_mws: 0.006902
+      idle_transitions_mws: 0.011440
       thread_name: "binder:2171_3"
       process_name: "com.google.android.apps.wearable.systemui"
       thread_id: 2235
@@ -830,7 +830,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.490345
       estimated_mw: 0.056691
-      idle_transitions_mws: 0.005860
+      idle_transitions_mws: 0.006314
       thread_name: "traced"
       process_name: "/system/bin/traced"
       thread_id: 905
@@ -847,7 +847,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.462913
       estimated_mw: 0.053520
-      idle_transitions_mws: 0.021445
+      idle_transitions_mws: 0.028042
       thread_name: "binder:545_2"
       process_name: "/apex/com.android.os.statsd/bin/statsd"
       thread_id: 553
@@ -864,7 +864,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.454063
       estimated_mw: 0.052497
-      idle_transitions_mws: 0.032182
+      idle_transitions_mws: 0.040295
       thread_name: "putmethod.latin"
       process_name: "com.google.android.inputmethod.latin"
       thread_id: 4997
@@ -889,7 +889,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.431304
       estimated_mw: 0.049865
-      idle_transitions_mws: 0.223655
+      idle_transitions_mws: 0.242374
       thread_name: "rcuop/0"
       process_name: "rcuop/0"
       thread_id: 16
@@ -915,7 +915,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.396838
       estimated_mw: 0.045880
-      idle_transitions_mws: 0.096821
+      idle_transitions_mws: 0.124848
       thread_name: "irq/236-NVT-ts"
       process_name: "irq/236-NVT-ts"
       thread_id: 505
@@ -933,7 +933,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.376686
       estimated_mw: 0.043551
-      idle_transitions_mws: 0.007074
+      idle_transitions_mws: 0.007383
       thread_name: "android.bg"
       process_name: "system_server"
       thread_id: 1430
@@ -942,7 +942,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.375869
       estimated_mw: 0.043456
-      idle_transitions_mws: 0.002342
+      idle_transitions_mws: 0.003303
       thread_name: "chre"
       process_name: "/vendor/bin/chre"
       thread_id: 1041
@@ -951,7 +951,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.373520
       estimated_mw: 0.043185
-      idle_transitions_mws: 0.003289
+      idle_transitions_mws: 0.003595
       thread_name: "lowpool[1]"
       process_name: "com.google.android.gms.persistent"
       thread_id: 2279
@@ -969,7 +969,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.359494
       estimated_mw: 0.041563
-      idle_transitions_mws: 0.136611
+      idle_transitions_mws: 0.156230
       thread_name: "kgsl-events"
       process_name: "kgsl-events"
       thread_id: 109
@@ -986,7 +986,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.346517
       estimated_mw: 0.040063
-      idle_transitions_mws: 0.001877
+      idle_transitions_mws: 0.002297
       thread_name: "binder:257_5"
       process_name: "/system/bin/hw/android.system.suspend-service"
       thread_id: 1491
@@ -1021,7 +1021,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.326344
       estimated_mw: 0.037730
-      idle_transitions_mws: 0.045342
+      idle_transitions_mws: 0.048522
       thread_name: "kworker/0:5H"
       process_name: "kworker/0:5H"
       thread_id: 1337
@@ -1030,7 +1030,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.322384
       estimated_mw: 0.037273
-      idle_transitions_mws: 0.002751
+      idle_transitions_mws: 0.003998
       thread_name: "binder:755_2"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 784
@@ -1047,7 +1047,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.310996
       estimated_mw: 0.035956
-      idle_transitions_mws: 0.007033
+      idle_transitions_mws: 0.009122
       thread_name: "binder:1949_2"
       process_name: "com.google.android.gms.persistent"
       thread_id: 1978
@@ -1056,7 +1056,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.302115
       estimated_mw: 0.034929
-      idle_transitions_mws: 0.000843
+      idle_transitions_mws: 0.002760
       thread_name: "-Executor] idle"
       process_name: "com.google.android.gms.persistent"
       thread_id: 5602
@@ -1089,7 +1089,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.294242
       estimated_mw: 0.034019
-      idle_transitions_mws: 0.142357
+      idle_transitions_mws: 0.152154
       thread_name: "rcuop/1"
       process_name: "rcuop/1"
       thread_id: 30
@@ -1114,7 +1114,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.283378
       estimated_mw: 0.032763
-      idle_transitions_mws: 0.023300
+      idle_transitions_mws: 0.024147
       thread_name: "binder:1999_1"
       process_name: "com.google.android.wearable.watchface.rwf"
       thread_id: 2016
@@ -1123,7 +1123,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.279959
       estimated_mw: 0.032367
-      idle_transitions_mws: 0.001981
+      idle_transitions_mws: 0.002737
       thread_name: "binder:2182_7"
       process_name: "com.android.phone"
       thread_id: 2694
@@ -1132,7 +1132,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.279816
       estimated_mw: 0.032351
-      idle_transitions_mws: 0.055476
+      idle_transitions_mws: 0.058081
       thread_name: "kworker/3:2H"
       process_name: "kworker/3:2H"
       thread_id: 226
@@ -1141,7 +1141,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.277230
       estimated_mw: 0.032052
-      idle_transitions_mws: 0.002913
+      idle_transitions_mws: 0.003279
       thread_name: "BG"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 3005
@@ -1158,7 +1158,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.267749
       estimated_mw: 0.030956
-      idle_transitions_mws: 0.038805
+      idle_transitions_mws: 0.040265
       thread_name: "hvdcp_opti"
       process_name: "/vendor/bin/hvdcp_opti"
       thread_id: 1276
@@ -1167,7 +1167,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.262081
       estimated_mw: 0.030301
-      idle_transitions_mws: 0.190243
+      idle_transitions_mws: 0.213921
       thread_name: "binder:1926_3"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 2022
@@ -1176,7 +1176,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.259248
       estimated_mw: 0.029973
-      idle_transitions_mws: 0.172554
+      idle_transitions_mws: 0.187736
       thread_name: "kworker/3:5"
       process_name: "kworker/3:5"
       thread_id: 104
@@ -1185,7 +1185,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.256714
       estimated_mw: 0.029680
-      idle_transitions_mws: 0.002836
+      idle_transitions_mws: 0.003574
       thread_name: "binder:257_2"
       process_name: "/system/bin/hw/android.system.suspend-service"
       thread_id: 264
@@ -1194,7 +1194,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.247037
       estimated_mw: 0.028561
-      idle_transitions_mws: 0.088455
+      idle_transitions_mws: 0.093097
       thread_name: "SDM_EventThread"
       process_name: "/vendor/bin/hw/vendor.qti.hardware.display.composer-service"
       thread_id: 727
@@ -1211,7 +1211,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.242754
       estimated_mw: 0.028066
-      idle_transitions_mws: 0.005424
+      idle_transitions_mws: 0.007611
       thread_name: "binder:2856_4"
       process_name: "com.google.android.gms"
       thread_id: 3679
@@ -1228,7 +1228,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.231145
       estimated_mw: 0.026724
-      idle_transitions_mws: 0.081316
+      idle_transitions_mws: 0.090978
       thread_name: "rcuop/3"
       process_name: "rcuop/3"
       thread_id: 45
@@ -1263,7 +1263,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.226007
       estimated_mw: 0.026130
-      idle_transitions_mws: 0.054115
+      idle_transitions_mws: 0.061977
       thread_name: "rcuop/2"
       process_name: "rcuop/2"
       thread_id: 38
@@ -1272,7 +1272,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.225133
       estimated_mw: 0.026029
-      idle_transitions_mws: 0.065811
+      idle_transitions_mws: 0.071437
       thread_name: "kworker/0:7"
       process_name: "kworker/0:7"
       thread_id: 598
@@ -1281,7 +1281,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.212788
       estimated_mw: 0.024602
-      idle_transitions_mws: 0.006439
+      idle_transitions_mws: 0.006929
       thread_name: "queued-work-loo"
       process_name: "system_server"
       thread_id: 1886
@@ -1323,7 +1323,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.196587
       estimated_mw: 0.022729
-      idle_transitions_mws: 0.002857
+      idle_transitions_mws: 0.003297
       thread_name: "binder:4997_4"
       process_name: "com.google.android.inputmethod.latin"
       thread_id: 5122
@@ -1373,7 +1373,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.177579
       estimated_mw: 0.020531
-      idle_transitions_mws: 0.111479
+      idle_transitions_mws: 0.122351
       thread_name: "RegSampIdle"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 872
@@ -1415,7 +1415,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.157956
       estimated_mw: 0.018262
-      idle_transitions_mws: 0.002306
+      idle_transitions_mws: 0.002642
       thread_name: "vndservicemanag"
       process_name: "/vendor/bin/vndservicemanager"
       thread_id: 215
@@ -1440,7 +1440,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.152058
       estimated_mw: 0.017580
-      idle_transitions_mws: 0.068137
+      idle_transitions_mws: 0.077288
       thread_name: "kworker/2:1H"
       process_name: "kworker/2:1H"
       thread_id: 123
@@ -1449,7 +1449,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.148559
       estimated_mw: 0.017176
-      idle_transitions_mws: 0.002115
+      idle_transitions_mws: 0.002580
       thread_name: "BG"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 2120
@@ -1483,7 +1483,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.134607
       estimated_mw: 0.015563
-      idle_transitions_mws: 0.010586
+      idle_transitions_mws: 0.012724
       thread_name: "dmabuf-deferred"
       process_name: "dmabuf-deferred-free-worker"
       thread_id: 69
@@ -1516,7 +1516,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.125742
       estimated_mw: 0.014538
-      idle_transitions_mws: 0.064827
+      idle_transitions_mws: 0.081358
       thread_name: "surfaceflinger"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 875
@@ -1556,7 +1556,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.119243
       estimated_mw: 0.013786
-      idle_transitions_mws: 0.008398
+      idle_transitions_mws: 0.009864
       thread_name: "TouchTimer"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 866
@@ -1573,7 +1573,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.112705
       estimated_mw: 0.013030
-      idle_transitions_mws: 0.011129
+      idle_transitions_mws: 0.012776
       thread_name: "displayoffload@"
       process_name: "/vendor/bin/hw/vendor.google_clockwork.displayoffload@2.0-service.1p"
       thread_id: 937
@@ -1599,14 +1599,14 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.107442
       estimated_mw: 0.012422
-      idle_transitions_mws: 0.003376
+      idle_transitions_mws: 0.003843
       thread_name: "RenderThread"
       thread_id: 5584
     }
     task_info {
       estimated_mws: 0.105863
       estimated_mw: 0.012239
-      idle_transitions_mws: 0.006458
+      idle_transitions_mws: 0.008769
       thread_name: "Primes-2"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 1946
@@ -1728,7 +1728,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.091698
       estimated_mw: 0.010602
-      idle_transitions_mws: 0.047196
+      idle_transitions_mws: 0.054804
       thread_name: "irq/234-pixart_"
       process_name: "irq/234-pixart_pat9126_irq"
       thread_id: 500
@@ -1753,7 +1753,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.086934
       estimated_mw: 0.010051
-      idle_transitions_mws: 0.001387
+      idle_transitions_mws: 0.002383
       thread_name: "binder:3028_5"
       process_name: "com.google.android.wearable.healthservices"
       thread_id: 5434
@@ -1770,7 +1770,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.083859
       estimated_mw: 0.009695
-      idle_transitions_mws: 0.289424
+      idle_transitions_mws: 0.296327
       thread_name: "psimon"
       process_name: "psimon"
       thread_id: 1480
@@ -1850,7 +1850,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.072671
       estimated_mw: 0.008402
-      idle_transitions_mws: 0.063131
+      idle_transitions_mws: 0.065168
       thread_name: "rcu_exp_gp_kthr"
       process_name: "rcu_exp_gp_kthread_worker"
       thread_id: 19
@@ -1859,7 +1859,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.070587
       estimated_mw: 0.008161
-      idle_transitions_mws: 0.005993
+      idle_transitions_mws: 0.006361
       thread_name: "adbd"
       process_name: "/apex/com.android.adbd/bin/adbd"
       thread_id: 5546
@@ -1874,7 +1874,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.069214
       estimated_mw: 0.008002
-      idle_transitions_mws: 0.001447
+      idle_transitions_mws: 0.002127
       thread_name: "android.imms"
       process_name: "system_server"
       thread_id: 1791
@@ -1966,7 +1966,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.059295
       estimated_mw: 0.006855
-      idle_transitions_mws: 0.018518
+      idle_transitions_mws: 0.020316
       thread_name: "pool-1-thread-1"
       process_name: "system_server"
       thread_id: 1873
@@ -2009,7 +2009,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.056947
       estimated_mw: 0.006584
-      idle_transitions_mws: 0.002094
+      idle_transitions_mws: 0.002574
       thread_name: "bgres-controlle"
       process_name: "system_server"
       thread_id: 1495
@@ -2048,7 +2048,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.052984
       estimated_mw: 0.006126
-      idle_transitions_mws: 0.001354
+      idle_transitions_mws: 0.001840
       thread_name: "oid.grilservice"
       process_name: "com.google.android.grilservice"
       thread_id: 2129
@@ -2087,7 +2087,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.051717
       estimated_mw: 0.005979
-      idle_transitions_mws: 0.019339
+      idle_transitions_mws: 0.019874
       thread_name: "Ipc-5004:1"
       process_name: "/vendor/bin/hw/android.hardware.gnss-aidl-service-qti"
       thread_id: 5483
@@ -2170,7 +2170,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.043653
       estimated_mw: 0.005047
-      idle_transitions_mws: 0.045128
+      idle_transitions_mws: 0.047141
       thread_name: "wlan_logging_th"
       process_name: "wlan_logging_thread"
       thread_id: 368
@@ -2195,7 +2195,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.042985
       estimated_mw: 0.004970
-      idle_transitions_mws: 0.004250
+      idle_transitions_mws: 0.005836
       thread_name: "binder:5245_4"
       process_name: "com.google.android.apps.scone"
       thread_id: 5270
@@ -2244,7 +2244,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.040507
       estimated_mw: 0.004683
-      idle_transitions_mws: 0.020051
+      idle_transitions_mws: 0.023334
       thread_name: "RegionSampling"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 871
@@ -2329,7 +2329,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.036357
       estimated_mw: 0.004203
-      idle_transitions_mws: 0.164265
+      idle_transitions_mws: 0.165406
       thread_name: "halt_drain_rqs"
       process_name: "halt_drain_rqs"
       thread_id: 105
@@ -2461,7 +2461,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.029590
       estimated_mw: 0.003421
-      idle_transitions_mws: 0.012793
+      idle_transitions_mws: 0.015320
       thread_name: "UsfHalWorker"
       process_name: "/vendor/bin/hw/android.hardware.sensors-service.multihal"
       thread_id: 792
@@ -2470,7 +2470,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.028316
       estimated_mw: 0.003274
-      idle_transitions_mws: 0.003170
+      idle_transitions_mws: 0.004223
       thread_name: "binder:1999_5"
       process_name: "com.google.android.wearable.watchface.rwf"
       thread_id: 4985
@@ -2562,7 +2562,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.024843
       estimated_mw: 0.002872
-      idle_transitions_mws: 0.001271
+      idle_transitions_mws: 0.001830
       thread_name: "hwuiTask1"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 1997
@@ -2571,7 +2571,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.024811
       estimated_mw: 0.002868
-      idle_transitions_mws: 0.000632
+      idle_transitions_mws: 0.000976
       thread_name: "pool-1-thread-1"
       process_name: "com.google.android.apps.scone"
       thread_id: 5271
@@ -2677,7 +2677,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.019946
       estimated_mw: 0.002306
-      idle_transitions_mws: 0.009476
+      idle_transitions_mws: 0.012349
       thread_name: "qcom,system-poo"
       process_name: "qcom,system-pool-refill-thread"
       thread_id: 81
@@ -2757,7 +2757,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.017725
       estimated_mw: 0.002049
-      idle_transitions_mws: 0.001379
+      idle_transitions_mws: 0.002594
       thread_name: "HeapTaskDaemon"
       process_name: "com.fitbit.FitbitMobile"
       thread_id: 5386
@@ -2766,7 +2766,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.017125
       estimated_mw: 0.001980
-      idle_transitions_mws: 0.001201
+      idle_transitions_mws: 0.001796
       thread_name: "WearConnectionT"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 2172
@@ -2775,7 +2775,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.016887
       estimated_mw: 0.001952
-      idle_transitions_mws: 0.001112
+      idle_transitions_mws: 0.001447
       thread_name: "wear-services-w"
       process_name: "com.google.wear.services"
       thread_id: 2029
@@ -2856,7 +2856,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.014592
       estimated_mw: 0.001687
-      idle_transitions_mws: 0.000734
+      idle_transitions_mws: 0.001151
       thread_name: "hwuiTask0"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 1996
@@ -2881,7 +2881,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.014123
       estimated_mw: 0.001633
-      idle_transitions_mws: 0.010036
+      idle_transitions_mws: 0.010939
       thread_name: "LowMemThread"
       process_name: "system_server"
       thread_id: 1481
@@ -2898,7 +2898,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.013579
       estimated_mw: 0.001570
-      idle_transitions_mws: 0.001160
+      idle_transitions_mws: 0.001552
       thread_name: "kworker/u9:0"
       process_name: "kworker/u9:0"
       thread_id: 64
@@ -2907,7 +2907,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.013322
       estimated_mw: 0.001540
-      idle_transitions_mws: 0.011775
+      idle_transitions_mws: 0.012062
       thread_name: "migration/1"
       process_name: "migration/1"
       thread_id: 25
@@ -2954,7 +2954,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.012433
       estimated_mw: 0.001437
-      idle_transitions_mws: 0.001905
+      idle_transitions_mws: 0.002761
       thread_name: "irq/25-mmc0"
       process_name: "irq/25-mmc0"
       thread_id: 120
@@ -3037,7 +3037,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.011024
       estimated_mw: 0.001275
-      idle_transitions_mws: 0.004820
+      idle_transitions_mws: 0.005052
       thread_name: "TimerThread"
       process_name: "/system/bin/audioserver"
       thread_id: 1486
@@ -3046,7 +3046,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.010869
       estimated_mw: 0.001257
-      idle_transitions_mws: 0.001558
+      idle_transitions_mws: 0.001745
       thread_name: "irq/26-4744000."
       process_name: "irq/26-4744000.sdhci"
       thread_id: 117
@@ -3055,7 +3055,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.010764
       estimated_mw: 0.001245
-      idle_transitions_mws: 0.003066
+      idle_transitions_mws: 0.004305
       thread_name: "SurfaceSyncGrou"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 1994
@@ -3064,7 +3064,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.010731
       estimated_mw: 0.001241
-      idle_transitions_mws: 0.009927
+      idle_transitions_mws: 0.010501
       thread_name: "migration/3"
       process_name: "migration/3"
       thread_id: 40
@@ -3097,7 +3097,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.009639
       estimated_mw: 0.001114
-      idle_transitions_mws: 0.002373
+      idle_transitions_mws: 0.002700
       thread_name: "kworker/u9:2"
       process_name: "kworker/u9:2"
       thread_id: 338
@@ -3227,7 +3227,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.006850
       estimated_mw: 0.000792
-      idle_transitions_mws: 0.005140
+      idle_transitions_mws: 0.006279
       thread_name: "hwservicemanage"
       process_name: "/system/system_ext/bin/hwservicemanager"
       thread_id: 214
@@ -3413,7 +3413,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.004292
       estimated_mw: 0.000496
-      idle_transitions_mws: 0.005500
+      idle_transitions_mws: 0.005896
       thread_name: "f2fs_discard-25"
       process_name: "f2fs_discard-254:43"
       thread_id: 349
@@ -3448,7 +3448,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.003934
       estimated_mw: 0.000455
-      idle_transitions_mws: 0.001222
+      idle_transitions_mws: 0.001817
       thread_name: "binder:5377_5"
       process_name: "com.fitbit.FitbitMobile"
       thread_id: 5573
@@ -3505,7 +3505,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.003393
       estimated_mw: 0.000392
-      idle_transitions_mws: 0.009600
+      idle_transitions_mws: 0.010138
       thread_name: "FinalizerWatchd"
       process_name: "com.fitbit.FitbitMobile"
       thread_id: 5389
@@ -3554,7 +3554,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.002739
       estimated_mw: 0.000317
-      idle_transitions_mws: 0.005358
+      idle_transitions_mws: 0.005648
       thread_name: "migration/2"
       process_name: "migration/2"
       thread_id: 32
@@ -3699,7 +3699,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.001776
       estimated_mw: 0.000205
-      idle_transitions_mws: 0.005770
+      idle_transitions_mws: 0.006020
       thread_name: "migration/0"
       process_name: "migration/0"
       thread_id: 21

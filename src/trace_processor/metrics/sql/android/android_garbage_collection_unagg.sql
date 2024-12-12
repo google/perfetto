@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+SELECT RUN_METRIC('android/process_metadata.sql');
+
 INCLUDE PERFETTO MODULE android.garbage_collection;
 INCLUDE PERFETTO MODULE android.suspend;
 
@@ -41,7 +43,10 @@ SELECT AndroidGarbageCollectionUnaggMetric(
         'gc_ts', gc_ts,
         'tid', tid,
         'pid', pid,
-        'gc_monotonic_dur', _extract_duration_without_suspend(gc_ts, gc_dur)
-      )) FROM android_garbage_collection_events
+        'gc_monotonic_dur', _extract_duration_without_suspend(gc_ts, gc_dur),
+        'process', metadata
+      ))
+    FROM android_garbage_collection_events
+    LEFT JOIN process_metadata using (upid)
   )
 );

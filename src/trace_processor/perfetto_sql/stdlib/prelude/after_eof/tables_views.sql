@@ -61,15 +61,15 @@ CREATE PERFETTO VIEW track (
   --
   -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
   -- expand the args.
-  dimension_arg_set_id LONG,
+  dimension_arg_set_id ARGSETID,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
-  parent_id LONG,
+  parent_id JOINID(track.id),
   -- Generic key-value pairs containing extra information about the track.
   --
   -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
   -- expand the args.
-  source_arg_set_id LONG,
+  source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG
 ) AS
@@ -108,7 +108,7 @@ CREATE PERFETTO VIEW cpu (
   -- https://www.kernel.org/doc/Documentation/devicetree/bindings/arm/cpu-capacity.txt
   capacity LONG,
   -- Extra key/value pairs associated with this cpu.
-  arg_set_id LONG
+  arg_set_id ARGSETID
 ) AS
 SELECT
   id,
@@ -169,7 +169,7 @@ CREATE PERFETTO VIEW sched_slice (
   -- CPU identifier of each machine.
   cpu LONG,
   -- The thread's unique id in the trace.
-  utid LONG,
+  utid JOINID(thread.id),
   -- A string representing the scheduling state of the kernel
   -- thread at the end of the slice.  The individual characters in
   -- the string mean the following: R (runnable), S (awaiting a
@@ -210,7 +210,7 @@ CREATE PERFETTO VIEW sched(
   -- Alias for `sched_slice.cpu`.
   cpu LONG,
   -- Alias for `sched_slice.utid`.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Alias for `sched_slice.end_state`.
   end_state STRING,
   -- Alias for `sched_slice.priority`.
@@ -228,7 +228,7 @@ FROM sched_slice;
 --
 -- The rows in this table which have |state| = 'Running', will have a
 -- corresponding row in the |sched_slice| table.
-CREATE PERFETTO VIEW thread_state (
+CREATE PERFETTO VIEW thread_state(
   -- Unique identifier for this thread state.
   id ID,
   -- The name of the "most-specific" child table containing this row.
@@ -242,7 +242,7 @@ CREATE PERFETTO VIEW thread_state (
   -- CPU identifier of each machine.
   cpu LONG,
   -- The thread's unique id in the trace.
-  utid LONG,
+  utid JOINID(thread.id),
   -- The scheduling state of the thread. Can be "Running" or any of the states
   -- described in |sched_slice.end_state|.
   state STRING,
@@ -251,9 +251,9 @@ CREATE PERFETTO VIEW thread_state (
   -- The function in the kernel this thread was blocked on.
   blocked_function STRING,
   -- The unique thread id of the thread which caused a wakeup of this thread.
-  waker_utid LONG,
+  waker_utid JOINID(thread.id),
   -- The unique thread state id which caused a wakeup of this thread.
-  waker_id LONG,
+  waker_id JOINID(thread_state.id),
   -- Whether the wakeup was from interrupt context or process context.
   irq_context LONG,
   -- The unique CPU identifier that the thread executed on.
@@ -294,9 +294,9 @@ CREATE PERFETTO VIEW raw (
   -- CPU identifier of each machine.
   cpu LONG,
   -- The thread this event was emitted on.
-  utid LONG,
+  utid JOINID(thread.id),
   -- The set of key/value pairs associated with this event.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Ftrace event flags for this event. Currently only emitted for sched_waking
   -- events.
   common_flags LONG,
@@ -334,9 +334,9 @@ CREATE PERFETTO VIEW ftrace_event (
   -- CPU identifier of each machine.
   cpu LONG,
   -- The thread this event was emitted on.
-  utid LONG,
+  utid JOINID(thread.id),
   -- The set of key/value pairs associated with this event.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Ftrace event flags for this event. Currently only emitted for
   -- sched_waking events.
   common_flags LONG,
@@ -371,7 +371,7 @@ CREATE PERFETTO VIEW experimental_sched_upid (
   -- CPU identifier of each machine.
   cpu LONG,
   -- The thread's unique id in the trace.
-  utid LONG,
+  utid JOINID(thread.id),
   -- A string representing the scheduling state of the kernel thread at the end
   -- of the slice. The individual characters in the string mean the following: R
   -- (runnable), S (awaiting a wakeup), D (in an uninterruptible sleep), T
@@ -384,7 +384,7 @@ CREATE PERFETTO VIEW experimental_sched_upid (
   -- The unique CPU identifier that the slice executed on.
   ucpu LONG,
   -- The process's unique id in the trace.
-  upid LONG
+  upid JOINID(process.id)
 ) AS
 SELECT
   id,
@@ -414,7 +414,7 @@ CREATE PERFETTO VIEW cpu_track (
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
-  source_arg_set_id LONG,
+  source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
   -- The CPU that the track is associated with.
@@ -431,8 +431,8 @@ SELECT
 FROM
   __intrinsic_cpu_track;
 
--- Tracks containing counter-like events associated to a CPU.
-CREATE PERFETTO VIEW cpu_counter_track (
+-- Tracks containing counter-like events.
+CREATE PERFETTO VIEW counter_track (
   -- Unique identifier for this cpu counter track.
   id ID,
   -- The name of the "most-specific" child table containing this row.
@@ -441,11 +441,59 @@ CREATE PERFETTO VIEW cpu_counter_track (
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
-  parent_id LONG,
+  parent_id JOINID(track.id),
+  -- The classification of a track indicates the "type of data" the track
+  -- contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- classification and a set of dimensions: classifications allow identifying
+  -- a set of tracks with the same type of data within the whole universe of
+  -- tracks while dimensions allow distinguishing between different tracks in
+  -- that set.
+  classification STRING,
+  -- The dimensions of the track which uniquely identify the track within a
+  -- given classification.
+  dimension_arg_set_id ARGSETID,
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
-  source_arg_set_id LONG,
+  source_arg_set_id ARGSETID,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG,
+  -- The units of the counter. This column is rarely filled.
+  unit STRING,
+  -- The description for this track. For debugging purposes only.
+  description STRING
+) AS
+SELECT
+  id,
+  type,
+  name,
+  NULL AS parent_id,
+  classification,
+  dimension_arg_set_id,
+  source_arg_set_id,
+  machine_id,
+  counter_unit AS unit,
+  EXTRACT_ARG(source_arg_set_id, 'description') AS description
+FROM __intrinsic_track
+WHERE event_type = 'counter';
+
+-- Tracks containing counter-like events associated to a CPU.
+CREATE PERFETTO TABLE cpu_counter_track (
+  -- Unique identifier for this cpu counter track.
+  id ID,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- Name of the track.
+  name STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id JOINID(track.id),
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
   -- The units of the counter. This column is rarely filled.
@@ -456,14 +504,196 @@ CREATE PERFETTO VIEW cpu_counter_track (
   cpu LONG
 ) AS
 SELECT
-  id,
-  type,
-  name,
-  parent_id,
-  source_arg_set_id,
-  machine_id,
-  unit,
-  description,
-  cpu
-FROM
-  __intrinsic_cpu_counter_track;
+  ct.id,
+  ct.type,
+  ct.name,
+  ct.parent_id,
+  ct.source_arg_set_id,
+  ct.machine_id,
+  ct.unit,
+  ct.description,
+  args.int_value as cpu
+FROM counter_track AS ct
+JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
+WHERE args.key = 'cpu';
+
+-- Tracks containing counter-like events associated to a GPU.
+CREATE PERFETTO TABLE gpu_counter_track (
+  -- Unique identifier for this gpu counter track.
+  id ID,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- Name of the track.
+  name STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id JOINID(track.id),
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id LONG,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG,
+  -- The units of the counter. This column is rarely filled.
+  unit STRING,
+  -- The description for this track. For debugging purposes only.
+  description STRING,
+  -- The GPU that the track is associated with.
+  gpu_id LONG
+) AS
+SELECT
+  ct.id,
+  ct.type,
+  ct.name,
+  ct.parent_id,
+  ct.source_arg_set_id,
+  ct.machine_id,
+  ct.unit,
+  ct.description,
+  args.int_value AS gpu_id
+FROM counter_track AS ct
+JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
+WHERE args.key = 'gpu';
+
+-- Tracks containing counter-like events associated to a process.
+CREATE PERFETTO TABLE process_counter_track (
+  -- Unique identifier for this process counter track.
+  id ID,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- Name of the track.
+  name STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id JOINID(track.id),
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id LONG,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG,
+  -- The units of the counter. This column is rarely filled.
+  unit STRING,
+  -- The description for this track. For debugging purposes only.
+  description STRING,
+  -- The upid of the process that the track is associated with.
+  upid LONG
+) AS
+SELECT
+  ct.id,
+  ct.type,
+  ct.name,
+  ct.parent_id,
+  ct.source_arg_set_id,
+  ct.machine_id,
+  ct.unit,
+  ct.description,
+  args.int_value AS upid
+FROM counter_track AS ct
+JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
+WHERE args.key = 'upid';
+
+-- Tracks containing counter-like events associated to a thread.
+CREATE PERFETTO TABLE thread_counter_track (
+  -- Unique identifier for this thread counter track.
+  id ID,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- Name of the track.
+  name STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id JOINID(track.id),
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id LONG,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG,
+  -- The units of the counter. This column is rarely filled.
+  unit STRING,
+  -- The description for this track. For debugging purposes only.
+  description STRING,
+  -- The utid of the thread that the track is associated with.
+  utid LONG
+) AS
+SELECT
+  ct.id,
+  ct.type,
+  ct.name,
+  ct.parent_id,
+  ct.source_arg_set_id,
+  ct.machine_id,
+  ct.unit,
+  ct.description,
+  args.int_value AS utid
+FROM counter_track AS ct
+JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
+WHERE args.key = 'utid';
+
+-- Tracks containing counter-like events collected from Linux perf.
+CREATE PERFETTO TABLE perf_counter_track (
+  -- Unique identifier for this thread counter track.
+  id ID,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- Name of the track.
+  name STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id JOINID(track.id),
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id LONG,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG,
+  -- The units of the counter. This column is rarely filled.
+  unit STRING,
+  -- The description for this track. For debugging purposes only.
+  description STRING,
+  -- The id of the perf session this counter was captured on.
+  perf_session_id LONG,
+  -- The CPU the counter is associated with.
+  cpu LONG,
+  -- Whether this counter is the sampling timebase for the session.
+  is_timebase BOOL
+) AS
+SELECT
+  ct.id,
+  ct.type,
+  ct.name,
+  ct.parent_id,
+  ct.source_arg_set_id,
+  ct.machine_id,
+  ct.unit,
+  ct.description,
+  extract_arg(ct.dimension_arg_set_id, 'perf_session_id') AS perf_session_id,
+  extract_arg(ct.dimension_arg_set_id, 'cpu') AS cpu,
+  extract_arg(ct.source_arg_set_id, 'is_timebase') AS is_timebase
+FROM counter_track AS ct
+WHERE ct.classification = 'perf_counter';
+
+-- Alias of the `counter` table.
+CREATE PERFETTO VIEW counters(
+  -- Alias of `counter.id`.
+  id ID,
+  -- Alias of `counter.type`.
+  type STRING,
+  -- Alias of `counter.ts`.
+  ts TIMESTAMP,
+  -- Alias of `counter.track_id`.
+  track_id JOINID(track.id),
+  -- Alias of `counter.value`.
+  value DOUBLE,
+  -- Alias of `counter.arg_set_id`.
+  arg_set_id LONG,
+  -- Legacy column, should no longer be used.
+  name STRING,
+  -- Legacy column, should no longer be used.
+  unit STRING
+) AS
+SELECT v.*, t.name, t.unit
+FROM counter v
+JOIN counter_track t ON v.track_id = t.id
+ORDER BY ts;

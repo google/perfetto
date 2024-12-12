@@ -128,7 +128,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 75
+// Next id: 76
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -342,6 +342,9 @@ message TraceMetrics {
 
   // Android Wattson estimate during markers time window.
   optional AndroidWattsonTimePeriodMetric wattson_markers_rails = 74;
+
+  // Android Wattson estimate during time windows defined by atrace apps.
+  optional AndroidWattsonTimePeriodMetric wattson_atrace_apps_rails = 75;
 
   // Android
   // Demo extensions.

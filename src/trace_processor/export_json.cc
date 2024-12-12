@@ -1539,6 +1539,9 @@ class JsonExporter {
     std::optional<StringId> peak_resident_set_id =
         storage_->string_pool().GetId("chrome.peak_resident_set_kb");
 
+    std::optional<StringId> process_stats =
+        storage_->string_pool().GetId("chrome_process_stats");
+
     for (auto sit = memory_snapshots.IterateRows(); sit; ++sit) {
       Json::Value event_base;
 
@@ -1556,15 +1559,23 @@ class JsonExporter {
 
       // Export OS dump events for processes with relevant data.
       const auto& process_table = storage_->process_table();
+      const auto& track_table = storage_->track_table();
       for (auto pit = process_table.IterateRows(); pit; ++pit) {
         Json::Value event = FillInProcessEventDetails(event_base, pit.pid());
         Json::Value& totals = event["args"]["dumps"]["process_totals"];
 
-        const auto& process_counters = storage_->process_counter_track_table();
-
-        for (auto it = process_counters.IterateRows(); it; ++it) {
-          if (it.upid() != pit.id().value)
+        for (auto it = track_table.IterateRows(); it; ++it) {
+          auto arg_set_id = it.dimension_arg_set_id();
+          if (!arg_set_id) {
             continue;
+          }
+          if (it.classification() != process_stats) {
+            continue;
+          }
+          uint64_t upid = args_builder_.GetArgs(*arg_set_id)["upid"].asUInt64();
+          if (upid != pit.id().value) {
+            continue;
+          }
           TrackId track_id = it.id();
           if (private_footprint_id && (it.name() == private_footprint_id)) {
             totals["private_footprint_bytes"] = base::Uint64ToHexStringNoPrefix(

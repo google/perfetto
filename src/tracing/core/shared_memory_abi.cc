@@ -136,13 +136,14 @@ void SharedMemoryABI::Initialize(uint8_t* start,
   PERFETTO_CHECK(size % page_size == 0);
 }
 
-SharedMemoryABI::Chunk SharedMemoryABI::GetChunkUnchecked(size_t page_idx,
-                                                          uint32_t page_layout,
-                                                          size_t chunk_idx) {
-  const size_t num_chunks = GetNumChunksForLayout(page_layout);
+SharedMemoryABI::Chunk SharedMemoryABI::GetChunkUnchecked(
+    size_t page_idx,
+    uint32_t header_bitmap,
+    size_t chunk_idx) {
+  const size_t num_chunks = GetNumChunksFromHeaderBitmap(header_bitmap);
   PERFETTO_DCHECK(chunk_idx < num_chunks);
   // Compute the chunk virtual address and write it into |chunk|.
-  const uint16_t chunk_size = GetChunkSizeForLayout(page_layout);
+  const uint16_t chunk_size = GetChunkSizeFromHeaderBitmap(header_bitmap);
   size_t chunk_offset_in_page = sizeof(PageHeader) + chunk_idx * chunk_size;
 
   Chunk chunk(page_start(page_idx) + chunk_offset_in_page, chunk_size,
@@ -160,8 +161,9 @@ SharedMemoryABI::Chunk SharedMemoryABI::TryAcquireChunk(
                   desired_chunk_state == kChunkBeingWritten);
   PageHeader* phdr = page_header(page_idx);
   for (int attempt = 0; attempt < kRetryAttempts; attempt++) {
-    uint32_t layout = phdr->layout.load(std::memory_order_acquire);
-    const size_t num_chunks = GetNumChunksForLayout(layout);
+    uint32_t header_bitmap =
+        phdr->header_bitmap.load(std::memory_order_acquire);
+    const size_t num_chunks = GetNumChunksFromHeaderBitmap(header_bitmap);
 
     // The page layout has changed (or the page is free).
     if (chunk_idx >= num_chunks)
@@ -173,17 +175,18 @@ SharedMemoryABI::Chunk SharedMemoryABI::TryAcquireChunk(
     // 2. kChunkComplete -> kChunkBeingRead (Service).
     ChunkState expected_chunk_state =
         desired_chunk_state == kChunkBeingWritten ? kChunkFree : kChunkComplete;
-    auto cur_chunk_state = (layout >> (chunk_idx * kChunkShift)) & kChunkMask;
+    auto cur_chunk_state =
+        GetChunkStateFromHeaderBitmap(header_bitmap, chunk_idx);
     if (cur_chunk_state != expected_chunk_state)
       return Chunk();
 
-    uint32_t next_layout = layout;
-    next_layout &= ~(kChunkMask << (chunk_idx * kChunkShift));
-    next_layout |= (desired_chunk_state << (chunk_idx * kChunkShift));
-    if (phdr->layout.compare_exchange_strong(layout, next_layout,
-                                             std::memory_order_acq_rel)) {
+    uint32_t next_header_bitmap = header_bitmap;
+    next_header_bitmap &= ~(kChunkMask << (chunk_idx * kChunkShift));
+    next_header_bitmap |= (desired_chunk_state << (chunk_idx * kChunkShift));
+    if (phdr->header_bitmap.compare_exchange_strong(
+            header_bitmap, next_header_bitmap, std::memory_order_acq_rel)) {
       // Compute the chunk virtual address and write it into |chunk|.
-      Chunk chunk = GetChunkUnchecked(page_idx, layout, chunk_idx);
+      Chunk chunk = GetChunkUnchecked(page_idx, header_bitmap, chunk_idx);
       if (desired_chunk_state == kChunkBeingWritten) {
         PERFETTO_DCHECK(header);
         ChunkHeader* new_header = chunk.header();
@@ -201,24 +204,24 @@ SharedMemoryABI::Chunk SharedMemoryABI::TryAcquireChunk(
 
 bool SharedMemoryABI::TryPartitionPage(size_t page_idx, PageLayout layout) {
   PERFETTO_DCHECK(layout >= kPageDiv1 && layout <= kPageDiv14);
-  uint32_t expected_layout = 0;  // Free page.
-  uint32_t next_layout = (layout << kLayoutShift) & kLayoutMask;
+  uint32_t expected_bitmap = 0;  // Free page.
+  uint32_t next_bitmap = (layout << kLayoutShift) & kLayoutMask;
   PageHeader* phdr = page_header(page_idx);
-  if (!phdr->layout.compare_exchange_strong(expected_layout, next_layout,
-                                            std::memory_order_acq_rel)) {
+  if (!phdr->header_bitmap.compare_exchange_strong(expected_bitmap, next_bitmap,
+                                                   std::memory_order_acq_rel)) {
     return false;
   }
   return true;
 }
 
 uint32_t SharedMemoryABI::GetFreeChunks(size_t page_idx) {
-  uint32_t layout =
-      page_header(page_idx)->layout.load(std::memory_order_relaxed);
-  const uint32_t num_chunks = GetNumChunksForLayout(layout);
+  uint32_t bitmap = GetPageHeaderBitmap(page_idx, std::memory_order_relaxed);
+  const uint32_t num_chunks = GetNumChunksFromHeaderBitmap(bitmap);
   uint32_t res = 0;
+
   for (uint32_t i = 0; i < num_chunks; i++) {
-    res |= ((layout & kChunkMask) == kChunkFree) ? (1 << i) : 0;
-    layout >>= kChunkShift;
+    res |=
+        (GetChunkStateFromHeaderBitmap(bitmap, i) == kChunkFree) ? (1 << i) : 0;
   }
   return res;
 }
@@ -239,14 +242,15 @@ size_t SharedMemoryABI::ReleaseChunk(Chunk chunk,
 
   for (int attempt = 0; attempt < kRetryAttempts; attempt++) {
     PageHeader* phdr = page_header(page_idx);
-    uint32_t layout = phdr->layout.load(std::memory_order_relaxed);
-    const size_t page_chunk_size = GetChunkSizeForLayout(layout);
+    uint32_t bitmap = phdr->header_bitmap.load(std::memory_order_relaxed);
+    const size_t page_chunk_size = GetChunkSizeFromHeaderBitmap(bitmap);
 
     // TODO(primiano): this should not be a CHECK, because a malicious producer
     // could crash us by putting the chunk in an invalid state. This should
     // gracefully fail. Keep a CHECK until then.
     PERFETTO_CHECK(chunk.size() == page_chunk_size);
-    const uint32_t chunk_state = GetChunkStateFromLayout(layout, chunk_idx);
+    const uint32_t chunk_state =
+        GetChunkStateFromHeaderBitmap(bitmap, chunk_idx);
 
     // Verify that the chunk is still in a state that allows the transition to
     // |desired_chunk_state|. The only allowed transitions are:
@@ -265,17 +269,17 @@ size_t SharedMemoryABI::ReleaseChunk(Chunk chunk,
 
     // TODO(primiano): should not be a CHECK (same rationale of comment above).
     PERFETTO_CHECK(chunk_state == expected_chunk_state);
-    uint32_t next_layout = layout;
-    next_layout &= ~(kChunkMask << (chunk_idx * kChunkShift));
-    next_layout |= (desired_chunk_state << (chunk_idx * kChunkShift));
+    uint32_t next_bitmap = bitmap;
+    next_bitmap &= ~(kChunkMask << (chunk_idx * kChunkShift));
+    next_bitmap |= (desired_chunk_state << (chunk_idx * kChunkShift));
 
     // If we are freeing a chunk and all the other chunks in the page are free
     // we should de-partition the page and mark it as clear.
-    if ((next_layout & kAllChunksMask) == kAllChunksFree)
-      next_layout = 0;
+    if ((next_bitmap & kAllChunksMask) == kAllChunksFree)
+      next_bitmap = 0;
 
-    if (phdr->layout.compare_exchange_strong(layout, next_layout,
-                                             std::memory_order_acq_rel)) {
+    if (phdr->header_bitmap.compare_exchange_strong(
+            bitmap, next_bitmap, std::memory_order_acq_rel)) {
       return page_idx;
     }
     WaitBeforeNextAttempt(attempt);
@@ -324,7 +328,8 @@ std::pair<size_t, size_t> SharedMemoryABI::GetPageAndChunkIndex(
   PERFETTO_DCHECK((offset - sizeof(PageHeader)) % chunk.size() == 0);
   const size_t chunk_idx = (offset - sizeof(PageHeader)) / chunk.size();
   PERFETTO_DCHECK(chunk_idx < kMaxChunksPerPage);
-  PERFETTO_DCHECK(chunk_idx < GetNumChunksForLayout(GetPageLayout(page_idx)));
+  PERFETTO_DCHECK(chunk_idx <
+                  GetNumChunksFromHeaderBitmap(GetPageHeaderBitmap(page_idx)));
   return std::make_pair(page_idx, chunk_idx);
 }
 

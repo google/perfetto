@@ -18,8 +18,8 @@
 -- with thread- and process-related columns set to NULL if the slice
 -- is not associated with a thread or a process.
 CREATE PERFETTO VIEW _slice_with_thread_and_process_info(
-  -- Alias for `slice.id`.
-  id LONG,
+  -- Slice
+  id JOINID(slice.id),
   -- Alias for `slice.type`.
   type STRING,
   -- Alias for `slice.ts`.
@@ -31,27 +31,27 @@ CREATE PERFETTO VIEW _slice_with_thread_and_process_info(
   -- Alias for `slice.name`.
   name STRING,
   -- Alias for `slice.track_id`.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Alias for `track.name`.
   track_name STRING,
   -- Alias for `thread.name`.
   thread_name STRING,
   -- Alias for `thread.utid`.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Alias for `thread.tid`
   tid LONG,
   -- Alias for `process.name`.
   process_name STRING,
   -- Alias for `process.upid`.
-  upid LONG,
+  upid JOINID(process.id),
   -- Alias for `process.pid`.
   pid LONG,
   -- Alias for `slice.depth`.
   depth LONG,
   -- Alias for `slice.parent_id`.
-  parent_id LONG,
+  parent_id JOINID(slice.id),
   -- Alias for `slice.arg_set_id`.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Alias for `slice.thread_ts`.
   thread_ts TIMESTAMP,
   -- Alias for `slice.thread_dur`.

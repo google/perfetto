@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_EXT_TRACING_CORE_SLICE_H_
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include <memory>
