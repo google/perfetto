@@ -169,7 +169,7 @@ export class PanAndZoomHandler implements Disposable {
     this.trash.use(
       new DragGestureHandler(
         this.element,
-        (x, y) => {
+        /* onDrag */ (x, y) => {
           if (this.shiftDown) {
             this.onPanned(prevX - x);
           } else {
@@ -177,7 +177,7 @@ export class PanAndZoomHandler implements Disposable {
           }
           prevX = x;
         },
-        (x, y) => {
+        /* onDragStarted */ (x, y) => {
           prevX = x;
           dragStartX = x;
           dragStartY = y;
@@ -190,7 +190,7 @@ export class PanAndZoomHandler implements Disposable {
             this.element.style.cursor = DRAG_CURSOR;
           }
         },
-        () => {
+        /* onDragFinished */ () => {
           // Reset the cursor now the drag has ended.
           this.element.style.cursor = this.shiftDown ? PAN_CURSOR : DRAG_CURSOR;
           dragStartX = -1;
