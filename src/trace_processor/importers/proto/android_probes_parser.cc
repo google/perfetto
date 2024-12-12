@@ -61,7 +61,6 @@ namespace perfetto::trace_processor {
 
 AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
     : context_(context),
-      device_state_id_(context->storage->InternString("DeviceStateChanged")),
       battery_status_id_(context->storage->InternString("BatteryStatus")),
       plug_type_id_(context->storage->InternString("PlugType")),
       rail_packet_timestamp_id_(context->storage->InternString("packet_ts")),
@@ -443,13 +442,9 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
     base::StringView name(kv.name());
     if (name == "debug.tracing.device_state") {
       auto state = kv.value();
-
       StringId state_id = context_->storage->InternString(state);
-      auto track_set_id =
-          context_->async_track_set_tracker->InternGlobalTrackSet(
-              device_state_id_);
-      TrackId track_id =
-          context_->async_track_set_tracker->Scoped(track_set_id, ts, 0);
+      TrackId track_id = context_->track_tracker->InternTrack(
+          tracks::kAndroidDeviceStateBlueprint);
       context_->slice_tracker->Scoped(ts, track_id, kNullStringId, state_id, 0);
       continue;
     }
