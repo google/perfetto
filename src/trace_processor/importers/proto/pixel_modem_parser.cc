@@ -112,7 +112,8 @@ base::Status PixelModemParser::ParseEvent(int64_t ts,
 
   StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
   TrackId id = context_->track_tracker->InternTrack(
-      kBlueprint, tracks::Dimensions(base::StringView(*domain)));
+      kBlueprint, tracks::Dimensions(domain ? base::StringView(*domain)
+                                            : base::StringView()));
   context_->slice_tracker->Scoped(
       ts, id, kNullStringId, slice_name_id, 0,
       [this, &detokenized_str,
