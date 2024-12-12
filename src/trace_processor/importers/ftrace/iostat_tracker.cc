@@ -93,8 +93,7 @@ void IostatTracker::ParseF2fsIostat(int64_t timestamp,
 
 void IostatTracker::ParseF2fsIostatLatency(int64_t timestamp,
                                            protozero::ConstBytes blob) {
-  protos::pbzero::F2fsIostatLatencyFtraceEvent::Decoder evt(blob.data,
-                                                            blob.size);
+  protos::pbzero::F2fsIostatLatencyFtraceEvent::Decoder evt(blob);
 
   static constexpr auto kBlueprint = tracks::CounterBlueprint(
       "f2fs_iostat_latency", tracks::UnknownUnitBlueprint(),

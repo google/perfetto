@@ -243,8 +243,7 @@ void MaliGpuEventTracker::ParseMaliCSFInterruptStart(
     int64_t timestamp,
     TrackId track_id,
     protozero::ConstBytes blob) {
-  protos::pbzero::MaliMaliCSFINTERRUPTSTARTFtraceEvent::Decoder evt(blob.data,
-                                                                    blob.size);
+  protos::pbzero::MaliMaliCSFINTERRUPTSTARTFtraceEvent::Decoder evt(blob);
   auto args_inserter = [this, &evt](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(mali_CSF_INTERRUPT_info_val_id_,
                      Variadic::UnsignedInteger(evt.info_val()));
@@ -257,8 +256,7 @@ void MaliGpuEventTracker::ParseMaliCSFInterruptStart(
 void MaliGpuEventTracker::ParseMaliCSFInterruptEnd(int64_t timestamp,
                                                    TrackId track_id,
                                                    protozero::ConstBytes blob) {
-  protos::pbzero::MaliMaliCSFINTERRUPTSTARTFtraceEvent::Decoder evt(blob.data,
-                                                                    blob.size);
+  protos::pbzero::MaliMaliCSFINTERRUPTSTARTFtraceEvent::Decoder evt(blob);
   auto args_inserter = [this, &evt](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(mali_CSF_INTERRUPT_info_val_id_,
                      Variadic::UnsignedInteger(evt.info_val()));

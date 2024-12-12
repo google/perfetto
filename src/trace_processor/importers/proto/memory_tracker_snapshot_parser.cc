@@ -78,7 +78,7 @@ void MemoryTrackerSnapshotParser::ReadProtoSnapshot(
     ConstBytes blob,
     RawMemoryNodeMap& raw_nodes,
     LevelOfDetail& level_of_detail) {
-  protos::pbzero::MemoryTrackerSnapshot::Decoder snapshot(blob.data, blob.size);
+  protos::pbzero::MemoryTrackerSnapshot::Decoder snapshot(blob);
   level_of_detail = LevelOfDetail::kDetailed;
 
   switch (snapshot.level_of_detail()) {

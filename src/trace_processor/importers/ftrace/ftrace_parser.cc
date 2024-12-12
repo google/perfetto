@@ -515,7 +515,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
 
 base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
                                             uint32_t packet_sequence_id) {
-  protos::pbzero::FtraceStats::Decoder evt(blob.data, blob.size);
+  protos::pbzero::FtraceStats::Decoder evt(blob);
   bool is_start =
       evt.phase() == protos::pbzero::FtraceStats::Phase::START_OF_TRACE;
   bool is_end = evt.phase() == protos::pbzero::FtraceStats::Phase::END_OF_TRACE;
@@ -1483,7 +1483,7 @@ void FtraceParser::ParseGenericFtrace(int64_t ts,
                                       uint32_t cpu,
                                       uint32_t tid,
                                       ConstBytes blob) {
-  protos::pbzero::GenericFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::GenericFtraceEvent::Decoder evt(blob);
   StringId event_id = context_->storage->InternString(evt.event_name());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
   auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
@@ -1518,7 +1518,7 @@ void FtraceParser::ParseTypedFtraceToRaw(
   if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table))
     return;
 
-  ProtoDecoder decoder(blob.data, blob.size);
+  ProtoDecoder decoder(blob);
   if (ftrace_id >= GetDescriptorsSize()) {
     PERFETTO_DLOG("Event with id: %d does not exist and cannot be parsed.",
                   ftrace_id);
@@ -1627,7 +1627,7 @@ PERFETTO_ALWAYS_INLINE
 void FtraceParser::ParseSchedSwitch(uint32_t cpu,
                                     int64_t timestamp,
                                     ConstBytes blob) {
-  protos::pbzero::SchedSwitchFtraceEvent::Decoder ss(blob.data, blob.size);
+  protos::pbzero::SchedSwitchFtraceEvent::Decoder ss(blob);
   uint32_t prev_pid = static_cast<uint32_t>(ss.prev_pid());
   uint32_t next_pid = static_cast<uint32_t>(ss.next_pid());
   FtraceSchedEventTracker::GetOrCreate(context_)->PushSchedSwitch(
@@ -1638,7 +1638,7 @@ void FtraceParser::ParseSchedSwitch(uint32_t cpu,
 void FtraceParser::ParseKprobe(int64_t timestamp,
                                uint32_t pid,
                                ConstBytes blob) {
-  protos::pbzero::KprobeEvent::Decoder kp(blob.data, blob.size);
+  protos::pbzero::KprobeEvent::Decoder kp(blob);
 
   auto kprobe_type = static_cast<KprobeType>(kp.type());
   StringId name_id = context_->storage->InternString(kp.name());
@@ -1665,7 +1665,7 @@ void FtraceParser::ParseKprobe(int64_t timestamp,
 void FtraceParser::ParseSchedWaking(int64_t timestamp,
                                     uint32_t pid,
                                     ConstBytes blob) {
-  protos::pbzero::SchedWakingFtraceEvent::Decoder sw(blob.data, blob.size);
+  protos::pbzero::SchedWakingFtraceEvent::Decoder sw(blob);
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
   auto wakee_utid = context_->process_tracker->UpdateThreadName(
@@ -1708,8 +1708,7 @@ void FtraceParser::ParseGpuFreq(int64_t timestamp, ConstBytes blob) {
 }
 
 void FtraceParser::ParseKgslGpuFreq(int64_t timestamp, ConstBytes blob) {
-  protos::pbzero::KgslGpuFrequencyFtraceEvent::Decoder freq(blob.data,
-                                                            blob.size);
+  protos::pbzero::KgslGpuFrequencyFtraceEvent::Decoder freq(blob);
   // Source data is frequency / 1000, so we correct that here:
   double new_freq = static_cast<double>(freq.gpu_freq()) * 1000.0;
   TrackId track = context_->track_tracker->InternTrack(
@@ -1749,13 +1748,13 @@ void FtraceParser::ParsePrint(int64_t timestamp,
         timestamp, *opt_utid);
   }
 
-  protos::pbzero::PrintFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::PrintFtraceEvent::Decoder evt(blob);
   SystraceParser::GetOrCreate(context_)->ParsePrintEvent(timestamp, pid,
                                                          evt.buf());
 }
 
 void FtraceParser::ParseZero(int64_t timestamp, uint32_t pid, ConstBytes blob) {
-  protos::pbzero::ZeroFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::ZeroFtraceEvent::Decoder evt(blob);
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
   SystraceParser::GetOrCreate(context_)->ParseZeroEvent(
       timestamp, pid, evt.flag(), evt.name(), tgid, evt.value());
@@ -1764,8 +1763,7 @@ void FtraceParser::ParseZero(int64_t timestamp, uint32_t pid, ConstBytes blob) {
 void FtraceParser::ParseMdssTracingMarkWrite(int64_t timestamp,
                                              uint32_t pid,
                                              ConstBytes blob) {
-  protos::pbzero::TracingMarkWriteFtraceEvent::Decoder evt(blob.data,
-                                                           blob.size);
+  protos::pbzero::TracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.has_trace_begin()) {
     context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;
@@ -1779,8 +1777,7 @@ void FtraceParser::ParseMdssTracingMarkWrite(int64_t timestamp,
 void FtraceParser::ParseSdeTracingMarkWrite(int64_t timestamp,
                                             uint32_t pid,
                                             ConstBytes blob) {
-  protos::pbzero::SdeTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
-                                                              blob.size);
+  protos::pbzero::SdeTracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.has_trace_type() && !evt.has_trace_begin()) {
     context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;
@@ -1795,8 +1792,7 @@ void FtraceParser::ParseSdeTracingMarkWrite(int64_t timestamp,
 void FtraceParser::ParseSamsungTracingMarkWrite(int64_t timestamp,
                                                 uint32_t pid,
                                                 ConstBytes blob) {
-  protos::pbzero::SamsungTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
-                                                                  blob.size);
+  protos::pbzero::SamsungTracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.has_trace_type()) {
     context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;
@@ -1811,8 +1807,7 @@ void FtraceParser::ParseSamsungTracingMarkWrite(int64_t timestamp,
 void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
                                             uint32_t pid,
                                             ConstBytes blob) {
-  protos::pbzero::DpuTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
-                                                              blob.size);
+  protos::pbzero::DpuTracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.type()) {
     context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;
@@ -1827,8 +1822,7 @@ void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
 void FtraceParser::ParseG2dTracingMarkWrite(int64_t timestamp,
                                             uint32_t pid,
                                             ConstBytes blob) {
-  protos::pbzero::G2dTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
-                                                              blob.size);
+  protos::pbzero::G2dTracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.type()) {
     context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;
@@ -1843,8 +1837,7 @@ void FtraceParser::ParseG2dTracingMarkWrite(int64_t timestamp,
 void FtraceParser::ParseMaliTracingMarkWrite(int64_t timestamp,
                                              uint32_t pid,
                                              ConstBytes blob) {
-  protos::pbzero::MaliTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
-                                                               blob.size);
+  protos::pbzero::MaliTracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.type()) {
     context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;
@@ -1859,8 +1852,7 @@ void FtraceParser::ParseMaliTracingMarkWrite(int64_t timestamp,
 void FtraceParser::ParseLwisTracingMarkWrite(int64_t timestamp,
                                              uint32_t pid,
                                              ConstBytes blob) {
-  protos::pbzero::LwisTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
-                                                               blob.size);
+  protos::pbzero::LwisTracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.type()) {
     context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;
@@ -2121,7 +2113,7 @@ void FtraceParser::ParseDmaHeapStat(int64_t timestamp,
 // This event has both the pid of the thread that sent the signal and the
 // destination of the signal. Currently storing the pid of the destination.
 void FtraceParser::ParseSignalGenerate(int64_t timestamp, ConstBytes blob) {
-  protos::pbzero::SignalGenerateFtraceEvent::Decoder sig(blob.data, blob.size);
+  protos::pbzero::SignalGenerateFtraceEvent::Decoder sig(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(
       static_cast<uint32_t>(sig.pid()));
@@ -2137,7 +2129,7 @@ void FtraceParser::ParseSignalGenerate(int64_t timestamp, ConstBytes blob) {
 void FtraceParser::ParseSignalDeliver(int64_t timestamp,
                                       uint32_t pid,
                                       ConstBytes blob) {
-  protos::pbzero::SignalDeliverFtraceEvent::Decoder sig(blob.data, blob.size);
+  protos::pbzero::SignalDeliverFtraceEvent::Decoder sig(blob);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   int signal = sig.sig();
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -2160,7 +2152,7 @@ void FtraceParser::ParseOOMScoreAdjUpdate(int64_t timestamp, ConstBytes blob) {
 }
 
 void FtraceParser::ParseOOMKill(int64_t timestamp, ConstBytes blob) {
-  protos::pbzero::MarkVictimFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::MarkVictimFtraceEvent::Decoder evt(blob);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(
       static_cast<uint32_t>(evt.pid()));
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -2194,7 +2186,7 @@ void FtraceParser::ParseMmEventRecord(int64_t timestamp,
 void FtraceParser::ParseSysEnterEvent(int64_t timestamp,
                                       uint32_t pid,
                                       ConstBytes blob) {
-  protos::pbzero::SysEnterFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::SysEnterFtraceEvent::Decoder evt(blob);
   uint32_t syscall_num = static_cast<uint32_t>(evt.id());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
@@ -2224,7 +2216,7 @@ void FtraceParser::ParseSysExitEvent(int64_t timestamp,
   //       not. We decode SysExitFtraceEvent here to handle the return
   //       value of a syscall whereas SysEnterFtraceEvent is decoded
   //       above to handle the syscall arguments.
-  protos::pbzero::SysExitFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::SysExitFtraceEvent::Decoder evt(blob);
   uint32_t syscall_num = static_cast<uint32_t>(evt.id());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
@@ -2241,7 +2233,7 @@ void FtraceParser::ParseSysExitEvent(int64_t timestamp,
 void FtraceParser::ParseI2cReadEvent(int64_t timestamp,
                                      uint32_t pid,
                                      protozero::ConstBytes blob) {
-  protos::pbzero::I2cReadFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::I2cReadFtraceEvent::Decoder evt(blob);
   uint32_t adapter_nr = static_cast<uint32_t>(evt.adapter_nr());
   uint32_t msg_nr = static_cast<uint32_t>(evt.msg_nr());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
@@ -2253,7 +2245,7 @@ void FtraceParser::ParseI2cReadEvent(int64_t timestamp,
 void FtraceParser::ParseI2cWriteEvent(int64_t timestamp,
                                       uint32_t pid,
                                       protozero::ConstBytes blob) {
-  protos::pbzero::I2cWriteFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::I2cWriteFtraceEvent::Decoder evt(blob);
   uint32_t adapter_nr = static_cast<uint32_t>(evt.adapter_nr());
   uint32_t msg_nr = static_cast<uint32_t>(evt.msg_nr());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
@@ -2265,7 +2257,7 @@ void FtraceParser::ParseI2cWriteEvent(int64_t timestamp,
 void FtraceParser::ParseI2cResultEvent(int64_t timestamp,
                                        uint32_t pid,
                                        protozero::ConstBytes blob) {
-  protos::pbzero::I2cResultFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::I2cResultFtraceEvent::Decoder evt(blob);
   uint32_t adapter_nr = static_cast<uint32_t>(evt.adapter_nr());
   uint32_t nr_msgs = static_cast<uint32_t>(evt.nr_msgs());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
@@ -2277,7 +2269,7 @@ void FtraceParser::ParseI2cResultEvent(int64_t timestamp,
 void FtraceParser::ParseTaskNewTask(int64_t timestamp,
                                     uint32_t source_tid,
                                     ConstBytes blob) {
-  protos::pbzero::TaskNewtaskFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::TaskNewtaskFtraceEvent::Decoder evt(blob);
   uint32_t clone_flags = static_cast<uint32_t>(evt.clone_flags());
   uint32_t new_tid = static_cast<uint32_t>(evt.pid());
   StringId new_comm = context_->storage->InternString(evt.comm());
@@ -2330,7 +2322,7 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
 }
 
 void FtraceParser::ParseTaskRename(ConstBytes blob) {
-  protos::pbzero::TaskRenameFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::TaskRenameFtraceEvent::Decoder evt(blob);
   uint32_t tid = static_cast<uint32_t>(evt.pid());
   StringId comm = context_->storage->InternString(evt.newcomm());
   context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
@@ -2340,8 +2332,7 @@ void FtraceParser::ParseTaskRename(ConstBytes blob) {
 void FtraceParser::ParseBinderTransaction(int64_t timestamp,
                                           uint32_t pid,
                                           ConstBytes blob) {
-  protos::pbzero::BinderTransactionFtraceEvent::Decoder evt(blob.data,
-                                                            blob.size);
+  protos::pbzero::BinderTransactionFtraceEvent::Decoder evt(blob);
   int32_t dest_node = static_cast<int32_t>(evt.target_node());
   uint32_t dest_tgid = static_cast<uint32_t>(evt.to_proc());
   uint32_t dest_tid = static_cast<uint32_t>(evt.to_thread());
@@ -2358,8 +2349,7 @@ void FtraceParser::ParseBinderTransaction(int64_t timestamp,
 void FtraceParser::ParseBinderTransactionReceived(int64_t timestamp,
                                                   uint32_t pid,
                                                   ConstBytes blob) {
-  protos::pbzero::BinderTransactionReceivedFtraceEvent::Decoder evt(blob.data,
-                                                                    blob.size);
+  protos::pbzero::BinderTransactionReceivedFtraceEvent::Decoder evt(blob);
   int32_t transaction_id = static_cast<int32_t>(evt.debug_id());
   BinderTracker::GetOrCreate(context_)->TransactionReceived(timestamp, pid,
                                                             transaction_id);
@@ -2368,7 +2358,7 @@ void FtraceParser::ParseBinderTransactionReceived(int64_t timestamp,
 void FtraceParser::ParseBinderCommand(int64_t timestamp,
                                       uint32_t pid,
                                       ConstBytes blob) {
-  protos::pbzero::BinderCommandFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::BinderCommandFtraceEvent::Decoder evt(blob);
   BinderTracker::GetOrCreate(context_)->CommandToKernel(timestamp, pid,
                                                         evt.cmd());
 }
@@ -2376,7 +2366,7 @@ void FtraceParser::ParseBinderCommand(int64_t timestamp,
 void FtraceParser::ParseBinderReturn(int64_t timestamp,
                                      uint32_t pid,
                                      ConstBytes blob) {
-  protos::pbzero::BinderReturnFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::BinderReturnFtraceEvent::Decoder evt(blob);
   BinderTracker::GetOrCreate(context_)->ReturnFromKernel(timestamp, pid,
                                                          evt.cmd());
 }
@@ -2384,8 +2374,7 @@ void FtraceParser::ParseBinderReturn(int64_t timestamp,
 void FtraceParser::ParseBinderTransactionAllocBuf(int64_t timestamp,
                                                   uint32_t pid,
                                                   ConstBytes blob) {
-  protos::pbzero::BinderTransactionAllocBufFtraceEvent::Decoder evt(blob.data,
-                                                                    blob.size);
+  protos::pbzero::BinderTransactionAllocBufFtraceEvent::Decoder evt(blob);
   uint64_t data_size = static_cast<uint64_t>(evt.data_size());
   uint64_t offsets_size = static_cast<uint64_t>(evt.offsets_size());
 
@@ -2396,21 +2385,21 @@ void FtraceParser::ParseBinderTransactionAllocBuf(int64_t timestamp,
 void FtraceParser::ParseBinderLocked(int64_t timestamp,
                                      uint32_t pid,
                                      ConstBytes blob) {
-  protos::pbzero::BinderLockedFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::BinderLockedFtraceEvent::Decoder evt(blob);
   BinderTracker::GetOrCreate(context_)->Locked(timestamp, pid);
 }
 
 void FtraceParser::ParseBinderLock(int64_t timestamp,
                                    uint32_t pid,
                                    ConstBytes blob) {
-  protos::pbzero::BinderLockFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::BinderLockFtraceEvent::Decoder evt(blob);
   BinderTracker::GetOrCreate(context_)->Lock(timestamp, pid);
 }
 
 void FtraceParser::ParseBinderUnlock(int64_t timestamp,
                                      uint32_t pid,
                                      ConstBytes blob) {
-  protos::pbzero::BinderUnlockFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::BinderUnlockFtraceEvent::Decoder evt(blob);
   BinderTracker::GetOrCreate(context_)->Unlock(timestamp, pid);
 }
 
@@ -2443,7 +2432,7 @@ void FtraceParser::ParseScmCallStart(int64_t timestamp,
                                      ConstBytes blob) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-  protos::pbzero::ScmCallStartFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::ScmCallStartFtraceEvent::Decoder evt(blob);
 
   base::StackString<64> str("scm id=%#" PRIx64, evt.x0());
   StringId name_id = context_->storage->InternString(str.string_view());
@@ -2484,8 +2473,7 @@ void FtraceParser::ParseCmaAllocInfo(int64_t timestamp,
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-  protos::pbzero::CmaAllocInfoFtraceEvent::Decoder cma_alloc_info(blob.data,
-                                                                  blob.size);
+  protos::pbzero::CmaAllocInfoFtraceEvent::Decoder cma_alloc_info(blob);
   auto args_inserter = [this,
                         &cma_alloc_info](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(cma_name_id_,
@@ -2518,7 +2506,7 @@ void FtraceParser::ParseDirectReclaimBegin(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   protos::pbzero::MmVmscanDirectReclaimBeginFtraceEvent::Decoder
-      direct_reclaim_begin(blob.data, blob.size);
+      direct_reclaim_begin(blob);
 
   StringId name_id =
       context_->storage->InternString("mm_vmscan_direct_reclaim");
@@ -2540,11 +2528,11 @@ void FtraceParser::ParseDirectReclaimBegin(int64_t timestamp,
 void FtraceParser::ParseDirectReclaimEnd(int64_t timestamp,
                                          uint32_t pid,
                                          ConstBytes blob) {
-  protos::pbzero::ScmCallEndFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::ScmCallEndFtraceEvent::Decoder evt(blob);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   protos::pbzero::MmVmscanDirectReclaimEndFtraceEvent::Decoder
-      direct_reclaim_end(blob.data, blob.size);
+      direct_reclaim_end(blob);
 
   auto args_inserter =
       [this, &direct_reclaim_end](ArgsTracker::BoundInserter* inserter) {
@@ -2561,8 +2549,7 @@ void FtraceParser::ParseShrinkSlabStart(
     uint32_t pid,
     ConstBytes blob,
     PacketSequenceStateGeneration* seq_state) {
-  protos::pbzero::MmShrinkSlabStartFtraceEvent::Decoder shrink_slab_start(
-      blob.data, blob.size);
+  protos::pbzero::MmShrinkSlabStartFtraceEvent::Decoder shrink_slab_start(blob);
 
   StringId shrink_name =
       InternedKernelSymbolOrFallback(shrink_slab_start.shrink(), seq_state);
@@ -2586,8 +2573,7 @@ void FtraceParser::ParseShrinkSlabStart(
 void FtraceParser::ParseShrinkSlabEnd(int64_t timestamp,
                                       uint32_t pid,
                                       ConstBytes blob) {
-  protos::pbzero::MmShrinkSlabEndFtraceEvent::Decoder shrink_slab_end(
-      blob.data, blob.size);
+  protos::pbzero::MmShrinkSlabEndFtraceEvent::Decoder shrink_slab_end(blob);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
 
@@ -2606,8 +2592,7 @@ void FtraceParser::ParseWorkqueueExecuteStart(
     uint32_t pid,
     ConstBytes blob,
     PacketSequenceStateGeneration* seq_state) {
-  protos::pbzero::WorkqueueExecuteStartFtraceEvent::Decoder evt(blob.data,
-                                                                blob.size);
+  protos::pbzero::WorkqueueExecuteStartFtraceEvent::Decoder evt(blob);
   StringId name_id = InternedKernelSymbolOrFallback(evt.function(), seq_state);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
@@ -2623,8 +2608,7 @@ void FtraceParser::ParseWorkqueueExecuteStart(
 void FtraceParser::ParseWorkqueueExecuteEnd(int64_t timestamp,
                                             uint32_t pid,
                                             ConstBytes blob) {
-  protos::pbzero::WorkqueueExecuteEndFtraceEvent::Decoder evt(blob.data,
-                                                              blob.size);
+  protos::pbzero::WorkqueueExecuteEndFtraceEvent::Decoder evt(blob);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
   context_->slice_tracker->End(timestamp, track, workqueue_id_);
@@ -2633,7 +2617,7 @@ void FtraceParser::ParseWorkqueueExecuteEnd(int64_t timestamp,
 void FtraceParser::ParseIrqHandlerEntry(uint32_t cpu,
                                         int64_t timestamp,
                                         protozero::ConstBytes blob) {
-  protos::pbzero::IrqHandlerEntryFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::IrqHandlerEntryFtraceEvent::Decoder evt(blob);
 
   base::StringView irq_name = evt.name();
   base::StackString<255> slice_name("IRQ (%.*s)", int(irq_name.size()),
@@ -2650,7 +2634,7 @@ void FtraceParser::ParseIrqHandlerEntry(uint32_t cpu,
 void FtraceParser::ParseIrqHandlerExit(uint32_t cpu,
                                        int64_t timestamp,
                                        protozero::ConstBytes blob) {
-  protos::pbzero::IrqHandlerExitFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::IrqHandlerExitFtraceEvent::Decoder evt(blob);
   TrackId track = context_->track_tracker->InternCpuTrack(
       tracks::cpu_irq, cpu,
       TrackTracker::LegacyCharArrayName{
@@ -2668,7 +2652,7 @@ void FtraceParser::ParseIrqHandlerExit(uint32_t cpu,
 void FtraceParser::ParseSoftIrqEntry(uint32_t cpu,
                                      int64_t timestamp,
                                      protozero::ConstBytes blob) {
-  protos::pbzero::SoftirqEntryFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::SoftirqEntryFtraceEvent::Decoder evt(blob);
   auto num_actions = sizeof(kActionNames) / sizeof(*kActionNames);
   if (evt.vec() >= num_actions) {
     PERFETTO_DFATAL("No action name at index %d for softirq event.", evt.vec());
@@ -2686,7 +2670,7 @@ void FtraceParser::ParseSoftIrqEntry(uint32_t cpu,
 void FtraceParser::ParseSoftIrqExit(uint32_t cpu,
                                     int64_t timestamp,
                                     protozero::ConstBytes blob) {
-  protos::pbzero::SoftirqExitFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::SoftirqExitFtraceEvent::Decoder evt(blob);
   TrackId track = context_->track_tracker->InternCpuTrack(
       tracks::cpu_softirq, cpu,
       TrackTracker::LegacyCharArrayName{
@@ -2820,7 +2804,7 @@ void FtraceParser::ParseFastRpcDmaStat(int64_t timestamp,
 void FtraceParser::ParseCpuhpPause(int64_t,
                                    uint32_t,
                                    protozero::ConstBytes blob) {
-  protos::pbzero::CpuhpPauseFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::CpuhpPauseFtraceEvent::Decoder evt(blob);
   // TODO(b/183110813): Parse and visualize this event.
 }
 
@@ -2894,8 +2878,7 @@ void FtraceParser::ParseNetDevXmit(uint32_t cpu,
 void FtraceParser::ParseInetSockSetState(int64_t timestamp,
                                          uint32_t pid,
                                          protozero::ConstBytes blob) {
-  protos::pbzero::InetSockSetStateFtraceEvent::Decoder evt(blob.data,
-                                                           blob.size);
+  protos::pbzero::InetSockSetStateFtraceEvent::Decoder evt(blob);
 
   // Skip non TCP protocol.
   if (evt.protocol() != kIpprotoTcp) {
@@ -2970,8 +2953,7 @@ void FtraceParser::ParseTcpRetransmitSkb(int64_t timestamp,
 void FtraceParser::ParseNapiGroReceiveEntry(uint32_t cpu,
                                             int64_t timestamp,
                                             protozero::ConstBytes blob) {
-  protos::pbzero::NapiGroReceiveEntryFtraceEvent::Decoder evt(blob.data,
-                                                              blob.size);
+  protos::pbzero::NapiGroReceiveEntryFtraceEvent::Decoder evt(blob);
   base::StringView net_device = evt.name();
   StringId slice_name_id = context_->storage->InternString(net_device);
   TrackId track = context_->track_tracker->InternCpuTrack(
@@ -2989,8 +2971,7 @@ void FtraceParser::ParseNapiGroReceiveEntry(uint32_t cpu,
 void FtraceParser::ParseNapiGroReceiveExit(uint32_t cpu,
                                            int64_t timestamp,
                                            protozero::ConstBytes blob) {
-  protos::pbzero::NapiGroReceiveExitFtraceEvent::Decoder evt(blob.data,
-                                                             blob.size);
+  protos::pbzero::NapiGroReceiveExitFtraceEvent::Decoder evt(blob);
   TrackId track = context_->track_tracker->InternCpuTrack(
       tracks::cpu_napi_gro, cpu,
       TrackTracker::LegacyCharArrayName{
@@ -3120,7 +3101,7 @@ void FtraceParser::ParseUfshcdClkGating(int64_t timestamp,
 void FtraceParser::ParseTrustySmc(uint32_t pid,
                                   int64_t timestamp,
                                   protozero::ConstBytes blob) {
-  protos::pbzero::TrustySmcFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::TrustySmcFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3135,7 +3116,7 @@ void FtraceParser::ParseTrustySmc(uint32_t pid,
 void FtraceParser::ParseTrustySmcDone(uint32_t pid,
                                       int64_t timestamp,
                                       protozero::ConstBytes blob) {
-  protos::pbzero::TrustySmcDoneFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::TrustySmcDoneFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3150,7 +3131,7 @@ void FtraceParser::ParseTrustySmcDone(uint32_t pid,
 void FtraceParser::ParseTrustyStdCall32(uint32_t pid,
                                         int64_t timestamp,
                                         protozero::ConstBytes blob) {
-  protos::pbzero::TrustyStdCall32FtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::TrustyStdCall32FtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3162,8 +3143,7 @@ void FtraceParser::ParseTrustyStdCall32(uint32_t pid,
 void FtraceParser::ParseTrustyStdCall32Done(uint32_t pid,
                                             int64_t timestamp,
                                             protozero::ConstBytes blob) {
-  protos::pbzero::TrustyStdCall32DoneFtraceEvent::Decoder evt(blob.data,
-                                                              blob.size);
+  protos::pbzero::TrustyStdCall32DoneFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3180,8 +3160,7 @@ void FtraceParser::ParseTrustyStdCall32Done(uint32_t pid,
 void FtraceParser::ParseTrustyShareMemory(uint32_t pid,
                                           int64_t timestamp,
                                           protozero::ConstBytes blob) {
-  protos::pbzero::TrustyShareMemoryFtraceEvent::Decoder evt(blob.data,
-                                                            blob.size);
+  protos::pbzero::TrustyShareMemoryFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3198,8 +3177,7 @@ void FtraceParser::ParseTrustyShareMemory(uint32_t pid,
 void FtraceParser::ParseTrustyShareMemoryDone(uint32_t pid,
                                               int64_t timestamp,
                                               protozero::ConstBytes blob) {
-  protos::pbzero::TrustyShareMemoryDoneFtraceEvent::Decoder evt(blob.data,
-                                                                blob.size);
+  protos::pbzero::TrustyShareMemoryDoneFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3216,8 +3194,7 @@ void FtraceParser::ParseTrustyShareMemoryDone(uint32_t pid,
 void FtraceParser::ParseTrustyReclaimMemory(uint32_t pid,
                                             int64_t timestamp,
                                             protozero::ConstBytes blob) {
-  protos::pbzero::TrustyReclaimMemoryFtraceEvent::Decoder evt(blob.data,
-                                                              blob.size);
+  protos::pbzero::TrustyReclaimMemoryFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3232,8 +3209,7 @@ void FtraceParser::ParseTrustyReclaimMemory(uint32_t pid,
 void FtraceParser::ParseTrustyReclaimMemoryDone(uint32_t pid,
                                                 int64_t timestamp,
                                                 protozero::ConstBytes blob) {
-  protos::pbzero::TrustyReclaimMemoryDoneFtraceEvent::Decoder evt(blob.data,
-                                                                  blob.size);
+  protos::pbzero::TrustyReclaimMemoryDoneFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3251,7 +3227,7 @@ void FtraceParser::ParseTrustyReclaimMemoryDone(uint32_t pid,
 void FtraceParser::ParseTrustyIrq(uint32_t pid,
                                   int64_t timestamp,
                                   protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIrqFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::TrustyIrqFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3266,8 +3242,7 @@ void FtraceParser::ParseTrustyIrq(uint32_t pid,
 void FtraceParser::ParseTrustyIpcHandleEvent(uint32_t pid,
                                              int64_t timestamp,
                                              protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIpcHandleEventFtraceEvent::Decoder evt(blob.data,
-                                                               blob.size);
+  protos::pbzero::TrustyIpcHandleEventFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3284,8 +3259,7 @@ void FtraceParser::ParseTrustyIpcHandleEvent(uint32_t pid,
 void FtraceParser::ParseTrustyEnqueueNop(uint32_t pid,
                                          int64_t timestamp,
                                          protozero::ConstBytes blob) {
-  protos::pbzero::TrustyEnqueueNopFtraceEvent::Decoder evt(blob.data,
-                                                           blob.size);
+  protos::pbzero::TrustyEnqueueNopFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3301,8 +3275,7 @@ void FtraceParser::ParseTrustyEnqueueNop(uint32_t pid,
 void FtraceParser::ParseTrustyIpcConnect(uint32_t pid,
                                          int64_t timestamp,
                                          protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIpcConnectFtraceEvent::Decoder evt(blob.data,
-                                                           blob.size);
+  protos::pbzero::TrustyIpcConnectFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3318,8 +3291,7 @@ void FtraceParser::ParseTrustyIpcConnect(uint32_t pid,
 void FtraceParser::ParseTrustyIpcConnectEnd(uint32_t pid,
                                             int64_t timestamp,
                                             protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIpcConnectEndFtraceEvent::Decoder evt(blob.data,
-                                                              blob.size);
+  protos::pbzero::TrustyIpcConnectEndFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3336,7 +3308,7 @@ void FtraceParser::ParseTrustyIpcConnectEnd(uint32_t pid,
 void FtraceParser::ParseTrustyIpcWrite(uint32_t pid,
                                        int64_t timestamp,
                                        protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIpcWriteFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::TrustyIpcWriteFtraceEvent::Decoder evt(blob);
 
   StringId name_generic = kNullStringId;
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
@@ -3367,7 +3339,7 @@ void FtraceParser::ParseTrustyIpcWrite(uint32_t pid,
 void FtraceParser::ParseTrustyIpcRead(uint32_t pid,
                                       int64_t timestamp,
                                       protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIpcReadFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::TrustyIpcReadFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3382,8 +3354,7 @@ void FtraceParser::ParseTrustyIpcRead(uint32_t pid,
 void FtraceParser::ParseTrustyIpcReadEnd(uint32_t pid,
                                          int64_t timestamp,
                                          protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIpcReadEndFtraceEvent::Decoder evt(blob.data,
-                                                           blob.size);
+  protos::pbzero::TrustyIpcReadEndFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3401,7 +3372,7 @@ void FtraceParser::ParseTrustyIpcReadEnd(uint32_t pid,
 void FtraceParser::ParseTrustyIpcPoll(uint32_t pid,
                                       int64_t timestamp,
                                       protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIpcPollFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::TrustyIpcPollFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3416,7 +3387,7 @@ void FtraceParser::ParseTrustyIpcPoll(uint32_t pid,
 void FtraceParser::ParseTrustyIpcRx(uint32_t pid,
                                     int64_t ts,
                                     protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIpcRxFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::TrustyIpcRxFtraceEvent::Decoder evt(blob);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
@@ -3516,7 +3487,7 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
                                       uint32_t cpu,
                                       uint32_t tid,
                                       protozero::ConstBytes blob) {
-  protos::pbzero::SuspendResumeFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::SuspendResumeFtraceEvent::Decoder evt(blob);
 
   auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
       suspend_resume_name_id_);
@@ -3659,7 +3630,7 @@ void FtraceParser::ParseFuncgraphEntry(
     uint32_t pid,
     protozero::ConstBytes blob,
     PacketSequenceStateGeneration* seq_state) {
-  protos::pbzero::FuncgraphEntryFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::FuncgraphEntryFtraceEvent::Decoder evt(blob);
   StringId name_id = InternedKernelSymbolOrFallback(evt.func(), seq_state);
 
   TrackId track = {};
@@ -3687,7 +3658,7 @@ void FtraceParser::ParseFuncgraphExit(
     uint32_t pid,
     protozero::ConstBytes blob,
     PacketSequenceStateGeneration* seq_state) {
-  protos::pbzero::FuncgraphExitFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::FuncgraphExitFtraceEvent::Decoder evt(blob);
   StringId name_id = InternedKernelSymbolOrFallback(evt.func(), seq_state);
 
   TrackId track = {};
@@ -3804,8 +3775,7 @@ void FtraceParser::ParseDevicePmCallbackStart(int64_t ts,
                                               uint32_t cpu,
                                               uint32_t tid,
                                               protozero::ConstBytes blob) {
-  protos::pbzero::DevicePmCallbackStartFtraceEvent::Decoder dpm_event(
-      blob.data, blob.size);
+  protos::pbzero::DevicePmCallbackStartFtraceEvent::Decoder dpm_event(blob);
 
   // Device here refers to anything managed by a Linux kernel driver.
   std::string device_name = dpm_event.device().ToStdString();
@@ -3850,8 +3820,7 @@ void FtraceParser::ParseDevicePmCallbackStart(int64_t ts,
 // suspend / resume latency UI track.
 void FtraceParser::ParseDevicePmCallbackEnd(int64_t ts,
                                             protozero::ConstBytes blob) {
-  protos::pbzero::DevicePmCallbackEndFtraceEvent::Decoder dpm_event(blob.data,
-                                                                    blob.size);
+  protos::pbzero::DevicePmCallbackEndFtraceEvent::Decoder dpm_event(blob);
 
   // Device here refers to anything managed by a Linux kernel driver.
   std::string device_name = dpm_event.device().ToStdString();
@@ -3871,8 +3840,7 @@ void FtraceParser::ParseDevicePmCallbackEnd(int64_t ts,
 void FtraceParser::ParsePanelWriteGeneric(int64_t timestamp,
                                           uint32_t pid,
                                           ConstBytes blob) {
-  protos::pbzero::PanelWriteGenericFtraceEvent::Decoder evt(blob.data,
-                                                            blob.size);
+  protos::pbzero::PanelWriteGenericFtraceEvent::Decoder evt(blob);
   if (!evt.type()) {
     context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;

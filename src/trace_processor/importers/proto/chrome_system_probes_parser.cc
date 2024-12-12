@@ -39,7 +39,7 @@ ChromeSystemProbesParser::ChromeSystemProbesParser(
           context->storage->InternString("is_peak_rss_resettable")) {}
 
 void ChromeSystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
-  protos::pbzero::ProcessStats::Decoder stats(blob.data, blob.size);
+  protos::pbzero::ProcessStats::Decoder stats(blob);
   for (auto it = stats.processes(); it; ++it) {
     protozero::ProtoDecoder proc(*it);
     auto pid_field =

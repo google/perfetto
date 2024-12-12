@@ -84,7 +84,7 @@ void VirtioVideoTracker::ParseVirtioVideoEvent(uint64_t fld_id,
                                                const ConstBytes& blob) {
   switch (fld_id) {
     case FtraceEvent::kVirtioVideoResourceQueueFieldNumber: {
-      VirtioVideoResourceQueueFtraceEvent::Decoder pb_evt(blob.data, blob.size);
+      VirtioVideoResourceQueueFtraceEvent::Decoder pb_evt(blob);
 
       uint64_t hash = base::Hasher::Combine(
           pb_evt.stream_id(), pb_evt.resource_id(), pb_evt.queue_type());
@@ -101,8 +101,7 @@ void VirtioVideoTracker::ParseVirtioVideoEvent(uint64_t fld_id,
       break;
     }
     case FtraceEvent::kVirtioVideoResourceQueueDoneFieldNumber: {
-      VirtioVideoResourceQueueDoneFtraceEvent::Decoder pb_evt(blob.data,
-                                                              blob.size);
+      VirtioVideoResourceQueueDoneFtraceEvent::Decoder pb_evt(blob);
 
       uint64_t hash = base::Hasher::Combine(
           pb_evt.stream_id(), pb_evt.resource_id(), pb_evt.queue_type());
@@ -120,12 +119,12 @@ void VirtioVideoTracker::ParseVirtioVideoEvent(uint64_t fld_id,
       break;
     }
     case FtraceEvent::kVirtioVideoCmdFieldNumber: {
-      VirtioVideoCmdFtraceEvent::Decoder pb_evt(blob.data, blob.size);
+      VirtioVideoCmdFtraceEvent::Decoder pb_evt(blob);
       AddCommandSlice(timestamp, pb_evt.stream_id(), pb_evt.type(), false);
       break;
     }
     case FtraceEvent::kVirtioVideoCmdDoneFieldNumber: {
-      VirtioVideoCmdDoneFtraceEvent::Decoder pb_evt(blob.data, blob.size);
+      VirtioVideoCmdDoneFtraceEvent::Decoder pb_evt(blob);
       AddCommandSlice(timestamp, pb_evt.stream_id(), pb_evt.type(), true);
       break;
     }

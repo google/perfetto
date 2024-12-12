@@ -56,8 +56,7 @@ void PixelMmKswapdEventTracker::ParsePixelMmKswapdDone(
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId details_track = context_->track_tracker->InternThreadTrack(utid);
 
-  protos::pbzero::PixelMmKswapdDoneFtraceEvent::Decoder decoder(blob.data,
-                                                                blob.size);
+  protos::pbzero::PixelMmKswapdDoneFtraceEvent::Decoder decoder(blob);
 
   context_->slice_tracker->End(
       timestamp, details_track, kNullStringId, kswapd_efficiency_name_,
