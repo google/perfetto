@@ -169,14 +169,15 @@ SELECT
       IFNULL(idle_3, 1)
     )
   ) as no_static,
-  IIF(suspended, 0.0, cpu0_curve) as cpu0_curve,
-  IIF(suspended, 0.0, cpu1_curve) as cpu1_curve,
-  IIF(suspended, 0.0, cpu2_curve) as cpu2_curve,
-  IIF(suspended, 0.0, cpu3_curve) as cpu3_curve,
-  IIF(suspended, 0.0, cpu4_curve) as cpu4_curve,
-  IIF(suspended, 0.0, cpu5_curve) as cpu5_curve,
-  IIF(suspended, 0.0, cpu6_curve) as cpu6_curve,
-  IIF(suspended, 0.0, cpu7_curve) as cpu7_curve,
+  suspended,
+  cpu0_curve,
+  cpu1_curve,
+  cpu2_curve,
+  cpu3_curve,
+  cpu4_curve,
+  cpu5_curve,
+  cpu6_curve,
+  cpu7_curve,
   -- If dependency CPUs are active, then that CPU could contribute static power
   IIF(idle_4 = -1, lut4.curve_value, -1) as static_4,
   IIF(idle_5 = -1, lut5.curve_value, -1) as static_5,
