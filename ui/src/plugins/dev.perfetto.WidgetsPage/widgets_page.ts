@@ -58,6 +58,7 @@ import {Chip, ChipBar} from '../../widgets/chip';
 import {TrackWidget} from '../../widgets/track_widget';
 import {scheduleFullRedraw} from '../../widgets/raf';
 import {CopyableLink} from '../../widgets/copyable_link';
+import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -1371,6 +1372,50 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           multipleTracks: false,
           reorderable: false,
         },
+      }),
+      m(WidgetShowcase, {
+        label: 'Virtual Overlay Canvas',
+        description: `A scrolling container that draws a virtual canvas over
+          the top of it's content and keeps it in the viewport to make it appear
+          like there is one big canvas over the top of the content.`,
+        renderWidget: () => {
+          const width = 200;
+          const rowCount = 65536;
+          const rowHeight = 20;
+          return m(
+            VirtualOverlayCanvas,
+            {
+              className: 'virtual-canvas',
+              scrollAxes: 'y',
+              onCanvasRedraw({ctx, canvasRect}) {
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 1;
+
+                ctx.font = '20px Arial';
+                ctx.fillStyle = 'black';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+
+                for (let i = 0; i < rowCount; i++) {
+                  const rect = {
+                    left: 0,
+                    top: i * rowHeight,
+                    right: width,
+                    bottom: i * rowHeight + rowHeight,
+                  };
+                  if (canvasRect.overlaps(rect)) {
+                    ctx.strokeRect(0, i * rowHeight, width, rowHeight);
+                    ctx.fillText(`Row: ${i}`, 0, i * rowHeight);
+                  }
+                }
+              },
+            },
+            m('', {
+              style: {height: `${rowCount * rowHeight}px`, width: `${width}px`},
+            }),
+          );
+        },
+        initialOpts: {},
       }),
     );
   }
