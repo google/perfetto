@@ -263,8 +263,6 @@ class TrackTracker {
                                              bool trace_id_is_process_scoped,
                                              StringId source_scope);
 
-  TrackId LegacyInternGpuTrack(const tables::GpuTrackTable::Row&);
-
  private:
   friend class AsyncTrackSetTracker;
   friend class TrackEventTracker;

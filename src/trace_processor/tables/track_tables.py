@@ -91,32 +91,9 @@ CPU_TRACK_TABLE = Table(
     ],
     parent=TRACK_TABLE)
 
-GPU_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='GpuTrackTable',
-    sql_name='gpu_track',
-    columns=[
-        C('scope', CppString()),
-        C('description', CppString()),
-        C('context_id', CppOptional(CppInt64())),
-    ],
-    parent=TRACK_TABLE,
-    tabledoc=TableDoc(
-        doc='Tracks associated to a GPU.',
-        group='Tracks',
-        columns={
-            'scope':
-                'The scope for the track. For debugging purposes only.',
-            'description':
-                'The description of the track. For debugging purposes only.',
-            'context_id':
-                'The context id for the GPU this track is associated to.'
-        }))
-
 # Keep this list sorted.
 ALL_TABLES = [
     CPU_TRACK_TABLE,
-    GPU_TRACK_TABLE,
     PROCESS_TRACK_TABLE,
     THREAD_TRACK_TABLE,
     TRACK_TABLE,
