@@ -634,11 +634,6 @@ class TraceStorage {
   }
   tables::CpuTrackTable* mutable_cpu_track_table() { return &cpu_track_table_; }
 
-  const tables::GpuTrackTable& gpu_track_table() const {
-    return gpu_track_table_;
-  }
-  tables::GpuTrackTable* mutable_gpu_track_table() { return &gpu_track_table_; }
-
   const tables::VulkanMemoryAllocationsTable& vulkan_memory_allocations_table()
       const {
     return vulkan_memory_allocations_table_;
@@ -1040,7 +1035,6 @@ class TraceStorage {
   tables::TrackTable track_table_{&string_pool_};
   tables::ThreadStateTable thread_state_table_{&string_pool_};
   tables::CpuTrackTable cpu_track_table_{&string_pool_, &track_table_};
-  tables::GpuTrackTable gpu_track_table_{&string_pool_, &track_table_};
   tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
   tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};
 

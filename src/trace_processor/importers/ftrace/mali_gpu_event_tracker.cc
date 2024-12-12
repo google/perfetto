@@ -25,13 +25,19 @@
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
+
+namespace {
+
+constexpr auto kMcuStateBlueprint = tracks::SliceBlueprint("mali_mcu_state");
+
+}
 
 MaliGpuEventTracker::MaliGpuEventTracker(TraceProcessorContext* context)
     : context_(context),
@@ -47,8 +53,7 @@ MaliGpuEventTracker::MaliGpuEventTracker(TraceProcessorContext* context)
           context->storage->InternString("mali_CSF_INTERRUPT")),
       mali_CSF_INTERRUPT_info_val_id_(
           context->storage->InternString("info_val")),
-      current_mcu_state_name_(kNullStringId),
-      mcu_state_track_name_(context->storage->InternString("Mali MCU state")) {
+      current_mcu_state_name_(kNullStringId) {
   using protos::pbzero::FtraceEvent;
 
   mcu_state_names_.fill(kNullStringId);
@@ -135,9 +140,6 @@ void MaliGpuEventTracker::ParseMaliGpuIrqEvent(int64_t ts,
 
 void MaliGpuEventTracker::ParseMaliGpuMcuStateEvent(int64_t timestamp,
                                                     uint32_t field_id) {
-  tables::GpuTrackTable::Row track_info(mcu_state_track_name_);
-  TrackId track_id = context_->track_tracker->LegacyInternGpuTrack(track_info);
-
   if (field_id < kFirstMcuStateId || field_id > kLastMcuStateId) {
     PERFETTO_FATAL("Mali MCU state ID out of range");
   }
@@ -148,6 +150,7 @@ void MaliGpuEventTracker::ParseMaliGpuMcuStateEvent(int64_t timestamp,
     return;
   }
 
+  TrackId track_id = context_->track_tracker->InternTrack(kMcuStateBlueprint);
   if (current_mcu_state_name_ != kNullStringId) {
     context_->slice_tracker->End(timestamp, track_id, kNullStringId,
                                  current_mcu_state_name_);
@@ -163,25 +166,24 @@ void MaliGpuEventTracker::ParseMaliCSFInterruptStart(
     TrackId track_id,
     protozero::ConstBytes blob) {
   protos::pbzero::MaliMaliCSFINTERRUPTSTARTFtraceEvent::Decoder evt(blob);
-  auto args_inserter = [this, &evt](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(mali_CSF_INTERRUPT_info_val_id_,
-                     Variadic::UnsignedInteger(evt.info_val()));
-  };
-
-  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
-                                 mali_CSF_INTERRUPT_id_, args_inserter);
+  context_->slice_tracker->Begin(
+      timestamp, track_id, kNullStringId, mali_CSF_INTERRUPT_id_,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(mali_CSF_INTERRUPT_info_val_id_,
+                         Variadic::UnsignedInteger(evt.info_val()));
+      });
 }
 
 void MaliGpuEventTracker::ParseMaliCSFInterruptEnd(int64_t timestamp,
                                                    TrackId track_id,
                                                    protozero::ConstBytes blob) {
   protos::pbzero::MaliMaliCSFINTERRUPTSTARTFtraceEvent::Decoder evt(blob);
-  auto args_inserter = [this, &evt](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(mali_CSF_INTERRUPT_info_val_id_,
-                     Variadic::UnsignedInteger(evt.info_val()));
-  };
 
-  context_->slice_tracker->End(timestamp, track_id, kNullStringId,
-                               mali_CSF_INTERRUPT_id_, args_inserter);
+  context_->slice_tracker->End(
+      timestamp, track_id, kNullStringId, mali_CSF_INTERRUPT_id_,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(mali_CSF_INTERRUPT_info_val_id_,
+                         Variadic::UnsignedInteger(evt.info_val()));
+      });
 }
 }  // namespace perfetto::trace_processor

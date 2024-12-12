@@ -174,36 +174,6 @@ TrackId TrackTracker::InternCpuTrack(tracks::TrackClassification classification,
   return track_id;
 }
 
-TrackId TrackTracker::LegacyInternGpuTrack(
-    const tables::GpuTrackTable::Row& row) {
-  DimensionsBuilder dims_builder = CreateDimensionsBuilder();
-  dims_builder.AppendGpu(row.context_id.value_or(0));
-  if (row.scope != kNullStringId) {
-    dims_builder.AppendDimension(scope_id_, Variadic::String(row.scope));
-  }
-  dims_builder.AppendName(row.name);
-  Dimensions dims_id = std::move(dims_builder).Build();
-
-  TrackMapKey key;
-  key.classification = tracks::unknown;
-  key.dimensions = dims_id;
-
-  auto* it = tracks_.Find(key);
-  if (it)
-    return *it;
-
-  auto row_copy = row;
-  row_copy.classification =
-      context_->storage->InternString(tracks::ToString(tracks::unknown));
-  row_copy.dimension_arg_set_id = dims_id.arg_set_id;
-  row_copy.machine_id = context_->machine_id();
-
-  TrackId track_id =
-      context_->storage->mutable_gpu_track_table()->Insert(row_copy).id;
-  tracks_[key] = track_id;
-  return track_id;
-}
-
 TrackId TrackTracker::LegacyInternLegacyChromeAsyncTrack(
     StringId raw_name,
     uint32_t upid,

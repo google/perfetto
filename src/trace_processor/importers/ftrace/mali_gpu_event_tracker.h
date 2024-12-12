@@ -65,7 +65,6 @@ class MaliGpuEventTracker {
   std::array<StringId, (kLastMcuStateId - kFirstMcuStateId) + 1>
       mcu_state_names_;
   StringId current_mcu_state_name_;
-  StringId mcu_state_track_name_;
 };
 
 }  // namespace perfetto::trace_processor
