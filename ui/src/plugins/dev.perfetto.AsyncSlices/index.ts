@@ -78,9 +78,6 @@ export default class implements PerfettoPlugin {
     trackIdsToUris: Map<number, string>,
   ): Promise<void> {
     const {engine} = ctx;
-    // TODO(stevegolton): The track exclusion logic is currently a hack. This will be replaced
-    // by a mechanism for more specific plugins to override tracks from more generic plugins.
-    const suspendResumeLatencyTrackName = 'Suspend/Resume Latency';
     const rawGlobalAsyncTracks = await engine.query(`
       include perfetto module graphs.search;
       include perfetto module viz.summary.tracks;
@@ -93,19 +90,11 @@ export default class implements PerfettoPlugin {
           count() as trackCount,
           ifnull(min(a.order_id), 0) as order_id
         from track t
-        join _slice_track_summary using (id)
+        join _slice_track_summary s using (id)
         left join _track_event_tracks_ordered a USING (id)
         where
-          t.type in ('__intrinsic_track', 'gpu_track', '__intrinsic_cpu_track')
-          and (name != '${suspendResumeLatencyTrackName}' or name is null)
-          and classification not in (
-            'linux_rpm',
-            'linux_device_frequency',
-            'irq_counter',
-            'softirq_counter',
-            'android_energy_estimation_breakdown',
-            'android_energy_estimation_breakdown_per_uid'
-          )
+          s.is_legacy_global
+          and (name != 'Suspend/Resume Latency' or name is null)
         group by parent_id, name
         order by parent_id, order_id
       ),
@@ -210,6 +199,67 @@ export default class implements PerfettoPlugin {
         ctx.workspace.addChildInOrder(trackNode);
       }
     });
+  }
+
+  async addCpuTracks(
+    ctx: Trace,
+    trackIdsToUris: Map<number, string>,
+  ): Promise<void> {
+    const {engine} = ctx;
+    const res = await engine.query(`
+      include perfetto module viz.summary.tracks;
+
+      with global_tracks_grouped as (
+        select
+          t.name,
+          group_concat(t.id) as trackIds,
+          count() as trackCount
+        from cpu_track t
+        join _slice_track_summary using (id)
+        group by name
+      )
+      select
+        t.name as name,
+        t.trackIds as trackIds,
+        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+      from global_tracks_grouped t
+    `);
+    const it = res.iter({
+      name: STR_NULL,
+      trackIds: STR,
+      maxDepth: NUM,
+    });
+
+    for (; it.valid(); it.next()) {
+      const rawName = it.name === null ? undefined : it.name;
+      const title = getTrackName({
+        name: rawName,
+        kind: SLICE_TRACK_KIND,
+      });
+      const rawTrackIds = it.trackIds;
+      const trackIds = rawTrackIds.split(',').map((v) => Number(v));
+      const maxDepth = it.maxDepth;
+
+      const uri = `/cpu_slices_${rawName}`;
+      ctx.tracks.registerTrack({
+        uri,
+        title,
+        tags: {
+          trackIds,
+          kind: SLICE_TRACK_KIND,
+          scope: 'global',
+        },
+        track: new AsyncSliceTrack(ctx, uri, maxDepth, trackIds),
+      });
+      const trackNode = new TrackNode({
+        uri,
+        title,
+      });
+      ctx.workspace.addChildInOrder(trackNode);
+      trackIds.forEach((id) => {
+        trackIdsToUris.set(id, uri);
+      });
+    }
   }
 
   async addProcessAsyncSliceTracks(
