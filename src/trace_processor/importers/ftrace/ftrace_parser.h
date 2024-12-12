@@ -295,12 +295,6 @@ class FtraceParser {
   void ParseTrustyIpcPoll(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyIpcRx(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyEnqueueNop(uint32_t pid, int64_t ts, protozero::ConstBytes);
-  void ParseMaliKcpuCqsSet(uint32_t pid, int64_t ts);
-  void ParseMaliKcpuCqsWaitStart(uint32_t pid, int64_t ts);
-  void ParseMaliKcpuCqsWaitEnd(uint32_t pid, int64_t ts);
-  void ParseMaliKcpuFenceSignal(uint32_t pid, int64_t ts);
-  void ParseMaliKcpuFenceWaitStart(uint32_t pid, int64_t ts);
-  void ParseMaliKcpuFenceWaitEnd(uint32_t pid, int64_t ts);
   void ParseAndroidFsDatareadEnd(int64_t timestamp, protozero::ConstBytes);
   void ParseAndroidFsDatareadStart(int64_t ts,
                                    uint32_t pid,

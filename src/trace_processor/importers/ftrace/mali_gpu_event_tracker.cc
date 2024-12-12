@@ -16,15 +16,22 @@
 
 #include "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.h"
 
+#include <cstdint>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/ftrace/mali.pbzero.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks_internal.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 MaliGpuEventTracker::MaliGpuEventTracker(TraceProcessorContext* context)
     : context_(context),
@@ -97,54 +104,6 @@ void MaliGpuEventTracker::RegisterMcuState(const char* state_name) {
       context_->storage->InternString(state_name);
 }
 
-void MaliGpuEventTracker::ParseMaliGpuEvent(int64_t ts,
-                                            uint32_t field_id,
-                                            uint32_t pid) {
-  using protos::pbzero::FtraceEvent;
-
-  // It seems like it is not correct to add to add any of these slices
-  // in the normal thread slice track since they are not guaranteed to
-  // be correctly nested with respect to atrace events.
-  // For now just disable all mali events by early returning here.
-  // TODO(b/294866695): Consider how to best visualise these events.
-  if (ts != 0) {
-    return;
-  }
-
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-
-  switch (field_id) {
-    case FtraceEvent::kMaliMaliKCPUCQSSETFieldNumber: {
-      ParseMaliKcpuCqsSet(ts, track_id);
-      break;
-    }
-    case FtraceEvent::kMaliMaliKCPUCQSWAITSTARTFieldNumber: {
-      ParseMaliKcpuCqsWaitStart(ts, track_id);
-      break;
-    }
-    case FtraceEvent::kMaliMaliKCPUCQSWAITENDFieldNumber: {
-      ParseMaliKcpuCqsWaitEnd(ts, track_id);
-      break;
-    }
-    case FtraceEvent::kMaliMaliKCPUFENCESIGNALFieldNumber: {
-      ParseMaliKcpuFenceSignal(ts, track_id);
-      break;
-    }
-    case FtraceEvent::kMaliMaliKCPUFENCEWAITSTARTFieldNumber: {
-      ParseMaliKcpuFenceWaitStart(ts, track_id);
-      break;
-    }
-    case FtraceEvent::kMaliMaliKCPUFENCEWAITENDFieldNumber: {
-      ParseMaliKcpuFenceWaitEnd(ts, track_id);
-      break;
-    }
-    default:
-      PERFETTO_DFATAL("Unexpected field id");
-      break;
-  }
-}
-
 void MaliGpuEventTracker::ParseMaliGpuIrqEvent(int64_t ts,
                                                uint32_t field_id,
                                                uint32_t cpu,
@@ -199,46 +158,6 @@ void MaliGpuEventTracker::ParseMaliGpuMcuStateEvent(int64_t timestamp,
   current_mcu_state_name_ = state_name;
 }
 
-void MaliGpuEventTracker::ParseMaliKcpuCqsSet(int64_t timestamp,
-                                              TrackId track_id) {
-  context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId,
-                                  mali_KCPU_CQS_SET_id_, 0);
-}
-
-void MaliGpuEventTracker::ParseMaliKcpuCqsWaitStart(int64_t timestamp,
-                                                    TrackId track_id) {
-  // TODO(b/294866695): Remove
-  if (base::GetSysPageSize()) {
-    PERFETTO_FATAL("This causes incorrectly nested slices at present.");
-  }
-  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
-                                 mali_KCPU_CQS_WAIT_id_);
-}
-
-void MaliGpuEventTracker::ParseMaliKcpuCqsWaitEnd(int64_t timestamp,
-                                                  TrackId track_id) {
-  context_->slice_tracker->End(timestamp, track_id, kNullStringId,
-                               mali_KCPU_CQS_WAIT_id_);
-}
-
-void MaliGpuEventTracker::ParseMaliKcpuFenceSignal(int64_t timestamp,
-                                                   TrackId track_id) {
-  context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId,
-                                  mali_KCPU_FENCE_SIGNAL_id_, 0);
-}
-
-void MaliGpuEventTracker::ParseMaliKcpuFenceWaitStart(int64_t timestamp,
-                                                      TrackId track_id) {
-  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
-                                 mali_KCPU_FENCE_WAIT_id_);
-}
-
-void MaliGpuEventTracker::ParseMaliKcpuFenceWaitEnd(int64_t timestamp,
-                                                    TrackId track_id) {
-  context_->slice_tracker->End(timestamp, track_id, kNullStringId,
-                               mali_KCPU_FENCE_WAIT_id_);
-}
-
 void MaliGpuEventTracker::ParseMaliCSFInterruptStart(
     int64_t timestamp,
     TrackId track_id,
@@ -265,5 +184,4 @@ void MaliGpuEventTracker::ParseMaliCSFInterruptEnd(int64_t timestamp,
   context_->slice_tracker->End(timestamp, track_id, kNullStringId,
                                mali_CSF_INTERRUPT_id_, args_inserter);
 }
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
