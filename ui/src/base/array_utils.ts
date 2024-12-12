@@ -50,7 +50,7 @@ export function isArrayOf<P, Q>(
 
 // Filter out falsy values from an array, leaving only the truthy ones
 export function removeFalsyValues<T>(
-  array: (T | false | null | undefined)[],
+  array: ReadonlyArray<T | false | null | undefined>,
 ): T[] {
   return array.filter(Boolean) as T[];
 }
