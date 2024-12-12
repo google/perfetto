@@ -232,19 +232,21 @@ void SystraceParser::ParseSystracePoint(
     case 'H': {
       StringId name_id = context_->storage->InternString(point.name);
       StringId track_name_id = context_->storage->InternString(point.str_value);
-      UniquePid upid =
-          context_->process_tracker->GetOrCreateProcess(point.tgid);
 
       // Promote DeviceStateChanged to its own top level track.
-      AsyncTrackSetTracker::TrackSetId track_set_id;
-      if (point.str_value == "DeviceStateChanged") {
-        track_set_id = context_->async_track_set_tracker->InternGlobalTrackSet(
-            track_name_id);
-      } else {
-        track_set_id = context_->async_track_set_tracker->InternProcessTrackSet(
-            upid, track_name_id);
+      if (point.str_value == "DeviceStateChanged" && point.phase == 'N') {
+        TrackId track_id = context_->track_tracker->InternTrack(
+            tracks::kAndroidDeviceStateBlueprint);
+        context_->slice_tracker->Scoped(ts, track_id, kNullStringId, name_id,
+                                        0);
+        break;
       }
 
+      UniquePid upid =
+          context_->process_tracker->GetOrCreateProcess(point.tgid);
+      AsyncTrackSetTracker::TrackSetId track_set_id =
+          context_->async_track_set_tracker->InternProcessTrackSet(
+              upid, track_name_id);
       if (point.phase == 'N') {
         TrackId track_id =
             context_->async_track_set_tracker->Scoped(track_set_id, ts, 0);
