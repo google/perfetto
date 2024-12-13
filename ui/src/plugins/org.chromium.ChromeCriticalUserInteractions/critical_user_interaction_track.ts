@@ -16,7 +16,6 @@ import {NAMED_ROW} from '../../components/tracks/named_slice_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {
-  CustomSqlImportConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../components/tracks/custom_sql_table_slice_track';
@@ -89,12 +88,6 @@ export class CriticalUserInteractionTrack extends CustomSqlTableSliceTrack {
       ts: Time.fromRaw(row.ts),
       dur: Duration.fromRaw(row.dur),
       interactionType: row.type,
-    };
-  }
-
-  getSqlImports(): CustomSqlImportConfig {
-    return {
-      modules: ['chrome.interactions'],
     };
   }
 
