@@ -25,7 +25,6 @@ export class ScreenshotsTrack extends CustomSqlTableSliceTrack {
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
       sqlTableName: 'android_screenshots',
-      columns: ['*'],
     };
   }
 
