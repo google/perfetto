@@ -34,6 +34,7 @@ from diff_tests.metrics.chrome.tests_rail_modes import ChromeRailModes
 from diff_tests.metrics.chrome.tests_scroll_jank import ChromeScrollJankMetrics
 from diff_tests.metrics.chrome.tests_touch_gesture import ChromeTouchGesture
 from diff_tests.metrics.codecs.tests import Codecs
+from diff_tests.metrics.common.tests import CloneDurationMetrics
 from diff_tests.metrics.frame_timeline.tests import FrameTimeline
 from diff_tests.metrics.graphics.tests import GraphicsMetrics
 from diff_tests.metrics.irq.tests import IRQ
@@ -277,6 +278,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *GraphicsMetrics(index_path, 'metrics/graphics',
                        'GraphicsMetrics').fetch(),
       *IRQ(index_path, 'metrics/irq', 'IRQ').fetch(),
+      *CloneDurationMetrics(index_path, 'metrics/common',
+                            'CloneDurationMetrics').fetch(),
       *MemoryMetrics(index_path, 'metrics/memory', 'MemoryMetrics').fetch(),
       *NetworkMetrics(index_path, 'metrics/network', 'orkMetrics').fetch(),
       *Power(index_path, 'metrics/power', 'Power').fetch(),
