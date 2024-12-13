@@ -4541,7 +4541,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::NotifyCloneSnapshotTrigger(
   clone_trig->set_tracing_session_id(static_cast<int64_t>(tracing_session_id_));
   clone_trig->set_trigger_name(trigger.trigger_name);
   clone_trig->set_producer_name(trigger.producer_name);
-  clone_trig->set_producer_uid(trigger.producer_uid);
+  clone_trig->set_producer_uid(static_cast<uint32_t>(trigger.producer_uid));
   clone_trig->set_boot_time_ns(trigger.boot_time_ns);
 }
 
