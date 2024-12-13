@@ -405,7 +405,6 @@ export class NotesEditorTab implements DetailsPanel {
             // value as we move the mouse.
             const inputElement = v.dom as HTMLInputElement;
             inputElement.value = note.text;
-            inputElement.focus();
           },
           onchange: (e: InputEvent) => {
             const newText = (e.target as HTMLInputElement).value;
