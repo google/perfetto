@@ -1,4 +1,4 @@
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2024 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,22 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
-import("../../../gn/proto_library.gni")
+import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
   proto_generators = [ "lite" ]
-  deps = [
-    "android:@TYPE@",
-    "common:@TYPE@",
-  ]
-  sources = [ "metrics.proto" ]
-  generate_descriptor = "metrics.descriptor"
-  descriptor_root_source = "metrics.proto"
-}
-
-perfetto_proto_library("custom_options_@TYPE@") {
-  proto_generators = [ "lite" ]
-  sources = [ "custom_options.proto" ]
-  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+  sources = [ "clone_duration.proto" ]
 }

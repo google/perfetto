@@ -77,6 +77,7 @@ import "protos/perfetto/metrics/android/android_broadcasts_metric.proto";
 import "protos/perfetto/metrics/android/wattson_in_time_period.proto";
 import "protos/perfetto/metrics/android/android_anomaly_metric.proto";
 import "protos/perfetto/metrics/android/wattson_tasks_attribution.proto";
+import "protos/perfetto/metrics/common/clone_duration.proto";
 
 // Trace processor metadata
 // Next id: 17
@@ -129,7 +130,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 77
+// Next id: 78
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -349,6 +350,8 @@ message TraceMetrics {
 
   // Android GC stats.
   optional AndroidGarbageCollectionStats android_garbage_collection_stats = 76;
+
+  optional CloneDuration clone_duration = 77;
 
   // Android
   // Demo extensions.

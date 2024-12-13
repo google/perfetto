@@ -2658,6 +2658,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_metrics_sql_common_common",
     srcs = [
+        "src/trace_processor/metrics/sql/common/clone_duration.sql",
         "src/trace_processor/metrics/sql/common/parent_slice.sql",
     ],
 )
@@ -4471,6 +4472,7 @@ perfetto_proto_library(
     ],
     deps = [
         ":protos_perfetto_metrics_android_protos",
+        ":protos_perfetto_metrics_common_protos",
         ":protos_perfetto_metrics_protos",
     ],
 )
@@ -4572,6 +4574,7 @@ perfetto_proto_library(
     deps = [
         ":protos_perfetto_metrics_android_protos",
         ":protos_perfetto_metrics_chrome_protos",
+        ":protos_perfetto_metrics_common_protos",
         ":protos_perfetto_metrics_custom_options_protos",
         ":protos_perfetto_metrics_protos",
     ],
@@ -5355,9 +5358,21 @@ perfetto_proto_library(
     ],
     deps = [
         ":protos_perfetto_metrics_android_protos",
+        ":protos_perfetto_metrics_common_protos",
         ":protos_perfetto_metrics_custom_options_protos",
         ":protos_perfetto_metrics_protos",
     ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
+)
+
+# GN target: //protos/perfetto/metrics/common:source_set
+perfetto_proto_library(
+    name = "protos_perfetto_metrics_common_protos",
+    srcs = [
+        "protos/perfetto/metrics/common/clone_duration.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
 )
 
 # GN target: //protos/perfetto/metrics:custom_options_source_set
@@ -5395,6 +5410,7 @@ perfetto_proto_library(
     ],
     deps = [
         ":protos_perfetto_metrics_android_protos",
+        ":protos_perfetto_metrics_common_protos",
     ],
 )
 
@@ -5421,6 +5437,7 @@ perfetto_proto_library(
     ],
     deps = [
         ":protos_perfetto_metrics_android_protos",
+        ":protos_perfetto_metrics_common_protos",
         ":protos_perfetto_metrics_protos",
     ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
 )
