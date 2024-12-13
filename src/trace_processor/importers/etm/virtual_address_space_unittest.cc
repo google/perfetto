@@ -18,7 +18,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <string>
 
 #include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/storage/trace_storage.h"

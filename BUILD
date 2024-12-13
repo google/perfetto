@@ -418,7 +418,9 @@ perfetto_cc_library(
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
+            ":src_trace_processor_importers_elf_binary_info",
             ":src_trace_processor_importers_etm_etm_impl",
+            ":src_trace_processor_importers_etm_file_tracker",
             ":src_trace_processor_importers_etm_public_hdr",
             ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
             ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
@@ -1857,6 +1859,16 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/importers/elf:binary_info
+perfetto_filegroup(
+    name = "src_trace_processor_importers_elf_binary_info",
+    srcs = [
+        "src/trace_processor/importers/elf/binary_info.cc",
+        "src/trace_processor/importers/elf/binary_info.h",
+        "src/trace_processor/importers/elf/elf.h",
+    ],
+)
+
 # GN target: //src/trace_processor/importers/etm:etm_impl
 perfetto_filegroup(
     name = "src_trace_processor_importers_etm_etm_impl",
@@ -1888,6 +1900,17 @@ perfetto_filegroup(
         "src/trace_processor/importers/etm/util.h",
         "src/trace_processor/importers/etm/virtual_address_space.cc",
         "src/trace_processor/importers/etm/virtual_address_space.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/etm:file_tracker
+perfetto_filegroup(
+    name = "src_trace_processor_importers_etm_file_tracker",
+    srcs = [
+        "src/trace_processor/importers/etm/elf_tracker.cc",
+        "src/trace_processor/importers/etm/elf_tracker.h",
+        "src/trace_processor/importers/etm/file_tracker.cc",
+        "src/trace_processor/importers/etm/file_tracker.h",
     ],
 )
 
@@ -6761,7 +6784,9 @@ perfetto_cc_library(
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
+            ":src_trace_processor_importers_elf_binary_info",
             ":src_trace_processor_importers_etm_etm_impl",
+            ":src_trace_processor_importers_etm_file_tracker",
             ":src_trace_processor_importers_etm_public_hdr",
             ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
             ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
@@ -6979,7 +7004,9 @@ perfetto_cc_binary(
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
+            ":src_trace_processor_importers_elf_binary_info",
             ":src_trace_processor_importers_etm_etm_impl",
+            ":src_trace_processor_importers_etm_file_tracker",
             ":src_trace_processor_importers_etm_public_hdr",
             ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
             ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
@@ -7182,7 +7209,9 @@ perfetto_cc_binary(
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
+            ":src_trace_processor_importers_elf_binary_info",
             ":src_trace_processor_importers_etm_etm_impl",
+            ":src_trace_processor_importers_etm_file_tracker",
             ":src_trace_processor_importers_etm_public_hdr",
             ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
             ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
