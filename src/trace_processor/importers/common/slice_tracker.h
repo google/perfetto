@@ -18,14 +18,18 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SLICE_TRACKER_H_
 
 #include <stdint.h>
+#include <functional>
+#include <optional>
+#include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class ArgsTracker;
 class TraceProcessorContext;
@@ -172,10 +176,6 @@ class SliceTracker {
 
   OnSliceBeginCallback on_slice_begin_callback_;
 
-  // Timestamp of the previous event. Used to discard events arriving out
-  // of order.
-  int64_t prev_timestamp_ = std::numeric_limits<int64_t>::min();
-
   const StringId legacy_unnestable_begin_count_string_id_;
   const StringId legacy_unnestable_last_begin_ts_string_id_;
 
@@ -184,7 +184,6 @@ class SliceTracker {
   std::vector<TranslatableArgs> translatable_args_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SLICE_TRACKER_H_

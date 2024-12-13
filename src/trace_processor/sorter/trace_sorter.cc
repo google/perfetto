@@ -431,8 +431,11 @@ void TraceSorter::MaybeExtractEvent(size_t min_machine_idx,
   auto* machine_context =
       sorter_data_by_machine_[min_machine_idx].machine_context;
   int64_t timestamp = event.ts;
-  if (timestamp < latest_pushed_event_ts_)
+  if (timestamp < latest_pushed_event_ts_) {
     storage_->IncrementStats(stats::sorter_push_event_out_of_order);
+    ExtractAndDiscardTokenizedObject(event);
+    return;
+  }
 
   latest_pushed_event_ts_ = std::max(latest_pushed_event_ts_, timestamp);
 
