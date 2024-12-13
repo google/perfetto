@@ -17,16 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_PARSER_H_
 
+#include <cstdint>
 #include <functional>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/sched_tables_py.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -35,7 +39,27 @@ class FuchsiaTraceParser : public FuchsiaRecordParser {
   explicit FuchsiaTraceParser(TraceProcessorContext*);
   ~FuchsiaTraceParser() override;
 
+  // Tracks the state for updating sched slice and thread state tables.
+  struct Thread {
+    explicit Thread(uint64_t tid) : info{0, tid} {}
+
+    FuchsiaThreadInfo info;
+    int64_t last_ts{0};
+    std::optional<tables::SchedSliceTable::RowNumber> last_slice_row;
+    std::optional<tables::ThreadStateTable::RowNumber> last_state_row;
+  };
+
   void ParseFuchsiaRecord(int64_t timestamp, FuchsiaRecord fr) override;
+
+  // Allocates or returns an existing Thread instance for the given tid.
+  Thread& GetThread(uint64_t tid) {
+    auto search = threads_.find(tid);
+    if (search != threads_.end()) {
+      return search->second;
+    }
+    auto result = threads_.emplace(tid, tid);
+    return result.first->second;
+  }
 
   struct Arg {
     StringId name;
@@ -54,10 +78,36 @@ class FuchsiaTraceParser : public FuchsiaRecordParser {
       std::function<StringId(uint32_t index)> get_string);
 
  private:
+  void SwitchFrom(Thread* thread,
+                  int64_t ts,
+                  uint32_t cpu,
+                  uint32_t thread_state);
+  void SwitchTo(Thread* thread, int64_t ts, uint32_t cpu, int32_t weight);
+  void Wake(Thread* thread, int64_t ts, uint32_t cpu);
+
+  StringId IdForOutgoingThreadState(uint32_t state);
+
   TraceProcessorContext* const context_;
+
+  // Interned string ids for record arguments.
+  StringId weight_id_;
+  StringId incoming_weight_id_;
+  StringId outgoing_weight_id_;
+
+  // Interned string ids for the relevant thread states.
+  StringId running_string_id_;
+  StringId runnable_string_id_;
+  StringId preempted_string_id_;
+  StringId waking_string_id_;
+  StringId blocked_string_id_;
+  StringId suspended_string_id_;
+  StringId exit_dying_string_id_;
+  StringId exit_dead_string_id_;
+
+  // Map from tid to Thread.
+  std::unordered_map<uint64_t, Thread> threads_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_PARSER_H_

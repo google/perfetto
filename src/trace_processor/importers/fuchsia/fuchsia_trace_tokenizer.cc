@@ -16,25 +16,34 @@
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 
-#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <limits>
+#include <memory>
+#include <optional>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
-#include "src/trace_processor/types/task_state.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -59,36 +68,15 @@ constexpr uint32_t kProviderInfo = 1;
 constexpr uint32_t kProviderSection = 2;
 constexpr uint32_t kProviderEvent = 3;
 
-// Thread states
-constexpr uint32_t kThreadNew = 0;
-constexpr uint32_t kThreadRunning = 1;
-constexpr uint32_t kThreadSuspended = 2;
-constexpr uint32_t kThreadBlocked = 3;
-constexpr uint32_t kThreadDying = 4;
-constexpr uint32_t kThreadDead = 5;
-
 // Zircon object types
 constexpr uint32_t kZxObjTypeProcess = 1;
 constexpr uint32_t kZxObjTypeThread = 2;
-
-constexpr int32_t kIdleWeight = std::numeric_limits<int32_t>::min();
 
 }  // namespace
 
 FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
     : context_(context),
       proto_reader_(context),
-      running_string_id_(context->storage->InternString("Running")),
-      runnable_string_id_(context->storage->InternString("R")),
-      preempted_string_id_(context->storage->InternString("R+")),
-      waking_string_id_(context->storage->InternString("W")),
-      blocked_string_id_(context->storage->InternString("S")),
-      suspended_string_id_(context->storage->InternString("T")),
-      exit_dying_string_id_(context->storage->InternString("Z")),
-      exit_dead_string_id_(context->storage->InternString("X")),
-      incoming_weight_id_(context->storage->InternString("incoming_weight")),
-      outgoing_weight_id_(context->storage->InternString("outgoing_weight")),
-      weight_id_(context->storage->InternString("weight")),
       process_id_(context->storage->InternString("process")) {
   RegisterProvider(0, "");
 }
@@ -206,143 +194,6 @@ util::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
   return proto_reader_.Parse(TraceBlobView(std::move(perfetto_blob)));
 }
 
-StringId FuchsiaTraceTokenizer::IdForOutgoingThreadState(uint32_t state) {
-  switch (state) {
-    case kThreadNew:
-    case kThreadRunning:
-      return runnable_string_id_;
-    case kThreadBlocked:
-      return blocked_string_id_;
-    case kThreadSuspended:
-      return suspended_string_id_;
-    case kThreadDying:
-      return exit_dying_string_id_;
-    case kThreadDead:
-      return exit_dead_string_id_;
-    default:
-      return kNullStringId;
-  }
-}
-
-void FuchsiaTraceTokenizer::SwitchFrom(Thread* thread,
-                                       int64_t ts,
-                                       uint32_t cpu,
-                                       uint32_t thread_state) {
-  TraceStorage* storage = context_->storage.get();
-  ProcessTracker* procs = context_->process_tracker.get();
-
-  StringId state = IdForOutgoingThreadState(thread_state);
-  UniqueTid utid = procs->UpdateThread(static_cast<uint32_t>(thread->info.tid),
-                                       static_cast<uint32_t>(thread->info.pid));
-
-  const auto duration = ts - thread->last_ts;
-  thread->last_ts = ts;
-
-  // Close the slice record if one is open for this thread.
-  if (thread->last_slice_row.has_value()) {
-    auto row_ref = thread->last_slice_row->ToRowReference(
-        storage->mutable_sched_slice_table());
-    row_ref.set_dur(duration);
-    row_ref.set_end_state(state);
-    thread->last_slice_row.reset();
-  }
-
-  // Close the state record if one is open for this thread.
-  if (thread->last_state_row.has_value()) {
-    auto row_ref = thread->last_state_row->ToRowReference(
-        storage->mutable_thread_state_table());
-    row_ref.set_dur(duration);
-    thread->last_state_row.reset();
-  }
-
-  // Open a new state record to track the duration of the outgoing
-  // state.
-  tables::ThreadStateTable::Row state_row;
-  state_row.ts = ts;
-  state_row.ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
-  state_row.dur = -1;
-  state_row.state = state;
-  state_row.utid = utid;
-  auto state_row_number =
-      storage->mutable_thread_state_table()->Insert(state_row).row_number;
-  thread->last_state_row = state_row_number;
-}
-
-void FuchsiaTraceTokenizer::SwitchTo(Thread* thread,
-                                     int64_t ts,
-                                     uint32_t cpu,
-                                     int32_t weight) {
-  TraceStorage* storage = context_->storage.get();
-  ProcessTracker* procs = context_->process_tracker.get();
-
-  UniqueTid utid = procs->UpdateThread(static_cast<uint32_t>(thread->info.tid),
-                                       static_cast<uint32_t>(thread->info.pid));
-
-  const auto duration = ts - thread->last_ts;
-  thread->last_ts = ts;
-
-  // Close the state record if one is open for this thread.
-  if (thread->last_state_row.has_value()) {
-    auto row_ref = thread->last_state_row->ToRowReference(
-        storage->mutable_thread_state_table());
-    row_ref.set_dur(duration);
-    thread->last_state_row.reset();
-  }
-
-  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
-  // Open a new slice record for this thread.
-  tables::SchedSliceTable::Row slice_row;
-  slice_row.ts = ts;
-  slice_row.ucpu = ucpu;
-  slice_row.dur = -1;
-  slice_row.utid = utid;
-  slice_row.priority = weight;
-  auto slice_row_number =
-      storage->mutable_sched_slice_table()->Insert(slice_row).row_number;
-  thread->last_slice_row = slice_row_number;
-
-  // Open a new state record for this thread.
-  tables::ThreadStateTable::Row state_row;
-  state_row.ts = ts;
-  state_row.ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
-  state_row.dur = -1;
-  state_row.state = running_string_id_;
-  state_row.utid = utid;
-  auto state_row_number =
-      storage->mutable_thread_state_table()->Insert(state_row).row_number;
-  thread->last_state_row = state_row_number;
-}
-
-void FuchsiaTraceTokenizer::Wake(Thread* thread, int64_t ts, uint32_t cpu) {
-  TraceStorage* storage = context_->storage.get();
-  ProcessTracker* procs = context_->process_tracker.get();
-
-  UniqueTid utid = procs->UpdateThread(static_cast<uint32_t>(thread->info.tid),
-                                       static_cast<uint32_t>(thread->info.pid));
-
-  const auto duration = ts - thread->last_ts;
-  thread->last_ts = ts;
-
-  // Close the state record if one is open for this thread.
-  if (thread->last_state_row.has_value()) {
-    auto row_ref = thread->last_state_row->ToRowReference(
-        storage->mutable_thread_state_table());
-    row_ref.set_dur(duration);
-    thread->last_state_row.reset();
-  }
-
-  // Open a new state record for this thread.
-  tables::ThreadStateTable::Row state_row;
-  state_row.ts = ts;
-  state_row.ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
-  state_row.dur = -1;
-  state_row.state = waking_string_id_;
-  state_row.utid = utid;
-  auto state_row_number =
-      storage->mutable_thread_state_table()->Insert(state_row).row_number;
-  thread->last_state_row = state_row_number;
-}
-
 // Most record types are read and recorded in |TraceStorage| here directly.
 // Event records are sorted by timestamp before processing, so instead of
 // recording them in |TraceStorage| they are given to |TraceSorter|. In order to
@@ -360,7 +211,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
     return;
   }
 
-  uint32_t record_type = fuchsia_trace_utils::ReadField<uint32_t>(header, 0, 3);
+  auto record_type = fuchsia_trace_utils::ReadField<uint32_t>(header, 0, 3);
 
   // All non-metadata events require current_provider_ to be set.
   if (record_type != kMetadata && current_provider_ == nullptr) {
@@ -376,15 +227,55 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
     return current_provider_->GetString(index);
   };
 
+  const auto insert_args = [this](uint32_t n_args,
+                                  fuchsia_trace_utils::RecordCursor& cursor,
+                                  FuchsiaRecord& record) {
+    for (uint32_t i = 0; i < n_args; i++) {
+      const size_t arg_base = cursor.WordIndex();
+      uint64_t arg_header;
+      if (!cursor.ReadUint64(&arg_header)) {
+        context_->storage->IncrementStats(stats::fuchsia_invalid_event);
+        return;
+      }
+      auto arg_type =
+          fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 0, 3);
+      auto arg_size_words =
+          fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 4, 15);
+      auto arg_name_ref =
+          fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 16, 31);
+
+      if (fuchsia_trace_utils::IsInlineString(arg_name_ref)) {
+        // Skip over inline string
+        cursor.ReadInlineString(arg_name_ref, nullptr);
+      } else {
+        record.InsertString(arg_name_ref,
+                            current_provider_->GetString(arg_name_ref));
+      }
+
+      if (arg_type == ArgValue::ArgType::kString) {
+        auto arg_value_ref =
+            fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 32, 47);
+        if (fuchsia_trace_utils::IsInlineString(arg_value_ref)) {
+          // Skip over inline string
+          cursor.ReadInlineString(arg_value_ref, nullptr);
+        } else {
+          record.InsertString(arg_value_ref,
+                              current_provider_->GetString(arg_value_ref));
+        }
+      }
+      cursor.SetWordIndex(arg_base + arg_size_words);
+    }
+  };
+
   switch (record_type) {
     case kMetadata: {
-      uint32_t metadata_type =
+      auto metadata_type =
           fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 19);
       switch (metadata_type) {
         case kProviderInfo: {
-          uint32_t provider_id =
+          auto provider_id =
               fuchsia_trace_utils::ReadField<uint32_t>(header, 20, 51);
-          uint32_t name_len =
+          auto name_len =
               fuchsia_trace_utils::ReadField<uint32_t>(header, 52, 59);
           base::StringView name_view;
           if (!cursor.ReadInlineString(name_len, &name_view)) {
@@ -395,7 +286,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           break;
         }
         case kProviderSection: {
-          uint32_t provider_id =
+          auto provider_id =
               fuchsia_trace_utils::ReadField<uint32_t>(header, 20, 51);
           current_provider_ = providers_[provider_id].get();
           break;
@@ -417,9 +308,9 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       break;
     }
     case kString: {
-      uint32_t index = fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 30);
+      auto index = fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 30);
       if (index != 0) {
-        uint32_t len = fuchsia_trace_utils::ReadField<uint32_t>(header, 32, 46);
+        auto len = fuchsia_trace_utils::ReadField<uint32_t>(header, 32, 46);
         base::StringView s;
         if (!cursor.ReadInlineString(len, &s)) {
           context_->storage->IncrementStats(stats::fuchsia_invalid_event);
@@ -432,7 +323,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       break;
     }
     case kThread: {
-      uint32_t index = fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 23);
+      auto index = fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 23);
       if (index != 0) {
         FuchsiaThreadInfo tinfo;
         if (!cursor.ReadInlineThread(&tinfo)) {
@@ -445,12 +336,10 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       break;
     }
     case kEvent: {
-      uint32_t thread_ref =
+      auto thread_ref =
           fuchsia_trace_utils::ReadField<uint32_t>(header, 24, 31);
-      uint32_t cat_ref =
-          fuchsia_trace_utils::ReadField<uint32_t>(header, 32, 47);
-      uint32_t name_ref =
-          fuchsia_trace_utils::ReadField<uint32_t>(header, 48, 63);
+      auto cat_ref = fuchsia_trace_utils::ReadField<uint32_t>(header, 32, 47);
+      auto name_ref = fuchsia_trace_utils::ReadField<uint32_t>(header, 48, 63);
 
       // Build the FuchsiaRecord for the event, i.e. extract the thread
       // information if not inline, and any non-inline strings (name, category
@@ -492,57 +381,19 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
         record.InsertString(name_ref, current_provider_->GetString(name_ref));
       }
 
-      uint32_t n_args =
-          fuchsia_trace_utils::ReadField<uint32_t>(header, 20, 23);
-      for (uint32_t i = 0; i < n_args; i++) {
-        const size_t arg_base = cursor.WordIndex();
-        uint64_t arg_header;
-        if (!cursor.ReadUint64(&arg_header)) {
-          storage->IncrementStats(stats::fuchsia_invalid_event);
-          return;
-        }
-        uint32_t arg_type =
-            fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 0, 3);
-        uint32_t arg_size_words =
-            fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 4, 15);
-        uint32_t arg_name_ref =
-            fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 16, 31);
-
-        if (fuchsia_trace_utils::IsInlineString(arg_name_ref)) {
-          // Skip over inline string
-          cursor.ReadInlineString(arg_name_ref, nullptr);
-        } else {
-          record.InsertString(arg_name_ref,
-                              current_provider_->GetString(arg_name_ref));
-        }
-
-        if (arg_type == ArgValue::ArgType::kString) {
-          uint32_t arg_value_ref =
-              fuchsia_trace_utils::ReadField<uint32_t>(arg_header, 32, 47);
-          if (fuchsia_trace_utils::IsInlineString(arg_value_ref)) {
-            // Skip over inline string
-            cursor.ReadInlineString(arg_value_ref, nullptr);
-          } else {
-            record.InsertString(arg_value_ref,
-                                current_provider_->GetString(arg_value_ref));
-          }
-        }
-
-        cursor.SetWordIndex(arg_base + arg_size_words);
-      }
-
+      auto n_args = fuchsia_trace_utils::ReadField<uint32_t>(header, 20, 23);
+      insert_args(n_args, cursor, record);
       sorter->PushFuchsiaRecord(ts, std::move(record));
       break;
     }
     case kBlob: {
       constexpr uint32_t kPerfettoBlob = 3;
-      uint32_t blob_type =
-          fuchsia_trace_utils::ReadField<uint32_t>(header, 48, 55);
+      auto blob_type = fuchsia_trace_utils::ReadField<uint32_t>(header, 48, 55);
       if (blob_type == kPerfettoBlob) {
         FuchsiaRecord record(std::move(tbv));
-        uint32_t blob_size =
+        auto blob_size =
             fuchsia_trace_utils::ReadField<uint32_t>(header, 32, 46);
-        uint32_t name_ref =
+        auto name_ref =
             fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 31);
 
         // We don't need the name, but we still need to parse it in case it is
@@ -565,10 +416,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       break;
     }
     case kKernelObject: {
-      uint32_t obj_type =
-          fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 23);
-      uint32_t name_ref =
-          fuchsia_trace_utils::ReadField<uint32_t>(header, 24, 39);
+      auto obj_type = fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 23);
+      auto name_ref = fuchsia_trace_utils::ReadField<uint32_t>(header, 24, 39);
 
       uint64_t obj_id;
       if (!cursor.ReadUint64(&obj_id)) {
@@ -600,7 +449,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           break;
         }
         case kZxObjTypeThread: {
-          uint32_t n_args =
+          auto n_args =
               fuchsia_trace_utils::ReadField<uint32_t>(header, 40, 43);
 
           auto maybe_args = FuchsiaTraceParser::ParseArgs(
@@ -621,7 +470,13 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
             }
           }
 
-          Thread& thread = GetThread(obj_id);
+          // TODO(lalitm): this is a gross hack we're adding to unblock a crash
+          // (b/383877212). This should be refactored properly out into a
+          // tracker (which is the pattern for handling this sort of thing
+          // in the rest of TP) but that is a bunch of boilerplate.
+          auto* parser = static_cast<FuchsiaTraceParser*>(
+              context_->fuchsia_record_parser.get());
+          auto& thread = parser->GetThread(obj_id);
           thread.info.pid = pid;
 
           UniqueTid utid = procs->UpdateThread(static_cast<uint32_t>(obj_id),
@@ -640,22 +495,17 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
     case kSchedulerEvent: {
       // Context switch records come in order, so they do not need to go through
       // TraceSorter.
-      uint32_t event_type =
+      auto event_type =
           fuchsia_trace_utils::ReadField<uint32_t>(header, 60, 63);
       switch (event_type) {
         case kSchedulerEventLegacyContextSwitch: {
-          uint32_t cpu =
-              fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 23);
-          uint32_t outgoing_state =
-              fuchsia_trace_utils::ReadField<uint32_t>(header, 24, 27);
-          uint32_t outgoing_thread_ref =
+          auto outgoing_thread_ref =
               fuchsia_trace_utils::ReadField<uint32_t>(header, 28, 35);
-          int32_t outgoing_priority =
-              fuchsia_trace_utils::ReadField<int32_t>(header, 44, 51);
-          uint32_t incoming_thread_ref =
+          auto incoming_thread_ref =
               fuchsia_trace_utils::ReadField<uint32_t>(header, 36, 43);
-          int32_t incoming_priority =
-              fuchsia_trace_utils::ReadField<int32_t>(header, 52, 59);
+
+          FuchsiaRecord record(std::move(tbv));
+          record.set_ticks_per_second(current_provider_->ticks_per_second);
 
           int64_t ts;
           if (!cursor.ReadTimestamp(current_provider_->ticks_per_second, &ts)) {
@@ -667,54 +517,29 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
             return;
           }
 
-          FuchsiaThreadInfo outgoing_thread_info;
           if (fuchsia_trace_utils::IsInlineThread(outgoing_thread_ref)) {
-            if (!cursor.ReadInlineThread(&outgoing_thread_info)) {
-              context_->storage->IncrementStats(stats::fuchsia_invalid_event);
-              return;
-            }
+            // Skip over inline thread
+            cursor.ReadInlineThread(nullptr);
           } else {
-            outgoing_thread_info =
-                current_provider_->GetThread(outgoing_thread_ref);
+            record.InsertThread(
+                outgoing_thread_ref,
+                current_provider_->GetThread(outgoing_thread_ref));
           }
-          Thread& outgoing_thread = GetThread(outgoing_thread_info.tid);
 
-          FuchsiaThreadInfo incoming_thread_info;
           if (fuchsia_trace_utils::IsInlineThread(incoming_thread_ref)) {
-            if (!cursor.ReadInlineThread(&incoming_thread_info)) {
-              context_->storage->IncrementStats(stats::fuchsia_invalid_event);
-              return;
-            }
+            // Skip over inline thread
+            cursor.ReadInlineThread(nullptr);
           } else {
-            incoming_thread_info =
-                current_provider_->GetThread(incoming_thread_ref);
+            record.InsertThread(
+                incoming_thread_ref,
+                current_provider_->GetThread(incoming_thread_ref));
           }
-          Thread& incoming_thread = GetThread(incoming_thread_info.tid);
-
-          // Idle threads are identified by pid == 0 and prio == 0.
-          const bool incoming_is_idle =
-              incoming_thread.info.pid == 0 && incoming_priority == 0;
-          const bool outgoing_is_idle =
-              outgoing_thread.info.pid == 0 && outgoing_priority == 0;
-
-          // Handle switching away from the currently running thread.
-          if (!outgoing_is_idle) {
-            SwitchFrom(&outgoing_thread, ts, cpu, outgoing_state);
-          }
-
-          // Handle switching to the new currently running thread.
-          if (!incoming_is_idle) {
-            SwitchTo(&incoming_thread, ts, cpu, incoming_priority);
-          }
+          context_->sorter->PushFuchsiaRecord(ts, std::move(record));
           break;
         }
         case kSchedulerEventContextSwitch: {
-          const uint32_t argument_count =
-              fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 19);
-          const uint32_t cpu =
-              fuchsia_trace_utils::ReadField<uint32_t>(header, 20, 35);
-          const uint32_t outgoing_state =
-              fuchsia_trace_utils::ReadField<uint32_t>(header, 36, 39);
+          FuchsiaRecord record(std::move(tbv));
+          record.set_ticks_per_second(current_provider_->ticks_per_second);
 
           int64_t ts;
           if (!cursor.ReadTimestamp(current_provider_->ticks_per_second, &ts)) {
@@ -726,65 +551,27 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
             return;
           }
 
-          uint64_t outgoing_tid;
-          if (!cursor.ReadUint64(&outgoing_tid)) {
-            context_->storage->IncrementStats(stats::fuchsia_invalid_event);
-            return;
-          }
-          Thread& outgoing_thread = GetThread(outgoing_tid);
-
-          uint64_t incoming_tid;
-          if (!cursor.ReadUint64(&incoming_tid)) {
-            context_->storage->IncrementStats(stats::fuchsia_invalid_event);
-            return;
-          }
-          Thread& incoming_thread = GetThread(incoming_tid);
-
-          auto maybe_args = FuchsiaTraceParser::ParseArgs(
-              cursor, argument_count, intern_string, get_string);
-          if (!maybe_args.has_value()) {
+          // Skip outgoing tid.
+          if (!cursor.ReadUint64(nullptr)) {
             context_->storage->IncrementStats(stats::fuchsia_invalid_event);
             return;
           }
 
-          int32_t incoming_weight = 0;
-          int32_t outgoing_weight = 0;
-
-          for (const auto& arg : *maybe_args) {
-            if (arg.name == incoming_weight_id_) {
-              if (arg.value.Type() != ArgValue::ArgType::kInt32) {
-                context_->storage->IncrementStats(stats::fuchsia_invalid_event);
-                return;
-              }
-              incoming_weight = arg.value.Int32();
-            } else if (arg.name == outgoing_weight_id_) {
-              if (arg.value.Type() != ArgValue::ArgType::kInt32) {
-                context_->storage->IncrementStats(stats::fuchsia_invalid_event);
-                return;
-              }
-              outgoing_weight = arg.value.Int32();
-            }
+          // Skip incoming tid.
+          if (!cursor.ReadUint64(nullptr)) {
+            context_->storage->IncrementStats(stats::fuchsia_invalid_event);
+            return;
           }
 
-          const bool incoming_is_idle = incoming_weight == kIdleWeight;
-          const bool outgoing_is_idle = outgoing_weight == kIdleWeight;
-
-          // Handle switching away from the currently running thread.
-          if (!outgoing_is_idle) {
-            SwitchFrom(&outgoing_thread, ts, cpu, outgoing_state);
-          }
-
-          // Handle switching to the new currently running thread.
-          if (!incoming_is_idle) {
-            SwitchTo(&incoming_thread, ts, cpu, incoming_weight);
-          }
+          const auto n_args =
+              fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 19);
+          insert_args(n_args, cursor, record);
+          context_->sorter->PushFuchsiaRecord(ts, std::move(record));
           break;
         }
         case kSchedulerEventThreadWakeup: {
-          const uint32_t argument_count =
-              fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 19);
-          const uint32_t cpu =
-              fuchsia_trace_utils::ReadField<uint32_t>(header, 20, 35);
+          FuchsiaRecord record(std::move(tbv));
+          record.set_ticks_per_second(current_provider_->ticks_per_second);
 
           int64_t ts;
           if (!cursor.ReadTimestamp(current_provider_->ticks_per_second, &ts)) {
@@ -796,36 +583,10 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
             return;
           }
 
-          uint64_t waking_tid;
-          if (!cursor.ReadUint64(&waking_tid)) {
-            context_->storage->IncrementStats(stats::fuchsia_invalid_event);
-            return;
-          }
-          Thread& waking_thread = GetThread(waking_tid);
-
-          auto maybe_args = FuchsiaTraceParser::ParseArgs(
-              cursor, argument_count, intern_string, get_string);
-          if (!maybe_args.has_value()) {
-            context_->storage->IncrementStats(stats::fuchsia_invalid_event);
-            return;
-          }
-
-          int32_t waking_weight = 0;
-
-          for (const auto& arg : *maybe_args) {
-            if (arg.name == weight_id_) {
-              if (arg.value.Type() != ArgValue::ArgType::kInt32) {
-                context_->storage->IncrementStats(stats::fuchsia_invalid_event);
-                return;
-              }
-              waking_weight = arg.value.Int32();
-            }
-          }
-
-          const bool waking_is_idle = waking_weight == kIdleWeight;
-          if (!waking_is_idle) {
-            Wake(&waking_thread, ts, cpu);
-          }
+          const auto n_args =
+              fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 19);
+          insert_args(n_args, cursor, record);
+          context_->sorter->PushFuchsiaRecord(ts, std::move(record));
           break;
         }
         default:
@@ -854,5 +615,4 @@ base::Status FuchsiaTraceTokenizer::NotifyEndOfFile() {
   return base::OkStatus();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
