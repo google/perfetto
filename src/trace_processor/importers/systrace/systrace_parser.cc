@@ -41,7 +41,9 @@ namespace perfetto::trace_processor {
 SystraceParser::SystraceParser(TraceProcessorContext* ctx)
     : context_(ctx),
       lmk_id_(ctx->storage->InternString("mem.lmk")),
-      cookie_id_(ctx->storage->InternString("cookie")) {}
+      cookie_id_(ctx->storage->InternString("cookie")),
+      utid_id_(ctx->storage->InternString("utid")),
+      end_utid_id_(ctx->storage->InternString("end_utid")) {}
 
 SystraceParser::~SystraceParser() = default;
 
@@ -250,16 +252,33 @@ void SystraceParser::ParseSystracePoint(
       if (point.phase == 'N') {
         TrackId track_id =
             context_->async_track_set_tracker->Scoped(track_set_id, ts, 0);
-        context_->slice_tracker->Scoped(ts, track_id, kNullStringId, name_id,
-                                        0);
+        auto utid = context_->process_tracker->GetOrCreateThread(pid);
+        context_->slice_tracker->Scoped(
+            ts, track_id, kNullStringId, name_id, 0,
+            [this, utid](ArgsTracker::BoundInserter* inserter) {
+              inserter->AddArg(utid_id_, Variadic::UnsignedInteger(utid),
+                               ArgsTracker::UpdatePolicy::kSkipIfExists);
+            });
       } else if (point.phase == 'G') {
         TrackId track_id = context_->async_track_set_tracker->Begin(
             track_set_id, point.int_value);
-        context_->slice_tracker->Begin(ts, track_id, kNullStringId, name_id);
+        auto utid = context_->process_tracker->GetOrCreateThread(pid);
+        context_->slice_tracker->Begin(
+            ts, track_id, kNullStringId, name_id,
+            [this, utid](ArgsTracker::BoundInserter* inserter) {
+              inserter->AddArg(utid_id_, Variadic::UnsignedInteger(utid),
+                               ArgsTracker::UpdatePolicy::kSkipIfExists);
+            });
       } else if (point.phase == 'H') {
         TrackId track_id = context_->async_track_set_tracker->End(
             track_set_id, point.int_value);
-        context_->slice_tracker->End(ts, track_id);
+        auto utid = context_->process_tracker->GetOrCreateThread(pid);
+        context_->slice_tracker->End(
+            ts, track_id, {}, {},
+            [this, utid](ArgsTracker::BoundInserter* inserter) {
+              inserter->AddArg(end_utid_id_, Variadic::UnsignedInteger(utid),
+                               ArgsTracker::UpdatePolicy::kSkipIfExists);
+            });
       }
       break;
     }
@@ -315,8 +334,7 @@ void SystraceParser::ParseSystracePoint(
           ts, static_cast<double>(point.int_value), track_id,
           [this, opt_utid](ArgsTracker::BoundInserter* inserter) {
             if (opt_utid) {
-              inserter->AddArg(context_->storage->InternString("utid"),
-                               Variadic::UnsignedInteger(*opt_utid),
+              inserter->AddArg(utid_id_, Variadic::UnsignedInteger(*opt_utid),
                                ArgsTracker::UpdatePolicy::kSkipIfExists);
             }
           });
