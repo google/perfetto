@@ -101,7 +101,7 @@ const JANK_CUJ_QUERY = `
                   )
             )
           THEN ' ✅ '
-        ELSE NULL
+        ELSE ' ❓ '
         END || cuj.name AS name,
       total_frames,
       missed_app_frames,
