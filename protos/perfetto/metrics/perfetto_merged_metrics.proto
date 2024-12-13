@@ -3076,6 +3076,18 @@ message AndroidWattsonTaskInfo {
 
 // End of protos/perfetto/metrics/android/wattson_tasks_attribution.proto
 
+// Begin of protos/perfetto/metrics/common/clone_duration.proto
+
+message CloneDuration {
+  message ByBuffer {
+    optional int32 buffer = 1;
+    optional int64 duration_ns = 2;
+  }
+  repeated ByBuffer by_buffer = 1;
+}
+
+// End of protos/perfetto/metrics/common/clone_duration.proto
+
 // Begin of protos/perfetto/metrics/metrics.proto
 
 // Trace processor metadata
@@ -3129,7 +3141,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 77
+// Next id: 78
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -3349,6 +3361,8 @@ message TraceMetrics {
 
   // Android GC stats.
   optional AndroidGarbageCollectionStats android_garbage_collection_stats = 76;
+
+  optional CloneDuration clone_duration = 77;
 
   // Android
   // Demo extensions.
