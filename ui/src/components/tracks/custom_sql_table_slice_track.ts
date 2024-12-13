@@ -19,18 +19,13 @@ import {Slice} from '../../public/track';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {sqlNameSafe} from '../../base/string_utils';
 import {Trace} from '../../public/trace';
-
-export interface CustomSqlImportConfig {
-  modules: string[];
-}
+import {Dataset, SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 export interface CustomSqlTableDefConfig {
-  // Table name
   sqlTableName: string;
-  // Table columns
   columns?: string[];
   whereClause?: string;
-  disposable?: AsyncDisposable;
 }
 
 export abstract class CustomSqlTableSliceTrack extends NamedSliceTrack<
@@ -52,25 +47,17 @@ export abstract class CustomSqlTableSliceTrack extends NamedSliceTrack<
     return this.rowToSliceBase(row);
   }
 
-  abstract getSqlDataSource():
-    | CustomSqlTableDefConfig
-    | Promise<CustomSqlTableDefConfig>;
-
-  getSqlImports(): CustomSqlImportConfig {
-    return {
-      modules: [] as string[],
-    };
-  }
+  // TODO(stevegolton): We should just make this return a dataset going forward,
+  // seeing as CustomSqlTableConfig is very similar to a dataset already.
+  abstract getSqlDataSource(): CustomSqlTableDefConfig;
 
   async onInit() {
-    await this.loadImports();
-    const config = await Promise.resolve(this.getSqlDataSource());
+    const config = this.getSqlDataSource();
     let columns = ['*'];
     if (config.columns !== undefined) {
       columns = config.columns;
     }
     const trash = new AsyncDisposableStack();
-    config.disposable && trash.use(config.disposable);
     trash.use(
       await createView(
         this.engine,
@@ -91,9 +78,29 @@ export abstract class CustomSqlTableSliceTrack extends NamedSliceTrack<
     return `SELECT * FROM ${this.tableName}`;
   }
 
-  async loadImports() {
-    for (const importModule of this.getSqlImports().modules) {
-      await this.engine.query(`INCLUDE PERFETTO MODULE ${importModule};`);
+  getDataset(): Dataset {
+    return new SourceDataset({
+      src: this.makeSqlSelectStatement(),
+      schema: {
+        id: NUM,
+        name: STR,
+        ts: LONG,
+        dur: LONG,
+      },
+    });
+  }
+
+  private makeSqlSelectStatement(): string {
+    const config = this.getSqlDataSource();
+    let columns = ['*'];
+    if (config.columns !== undefined) {
+      columns = config.columns;
     }
+
+    let query = `SELECT ${columns.join(',')} FROM ${config.sqlTableName}`;
+    if (config.whereClause) {
+      query += ` WHERE ${config.whereClause}`;
+    }
+    return query;
   }
 }

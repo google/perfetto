@@ -20,6 +20,8 @@ import {TrackNode} from '../../public/workspace';
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.CriticalUserInteraction';
   async onTraceLoad(ctx: Trace): Promise<void> {
+    await ctx.engine.query('include perfetto module chrome.interactions;');
+
     ctx.commands.registerCommand({
       id: 'perfetto.CriticalUserInteraction.AddInteractionTrack',
       name: 'Add track: Chrome interactions',

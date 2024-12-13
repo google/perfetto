@@ -140,7 +140,7 @@ class SqlTableSliceTrack extends CustomSqlTableSliceTrack {
     super(trace, uri);
   }
 
-  override async getSqlDataSource(): Promise<CustomSqlTableDefConfig> {
+  override getSqlDataSource(): CustomSqlTableDefConfig {
     return {
       sqlTableName: this.sqlTableName,
     };
