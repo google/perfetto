@@ -88,6 +88,7 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
             ts as leftTs,
             LEAD(ts) OVER (ORDER BY ts) AS rightTs
           FROM ${this.rootTable}
+          WHERE track_id = ${this.trackId}
         )
       SELECT * FROM CTE WHERE id = ${id}
     `;
