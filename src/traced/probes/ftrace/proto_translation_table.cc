@@ -280,7 +280,7 @@ bool InferFtraceType(const std::string& type_and_name,
   // TODO(fmayer): Handle u32[], u8[], __u8[] as well.
   if (Contains(type_and_name, "__data_loc char[] ")) {
     if (size != 4) {
-      PERFETTO_ELOG("__data_loc with incorrect size: %s (%zd)",
+      PERFETTO_ELOG("__data_loc with incorrect size: %s (%zu)",
                     type_and_name.c_str(), size);
       return false;
     }

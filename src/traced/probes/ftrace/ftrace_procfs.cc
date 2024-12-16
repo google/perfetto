@@ -446,7 +446,7 @@ void FtraceProcfs::ClearTrace() {
 
 void FtraceProcfs::ClearPerCpuTrace(size_t cpu) {
   if (!ClearFile(root_ + "per_cpu/cpu" + std::to_string(cpu) + "/trace"))
-    PERFETTO_ELOG("Failed to clear buffer for CPU %zd", cpu);
+    PERFETTO_ELOG("Failed to clear buffer for CPU %zu", cpu);
 }
 
 bool FtraceProcfs::WriteTraceMarker(const std::string& str) {

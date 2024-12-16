@@ -745,7 +745,7 @@ std::string UnixSocketRaw::GetSockAddr() const {
                           PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID))
   if (stg.ss_family == AF_VSOCK) {
     auto* saddr = reinterpret_cast<struct sockaddr_vm*>(&stg);
-    base::StackString<255> addr_and_port("%s%d:%d", kVsockNamePrefix,
+    base::StackString<255> addr_and_port("%s%u:%u", kVsockNamePrefix,
                                          saddr->svm_cid, saddr->svm_port);
     return addr_and_port.ToStdString();
   }
