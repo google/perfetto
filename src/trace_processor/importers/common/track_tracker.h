@@ -34,6 +34,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/track_tables_py.h"
@@ -143,6 +144,20 @@ class TrackTracker {
     return *it;
   }
 
+  // Wrapper function for `InternTrack` in cases where you want the "main"
+  // slice track for the thread.
+  //
+  // This function should be used in situations where the thread cannot be
+  // executing anything else while the slice is active. It should *not* be used
+  // in cases where the function could overlap; use InternTrack directly with a
+  // custom blueprint.
+  TrackId InternThreadTrack(UniqueTid utid) {
+    static constexpr auto kBlueprint = tracks::SliceBlueprint(
+        "thread_execution",
+        tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint));
+    return InternTrack(kBlueprint, tracks::Dimensions(utid));
+  }
+
   // ********WARNING************
   // EVERYTHING BELOW THIS POINT IS LEGACY AND SHOULD BE REMOVED WITH TIME.
   // ********WARNING************
@@ -221,9 +236,6 @@ class TrackTracker {
     return DimensionsBuilder(this);
   }
 
-  // Interns a thread track into the storage.
-  TrackId InternThreadTrack(UniqueTid, const TrackName& = AutoName());
-
   // Interns a process track into the storage.
   TrackId InternProcessTrack(tracks::TrackClassification,
                              UniquePid,
@@ -265,9 +277,7 @@ class TrackTracker {
                       std::optional<Dimensions>,
                       const TrackName&);
 
-  TrackId CreateThreadTrack(tracks::TrackClassification,
-                            UniqueTid,
-                            const TrackName&);
+  TrackId CreateThreadTrack(tracks::TrackClassification, UniqueTid);
 
   TrackId CreateProcessTrack(tracks::TrackClassification,
                              UniquePid,
@@ -292,9 +302,6 @@ class TrackTracker {
     if constexpr (i < kTupleSize) {
       using elem_t = std::tuple_element_t<i, TupleDimensions>;
       if constexpr (std::is_same_v<elem_t, uint32_t>) {
-        if (dimensions_schema[i].is_cpu) {
-          MarkCpuValid(std::get<i>(dimensions));
-        }
         a[i].value = Variadic::Integer(std::get<i>(dimensions));
       } else if constexpr (std::is_integral_v<elem_t>) {
         a[i].value = Variadic::Integer(std::get<i>(dimensions));
@@ -306,9 +313,9 @@ class TrackTracker {
       }
       DimensionsToArgs<i + 1>(dimensions, dimensions_schema, a);
     }
+    // Required for GCC to not complain.
+    base::ignore_result(dimensions_schema);
   }
-
-  void MarkCpuValid(uint32_t cpu);
 
   Dimensions SingleDimension(StringId key, const Variadic& val) {
     std::array args{GlobalArgsTracker::CompactArg{key, key, val}};

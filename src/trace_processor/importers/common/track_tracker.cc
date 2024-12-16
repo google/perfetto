@@ -73,6 +73,7 @@ TrackId TrackTracker::CreateTrack(tracks::TrackClassification classification,
     row.dimension_arg_set_id = dimensions->arg_set_id;
   }
   row.machine_id = context_->machine_id();
+  row.event_type = context_->storage->InternString("slice");
 
   return context_->storage->mutable_track_table()->Insert(row).id;
 }
@@ -92,25 +93,27 @@ TrackId TrackTracker::CreateProcessTrack(
   row.classification =
       context_->storage->InternString(tracks::ToString(classification));
   row.machine_id = context_->machine_id();
+  row.event_type = context_->storage->InternString("slice");
+  row.upid = upid;
 
   return context_->storage->mutable_process_track_table()->Insert(row).id;
 }
 
 TrackId TrackTracker::CreateThreadTrack(
     tracks::TrackClassification classification,
-    UniqueTid utid,
-    const TrackName& name) {
+    UniqueTid utid) {
   Dimensions dims_id = SingleDimension(utid_id_, Variadic::Integer(utid));
 
-  tables::ThreadTrackTable::Row row(
-      StringIdFromTrackName(classification, name));
-  row.utid = utid;
+  tables::TrackTable::Row row(
+      StringIdFromTrackName(classification, AutoName()));
   row.classification =
       context_->storage->InternString(tracks::ToString(classification));
   row.dimension_arg_set_id = dims_id.arg_set_id;
   row.machine_id = context_->machine_id();
+  row.event_type = context_->storage->InternString("slice");
+  row.utid = utid;
 
-  return context_->storage->mutable_thread_track_table()->Insert(row).id;
+  return context_->storage->mutable_track_table()->Insert(row).id;
 }
 
 TrackId TrackTracker::InternProcessTrack(
@@ -126,17 +129,6 @@ TrackId TrackTracker::InternProcessTrack(
   TrackId track_id =
       CreateProcessTrack(classification, upid, std::nullopt, name);
   tracks_[{classification, dims_id}] = track_id;
-  return track_id;
-}
-
-TrackId TrackTracker::InternThreadTrack(UniqueTid utid, const TrackName& name) {
-  Dimensions dims = SingleDimension(utid_id_, Variadic::Integer(utid));
-
-  auto* it = tracks_.Find({tracks::thread, dims});
-  if (it)
-    return *it;
-  TrackId track_id = CreateThreadTrack(tracks::thread, utid, name);
-  tracks_[{tracks::thread, dims}] = track_id;
   return track_id;
 }
 
@@ -182,6 +174,7 @@ TrackId TrackTracker::LegacyInternLegacyChromeAsyncTrack(
       context_->storage->InternString(tracks::ToString(tracks::unknown));
   track.dimension_arg_set_id = key.dimensions->arg_set_id;
   track.machine_id = context_->machine_id();
+  track.event_type = context_->storage->InternString("slice");
 
   TrackId id =
       context_->storage->mutable_process_track_table()->Insert(track).id;
@@ -217,15 +210,23 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
                                GlobalArgsTracker::CompactArg* d_args,
                                uint32_t d_size,
                                const SetArgsCallback& args) {
+  tables::TrackTable::Row row(name);
   const auto* dims = blueprint.dimension_blueprints.data();
   for (uint32_t i = 0; i < d_size; ++i) {
-    StringId key = context_->storage->InternString(
-        base::StringView(dims[i].name.data(), dims[i].name.size()));
+    base::StringView str(dims[i].name.data(), dims[i].name.size());
+    if (str == "cpu" && d_args[i].value.type == Variadic::kInt) {
+      context_->cpu_tracker->MarkCpuValid(
+          static_cast<uint32_t>(d_args[i].value.int_value));
+    } else if (str == "utid" && d_args[i].value.type == Variadic::kInt) {
+      row.utid = static_cast<uint32_t>(d_args[i].value.int_value);
+    } else if (str == "upid" && d_args[i].value.type == Variadic::kInt) {
+      row.upid = static_cast<uint32_t>(d_args[i].value.int_value);
+    }
+    StringId key = context_->storage->InternString(str);
     d_args[i].key = key;
     d_args[i].flat_key = key;
   }
 
-  tables::TrackTable::Row row(name);
   row.machine_id = context_->machine_id();
   row.classification = context_->storage->InternString(base::StringView(
       blueprint.classification.data(), blueprint.classification.size()));
@@ -242,10 +243,6 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
     args_tracker_.Flush();
   }
   return id;
-}
-
-void TrackTracker::MarkCpuValid(uint32_t cpu) {
-  context_->cpu_tracker->MarkCpuValid(cpu);
 }
 
 }  // namespace perfetto::trace_processor

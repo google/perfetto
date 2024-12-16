@@ -387,13 +387,6 @@ class TraceStorage {
     return &process_track_table_;
   }
 
-  const tables::ThreadTrackTable& thread_track_table() const {
-    return thread_track_table_;
-  }
-  tables::ThreadTrackTable* mutable_thread_track_table() {
-    return &thread_track_table_;
-  }
-
   const tables::ThreadStateTable& thread_state_table() const {
     return thread_state_table_;
   }
@@ -1026,7 +1019,6 @@ class TraceStorage {
   tables::TrackTable track_table_{&string_pool_};
   tables::ThreadStateTable thread_state_table_{&string_pool_};
   tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
-  tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};
 
   // Track tables for counter events.
   tables::GpuCounterGroupTable gpu_counter_group_table_{&string_pool_};
