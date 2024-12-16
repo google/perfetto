@@ -57,13 +57,17 @@ class AndroidBatteryStatsHistoryStringTracker : public Destructible {
   }
 
   // Returns the Uid (user ID) associated with the given HSP index.
-  int32_t GetUid(uint64_t index) { return hsp_items_[index].uid; }
+  int32_t GetUid(int64_t index) {
+    return index >= 0 ? hsp_items_[static_cast<uint64_t>(index)].uid : -1;
+  }
 
   // Gets the string associated with the given HSP index.
-  const std::string& GetString(uint64_t index) { return hsp_items_[index].str; }
+  const std::string& GetString(int64_t index) {
+    return index >= 0 ? hsp_items_[static_cast<uint64_t>(index)].str : invalid_string_;
+  }
 
   // Associate the given uid and string with the given HSP index.
-  base::Status SetStringPoolItem(uint64_t index,
+  base::Status SetStringPoolItem(int64_t index,
                                  int32_t uid,
                                  const std::string& str);
 
@@ -82,6 +86,8 @@ class AndroidBatteryStatsHistoryStringTracker : public Destructible {
     // An arbirary string associated with the HSP i
     std::string str;
   };
+
+  const std::string invalid_string_ = "";
 
   // Use a vector to store the hsp items internally since these strings indices
   // start from zero and are consecutive.
