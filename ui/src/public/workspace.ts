@@ -466,6 +466,22 @@ export class TrackNode {
     return this.tracksByUri.get(uri);
   }
 
+  /**
+   * Creates a copy of this node with a new ID.
+   *
+   * @param deep - If true, children are copied too.
+   * @returns - A copy of this node.
+   */
+  clone(deep = false): TrackNode {
+    const cloned = new TrackNode({...this, id: undefined});
+    if (deep) {
+      this.children.forEach((c) => {
+        cloned.addChildLast(c.clone(deep));
+      });
+    }
+    return cloned;
+  }
+
   private adopt(child: TrackNode): void {
     if (child.parent) {
       child.parent.removeChild(child);
