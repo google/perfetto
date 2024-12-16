@@ -182,7 +182,7 @@ base::StatusOr<std::string> GetStateAndValueFromShortName(
 
   // If the value short name is already a number, just do a direct conversion
   std::optional<int64_t> possible_int_value =
-      base::StringToInt64(value_short_name.ToStdString());
+      base::StringViewToInt64(value_short_name);
   if (possible_int_value.has_value()) {
     *value_out = possible_int_value.value();
     return translation_info.long_name;
@@ -198,8 +198,7 @@ base::StatusOr<std::string> GetStateAndValueFromShortName(
 }
 
 base::StatusOr<int64_t> StringToStatusOrInt64(base::StringView str) {
-  std::optional<int64_t> possible_result =
-      base::StringToInt64(str.ToStdString());
+  std::optional<int64_t> possible_result = base::StringViewToInt64(str);
   if (!possible_result.has_value()) {
     return base::ErrStatus("Failed to convert string to int64_t");
   }
