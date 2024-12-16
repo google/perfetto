@@ -514,7 +514,7 @@ base::StatusOr<QueryResult> ExtractQueryResult(Iterator* it, bool has_more) {
   QueryResult result;
 
   for (uint32_t c = 0; c < it->ColumnCount(); c++) {
-    fprintf(stderr, "column %d = %s\n", c, it->GetColumnName(c).c_str());
+    fprintf(stderr, "column %u = %s\n", c, it->GetColumnName(c).c_str());
     result.column_names.push_back(it->GetColumnName(c));
   }
 

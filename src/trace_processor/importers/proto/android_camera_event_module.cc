@@ -76,7 +76,7 @@ void AndroidCameraEventModule::InsertCameraFrameSlice(
   const auto android_camera_frame_event =
       protos::pbzero::AndroidCameraFrameEvent::Decoder(bytes);
   StringId track_name = context_->storage->InternString(
-      base::StackString<32>("Camera %d Frames",
+      base::StackString<32>("Camera %u Frames",
                             android_camera_frame_event.camera_id())
           .string_view());
   StringId slice_name = context_->storage->InternString(

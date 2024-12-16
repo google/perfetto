@@ -395,7 +395,7 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
       if (!seq_id) {
         return base::ErrStatus(
             "ClockSnapshot packet is specifying a sequence-scoped clock id "
-            "(%" PRIu64 ") but the TracePacket sequence_id is zero",
+            "(%" PRId64 ") but the TracePacket sequence_id is zero",
             clock_id);
       }
       clock_id = ClockTracker::SequenceToGlobalClock(seq_id, clk.clock_id());

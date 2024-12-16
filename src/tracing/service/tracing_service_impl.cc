@@ -1108,8 +1108,8 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   tracing_session->state = TracingSession::CONFIGURED;
   PERFETTO_LOG(
       "Configured tracing session %" PRIu64
-      ", #sources:%zu, duration:%d ms%s, #buffers:%d, total "
-      "buffer size:%zu KB, total sessions:%zu, uid:%d session name: \"%s\"",
+      ", #sources:%zu, duration:%u ms%s, #buffers:%d, total "
+      "buffer size:%zu KB, total sessions:%zu, uid:%u session name: \"%s\"",
       tsid, cfg.data_sources().size(), tracing_session->config.duration_ms(),
       tracing_session->config.prefer_suspend_clock_for_duration()
           ? " (suspend_clock)"
@@ -3042,7 +3042,7 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
   if (relative_buffer_id >= tracing_session->num_buffers()) {
     PERFETTO_LOG(
         "The TraceConfig for DataSource %s specified a target_buffer out of "
-        "bound (%d). Skipping it.",
+        "bound (%u). Skipping it.",
         cfg_data_source.config().name().c_str(), relative_buffer_id);
     return nullptr;
   }

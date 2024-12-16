@@ -62,7 +62,7 @@ void Field::SerializeAndAppendToInternal(Container* dst) const {
       break;
     }
     default:
-      PERFETTO_FATAL("Unknown field type %u", type_);
+      PERFETTO_FATAL("Unknown field type %d", type_);
   }
   size_t written_size = static_cast<size_t>(wptr - start);
   PERFETTO_DCHECK(written_size > 0 && written_size < pu::kMaxMessageLength);

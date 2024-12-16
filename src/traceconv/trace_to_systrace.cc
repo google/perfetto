@@ -244,13 +244,13 @@ int ExtractRawEvents(TraceWriter* trace_writer,
 
   // 2. Write the actual events.
   if (truncate_keep == Keep::kEnd && raw_events > max_ftrace_events) {
-    base::StackString<150> end_truncate("%s limit %d offset %d",
+    base::StackString<150> end_truncate("%s limit %u offset %u",
                                         kRawEventsQuery, max_ftrace_events,
                                         raw_events - max_ftrace_events);
     if (!q_writer.RunQuery(end_truncate.ToStdString(), raw_callback))
       return 1;
   } else if (truncate_keep == Keep::kStart) {
-    base::StackString<150> start_truncate("%s limit %d", kRawEventsQuery,
+    base::StackString<150> start_truncate("%s limit %u", kRawEventsQuery,
                                           max_ftrace_events);
     if (!q_writer.RunQuery(start_truncate.ToStdString(), raw_callback))
       return 1;

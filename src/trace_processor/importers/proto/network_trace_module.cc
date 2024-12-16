@@ -271,7 +271,7 @@ StringId NetworkTraceModule::GetIpProto(NetworkPacketEvent::Decoder& evt) {
       return net_ipproto_icmpv6_;
     default:
       return context_->storage->InternString(
-          base::StackString<32>("IPPROTO (%d)", evt.ip_proto()).string_view());
+          base::StackString<32>("IPPROTO (%u)", evt.ip_proto()).string_view());
   }
 }
 

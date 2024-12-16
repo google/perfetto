@@ -88,7 +88,7 @@ void PkvmHypervisorCpuTracker::ParseHypEvent(uint32_t cpu,
       break;
     // TODO(b/249050813): add remaining hypervisor events
     default:
-      PERFETTO_FATAL("Not a hypervisor event %d", event_id);
+      PERFETTO_FATAL("Not a hypervisor event %u", event_id);
   }
 }
 

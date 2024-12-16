@@ -217,7 +217,7 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
       }
     } else {
       // Either counter spec was repeated or it came after counter data.
-      PERFETTO_ELOG("Duplicated counter spec found. (counter_id=%d, name=%s)",
+      PERFETTO_ELOG("Duplicated counter spec found. (counter_id=%u, name=%s)",
                     counter_id, name.ToStdString().c_str());
       context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
     }
