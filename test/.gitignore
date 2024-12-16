@@ -27,6 +27,10 @@
 /data/simpleperf/*
 !/data/simpleperf/*.sha256
 
+!/data/simpleperf/bin
+/data/simpleperf/bin/*
+!/data/simpleperf/bin/*.sha256
+
 !/data/zip
 /data/zip/*
 !/data/zip/*.sha256
