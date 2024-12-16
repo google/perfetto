@@ -63,19 +63,17 @@ util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
 
   // consume the legacy version number which we expect to be at the start of
   // every line.
-  if (!splitter.Next() || splitter.cur_token() != "9") {
+  if (splitter.NextToken() != "9") {
     return base::ErrStatus("Unexpected start of battery stats checkin line");
   }
 
-  const base::StringView possible_event_type =
-      splitter.Next() ? splitter.cur_token() : "";
+  const base::StringView possible_event_type = splitter.NextToken();
 
   if (possible_event_type == "hsp") {
-    ASSIGN_OR_RETURN(
-        int64_t index,
-        StringToStatusOrInt64(splitter.Next() ? splitter.cur_token() : ""));
+    ASSIGN_OR_RETURN(int64_t index,
+                     StringToStatusOrInt64(splitter.NextToken()));
     const std::optional<int32_t> possible_uid =
-        base::StringViewToInt32(splitter.Next() ? splitter.cur_token() : "");
+        base::StringViewToInt32(splitter.NextToken());
     // the next element is quoted and can contain commas. Instead of
     // implementing general logic to parse quoted CSV elements just grab the
     // rest of the line, which is possible since this element should be the
@@ -91,8 +89,7 @@ util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
                             hsp_string.ToStdString());
   } else if (possible_event_type == "h") {
     const base::StringView time_adjustment_marker = ":TIME:";
-    const base::StringView possible_timestamp =
-        splitter.Next() ? splitter.cur_token() : "";
+    const base::StringView possible_timestamp = splitter.NextToken();
     size_t time_marker_index = possible_timestamp.find(time_adjustment_marker);
     if (time_marker_index != base::StringView::npos) {
       // Special case timestamp adjustment event.
@@ -110,21 +107,18 @@ util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
       ASSIGN_OR_RETURN(int64_t parsed_timestamp_delta,
                        StringToStatusOrInt64(possible_timestamp));
       current_timestamp_ms_ += parsed_timestamp_delta;
-      for (base::StringView item = splitter.Next() ? splitter.cur_token() : "";
-           !item.empty(); item = splitter.Next() ? splitter.cur_token() : "") {
+      for (base::StringView item = splitter.NextToken(); !item.empty();
+           item = splitter.NextToken()) {
         RETURN_IF_ERROR(ProcessBatteryStatsHistoryEvent(item));
       }
     }
   } else if (possible_event_type == "0") {
-    const base::StringView metadata_type =
-        (splitter.Next() ? base::StringView(splitter.cur_token()) : "");
+    const base::StringView metadata_type = splitter.NextToken();
     if (metadata_type == "i") {
-      const base::StringView info_type =
-          (splitter.Next() ? base::StringView(splitter.cur_token()) : "");
+      const base::StringView info_type = splitter.NextToken();
       if (info_type == "vers") {
-        ASSIGN_OR_RETURN(
-            int64_t battery_stats_version,
-            StringToStatusOrInt64(splitter.Next() ? splitter.cur_token() : ""));
+        ASSIGN_OR_RETURN(int64_t battery_stats_version,
+                         StringToStatusOrInt64(splitter.NextToken()));
         AndroidBatteryStatsHistoryStringTracker::GetOrCreate(context_)
             ->battery_stats_version(
                 static_cast<uint32_t>(battery_stats_version));
