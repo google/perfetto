@@ -52,7 +52,7 @@ export interface VirtualOverlayCanvasDrawContext {
 }
 
 export interface VirtualOverlayCanvasAttrs {
-  // Additional class name applied to the root element.
+  // Additional class names applied to the root element.
   readonly className?: string;
 
   // Which axes should be scrollable.
@@ -96,12 +96,14 @@ export class VirtualOverlayCanvas
         },
       },
       m(
-        '.pf-content-container', // Container for scrolling element, used for sizing the canvas
+        '.pf-virtual-overlay-canvas__content', // Container for scrolling element, used for sizing the canvas
         children,
         // Put canvas container after content so it appears on top. An actual
         // canvas element will be created inside here by the
         // VirtualCanvasHelper.
-        m('.pf-canvas-container', {ref: CANVAS_CONTAINER_REF}),
+        m('.pf-virtual-overlay-canvas__canvas-container', {
+          ref: CANVAS_CONTAINER_REF,
+        }),
       ),
     );
   }
