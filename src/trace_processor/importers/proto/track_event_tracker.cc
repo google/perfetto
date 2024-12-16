@@ -196,7 +196,7 @@ TrackId TrackEventTracker::CreateTrackFromResolved(
             return it->second;
           }
           TrackId id = context_->track_tracker->CreateThreadTrack(
-              tracks::track_event, track.utid(), TrackTracker::AutoName());
+              tracks::track_event, track.utid());
           thread_tracks_[track.utid()] = id;
           return id;
         }
@@ -248,8 +248,8 @@ TrackId TrackEventTracker::CreateTrackFromResolved(
 
   switch (track.scope()) {
     case ResolvedDescriptorTrack::Scope::kThread: {
-      return context_->track_tracker->CreateThreadTrack(
-          tracks::track_event, track.utid(), TrackTracker::AutoName());
+      return context_->track_tracker->CreateThreadTrack(tracks::track_event,
+                                                        track.utid());
     }
     case ResolvedDescriptorTrack::Scope::kProcess: {
       return context_->track_tracker->CreateProcessTrack(

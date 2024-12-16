@@ -86,16 +86,16 @@ class Fuchsia(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('fuchsia_trace.fxt'),
         query="""
-        SELECT track.type AS type, depth, count(*) AS count
+        SELECT depth, count(*) AS count
         FROM slice
         JOIN track ON slice.track_id = track.id
-        GROUP BY track.type, depth
-        ORDER BY track.type, depth;
+        GROUP BY depth
+        ORDER BY depth;
         """,
         out=Csv("""
-        "type","depth","count"
-        "thread_track",0,2153
-        "thread_track",1,1004
+        "depth","count"
+        0,2153
+        1,1004
         """))
 
   def test_fuchsia_smoke_instants(self):
@@ -198,13 +198,35 @@ class Fuchsia(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('fuchsia_workstation.fxt'),
         query="""
-        SELECT track.type AS type, depth, count(*) AS count
+        SELECT depth, count(*) AS count
         FROM slice
         JOIN track ON slice.track_id = track.id
-        GROUP BY track.type, depth
-        ORDER BY track.type, depth;
+        GROUP BY depth
+        ORDER BY depth;
         """,
-        out=Path('fuchsia_workstation_smoke_slices.out'))
+        out=Csv('''
+          "depth","count"
+          0,15283
+          1,11621
+          2,10182
+          3,1927
+          4,4001
+          5,2543
+          6,1856
+          7,2209
+          8,2200
+          9,1672
+          10,353
+          11,331
+          12,304
+          13,246
+          14,207
+          15,175
+          16,114
+          17,38
+          18,12
+          19,1
+        '''))
 
   def test_fuchsia_workstation_smoke_args(self):
     return DiffTestBlueprint(

@@ -390,9 +390,9 @@ class TrackEventParser::EventImporter {
       }
       track_id_ = *opt_track_id;
 
-      auto tt_rr = storage_->thread_track_table().FindById(track_id_);
-      if (tt_rr) {
-        utid_ = tt_rr->utid();
+      auto rr = storage_->track_table().FindById(track_id_);
+      if (rr && rr->utid()) {
+        utid_ = rr->utid();
         upid_ = storage_->thread_table()[*utid_].upid();
       } else {
         auto pt_rr = storage_->process_track_table().FindById(track_id_);
