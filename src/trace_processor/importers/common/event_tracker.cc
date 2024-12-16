@@ -16,17 +16,14 @@
 
 #include "src/trace_processor/importers/common/event_tracker.h"
 
-#include <cinttypes>
 #include <cstdint>
 #include <optional>
 
 #include "perfetto/base/compiler.h"
-#include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
-#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -55,17 +52,8 @@ void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
 std::optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
                                                    double value,
                                                    TrackId track_id) {
-  if (timestamp < max_timestamp_) {
-    PERFETTO_DLOG(
-        "counter event (ts: %" PRId64 ") out of order by %.4f ms, skipping",
-        timestamp, static_cast<double>(max_timestamp_ - timestamp) / 1e6);
-    context_->storage->IncrementStats(stats::counter_events_out_of_order);
-    return std::nullopt;
-  }
-  max_timestamp_ = timestamp;
-
-  auto* counter_values = context_->storage->mutable_counter_table();
-  return counter_values->Insert({timestamp, track_id, value, {}}).id;
+  auto* counters = context_->storage->mutable_counter_table();
+  return counters->Insert({timestamp, track_id, value, {}}).id;
 }
 
 std::optional<CounterId> EventTracker::PushCounter(

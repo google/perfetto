@@ -29,7 +29,6 @@ namespace perfetto::trace_processor::stats {
   F(android_log_format_invalid,           kSingle,  kError,    kTrace,    ""), \
   F(android_log_num_skipped,              kSingle,  kInfo,     kTrace,    ""), \
   F(android_log_num_total,                kSingle,  kInfo,     kTrace,    ""), \
-  F(counter_events_out_of_order,          kSingle,  kError,    kAnalysis, ""), \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kTrace,    ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, ""), \
@@ -109,8 +108,6 @@ namespace perfetto::trace_processor::stats {
   F(rss_stat_unknown_keys,                kSingle,  kError,    kAnalysis, ""), \
   F(rss_stat_negative_size,               kSingle,  kInfo,     kAnalysis, ""), \
   F(rss_stat_unknown_thread_for_mm_id,    kSingle,  kInfo,     kAnalysis, ""), \
-  F(sched_switch_out_of_order,            kSingle,  kError,    kAnalysis, ""), \
-  F(slice_out_of_order,                   kSingle,  kError,    kAnalysis, ""), \
   F(filter_input_bytes,                   kSingle,  kInfo,     kTrace,         \
        "Number of bytes pre-TraceFilter. The trace file would have been this " \
        "many bytes big if the TraceConfig didn't specify any TraceFilter. "    \
@@ -287,7 +284,6 @@ namespace perfetto::trace_processor::stats {
       "Count of sys_write slices that have a truncated duration to resolve "   \
       "nesting incompatibilities with atrace slices. Real durations "          \
       "can be recovered via the |raw| table."),                                \
-  F(sched_waking_out_of_order,            kSingle,  kError,    kAnalysis, ""), \
   F(compact_sched_switch_skipped,         kSingle,  kInfo,     kAnalysis, ""), \
   F(compact_sched_waking_skipped,         kSingle,  kInfo,     kAnalysis, ""), \
   F(empty_chrome_metadata,                kSingle,  kError,    kTrace,    ""), \
@@ -348,7 +344,6 @@ namespace perfetto::trace_processor::stats {
       " support it. Make sure you enable the `enable_perfetto_etm_importer` "  \
       " GN flag."),                                                            \
   F(memory_snapshot_parser_failure,       kSingle,  kError,    kAnalysis, ""), \
-  F(thread_time_in_state_out_of_order,    kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_unknown_cpu_freq,                                     \
                                           kSingle,  kError,    kAnalysis, ""), \
   F(ftrace_packet_before_tracing_start,   kSingle,  kInfo,     kAnalysis,      \
