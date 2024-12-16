@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
 
 #include <cstdint>
+#include <optional>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
@@ -52,6 +53,14 @@ class BinderTrackerTest : public ::testing::Test {
     binder_tracker = BinderTracker::GetOrCreate(&context);
   }
 
+  uint32_t TidForSlice(uint32_t row) const {
+    const auto& thread = context.storage->thread_table();
+    const auto& track = context.storage->track_table();
+    const auto& slice = context.storage->slice_table();
+    auto rr = track.FindById(slice[row].track_id());
+    return thread[*rr->utid()].tid();
+  }
+
  protected:
   TraceProcessorContext context;
   BinderTracker* binder_tracker;
@@ -77,24 +86,17 @@ TEST_F(BinderTrackerTest, RequestReply) {
                               req_tid, true, 0, kNullStringId);
   binder_tracker->TransactionReceived(rep_recv_ts, req_tid, rep_transaction_id);
 
-  const auto& thread = context.storage->thread_table();
-  const auto& track = context.storage->thread_track_table();
   const auto& slice = context.storage->slice_table();
   const auto& flow = context.storage->flow_table();
   ASSERT_EQ(slice.row_count(), 2u);
 
-  auto tid_for_slice = [&](uint32_t row) {
-    auto rr = track.FindById(slice[row].track_id());
-    return thread[rr->utid()].tid();
-  };
-
   ASSERT_EQ(slice[0].ts(), req_ts);
   ASSERT_EQ(slice[0].dur(), rep_recv_ts - req_ts);
-  ASSERT_EQ(tid_for_slice(0), req_tid);
+  ASSERT_EQ(TidForSlice(0), req_tid);
 
   ASSERT_EQ(slice[1].ts(), req_recv_ts);
   ASSERT_EQ(slice[1].dur(), rep_ts - req_recv_ts);
-  ASSERT_EQ(tid_for_slice(1), rep_tid);
+  ASSERT_EQ(TidForSlice(1), rep_tid);
 
   ASSERT_EQ(flow.row_count(), 1u);
   ASSERT_EQ(flow[0].slice_out(), slice[0].id());
@@ -116,25 +118,17 @@ TEST_F(BinderTrackerTest, Oneway) {
                               rec_tid, false, kOneWay, kNullStringId);
   binder_tracker->TransactionReceived(rec_ts, rec_tid, transaction_id);
 
-  const auto& thread = context.storage->thread_table();
-  const auto& track = context.storage->thread_track_table();
   const auto& slice = context.storage->slice_table();
   const auto& flow = context.storage->flow_table();
   ASSERT_EQ(slice.row_count(), 2u);
 
-  auto tid_for_slice = [&](uint32_t row) {
-    TrackId track_id = slice[row].track_id();
-    auto rr = track.FindById(track_id);
-    return thread[rr->utid()].tid();
-  };
-
   ASSERT_EQ(slice[0].ts(), sen_ts);
   ASSERT_EQ(slice[0].dur(), 0);
-  ASSERT_EQ(tid_for_slice(0), sen_tid);
+  ASSERT_EQ(TidForSlice(0), sen_tid);
 
   ASSERT_EQ(slice[1].ts(), rec_ts);
   ASSERT_EQ(slice[1].dur(), 0);
-  ASSERT_EQ(tid_for_slice(1), rec_tid);
+  ASSERT_EQ(TidForSlice(1), rec_tid);
 
   ASSERT_EQ(flow.row_count(), 1u);
   ASSERT_EQ(flow[0].slice_out(), slice[0].id());

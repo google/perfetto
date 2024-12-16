@@ -32,7 +32,6 @@ using DimensionsT = std::tuple<T...>;
 
 struct DimensionBlueprintBase {
   std::string_view name;
-  bool is_cpu;
 };
 
 template <typename T>

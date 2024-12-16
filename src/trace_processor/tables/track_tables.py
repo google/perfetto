@@ -25,6 +25,8 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 
 from src.trace_processor.tables.metadata_tables import MACHINE_TABLE
+from src.trace_processor.tables.metadata_tables import THREAD_TABLE
+from src.trace_processor.tables.metadata_tables import PROCESS_TABLE
 
 TRACK_TABLE = Table(
     python_module=__file__,
@@ -39,15 +41,15 @@ TRACK_TABLE = Table(
         C("dimension_arg_set_id", CppOptional(CppUint32())),
         C("event_type", CppString()),
         C("counter_unit", CppOptional(CppString())),
+        C("utid", CppOptional(CppTableId(THREAD_TABLE))),
+        C("upid", CppOptional(CppTableId(PROCESS_TABLE))),
     ])
 
 PROCESS_TRACK_TABLE = Table(
     python_module=__file__,
     class_name="ProcessTrackTable",
     sql_name="process_track",
-    columns=[
-        C("upid", CppUint32()),
-    ],
+    columns=[],
     parent=TRACK_TABLE,
     tabledoc=TableDoc(
         doc='''
@@ -61,30 +63,8 @@ PROCESS_TRACK_TABLE = Table(
                     joinable='process.upid'),
         }))
 
-THREAD_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='ThreadTrackTable',
-    sql_name='thread_track',
-    columns=[
-        C('utid', CppUint32()),
-    ],
-    parent=TRACK_TABLE,
-    tabledoc=TableDoc(
-        doc='''
-          Tracks which are associated to the thread given by the |utid| column
-        ''',
-        group='Tracks',
-        columns={
-            'utid':
-                ColumnDoc(
-                    doc='The thread associated with this track',
-                    joinable='thread.utid',
-                )
-        }))
-
 # Keep this list sorted.
 ALL_TABLES = [
     PROCESS_TRACK_TABLE,
-    THREAD_TRACK_TABLE,
     TRACK_TABLE,
 ]
