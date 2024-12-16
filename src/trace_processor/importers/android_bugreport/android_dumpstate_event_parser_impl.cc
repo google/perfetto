@@ -227,8 +227,8 @@ base::Status AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryItem(
   base::StringViewSplitter splitter(base::StringView(raw_event), '=');
   TokenizedBatteryStatsHistoryItem item;
   item.ts = ts;
-  item.key = splitter.Next() ? splitter.cur_token() : "";
-  item.value = splitter.Next() ? splitter.cur_token() : "";
+  item.key = splitter.NextToken();
+  item.value = splitter.NextToken();
   item.prefix = "";
   if (item.key.size() > 0 && (item.key.at(0) == '+' || item.key.at(0) == '-')) {
     item.prefix = item.key.substr(0, 1);
