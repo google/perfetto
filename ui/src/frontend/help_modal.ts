@@ -13,17 +13,17 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {assertExists} from '../base/logging';
+import {AppImpl} from '../core/app_impl';
+import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {showModal} from '../widgets/modal';
 import {Spinner} from '../widgets/spinner';
 import {
   KeyboardLayoutMap,
   nativeKeyboardLayoutMap,
   NotSupportedError,
-} from './keyboard_layout_map';
-import {KeyMapping} from './pan_and_zoom_handler';
-import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
-import {assertExists} from '../base/logging';
-import {AppImpl} from '../core/app_impl';
+} from '../base/keyboard_layout_map';
+import {KeyMapping} from './viewer_page/pan_and_zoom_handler';
 
 export function toggleHelp() {
   AppImpl.instance.analytics.logEvent('User Actions', 'Show help');

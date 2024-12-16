@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DisposableStack} from '../base/disposable_stack';
-import {currentTargetOffset, elementIsEditable} from '../base/dom_utils';
-import {raf} from '../core/raf_scheduler';
-import {Animation} from './animation';
-import {DragGestureHandler} from '../base/drag_gesture_handler';
+import {DisposableStack} from '../../base/disposable_stack';
+import {currentTargetOffset, elementIsEditable} from '../../base/dom_utils';
+import {DragGestureHandler} from '../../base/drag_gesture_handler';
+import {raf} from '../../core/raf_scheduler';
+import {Animation} from '../animation';
 
 // When first starting to pan or zoom, move at least this many units.
 const INITIAL_PAN_STEP_PX = 50;
