@@ -22,18 +22,22 @@ AndroidBatteryStatsHistoryStringTracker::
     ~AndroidBatteryStatsHistoryStringTracker() = default;
 
 base::Status AndroidBatteryStatsHistoryStringTracker::SetStringPoolItem(
-    uint64_t index,
+    int64_t index,
     int32_t uid,
     const std::string& str) {
   const HistoryStringPoolItem item{uid, str};
+  if (PERFETTO_UNLIKELY(index < 0)) {
+    return base::ErrStatus("HSP index must be >= 0");
+  }
+  uint64_t hsp_index = static_cast<size_t>(index);
 
-  if (PERFETTO_LIKELY(index == hsp_items_.size())) {
+  if (PERFETTO_LIKELY(hsp_index == hsp_items_.size())) {
     hsp_items_.push_back(item);
     return base::OkStatus();
-  } else if (index > hsp_items_.size()) {
-    hsp_items_.resize(index + 1, {-1, ""});
+  } else if (hsp_index > hsp_items_.size()) {
+    hsp_items_.resize(hsp_index + 1, {-1, invalid_string_});
   }
-  hsp_items_[index] = item;
+  hsp_items_[hsp_index] = item;
   return base::OkStatus();
 }
 

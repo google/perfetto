@@ -57,7 +57,7 @@ class AndroidBatteryStatsReader : public ChunkedLineReader {
 
   TraceProcessorContext* const context_;
 
-  uint64_t current_timestamp_ms_;
+  int64_t current_timestamp_ms_;
 };
 
 }  // namespace perfetto::trace_processor
