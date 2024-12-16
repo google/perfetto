@@ -13,34 +13,34 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Duration, Time, TimeSpan, duration, time} from '../base/time';
-import {colorForCpu} from '../components/colorizer';
-import {timestampFormat} from '../core/timestamp_format';
+import {DragGestureHandler} from '../../base/drag_gesture_handler';
+import {Size2D} from '../../base/geom';
+import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
+import {assertUnreachable} from '../../base/logging';
+import {Duration, duration, Time, time, TimeSpan} from '../../base/time';
+import {TimeScale} from '../../base/time_scale';
+import {getOrCreate} from '../../base/utils';
+import {colorForCpu} from '../../components/colorizer';
+import {raf} from '../../core/raf_scheduler';
+import {timestampFormat} from '../../core/timestamp_format';
+import {TraceImpl} from '../../core/trace_impl';
+import {TimestampFormat} from '../../public/timeline';
+import {LONG, NUM} from '../../trace_processor/query_result';
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
   TRACK_SHELL_WIDTH,
-} from './css_constants';
-import {BorderDragStrategy} from './drag/border_drag_strategy';
-import {DragStrategy} from './drag/drag_strategy';
-import {InnerDragStrategy} from './drag/inner_drag_strategy';
-import {OuterDragStrategy} from './drag/outer_drag_strategy';
-import {DragGestureHandler} from '../base/drag_gesture_handler';
+} from '../css_constants';
+import {BorderDragStrategy} from '../drag/border_drag_strategy';
+import {DragStrategy} from '../drag/drag_strategy';
+import {InnerDragStrategy} from '../drag/inner_drag_strategy';
+import {OuterDragStrategy} from '../drag/outer_drag_strategy';
 import {
+  generateTicks,
   getMaxMajorTicks,
   MIN_PX_PER_STEP,
-  generateTicks,
   TickType,
 } from './gridline_helper';
-import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
-import {TimeScale} from '../base/time_scale';
-import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {TraceImpl} from '../core/trace_impl';
-import {LONG, NUM} from '../trace_processor/query_result';
-import {raf} from '../core/raf_scheduler';
-import {getOrCreate} from '../base/utils';
-import {assertUnreachable} from '../base/logging';
-import {TimestampFormat} from '../public/timeline';
 
 const tracesData = new WeakMap<TraceImpl, OverviewDataLoader>();
 
