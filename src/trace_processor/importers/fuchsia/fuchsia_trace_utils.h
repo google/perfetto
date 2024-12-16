@@ -17,18 +17,16 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_UTILS_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_UTILS_H_
 
-#include <stddef.h>
-#include <stdint.h>
-#include <functional>
+#include <cstddef>
+#include <cstdint>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace fuchsia_trace_utils {
+namespace perfetto::trace_processor::fuchsia_trace_utils {
 
 template <class T>
 T ReadField(uint64_t word, size_t begin, size_t end) {
@@ -206,7 +204,7 @@ class ArgValue {
 class RecordCursor {
  public:
   RecordCursor(const uint8_t* begin, size_t length)
-      : begin_(begin), end_(begin + length), word_index_(0) {}
+      : begin_(begin), end_(begin + length) {}
 
   size_t WordIndex();
   void SetWordIndex(size_t index);
@@ -226,11 +224,9 @@ class RecordCursor {
 
   const uint8_t* begin_;
   const uint8_t* end_;
-  size_t word_index_;
+  size_t word_index_{};
 };
 
-}  // namespace fuchsia_trace_utils
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::fuchsia_trace_utils
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_UTILS_H_
