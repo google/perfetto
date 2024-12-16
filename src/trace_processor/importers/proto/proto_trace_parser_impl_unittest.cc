@@ -1448,10 +1448,9 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   EXPECT_EQ(storage_->track_table()[4].name(), ev_2);
   EXPECT_EQ(storage_->track_table()[5].name(), ev_2);
 
-  EXPECT_EQ(storage_->process_track_table().row_count(), 3u);
-  EXPECT_EQ(storage_->process_track_table()[0].upid(), 1u);
-  EXPECT_EQ(storage_->process_track_table()[1].upid(), 1u);
-  EXPECT_EQ(storage_->process_track_table()[2].upid(), 1u);
+  EXPECT_EQ(storage_->track_table()[1].upid(), 1u);
+  EXPECT_EQ(storage_->track_table()[4].upid(), 1u);
+  EXPECT_EQ(storage_->track_table()[5].upid(), 1u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
   EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], SliceId(0u));

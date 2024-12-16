@@ -390,36 +390,31 @@ class TrackEventParser::EventImporter {
       }
       track_id_ = *opt_track_id;
 
-      auto rr = storage_->track_table().FindById(track_id_);
+      auto rr = storage_->mutable_track_table()->FindById(track_id_);
       if (rr && rr->utid()) {
         utid_ = rr->utid();
         upid_ = storage_->thread_table()[*utid_].upid();
+      } else if (rr && rr->upid()) {
+        upid_ = rr->upid();
+        if (sequence_state_->pid_and_tid_valid()) {
+          auto pid = static_cast<uint32_t>(sequence_state_->pid());
+          auto tid = static_cast<uint32_t>(sequence_state_->tid());
+          UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
+          if (storage_->thread_table()[utid_candidate].upid() == upid_) {
+            legacy_passthrough_utid_ = utid_candidate;
+          }
+        }
       } else {
-        auto pt_rr = storage_->process_track_table().FindById(track_id_);
-        if (pt_rr) {
-          upid_ = pt_rr->upid();
-          if (sequence_state_->pid_and_tid_valid()) {
-            auto pid = static_cast<uint32_t>(sequence_state_->pid());
-            auto tid = static_cast<uint32_t>(sequence_state_->tid());
-            UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
-            if (storage_->thread_table()[utid_candidate].upid() == upid_) {
-              legacy_passthrough_utid_ = utid_candidate;
-            }
+        if (rr) {
+          StringPool::Id id = rr->name();
+          if (id.is_null()) {
+            rr->set_name(name_id_);
           }
-        } else {
-          auto* tracks = context_->storage->mutable_track_table();
-          auto t_rr = tracks->FindById(track_id_);
-          if (t_rr) {
-            StringPool::Id id = t_rr->name();
-            if (id.is_null()) {
-              t_rr->set_name(name_id_);
-            }
-          }
-          if (sequence_state_->pid_and_tid_valid()) {
-            auto pid = static_cast<uint32_t>(sequence_state_->pid());
-            auto tid = static_cast<uint32_t>(sequence_state_->tid());
-            legacy_passthrough_utid_ = procs->UpdateThread(tid, pid);
-          }
+        }
+        if (sequence_state_->pid_and_tid_valid()) {
+          auto pid = static_cast<uint32_t>(sequence_state_->pid());
+          auto tid = static_cast<uint32_t>(sequence_state_->tid());
+          legacy_passthrough_utid_ = procs->UpdateThread(tid, pid);
         }
       }
     } else {
@@ -543,11 +538,15 @@ class TrackEventParser::EventImporter {
                   "Process-scoped instant event without process association");
             }
 
-            track_id_ = context_->track_tracker->InternProcessTrack(
-                tracks::chrome_process_instant, *upid_);
-            context_->args_tracker->AddArgsTo(track_id_).AddArg(
-                context_->storage->InternString("source"),
-                Variadic::String(context_->storage->InternString("chrome")));
+            track_id_ = context_->track_tracker->InternTrack(
+                tracks::kChromeProcessInstantBlueprint,
+                tracks::Dimensions(*upid_), tracks::BlueprintName(),
+                [this](ArgsTracker::BoundInserter& inserter) {
+                  inserter.AddArg(
+                      context_->storage->InternString("source"),
+                      Variadic::String(
+                          context_->storage->InternString("chrome")));
+                });
             legacy_passthrough_utid_ = utid_;
             utid_ = std::nullopt;
             break;

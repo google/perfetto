@@ -86,8 +86,7 @@ TrackId TrackTracker::CreateProcessTrack(
   Dimensions dims_id =
       dims ? *dims : SingleDimension(upid_id_, Variadic::Integer(upid));
 
-  tables::ProcessTrackTable::Row row(
-      StringIdFromTrackName(classification, name));
+  tables::TrackTable::Row row(StringIdFromTrackName(classification, name));
   row.upid = upid;
   row.dimension_arg_set_id = dims_id.arg_set_id;
   row.classification =
@@ -95,41 +94,8 @@ TrackId TrackTracker::CreateProcessTrack(
   row.machine_id = context_->machine_id();
   row.event_type = context_->storage->InternString("slice");
   row.upid = upid;
-
-  return context_->storage->mutable_process_track_table()->Insert(row).id;
-}
-
-TrackId TrackTracker::CreateThreadTrack(
-    tracks::TrackClassification classification,
-    UniqueTid utid) {
-  Dimensions dims_id = SingleDimension(utid_id_, Variadic::Integer(utid));
-
-  tables::TrackTable::Row row(
-      StringIdFromTrackName(classification, AutoName()));
-  row.classification =
-      context_->storage->InternString(tracks::ToString(classification));
-  row.dimension_arg_set_id = dims_id.arg_set_id;
-  row.machine_id = context_->machine_id();
-  row.event_type = context_->storage->InternString("slice");
-  row.utid = utid;
 
   return context_->storage->mutable_track_table()->Insert(row).id;
-}
-
-TrackId TrackTracker::InternProcessTrack(
-    tracks::TrackClassification classification,
-    UniquePid upid,
-    const TrackName& name) {
-  Dimensions dims_id = SingleDimension(upid_id_, Variadic::Integer(upid));
-
-  auto* it = tracks_.Find({classification, dims_id});
-  if (it)
-    return *it;
-
-  TrackId track_id =
-      CreateProcessTrack(classification, upid, std::nullopt, name);
-  tracks_[{classification, dims_id}] = track_id;
-  return track_id;
 }
 
 TrackId TrackTracker::LegacyInternLegacyChromeAsyncTrack(
@@ -168,7 +134,7 @@ TrackId TrackTracker::LegacyInternLegacyChromeAsyncTrack(
 
   // Legacy async tracks are always drawn in the context of a process, even if
   // the ID's scope is global.
-  tables::ProcessTrackTable::Row track(name);
+  tables::TrackTable::Row track(name);
   track.upid = upid;
   track.classification =
       context_->storage->InternString(tracks::ToString(tracks::unknown));
@@ -176,8 +142,7 @@ TrackId TrackTracker::LegacyInternLegacyChromeAsyncTrack(
   track.machine_id = context_->machine_id();
   track.event_type = context_->storage->InternString("slice");
 
-  TrackId id =
-      context_->storage->mutable_process_track_table()->Insert(track).id;
+  TrackId id = context_->storage->mutable_track_table()->Insert(track).id;
   tracks_[key] = id;
 
   args_tracker_.AddArgsTo(id)

@@ -69,7 +69,7 @@ TEST_F(AsyncTrackSetTrackerUnittest, Smoke) {
 
   ASSERT_EQ(begin, end);
 
-  const auto& process = storage_->process_track_table();
+  const auto& process = storage_->track_table();
   auto rr = *process.FindById(begin);
   ASSERT_EQ(rr.upid(), 1u);
   ASSERT_EQ(rr.name(), storage_->string_pool().GetId("test"));
@@ -78,7 +78,7 @@ TEST_F(AsyncTrackSetTrackerUnittest, Smoke) {
 TEST_F(AsyncTrackSetTrackerUnittest, EndFirst) {
   auto end = tracker_->End(nestable_id_, 1);
 
-  const auto& process = storage_->process_track_table();
+  const auto& process = storage_->track_table();
   auto rr = *process.FindById(end);
   ASSERT_EQ(rr.upid(), 1u);
   ASSERT_EQ(rr.name(), storage_->string_pool().GetId("test"));

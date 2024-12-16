@@ -80,6 +80,15 @@ static constexpr auto kAndroidDeviceStateBlueprint =
                            tracks::DimensionBlueprints(),
                            tracks::StaticNameBlueprint("DeviceStateChanged"));
 
+static constexpr auto kAndroidLmkBlueprint = tracks::SliceBlueprint(
+    "android_lmk",
+    tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint),
+    tracks::StaticNameBlueprint("LMK"));
+
+static constexpr auto kChromeProcessInstantBlueprint = tracks::SliceBlueprint(
+    "chrome_process_instant",
+    tracks::Dimensions(tracks::kProcessDimensionBlueprint));
+
 // End slice blueprints.
 
 // Begin counter blueprints.
