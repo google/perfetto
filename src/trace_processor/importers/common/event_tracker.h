@@ -83,12 +83,6 @@ class EventTracker {
   // storage.
   void FlushPendingEvents();
 
-  // For SchedEventTracker.
-  int64_t max_timestamp() const { return max_timestamp_; }
-  void UpdateMaxTimestamp(int64_t ts) {
-    max_timestamp_ = std::max(ts, max_timestamp_);
-  }
-
  private:
   // Represents a counter event which is currently pending upid resolution.
   struct PendingUpidResolutionCounter {
@@ -99,10 +93,6 @@ class EventTracker {
 
   // Store the rows in the counters table which need upids resolved.
   std::vector<PendingUpidResolutionCounter> pending_upid_resolution_counter_;
-
-  // Timestamp of the previous event. Used to discard events arriving out
-  // of order.
-  int64_t max_timestamp_ = 0;
 
   TraceProcessorContext* const context_;
 };
