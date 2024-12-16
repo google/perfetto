@@ -13,17 +13,17 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Gate} from '../base/mithril_utils';
-import {EmptyState} from '../widgets/empty_state';
-import {raf} from '../core/raf_scheduler';
-import {DetailsShell} from '../widgets/details_shell';
-import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
-import {Section} from '../widgets/section';
-import {Tree, TreeNode} from '../widgets/tree';
-import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
-import {MenuItem, PopupMenu2} from '../widgets/menu';
-import {Button} from '../widgets/button';
-import {CollapsiblePanel} from '../components/widgets/collapsible_panel';
+import {Gate} from '../../base/mithril_utils';
+import {CollapsiblePanel} from '../../components/widgets/collapsible_panel';
+import {raf} from '../../core/raf_scheduler';
+import {TraceImpl, TraceImplAttrs} from '../../core/trace_impl';
+import {Button} from '../../widgets/button';
+import {DetailsShell} from '../../widgets/details_shell';
+import {EmptyState} from '../../widgets/empty_state';
+import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
+import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {Section} from '../../widgets/section';
+import {Tree, TreeNode} from '../../widgets/tree';
 
 export type TabPanelAttrs = TraceImplAttrs;
 

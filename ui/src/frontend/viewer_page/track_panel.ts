@@ -13,26 +13,26 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {canvasClip, canvasSave} from '../base/canvas_utils';
-import {classNames} from '../base/classnames';
-import {Bounds2D, Size2D, VerticalBounds} from '../base/geom';
-import {Icons} from '../base/semantic_icons';
-import {TimeScale} from '../base/time_scale';
-import {RequiredField} from '../base/utils';
-import {calculateResolution} from '../common/resolution';
-import {featureFlags} from '../core/feature_flags';
-import {TrackRenderer} from '../core/track_manager';
-import {TrackDescriptor, TrackRenderContext} from '../public/track';
-import {TrackNode} from '../public/workspace';
-import {Button} from '../widgets/button';
-import {Popup, PopupPosition} from '../widgets/popup';
-import {Tree, TreeNode} from '../widgets/tree';
-import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
+import {canvasClip, canvasSave} from '../../base/canvas_utils';
+import {classNames} from '../../base/classnames';
+import {Bounds2D, Size2D, VerticalBounds} from '../../base/geom';
+import {Icons} from '../../base/semantic_icons';
+import {TimeScale} from '../../base/time_scale';
+import {RequiredField} from '../../base/utils';
+import {featureFlags} from '../../core/feature_flags';
+import {raf} from '../../core/raf_scheduler';
+import {TraceImpl} from '../../core/trace_impl';
+import {TrackRenderer} from '../../core/track_manager';
+import {TrackDescriptor, TrackRenderContext} from '../../public/track';
+import {TrackNode} from '../../public/workspace';
+import {Button} from '../../widgets/button';
+import {Intent} from '../../widgets/common';
+import {Popup, PopupPosition} from '../../widgets/popup';
+import {TrackWidget} from '../../widgets/track_widget';
+import {Tree, TreeNode} from '../../widgets/tree';
+import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from '../css_constants';
 import {Panel} from './panel_container';
-import {TrackWidget} from '../widgets/track_widget';
-import {raf} from '../core/raf_scheduler';
-import {Intent} from '../widgets/common';
-import {TraceImpl} from '../core/trace_impl';
+import {calculateResolution} from './resolution';
 
 const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
   id: 'showTrackDetailsButton',

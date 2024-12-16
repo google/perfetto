@@ -13,22 +13,22 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {time, Time} from '../base/time';
-import {timestampFormat} from '../core/timestamp_format';
+import {canvasClip} from '../../base/canvas_utils';
+import {Size2D} from '../../base/geom';
+import {assertUnreachable} from '../../base/logging';
+import {time, Time} from '../../base/time';
+import {TimeScale} from '../../base/time_scale';
+import {formatDuration} from '../../components/time_utils';
+import {timestampFormat} from '../../core/timestamp_format';
+import {TraceImpl} from '../../core/trace_impl';
+import {TimestampFormat} from '../../public/timeline';
 import {
   BACKGROUND_COLOR,
   FOREGROUND_COLOR,
   TRACK_SHELL_WIDTH,
-} from './css_constants';
-import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
-import {Size2D} from '../base/geom';
+} from '../css_constants';
+import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {Panel} from './panel_container';
-import {canvasClip} from '../base/canvas_utils';
-import {TimeScale} from '../base/time_scale';
-import {TraceImpl} from '../core/trace_impl';
-import {formatDuration} from '../components/time_utils';
-import {TimestampFormat} from '../public/timeline';
-import {assertUnreachable} from '../base/logging';
 
 export interface BBox {
   x: number;

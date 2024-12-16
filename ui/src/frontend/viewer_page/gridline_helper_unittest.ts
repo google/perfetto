@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time, TimeSpan} from '../base/time';
+import {Time, TimeSpan} from '../../base/time';
 import {getPattern, generateTicks, TickType} from './gridline_helper';
 
 test('gridline helper to have sensible step sizes', () => {

@@ -13,22 +13,22 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Time, time, toISODateOnly} from '../base/time';
-import {timestampFormat} from '../core/timestamp_format';
-import {TRACK_SHELL_WIDTH} from './css_constants';
+import {canvasClip} from '../../base/canvas_utils';
+import {Size2D} from '../../base/geom';
+import {assertUnreachable} from '../../base/logging';
+import {Time, time, toISODateOnly} from '../../base/time';
+import {TimeScale} from '../../base/time_scale';
+import {timestampFormat} from '../../core/timestamp_format';
+import {TimestampFormat} from '../../public/timeline';
+import {Trace} from '../../public/trace';
+import {TRACK_SHELL_WIDTH} from '../css_constants';
 import {
+  generateTicks,
   getMaxMajorTicks,
   MIN_PX_PER_STEP,
-  generateTicks,
   TickType,
 } from './gridline_helper';
-import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
-import {TimeScale} from '../base/time_scale';
-import {canvasClip} from '../base/canvas_utils';
-import {Trace} from '../public/trace';
-import {assertUnreachable} from '../base/logging';
-import {TimestampFormat} from '../public/timeline';
 
 export class TimeAxisPanel implements Panel {
   readonly kind = 'panel';

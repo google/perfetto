@@ -13,24 +13,24 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {findRef, toHTMLElement} from '../base/dom_utils';
-import {assertExists, assertFalse} from '../base/logging';
+import {canvasClip} from '../../base/canvas_utils';
+import {DisposableStack} from '../../base/disposable_stack';
+import {findRef, toHTMLElement} from '../../base/dom_utils';
+import {Bounds2D, Size2D, VerticalBounds} from '../../base/geom';
+import {assertExists, assertFalse} from '../../base/logging';
+import {SimpleResizeObserver} from '../../base/resize_observer';
+import {TimeScale} from '../../base/time_scale';
+import {VirtualCanvas} from '../../base/virtual_canvas';
 import {
   PerfStats,
   PerfStatsContainer,
   runningStatStr,
-} from '../core/perf_stats';
-import {raf} from '../core/raf_scheduler';
-import {SimpleResizeObserver} from '../base/resize_observer';
-import {canvasClip} from '../base/canvas_utils';
-import {SELECTION_STROKE_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
-import {Bounds2D, Size2D, VerticalBounds} from '../base/geom';
-import {VirtualCanvas} from '../base/virtual_canvas';
-import {DisposableStack} from '../base/disposable_stack';
-import {TimeScale} from '../base/time_scale';
-import {TrackNode} from '../public/workspace';
-import {HTMLAttrs} from '../widgets/common';
-import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
+} from '../../core/perf_stats';
+import {raf} from '../../core/raf_scheduler';
+import {TraceImpl, TraceImplAttrs} from '../../core/trace_impl';
+import {TrackNode} from '../../public/workspace';
+import {HTMLAttrs} from '../../widgets/common';
+import {SELECTION_STROKE_COLOR, TRACK_SHELL_WIDTH} from '../css_constants';
 
 const CANVAS_OVERDRAW_PX = 300;
 const CANVAS_TOLERANCE_PX = 100;
