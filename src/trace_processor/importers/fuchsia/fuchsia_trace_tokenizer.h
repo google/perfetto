@@ -76,36 +76,8 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
     uint64_t ticks_per_second = 1000000000;
   };
 
-  // Tracks the state for updating sched slice and thread state tables.
-  struct Thread {
-    explicit Thread(uint64_t tid) : info{0, tid} {}
-
-    FuchsiaThreadInfo info;
-    int64_t last_ts{0};
-    std::optional<tables::SchedSliceTable::RowNumber> last_slice_row;
-    std::optional<tables::ThreadStateTable::RowNumber> last_state_row;
-  };
-
-  void SwitchFrom(Thread* thread,
-                  int64_t ts,
-                  uint32_t cpu,
-                  uint32_t thread_state);
-  void SwitchTo(Thread* thread, int64_t ts, uint32_t cpu, int32_t weight);
-  void Wake(Thread* thread, int64_t ts, uint32_t cpu);
-
-  // Allocates or returns an existing Thread instance for the given tid.
-  Thread& GetThread(uint64_t tid) {
-    auto search = threads_.find(tid);
-    if (search != threads_.end()) {
-      return search->second;
-    }
-    auto result = threads_.emplace(tid, tid);
-    return result.first->second;
-  }
-
   void ParseRecord(TraceBlobView);
   void RegisterProvider(uint32_t, std::string);
-  StringId IdForOutgoingThreadState(uint32_t state);
 
   TraceProcessorContext* const context_;
   std::vector<uint8_t> leftover_bytes_;
@@ -118,24 +90,8 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
   std::unordered_map<uint32_t, std::unique_ptr<ProviderInfo>> providers_;
   ProviderInfo* current_provider_;
 
-  // Interned string ids for the relevant thread states.
-  StringId running_string_id_;
-  StringId runnable_string_id_;
-  StringId preempted_string_id_;
-  StringId waking_string_id_;
-  StringId blocked_string_id_;
-  StringId suspended_string_id_;
-  StringId exit_dying_string_id_;
-  StringId exit_dead_string_id_;
-
   // Interned string ids for record arguments.
-  StringId incoming_weight_id_;
-  StringId outgoing_weight_id_;
-  StringId weight_id_;
   StringId process_id_;
-
-  // Map from tid to Thread.
-  std::unordered_map<uint64_t, Thread> threads_;
 };
 
 }  // namespace perfetto::trace_processor
