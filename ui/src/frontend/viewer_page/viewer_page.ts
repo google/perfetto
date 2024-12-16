@@ -14,18 +14,21 @@
 
 import {hex} from 'color-convert';
 import m from 'mithril';
-import {removeFalsyValues} from '../base/array_utils';
-import {canvasClip, canvasSave} from '../base/canvas_utils';
-import {findRef, toHTMLElement} from '../base/dom_utils';
-import {Size2D, VerticalBounds} from '../base/geom';
-import {assertExists} from '../base/logging';
-import {clamp} from '../base/math_utils';
-import {Time, TimeSpan} from '../base/time';
-import {TimeScale} from '../base/time_scale';
-import {featureFlags} from '../core/feature_flags';
-import {raf} from '../core/raf_scheduler';
-import {TrackNode} from '../public/workspace';
-import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
+import {removeFalsyValues} from '../../base/array_utils';
+import {canvasClip, canvasSave} from '../../base/canvas_utils';
+import {findRef, toHTMLElement} from '../../base/dom_utils';
+import {Size2D, VerticalBounds} from '../../base/geom';
+import {assertExists} from '../../base/logging';
+import {clamp} from '../../base/math_utils';
+import {Time, TimeSpan} from '../../base/time';
+import {TimeScale} from '../../base/time_scale';
+import {AppImpl} from '../../core/app_impl';
+import {featureFlags} from '../../core/feature_flags';
+import {PageWithTraceImplAttrs} from '../../core/page_manager';
+import {raf} from '../../core/raf_scheduler';
+import {TraceImpl} from '../../core/trace_impl';
+import {TrackNode} from '../../public/workspace';
+import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from '../css_constants';
 import {renderFlows} from './flow_events_renderer';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {NotesPanel} from './notes_panel';
@@ -42,9 +45,6 @@ import {TimeAxisPanel} from './time_axis_panel';
 import {TimeSelectionPanel} from './time_selection_panel';
 import {TrackPanel} from './track_panel';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
-import {TraceImpl} from '../core/trace_impl';
-import {PageWithTraceImplAttrs} from '../core/page_manager';
-import {AppImpl} from '../core/app_impl';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',

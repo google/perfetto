@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AsyncLimiter} from '../base/async_limiter';
-import {AsyncDisposableStack} from '../base/disposable_stack';
-import {Size2D} from '../base/geom';
-import {Duration, Time, TimeSpan, duration, time} from '../base/time';
-import {TimeScale} from '../base/time_scale';
-import {calculateResolution} from '../common/resolution';
-import {TraceImpl} from '../core/trace_impl';
-import {LONG, NUM} from '../trace_processor/query_result';
-import {escapeSearchQuery} from '../trace_processor/query_utils';
-import {createVirtualTable} from '../trace_processor/sql_utils';
+import {AsyncLimiter} from '../../base/async_limiter';
+import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {Size2D} from '../../base/geom';
+import {Duration, Time, TimeSpan, duration, time} from '../../base/time';
+import {TimeScale} from '../../base/time_scale';
+import {TraceImpl} from '../../core/trace_impl';
+import {LONG, NUM} from '../../trace_processor/query_result';
+import {escapeSearchQuery} from '../../trace_processor/query_utils';
+import {createVirtualTable} from '../../trace_processor/sql_utils';
+import {calculateResolution} from './resolution';
 
 interface SearchSummary {
   tsStarts: BigInt64Array;

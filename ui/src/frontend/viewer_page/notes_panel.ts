@@ -13,23 +13,19 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {currentTargetOffset} from '../base/dom_utils';
-import {Icons} from '../base/semantic_icons';
-import {randomColor} from '../components/colorizer';
-import {SpanNote, Note} from '../public/note';
-import {raf} from '../core/raf_scheduler';
-import {Button, ButtonBar} from '../widgets/button';
-import {TRACK_SHELL_WIDTH} from './css_constants';
-import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
-import {Size2D} from '../base/geom';
+import {canvasClip} from '../../base/canvas_utils';
+import {currentTargetOffset} from '../../base/dom_utils';
+import {Size2D} from '../../base/geom';
+import {assertUnreachable} from '../../base/logging';
+import {TimeScale} from '../../base/time_scale';
+import {randomColor} from '../../components/colorizer';
+import {raf} from '../../core/raf_scheduler';
+import {TraceImpl} from '../../core/trace_impl';
+import {Note, SpanNote} from '../../public/note';
+import {Button, ButtonBar} from '../../widgets/button';
+import {TRACK_SHELL_WIDTH} from '../css_constants';
+import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {Panel} from './panel_container';
-import {Timestamp} from '../components/widgets/timestamp';
-import {assertUnreachable} from '../base/logging';
-import {DetailsPanel} from '../public/details_panel';
-import {TimeScale} from '../base/time_scale';
-import {canvasClip} from '../base/canvas_utils';
-import {Selection} from '../public/selection';
-import {TraceImpl} from '../core/trace_impl';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -367,67 +363,5 @@ export class NotesPanel implements Panel {
       const width = FLAG_WIDTH;
       return noteX <= x && x < noteX + width;
     }
-  }
-}
-
-export class NotesEditorTab implements DetailsPanel {
-  constructor(private trace: TraceImpl) {}
-
-  render(selection: Selection) {
-    if (selection.kind !== 'note') {
-      return undefined;
-    }
-
-    const id = selection.id;
-
-    const note = this.trace.notes.getNote(id);
-    if (note === undefined) {
-      return m('.', `No Note with id ${id}`);
-    }
-    const startTime = getStartTimestamp(note);
-    return m(
-      '.notes-editor-panel',
-      {
-        key: id, // Every note shoul get its own brand new DOM.
-      },
-      m(
-        '.notes-editor-panel-heading-bar',
-        m(
-          '.notes-editor-panel-heading',
-          `Annotation at `,
-          m(Timestamp, {ts: startTime}),
-        ),
-        m('input[type=text]', {
-          oncreate: (v: m.VnodeDOM) => {
-            // NOTE: due to bad design decisions elsewhere this component is
-            // rendered every time the mouse moves on the canvas. We cannot set
-            // `value: note.text` as an input as that will clobber the input
-            // value as we move the mouse.
-            const inputElement = v.dom as HTMLInputElement;
-            inputElement.value = note.text;
-          },
-          onchange: (e: InputEvent) => {
-            const newText = (e.target as HTMLInputElement).value;
-            this.trace.notes.changeNote(id, {text: newText});
-          },
-        }),
-        m(
-          'span.color-change',
-          `Change color: `,
-          m('input[type=color]', {
-            value: note.color,
-            onchange: (e: Event) => {
-              const newColor = (e.target as HTMLInputElement).value;
-              this.trace.notes.changeNote(id, {color: newColor});
-            },
-          }),
-        ),
-        m(Button, {
-          label: 'Remove',
-          icon: Icons.Delete,
-          onclick: () => this.trace.notes.removeNote(id),
-        }),
-      ),
-    );
   }
 }

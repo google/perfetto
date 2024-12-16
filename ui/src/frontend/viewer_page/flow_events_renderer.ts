@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ArrowHeadStyle, drawBezierArrow} from '../base/canvas/bezier_arrow';
-import {Size2D, Point2D, HorizontalBounds} from '../base/geom';
-import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
-import {Flow} from '../core/flow_types';
+import {ArrowHeadStyle, drawBezierArrow} from '../../base/canvas/bezier_arrow';
+import {HorizontalBounds, Point2D, Size2D} from '../../base/geom';
+import {TimeScale} from '../../base/time_scale';
+import {Flow} from '../../core/flow_types';
+import {TraceImpl} from '../../core/trace_impl';
+import {TrackNode} from '../../public/workspace';
+import {ALL_CATEGORIES, getFlowCategories} from '../flow_events_panel';
 import {RenderedPanelInfo} from './panel_container';
-import {TimeScale} from '../base/time_scale';
-import {TrackNode} from '../public/workspace';
-import {TraceImpl} from '../core/trace_impl';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;
