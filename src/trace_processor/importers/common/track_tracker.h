@@ -236,11 +236,6 @@ class TrackTracker {
     return DimensionsBuilder(this);
   }
 
-  // Interns a process track into the storage.
-  TrackId InternProcessTrack(tracks::TrackClassification,
-                             UniquePid,
-                             const TrackName& = AutoName());
-
   // Everything below this point are legacy functions and should no longer be
   // used.
 
@@ -276,8 +271,6 @@ class TrackTracker {
   TrackId CreateTrack(tracks::TrackClassification,
                       std::optional<Dimensions>,
                       const TrackName&);
-
-  TrackId CreateThreadTrack(tracks::TrackClassification, UniqueTid);
 
   TrackId CreateProcessTrack(tracks::TrackClassification,
                              UniquePid,

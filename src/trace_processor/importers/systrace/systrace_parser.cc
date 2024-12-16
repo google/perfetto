@@ -298,8 +298,8 @@ void SystraceParser::ParseSystracePoint(
         if (killed_pid != 0) {
           UniquePid killed_upid =
               context_->process_tracker->GetOrCreateProcess(killed_pid);
-          TrackId track = context_->track_tracker->InternProcessTrack(
-              tracks::android_lmk, killed_upid);
+          TrackId track = context_->track_tracker->InternTrack(
+              tracks::kAndroidLmkBlueprint, tracks::Dimensions(killed_upid));
           context_->slice_tracker->Scoped(ts, track, kNullStringId, lmk_id_, 0);
         }
         // TODO(lalitm): we should not add LMK events to the counters table
@@ -367,8 +367,8 @@ void SystraceParser::PostProcessSpecialSliceBegin(int64_t ts,
     context_->event_tracker->PushCounter(ts, *oom_score_adj, counter_track);
 
     // Add mem.lmk instant event for consistency with other methods.
-    TrackId track = context_->track_tracker->InternProcessTrack(
-        tracks::android_lmk, killed_upid);
+    TrackId track = context_->track_tracker->InternTrack(
+        tracks::kAndroidLmkBlueprint, tracks::Dimensions(killed_upid));
     context_->slice_tracker->Scoped(ts, track, kNullStringId, lmk_id_, 0);
   }
 }

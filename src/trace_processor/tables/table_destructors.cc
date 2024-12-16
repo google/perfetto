@@ -113,7 +113,6 @@ AndroidNetworkPacketsTable::~AndroidNetworkPacketsTable() = default;
 
 // track_tables_py.h
 TrackTable::~TrackTable() = default;
-ProcessTrackTable::~ProcessTrackTable() = default;
 
 // trace_proto_tables_py.h
 ExperimentalProtoPathTable::~ExperimentalProtoPathTable() = default;

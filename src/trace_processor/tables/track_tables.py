@@ -45,26 +45,7 @@ TRACK_TABLE = Table(
         C("upid", CppOptional(CppTableId(PROCESS_TABLE))),
     ])
 
-PROCESS_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name="ProcessTrackTable",
-    sql_name="process_track",
-    columns=[],
-    parent=TRACK_TABLE,
-    tabledoc=TableDoc(
-        doc='''
-          Tracks which are associated to the process given by the |upid| column
-        ''',
-        group='Tracks',
-        columns={
-            'upid':
-                ColumnDoc(
-                    doc='The process associated with this track.',
-                    joinable='process.upid'),
-        }))
-
 # Keep this list sorted.
 ALL_TABLES = [
-    PROCESS_TRACK_TABLE,
     TRACK_TABLE,
 ]
