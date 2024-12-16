@@ -54,7 +54,7 @@ constexpr auto kVblankBlueprint = tracks::SliceBlueprint(
     "drm_vblank",
     tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("drm_crtc")),
     tracks::FnNameBlueprint([](uint32_t crtc) {
-      return base::StackString<256>("vblank-%d", crtc);
+      return base::StackString<256>("vblank-%u", crtc);
     }));
 
 constexpr auto kSchedRingBlueprint = tracks::SliceBlueprint(

@@ -193,7 +193,7 @@ struct Struct : public SqliteFunction<Struct> {
     }
     if (argc / 2 > perfetto_sql::Struct::kMaxFields) {
       return sqlite::utils::SetError(
-          ctx, base::ErrStatus("STRUCT: only at most %d fields are supported",
+          ctx, base::ErrStatus("STRUCT: only at most %u fields are supported",
                                perfetto_sql::Struct::kMaxFields));
     }
 

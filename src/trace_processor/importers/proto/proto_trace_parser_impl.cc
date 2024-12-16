@@ -329,7 +329,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       if (eid < metatrace::EVENTS_MAX) {
         name_id = context_->storage->InternString(metatrace::kEventNames[eid]);
       } else {
-        base::StackString<64> fallback("Event %d", eid);
+        base::StackString<64> fallback("Event %u", eid);
         name_id = context_->storage->InternString(fallback.string_view());
       }
     } else if (event.has_event_name_iid()) {
@@ -356,7 +356,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
         name_id =
             context_->storage->InternString(metatrace::kCounterNames[cid]);
       } else {
-        base::StackString<64> fallback("Counter %d", cid);
+        base::StackString<64> fallback("Counter %u", cid);
         name_id = context_->storage->InternString(fallback.string_view());
       }
       track = context_->track_tracker->InternTrack(

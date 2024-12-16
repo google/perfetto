@@ -474,8 +474,8 @@ void StressTestMain(int argc, char** argv) {
     printf("===============================================================\n");
     printf("%-20s %-10s %-10s\n", "Metric", "Expected", "Actual");
     printf("%-20s %-10s %-10s\n", "------", "--------", "------");
-    printf("%-20s %-10d %-10d\n", "#Errors", 0, tres.num_errors);
-    printf("%-20s %-10d %-10d \n", "Duration [ms]",
+    printf("%-20s %-10d %-10u\n", "#Errors", 0, tres.num_errors);
+    printf("%-20s %-10u %-10u \n", "Duration [ms]",
            cfg.trace_config().duration_ms(), tres.run_time_ms);
 
     uint32_t exp_threads = cfg.num_processes() * cfg.num_threads();
@@ -491,28 +491,28 @@ void StressTestMain(int argc, char** argv) {
     if (cfg.max_events())
       exp_per_thread = std::min(exp_per_thread, 1.0 * cfg.max_events());
     double exp_packets = std::round(exp_per_thread * exp_threads);
-    printf("%-20s %-10.0f %-10d\n", "Num packets", exp_packets,
+    printf("%-20s %-10.0f %-10u\n", "Num packets", exp_packets,
            tres.num_packets);
 
     double exp_size_kb = exp_packets * (cfg.nesting() + 1) *
                          (cfg.steady_state_timings().payload_mean() + 40) /
                          1000;
-    printf("%-20s ~%-9.0f %-10d\n", "Trace size [KB]", exp_size_kb,
+    printf("%-20s ~%-9.0f %-10u\n", "Trace size [KB]", exp_size_kb,
            tres.trace_size_kb);
 
     double exp_rss_mb = cfg.trace_config().buffers()[0].size_kb() / 1000;
-    printf("%-20s (max) %-4.0f %-10d\n", "Svc RSS [MB]", exp_rss_mb,
+    printf("%-20s (max) %-4.0f %-10u\n", "Svc RSS [MB]", exp_rss_mb,
            tres.svc_rusage.max_rss_kb / 1000);
-    printf("%-20s %-10s %-10d\n", "Svc CPU [ms]", "---",
+    printf("%-20s %-10s %-10u\n", "Svc CPU [ms]", "---",
            tres.svc_rusage.cpu_time_ms());
-    printf("%-20s %-10s %d / %d\n", "Svc #ctxswitch", "---",
+    printf("%-20s %-10s %u / %u\n", "Svc #ctxswitch", "---",
            tres.svc_rusage.invol_ctx_switch, tres.svc_rusage.vol_ctx_switch);
 
-    printf("%-20s %-10s %-10d\n", "Prod RSS [MB]", "---",
+    printf("%-20s %-10s %-10u\n", "Prod RSS [MB]", "---",
            tres.prod_rusage.max_rss_kb / 1000);
-    printf("%-20s %-10s %-10d\n", "Prod CPU [ms]", "---",
+    printf("%-20s %-10s %-10u\n", "Prod CPU [ms]", "---",
            tres.prod_rusage.cpu_time_ms());
-    printf("%-20s %-10s %d / %d\n", "Prod #ctxswitch", "---",
+    printf("%-20s %-10s %u / %u\n", "Prod #ctxswitch", "---",
            tres.prod_rusage.invol_ctx_switch, tres.prod_rusage.vol_ctx_switch);
     printf("\n");
   }

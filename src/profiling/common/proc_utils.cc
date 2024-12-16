@@ -77,9 +77,8 @@ void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids) {
       rss_and_swap = GetRssAnonAndSwap(*status);
 
     if (rss_and_swap && rss_and_swap < min_size_kb) {
-      PERFETTO_LOG("Removing pid %d from profiled set (anon: %d kB < %" PRIu32
-                   ")",
-                   pid, *rss_and_swap, min_size_kb);
+      PERFETTO_LOG("Removing pid %d from profiled set (anon: %u kB < %u)", pid,
+                   *rss_and_swap, min_size_kb);
       it = pids->erase(it);
     } else {
       ++it;
