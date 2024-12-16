@@ -14,14 +14,15 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
+import {DisposableStack} from '../base/disposable_stack';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Bounds2D, Point2D, Vector2D} from '../base/geom';
+import {clamp} from '../base/math_utils';
 import {Icons} from '../base/semantic_icons';
 import {ButtonBar} from './button';
 import {Chip, ChipBar} from './chip';
 import {Icon} from './icon';
 import {MiddleEllipsis} from './middle_ellipsis';
-import {clamp} from '../base/math_utils';
 
 /**
  * The TrackWidget defines the look and style of a track.
@@ -109,8 +110,9 @@ export interface TrackComponentAttrs {
 
 const TRACK_HEIGHT_MIN_PX = 18;
 const INDENTATION_LEVEL_MAX = 16;
-
 export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
+  private readonly trash = new DisposableStack();
+
   view({attrs}: m.CVnode<TrackComponentAttrs>) {
     const {
       indentationLevel = 0,
@@ -147,32 +149,31 @@ export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
   }
 
   oncreate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
-    this.onupdate(vnode);
-
     if (vnode.attrs.revealOnCreate) {
       vnode.dom.scrollIntoView({behavior: 'smooth', block: 'nearest'});
     }
-  }
 
-  onupdate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
-    this.decidePopupRequired(vnode.dom);
-  }
-
-  // Works out whether to display a title popup on hover, based on whether the
-  // current title is truncated.
-  private decidePopupRequired(dom: Element) {
-    const popupTitleElement = dom.querySelector(
-      '.pf-track-title-popup',
-    ) as HTMLElement;
-    const truncatedTitleElement = dom.querySelector(
+    const popupTitleElement = vnode.dom.querySelector('.pf-track-title-popup')!;
+    const truncatedTitleElement = vnode.dom.querySelector(
       '.pf-middle-ellipsis',
-    ) as HTMLElement;
+    )!;
 
-    if (popupTitleElement.clientWidth > truncatedTitleElement.clientWidth) {
-      popupTitleElement.classList.add('pf-visible');
-    } else {
-      popupTitleElement.classList.remove('pf-visible');
-    }
+    const resizeObserver = new ResizeObserver(() => {
+      // Work out whether to display a title popup on hover, based on whether
+      // the current title is ellipsized.
+      if (popupTitleElement.clientWidth > truncatedTitleElement.clientWidth) {
+        popupTitleElement.classList.add('pf-visible');
+      } else {
+        popupTitleElement.classList.remove('pf-visible');
+      }
+    });
+    resizeObserver.observe(truncatedTitleElement);
+    resizeObserver.observe(popupTitleElement);
+    this.trash.defer(() => resizeObserver.disconnect());
+  }
+
+  onremove() {
+    this.trash.dispose();
   }
 
   private renderShell(attrs: TrackComponentAttrs): m.Children {
