@@ -62,50 +62,16 @@ async function getUtidAndUpid(
   engine: Engine,
   sqlTrackId: number,
 ): Promise<{utid?: Utid; upid?: Upid}> {
-  const columnInfo = (
+  const {upid, utid} = (
     await engine.query(`
-    WITH
-       leafTrackTable AS (SELECT type FROM track WHERE id = ${sqlTrackId}),
-       cols AS (
-            SELECT name
-            FROM pragma_table_info((SELECT type FROM leafTrackTable))
-        )
-    SELECT
-       type as leafTrackTable,
-      'upid' in cols AS hasUpid,
-      'utid' in cols AS hasUtid
-    FROM leafTrackTable
-  `)
-  ).firstRow({hasUpid: NUM, hasUtid: NUM, leafTrackTable: STR});
-  const hasUpid = columnInfo.hasUpid !== 0;
-  const hasUtid = columnInfo.hasUtid !== 0;
-
-  const result: {utid?: Utid; upid?: Upid} = {};
-
-  if (hasUtid) {
-    const utid = (
-      await engine.query(`
-        SELECT utid
-        FROM ${columnInfo.leafTrackTable}
-        WHERE id = ${sqlTrackId};
+      SELECT
+        extract_arg(dimension_arg_set_id, 'upid') as upid,
+        extract_arg(dimension_arg_set_id, 'utid') as utid
+      FROM track
+      WHERE id = ${sqlTrackId}
     `)
-    ).firstRow({
-      utid: NUM,
-    }).utid;
-    result.utid = asUtid(utid);
-  } else if (hasUpid) {
-    const upid = (
-      await engine.query(`
-        SELECT upid
-        FROM ${columnInfo.leafTrackTable}
-        WHERE id = ${sqlTrackId};
-    `)
-    ).firstRow({
-      upid: NUM,
-    }).upid;
-    result.upid = asUpid(upid);
-  }
-  return result;
+  ).firstRow({upid: NUM_NULL, utid: NUM_NULL});
+  return {upid: asUpid(upid ?? undefined), utid: asUtid(utid ?? undefined)};
 }
 
 export async function getSliceFromConstraints(
