@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/frame_timeline_event_parser.h"
 
 #include <cinttypes>
+#include <cstdlib>
 
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"
