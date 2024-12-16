@@ -204,6 +204,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     if (enable_perfetto_etm_importer) {
       deps += [
         "importers/etm",
+        "importers/etm:file_tracker",
         "perfetto_sql/intrinsics/operators:etm",
       ]
     }

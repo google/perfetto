@@ -89,6 +89,7 @@ namespace etm {
 // this class would look like:
 //
 // A3, B3, B1, C3, C2, C1, D2, D1, E2, F4, F2, G4
+
 class VirtualAddressSpace {
  public:
   VirtualAddressSpace() {}
