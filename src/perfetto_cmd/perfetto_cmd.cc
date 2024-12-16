@@ -1043,7 +1043,7 @@ void PerfettoCmd::OnConnect() {
   }
 
   if (expected_duration_ms_) {
-    PERFETTO_LOG("Connected to the Perfetto traced service, TTL: %ds",
+    PERFETTO_LOG("Connected to the Perfetto traced service, TTL: %us",
                  (expected_duration_ms_ + 999) / 1000);
   } else {
     PERFETTO_LOG("Connected to the Perfetto traced service, starting tracing");

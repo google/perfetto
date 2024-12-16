@@ -2188,7 +2188,7 @@ void FtraceParser::ParseSysEnterEvent(int64_t timestamp,
     uint32_t count = 0;
     for (auto it = evt.args(); it; ++it) {
       if (syscall_arg_name_ids_.size() == count) {
-        base::StackString<32> string_arg("args[%" PRId32 "]", count);
+        base::StackString<32> string_arg("args[%u]", count);
         auto string_id =
             context_->storage->InternString(string_arg.string_view());
         syscall_arg_name_ids_.emplace_back(string_id);
@@ -3428,7 +3428,7 @@ void FtraceParser::ParseUfshcdCommand(int64_t timestamp,
       "ufs_command_tag",
       tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("ufs_tag")),
       tracks::FnNameBlueprint([](uint32_t tag) {
-        return base::StackString<32>("io.ufs.command.tag[%03d]", tag);
+        return base::StackString<32>("io.ufs.command.tag[%03u]", tag);
       }));
 
   // Parse ufs command tag
@@ -3510,7 +3510,7 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
   // processor.
   auto val = (action_name == "timekeeping_freeze") ? 0 : evt.val();
 
-  base::StackString<64> str("%s(%" PRIu32 ")", action_name.c_str(), val);
+  base::StackString<64> str("%s(%d)", action_name.c_str(), val);
   std::string current_action = str.ToStdString();
 
   StringId slice_name_id = context_->storage->InternString(str.string_view());

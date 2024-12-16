@@ -89,7 +89,7 @@ void VirtioVideoTracker::ParseVirtioVideoEvent(uint64_t fld_id,
       uint64_t hash = base::Hasher::Combine(
           pb_evt.stream_id(), pb_evt.resource_id(), pb_evt.queue_type());
 
-      base::StackString<64> name("Resource #%" PRIu32, pb_evt.resource_id());
+      base::StackString<64> name("Resource #%d", pb_evt.resource_id());
       StringId name_id = context_->storage->InternString(name.string_view());
 
       TrackSetId track_set_id =
@@ -178,8 +178,8 @@ void VirtioVideoTracker::AddCommandSlice(int64_t timestamp,
 
   const char* suffix = response ? "Responses" : "Requests";
 
-  base::StackString<64> track_name("virtio_video stream #%" PRId32 " %s",
-                                   stream_id, suffix);
+  base::StackString<64> track_name("virtio_video stream #%u %s", stream_id,
+                                   suffix);
   StringId track_name_id =
       context_->storage->InternString(track_name.string_view());
 

@@ -68,13 +68,15 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
           break;
         }
         case 'o': {
-          base::StackString<32> param("%" PRIo64, *sint64_params_itr);
+          base::StackString<32> param(
+              "%" PRIo64, static_cast<uint64_t>(*sint64_params_itr));
           formatted_message.append(param.c_str());
           ++sint64_params_itr;
           break;
         }
         case 'x': {
-          base::StackString<32> param("%" PRIx64, *sint64_params_itr);
+          base::StackString<32> param(
+              "%" PRIx64, static_cast<uint64_t>(*sint64_params_itr));
           formatted_message.append(param.c_str());
           ++sint64_params_itr;
           break;
@@ -127,7 +129,7 @@ void ProtoLogMessageDecoder::TrackGroup(uint32_t id, const std::string& tag) {
   auto tracked_group = tracked_groups_.Find(id);
   if (tracked_group != nullptr && tracked_group->tag != tag) {
     context_->storage->IncrementStats(
-            stats::winscope_protolog_view_config_collision);
+        stats::winscope_protolog_view_config_collision);
   }
   tracked_groups_.Insert(id, TrackedGroup{tag});
 }
@@ -141,7 +143,7 @@ void ProtoLogMessageDecoder::TrackMessage(
   auto tracked_message = tracked_messages_.Find(message_id);
   if (tracked_message != nullptr && tracked_message->message != message) {
     context_->storage->IncrementStats(
-            stats::winscope_protolog_view_config_collision);
+        stats::winscope_protolog_view_config_collision);
   }
   tracked_messages_.Insert(message_id,
                            TrackedMessage{level, group_id, message, location});
