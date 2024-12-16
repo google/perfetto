@@ -22,6 +22,7 @@ source_set("minimal") {
     "../../../../include/perfetto/trace_processor:storage",
     "../../../base",
     "../../storage",
+    "../../types",
   ]
 }
 
