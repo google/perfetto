@@ -59,6 +59,8 @@ import {TrackWidget} from '../../widgets/track_widget';
 import {scheduleFullRedraw} from '../../widgets/raf';
 import {CopyableLink} from '../../widgets/copyable_link';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
+import {SplitPanel} from '../../widgets/split_panel';
+import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -1416,6 +1418,66 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           );
         },
         initialOpts: {},
+      }),
+
+      m(WidgetShowcase, {
+        label: 'SplitPanel',
+        description: `Horizontal split panel with draggable handle and controls.`,
+        renderWidget: (opts) => {
+          return m(
+            '',
+            {style: {height: '400px', width: '400px', border: 'solid 2px red'}},
+            m(
+              SplitPanel,
+              {
+                drawerContent: 'Drawer Content',
+                handleContent: Boolean(opts.handleContent) && 'Handle Content',
+              },
+              'Main Content',
+            ),
+          );
+        },
+        initialOpts: {
+          handleContent: false,
+        },
+      }),
+
+      m(WidgetShowcase, {
+        label: 'TabbedSplitPanel',
+        description: `SplitPanel + tabs.`,
+        renderWidget: (opts) => {
+          return m(
+            '',
+            {style: {height: '400px', width: '400px', border: 'solid 2px red'}},
+            m(
+              TabbedSplitPanel,
+              {
+                leftHandleContent:
+                  Boolean(opts.leftContent) &&
+                  m(Button, {icon: 'Menu', compact: true}),
+                tabs: [
+                  {
+                    key: 'foo',
+                    title: 'Foo',
+                    content: 'Foo content',
+                    hasCloseButton: opts.showCloseButtons,
+                  },
+                  {
+                    key: 'bar',
+                    title: 'Bar',
+                    content: 'Bar content',
+                    hasCloseButton: opts.showCloseButtons,
+                  },
+                ],
+              },
+              'Main Content',
+            ),
+          );
+        },
+        initialOpts: {
+          leftContent: true,
+          showCloseButtons: true,
+        },
       }),
     );
   }

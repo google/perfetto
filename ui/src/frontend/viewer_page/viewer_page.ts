@@ -292,95 +292,103 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
     const result = m(
       '.page.viewer-page',
       m(
-        '.pan-and-zoom-content',
+        TabPanel,
         {
-          ref: this.PAN_ZOOM_CONTENT_REF,
-          onclick: () => {
-            // We don't want to deselect when panning/drag selecting.
-            if (this.keepCurrentSelection) {
-              this.keepCurrentSelection = false;
-              return;
-            }
-            attrs.trace.selection.clear();
-          },
+          trace: attrs.trace,
         },
         m(
-          '.pf-timeline-header',
+          '.pan-and-zoom-content',
+          {
+            ref: this.PAN_ZOOM_CONTENT_REF,
+            onclick: () => {
+              // We don't want to deselect when panning/drag selecting.
+              if (this.keepCurrentSelection) {
+                this.keepCurrentSelection = false;
+                return;
+              }
+              attrs.trace.selection.clear();
+            },
+          },
+          m(
+            '.pf-timeline-header',
+            m(PanelContainer, {
+              trace: attrs.trace,
+              className: 'header-panel-container',
+              panels: removeFalsyValues([
+                OVERVIEW_PANEL_FLAG.get() && this.overviewTimelinePanel,
+                this.timeAxisPanel,
+                this.timeSelectionPanel,
+                this.notesPanel,
+                this.tickmarkPanel,
+              ]),
+              selectedYRange: this.getYRange('header-panel-container'),
+            }),
+            m('.scrollbar-spacer-vertical'),
+          ),
           m(PanelContainer, {
             trace: attrs.trace,
-            className: 'header-panel-container',
-            panels: removeFalsyValues([
-              OVERVIEW_PANEL_FLAG.get() && this.overviewTimelinePanel,
-              this.timeAxisPanel,
-              this.timeSelectionPanel,
-              this.notesPanel,
-              this.tickmarkPanel,
-            ]),
-            selectedYRange: this.getYRange('header-panel-container'),
+            className: 'pinned-panel-container',
+            panels: AppImpl.instance.isLoadingTrace
+              ? []
+              : attrs.trace.workspace.pinnedTracks.map((trackNode) => {
+                  if (trackNode.uri) {
+                    const tr = attrs.trace.tracks.getTrackRenderer(
+                      trackNode.uri,
+                    );
+                    return new TrackPanel({
+                      trace: attrs.trace,
+                      reorderable: true,
+                      node: trackNode,
+                      trackRenderer: tr,
+                      revealOnCreate: true,
+                      indentationLevel: 0,
+                      topOffsetPx: 0,
+                    });
+                  } else {
+                    return new TrackPanel({
+                      trace: attrs.trace,
+                      node: trackNode,
+                      revealOnCreate: true,
+                      indentationLevel: 0,
+                      topOffsetPx: 0,
+                    });
+                  }
+                }),
+            renderUnderlay: (ctx, size) =>
+              renderUnderlay(attrs.trace, ctx, size),
+            renderOverlay: (ctx, size, panels) =>
+              renderOverlay(
+                attrs.trace,
+                ctx,
+                size,
+                panels,
+                attrs.trace.workspace.pinnedTracksNode,
+              ),
+            selectedYRange: this.getYRange('pinned-panel-container'),
           }),
-          m('.scrollbar-spacer-vertical'),
+          m(PanelContainer, {
+            trace: attrs.trace,
+            className: 'scrolling-panel-container',
+            panels: AppImpl.instance.isLoadingTrace ? [] : scrollingPanels,
+            onPanelStackResize: (width) => {
+              const timelineWidth = width - TRACK_SHELL_WIDTH;
+              this.timelineWidthPx = timelineWidth;
+            },
+            renderUnderlay: (ctx, size) =>
+              renderUnderlay(attrs.trace, ctx, size),
+            renderOverlay: (ctx, size, panels) =>
+              renderOverlay(
+                attrs.trace,
+                ctx,
+                size,
+                panels,
+                attrs.trace.workspace.tracks,
+              ),
+            selectedYRange: this.getYRange('scrolling-panel-container'),
+          }),
         ),
-        m(PanelContainer, {
-          trace: attrs.trace,
-          className: 'pinned-panel-container',
-          panels: AppImpl.instance.isLoadingTrace
-            ? []
-            : attrs.trace.workspace.pinnedTracks.map((trackNode) => {
-                if (trackNode.uri) {
-                  const tr = attrs.trace.tracks.getTrackRenderer(trackNode.uri);
-                  return new TrackPanel({
-                    trace: attrs.trace,
-                    reorderable: true,
-                    node: trackNode,
-                    trackRenderer: tr,
-                    revealOnCreate: true,
-                    indentationLevel: 0,
-                    topOffsetPx: 0,
-                  });
-                } else {
-                  return new TrackPanel({
-                    trace: attrs.trace,
-                    node: trackNode,
-                    revealOnCreate: true,
-                    indentationLevel: 0,
-                    topOffsetPx: 0,
-                  });
-                }
-              }),
-          renderUnderlay: (ctx, size) => renderUnderlay(attrs.trace, ctx, size),
-          renderOverlay: (ctx, size, panels) =>
-            renderOverlay(
-              attrs.trace,
-              ctx,
-              size,
-              panels,
-              attrs.trace.workspace.pinnedTracksNode,
-            ),
-          selectedYRange: this.getYRange('pinned-panel-container'),
-        }),
-        m(PanelContainer, {
-          trace: attrs.trace,
-          className: 'scrolling-panel-container',
-          panels: AppImpl.instance.isLoadingTrace ? [] : scrollingPanels,
-          onPanelStackResize: (width) => {
-            const timelineWidth = width - TRACK_SHELL_WIDTH;
-            this.timelineWidthPx = timelineWidth;
-          },
-          renderUnderlay: (ctx, size) => renderUnderlay(attrs.trace, ctx, size),
-          renderOverlay: (ctx, size, panels) =>
-            renderOverlay(
-              attrs.trace,
-              ctx,
-              size,
-              panels,
-              attrs.trace.workspace.tracks,
-            ),
-          selectedYRange: this.getYRange('scrolling-panel-container'),
-        }),
       ),
-      m(TabPanel, {
-        trace: attrs.trace,
-      }),
+
       this.showPanningHint && m(HelpPanningNotification),
     );
 

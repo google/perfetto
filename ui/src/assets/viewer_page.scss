@@ -14,8 +14,6 @@
 
 .viewer-page {
   position: relative;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
 
   .pinned-panel-container {
@@ -37,11 +35,6 @@
     will-change: transform; // Force layer creation.
   }
 
-  .details-panel-container {
-    box-shadow: #0000003b 0px 0px 3px 1px;
-    overflow: auto;
-  }
-
   .pf-timeline-header {
     display: flex;
     flex-direction: row;
@@ -60,7 +53,7 @@
   }
 
   .pan-and-zoom-content {
-    flex: 1;
+    height: 100%;
     position: relative;
     display: flex;
     flex-flow: column nowrap;
