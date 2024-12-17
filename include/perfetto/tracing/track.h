@@ -221,9 +221,9 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
   // Usage: TRACE_EVENT_BEGIN("...", "...",
   // perfetto::NamedTrack::ThreadScoped("rendering"))
   template <class TrackEventName>
-  static Track ThreadScoped(TrackEventName name,
-                            uint64_t id = 0,
-                            Track parent = Track()) {
+  static NamedTrack ThreadScoped(TrackEventName name,
+                                 uint64_t id = 0,
+                                 Track parent = Track()) {
     if (parent.uuid == 0)
       return NamedTrack(std::forward<TrackEventName>(name), id,
                         ThreadTrack::Current());
@@ -256,6 +256,17 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
                                   Track parent = MakeProcessTrack())
       : CounterTrack(
             name,
+            0u,
+            perfetto::protos::pbzero::CounterDescriptor::UNIT_UNSPECIFIED,
+            nullptr,
+            parent) {}
+
+  constexpr explicit CounterTrack(StaticString name,
+                                  uint64_t id,
+                                  Track parent = MakeProcessTrack())
+      : CounterTrack(
+            name,
+            id,
             perfetto::protos::pbzero::CounterDescriptor::UNIT_UNSPECIFIED,
             nullptr,
             parent) {}
@@ -263,6 +274,17 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
   explicit CounterTrack(DynamicString name, Track parent = MakeProcessTrack())
       : CounterTrack(
             name,
+            0u,
+            perfetto::protos::pbzero::CounterDescriptor::UNIT_UNSPECIFIED,
+            nullptr,
+            parent) {}
+
+  explicit CounterTrack(DynamicString name,
+                        uint64_t id,
+                        Track parent = MakeProcessTrack())
+      : CounterTrack(
+            name,
+            id,
             perfetto::protos::pbzero::CounterDescriptor::UNIT_UNSPECIFIED,
             nullptr,
             parent) {}
@@ -275,6 +297,7 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
                          Track parent = MakeProcessTrack())
       : CounterTrack(
             std::forward<TrackEventName>(name),
+            0u,
             perfetto::protos::pbzero::CounterDescriptor::UNIT_UNSPECIFIED,
             unit_name,
             parent) {}
@@ -284,6 +307,7 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
                          Unit unit,
                          Track parent = MakeProcessTrack())
       : CounterTrack(std::forward<TrackEventName>(name),
+                     0u,
                      unit,
                      nullptr,
                      parent) {}
@@ -347,19 +371,22 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
 
  private:
   constexpr CounterTrack(StaticString name,
+                         uint64_t id,
                          Unit unit,
                          const char* unit_name,
                          Track parent)
-      : Track(internal::Fnv1a(name.value) ^ kCounterMagic, parent),
+      : Track(id ^ internal::Fnv1a(name.value) ^ kCounterMagic, parent),
         static_name_(name),
         category_(nullptr),
         unit_(unit),
         unit_name_(unit_name) {}
   CounterTrack(DynamicString name,
+               uint64_t id,
                Unit unit,
                const char* unit_name,
                Track parent)
-      : Track(internal::Fnv1a(name.value, name.length) ^ kCounterMagic, parent),
+      : Track(id ^ internal::Fnv1a(name.value, name.length) ^ kCounterMagic,
+              parent),
         static_name_(nullptr),
         dynamic_name_(name),
         category_(nullptr),
