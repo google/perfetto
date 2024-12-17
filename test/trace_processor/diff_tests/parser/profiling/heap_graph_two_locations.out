@@ -1,7 +1,0 @@
-"id","type","upid","graph_sample_ts","self_size","reference_set_id","reachable","type_name","deobfuscated_type_name","root_type"
-0,"heap_graph_object",2,10,64,0,1,"FactoryProducerDelegateImplActor","[NULL]","ROOT_JAVA_FRAME"
-1,"heap_graph_object",2,10,32,"[NULL]",1,"a","Foo","[NULL]"
-2,"heap_graph_object",2,10,128,"[NULL]",0,"a","Foo","[NULL]"
-3,"heap_graph_object",2,10,256,2,0,"a","DeobfuscatedA","[NULL]"
-4,"heap_graph_object",2,10,256,"[NULL]",1,"a[]","DeobfuscatedA[]","ROOT_JAVA_FRAME"
-5,"heap_graph_object",2,10,256,"[NULL]",0,"java.lang.Class<a[]>","java.lang.Class<DeobfuscatedA[]>","[NULL]"

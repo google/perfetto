@@ -662,9 +662,21 @@ class Parsing(TestSuite):
         }
         """),
         query="""
-        SELECT * FROM metadata;
+        SELECT id, name, key_type, int_value, str_value FROM metadata;
         """,
-        out=Path('chrome_metadata.out'))
+        out=Csv('''
+          "id","name","key_type","int_value","str_value"
+          0,"trace_uuid","single","[NULL]","00000000-0000-0000-7f42-b235fa358661"
+          1,"trace_time_clock_id","single",6,"[NULL]"
+          2,"cr-a-playstore_version_code","single",101,"[NULL]"
+          3,"cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
+          4,"cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
+          5,"cr-background_tracing_metadata","single","[NULL]","CgUlDsAbXx2RziSz"
+          6,"cr-scenario_name_hash","single",3005533841,"[NULL]"
+          7,"cr-triggered_rule_name_hash","single",1595654158,"[NULL]"
+          8,"trace_size_bytes","single",95,"[NULL]"
+          9,"trace_type","single","[NULL]","proto"
+        '''))
 
   def test_chrome_metadata_multiple(self):
     return DiffTestBlueprint(
@@ -713,20 +725,20 @@ class Parsing(TestSuite):
         }
         """),
         query="""
-        SELECT * FROM metadata;
+        SELECT id, name, key_type, int_value, str_value FROM metadata;
         """,
         out=Csv("""
-        "id","type","name","key_type","int_value","str_value"
-        0,"metadata","trace_uuid","single","[NULL]","00000000-0000-0000-0de8-df55233147f0"
-        1,"metadata","trace_time_clock_id","single",6,"[NULL]"
-        2,"metadata","cr-a-playstore_version_code","single",101,"[NULL]"
-        3,"metadata","cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
-        4,"metadata","cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
-        5,"metadata","cr-b-playstore_version_code","single",102,"[NULL]"
-        6,"metadata","cr-b-enabled_categories","single","[NULL]","cat3,cat4,cat5"
-        7,"metadata","cr-b-field_trial_hashes","single","[NULL]","{ name: 1234, group: 5678 } { name: 9012, group: 3456 } "
-        8,"metadata","trace_size_bytes","single",110,"[NULL]"
-        9,"metadata","trace_type","single","[NULL]","proto"
+        "id","name","key_type","int_value","str_value"
+        0,"trace_uuid","single","[NULL]","00000000-0000-0000-0de8-df55233147f0"
+        1,"trace_time_clock_id","single",6,"[NULL]"
+        2,"cr-a-playstore_version_code","single",101,"[NULL]"
+        3,"cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
+        4,"cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
+        5,"cr-b-playstore_version_code","single",102,"[NULL]"
+        6,"cr-b-enabled_categories","single","[NULL]","cat3,cat4,cat5"
+        7,"cr-b-field_trial_hashes","single","[NULL]","{ name: 1234, group: 5678 } { name: 9012, group: 3456 } "
+        8,"trace_size_bytes","single",110,"[NULL]"
+        9,"trace_type","single","[NULL]","proto"
         """))
 
   # CPU info

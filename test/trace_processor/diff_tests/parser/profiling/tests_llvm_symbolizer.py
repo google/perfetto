@@ -33,7 +33,23 @@ class ProfilingLlvmSymbolizer(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('callstack_sampling.pftrace'),
         query="""
-        SELECT ef.*
+        SELECT
+          ef.id,
+          ef.ts,
+          ef.depth,
+          ef.name,
+          ef.map_name,
+          ef.count,
+          ef.cumulative_count,
+          ef.size,
+          ef.cumulative_size,
+          alloc_count,
+          cumulative_alloc_count,
+          alloc_size,
+          cumulative_alloc_size,
+          ef.parent_id,
+          ef.source_file,
+          ef.line_number
         FROM process
         JOIN experimental_flamegraph(
           'perf',
@@ -47,17 +63,17 @@ class ProfilingLlvmSymbolizer(TestSuite):
         LIMIT 10;
         """,
         out=Csv('''
-          "id","type","ts","depth","name","map_name","count","cumulative_count","size","cumulative_size","alloc_count","cumulative_alloc_count","alloc_size","cumulative_alloc_size","parent_id","source_file","line_number"
-          0,"experimental_flamegraph",7689491063351,0,"__start_thread","/apex/com.android.runtime/lib64/bionic/libc.so",0,560,0,560,0,0,0,0,"[NULL]","[NULL]","[NULL]"
-          1,"experimental_flamegraph",7689491063351,1,"_ZL15__pthread_startPv","/apex/com.android.runtime/lib64/bionic/libc.so",0,560,0,560,0,0,0,0,0,"[NULL]","[NULL]"
-          2,"experimental_flamegraph",7689491063351,2,"_ZN3art6Thread14CreateCallbackEPv","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,1,"[NULL]","[NULL]"
-          3,"experimental_flamegraph",7689491063351,3,"_ZN3art35InvokeVirtualOrInterfaceWithJValuesIPNS_9ArtMethodEEENS_6JValueERKNS_33ScopedObjectAccessAlreadyRunnableEP8_jobjectT_PK6jvalue","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,2,"[NULL]","[NULL]"
-          4,"experimental_flamegraph",7689491063351,4,"_ZN3art9ArtMethod6InvokeEPNS_6ThreadEPjjPNS_6JValueEPKc","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,3,"[NULL]","[NULL]"
-          5,"experimental_flamegraph",7689491063351,5,"art_quick_invoke_stub","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,4,"[NULL]","[NULL]"
-          6,"experimental_flamegraph",7689491063351,6,"android.os.HandlerThread.run","/system/framework/arm64/boot-framework.oat",0,43,0,43,0,0,0,0,5,"[NULL]","[NULL]"
-          7,"experimental_flamegraph",7689491063351,7,"android.os.Looper.loop","/system/framework/arm64/boot-framework.oat",0,43,0,43,0,0,0,0,6,"[NULL]","[NULL]"
-          8,"experimental_flamegraph",7683950792832,8,"android.os.Looper.loopOnce","/system/framework/arm64/boot-framework.oat",1,43,1,43,0,0,0,0,7,"[NULL]","[NULL]"
-          9,"experimental_flamegraph",7689491063351,9,"android.os.Handler.dispatchMessage","/system/framework/arm64/boot-framework.oat",0,35,0,35,0,0,0,0,8,"[NULL]","[NULL]"
+          "id","ts","depth","name","map_name","count","cumulative_count","size","cumulative_size","alloc_count","cumulative_alloc_count","alloc_size","cumulative_alloc_size","parent_id","source_file","line_number"
+          0,7689491063351,0,"__start_thread","/apex/com.android.runtime/lib64/bionic/libc.so",0,560,0,560,0,0,0,0,"[NULL]","[NULL]","[NULL]"
+          1,7689491063351,1,"_ZL15__pthread_startPv","/apex/com.android.runtime/lib64/bionic/libc.so",0,560,0,560,0,0,0,0,0,"[NULL]","[NULL]"
+          2,7689491063351,2,"_ZN3art6Thread14CreateCallbackEPv","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,1,"[NULL]","[NULL]"
+          3,7689491063351,3,"_ZN3art35InvokeVirtualOrInterfaceWithJValuesIPNS_9ArtMethodEEENS_6JValueERKNS_33ScopedObjectAccessAlreadyRunnableEP8_jobjectT_PK6jvalue","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,2,"[NULL]","[NULL]"
+          4,7689491063351,4,"_ZN3art9ArtMethod6InvokeEPNS_6ThreadEPjjPNS_6JValueEPKc","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,3,"[NULL]","[NULL]"
+          5,7689491063351,5,"art_quick_invoke_stub","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,4,"[NULL]","[NULL]"
+          6,7689491063351,6,"android.os.HandlerThread.run","/system/framework/arm64/boot-framework.oat",0,43,0,43,0,0,0,0,5,"[NULL]","[NULL]"
+          7,7689491063351,7,"android.os.Looper.loop","/system/framework/arm64/boot-framework.oat",0,43,0,43,0,0,0,0,6,"[NULL]","[NULL]"
+          8,7683950792832,8,"android.os.Looper.loopOnce","/system/framework/arm64/boot-framework.oat",1,43,1,43,0,0,0,0,7,"[NULL]","[NULL]"
+          9,7689491063351,9,"android.os.Handler.dispatchMessage","/system/framework/arm64/boot-framework.oat",0,35,0,35,0,0,0,0,8,"[NULL]","[NULL]"
         '''))
 
   def test_callstack_sampling_flamegraph_multi_process(self):

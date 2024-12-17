@@ -55,22 +55,24 @@ class ProfilingHeapProfiling(TestSuite):
     return DiffTestBlueprint(
         trace=Path('heap_profile_dump_max_legacy.textproto'),
         query="""
-        SELECT * FROM heap_profile_allocation;
+        SELECT id, ts, upid, heap_name, callsite_id, count, size
+        FROM heap_profile_allocation;
         """,
         out=Csv("""
-        "id","type","ts","upid","heap_name","callsite_id","count","size"
-        0,"heap_profile_allocation",-10,2,"unknown",2,0,1000
-        1,"heap_profile_allocation",-10,2,"unknown",3,0,90
+        "id","ts","upid","heap_name","callsite_id","count","size"
+        0,-10,2,"unknown",2,0,1000
+        1,-10,2,"unknown",3,0,90
         """))
 
   def test_heap_profile_dump_max(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_dump_max.textproto'),
         query="""
-        SELECT * FROM heap_profile_allocation;
+        SELECT id, ts, upid, heap_name, callsite_id, count, size
+        FROM heap_profile_allocation;
         """,
         out=Csv("""
-        "id","type","ts","upid","heap_name","callsite_id","count","size"
-        0,"heap_profile_allocation",-10,2,"unknown",2,6,1000
-        1,"heap_profile_allocation",-10,2,"unknown",3,1,90
+        "id","ts","upid","heap_name","callsite_id","count","size"
+        0,-10,2,"unknown",2,6,1000
+        1,-10,2,"unknown",3,1,90
         """))
