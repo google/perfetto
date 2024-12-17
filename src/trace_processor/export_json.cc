@@ -899,7 +899,8 @@ class JsonExporter {
         if (legacy_chrome_track) {
           // Legacy async tracks are always process-associated and have args.
           PERFETTO_DCHECK(track_args);
-          uint32_t exported_pid = UpidToPid(*track_row_ref.upid());
+          PERFETTO_DCHECK(track_args->isMember("upid"));
+          uint32_t exported_pid = UpidToPid((*track_args)["upid"].asUInt());
           event["pid"] = Json::Int(exported_pid);
           event["tid"] =
               Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
