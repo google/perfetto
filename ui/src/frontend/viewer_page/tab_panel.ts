@@ -13,72 +13,57 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Gate} from '../../base/mithril_utils';
-import {CollapsiblePanel} from '../../components/widgets/collapsible_panel';
-import {raf} from '../../core/raf_scheduler';
-import {TraceImpl, TraceImplAttrs} from '../../core/trace_impl';
+import {TraceImpl} from '../../core/trace_impl';
 import {Button} from '../../widgets/button';
-import {DetailsShell} from '../../widgets/details_shell';
-import {EmptyState} from '../../widgets/empty_state';
-import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {MenuItem, PopupMenu2} from '../../widgets/menu';
-import {Section} from '../../widgets/section';
-import {Tree, TreeNode} from '../../widgets/tree';
+import {Tab, TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
+import {DEFAULT_DETAILS_CONTENT_HEIGHT} from '../css_constants';
+import {CurrentSelectionTab} from './current_selection_tab';
 
-export type TabPanelAttrs = TraceImplAttrs;
-
-export interface Tab {
-  // Unique key for this tab, passed to callbacks.
-  key: string;
-
-  // Tab title to show on the tab handle.
-  title: m.Children;
-
-  // Whether to show a close button on the tab handle or not.
-  // Default = false.
-  hasCloseButton?: boolean;
-}
-
-interface TabWithContent extends Tab {
-  content: m.Children;
-}
-
-export interface TabDropdownEntry {
-  // Unique key for this tab dropdown entry.
-  key: string;
-
-  // Title to show on this entry.
-  title: string;
-
-  // Called when tab dropdown entry is clicked.
-  onClick: () => void;
-
-  // Whether this tab is checked or not
-  checked: boolean;
+export interface TabPanelAttrs {
+  readonly trace: TraceImpl;
+  readonly className?: string;
 }
 
 export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
-  private readonly trace: TraceImpl;
-  // Tabs panel starts collapsed.
+  view({
+    attrs,
+    children,
+  }: m.Vnode<TabPanelAttrs, this>): m.Children | null | void {
+    const tabs = this.gatherTabs(attrs.trace);
 
-  private fadeContext = new FadeContext();
-
-  constructor({attrs}: m.CVnode<TabPanelAttrs>) {
-    this.trace = attrs.trace;
+    return m(
+      TabbedSplitPanel,
+      {
+        className: attrs.className,
+        startingHeight: DEFAULT_DETAILS_CONTENT_HEIGHT,
+        leftHandleContent: this.renderDropdownMenu(attrs.trace),
+        tabs,
+        visibility: attrs.trace.tabs.tabPanelVisibility,
+        onVisibilityChange: (visibility) =>
+          attrs.trace.tabs.setTabPanelVisibility(visibility),
+        onTabChange: (key) => attrs.trace.tabs.showTab(key),
+        currentTabKey: attrs.trace.tabs.currentTabUri,
+      },
+      children,
+    );
   }
 
-  view() {
-    const tabMan = this.trace.tabs;
-    const tabList = this.trace.tabs.openTabsUri;
+  private gatherTabs(trace: TraceImpl) {
+    const tabMan = trace.tabs;
+    const tabList = trace.tabs.openTabsUri;
     const resolvedTabs = tabMan.resolveTabs(tabList);
 
-    const tabs = resolvedTabs.map(({uri, tab: tabDesc}): TabWithContent => {
+    const tabs = resolvedTabs.map(({uri, tab: tabDesc}): Tab => {
       if (tabDesc) {
         return {
           key: uri,
           hasCloseButton: true,
           title: tabDesc.content.getTitle(),
           content: tabDesc.content.render(),
+          onClose: () => {
+            trace.tabs.hideTab(uri);
+          },
         };
       } else {
         return {
@@ -94,250 +79,42 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
     tabs.unshift({
       key: 'current_selection',
       title: 'Current Selection',
-      content: this.renderCSTabContentWithFading(),
+      content: m(CurrentSelectionTab, {trace}),
     });
 
-    return m(CollapsiblePanel, {
-      visibility: this.trace.tabs.tabPanelVisibility,
-      setVisibility: (visibility) =>
-        this.trace.tabs.setTabPanelVisibility(visibility),
-      headerActions: [
-        this.renderTripleDotDropdownMenu(),
-        this.renderTabStrip(tabs),
-      ],
-      tabs: tabs.map(({key, content}) => {
-        const active = key === this.trace.tabs.currentTabUri;
-        return m(Gate, {open: active}, content);
-      }),
-    });
+    return tabs;
   }
 
-  private renderTripleDotDropdownMenu(): m.Child {
-    const entries = this.trace.tabs.tabs
+  private renderDropdownMenu(trace: TraceImpl): m.Child {
+    const entries = trace.tabs.tabs
       .filter((tab) => tab.isEphemeral === false)
-      .map(({content, uri}): TabDropdownEntry => {
+      .map(({content, uri}) => {
         return {
           key: uri,
           title: content.getTitle(),
-          onClick: () => this.trace.tabs.toggleTab(uri),
-          checked: this.trace.tabs.isOpen(uri),
+          onClick: () => trace.tabs.toggleTab(uri),
+          checked: trace.tabs.isOpen(uri),
         };
       });
 
     return m(
-      '.buttons',
-      m(
-        PopupMenu2,
-        {
-          trigger: m(Button, {
-            compact: true,
-            icon: 'more_vert',
-            disabled: entries.length === 0,
-            title: 'More Tabs',
-          }),
-        },
-        entries.map((entry) => {
-          return m(MenuItem, {
-            key: entry.key,
-            label: entry.title,
-            onclick: () => entry.onClick(),
-            icon: entry.checked ? 'check_box' : 'check_box_outline_blank',
-          });
+      PopupMenu2,
+      {
+        trigger: m(Button, {
+          compact: true,
+          icon: 'more_vert',
+          disabled: entries.length === 0,
+          title: 'More Tabs',
         }),
-      ),
-    );
-  }
-
-  private renderTabStrip(tabs: Tab[]): m.Child {
-    const currentTabKey = this.trace.tabs.currentTabUri;
-    return m(
-      '.tabs',
-      tabs.map((tab) => {
-        const {key, hasCloseButton = false} = tab;
-        const tag = currentTabKey === key ? '.tab[active]' : '.tab';
-        return m(
-          tag,
-          {
-            key,
-            onclick: (event: Event) => {
-              if (!event.defaultPrevented) {
-                this.trace.tabs.showTab(key);
-              }
-            },
-            // Middle click to close
-            onauxclick: (event: MouseEvent) => {
-              if (!event.defaultPrevented) {
-                this.trace.tabs.hideTab(key);
-              }
-            },
-          },
-          m('span.pf-tab-title', tab.title),
-          hasCloseButton &&
-            m(Button, {
-              onclick: (event: Event) => {
-                this.trace.tabs.hideTab(key);
-                event.preventDefault();
-              },
-              compact: true,
-              icon: 'close',
-            }),
-        );
+      },
+      entries.map((entry) => {
+        return m(MenuItem, {
+          key: entry.key,
+          label: entry.title,
+          onclick: () => entry.onClick(),
+          icon: entry.checked ? 'check_box' : 'check_box_outline_blank',
+        });
       }),
     );
-  }
-
-  private renderCSTabContentWithFading(): m.Children {
-    const section = this.renderCSTabContent();
-    if (section.isLoading) {
-      return m(FadeIn, section.content);
-    } else {
-      return m(FadeOut, {context: this.fadeContext}, section.content);
-    }
-  }
-
-  private renderCSTabContent(): {isLoading: boolean; content: m.Children} {
-    const currentSelection = this.trace.selection.selection;
-    if (currentSelection.kind === 'empty') {
-      return {
-        isLoading: false,
-        content: m(
-          EmptyState,
-          {
-            className: 'pf-noselection',
-            title: 'Nothing selected',
-          },
-          'Selection details will appear here',
-        ),
-      };
-    }
-
-    if (currentSelection.kind === 'track') {
-      return {
-        isLoading: false,
-        content: this.renderTrackDetailsPanel(currentSelection.trackUri),
-      };
-    }
-
-    const detailsPanel = this.trace.selection.getDetailsPanelForSelection();
-    if (currentSelection.kind === 'track_event' && detailsPanel !== undefined) {
-      return {
-        isLoading: detailsPanel.isLoading,
-        content: detailsPanel.render(),
-      };
-    }
-
-    // Get the first "truthy" details panel
-    const detailsPanels = this.trace.tabs.detailsPanels.map((dp) => {
-      return {
-        content: dp.render(currentSelection),
-        isLoading: dp.isLoading?.() ?? false,
-      };
-    });
-
-    const panel = detailsPanels.find(({content}) => content);
-
-    if (panel) {
-      return panel;
-    } else {
-      return {
-        isLoading: false,
-        content: m(
-          EmptyState,
-          {
-            className: 'pf-noselection',
-            title: 'No details available',
-            icon: 'warning',
-          },
-          `Selection kind: '${currentSelection.kind}'`,
-        ),
-      };
-    }
-  }
-
-  private renderTrackDetailsPanel(trackUri: string) {
-    const track = this.trace.tracks.getTrack(trackUri);
-    if (track) {
-      return m(
-        DetailsShell,
-        {title: 'Track', description: track.title},
-        m(
-          GridLayout,
-          m(
-            GridLayoutColumn,
-            m(
-              Section,
-              {title: 'Details'},
-              m(
-                Tree,
-                m(TreeNode, {left: 'Name', right: track.title}),
-                m(TreeNode, {left: 'URI', right: track.uri}),
-                m(TreeNode, {left: 'Plugin ID', right: track.pluginId}),
-                m(
-                  TreeNode,
-                  {left: 'Tags'},
-                  track.tags &&
-                    Object.entries(track.tags).map(([key, value]) => {
-                      return m(TreeNode, {left: key, right: value?.toString()});
-                    }),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    } else {
-      return undefined; // TODO show something sensible here
-    }
-  }
-}
-
-const FADE_TIME_MS = 50;
-
-class FadeContext {
-  private resolver = () => {};
-
-  putResolver(res: () => void) {
-    this.resolver = res;
-  }
-
-  resolve() {
-    this.resolver();
-    this.resolver = () => {};
-  }
-}
-
-interface FadeOutAttrs {
-  context: FadeContext;
-}
-
-class FadeOut implements m.ClassComponent<FadeOutAttrs> {
-  onbeforeremove({attrs}: m.VnodeDOM<FadeOutAttrs>): Promise<void> {
-    return new Promise((res) => {
-      attrs.context.putResolver(res);
-      setTimeout(res, FADE_TIME_MS);
-    });
-  }
-
-  oncreate({attrs}: m.VnodeDOM<FadeOutAttrs>) {
-    attrs.context.resolve();
-  }
-
-  view(vnode: m.Vnode<FadeOutAttrs>): void | m.Children {
-    return vnode.children;
-  }
-}
-
-class FadeIn implements m.ClassComponent {
-  private show = false;
-
-  oncreate(_: m.VnodeDOM) {
-    setTimeout(() => {
-      this.show = true;
-      raf.scheduleFullRedraw();
-    }, FADE_TIME_MS);
-  }
-
-  view(vnode: m.Vnode): m.Children {
-    return this.show ? vnode.children : undefined;
   }
 }
