@@ -8,7 +8,6 @@ WITH
   counter_delta AS (
     SELECT
       id,
-      type,
       ts,
       track_id,
       IIF(lag_value IS NULL, value, value - lag_value) AS delta,
