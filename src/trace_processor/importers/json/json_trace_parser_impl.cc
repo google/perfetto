@@ -207,14 +207,14 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
         const std::string& real_id = id.empty() ? global : id;
         int64_t cookie = static_cast<int64_t>(
             base::Hasher::Combine(cat_id.raw_id(), real_id));
-        track_id = context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
+        track_id = context_->track_tracker->InternLegacyAsyncTrack(
             name_id, upid, cookie, false /* source_id_is_process_scoped */,
             kNullStringId /* source_scope */);
       } else {
         PERFETTO_DCHECK(!local.empty());
         int64_t cookie =
             static_cast<int64_t>(base::Hasher::Combine(cat_id.raw_id(), local));
-        track_id = context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
+        track_id = context_->track_tracker->InternLegacyAsyncTrack(
             name_id, upid, cookie, true /* source_id_is_process_scoped */,
             kNullStringId /* source_scope */);
       }

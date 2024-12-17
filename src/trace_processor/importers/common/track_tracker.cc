@@ -19,14 +19,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <utility>
+#include <tuple>
 
-#include "perfetto/base/compiler.h"
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/track_tables_py.h"
@@ -34,14 +34,6 @@
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
-namespace {
-
-bool IsLegacyStringIdNameAllowed(tracks::TrackClassification classification) {
-  // **DO NOT** add new values here. Use TrackTracker::AutoName instead.
-  return classification == tracks::unknown;
-}
-
-}  // namespace
 
 TrackTracker::TrackTracker(TraceProcessorContext* context)
     : source_key_(context->storage->InternString("source")),
@@ -49,124 +41,61 @@ TrackTracker::TrackTracker(TraceProcessorContext* context)
       trace_id_is_process_scoped_key_(
           context->storage->InternString("trace_id_is_process_scoped")),
       source_scope_key_(context->storage->InternString("source_scope")),
-      category_key_(context->storage->InternString("category")),
-      scope_id_(context->storage->InternString("scope")),
-      cookie_id_(context->storage->InternString("cookie")),
-      fuchsia_source_(context->storage->InternString("fuchsia")),
       chrome_source_(context->storage->InternString("chrome")),
-      utid_id_(context->storage->InternString("utid")),
-      upid_id_(context->storage->InternString("upid")),
-      cpu_id_(context->storage->InternString("cpu")),
-      uid_id_(context->storage->InternString("uid")),
-      gpu_id_(context->storage->InternString("gpu")),
-      name_id_(context->storage->InternString("name")),
       context_(context),
       args_tracker_(context) {}
 
-TrackId TrackTracker::CreateTrack(tracks::TrackClassification classification,
-                                  std::optional<Dimensions> dimensions,
-                                  const TrackName& name) {
-  tables::TrackTable::Row row(StringIdFromTrackName(classification, name));
-  row.classification =
-      context_->storage->InternString(tracks::ToString(classification));
-  if (dimensions) {
-    row.dimension_arg_set_id = dimensions->arg_set_id;
-  }
-  row.machine_id = context_->machine_id();
-  row.event_type = context_->storage->InternString("slice");
-
-  return context_->storage->mutable_track_table()->Insert(row).id;
-}
-
-TrackId TrackTracker::CreateProcessTrack(
-    tracks::TrackClassification classification,
-    UniquePid upid,
-    std::optional<Dimensions> dims,
-    const TrackName& name) {
-  Dimensions dims_id =
-      dims ? *dims : SingleDimension(upid_id_, Variadic::Integer(upid));
-
-  tables::TrackTable::Row row(StringIdFromTrackName(classification, name));
-  row.upid = upid;
-  row.dimension_arg_set_id = dims_id.arg_set_id;
-  row.classification =
-      context_->storage->InternString(tracks::ToString(classification));
-  row.machine_id = context_->machine_id();
-  row.event_type = context_->storage->InternString("slice");
-  row.upid = upid;
-
-  return context_->storage->mutable_track_table()->Insert(row).id;
-}
-
-TrackId TrackTracker::LegacyInternLegacyChromeAsyncTrack(
-    StringId raw_name,
-    uint32_t upid,
-    int64_t trace_id,
-    bool trace_id_is_process_scoped,
-    StringId source_scope) {
-  DimensionsBuilder dims_builder = CreateDimensionsBuilder();
-  dims_builder.AppendDimension(scope_id_, Variadic::String(source_scope));
-  if (trace_id_is_process_scoped) {
-    dims_builder.AppendUpid(upid);
-  }
-  dims_builder.AppendDimension(cookie_id_, Variadic::Integer(trace_id));
-
+TrackId TrackTracker::InternLegacyAsyncTrack(StringId raw_name,
+                                             uint32_t upid,
+                                             int64_t trace_id,
+                                             bool trace_id_is_process_scoped,
+                                             StringId source_scope) {
   const StringId name =
       context_->process_track_translation_table->TranslateName(raw_name);
 
-  TrackMapKey key;
-  key.classification = tracks::unknown;
-  key.dimensions = std::move(dims_builder).Build();
-
-  auto* it = tracks_.Find(key);
-  if (it) {
-    if (name != kNullStringId) {
-      // The track may have been created for an end event without name. In
-      // that case, update it with this event's name.
-      auto& tracks = *context_->storage->mutable_track_table();
-      auto rr = *tracks.FindById(*it);
-      if (rr.name() == kNullStringId) {
-        rr.set_name(name);
-      }
+  auto args_fn = [&](ArgsTracker::BoundInserter& inserter) {
+    inserter.AddArg(source_key_, Variadic::String(chrome_source_))
+        .AddArg(trace_id_key_, Variadic::Integer(trace_id))
+        .AddArg(trace_id_is_process_scoped_key_,
+                Variadic::Boolean(trace_id_is_process_scoped))
+        .AddArg(source_scope_key_, Variadic::String(source_scope));
+  };
+  TrackId track_id;
+  bool inserted;
+  if (trace_id_is_process_scoped) {
+    static constexpr auto kBlueprint = tracks::SliceBlueprint(
+        "legacy_async_process_slice",
+        tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
+                                    tracks::StringDimensionBlueprint("scope"),
+                                    tracks::LongDimensionBlueprint("cookie")),
+        tracks::DynamicNameBlueprint());
+    std::tie(track_id, inserted) = InternTrackInner(
+        kBlueprint,
+        tracks::Dimensions(upid, context_->storage->GetString(source_scope),
+                           trace_id),
+        tracks::DynamicName(name), args_fn);
+  } else {
+    static constexpr auto kBlueprint = tracks::SliceBlueprint(
+        "legacy_async_global_slice",
+        tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("scope"),
+                                    tracks::LongDimensionBlueprint("cookie")),
+        tracks::DynamicNameBlueprint());
+    std::tie(track_id, inserted) = InternTrackInner(
+        kBlueprint,
+        tracks::Dimensions(context_->storage->GetString(source_scope),
+                           trace_id),
+        tracks::DynamicName(name), args_fn);
+  }
+  // The track may have been created for an end event without name. In
+  // that case, update it with this event's name.
+  if (inserted && name != kNullStringId) {
+    auto& tracks = *context_->storage->mutable_track_table();
+    auto rr = *tracks.FindById(track_id);
+    if (rr.name() == kNullStringId) {
+      rr.set_name(name);
     }
-    return *it;
   }
-
-  // Legacy async tracks are always drawn in the context of a process, even if
-  // the ID's scope is global.
-  tables::TrackTable::Row track(name);
-  track.upid = upid;
-  track.classification =
-      context_->storage->InternString(tracks::ToString(tracks::unknown));
-  track.dimension_arg_set_id = key.dimensions->arg_set_id;
-  track.machine_id = context_->machine_id();
-  track.event_type = context_->storage->InternString("slice");
-
-  TrackId id = context_->storage->mutable_track_table()->Insert(track).id;
-  tracks_[key] = id;
-
-  args_tracker_.AddArgsTo(id)
-      .AddArg(source_key_, Variadic::String(chrome_source_))
-      .AddArg(trace_id_key_, Variadic::Integer(trace_id))
-      .AddArg(trace_id_is_process_scoped_key_,
-              Variadic::Boolean(trace_id_is_process_scoped))
-      .AddArg(source_scope_key_, Variadic::String(source_scope));
-  args_tracker_.Flush();
-
-  return id;
-}
-
-StringId TrackTracker::StringIdFromTrackName(
-    tracks::TrackClassification classification,
-    const TrackTracker::TrackName& name) {
-  switch (name.index()) {
-    case base::variant_index<TrackName, AutoName>():
-      return kNullStringId;
-    case base::variant_index<TrackName, LegacyStringIdName>():
-      PERFETTO_DCHECK(IsLegacyStringIdNameAllowed(classification));
-      return std::get<LegacyStringIdName>(name).id;
-  }
-  PERFETTO_FATAL("For GCC");
+  return track_id;
 }
 
 TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
