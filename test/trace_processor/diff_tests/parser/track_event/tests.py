@@ -541,6 +541,7 @@ class TrackEvent(TestSuite):
           "trace_id","trace_id",1,"[NULL]"
           "trace_id","trace_id",1234,"[NULL]"
           "trace_id_is_process_scoped","trace_id_is_process_scoped",0,"[NULL]"
+          "upid","upid",1,"[NULL]"
           "utid","utid",1,"[NULL]"
           "utid","utid",2,"[NULL]"
         '''))
