@@ -59,4 +59,17 @@ export class TimeScale {
   pxToDuration(pxDelta: number): number {
     return pxDelta * this.timePerPx;
   }
+
+  pxSpanToHpTimeSpan(span: HorizontalBounds): HighPrecisionTimeSpan {
+    const start = this.pxToHpTime(span.left);
+    const duration = this.pxToDuration(span.right - span.left);
+    return new HighPrecisionTimeSpan(start, duration);
+  }
+
+  hpTimeSpanToPxSpan(span: HighPrecisionTimeSpan): HorizontalBounds {
+    return {
+      left: this.hpTimeToPx(span.start),
+      right: this.hpTimeToPx(span.end),
+    };
+  }
 }

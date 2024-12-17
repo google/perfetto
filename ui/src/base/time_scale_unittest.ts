@@ -72,4 +72,19 @@ describe('TimeScale', () => {
     result = ts.pxToDuration(100);
     expect(result).toBeCloseTo(12.5);
   });
+
+  it('converts px span to HPTimeSpan', () => {
+    const result = ts.pxSpanToHpTimeSpan({left: 200, right: 1000});
+    expect(result.start.integral).toBe(40n);
+    expect(result.start.fractional).toBeCloseTo(0);
+    expect(result.duration).toBeCloseTo(100);
+  });
+
+  it('converts HPTimeSpan to px span', () => {
+    const result = ts.hpTimeSpanToPxSpan(
+      new HighPrecisionTimeSpan(new HighPrecisionTime(Time.fromRaw(40n)), 100),
+    );
+    expect(result.left).toBe(200);
+    expect(result.right).toBeCloseTo(1000);
+  });
 });
