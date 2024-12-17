@@ -33,7 +33,7 @@ class AndroidLogEventParser;
 class ArgsTracker;
 class ArgsTranslationTable;
 class ArtMethodParser;
-class AsyncTrackSetTracker;
+class TrackCompressor;
 class ChunkedTraceReader;
 class ClockConverter;
 class ClockTracker;
@@ -119,7 +119,7 @@ class TraceProcessorContext {
   std::unique_ptr<ArgsTranslationTable> args_translation_table;
 
   std::unique_ptr<TrackTracker> track_tracker;
-  std::unique_ptr<AsyncTrackSetTracker> async_track_set_tracker;
+  std::unique_ptr<TrackCompressor> track_compressor;
   std::unique_ptr<SliceTracker> slice_tracker;
   std::unique_ptr<SliceTranslationTable> slice_translation_table;
   std::unique_ptr<FlowTracker> flow_tracker;

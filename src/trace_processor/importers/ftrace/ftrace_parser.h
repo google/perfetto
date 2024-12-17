@@ -330,12 +330,7 @@ class FtraceParser {
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;
   const StringId cpu_id_;
-  const StringId suspend_resume_name_id_;
   const StringId suspend_resume_minimal_slice_name_id_;
-  const StringId ion_total_id_;
-  const StringId ion_change_id_;
-  const StringId ion_buffer_id_;
-  const StringId dma_buffer_id_;
   const StringId inode_arg_id_;
   const StringId signal_generate_id_;
   const StringId signal_deliver_id_;
@@ -388,7 +383,6 @@ class FtraceParser {
   const StringId offset_id_end_;
   const StringId bytes_read_id_start_;
   const StringId bytes_read_id_end_;
-  const StringId android_fs_category_id_;
   const StringId android_fs_data_read_id_;
   const StringId google_icc_event_id_;
   const StringId google_irm_event_id_;

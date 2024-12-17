@@ -12504,7 +12504,6 @@ filegroup {
     srcs: [
         "src/trace_processor/importers/common/args_tracker.cc",
         "src/trace_processor/importers/common/args_translation_table.cc",
-        "src/trace_processor/importers/common/async_track_set_tracker.cc",
         "src/trace_processor/importers/common/clock_converter.cc",
         "src/trace_processor/importers/common/clock_tracker.cc",
         "src/trace_processor/importers/common/cpu_tracker.cc",
@@ -12527,6 +12526,7 @@ filegroup {
         "src/trace_processor/importers/common/thread_state_tracker.cc",
         "src/trace_processor/importers/common/trace_file_tracker.cc",
         "src/trace_processor/importers/common/trace_parser.cc",
+        "src/trace_processor/importers/common/track_compressor.cc",
         "src/trace_processor/importers/common/track_tracker.cc",
         "src/trace_processor/importers/common/virtual_memory_mapping.cc",
     ],
@@ -12548,7 +12548,6 @@ filegroup {
     srcs: [
         "src/trace_processor/importers/common/address_range_unittest.cc",
         "src/trace_processor/importers/common/args_translation_table_unittest.cc",
-        "src/trace_processor/importers/common/async_track_set_tracker_unittest.cc",
         "src/trace_processor/importers/common/clock_converter_unittest.cc",
         "src/trace_processor/importers/common/clock_tracker_unittest.cc",
         "src/trace_processor/importers/common/deobfuscation_mapping_table_unittest.cc",
@@ -12559,6 +12558,7 @@ filegroup {
         "src/trace_processor/importers/common/slice_tracker_unittest.cc",
         "src/trace_processor/importers/common/slice_translation_table_unittest.cc",
         "src/trace_processor/importers/common/thread_state_tracker_unittest.cc",
+        "src/trace_processor/importers/common/track_compressor_unittest.cc",
     ],
 }
 
