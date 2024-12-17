@@ -500,7 +500,7 @@ class TrackEventParser::EventImporter {
           id_scope = storage_->InternString(base::StringView(concat));
         }
 
-        track_id_ = context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
+        track_id_ = context_->track_tracker->InternLegacyAsyncTrack(
             name_id_, upid_.value_or(0), source_id, source_id_is_process_scoped,
             id_scope);
         legacy_passthrough_utid_ = utid_;
