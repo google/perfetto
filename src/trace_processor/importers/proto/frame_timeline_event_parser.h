@@ -17,16 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FRAME_TIMELINE_EVENT_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FRAME_TIMELINE_EVENT_PARSER_H_
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/trace/android/frame_timeline_event.pbzero.h"
 
+#include <array>
+#include <cstdint>
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 namespace perfetto {
 
@@ -41,12 +45,16 @@ class TraceProcessorContext;
 class FrameTimelineEventParser {
  public:
   using ConstBytes = protozero::ConstBytes;
-  using TrackSetId = AsyncTrackSetTracker::TrackSetId;
   explicit FrameTimelineEventParser(TraceProcessorContext*);
 
   void ParseFrameTimelineEvent(int64_t timestamp, ConstBytes);
 
  private:
+  enum class TrackType : uint8_t {
+    kExpected,
+    kActual,
+  };
+
   void ParseExpectedDisplayFrameStart(int64_t timestamp, ConstBytes);
   void ParseActualDisplayFrameStart(int64_t timestamp, ConstBytes);
 
@@ -56,18 +64,15 @@ class FrameTimelineEventParser {
   void ParseFrameEnd(int64_t timestamp, ConstBytes);
 
   TraceProcessorContext* const context_;
-  // Cookie -> TrackSetId map. Since cookies are globally unique per slice, this
+
+  // Cookie -> TrackType map. Since cookies are globally unique per slice, this
   // helps in allowing the producer to send only the cookie as the End marker
-  // without the need for any other fields. The TrackSets could be interned
-  // based on any number of fields in the Start marker but the global uniqueness
-  // of the cookie makes it so that we can end a slice with just the cookie and
-  // the TrackSetId.
-  std::map<int64_t, TrackSetId> cookie_track_set_id_map_;
+  // without the need for any other fields.
+  base::FlatHashMap<int64_t, std::pair<UniquePid, TrackType>> cookie_map_;
+
   std::array<StringId, 6> present_type_ids_;
   std::array<StringId, 4> prediction_type_ids_;
   std::array<StringId, 4> jank_severity_type_ids_;
-  StringId expected_timeline_track_name_;
-  StringId actual_timeline_track_name_;
 
   StringId surface_frame_token_id_;
   StringId display_frame_token_id_;

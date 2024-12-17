@@ -96,22 +96,21 @@ class TrackTracker {
   // Note: when using this function, always try and check the blueprints in
   // `tracks_common.h` to see if there is a blueprint there which already does
   // what you need.
-  template <typename Blueprint>
-  PERFETTO_ALWAYS_INLINE TrackId
-  InternTrack(const Blueprint& bp,
-              typename Blueprint::dimensions_t dims = {},
-              typename Blueprint::name_t name = tracks::BlueprintName(),
-              const SetArgsCallback& args = {},
-              typename Blueprint::unit_t unit = tracks::BlueprintUnit()) {
-    base::Hasher hasher(bp.hasher);
-    std::apply([&](auto&&... args) { ((hasher.Update(args)), ...); }, dims);
-    auto [it, inserted] = tracks_new_.Insert(hasher.digest(), {});
+  template <typename BlueprintT>
+  PERFETTO_ALWAYS_INLINE TrackId InternTrack(
+      const BlueprintT& bp,
+      const typename BlueprintT::dimensions_t& dims = {},
+      const typename BlueprintT::name_t& name = tracks::BlueprintName(),
+      const SetArgsCallback& args = {},
+      const typename BlueprintT::unit_t& unit = tracks::BlueprintUnit()) {
+    uint64_t hash = tracks::HashFromBlueprintAndDimensions(bp, dims);
+    auto [it, inserted] = tracks_new_.Insert(hash, {});
     if (inserted) {
       std::array<GlobalArgsTracker::CompactArg, 8> a;
       DimensionsToArgs<0>(dims, bp.dimension_blueprints.data(), a.data());
       StringId n;
       using NBT = tracks::NameBlueprintT;
-      using name_blueprint_t = typename Blueprint::name_blueprint_t;
+      using name_blueprint_t = typename BlueprintT::name_blueprint_t;
       if constexpr (std::is_same_v<NBT::Auto, name_blueprint_t>) {
         n = kNullStringId;
       } else if constexpr (std::is_same_v<NBT::Static, name_blueprint_t>) {
@@ -124,7 +123,7 @@ class TrackTracker {
         n = name;
       }
       using UBT = tracks::UnitBlueprintT;
-      using unit_blueprint_t = typename Blueprint::unit_blueprint_t;
+      using unit_blueprint_t = typename BlueprintT::unit_blueprint_t;
       StringId u;
       if constexpr (std::is_same_v<UBT::Unknown, unit_blueprint_t>) {
         u = kNullStringId;
@@ -138,7 +137,7 @@ class TrackTracker {
       // constexpr branches above. Just use them here to suppress the warning.
       base::ignore_result(name, unit);
       static constexpr uint32_t kDimensionCount =
-          std::tuple_size_v<typename Blueprint::dimensions_t>;
+          std::tuple_size_v<typename BlueprintT::dimensions_t>;
       *it = AddTrack(bp, n, u, a.data(), kDimensionCount, args);
     }
     return *it;
@@ -246,7 +245,7 @@ class TrackTracker {
                                              StringId source_scope);
 
  private:
-  friend class AsyncTrackSetTracker;
+  friend class TrackCompressor;
   friend class TrackEventTracker;
 
   struct TrackMapKey {
