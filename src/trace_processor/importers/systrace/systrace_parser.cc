@@ -23,10 +23,10 @@
 
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -180,14 +180,16 @@ void SystraceParser::ParseSystracePoint(
 
     case 'S':
     case 'F': {
+      static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
+          "atrace_async_slice",
+          tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
+                                      tracks::kNameFromTraceDimensionBlueprint),
+          tracks::DynamicNameBlueprint());
+
       StringId name_id = context_->storage->InternString(point.name);
       int64_t cookie = point.int_value;
       UniquePid upid =
           context_->process_tracker->GetOrCreateProcess(point.tgid);
-
-      auto track_set_id =
-          context_->async_track_set_tracker
-              ->InternAndroidLegacyUnnestableTrackSet(upid, name_id);
 
       if (point.phase == 'S') {
         // Historically, async slices on Android did not support nesting async
@@ -206,16 +208,18 @@ void SystraceParser::ParseSystracePoint(
         // issues. No other code should ever use |BeginLegacyUnnestable|.
         tables::SliceTable::Row row;
         row.ts = ts;
-        row.track_id =
-            context_->async_track_set_tracker->Begin(track_set_id, cookie);
+        row.track_id = context_->track_compressor->InternBegin(
+            kBlueprint, tracks::Dimensions(upid, point.name), cookie,
+            tracks::DynamicName(name_id));
         row.name = name_id;
         context_->slice_tracker->BeginLegacyUnnestable(
             row, [this, cookie](ArgsTracker::BoundInserter* inserter) {
               inserter->AddArg(cookie_id_, Variadic::Integer(cookie));
             });
       } else {
-        TrackId track_id =
-            context_->async_track_set_tracker->End(track_set_id, cookie);
+        TrackId track_id = context_->track_compressor->InternEnd(
+            kBlueprint, tracks::Dimensions(upid, point.name), cookie,
+            tracks::DynamicName(name_id));
         context_->slice_tracker->End(ts, track_id);
       }
       break;
@@ -244,14 +248,18 @@ void SystraceParser::ParseSystracePoint(
         break;
       }
 
+      static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
+          "atrace_async_slice_for_track",
+          tracks::Dimensions(tracks::kProcessDimensionBlueprint,
+                             tracks::kNameFromTraceDimensionBlueprint),
+          tracks::DynamicNameBlueprint());
+
       UniquePid upid =
           context_->process_tracker->GetOrCreateProcess(point.tgid);
-      AsyncTrackSetTracker::TrackSetId track_set_id =
-          context_->async_track_set_tracker->InternProcessTrackSet(
-              upid, track_name_id);
       if (point.phase == 'N') {
-        TrackId track_id =
-            context_->async_track_set_tracker->Scoped(track_set_id, ts, 0);
+        TrackId track_id = context_->track_compressor->InternScoped(
+            kBlueprint, tracks::Dimensions(upid, point.str_value), ts, 0,
+            tracks::DynamicName(track_name_id));
         auto utid = context_->process_tracker->GetOrCreateThread(pid);
         context_->slice_tracker->Scoped(
             ts, track_id, kNullStringId, name_id, 0,
@@ -260,8 +268,9 @@ void SystraceParser::ParseSystracePoint(
                                ArgsTracker::UpdatePolicy::kSkipIfExists);
             });
       } else if (point.phase == 'G') {
-        TrackId track_id = context_->async_track_set_tracker->Begin(
-            track_set_id, point.int_value);
+        TrackId track_id = context_->track_compressor->InternBegin(
+            kBlueprint, tracks::Dimensions(upid, point.str_value),
+            point.int_value, tracks::DynamicName(track_name_id));
         auto utid = context_->process_tracker->GetOrCreateThread(pid);
         context_->slice_tracker->Begin(
             ts, track_id, kNullStringId, name_id,
@@ -270,8 +279,9 @@ void SystraceParser::ParseSystracePoint(
                                ArgsTracker::UpdatePolicy::kSkipIfExists);
             });
       } else if (point.phase == 'H') {
-        TrackId track_id = context_->async_track_set_tracker->End(
-            track_set_id, point.int_value);
+        TrackId track_id = context_->track_compressor->InternEnd(
+            kBlueprint, tracks::Dimensions(upid, point.str_value),
+            point.int_value, tracks::DynamicName(track_name_id));
         auto utid = context_->process_tracker->GetOrCreateThread(pid);
         context_->slice_tracker->End(
             ts, track_id, {}, {},

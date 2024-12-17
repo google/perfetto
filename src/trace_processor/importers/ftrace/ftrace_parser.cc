@@ -40,7 +40,6 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -48,6 +47,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -367,14 +367,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
-      suspend_resume_name_id_(
-          context->storage->InternString("Suspend/Resume Latency")),
       suspend_resume_minimal_slice_name_id_(
           context->storage->InternString("Suspended")),
-      ion_total_id_(context->storage->InternString("mem.ion")),
-      ion_change_id_(context->storage->InternString("mem.ion_change")),
-      ion_buffer_id_(context->storage->InternString("mem.ion_buffer")),
-      dma_buffer_id_(context->storage->InternString("mem.dma_buffer")),
       inode_arg_id_(context->storage->InternString("inode")),
       signal_generate_id_(context->storage->InternString("signal_generate")),
       signal_deliver_id_(context->storage->InternString("signal_deliver")),
@@ -433,7 +427,6 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       offset_id_end_(context_->storage->InternString("offset_end")),
       bytes_read_id_start_(context_->storage->InternString("bytes_read_start")),
       bytes_read_id_end_(context_->storage->InternString("bytes_read_end")),
-      android_fs_category_id_(context_->storage->InternString("android_fs")),
       android_fs_data_read_id_(
           context_->storage->InternString("android_fs_data_read")),
       google_icc_event_id_(context->storage->InternString("google_icc_event")),
@@ -1982,20 +1975,22 @@ void FtraceParser::ParseIonStat(int64_t timestamp,
   context_->event_tracker->PushCounter(timestamp,
                                        static_cast<double>(ion.len()), track);
 
+  static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
+      "android_ion_allocations", tracks::DimensionBlueprints(),
+      tracks::StaticNameBlueprint("mem.ion_buffer"));
+
   // Global track for individual buffer tracking
-  auto async_track =
-      context_->async_track_set_tracker->InternGlobalTrackSet(ion_buffer_id_);
   if (ion.len() > 0) {
-    TrackId start_id =
-        context_->async_track_set_tracker->Begin(async_track, ion.buffer_id());
+    TrackId id = context_->track_compressor->InternBegin(
+        kBlueprint, tracks::Dimensions(), ion.buffer_id());
     std::string buf = std::to_string(ion.len() / 1024) + " kB";
     context_->slice_tracker->Begin(
-        timestamp, start_id, kNullStringId,
+        timestamp, id, kNullStringId,
         context_->storage->InternString(base::StringView(buf)));
   } else {
-    TrackId end_id =
-        context_->async_track_set_tracker->End(async_track, ion.buffer_id());
-    context_->slice_tracker->End(timestamp, end_id);
+    TrackId id = context_->track_compressor->InternEnd(
+        kBlueprint, tracks::Dimensions(), ion.buffer_id());
+    context_->slice_tracker->End(timestamp, id);
   }
 }
 
@@ -2085,20 +2080,24 @@ void FtraceParser::ParseDmaHeapStat(int64_t timestamp,
                          Variadic::UnsignedInteger(dma_heap.inode()));
       });
 
+  static constexpr auto kAllocsBlueprint = TrackCompressor::SliceBlueprint(
+      "android_dma_allocations", tracks::DimensionBlueprints(),
+      tracks::StaticNameBlueprint("mem.dma_buffer"));
+
   // Global track for individual buffer tracking
-  auto async_track =
-      context_->async_track_set_tracker->InternGlobalTrackSet(dma_buffer_id_);
   if (dma_heap.len() > 0) {
-    TrackId start_id = context_->async_track_set_tracker->Begin(
-        async_track, static_cast<int64_t>(dma_heap.inode()));
+    TrackId id = context_->track_compressor->InternBegin(
+        kAllocsBlueprint, tracks::Dimensions(),
+        static_cast<int64_t>(dma_heap.inode()));
     std::string buf = std::to_string(dma_heap.len() / 1024) + " kB";
     context_->slice_tracker->Begin(
-        timestamp, start_id, kNullStringId,
+        timestamp, id, kNullStringId,
         context_->storage->InternString(base::StringView(buf)));
   } else {
-    TrackId end_id = context_->async_track_set_tracker->End(
-        async_track, static_cast<int64_t>(dma_heap.inode()));
-    context_->slice_tracker->End(timestamp, end_id);
+    TrackId id = context_->track_compressor->InternEnd(
+        kAllocsBlueprint, tracks::Dimensions(),
+        static_cast<int64_t>(dma_heap.inode()));
+    context_->slice_tracker->End(timestamp, id);
   }
 }
 
@@ -2907,11 +2906,6 @@ void FtraceParser::ParseInetSockSetState(int64_t timestamp,
   if (got == skaddr_to_stream_.end()) {
     skaddr_to_stream_[evt.skaddr()] = ++num_of_tcp_stream_;
   }
-  uint32_t stream = skaddr_to_stream_[evt.skaddr()];
-  base::StackString<64> stream_str("TCP stream#%" PRIu32 "", stream);
-  StringId stream_id =
-      context_->storage->InternString(stream_str.string_view());
-
   StringId slice_name_id;
   if (evt.newstate() == TCP_SYN_SENT) {
     base::StackString<32> str("%s(pid=%" PRIu32 ")",
@@ -2927,16 +2921,19 @@ void FtraceParser::ParseInetSockSetState(int64_t timestamp,
     slice_name_id = context_->storage->InternString(slice_name);
   }
 
-  // Push to async task set tracker.
-  auto async_track =
-      context_->async_track_set_tracker->InternGlobalTrackSet(stream_id);
-  TrackId end_id = context_->async_track_set_tracker->End(
-      async_track, static_cast<int64_t>(evt.skaddr()));
-  context_->slice_tracker->End(timestamp, end_id);
-  TrackId start_id = context_->async_track_set_tracker->Begin(
-      async_track, static_cast<int64_t>(evt.skaddr()));
-  context_->slice_tracker->Begin(timestamp, start_id, tcp_state_id_,
-                                 slice_name_id);
+  static constexpr auto kBlueprint = tracks::SliceBlueprint(
+      "net_socket_set_state",
+      tracks::DimensionBlueprints(
+          tracks::UintDimensionBlueprint("tcp_stream_idx")),
+      tracks::FnNameBlueprint([](uint32_t stream_idx) {
+        return base::StackString<64>("TCP stream#%" PRIu32 "", stream_idx);
+      }));
+
+  uint32_t stream = skaddr_to_stream_[evt.skaddr()];
+  TrackId id = context_->track_tracker->InternTrack(kBlueprint,
+                                                    tracks::Dimensions(stream));
+  context_->slice_tracker->End(timestamp, id);
+  context_->slice_tracker->Begin(timestamp, id, tcp_state_id_, slice_name_id);
 }
 
 void FtraceParser::ParseTcpRetransmitSkb(int64_t timestamp,
@@ -3494,14 +3491,20 @@ void FtraceParser::ParseWakeSourceDeactivate(int64_t timestamp,
   context_->slice_tracker->End(timestamp, track_id);
 }
 
+namespace {
+
+constexpr auto kSuspendResumeBlueprint = TrackCompressor::SliceBlueprint(
+    "suspend_resume",
+    tracks::Dimensions(),
+    tracks::StaticNameBlueprint("Suspend/Resume Latency"));
+
+}  // namespace
+
 void FtraceParser::ParseSuspendResume(int64_t timestamp,
                                       uint32_t cpu,
                                       uint32_t tid,
                                       protozero::ConstBytes blob) {
   protos::pbzero::SuspendResumeFtraceEvent::Decoder evt(blob);
-
-  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
-      suspend_resume_name_id_);
 
   std::string action_name = evt.action().ToStdString();
 
@@ -3514,8 +3517,26 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
   std::string current_action = str.ToStdString();
 
   StringId slice_name_id = context_->storage->InternString(str.string_view());
-
   int64_t cookie = slice_name_id.raw_id();
+  if (!evt.start()) {
+    TrackId end_id = context_->track_compressor->InternEnd(
+        kSuspendResumeBlueprint, tracks::Dimensions(), cookie);
+    context_->slice_tracker->End(timestamp, end_id);
+
+    if (action_name == "suspend_enter") {
+      suspend_state_ = SUSPEND_STATE_INITIAL;
+    } else if (action_name == "thaw_processes" &&
+               suspend_state_ == SUSPEND_STATE_FREEZE) {
+      // We encountered the bug. Close the suspend_enter slice.
+      end_id = context_->track_compressor->InternEnd(
+          kSuspendResumeBlueprint, tracks::Dimensions(),
+          suspend_enter_slice_cookie_);
+      context_->slice_tracker->End(timestamp, end_id);
+
+      suspend_state_ = SUSPEND_STATE_INITIAL;
+    }
+    return;
+  }
 
   // Work around bug where the suspend_enter() slice never terminates if we
   // see an error in suspend_prepare().
@@ -3529,38 +3550,16 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
   // in the error case, and should never overlap with suspend_enter().
   //
   // See b/381039361.
-  if (evt.start()) {
-    if (action_name == "suspend_enter") {
-      suspend_state_ = SUSPEND_STATE_ENTER;
-      suspend_enter_slice_cookie_ = cookie;
-
-    } else if (action_name == "freeze_processes" &&
-               suspend_state_ == SUSPEND_STATE_ENTER) {
-      suspend_state_ = SUSPEND_STATE_FREEZE;
-    }
-
-  } else {
-    TrackId end_id =
-        context_->async_track_set_tracker->End(async_track, cookie);
-    context_->slice_tracker->End(timestamp, end_id);
-
-    if (action_name == "suspend_enter") {
-      suspend_state_ = SUSPEND_STATE_INITIAL;
-    } else if (action_name == "thaw_processes" &&
-               suspend_state_ == SUSPEND_STATE_FREEZE) {
-      // We encountered the bug. Close the suspend_enter slice.
-      end_id = context_->async_track_set_tracker->End(
-          async_track, suspend_enter_slice_cookie_);
-      context_->slice_tracker->End(timestamp, end_id);
-
-      suspend_state_ = SUSPEND_STATE_INITIAL;
-    }
-    return;
+  if (action_name == "suspend_enter") {
+    suspend_state_ = SUSPEND_STATE_ENTER;
+    suspend_enter_slice_cookie_ = cookie;
+  } else if (action_name == "freeze_processes" &&
+             suspend_state_ == SUSPEND_STATE_ENTER) {
+    suspend_state_ = SUSPEND_STATE_FREEZE;
   }
 
-  TrackId start_id =
-      context_->async_track_set_tracker->Begin(async_track, cookie);
-
+  TrackId start_id = context_->track_compressor->InternBegin(
+      kSuspendResumeBlueprint, tracks::Dimensions(), cookie);
   auto args_inserter = [&](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(suspend_resume_utid_arg_name_,
                      Variadic::UnsignedInteger(
@@ -3577,7 +3576,7 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
     inserter->AddArg(suspend_resume_callback_phase_arg_name_,
                      Variadic::String(kNullStringId));
   };
-  context_->slice_tracker->Begin(timestamp, start_id, suspend_resume_name_id_,
+  context_->slice_tracker->Begin(timestamp, start_id, kNullStringId,
                                  slice_name_id, args_inserter);
 }
 
@@ -3693,15 +3692,23 @@ void FtraceParser::ParseFuncgraphExit(
   context_->slice_tracker->End(timestamp, track, kNullStringId, name_id);
 }
 
+namespace {
+
+constexpr auto kAndroidFsBlueprint =
+    TrackCompressor::SliceBlueprint("android_fs",
+                                    tracks::Dimensions(),
+                                    tracks::StaticNameBlueprint("android_fs"));
+
+}  // namespace
+
 void FtraceParser::ParseAndroidFsDatareadStart(int64_t ts,
                                                uint32_t pid,
                                                ConstBytes data) {
   protos::pbzero::AndroidFsDatareadStartFtraceEvent::Decoder decoder(data);
   inode_offset_thread_map_.Insert({decoder.ino(), decoder.offset()}, pid);
 
-  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
-      android_fs_category_id_);
-  TrackId track_id = context_->async_track_set_tracker->Begin(async_track, pid);
+  TrackId track_id = context_->track_compressor->InternBegin(
+      kAndroidFsBlueprint, tracks::Dimensions(), pid);
   context_->slice_tracker->Begin(
       ts, track_id, kNullStringId, android_fs_data_read_id_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
@@ -3723,10 +3730,8 @@ void FtraceParser::ParseAndroidFsDatareadEnd(int64_t ts, ConstBytes data) {
   uint32_t start_event_tid = *it;
   inode_offset_thread_map_.Erase({decoder.ino(), decoder.offset()});
 
-  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
-      android_fs_category_id_);
-  TrackId track_id =
-      context_->async_track_set_tracker->End(async_track, start_event_tid);
+  TrackId track_id = context_->track_compressor->InternEnd(
+      kAndroidFsBlueprint, tracks::Dimensions(), start_event_tid);
   context_->slice_tracker->End(
       ts, track_id, kNullStringId, kNullStringId,
       [&, this](ArgsTracker::BoundInserter* inserter) {
@@ -3801,35 +3806,32 @@ void FtraceParser::ParseDevicePmCallbackStart(int64_t ts,
   StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
   int64_t cookie = slice_name_id.raw_id();
 
-  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
-      suspend_resume_name_id_);
-  TrackId track_id =
-      context_->async_track_set_tracker->Begin(async_track, cookie);
-
   std::string callback_phase = ConstructCallbackPhaseName(
       /*pm_ops=*/dpm_event.pm_ops().ToStdString(),
       /*event_type=*/GetDpmCallbackEventString(dpm_event.event()));
 
-  auto args_inserter = [&](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(suspend_resume_utid_arg_name_,
-                     Variadic::UnsignedInteger(
-                         context_->process_tracker->GetOrCreateThread(tid)));
-    inserter->AddArg(suspend_resume_event_type_arg_name_,
-                     Variadic::String(suspend_resume_device_pm_event_id_));
-    inserter->AddArg(cpu_id_, Variadic::UnsignedInteger(cpu));
-    inserter->AddArg(
-        suspend_resume_device_arg_name_,
-        Variadic::String(context_->storage->InternString(device_name.c_str())));
-    inserter->AddArg(
-        suspend_resume_driver_arg_name_,
-        Variadic::String(context_->storage->InternString(driver_name.c_str())));
-    inserter->AddArg(suspend_resume_callback_phase_arg_name_,
-                     Variadic::String(context_->storage->InternString(
-                         callback_phase.c_str())));
-  };
-
-  context_->slice_tracker->Begin(ts, track_id, suspend_resume_name_id_,
-                                 slice_name_id, args_inserter);
+  TrackId track_id = context_->track_compressor->InternBegin(
+      kSuspendResumeBlueprint, tracks::Dimensions(), cookie);
+  context_->slice_tracker->Begin(
+      ts, track_id, kNullStringId, slice_name_id,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(
+            suspend_resume_utid_arg_name_,
+            Variadic::UnsignedInteger(
+                context_->process_tracker->GetOrCreateThread(tid)));
+        inserter->AddArg(suspend_resume_event_type_arg_name_,
+                         Variadic::String(suspend_resume_device_pm_event_id_));
+        inserter->AddArg(cpu_id_, Variadic::UnsignedInteger(cpu));
+        inserter->AddArg(suspend_resume_device_arg_name_,
+                         Variadic::String(context_->storage->InternString(
+                             device_name.c_str())));
+        inserter->AddArg(suspend_resume_driver_arg_name_,
+                         Variadic::String(context_->storage->InternString(
+                             driver_name.c_str())));
+        inserter->AddArg(suspend_resume_callback_phase_arg_name_,
+                         Variadic::String(context_->storage->InternString(
+                             callback_phase.c_str())));
+      });
 }
 
 // Parses `device_pm_callback_end` events and ends corresponding slices in the
@@ -3846,10 +3848,8 @@ void FtraceParser::ParseDevicePmCallbackEnd(int64_t ts,
   StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
   int64_t cookie = slice_name_id.raw_id();
 
-  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
-      suspend_resume_name_id_);
-  TrackId track_id =
-      context_->async_track_set_tracker->End(async_track, cookie);
+  TrackId track_id = context_->track_compressor->InternEnd(
+      kSuspendResumeBlueprint, tracks::Dimensions(), cookie);
   context_->slice_tracker->End(ts, track_id);
 }
 

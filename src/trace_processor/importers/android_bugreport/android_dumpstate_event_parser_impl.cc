@@ -31,9 +31,9 @@
 #include "perfetto/ext/base/string_view_splitter.h"
 #include "src/trace_processor/importers/android_bugreport/android_battery_stats_history_string_tracker.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -458,20 +458,21 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryWakeLocks(
     return base::ErrStatus("Wakelocks unsupported on batterystats ver < 36");
   }
 
+  static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
+      "dumpstate_wakelocks", tracks::DimensionBlueprints(),
+      tracks::StaticNameBlueprint("WakeLocks"));
+
   ASSIGN_OR_RETURN(int64_t hsp_index, StringToStatusOrInt64(item.value));
-  StringId track_name_id = context_->storage->InternString("WakeLocks");
-  AsyncTrackSetTracker::TrackSetId track_set_id =
-      context_->async_track_set_tracker->InternGlobalTrackSet(track_name_id);
   if (item.prefix == "+") {
     StringId name_id = context_->storage->InternString(
         history_string_tracker->GetString(hsp_index));
-    TrackId track_id =
-        context_->async_track_set_tracker->Begin(track_set_id, hsp_index);
-    context_->slice_tracker->Begin(item.ts, track_id, kNullStringId, name_id);
+    TrackId id = context_->track_compressor->InternBegin(
+        kBlueprint, tracks::Dimensions(), static_cast<int64_t>(hsp_index));
+    context_->slice_tracker->Begin(item.ts, id, kNullStringId, name_id);
   } else {
-    TrackId track_id =
-        context_->async_track_set_tracker->End(track_set_id, hsp_index);
-    context_->slice_tracker->End(item.ts, track_id);
+    TrackId id = context_->track_compressor->InternEnd(
+        kBlueprint, tracks::Dimensions(), static_cast<int64_t>(hsp_index));
+    context_->slice_tracker->End(item.ts, id);
   }
   return true;
 }

@@ -20,6 +20,7 @@
 #include <cstdint>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -50,8 +51,7 @@ class VirtioGpuTracker {
 
    private:
     TraceProcessorContext* context_;
-    StringId queue_track_id_;
-    const char* name_;
+    base::StringView name_;
 
     // Maps a seqno to the timestamp of a VirtioGpuCmdQueue.  The events
     // come in pairs of VirtioGpuCmdQueue plus VirtioGpuCmdResponse and
