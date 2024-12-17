@@ -433,9 +433,8 @@ void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
           }
           UniquePid upid =
               procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
-          TrackId track_id =
-              context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
-                  name, upid, correlation_id, false, kNullStringId);
+          TrackId track_id = context_->track_tracker->InternLegacyAsyncTrack(
+              name, upid, correlation_id, false, kNullStringId);
           slices->Begin(ts, track_id, cat, name, std::move(insert_args));
           break;
         }
@@ -447,9 +446,8 @@ void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
           }
           UniquePid upid =
               procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
-          TrackId track_id =
-              context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
-                  name, upid, correlation_id, false, kNullStringId);
+          TrackId track_id = context_->track_tracker->InternLegacyAsyncTrack(
+              name, upid, correlation_id, false, kNullStringId);
           slices->Scoped(ts, track_id, cat, name, 0, std::move(insert_args));
           break;
         }
@@ -461,9 +459,8 @@ void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
           }
           UniquePid upid =
               procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
-          TrackId track_id =
-              context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
-                  name, upid, correlation_id, false, kNullStringId);
+          TrackId track_id = context_->track_tracker->InternLegacyAsyncTrack(
+              name, upid, correlation_id, false, kNullStringId);
           slices->End(ts, track_id, cat, name, std::move(insert_args));
           break;
         }
