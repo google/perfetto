@@ -1334,7 +1334,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
       }),
       m(WidgetShowcase, {
         label: 'Track',
-        description: `A track`,
+        description: `The shell and content DOM elements of a track.`,
         renderWidget: (opts) => {
           const {buttons, chips, multipleTracks, ...rest} = opts;
           const dummyButtons = () => [
@@ -1362,6 +1362,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         },
         initialOpts: {
           title: 'This is the title of the track',
+          subtitle: 'This is the subtitle of the track',
           buttons: true,
           chips: true,
           heightPx: 32,

@@ -17,6 +17,7 @@ import m from 'mithril';
 export interface MiddleEllipsisAttrs {
   text: string;
   endChars?: number;
+  className?: string;
 }
 
 function replaceLeadingTrailingSpacesWithNbsp(text: string) {
@@ -39,6 +40,9 @@ export class MiddleEllipsis implements m.ClassComponent<MiddleEllipsisAttrs> {
     const right = trimmed.substring(index);
     return m(
       '.pf-middle-ellipsis',
+      {
+        className: attrs.className,
+      },
       m(
         'span.pf-middle-ellipsis-left',
         replaceLeadingTrailingSpacesWithNbsp(left),
