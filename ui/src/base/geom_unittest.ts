@@ -40,6 +40,16 @@ describe('Vector2D', () => {
 });
 
 describe('Rect2D', () => {
+  test('asPoint', () => {
+    const rect = new Rect2D({left: 1, top: 2, right: 3, bottom: 4});
+    expect(rect).toMatchObject({x: 1, y: 2});
+  });
+
+  test('asSize', () => {
+    const rect = new Rect2D({left: 1, top: 2, right: 3, bottom: 8});
+    expect(rect).toMatchObject({width: 2, height: 6});
+  });
+
   test('intersect', () => {
     const a = new Rect2D({left: 1, top: 1, right: 4, bottom: 4});
     const b = {left: 2, top: 2, right: 5, bottom: 5};
@@ -101,6 +111,24 @@ describe('Rect2D', () => {
     expect(rect.bottom).toBe(70);
     expect(rect.width).toBe(100);
     expect(rect.height).toBe(50);
+  });
+
+  test('fromPoints', () => {
+    const rect = Rect2D.fromPoints({x: 0, y: 0}, {x: 100, y: 100});
+
+    expect(rect.left).toBe(0);
+    expect(rect.top).toBe(0);
+    expect(rect.right).toBe(100);
+    expect(rect.bottom).toBe(100);
+  });
+
+  test('fromPoints reversed', () => {
+    const rect = Rect2D.fromPoints({x: 100, y: 100}, {x: 0, y: 0});
+
+    expect(rect.left).toBe(0);
+    expect(rect.top).toBe(0);
+    expect(rect.right).toBe(100);
+    expect(rect.bottom).toBe(100);
   });
 
   describe('containsPoint', () => {
