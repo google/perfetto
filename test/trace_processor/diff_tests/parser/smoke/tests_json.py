@@ -50,8 +50,8 @@ class SmokeJson(TestSuite):
         SELECT depth, count(*) AS count
         FROM slice
         JOIN track ON slice.track_id = track.id
-        GROUP BY track.type, depth
-        ORDER BY track.type, depth;
+        GROUP BY depth
+        ORDER BY depth;
         """,
         out=Csv("""
         "depth","count"

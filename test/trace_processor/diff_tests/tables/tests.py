@@ -291,7 +291,7 @@ class Tables(TestSuite):
         query="""
         SELECT cpu
         FROM cpu_track
-        ORDER BY type, cpu;
+        ORDER BY cpu;
         """,
         out=Csv("""
         "cpu"
@@ -399,12 +399,12 @@ class Tables(TestSuite):
             trusted_packet_sequence_id: 123
           }
         """),
-        query="SELECT * FROM flow;",
+        query="SELECT id, slice_out, slice_in, trace_id, arg_set_id FROM flow;",
         out=Csv("""
-          "id","type","slice_out","slice_in","trace_id","arg_set_id"
-          0,"flow",0,1,57,0
-          1,"flow",1,2,57,0
-                """))
+          "id","slice_out","slice_in","trace_id","arg_set_id"
+          0,0,1,57,0
+          1,1,2,57,0
+        """))
 
   def test_clock_snapshot_table_multiplier(self):
     return DiffTestBlueprint(
@@ -477,7 +477,7 @@ class Tables(TestSuite):
           c.machine_id
         FROM cpu_track AS ct
         JOIN cpu AS c ON ct.machine_id IS c.machine_id AND ct.cpu = c.cpu
-        ORDER BY ct.type, c.cpu
+        ORDER BY ct.cpu
         """,
         out=Csv("""
         "ucpu","cpu","machine_id"
