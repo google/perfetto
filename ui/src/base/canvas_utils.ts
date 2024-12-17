@@ -162,15 +162,46 @@ export function drawTrackHoverTooltip(
   }
 }
 
+/**
+ * Clip a canvas using a rect-like object.
+ *
+ * @param ctx - The canvas context to clip.
+ * @param rect - The position and dimensions of the rect to clip.
+ */
+export function canvasClip(
+  ctx: CanvasRenderingContext2D,
+  rect: Point2D & Size2D,
+): void;
+
+/**
+ * Clip a canvas using a separate x, y, width, height values.
+ *
+ * @param ctx - The canvas context to clip.
+ */
 export function canvasClip(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   w: number,
   h: number,
+): void;
+
+// This function can either take individual x, y, w, h parameters to define the
+// rect, or x can be a rect-like object.
+export function canvasClip(
+  ctx: CanvasRenderingContext2D,
+  x: number | (Point2D & Size2D),
+  y?: number,
+  w?: number,
+  h?: number,
 ): void {
   ctx.beginPath();
-  ctx.rect(x, y, w, h);
+  if (typeof x === 'number') {
+    // TypeScript ensures y, w, and h are defined here
+    ctx.rect(x, y!, w!, h!);
+  } else {
+    ctx.rect(x.x, x.y, x.width, x.height);
+  }
   ctx.clip();
 }
 
