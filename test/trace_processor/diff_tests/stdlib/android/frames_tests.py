@@ -101,25 +101,55 @@ class Frames(TestSuite):
         SELECT * FROM android_frames;
         """,
         out=Csv("""
-        "frame_id","ts","dur","do_frame_id","draw_frame_id","actual_frame_timeline_id","expected_frame_timeline_id","render_thread_utid","ui_thread_utid","actual_frame_timeline_count","expected_frame_timeline_count"
-        10,0,16000000,2,8,1,0,4,2,1,1
-        20,8000000,28000000,15,16,12,11,4,2,1,1
-        30,30000000,25000000,22,23,21,20,4,2,1,1
-        40,40000000,40000000,35,41,37,36,4,2,1,1
-        60,70000000,20000000,46,50,48,47,4,2,2,1
-        90,100000000,23000000,55,57,54,53,4,2,1,1
-        90,100000000,23000000,55,60,54,53,4,2,1,1
-        100,200000000,22000000,63,66,65,64,4,2,1,1
-        100,200000000,22000000,63,69,65,64,4,2,1,1
-        110,300000000,80000000,73,74,71,70,4,2,3,2
-        120,400000000,61000000,79,80,78,77,4,2,2,2
-        130,500000000,16000000,87,89,85,84,4,2,3,2
-        140,608600000,17000000,93,95,94,91,4,2,2,2
-        145,650000000,20000000,99,100,98,97,4,2,1,1
-        150,700500000,14500000,102,105,104,103,4,2,1,1
-        160,1070000000,16000000,108,109,132,107,4,2,1,2
-        1000,1100000000,500000000,140,146,138,137,4,2,1,1
+        "frame_id","ts","dur","do_frame_id","draw_frame_id","actual_frame_timeline_id","expected_frame_timeline_id","render_thread_utid","ui_thread_utid","actual_frame_timeline_count","expected_frame_timeline_count","draw_frame_count","upid","process_name"
+        10,0,16000000,2,8,1,0,4,2,1,1,1,2,"com.android.systemui"
+        20,8000000,28000000,15,16,12,11,4,2,1,1,1,2,"com.android.systemui"
+        30,30000000,25000000,22,23,21,20,4,2,1,1,1,2,"com.android.systemui"
+        40,40000000,40000000,35,41,37,36,4,2,1,1,1,2,"com.android.systemui"
+        60,70000000,20000000,46,50,48,47,4,2,2,1,1,2,"com.android.systemui"
+        90,100000000,23000000,55,57,54,53,4,2,1,1,2,2,"com.android.systemui"
+        100,200000000,22000000,63,66,65,64,4,2,1,1,2,2,"com.android.systemui"
+        110,300000000,80000000,73,74,71,70,4,2,2,1,1,2,"com.android.systemui"
+        120,400000000,61000000,79,80,78,77,4,2,1,1,1,2,"com.android.systemui"
+        130,500000000,6000000,87,89,85,84,4,2,2,1,1,2,"com.android.systemui"
+        140,608600000,17000000,93,95,94,91,4,2,1,1,1,2,"com.android.systemui"
+        145,650000000,20000000,99,100,98,97,4,2,1,1,1,2,"com.android.systemui"
+        150,700500000,14500000,102,105,104,103,4,2,1,1,1,2,"com.android.systemui"
+        160,800000000,2000000,108,109,"[NULL]",107,4,2,0,1,1,2,"com.android.systemui"
+        1000,1100000000,500000000,140,146,138,137,4,2,1,1,1,2,"com.android.systemui"
         """))
+
+  def test_android_frames_layers(self):
+      return DiffTestBlueprint(
+          trace=Path('../../metrics/graphics/android_jank_cuj.py'),
+          query="""
+          INCLUDE PERFETTO MODULE android.frames.timeline;
+
+          SELECT * FROM android_frames_layers;
+          """,
+          out=Csv("""
+          "frame_id","ts","dur","do_frame_id","draw_frame_id","actual_frame_timeline_id","expected_frame_timeline_id","render_thread_utid","ui_thread_utid","layer_id","layer_name","upid","process_name"
+          10,0,16000000,2,8,1,0,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          20,8000000,28000000,15,16,12,11,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          30,30000000,25000000,22,23,21,20,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          40,40000000,40000000,35,41,37,36,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          60,70000000,10000000,46,50,48,47,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          60,70000000,20000000,46,50,49,47,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          90,100000000,23000000,55,57,54,53,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          90,100000000,23000000,55,60,54,53,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          100,200000000,22000000,63,66,65,64,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          100,200000000,22000000,63,69,65,64,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          110,300000000,61000000,73,74,71,70,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          110,300000000,80000000,73,74,72,70,4,2,1,"TX - JankyLayer#1",2,"com.android.systemui"
+          120,400000000,61000000,79,80,78,77,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          130,500000000,2000000,87,89,85,84,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          130,550000000,6000000,87,89,88,84,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          140,608600000,17000000,93,95,94,91,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          145,650000000,20000000,99,100,98,97,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          150,700500000,14500000,102,105,104,103,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          160,800000000,2000000,108,109,"[NULL]",107,4,2,"[NULL]","[NULL]",2,"com.android.systemui"
+          1000,1100000000,500000000,140,146,138,137,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          """))
 
   def test_android_first_frame_after(self):
     return DiffTestBlueprint(
@@ -186,7 +216,6 @@ class Frames(TestSuite):
         140,8600000
         145,0
         150,500000
-        160,270000000
         1000,0
         """))
 
@@ -213,7 +242,6 @@ class Frames(TestSuite):
         140,8600000,1500000,17000000,27100000
         145,0,20000000,3000000,23000000
         150,500000,2000000,13800000,16300000
-        160,270000000,2000000,1000000,273000000
         1000,0,100000000,150000000,250000000
         """))
 
@@ -240,6 +268,6 @@ class Frames(TestSuite):
         140,5600000,27100000,1500000,1,1,"[NULL]","[NULL]"
         145,0,23000000,20000000,"[NULL]",1,"[NULL]","[NULL]"
         150,-5000000,16300000,2000000,"[NULL]","[NULL]","[NULL]","[NULL]"
-        160,266000000,273000000,2000000,1,1,1,1
+        160,266000000,7000000,2000000,1,"[NULL]","[NULL]","[NULL]"
         1000,480000000,250000000,100000000,1,1,1,1
         """))
