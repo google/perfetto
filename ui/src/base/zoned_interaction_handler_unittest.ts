@@ -259,6 +259,43 @@ describe('ZonedInteractionHandler', () => {
     expect(handleDragEnd).toHaveBeenCalled();
   });
 
+  test('click and move but stay in zone', () => {
+    const handleMouseClick = jest.fn(() => {});
+
+    zih.update([
+      {
+        id: 'foo',
+        area: {x: 0, y: 0, width: 60, height: 60},
+        onClick: handleMouseClick,
+      },
+    ]);
+
+    // Simulate a mouse click where the cursor has moved a little by remains
+    // inside the zone with the click event handler.
+    mousedown(30, 30);
+    mouseup(50, 50);
+
+    expect(handleMouseClick).toHaveBeenCalled();
+  });
+
+  test('click and move out of zone', () => {
+    const handleMouseClick = jest.fn(() => {});
+
+    zih.update([
+      {
+        id: 'foo',
+        area: {x: 0, y: 0, width: 60, height: 60},
+        onClick: handleMouseClick,
+      },
+    ]);
+
+    // Simulate a mouse click where the cursor has moved outside of the zone.
+    mousedown(50, 50);
+    mouseup(80, 80);
+
+    expect(handleMouseClick).not.toHaveBeenCalled();
+  });
+
   afterEach(() => {
     document.body.removeChild(div);
   });

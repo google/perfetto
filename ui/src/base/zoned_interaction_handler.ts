@@ -78,6 +78,9 @@ export interface InteractionWheelEvent {
 
   // Wheel deltaY directly from the DOM WheelEvent.
   readonly deltaY: number;
+
+  // Whether the ctrl key is held or not.
+  readonly ctrlKey: boolean;
 }
 
 export interface DragConfig {
@@ -122,7 +125,7 @@ export interface Zone {
   onWheel?(e: InteractionWheelEvent): void;
 }
 
-interface InProgressDrag {
+interface InProgressGesture {
   readonly zoneId: string;
   readonly startingMousePosition: Vector2D;
   currentMousePosition: Vector2D;
@@ -133,7 +136,7 @@ export class ZonedInteractionHandler implements Disposable {
   private readonly trash = new DisposableStack();
   private currentMousePosition?: Point2D;
   private zones: ReadonlyArray<Zone> = [];
-  private currentDrag?: InProgressDrag;
+  private currentGesture?: InProgressGesture;
   private shiftHeld = false;
 
   constructor(private readonly target: HTMLElement) {
@@ -178,9 +181,11 @@ export class ZonedInteractionHandler implements Disposable {
   private onMouseDown(e: MouseEvent) {
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
-    const zone = this.findZone((z) => z.drag && this.hitTestZone(z, mouse));
+    const zone = this.findZone(
+      (z) => (z.drag || z.onClick) && this.hitTestZone(z, mouse),
+    );
     if (zone) {
-      this.currentDrag = {
+      this.currentGesture = {
         zoneId: zone.id,
         startingMousePosition: mouse,
         currentMousePosition: mouse,
@@ -198,7 +203,7 @@ export class ZonedInteractionHandler implements Disposable {
     this.currentMousePosition = mousePosition;
     this.updateCursor();
 
-    const currentDrag = this.currentDrag;
+    const currentDrag = this.currentGesture;
     if (currentDrag) {
       currentDrag.currentMousePosition = mousePosition;
       const delta = currentDrag.startingMousePosition.sub(mousePosition);
@@ -225,28 +230,29 @@ export class ZonedInteractionHandler implements Disposable {
 
   private onMouseUp(e: MouseEvent) {
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
-    const mousePosition = mousePositionClient.sub(
-      this.target.getBoundingClientRect(),
-    );
+    const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
 
-    const currentDrag = this.currentDrag;
+    const gesture = this.currentGesture;
 
-    if (currentDrag) {
-      const delta = currentDrag.startingMousePosition.sub(mousePosition);
-      const dragConfig = this.findZoneById(currentDrag.zoneId)?.drag;
-      if (
-        dragConfig &&
-        delta.manhattanDistance >= (dragConfig?.minDistance ?? 0)
-      ) {
-        this.handleDrag(this.target, currentDrag, mousePosition, e, dragConfig);
-      } else {
-        this.handleClick(this.target, e);
+    if (gesture) {
+      const delta = gesture.startingMousePosition.sub(mouse);
+      const zone = this.findZoneById(gesture.zoneId);
+      if (zone) {
+        if (
+          zone.drag &&
+          delta.manhattanDistance >= (zone.drag?.minDistance ?? 0)
+        ) {
+          this.handleDrag(this.target, gesture, mouse, e, zone.drag);
+        } else {
+          // Check we're still the zone the click was started in
+          if (this.hitTestZone(zone, mouse)) {
+            this.handleClick(this.target, e);
+          }
+        }
       }
 
-      this.currentDrag = undefined;
+      this.currentGesture = undefined;
       this.updateCursor();
-    } else {
-      this.handleClick(this.target, e);
     }
   }
 
@@ -268,12 +274,13 @@ export class ZonedInteractionHandler implements Disposable {
       position: mouse,
       deltaX: e.deltaX,
       deltaY: e.deltaY,
+      ctrlKey: e.ctrlKey,
     });
   }
 
   private handleDrag(
     element: HTMLElement,
-    currentDrag: InProgressDrag,
+    currentDrag: InProgressGesture,
     x: Vector2D,
     e: MouseEvent,
     dragConfig: DragConfig,
@@ -300,7 +307,7 @@ export class ZonedInteractionHandler implements Disposable {
 
   private updateCursor() {
     // If a drag is ongoing, use the drag cursor if available
-    const drag = this.currentDrag;
+    const drag = this.currentGesture;
     if (drag) {
       const dragDelta = drag.currentMousePosition.sub(
         drag.startingMousePosition,
