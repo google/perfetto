@@ -61,13 +61,13 @@ class Profiling(TestSuite):
         }
         """),
         query="""
-        SELECT id, type, upid, ts, path, size_kb, private_dirty_kb, swap_kb
+        SELECT id, upid, ts, path, size_kb, private_dirty_kb, swap_kb
         FROM profiler_smaps;
         """,
         out=Csv("""
-        "id","type","upid","ts","path","size_kb","private_dirty_kb","swap_kb"
-        0,"profiler_smaps",2,10,"/system/lib64/libc.so",20,4,4
-        1,"profiler_smaps",2,10,"[anon: libc_malloc]",30,10,10
+        "id","upid","ts","path","size_kb","private_dirty_kb","swap_kb"
+        0,2,10,"/system/lib64/libc.so",20,4,4
+        1,2,10,"[anon: libc_malloc]",30,10,10
         """))
 
   def test_profiler_smaps_metric(self):

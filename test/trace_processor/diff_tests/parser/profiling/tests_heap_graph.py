@@ -52,7 +52,6 @@ class ProfilingHeapGraph(TestSuite):
         trace=Path('heap_graph_baseapk.textproto'),
         query="""
         SELECT o.id,
-               o.type,
                o.upid,
                o.graph_sample_ts,
                o.self_size,
@@ -69,7 +68,15 @@ class ProfilingHeapGraph(TestSuite):
     return DiffTestBlueprint(
         trace=Path('heap_graph_baseapk.textproto'),
         query="""
-        SELECT * FROM heap_graph_reference;
+          SELECT
+            id,
+            reference_set_id,
+            owner_id,
+            owned_id,
+            field_name,
+            field_type_name,
+            deobfuscated_field_name
+          FROM heap_graph_reference;
         """,
         out=Path('heap_graph_reference.out'))
 
@@ -78,7 +85,6 @@ class ProfilingHeapGraph(TestSuite):
         trace=Path('heap_graph_deobfuscate_pkg.textproto'),
         query="""
         SELECT o.id,
-               o.type,
                o.upid,
                o.graph_sample_ts,
                o.self_size,
@@ -194,7 +200,6 @@ class ProfilingHeapGraph(TestSuite):
         trace=Path('heap_graph.textproto'),
         query="""
         SELECT o.id,
-               o.type,
                o.upid,
                o.graph_sample_ts,
                o.self_size,
@@ -224,7 +229,15 @@ class ProfilingHeapGraph(TestSuite):
     return DiffTestBlueprint(
         trace=Path('heap_graph.textproto'),
         query="""
-        SELECT * FROM heap_graph_reference;
+          SELECT
+            id,
+            reference_set_id,
+            owner_id,
+            owned_id,
+            field_name,
+            field_type_name,
+            deobfuscated_field_name
+          FROM heap_graph_reference;
         """,
         out=Path('heap_graph_reference.out'))
 
@@ -233,7 +246,6 @@ class ProfilingHeapGraph(TestSuite):
         trace=Path('heap_graph_two_locations.textproto'),
         query="""
         SELECT o.id,
-               o.type,
                o.upid,
                o.graph_sample_ts,
                o.self_size,
@@ -244,14 +256,21 @@ class ProfilingHeapGraph(TestSuite):
                o.root_type
         FROM heap_graph_object o JOIN heap_graph_class c ON o.type_id = c.id;
         """,
-        out=Path('heap_graph_two_locations.out'))
+        out=Csv('''
+          "id","upid","graph_sample_ts","self_size","reference_set_id","reachable","type_name","deobfuscated_type_name","root_type"
+          0,2,10,64,0,1,"FactoryProducerDelegateImplActor","[NULL]","ROOT_JAVA_FRAME"
+          1,2,10,32,"[NULL]",1,"a","Foo","[NULL]"
+          2,2,10,128,"[NULL]",0,"a","Foo","[NULL]"
+          3,2,10,256,2,0,"a","DeobfuscatedA","[NULL]"
+          4,2,10,256,"[NULL]",1,"a[]","DeobfuscatedA[]","ROOT_JAVA_FRAME"
+          5,2,10,256,"[NULL]",0,"java.lang.Class<a[]>","java.lang.Class<DeobfuscatedA[]>","[NULL]"
+        '''))
 
   def test_heap_graph_object_4(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_legacy.textproto'),
         query="""
         SELECT o.id,
-               o.type,
                o.upid,
                o.graph_sample_ts,
                o.self_size,
@@ -268,7 +287,15 @@ class ProfilingHeapGraph(TestSuite):
     return DiffTestBlueprint(
         trace=Path('heap_graph_legacy.textproto'),
         query="""
-        SELECT * FROM heap_graph_reference;
+          SELECT
+              id,
+              reference_set_id,
+              owner_id,
+              owned_id,
+              field_name,
+              field_type_name,
+              deobfuscated_field_name
+          FROM heap_graph_reference;
         """,
         out=Path('heap_graph_reference.out'))
 
@@ -277,7 +304,6 @@ class ProfilingHeapGraph(TestSuite):
         trace=Path('heap_graph_interleaved.textproto'),
         query="""
         SELECT o.id,
-               o.type,
                o.upid,
                o.graph_sample_ts,
                o.self_size,
@@ -288,15 +314,34 @@ class ProfilingHeapGraph(TestSuite):
                o.root_type
         FROM heap_graph_object o JOIN heap_graph_class c ON o.type_id = c.id;
         """,
-        out=Path('heap_graph_interleaved_object.out'))
+        out=Csv('''
+          "id","upid","graph_sample_ts","self_size","reference_set_id","reachable","type_name","deobfuscated_type_name","root_type"
+          0,2,10,64,0,1,"FactoryProducerDelegateImplActor","[NULL]","ROOT_JAVA_FRAME"
+          1,2,10,32,"[NULL]",1,"Foo","[NULL]","[NULL]"
+          2,2,10,128,"[NULL]",0,"Foo","[NULL]","[NULL]"
+          3,2,10,256,1,0,"a","DeobfuscatedA","[NULL]"
+          4,3,10,64,"[NULL]",1,"FactoryProducerDelegateImplActor","[NULL]","ROOT_JAVA_FRAME"
+        '''))
 
   def test_heap_graph_interleaved_reference(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_interleaved.textproto'),
         query="""
-        SELECT * FROM heap_graph_reference;
+          SELECT
+            id,
+            reference_set_id,
+            owner_id,
+            owned_id,
+            field_name,
+            field_type_name,
+            deobfuscated_field_name
+          FROM heap_graph_reference;
         """,
-        out=Path('heap_graph_interleaved_reference.out'))
+        out=Csv('''
+          "id","reference_set_id","owner_id","owned_id","field_name","field_type_name","deobfuscated_field_name"
+          0,0,0,1,"FactoryProducerDelegateImplActor.foo","[NULL]","[NULL]"
+          1,1,3,0,"a.a","[NULL]","DeobfuscatedA.deobfuscatedA"
+        '''))
 
   def test_heap_graph_flamegraph_system_server_heap_graph(self):
     return DiffTestBlueprint(
@@ -328,7 +373,23 @@ class ProfilingHeapGraph(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('system-server-native-profile'),
         query="""
-        SELECT *
+        SELECT
+          id,
+          ts,
+          depth,
+          name,
+          map_name,
+          count,
+          cumulative_count,
+          size,
+          cumulative_size,
+          alloc_count,
+          cumulative_alloc_count,
+          alloc_size,
+          cumulative_alloc_size,
+          parent_id,
+          source_file,
+          line_number
         FROM experimental_flamegraph(
           'native',
           605908369259172,
@@ -340,45 +401,47 @@ class ProfilingHeapGraph(TestSuite):
         LIMIT 10;
         """,
         out=Csv('''
-          "id","type","ts","depth","name","map_name","count","cumulative_count","size","cumulative_size","alloc_count","cumulative_alloc_count","alloc_size","cumulative_alloc_size","parent_id","source_file","line_number"
-          0,"experimental_flamegraph",605908369259172,0,"__start_thread","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,"[NULL]","[NULL]","[NULL]"
-          1,"experimental_flamegraph",605908369259172,1,"_ZL15__pthread_startPv","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,0,"[NULL]","[NULL]"
-          2,"experimental_flamegraph",605908369259172,2,"_ZN7android14AndroidRuntime15javaThreadShellEPv","/system/lib64/libandroid_runtime.so",0,5,0,27704,0,77,0,348050,1,"[NULL]","[NULL]"
-          3,"experimental_flamegraph",605908369259172,3,"_ZN7android6Thread11_threadLoopEPv","/system/lib64/libutils.so",0,5,0,27704,0,77,0,348050,2,"[NULL]","[NULL]"
-          4,"experimental_flamegraph",605908369259172,4,"_ZN7android10PoolThread10threadLoopEv","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,3,"[NULL]","[NULL]"
-          5,"experimental_flamegraph",605908369259172,5,"_ZN7android14IPCThreadState14joinThreadPoolEb","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,4,"[NULL]","[NULL]"
-          6,"experimental_flamegraph",605908369259172,6,"_ZN7android14IPCThreadState20getAndExecuteCommandEv","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,5,"[NULL]","[NULL]"
-          7,"experimental_flamegraph",605908369259172,7,"_ZN7android14IPCThreadState14executeCommandEi","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,6,"[NULL]","[NULL]"
-          8,"experimental_flamegraph",605908369259172,8,"_ZN7android7BBinder8transactEjRKNS_6ParcelEPS1_j","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,7,"[NULL]","[NULL]"
-          9,"experimental_flamegraph",605908369259172,9,"_ZN11JavaBBinder10onTransactEjRKN7android6ParcelEPS1_j","/system/lib64/libandroid_runtime.so",0,0,0,0,0,60,0,262730,8,"[NULL]","[NULL]"
+          "id","ts","depth","name","map_name","count","cumulative_count","size","cumulative_size","alloc_count","cumulative_alloc_count","alloc_size","cumulative_alloc_size","parent_id","source_file","line_number"
+          0,605908369259172,0,"__start_thread","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,"[NULL]","[NULL]","[NULL]"
+          1,605908369259172,1,"_ZL15__pthread_startPv","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,0,"[NULL]","[NULL]"
+          2,605908369259172,2,"_ZN7android14AndroidRuntime15javaThreadShellEPv","/system/lib64/libandroid_runtime.so",0,5,0,27704,0,77,0,348050,1,"[NULL]","[NULL]"
+          3,605908369259172,3,"_ZN7android6Thread11_threadLoopEPv","/system/lib64/libutils.so",0,5,0,27704,0,77,0,348050,2,"[NULL]","[NULL]"
+          4,605908369259172,4,"_ZN7android10PoolThread10threadLoopEv","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,3,"[NULL]","[NULL]"
+          5,605908369259172,5,"_ZN7android14IPCThreadState14joinThreadPoolEb","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,4,"[NULL]","[NULL]"
+          6,605908369259172,6,"_ZN7android14IPCThreadState20getAndExecuteCommandEv","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,5,"[NULL]","[NULL]"
+          7,605908369259172,7,"_ZN7android14IPCThreadState14executeCommandEi","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,6,"[NULL]","[NULL]"
+          8,605908369259172,8,"_ZN7android7BBinder8transactEjRKNS_6ParcelEPS1_j","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,7,"[NULL]","[NULL]"
+          9,605908369259172,9,"_ZN11JavaBBinder10onTransactEjRKN7android6ParcelEPS1_j","/system/lib64/libandroid_runtime.so",0,0,0,0,0,60,0,262730,8,"[NULL]","[NULL]"
         '''))
 
   def test_heap_profile_tracker_new_stack(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_tracker_new_stack.textproto'),
         query="""
-        SELECT * FROM heap_profile_allocation;
+        SELECT id, ts, upid, heap_name, callsite_id, count, size
+        FROM heap_profile_allocation;
         """,
         out=Csv("""
-        "id","type","ts","upid","heap_name","callsite_id","count","size"
-        0,"heap_profile_allocation",0,0,"unknown",0,1,1
-        1,"heap_profile_allocation",0,0,"unknown",0,-1,-1
-        2,"heap_profile_allocation",1,0,"unknown",0,1,1
-        3,"heap_profile_allocation",1,0,"unknown",0,-1,-1
+        "id","ts","upid","heap_name","callsite_id","count","size"
+        0,0,0,"unknown",0,1,1
+        1,0,0,"unknown",0,-1,-1
+        2,1,0,"unknown",0,1,1
+        3,1,0,"unknown",0,-1,-1
         """))
 
   def test_heap_profile_tracker_twoheaps(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_tracker_twoheaps.textproto'),
         query="""
-        SELECT * FROM heap_profile_allocation;
+        SELECT id, ts, upid, heap_name, callsite_id, count, size
+        FROM heap_profile_allocation;
         """,
         out=Csv("""
-        "id","type","ts","upid","heap_name","callsite_id","count","size"
-        0,"heap_profile_allocation",0,0,"libc.malloc",0,1,1
-        1,"heap_profile_allocation",0,0,"libc.malloc",0,-1,-1
-        2,"heap_profile_allocation",0,0,"custom",0,1,1
-        3,"heap_profile_allocation",0,0,"custom",0,-1,-1
+        "id","ts","upid","heap_name","callsite_id","count","size"
+        0,0,0,"libc.malloc",0,1,1
+        1,0,0,"libc.malloc",0,-1,-1
+        2,0,0,"custom",0,1,1
+        3,0,0,"custom",0,-1,-1
         """))
 
   def test_heap_graph_flamegraph_focused(self):
