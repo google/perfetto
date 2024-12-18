@@ -40,7 +40,7 @@ RUN set -ex; \
     rm -rf /var/lib/apt/lists/* /usr/share/man/* /usr/share/doc/*;
 
 RUN set -ex; \
-    curl -LO https://github.com/bazelbuild/bazel/releases/download/7.0.2/bazel-7.0.2-installer-linux-x86_64.sh; \
+    curl -LO https://github.com/bazelbuild/bazel/releases/download/7.4.1/bazel-7.4.1-installer-linux-x86_64.sh; \
     chmod +x bazel-*-installer-linux-x86_64.sh; \
     ./bazel-*-installer-linux-x86_64.sh; \
     rm bazel-*-installer-linux-x86_64.sh; \
