@@ -704,19 +704,29 @@ export const StateActions = {
       srcParent = trackLikeSrc.parentGroup;
     } else {
       trackLikeSrc = state.tracks[args.srcId];
-      srcParent = trackLikeSrc.trackGroup;
+      if (state.pinnedTracks.includes(trackLikeSrc.id)) {
+        srcParent = 'Pinned';
+      } else {
+        srcParent = trackLikeSrc.trackGroup;
+      }
     }
 
     if (trackLikeDst) {
       dstParent = trackLikeDst.parentGroup;
     } else {
       trackLikeDst = state.tracks[args.dstId];
-      dstParent = trackLikeDst.trackGroup;
+      if (state.pinnedTracks.includes(trackLikeDst.id)) {
+        dstParent = 'Pinned';
+      } else {
+        dstParent = trackLikeDst.trackGroup;
+      }
     }
 
     if (srcParent && srcParent === dstParent) {
       if (srcParent === SCROLLING_TRACK_GROUP) {
         moveWithinTrackList(state.scrollingTracks);
+      } else if (srcParent === 'Pinned') {
+        moveWithinTrackList(state.pinnedTracks);
       } else {
         moveWithinTrackList(state.trackGroups[srcParent].sortOrder);
       }
@@ -1543,6 +1553,11 @@ export const StateActions = {
     state.filteredTracks = [...args.filteredTracks];
   },
 
+  togglePinnedGroupCollapsed(
+    state: StateDraft,
+    _: {}) {
+      state.pinnedGroupCollapsed = !state.pinnedGroupCollapsed;
+  },
   clearTrackAndGroupSelection(
     state: StateDraft,
     _: {},

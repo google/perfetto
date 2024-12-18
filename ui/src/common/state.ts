@@ -579,6 +579,7 @@ export interface State {
   traceConversionInProgress: boolean;
   visualisedArgs: string[];
   filteredTracks: AddTrackLikeArgs[];
+  pinnedGroupCollapsed: boolean;
 
   /**
    * This state is updated on the frontend at 60Hz and eventually syncronised to

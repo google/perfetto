@@ -339,8 +339,11 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     const trackLike : TrackState | TrackGroupState =
       globals.state.trackGroups[trackLikeId] ??
         globals.state.tracks[trackLikeId];
-    if (('trackGroup' in trackLike && this.attrs!.trackState.trackGroup === trackLike.trackGroup) ||
-    'parentGroup' in trackLike && this.attrs!.trackState.trackGroup === trackLike.parentGroup) {
+    if (
+      ('trackGroup' in trackLike && this.attrs!.trackState.trackGroup === trackLike.trackGroup) ||
+      'parentGroup' in trackLike && this.attrs!.trackState.trackGroup === trackLike.parentGroup ||
+      (globals.state.pinnedTracks.includes(this.attrs!.trackState.id) &&
+        trackLike.id)) {
       // Apply some hysteresis to the drop logic so that the lightened border
       // changes only when we get close enough to the border.
       if (e.offsetY < e.target.scrollHeight / 3) {

@@ -31,7 +31,7 @@ import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {TimeSelectionPanel} from './time_selection_panel';
 import {DISMISSED_PANNING_HINT_KEY} from './topbar';
-import {TrackGroupPanel} from './track_group_panel';
+import {MinimalTrackGroup, TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
 import {TrackGroupState, TrackState} from '../common/state';
 
@@ -290,6 +290,29 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
     if (OVERVIEW_PANEL_FLAG.get()) {
       overviewPanel.push(m(OverviewTimelinePanel, {key: 'overview'}));
     }
+    const pinnedPanels: AnyAttrsVnode[] = [
+      ...overviewPanel,
+      m(TimeAxisPanel, {key: 'timeaxis'}),
+      m(TimeSelectionPanel, {key: 'timeselection'}),
+      m(NotesPanel, {key: 'notes'}),
+      m(TickmarkPanel, {key: 'searchTickmarks'}),
+    ];
+    if (globals.state.pinnedTracks.length > 0) {
+      pinnedPanels.push(m(TrackGroup, {
+        header: m(MinimalTrackGroup, {
+          name: 'Pinned Tracks',
+          key: 'trackgroup-something',
+        }),
+        collapsed: globals.state.pinnedGroupCollapsed,
+        childTracks: !globals.state.pinnedGroupCollapsed ?
+        globals.state.pinnedTracks.map(
+          (id) => m(TrackPanel, {
+            key: id,
+            id,
+            selectable: true,
+            pinnedCopy: true})): [],
+      } as TrackGroupAttrs));
+    }
 
     return m(
         '.page',
@@ -307,19 +330,7 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
             },
             m('.pinned-panel-container', m(PanelContainer, {
                 doesScroll: false,
-                panels: [
-                  ...overviewPanel,
-                  m(TimeAxisPanel, {key: 'timeaxis'}),
-                  m(TimeSelectionPanel, {key: 'timeselection'}),
-                  m(NotesPanel, {key: 'notes'}),
-                  m(TickmarkPanel, {key: 'searchTickmarks'}),
-                  ...globals.state.pinnedTracks.map(
-                      (id) => m(TrackPanel, {
-                        key: id,
-                        id,
-                        selectable: true,
-                        pinnedCopy: true})),
-                ],
+                panels: pinnedPanels,
                 kind: 'OVERVIEW',
               })),
             m('.scrolling-panel-container', m(PanelContainer, {

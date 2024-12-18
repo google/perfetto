@@ -511,6 +511,122 @@ export class TrackGroupPanel extends Panel<Attrs> {
   }
 }
 
+interface MinimalGroupAttrs {
+  name: string;
+}
+export class MinimalTrackGroup extends Panel<MinimalGroupAttrs> {
+  private shellWidth = 0;
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+    // If we have vsync data, render columns under the track group
+    const vsync = getActiveVsyncData();
+    if (vsync) {
+      ctx.save();
+      ctx.translate(this.shellWidth, 0);
+      renderVsyncColumns(ctx, size.height, vsync);
+      ctx.restore();
+    }
+
+    drawGridLines(
+        ctx,
+        size.width,
+        size.height);
+
+    ctx.save();
+    ctx.translate(this.shellWidth, 0);
+    ctx.restore();
+
+    const {visibleTimeScale} = globals.frontendLocalState;
+    // Draw vertical line when hovering on the notes panel.
+    if (globals.state.hoveredNoteTimestamp !== -1n) {
+      drawVerticalLineAtTime(
+          ctx,
+          visibleTimeScale,
+          globals.state.hoveredNoteTimestamp,
+          size.height,
+          `#aaa`);
+    }
+    if (globals.state.hoverCursorTimestamp !== -1n) {
+      drawVerticalLineAtTime(
+          ctx,
+          visibleTimeScale,
+          globals.state.hoverCursorTimestamp,
+          size.height,
+          `#344596`);
+    }
+
+    if (globals.state.currentSelection !== null) {
+      if (globals.state.currentSelection.kind === 'SLICE' &&
+          globals.sliceDetails.wakeupTs !== undefined) {
+        drawVerticalLineAtTime(
+            ctx,
+            visibleTimeScale,
+            globals.sliceDetails.wakeupTs,
+            size.height,
+            getCssStr('--main-foreground-color'));
+      }
+    }
+    // All marked areas should have semi-transparent vertical lines
+    // marking the start and end.
+    for (const note of Object.values(globals.state.notes)) {
+      if (note.noteType === 'AREA') {
+        const transparentNoteColor =
+            'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';
+        drawVerticalLineAtTime(
+            ctx,
+            visibleTimeScale,
+            globals.state.areas[note.areaId].start,
+            size.height,
+            transparentNoteColor,
+            1);
+        drawVerticalLineAtTime(
+            ctx,
+            visibleTimeScale,
+            globals.state.areas[note.areaId].end,
+            size.height,
+            transparentNoteColor,
+            1);
+      } else if (note.noteType === 'DEFAULT') {
+        drawVerticalLineAtTime(
+            ctx, visibleTimeScale, note.timestamp, size.height, note.color);
+      }
+    }
+  }
+
+  view({attrs}: m.Vnode<MinimalGroupAttrs>) {
+    let name = attrs.name;
+    if (name[0] === '/') {
+      name = StripPathFromExecutable(name);
+    }
+    return m(
+        `.track-group-panel[collapsed=${globals.state.pinnedGroupCollapsed}]`,
+        {style: {
+          height: '18px',
+        }},
+        m(`.shell`,
+          m('.fold-button',
+            {
+              style: {
+                marginLeft: '.5rem',
+              },
+              onclick: (e: MouseEvent) => {
+                // Toggle Collapsing
+                e.stopPropagation();
+                globals.dispatch(Actions.togglePinnedGroupCollapsed({}));
+              },
+            },
+            m('i.material-icons',
+              globals.state.pinnedGroupCollapsed ?
+            CHEVRON_RIGHT : EXPAND_DOWN)),
+          m('h1.track-title',
+            {style: {
+              marginLeft: '.5rem',
+            }},
+            name,
+          ),
+
+        ));
+  }
+}
 function StripPathFromExecutable(path: string) {
   return path.split('/').slice(-1)[0];
 }
