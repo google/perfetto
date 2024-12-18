@@ -21,8 +21,6 @@ CREATE PERFETTO FUNCTION _slice_ancestor_and_self(
 RETURNS TABLE(
   -- Slice
   id JOINID(slice.id),
-  -- Alias of `slice.type`.
-  type STRING,
   -- Alias of `slice.ts`.
   ts TIMESTAMP,
   -- Alias of `slice.dur`.
@@ -45,12 +43,12 @@ RETURNS TABLE(
   thread_dur LONG
 ) AS
 SELECT
-  id, type, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, thread_ts, thread_dur
+  id, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, thread_ts, thread_dur
 FROM slice
 WHERE id = $slice_id
 UNION ALL
 SELECT
-  id, type, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, thread_ts, thread_dur
+  id, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, thread_ts, thread_dur
 FROM ancestor_slice($slice_id);
 
 -- Similar to `descendant_slice`, but returns the slice itself in addition to strict descendants.
@@ -61,8 +59,6 @@ CREATE PERFETTO FUNCTION _slice_descendant_and_self(
 RETURNS TABLE(
   -- Slice
   id JOINID(slice.id),
-  -- Alias of `slice.type`.
-  type STRING,
   -- Alias of `slice.ts`.
   ts TIMESTAMP,
   -- Alias of `slice.dur`.
@@ -85,12 +81,12 @@ RETURNS TABLE(
   thread_dur LONG
 ) AS
 SELECT
-  id, type, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, thread_ts, thread_dur
+  id, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, thread_ts, thread_dur
 FROM slice
 WHERE id = $slice_id
 UNION ALL
 SELECT
-  id, type, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, thread_ts, thread_dur
+  id, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, thread_ts, thread_dur
 FROM descendant_slice($slice_id);
 
 -- Delete rows from |slice_table| where the |column_name| value is NULL.

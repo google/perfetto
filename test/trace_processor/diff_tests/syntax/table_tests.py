@@ -74,11 +74,10 @@ class PerfettoTable(TestSuite):
         out=Csv("""
         "id","name","col_type","nullable","sorted"
         0,"id","id",0,1
-        1,"type","string",0,0
-        2,"ts","int64",0,1
-        3,"track_id","uint32",0,0
-        4,"value","double",0,0
-        5,"arg_set_id","uint32",1,0
+        1,"ts","int64",0,1
+        2,"track_id","uint32",0,0
+        3,"value","double",0,0
+        4,"arg_set_id","uint32",1,0
         """))
 
   def test_perfetto_table_info_runtime_table(self):

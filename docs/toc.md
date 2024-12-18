@@ -49,6 +49,7 @@
     * [Syntax](analysis/perfetto-sql-syntax.md)
     * [Prelude tables](analysis/sql-tables.autogen)
     * [Built-ins](analysis/builtin.md)
+    * [Backwards Compatibility](analysis/perfetto-sql-backcompat.md)
   * [Analysis at scale](#)
     * [Batch Trace Processor](analysis/batch-trace-processor.md)
     * [Bigtrace](deployment/deploying-bigtrace-on-a-single-machine.md)

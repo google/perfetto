@@ -63,7 +63,7 @@ class BlockIo(TestSuite):
           extract_arg(track.dimension_arg_set_id, 'block_device') as dev,
           extract_arg(slice.arg_set_id, 'sector') as sector
         FROM slice
-        JOIN track ON slice.track_id = track.id AND track.classification = 'block_io'
+        JOIN track ON slice.track_id = track.id AND track.type = 'block_io'
         """,
         out=Csv("""
         "name","ts","dur","dev","sector"
