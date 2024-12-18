@@ -14,20 +14,20 @@ Unreleased:
       for more information.
     * Removed the `linux_device_track` table. Linux RPM (runtime power
       management) tracks formerly in this table now can be found in the `track`
-      table with `classification` `linux_rpm`.
+      table with `type` `linux_rpm`.
     * Removed the `energy_counter_track` table. Android energy estimate
       breakdown tracks formerly in this table now can be found in the `track`
-      table with `classification` `android_energy_estimation_breakdown`.
+      table with `type` `android_energy_estimation_breakdown`.
     * Removed the `energy_per_uid_counter_track` table. Android energy estimate
       breakdown tracks formerly in this table now can be found in the `track`
-      table with `classification` `android_energy_estimation_breakdown_per_uid`.
+      table with `type` `android_energy_estimation_breakdown_per_uid`.
     * Moved the `gpu_work_period_track` table into the `android.gpu.work_period`
       standard library module and renamed it to `android_gpu_work_period_track`.
     * Removed the `irq_counter_track` table. Irq counter tracks formerly in this
-      table now can be found in the `track` table with `classification`
+      table now can be found in the `track` table with `type`
       `irq_counter`.
     * Removed the `softirq_counter_track` table. Softirq counter tracks formerly
-      in this table now can be found in the `track` table with `classification`
+      in this table now can be found in the `track` table with `type`
       `softirq_counter`.
     * Removed the `uid_counter_track` table. It was redundant as no data was
       inserted directly into it.

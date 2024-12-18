@@ -49,7 +49,7 @@ class AndroidDumpstate(TestSuite):
         JOIN counter_track ON counter.track_id = counter_track.id
         WHERE
           name = 'ScreenState'
-          AND classification = 'screen_state'
+          AND type = 'screen_state'
         """,
         out=Csv("""
         "name","ts","value"
