@@ -484,11 +484,16 @@ void GpuEventParser::ParseGpuRenderStageEvent(
                                       ? context_->storage->InternString(
                                             command_buffer_name.value().c_str())
                                       : kNullStringId;
-
+    StringId name_id;
+    if (event.has_submission_id()) {
+      name_id = context_->storage->InternString(std::to_string(event.submission_id()).c_str());
+    } else {
+      name_id = GetFullStageName(sequence_state, event);
+    }
     tables::GpuSliceTable::Row row;
     row.ts = ts;
     row.track_id = track_id;
-    row.name = GetFullStageName(sequence_state, event);
+    row.name = name_id;
     row.dur = static_cast<int64_t>(event.duration());
     // TODO: Create table for graphics context and lookup
     // InternedGraphicsContext.
