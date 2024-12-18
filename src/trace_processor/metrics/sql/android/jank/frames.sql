@@ -56,9 +56,8 @@ SELECT
   MAX(timeline.layer_name) as frame_layer_name
 FROM android_jank_cuj_vsync_boundary boundary
 JOIN actual_timeline_with_vsync timeline
-  ON boundary.upid = timeline.upid
-    AND vsync >= vsync_min
-    AND vsync <= vsync_max
+  ON vsync >= vsync_min
+     AND vsync <= vsync_max
 LEFT JOIN expected_frame_timeline_slice expected
   ON expected.upid = timeline.upid AND expected.name = timeline.name
 LEFT JOIN vsync_missed_callback missed_callback USING(vsync)
