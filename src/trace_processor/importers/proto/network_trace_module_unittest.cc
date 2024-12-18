@@ -31,11 +31,11 @@
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
@@ -67,8 +67,7 @@ class NetworkTraceModuleTest : public testing::Test {
         std::make_unique<ProcessTrackTranslationTable>(storage_);
     context_.args_translation_table =
         std::make_unique<ArgsTranslationTable>(storage_);
-    context_.async_track_set_tracker =
-        std::make_unique<AsyncTrackSetTracker>(&context_);
+    context_.track_compressor = std::make_unique<TrackCompressor>(&context_);
     context_.proto_trace_parser =
         std::make_unique<ProtoTraceParserImpl>(&context_);
     context_.sorter = std::make_shared<TraceSorter>(

@@ -15,24 +15,26 @@
  * limitations under the License.
  */
 
+#include <cinttypes>
 #include <cstdint>
-#include <functional>
 #include <memory>
 
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/virtio_video.pbzero.h"
-#include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 using protos::pbzero::FtraceEvent;
@@ -41,7 +43,6 @@ using protos::pbzero::VirtioVideoCmdFtraceEvent;
 using protos::pbzero::VirtioVideoResourceQueueDoneFtraceEvent;
 using protos::pbzero::VirtioVideoResourceQueueFtraceEvent;
 using protozero::ConstBytes;
-using TrackSetId = AsyncTrackSetTracker::TrackSetId;
 
 /* VIRTIO_VIDEO_QUEUE_TYPE_INPUT */
 constexpr uint64_t kVirtioVideoQueueTypeInput = 0x100;
@@ -50,6 +51,38 @@ constexpr uint64_t kVirtioVideoQueueTypeInput = 0x100;
 constexpr uint64_t kVirtioVideoQueueTypeOutput = 0x101;
 
 constexpr int64_t kVirtioVideoCmdDuration = 100000;
+
+const char* NameForQueueType(uint32_t queue_type) {
+  switch (queue_type) {
+    case kVirtioVideoQueueTypeInput:
+      return "INPUT";
+    case kVirtioVideoQueueTypeOutput:
+      return "OUTPUT";
+    default:
+      return "Unknown";
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+constexpr auto kQueueEventBlueprint = TrackCompressor::SliceBlueprint(
+    "virtio_video_queue_event",
+    tracks::Dimensions(tracks::UintDimensionBlueprint("virtio_stream_id"),
+                       tracks::UintDimensionBlueprint("virtio_queue_type")),
+    tracks::FnNameBlueprint([](uint32_t stream_id, uint32_t queue_type) {
+      return base::StackString<255>("virtio_video stream #%" PRIu32 " %s",
+                                    stream_id, NameForQueueType(queue_type));
+    }));
+
+constexpr auto kCommandBlueprint = TrackCompressor::SliceBlueprint(
+    "virtio_video_command",
+    tracks::Dimensions(tracks::UintDimensionBlueprint("virtio_stream_id"),
+                       tracks::UintDimensionBlueprint("is_response")),
+    tracks::FnNameBlueprint([](uint32_t stream_id, uint32_t is_response) {
+      const char* suffix = is_response ? "Responses" : "Requests";
+      return base::StackString<64>("virtio_video stream #%u %s", stream_id,
+                                   suffix);
+    }));
+
 }  // namespace
 
 VirtioVideoTracker::VirtioVideoTracker(TraceProcessorContext* context)
@@ -84,34 +117,26 @@ void VirtioVideoTracker::ParseVirtioVideoEvent(uint64_t fld_id,
                                                const ConstBytes& blob) {
   switch (fld_id) {
     case FtraceEvent::kVirtioVideoResourceQueueFieldNumber: {
-      VirtioVideoResourceQueueFtraceEvent::Decoder pb_evt(blob.data, blob.size);
+      VirtioVideoResourceQueueFtraceEvent::Decoder pb_evt(blob);
 
-      uint64_t hash = base::Hasher::Combine(
-          pb_evt.stream_id(), pb_evt.resource_id(), pb_evt.queue_type());
-
-      base::StackString<64> name("Resource #%" PRIu32, pb_evt.resource_id());
+      base::StackString<64> name("Resource #%d", pb_evt.resource_id());
       StringId name_id = context_->storage->InternString(name.string_view());
 
-      TrackSetId track_set_id =
-          InternOrCreateBufferTrack(pb_evt.stream_id(), pb_evt.queue_type());
-      TrackId begin_id = context_->async_track_set_tracker->Begin(
-          track_set_id, static_cast<int64_t>(hash));
+      TrackId begin_id = context_->track_compressor->InternBegin(
+          kQueueEventBlueprint,
+          tracks::Dimensions(pb_evt.stream_id(), pb_evt.queue_type()),
+          static_cast<int64_t>(pb_evt.resource_id()));
       context_->slice_tracker->Begin(timestamp, begin_id, kNullStringId,
                                      name_id);
       break;
     }
     case FtraceEvent::kVirtioVideoResourceQueueDoneFieldNumber: {
-      VirtioVideoResourceQueueDoneFtraceEvent::Decoder pb_evt(blob.data,
-                                                              blob.size);
+      VirtioVideoResourceQueueDoneFtraceEvent::Decoder pb_evt(blob);
 
-      uint64_t hash = base::Hasher::Combine(
-          pb_evt.stream_id(), pb_evt.resource_id(), pb_evt.queue_type());
-
-      TrackSetId track_set_id =
-          InternOrCreateBufferTrack(pb_evt.stream_id(), pb_evt.queue_type());
-
-      TrackId end_id = context_->async_track_set_tracker->End(
-          track_set_id, static_cast<int64_t>(hash));
+      TrackId end_id = context_->track_compressor->InternEnd(
+          kQueueEventBlueprint,
+          tracks::Dimensions(pb_evt.stream_id(), pb_evt.queue_type()),
+          static_cast<int64_t>(pb_evt.resource_id()));
       context_->slice_tracker->End(
           timestamp, end_id, {}, {},
           [this, &pb_evt](ArgsTracker::BoundInserter* args) {
@@ -120,12 +145,12 @@ void VirtioVideoTracker::ParseVirtioVideoEvent(uint64_t fld_id,
       break;
     }
     case FtraceEvent::kVirtioVideoCmdFieldNumber: {
-      VirtioVideoCmdFtraceEvent::Decoder pb_evt(blob.data, blob.size);
+      VirtioVideoCmdFtraceEvent::Decoder pb_evt(blob);
       AddCommandSlice(timestamp, pb_evt.stream_id(), pb_evt.type(), false);
       break;
     }
     case FtraceEvent::kVirtioVideoCmdDoneFieldNumber: {
-      VirtioVideoCmdDoneFtraceEvent::Decoder pb_evt(blob.data, blob.size);
+      VirtioVideoCmdDoneFtraceEvent::Decoder pb_evt(blob);
       AddCommandSlice(timestamp, pb_evt.stream_id(), pb_evt.type(), true);
       break;
     }
@@ -142,32 +167,6 @@ VirtioVideoTracker::FieldsStringIds::FieldsStringIds(TraceStorage& storage)
       data_size3(storage.InternString("data_size3")),
       timestamp(storage.InternString("timestamp")) {}
 
-TrackSetId VirtioVideoTracker::InternOrCreateBufferTrack(int32_t stream_id,
-                                                         uint32_t queue_type) {
-  const char* queue_name;
-
-  switch (queue_type) {
-    case kVirtioVideoQueueTypeInput: {
-      queue_name = "INPUT";
-      break;
-    }
-    case kVirtioVideoQueueTypeOutput: {
-      queue_name = "OUTPUT";
-      break;
-    }
-    default: {
-      queue_name = "Unknown";
-      break;
-    }
-  }
-
-  base::StackString<64> track_name("virtio_video stream #%" PRId32 " %s",
-                                   stream_id, queue_name);
-  StringId track_name_id =
-      context_->storage->InternString(track_name.string_view());
-  return context_->async_track_set_tracker->InternGlobalTrackSet(track_name_id);
-}
-
 void VirtioVideoTracker::AddCommandSlice(int64_t timestamp,
                                          uint32_t stream_id,
                                          uint64_t type,
@@ -177,19 +176,9 @@ void VirtioVideoTracker::AddCommandSlice(int64_t timestamp,
     cmd_name_id = &unknown_id_;
   }
 
-  const char* suffix = response ? "Responses" : "Requests";
-
-  base::StackString<64> track_name("virtio_video stream #%" PRId32 " %s",
-                                   stream_id, suffix);
-  StringId track_name_id =
-      context_->storage->InternString(track_name.string_view());
-
-  TrackSetId track_set_id =
-      context_->async_track_set_tracker->InternGlobalTrackSet(track_name_id);
-
-  TrackId track_id = context_->async_track_set_tracker->Scoped(
-      track_set_id, timestamp, kVirtioVideoCmdDuration);
-
+  TrackId track_id = context_->track_compressor->InternScoped(
+      kCommandBlueprint, tracks::Dimensions(stream_id, response), timestamp,
+      kVirtioVideoCmdDuration);
   context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId,
                                   *cmd_name_id, kVirtioVideoCmdDuration);
 }
@@ -230,5 +219,4 @@ void VirtioVideoTracker::AddCommandSliceArgs(
                Variadic::UnsignedInteger(pb_evt->timestamp()));
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -25,26 +25,37 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/ext/base/utils.h"
-#include "protos/perfetto/trace/android/graphics_frame_event.pbzero.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include "protos/perfetto/trace/android/graphics_frame_event.pbzero.h"
+
 namespace perfetto::trace_processor {
+
+namespace {
 
 constexpr char kQueueLostMessage[] =
     "Missing queue event. The slice is now a bit extended than it might "
     "actually have been";
+
+constexpr auto kGraphicFrameEventBlueprint = tracks::SliceBlueprint(
+    "graphics_frame_event",
+    tracks::DimensionBlueprints(tracks::kNameFromTraceDimensionBlueprint),
+    tracks::DynamicNameBlueprint());
+
+}  // namespace
+
 GraphicsFrameEventParser::GraphicsFrameEventParser(
     TraceProcessorContext* context)
     : context_(context),
-      graphics_event_scope_id_(
-          context->storage->InternString("graphics_frame_event")),
       unknown_event_name_id_(context->storage->InternString("unknown_event")),
       no_layer_name_name_id_(context->storage->InternString("no_layer_name")),
       layer_name_key_id_(context->storage->InternString("layer_name")),
@@ -124,15 +135,15 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
   track_name.AppendLiteral(" ");
   track_name.AppendString(base::StringView(event.layer_name()));
 
-  const StringId track_name_id =
-      context_->storage->InternString(track_name.GetStringView());
   const int64_t duration =
       event.has_duration_ns() ? static_cast<int64_t>(event.duration_ns()) : 0;
   uint32_t frame_number = event.has_frame_number() ? event.frame_number() : 0;
 
-  tables::GpuTrackTable::Row track(track_name_id);
-  track.scope = graphics_event_scope_id_;
-  TrackId track_id = context_->track_tracker->LegacyInternGpuTrack(track);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kGraphicFrameEventBlueprint,
+      tracks::Dimensions(track_name.GetStringView()),
+      tracks::DynamicName(
+          context_->storage->InternString(track_name.GetStringView())));
 
   auto* graphics_frame_slice_table =
       context_->storage->mutable_graphics_frame_slice_table();
@@ -245,9 +256,12 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       track_name.AppendString(base::StringView(event.layer_name()));
       track_name_id =
           context_->storage->InternString(track_name.GetStringView());
-      tables::GpuTrackTable::Row app_track(track_name_id);
-      app_track.scope = graphics_event_scope_id_;
-      track_id = context_->track_tracker->LegacyInternGpuTrack(app_track);
+
+      track_id = context_->track_tracker->InternTrack(
+          kGraphicFrameEventBlueprint,
+          tracks::Dimensions(track_name.GetStringView()),
+          tracks::DynamicName(
+              context_->storage->InternString(track_name.GetStringView())));
 
       // Error handling
       auto dequeue_time = dequeue_map_.find(event_key);
@@ -299,9 +313,12 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       track_name.AppendString(base::StringView(event.layer_name()));
       track_name_id =
           context_->storage->InternString(track_name.GetStringView());
-      tables::GpuTrackTable::Row gpu_track(track_name_id);
-      gpu_track.scope = graphics_event_scope_id_;
-      track_id = context_->track_tracker->LegacyInternGpuTrack(gpu_track);
+
+      track_id = context_->track_tracker->InternTrack(
+          kGraphicFrameEventBlueprint,
+          tracks::Dimensions(track_name.GetStringView()),
+          tracks::DynamicName(
+              context_->storage->InternString(track_name.GetStringView())));
       queue_map_[event_key] = track_id;
       break;
     }
@@ -330,9 +347,12 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       track_name.AppendString(base::StringView(event.layer_name()));
       track_name_id =
           context_->storage->InternString(track_name.GetStringView());
-      tables::GpuTrackTable::Row sf_track(track_name_id);
-      sf_track.scope = graphics_event_scope_id_;
-      track_id = context_->track_tracker->LegacyInternGpuTrack(sf_track);
+
+      track_id = context_->track_tracker->InternTrack(
+          kGraphicFrameEventBlueprint,
+          tracks::Dimensions(track_name.GetStringView()),
+          tracks::DynamicName(
+              context_->storage->InternString(track_name.GetStringView())));
       latch_map_[event_key] = track_id;
       break;
     }
@@ -354,9 +374,12 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       track_name.AppendString(layerName.substr(0, 10));
       track_name_id =
           context_->storage->InternString(track_name.GetStringView());
-      tables::GpuTrackTable::Row display_track(track_name_id);
-      display_track.scope = graphics_event_scope_id_;
-      track_id = context_->track_tracker->LegacyInternGpuTrack(display_track);
+
+      track_id = context_->track_tracker->InternTrack(
+          kGraphicFrameEventBlueprint,
+          tracks::Dimensions(track_name.GetStringView()),
+          tracks::DynamicName(
+              context_->storage->InternString(track_name.GetStringView())));
       display_map_[layer_name_id] = track_id;
       break;
     }

@@ -17,19 +17,21 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_MALI_GPU_EVENT_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_MALI_GPU_EVENT_TRACKER_H_
 
-#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include <array>
+#include <cstdint>
+
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/descriptors.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
 class MaliGpuEventTracker {
  public:
   explicit MaliGpuEventTracker(TraceProcessorContext*);
-  void ParseMaliGpuEvent(int64_t timestamp, uint32_t field_id, uint32_t pid);
   void ParseMaliGpuIrqEvent(int64_t timestamp,
                             uint32_t field_id,
                             uint32_t cpu,
@@ -37,12 +39,6 @@ class MaliGpuEventTracker {
   void ParseMaliGpuMcuStateEvent(int64_t timestamp, uint32_t field_id);
 
  private:
-  void ParseMaliKcpuFenceSignal(int64_t timestamp, TrackId track_id);
-  void ParseMaliKcpuFenceWaitStart(int64_t timestamp, TrackId track_id);
-  void ParseMaliKcpuFenceWaitEnd(int64_t timestamp, TrackId track_id);
-  void ParseMaliKcpuCqsSet(int64_t timestamp, TrackId track_id);
-  void ParseMaliKcpuCqsWaitStart(int64_t timestamp, TrackId track_id);
-  void ParseMaliKcpuCqsWaitEnd(int64_t timestamp, TrackId track_id);
   void ParseMaliCSFInterruptStart(int64_t timestamp,
                                   TrackId track_id,
                                   protozero::ConstBytes blob);
@@ -69,10 +65,8 @@ class MaliGpuEventTracker {
   std::array<StringId, (kLastMcuStateId - kFirstMcuStateId) + 1>
       mcu_state_names_;
   StringId current_mcu_state_name_;
-  StringId mcu_state_track_name_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_MALI_GPU_EVENT_TRACKER_H_

@@ -400,9 +400,41 @@ SELECT
 FROM
   __intrinsic_sched_upid;
 
--- Tracks which are associated to a single CPU.
-CREATE PERFETTO VIEW cpu_track (
-  -- Unique identifier for this cpu track.
+-- Tracks which are associated to a single thread.
+CREATE PERFETTO TABLE thread_track (
+  -- Unique identifier for this thread track.
+  id ID,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- Name of the track.
+  name STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id JOINID(track.id),
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id ARGSETID,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG,
+  -- The utid that the track is associated with.
+  utid JOINID(thread.id)
+) AS
+SELECT
+  t.id,
+  t.type,
+  t.name,
+  t.parent_id,
+  t.source_arg_set_id,
+  t.machine_id,
+  a.int_value AS utid
+FROM __intrinsic_track t
+JOIN args a ON t.dimension_arg_set_id = a.arg_set_id
+WHERE t.event_type = 'slice' AND a.key = 'utid';
+
+-- Tracks which are associated to a single process.
+CREATE PERFETTO TABLE process_track (
+  -- Unique identifier for this process track.
   id ID,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
@@ -417,8 +449,84 @@ CREATE PERFETTO VIEW cpu_track (
   source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
+  -- The upid that the track is associated with.
+  upid JOINID(process.id)
+) AS
+SELECT
+  t.id,
+  t.type,
+  t.name,
+  t.parent_id,
+  t.source_arg_set_id,
+  t.machine_id,
+  a.int_value AS upid
+FROM __intrinsic_track t
+JOIN args a ON t.dimension_arg_set_id = a.arg_set_id
+WHERE t.event_type = 'slice' AND a.key = 'upid';
+
+-- Tracks which are associated to a single CPU.
+CREATE PERFETTO TABLE cpu_track (
+  -- Unique identifier for this cpu track.
+  id ID,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- Name of the track.
+  name STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id JOINID(track.id),
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id ARGSETID,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG,
   -- The CPU that the track is associated with.
   cpu LONG
+) AS
+SELECT
+  t.id,
+  t.type,
+  t.name,
+  t.parent_id,
+  t.source_arg_set_id,
+  t.machine_id,
+  a.int_value AS cpu
+FROM __intrinsic_track t
+JOIN args a ON t.dimension_arg_set_id = a.arg_set_id
+WHERE t.event_type = 'slice' AND a.key = 'cpu';
+
+-- Table containing tracks which are loosely tied to a GPU.
+--
+-- NOTE: this table is deprecated due to inconsistency of it's design with
+-- other track tables (e.g. not having a GPU column, mixing a bunch of different
+-- tracks which are barely related). Please use the track table directly
+-- instead.
+CREATE PERFETTO TABLE gpu_track (
+  -- Unique identifier for this cpu track.
+  id ID,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- Name of the track.
+  name STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id LONG,
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id ARGSETID,
+  -- The dimensions of the track which uniquely identify the track within a
+  -- given classification.
+  dimension_arg_set_id ARGSETID,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG,
+  -- The source of the track. Deprecated.
+  scope STRING,
+  -- The description for the track.
+  description STRING,
+  -- The context id for the GPU this track is associated to.
+  context_id LONG
 ) AS
 SELECT
   id,
@@ -426,10 +534,23 @@ SELECT
   name,
   parent_id,
   source_arg_set_id,
+  dimension_arg_set_id,
   machine_id,
-  cpu
+  classification AS scope,
+  EXTRACT_ARG(source_arg_set_id, 'description') AS description,
+  EXTRACT_ARG(dimension_arg_set_id, 'context_id') AS context_id
 FROM
-  __intrinsic_cpu_track;
+  __intrinsic_track
+WHERE classification IN (
+  'drm_vblank',
+  'drm_sched_ring',
+  'drm_fence',
+  'mali_mcu_state',
+  'gpu_render_stage',
+  'vulkan_events',
+  'gpu_log',
+  'graphics_frame_event'
+);
 
 -- Tracks containing counter-like events.
 CREATE PERFETTO VIEW counter_track (

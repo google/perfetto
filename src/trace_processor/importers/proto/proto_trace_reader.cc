@@ -395,7 +395,7 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
       if (!seq_id) {
         return base::ErrStatus(
             "ClockSnapshot packet is specifying a sequence-scoped clock id "
-            "(%" PRIu64 ") but the TracePacket sequence_id is zero",
+            "(%" PRId64 ") but the TracePacket sequence_id is zero",
             clock_id);
       }
       clock_id = ClockTracker::SequenceToGlobalClock(seq_id, clk.clock_id());
@@ -635,6 +635,14 @@ base::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {
           Variadic::String(
               context_->storage->InternString(base::StringView(formatted))));
     }
+  }
+  if (tse.has_clone_started()) {
+    context_->storage->SetStats(stats::traced_clone_started_timestamp_ns, ts);
+  }
+  if (tse.has_buffer_cloned()) {
+    context_->storage->SetIndexedStats(
+        stats::traced_buf_clone_done_timestamp_ns,
+        static_cast<int>(tse.buffer_cloned()), ts);
   }
   return base::OkStatus();
 }

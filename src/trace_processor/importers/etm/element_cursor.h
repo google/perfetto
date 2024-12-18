@@ -33,7 +33,6 @@ namespace perfetto::trace_processor::etm {
 class MappingVersion;
 class TargetMemory;
 class TargetMemoryReader;
-struct InstructionRangeSqlValue;
 
 class ElementTypeMask {
  public:
@@ -96,12 +95,6 @@ class ElementCursor : public EtmV4Decoder::Delegate {
   const TraceStorage* storage() const { return storage_; }
 
   const MappingVersion* mapping() const { return mapping_; }
-
-  bool has_instruction_range() const {
-    return element_->getType() == OCSD_GEN_TRC_ELEM_INSTR_RANGE;
-  }
-
-  std::unique_ptr<InstructionRangeSqlValue> GetInstructionRange() const;
 
  private:
   void SetAtEof();

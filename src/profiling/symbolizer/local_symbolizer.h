@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "perfetto/ext/base/scoped_file.h"
-#include "src/profiling/symbolizer/binary_info.h"
 #include "src/profiling/symbolizer/subprocess.h"
 #include "src/profiling/symbolizer/symbolizer.h"
 
@@ -34,6 +33,11 @@ namespace profiling {
 
 bool ParseLlvmSymbolizerJsonLine(const std::string& line,
                                  std::vector<SymbolizedFrame>* result);
+enum BinaryType {
+  kElf,
+  kMachO,
+  kMachODsym,
+};
 
 struct FoundBinary {
   std::string file_name;

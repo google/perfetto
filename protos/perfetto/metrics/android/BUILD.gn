@@ -26,6 +26,7 @@ perfetto_proto_library("@TYPE@") {
     "android_boot_unagg.proto",
     "android_broadcasts_metric.proto",
     "android_frame_timeline_metric.proto",
+    "android_garbage_collection_stats.proto",
     "android_garbage_collection_unagg_metric.proto",
     "android_oom_adjuster_metric.proto",
     "android_sysui_notifications_blocking_calls_metric.proto",

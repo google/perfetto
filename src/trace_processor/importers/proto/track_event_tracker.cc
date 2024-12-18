@@ -64,6 +64,23 @@ constexpr auto kGlobalCounterTrackBlueprint = tracks::CounterBlueprint(
     tracks::DimensionBlueprints(tracks::LongDimensionBlueprint("track_uuid")),
     tracks::DynamicNameBlueprint());
 
+constexpr auto kThreadTrackBlueprint = tracks::SliceBlueprint(
+    "thread_track_event",
+    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint,
+                                tracks::LongDimensionBlueprint("track_uuid")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kProcessTrackBlueprint = tracks::SliceBlueprint(
+    "process_track_event",
+    tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
+                                tracks::LongDimensionBlueprint("track_uuid")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kGlobalTrackBlueprint = tracks::SliceBlueprint(
+    "global_track_event",
+    tracks::DimensionBlueprints(tracks::LongDimensionBlueprint("track_uuid")),
+    tracks::DynamicNameBlueprint());
+
 }  // namespace
 
 TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
@@ -195,16 +212,21 @@ TrackId TrackEventTracker::CreateTrackFromResolved(
           if (it != thread_tracks_.end()) {
             return it->second;
           }
-          TrackId id = context_->track_tracker->CreateThreadTrack(
-              tracks::track_event, track.utid(), TrackTracker::AutoName());
+          TrackId id = context_->track_tracker->InternTrack(
+              kThreadTrackBlueprint,
+              tracks::Dimensions(track.utid(), static_cast<int64_t>(uuid)),
+              tracks::DynamicName(kNullStringId));
           thread_tracks_[track.utid()] = id;
           return id;
         }
         return context_->track_tracker->InternThreadTrack(track.utid());
       }
-      case ResolvedDescriptorTrack::Scope::kProcess:
-        return context_->track_tracker->InternProcessTrack(tracks::track_event,
-                                                           track.upid());
+      case ResolvedDescriptorTrack::Scope::kProcess: {
+        return context_->track_tracker->InternTrack(
+            kProcessTrackBlueprint,
+            tracks::Dimensions(track.upid(), static_cast<int64_t>(uuid)),
+            tracks::DynamicName(kNullStringId));
+      }
       case ResolvedDescriptorTrack::Scope::kGlobal:
         // Will be handled below.
         break;
@@ -248,17 +270,21 @@ TrackId TrackEventTracker::CreateTrackFromResolved(
 
   switch (track.scope()) {
     case ResolvedDescriptorTrack::Scope::kThread: {
-      return context_->track_tracker->CreateThreadTrack(
-          tracks::track_event, track.utid(), TrackTracker::AutoName());
+      return context_->track_tracker->InternTrack(
+          kThreadTrackBlueprint,
+          tracks::Dimensions(track.utid(), static_cast<int64_t>(uuid)),
+          tracks::DynamicName(kNullStringId));
     }
     case ResolvedDescriptorTrack::Scope::kProcess: {
-      return context_->track_tracker->CreateProcessTrack(
-          tracks::track_event, track.upid(), std::nullopt,
-          TrackTracker::AutoName());
+      return context_->track_tracker->InternTrack(
+          kProcessTrackBlueprint,
+          tracks::Dimensions(track.upid(), static_cast<int64_t>(uuid)),
+          tracks::DynamicName(kNullStringId));
     }
     case ResolvedDescriptorTrack::Scope::kGlobal: {
-      return context_->track_tracker->CreateTrack(
-          tracks::track_event, std::nullopt, TrackTracker::AutoName());
+      return context_->track_tracker->InternTrack(
+          kGlobalTrackBlueprint, tracks::Dimensions(static_cast<int64_t>(uuid)),
+          tracks::DynamicName(kNullStringId));
     }
   }
   PERFETTO_FATAL("For GCC");

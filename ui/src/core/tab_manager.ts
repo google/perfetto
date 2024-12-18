@@ -15,9 +15,9 @@
 import {DetailsPanel} from '../public/details_panel';
 import {TabDescriptor, TabManager} from '../public/tab';
 import {
-  CollapsiblePanelVisibility,
+  SplitPanelDrawerVisibility,
   toggleVisibility,
-} from '../components/widgets/collapsible_panel';
+} from '../widgets/split_panel';
 import {raf} from './raf_scheduler';
 
 export interface ResolvedTab {
@@ -38,7 +38,7 @@ export class TabManagerImpl implements TabManager, Disposable {
   private _instantiatedTabs = new Map<string, TabDescriptor>();
   private _openTabs: string[] = []; // URIs of the tabs open.
   private _currentTab: string = 'current_selection';
-  private _tabPanelVisibility = CollapsiblePanelVisibility.COLLAPSED;
+  private _tabPanelVisibility = SplitPanelDrawerVisibility.COLLAPSED;
   private _tabPanelVisibilityChanged = false;
 
   [Symbol.dispose]() {
@@ -94,9 +94,9 @@ export class TabManagerImpl implements TabManager, Disposable {
     // they are.
     if (
       !this._tabPanelVisibilityChanged &&
-      this._tabPanelVisibility === CollapsiblePanelVisibility.COLLAPSED
+      this._tabPanelVisibility === SplitPanelDrawerVisibility.COLLAPSED
     ) {
-      this.setTabPanelVisibility(CollapsiblePanelVisibility.VISIBLE);
+      this.setTabPanelVisibility(SplitPanelDrawerVisibility.VISIBLE);
     }
 
     raf.scheduleFullRedraw();
@@ -202,15 +202,13 @@ export class TabManagerImpl implements TabManager, Disposable {
     return tabs;
   }
 
-  setTabPanelVisibility(visibility: CollapsiblePanelVisibility): void {
+  setTabPanelVisibility(visibility: SplitPanelDrawerVisibility): void {
     this._tabPanelVisibility = visibility;
     this._tabPanelVisibilityChanged = true;
   }
 
   toggleTabPanelVisibility(): void {
-    toggleVisibility(this._tabPanelVisibility, (visibility) =>
-      this.setTabPanelVisibility(visibility),
-    );
+    this.setTabPanelVisibility(toggleVisibility(this._tabPanelVisibility));
   }
 
   get tabPanelVisibility() {

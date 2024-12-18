@@ -312,9 +312,13 @@ const SCREEN_STATE = `
     ts,
     dur,
     CASE value
-      WHEN 1 THEN 'Screen off'
-      WHEN 2 THEN 'Screen on'
-      WHEN 3 THEN 'Always-on display (doze)'
+      -- Should be kept in sync with the enums in Display.java
+      WHEN 1 THEN 'Screen off'                        -- Display.STATE_OFF
+      WHEN 2 THEN 'Screen on'                         -- Display.STATE_ON
+      WHEN 3 THEN 'Always-on display (doze)'          -- Display.STATE_DOZE
+      WHEN 4 THEN 'Always-on display (doze-suspend)'  -- Display.STATE_DOZE_SUSPEND
+      WHEN 5 THEN 'Screen on (VR)'                    -- Display.STATE_VR
+      WHEN 6 THEN 'Screen on (suspend)'               -- Display.STATE_ON_SUSPEND
       ELSE 'unknown'
     END AS name
   FROM counter_leading_intervals!(_counter)`;

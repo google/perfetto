@@ -108,7 +108,28 @@ enum VkObjectType {
   VK_OBJECT_TYPE_MAX_ENUM = 0x7FFFFFFF
 };
 
+using protos::pbzero::GpuCounterDescriptor;
+using protos::pbzero::GpuCounterEvent;
+using protos::pbzero::GpuRenderStageEvent;
 using protos::pbzero::VulkanMemoryEvent;
+
+constexpr auto kRenderStageBlueprint = tracks::SliceBlueprint(
+    "gpu_render_stage",
+    tracks::DimensionBlueprints(
+        tracks::StringDimensionBlueprint("render_stage_source"),
+        tracks::UintDimensionBlueprint("hwqueue_id"),
+        tracks::StringDimensionBlueprint("hwqueue_name")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kVulkanEventsBlueprint =
+    tracks::SliceBlueprint("vulkan_events",
+                           tracks::DimensionBlueprints(),
+                           tracks::StaticNameBlueprint("Vulkan Events"));
+
+constexpr auto kGpuLogBlueprint =
+    tracks::SliceBlueprint("gpu_log",
+                           tracks::DimensionBlueprints(),
+                           tracks::StaticNameBlueprint("GPU Log"));
 
 }  // anonymous namespace
 
@@ -116,10 +137,6 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
     : context_(context),
       vulkan_memory_tracker_(context),
       description_id_(context->storage->InternString("description")),
-      gpu_render_stage_scope_id_(
-          context->storage->InternString("gpu_render_stage")),
-      gpu_log_track_name_id_(context_->storage->InternString("GPU Log")),
-      gpu_log_scope_id_(context_->storage->InternString("gpu_log")),
       tag_id_(context_->storage->InternString("tag")),
       log_message_id_(context->storage->InternString("message")),
       log_severity_ids_{{context_->storage->InternString("UNSPECIFIED"),
@@ -130,18 +147,15 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
                          context_->storage->InternString("ERROR"),
                          context_->storage->InternString(
                              "UNKNOWN_SEVERITY") /* must be last */}},
-      vk_event_track_id_(context->storage->InternString("Vulkan Events")),
-      vk_event_scope_id_(context->storage->InternString("vulkan_events")),
       vk_queue_submit_id_(context->storage->InternString("vkQueueSubmit")) {}
 
 void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::GpuCounterEvent::Decoder event(blob.data, blob.size);
+  GpuCounterEvent::Decoder event(blob);
 
-  protos::pbzero::GpuCounterDescriptor::Decoder descriptor(
-      event.counter_descriptor());
+  GpuCounterDescriptor::Decoder descriptor(event.counter_descriptor());
   // Add counter spec to ID map.
   for (auto it = descriptor.specs(); it; ++it) {
-    protos::pbzero::GpuCounterDescriptor_GpuCounterSpec::Decoder spec(*it);
+    GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*it);
     if (!spec.has_counter_id()) {
       PERFETTO_ELOG("Counter spec missing counter id");
       context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
@@ -203,14 +217,14 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
       }
     } else {
       // Either counter spec was repeated or it came after counter data.
-      PERFETTO_ELOG("Duplicated counter spec found. (counter_id=%d, name=%s)",
+      PERFETTO_ELOG("Duplicated counter spec found. (counter_id=%u, name=%s)",
                     counter_id, name.ToStdString().c_str());
       context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
     }
   }
 
   for (auto it = event.counters(); it; ++it) {
-    protos::pbzero::GpuCounterEvent_GpuCounter::Decoder counter(*it);
+    GpuCounterEvent::GpuCounter::Decoder counter(*it);
     if (counter.has_counter_id() &&
         (counter.has_int_value() || counter.has_double_value())) {
       auto counter_id = counter.counter_id();
@@ -253,48 +267,40 @@ StringId GpuEventParser::GetFullStageName(
   return stage_name;
 }
 
-/**
- * Create a GPU render stage track based
- * GpuRenderStageEvent.Specifications.Description.
- */
-void GpuEventParser::InsertGpuTrack(
-    const protos::pbzero::
-        GpuRenderStageEvent_Specifications_Description_Decoder& hw_queue) {
-  StringId track_name = context_->storage->InternString(hw_queue.name());
-  if (gpu_hw_queue_counter_ >= gpu_hw_queue_ids_.size() ||
-      !gpu_hw_queue_ids_[gpu_hw_queue_counter_].has_value()) {
-    tables::GpuTrackTable::Row track(track_name);
-    track.scope = gpu_render_stage_scope_id_;
-    track.description = context_->storage->InternString(hw_queue.description());
-    if (gpu_hw_queue_counter_ >= gpu_hw_queue_ids_.size()) {
-      gpu_hw_queue_ids_.emplace_back(
-          context_->track_tracker->LegacyInternGpuTrack(track));
-    } else {
-      // If a gpu_render_stage_event is received before the specification, it is
-      // possible that the slot has already been allocated.
-      gpu_hw_queue_ids_[gpu_hw_queue_counter_] =
-          context_->track_tracker->LegacyInternGpuTrack(track);
-    }
-  } else {
-    // If a gpu_render_stage_event is received before the specification, a track
-    // will be automatically generated.  In that case, update the name and
-    // description.
-    auto track_id = gpu_hw_queue_ids_[gpu_hw_queue_counter_];
-    if (track_id.has_value()) {
-      auto rr = *context_->storage->mutable_gpu_track_table()->FindById(
-          track_id.value());
-      rr.set_name(track_name);
-      rr.set_description(
-          context_->storage->InternString(hw_queue.description()));
-    } else {
-      tables::GpuTrackTable::Row track(track_name);
-      track.scope = gpu_render_stage_scope_id_;
-      track.description =
-          context_->storage->InternString(hw_queue.description());
-    }
+void GpuEventParser::InsertTrackForUninternedRenderStage(
+    uint32_t hw_queue_id,
+    const GpuRenderStageEvent::Specifications::Description::Decoder& hw_queue) {
+  if (!hw_queue.has_name()) {
+    return;
   }
-  ++gpu_hw_queue_counter_;
+  if (hw_queue_id >= gpu_hw_queue_ids_.size()) {
+    gpu_hw_queue_ids_.resize(hw_queue_id + 1);
+  }
+
+  StringId name = context_->storage->InternString(hw_queue.name());
+  StringId description =
+      context_->storage->InternString(hw_queue.description());
+
+  auto args_fn = [&, this](ArgsTracker::BoundInserter& inserter) {
+    inserter.AddArg(description_id_, Variadic::String(description));
+  };
+
+  // If a gpu_render_stage_event is received before the specification, a track
+  // will be automatically generated. Just don't update anything in that case.
+  auto& track_id = gpu_hw_queue_ids_[hw_queue_id];
+  if (track_id) {
+    auto rr = *context_->storage->mutable_track_table()->FindById(*track_id);
+    rr.set_name(name);
+
+    auto inserter = context_->args_tracker->AddArgsTo(*track_id);
+    args_fn(inserter);
+    return;
+  }
+  track_id = context_->track_tracker->InternTrack(
+      kRenderStageBlueprint, tracks::Dimensions("id", hw_queue_id, ""),
+      tracks::DynamicName(name), args_fn);
 }
+
 std::optional<std::string> GpuEventParser::FindDebugName(
     int32_t vk_object_type,
     uint64_t vk_handle) const {
@@ -342,22 +348,18 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     int64_t ts,
     PacketSequenceStateGeneration* sequence_state,
     ConstBytes blob) {
-  protos::pbzero::GpuRenderStageEvent::Decoder event(blob.data, blob.size);
+  GpuRenderStageEvent::Decoder event(blob);
 
   int32_t pid = 0;
   if (event.has_specifications()) {
-    protos::pbzero::GpuRenderStageEvent_Specifications::Decoder spec(
-        event.specifications().data, event.specifications().size);
+    GpuRenderStageEvent::Specifications::Decoder spec(event.specifications());
+    uint32_t hw_queue_id = 0;
     for (auto it = spec.hw_queue(); it; ++it) {
-      protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
-          hw_queue(*it);
-      if (hw_queue.has_name()) {
-        InsertGpuTrack(hw_queue);
-      }
+      GpuRenderStageEvent::Specifications::Description::Decoder hw_queue(*it);
+      InsertTrackForUninternedRenderStage(hw_queue_id++, hw_queue);
     }
     for (auto it = spec.stage(); it; ++it) {
-      protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
-          stage(*it);
+      GpuRenderStageEvent::Specifications::Description::Decoder stage(*it);
       if (stage.has_name()) {
         gpu_render_stage_ids_.emplace_back(
             context_->storage->InternString(stage.name()),
@@ -365,8 +367,8 @@ void GpuEventParser::ParseGpuRenderStageEvent(
       }
     }
     if (spec.has_context_spec()) {
-      protos::pbzero::GpuRenderStageEvent_Specifications_ContextSpec::Decoder
-          context_spec(spec.context_spec());
+      GpuRenderStageEvent::Specifications::ContextSpec::Decoder context_spec(
+          spec.context_spec());
       if (context_spec.has_pid()) {
         pid = context_spec.pid();
       }
@@ -427,41 +429,41 @@ void GpuEventParser::ParseGpuRenderStageEvent(
         return;
       }
       // TODO: Add RenderStageCategory to gpu_track table.
-      tables::GpuTrackTable::Row track(
-          context_->storage->InternString(decoder->name()));
-      track.scope = gpu_render_stage_scope_id_;
-      track.description =
-          context_->storage->InternString(decoder->description());
-      track_id = context_->track_tracker->LegacyInternGpuTrack(track);
+      track_id = context_->track_tracker->InternTrack(
+          kRenderStageBlueprint,
+          tracks::Dimensions("iid", hw_queue_id, decoder->name()),
+          tracks::DynamicName(context_->storage->InternString(decoder->name())),
+          [&, this](ArgsTracker::BoundInserter& inserter) {
+            inserter.AddArg(description_id_,
+                            Variadic::String(context_->storage->InternString(
+                                decoder->description())));
+          });
     } else {
-      uint32_t id = static_cast<uint32_t>(event.hw_queue_id());
-      if (id < gpu_hw_queue_ids_.size() && gpu_hw_queue_ids_[id].has_value()) {
-        track_id = gpu_hw_queue_ids_[id].value();
+      hw_queue_id = static_cast<uint32_t>(event.hw_queue_id());
+      if (hw_queue_id < gpu_hw_queue_ids_.size() &&
+          gpu_hw_queue_ids_[hw_queue_id].has_value()) {
+        track_id = gpu_hw_queue_ids_[hw_queue_id].value();
       } else {
         // If the event has a hw_queue_id that does not have a Specification,
         // create a new track for it.
         char buf[128];
         base::StringWriter writer(buf, sizeof(buf));
         writer.AppendLiteral("Unknown GPU Queue ");
-        if (id > 1024) {
+        if (hw_queue_id > 1024) {
           // We don't expect this to happen, but just in case there is a corrupt
           // packet, make sure we don't allocate a ridiculous amount of memory.
-          id = 1024;
-          context_->storage->IncrementStats(
-              stats::gpu_render_stage_parser_errors);
+          hw_queue_id = 1024;
           PERFETTO_ELOG("Invalid hw_queue_id.");
         } else {
           writer.AppendInt(event.hw_queue_id());
         }
-        StringId track_name =
-            context_->storage->InternString(writer.GetStringView());
-        tables::GpuTrackTable::Row track(track_name);
-        track.scope = gpu_render_stage_scope_id_;
-        track_id = context_->track_tracker->LegacyInternGpuTrack(track);
-        gpu_hw_queue_ids_.resize(id + 1);
-        gpu_hw_queue_ids_[id] = track_id;
+        track_id = context_->track_tracker->InternTrack(
+            kRenderStageBlueprint, tracks::Dimensions("id", hw_queue_id, ""),
+            tracks::DynamicName(
+                context_->storage->InternString(writer.GetStringView())));
+        gpu_hw_queue_ids_.resize(hw_queue_id + 1);
+        gpu_hw_queue_ids_[hw_queue_id] = track_id;
       }
-      hw_queue_id = id;
     }
 
     auto render_target_name =
@@ -633,7 +635,7 @@ void GpuEventParser::ParseVulkanMemoryEvent(
     PacketSequenceStateGeneration* sequence_state,
     ConstBytes blob) {
   using protos::pbzero::InternedData;
-  VulkanMemoryEvent::Decoder vulkan_memory_event(blob.data, blob.size);
+  VulkanMemoryEvent::Decoder vulkan_memory_event(blob);
   tables::VulkanMemoryAllocationsTable::Row vulkan_memory_event_row;
   vulkan_memory_event_row.source = vulkan_memory_tracker_.FindSourceString(
       static_cast<VulkanMemoryEvent::Source>(vulkan_memory_event.source()));
@@ -719,25 +721,9 @@ void GpuEventParser::ParseVulkanMemoryEvent(
 }
 
 void GpuEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
-  protos::pbzero::GpuLog::Decoder event(blob.data, blob.size);
+  protos::pbzero::GpuLog::Decoder event(blob);
 
-  tables::GpuTrackTable::Row track(gpu_log_track_name_id_);
-  track.scope = gpu_log_scope_id_;
-  TrackId track_id = context_->track_tracker->LegacyInternGpuTrack(track);
-
-  auto args_callback = [this, &event](ArgsTracker::BoundInserter* inserter) {
-    if (event.has_tag()) {
-      inserter->AddArg(
-          tag_id_,
-          Variadic::String(context_->storage->InternString(event.tag())));
-    }
-    if (event.has_log_message()) {
-      inserter->AddArg(log_message_id_,
-                       Variadic::String(context_->storage->InternString(
-                           event.log_message())));
-    }
-  };
-
+  TrackId track_id = context_->track_tracker->InternTrack(kGpuLogBlueprint);
   auto severity = static_cast<size_t>(event.severity());
   StringId severity_id =
       severity < log_severity_ids_.size()
@@ -750,11 +736,23 @@ void GpuEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
   row.name = severity_id;
   row.dur = 0;
   context_->slice_tracker->ScopedTyped(
-      context_->storage->mutable_gpu_slice_table(), row, args_callback);
+      context_->storage->mutable_gpu_slice_table(), row,
+      [this, &event](ArgsTracker::BoundInserter* inserter) {
+        if (event.has_tag()) {
+          inserter->AddArg(
+              tag_id_,
+              Variadic::String(context_->storage->InternString(event.tag())));
+        }
+        if (event.has_log_message()) {
+          inserter->AddArg(log_message_id_,
+                           Variadic::String(context_->storage->InternString(
+                               event.log_message())));
+        }
+      });
 }
 
 void GpuEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::VulkanApiEvent::Decoder vk_event(blob.data, blob.size);
+  protos::pbzero::VulkanApiEvent::Decoder vk_event(blob);
   if (vk_event.has_vk_debug_utils_object_name()) {
     protos::pbzero::VulkanApiEvent_VkDebugUtilsObjectName::Decoder event(
         vk_event.vk_debug_utils_object_name());
@@ -767,9 +765,8 @@ void GpuEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
     // Once flow table is implemented, we can create a nice UI that link the
     // vkQueueSubmit to GpuRenderStageEvent.  For now, just add it as in a GPU
     // track so that they can appear close to the render stage slices.
-    tables::GpuTrackTable::Row track(vk_event_track_id_);
-    track.scope = vk_event_scope_id_;
-    TrackId track_id = context_->track_tracker->LegacyInternGpuTrack(track);
+    TrackId track_id =
+        context_->track_tracker->InternTrack(kVulkanEventsBlueprint);
     tables::GpuSliceTable::Row row;
     row.ts = ts;
     row.dur = static_cast<int64_t>(event.duration_ns());

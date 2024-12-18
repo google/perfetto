@@ -2379,7 +2379,7 @@ std::unique_ptr<TracingSession> TracingMuxerImpl::CreateTracingSession(
       // backend without a valid type.
       if (!backend.type) {
         PERFETTO_ELOG(
-            "No tracing backend ready for type=%d, consumer will disconnect",
+            "No tracing backend ready for type=%u, consumer will disconnect",
             requested_backend_type);
         InitializeConsumer(session_id);
         return;
@@ -2403,7 +2403,7 @@ std::unique_ptr<TracingSession> TracingMuxerImpl::CreateTracingSession(
           }
 
           PERFETTO_ELOG(
-              "Consumer session for backend type type=%d forbidden, "
+              "Consumer session for backend type type=%u forbidden, "
               "consumer will disconnect",
               type);
 
@@ -2452,7 +2452,7 @@ TracingMuxerImpl::CreateStartupTracingSession(
       // backend without a valid type.
       if (!backend.type) {
         PERFETTO_ELOG(
-            "No tracing backend initialized for type=%d, startup tracing "
+            "No tracing backend initialized for type=%u, startup tracing "
             "failed",
             backend_type);
         if (opts.on_setup)

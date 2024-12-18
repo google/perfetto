@@ -19,7 +19,6 @@
 
 #include <cstdint>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -54,22 +53,6 @@ class SchedEventTracker : public Destructible {
         {ts, /* duration */ -1, next_utid, kNullStringId, next_prio, ucpu});
     SchedId sched_id = row_and_id.id;
     return sched->FindById(sched_id)->ToRowNumber().row_number();
-  }
-
-  PERFETTO_ALWAYS_INLINE
-  bool UpdateEventTrackerTimestamp(int64_t ts,
-                                   const char* event_name,
-                                   size_t stats) {
-    // Post sorter stage, all events should be globally timestamp ordered.
-    int64_t max_ts = context_->event_tracker->max_timestamp();
-    if (ts < max_ts) {
-      PERFETTO_ELOG("%s event out of order by %.4f ms, skipping", event_name,
-                    static_cast<double>(max_ts - ts) / 1e6);
-      context_->storage->IncrementStats(stats);
-      return false;
-    }
-    context_->event_tracker->UpdateMaxTimestamp(ts);
-    return true;
   }
 
   PERFETTO_ALWAYS_INLINE

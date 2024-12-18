@@ -15,21 +15,29 @@
  */
 #include "src/trace_processor/sorter/trace_sorter.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 #include <map>
+#include <memory>
+#include <optional>
 #include <random>
+#include <tuple>
+#include <utility>
 #include <vector>
 
-#include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 using ::testing::_;
@@ -76,7 +84,7 @@ class MockTraceParser : public ProtoTraceParserImpl {
 
 class MockTraceStorage : public TraceStorage {
  public:
-  MockTraceStorage() : TraceStorage() {}
+  MockTraceStorage() = default;
 
   MOCK_METHOD(StringId, InternString, (base::StringView view), (override));
 };
@@ -241,31 +249,24 @@ TEST_F(TraceSorterTest, OutOfOrder) {
   context_.sorter->PushTracePacket(1150, state, std::move(view_3));
   context_.sorter->NotifyReadBufferEvent();
 
-  // The third packet should still be pushed through.
+  // Third packet should not be pushed through.
   context_.sorter->NotifyFlushEvent();
   context_.sorter->NotifyFlushEvent();
-  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1150, test_buffer_.data(), 3));
   context_.sorter->NotifyReadBufferEvent();
 
-  // But we should also increment the stat that this was out of order.
-  ASSERT_EQ(
-      context_.storage->stats()[stats::sorter_push_event_out_of_order].value,
-      1);
+  // We should also increment the stat that this was out of order.
+  const auto& stats = context_.storage->stats();
+  ASSERT_EQ(stats[stats::sorter_push_event_out_of_order].value, 1);
 
-  // Push the fourth packet also out of order but after third.
+  // Third packet should not be pushed through.
   context_.sorter->NotifyFlushEvent();
   context_.sorter->NotifyFlushEvent();
   context_.sorter->PushTracePacket(1170, state, std::move(view_4));
   context_.sorter->NotifyReadBufferEvent();
-
-  // The fourt packet should still be pushed through.
-  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1170, test_buffer_.data(), 4));
   context_.sorter->ExtractEventsForced();
 
-  // But we should also increment the stat that this was out of order.
-  ASSERT_EQ(
-      context_.storage->stats()[stats::sorter_push_event_out_of_order].value,
-      2);
+  // We should also increment the stat that this was out of order.
+  ASSERT_EQ(stats[stats::sorter_push_event_out_of_order].value, 2);
 }
 
 // Simulates a random stream of ftrace events happening on random CPUs.
@@ -422,5 +423,4 @@ TEST_F(TraceSorterTest, MultiMachineSorting) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

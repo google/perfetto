@@ -577,7 +577,7 @@ void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
 }
 
 void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
-  protos::pbzero::ProcessTree::Decoder ps(blob.data, blob.size);
+  protos::pbzero::ProcessTree::Decoder ps(blob);
 
   for (auto it = ps.processes(); it; ++it) {
     protos::pbzero::ProcessTree::Process::Decoder proc(*it);
@@ -793,7 +793,7 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
 void SystemProbesParser::ParseThreadStats(int64_t,
                                           uint32_t pid,
                                           ConstBytes blob) {
-  protos::pbzero::ProcessStats::Thread::Decoder stats(blob.data, blob.size);
+  protos::pbzero::ProcessStats::Thread::Decoder stats(blob);
   context_->process_tracker->UpdateThread(static_cast<uint32_t>(stats.tid()),
                                           pid);
 }
@@ -801,7 +801,7 @@ void SystemProbesParser::ParseThreadStats(int64_t,
 void SystemProbesParser::ParseProcessFds(int64_t ts,
                                          uint32_t pid,
                                          ConstBytes blob) {
-  protos::pbzero::ProcessStats::FDInfo::Decoder fd_info(blob.data, blob.size);
+  protos::pbzero::ProcessStats::FDInfo::Decoder fd_info(blob);
 
   tables::FiledescriptorTable::Row row;
   row.fd = static_cast<int64_t>(fd_info.fd());
@@ -814,13 +814,12 @@ void SystemProbesParser::ParseProcessFds(int64_t ts,
 }
 
 void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
-  protos::pbzero::SystemInfo::Decoder packet(blob.data, blob.size);
+  protos::pbzero::SystemInfo::Decoder packet(blob);
   SystemInfoTracker* system_info_tracker =
       SystemInfoTracker::GetOrCreate(context_);
   if (packet.has_utsname()) {
     ConstBytes utsname_blob = packet.utsname();
-    protos::pbzero::Utsname::Decoder utsname(utsname_blob.data,
-                                             utsname_blob.size);
+    protos::pbzero::Utsname::Decoder utsname(utsname_blob);
     base::StringView machine = utsname.machine();
     SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(context_);
     Architecture arch = SyscallTable::ArchFromString(machine);
@@ -937,7 +936,7 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
 }
 
 void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
-  protos::pbzero::CpuInfo::Decoder packet(blob.data, blob.size);
+  protos::pbzero::CpuInfo::Decoder packet(blob);
   std::vector<CpuInfo> cpu_infos;
 
   // Decode CpuInfo packet

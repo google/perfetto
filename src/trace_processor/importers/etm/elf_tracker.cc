@@ -18,7 +18,7 @@
 
 #include <optional>
 
-#include "src/profiling/symbolizer/binary_info.h"
+#include "src/trace_processor/importers/elf/binary_info.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
@@ -29,7 +29,7 @@ ElfTracker::~ElfTracker() = default;
 
 bool ElfTracker::ProcessFile(tables::FileTable::Id file_id,
                              const TraceBlobView& content) {
-  auto bin_info = profiling::GetBinaryInfo(content.data(), content.size());
+  auto bin_info = elf::GetBinaryInfo(content.data(), content.size());
   if (!bin_info) {
     return false;
   }

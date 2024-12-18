@@ -29,9 +29,9 @@ import {
 } from '../../components/widgets/charts/chart';
 import {AddChartMenuItem} from '../../components/widgets/charts/add_chart_menu';
 import {
-  CollapsiblePanel,
-  CollapsiblePanelVisibility,
-} from '../../components/widgets/collapsible_panel';
+  SplitPanel,
+  SplitPanelDrawerVisibility,
+} from '../../widgets/split_panel';
 import {Trace} from '../../public/trace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {scheduleFullRedraw} from '../../widgets/raf';
@@ -47,7 +47,7 @@ interface ExplorePageAttrs extends PageWithTraceAttrs {
 }
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
-  private visibility = CollapsiblePanelVisibility.VISIBLE;
+  private visibility = SplitPanelDrawerVisibility.VISIBLE;
 
   // Show menu with standard library tables
   private renderSelectableTablesMenuItems(
@@ -161,23 +161,25 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     return m(
       '.page.explore-page',
       m(
-        '.chart-container',
-        m(Menu, this.renderSelectableTablesMenuItems(trace, state)),
-      ),
-      m(
-        '.chart-container',
-        Array.from(charts.values()).map((chart) =>
-          this.renderRemovableChart(chart, charts),
-        ),
-      ),
-      state.selectedTableName &&
-        m(CollapsiblePanel, {
+        SplitPanel,
+        {
           visibility: this.visibility,
-          setVisibility: (visibility) => {
+          onVisibilityChange: (visibility) => {
             this.visibility = visibility;
           },
-          tabs: [this.renderSqlTable(state, charts)],
-        }),
+          drawerContent: this.renderSqlTable(state, charts),
+        },
+        m(
+          '.chart-container',
+          m(Menu, this.renderSelectableTablesMenuItems(trace, state)),
+        ),
+        m(
+          '.chart-container',
+          Array.from(charts.values()).map((chart) =>
+            this.renderRemovableChart(chart, charts),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -28,6 +28,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
@@ -38,10 +39,12 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/export_json.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -815,8 +818,6 @@ class JsonExporter {
                          !(*track_args)["is_root_in_scope"].asBool();
       }
 
-      const auto& thread_track = storage_->thread_track_table();
-      const auto& process_track = storage_->process_track_table();
       const auto& virtual_track_slices = storage_->virtual_track_slices();
 
       int64_t duration_ns = it.dur();
@@ -848,11 +849,9 @@ class JsonExporter {
         }
       }
 
-      auto tt_rr = thread_track.FindById(track_id);
-      if (tt_rr && !is_child_track) {
+      if (track_row_ref.utid() && !is_child_track) {
         // Synchronous (thread) slice or instant event.
-        UniqueTid utid = tt_rr->utid();
-        auto pid_and_tid = UtidToPidAndTid(utid);
+        auto pid_and_tid = UtidToPidAndTid(*track_row_ref.utid());
         event["pid"] = Json::Int(pid_and_tid.first);
         event["tid"] = Json::Int(pid_and_tid.second);
 
@@ -897,13 +896,11 @@ class JsonExporter {
       } else if (is_child_track ||
                  (legacy_chrome_track && track_args->isMember("trace_id"))) {
         // Async event slice.
-        auto pt_rr = process_track.FindById(track_id);
         if (legacy_chrome_track) {
           // Legacy async tracks are always process-associated and have args.
-          PERFETTO_DCHECK(pt_rr);
           PERFETTO_DCHECK(track_args);
-          UniquePid upid = pt_rr->upid();
-          uint32_t exported_pid = UpidToPid(upid);
+          PERFETTO_DCHECK(track_args->isMember("upid"));
+          uint32_t exported_pid = UpidToPid((*track_args)["upid"].asUInt());
           event["pid"] = Json::Int(exported_pid);
           event["tid"] =
               Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
@@ -914,7 +911,7 @@ class JsonExporter {
           PERFETTO_DCHECK(track_args->isMember("trace_id"));
           PERFETTO_DCHECK(track_args->isMember("trace_id_is_process_scoped"));
           PERFETTO_DCHECK(track_args->isMember("source_scope"));
-          uint64_t trace_id =
+          auto trace_id =
               static_cast<uint64_t>((*track_args)["trace_id"].asInt64());
           std::string source_scope = (*track_args)["source_scope"].asString();
           if (!source_scope.empty())
@@ -931,15 +928,13 @@ class JsonExporter {
             event["id"] = base::Uint64ToHexString(trace_id);
           }
         } else {
-          if (tt_rr) {
-            UniqueTid utid = tt_rr->utid();
-            auto pid_and_tid = UtidToPidAndTid(utid);
+          if (track_row_ref.utid()) {
+            auto pid_and_tid = UtidToPidAndTid(*track_row_ref.utid());
             event["pid"] = Json::Int(pid_and_tid.first);
             event["tid"] = Json::Int(pid_and_tid.second);
             event["id2"]["local"] = base::Uint64ToHexString(track_id.value);
-          } else if (pt_rr) {
-            uint32_t upid = pt_rr->upid();
-            uint32_t exported_pid = UpidToPid(upid);
+          } else if (track_row_ref.upid()) {
+            uint32_t exported_pid = UpidToPid(*track_row_ref.upid());
             event["pid"] = Json::Int(exported_pid);
             event["tid"] =
                 Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
@@ -1017,10 +1012,8 @@ class JsonExporter {
             event["ph"] = legacy_phase;
           }
 
-          auto pt_rr = process_track.FindById(track_id);
-          if (pt_rr.has_value()) {
-            UniquePid upid = pt_rr->upid();
-            uint32_t exported_pid = UpidToPid(upid);
+          if (track_row_ref.upid()) {
+            uint32_t exported_pid = UpidToPid(*track_row_ref.upid());
             event["pid"] = Json::Int(exported_pid);
             event["tid"] =
                 Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
@@ -1043,7 +1036,6 @@ class JsonExporter {
                                                Json::Value args,
                                                bool flow_begin) {
     const auto& slices = storage_->slice_table();
-    const auto& thread_tracks = storage_->thread_track_table();
 
     auto opt_slice_rr = slices.FindById(slice_id);
     if (!opt_slice_rr)
@@ -1051,12 +1043,15 @@ class JsonExporter {
     auto slice_rr = opt_slice_rr.value();
 
     TrackId track_id = slice_rr.track_id();
-    auto opt_ttrr = thread_tracks.FindById(track_id);
-    // catapult only supports flow events attached to thread-track slices
-    if (!opt_ttrr)
-      return std::nullopt;
+    auto rr = storage_->track_table().FindById(track_id);
 
-    auto pid_and_tid = UtidToPidAndTid(opt_ttrr->utid());
+    // catapult only supports flow events attached to thread-track slices
+    if (!rr || !rr->utid()) {
+      return std::nullopt;
+    }
+
+    UniqueTid utid = *rr->utid();
+    auto pid_and_tid = UtidToPidAndTid(utid);
     Json::Value event;
     event["id"] = flow_id;
     event["pid"] = Json::Int(pid_and_tid.first);
@@ -1539,8 +1534,10 @@ class JsonExporter {
     std::optional<StringId> peak_resident_set_id =
         storage_->string_pool().GetId("chrome.peak_resident_set_kb");
 
-    std::optional<StringId> process_stats =
-        storage_->string_pool().GetId("chrome_process_stats");
+    std::string_view chrome_process_stats =
+        tracks::kChromeProcessStatsBlueprint.classification;
+    std::optional<StringId> process_stats = storage_->string_pool().GetId(
+        {chrome_process_stats.data(), chrome_process_stats.size()});
 
     for (auto sit = memory_snapshots.IterateRows(); sit; ++sit) {
       Json::Value event_base;
@@ -1565,15 +1562,10 @@ class JsonExporter {
         Json::Value& totals = event["args"]["dumps"]["process_totals"];
 
         for (auto it = track_table.IterateRows(); it; ++it) {
-          auto arg_set_id = it.dimension_arg_set_id();
-          if (!arg_set_id) {
-            continue;
-          }
           if (it.classification() != process_stats) {
             continue;
           }
-          uint64_t upid = args_builder_.GetArgs(*arg_set_id)["upid"].asUInt64();
-          if (upid != pit.id().value) {
+          if (it.upid() != pit.id().value) {
             continue;
           }
           TrackId track_id = it.id();

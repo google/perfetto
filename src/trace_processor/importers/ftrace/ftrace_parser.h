@@ -295,12 +295,6 @@ class FtraceParser {
   void ParseTrustyIpcPoll(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyIpcRx(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyEnqueueNop(uint32_t pid, int64_t ts, protozero::ConstBytes);
-  void ParseMaliKcpuCqsSet(uint32_t pid, int64_t ts);
-  void ParseMaliKcpuCqsWaitStart(uint32_t pid, int64_t ts);
-  void ParseMaliKcpuCqsWaitEnd(uint32_t pid, int64_t ts);
-  void ParseMaliKcpuFenceSignal(uint32_t pid, int64_t ts);
-  void ParseMaliKcpuFenceWaitStart(uint32_t pid, int64_t ts);
-  void ParseMaliKcpuFenceWaitEnd(uint32_t pid, int64_t ts);
   void ParseAndroidFsDatareadEnd(int64_t timestamp, protozero::ConstBytes);
   void ParseAndroidFsDatareadStart(int64_t ts,
                                    uint32_t pid,
@@ -336,13 +330,7 @@ class FtraceParser {
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;
   const StringId cpu_id_;
-  const StringId suspend_resume_name_id_;
-  const StringId suspend_resume_minimal_name_id_;
   const StringId suspend_resume_minimal_slice_name_id_;
-  const StringId ion_total_id_;
-  const StringId ion_change_id_;
-  const StringId ion_buffer_id_;
-  const StringId dma_buffer_id_;
   const StringId inode_arg_id_;
   const StringId signal_generate_id_;
   const StringId signal_deliver_id_;
@@ -356,7 +344,6 @@ class FtraceParser {
   const StringId tcp_event_id_;
   const StringId protocol_arg_id_;
   const StringId napi_gro_id_;
-  const StringId tcp_retransmited_name_id_;
   const StringId ret_arg_id_;
   const StringId len_arg_id_;
   const StringId direct_reclaim_nr_reclaimed_id_;
@@ -396,7 +383,6 @@ class FtraceParser {
   const StringId offset_id_end_;
   const StringId bytes_read_id_start_;
   const StringId bytes_read_id_end_;
-  const StringId android_fs_category_id_;
   const StringId android_fs_data_read_id_;
   const StringId google_icc_event_id_;
   const StringId google_irm_event_id_;

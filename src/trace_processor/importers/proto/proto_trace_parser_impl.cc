@@ -161,7 +161,7 @@ void ProtoTraceParserImpl::ParseInlineSchedWaking(uint32_t cpu,
 
 void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   TraceStorage* storage = context_->storage.get();
-  protos::pbzero::ChromeEventBundle::Decoder bundle(blob.data, blob.size);
+  protos::pbzero::ChromeEventBundle::Decoder bundle(blob);
   ArgsTracker args(context_);
   if (bundle.has_metadata()) {
     auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
@@ -329,7 +329,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       if (eid < metatrace::EVENTS_MAX) {
         name_id = context_->storage->InternString(metatrace::kEventNames[eid]);
       } else {
-        base::StackString<64> fallback("Event %d", eid);
+        base::StackString<64> fallback("Event %u", eid);
         name_id = context_->storage->InternString(fallback.string_view());
       }
     } else if (event.has_event_name_iid()) {
@@ -356,7 +356,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
         name_id =
             context_->storage->InternString(metatrace::kCounterNames[cid]);
       } else {
-        base::StackString<64> fallback("Counter %d", cid);
+        base::StackString<64> fallback("Counter %u", cid);
         name_id = context_->storage->InternString(fallback.string_view());
       }
       track = context_->track_tracker->InternTrack(

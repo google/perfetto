@@ -380,20 +380,6 @@ class TraceStorage {
     return &gpu_counter_group_table_;
   }
 
-  const tables::ProcessTrackTable& process_track_table() const {
-    return process_track_table_;
-  }
-  tables::ProcessTrackTable* mutable_process_track_table() {
-    return &process_track_table_;
-  }
-
-  const tables::ThreadTrackTable& thread_track_table() const {
-    return thread_track_table_;
-  }
-  tables::ThreadTrackTable* mutable_thread_track_table() {
-    return &thread_track_table_;
-  }
-
   const tables::ThreadStateTable& thread_state_table() const {
     return thread_state_table_;
   }
@@ -628,16 +614,6 @@ class TraceStorage {
   tables::HeapGraphReferenceTable* mutable_heap_graph_reference_table() {
     return &heap_graph_reference_table_;
   }
-
-  const tables::CpuTrackTable& cpu_track_table() const {
-    return cpu_track_table_;
-  }
-  tables::CpuTrackTable* mutable_cpu_track_table() { return &cpu_track_table_; }
-
-  const tables::GpuTrackTable& gpu_track_table() const {
-    return gpu_track_table_;
-  }
-  tables::GpuTrackTable* mutable_gpu_track_table() { return &gpu_track_table_; }
 
   const tables::VulkanMemoryAllocationsTable& vulkan_memory_allocations_table()
       const {
@@ -1039,10 +1015,6 @@ class TraceStorage {
   // Metadata for tracks.
   tables::TrackTable track_table_{&string_pool_};
   tables::ThreadStateTable thread_state_table_{&string_pool_};
-  tables::CpuTrackTable cpu_track_table_{&string_pool_, &track_table_};
-  tables::GpuTrackTable gpu_track_table_{&string_pool_, &track_table_};
-  tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
-  tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};
 
   // Track tables for counter events.
   tables::GpuCounterGroupTable gpu_counter_group_table_{&string_pool_};

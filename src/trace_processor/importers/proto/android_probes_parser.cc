@@ -29,12 +29,12 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -61,7 +61,6 @@ namespace perfetto::trace_processor {
 
 AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
     : context_(context),
-      device_state_id_(context->storage->InternString("DeviceStateChanged")),
       battery_status_id_(context->storage->InternString("BatteryStatus")),
       plug_type_id_(context->storage->InternString("PlugType")),
       rail_packet_timestamp_id_(context->storage->InternString("packet_ts")),
@@ -135,7 +134,7 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
 void AndroidProbesParser::ParsePowerRails(int64_t ts,
                                           uint64_t trace_packet_ts,
                                           ConstBytes blob) {
-  protos::pbzero::PowerRails::Decoder evt(blob.data, blob.size);
+  protos::pbzero::PowerRails::Decoder evt(blob);
 
   // Descriptors should have been processed at tokenization time.
   PERFETTO_DCHECK(evt.has_energy_data());
@@ -261,7 +260,7 @@ void AndroidProbesParser::ParseEntityStateResidency(int64_t ts,
 }
 
 void AndroidProbesParser::ParseAndroidLogPacket(ConstBytes blob) {
-  protos::pbzero::AndroidLogPacket::Decoder packet(blob.data, blob.size);
+  protos::pbzero::AndroidLogPacket::Decoder packet(blob);
   for (auto it = packet.events(); it; ++it)
     ParseAndroidLogEvent(*it);
 
@@ -271,7 +270,7 @@ void AndroidProbesParser::ParseAndroidLogPacket(ConstBytes blob) {
 
 void AndroidProbesParser::ParseAndroidLogEvent(ConstBytes blob) {
   // TODO(primiano): Add events and non-stringified fields to the "raw" table.
-  protos::pbzero::AndroidLogPacket::LogEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::AndroidLogPacket::LogEvent::Decoder evt(blob);
   auto ts = static_cast<int64_t>(evt.timestamp());
   auto pid = static_cast<uint32_t>(evt.pid());
   auto tid = static_cast<uint32_t>(evt.tid());
@@ -334,7 +333,7 @@ void AndroidProbesParser::ParseAndroidLogEvent(ConstBytes blob) {
 }
 
 void AndroidProbesParser::ParseAndroidLogStats(ConstBytes blob) {
-  protos::pbzero::AndroidLogPacket::Stats::Decoder evt(blob.data, blob.size);
+  protos::pbzero::AndroidLogPacket::Stats::Decoder evt(blob);
   if (evt.has_num_failed()) {
     context_->storage->SetStats(stats::android_log_num_failed,
                                 static_cast<int64_t>(evt.num_failed()));
@@ -352,8 +351,7 @@ void AndroidProbesParser::ParseAndroidLogStats(ConstBytes blob) {
 }
 
 void AndroidProbesParser::ParseStatsdMetadata(ConstBytes blob) {
-  protos::pbzero::TraceConfig::StatsdMetadata::Decoder metadata(blob.data,
-                                                                blob.size);
+  protos::pbzero::TraceConfig::StatsdMetadata::Decoder metadata(blob);
   if (metadata.has_triggering_subscription_id()) {
     context_->metadata_tracker->SetMetadata(
         metadata::statsd_triggering_subscription_id,
@@ -362,8 +360,7 @@ void AndroidProbesParser::ParseStatsdMetadata(ConstBytes blob) {
 }
 
 void AndroidProbesParser::ParseAndroidGameIntervention(ConstBytes blob) {
-  protos::pbzero::AndroidGameInterventionList::Decoder intervention_list(
-      blob.data, blob.size);
+  protos::pbzero::AndroidGameInterventionList::Decoder intervention_list(blob);
   constexpr static int kGameModeStandard = 1;
   constexpr static int kGameModePerformance = 2;
   constexpr static int kGameModeBattery = 3;
@@ -443,13 +440,9 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
     base::StringView name(kv.name());
     if (name == "debug.tracing.device_state") {
       auto state = kv.value();
-
       StringId state_id = context_->storage->InternString(state);
-      auto track_set_id =
-          context_->async_track_set_tracker->InternGlobalTrackSet(
-              device_state_id_);
-      TrackId track_id =
-          context_->async_track_set_tracker->Scoped(track_set_id, ts, 0);
+      TrackId track_id = context_->track_tracker->InternTrack(
+          tracks::kAndroidDeviceStateBlueprint);
       context_->slice_tracker->Scoped(ts, track_id, kNullStringId, state_id, 0);
       continue;
     }

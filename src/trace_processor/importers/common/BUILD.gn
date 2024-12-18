@@ -21,8 +21,6 @@ source_set("common") {
     "args_tracker.h",
     "args_translation_table.cc",
     "args_translation_table.h",
-    "async_track_set_tracker.cc",
-    "async_track_set_tracker.h",
     "chunked_trace_reader.h",
     "clock_converter.cc",
     "clock_converter.h",
@@ -69,6 +67,8 @@ source_set("common") {
     "trace_file_tracker.cc",
     "trace_file_tracker.h",
     "trace_parser.cc",
+    "track_compressor.cc",
+    "track_compressor.h",
     "track_tracker.cc",
     "track_tracker.h",
     "tracks.h",
@@ -91,7 +91,6 @@ source_set("common") {
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../base",
-    "../../../profiling/symbolizer:binary_info",
     "../../../protozero",
     "../../containers",
     "../../db:minimal",
@@ -125,7 +124,6 @@ source_set("unittests") {
   sources = [
     "address_range_unittest.cc",
     "args_translation_table_unittest.cc",
-    "async_track_set_tracker_unittest.cc",
     "clock_converter_unittest.cc",
     "clock_tracker_unittest.cc",
     "deobfuscation_mapping_table_unittest.cc",
@@ -136,6 +134,7 @@ source_set("unittests") {
     "slice_tracker_unittest.cc",
     "slice_translation_table_unittest.cc",
     "thread_state_tracker_unittest.cc",
+    "track_compressor_unittest.cc",
   ]
   testonly = true
   deps = [

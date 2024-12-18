@@ -42,7 +42,6 @@ namespace perfetto::trace_processor {
 namespace {
 
 using SliceTable = tables::SliceTable;
-using ThreadTrackTable = tables::ThreadTrackTable;
 using ExpectedFrameTimelineSliceTable = tables::ExpectedFrameTimelineSliceTable;
 using RawTable = tables::RawTable;
 using FtraceEventTable = tables::FtraceEventTable;
@@ -123,7 +122,7 @@ SliceTable::Row GetSliceTableRow(const std::string& string_row,
   PERFETTO_CHECK(row_vec.size() >= 14);
   row.ts = *base::StringToInt64(row_vec[2]);
   row.dur = *base::StringToInt64(row_vec[3]);
-  row.track_id = ThreadTrackTable::Id(*base::StringToUInt32(row_vec[4]));
+  row.track_id = tables::TrackTable::Id(*base::StringToUInt32(row_vec[4]));
   row.category = StripAndIntern(pool, row_vec[5]);
   row.name = StripAndIntern(pool, row_vec[6]);
   row.depth = *base::StringToUInt32(row_vec[7]);
@@ -174,7 +173,7 @@ struct ExpectedFrameTimelineTableForBenchmark {
       ExpectedFrameTimelineSliceTable::Row row;
       row.ts = *base::StringToInt64(row_vec[2]);
       row.dur = *base::StringToInt64(row_vec[3]);
-      row.track_id = ThreadTrackTable::Id(*base::StringToUInt32(row_vec[4]));
+      row.track_id = tables::TrackTable::Id(*base::StringToUInt32(row_vec[4]));
       row.depth = *base::StringToUInt32(row_vec[7]);
       row.stack_id = *base::StringToInt32(row_vec[8]);
       row.parent_stack_id = *base::StringToInt32(row_vec[9]);

@@ -541,6 +541,7 @@ class TrackEvent(TestSuite):
           "trace_id","trace_id",1,"[NULL]"
           "trace_id","trace_id",1234,"[NULL]"
           "trace_id_is_process_scoped","trace_id_is_process_scoped",0,"[NULL]"
+          "upid","upid",1,"[NULL]"
           "utid","utid",1,"[NULL]"
           "utid","utid",2,"[NULL]"
         '''))
@@ -702,7 +703,35 @@ class TrackEvent(TestSuite):
         FROM args
         ORDER BY key, display_value, arg_set_id, key ASC;
         """,
-        out=Path('track_event_chrome_histogram_sample_args.out'))
+        out=Csv('''
+          "flat_key","key","int_value","string_value"
+          "chrome_histogram_sample.name","chrome_histogram_sample.name","[NULL]","Compositing.Display.DrawToSwapUs"
+          "chrome_histogram_sample.name","chrome_histogram_sample.name","[NULL]","CompositorLatency.TotalLatency"
+          "chrome_histogram_sample.name","chrome_histogram_sample.name","[NULL]","Graphics.Smoothness.Checkerboarding.MainThreadAnimation"
+          "chrome_histogram_sample.name","chrome_histogram_sample.name","[NULL]","Memory.GPU.PeakMemoryUsage.PageLoad"
+          "chrome_histogram_sample.name_hash","chrome_histogram_sample.name_hash",10,"[NULL]"
+          "chrome_histogram_sample.name_hash","chrome_histogram_sample.name_hash",20,"[NULL]"
+          "chrome_histogram_sample.name_hash","chrome_histogram_sample.name_hash",30,"[NULL]"
+          "chrome_histogram_sample.name_hash","chrome_histogram_sample.name_hash",40,"[NULL]"
+          "chrome_histogram_sample.name_hash","chrome_histogram_sample.name_hash",50,"[NULL]"
+          "chrome_histogram_sample.name_hash","chrome_histogram_sample.name_hash",60,"[NULL]"
+          "chrome_histogram_sample.name_iid","chrome_histogram_sample.name_iid",1,"[NULL]"
+          "chrome_histogram_sample.name_iid","chrome_histogram_sample.name_iid",2,"[NULL]"
+          "chrome_histogram_sample.name_iid","chrome_histogram_sample.name_iid",3,"[NULL]"
+          "chrome_histogram_sample.name_iid","chrome_histogram_sample.name_iid",4,"[NULL]"
+          "chrome_histogram_sample.sample","chrome_histogram_sample.sample",100,"[NULL]"
+          "chrome_histogram_sample.sample","chrome_histogram_sample.sample",200,"[NULL]"
+          "chrome_histogram_sample.sample","chrome_histogram_sample.sample",300,"[NULL]"
+          "chrome_histogram_sample.sample","chrome_histogram_sample.sample",400,"[NULL]"
+          "chrome_histogram_sample.sample","chrome_histogram_sample.sample",500,"[NULL]"
+          "chrome_histogram_sample.sample","chrome_histogram_sample.sample",600,"[NULL]"
+          "event.category","event.category","[NULL]","disabled-by-default-histogram_samples"
+          "event.name","event.name","[NULL]","[NULL]"
+          "is_root_in_scope","is_root_in_scope",1,"[NULL]"
+          "source","source","[NULL]","descriptor"
+          "trace_id","trace_id",0,"[NULL]"
+          "track_uuid","track_uuid",0,"[NULL]"
+        '''))
 
   # Flow events importing from proto
   def test_flow_events_track_event(self):

@@ -18,7 +18,6 @@
 #include <memory>
 
 #include "src/trace_processor/importers/common/args_translation_table.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -29,6 +28,7 @@
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"

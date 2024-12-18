@@ -16,22 +16,33 @@
 
 #include "src/trace_processor/importers/proto/frame_timeline_event_parser.h"
 
-#include <cinttypes>
+#include <cstdint>
+#include <cstdlib>
+#include <limits>
+#include <numeric>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "perfetto/ext/base/utils.h"
-#include "perfetto/protozero/field.h"
+#include "perfetto/ext/base/string_view.h"
+#include "protos/perfetto/trace/android/frame_timeline_event.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
-#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
-
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 bool IsBadTimestamp(int64_t ts) {
@@ -42,22 +53,8 @@ bool IsBadTimestamp(int64_t ts) {
   return std::abs(ts) >= kBadTimestamp;
 }
 
-}  // namespace
-
-using ExpectedDisplayFrameStartDecoder =
-    protos::pbzero::FrameTimelineEvent_ExpectedDisplayFrameStart_Decoder;
-using ActualDisplayFrameStartDecoder =
-    protos::pbzero::FrameTimelineEvent_ActualDisplayFrameStart_Decoder;
-
-using ExpectedSurfaceFrameStartDecoder =
-    protos::pbzero::FrameTimelineEvent_ExpectedSurfaceFrameStart_Decoder;
-using ActualSurfaceFrameStartDecoder =
-    protos::pbzero::FrameTimelineEvent_ActualSurfaceFrameStart_Decoder;
-
-using FrameEndDecoder = protos::pbzero::FrameTimelineEvent_FrameEnd_Decoder;
-
-static StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
-                                          int32_t jank_type) {
+StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
+                                   int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED)
     return context->storage->InternString("Unspecified");
   if (jank_type == FrameTimelineEvent::JANK_NONE)
@@ -93,7 +90,7 @@ static StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
   return context->storage->InternString(base::StringView(jank_str));
 }
 
-static bool DisplayFrameJanky(int32_t jank_type) {
+bool DisplayFrameJanky(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NONE)
     return false;
@@ -104,12 +101,10 @@ static bool DisplayFrameJanky(int32_t jank_type) {
       FrameTimelineEvent::JANK_DISPLAY_HAL |
       FrameTimelineEvent::JANK_SF_CPU_DEADLINE_MISSED |
       FrameTimelineEvent::JANK_SF_GPU_DEADLINE_MISSED;
-  if (jank_type & display_frame_jank_bitmask)
-    return true;
-  return false;
+  return (jank_type & display_frame_jank_bitmask) != 0;
 }
 
-static bool SurfaceFrameJanky(int32_t jank_type) {
+bool SurfaceFrameJanky(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NONE)
     return false;
@@ -117,13 +112,11 @@ static bool SurfaceFrameJanky(int32_t jank_type) {
   int32_t surface_frame_jank_bitmask =
       FrameTimelineEvent::JANK_APP_DEADLINE_MISSED |
       FrameTimelineEvent::JANK_UNKNOWN;
-  if (jank_type & surface_frame_jank_bitmask)
-    return true;
-  return false;
+  return (jank_type & surface_frame_jank_bitmask) != 0;
 }
 
-static bool ValidatePredictionType(TraceProcessorContext* context,
-                                   int32_t prediction_type) {
+bool ValidatePredictionType(TraceProcessorContext* context,
+                            int32_t prediction_type) {
   if (prediction_type >= FrameTimelineEvent::PREDICTION_VALID /*1*/ &&
       prediction_type <= FrameTimelineEvent::PREDICTION_UNKNOWN /*3*/)
     return true;
@@ -131,14 +124,37 @@ static bool ValidatePredictionType(TraceProcessorContext* context,
   return false;
 }
 
-static bool ValidatePresentType(TraceProcessorContext* context,
-                                int32_t present_type) {
+bool ValidatePresentType(TraceProcessorContext* context, int32_t present_type) {
   if (present_type >= FrameTimelineEvent::PRESENT_ON_TIME /*1*/ &&
       present_type <= FrameTimelineEvent::PRESENT_UNKNOWN /*5*/)
     return true;
   context->storage->IncrementStats(stats::frame_timeline_event_parser_errors);
   return false;
 }
+
+using ExpectedDisplayFrameStartDecoder =
+    protos::pbzero::FrameTimelineEvent::ExpectedDisplayFrameStart::Decoder;
+using ActualDisplayFrameStartDecoder =
+    protos::pbzero::FrameTimelineEvent::ActualDisplayFrameStart::Decoder;
+
+using ExpectedSurfaceFrameStartDecoder =
+    protos::pbzero::FrameTimelineEvent::ExpectedSurfaceFrameStart::Decoder;
+using ActualSurfaceFrameStartDecoder =
+    protos::pbzero::FrameTimelineEvent::ActualSurfaceFrameStart::Decoder;
+
+using FrameEndDecoder = protos::pbzero::FrameTimelineEvent::FrameEnd::Decoder;
+
+constexpr auto kExpectedBlueprint = TrackCompressor::SliceBlueprint(
+    "android_expected_frame_timeline",
+    tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint),
+    tracks::StaticNameBlueprint("Expected Timeline"));
+
+constexpr auto kActualBlueprint = TrackCompressor::SliceBlueprint(
+    "android_actual_frame_timeline",
+    tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint),
+    tracks::StaticNameBlueprint("Actual Timeline"));
+
+}  // namespace
 
 FrameTimelineEventParser::FrameTimelineEventParser(
     TraceProcessorContext* context)
@@ -167,10 +183,6 @@ FrameTimelineEventParser::FrameTimelineEventParser(
                                context->storage->InternString("None"),
                                context->storage->InternString("Partial"),
                                context->storage->InternString("Full")}},
-      expected_timeline_track_name_(
-          context->storage->InternString("Expected Timeline")),
-      actual_timeline_track_name_(
-          context->storage->InternString("Actual Timeline")),
       surface_frame_token_id_(
           context->storage->InternString("Surface frame token")),
       display_frame_token_id_(
@@ -193,23 +205,11 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       jank_tag_sf_stuffing_id_(
           context->storage->InternString("SurfaceFlinger Stuffing")) {}
 
-void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(
-    int64_t timestamp,
-    ConstBytes bufferBlob) {
-  ExpectedDisplayFrameStartDecoder event(bufferBlob.data, bufferBlob.size);
-  if (!event.has_cookie()) {
-    context_->storage->IncrementStats(
-        stats::frame_timeline_event_parser_errors);
-    return;
-  }
+void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
+                                                              ConstBytes blob) {
+  ExpectedDisplayFrameStartDecoder event(blob);
 
-  if (!event.has_token()) {
-    context_->storage->IncrementStats(
-        stats::frame_timeline_event_parser_errors);
-    return;
-  }
-
-  if (!event.has_pid()) {
+  if (!event.has_cookie() || !event.has_token() || !event.has_pid()) {
     context_->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
@@ -219,18 +219,14 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(
   int64_t token = event.token();
   StringId name_id =
       context_->storage->InternString(base::StringView(std::to_string(token)));
-
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(event.pid()));
-  auto expected_track_set_id =
-      context_->async_track_set_tracker->InternProcessTrackSet(
-          upid, expected_timeline_track_name_);
-  cookie_track_set_id_map_[cookie] = expected_track_set_id;
+  cookie_map_[cookie] = std::make_pair(upid, TrackType::kExpected);
 
   tables::ExpectedFrameTimelineSliceTable::Row expected_row;
   expected_row.ts = timestamp;
-  expected_row.track_id =
-      context_->async_track_set_tracker->Begin(expected_track_set_id, cookie);
+  expected_row.track_id = context_->track_compressor->InternBegin(
+      kExpectedBlueprint, tracks::Dimensions(upid), cookie);
   expected_row.name = name_id;
 
   expected_row.display_frame_token = token;
@@ -243,22 +239,11 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(
       });
 }
 
-void FrameTimelineEventParser::ParseActualDisplayFrameStart(
-    int64_t timestamp,
-    ConstBytes bufferBlob) {
-  ActualDisplayFrameStartDecoder event(bufferBlob.data, bufferBlob.size);
-  if (!event.has_cookie()) {
-    context_->storage->IncrementStats(
-        stats::frame_timeline_event_parser_errors);
-    return;
-  }
+void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
+                                                            ConstBytes blob) {
+  ActualDisplayFrameStartDecoder event(blob);
 
-  if (!event.has_token()) {
-    context_->storage->IncrementStats(
-        stats::frame_timeline_event_parser_errors);
-    return;
-  }
-  if (!event.has_pid()) {
+  if (!event.has_cookie() || !event.has_token() || !event.has_pid()) {
     context_->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
@@ -268,18 +253,14 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
   int64_t token = event.token();
   StringId name_id =
       context_->storage->InternString(base::StringView(std::to_string(token)));
-
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(event.pid()));
-  auto actual_track_set_id =
-      context_->async_track_set_tracker->InternProcessTrackSet(
-          upid, actual_timeline_track_name_);
-  cookie_track_set_id_map_[cookie] = actual_track_set_id;
+  cookie_map_[cookie] = std::make_pair(upid, TrackType::kActual);
 
   tables::ActualFrameTimelineSliceTable::Row actual_row;
   actual_row.ts = timestamp;
-  actual_row.track_id =
-      context_->async_track_set_tracker->Begin(actual_track_set_id, cookie);
+  actual_row.track_id = context_->track_compressor->InternBegin(
+      kActualBlueprint, tracks::Dimensions(upid), cookie);
   actual_row.name = name_id;
   actual_row.display_frame_token = token;
   actual_row.upid = upid;
@@ -365,30 +346,12 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
   display_token_to_surface_slice_.erase(range.first, range.second);
 }
 
-void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(
-    int64_t timestamp,
-    ConstBytes bufferBlob) {
-  ExpectedSurfaceFrameStartDecoder event(bufferBlob.data, bufferBlob.size);
+void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(int64_t timestamp,
+                                                              ConstBytes blob) {
+  ExpectedSurfaceFrameStartDecoder event(blob);
 
-  if (!event.has_cookie()) {
-    context_->storage->IncrementStats(
-        stats::frame_timeline_event_parser_errors);
-    return;
-  }
-
-  if (!event.has_token()) {
-    context_->storage->IncrementStats(
-        stats::frame_timeline_event_parser_errors);
-    return;
-  }
-
-  if (!event.has_display_frame_token()) {
-    context_->storage->IncrementStats(
-        stats::frame_timeline_event_parser_errors);
-    return;
-  }
-
-  if (!event.has_pid()) {
+  if (!event.has_cookie() || !event.has_token() ||
+      !event.has_display_frame_token() || !event.has_pid()) {
     context_->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
@@ -399,6 +362,8 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(
   int64_t display_frame_token = event.display_frame_token();
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(event.pid()));
+  cookie_map_[cookie] = std::make_pair(upid, TrackType::kExpected);
+
   auto token_set_it = expected_timeline_token_map_.find(upid);
   if (token_set_it != expected_timeline_token_map_.end()) {
     auto& token_set = token_set_it->second;
@@ -420,15 +385,10 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(
   StringId name_id =
       context_->storage->InternString(base::StringView(std::to_string(token)));
 
-  auto expected_track_set_id =
-      context_->async_track_set_tracker->InternProcessTrackSet(
-          upid, expected_timeline_track_name_);
-  cookie_track_set_id_map_[cookie] = expected_track_set_id;
-
   tables::ExpectedFrameTimelineSliceTable::Row expected_row;
   expected_row.ts = timestamp;
-  expected_row.track_id =
-      context_->async_track_set_tracker->Begin(expected_track_set_id, cookie);
+  expected_row.track_id = context_->track_compressor->InternBegin(
+      kExpectedBlueprint, tracks::Dimensions(upid), cookie);
   expected_row.name = name_id;
 
   expected_row.surface_frame_token = token;
@@ -444,30 +404,12 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(
       });
 }
 
-void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
-    int64_t timestamp,
-    ConstBytes bufferBlob) {
-  ActualSurfaceFrameStartDecoder event(bufferBlob.data, bufferBlob.size);
+void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
+                                                            ConstBytes blob) {
+  ActualSurfaceFrameStartDecoder event(blob);
 
-  if (!event.has_cookie()) {
-    context_->storage->IncrementStats(
-        stats::frame_timeline_event_parser_errors);
-    return;
-  }
-
-  if (!event.has_token()) {
-    context_->storage->IncrementStats(
-        stats::frame_timeline_event_parser_errors);
-    return;
-  }
-
-  if (!event.has_display_frame_token()) {
-    context_->storage->IncrementStats(
-        stats::frame_timeline_event_parser_errors);
-    return;
-  }
-
-  if (!event.has_pid()) {
+  if (!event.has_cookie() || !event.has_token() ||
+      !event.has_display_frame_token() || !event.has_pid()) {
     context_->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
@@ -476,9 +418,10 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
   int64_t cookie = event.cookie();
   int64_t token = event.token();
   int64_t display_frame_token = event.display_frame_token();
-
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(event.pid()));
+  cookie_map_[cookie] = std::make_pair(upid, TrackType::kActual);
+
   StringId layer_name_id;
   if (event.has_layer_name())
     layer_name_id =
@@ -486,15 +429,10 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
   StringId name_id =
       context_->storage->InternString(base::StringView(std::to_string(token)));
 
-  auto actual_track_set_id =
-      context_->async_track_set_tracker->InternProcessTrackSet(
-          upid, actual_timeline_track_name_);
-  cookie_track_set_id_map_[cookie] = actual_track_set_id;
-
   tables::ActualFrameTimelineSliceTable::Row actual_row;
   actual_row.ts = timestamp;
-  actual_row.track_id =
-      context_->async_track_set_tracker->Begin(actual_track_set_id, cookie);
+  actual_row.track_id = context_->track_compressor->InternBegin(
+      kActualBlueprint, tracks::Dimensions(upid), cookie);
   actual_row.name = name_id;
   actual_row.surface_frame_token = token;
   actual_row.display_frame_token = display_frame_token;
@@ -589,9 +527,8 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
 }
 
 void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
-                                             ConstBytes bufferBlob) {
-  FrameEndDecoder event(bufferBlob.data, bufferBlob.size);
-
+                                             ConstBytes blob) {
+  FrameEndDecoder event(blob);
   if (!event.has_cookie()) {
     context_->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
@@ -599,20 +536,29 @@ void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
   }
 
   int64_t cookie = event.cookie();
-  auto it = cookie_track_set_id_map_.find(cookie);
-  if (it == cookie_track_set_id_map_.end()) {
+  auto* it = cookie_map_.Find(cookie);
+  if (!it) {
     context_->storage->IncrementStats(stats::frame_timeline_unpaired_end_event);
     return;
   }
-  auto track_set_id = it->second;
-  auto track_id = context_->async_track_set_tracker->End(track_set_id, cookie);
+  TrackId track_id;
+  switch (it->second) {
+    case TrackType::kExpected:
+      track_id = context_->track_compressor->InternEnd(
+          kExpectedBlueprint, tracks::Dimensions(it->first), cookie);
+      break;
+    case TrackType::kActual:
+      track_id = context_->track_compressor->InternEnd(
+          kActualBlueprint, tracks::Dimensions(it->first), cookie);
+      break;
+  }
   context_->slice_tracker->End(timestamp, track_id);
-  cookie_track_set_id_map_.erase(it);
+  cookie_map_.Erase(cookie);
 }
 
 void FrameTimelineEventParser::ParseFrameTimelineEvent(int64_t timestamp,
                                                        ConstBytes blob) {
-  protos::pbzero::FrameTimelineEvent_Decoder frame_event(blob.data, blob.size);
+  protos::pbzero::FrameTimelineEvent_Decoder frame_event(blob);
 
   // Due to platform bugs, negative timestamps can creep into into traces.
   // Ensure that it doesn't make it into the tables.
@@ -643,5 +589,4 @@ void FrameTimelineEventParser::ParseFrameTimelineEvent(int64_t timestamp,
         stats::frame_timeline_event_parser_errors);
   }
 }
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

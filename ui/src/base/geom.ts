@@ -119,15 +119,39 @@ export interface Size2D {
 }
 
 /**
- * Class representing a 2D rectangle, implementing bounds and size interfaces.
+ * Immutable class representing a 2D rectangle with a 2D position and size which
+ * has functions to mutate and test the rect and can be polymorphically used as
+ * any of the following:
+ * - Bounds2D
+ * - Size2D
+ * - Point2D
  */
-export class Rect2D implements Bounds2D, Size2D {
+export class Rect2D implements Bounds2D, Size2D, Point2D {
   readonly left: number;
   readonly top: number;
   readonly right: number;
   readonly bottom: number;
-  readonly width: number;
-  readonly height: number;
+  readonly x: number; // Always equal to left
+  readonly y: number; // Always equal to top
+  readonly width: number; // Always equal to (right - left)
+  readonly height: number; // Always equal to (bottom - top)
+
+  /**
+   * Creates a new rect from two points, automatically ordering them to avoid
+   * negative rect dimensions.
+   *
+   * E.g. Rect2D.fromPoints({x: 10, y: 20}, {x: 20, y: 25})
+   *
+   * @returns A new Rect2D object.
+   */
+  static fromPoints(a: Point2D, b: Point2D) {
+    return new Rect2D({
+      top: Math.min(a.y, b.y),
+      left: Math.min(a.x, b.x),
+      right: Math.max(a.x, b.x),
+      bottom: Math.max(a.y, b.y),
+    });
+  }
 
   /**
    * Creates a new rect given a point and size.
@@ -148,8 +172,8 @@ export class Rect2D implements Bounds2D, Size2D {
   }
 
   constructor({left, top, right, bottom}: Bounds2D) {
-    this.left = left;
-    this.top = top;
+    this.left = this.x = left;
+    this.top = this.y = top;
     this.right = right;
     this.bottom = bottom;
     this.width = right - left;

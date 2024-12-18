@@ -289,16 +289,14 @@ class Tables(TestSuite):
         }
         """),
         query="""
-        SELECT
-          type,
-          cpu
+        SELECT cpu
         FROM cpu_track
-        ORDER BY type, cpu;
+        ORDER BY cpu;
         """,
         out=Csv("""
-        "type","cpu"
-        "__intrinsic_cpu_track",0
-        "__intrinsic_cpu_track",1
+        "cpu"
+        0
+        1
         """))
 
   def test_thread_state_flattened_aggregated(self):
@@ -401,12 +399,12 @@ class Tables(TestSuite):
             trusted_packet_sequence_id: 123
           }
         """),
-        query="SELECT * FROM flow;",
+        query="SELECT id, slice_out, slice_in, trace_id, arg_set_id FROM flow;",
         out=Csv("""
-          "id","type","slice_out","slice_in","trace_id","arg_set_id"
-          0,"flow",0,1,57,0
-          1,"flow",1,2,57,0
-                """))
+          "id","slice_out","slice_in","trace_id","arg_set_id"
+          0,0,1,57,0
+          1,1,2,57,0
+        """))
 
   def test_clock_snapshot_table_multiplier(self):
     return DiffTestBlueprint(
@@ -474,16 +472,28 @@ class Tables(TestSuite):
         """),
         query="""
         SELECT
-          ct.type,
           c.ucpu,
           ct.cpu,
           c.machine_id
         FROM cpu_track AS ct
         JOIN cpu AS c ON ct.machine_id IS c.machine_id AND ct.cpu = c.cpu
-        ORDER BY ct.type, c.cpu
+        ORDER BY ct.cpu
         """,
         out=Csv("""
-        "type","ucpu","cpu","machine_id"
-        "__intrinsic_cpu_track",4096,0,1
-        "__intrinsic_cpu_track",4097,1,1
+        "ucpu","cpu","machine_id"
+        4096,0,1
+        4097,1,1
+        """))
+
+  def test_async_slice_utid_arg_set_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+        SELECT COUNT(DISTINCT extract_arg(arg_set_id, 'utid')) AS utid_count,
+        COUNT(DISTINCT extract_arg(arg_set_id, 'end_utid')) AS end_utid_count
+        FROM counter
+        """,
+        out=Csv("""
+        "utid_count","end_utid_count"
+        89,0
         """))

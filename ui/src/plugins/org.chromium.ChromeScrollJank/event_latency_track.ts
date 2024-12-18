@@ -34,10 +34,6 @@ export class EventLatencyTrack extends CustomSqlTableSliceTrack {
     super(trace, uri);
   }
 
-  getSqlSource(): string {
-    return `SELECT * FROM ${this.baseTable}`;
-  }
-
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
       sqlTableName: this.baseTable,

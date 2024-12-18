@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -59,6 +60,8 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
@@ -1445,10 +1448,9 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   EXPECT_EQ(storage_->track_table()[4].name(), ev_2);
   EXPECT_EQ(storage_->track_table()[5].name(), ev_2);
 
-  EXPECT_EQ(storage_->process_track_table().row_count(), 3u);
-  EXPECT_EQ(storage_->process_track_table()[0].upid(), 1u);
-  EXPECT_EQ(storage_->process_track_table()[1].upid(), 1u);
-  EXPECT_EQ(storage_->process_track_table()[2].upid(), 1u);
+  EXPECT_EQ(storage_->track_table()[1].upid(), std::nullopt);
+  EXPECT_EQ(storage_->track_table()[4].upid(), std::nullopt);
+  EXPECT_EQ(storage_->track_table()[5].upid(), 1u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
   EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], SliceId(0u));
@@ -1634,9 +1636,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
             "Async track 1");
   EXPECT_EQ(storage_->GetString((storage_->track_table()[2].name())),
             "Thread track 2");
-  EXPECT_EQ(storage_->thread_track_table().row_count(), 2u);
-  EXPECT_EQ(storage_->thread_track_table()[0].utid(), 1u);
-  EXPECT_EQ(storage_->thread_track_table()[1].utid(), 2u);
+  EXPECT_EQ(storage_->track_table()[3].utid(), 1u);
+  EXPECT_EQ(storage_->track_table()[4].utid(), 2u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
   EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], SliceId(2u));
@@ -1752,8 +1753,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
 
   // First track is thread time track, second is "t1".
   EXPECT_EQ(storage_->track_table().row_count(), 2u);
-  EXPECT_EQ(storage_->thread_track_table().row_count(), 1u);
-  EXPECT_EQ(storage_->thread_track_table()[0].utid(), 1u);
+  EXPECT_EQ(storage_->track_table()[1].utid(), 1u);
 
   // Counter values should also be imported into thread slices.
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);

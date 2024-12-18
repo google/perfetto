@@ -13,14 +13,15 @@
 // limitations under the License.
 
 .pf-virtual-overlay-canvas {
-  .pf-content-container {
-    // Position this element so pf-canvas-container is relative to this
+  &__content {
+    // Make this element positioned so that the canvas container is positioned
+    // relative to this element.
     position: relative;
+  }
 
-    .pf-canvas-container {
-      position: absolute;
-      inset: 0; // Shorthand for [top, left, right, bottom]: 0
-      pointer-events: none; // Make this overlay invisible to pointer events
-    }
+  &__canvas-container {
+    position: absolute;
+    inset: 0; // Shorthand for [top, left, right, bottom]: 0
+    pointer-events: none; // Make this overlay invisible to pointer events
   }
 }

@@ -390,7 +390,7 @@ void Subprocess::TryReadExitStatus() {
   } else if (WIFSIGNALED(pid_stat)) {
     s_->returncode = 128 + WTERMSIG(pid_stat);  // Follow bash convention.
   } else {
-    PERFETTO_FATAL("waitpid() returned an unexpected value (0x%x)", pid_stat);
+    PERFETTO_FATAL("waitpid() returned an unexpected value (%d)", pid_stat);
   }
 }
 

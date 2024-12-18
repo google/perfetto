@@ -18,13 +18,22 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <string_view>
+#include <variant>
+#include <vector>
 
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/pigweed_detokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
@@ -40,20 +49,19 @@ constexpr std::string_view kModemName = "Pixel Modem Events";
 
 // Modem inputs in particular have this key-value encoding. It's not a Pigweed
 // thing.
-std::map<std::string, std::string> SplitUpModemString(std::string input) {
+base::FlatHashMap<std::string, std::string> SplitUpModemString(
+    const std::string& input) {
   auto delimStart = std::string(kKeyDelimiterStart);
   auto delimEnd = std::string(kKeyDelimiterEnd);
 
-  std::map<std::string, std::string> result;
-
+  base::FlatHashMap<std::string, std::string> result;
   std::vector<std::string> pairs = base::SplitString(input, delimStart);
-  for (auto it = pairs.begin(); it != pairs.end(); it++) {
-    std::vector<std::string> pair = base::SplitString(*it, delimEnd);
+  for (auto& it : pairs) {
+    std::vector<std::string> pair = base::SplitString(it, delimEnd);
     if (pair.size() >= 2) {
-      result.insert({pair[0], pair[1]});
+      result.Insert(pair[0], pair[1]);
     }
   }
-
   return result;
 }
 
@@ -82,21 +90,30 @@ base::Status PixelModemParser::ParseEvent(int64_t ts,
 
   std::string event = detokenized_str.Format();
 
-  auto map = SplitUpModemString(event);
-  auto domain = map.find(std::string(kKeyDomain));
-  auto format = map.find(std::string(kKeyFormat));
+  base::FlatHashMap<std::string, std::string> map = SplitUpModemString(event);
+  std::string* domain = map.Find(std::string(kKeyDomain));
+  std::string* format = map.Find(std::string(kKeyFormat));
 
-  std::string track_name = domain == map.end()
-                               ? std::string(kModemName)
-                               : std::string(kModemNamePrefix) + domain->second;
-  std::string slice_name = format == map.end() ? event : format->second;
+  static constexpr auto kBlueprint = tracks::SliceBlueprint(
+      "pixel_modem_event",
+      tracks::DimensionBlueprints(
+          tracks::StringDimensionBlueprint("modem_domain")),
+      tracks::FnNameBlueprint([](base::StringView domain) {
+        if (domain.empty()) {
+          return base::StackString<1024>("%.*s", int(kModemName.size()),
+                                         kModemName.data());
+        }
+        return base::StackString<1024>("%.*s%.*s", int(kModemNamePrefix.size()),
+                                       kModemNamePrefix.data(),
+                                       int(domain.size()), domain.data());
+      }));
 
-  StringId track_name_id = context_->storage->InternString(track_name.c_str());
+  const std::string& slice_name = format ? *format : event;
+
   StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
-  auto set_id =
-      context_->async_track_set_tracker->InternGlobalTrackSet(track_name_id);
-  TrackId id = context_->async_track_set_tracker->Scoped(set_id, ts, 0);
-
+  TrackId id = context_->track_tracker->InternTrack(
+      kBlueprint, tracks::Dimensions(domain ? base::StringView(*domain)
+                                            : base::StringView()));
   context_->slice_tracker->Scoped(
       ts, id, kNullStringId, slice_name_id, 0,
       [this, &detokenized_str,
@@ -118,16 +135,15 @@ base::Status PixelModemParser::ParseEvent(int64_t ts,
                std::to_string(i))
                   .c_str());
           auto arg = pw_args[i];
-          if (int64_t* int_arg = std::get_if<int64_t>(&arg)) {
+          if (auto* int_arg = std::get_if<int64_t>(&arg)) {
             inserter->AddArg(arg_name, Variadic::Integer(*int_arg));
-          } else if (uint64_t* uint_arg = std::get_if<uint64_t>(&arg)) {
+          } else if (auto* uint_arg = std::get_if<uint64_t>(&arg)) {
             inserter->AddArg(arg_name, Variadic::UnsignedInteger(*uint_arg));
           } else {
             inserter->AddArg(arg_name, Variadic::Real(std::get<double>(arg)));
           }
         }
       });
-
   return base::OkStatus();
 }
 

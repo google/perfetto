@@ -224,3 +224,49 @@ test('TrackNode::flatTracks', () => {
   );
   expect(root.flatTracks.length).toBe(4);
 });
+
+test('TrackNode::clone', () => {
+  const root = new TrackNode();
+  const childA = new TrackNode();
+  root.addChildLast(childA);
+
+  const childB = new TrackNode();
+  root.addChildLast(childB);
+
+  const cloned = root.clone();
+
+  expect(cloned.id).not.toBe(root.id); // id should be different
+  expect(cloned.uri).toBe(root.uri);
+  expect(cloned.expanded).toBe(root.expanded);
+  expect(cloned.title).toBe(root.title);
+  expect(cloned.headless).toBe(root.headless);
+  expect(cloned.isSummary).toBe(root.isSummary);
+  expect(cloned.removable).toBe(root.removable);
+  expect(cloned.children).toStrictEqual([]); // Children should not be copied
+});
+
+test('TrackNode::clone(deep)', () => {
+  const root = new TrackNode();
+  const childA = new TrackNode();
+  root.addChildLast(childA);
+
+  const childB = new TrackNode();
+  root.addChildLast(childB);
+
+  const cloned = root.clone(true);
+
+  expect(cloned.id).not.toBe(root.id); // id should be different
+  expect(cloned.uri).toBe(root.uri);
+  expect(cloned.expanded).toBe(root.expanded);
+  expect(cloned.title).toBe(root.title);
+  expect(cloned.headless).toBe(root.headless);
+  expect(cloned.isSummary).toBe(root.isSummary);
+  expect(cloned.removable).toBe(root.removable);
+  expect(cloned.children).toHaveLength(2);
+
+  expect(cloned.children[0].title).toBe(childA.title);
+  expect(cloned.children[0].uri).toBe(childA.uri);
+
+  expect(cloned.children[1].title).toBe(childB.title);
+  expect(cloned.children[1].uri).toBe(childB.uri);
+});

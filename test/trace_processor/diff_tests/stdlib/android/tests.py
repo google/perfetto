@@ -1147,6 +1147,28 @@ class AndroidStdlib(TestSuite):
         3556,3549,"HeapTaskDaemon","com.android.externalstorage","collector_transition",0,0.450000,2.038000,2.488000,166379142,123781761,32547509,0,0,10049872
         """))
 
+  def test_garbage_collection_stats(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.garbage_collection;
+        SELECT
+        ts, dur,
+        heap_size_mbs, heap_size_mb,
+        heap_allocated_mb, heap_allocation_rate,
+        heap_live_mbs, heap_total_mbs, heap_utilization,
+        gc_running_dur, gc_running_rate, gc_running_efficiency,
+        gc_during_android_startup_dur,
+        total_android_startup_dur,
+        gc_during_android_startup_rate,
+        gc_during_android_startup_efficiency
+        FROM _android_garbage_collection_stats
+      """,
+        out=Csv("""
+        "ts","dur","heap_size_mbs","heap_size_mb","heap_allocated_mb","heap_allocation_rate","heap_live_mbs","heap_total_mbs","heap_utilization","gc_running_dur","gc_running_rate","gc_running_efficiency","gc_during_android_startup_dur","total_android_startup_dur","gc_during_android_startup_rate","gc_during_android_startup_efficiency"
+        37574228004,2590476076,545.245650,210.480867,157.435000,60.774543,21.891720,53.434636,0.409692,80862916,0.031215,1351.232099,177436890,675663737,0.262611,160.615132
+        """))
+
   def test_input_events(self):
     return DiffTestBlueprint(
         trace=DataPath('post_boot_trace.atr'),

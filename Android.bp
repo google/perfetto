@@ -2454,7 +2454,6 @@ cc_test {
         ":perfetto_src_profiling_memory_ring_buffer",
         ":perfetto_src_profiling_memory_scoped_spinlock",
         ":perfetto_src_profiling_memory_wire_protocol",
-        ":perfetto_src_profiling_symbolizer_binary_info",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_generator",
         ":perfetto_src_protozero_filtering_bytecode_parser",
@@ -2782,6 +2781,7 @@ python_library_host {
         "protos/perfetto/metrics/android/android_boot_unagg.proto",
         "protos/perfetto/metrics/android/android_broadcasts_metric.proto",
         "protos/perfetto/metrics/android/android_frame_timeline_metric.proto",
+        "protos/perfetto/metrics/android/android_garbage_collection_stats.proto",
         "protos/perfetto/metrics/android/android_garbage_collection_unagg_metric.proto",
         "protos/perfetto/metrics/android/android_oom_adjuster_metric.proto",
         "protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto",
@@ -2835,6 +2835,7 @@ python_library_host {
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
         "protos/perfetto/metrics/android/wattson_in_time_period.proto",
         "protos/perfetto/metrics/android/wattson_tasks_attribution.proto",
+        "protos/perfetto/metrics/common/clone_duration.proto",
         "protos/perfetto/metrics/metrics.proto",
     ],
     proto: {
@@ -5426,6 +5427,7 @@ genrule {
         "protos/perfetto/metrics/android/android_boot_unagg.proto",
         "protos/perfetto/metrics/android/android_broadcasts_metric.proto",
         "protos/perfetto/metrics/android/android_frame_timeline_metric.proto",
+        "protos/perfetto/metrics/android/android_garbage_collection_stats.proto",
         "protos/perfetto/metrics/android/android_garbage_collection_unagg_metric.proto",
         "protos/perfetto/metrics/android/android_oom_adjuster_metric.proto",
         "protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto",
@@ -5497,6 +5499,7 @@ genrule {
         "protos/perfetto/metrics/chrome/touch_jank.proto",
         "protos/perfetto/metrics/chrome/unsymbolized_args.proto",
         "protos/perfetto/metrics/chrome/user_event_hashes.proto",
+        "protos/perfetto/metrics/common/clone_duration.proto",
         "protos/perfetto/metrics/custom_options.proto",
         "protos/perfetto/metrics/metrics.proto",
     ],
@@ -5522,6 +5525,7 @@ genrule {
         "protos/perfetto/metrics/android/android_boot_unagg.proto",
         "protos/perfetto/metrics/android/android_broadcasts_metric.proto",
         "protos/perfetto/metrics/android/android_frame_timeline_metric.proto",
+        "protos/perfetto/metrics/android/android_garbage_collection_stats.proto",
         "protos/perfetto/metrics/android/android_garbage_collection_unagg_metric.proto",
         "protos/perfetto/metrics/android/android_oom_adjuster_metric.proto",
         "protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto",
@@ -5575,6 +5579,7 @@ genrule {
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
         "protos/perfetto/metrics/android/wattson_in_time_period.proto",
         "protos/perfetto/metrics/android/wattson_tasks_attribution.proto",
+        "protos/perfetto/metrics/common/clone_duration.proto",
         "protos/perfetto/metrics/metrics.proto",
     ],
     tools: [
@@ -5600,6 +5605,7 @@ genrule {
         "protos/perfetto/metrics/android/android_boot_unagg.proto",
         "protos/perfetto/metrics/android/android_broadcasts_metric.proto",
         "protos/perfetto/metrics/android/android_frame_timeline_metric.proto",
+        "protos/perfetto/metrics/android/android_garbage_collection_stats.proto",
         "protos/perfetto/metrics/android/android_garbage_collection_unagg_metric.proto",
         "protos/perfetto/metrics/android/android_oom_adjuster_metric.proto",
         "protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto",
@@ -5653,6 +5659,7 @@ genrule {
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
         "protos/perfetto/metrics/android/wattson_in_time_period.proto",
         "protos/perfetto/metrics/android/wattson_tasks_attribution.proto",
+        "protos/perfetto/metrics/common/clone_duration.proto",
         "protos/perfetto/metrics/metrics.proto",
         "protos/perfetto/metrics/webview/all_webview_metrics.proto",
         "protos/perfetto/metrics/webview/webview_jank_approximation.proto",
@@ -11568,14 +11575,6 @@ filegroup {
     ],
 }
 
-// GN: //src/profiling/symbolizer:binary_info
-filegroup {
-    name: "perfetto_src_profiling_symbolizer_binary_info",
-    srcs: [
-        "src/profiling/symbolizer/binary_info.cc",
-    ],
-}
-
 // GN: //src/profiling/symbolizer:symbolize_database
 filegroup {
     name: "perfetto_src_profiling_symbolizer_symbolize_database",
@@ -12505,7 +12504,6 @@ filegroup {
     srcs: [
         "src/trace_processor/importers/common/args_tracker.cc",
         "src/trace_processor/importers/common/args_translation_table.cc",
-        "src/trace_processor/importers/common/async_track_set_tracker.cc",
         "src/trace_processor/importers/common/clock_converter.cc",
         "src/trace_processor/importers/common/clock_tracker.cc",
         "src/trace_processor/importers/common/cpu_tracker.cc",
@@ -12528,6 +12526,7 @@ filegroup {
         "src/trace_processor/importers/common/thread_state_tracker.cc",
         "src/trace_processor/importers/common/trace_file_tracker.cc",
         "src/trace_processor/importers/common/trace_parser.cc",
+        "src/trace_processor/importers/common/track_compressor.cc",
         "src/trace_processor/importers/common/track_tracker.cc",
         "src/trace_processor/importers/common/virtual_memory_mapping.cc",
     ],
@@ -12549,7 +12548,6 @@ filegroup {
     srcs: [
         "src/trace_processor/importers/common/address_range_unittest.cc",
         "src/trace_processor/importers/common/args_translation_table_unittest.cc",
-        "src/trace_processor/importers/common/async_track_set_tracker_unittest.cc",
         "src/trace_processor/importers/common/clock_converter_unittest.cc",
         "src/trace_processor/importers/common/clock_tracker_unittest.cc",
         "src/trace_processor/importers/common/deobfuscation_mapping_table_unittest.cc",
@@ -12560,6 +12558,7 @@ filegroup {
         "src/trace_processor/importers/common/slice_tracker_unittest.cc",
         "src/trace_processor/importers/common/slice_translation_table_unittest.cc",
         "src/trace_processor/importers/common/thread_state_tracker_unittest.cc",
+        "src/trace_processor/importers/common/track_compressor_unittest.cc",
     ],
 }
 
@@ -13153,6 +13152,7 @@ genrule {
         "src/trace_processor/metrics/sql/android/android_dvfs.sql",
         "src/trace_processor/metrics/sql/android/android_fastrpc.sql",
         "src/trace_processor/metrics/sql/android/android_frame_timeline_metric.sql",
+        "src/trace_processor/metrics/sql/android/android_garbage_collection_stats.sql",
         "src/trace_processor/metrics/sql/android/android_garbage_collection_unagg.sql",
         "src/trace_processor/metrics/sql/android/android_gpu.sql",
         "src/trace_processor/metrics/sql/android/android_hwcomposer.sql",
@@ -13311,6 +13311,7 @@ genrule {
         "src/trace_processor/metrics/sql/chrome/touch_flow_event.sql",
         "src/trace_processor/metrics/sql/chrome/touch_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/touch_jank.sql",
+        "src/trace_processor/metrics/sql/common/clone_duration.sql",
         "src/trace_processor/metrics/sql/common/parent_slice.sql",
         "src/trace_processor/metrics/sql/experimental/chrome_dropped_frames.sql",
         "src/trace_processor/metrics/sql/experimental/chrome_long_latency.sql",
@@ -15664,7 +15665,6 @@ cc_test {
         ":perfetto_src_profiling_perf_producer_unittests",
         ":perfetto_src_profiling_perf_regs_parsing",
         ":perfetto_src_profiling_perf_unwinding",
-        ":perfetto_src_profiling_symbolizer_binary_info",
         ":perfetto_src_profiling_symbolizer_symbolizer",
         ":perfetto_src_profiling_symbolizer_unittests",
         ":perfetto_src_profiling_unittests",
@@ -16771,7 +16771,6 @@ cc_binary {
         ":perfetto_src_base_version",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_profiling_deobfuscator",
-        ":perfetto_src_profiling_symbolizer_binary_info",
         ":perfetto_src_profiling_symbolizer_symbolize_database",
         ":perfetto_src_profiling_symbolizer_symbolizer",
         ":perfetto_src_protozero_proto_ring_buffer",
@@ -17029,7 +17028,6 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_base_base",
-        ":perfetto_src_profiling_symbolizer_binary_info",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_db_column_column",
@@ -17203,7 +17201,6 @@ cc_binary_host {
         ":perfetto_src_base_version",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_profiling_deobfuscator",
-        ":perfetto_src_profiling_symbolizer_binary_info",
         ":perfetto_src_profiling_symbolizer_symbolize_database",
         ":perfetto_src_profiling_symbolizer_symbolizer",
         ":perfetto_src_protozero_proto_ring_buffer",

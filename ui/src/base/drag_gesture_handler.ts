@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 export class DragGestureHandler implements Disposable {
   private readonly boundOnMouseDown = this.onMouseDown.bind(this);
   private readonly boundOnMouseMove = this.onMouseMove.bind(this);
@@ -45,6 +47,7 @@ export class DragGestureHandler implements Disposable {
       e.clientX - this.clientRect.left,
       e.clientY - this.clientRect.top,
     );
+    m.redraw();
   }
 
   private onMouseMove(e: MouseEvent) {
@@ -73,6 +76,7 @@ export class DragGestureHandler implements Disposable {
     document.body.removeEventListener('mouseup', this.boundOnMouseUp);
     if (!this.pendingMouseDownEvent) {
       this.onDragFinished();
+      m.redraw();
     }
   }
 

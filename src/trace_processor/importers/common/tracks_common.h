@@ -75,11 +75,25 @@ inline constexpr auto kBytesUnitBlueprint =
 inline constexpr auto kLegacyGlobalInstantsBlueprint =
     tracks::SliceBlueprint("legacy_chrome_global_instants");
 
+static constexpr auto kAndroidDeviceStateBlueprint =
+    tracks::SliceBlueprint("android_device_state",
+                           tracks::DimensionBlueprints(),
+                           tracks::StaticNameBlueprint("DeviceStateChanged"));
+
+static constexpr auto kAndroidLmkBlueprint = tracks::SliceBlueprint(
+    "android_lmk",
+    tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint),
+    tracks::StaticNameBlueprint("LMK"));
+
+static constexpr auto kChromeProcessInstantBlueprint = tracks::SliceBlueprint(
+    "chrome_process_instant",
+    tracks::Dimensions(tracks::kProcessDimensionBlueprint));
+
 // End slice blueprints.
 
 // Begin counter blueprints.
 
-static constexpr auto kBatteryCounterBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kBatteryCounterBlueprint = tracks::CounterBlueprint(
     "battery_counter",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(
@@ -96,7 +110,7 @@ static constexpr auto kBatteryCounterBlueprint = tracks::CounterBlueprint(
                                          counter_name.data());
         }));
 
-static constexpr auto kClockFrequencyBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kClockFrequencyBlueprint = tracks::CounterBlueprint(
     "clock_frequency",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(kLinuxDeviceDimensionBlueprint),
@@ -105,7 +119,7 @@ static constexpr auto kClockFrequencyBlueprint = tracks::CounterBlueprint(
                                     key.data());
     }));
 
-static constexpr auto kClockStateBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kClockStateBlueprint = tracks::CounterBlueprint(
     "clock_state",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(kLinuxDeviceDimensionBlueprint),
@@ -113,25 +127,25 @@ static constexpr auto kClockStateBlueprint = tracks::CounterBlueprint(
       return base::StackString<255>("%.*s State", int(key.size()), key.data());
     }));
 
-static constexpr auto kCpuFrequencyBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kCpuFrequencyBlueprint = tracks::CounterBlueprint(
     "cpu_frequency",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(kCpuDimensionBlueprint),
     tracks::StaticNameBlueprint("cpufreq"));
 
-static constexpr auto kGpuFrequencyBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kGpuFrequencyBlueprint = tracks::CounterBlueprint(
     "gpu_frequency",
     tracks::StaticUnitBlueprint("MHz"),
     tracks::DimensionBlueprints(kGpuDimensionBlueprint),
     tracks::StaticNameBlueprint("gpufreq"));
 
-static constexpr auto kCpuIdleBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kCpuIdleBlueprint = tracks::CounterBlueprint(
     "cpu_idle",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(kCpuDimensionBlueprint),
     tracks::StaticNameBlueprint("cpuidle"));
 
-static constexpr auto kThermalTemperatureBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kThermalTemperatureBlueprint = tracks::CounterBlueprint(
     "thermal_temperature",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(kThermalZoneDimensionBlueprint),
@@ -140,7 +154,7 @@ static constexpr auto kThermalTemperatureBlueprint = tracks::CounterBlueprint(
                                     static_cast<int>(tz.size()), tz.data());
     }));
 
-static constexpr auto kCoolingDeviceCounterBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kCoolingDeviceCounterBlueprint = tracks::CounterBlueprint(
     "cooling_device_counter",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(kLinuxDeviceDimensionBlueprint),
@@ -149,7 +163,7 @@ static constexpr auto kCoolingDeviceCounterBlueprint = tracks::CounterBlueprint(
                                     static_cast<int>(cdev.size()), cdev.data());
     }));
 
-constexpr auto kChromeProcessStatsBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kChromeProcessStatsBlueprint = tracks::CounterBlueprint(
     "chrome_process_stats",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
@@ -159,13 +173,13 @@ constexpr auto kChromeProcessStatsBlueprint = tracks::CounterBlueprint(
                                     name.data());
     }));
 
-constexpr auto kAndroidScreenStateBlueprint =
+inline constexpr auto kAndroidScreenStateBlueprint =
     tracks::CounterBlueprint("screen_state",
                              tracks::UnknownUnitBlueprint(),
                              tracks::DimensionBlueprints(),
                              tracks::StaticNameBlueprint("ScreenState"));
 
-constexpr auto kAndroidBatteryStatsBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kAndroidBatteryStatsBlueprint = tracks::CounterBlueprint(
     "battery_stats",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(
@@ -174,7 +188,7 @@ constexpr auto kAndroidBatteryStatsBlueprint = tracks::CounterBlueprint(
       return base::StackString<1024>("%.*s", int(name.size()), name.data());
     }));
 
-constexpr auto kAndroidAtraceCounterBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kAndroidAtraceCounterBlueprint = tracks::CounterBlueprint(
     "atrace_counter",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
@@ -183,26 +197,27 @@ constexpr auto kAndroidAtraceCounterBlueprint = tracks::CounterBlueprint(
       return base::StackString<1024>("%.*s", int(name.size()), name.data());
     }));
 
-constexpr auto kOomScoreAdjBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kOomScoreAdjBlueprint = tracks::CounterBlueprint(
     "oom_score_adj",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint),
     tracks::StaticNameBlueprint("oom_score_adj"));
 
-constexpr auto kOomScoreAdjThreadFallbackBlueprint = tracks::CounterBlueprint(
-    "oom_score_adj_thread_fallback",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint),
-    tracks::StaticNameBlueprint("oom_score_adj"));
+inline constexpr auto kOomScoreAdjThreadFallbackBlueprint =
+    tracks::CounterBlueprint(
+        "oom_score_adj_thread_fallback",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint),
+        tracks::StaticNameBlueprint("oom_score_adj"));
 
-constexpr auto kMmEventFnNameBlueprint = tracks::FnNameBlueprint(
+inline constexpr auto kMmEventFnNameBlueprint = tracks::FnNameBlueprint(
     [](uint32_t, base::StringView type, base::StringView metric) {
       return base::StackString<1024>("mem.mm.%.*s.%.*s", int(type.size()),
                                      type.data(), int(metric.size()),
                                      metric.data());
     });
 
-constexpr auto kMmEventBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kMmEventBlueprint = tracks::CounterBlueprint(
     "mm_event",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(
@@ -211,16 +226,17 @@ constexpr auto kMmEventBlueprint = tracks::CounterBlueprint(
         tracks::StringDimensionBlueprint("mm_event_metric")),
     kMmEventFnNameBlueprint);
 
-constexpr auto kMmEventThreadFallbackBlueprint = tracks::CounterBlueprint(
-    "mm_event_thread_fallback",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(
-        tracks::kThreadDimensionBlueprint,
-        tracks::StringDimensionBlueprint("mm_event_type"),
-        tracks::StringDimensionBlueprint("mm_event_metric")),
-    kMmEventFnNameBlueprint);
+inline constexpr auto kMmEventThreadFallbackBlueprint =
+    tracks::CounterBlueprint(
+        "mm_event_thread_fallback",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(
+            tracks::kThreadDimensionBlueprint,
+            tracks::StringDimensionBlueprint("mm_event_type"),
+            tracks::StringDimensionBlueprint("mm_event_metric")),
+        kMmEventFnNameBlueprint);
 
-constexpr auto kPerfCounterBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kPerfCounterBlueprint = tracks::CounterBlueprint(
     "perf_counter",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(
@@ -229,19 +245,19 @@ constexpr auto kPerfCounterBlueprint = tracks::CounterBlueprint(
         tracks::kNameFromTraceDimensionBlueprint),
     tracks::DynamicNameBlueprint());
 
-constexpr auto kGlobalGpuMemoryBlueprint =
+inline constexpr auto kGlobalGpuMemoryBlueprint =
     tracks::CounterBlueprint("gpu_memory",
                              tracks::kBytesUnitBlueprint,
                              tracks::DimensionBlueprints(),
                              tracks::StaticNameBlueprint("GPU Memory"));
 
-constexpr auto kProcessGpuMemoryBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kProcessGpuMemoryBlueprint = tracks::CounterBlueprint(
     "process_gpu_memory",
     tracks::kBytesUnitBlueprint,
     tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint),
     tracks::StaticNameBlueprint("GPU Memory"));
 
-static constexpr auto kProcessMemoryBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kProcessMemoryBlueprint = tracks::CounterBlueprint(
     "process_memory",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(
@@ -251,7 +267,7 @@ static constexpr auto kProcessMemoryBlueprint = tracks::CounterBlueprint(
       return base::StackString<1024>("mem.%.*s", int(key.size()), key.data());
     }));
 
-static constexpr auto kProcessMemoryThreadFallbackBlueprint =
+inline constexpr auto kProcessMemoryThreadFallbackBlueprint =
     tracks::CounterBlueprint(
         "process_memory_thread_fallback",
         tracks::UnknownUnitBlueprint(),
@@ -270,7 +286,7 @@ static constexpr auto kJsonCounterBlueprint = tracks::CounterBlueprint(
                                 tracks::kNameFromTraceDimensionBlueprint),
     tracks::DynamicNameBlueprint());
 
-static constexpr auto kJsonCounterThreadFallbackBlueprint =
+inline constexpr auto kJsonCounterThreadFallbackBlueprint =
     tracks::CounterBlueprint(
         "json_counter_thread_fallback",
         tracks::UnknownUnitBlueprint(),
@@ -278,7 +294,7 @@ static constexpr auto kJsonCounterThreadFallbackBlueprint =
                                     tracks::kNameFromTraceDimensionBlueprint),
         tracks::DynamicNameBlueprint());
 
-static constexpr auto kGpuCounterBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kGpuCounterBlueprint = tracks::CounterBlueprint(
     "gpu_counter",
     tracks::DynamicUnitBlueprint(),
     tracks::DimensionBlueprints(tracks::kGpuDimensionBlueprint,

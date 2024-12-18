@@ -47,22 +47,22 @@ class SmokeJson(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sfgate.json'),
         query="""
-        SELECT track.type AS type, depth, count(*) AS count
+        SELECT depth, count(*) AS count
         FROM slice
         JOIN track ON slice.track_id = track.id
-        GROUP BY track.type, depth
-        ORDER BY track.type, depth;
+        GROUP BY depth
+        ORDER BY depth;
         """,
         out=Csv("""
-        "type","depth","count"
-        "thread_track",0,16888
-        "thread_track",1,19447
-        "thread_track",2,5816
-        "thread_track",3,829
-        "thread_track",4,191
-        "thread_track",5,94
-        "thread_track",6,57
-        "thread_track",7,19
-        "thread_track",8,14
-        "thread_track",9,2
+        "depth","count"
+        0,16888
+        1,19447
+        2,5816
+        3,829
+        4,191
+        5,94
+        6,57
+        7,19
+        8,14
+        9,2
         """))

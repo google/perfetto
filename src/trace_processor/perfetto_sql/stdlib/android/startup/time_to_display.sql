@@ -50,8 +50,7 @@ fallback AS (
 CREATE PERFETTO TABLE _ttid AS
 WITH frames_with_upid AS (
   SELECT
-  f.*,
-  upid
+  f.*
   FROM android_frames f
   JOIN thread t ON (f.ui_thread_utid = t.utid)
 ),

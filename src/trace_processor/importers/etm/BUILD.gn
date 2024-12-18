@@ -63,7 +63,6 @@ source_set("etm_impl") {
     "mapping_version.cc",
     "mapping_version.h",
     "opencsd.h",
-    "sql_values.h",
     "storage_handle.cc",
     "storage_handle.h",
     "target_memory.cc",
@@ -85,12 +84,12 @@ source_set("etm_impl") {
     ":public_hdr",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/base:base",
-    "../../../profiling/symbolizer:binary_info",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
     "../../util:build_id",
     "../common",
+    "../elf:binary_info",
     "../perf",
     "../perf:record",
   ]
@@ -108,11 +107,11 @@ source_set("file_tracker") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base:base",
     "../../../../include/perfetto/trace_processor:storage",
-    "../../../profiling/symbolizer:binary_info",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
     "../../util:build_id",
+    "../elf:binary_info",
   ]
 }
 

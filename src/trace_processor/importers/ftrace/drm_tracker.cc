@@ -15,18 +15,32 @@
  */
 
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
+
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <utility>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "protos/perfetto/trace/ftrace/dma_fence.pbzero.h"
-#include "protos/perfetto/trace/ftrace/drm.pbzero.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
-#include "protos/perfetto/trace/ftrace/gpu_scheduler.pbzero.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include "protos/perfetto/trace/ftrace/dma_fence.pbzero.h"
+#include "protos/perfetto/trace/ftrace/drm.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "protos/perfetto/trace/ftrace/gpu_scheduler.pbzero.h"
+
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -35,6 +49,30 @@ namespace {
 // are often dynamically created.  We want to ignore these timelines to avoid
 // having tons of tracks for them.
 constexpr char kUnboundFenceTimeline[] = "unbound";
+
+constexpr auto kVblankBlueprint = tracks::SliceBlueprint(
+    "drm_vblank",
+    tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("drm_crtc")),
+    tracks::FnNameBlueprint([](uint32_t crtc) {
+      return base::StackString<256>("vblank-%u", crtc);
+    }));
+
+constexpr auto kSchedRingBlueprint = tracks::SliceBlueprint(
+    "drm_sched_ring",
+    tracks::DimensionBlueprints(tracks::kNameFromTraceDimensionBlueprint),
+    tracks::FnNameBlueprint([](base::StringView name) {
+      return base::StackString<256>("sched-%.*s", int(name.size()),
+                                    name.data());
+    }));
+
+constexpr auto kFenceBlueprint = tracks::SliceBlueprint(
+    "drm_fence",
+    tracks::DimensionBlueprints(tracks::kNameFromTraceDimensionBlueprint,
+                                tracks::UintDimensionBlueprint("context")),
+    tracks::FnNameBlueprint([](base::StringView name, uint32_t context) {
+      return base::StackString<256>("fence-%.*s-%u", int(name.size()),
+                                    name.data(), context);
+    }));
 
 }  // namespace
 
@@ -60,55 +98,47 @@ void DrmTracker::ParseDrm(int64_t timestamp,
 
   switch (field_id) {
     case FtraceEvent::kDrmVblankEventFieldNumber: {
-      protos::pbzero::DrmVblankEventFtraceEvent::Decoder evt(blob.data,
-                                                             blob.size);
+      protos::pbzero::DrmVblankEventFtraceEvent::Decoder evt(blob);
       DrmVblankEvent(timestamp, evt.crtc(), evt.seq());
       break;
     }
     case FtraceEvent::kDrmVblankEventDeliveredFieldNumber: {
-      protos::pbzero::DrmVblankEventDeliveredFtraceEvent::Decoder evt(
-          blob.data, blob.size);
+      protos::pbzero::DrmVblankEventDeliveredFtraceEvent::Decoder evt(blob);
       DrmVblankEventDelivered(timestamp, evt.crtc(), evt.seq());
       break;
     }
-
     case FtraceEvent::kDrmSchedJobFieldNumber: {
-      protos::pbzero::DrmSchedJobFtraceEvent::Decoder evt(blob.data, blob.size);
+      protos::pbzero::DrmSchedJobFtraceEvent::Decoder evt(blob);
       DrmSchedJob(timestamp, pid, evt.name(), evt.id());
       break;
     }
     case FtraceEvent::kDrmRunJobFieldNumber: {
-      protos::pbzero::DrmRunJobFtraceEvent::Decoder evt(blob.data, blob.size);
+      protos::pbzero::DrmRunJobFtraceEvent::Decoder evt(blob);
       DrmRunJob(timestamp, evt.name(), evt.id(), evt.fence());
       break;
     }
     case FtraceEvent::kDrmSchedProcessJobFieldNumber: {
-      protos::pbzero::DrmSchedProcessJobFtraceEvent::Decoder evt(blob.data,
-                                                                 blob.size);
+      protos::pbzero::DrmSchedProcessJobFtraceEvent::Decoder evt(blob);
       DrmSchedProcessJob(timestamp, evt.fence());
       break;
     }
     case FtraceEvent::kDmaFenceInitFieldNumber: {
-      protos::pbzero::DmaFenceInitFtraceEvent::Decoder evt(blob.data,
-                                                           blob.size);
+      protos::pbzero::DmaFenceInitFtraceEvent::Decoder evt(blob);
       DmaFenceInit(timestamp, evt.timeline(), evt.context(), evt.seqno());
       break;
     }
     case FtraceEvent::kDmaFenceEmitFieldNumber: {
-      protos::pbzero::DmaFenceEmitFtraceEvent::Decoder evt(blob.data,
-                                                           blob.size);
+      protos::pbzero::DmaFenceEmitFtraceEvent::Decoder evt(blob);
       DmaFenceEmit(timestamp, evt.timeline(), evt.context(), evt.seqno());
       break;
     }
     case FtraceEvent::kDmaFenceSignaledFieldNumber: {
-      protos::pbzero::DmaFenceSignaledFtraceEvent::Decoder evt(blob.data,
-                                                               blob.size);
+      protos::pbzero::DmaFenceSignaledFtraceEvent::Decoder evt(blob);
       DmaFenceSignaled(timestamp, evt.timeline(), evt.context(), evt.seqno());
       break;
     }
     case FtraceEvent::kDmaFenceWaitStartFieldNumber: {
-      protos::pbzero::DmaFenceWaitStartFtraceEvent::Decoder evt(blob.data,
-                                                                blob.size);
+      protos::pbzero::DmaFenceWaitStartFtraceEvent::Decoder evt(blob);
       DmaFenceWaitStart(timestamp, pid, evt.context(), evt.seqno());
       break;
     }
@@ -122,36 +152,30 @@ void DrmTracker::ParseDrm(int64_t timestamp,
   }
 }
 
-TrackId DrmTracker::InternVblankTrack(int32_t crtc) {
-  base::StackString<256> track_name("vblank-%d", crtc);
-  StringId track_name_id =
-      context_->storage->InternString(track_name.string_view());
-  return context_->track_tracker->LegacyInternGpuTrack(
-      tables::GpuTrackTable::Row(track_name_id));
-}
-
 void DrmTracker::DrmVblankEvent(int64_t timestamp,
                                 int32_t crtc,
                                 uint32_t seqno) {
-  TrackId track_id = InternVblankTrack(crtc);
-  auto args_inserter = [this, seqno](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(vblank_arg_seqno_id_, Variadic::UnsignedInteger(seqno));
-  };
-
-  context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId,
-                                  vblank_slice_signal_id_, 0, args_inserter);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kVblankBlueprint, tracks::Dimensions(crtc));
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, vblank_slice_signal_id_, 0,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(vblank_arg_seqno_id_,
+                         Variadic::UnsignedInteger(seqno));
+      });
 }
 
 void DrmTracker::DrmVblankEventDelivered(int64_t timestamp,
                                          int32_t crtc,
                                          uint32_t seqno) {
-  TrackId track_id = InternVblankTrack(crtc);
-  auto args_inserter = [this, seqno](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(vblank_arg_seqno_id_, Variadic::UnsignedInteger(seqno));
-  };
-
-  context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId,
-                                  vblank_slice_deliver_id_, 0, args_inserter);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kVblankBlueprint, tracks::Dimensions(crtc));
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, vblank_slice_deliver_id_, 0,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(vblank_arg_seqno_id_,
+                         Variadic::UnsignedInteger(seqno));
+      });
 }
 
 DrmTracker::SchedRing& DrmTracker::GetSchedRingByName(base::StringView name) {
@@ -159,16 +183,9 @@ DrmTracker::SchedRing& DrmTracker::GetSchedRingByName(base::StringView name) {
   if (iter)
     return **iter;
 
-  // intern a gpu track
-  base::StackString<64> track_name("sched-%.*s", int(name.size()), name.data());
-  StringId track_name_id =
-      context_->storage->InternString(track_name.string_view());
-  TrackId track_id = context_->track_tracker->LegacyInternGpuTrack(
-      tables::GpuTrackTable::Row(track_name_id));
-
-  // no std::make_unique until C++14..
-  auto ring = std::unique_ptr<SchedRing>(new SchedRing());
-  ring->track_id = track_id;
+  auto ring = std::make_unique<SchedRing>();
+  ring->track_id = context_->track_tracker->InternTrack(
+      kSchedRingBlueprint, tracks::Dimensions(name));
 
   SchedRing& ret = *ring;
   sched_rings_.Insert(name, std::move(ring));
@@ -204,16 +221,13 @@ void DrmTracker::DrmSchedJob(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   StringId ring_id = context_->storage->InternString(name);
-  auto args_inserter = [this, ring_id,
-                        job_id](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(sched_arg_ring_id_, Variadic::String(ring_id));
-    inserter->AddArg(sched_arg_job_id_, Variadic::UnsignedInteger(job_id));
-  };
 
   std::optional<SliceId> slice_id = context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, sched_slice_schedule_id_, 0,
-      args_inserter);
-
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(sched_arg_ring_id_, Variadic::String(ring_id));
+        inserter->AddArg(sched_arg_job_id_, Variadic::UnsignedInteger(job_id));
+      });
   if (slice_id) {
     SchedRing& ring = GetSchedRingByName(name);
     ring.out_slice_ids[job_id] = *slice_id;
@@ -255,17 +269,9 @@ DrmTracker::FenceTimeline& DrmTracker::GetFenceTimelineByContext(
   if (iter)
     return **iter;
 
-  // intern a gpu track
-  base::StackString<64> track_name("fence-%.*s-%u", int(name.size()),
-                                   name.data(), context);
-  StringId track_name_id =
-      context_->storage->InternString(track_name.string_view());
-  TrackId track_id = context_->track_tracker->LegacyInternGpuTrack(
-      tables::GpuTrackTable::Row(track_name_id));
-
-  // no std::make_unique until C++14..
-  auto timeline = std::unique_ptr<FenceTimeline>(new FenceTimeline());
-  timeline->track_id = track_id;
+  auto timeline = std::make_unique<FenceTimeline>();
+  timeline->track_id = context_->track_tracker->InternTrack(
+      kFenceBlueprint, tracks::Dimensions(name, context));
 
   FenceTimeline& ret = *timeline;
   fence_timelines_.Insert(context, std::move(timeline));
@@ -374,5 +380,4 @@ void DrmTracker::DmaFenceWaitEnd(int64_t timestamp, uint32_t pid) {
   context_->slice_tracker->End(timestamp, track_id);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

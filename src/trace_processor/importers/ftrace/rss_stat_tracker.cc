@@ -67,7 +67,7 @@ void RssStatTracker::ParseRssStat(int64_t ts,
   std::optional<int64_t> mm_id;
 
   if (field_id == FtraceEvent::kRssStatFieldNumber) {
-    protos::pbzero::RssStatFtraceEvent::Decoder rss(blob.data, blob.size);
+    protos::pbzero::RssStatFtraceEvent::Decoder rss(blob);
 
     member = static_cast<uint32_t>(rss.member());
     size = rss.size();
@@ -80,8 +80,7 @@ void RssStatTracker::ParseRssStat(int64_t ts,
 
     ParseRssStat(ts, pid, size, member, curr, mm_id);
   } else if (field_id == FtraceEvent::kRssStatThrottledFieldNumber) {
-    protos::pbzero::RssStatThrottledFtraceEvent::Decoder rss(blob.data,
-                                                             blob.size);
+    protos::pbzero::RssStatThrottledFtraceEvent::Decoder rss(blob);
 
     member = static_cast<uint32_t>(rss.member());
     size = rss.size();

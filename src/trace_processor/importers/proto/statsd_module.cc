@@ -15,25 +15,42 @@
  */
 #include "src/trace_processor/importers/proto/statsd_module.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "protos/perfetto/trace/statsd/statsd_atom.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
-#include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
+#include "src/trace_processor/importers/proto/atoms.descriptor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/proto_to_args_parser.h"
 
-#include "src/trace_processor/importers/proto/atoms.descriptor.h"
-
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 constexpr const char* kAtomProtoName = ".android.os.statsd.Atom";
@@ -182,39 +199,34 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
     nested_field_id = field.id();
   }
   StringId atom_name = GetAtomName(nested_field_id);
+  context_->slice_tracker->Scoped(
+      ts, InternTrackId(), kNullStringId, atom_name, 0,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        ArgsParser delegate(ts, *inserter, *context_->storage);
 
-  AsyncTrackSetTracker::TrackSetId track_set = InternAsyncTrackSetId();
-  TrackId track = context_->async_track_set_tracker->Scoped(track_set, ts, 0);
-  std::optional<SliceId> opt_slice =
-      context_->slice_tracker->Scoped(ts, track, kNullStringId, atom_name, 0);
-  if (!opt_slice) {
-    return;
-  }
-  SliceId slice = opt_slice.value();
-  auto inserter = context_->args_tracker->AddArgsTo(slice);
-  ArgsParser delegate(ts, inserter, *context_->storage.get());
+        const auto& fields = pool_.descriptor()->fields();
+        const auto& field_it = fields.find(nested_field_id);
+        base::Status status;
 
-  const auto& fields = pool_.descriptor()->fields();
-  const auto& field_it = fields.find(nested_field_id);
-  base::Status status;
+        if (field_it == fields.end()) {
+          /// Field ids 100000 and over are OEM atoms - we can't have the
+          // descriptor for them so don't report errors. See:
+          // https://cs.android.com/android/platform/superproject/main/+/main:frameworks/proto_logging/stats/atoms.proto;l=1290;drc=a34b11bfebe897259a0340a59f1793ae2dffd762
+          if (nested_field_id < 100000) {
+            context_->storage->IncrementStats(stats::atom_unknown);
+          }
 
-  if (field_it == fields.end()) {
-    /// Field ids 100000 and over are OEM atoms - we can't have the
-    // descriptor for them so don't report errors. See:
-    // https://cs.android.com/android/platform/superproject/main/+/main:frameworks/proto_logging/stats/atoms.proto;l=1290;drc=a34b11bfebe897259a0340a59f1793ae2dffd762
-    if (nested_field_id < 100000) {
-      context_->storage->IncrementStats(stats::atom_unknown);
-    }
+          status = ParseGenericEvent(field.as_bytes(), delegate);
+        } else {
+          status = args_parser_.ParseMessage(nested_bytes, kAtomProtoName,
+                                             nullptr /* parse all fields */,
+                                             delegate);
+        }
 
-    status = ParseGenericEvent(field.as_bytes(), delegate);
-  } else {
-    status = args_parser_.ParseMessage(
-        nested_bytes, kAtomProtoName, nullptr /* parse all fields */, delegate);
-  }
-
-  if (!status.ok()) {
-    context_->storage->IncrementStats(stats::atom_unknown);
-  }
+        if (!status.ok()) {
+          context_->storage->IncrementStats(stats::atom_unknown);
+        }
+      });
 }
 
 StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
@@ -241,14 +253,14 @@ StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
   return *cached_name;
 }
 
-AsyncTrackSetTracker::TrackSetId StatsdModule::InternAsyncTrackSetId() {
-  if (!track_set_id_) {
-    StringId name = context_->storage->InternString("Statsd Atoms");
-    track_set_id_ =
-        context_->async_track_set_tracker->InternGlobalTrackSet(name);
+TrackId StatsdModule::InternTrackId() {
+  if (!track_id_) {
+    static constexpr auto kBlueprint =
+        tracks::SliceBlueprint("statsd_atoms", tracks::DimensionBlueprints(),
+                               tracks::StaticNameBlueprint("Statsd Atoms"));
+    track_id_ = context_->track_tracker->InternTrack(kBlueprint);
   }
-  return track_set_id_.value();
+  return *track_id_;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

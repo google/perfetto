@@ -63,6 +63,7 @@ perfetto_unittest_source_set("unittests") {
     "../importers/common:parser_types",
     "../importers/proto:minimal",
     "../importers/proto:packet_sequence_state_generation_hdr",
+    "../storage",
     "../types",
   ]
 }

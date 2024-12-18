@@ -19,6 +19,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <string_view>
 #include <tuple>
 
@@ -32,7 +33,6 @@ using DimensionsT = std::tuple<T...>;
 
 struct DimensionBlueprintBase {
   std::string_view name;
-  bool is_cpu;
 };
 
 template <typename T>
@@ -73,6 +73,7 @@ struct BlueprintT : BlueprintBase {
   using unit_blueprint_t = UB;
   using name_t = typename NB::name_t;
   using unit_t = typename UB::unit_t;
+  using dimension_blueprints_t = std::tuple<DB...>;
   using dimensions_t = DimensionsT<typename DB::type...>;
   name_blueprint_t name_blueprint;
   unit_blueprint_t unit_blueprint;
@@ -93,6 +94,14 @@ struct UnitBlueprintT {
     using unit_t = StringPool::Id;
   };
 };
+
+template <typename BlueprintT, typename Dims>
+constexpr uint64_t HashFromBlueprintAndDimensions(const BlueprintT& bp,
+                                                  const Dims& dims) {
+  base::Hasher hasher(bp.hasher);
+  std::apply([&](auto&&... args) { ((hasher.Update(args)), ...); }, dims);
+  return hasher.digest();
+}
 
 #define PERFETTO_TP_TRACKS(F)                    \
   F(android_energy_estimation_breakdown_per_uid) \

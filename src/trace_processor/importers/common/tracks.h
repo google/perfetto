@@ -20,7 +20,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <string_view>
 #include <tuple>
 
 #include "perfetto/ext/base/hash.h"
@@ -91,17 +90,17 @@ constexpr auto DimensionBlueprints(DimensionBlueprint... dimensions) {
 
 // Adds a unit32_t dimension with the given name.
 constexpr auto UintDimensionBlueprint(const char name[]) {
-  return DimensionBlueprintT<uint32_t>{{name, std::string_view(name) == "cpu"}};
+  return DimensionBlueprintT<uint32_t>{{name}};
 }
 
 // Adds a string dimension with the given name.
 constexpr auto StringDimensionBlueprint(const char name[]) {
-  return DimensionBlueprintT<base::StringView>{{name, false}};
+  return DimensionBlueprintT<base::StringView>{{name}};
 }
 
 // Adds a int64_t dimension with the given name.
 constexpr auto LongDimensionBlueprint(const char name[]) {
-  return DimensionBlueprintT<int64_t>{{name, false}};
+  return DimensionBlueprintT<int64_t>{{name}};
 }
 
 // Indicates the name should be automatically determined by trace processor.

@@ -207,14 +207,14 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
         const std::string& real_id = id.empty() ? global : id;
         int64_t cookie = static_cast<int64_t>(
             base::Hasher::Combine(cat_id.raw_id(), real_id));
-        track_id = context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
+        track_id = context_->track_tracker->InternLegacyAsyncTrack(
             name_id, upid, cookie, false /* source_id_is_process_scoped */,
             kNullStringId /* source_scope */);
       } else {
         PERFETTO_DCHECK(!local.empty());
         int64_t cookie =
             static_cast<int64_t>(base::Hasher::Combine(cat_id.raw_id(), local));
-        track_id = context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
+        track_id = context_->track_tracker->InternLegacyAsyncTrack(
             name_id, upid, cookie, true /* source_id_is_process_scoped */,
             kNullStringId /* source_scope */);
       }
@@ -304,11 +304,14 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
           break;
         }
         UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
-        track_id = context_->track_tracker->InternProcessTrack(
-            tracks::chrome_process_instant, upid);
-        context_->args_tracker->AddArgsTo(track_id).AddArg(
-            context_->storage->InternString("source"),
-            Variadic::String(context_->storage->InternString("chrome")));
+        track_id = context_->track_tracker->InternTrack(
+            tracks::kChromeProcessInstantBlueprint, tracks::Dimensions(upid),
+            tracks::BlueprintName(),
+            [this](ArgsTracker::BoundInserter& inserter) {
+              inserter.AddArg(
+                  context_->storage->InternString("source"),
+                  Variadic::String(context_->storage->InternString("chrome")));
+            });
       } else if (scope == "t" || scope.data() == nullptr) {
         if (!opt_tid) {
           context_->storage->IncrementStats(stats::json_parser_failure);
