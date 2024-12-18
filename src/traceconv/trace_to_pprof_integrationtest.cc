@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <unistd.h>
 #include "test/gtest_and_gmock.h"
 
 #include <fstream>
