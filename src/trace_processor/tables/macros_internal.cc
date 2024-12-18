@@ -63,8 +63,7 @@ PERFETTO_NO_INLINE void MacroTable::UpdateSelfOverlayAfterInsert() {
 }
 
 PERFETTO_NO_INLINE std::vector<ColumnLegacy>
-MacroTable::CopyColumnsFromParentOrAddRootColumns(MacroTable* self,
-                                                  const MacroTable* parent) {
+MacroTable::CopyColumnsFromParentOrAddRootColumns(const MacroTable* parent) {
   std::vector<ColumnLegacy> columns;
   if (parent) {
     for (const ColumnLegacy& col : parent->columns()) {
@@ -72,7 +71,6 @@ MacroTable::CopyColumnsFromParentOrAddRootColumns(MacroTable* self,
     }
   } else {
     columns.emplace_back(ColumnLegacy::IdColumn(0, 0));
-    columns.emplace_back("type", &self->type_, ColumnLegacy::kNonNull, 1, 0);
   }
   return columns;
 }

@@ -155,7 +155,6 @@ class TestApi(unittest.TestCase):
     ]
 
     for num, row in enumerate(qr_iterator):
-      self.assertEqual(row.type, '__intrinsic_slice')
       self.assertEqual(row.dur, dur_result[num])
 
     # Test the batching logic by issuing a large query and ensuring we receive

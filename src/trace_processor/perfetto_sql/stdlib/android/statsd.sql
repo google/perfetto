@@ -20,8 +20,6 @@
 CREATE PERFETTO VIEW android_statsd_atoms(
   -- Unique identifier for this slice.
   id LONG,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
@@ -53,7 +51,6 @@ CREATE PERFETTO VIEW android_statsd_atoms(
 ) AS
 SELECT
   slice.id AS id,
-  slice.type AS type,
   slice.ts AS ts,
   slice.dur AS dur,
   slice.arg_set_id AS arg_set_id,

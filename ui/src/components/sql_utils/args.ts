@@ -34,7 +34,6 @@ type ArgValueType =
 
 export interface Arg {
   id: ArgsId;
-  type: string;
   flatKey: string;
   key: string;
   value: ArgValue;
@@ -48,7 +47,6 @@ export async function getArgs(
   const query = await engine.query(`
     SELECT
       id,
-      type,
       flat_key as flatKey,
       key,
       int_value as intValue,
@@ -61,7 +59,6 @@ export async function getArgs(
     ORDER BY id`);
   const it = query.iter({
     id: NUM,
-    type: STR,
     flatKey: STR,
     key: STR,
     intValue: LONG_NULL,
@@ -76,7 +73,6 @@ export async function getArgs(
     const value = parseValue(it.valueType as ArgValueType, it);
     result.push({
       id: asArgId(it.id),
-      type: it.type,
       flatKey: it.flatKey,
       key: it.key,
       value,

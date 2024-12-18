@@ -42,8 +42,6 @@ CREATE PERFETTO VIEW track (
   -- Unique identifier for this track. Identical to |track_id|, prefer using
   -- |track_id| instead.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track; can be null for some types of tracks (e.g. thread
   -- tracks).
   name STRING,
@@ -75,7 +73,6 @@ CREATE PERFETTO VIEW track (
 ) AS
 SELECT
   id,
-  type,
   name,
   classification,
   dimension_arg_set_id,
@@ -94,8 +91,6 @@ CREATE PERFETTO VIEW cpu (
   ucpu ID,
   -- The 0-based CPU core identifier.
   cpu LONG,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The cluster id is shared by CPUs in the same cluster.
   cluster_id LONG,
   -- A string describing this core.
@@ -114,7 +109,6 @@ SELECT
   id,
   id AS ucpu,
   cpu,
-  type AS type,
   cluster_id,
   processor,
   machine_id,
@@ -158,8 +152,6 @@ FROM
 CREATE PERFETTO VIEW sched_slice (
   --  Unique identifier for this scheduling slice.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
@@ -186,7 +178,6 @@ CREATE PERFETTO VIEW sched_slice (
 ) AS
 SELECT
   id,
-  type,
   ts,
   dur,
   ucpu AS cpu,
@@ -201,8 +192,6 @@ FROM
 CREATE PERFETTO VIEW sched(
   -- Alias for `sched_slice.id`.
   id ID,
-  -- Alias for `sched_slice.type`.
-  type STRING,
   -- Alias for `sched_slice.ts`.
   ts TIMESTAMP,
   -- Alias for `sched_slice.dur`.
@@ -231,8 +220,6 @@ FROM sched_slice;
 CREATE PERFETTO VIEW thread_state(
   -- Unique identifier for this thread state.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
@@ -261,7 +248,6 @@ CREATE PERFETTO VIEW thread_state(
 ) AS
 SELECT
   id,
-  type,
   ts,
   dur,
   ucpu AS cpu,
@@ -282,8 +268,6 @@ FROM
 CREATE PERFETTO VIEW raw (
   -- Unique identifier for this raw event.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp of this event.
   ts TIMESTAMP,
   -- The name of the event. For ftrace events, this will be the ftrace event
@@ -305,7 +289,6 @@ CREATE PERFETTO VIEW raw (
 ) AS
 SELECT
   id,
-  type,
   ts,
   name,
   ucpu AS cpu,
@@ -323,8 +306,6 @@ FROM
 CREATE PERFETTO VIEW ftrace_event (
   -- Unique identifier for this ftrace event.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp of this event.
   ts TIMESTAMP,
   -- The ftrace event name.
@@ -345,7 +326,6 @@ CREATE PERFETTO VIEW ftrace_event (
 ) AS
 SELECT
   id,
-  type,
   ts,
   name,
   ucpu AS cpu,
@@ -360,8 +340,6 @@ FROM
 CREATE PERFETTO VIEW experimental_sched_upid (
   -- Unique identifier for this scheduling slice.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
@@ -388,7 +366,6 @@ CREATE PERFETTO VIEW experimental_sched_upid (
 ) AS
 SELECT
   id,
-  type,
   ts,
   dur,
   ucpu AS cpu,
@@ -404,8 +381,6 @@ FROM
 CREATE PERFETTO TABLE thread_track (
   -- Unique identifier for this thread track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
@@ -422,7 +397,6 @@ CREATE PERFETTO TABLE thread_track (
 ) AS
 SELECT
   t.id,
-  t.type,
   t.name,
   t.parent_id,
   t.source_arg_set_id,
@@ -436,8 +410,6 @@ WHERE t.event_type = 'slice' AND a.key = 'utid';
 CREATE PERFETTO TABLE process_track (
   -- Unique identifier for this process track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
@@ -454,7 +426,6 @@ CREATE PERFETTO TABLE process_track (
 ) AS
 SELECT
   t.id,
-  t.type,
   t.name,
   t.parent_id,
   t.source_arg_set_id,
@@ -468,8 +439,6 @@ WHERE t.event_type = 'slice' AND a.key = 'upid';
 CREATE PERFETTO TABLE cpu_track (
   -- Unique identifier for this cpu track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
@@ -486,7 +455,6 @@ CREATE PERFETTO TABLE cpu_track (
 ) AS
 SELECT
   t.id,
-  t.type,
   t.name,
   t.parent_id,
   t.source_arg_set_id,
@@ -505,8 +473,6 @@ WHERE t.event_type = 'slice' AND a.key = 'cpu';
 CREATE PERFETTO TABLE gpu_track (
   -- Unique identifier for this cpu track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
@@ -530,7 +496,6 @@ CREATE PERFETTO TABLE gpu_track (
 ) AS
 SELECT
   id,
-  type,
   name,
   parent_id,
   source_arg_set_id,
@@ -556,8 +521,6 @@ WHERE classification IN (
 CREATE PERFETTO VIEW counter_track (
   -- Unique identifier for this cpu counter track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
@@ -588,7 +551,6 @@ CREATE PERFETTO VIEW counter_track (
 ) AS
 SELECT
   id,
-  type,
   name,
   NULL AS parent_id,
   classification,
@@ -604,8 +566,6 @@ WHERE event_type = 'counter';
 CREATE PERFETTO TABLE cpu_counter_track (
   -- Unique identifier for this cpu counter track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
@@ -626,7 +586,6 @@ CREATE PERFETTO TABLE cpu_counter_track (
 ) AS
 SELECT
   ct.id,
-  ct.type,
   ct.name,
   ct.parent_id,
   ct.source_arg_set_id,
@@ -642,8 +601,6 @@ WHERE args.key = 'cpu';
 CREATE PERFETTO TABLE gpu_counter_track (
   -- Unique identifier for this gpu counter track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
@@ -664,7 +621,6 @@ CREATE PERFETTO TABLE gpu_counter_track (
 ) AS
 SELECT
   ct.id,
-  ct.type,
   ct.name,
   ct.parent_id,
   ct.source_arg_set_id,
@@ -680,8 +636,6 @@ WHERE args.key = 'gpu';
 CREATE PERFETTO TABLE process_counter_track (
   -- Unique identifier for this process counter track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
@@ -702,7 +656,6 @@ CREATE PERFETTO TABLE process_counter_track (
 ) AS
 SELECT
   ct.id,
-  ct.type,
   ct.name,
   ct.parent_id,
   ct.source_arg_set_id,
@@ -718,8 +671,6 @@ WHERE args.key = 'upid';
 CREATE PERFETTO TABLE thread_counter_track (
   -- Unique identifier for this thread counter track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
@@ -740,7 +691,6 @@ CREATE PERFETTO TABLE thread_counter_track (
 ) AS
 SELECT
   ct.id,
-  ct.type,
   ct.name,
   ct.parent_id,
   ct.source_arg_set_id,
@@ -756,8 +706,6 @@ WHERE args.key = 'utid';
 CREATE PERFETTO TABLE perf_counter_track (
   -- Unique identifier for this thread counter track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
@@ -782,7 +730,6 @@ CREATE PERFETTO TABLE perf_counter_track (
 ) AS
 SELECT
   ct.id,
-  ct.type,
   ct.name,
   ct.parent_id,
   ct.source_arg_set_id,
@@ -799,8 +746,6 @@ WHERE ct.classification = 'perf_counter';
 CREATE PERFETTO VIEW counters(
   -- Alias of `counter.id`.
   id ID,
-  -- Alias of `counter.type`.
-  type STRING,
   -- Alias of `counter.ts`.
   ts TIMESTAMP,
   -- Alias of `counter.track_id`.

@@ -20,8 +20,6 @@
 CREATE PERFETTO VIEW _slice_with_thread_and_process_info(
   -- Slice
   id JOINID(slice.id),
-  -- Alias for `slice.type`.
-  type STRING,
   -- Alias for `slice.ts`.
   ts TIMESTAMP,
   -- Alias for `slice.dur`.
@@ -59,7 +57,6 @@ CREATE PERFETTO VIEW _slice_with_thread_and_process_info(
 ) AS
 SELECT
   slice.id,
-  slice.type,
   slice.ts,
   slice.dur,
   slice.category,
