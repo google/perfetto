@@ -47,7 +47,7 @@ idle_states AS (
     EXTRACT_ARG(t.dimension_arg_set_id, 'cpu') as cpu
   FROM counter c
   JOIN track t on c.track_id = t.id
-  WHERE t.classification = 'cpu_idle_state'
+  WHERE t.type = 'cpu_idle_state'
 ),
 residency_deltas AS (
   SELECT

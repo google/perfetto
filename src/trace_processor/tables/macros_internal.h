@@ -46,11 +46,6 @@ class RootParentTable : public Table {
   struct Row {
    public:
     explicit Row(std::nullptr_t = nullptr) {}
-
-    const char* type() const { return type_; }
-
-   protected:
-    const char* type_ = nullptr;
   };
   // This class only exists to allow typechecking to work correctly in Insert
   // below. If we had C++17 and if constexpr, we could statically verify that
@@ -100,8 +95,7 @@ class MacroTable : public Table {
   PERFETTO_NO_INLINE void UpdateSelfOverlayAfterInsert();
 
   PERFETTO_NO_INLINE static std::vector<ColumnLegacy>
-  CopyColumnsFromParentOrAddRootColumns(MacroTable* self,
-                                        const MacroTable* parent);
+  CopyColumnsFromParentOrAddRootColumns(const MacroTable* parent);
 
   PERFETTO_NO_INLINE void OnConstructionCompletedRegularConstructor(
       std::initializer_list<RefPtr<column::StorageLayer>> storage_layers,
@@ -128,18 +122,6 @@ class MacroTable : public Table {
   // happen in dynamic tables and they should not be allowed to insert rows into
   // the real (static) tables.
   bool allow_inserts_ = true;
-
-  // Stores the most specific "derived" type of this row in the table.
-  //
-  // For example, suppose a row is inserted into the gpu_slice table. This will
-  // also cause a row to be inserted into the slice table. For users querying
-  // the slice table, they will want to know the "real" type of this slice (i.e.
-  // they will want to see that the type is gpu_slice). This sparse vector
-  // stores precisely the real type.
-  //
-  // Only relevant for parentless tables. Will be empty and unreferenced by
-  // tables with parents.
-  ColumnStorage<StringPool::Id> type_;
 
  private:
   PERFETTO_NO_INLINE static std::vector<ColumnStorageOverlay>

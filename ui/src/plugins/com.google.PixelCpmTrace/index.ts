@@ -34,7 +34,7 @@ export default class implements PerfettoPlugin {
         id AS trackId,
         extract_arg(dimension_arg_set_id, 'name') AS trackName
       FROM track
-      WHERE classification = 'pixel_cpm_trace'
+      WHERE type = 'pixel_cpm_trace'
       ORDER BY trackName
     `);
 
