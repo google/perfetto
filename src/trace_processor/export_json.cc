@@ -1535,7 +1535,7 @@ class JsonExporter {
         storage_->string_pool().GetId("chrome.peak_resident_set_kb");
 
     std::string_view chrome_process_stats =
-        tracks::kChromeProcessStatsBlueprint.classification;
+        tracks::kChromeProcessStatsBlueprint.type;
     std::optional<StringId> process_stats = storage_->string_pool().GetId(
         {chrome_process_stats.data(), chrome_process_stats.size()});
 
@@ -1562,7 +1562,7 @@ class JsonExporter {
         Json::Value& totals = event["args"]["dumps"]["process_totals"];
 
         for (auto it = track_table.IterateRows(); it; ++it) {
-          if (it.classification() != process_stats) {
+          if (it.type() != process_stats) {
             continue;
           }
           if (it.upid() != pit.id().value) {

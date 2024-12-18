@@ -345,13 +345,11 @@ class TableSerializer(object):
     Row({param},
         std::nullptr_t = nullptr)
         : {self.parent_class_name}::Row({parent_row_init}){parent_separator}
-          {row_init} {{
-      type_ = "{self.table.sql_name}";
-    }}
+          {row_init} {{}}
     {self.foreach_col(ColumnSerializer.row_field)}
 
     bool operator==(const {self.table_name}::Row& other) const {{
-      return type() == other.type() && {row_eq};
+      return {row_eq};
     }}
   }};
     '''
@@ -424,9 +422,10 @@ class TableSerializer(object):
       {self.table_name}* self,
       const macros_internal::MacroTable* parent) {{
     std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(self, parent);
+        CopyColumnsFromParentOrAddRootColumns(parent);
     {olay}
     {col_init}
+    base::ignore_result(self);
     return columns;
   }}
 
@@ -461,7 +460,6 @@ class TableSerializer(object):
       '''
     return '''
     Id id = Id{row_number};
-    type_.Append(string_pool()->InternString(row.type()));
       '''
 
   def const_iterator(self) -> str:
@@ -644,8 +642,6 @@ class {self.table_name} : public macros_internal::MacroTable {{
     Table::Schema schema;
     schema.columns.emplace_back(Table::Schema::Column{{
         "id", SqlValue::Type::kLong, true, true, false, false}});
-    schema.columns.emplace_back(Table::Schema::Column{{
-        "type", SqlValue::Type::kString, false, false, false, false}});
     {self.foreach_col(ColumnSerializer.static_schema)}
     return schema;
   }}

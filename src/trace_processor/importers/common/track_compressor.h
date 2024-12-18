@@ -89,9 +89,8 @@ class TrackCompressor {
       const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
     uint64_t hash = tracks::HashFromBlueprintAndDimensions(bp, dims);
     auto final_dims = std::tuple_cat(
-        dims, std::make_tuple(BeginInternal(
-                  ClassificationToNestingBehaviour(bp.classification), hash,
-                  cookie)));
+        dims, std::make_tuple(BeginInternal(TypeToNestingBehaviour(bp.type),
+                                            hash, cookie)));
     return context_->track_tracker->InternTrack(bp, final_dims, name);
   }
 
@@ -129,10 +128,10 @@ class TrackCompressor {
   // tracks::SliceBlueprint for usage.
   template <typename NB = tracks::NameBlueprintT::Auto, typename... D>
   static constexpr auto SliceBlueprint(
-      const char classification[],
+      const char type[],
       tracks::DimensionBlueprintsT<D...> dimensions = {},
       NB name = NB{}) {
-    auto blueprint = tracks::SliceBlueprint(classification, dimensions, name);
+    auto blueprint = tracks::SliceBlueprint(type, dimensions, name);
     using BT = decltype(blueprint);
     constexpr auto kCompressorIdxDimensionIndex =
         std::tuple_size_v<typename BT::dimension_blueprints_t>;
@@ -152,7 +151,7 @@ class TrackCompressor {
                 tracks::DimensionBlueprintT<uint32_t>>{
                 {
                     blueprint.event_type,
-                    blueprint.classification,
+                    blueprint.type,
                     blueprint.hasher,
                     blueprints,
                 },
@@ -165,7 +164,7 @@ class TrackCompressor {
                 decltype(x)..., tracks::DimensionBlueprintT<uint32_t>>{
                 {
                     blueprint.event_type,
-                    blueprint.classification,
+                    blueprint.type,
                     blueprint.hasher,
                     blueprints,
                 },
@@ -225,9 +224,9 @@ class TrackCompressor {
 
   uint32_t ScopedInternal(uint64_t hash, int64_t ts, int64_t dur);
 
-  static constexpr NestingBehaviour ClassificationToNestingBehaviour(
-      std::string_view classification) {
-    if (classification == "atrace_async_slice") {
+  static constexpr NestingBehaviour TypeToNestingBehaviour(
+      std::string_view type) {
+    if (type == "atrace_async_slice") {
       return NestingBehaviour::kLegacySaturatingUnnestable;
     }
     return NestingBehaviour::kNestable;

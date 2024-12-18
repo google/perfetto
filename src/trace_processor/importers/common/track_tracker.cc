@@ -124,8 +124,8 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
   }
 
   row.machine_id = context_->machine_id();
-  row.classification = context_->storage->InternString(base::StringView(
-      blueprint.classification.data(), blueprint.classification.size()));
+  row.type = context_->storage->InternString(
+      base::StringView(blueprint.type.data(), blueprint.type.size()));
   if (d_size > 0) {
     row.dimension_arg_set_id =
         context_->global_args_tracker->AddArgSet(d_args, 0, d_size);

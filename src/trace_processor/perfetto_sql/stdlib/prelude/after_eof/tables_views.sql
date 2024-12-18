@@ -42,22 +42,18 @@ CREATE PERFETTO VIEW track (
   -- Unique identifier for this track. Identical to |track_id|, prefer using
   -- |track_id| instead.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track; can be null for some types of tracks (e.g. thread
   -- tracks).
   name STRING,
-  -- The classification of a track indicates the "type of data" the track
-  -- contains.
+  -- The type of a track indicates the type of data the track contains.
   --
   -- Every track is uniquely identified by the the combination of the
-  -- classification and a set of dimensions: classifications allow identifying
-  -- a set of tracks with the same type of data within the whole universe of
-  -- tracks while dimensions allow distinguishing between different tracks in
-  -- that set.
-  classification STRING,
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
   -- The dimensions of the track which uniquely identify the track within a
-  -- given classification.
+  -- given `type`.
   --
   -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
   -- expand the args.
@@ -75,9 +71,8 @@ CREATE PERFETTO VIEW track (
 ) AS
 SELECT
   id,
-  type,
   name,
-  classification,
+  type,
   dimension_arg_set_id,
   parent_id,
   source_arg_set_id,
@@ -94,8 +89,6 @@ CREATE PERFETTO VIEW cpu (
   ucpu ID,
   -- The 0-based CPU core identifier.
   cpu LONG,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The cluster id is shared by CPUs in the same cluster.
   cluster_id LONG,
   -- A string describing this core.
@@ -114,7 +107,6 @@ SELECT
   id,
   id AS ucpu,
   cpu,
-  type AS type,
   cluster_id,
   processor,
   machine_id,
@@ -158,8 +150,6 @@ FROM
 CREATE PERFETTO VIEW sched_slice (
   --  Unique identifier for this scheduling slice.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
@@ -186,7 +176,6 @@ CREATE PERFETTO VIEW sched_slice (
 ) AS
 SELECT
   id,
-  type,
   ts,
   dur,
   ucpu AS cpu,
@@ -201,8 +190,6 @@ FROM
 CREATE PERFETTO VIEW sched(
   -- Alias for `sched_slice.id`.
   id ID,
-  -- Alias for `sched_slice.type`.
-  type STRING,
   -- Alias for `sched_slice.ts`.
   ts TIMESTAMP,
   -- Alias for `sched_slice.dur`.
@@ -231,8 +218,6 @@ FROM sched_slice;
 CREATE PERFETTO VIEW thread_state(
   -- Unique identifier for this thread state.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
@@ -261,7 +246,6 @@ CREATE PERFETTO VIEW thread_state(
 ) AS
 SELECT
   id,
-  type,
   ts,
   dur,
   ucpu AS cpu,
@@ -282,8 +266,6 @@ FROM
 CREATE PERFETTO VIEW raw (
   -- Unique identifier for this raw event.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp of this event.
   ts TIMESTAMP,
   -- The name of the event. For ftrace events, this will be the ftrace event
@@ -305,7 +287,6 @@ CREATE PERFETTO VIEW raw (
 ) AS
 SELECT
   id,
-  type,
   ts,
   name,
   ucpu AS cpu,
@@ -323,8 +304,6 @@ FROM
 CREATE PERFETTO VIEW ftrace_event (
   -- Unique identifier for this ftrace event.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp of this event.
   ts TIMESTAMP,
   -- The ftrace event name.
@@ -345,7 +324,6 @@ CREATE PERFETTO VIEW ftrace_event (
 ) AS
 SELECT
   id,
-  type,
   ts,
   name,
   ucpu AS cpu,
@@ -360,8 +338,6 @@ FROM
 CREATE PERFETTO VIEW experimental_sched_upid (
   -- Unique identifier for this scheduling slice.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
@@ -388,7 +364,6 @@ CREATE PERFETTO VIEW experimental_sched_upid (
 ) AS
 SELECT
   id,
-  type,
   ts,
   dur,
   ucpu AS cpu,
@@ -404,10 +379,15 @@ FROM
 CREATE PERFETTO TABLE thread_track (
   -- Unique identifier for this thread track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
+  -- The type of a track indicates the type of data the track contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
@@ -422,8 +402,8 @@ CREATE PERFETTO TABLE thread_track (
 ) AS
 SELECT
   t.id,
-  t.type,
   t.name,
+  t.type,
   t.parent_id,
   t.source_arg_set_id,
   t.machine_id,
@@ -436,10 +416,15 @@ WHERE t.event_type = 'slice' AND a.key = 'utid';
 CREATE PERFETTO TABLE process_track (
   -- Unique identifier for this process track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
+  -- The type of a track indicates the type of data the track contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id LONG,
@@ -454,8 +439,8 @@ CREATE PERFETTO TABLE process_track (
 ) AS
 SELECT
   t.id,
-  t.type,
   t.name,
+  t.type,
   t.parent_id,
   t.source_arg_set_id,
   t.machine_id,
@@ -468,10 +453,15 @@ WHERE t.event_type = 'slice' AND a.key = 'upid';
 CREATE PERFETTO TABLE cpu_track (
   -- Unique identifier for this cpu track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
+  -- The type of a track indicates the type of data the track contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
@@ -486,8 +476,8 @@ CREATE PERFETTO TABLE cpu_track (
 ) AS
 SELECT
   t.id,
-  t.type,
   t.name,
+  t.type,
   t.parent_id,
   t.source_arg_set_id,
   t.machine_id,
@@ -505,10 +495,15 @@ WHERE t.event_type = 'slice' AND a.key = 'cpu';
 CREATE PERFETTO TABLE gpu_track (
   -- Unique identifier for this cpu track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
+  -- The type of a track indicates the type of data the track contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id LONG,
@@ -517,7 +512,7 @@ CREATE PERFETTO TABLE gpu_track (
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- The dimensions of the track which uniquely identify the track within a
-  -- given classification.
+  -- given type.
   dimension_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
@@ -530,18 +525,18 @@ CREATE PERFETTO TABLE gpu_track (
 ) AS
 SELECT
   id,
-  type,
   name,
+  type,
   parent_id,
   source_arg_set_id,
   dimension_arg_set_id,
   machine_id,
-  classification AS scope,
+  type AS scope,
   EXTRACT_ARG(source_arg_set_id, 'description') AS description,
   EXTRACT_ARG(dimension_arg_set_id, 'context_id') AS context_id
 FROM
   __intrinsic_track
-WHERE classification IN (
+WHERE type IN (
   'drm_vblank',
   'drm_sched_ring',
   'drm_fence',
@@ -556,24 +551,20 @@ WHERE classification IN (
 CREATE PERFETTO VIEW counter_track (
   -- Unique identifier for this cpu counter track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
-  -- The classification of a track indicates the "type of data" the track
-  -- contains.
+  -- The type of a track indicates the type of data the track contains.
   --
   -- Every track is uniquely identified by the the combination of the
-  -- classification and a set of dimensions: classifications allow identifying
-  -- a set of tracks with the same type of data within the whole universe of
-  -- tracks while dimensions allow distinguishing between different tracks in
-  -- that set.
-  classification STRING,
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
   -- The dimensions of the track which uniquely identify the track within a
-  -- given classification.
+  -- given type.
   dimension_arg_set_id ARGSETID,
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
@@ -588,10 +579,9 @@ CREATE PERFETTO VIEW counter_track (
 ) AS
 SELECT
   id,
-  type,
   name,
   NULL AS parent_id,
-  classification,
+  type,
   dimension_arg_set_id,
   source_arg_set_id,
   machine_id,
@@ -604,10 +594,15 @@ WHERE event_type = 'counter';
 CREATE PERFETTO TABLE cpu_counter_track (
   -- Unique identifier for this cpu counter track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
+  -- The type of a track indicates the type of data the track contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
@@ -626,8 +621,8 @@ CREATE PERFETTO TABLE cpu_counter_track (
 ) AS
 SELECT
   ct.id,
-  ct.type,
   ct.name,
+  ct.type,
   ct.parent_id,
   ct.source_arg_set_id,
   ct.machine_id,
@@ -642,10 +637,15 @@ WHERE args.key = 'cpu';
 CREATE PERFETTO TABLE gpu_counter_track (
   -- Unique identifier for this gpu counter track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
+  -- The type of a track indicates the type of data the track contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
@@ -664,8 +664,8 @@ CREATE PERFETTO TABLE gpu_counter_track (
 ) AS
 SELECT
   ct.id,
-  ct.type,
   ct.name,
+  ct.type,
   ct.parent_id,
   ct.source_arg_set_id,
   ct.machine_id,
@@ -680,10 +680,15 @@ WHERE args.key = 'gpu';
 CREATE PERFETTO TABLE process_counter_track (
   -- Unique identifier for this process counter track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
+  -- The type of a track indicates the type of data the track contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
@@ -702,8 +707,8 @@ CREATE PERFETTO TABLE process_counter_track (
 ) AS
 SELECT
   ct.id,
-  ct.type,
   ct.name,
+  ct.type,
   ct.parent_id,
   ct.source_arg_set_id,
   ct.machine_id,
@@ -718,10 +723,15 @@ WHERE args.key = 'upid';
 CREATE PERFETTO TABLE thread_counter_track (
   -- Unique identifier for this thread counter track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
+  -- The type of a track indicates the type of data the track contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
@@ -740,8 +750,8 @@ CREATE PERFETTO TABLE thread_counter_track (
 ) AS
 SELECT
   ct.id,
-  ct.type,
   ct.name,
+  ct.type,
   ct.parent_id,
   ct.source_arg_set_id,
   ct.machine_id,
@@ -756,10 +766,15 @@ WHERE args.key = 'utid';
 CREATE PERFETTO TABLE perf_counter_track (
   -- Unique identifier for this thread counter track.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Name of the track.
   name STRING,
+  -- The type of a track indicates the type of data the track contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
@@ -782,8 +797,8 @@ CREATE PERFETTO TABLE perf_counter_track (
 ) AS
 SELECT
   ct.id,
-  ct.type,
   ct.name,
+  ct.type,
   ct.parent_id,
   ct.source_arg_set_id,
   ct.machine_id,
@@ -793,14 +808,12 @@ SELECT
   extract_arg(ct.dimension_arg_set_id, 'cpu') AS cpu,
   extract_arg(ct.source_arg_set_id, 'is_timebase') AS is_timebase
 FROM counter_track AS ct
-WHERE ct.classification = 'perf_counter';
+WHERE ct.type = 'perf_counter';
 
 -- Alias of the `counter` table.
 CREATE PERFETTO VIEW counters(
   -- Alias of `counter.id`.
   id ID,
-  -- Alias of `counter.type`.
-  type STRING,
   -- Alias of `counter.ts`.
   ts TIMESTAMP,
   -- Alias of `counter.track_id`.

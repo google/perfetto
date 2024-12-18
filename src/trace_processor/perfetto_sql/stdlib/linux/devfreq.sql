@@ -40,7 +40,7 @@ FROM counter_leading_intervals!((
   SELECT c.*
   FROM counter c
   JOIN track t ON t.id = c.track_id
-  WHERE t.classification = 'linux_device_frequency'
+  WHERE t.type = 'linux_device_frequency'
     AND EXTRACT_ARG(t.dimension_arg_set_id, 'linux_device') GLOB $device_name
 )) AS count_w_dur;
 

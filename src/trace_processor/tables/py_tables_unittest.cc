@@ -49,9 +49,8 @@ TEST_F(PyTablesUnittest, EventTableProprties) {
   ASSERT_STREQ(TestEventTable::Name(), "event");
 
   ASSERT_EQ(TestEventTable::ColumnIndex::id, 0u);
-  ASSERT_EQ(TestEventTable::ColumnIndex::type, 1u);
-  ASSERT_EQ(TestEventTable::ColumnIndex::ts, 2u);
-  ASSERT_EQ(TestEventTable::ColumnIndex::arg_set_id, 3u);
+  ASSERT_EQ(TestEventTable::ColumnIndex::ts, 1u);
+  ASSERT_EQ(TestEventTable::ColumnIndex::arg_set_id, 2u);
 
   ASSERT_EQ(TestEventTable::ColumnFlag::ts,
             ColumnLegacy::Flag::kSorted | ColumnLegacy::Flag::kNonNull);
@@ -63,8 +62,7 @@ TEST_F(PyTablesUnittest, ArgsTableProprties) {
   ASSERT_STREQ(TestArgsTable::Name(), "args");
 
   ASSERT_EQ(TestArgsTable::ColumnIndex::id, 0u);
-  ASSERT_EQ(TestArgsTable::ColumnIndex::type, 1u);
-  ASSERT_EQ(TestArgsTable::ColumnIndex::arg_set_id, 2u);
+  ASSERT_EQ(TestArgsTable::ColumnIndex::arg_set_id, 1u);
 
   ASSERT_EQ(TestArgsTable::ColumnFlag::arg_set_id,
             ColumnLegacy::Flag::kSorted | ColumnLegacy::Flag::kSetId |
@@ -74,7 +72,6 @@ TEST_F(PyTablesUnittest, ArgsTableProprties) {
 TEST_F(PyTablesUnittest, InsertEvent) {
   event_.Insert(TestEventTable::Row(100, 0));
 
-  ASSERT_EQ(pool_.Get(event_[0].type()).ToStdString(), "event");
   ASSERT_EQ(event_[0].ts(), 100);
   ASSERT_EQ(event_[0].arg_set_id(), 0u);
 }
@@ -85,7 +82,6 @@ TEST_F(PyTablesUnittest, InsertEventSpecifyCols) {
   row.arg_set_id = 0;
   event_.Insert(row);
 
-  ASSERT_EQ(pool_.Get(event_[0].type()).ToStdString(), "event");
   ASSERT_EQ(event_[0].ts(), 100);
   ASSERT_EQ(event_[0].arg_set_id(), 0u);
 }
@@ -130,10 +126,9 @@ TEST_F(PyTablesUnittest, ChildFindById) {
 TEST_F(PyTablesUnittest, ChildTableStatics) {
   ASSERT_EQ(TestSliceTable::ColumnFlag::dur, ColumnLegacy::Flag::kNonNull);
   ASSERT_EQ(TestSliceTable::ColumnIndex::id, 0u);
-  ASSERT_EQ(TestSliceTable::ColumnIndex::type, 1u);
-  ASSERT_EQ(TestSliceTable::ColumnIndex::ts, 2u);
-  ASSERT_EQ(TestSliceTable::ColumnIndex::arg_set_id, 3u);
-  ASSERT_EQ(TestSliceTable::ColumnIndex::dur, 4u);
+  ASSERT_EQ(TestSliceTable::ColumnIndex::ts, 1u);
+  ASSERT_EQ(TestSliceTable::ColumnIndex::arg_set_id, 2u);
+  ASSERT_EQ(TestSliceTable::ColumnIndex::dur, 3u);
 }
 
 TEST_F(PyTablesUnittest, ParentAndChildInsert) {
@@ -144,29 +139,23 @@ TEST_F(PyTablesUnittest, ParentAndChildInsert) {
 
   ASSERT_EQ(event_.row_count(), 4u);
   ASSERT_EQ(event_[0].id(), TestEventTable::Id{0});
-  ASSERT_EQ(pool_.Get(event_[0].type()), "event");
   ASSERT_EQ(event_[0].ts(), 50);
 
   ASSERT_EQ(event_[1].id(), TestEventTable::Id{1});
-  ASSERT_EQ(pool_.Get(event_[1].type()), "slice");
   ASSERT_EQ(event_[1].ts(), 100);
 
   ASSERT_EQ(event_[2].id(), TestEventTable::Id{2});
-  ASSERT_EQ(pool_.Get(event_[2].type()), "event");
   ASSERT_EQ(event_[2].ts(), 150);
 
   ASSERT_EQ(event_[3].id(), TestEventTable::Id{3});
-  ASSERT_EQ(pool_.Get(event_[3].type()), "slice");
   ASSERT_EQ(event_[3].ts(), 200);
 
   ASSERT_EQ(slice_.row_count(), 2u);
   ASSERT_EQ(slice_[0].id(), TestEventTable::Id{1});
-  ASSERT_EQ(pool_.Get(slice_[0].type()), "slice");
   ASSERT_EQ(slice_[0].ts(), 100);
   ASSERT_EQ(slice_[0].dur(), 10);
 
   ASSERT_EQ(slice_[1].id(), TestEventTable::Id{3});
-  ASSERT_EQ(pool_.Get(slice_[1].type()), "slice");
   ASSERT_EQ(slice_[1].ts(), 200);
   ASSERT_EQ(slice_[1].dur(), 20);
 }

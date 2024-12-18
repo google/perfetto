@@ -26,17 +26,14 @@ CREATE PERFETTO VIEW counter(
   -- Value.
   value DOUBLE,
   -- Additional information about the counter value.
-  arg_set_id ARGSETID,
-  -- Legacy column, should no longer be used.
-  type STRING
+  arg_set_id ARGSETID
 ) AS
 SELECT
   id,
   ts,
   track_id,
   value,
-  arg_set_id,
-  type
+  arg_set_id
 FROM __intrinsic_counter;
 
 -- Contains slices from userspace which explains what threads were doing
@@ -44,8 +41,6 @@ FROM __intrinsic_counter;
 CREATE PERFETTO VIEW slice(
   -- The id of the slice.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
@@ -113,8 +108,6 @@ WHERE dur = 0;
 CREATE PERFETTO VIEW slices(
   -- Alias of `slice.id`.
   id JOINID(slice.id),
-  -- Alias of `slice.type`.
-  type STRING,
   -- Alias of `slice.ts`.
   ts TIMESTAMP,
   -- Alias of `slice.dur`.
@@ -154,8 +147,6 @@ SELECT * FROM slice;
 CREATE PERFETTO VIEW thread(
   -- The id of the thread. Prefer using `utid` instead.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Unique thread id. This is != the OS tid. This is a monotonic number
   -- associated to each thread. The OS thread id (tid) cannot be used as primary
   -- key because tids and pids are recycled by most kernels.
@@ -188,8 +179,6 @@ FROM __intrinsic_thread;
 CREATE PERFETTO VIEW process(
   -- The id of the process. Prefer using `upid` instead.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- Unique process id. This is != the OS pid. This is a monotonic number
   -- associated to each process. The OS process id (pid) cannot be used as
   -- primary key because tids and pids are recycled by most kernels.
@@ -231,8 +220,6 @@ FROM __intrinsic_process;
 CREATE PERFETTO VIEW args(
   -- The id of the arg.
   id ID,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The id for a single set of arguments.
   arg_set_id ARGSETID,
   -- The "flat key" of the arg: this is the key without any array indexes.
@@ -271,8 +258,6 @@ FROM __intrinsic_args;
 CREATE PERFETTO VIEW perf_session(
   -- The id of the perf session. Prefer using `perf_session_id` instead.
   id LONG,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The id of the perf session.
   perf_session_id LONG,
   -- Command line used to collect the data.

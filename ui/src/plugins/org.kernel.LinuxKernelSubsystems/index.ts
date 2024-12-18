@@ -46,7 +46,7 @@ export default class implements PerfettoPlugin {
         extract_arg(t.dimension_arg_set_id, 'linux_device') as deviceName
       from track t
       join _slice_track_summary using (id)
-      where classification = 'linux_rpm'
+      where type = 'linux_rpm'
       order by deviceName;
     `);
 

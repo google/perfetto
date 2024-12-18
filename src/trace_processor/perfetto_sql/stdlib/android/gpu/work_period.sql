@@ -33,4 +33,4 @@ SELECT
   extract_arg(dimension_arg_set_id, 'uid') as uid,
   extract_arg(dimension_arg_set_id, 'gpu') as gpu_id
 FROM track
-WHERE classification = 'android_gpu_work_period';
+WHERE type = 'android_gpu_work_period';

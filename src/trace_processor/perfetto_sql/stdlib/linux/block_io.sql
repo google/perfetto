@@ -32,7 +32,7 @@ block_io_slice AS (
     slice.dur as dur,
     extract_arg(track.dimension_arg_set_id, 'block_device') as dev
   FROM slice
-  JOIN track ON slice.track_id = track.id AND track.classification = 'block_io'
+  JOIN track ON slice.track_id = track.id AND track.type = 'block_io'
 )
 SELECT
   ts,

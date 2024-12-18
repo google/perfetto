@@ -37,7 +37,7 @@ TRACK_TABLE = Table(
         C("parent_id", CppOptional(CppSelfTableId())),
         C("source_arg_set_id", CppOptional(CppUint32())),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
-        C("classification", CppString()),
+        C("type", CppString()),
         C("dimension_arg_set_id", CppOptional(CppUint32())),
         C("event_type", CppString()),
         C("counter_unit", CppOptional(CppString())),
