@@ -435,7 +435,8 @@ bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
 
   for (size_t i = 0; i < patches_size; i++) {
     const size_t offset_untrusted = patches[i].offset_untrusted;
-    if (offset_untrusted > payload_size - Patch::kSize) {
+    if (payload_size < Patch::kSize ||
+        offset_untrusted > payload_size - Patch::kSize) {
       // Either the IPC was so slow and in the meantime the writer managed to
       // wrap over |chunk_id| or the producer sent a malicious IPC.
       stats_.set_patches_failed(stats_.patches_failed() + 1);
