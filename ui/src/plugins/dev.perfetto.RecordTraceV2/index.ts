@@ -41,8 +41,7 @@ export default class implements PerfettoPlugin {
   private static recordingMgr?: RecordingManager;
 
   static onActivate(app: App) {
-    // TODO(primiano): uncomment in next CL.
-    // if (!RecordingV1Plugin.useRecordingV2) return;
+    if (!RecordingV1Plugin.useRecordingV2) return;
     app.sidebar.addMenuItem({
       section: 'navigation',
       text: 'Record new trace (V2)',
