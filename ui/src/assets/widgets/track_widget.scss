@@ -81,11 +81,17 @@
 
     .pf-track-menubar {
       display: grid;
-      grid-template-columns: 1fr auto; // title, buttons
+      grid-template-columns: auto 1fr auto; // title, buttons
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        "icon title buttons"
+        "none subtitle subtitle";
       padding: 1px 2px;
-      gap: 2px;
+      column-gap: 2px;
 
       h1.pf-track-title {
+        grid-area: title;
+
         // Override h1 formatting
         font-size: inherit;
         margin: inherit;
@@ -94,15 +100,8 @@
         flex-direction: row;
         gap: 2px;
         overflow: hidden;
-        margin-left: 2px;
 
-        // The chevron icon used is very thin - take some empty space out of
-        // left & right
-        .pf-icon {
-          margin-inline: -0.2em;
-        }
-
-        .pf-track-title-popup {
+        .pf-track__title-popup {
           border-radius: 2px;
           color: rgba(0, 0, 0, 0);
           background: rgba(255, 255, 255, 0);
@@ -113,14 +112,23 @@
           user-select: none;
         }
 
-        &:hover .pf-track-title-popup.pf-visible {
+        &:hover .pf-track__title-popup.pf-visible {
           box-shadow: 1px 1px 2px 2px var(--track-border-color);
           background: white;
           color: hsl(213, 22%, 30%);
         }
       }
 
+      h2 {
+        // Override h2 formatting
+        margin: inherit;
+
+        grid-area: subtitle;
+        font-size: 11px;
+      }
+
       .pf-track-buttons {
+        grid-area: buttons;
         // Make the track buttons a little larger so they're easier to see &
         // click
         font-size: 16px;
@@ -147,6 +155,13 @@
   .pf-track-content {
     grid-area: content;
     box-shadow: inset 1px -1px 0px 0px var(--track-border-color);
+    padding-inline: 2px;
+    overflow: hidden;
+
+    h2 {
+      margin: inherit;
+      font-size: inherit;
+    }
 
     &.pf-track-content-error {
       // Necessary trig because we have 45deg stripes
