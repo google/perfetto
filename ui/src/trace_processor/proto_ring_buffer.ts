@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../base/logging';
+import {assertTrue, assertUnreachable} from '../base/logging';
 
 // This class is the TypeScript equivalent of the identically-named C++ class in
 // //protozero/proto_ring_buffer.h. See comments in that header for a detailed
@@ -21,11 +21,22 @@ import {assertTrue} from '../base/logging';
 const kGrowBytes = 128 * 1024;
 const kMaxMsgSize = 1024 * 1024 * 1024;
 
+// There are two ways the buffer can work:
+// 1. 'PROTO_PREAMBLE' is the case where the header before each packet is a
+//    length-encoded protobuf message. This is the case when paring traces or
+//    the TraceProcessor RPC protocol.
+// 2. 'FIXED_SIZE' is the case where the header is a 32-bit integer representing
+//    the size of the message. This is used by the traced tracing protocol in
+//    https://perfetto.dev/docs/design-docs/api-and-abi#socket-protocol.
+export type ProtoTokenizationMode = 'PROTO_PREAMBLE' | 'FIXED_SIZE';
+
 export class ProtoRingBuffer {
   private buf = new Uint8Array(kGrowBytes);
   private fastpath?: Uint8Array;
   private rd = 0;
   private wr = 0;
+
+  constructor(private mode: ProtoTokenizationMode = 'PROTO_PREAMBLE') {}
 
   // The caller must call ReadMessage() after each append() call.
   // The |data| might be either copied in the internal ring buffer or returned
@@ -46,7 +57,7 @@ export class ProtoRingBuffer {
     if (dataLen === 0) return;
     assertTrue(this.fastpath === undefined);
     if (this.rd === this.wr) {
-      const msg = ProtoRingBuffer.tryReadMessage(data, 0, dataLen);
+      const msg = this.tryReadMessage(data, 0, dataLen);
       if (
         msg !== undefined &&
         msg.byteOffset + msg.length === data.byteOffset + dataLen
@@ -107,7 +118,7 @@ export class ProtoRingBuffer {
     if (this.rd >= this.wr) {
       return undefined; // Completely empty.
     }
-    const msg = ProtoRingBuffer.tryReadMessage(this.buf, this.rd, this.wr);
+    const msg = this.tryReadMessage(this.buf, this.rd, this.wr);
     if (msg === undefined) return undefined;
     assertTrue(msg.buffer === this.buf.buffer);
     assertTrue(this.buf.byteOffset === 0);
@@ -120,7 +131,7 @@ export class ProtoRingBuffer {
     return msg.slice();
   }
 
-  private static tryReadMessage(
+  private tryReadMessage(
     data: Uint8Array,
     dataStart: number,
     dataEnd: number,
@@ -128,21 +139,34 @@ export class ProtoRingBuffer {
     assertTrue(dataEnd <= data.length);
     let pos = dataStart;
     if (pos >= dataEnd) return undefined;
-    const tag = data[pos++]; // Assume one-byte tag.
-    if (tag >= 0x80 || (tag & 0x07) !== 2 /* len delimited */) {
-      throw new Error(
-        `RPC framing error, unexpected tag ${tag} @ offset ${pos - 1}`,
-      );
-    }
-
     let len = 0;
-    for (let shift = 0 /* no check */; ; shift += 7) {
-      if (pos >= dataEnd) {
-        return undefined; // Not enough data to read varint.
+
+    if (this.mode === 'PROTO_PREAMBLE') {
+      const tag = data[pos++]; // Assume one-byte tag.
+      if (tag >= 0x80 || (tag & 0x07) !== 2 /* len delimited */) {
+        throw new Error(
+          `RPC framing error, unexpected tag ${tag} @ offset ${pos - 1}`,
+        );
       }
-      const val = data[pos++];
-      len |= ((val & 0x7f) << shift) >>> 0;
-      if (val < 0x80) break;
+
+      for (let shift = 0 /* no check */; ; shift += 7) {
+        if (pos >= dataEnd) {
+          return undefined; // Not enough data to read varint.
+        }
+        const val = data[pos++];
+        len |= ((val & 0x7f) << shift) >>> 0;
+        if (val < 0x80) break;
+      }
+    } else if (this.mode === 'FIXED_SIZE') {
+      for (let i = 0; i < 4; i++) {
+        if (pos >= dataEnd) {
+          return undefined; // Not enough data to read a uint32.
+        }
+        const val = data[pos++] & 0xff;
+        len |= (val << (i * 8)) >>> 0;
+      }
+    } else {
+      assertUnreachable(this.mode);
     }
 
     if (len >= kMaxMsgSize) {
