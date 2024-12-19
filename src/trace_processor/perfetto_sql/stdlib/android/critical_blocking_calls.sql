@@ -66,7 +66,8 @@ SELECT
   s.id,
   s.process_name,
   thread.utid,
-  s.upid
+  s.upid,
+  s.ts + s.dur AS ts_end
 FROM thread_slice s JOIN
 thread USING (utid)
 WHERE
@@ -81,6 +82,7 @@ SELECT
   tx.binder_txn_id AS id,
   tx.client_process as process_name,
   tx.client_utid as utid,
-  tx.client_upid as upid
+  tx.client_upid as upid,
+  tx.client_ts + tx.client_dur AS ts_end
 FROM android_binder_txns AS tx
 WHERE aidl_name IS NOT NULL AND is_sync = 1;

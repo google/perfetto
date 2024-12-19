@@ -66,6 +66,9 @@ CREATE_TABLE_ALLOWLIST = {
         'android_blocking_calls_cuj_calls'
     ],
     ('/android'
+     '/android_blocking_calls_cuj_per_frame_metric.sql'): [
+        'android_cujs'],
+    ('/android'
      '/android_blocking_calls_unagg.sql'): [
         'filtered_processes_with_non_zero_blocking_calls', 'process_info',
         'android_blocking_calls_unagg_calls'

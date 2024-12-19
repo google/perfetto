@@ -176,6 +176,50 @@ message AndroidBlockingCallsCujMetric {
 
 // End of protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto
 
+// Begin of protos/perfetto/metrics/android/android_blocking_call_per_frame.proto
+
+// Blocking call per frame on the main thread.
+message AndroidBlockingCallPerFrame {
+    // Name of the blocking call
+    optional string name = 1;
+    // Maximal duration within a frame.
+    optional int64 max_dur_per_frame_ms = 2;
+    // Maximal duration within a frame in nanoseconds
+    optional int64 max_dur_per_frame_ns = 3;
+    // Mean duration within the CUJ
+    optional int64 mean_dur_per_frame_ms = 4;
+    // Mean duration within the CUJ in nanoseconds
+    optional int64 mean_dur_per_frame_ns = 5;
+    // Max count in a frame
+    optional int64 max_cnt_per_frame = 6;
+    // Mean count in a frame
+    optional double mean_cnt_per_frame = 7;
+}
+
+// End of protos/perfetto/metrics/android/android_blocking_call_per_frame.proto
+
+// Begin of protos/perfetto/metrics/android/android_blocking_calls_cuj_per_frame_metric.proto
+
+// Blocking calls per frame inside Android jank CUJs. Shows count and duration for each.
+message AndroidCujBlockingCallsPerFrameMetric {
+  repeated Cuj cuj = 1;
+
+  message Cuj {
+
+    // Name of the CUJ, extracted from the CUJ jank trace marker.
+    // For example SHADE_EXPAND_COLLAPSE from J<SHADE_EXPAND_COLLAPSE>.
+    optional string name = 1;
+
+    optional AndroidProcessMetadata process = 2;
+
+    // List of blocking calls on the process UI thread.
+    // Aggregation is done by CUJ name.
+    repeated AndroidBlockingCallPerFrame blocking_calls = 3;
+  }
+}
+
+// End of protos/perfetto/metrics/android/android_blocking_calls_cuj_per_frame_metric.proto
+
 // Begin of protos/perfetto/metrics/android/android_blocking_calls_unagg.proto
 
 // All blocking calls for a trace. Shows count and total duration for each.
@@ -3363,6 +3407,9 @@ message TraceMetrics {
   optional AndroidGarbageCollectionStats android_garbage_collection_stats = 76;
 
   optional CloneDuration clone_duration = 77;
+
+  // Per-frame blocking calls (e.g. binder calls) during CUJs (important UI transitions).
+  optional AndroidCujBlockingCallsPerFrameMetric android_blocking_calls_cuj_per_frame_metric = 78;
 
   // Android
   // Demo extensions.
