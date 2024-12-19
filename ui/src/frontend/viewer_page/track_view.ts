@@ -35,7 +35,7 @@ import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {TrackRenderer} from '../../core/track_manager';
-import {TrackDescriptor} from '../../public/track';
+import {Track, TrackDescriptor} from '../../public/track';
 import {TrackNode} from '../../public/workspace';
 import {Button} from '../../widgets/button';
 import {Popup, PopupPosition} from '../../widgets/popup';
@@ -50,6 +50,26 @@ const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
   description: 'Show track details button in track shells.',
   defaultValue: false,
 });
+
+const TRACK_HEIGHT_MIN_PX = 18;
+const TRACK_HEIGHT_DEFAULT_PX = 30;
+
+function getTrackHeight(node: TrackNode, track?: Track) {
+  // Headless tracks have an effective height of 0.
+  if (node.headless) return 0;
+
+  // Expanded summary tracks don't show any data, so make them a little more
+  // compact to save space.
+  if (node.isSummary && node.expanded) return TRACK_HEIGHT_DEFAULT_PX;
+
+  const trackHeight = track?.getHeight();
+  if (trackHeight === undefined) return TRACK_HEIGHT_DEFAULT_PX;
+
+  // Limit the minimum height of a track, and also round up to the nearest
+  // integer, as sub-integer DOM alignment can cause issues e.g. with sticky
+  // positioning.
+  return Math.ceil(Math.max(trackHeight, TRACK_HEIGHT_MIN_PX));
+}
 
 export interface TrackViewAttrs {
   readonly scrollToOnCreate?: boolean;
@@ -81,14 +101,14 @@ export class TrackView {
     this.trace = trace;
     this.node = node;
 
-    const heightPx = this.getTrackHeight();
-    this.height = heightPx;
-    this.verticalBounds = {top, bottom: top + heightPx};
-
     if (node.uri) {
       this.descriptor = trace.tracks.getTrack(node.uri);
       this.renderer = this.trace.tracks.getTrackRenderer(node.uri);
     }
+
+    const heightPx = getTrackHeight(node, this.renderer?.track);
+    this.height = heightPx;
+    this.verticalBounds = {top, bottom: top + heightPx};
   }
 
   renderDOM(attrs: TrackViewAttrs, children: m.Children) {
@@ -233,26 +253,6 @@ export class TrackView {
       renderTime,
       trackPerfStats,
     );
-  }
-
-  private getTrackHeight() {
-    const TRACK_HEIGHT_MIN_PX = 18;
-    const TRACK_HEIGHT_DEFAULT_PX = 30;
-
-    // Headless tracks have an effective height of 0.
-    if (this.node.headless) return 0;
-
-    // Expanded summary tracks don't show any data, so make them a little more
-    // compact to save space.
-    if (this.node.isSummary && this.node.expanded) return 30;
-
-    const trackHeight = this.renderer?.track.getHeight();
-    if (trackHeight === undefined) return TRACK_HEIGHT_DEFAULT_PX;
-
-    // Limit the minimum height of a track, and also round up to the nearest
-    // integer, as sub-integer DOM alignment can cause issues e.g. with sticky
-    // positioning.
-    return Math.ceil(Math.max(trackHeight, TRACK_HEIGHT_MIN_PX));
   }
 
   private renderCloseButton() {
