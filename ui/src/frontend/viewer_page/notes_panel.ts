@@ -25,7 +25,6 @@ import {Note, SpanNote} from '../../public/note';
 import {Button, ButtonBar} from '../../widgets/button';
 import {TRACK_SHELL_WIDTH} from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
-import {Panel} from './panel_container';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -48,13 +47,12 @@ function getStartTimestamp(note: Note | SpanNote) {
   }
 }
 
-export class NotesPanel implements Panel {
-  readonly kind = 'panel';
-  readonly selectable = false;
+export class NotesPanel {
   private readonly trace: TraceImpl;
   private timescale?: TimeScale; // The timescale from the last render()
   private hoveredX: null | number = null;
   private mouseDragging = false;
+  readonly height = 20;
 
   constructor(trace: TraceImpl) {
     this.trace = trace;
@@ -66,8 +64,9 @@ export class NotesPanel implements Panel {
     );
 
     return m(
-      '.notes-panel',
+      '',
       {
+        style: {height: `${this.height}px`},
         onmousedown: () => {
           // If the user clicks & drags, very likely they just want to measure
           // the time horizontally, not set a flag. This debouncing is done to
@@ -98,7 +97,7 @@ export class NotesPanel implements Panel {
       },
       m(
         ButtonBar,
-        {className: 'pf-toolbar'},
+        {className: 'pf-timeline-header__toolbar'},
         m(Button, {
           onclick: (e: Event) => {
             e.preventDefault();
@@ -155,7 +154,7 @@ export class NotesPanel implements Panel {
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
     ctx.fillStyle = '#999';
-    ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
+    ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
 
     const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
 

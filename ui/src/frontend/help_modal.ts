@@ -23,7 +23,7 @@ import {
   nativeKeyboardLayoutMap,
   NotSupportedError,
 } from '../base/keyboard_layout_map';
-import {KeyMapping} from './viewer_page/pan_and_zoom_handler';
+import {KeyMapping} from './viewer_page/wasd_navigation_handler';
 
 export function toggleHelp() {
   AppImpl.instance.analytics.logEvent('User Actions', 'Show help');

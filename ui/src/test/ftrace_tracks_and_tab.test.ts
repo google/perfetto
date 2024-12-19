@@ -27,7 +27,8 @@ test.beforeAll(async ({browser}, _testInfo) => {
 });
 
 test('ftrace tracks', async () => {
-  await page.click('h1[ref="Ftrace Events"]');
+  const ftraceGroupTrack = pth.locateTrack('Ftrace Events');
+  await pth.toggleTrackGroup(ftraceGroupTrack);
   await pth.waitForIdleAndScreenshot('ftrace_events.png');
 });
 
