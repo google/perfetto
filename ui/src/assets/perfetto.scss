@@ -14,7 +14,6 @@
 
 @import "typefaces";
 @import "common";
-@import "panel_container";
 @import "viewer_page";
 @import "home_page";
 @import "query_page";
@@ -58,7 +57,7 @@
 @import "widgets/text_input";
 @import "widgets/text_paragraph";
 @import "widgets/timestamp";
-@import "widgets/track_widget";
+@import "widgets/track_shell";
 @import "widgets/tree";
 @import "widgets/treetable";
 @import "widgets/vega_view";

@@ -28,7 +28,6 @@ import {
   TRACK_SHELL_WIDTH,
 } from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
-import {Panel} from './panel_container';
 
 export interface BBox {
   x: number;
@@ -133,19 +132,18 @@ function drawIBar(
   ctx.fillText(label, xPosLabel, yMid);
 }
 
-export class TimeSelectionPanel implements Panel {
-  readonly kind = 'panel';
-  readonly selectable = false;
+export class TimeSelectionPanel {
+  readonly height = 10;
 
   constructor(private readonly trace: TraceImpl) {}
 
   render(): m.Children {
-    return m('.time-selection-panel');
+    return m('', {style: {height: `${this.height}px`}});
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
     ctx.fillStyle = '#999';
-    ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
+    ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
 
     const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
 
@@ -176,11 +174,11 @@ export class TimeSelectionPanel implements Panel {
       }
     }
 
-    const localArea = this.trace.timeline.selectedArea;
+    const localSpan = this.trace.timeline.selectedSpan;
     const selection = this.trace.selection.selection;
-    if (localArea !== undefined) {
-      const start = Time.min(localArea.start, localArea.end);
-      const end = Time.max(localArea.start, localArea.end);
+    if (localSpan !== undefined) {
+      const start = Time.min(localSpan.start, localSpan.end);
+      const end = Time.max(localSpan.start, localSpan.end);
       this.renderSpan(ctx, timescale, size, start, end);
     } else {
       if (selection.kind === 'area') {

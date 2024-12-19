@@ -65,6 +65,15 @@ export interface VirtualOverlayCanvasAttrs {
   // Called when the canvas is resized. This will immediately be followed by a
   // call to onCanvasRedraw().
   onCanvasResized?(size: Size2D): void;
+
+  // Called when the canvas is first created, passing a reference to this object
+  // - can be used to e.g. bind to the raf scheduler so that the canvas will
+  //   redraw on raf.scheduleCanvasRedraw().
+  onCanvasCreate?(voc: VirtualOverlayCanvas): void;
+
+  // Called when the canvas is destroyed to clear up anything bound in
+  // `onCanvasCreate`.
+  onCanvasRemove?(voc: VirtualOverlayCanvas): void;
 }
 
 // This mithril component acts as scrolling container for tall and/or wide
@@ -73,7 +82,7 @@ export interface VirtualOverlayCanvasAttrs {
 export class VirtualOverlayCanvas
   implements m.ClassComponent<VirtualOverlayCanvasAttrs>
 {
-  private readonly trash = new DisposableStack();
+  readonly trash = new DisposableStack();
   private ctx?: CanvasRenderingContext2D;
   private virtualCanvas?: VirtualCanvas;
   private attrs?: VirtualOverlayCanvasAttrs;
@@ -143,13 +152,16 @@ export class VirtualOverlayCanvas
     virtualCanvas.setLayoutShiftListener(() => {
       this.redrawCanvas();
     });
+
+    attrs.onCanvasCreate?.(this);
   }
 
-  onremove() {
+  onremove({attrs}: m.CVnodeDOM<VirtualOverlayCanvasAttrs>) {
+    attrs.onCanvasRemove?.(this);
     this.trash.dispose();
   }
 
-  private redrawCanvas() {
+  redrawCanvas() {
     const ctx = assertExists(this.ctx);
     const virtualCanvas = assertExists(this.virtualCanvas);
 

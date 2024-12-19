@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {CSSCursor} from '../../base/dom_utils';
 import {DragGestureHandler} from '../../base/drag_gesture_handler';
 import {Size2D} from '../../base/geom';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
@@ -40,15 +41,11 @@ import {
   MIN_PX_PER_STEP,
   TickType,
 } from './gridline_helper';
-import {Panel} from './panel_container';
 
 const tracesData = new WeakMap<TraceImpl, OverviewDataLoader>();
 
-export class OverviewTimelinePanel implements Panel {
+export class OverviewTimelinePanel {
   private static HANDLE_SIZE_PX = 5;
-  readonly kind = 'panel';
-  readonly selectable = false;
-  private width = 0;
   private gesture?: DragGestureHandler;
   private timeScale?: TimeScale;
   private dragStrategy?: DragStrategy;
@@ -63,36 +60,17 @@ export class OverviewTimelinePanel implements Panel {
     );
   }
 
-  // Must explicitly type now; arguments types are no longer auto-inferred.
-  // https://github.com/Microsoft/TypeScript/issues/1373
-  onupdate({dom}: m.CVnodeDOM) {
-    this.width = dom.getBoundingClientRect().width;
-    const traceTime = this.trace.traceInfo;
-    if (this.width > TRACK_SHELL_WIDTH) {
-      const pxBounds = {left: TRACK_SHELL_WIDTH, right: this.width};
-      const hpTraceTime = HighPrecisionTimeSpan.fromTime(
-        traceTime.start,
-        traceTime.end,
-      );
-      this.timeScale = new TimeScale(hpTraceTime, pxBounds);
-      if (this.gesture === undefined) {
-        this.gesture = new DragGestureHandler(
-          dom as HTMLElement,
-          this.onDrag.bind(this),
-          this.onDragStart.bind(this),
-          this.onDragEnd.bind(this),
-        );
-      }
-    } else {
-      this.timeScale = undefined;
-    }
-  }
-
   oncreate(vnode: m.CVnodeDOM) {
-    this.onupdate(vnode);
     (vnode.dom as HTMLElement).addEventListener(
       'mousemove',
       this.boundOnMouseMove,
+    );
+
+    this.gesture = new DragGestureHandler(
+      vnode.dom as HTMLElement,
+      this.onDrag.bind(this),
+      this.onDragStart.bind(this),
+      this.onDragEnd.bind(this),
     );
   }
 
@@ -108,16 +86,23 @@ export class OverviewTimelinePanel implements Panel {
   }
 
   render(): m.Children {
-    return m('.overview-timeline', {
+    return m('.pf-overview-timeline', {
       oncreate: (vnode) => this.oncreate(vnode),
-      onupdate: (vnode) => this.onupdate(vnode),
       onremove: (vnode) => this.onremove(vnode),
     });
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
-    if (this.width === undefined) return;
-    if (this.timeScale === undefined) return;
+    if (size.width <= TRACK_SHELL_WIDTH) return;
+
+    const traceTime = this.trace.traceInfo;
+    const pxBounds = {left: TRACK_SHELL_WIDTH, right: size.width};
+    const hpTraceTime = HighPrecisionTimeSpan.fromTime(
+      traceTime.start,
+      traceTime.end,
+    );
+    const timescale = new TimeScale(hpTraceTime, pxBounds);
+    this.timeScale = timescale;
 
     const headerHeight = 20;
     const tracksHeight = size.height - headerHeight;
@@ -127,7 +112,7 @@ export class OverviewTimelinePanel implements Panel {
     );
 
     if (size.width > TRACK_SHELL_WIDTH && traceContext.duration > 0n) {
-      const maxMajorTicks = getMaxMajorTicks(this.width - TRACK_SHELL_WIDTH);
+      const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const offset = this.trace.timeline.timestampOffset();
       const tickGen = generateTicks(traceContext, maxMajorTicks, offset);
 
@@ -135,9 +120,9 @@ export class OverviewTimelinePanel implements Panel {
       ctx.font = '10px Roboto Condensed';
       ctx.fillStyle = '#999';
       for (const {type, time} of tickGen) {
-        const xPos = Math.floor(this.timeScale.timeToPx(time));
+        const xPos = Math.floor(timescale.timeToPx(time));
         if (xPos <= 0) continue;
-        if (xPos > this.width) break;
+        if (xPos > size.width) break;
         if (type === TickType.MAJOR) {
           ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
           const domainTime = this.trace.timeline.toDomainTime(time);
@@ -159,8 +144,8 @@ export class OverviewTimelinePanel implements Panel {
       for (const key of overviewData.keys()) {
         const loads = overviewData.get(key)!;
         for (let i = 0; i < loads.length; i++) {
-          const xStart = Math.floor(this.timeScale.timeToPx(loads[i].start));
-          const xEnd = Math.ceil(this.timeScale.timeToPx(loads[i].end));
+          const xStart = Math.floor(timescale.timeToPx(loads[i].start));
+          const xEnd = Math.ceil(timescale.timeToPx(loads[i].end));
           const yOff = Math.floor(headerHeight + y * trackHeight);
           const lightness = Math.ceil((1 - loads[i].load * 0.7) * 100);
           const color = colorForCpu(y).setHSL({s: 50, l: lightness});
@@ -173,10 +158,10 @@ export class OverviewTimelinePanel implements Panel {
 
     // Draw bottom border.
     ctx.fillStyle = '#dadada';
-    ctx.fillRect(0, size.height - 1, this.width, 1);
+    ctx.fillRect(0, size.height - 1, size.width, 1);
 
     // Draw semi-opaque rects that occlude the non-visible time range.
-    const [vizStartPx, vizEndPx] = this.extractBounds(this.timeScale);
+    const [vizStartPx, vizEndPx] = this.extractBounds(timescale);
 
     ctx.fillStyle = OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
     ctx.fillRect(
@@ -185,7 +170,7 @@ export class OverviewTimelinePanel implements Panel {
       vizStartPx - TRACK_SHELL_WIDTH,
       tracksHeight,
     );
-    ctx.fillRect(vizEndPx, headerHeight, this.width - vizEndPx, tracksHeight);
+    ctx.fillRect(vizEndPx, headerHeight, size.width - vizEndPx, tracksHeight);
 
     // Draw brushes.
     ctx.fillStyle = '#999';
@@ -216,7 +201,7 @@ export class OverviewTimelinePanel implements Panel {
     (e.target as HTMLElement).style.cursor = this.chooseCursor(e.offsetX);
   }
 
-  private chooseCursor(x: number) {
+  private chooseCursor(x: number): CSSCursor {
     if (this.timeScale === undefined) return 'default';
     const [startBound, endBound] = this.extractBounds(this.timeScale);
     if (

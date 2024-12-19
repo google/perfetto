@@ -20,7 +20,6 @@ import {getOrCreate} from '../../base/utils';
 import {TraceImpl} from '../../core/trace_impl';
 import {TRACK_SHELL_WIDTH} from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
-import {Panel} from './panel_container';
 import {SearchOverviewTrack} from './search_overview_track';
 
 // We want to create the overview track only once per trace, but this
@@ -30,10 +29,9 @@ import {SearchOverviewTrack} from './search_overview_track';
 const trackTraceMap = new WeakMap<TraceImpl, SearchOverviewTrack>();
 
 // This is used to display the summary of search results.
-export class TickmarkPanel implements Panel {
-  readonly kind = 'panel';
-  readonly selectable = false;
+export class TickmarkPanel {
   private searchOverviewTrack: SearchOverviewTrack;
+  readonly height = 5;
 
   constructor(private readonly trace: TraceImpl) {
     this.searchOverviewTrack = getOrCreate(
@@ -44,12 +42,12 @@ export class TickmarkPanel implements Panel {
   }
 
   render(): m.Children {
-    return m('.tickbar');
+    return m('', {style: {height: `${this.height}px`}});
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D): void {
     ctx.fillStyle = '#999';
-    ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
+    ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
 
     const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
     ctx.save();

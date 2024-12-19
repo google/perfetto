@@ -14,8 +14,6 @@
 
 import {DisposableStack} from '../../base/disposable_stack';
 import {currentTargetOffset, elementIsEditable} from '../../base/dom_utils';
-import {DragGestureHandler} from '../../base/drag_gesture_handler';
-import {raf} from '../../core/raf_scheduler';
 import {Animation} from '../animation';
 
 // When first starting to pan or zoom, move at least this many units.
@@ -38,14 +36,6 @@ const DEFAULT_ANIMATION_DURATION = 700;
 // ACCELERATION_PER_MS multiplier is applied).
 const ZOOM_RATIO_PER_FRAME = 0.008;
 const KEYBOARD_PAN_PX_PER_FRAME = 8;
-
-// Scroll wheel animation steps.
-const HORIZONTAL_WHEEL_PAN_SPEED = 1;
-const WHEEL_ZOOM_SPEED = -0.02;
-
-const EDITING_RANGE_CURSOR = 'ew-resize';
-const DRAG_CURSOR = 'default';
-const PAN_CURSOR = 'move';
 
 // Use key mapping based on the 'KeyboardEvent.code' property vs the
 // 'KeyboardEvent.key', because the former corresponds to the physical key
@@ -88,15 +78,13 @@ function keyToZoom(e: KeyboardEvent): Zoom {
 }
 
 /**
- * Enables horizontal pan and zoom with mouse-based drag and WASD navigation.
+ * Enables horizontal pan and zoom with WASD navigation.
  */
-export class PanAndZoomHandler implements Disposable {
+export class KeyboardNavigationHandler implements Disposable {
   private mousePositionX: number | null = null;
   private boundOnMouseMove = this.onMouseMove.bind(this);
-  private boundOnWheel = this.onWheel.bind(this);
   private boundOnKeyDown = this.onKeyDown.bind(this);
   private boundOnKeyUp = this.onKeyUp.bind(this);
-  private shiftDown = false;
   private panning: Pan = Pan.None;
   private panOffsetPx = 0;
   private targetPanOffsetPx = 0;
@@ -109,96 +97,30 @@ export class PanAndZoomHandler implements Disposable {
   private element: HTMLElement;
   private onPanned: (movedPx: number) => void;
   private onZoomed: (zoomPositionPx: number, zoomRatio: number) => void;
-  private editSelection: (currentPx: number) => boolean;
-  private onSelection: (
-    dragStartX: number,
-    dragStartY: number,
-    prevX: number,
-    currentX: number,
-    currentY: number,
-    editing: boolean,
-  ) => void;
-  private endSelection: (edit: boolean) => void;
   private trash: DisposableStack;
 
   constructor({
     element,
     onPanned,
     onZoomed,
-    editSelection,
-    onSelection,
-    endSelection,
   }: {
     element: HTMLElement;
     onPanned: (movedPx: number) => void;
     onZoomed: (zoomPositionPx: number, zoomRatio: number) => void;
-    editSelection: (currentPx: number) => boolean;
-    onSelection: (
-      dragStartX: number,
-      dragStartY: number,
-      prevX: number,
-      currentX: number,
-      currentY: number,
-      editing: boolean,
-    ) => void;
-    endSelection: (edit: boolean) => void;
   }) {
     this.element = element;
     this.onPanned = onPanned;
     this.onZoomed = onZoomed;
-    this.editSelection = editSelection;
-    this.onSelection = onSelection;
-    this.endSelection = endSelection;
     this.trash = new DisposableStack();
 
     document.body.addEventListener('keydown', this.boundOnKeyDown);
     document.body.addEventListener('keyup', this.boundOnKeyUp);
     this.element.addEventListener('mousemove', this.boundOnMouseMove);
-    this.element.addEventListener('wheel', this.boundOnWheel, {passive: true});
     this.trash.defer(() => {
-      this.element.removeEventListener('wheel', this.boundOnWheel);
       this.element.removeEventListener('mousemove', this.boundOnMouseMove);
       document.body.removeEventListener('keyup', this.boundOnKeyUp);
       document.body.removeEventListener('keydown', this.boundOnKeyDown);
     });
-
-    let prevX = -1;
-    let dragStartX = -1;
-    let dragStartY = -1;
-    let edit = false;
-    this.trash.use(
-      new DragGestureHandler(
-        this.element,
-        /* onDrag */ (x, y) => {
-          if (this.shiftDown) {
-            this.onPanned(prevX - x);
-          } else {
-            this.onSelection(dragStartX, dragStartY, prevX, x, y, edit);
-          }
-          prevX = x;
-        },
-        /* onDragStarted */ (x, y) => {
-          prevX = x;
-          dragStartX = x;
-          dragStartY = y;
-          edit = this.editSelection(x);
-          // Set the cursor style based on where the cursor is when the drag
-          // starts.
-          if (edit) {
-            this.element.style.cursor = EDITING_RANGE_CURSOR;
-          } else if (!this.shiftDown) {
-            this.element.style.cursor = DRAG_CURSOR;
-          }
-        },
-        /* onDragFinished */ () => {
-          // Reset the cursor now the drag has ended.
-          this.element.style.cursor = this.shiftDown ? PAN_CURSOR : DRAG_CURSOR;
-          dragStartX = -1;
-          dragStartY = -1;
-          this.endSelection(edit);
-        },
-      ),
-    );
   }
 
   [Symbol.dispose]() {
@@ -242,30 +164,6 @@ export class PanAndZoomHandler implements Disposable {
 
   private onMouseMove(e: MouseEvent) {
     this.mousePositionX = currentTargetOffset(e).x;
-
-    // Only change the cursor when hovering, the DragGestureHandler handles
-    // changing the cursor during drag events. This avoids the problem of
-    // the cursor flickering between styles if you drag fast and get too
-    // far from the current time range.
-    if (e.buttons === 0) {
-      if (this.editSelection(this.mousePositionX)) {
-        this.element.style.cursor = EDITING_RANGE_CURSOR;
-      } else {
-        this.element.style.cursor = this.shiftDown ? PAN_CURSOR : DRAG_CURSOR;
-      }
-    }
-  }
-
-  private onWheel(e: WheelEvent) {
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-      this.onPanned(e.deltaX * HORIZONTAL_WHEEL_PAN_SPEED);
-      raf.scheduleCanvasRedraw();
-    } else if (e.ctrlKey && this.mousePositionX !== null) {
-      const sign = e.deltaY < 0 ? -1 : 1;
-      const deltaY = sign * Math.log2(1 + Math.abs(e.deltaY));
-      this.onZoomed(this.mousePositionX, deltaY * WHEEL_ZOOM_SPEED);
-      raf.scheduleCanvasRedraw();
-    }
   }
 
   // Due to a bug in chrome, we get onKeyDown events fired where the payload is
@@ -275,8 +173,6 @@ export class PanAndZoomHandler implements Disposable {
   private onKeyDown(e: Event) {
     if (e instanceof KeyboardEvent) {
       if (elementIsEditable(e.target)) return;
-
-      this.updateShift(e.shiftKey);
 
       if (e.ctrlKey || e.metaKey) return;
 
@@ -304,8 +200,6 @@ export class PanAndZoomHandler implements Disposable {
 
   private onKeyUp(e: Event) {
     if (e instanceof KeyboardEvent) {
-      this.updateShift(e.shiftKey);
-
       if (e.ctrlKey || e.metaKey) return;
 
       if (keyToPan(e) === this.panning) {
@@ -314,17 +208,6 @@ export class PanAndZoomHandler implements Disposable {
       if (keyToZoom(e) === this.zooming) {
         this.zooming = Zoom.None;
       }
-    }
-  }
-
-  // TODO(hjd): Move this shift handling into the viewer page.
-  private updateShift(down: boolean) {
-    if (down === this.shiftDown) return;
-    this.shiftDown = down;
-    if (this.shiftDown) {
-      this.element.style.cursor = PAN_CURSOR;
-    } else if (this.mousePositionX !== null) {
-      this.element.style.cursor = DRAG_CURSOR;
     }
   }
 }

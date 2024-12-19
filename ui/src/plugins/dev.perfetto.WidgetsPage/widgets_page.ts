@@ -55,7 +55,7 @@ import {TagInput} from '../../widgets/tag_input';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
 import {Chip, ChipBar} from '../../widgets/chip';
-import {TrackWidget} from '../../widgets/track_widget';
+import {TrackShell} from '../../widgets/track_shell';
 import {scheduleFullRedraw} from '../../widgets/raf';
 import {CopyableLink} from '../../widgets/copyable_link';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
@@ -1333,22 +1333,29 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         },
       }),
       m(WidgetShowcase, {
-        label: 'Track',
-        description: `The shell and content DOM elements of a track.`,
+        label: 'TrackShell',
+        description: `The Mithril parts of a track (the shell, mainly).`,
         renderWidget: (opts) => {
-          const {buttons, chips, multipleTracks, ...rest} = opts;
+          const {buttons, chips, multipleTracks, error, ...rest} = opts;
           const dummyButtons = () => [
             m(Button, {icon: 'info', compact: true}),
             m(Button, {icon: 'settings', compact: true}),
           ];
           const dummyChips = () => ['foo', 'bar'];
 
-          const renderTrack = () =>
-            m(TrackWidget, {
-              buttons: Boolean(buttons) ? dummyButtons() : undefined,
-              chips: Boolean(chips) ? dummyChips() : undefined,
-              ...rest,
-            });
+          const renderTrack = (children?: m.Children) =>
+            m(
+              TrackShell,
+              {
+                buttons: Boolean(buttons) ? dummyButtons() : undefined,
+                chips: Boolean(chips) ? dummyChips() : undefined,
+                error: Boolean(error)
+                  ? new Error('An error has occurred')
+                  : undefined,
+                ...rest,
+              },
+              children,
+            );
 
           return m(
             '',
@@ -1366,14 +1373,14 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           buttons: true,
           chips: true,
           heightPx: 32,
-          indentationLevel: 3,
           collapsible: true,
           collapsed: true,
-          isSummary: false,
+          summary: false,
           highlight: false,
           error: false,
           multipleTracks: false,
           reorderable: false,
+          depth: 0,
         },
       }),
       m(WidgetShowcase, {
