@@ -64,7 +64,7 @@ test('gpu counter', async () => {
 
 test('frametimeline', async () => {
   await page.keyboard.press('Escape');
-  const sysui = pth.locateTrackGroup('com.android.systemui 25348');
+  const sysui = pth.locateTrack('com.android.systemui 25348');
   await sysui.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(sysui);
   const actualTimeline = pth.locateTrack(
@@ -81,7 +81,7 @@ test('frametimeline', async () => {
 
 test('slices', async () => {
   await page.keyboard.press('Escape');
-  const syssrv = pth.locateTrackGroup('system_server 1719');
+  const syssrv = pth.locateTrack('system_server 1719');
   await syssrv.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(syssrv);
   const animThread = pth
