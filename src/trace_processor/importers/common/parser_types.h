@@ -23,6 +23,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -56,15 +57,18 @@ struct alignas(8) InlineSchedWaking {
 static_assert(sizeof(InlineSchedWaking) == 16);
 
 struct alignas(8) JsonEvent {
+  struct Begin {};
+  struct End {};
+  struct Scoped {
+    int64_t dur;
+  };
+  struct Other {};
+  using Type = std::variant<Begin, End, Scoped, Other>;
+
   std::string value;
+  Type type;
 };
 static_assert(sizeof(JsonEvent) % 8 == 0);
-
-struct alignas(8) JsonWithDurEvent {
-  int64_t dur;
-  std::string value;
-};
-static_assert(sizeof(JsonWithDurEvent) % 8 == 0);
 
 struct alignas(8) TracePacketData {
   TraceBlobView packet;
