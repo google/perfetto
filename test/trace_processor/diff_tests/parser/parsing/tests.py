@@ -618,6 +618,102 @@ class Parsing(TestSuite):
         101000004,"test2","producer2",4
         """))
 
+  def test_triggers_packets_clone_snapshot_trigger_packet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+      packet {
+        clone_snapshot_trigger {
+          trigger_name: "test1"
+          trusted_producer_uid: 3
+          producer_name: "producer1"
+        }
+        timestamp: 101000002
+      }
+      """),
+        query=Path('triggers_packets_test.sql'),
+        out=Csv("""
+      "ts","name","string_value","int_value"
+      101000002,"test1","producer1",3
+      """))
+
+  def test_trigger_metadata_test_clone_snapshot_trigger_packet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+    packet {
+      clone_snapshot_trigger {
+        trigger_name: "test1"
+        trusted_producer_uid: 3
+        producer_name: "producer1"
+      }
+      timestamp: 101000002
+    }
+    """),
+        query=Path('trigger_metadata_test.sql'),
+        out=Csv("""
+      "str_value"
+      "test1"
+      """))
+
+  def test_trigger_metadata_trigger_packet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trigger {
+            trigger_name: "test1"
+            trusted_producer_uid: 1
+            producer_name: "producer1"
+          }
+          timestamp: 101000002
+        }
+        packet {
+          trigger {
+            trigger_name: "test2"
+            trusted_producer_uid: 2
+            producer_name: "producer2"
+          }
+          timestamp: 101000001
+        }
+        """),
+        query=Path('trigger_metadata_test.sql'),
+        out=Csv("""
+      "str_value"
+      "test2"
+      """))
+
+  def test_trigger_metadata_trigger_packet_and_clone_snapshot_packet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+      packet {
+        trigger {
+          trigger_name: "test1"
+          trusted_producer_uid: 1
+          producer_name: "producer1"
+        }
+        timestamp: 101000004
+      }
+      packet {
+        trigger {
+          trigger_name: "test2"
+          trusted_producer_uid: 2
+          producer_name: "producer2"
+        }
+        timestamp: 101000002
+      }
+      packet {
+        clone_snapshot_trigger {
+          trigger_name: "testClone"
+          trusted_producer_uid: 3
+          producer_name: "producer3"
+        }
+        timestamp: 101000003
+      }
+      """),
+        query=Path('trigger_metadata_test.sql'),
+        out=Csv("""
+    "str_value"
+    "testClone"
+    """))
+
   def test_chrome_metadata(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

@@ -65,7 +65,8 @@ namespace metadata {
   F(tracing_disabled_ns,               KeyType::kSingle,  Variadic::kInt),    \
   F(tracing_started_ns,                KeyType::kSingle,  Variadic::kInt),    \
   F(ui_state,                          KeyType::kSingle,  Variadic::kString), \
-  F(unique_session_name,               KeyType::kSingle,  Variadic::kString)
+  F(unique_session_name,               KeyType::kSingle,  Variadic::kString), \
+  F(trace_trigger,                     KeyType::kSingle,  Variadic::kString)
 // clang-format on
 
 // Compile time list of metadata items.
