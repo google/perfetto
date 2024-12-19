@@ -47,11 +47,19 @@ class MetadataModule : public ProtoImporterModule {
   void ParseTraceConfig(const protos::pbzero::TraceConfig_Decoder&) override;
 
  private:
-  void ParseTrigger(int64_t ts, ConstBytes);
+  enum class TraceTriggerPacketType {
+    kNone,
+    kTraceTrigger,
+    kCloneSnapshot,
+  };
+
+  void ParseTrigger(int64_t ts, ConstBytes, TraceTriggerPacketType);
   void ParseChromeTrigger(int64_t ts, ConstBytes);
   void ParseTraceUuid(ConstBytes);
 
   TraceProcessorContext* context_;
+  TraceTriggerPacketType trace_trigger_packet_type_ =
+      TraceTriggerPacketType::kNone;
 
   const StringId producer_name_key_id_;
   const StringId trusted_producer_uid_key_id_;
