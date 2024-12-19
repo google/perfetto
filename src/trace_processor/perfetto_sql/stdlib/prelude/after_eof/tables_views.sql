@@ -358,7 +358,7 @@ CREATE PERFETTO VIEW experimental_sched_upid (
   -- The kernel priority that the thread ran at.
   priority LONG,
   -- The unique CPU identifier that the slice executed on.
-  ucpu LONG,
+  ucpu JOINID(cpu.id),
   -- The process's unique id in the trace.
   upid JOINID(process.id)
 ) AS
@@ -378,7 +378,7 @@ FROM
 -- Tracks which are associated to a single thread.
 CREATE PERFETTO TABLE thread_track (
   -- Unique identifier for this thread track.
-  id ID,
+  id ID(track.id),
   -- Name of the track.
   name STRING,
   -- The type of a track indicates the type of data the track contains.
@@ -415,7 +415,7 @@ WHERE t.event_type = 'slice' AND a.key = 'utid';
 -- Tracks which are associated to a single process.
 CREATE PERFETTO TABLE process_track (
   -- Unique identifier for this process track.
-  id ID,
+  id ID(track.id),
   -- Name of the track.
   name STRING,
   -- The type of a track indicates the type of data the track contains.
@@ -427,7 +427,7 @@ CREATE PERFETTO TABLE process_track (
   type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
-  parent_id LONG,
+  parent_id JOINID(track.id),
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
@@ -452,7 +452,7 @@ WHERE t.event_type = 'slice' AND a.key = 'upid';
 -- Tracks which are associated to a single CPU.
 CREATE PERFETTO TABLE cpu_track (
   -- Unique identifier for this cpu track.
-  id ID,
+  id ID(track.id),
   -- Name of the track.
   name STRING,
   -- The type of a track indicates the type of data the track contains.
@@ -494,7 +494,7 @@ WHERE t.event_type = 'slice' AND a.key = 'cpu';
 -- instead.
 CREATE PERFETTO TABLE gpu_track (
   -- Unique identifier for this cpu track.
-  id ID,
+  id ID(track.id),
   -- Name of the track.
   name STRING,
   -- The type of a track indicates the type of data the track contains.
@@ -506,7 +506,7 @@ CREATE PERFETTO TABLE gpu_track (
   type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
-  parent_id LONG,
+  parent_id JOINID(track.id),
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
@@ -550,7 +550,7 @@ WHERE type IN (
 -- Tracks containing counter-like events.
 CREATE PERFETTO VIEW counter_track (
   -- Unique identifier for this cpu counter track.
-  id ID,
+  id ID(track.id),
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
@@ -593,7 +593,7 @@ WHERE event_type = 'counter';
 -- Tracks containing counter-like events associated to a CPU.
 CREATE PERFETTO TABLE cpu_counter_track (
   -- Unique identifier for this cpu counter track.
-  id ID,
+  id ID(track.id),
   -- Name of the track.
   name STRING,
   -- The type of a track indicates the type of data the track contains.
@@ -636,7 +636,7 @@ WHERE args.key = 'cpu';
 -- Tracks containing counter-like events associated to a GPU.
 CREATE PERFETTO TABLE gpu_counter_track (
   -- Unique identifier for this gpu counter track.
-  id ID,
+  id ID(track.id),
   -- Name of the track.
   name STRING,
   -- The type of a track indicates the type of data the track contains.
@@ -652,7 +652,7 @@ CREATE PERFETTO TABLE gpu_counter_track (
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
-  source_arg_set_id LONG,
+  source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
   -- The units of the counter. This column is rarely filled.
@@ -679,7 +679,7 @@ WHERE args.key = 'gpu';
 -- Tracks containing counter-like events associated to a process.
 CREATE PERFETTO TABLE process_counter_track (
   -- Unique identifier for this process counter track.
-  id ID,
+  id ID(track.id),
   -- Name of the track.
   name STRING,
   -- The type of a track indicates the type of data the track contains.
@@ -695,7 +695,7 @@ CREATE PERFETTO TABLE process_counter_track (
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
-  source_arg_set_id LONG,
+  source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
   -- The units of the counter. This column is rarely filled.
@@ -722,7 +722,7 @@ WHERE args.key = 'upid';
 -- Tracks containing counter-like events associated to a thread.
 CREATE PERFETTO TABLE thread_counter_track (
   -- Unique identifier for this thread counter track.
-  id ID,
+  id ID(track.id),
   -- Name of the track.
   name STRING,
   -- The type of a track indicates the type of data the track contains.
@@ -738,7 +738,7 @@ CREATE PERFETTO TABLE thread_counter_track (
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
-  source_arg_set_id LONG,
+  source_arg_set_id JOINID(track.id),
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
   -- The units of the counter. This column is rarely filled.
@@ -765,7 +765,7 @@ WHERE args.key = 'utid';
 -- Tracks containing counter-like events collected from Linux perf.
 CREATE PERFETTO TABLE perf_counter_track (
   -- Unique identifier for this thread counter track.
-  id ID,
+  id ID(track.id),
   -- Name of the track.
   name STRING,
   -- The type of a track indicates the type of data the track contains.
@@ -781,7 +781,7 @@ CREATE PERFETTO TABLE perf_counter_track (
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
-  source_arg_set_id LONG,
+  source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
   -- The units of the counter. This column is rarely filled.

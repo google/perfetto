@@ -17,7 +17,7 @@
 -- Where possible, use available view functions which filter this view.
 CREATE PERFETTO VIEW thread_slice(
   -- Slice
-  id JOINID(slice.id),
+  id ID(slice.id),
   -- Alias for `slice.ts`.
   ts TIMESTAMP,
   -- Alias for `slice.dur`.
@@ -84,7 +84,7 @@ LEFT JOIN process USING (upid);
 -- Where possible, use available view functions which filter this view.
 CREATE PERFETTO VIEW process_slice(
   -- Slice
-  id JOINID(slice.id),
+  id ID(slice.id),
   -- Alias for `slice.ts`.
   ts TIMESTAMP,
   -- Alias for `slice.dur`.
