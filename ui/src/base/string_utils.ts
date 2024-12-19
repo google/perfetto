@@ -127,3 +127,10 @@ export function cropText(str: string, charWidth: number, rectWidth: number) {
   }
   return displayText;
 }
+
+export function splitLinesNonEmpty(text: string): string[] {
+  return text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
+}
