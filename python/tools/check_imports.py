@@ -91,7 +91,10 @@ DEPS_ALLOWLIST = [
         ['/core/*', '/frontend/*', '/common/actions'],
     ),
 
-    # Miscl legitimate deps.
+    # The record plugin needs access to the wasm .d.ts for trace_config_utils.
+    ('/plugins/dev.perfetto.RecordTrace*', '/gen/trace_config_utils'),
+
+    # Misc legitimate deps.
     ('/frontend/index', ['/gen/*']),
     ('/traceconv/index', '/gen/traceconv'),
     ('/engine/wasm_bridge', '/gen/trace_processor'),
