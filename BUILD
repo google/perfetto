@@ -1888,6 +1888,7 @@ perfetto_filegroup(
         "src/trace_processor/importers/etm/mapping_version.cc",
         "src/trace_processor/importers/etm/mapping_version.h",
         "src/trace_processor/importers/etm/opencsd.h",
+        "src/trace_processor/importers/etm/sql_values.h",
         "src/trace_processor/importers/etm/storage_handle.cc",
         "src/trace_processor/importers/etm/storage_handle.h",
         "src/trace_processor/importers/etm/target_memory.cc",
@@ -2871,6 +2872,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
     srcs = [
         "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h",
     ],
 )
 
@@ -2879,6 +2881,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
     srcs = [
         "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.cc",
     ],
 )
 
