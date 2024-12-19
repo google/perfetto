@@ -1,0 +1,45 @@
+android_blocking_calls_cuj_per_frame_metric {
+  cuj {
+    name: "BACK_PANEL_ARROW"
+    process {
+      name: "com.android.systemui"
+      uid: 10001
+      pid: 5000
+    }
+    blocking_calls {
+      name: "animation"
+      max_dur_per_frame_ms: 2
+      max_dur_per_frame_ns: 2000000
+      mean_dur_per_frame_ms: 1
+      mean_dur_per_frame_ns: 1000000
+      max_cnt_per_frame: 1
+      mean_cnt_per_frame: 0.5
+    }
+    blocking_calls {
+      name: "binder transaction"
+      max_dur_per_frame_ms: 2
+      max_dur_per_frame_ns: 2500000
+      mean_dur_per_frame_ms: 0
+      mean_dur_per_frame_ns: 750000
+      max_cnt_per_frame: 1
+      mean_cnt_per_frame: 0.5
+    }
+  }
+  cuj {
+    name: "CUJ_NAME"
+    process {
+      name: "com.google.android.apps.nexuslauncher"
+      uid: 10002
+      pid: 6000
+    }
+    blocking_calls {
+      name: "animation"
+      max_dur_per_frame_ms: 2
+      max_dur_per_frame_ns: 2000000
+      mean_dur_per_frame_ms: 1
+      mean_dur_per_frame_ns: 1500000
+      max_cnt_per_frame: 1
+      mean_cnt_per_frame: 1.0
+    }
+  }
+}
