@@ -547,7 +547,13 @@ void FtraceController::StopIfNeeded(FtraceInstanceState* instance) {
   if (!data_sources_.empty())
     return;
 
-  if (!retain_ksyms_on_stop_) {
+  // The kernel symbol table is discarded by default to save memory as we run as
+  // a long-lived daemon. Check if the config asked to retain the symbols (e.g.
+  // lab tests). And in either case, reset a set-but-empty table to allow trying
+  // again next time a config requests symbols.
+  if (!retain_ksyms_on_stop_ ||
+      (symbolizer_.is_valid() &&
+       symbolizer_.GetOrCreateKernelSymbolMap()->num_syms() == 0)) {
     symbolizer_.Destroy();
   }
   retain_ksyms_on_stop_ = false;
@@ -608,7 +614,7 @@ bool FtraceController::StartDataSource(FtraceDataSource* data_source) {
   // buffers while doing the symbol parsing.
   if (data_source->config().symbolize_ksyms()) {
     symbolizer_.GetOrCreateKernelSymbolMap();
-    // If at least one config sets the KSYMS_RETAIN flag, keep the ksysm map
+    // If at least one config sets the KSYMS_RETAIN flag, keep the ksyms map
     // around in StopIfNeeded().
     const auto KRET = FtraceConfig::KSYMS_RETAIN;
     retain_ksyms_on_stop_ |= data_source->config().ksyms_mem_policy() == KRET;
