@@ -30,6 +30,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/stats.h"
@@ -576,7 +577,27 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
         continue;
       }
     }
-    context_->sorter->PushJsonValue(ts, unparsed.ToStdString(), opt_dur);
+    JsonEvent::Type type;
+    if (opt_raw_ph && opt_raw_ph->size() == 1) {
+      switch ((*opt_raw_ph)[0]) {
+        case 'B':
+          type = JsonEvent::Begin();
+          break;
+        case 'E':
+          type = JsonEvent::End();
+          break;
+        case 'X':
+          if (opt_dur) {
+            type = JsonEvent::Scoped{*opt_dur};
+          } else {
+            type = JsonEvent::Other();
+          }
+          break;
+      }
+    } else {
+      type = JsonEvent::Other();
+    }
+    context_->sorter->PushJsonValue(ts, unparsed.ToStdString(), type);
   }
   return SetOutAndReturn(next, out);
 }
