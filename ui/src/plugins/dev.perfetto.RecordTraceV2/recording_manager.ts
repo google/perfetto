@@ -13,25 +13,49 @@
 // limitations under the License.
 
 import protos from '../../protos';
-import {assertFalse} from '../../base/logging';
+import {assertFalse, assertTrue} from '../../base/logging';
+import {errResult, okResult, Result} from '../../base/result';
 import {App} from '../../public/app';
+import {RecordSubpage} from './config/config_interfaces';
+import {ConfigManager} from './config/config_manager';
 import {RecordingTarget} from './interfaces/recording_target';
 import {RecordingTargetProvider} from './interfaces/recording_target_provider';
-
+import {
+  RECORD_PLUGIN_SCHEMA,
+  RECORD_SESSION_SCHEMA,
+  RecordPluginSchema,
+  RecordSessionSchema,
+} from './serialization_schema';
 import {TargetPlatformId} from './interfaces/target_platform';
 import {TracingSession} from './interfaces/tracing_session';
+import {GcsUploader} from '../../base/gcs_uploader';
 import {uuidv4} from '../../base/uuid';
 import {Time, Timecode} from '../../base/time';
 
+const LOCALSTORAGE_KEY = 'recordPlugin';
+
 export class RecordingManager {
+  readonly pages = new Map<string, RecordSubpage>();
+
   private providers = new Array<RecordingTargetProvider>();
   private platform: TargetPlatformId = 'ANDROID';
   private provider?: RecordingTargetProvider;
   private target?: RecordingTarget;
   private _tracingSession?: CurrentTracingSession;
+  readonly recordConfig = new ConfigManager();
   autoOpenTraceWhenTracingEnds = true;
 
   constructor(readonly app: App) {}
+
+  registerPage(...pages: RecordSubpage[]) {
+    for (const page of pages) {
+      assertTrue(!this.pages.has(page.id) || this.pages.get(page.id) === page);
+      this.pages.set(page.id, page);
+      if (page.kind === 'PROBES_PAGE') {
+        this.recordConfig.registerProbes(page.probes);
+      }
+    }
+  }
 
   registerProvider(provider: RecordingTargetProvider) {
     assertFalse(this.providers.includes(provider));
@@ -97,6 +121,107 @@ export class RecordingManager {
 
   get currentTarget(): RecordingTarget | undefined {
     return this.target;
+  }
+
+  genTraceConfig(): protos.TraceConfig {
+    return this.recordConfig.genTraceConfig(this.currentPlatform);
+  }
+
+  async startTracing(): Promise<CurrentTracingSession> {
+    if (this._tracingSession !== undefined) {
+      this._tracingSession.session?.cancel();
+      this._tracingSession = undefined;
+    }
+    const traceCfg = this.genTraceConfig();
+    const wrappedSession = new CurrentTracingSession(this, traceCfg);
+    this._tracingSession = wrappedSession;
+    return wrappedSession;
+  }
+
+  async share(): Promise<string> {
+    const config = this.serializeSession();
+    const json = JSON.stringify(config);
+    const uploader = new GcsUploader(json, {mimeType: 'application/json'});
+    await uploader.waitForCompletion();
+    return uploader.uploadedUrl;
+  }
+
+  serializeSession(): RecordSessionSchema {
+    // Initialize with default values.
+    const state: RecordSessionSchema = RECORD_SESSION_SCHEMA.parse({});
+    for (const page of this.pages.values()) {
+      if (page.kind === 'SESSION_PAGE') {
+        page.serialize(state);
+      }
+    }
+    // Serialize the state of each probe page and their settings.
+    state.probes = this.recordConfig.serializeProbes();
+    return state;
+  }
+
+  loadSession(state: RecordSessionSchema): void {
+    for (const page of this.pages.values()) {
+      if (page.kind === 'SESSION_PAGE') {
+        page.deserialize(state);
+      }
+    }
+    this.recordConfig.deserializeProbes(state.probes);
+  }
+
+  persistIntoLocalStorage(): void {
+    const state: RecordPluginSchema = RECORD_PLUGIN_SCHEMA.parse({});
+    state.lastSession = this.serializeSession();
+    for (const page of this.pages.values()) {
+      if (page.kind === 'GLOBAL_PAGE') {
+        page.serialize(state);
+      }
+    }
+    const json = JSON.stringify(state);
+    localStorage.setItem(LOCALSTORAGE_KEY, json);
+  }
+
+  restorePluginStateFromLocalstorage(): void {
+    const stateJson = localStorage.getItem(LOCALSTORAGE_KEY) ?? '{}';
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(stateJson);
+    } catch (e) {
+      console.error('Record plugin: JSON parse failed', e);
+      parsedJson = {};
+    }
+    const res = RECORD_PLUGIN_SCHEMA.safeParse(parsedJson);
+    if (!res.success) {
+      throw new Error('Record plugin: deserialization failed', res.error);
+    }
+    const state = res.data;
+    for (const page of this.pages.values()) {
+      if (page.kind === 'GLOBAL_PAGE') {
+        page.deserialize(state);
+      }
+    }
+    if (state.lastSession !== undefined) {
+      this.loadSession(state.lastSession);
+    }
+  }
+
+  restoreSessionFromJson(json: string): Result<void> {
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(json);
+    } catch (e) {
+      return errResult(`JSON parser error: ${e.message}`);
+    }
+    const res = RECORD_SESSION_SCHEMA.safeParse(parsedJson);
+    if (!res.success) {
+      return errResult(`Deserialization error: ${res.error}`);
+    }
+    this.loadSession(res.data);
+    return okResult(undefined);
+  }
+
+  clearSession() {
+    const emptySession = RECORD_SESSION_SCHEMA.parse({});
+    return this.loadSession(emptySession);
   }
 }
 

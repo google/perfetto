@@ -19,9 +19,21 @@ import RecordingV1Plugin from '../dev.perfetto.RecordTrace';
 import {AdbWebsocketTargetProvider} from './adb/websocket/adb_websocket_target_provider';
 import {AdbWebusbTargetProvider} from './adb/webusb/adb_webusb_target_provider';
 import {ChromeExtensionTargetProvider} from './chrome/chrome_extension_target_provider';
+import {advancedRecordSection} from './pages/advanced';
+import {androidRecordSection} from './pages/android';
+import {bufferConfigPage} from './pages/buffer_config_page';
+import {chromeRecordSection} from './pages/chrome';
+import {instructionsPage} from './pages/instructions_page';
+import {cpuRecordSection} from './pages/cpu';
+import {gpuRecordSection} from './pages/gpu';
+import {memoryRecordSection} from './pages/memory';
+import {powerRecordSection} from './pages/power';
 import {RecordPageV2} from './pages/record_page';
+import {stackSamplingRecordSection} from './pages/stack_sampling';
+import {targetSelectionPage} from './pages/target_selection_page';
 import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
+import {savedConfigsPage} from './pages/saved_configs';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
@@ -29,6 +41,8 @@ export default class implements PerfettoPlugin {
   private static recordingMgr?: RecordingManager;
 
   static onActivate(app: App) {
+    // TODO(primiano): uncomment in next CL.
+    // if (!RecordingV1Plugin.useRecordingV2) return;
     app.sidebar.addMenuItem({
       section: 'navigation',
       text: 'Record new trace (V2)',
@@ -57,6 +71,22 @@ export default class implements PerfettoPlugin {
       const chromeProvider = new ChromeExtensionTargetProvider();
       recMgr.registerProvider(chromeProvider);
       recMgr.registerProvider(new TracedWebsocketTargetProvider());
+      recMgr.registerPage(
+        targetSelectionPage(recMgr),
+        bufferConfigPage(recMgr),
+        instructionsPage(recMgr),
+        savedConfigsPage(recMgr),
+
+        chromeRecordSection(() => chromeProvider.getChromeCategories()),
+        cpuRecordSection(),
+        gpuRecordSection(),
+        powerRecordSection(),
+        memoryRecordSection(),
+        androidRecordSection(),
+        stackSamplingRecordSection(),
+        advancedRecordSection(),
+      );
+      recMgr.restorePluginStateFromLocalstorage();
     }
     return this.recordingMgr;
   }

@@ -198,7 +198,7 @@ export class TracingProtocol {
         reply.replyProto ?? undefined,
         Boolean(reply.hasMore),
       );
-      if (reply.hasMore !== true) {
+      if (!reply.hasMore) {
         this.pendingInvokes.delete(frame.requestId);
       }
     } else {
