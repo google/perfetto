@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue, assertUnreachable} from '../base/logging';
+import {assertUnreachable} from '../base/logging';
 import {Time, time, TimeSpan} from '../base/time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {Area} from '../public/selection';
 import {raf} from './raf_scheduler';
 import {HighPrecisionTime} from '../base/high_precision_time';
 import {DurationPrecision, Timeline, TimestampFormat} from '../public/timeline';
@@ -44,6 +43,14 @@ export class TimelineImpl implements Timeline {
   // property of the cpu slice tracks and ignore them in the process tracks.
   private _hoveredUtid?: number;
   private _hoveredPid?: number;
+
+  // This is used to mark the timeline of the area that is currently being
+  // selected.
+  //
+  // TODO(stevegolton): This shouldn't really be in the global timeline state,
+  // it's really only a concept of the viewer page and should be moved there
+  // instead.
+  selectedSpan?: {start: time; end: time};
 
   get highlightedSliceId() {
     return this._highlightedSliceId;
@@ -80,9 +87,6 @@ export class TimelineImpl implements Timeline {
     this._hoveredPid = x;
     raf.scheduleCanvasRedraw();
   }
-
-  // This is used to calculate the tracks within a Y range for area selection.
-  private _selectedArea?: Area;
 
   constructor(private readonly traceInfo: TraceInfo) {
     this._visibleWindow = HighPrecisionTimeSpan.fromTime(
@@ -125,29 +129,6 @@ export class TimelineImpl implements Timeline {
     this.updateVisibleTimeHP(newWindow);
   }
 
-  // Set the highlight box to draw
-  selectArea(
-    start: time,
-    end: time,
-    tracks = this._selectedArea ? this._selectedArea.trackUris : [],
-  ) {
-    assertTrue(
-      end >= start,
-      `Impossible select area: start [${start}] >= end [${end}]`,
-    );
-    this._selectedArea = {start, end, trackUris: tracks};
-    raf.scheduleFullRedraw();
-  }
-
-  deselectArea() {
-    this._selectedArea = undefined;
-    raf.scheduleCanvasRedraw();
-  }
-
-  get selectedArea(): Area | undefined {
-    return this._selectedArea;
-  }
-
   // Set visible window using an integer time span
   updateVisibleTime(ts: TimeSpan) {
     this.updateVisibleTimeHP(HighPrecisionTimeSpan.fromTime(ts.start, ts.end));
@@ -157,6 +138,24 @@ export class TimelineImpl implements Timeline {
   // unify them.
   setViewportTime(start: time, end: time): void {
     this.updateVisibleTime(new TimeSpan(start, end));
+  }
+
+  moveStart(delta: number) {
+    this.updateVisibleTimeHP(
+      new HighPrecisionTimeSpan(
+        this._visibleWindow.start.addNumber(delta),
+        this.visibleWindow.duration - delta,
+      ),
+    );
+  }
+
+  moveEnd(delta: number) {
+    this.updateVisibleTimeHP(
+      new HighPrecisionTimeSpan(
+        this._visibleWindow.start,
+        this.visibleWindow.duration + delta,
+      ),
+    );
   }
 
   // Set visible window using a high precision time span

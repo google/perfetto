@@ -84,7 +84,7 @@ class PerfStatsUi implements m.ClassComponent<PerfStatsUiAttrs> {
         m('i.material-icons', 'close'),
       ),
       attrs.perfMgr.containers.map((c, i) =>
-        m('section', m('div', `Panel Container ${i + 1}`), c.renderPerfStats()),
+        m('section', m('div', `Container #${i + 1}`), c.renderPerfStats()),
       ),
     );
   }

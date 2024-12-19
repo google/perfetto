@@ -71,9 +71,9 @@ test('mark', async () => {
 });
 
 test('track expand and collapse', async () => {
-  const trackGroup = pth.locateTrackGroup('traced_probes 1054');
+  const trackGroup = pth.locateTrack('traced_probes 1054');
   await trackGroup.scrollIntoViewIfNeeded();
-  await trackGroup.click();
+  await pth.toggleTrackGroup(trackGroup);
   await pth.waitForIdleAndScreenshot('traced_probes_expanded.png');
 
   // Click 5 times in rapid succession.
@@ -85,7 +85,7 @@ test('track expand and collapse', async () => {
 });
 
 test('pin tracks', async () => {
-  const trackGroup = pth.locateTrackGroup('traced 1055');
+  const trackGroup = pth.locateTrack('traced 1055');
   await pth.toggleTrackGroup(trackGroup);
   let track = pth.locateTrack('traced 1055/mem.rss', trackGroup);
   await pth.pinTrackUsingShellBtn(track);
