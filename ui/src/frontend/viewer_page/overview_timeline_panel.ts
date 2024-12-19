@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,28 +13,26 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {CSSCursor} from '../../base/dom_utils';
-import {DragGestureHandler} from '../../base/drag_gesture_handler';
-import {Size2D} from '../../base/geom';
+import {DisposableStack} from '../../base/disposable_stack';
+import {toHTMLElement} from '../../base/dom_utils';
+import {Rect2D, Size2D} from '../../base/geom';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {assertUnreachable} from '../../base/logging';
+import {assertExists, assertUnreachable} from '../../base/logging';
 import {Duration, duration, Time, time, TimeSpan} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {getOrCreate} from '../../base/utils';
+import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
 import {colorForCpu} from '../../components/colorizer';
 import {raf} from '../../core/raf_scheduler';
 import {timestampFormat} from '../../core/timestamp_format';
 import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {LONG, NUM} from '../../trace_processor/query_result';
+import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
   TRACK_SHELL_WIDTH,
 } from '../css_constants';
-import {BorderDragStrategy} from '../drag/border_drag_strategy';
-import {DragStrategy} from '../drag/drag_strategy';
-import {InnerDragStrategy} from '../drag/inner_drag_strategy';
-import {OuterDragStrategy} from '../drag/outer_drag_strategy';
 import {
   generateTicks,
   getMaxMajorTicks,
@@ -42,78 +40,82 @@ import {
   TickType,
 } from './gridline_helper';
 
+const HANDLE_SIZE_PX = 5;
+
+export interface OverviewTimelineAttrs {
+  readonly trace: TraceImpl;
+  readonly className?: string;
+}
+
 const tracesData = new WeakMap<TraceImpl, OverviewDataLoader>();
 
-export class OverviewTimelinePanel {
-  private static HANDLE_SIZE_PX = 5;
-  private gesture?: DragGestureHandler;
-  private timeScale?: TimeScale;
-  private dragStrategy?: DragStrategy;
-  private readonly boundOnMouseMove = this.onMouseMove.bind(this);
+export class OverviewTimeline
+  implements m.ClassComponent<OverviewTimelineAttrs>
+{
   private readonly overviewData: OverviewDataLoader;
+  private readonly trash = new DisposableStack();
+  private interactions?: ZonedInteractionHandler;
 
-  constructor(private trace: TraceImpl) {
+  constructor({attrs}: m.CVnode<OverviewTimelineAttrs>) {
     this.overviewData = getOrCreate(
       tracesData,
-      trace,
-      () => new OverviewDataLoader(trace),
+      attrs.trace,
+      () => new OverviewDataLoader(attrs.trace),
     );
   }
 
-  oncreate(vnode: m.CVnodeDOM) {
-    (vnode.dom as HTMLElement).addEventListener(
-      'mousemove',
-      this.boundOnMouseMove,
-    );
-
-    this.gesture = new DragGestureHandler(
-      vnode.dom as HTMLElement,
-      this.onDrag.bind(this),
-      this.onDragStart.bind(this),
-      this.onDragEnd.bind(this),
-    );
-  }
-
-  onremove({dom}: m.CVnodeDOM) {
-    if (this.gesture) {
-      this.gesture[Symbol.dispose]();
-      this.gesture = undefined;
-    }
-    (dom as HTMLElement).removeEventListener(
-      'mousemove',
-      this.boundOnMouseMove,
+  view({attrs}: m.CVnode<OverviewTimelineAttrs>) {
+    return m(
+      VirtualOverlayCanvas,
+      {
+        className: attrs.className,
+        onCanvasRedraw: ({ctx, virtualCanvasSize}) => {
+          this.renderCanvas(attrs.trace, ctx, virtualCanvasSize);
+        },
+        onCanvasCreate: (overlay) => {
+          overlay.trash.use(
+            raf.addCanvasRedrawCallback(() => overlay.redrawCanvas()),
+          );
+        },
+      },
+      m('.pf-overview-timeline'),
     );
   }
 
-  render(): m.Children {
-    return m('.pf-overview-timeline', {
-      oncreate: (vnode) => this.oncreate(vnode),
-      onremove: (vnode) => this.onremove(vnode),
-    });
+  oncreate({dom}: m.VnodeDOM<OverviewTimelineAttrs, this>) {
+    this.interactions = new ZonedInteractionHandler(toHTMLElement(dom));
+    this.trash.use(this.interactions);
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
+  onremove(_: m.VnodeDOM<OverviewTimelineAttrs, this>) {
+    this.trash.dispose();
+  }
+
+  private renderCanvas(
+    trace: TraceImpl,
+    ctx: CanvasRenderingContext2D,
+    size: Size2D,
+  ) {
     if (size.width <= TRACK_SHELL_WIDTH) return;
 
-    const traceTime = this.trace.traceInfo;
+    const traceTime = trace.traceInfo;
     const pxBounds = {left: TRACK_SHELL_WIDTH, right: size.width};
     const hpTraceTime = HighPrecisionTimeSpan.fromTime(
       traceTime.start,
       traceTime.end,
     );
     const timescale = new TimeScale(hpTraceTime, pxBounds);
-    this.timeScale = timescale;
 
     const headerHeight = 20;
     const tracksHeight = size.height - headerHeight;
     const traceContext = new TimeSpan(
-      this.trace.traceInfo.start,
-      this.trace.traceInfo.end,
+      trace.traceInfo.start,
+      trace.traceInfo.end,
     );
 
     if (size.width > TRACK_SHELL_WIDTH && traceContext.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
-      const offset = this.trace.timeline.timestampOffset();
+      const offset = trace.timeline.timestampOffset();
       const tickGen = generateTicks(traceContext, maxMajorTicks, offset);
 
       // Draw time labels
@@ -125,7 +127,7 @@ export class OverviewTimelinePanel {
         if (xPos > size.width) break;
         if (type === TickType.MAJOR) {
           ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
-          const domainTime = this.trace.timeline.toDomainTime(time);
+          const domainTime = trace.timeline.toDomainTime(time);
           renderTimestamp(ctx, domainTime, xPos + 5, 18, MIN_PX_PER_STEP);
         } else if (type == TickType.MEDIUM) {
           ctx.fillRect(xPos - 1, 0, 1, 8);
@@ -161,7 +163,12 @@ export class OverviewTimelinePanel {
     ctx.fillRect(0, size.height - 1, size.width, 1);
 
     // Draw semi-opaque rects that occlude the non-visible time range.
-    const [vizStartPx, vizEndPx] = this.extractBounds(timescale);
+    const {left, right} = timescale.hpTimeSpanToPxSpan(
+      trace.timeline.visibleWindow,
+    );
+
+    const vizStartPx = Math.floor(left);
+    const vizEndPx = Math.ceil(right);
 
     ctx.fillStyle = OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
     ctx.fillRect(
@@ -177,7 +184,7 @@ export class OverviewTimelinePanel {
     ctx.fillRect(vizStartPx - 1, headerHeight, 1, tracksHeight);
     ctx.fillRect(vizEndPx, headerHeight, 1, tracksHeight);
 
-    const hbarWidth = OverviewTimelinePanel.HANDLE_SIZE_PX;
+    const hbarWidth = HANDLE_SIZE_PX;
     const hbarHeight = tracksHeight * 0.4;
     // Draw handlebar
     ctx.fillRect(
@@ -192,73 +199,79 @@ export class OverviewTimelinePanel {
       hbarWidth,
       hbarHeight,
     );
-  }
 
-  private onMouseMove(e: MouseEvent) {
-    if (this.gesture === undefined || this.gesture.isDragging) {
-      return;
-    }
-    (e.target as HTMLElement).style.cursor = this.chooseCursor(e.offsetX);
-  }
-
-  private chooseCursor(x: number): CSSCursor {
-    if (this.timeScale === undefined) return 'default';
-    const [startBound, endBound] = this.extractBounds(this.timeScale);
-    if (
-      OverviewTimelinePanel.inBorderRange(x, startBound) ||
-      OverviewTimelinePanel.inBorderRange(x, endBound)
-    ) {
-      return 'ew-resize';
-    } else if (x < TRACK_SHELL_WIDTH) {
-      return 'default';
-    } else if (x < startBound || endBound < x) {
-      return 'crosshair';
-    } else {
-      return 'all-scroll';
-    }
-  }
-
-  onDrag(x: number) {
-    if (this.dragStrategy === undefined) return;
-    this.dragStrategy.onDrag(x);
-  }
-
-  onDragStart(x: number) {
-    if (this.timeScale === undefined) return;
-
-    const cb = (vizTime: HighPrecisionTimeSpan) => {
-      this.trace.timeline.updateVisibleTimeHP(vizTime);
-      raf.scheduleCanvasRedraw();
-    };
-    const pixelBounds = this.extractBounds(this.timeScale);
-    const timeScale = this.timeScale;
-    if (
-      OverviewTimelinePanel.inBorderRange(x, pixelBounds[0]) ||
-      OverviewTimelinePanel.inBorderRange(x, pixelBounds[1])
-    ) {
-      this.dragStrategy = new BorderDragStrategy(timeScale, pixelBounds, cb);
-    } else if (x < pixelBounds[0] || pixelBounds[1] < x) {
-      this.dragStrategy = new OuterDragStrategy(timeScale, cb);
-    } else {
-      this.dragStrategy = new InnerDragStrategy(timeScale, pixelBounds, cb);
-    }
-    this.dragStrategy.onDragStart(x);
-  }
-
-  onDragEnd() {
-    this.dragStrategy = undefined;
-  }
-
-  private extractBounds(timeScale: TimeScale): [number, number] {
-    const vizTime = this.trace.timeline.visibleWindow;
-    return [
-      Math.floor(timeScale.hpTimeToPx(vizTime.start)),
-      Math.ceil(timeScale.hpTimeToPx(vizTime.end)),
-    ];
-  }
-
-  private static inBorderRange(a: number, b: number): boolean {
-    return Math.abs(a - b) < this.HANDLE_SIZE_PX / 2;
+    assertExists(this.interactions).update([
+      {
+        id: 'left-handle',
+        area: Rect2D.fromPointAndSize({
+          x: vizStartPx - Math.floor(hbarWidth / 2) - 1,
+          y: 0,
+          width: hbarWidth,
+          height: size.height,
+        }),
+        cursor: 'col-resize',
+        drag: {
+          cursorWhileDragging: 'col-resize',
+          onDrag: (event) => {
+            const delta = timescale.pxToDuration(event.deltaSinceLastEvent.x);
+            trace.timeline.moveStart(delta);
+          },
+        },
+      },
+      {
+        id: 'right-handle',
+        area: Rect2D.fromPointAndSize({
+          x: vizEndPx - Math.floor(hbarWidth / 2) - 1,
+          y: 0,
+          width: hbarWidth,
+          height: size.height,
+        }),
+        cursor: 'col-resize',
+        drag: {
+          cursorWhileDragging: 'col-resize',
+          onDrag: (event) => {
+            const delta = timescale.pxToDuration(event.deltaSinceLastEvent.x);
+            trace.timeline.moveEnd(delta);
+          },
+        },
+      },
+      {
+        id: 'drag',
+        area: new Rect2D({
+          left: vizStartPx,
+          right: vizEndPx,
+          top: 0,
+          bottom: size.height,
+        }),
+        cursor: 'grab',
+        drag: {
+          cursorWhileDragging: 'grabbing',
+          onDrag: (event) => {
+            const delta = timescale.pxToDuration(event.deltaSinceLastEvent.x);
+            trace.timeline.panVisibleWindow(delta);
+          },
+        },
+      },
+      {
+        id: 'select',
+        area: new Rect2D({
+          left: TRACK_SHELL_WIDTH,
+          right: size.width,
+          top: 0,
+          bottom: size.height,
+        }),
+        cursor: 'text',
+        drag: {
+          cursorWhileDragging: 'text',
+          onDrag: (event) => {
+            const span = timescale.pxSpanToHpTimeSpan(
+              Rect2D.fromPoints(event.dragStart, event.dragCurrent),
+            );
+            trace.timeline.updateVisibleTimeHP(span);
+          },
+        },
+      },
+    ]);
   }
 }
 

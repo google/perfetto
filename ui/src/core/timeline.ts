@@ -140,6 +140,24 @@ export class TimelineImpl implements Timeline {
     this.updateVisibleTime(new TimeSpan(start, end));
   }
 
+  moveStart(delta: number) {
+    this.updateVisibleTimeHP(
+      new HighPrecisionTimeSpan(
+        this._visibleWindow.start.addNumber(delta),
+        this.visibleWindow.duration - delta,
+      ),
+    );
+  }
+
+  moveEnd(delta: number) {
+    this.updateVisibleTimeHP(
+      new HighPrecisionTimeSpan(
+        this._visibleWindow.start,
+        this.visibleWindow.duration + delta,
+      ),
+    );
+  }
+
   // Set visible window using a high precision time span
   updateVisibleTimeHP(ts: HighPrecisionTimeSpan) {
     this._visibleWindow = ts

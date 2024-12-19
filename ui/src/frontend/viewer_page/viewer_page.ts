@@ -21,7 +21,7 @@ import {AppImpl} from '../../core/app_impl';
 import {featureFlags} from '../../core/feature_flags';
 import {PageWithTraceImplAttrs} from '../../core/page_manager';
 import {raf} from '../../core/raf_scheduler';
-import {OverviewTimeline} from './overview_timeline';
+import {OverviewTimeline} from './overview_timeline_panel';
 import {TabPanel} from './tab_panel';
 import {TimelineHeader} from './timeline_header';
 import {TrackTreeView} from './track_tree_view';
