@@ -81,7 +81,7 @@ VirtualAddressSpace VirtualAddressSpace::Builder::Build() && {
     if (node.value().end() == *end) {
       slabs.push_back(std::move(node.value()));
     }
-    // The mapping ends at this vertex, no need to split it.
+    // Split needed
     else {
       slabs.push_back(node.value().SplitFront(*end));
       mappings_.insert(std::move(node));
