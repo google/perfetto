@@ -225,13 +225,27 @@ base::StatusOr<PerCpuConfiguration> ParseAuxtraceInfo(
 // extract the various streams. AUX data is passed by the perf importer to the
 // CPU specific `AuxDataStream`, but as we just said we need to first decode
 // this data to extract the real per CPU streams, so the `EtmV4Stream` classes
-// (`AuxDataStream` subclasses) forward such data tho this class, that will
+// (`AuxDataStream` subclasses) forward such data to this class, that will
 // decode the streams and finally forward them back to the CPU specific
 // `EtmV4Stream` where it can now be handled.
 //
 // For the TRBE the data that arrives in the AUX record is unformatted and is
 // the data for that given CPU so it can be directly processed by the
 // `EtmV4Stream` class without needing to decode it first.
+//
+// Data flow for framed data (ETR):
+//   1. `PerfDataTokenizer` parses `AuxData` for cpu x and forwards it to the
+//      `AuxDataStream` bound to that cpu
+//   2. `EtmV4Stream` bound to cpu x determines AuxData is framed and forwards
+//       it to the `FrameDecoder` owned by `EtmV4StreamDemultiplexer`.
+//   3. De-multiplexed ETM data is sent to its corresponding `EtmV4Stream` where
+//      it is stored in `TraceStorage`.
+//
+// Data flow for raw data (TRBE):
+//   1. `PerfDataTokenizer` parses `AuxData` for cpu x and forwards it to the
+//      `AuxDataStream` bound to that cpu
+//   2. `EtmV4Stream` bound to cpu x determines AuxData is raw and can directly
+//      store it in `TraceStorage`.
 class EtmV4StreamDemultiplexer : public perf_importer::AuxDataTokenizer {
  public:
   explicit EtmV4StreamDemultiplexer(TraceProcessorContext* context)
