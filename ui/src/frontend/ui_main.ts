@@ -171,7 +171,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.ShareTrace',
         name: 'Share trace',
-        callback: shareTrace,
+        callback: () => shareTrace(trace),
       },
       {
         id: 'perfetto.SearchNext',
