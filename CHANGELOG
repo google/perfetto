@@ -51,6 +51,12 @@ Unreleased:
   UI:
     * Introduced `Open table:` command which would open any Perfetto Standard
       Library table in a new tab.
+    * Various improvements to timeline rendering performance.
+    * Added workspace switcher and menu to move tracks between workspaces.
+    * Completely overhauled recording page.
+    * Improved area selection UX.
+    * Improved fuzzy search.
+    * Hide 'Open with legacy UI' by default.
   SDK:
     * Added `NamedTrack`, it allows creating arbitrarily named tracks.
 
