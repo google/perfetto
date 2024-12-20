@@ -28,6 +28,7 @@ service traced_perf /system/bin/traced_perf
     group nobody readproc readtracefs
     capabilities KILL DAC_READ_SEARCH
     task_profiles ProcessCapacityHigh
+    shared_kallsyms
 
 # Daemon run state:
 # * initially off

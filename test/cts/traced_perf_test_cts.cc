@@ -32,6 +32,7 @@
 #include "protos/perfetto/common/perf_events.gen.h"
 #include "protos/perfetto/config/process_stats/process_stats_config.gen.h"
 #include "protos/perfetto/config/profiling/perf_event_config.gen.h"
+#include "protos/perfetto/trace/interned_data/interned_data.gen.h"
 #include "protos/perfetto/trace/profiling/profile_common.gen.h"
 #include "protos/perfetto/trace/profiling/profile_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -277,6 +278,75 @@ TEST(TracedPerfCtsTest, ProfilePlatformProcess) {
     AssertHasSampledStacksForPid(packets, target_pid);
   else
     AssertNoStacksForPid(packets, target_pid);
+}
+
+TEST(TracedPerfCtsTest, ProfileKernelCallstack) {
+  if (!HasPerfLsmHooks())
+    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_duration_ms(3000);
+  trace_config.set_data_source_stop_timeout_ms(8000);
+  trace_config.set_unique_session_name(RandomSessionName().c_str());
+
+  // Capture context switch callstacks from the rest of the device, as they have
+  // predictable function names for the test to assert.
+  protos::gen::PerfEventConfig perf_config;
+  auto* timebase = perf_config.mutable_timebase();
+  // We only need a few samples, and the kernel will record an early sample per
+  // core even at low "frequency" values.
+  timebase->set_frequency(1);
+  auto* tracepoint = timebase->mutable_tracepoint();
+  tracepoint->set_name("sched:sched_switch");
+
+  auto* callstacks = perf_config.mutable_callstack_sampling();
+  callstacks->set_kernel_frames(true);
+  callstacks->set_user_frames(protos::gen::PerfEventConfig::UNWIND_SKIP);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("linux.perf");
+  ds_config->set_perf_event_config_raw(perf_config.SerializeAsString());
+
+  // Collect trace.
+  base::TestTaskRunner task_runner;
+  auto packets = CollectTrace(&task_runner, trace_config);
+
+  // Assert that we're seeing the symbolised scheduling functions, while
+  // double-checking that the interning ids are unrelated to the raw addresses.
+  const uint64_t kSmallInternedId = 4096;
+  size_t unexpected_iids = 0;
+
+  size_t fname_count = 0;
+  bool found_schedule = false;
+  for (const auto& packet : packets) {
+    for (const auto& fname : packet.interned_data().function_names()) {
+      fname_count++;
+      if (fname.str() == "schedule" || fname.str() == "__schedule" ||
+          fname.str() == "preempt_schedule") {
+        found_schedule = true;
+      }
+      if (fname.iid() > kSmallInternedId) {
+        unexpected_iids++;
+      }
+    }
+    for (const auto& frame : packet.interned_data().frames()) {
+      if (frame.iid() > kSmallInternedId) {
+        unexpected_iids++;
+      }
+    }
+    if (packet.has_perf_sample() &&
+        packet.perf_sample().callstack_iid() > kSmallInternedId) {
+      unexpected_iids++;
+    }
+  }
+
+  EXPECT_TRUE(found_schedule)
+      << "Failed to find a scheduling kernel function symbol name in the "
+         "profile, total functions seen: "
+      << fname_count;
+
+  EXPECT_EQ(unexpected_iids, 0u) << "Unexpectedly high interning ids.";
 }
 
 }  // namespace

@@ -27,6 +27,7 @@
 #include "perfetto/protozero/proto_utils.h"
 
 #include <stdio.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <cinttypes>
@@ -51,17 +52,11 @@ using TokenId = KernelSymbolMap::TokenTable::TokenId;
 constexpr size_t kSymNameMaxLen = 128;
 constexpr size_t kSymMaxSizeBytes = 1024 * 1024;
 
-// Reads a kallsyms file in blocks of 4 pages each and decode its lines using
-// a simple FSM. Calls the passed lambda for each valid symbol.
-// It skips undefined symbols and other useless stuff.
+// Reads a kallsyms file and decodes its lines using a simple FSM. Calls the
+// passed lambda for each valid symbol. It skips undefined symbols and other
+// useless stuff.
 template <typename Lambda /* void(uint64_t, char, base::StringView) */>
-void ForEachSym(const std::string& kallsyms_path, Lambda fn) {
-  base::ScopedFile fd = base::OpenFile(kallsyms_path.c_str(), O_RDONLY);
-  if (!fd) {
-    PERFETTO_PLOG("Cannot open %s", kallsyms_path.c_str());
-    return;
-  }
-
+void ForEachSym(int fd, Lambda fn) {
   // /proc/kallsyms looks as follows:
   // 0000000000026a80 A bpf_trace_sds
   //
@@ -75,15 +70,20 @@ void ForEachSym(const std::string& kallsyms_path, Lambda fn) {
   static constexpr size_t kBufSize = 16 * 1024;
   base::PagedMemory buffer = base::PagedMemory::Allocate(kBufSize);
   enum { kSymAddr, kSymType, kSymName, kEatRestOfLine } state = kSymAddr;
+  off_t rd_offset = 0;
   uint64_t sym_addr = 0;
   char sym_type = '\0';
   char sym_name[kSymNameMaxLen + 1];
   size_t sym_name_len = 0;
   for (;;) {
     char* buf = static_cast<char*>(buffer.Get());
-    auto rsize = base::Read(*fd, buf, kBufSize);
+    // Use pread because on android we might be sharing an open file across
+    // processes. Even if they should be mutually excluded, not relying on a
+    // seek position is simpler to reason about.
+    ssize_t rsize = PERFETTO_EINTR(pread(fd, buf, kBufSize, rd_offset));
+    rd_offset += rsize;
     if (rsize < 0) {
-      PERFETTO_PLOG("read(%s) failed", kallsyms_path.c_str());
+      PERFETTO_PLOG("pread(kallsyms) failed");
       return;
     }
     if (rsize == 0)
@@ -234,7 +234,7 @@ base::StringView KernelSymbolMap::TokenTable::Lookup(TokenId id) {
   return base::StringView();
 }
 
-size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
+size_t KernelSymbolMap::Parse(int fd) {
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, KALLSYMS_PARSE);
   using SymAddr = uint64_t;
 
@@ -263,8 +263,12 @@ size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
   // Based on `cat /proc/kallsyms | egrep "\b[tT]\b" | wc -l`.
   symbol_tokens.reserve(128 * 1024);
 
-  ForEachSym(kallsyms_path, [&](SymAddr addr, char type,
-                                base::StringView name) {
+  if (fd < 0) {
+    PERFETTO_ELOG("Invalid kallsyms fd");
+    return 0;
+  }
+
+  ForEachSym(fd, [&](SymAddr addr, char type, base::StringView name) {
     // Special cases:
     //
     // Skip arm mapping symbols such as $x, $x.123, $d, $d.123. They exist to
