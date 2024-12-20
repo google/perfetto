@@ -29,14 +29,14 @@ export default class implements PerfettoPlugin {
       id: 'recordingv2',
       name: 'Recording V2',
       description: 'Record using V2 interface',
-      defaultValue: false,
+      defaultValue: true,
     });
     this.useRecordingV2 = RECORDING_V2_FLAG.get();
     if (this.useRecordingV2) return;
 
     app.sidebar.addMenuItem({
       section: 'navigation',
-      text: 'Record new trace',
+      text: 'Record new trace (legacy)',
       href: '#!/record',
       icon: 'fiber_smart_record',
       sortOrder: 2,
