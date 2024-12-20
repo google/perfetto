@@ -42,7 +42,7 @@ SELECT 1;
     self.assertEqual(fn.name, 'cr_table')
     self.assertEqual(fn.desc, 'Comment')
     self.assertEqual(fn.cols, {
-        'x': Arg('LONG', 'LONG', 'Column.', None),
+        'x': Arg('LONG', 'LONG', 'Column.'),
     })
 
   # Checks that when custom prefixes (cr for chrome/util) are present,
@@ -63,7 +63,7 @@ SELECT 1;
     self.assertEqual(fn.name, 'chrome_table')
     self.assertEqual(fn.desc, 'Comment')
     self.assertEqual(fn.cols, {
-        'x': Arg('LONG', 'LONG', 'Column.', None),
+        'x': Arg('LONG', 'LONG', 'Column.'),
     })
 
   # Checks that when custom prefixes (cr for chrome/util) are present,
@@ -166,7 +166,7 @@ SELECT 1 as id;
     self.assertEqual(table.desc, 'Table comment.')
     self.assertEqual(table.type, 'TABLE')
     self.assertEqual(table.cols, {
-        'id': Arg('LONG', 'LONG', 'Id of slice.', None),
+        'id': Arg('LONG', 'LONG', 'Id of slice.'),
     })
 
   def test_perfetto_view_with_schema(self):
@@ -189,8 +189,8 @@ SELECT 1;
     self.assertEqual(table.type, 'VIEW')
     self.assertEqual(
         table.cols, {
-            'foo': Arg('LONG', 'LONG', 'Foo.', None),
-            'bar': Arg('STRING', 'STRING', 'Bar.', None),
+            'foo': Arg('LONG', 'LONG', 'Foo.'),
+            'bar': Arg('STRING', 'STRING', 'Bar.'),
         })
 
   def test_function_with_new_style_docs(self):
@@ -214,8 +214,8 @@ SELECT 1;
     self.assertEqual(fn.desc, 'Function foo.')
     self.assertEqual(
         fn.args, {
-            'utid': Arg('LONG', 'LONG', 'Utid of thread.', None),
-            'name': Arg('STRING', 'STRING', 'String name.', None),
+            'utid': Arg('LONG', 'LONG', 'Utid of thread.'),
+            'name': Arg('STRING', 'STRING', 'String name.'),
         })
     self.assertEqual(fn.return_type, 'BOOL')
     self.assertEqual(fn.return_desc, 'Exists.')
@@ -241,10 +241,10 @@ SELECT 1;
     self.assertEqual(fn.name, 'foo_fn')
     self.assertEqual(fn.desc, 'Function foo.')
     self.assertEqual(fn.args, {
-        'utid': Arg('LONG', 'LONG', 'Utid of thread.', None),
+        'utid': Arg('LONG', 'LONG', 'Utid of thread.'),
     })
     self.assertEqual(fn.cols, {
-        'count': Arg('LONG', 'LONG', 'Count.', None),
+        'count': Arg('LONG', 'LONG', 'Count.'),
     })
 
   def test_function_with_new_style_docs_multiline_comment(self):
@@ -268,7 +268,7 @@ SELECT 1;
     self.assertEqual(fn.name, 'foo_fn')
     self.assertEqual(fn.desc, 'Function foo.')
     self.assertEqual(fn.args, {
-        'arg': Arg('LONG', 'LONG', 'Multi line  comment.', None),
+        'arg': Arg('LONG', 'LONG', 'Multi line  comment.'),
     })
     self.assertEqual(fn.return_type, 'BOOL')
     self.assertEqual(fn.return_desc, 'Exists.')
@@ -294,7 +294,7 @@ SELECT 1;
     self.assertEqual(fn.name, 'foo_fn')
     self.assertEqual(fn.desc, 'Function foo.')
     self.assertEqual(fn.args, {
-        'arg': Arg('LONG', 'LONG', 'Arg', None),
+        'arg': Arg('LONG', 'LONG', 'Arg'),
     })
     self.assertEqual(fn.return_type, 'BOOL')
     self.assertEqual(fn.return_desc, 'Multi line return comment.')
@@ -360,7 +360,7 @@ SELECT 1;
     self.assertEqual(fn.name, 'foo_fn')
     self.assertEqual(fn.desc, 'Function foo.')
     self.assertEqual(fn.args, {
-        'utid': Arg('LONG', 'LONG', 'Utid of thread (important).', None),
+        'utid': Arg('LONG', 'LONG', 'Utid of thread (important).'),
     })
     self.assertEqual(fn.return_type, 'BOOL')
     self.assertEqual(fn.return_desc, 'Exists.')
@@ -396,7 +396,7 @@ SELECT 1;
     self.assertEqual(macro.name, 'foo_macro')
     self.assertEqual(macro.desc, 'Macro')
     self.assertEqual(macro.args, {
-        'x': Arg('TableOrSubquery', 'TableOrSubquery', 'x Arg.', None),
+        'x': Arg('TableOrSubquery', 'TableOrSubquery', 'x Arg.'),
     })
     self.assertEqual(macro.return_type, 'TableOrSubquery')
     self.assertEqual(macro.return_desc, 'Exists.')
