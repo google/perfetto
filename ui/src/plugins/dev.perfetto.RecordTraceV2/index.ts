@@ -44,7 +44,7 @@ export default class implements PerfettoPlugin {
     if (!RecordingV1Plugin.useRecordingV2) return;
     app.sidebar.addMenuItem({
       section: 'navigation',
-      text: 'Record new trace (V2)',
+      text: 'Record new trace',
       href: '#!/record',
       icon: 'fiber_smart_record',
       sortOrder: 2,
