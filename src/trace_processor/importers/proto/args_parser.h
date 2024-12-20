@@ -41,7 +41,7 @@ class ArgsParser : public util::ProtoToArgsParser::Delegate {
   void AddString(const Key&, const protozero::ConstChars&) override;
   void AddString(const Key&, const std::string&) override;
   void AddDouble(const Key&, double) override;
-  void AddPointer(const Key&, const void*) override;
+  void AddPointer(const Key&, uint64_t) override;
   void AddBoolean(const Key&, bool) override;
   void AddBytes(const Key&, const protozero::ConstBytes&) override;
   bool AddJson(const Key&, const protozero::ConstChars&) override;
