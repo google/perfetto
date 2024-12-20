@@ -100,7 +100,7 @@ ffffff8f73e2faa0 t tls_get.cfi_jt
   KernelSymbolMap kallsyms;
   EXPECT_EQ(kallsyms.Lookup(0x42), "");
 
-  kallsyms.Parse(tmp.path().c_str());
+  kallsyms.Parse(*base::OpenFile(tmp.path().c_str(), O_RDONLY));
   EXPECT_EQ(kallsyms.num_syms(), 10u);
 
   // Test first exact lookups.
@@ -157,7 +157,7 @@ TEST(KernelSymbolMapTest, GoldenTest) {
   base::FlushFile(tmp.fd());
 
   KernelSymbolMap kallsyms;
-  kallsyms.Parse(tmp.path().c_str());
+  kallsyms.Parse(*base::OpenFile(tmp.path().c_str(), O_RDONLY));
   ASSERT_EQ(kallsyms.num_syms(), symbols.size());
   for (const auto& kv : symbols) {
     ASSERT_EQ(kallsyms.Lookup(kv.first), kv.second);
