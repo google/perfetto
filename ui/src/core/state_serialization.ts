@@ -179,7 +179,7 @@ export function deserializeAppStatePhase2(
 
   // Restore the pinned tracks, if they exist.
   for (const uri of appState.pinnedTracks) {
-    const track = trace.workspace.findTrackByUri(uri);
+    const track = trace.workspace.getTrackByUri(uri);
     if (track) {
       track.pin();
     }
