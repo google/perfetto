@@ -21,7 +21,7 @@ INCLUDE PERFETTO MODULE slices.with_context;
 -- provides timing information for each processing stage.
 CREATE PERFETTO TABLE pixel_camera_frames(
   -- Unique identifier for this slice.
-  id JOINID(slice.id),
+  id ID(slice.id),
   -- Start timestamp of the slice.
   ts TIMESTAMP,
   -- Duration of the slice execution.
