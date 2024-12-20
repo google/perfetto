@@ -25,120 +25,63 @@ import {SqlTableSliceTrackDetailsPanel} from '../../components/tracks/sql_table_
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
+import {
+  QueryResult,
+  Row,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
+import {escapeQuery} from '../../trace_processor/query_utils';
 
 interface StepTemplate {
-  step_name: string;
-  ts_column_name: string;
-  dur_column_name: string;
+  // The name of a stage of a scroll.
+  // WARNING: This could be an arbitrary string so it MUST BE ESCAPED before
+  // using in an SQL query.
+  stepName: string;
+  // The name of the column in `chrome_scroll_update_info` which contains the
+  // timestamp of the step. If not null, this is guaranteed to be a valid column
+  // name, i.e. it's safe to use inline in an SQL query without any additional
+  // sanitization.
+  tsColumnName: string | null;
+  // The name of the column in `chrome_scroll_update_info` which contains the
+  // duration of the step. Null if the stage doesn't have a duration. If not
+  // null, this is guaranteed to be a valid column name, i.e. it's safe to use
+  // inline in an SQL query without any additional sanitization.
+  durColumnName: string | null;
 }
 
-// TODO: b/383547343 - Migrate STEP_TEMPLATES to a Chrome tracing stdlib table
-// once it's stable.
-const STEP_TEMPLATES: readonly StepTemplate[] = [
-  {
-    step_name: 'GenerationToBrowserMain',
-    ts_column_name: 'generation_ts',
-    dur_column_name: 'generation_to_browser_main_dur',
-  },
-  {
-    step_name: 'TouchMoveProcessing',
-    ts_column_name: 'touch_move_received_ts',
-    dur_column_name: 'touch_move_processing_dur',
-  },
-  {
-    step_name: 'ScrollUpdateProcessing',
-    ts_column_name: 'scroll_update_created_ts',
-    dur_column_name: 'scroll_update_processing_dur',
-  },
-  {
-    step_name: 'BrowserMainToRendererCompositor',
-    ts_column_name: 'scroll_update_created_end_ts',
-    dur_column_name: 'browser_to_compositor_delay_dur',
-  },
-  {
-    step_name: 'RendererCompositorDispatch',
-    ts_column_name: 'compositor_dispatch_ts',
-    dur_column_name: 'compositor_dispatch_dur',
-  },
-  {
-    step_name: 'RendererCompositorDispatchToOnBeginFrame',
-    ts_column_name: 'compositor_dispatch_end_ts',
-    dur_column_name: 'compositor_dispatch_to_on_begin_frame_delay_dur',
-  },
-  {
-    step_name: 'RendererCompositorBeginFrame',
-    ts_column_name: 'compositor_on_begin_frame_ts',
-    dur_column_name: 'compositor_on_begin_frame_dur',
-  },
-  {
-    step_name: 'RendererCompositorBeginToGenerateFrame',
-    ts_column_name: 'compositor_on_begin_frame_end_ts',
-    dur_column_name: 'compositor_on_begin_frame_to_generation_delay_dur',
-  },
-  {
-    step_name: 'RendererCompositorGenerateToSubmitFrame',
-    ts_column_name: 'compositor_generate_compositor_frame_ts',
-    dur_column_name: 'compositor_generate_frame_to_submit_frame_dur',
-  },
-  {
-    step_name: 'RendererCompositorSubmitFrame',
-    ts_column_name: 'compositor_submit_compositor_frame_ts',
-    dur_column_name: 'compositor_submit_frame_dur',
-  },
-  {
-    step_name: 'RendererCompositorToViz',
-    ts_column_name: 'compositor_submit_compositor_frame_end_ts',
-    dur_column_name: 'compositor_to_viz_delay_dur',
-  },
-  {
-    step_name: 'VizReceiveFrame',
-    ts_column_name: 'viz_receive_compositor_frame_ts',
-    dur_column_name: 'viz_receive_compositor_frame_dur',
-  },
-  {
-    step_name: 'VizReceiveToDrawFrame',
-    ts_column_name: 'viz_receive_compositor_frame_end_ts',
-    dur_column_name: 'viz_wait_for_draw_dur',
-  },
-  {
-    step_name: 'VizDrawToSwapFrame',
-    ts_column_name: 'viz_draw_and_swap_ts',
-    dur_column_name: 'viz_draw_and_swap_dur',
-  },
-  {
-    step_name: 'VizToGpu',
-    ts_column_name: 'viz_send_buffer_swap_end_ts',
-    dur_column_name: 'viz_to_gpu_delay_dur',
-  },
-  {
-    step_name: 'VizSwapBuffers',
-    ts_column_name: 'viz_swap_buffers_ts',
-    dur_column_name: 'viz_swap_buffers_dur',
-  },
-  {
-    step_name: 'VizSwapBuffersToLatch',
-    ts_column_name: 'viz_swap_buffers_end_ts',
-    dur_column_name: 'viz_swap_buffers_to_latch_dur',
-  },
-  {
-    step_name: 'VizLatchToSwapEnd',
-    ts_column_name: 'latch_timestamp',
-    dur_column_name: 'viz_latch_to_swap_end_dur',
-  },
-  {
-    step_name: 'VizSwapEndToPresentation',
-    ts_column_name: 'swap_end_timestamp',
-    dur_column_name: 'swap_end_to_presentation_dur',
-  },
-  {
-    // An artificial step to ensure that presentation_timestamp is included in
-    // the calculation of scroll_update_bounds. It's filtered out in
-    // unordered_slices due to NULL duration.
-    step_name: '',
-    ts_column_name: 'presentation_timestamp',
-    dur_column_name: 'NULL',
-  },
-];
+/** Returns an array of the rows in `queryResult`. */
+function rows<R extends Row>(queryResult: QueryResult, spec: R): R[] {
+  const results: R[] = [];
+  for (const it = queryResult.iter(spec); it.valid(); it.next()) {
+    const row: Row = {};
+    for (const key of Object.keys(spec)) {
+      row[key] = it[key];
+    }
+    results.push(row as R);
+  }
+  return results;
+}
+
+/**
+ * If `allowedColumnNames` contains `columnName`, returns `columnName`.
+ * Otherwise, returns null.
+ */
+function checkColumnNameIsValidOrReturnNull(
+  columnName: string | null,
+  allowedColumnNames: Set<string>,
+  errorMessagePrefix: string,
+): string | null {
+  if (columnName == null || allowedColumnNames.has(columnName)) {
+    return columnName;
+  } else {
+    console.error(
+      `${errorMessagePrefix}: ${columnName}
+      (allowed column names: ${Array.from(allowedColumnNames).join(', ')})`,
+    );
+    return null;
+  }
+}
 
 export class ScrollTimelineTrack extends NamedSliceTrack<Slice, NamedRow> {
   private readonly tableName;
@@ -147,9 +90,11 @@ export class ScrollTimelineTrack extends NamedSliceTrack<Slice, NamedRow> {
     super(trace, uri);
     this.tableName = `scrolltimelinetrack_${sqlNameSafe(uri)}`;
   }
+
   override async onInit(): Promise<AsyncDisposable> {
     await super.onInit();
     await this.engine.query(`INCLUDE PERFETTO MODULE chrome.chrome_scrolls;`);
+    const stepTemplates = await this.queryStepTemplates();
     // TODO: b/383549233 - Set ts+dur of each scroll update directly based on
     // our knowledge of the scrolling pipeline (as opposed to aggregating over
     // scroll_steps).
@@ -160,16 +105,18 @@ export class ScrollTimelineTrack extends NamedSliceTrack<Slice, NamedRow> {
         -- Unpivot all ts+dur columns into rows. Each row corresponds to a step
         -- of a particular scroll update. Some of the rows might have null
         -- ts/dur values, which will be filtered out in unordered_slices.
-        -- |scroll_steps| = |chrome_scroll_update_info| * |STEP_TEMPLATES|
-        scroll_steps AS (${STEP_TEMPLATES.map(
-          (step) => `
-          SELECT
-            id AS scroll_id,
-            ${step.ts_column_name} AS ts,
-            ${step.dur_column_name} AS dur,
-            '${step.step_name}' AS name
-          FROM chrome_scroll_update_info`,
-        ).join(' UNION ALL ')}),
+        -- |scroll_steps| = |chrome_scroll_update_info| * |stepTemplates|
+        scroll_steps AS (${stepTemplates
+          .map(
+            (step) => `
+              SELECT
+                id AS scroll_id,
+                ${step.tsColumnName ?? 'NULL'} AS ts,
+                ${step.durColumnName ?? 'NULL'} AS dur,
+                ${escapeQuery(step.stepName)} AS name
+              FROM chrome_scroll_update_info`,
+          )
+          .join(' UNION ALL ')}),
         -- For each scroll update, find its ts+dur by aggregating over all steps
         -- within the scroll update. We're basically trying to find MIN(COL1_ts,
         -- COL2_ts, ..., COLn_ts) and MAX(COL1_ts, COL2_ts, ..., COLn_ts) from
@@ -228,6 +175,63 @@ export class ScrollTimelineTrack extends NamedSliceTrack<Slice, NamedRow> {
       FROM unordered_slices
       ORDER BY ts ASC`,
     );
+  }
+
+  /**
+   * Queries scroll step templates from
+   * `chrome_scroll_update_info_step_templates`.
+   *
+   * This function sanitizes the column names `StepTemplate.ts_column_name` and
+   * `StepTemplate.dur_column_name`. Unless null, the returned column names are
+   * guaranteed to be valid column names of `chrome_scroll_update_info`.
+   */
+  private async queryStepTemplates(): Promise<StepTemplate[]> {
+    // Use a set for faster lookups.
+    const columnNames = new Set(
+      await this.queryChromeScrollUpdateInfoColumnNames(),
+    );
+    const stepTemplatesResult = await this.engine.query(`
+      INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
+      SELECT
+        step_name,
+        ts_column_name,
+        dur_column_name
+      FROM chrome_scroll_update_info_step_templates;`);
+    return rows(stepTemplatesResult, {
+      step_name: STR,
+      ts_column_name: STR_NULL,
+      dur_column_name: STR_NULL,
+    }).map(
+      // We defensively verify that the column names actually exist in the
+      // `chrome_scroll_update_info` table. We do this because we cannot update
+      // the `chrome_scroll_update_info` table and this plugin atomically
+      // (`chrome_scroll_update_info` is a part of the Chrome tracing stdlib,
+      // whose source of truth is in the Chromium repository).
+      (row) => ({
+        stepName: row.step_name,
+        tsColumnName: checkColumnNameIsValidOrReturnNull(
+          row.ts_column_name,
+          columnNames,
+          'Invalid ts_column_name in chrome_scroll_update_info_step_templates',
+        ),
+        durColumnName: checkColumnNameIsValidOrReturnNull(
+          row.dur_column_name,
+          columnNames,
+          'Invalid dur_column_name in chrome_scroll_update_info_step_templates',
+        ),
+      }),
+    );
+  }
+
+  /** Returns the names of columns of the `chrome_scroll_update_info` table. */
+  private async queryChromeScrollUpdateInfoColumnNames(): Promise<string[]> {
+    // See https://www.sqlite.org/pragma.html#pragfunc and
+    // https://www.sqlite.org/pragma.html#pragma_table_info for more information
+    // about `pragma_table_info`.
+    const columnNamesResult = await this.engine.query(`
+      INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
+      SELECT name FROM pragma_table_info('chrome_scroll_update_info');`);
+    return rows(columnNamesResult, {name: STR}).map((row) => row.name);
   }
 
   override getSqlSource(): string {
