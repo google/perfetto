@@ -27,7 +27,6 @@ import {
 } from './recording_interfaces_v2';
 import {RECORDING_IN_PROGRESS} from './recording_utils';
 import {targetFactoryRegistry} from './target_factory_registry';
-import {scheduleFullRedraw} from '../../../widgets/raf';
 import {App} from '../../../public/app';
 
 // The recording page can be in any of these states. It can transition between
@@ -219,7 +218,7 @@ export class RecordingPageController {
     }
     this.setState(state);
     this.recMgr.setRecordingStatus(undefined);
-    scheduleFullRedraw();
+    this.app.raf.scheduleFullRedraw();
   }
 
   maybeClearRecordingState(tracingSessionWrapper: TracingSessionWrapper): void {
@@ -313,11 +312,11 @@ export class RecordingPageController {
 
     if (!this.target) {
       this.setState(RecordingState.NO_TARGET);
-      scheduleFullRedraw();
+      this.app.raf.scheduleFullRedraw();
       return;
     }
     this.setState(RecordingState.TARGET_SELECTED);
-    scheduleFullRedraw();
+    this.app.raf.scheduleFullRedraw();
 
     this.tracingSessionWrapper = this.createTracingSessionWrapper(this.target);
     this.tracingSessionWrapper.fetchTargetInfo();
@@ -328,7 +327,7 @@ export class RecordingPageController {
     // If the change happens for an existing target, the controller keeps the
     // currently selected target in focus.
     if (this.target && allTargets.includes(this.target)) {
-      scheduleFullRedraw();
+      this.app.raf.scheduleFullRedraw();
       return;
     }
     // If the change happens to a new target or the controller does not have a
@@ -348,7 +347,7 @@ export class RecordingPageController {
     this.recMgr.setRecordingStatus(undefined);
     // Redrawing because this method has changed the RecordingState, which will
     // affect the display of the record_page.
-    scheduleFullRedraw();
+    this.app.raf.scheduleFullRedraw();
   }
 
   private setState(state: RecordingState) {

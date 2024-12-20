@@ -44,10 +44,9 @@ import {
   ZonedInteractionHandler,
 } from '../../base/zoned_interaction_handler';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
-import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {TrackNode} from '../../public/workspace';
-import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
+import {VirtualOverlayCanvas} from '../../components/widgets/virtual_overlay_canvas';
 import {
   SELECTION_STROKE_COLOR,
   TRACK_BORDER_COLOR,
@@ -172,6 +171,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     return m(
       VirtualOverlayCanvas,
       {
+        raf: attrs.trace.raf,
         className: classNames(className, 'pf-track-tree'),
         scrollAxes: 'y',
         onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {
@@ -198,11 +198,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               m.redraw();
             }
           }
-        },
-        onCanvasCreate: (overlay) => {
-          overlay.trash.use(
-            raf.addCanvasRedrawCallback(() => overlay.redrawCanvas()),
-          );
         },
       },
       m(

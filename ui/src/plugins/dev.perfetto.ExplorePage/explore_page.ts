@@ -34,7 +34,6 @@ import {
 } from '../../widgets/split_panel';
 import {Trace} from '../../public/trace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import {scheduleFullRedraw} from '../../widgets/raf';
 
 export interface ExploreTableState {
   sqlTableViewState?: SqlTableViewState;
@@ -148,7 +147,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         icon: Icons.Close,
         onclick: () => {
           charts.delete(chart);
-          scheduleFullRedraw();
         },
       }),
       renderChartComponent(chart),

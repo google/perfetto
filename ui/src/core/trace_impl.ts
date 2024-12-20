@@ -52,6 +52,7 @@ import {SerializedAppState} from './state_serialization_schema';
 import {PostedTrace} from './trace_source';
 import {PerfManager} from './perf_manager';
 import {EvtSource} from '../base/events';
+import {Raf} from '../public/raf';
 
 /**
  * Handles the per-trace state of the UI
@@ -419,8 +420,8 @@ export class TraceImpl implements Trace {
     };
   }
 
-  scheduleFullRedraw(): void {
-    this.appImpl.scheduleFullRedraw();
+  get raf(): Raf {
+    return this.appImpl.raf;
   }
 
   navigate(newHash: string): void {

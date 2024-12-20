@@ -333,7 +333,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
   private onMouseDown = (e: Event) => {
     // We need to schedule a redraw manually as this event handler was added
     // manually to the DOM and doesn't use Mithril's auto-redraw system.
-    raf.scheduleFullRedraw('force');
+    raf.scheduleFullRedraw();
 
     // Don't close if the click was within ourselves or our popup.
     if (e.target instanceof Node) {
@@ -349,7 +349,6 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
 
   private close(attrs: OmniboxAttrs): void {
     const {onClose = () => {}} = attrs;
-    raf.scheduleFullRedraw();
     onClose();
   }
 

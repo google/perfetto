@@ -26,7 +26,6 @@ import {
   COUNT_AGGREGATION,
 } from '../core/pivot_table_types';
 import {AreaSelection} from '../public/selection';
-import {raf} from '../core/raf_scheduler';
 import {ColumnType} from '../trace_processor/query_result';
 import {
   aggregationIndex,
@@ -172,7 +171,6 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       {
         onclick: () => {
           tree.isCollapsed = !tree.isCollapsed;
-          raf.scheduleFullRedraw();
         },
       },
       m('i.material-icons', tree.isCollapsed ? 'expand_more' : 'expand_less'),

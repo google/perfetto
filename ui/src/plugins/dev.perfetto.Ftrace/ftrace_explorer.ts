@@ -174,7 +174,6 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
         this.pagination.count,
         attrs.filterStore.state,
       );
-      attrs.trace.scheduleFullRedraw();
     });
   }
 

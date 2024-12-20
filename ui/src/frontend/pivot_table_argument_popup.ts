@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {raf} from '../core/raf_scheduler';
 
 interface ArgumentPopupArgs {
   onArgumentChange: (arg: string) => void;
@@ -26,7 +25,6 @@ export class ArgumentPopup implements m.ClassComponent<ArgumentPopupArgs> {
   setArgument(attrs: ArgumentPopupArgs, arg: string) {
     this.argument = arg;
     attrs.onArgumentChange(arg);
-    raf.scheduleFullRedraw();
   }
 
   view({attrs}: m.Vnode<ArgumentPopupArgs>): m.Child {

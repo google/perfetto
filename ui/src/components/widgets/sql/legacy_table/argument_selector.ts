@@ -22,7 +22,6 @@ import {
   LegacyTableManager,
 } from './column';
 import {TextInput} from '../../../../widgets/text_input';
-import {scheduleFullRedraw} from '../../../../widgets/raf';
 import {hasModKey, modKey} from '../../../../base/hotkeys';
 import {MenuItem} from '../../../../widgets/menu';
 import {uuidv4} from '../../../../base/uuid';
@@ -82,7 +81,6 @@ export class ArgumentSelector
           oninput: (event: Event) => {
             const eventTarget = event.target as HTMLTextAreaElement;
             this.searchText = eventTarget.value;
-            scheduleFullRedraw();
           },
           onkeydown: (event: KeyboardEvent) => {
             if (filtered.length === 0) return;

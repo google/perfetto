@@ -20,7 +20,6 @@ import {
   SpanNote,
 } from '../public/note';
 import {randomColor} from '../components/colorizer';
-import {raf} from './raf_scheduler';
 
 export class NoteManagerImpl implements NoteManager {
   private _lastNodeId = 0;
@@ -55,7 +54,6 @@ export class NoteManagerImpl implements NoteManager {
       color: args.color ?? randomColor(),
       text: args.text ?? '',
     });
-    raf.scheduleFullRedraw();
     return id;
   }
 
@@ -68,7 +66,6 @@ export class NoteManagerImpl implements NoteManager {
       color: args.color ?? randomColor(),
       text: args.text ?? '',
     });
-    raf.scheduleFullRedraw();
     return id;
   }
 
@@ -81,11 +78,9 @@ export class NoteManagerImpl implements NoteManager {
       color: args.color ?? note.color,
       text: args.text ?? note.text,
     });
-    raf.scheduleFullRedraw();
   }
 
   removeNote(id: string) {
-    raf.scheduleFullRedraw();
     this._notes.delete(id);
     this.onNoteDeleted?.(id);
   }

@@ -137,9 +137,7 @@ export class ScrollJankV3DetailsPanel implements TrackEventDetailsPanel {
     };
 
     await this.loadJankyFrames();
-
     await this.loadSlices();
-    this.trace.scheduleFullRedraw();
   }
 
   private hasCause(): boolean {

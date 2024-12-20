@@ -237,7 +237,6 @@ export class SelectionManagerImpl implements SelectionManager {
   private setSelection(selection: Selection, opts?: SelectionOpts) {
     this._selection = selection;
     this.onSelectionChange(selection, opts ?? {});
-    raf.scheduleFullRedraw();
 
     if (opts?.scrollToSelection) {
       this.scrollToCurrentSelection();

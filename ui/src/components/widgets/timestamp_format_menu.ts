@@ -31,7 +31,6 @@ export class TimestampFormatMenuItem
         active: value === attrs.trace.timeline.timestampFormat,
         onclick: () => {
           attrs.trace.timeline.timestampFormat = value;
-          attrs.trace.scheduleFullRedraw();
         },
       });
     }

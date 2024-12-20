@@ -25,7 +25,6 @@ import {AdbOverWebUsb} from './adb';
 import {isGetCategoriesResponse} from './chrome_proxy_record_controller';
 import {RecordConfig, createEmptyRecordConfig} from './record_config_types';
 import {RecordController} from './record_controller';
-import {scheduleFullRedraw} from '../../widgets/raf';
 import {App} from '../../public/app';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
@@ -145,7 +144,7 @@ export class RecordingManager {
         (message: object, _port: chrome.runtime.Port) => {
           if (isGetCategoriesResponse(message)) {
             this._state.chromeCategories = message.categories;
-            scheduleFullRedraw();
+            this.app.raf.scheduleFullRedraw();
             return;
           }
           extensionLocalChannel.port2.postMessage(message);
@@ -180,7 +179,7 @@ export class RecordingManager {
 
     this.setAvailableAdbDevices(availableAdbDevices);
     this.selectAndroidDeviceIfAvailable(availableAdbDevices, recordingTarget);
-    scheduleFullRedraw();
+    this.app.raf.scheduleFullRedraw();
     return availableAdbDevices;
   }
 

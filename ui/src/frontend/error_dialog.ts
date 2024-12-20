@@ -230,7 +230,6 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
   }
 
   private onUploadCheckboxChange(checked: boolean) {
-    raf.scheduleFullRedraw();
     this.attachTrace = checked;
 
     if (
@@ -242,7 +241,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
       this.uploadStatus = '';
       const uploader = new GcsUploader(this.traceData, {
         onProgress: () => {
-          raf.scheduleFullRedraw('force');
+          raf.scheduleFullRedraw();
           this.uploadStatus = uploader.getEtaString();
           if (uploader.state === 'UPLOADED') {
             this.traceState = 'UPLOADED';

@@ -90,7 +90,6 @@ export class SearchManagerImpl {
         raf.scheduleFullRedraw();
       });
     }
-    raf.scheduleFullRedraw();
   }
 
   reset() {
@@ -158,7 +157,6 @@ export class SearchManagerImpl {
         source: this._results.sources[this._resultIndex],
       });
     }
-    raf.scheduleFullRedraw();
   }
 
   private setResultIndexWithSaturation(nextIndex: number) {

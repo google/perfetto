@@ -43,7 +43,7 @@ export class CommandManagerImpl implements CommandManager {
   runCommand(id: string, ...args: unknown[]): unknown {
     const cmd = this.registry.get(id);
     const res = cmd.callback(...args);
-    Promise.resolve(res).finally(() => raf.scheduleFullRedraw('force'));
+    Promise.resolve(res).finally(() => raf.scheduleFullRedraw());
     return res;
   }
 

@@ -20,7 +20,6 @@ import {isString, shallowEquals} from '../../base/object_utils';
 import {SimpleResizeObserver} from '../../base/resize_observer';
 import {Engine} from '../../trace_processor/engine';
 import {QueryError} from '../../trace_processor/query_result';
-import {scheduleFullRedraw} from '../../widgets/raf';
 import {Spinner} from '../../widgets/spinner';
 
 function isVegaLite(spec: unknown): boolean {
@@ -228,7 +227,7 @@ class VegaWrapper {
     }
     this._status = Status.Done;
     this.pending = undefined;
-    scheduleFullRedraw('force');
+    m.redraw();
   }
 
   private handleError(pending: Promise<vega.View>, err: unknown) {
@@ -242,7 +241,7 @@ class VegaWrapper {
   private setError(err: unknown) {
     this._status = Status.Error;
     this._error = getErrorMessage(err);
-    scheduleFullRedraw('force');
+    m.redraw();
   }
 
   [Symbol.dispose]() {
