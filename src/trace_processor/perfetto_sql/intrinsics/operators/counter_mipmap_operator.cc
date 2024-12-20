@@ -102,8 +102,7 @@ int CounterMipmapOperator::Create(sqlite3* db,
   }
   do {
     int64_t ts = sqlite3_column_int64(res->stmt.sqlite_stmt(), 0);
-    auto value =
-        static_cast<float>(sqlite3_column_double(res->stmt.sqlite_stmt(), 1));
+    auto value = sqlite3_column_double(res->stmt.sqlite_stmt(), 1);
     state->timestamps.push_back(ts);
     state->forest.Push(Counter{value, value});
   } while (res->stmt.Step());
@@ -239,10 +238,10 @@ int CounterMipmapOperator::Column(sqlite3_vtab_cursor* cursor,
   const auto& res = c->counters[c->index];
   switch (N) {
     case ColumnIndex::kMinValue:
-      sqlite::result::Double(ctx, static_cast<double>(res.min_max_counter.min));
+      sqlite::result::Double(ctx, res.min_max_counter.min);
       return SQLITE_OK;
     case ColumnIndex::kMaxValue:
-      sqlite::result::Double(ctx, static_cast<double>(res.min_max_counter.max));
+      sqlite::result::Double(ctx, res.min_max_counter.max);
       return SQLITE_OK;
     case ColumnIndex::kLastTs:
       sqlite::result::Long(ctx, res.last_ts);
@@ -250,7 +249,7 @@ int CounterMipmapOperator::Column(sqlite3_vtab_cursor* cursor,
     case ColumnIndex::kLastValue:
       PERFETTO_DCHECK(
           std::equal_to<>()(res.last_counter.min, res.last_counter.max));
-      sqlite::result::Double(ctx, static_cast<double>(res.last_counter.min));
+      sqlite::result::Double(ctx, res.last_counter.min);
       return SQLITE_OK;
     default:
       return sqlite::utils::SetError(t, "Bad column");
