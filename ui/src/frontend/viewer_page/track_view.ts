@@ -414,10 +414,7 @@ export class TrackView {
       // using _ = autoTimer();
       const uri = searchResults.trackUris[searchIndex];
       // Highlight if this or any children match the search results
-      if (
-        uri === node.uri ||
-        node.flatTracksOrdered.find((t) => t.uri === uri)
-      ) {
+      if (uri === node.uri || node.findTrackByUri(uri)) {
         return true;
       }
     }
@@ -514,8 +511,8 @@ export class TrackView {
       // if this track is a summary track and some of its children are in the
       // area selection, highlight this track as if it were in the area
       // selection too.
-      selected = this.node.flatTracks.some(
-        (track) => track.uri && selection.trackUris.includes(track.uri),
+      selected = selection.trackUris.some((uri) =>
+        this.node.findTrackByUri(uri),
       );
     } else {
       // For non-summary tracks, simply highlight this track if it's in the area
