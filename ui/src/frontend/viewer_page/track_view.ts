@@ -64,6 +64,8 @@ function getTrackHeight(node: TrackNode, track?: Track) {
 }
 
 export interface TrackViewAttrs {
+  // Render a lighter version of this track view (for when tracks are offscreen).
+  readonly lite: boolean;
   readonly scrollToOnCreate?: boolean;
   readonly reorderable?: boolean;
   readonly depth: number;
@@ -107,15 +109,17 @@ export class TrackView {
     const {scrollToOnCreate, reorderable = false} = attrs;
     const {node, renderer, height} = this;
 
-    const buttons = [
-      renderer?.track.getTrackShellButtons?.(),
-      node.removable && this.renderCloseButton(),
-      // We don't want summary tracks to be pinned as they rarely have
-      // useful information.
-      !node.isSummary && this.renderPinButton(),
-      this.renderTrackMenuButton(),
-      this.renderAreaSelectionCheckbox(),
-    ];
+    const buttons = attrs.lite
+      ? []
+      : [
+          renderer?.track.getTrackShellButtons?.(),
+          node.removable && this.renderCloseButton(),
+          // We don't want summary tracks to be pinned as they rarely have
+          // useful information.
+          !node.isSummary && this.renderPinButton(),
+          this.renderTrackMenuButton(),
+          this.renderAreaSelectionCheckbox(),
+        ];
 
     let scrollIntoView = false;
     const tracks = this.trace.tracks;
@@ -144,6 +148,7 @@ export class TrackView {
         depth: attrs.depth,
         stickyTop: attrs.stickyTop,
         pluginId: renderer?.desc.pluginId,
+        lite: attrs.lite,
         onToggleCollapsed: () => {
           node.hasChildren && node.toggleCollapsed();
         },

@@ -1381,6 +1381,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           multipleTracks: false,
           reorderable: false,
           depth: 0,
+          lite: false,
         },
       }),
       m(WidgetShowcase, {

@@ -101,6 +101,10 @@ export interface TrackShellAttrs extends HTMLAttrs {
   // The ID of the plugin that created this track.
   readonly pluginId?: string;
 
+  // Render a lighter version of the track shell, with no buttons or chips, just
+  // the track title.
+  readonly lite?: boolean;
+
   // Called when the track is expanded or collapsed (when the node is clicked).
   onToggleCollapsed?(): void;
 
@@ -116,7 +120,6 @@ export interface TrackShellAttrs extends HTMLAttrs {
 }
 
 export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
-  private readonly trash = new DisposableStack();
   private mouseDownPos?: Vector2D;
   private selectionOccurred = false;
 
@@ -132,6 +135,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       ref,
       depth = 0,
       stickyTop = 0,
+      lite,
     } = attrs;
 
     const expanded = collapsible && !collapsed;
@@ -158,7 +162,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           ),
         },
         this.renderShell(attrs),
-        this.renderContent(attrs),
+        !lite && this.renderContent(attrs),
       ),
       hasChildren(vnode) && m('.pf-track__children', vnode.children),
     );
@@ -168,26 +172,6 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     if (attrs.scrollToOnCreate) {
       dom.scrollIntoView({behavior: 'smooth', block: 'nearest'});
     }
-
-    const popup = assertExists(dom.querySelector('.pf-track__title-popup'));
-    const title = assertExists(dom.querySelector('.pf-track__title'));
-
-    const resizeObserver = new ResizeObserver(() => {
-      // Work out whether to display a title popup on hover, based on whether
-      // the title is ellipsized.
-      if (popup.clientWidth > title.clientWidth) {
-        popup.classList.add('pf-track__title-popup--visible');
-      } else {
-        popup.classList.remove('pf-track__title-popup--visible');
-      }
-    });
-    resizeObserver.observe(title);
-    resizeObserver.observe(popup);
-    this.trash.defer(() => resizeObserver.disconnect());
-  }
-
-  onremove() {
-    this.trash.dispose();
   }
 
   private renderShell(attrs: TrackShellAttrs): m.Children {
@@ -201,6 +185,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       onMoveBefore = () => {},
       buttons,
       highlight,
+      lite,
     } = attrs;
 
     const block = 'pf-track';
@@ -267,46 +252,44 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           target.classList.remove(dragBeforeClassName);
         },
       },
-      m(
-        '.pf-track__menubar',
-        collapsible
-          ? m(Button, {
-              className: 'pf-track__collapse-button',
-              compact: true,
-              icon: collapsed ? Icons.ExpandDown : Icons.ExpandUp,
-            })
-          : m('.pf-track__title-spacer'),
-        m(
-          MiddleEllipsis,
-          {
-            className: 'pf-track__title',
-            text: attrs.title,
-          },
-          m('.pf-track__title-popup', attrs.title),
-        ),
-        chips &&
-          m(
-            ChipBar,
-            {className: 'pf-track__chips'},
-            chips.map((chip) =>
-              m(Chip, {label: chip, compact: true, rounded: true}),
+      lite
+        ? attrs.title
+        : m(
+            '.pf-track__menubar',
+            collapsible
+              ? m(Button, {
+                  className: 'pf-track__collapse-button',
+                  compact: true,
+                  icon: collapsed ? Icons.ExpandDown : Icons.ExpandUp,
+                })
+              : m('.pf-track__title-spacer'),
+            m(TrackTitle, {title: attrs.title}),
+            chips &&
+              m(
+                ChipBar,
+                {className: 'pf-track__chips'},
+                chips.map((chip) =>
+                  m(Chip, {label: chip, compact: true, rounded: true}),
+                ),
+              ),
+            m(
+              ButtonBar,
+              {
+                className: 'pf-track__buttons',
+                // Block button clicks from hitting the shell's on click event
+                onclick: (e: MouseEvent) => e.stopPropagation(),
+              },
+              buttons,
+              // Always render this one last
+              attrs.error && renderCrashButton(attrs.error, attrs.pluginId),
             ),
+            attrs.subtitle &&
+              !showSubtitleInContent(attrs) &&
+              m(
+                '.pf-track__subtitle',
+                m(MiddleEllipsis, {text: attrs.subtitle}),
+              ),
           ),
-        m(
-          ButtonBar,
-          {
-            className: 'pf-track__buttons',
-            // Block button clicks from hitting the shell's on click event
-            onclick: (e: MouseEvent) => e.stopPropagation(),
-          },
-          buttons,
-          // Always render this one last
-          attrs.error && renderCrashButton(attrs.error, attrs.pluginId),
-        ),
-        attrs.subtitle &&
-          !showSubtitleInContent(attrs) &&
-          m('.pf-track__subtitle', m(MiddleEllipsis, {text: attrs.subtitle})),
-      ),
     );
   }
 
@@ -405,4 +388,46 @@ function renderCrashButton(error: Error, pluginId: string | undefined) {
       // relies on the plugin page being fully functional.
     ),
   );
+}
+
+interface TrackTitleAttrs {
+  readonly title: string;
+}
+
+class TrackTitle implements m.ClassComponent<TrackTitleAttrs> {
+  private readonly trash = new DisposableStack();
+
+  view({attrs}: m.Vnode<TrackTitleAttrs>) {
+    return m(
+      MiddleEllipsis,
+      {
+        className: 'pf-track__title',
+        text: attrs.title,
+      },
+      m('.pf-track__title-popup', attrs.title),
+    );
+  }
+
+  oncreate({dom}: m.VnodeDOM<TrackTitleAttrs>) {
+    const title = dom;
+    const popup = assertExists(dom.querySelector('.pf-track__title-popup'));
+
+    const resizeObserver = new ResizeObserver(() => {
+      // Determine whether to display a title popup based on ellipsization
+      if (popup.clientWidth > title.clientWidth) {
+        popup.classList.add('pf-track__title-popup--visible');
+      } else {
+        popup.classList.remove('pf-track__title-popup--visible');
+      }
+    });
+
+    resizeObserver.observe(title);
+    resizeObserver.observe(popup);
+
+    this.trash.defer(() => resizeObserver.disconnect());
+  }
+
+  onremove() {
+    this.trash.dispose();
+  }
 }
