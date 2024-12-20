@@ -84,7 +84,7 @@ class Delegate : public util::ProtoToArgsParser::Delegate {
     Row r;
     SetColumnsAndInsertRow(key, r);
   }
-  void AddPointer(const Key&, const void*) override {
+  void AddPointer(const Key&, uint64_t) override {
     PERFETTO_FATAL("Unsupported");
   }
   bool AddJson(const Key&, const protozero::ConstChars&) override {
