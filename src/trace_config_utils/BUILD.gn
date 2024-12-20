@@ -73,9 +73,12 @@ executable("trace_config_utils") {
 if (enable_perfetto_ui) {
   wasm_lib("trace_config_utils_wasm") {
     name = "trace_config_utils"
+    sources = [ "wasm.cc" ]
     deps = [
-      ":main",
+      ":pb_to_txt",
+      ":txt_to_pb",
       "../../gn:default_deps",
+      "../../include/perfetto/ext/base:base",
     ]
   }
 }

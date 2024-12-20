@@ -57,6 +57,7 @@ export const defaultPlugins = [
   'dev.perfetto.ProcessThreadGroups',
   'dev.perfetto.QueryPage',
   'dev.perfetto.RecordTrace',
+  'dev.perfetto.RecordTraceV2',
   'dev.perfetto.RestorePinnedTrack',
   'dev.perfetto.Sched',
   'dev.perfetto.Screenshots',
