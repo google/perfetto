@@ -3636,7 +3636,12 @@ void FtraceParser::ParseSchedCpuUtilCfs(int64_t timestamp,
 
 namespace {
 
-constexpr auto kFuncgraphBlueprint = tracks::SliceBlueprint(
+constexpr auto kThreadFuncgraphBlueprint = tracks::SliceBlueprint(
+    "thread_funcgraph",
+    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint),
+    tracks::StaticNameBlueprint("Funcgraph"));
+
+constexpr auto kCpuFuncgraphBlueprint = tracks::SliceBlueprint(
     "cpu_funcgraph",
     tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
     tracks::FnNameBlueprint([](uint32_t cpu) {
@@ -3658,13 +3663,14 @@ void FtraceParser::ParseFuncgraphEntry(
   if (pid != 0) {
     // common case: normal thread
     UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-    track = context_->track_tracker->InternThreadTrack(utid);
+    track = context_->track_tracker->InternTrack(kThreadFuncgraphBlueprint,
+                                                 tracks::Dimensions(utid));
   } else {
     // Idle threads (swapper) are implicit, and all share the same thread id
     // 0. Therefore we cannot use a thread-scoped track because many instances
     // of swapper might be running concurrently. Fall back onto global tracks
     // (one per cpu).
-    track = context_->track_tracker->InternTrack(kFuncgraphBlueprint,
+    track = context_->track_tracker->InternTrack(kCpuFuncgraphBlueprint,
                                                  tracks::Dimensions(cpu));
   }
   context_->slice_tracker->Begin(timestamp, track, kNullStringId, name_id);
@@ -3683,10 +3689,11 @@ void FtraceParser::ParseFuncgraphExit(
   if (pid != 0) {
     // common case: normal thread
     UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-    track = context_->track_tracker->InternThreadTrack(utid);
+    track = context_->track_tracker->InternTrack(kThreadFuncgraphBlueprint,
+                                                 tracks::Dimensions(utid));
   } else {
     // special case: see |ParseFuncgraphEntry|
-    track = context_->track_tracker->InternTrack(kFuncgraphBlueprint,
+    track = context_->track_tracker->InternTrack(kCpuFuncgraphBlueprint,
                                                  tracks::Dimensions(cpu));
   }
   context_->slice_tracker->End(timestamp, track, kNullStringId, name_id);
