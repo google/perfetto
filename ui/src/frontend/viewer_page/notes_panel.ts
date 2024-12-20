@@ -17,12 +17,15 @@ import {canvasClip} from '../../base/canvas_utils';
 import {currentTargetOffset} from '../../base/dom_utils';
 import {Size2D} from '../../base/geom';
 import {assertUnreachable} from '../../base/logging';
+import {Icons} from '../../base/semantic_icons';
 import {TimeScale} from '../../base/time_scale';
 import {randomColor} from '../../components/colorizer';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {Note, SpanNote} from '../../public/note';
 import {Button, ButtonBar} from '../../widgets/button';
+import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {Select} from '../../widgets/select';
 import {TRACK_SHELL_WIDTH} from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 
@@ -63,6 +66,8 @@ export class NotesPanel {
       (n) => n.collapsed,
     );
 
+    const workspaces = this.trace.workspaces;
+
     return m(
       '',
       {
@@ -97,7 +102,7 @@ export class NotesPanel {
       },
       m(
         ButtonBar,
-        {className: 'pf-timeline-header__toolbar'},
+        {className: 'pf-timeline-toolbar'},
         m(Button, {
           onclick: (e: Event) => {
             e.preventDefault();
@@ -127,6 +132,72 @@ export class NotesPanel {
           icon: 'clear_all',
           compact: true,
         }),
+        m(
+          Select,
+          {
+            className: 'pf-timeline-toolbar__workspace-selector',
+            onchange: async (e) => {
+              const value = (e.target as HTMLSelectElement).value;
+              if (value === 'new-workspace') {
+                const ws =
+                  workspaces.createEmptyWorkspace('Untitled Workspace');
+                workspaces.switchWorkspace(ws);
+              } else {
+                const ws = workspaces.all.find(({id}) => id === value);
+                ws && this.trace?.workspaces.switchWorkspace(ws);
+              }
+            },
+          },
+          workspaces.all
+            .map((ws) => {
+              return m('option', {
+                value: `${ws.id}`,
+                label: ws.title,
+                selected: ws === this.trace?.workspace,
+              });
+            })
+            .concat([
+              m('option', {
+                value: 'new-workspace',
+                label: 'New workspace...',
+              }),
+            ]),
+        ),
+        m(
+          PopupMenu2,
+          {
+            trigger: m(Button, {
+              icon: 'more_vert',
+              title: 'Workspace options',
+              compact: true,
+            }),
+          },
+          m(MenuItem, {
+            icon: Icons.Delete,
+            label: 'Delete current workspace',
+            disabled:
+              workspaces.currentWorkspace === workspaces.defaultWorkspace,
+            onclick: () => {
+              workspaces.removeWorkspace(workspaces.currentWorkspace);
+              raf.scheduleFullRedraw();
+            },
+          }),
+          m(MenuItem, {
+            icon: 'edit',
+            label: 'Rename current workspace',
+            disabled:
+              workspaces.currentWorkspace === workspaces.defaultWorkspace,
+            onclick: async () => {
+              const newName = await this.trace.omnibox.prompt(
+                'Enter a new name...',
+              );
+              if (newName) {
+                workspaces.currentWorkspace.title = newName;
+              }
+              raf.scheduleFullRedraw();
+            },
+          }),
+        ),
         // TODO(stevegolton): Re-introduce this when we fix track filtering
         // m(TextInput, {
         //   placeholder: 'Filter tracks...',

@@ -357,7 +357,7 @@ export class TrackView {
     }
 
     return m(
-      '.pf-track-details-dropdown',
+      '.pf-track__track-details-popup',
       m(
         Tree,
         m(TreeNode, {left: 'Track Node ID', right: this.node.id}),

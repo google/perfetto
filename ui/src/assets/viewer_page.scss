@@ -55,10 +55,16 @@
   }
 }
 
-.pf-timeline-header__toolbar {
+.pf-timeline-toolbar {
+  width: var(--track-shell-width);
+  border-right: solid 1px transparent;
   padding-inline: 2px;
+
+  &__workspace-selector {
+    flex: 1;
+  }
 }
 
-.pf-track-details-dropdown {
+.pf-track__track-details-popup {
   min-width: 350px;
 }
