@@ -30,26 +30,18 @@ import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {Icons} from '../../base/semantic_icons';
 import {TimeScale} from '../../base/time_scale';
 import {RequiredField} from '../../base/utils';
-import {featureFlags} from '../../core/feature_flags';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {TrackRenderer} from '../../core/track_manager';
 import {Track, TrackDescriptor} from '../../public/track';
-import {TrackNode} from '../../public/workspace';
+import {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
-import {Popup, PopupPosition} from '../../widgets/popup';
+import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
 import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {SELECTION_FILL_COLOR} from '../css_constants';
 import {calculateResolution} from './resolution';
-
-const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
-  id: 'showTrackDetailsButton',
-  name: 'Show track details button',
-  description: 'Show track details button in track shells.',
-  defaultValue: false,
-});
 
 const TRACK_HEIGHT_MIN_PX = 18;
 const TRACK_HEIGHT_DEFAULT_PX = 30;
@@ -116,12 +108,12 @@ export class TrackView {
     const {node, renderer, height} = this;
 
     const buttons = [
-      SHOW_TRACK_DETAILS_BUTTON.get() && this.renderTrackDetailsButton(),
       renderer?.track.getTrackShellButtons?.(),
       node.removable && this.renderCloseButton(),
       // We don't want summary tracks to be pinned as they rarely have
       // useful information.
       !node.isSummary && this.renderPinButton(),
+      this.renderTrackMenuButton(),
       this.renderAreaSelectionCheckbox(),
     ];
 
@@ -280,60 +272,125 @@ export class TrackView {
     });
   }
 
-  private renderTrackDetailsButton(): m.Children {
+  private renderTrackMenuButton(): m.Children {
+    return m(
+      PopupMenu2,
+      {
+        trigger: m(Button, {
+          className: 'pf-visible-on-hover',
+          icon: 'more_vert',
+          compact: true,
+          title: 'Track options',
+        }),
+      },
+      m(MenuItem, {
+        label: 'Select track',
+        disabled: !this.node.uri,
+        onclick: () => {
+          this.trace.selection.selectTrack(this.node.uri!);
+        },
+        title: this.node.uri
+          ? 'Select track'
+          : 'Track has no URI and cannot be selected',
+      }),
+      m(MenuItem, {label: 'Track details'}, this.renderTrackDetails()),
+      m(MenuDivider),
+      m(
+        MenuItem,
+        {label: 'Copy to workspace'},
+        this.trace.workspaces.all.map((ws) =>
+          m(MenuItem, {
+            label: ws.title,
+            onclick: () => this.copyToWorkspace(ws),
+          }),
+        ),
+        m(MenuDivider),
+        m(MenuItem, {
+          label: 'New workspace',
+          onclick: () => this.copyToWorkspace(),
+        }),
+      ),
+      m(
+        MenuItem,
+        {label: 'Take to workspace'},
+        this.trace.workspaces.all.map((ws) =>
+          m(MenuItem, {
+            label: ws.title,
+            onclick: async () => {
+              await this.copyToWorkspace(ws);
+              this.trace.workspaces.switchWorkspace(ws);
+            },
+          }),
+        ),
+        m(MenuDivider),
+        m(MenuItem, {
+          label: 'New workspace',
+          onclick: async () => {
+            const ws = await this.copyToWorkspace();
+            ws && this.trace.workspaces.switchWorkspace(ws);
+          },
+        }),
+      ),
+    );
+  }
+
+  private async copyToWorkspace(ws?: Workspace) {
+    if (!ws) {
+      const name = await this.trace.omnibox.prompt(
+        'Enter a name for the new workspace...',
+      );
+      if (!name) return;
+      ws = this.trace.workspaces.createEmptyWorkspace(name);
+    }
+    const newNode = this.node.clone();
+    newNode.removable = true;
+    ws.addChildLast(newNode);
+    return ws;
+  }
+
+  private renderTrackDetails(): m.Children {
     let parent = this.node.parent;
     let fullPath: m.ChildArray = [this.node.title];
     while (parent && parent instanceof TrackNode) {
       fullPath = [parent.title, ' \u2023 ', ...fullPath];
       parent = parent.parent;
     }
+
     return m(
-      Popup,
-      {
-        trigger: m(Button, {
-          className: 'pf-visible-on-hover',
-          icon: 'info',
-          title: 'Show track details',
-          compact: true,
-        }),
-        position: PopupPosition.Bottom,
-      },
+      '.pf-track-details-dropdown',
       m(
-        '',
-        m(
-          Tree,
-          m(TreeNode, {left: 'Track Node ID', right: this.node.id}),
-          m(TreeNode, {left: 'Collapsed', right: `${this.node.collapsed}`}),
-          m(TreeNode, {left: 'URI', right: this.node.uri}),
+        Tree,
+        m(TreeNode, {left: 'Track Node ID', right: this.node.id}),
+        m(TreeNode, {left: 'Collapsed', right: `${this.node.collapsed}`}),
+        m(TreeNode, {left: 'URI', right: this.node.uri}),
+        m(TreeNode, {
+          left: 'Is Summary Track',
+          right: `${this.node.isSummary}`,
+        }),
+        m(TreeNode, {
+          left: 'SortOrder',
+          right: this.node.sortOrder ?? '0 (undefined)',
+        }),
+        m(TreeNode, {left: 'Path', right: fullPath}),
+        m(TreeNode, {left: 'Title', right: this.node.title}),
+        m(TreeNode, {
+          left: 'Workspace',
+          right: this.node.workspace?.title ?? '[no workspace]',
+        }),
+        this.descriptor &&
           m(TreeNode, {
-            left: 'Is Summary Track',
-            right: `${this.node.isSummary}`,
+            left: 'Plugin ID',
+            right: this.descriptor.pluginId,
           }),
-          m(TreeNode, {
-            left: 'SortOrder',
-            right: this.node.sortOrder ?? '0 (undefined)',
-          }),
-          m(TreeNode, {left: 'Path', right: fullPath}),
-          m(TreeNode, {left: 'Title', right: this.node.title}),
-          m(TreeNode, {
-            left: 'Workspace',
-            right: this.node.workspace?.title ?? '[no workspace]',
-          }),
-          this.descriptor &&
-            m(TreeNode, {
-              left: 'Plugin ID',
-              right: this.descriptor.pluginId,
-            }),
-          this.descriptor &&
-            m(
-              TreeNode,
-              {left: 'Tags'},
-              this.descriptor.tags &&
-                Object.entries(this.descriptor.tags).map(([key, value]) => {
-                  return m(TreeNode, {left: key, right: value?.toString()});
-                }),
-            ),
-        ),
+        this.descriptor &&
+          m(
+            TreeNode,
+            {left: 'Tags'},
+            this.descriptor.tags &&
+              Object.entries(this.descriptor.tags).map(([key, value]) => {
+                return m(TreeNode, {left: key, right: value?.toString()});
+              }),
+          ),
       ),
     );
   }
