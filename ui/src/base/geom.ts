@@ -298,4 +298,13 @@ export class Rect2D implements Bounds2D, Size2D, Point2D {
       right: this.right + point.x,
     });
   }
+
+  equals(bounds: Bounds2D): boolean {
+    return (
+      bounds.top === this.top &&
+      bounds.left === this.left &&
+      bounds.right === this.right &&
+      bounds.bottom === this.bottom
+    );
+  }
 }

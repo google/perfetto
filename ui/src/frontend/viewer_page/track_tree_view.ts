@@ -61,6 +61,15 @@ import {
 } from './timeline_interactions';
 import {TrackView} from './track_view';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
+import {featureFlags} from '../../core/feature_flags';
+
+const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
+  id: 'virtualTrackScrolling',
+  name: 'Virtual track scrolling',
+  description: `[Experimental] Use virtual scrolling in the timeline view to
+    improve performance on large traces.`,
+  defaultValue: false,
+});
 
 export interface TrackTreeViewAttrs {
   // Access to the trace, for accessing the track registry / selection manager.
@@ -98,6 +107,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   };
   private areaDrag?: InProgressAreaSelection;
   private handleDrag?: InProgressHandleDrag;
+  private canvasRect?: Rect2D;
 
   constructor({attrs}: m.Vnode<TrackTreeViewAttrs>) {
     this.trace = attrs.trace;
@@ -108,11 +118,11 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const renderedTracks = new Array<TrackView>();
     let top = 0;
 
-    function renderTrack(
+    const renderTrack = (
       node: TrackNode,
       depth = 0,
       stickyTop = 0,
-    ): m.Children {
+    ): m.Children => {
       const trackView = new TrackView(trace, node, top);
       renderedTracks.push(trackView);
 
@@ -134,8 +144,21 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       if (node.headless) {
         return children;
       } else {
+        const isTrackOnScreen = () => {
+          if (VIRTUAL_TRACK_SCROLLING.get()) {
+            return this.canvasRect?.overlaps({
+              left: 0,
+              right: 1,
+              ...trackView.verticalBounds,
+            });
+          } else {
+            return true;
+          }
+        };
+
         return trackView.renderDOM(
           {
+            lite: !Boolean(isTrackOnScreen()),
             scrollToOnCreate: scrollToNewTracks,
             reorderable,
             stickyTop,
@@ -144,7 +167,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           children,
         );
       }
-    }
+    };
 
     return m(
       VirtualOverlayCanvas,
@@ -159,6 +182,22 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             canvasRect,
             rootNode,
           );
+
+          if (VIRTUAL_TRACK_SCROLLING.get()) {
+            // The VOC can ask us to redraw the canvas for any number of
+            // reasons, we're interested in the case where the canvas rect has
+            // moved (which indicates that the user has scrolled enough to
+            // warrant drawing more content). If so, we should redraw the DOM in
+            // order to keep the track nodes inside the viewport rendering in
+            // full-fat mode.
+            if (
+              this.canvasRect === undefined ||
+              !this.canvasRect.equals(canvasRect)
+            ) {
+              this.canvasRect = canvasRect;
+              m.redraw();
+            }
+          }
         },
         onCanvasCreate: (overlay) => {
           overlay.trash.use(
