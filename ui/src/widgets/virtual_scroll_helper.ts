@@ -14,7 +14,6 @@
 
 import {DisposableStack} from '../base/disposable_stack';
 import {Bounds2D, Rect2D} from '../base/geom';
-import {scheduleFullRedraw} from './raf';
 
 export interface VirtualScrollHelperOpts {
   overdrawPx: number;
@@ -47,7 +46,6 @@ export class VirtualScrollHelper {
       this._data.forEach((data) =>
         recalculatePuckRect(sliderElement, containerElement, data),
       );
-      scheduleFullRedraw('force');
     };
 
     containerElement.addEventListener('scroll', recalculateRects, {

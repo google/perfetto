@@ -77,7 +77,6 @@ export class HistoryItemComponent
                 vnode.attrs.index,
                 !vnode.attrs.entry.starred,
               );
-              vnode.attrs.trace.scheduleFullRedraw();
             },
           },
           m(Icon, {icon: Icons.Star, filled: vnode.attrs.entry.starred}),
@@ -101,7 +100,6 @@ export class HistoryItemComponent
           {
             onclick: () => {
               queryHistoryStorage.remove(vnode.attrs.index);
-              vnode.attrs.trace.scheduleFullRedraw();
             },
           },
           m(Icon, {icon: 'delete'}),

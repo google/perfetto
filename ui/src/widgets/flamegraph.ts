@@ -19,7 +19,6 @@ import {Monitor} from '../base/monitor';
 import {Button, ButtonBar} from './button';
 import {EmptyState} from './empty_state';
 import {Popup, PopupPosition} from './popup';
-import {scheduleFullRedraw} from './raf';
 import {Select} from './select';
 import {Spinner} from './spinner';
 import {TagInput} from './tag_input';
@@ -248,7 +247,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       m(
         '.canvas-container[ref=canvas-container]',
         {
-          onscroll: () => scheduleFullRedraw(),
+          // This will trigger auto redraws
+          onscroll: () => {},
         },
         m(
           Popup,
@@ -271,7 +271,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         m(`canvas[ref=canvas]`, {
           style: `height:${canvasHeight}px; width:100%`,
           onmousemove: ({offsetX, offsetY}: MouseEvent) => {
-            scheduleFullRedraw();
             this.hoveredX = offsetX;
             this.hoveredY = offsetY;
             if (this.tooltipPos?.state === 'CLICK') {
@@ -309,7 +308,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             ) {
               this.tooltipPos = undefined;
             }
-            scheduleFullRedraw();
           },
           onclick: ({offsetX, offsetY}: MouseEvent) => {
             const renderNode = this.renderNodes?.find((n) =>
@@ -334,7 +332,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
                 state: 'CLICK',
               };
             }
-            scheduleFullRedraw();
           },
           ondblclick: ({offsetX, offsetY}: MouseEvent) => {
             const renderNode = this.renderNodes?.find((n) =>
@@ -346,7 +343,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               return;
             }
             this.zoomRegion = renderNode?.source;
-            scheduleFullRedraw();
           },
         }),
       ),
@@ -513,7 +509,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               ...self.attrs.state,
               selectedMetricName: el.value,
             });
-            scheduleFullRedraw();
           },
         },
         attrs.metrics.map((x) => {
@@ -528,12 +523,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             value: this.rawFilterText,
             onChange: (value: string) => {
               self.rawFilterText = value;
-              scheduleFullRedraw();
             },
             onTagAdd: (tag: string) => {
               self.rawFilterText = '';
               self.attrs.onStateChange(updateState(self.attrs.state, tag));
-              scheduleFullRedraw();
             },
             onTagRemove(index: number) {
               if (index === self.attrs.state.filters.length) {
@@ -549,7 +542,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
                   filters,
                 });
               }
-              scheduleFullRedraw();
             },
             onfocus() {
               self.filterFocus = true;
@@ -572,7 +564,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             ...this.attrs.state,
             view: {kind: num === 0 ? 'TOP_DOWN' : 'BOTTOM_UP'},
           });
-          scheduleFullRedraw();
         },
         disabled: this.attrs.state.view.kind === 'PIVOT',
       }),
@@ -621,7 +612,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const filterButtonClick = (state: FlamegraphState) => {
       this.attrs.onStateChange(state);
       this.tooltipPos = undefined;
-      scheduleFullRedraw();
     };
 
     const percent = displayPercentage(
@@ -677,7 +667,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           label: 'Zoom',
           onclick: () => {
             this.zoomRegion = node.source;
-            scheduleFullRedraw();
           },
         }),
         m(Button, {

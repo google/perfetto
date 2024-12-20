@@ -272,7 +272,7 @@ export default class implements PerfettoPlugin {
   private onmessage(msg: MessageEvent) {
     if (this._ctx === undefined) return; // Trace unloaded
     if (!('perfettoSync' in msg.data)) return;
-    this._ctx.scheduleFullRedraw('force');
+    this._ctx.raf.scheduleFullRedraw();
     const msgData = msg.data as SyncMessage;
     const sync = msgData.perfettoSync;
     switch (sync.cmd) {

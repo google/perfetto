@@ -14,17 +14,9 @@
 
 import {PerfStats} from './perf_stats';
 import m from 'mithril';
-import {featureFlags} from './feature_flags';
+import {Raf, RedrawCallback} from '../public/raf';
 
 export type AnimationCallback = (lastFrameMs: number) => void;
-export type RedrawCallback = () => void;
-
-export const AUTOREDRAW_FLAG = featureFlags.register({
-  id: 'mithrilAutoredraw',
-  name: 'Enable Mithril autoredraw',
-  description: 'Turns calls to schedulefullRedraw() a no-op',
-  defaultValue: true,
-});
 
 // This class orchestrates all RAFs in the UI. It ensures that there is only
 // one animation frame handler overall and that callbacks are called in
@@ -34,7 +26,7 @@ export const AUTOREDRAW_FLAG = featureFlags.register({
 // - redraw callbacks that will repaint canvases.
 // This class guarantees that, on each frame, redraw callbacks are called after
 // all action callbacks.
-export class RafScheduler {
+export class RafScheduler implements Raf {
   // These happen at the beginning of any animation frame. Used by Animation.
   private animationCallbacks = new Set<AnimationCallback>();
 
@@ -61,7 +53,7 @@ export class RafScheduler {
   constructor() {
     // Patch m.redraw() to our RAF full redraw.
     const origSync = m.redraw.sync;
-    const redrawFn = () => this.scheduleFullRedraw('force');
+    const redrawFn = () => this.scheduleFullRedraw();
     redrawFn.sync = origSync;
     m.redraw = redrawFn;
 
@@ -71,10 +63,7 @@ export class RafScheduler {
   // Schedule re-rendering of virtual DOM and canvas.
   // If a callback is passed it will be executed after the DOM redraw has
   // completed.
-  scheduleFullRedraw(force?: 'force', cb?: RedrawCallback) {
-    // If we are using autoredraw mode, make this function a no-op unless
-    // 'force' is passed.
-    if (AUTOREDRAW_FLAG.get() && force !== 'force') return;
+  scheduleFullRedraw(cb?: RedrawCallback) {
     this.requestedFullRedraw = true;
     cb && this.postRedrawCallbacks.push(cb);
     this.maybeScheduleAnimationFrame(true);
@@ -120,7 +109,6 @@ export class RafScheduler {
 
   setPerfStatsEnabled(enabled: boolean) {
     this.recordPerfStats = enabled;
-    this.scheduleFullRedraw();
   }
 
   get hasPendingRedraws(): boolean {
@@ -153,10 +141,8 @@ export class RafScheduler {
       redraw?: () => void,
     ) => void;
 
-    mithrilRender(
-      element,
-      component !== null ? m(component) : null,
-      AUTOREDRAW_FLAG.get() ? () => raf.scheduleFullRedraw('force') : undefined,
+    mithrilRender(element, component !== null ? m(component) : null, () =>
+      this.scheduleFullRedraw(),
     );
   }
 

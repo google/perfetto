@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {raf} from './raf_scheduler';
-
 export const DEFAULT_CHANNEL = 'stable';
 const CHANNEL_KEY = 'perfettoUiChannel';
 
@@ -45,5 +43,4 @@ export function setChannel(channel: string): void {
   getCurrentChannel(); // Cache the current channel before mangling next one.
   nextChannel = channel;
   localStorage.setItem(CHANNEL_KEY, channel);
-  raf.scheduleFullRedraw();
 }

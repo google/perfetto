@@ -20,7 +20,6 @@ import {Intent} from '../../widgets/common';
 import {PageAttrs} from '../../public/page';
 import {AppImpl} from '../../core/app_impl';
 import {PluginWrapper} from '../../core/plugin_manager';
-import {raf} from '../../core/raf_scheduler';
 
 // This flag indicated whether we need to restart the UI to apply plugin
 // changes. It is purposely a global as we want it to outlive the Mithril
@@ -50,7 +49,6 @@ export class PluginsPage implements m.ClassComponent<PageAttrs> {
               plugin.enableFlag.set(false);
             }
             needsRestart = true;
-            raf.scheduleFullRedraw();
           },
         }),
         m(Button, {
@@ -61,7 +59,6 @@ export class PluginsPage implements m.ClassComponent<PageAttrs> {
               plugin.enableFlag.set(true);
             }
             needsRestart = true;
-            raf.scheduleFullRedraw();
           },
         }),
         m(Button, {
@@ -72,7 +69,6 @@ export class PluginsPage implements m.ClassComponent<PageAttrs> {
               plugin.enableFlag.reset();
             }
             needsRestart = true;
-            raf.scheduleFullRedraw();
           },
         }),
       ),
@@ -114,7 +110,6 @@ export class PluginsPage implements m.ClassComponent<PageAttrs> {
             plugin.enableFlag.set(true);
           }
           needsRestart = true;
-          raf.scheduleFullRedraw();
         },
       }),
       exists(loadTime)

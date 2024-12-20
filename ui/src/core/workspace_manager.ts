@@ -14,7 +14,6 @@
 
 import {assertTrue} from '../base/logging';
 import {Workspace, WorkspaceManager} from '../public/workspace';
-import {raf} from './raf_scheduler';
 
 const DEFAULT_WORKSPACE_NAME = 'Default Workspace';
 
@@ -31,7 +30,6 @@ export class WorkspaceManagerImpl implements WorkspaceManager {
   createEmptyWorkspace(title: string): Workspace {
     const workspace = new Workspace();
     workspace.title = title;
-    workspace.onchange = () => raf.scheduleFullRedraw();
     this._workspaces.push(workspace);
     return workspace;
   }

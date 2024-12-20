@@ -106,7 +106,6 @@ export class HeapProfileFlamegraphDetailsPanel
                 intent: Intent.Primary,
                 onclick: () => {
                   downloadPprof(this.trace, this.upid, ts);
-                  this.trace.scheduleFullRedraw();
                 },
               }),
           ],
@@ -144,7 +143,6 @@ export class HeapProfileFlamegraphDetailsPanel
           text: 'Skip',
           action: () => {
             this.flamegraphModalDismissed = true;
-            trace.scheduleFullRedraw();
           },
         },
       ],

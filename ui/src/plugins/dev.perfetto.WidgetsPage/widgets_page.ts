@@ -56,9 +56,8 @@ import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
 import {Chip, ChipBar} from '../../widgets/chip';
 import {TrackShell} from '../../widgets/track_shell';
-import {scheduleFullRedraw} from '../../widgets/raf';
 import {CopyableLink} from '../../widgets/copyable_link';
-import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
+import {VirtualOverlayCanvas} from '../../components/widgets/virtual_overlay_canvas';
 import {SplitPanel} from '../../widgets/split_panel';
 import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
 
@@ -313,7 +312,6 @@ function PortalButton() {
           intent: Intent.Primary,
           onclick: () => {
             portalOpen = !portalOpen;
-            scheduleFullRedraw();
           },
         }),
         portalOpen &&
@@ -365,7 +363,6 @@ function ControlledPopup() {
           label: 'Close Popup',
           onclick: () => {
             popupOpen = !popupOpen;
-            scheduleFullRedraw();
           },
         }),
       );
@@ -501,7 +498,6 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       label: key,
       onchange: () => {
         this.optValues[key] = !Boolean(this.optValues[key]);
-        scheduleFullRedraw();
       },
     });
   }
@@ -515,7 +511,6 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
         value: this.optValues[key],
         oninput: (e: Event) => {
           this.optValues[key] = (e.target as HTMLInputElement).value;
-          scheduleFullRedraw();
         },
       }),
     );
@@ -533,7 +528,6 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
           this.optValues[key] = Number.parseInt(
             (e.target as HTMLInputElement).value,
           );
-          scheduleFullRedraw();
         },
       }),
     );
@@ -553,7 +547,6 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
           onchange: (e: Event) => {
             const el = e.target as HTMLSelectElement;
             this.optValues[key] = el.value;
-            scheduleFullRedraw();
           },
         },
         optionElements,
@@ -645,14 +638,12 @@ function TagInputDemo() {
         onTagAdd: (tag) => {
           tags.push(tag);
           tagInputValue = '';
-          scheduleFullRedraw();
         },
         onChange: (value) => {
           tagInputValue = value;
         },
         onTagRemove: (index) => {
           tags.splice(index, 1);
-          scheduleFullRedraw();
         },
       });
     },
@@ -669,7 +660,6 @@ function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
         selectedOption: selectedIdx,
         onOptionSelected: (num) => {
           selectedIdx = num;
-          scheduleFullRedraw();
         },
       });
     },
@@ -869,7 +859,6 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
               diffs.forEach(({id, checked}) => {
                 options[id] = checked;
               });
-              scheduleFullRedraw();
             },
             ...rest,
           }),
@@ -896,7 +885,6 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
               diffs.forEach(({id, checked}) => {
                 options[id] = checked;
               });
-              scheduleFullRedraw();
             },
             ...rest,
           }),
@@ -1276,7 +1264,6 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
                 offset: rowOffset,
                 rows,
               };
-              scheduleFullRedraw();
             },
           };
           return m(VirtualTable, attrs);
@@ -1518,7 +1505,6 @@ class ModalShowcase implements m.ClassComponent {
         },
         view: function (vnode: m.Vnode<{}, {progress: number}>) {
           vnode.state.progress = (vnode.state.progress + 1) % 100;
-          scheduleFullRedraw();
           return m(
             'div',
             m('div', 'You should see an animating progress bar'),

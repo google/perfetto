@@ -17,7 +17,6 @@ import {AggregationPanel} from './aggregation_panel';
 import {isEmptyData} from '../public/aggregation';
 import {DetailsShell} from '../widgets/details_shell';
 import {Button, ButtonBar} from '../widgets/button';
-import {raf} from '../core/raf_scheduler';
 import {EmptyState} from '../widgets/empty_state';
 import {FlowEventsAreaSelectedPanel} from './flow_events_panel';
 import {PivotTable} from './pivot_table';
@@ -135,7 +134,6 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
       return m(Button, {
         onclick: () => {
           this.currentTab = key;
-          raf.scheduleFullRedraw();
         },
         key,
         label: name,

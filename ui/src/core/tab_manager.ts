@@ -18,7 +18,6 @@ import {
   SplitPanelDrawerVisibility,
   toggleVisibility,
 } from '../widgets/split_panel';
-import {raf} from './raf_scheduler';
 
 export interface ResolvedTab {
   uri: string;
@@ -98,8 +97,6 @@ export class TabManagerImpl implements TabManager, Disposable {
     ) {
       this.setTabPanelVisibility(SplitPanelDrawerVisibility.VISIBLE);
     }
-
-    raf.scheduleFullRedraw();
   }
 
   // Hide a tab in the tab bar pick a new tab to show.
@@ -131,7 +128,6 @@ export class TabManagerImpl implements TabManager, Disposable {
       // Otherwise just remove the tab
       this._openTabs = this._openTabs.filter((x) => x !== uri);
     }
-    raf.scheduleFullRedraw();
   }
 
   toggleTab(uri: string): void {

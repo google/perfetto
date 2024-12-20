@@ -103,7 +103,7 @@ export class RecordingManager {
       return; // The currently selected target is still valid, retain it.
     }
     this.target = targets.length > 0 ? targets[0] : undefined;
-    this.app.scheduleFullRedraw('force');
+    this.app.raf.scheduleFullRedraw();
   }
 
   async listTargets(): Promise<RecordingTarget[]> {
@@ -256,7 +256,7 @@ export class CurrentTracingSession {
 
   async start(traceCfg: protos.TraceConfig, target: RecordingTarget) {
     const res = await target.startTracing(traceCfg);
-    this.recMgr.app.scheduleFullRedraw('force');
+    this.recMgr.app.raf.scheduleFullRedraw();
     if (!res.ok) {
       this.error = res.error;
       return;
@@ -268,7 +268,7 @@ export class CurrentTracingSession {
     }
 
     session.onSessionUpdate.addListener(() => {
-      this.recMgr.app.scheduleFullRedraw('force');
+      this.recMgr.app.raf.scheduleFullRedraw();
       if (
         session.state === 'FINISHED' &&
         this.recMgr.autoOpenTraceWhenTracingEnds &&

@@ -22,7 +22,6 @@ import {
   SortDirection,
   withDirection,
 } from '../base/comparison_utils';
-import {scheduleFullRedraw} from './raf';
 import {MenuItem, PopupMenu2} from './menu';
 import {Button} from './button';
 
@@ -147,13 +146,11 @@ export class TableData<T> {
     if (this._sortingInfo !== undefined) {
       this.reorder(this._sortingInfo);
     }
-    scheduleFullRedraw();
   }
 
   resetOrder() {
     this.permutation = range(this.data.length);
     this._sortingInfo = undefined;
-    scheduleFullRedraw();
   }
 
   get sortingInfo(): SortingInfo<T> | undefined {
@@ -168,7 +165,6 @@ export class TableData<T> {
         info.direction,
       ),
     );
-    scheduleFullRedraw();
   }
 }
 

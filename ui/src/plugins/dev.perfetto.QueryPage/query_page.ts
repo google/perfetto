@@ -58,7 +58,6 @@ function runManualQuery(trace: Trace, query: string) {
         return;
       }
       state.queryResult = resp;
-      trace.scheduleFullRedraw();
     },
   );
 }
@@ -97,7 +96,6 @@ class QueryInput implements m.ClassComponent<QueryInputAttrs> {
 
       onUpdate: (text: string) => {
         state.enteredText = text;
-        attrs.trace.scheduleFullRedraw();
       },
     });
   }
@@ -131,7 +129,6 @@ export class QueryPage implements m.ClassComponent<PageWithTraceAttrs> {
         setQuery: (q: string) => {
           state.enteredText = q;
           state.generation++;
-          attrs.trace.scheduleFullRedraw();
         },
       }),
     );

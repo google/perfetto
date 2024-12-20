@@ -12,12 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-let FULL_REDRAW_FUNCTION = (_force?: 'force') => {};
+export type RedrawCallback = () => void;
 
-export function setScheduleFullRedraw(func: () => void) {
-  FULL_REDRAW_FUNCTION = func;
-}
+export interface Raf {
+  /**
+   * Schedule both a DOM and canvas redraw.
+   */
+  scheduleFullRedraw(): void;
 
-export function scheduleFullRedraw(force?: 'force') {
-  FULL_REDRAW_FUNCTION(force);
+  /**
+   * Schedule a canvas redraw only.
+   */
+  scheduleCanvasRedraw(): void;
+
+  /**
+   * Add a callback for canvas redraws. `cb` will be called whenever a canvas
+   * redraw is scheduled canvas redraw using {@link scheduleCanvasRedraw()}.
+   *
+   * @param cb - The callback to called when canvas are redrawn.
+   * @returns - A disposable object that removes the callback when disposed.
+   */
+  addCanvasRedrawCallback(cb: RedrawCallback): Disposable;
 }

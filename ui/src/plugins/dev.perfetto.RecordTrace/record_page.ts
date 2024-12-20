@@ -47,7 +47,6 @@ import {PowerSettings} from './power_settings';
 import {RecordingSettings} from './recording_settings';
 import {EtwSettings} from './etw_settings';
 import {RecordingManager} from './recording_manager';
-import {scheduleFullRedraw} from '../../widgets/raf';
 import {App} from '../../public/app';
 import {GcsUploader, BUCKET_NAME, MIME_JSON} from '../../base/gcs_uploader';
 import {showModal} from '../../widgets/modal';
@@ -152,7 +151,6 @@ function onTargetChange(recMgr: RecordingManager, target: string) {
 
   recMgr.setRecordingTarget(recordingTarget);
   recordTargetStore.save(target);
-  scheduleFullRedraw();
 }
 
 function Instructions(recMgr: RecordingManager, cssClass: string) {
@@ -195,7 +193,6 @@ export function loadConfigButton(
       disabled: loadedConfigEqual(configType, recMgr.state.lastLoadedConfig),
       onclick: () => {
         recMgr.setRecordConfig(config, configType);
-        scheduleFullRedraw();
       },
     },
     m('i.material-icons', 'file_upload'),
@@ -241,7 +238,6 @@ export function displayRecordConfigs(recMgr: RecordingManager) {
                   type: 'NAMED',
                   name: item.title,
                 });
-                scheduleFullRedraw();
               }
             },
           },
@@ -254,7 +250,6 @@ export function displayRecordConfigs(recMgr: RecordingManager) {
             title: 'Remove configuration',
             onclick: () => {
               recordConfigStore.delete(item.key);
-              scheduleFullRedraw();
             },
           },
           m('i.material-icons', 'delete'),
@@ -289,7 +284,6 @@ export function Configurations(recMgr: RecordingManager, cssClass: string) {
         placeholder: 'Title for config',
         oninput() {
           ConfigTitleState.setTitle(this.value);
-          scheduleFullRedraw();
         },
       }),
       m(
@@ -305,7 +299,6 @@ export function Configurations(recMgr: RecordingManager, cssClass: string) {
               recMgr.state.recordConfig,
               ConfigTitleState.getTitle(),
             );
-            scheduleFullRedraw();
             ConfigTitleState.clearTitle();
           },
         },
@@ -323,7 +316,6 @@ export function Configurations(recMgr: RecordingManager, cssClass: string) {
               )
             ) {
               recMgr.clearRecordConfig();
-              scheduleFullRedraw();
             }
           },
         },
@@ -570,7 +562,6 @@ function StopCancelButtons(recMgr: RecordingManager) {
 
 function onStartRecordingPressed(recMgr: RecordingManager) {
   location.href = '#!/record/instructions';
-  scheduleFullRedraw();
   autosaveConfigStore.save(recMgr.state.recordConfig);
 
   const target = recMgr.state.recordingTarget;
@@ -739,7 +730,8 @@ function recordMenu(recMgr: RecordingManager, routePage: string) {
     '.record-menu',
     {
       class: recInProgress ? 'disabled' : '',
-      onclick: () => scheduleFullRedraw(),
+      // Just setting this event handler will trigger redraws.
+      onclick: () => {},
     },
     m('header', 'Trace config'),
     m(

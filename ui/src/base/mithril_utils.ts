@@ -85,3 +85,5 @@ export function bindMithrilAttrs<BaseAttrs, Attrs>(
     },
   };
 }
+
+export type MithrilEvent<T extends Event = Event> = T & {redraw: boolean};

@@ -126,7 +126,6 @@ export class NotesPanel {
             this.trace.workspace.pinnedTracks.forEach((t) =>
               this.trace.workspace.unpinTrack(t),
             );
-            raf.scheduleFullRedraw();
           },
           title: 'Clear all pinned tracks',
           icon: 'clear_all',

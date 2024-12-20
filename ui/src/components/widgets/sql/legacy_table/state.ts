@@ -454,7 +454,6 @@ export class SqlTableState {
       --toIndex;
     }
     this.columns.splice(toIndex, 0, column);
-    raf.scheduleFullRedraw();
   }
 
   getSelectedColumns(): LegacyTableColumn[] {

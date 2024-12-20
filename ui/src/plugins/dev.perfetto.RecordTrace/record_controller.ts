@@ -42,7 +42,6 @@ import {
 import {RecordConfig} from './record_config_types';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 import {RecordingManager} from './recording_manager';
-import {scheduleFullRedraw} from '../../widgets/raf';
 import {App} from '../../public/app';
 
 type RPCImplMethod = Method | rpc.ServiceMethod<Message<{}>, Message<{}>>;
@@ -221,7 +220,7 @@ export class RecordController implements Consumer {
   refreshOnStateChange() {
     // TODO(eseckler): Use ConsumerPort's QueryServiceState instead
     // of posting a custom extension message to retrieve the category list.
-    scheduleFullRedraw();
+    this.app.raf.scheduleFullRedraw();
     if (this.state.fetchChromeCategories && !this.fetchedCategories) {
       this.fetchedCategories = true;
       if (this.state.extensionInstalled) {

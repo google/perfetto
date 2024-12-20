@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {DropDirection} from '../core/pivot_table_manager';
-import {raf} from '../core/raf_scheduler';
 
 export interface ReorderableCell {
   content: m.Children;
@@ -74,8 +73,6 @@ export class ReorderableCellGroup
             if (e.dataTransfer !== null) {
               e.dataTransfer.setDragImage(placeholderElement, 0, 0);
             }
-
-            raf.scheduleFullRedraw();
           },
           ondragover: (e: DragEvent) => {
             let target = e.target as HTMLElement;
@@ -100,15 +97,8 @@ export class ReorderableCellGroup
             const offset = e.clientX - target.getBoundingClientRect().x;
             const newDropDirection =
               offset > target.clientWidth / 2 ? 'right' : 'left';
-            const redraw =
-              newDropDirection !== this.dropDirection ||
-              index !== this.draggingTo;
             this.dropDirection = newDropDirection;
             this.draggingTo = index;
-
-            if (redraw) {
-              raf.scheduleFullRedraw();
-            }
           },
           ondragenter: (e: DragEvent) => {
             this.enterCounters[index]++;
@@ -128,7 +118,6 @@ export class ReorderableCellGroup
             }
 
             this.draggingTo = -1;
-            raf.scheduleFullRedraw();
           },
           ondragend: () => {
             if (
@@ -144,7 +133,6 @@ export class ReorderableCellGroup
 
             this.draggingFrom = -1;
             this.draggingTo = -1;
-            raf.scheduleFullRedraw();
           },
         },
         cell.content,

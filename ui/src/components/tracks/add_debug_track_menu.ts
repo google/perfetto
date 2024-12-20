@@ -93,7 +93,7 @@ export class AddDebugTrackMenu
     }
   }
 
-  private renderTrackTypeSelect(trace: Trace) {
+  private renderTrackTypeSelect() {
     const options = [];
     for (const type of ['slice', 'counter']) {
       options.push(
@@ -116,7 +116,6 @@ export class AddDebugTrackMenu
           this.trackType = (e.target as HTMLSelectElement).value as
             | 'slice'
             | 'counter';
-          trace.scheduleFullRedraw();
         },
       },
       options,
@@ -253,7 +252,7 @@ export class AddDebugTrackMenu
         },
       }),
       m(FormLabel, {for: 'track_type'}, 'Track type'),
-      this.renderTrackTypeSelect(vnode.attrs.trace),
+      this.renderTrackTypeSelect(),
       renderSelect('ts'),
       this.trackType === 'slice' && renderSelect('dur'),
       this.trackType === 'slice' && renderSelect('name'),
