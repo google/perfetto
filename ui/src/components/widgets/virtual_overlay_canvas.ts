@@ -30,11 +30,12 @@
  */
 
 import m from 'mithril';
-import {DisposableStack} from '../base/disposable_stack';
-import {findRef, toHTMLElement} from '../base/dom_utils';
-import {Rect2D, Size2D} from '../base/geom';
-import {assertExists} from '../base/logging';
-import {VirtualCanvas} from '../base/virtual_canvas';
+import {DisposableStack} from '../../base/disposable_stack';
+import {findRef, toHTMLElement} from '../../base/dom_utils';
+import {Rect2D, Size2D} from '../../base/geom';
+import {assertExists} from '../../base/logging';
+import {VirtualCanvas} from '../../base/virtual_canvas';
+import {Raf} from '../../public/raf';
 
 const CANVAS_CONTAINER_REF = 'canvas-container';
 const CANVAS_OVERDRAW_PX = 300;
@@ -58,6 +59,12 @@ export interface VirtualOverlayCanvasAttrs {
   // Which axes should be scrollable.
   readonly scrollAxes?: 'none' | 'x' | 'y' | 'both';
 
+  // Access to the raf. If not supplied, the canvas won't be redrawn when
+  // redraws are scheduled using the raf, only when the floating canvas moves
+  // around or is resized. Thus, this might be OK for static canvas content, but
+  // for dynamic content, you really should pass a raf.
+  readonly raf?: Raf;
+
   // Called when the canvas needs to be repainted due to a layout shift or
   // or resize.
   onCanvasRedraw?(ctx: VirtualOverlayCanvasDrawContext): void;
@@ -65,15 +72,6 @@ export interface VirtualOverlayCanvasAttrs {
   // Called when the canvas is resized. This will immediately be followed by a
   // call to onCanvasRedraw().
   onCanvasResized?(size: Size2D): void;
-
-  // Called when the canvas is first created, passing a reference to this object
-  // - can be used to e.g. bind to the raf scheduler so that the canvas will
-  //   redraw on raf.scheduleCanvasRedraw().
-  onCanvasCreate?(voc: VirtualOverlayCanvas): void;
-
-  // Called when the canvas is destroyed to clear up anything bound in
-  // `onCanvasCreate`.
-  onCanvasRemove?(voc: VirtualOverlayCanvas): void;
 }
 
 // This mithril component acts as scrolling container for tall and/or wide
@@ -153,11 +151,14 @@ export class VirtualOverlayCanvas
       this.redrawCanvas();
     });
 
-    attrs.onCanvasCreate?.(this);
+    if (this.attrs?.raf) {
+      this.trash.use(
+        this.attrs.raf.addCanvasRedrawCallback(() => this.redrawCanvas()),
+      );
+    }
   }
 
-  onremove({attrs}: m.CVnodeDOM<VirtualOverlayCanvasAttrs>) {
-    attrs.onCanvasRemove?.(this);
+  onremove() {
     this.trash.dispose();
   }
 

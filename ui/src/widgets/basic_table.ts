@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {scheduleFullRedraw} from './raf';
 
 export interface ColumnDescriptor<T> {
   readonly title: m.Children;
@@ -161,8 +160,6 @@ class ReorderableCellGroup
             if (e.dataTransfer !== null) {
               e.dataTransfer.setDragImage(placeholderElement, 0, 0);
             }
-
-            scheduleFullRedraw();
           },
           ondragover: (e: DragEvent) => {
             let target = e.target as HTMLElement;
@@ -194,13 +191,11 @@ class ReorderableCellGroup
                 : dest;
             if (adjustedDest !== this.drag.to) {
               this.drag.to = adjustedDest;
-              scheduleFullRedraw();
             }
           },
           ondragleave: (e: DragEvent) => {
             if (this.drag?.to !== index) return;
             this.drag.to = undefined;
-            scheduleFullRedraw();
             if (e.dataTransfer !== null) {
               e.dataTransfer.dropEffect = 'none';
             }
@@ -215,7 +210,6 @@ class ReorderableCellGroup
             }
 
             this.drag = undefined;
-            scheduleFullRedraw();
           },
         },
         cell.content,

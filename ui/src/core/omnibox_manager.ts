@@ -79,7 +79,6 @@ export class OmniboxManagerImpl implements OmniboxManager {
   focus(cursorPlacement?: number): void {
     this._focusOmniboxNextRender = true;
     this._pendingCursorPlacement = cursorPlacement;
-    raf.scheduleFullRedraw();
   }
 
   clearFocusFlag(): void {
@@ -92,7 +91,6 @@ export class OmniboxManagerImpl implements OmniboxManager {
     this._focusOmniboxNextRender = focus;
     this._omniboxSelectionIndex = 0;
     this.rejectPendingPrompt();
-    raf.scheduleFullRedraw();
   }
 
   showStatusMessage(msg: string, durationMs = 2000) {
@@ -104,7 +102,6 @@ export class OmniboxManagerImpl implements OmniboxManager {
       }, durationMs);
     }
     this._statusMessageContainer = statusMessageContainer;
-    raf.scheduleFullRedraw();
   }
 
   get statusMessage(): string | undefined {
@@ -127,7 +124,6 @@ export class OmniboxManagerImpl implements OmniboxManager {
     this._omniboxSelectionIndex = 0;
     this.rejectPendingPrompt();
     this._focusOmniboxNextRender = true;
-    raf.scheduleFullRedraw();
 
     if (choices && 'getName' in choices) {
       return new Promise<T | undefined>((resolve) => {
@@ -175,7 +171,6 @@ export class OmniboxManagerImpl implements OmniboxManager {
     this.setMode(defaultMode, focus);
     this._omniboxSelectionIndex = 0;
     this._statusMessageContainer = {};
-    raf.scheduleFullRedraw();
   }
 
   private rejectPendingPrompt() {

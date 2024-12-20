@@ -144,8 +144,6 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         visibleSpan,
         this.pagination,
       );
-
-      attrs.trace.scheduleFullRedraw();
     });
   }
 
@@ -221,7 +219,6 @@ class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
         onchange: (e: Event) => {
           const selectionValue = (e.target as HTMLSelectElement).value;
           attrs.onSelect(Number(selectionValue));
-          attrs.trace.scheduleFullRedraw();
         },
       },
       optionComponents,
@@ -243,7 +240,6 @@ class LogTextWidget implements m.ClassComponent<LogTextWidgetAttrs> {
         // updated with the latest key (onkeyup).
         const htmlElement = e.target as HTMLInputElement;
         attrs.onChange(htmlElement.value);
-        attrs.trace.scheduleFullRedraw();
       },
     });
   }

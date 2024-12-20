@@ -69,7 +69,6 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
     }
     const wakeup = await getSchedWakeupInfo(this.trace.engine, sched);
     this.details = {sched, wakeup};
-    this.trace.scheduleFullRedraw();
   }
 
   render() {

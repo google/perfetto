@@ -36,6 +36,7 @@ import {PerfManager} from './perf_manager';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
 import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import {featureFlags} from './feature_flags';
+import {Raf} from '../public/raf';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
@@ -214,8 +215,8 @@ export class AppImpl implements App {
     return this.appCtx.currentTrace?.forPlugin(this.pluginId);
   }
 
-  scheduleFullRedraw(force?: 'force'): void {
-    raf.scheduleFullRedraw(force);
+  get raf(): Raf {
+    return raf;
   }
 
   get httpRpc() {

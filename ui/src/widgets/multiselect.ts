@@ -18,7 +18,6 @@ import {Button} from './button';
 import {Checkbox} from './checkbox';
 import {EmptyState} from './empty_state';
 import {Popup, PopupPosition} from './popup';
-import {scheduleFullRedraw} from './raf';
 import {TextInput} from './text_input';
 import {Intent} from './common';
 
@@ -110,7 +109,6 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
                       .filter(({checked}) => checked)
                       .map(({id}) => ({id, checked: false}));
                     onChange(diffs);
-                    scheduleFullRedraw();
                   },
                   disabled: !anyChecked,
                 }),
@@ -138,7 +136,6 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
                     .filter(({checked}) => !checked)
                     .map(({id}) => ({id, checked: true}));
                   onChange(diffs);
-                  scheduleFullRedraw();
                 },
                 disabled: allChecked,
               }),
@@ -151,7 +148,6 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
                     .filter(({checked}) => checked)
                     .map(({id}) => ({id, checked: false}));
                   onChange(diffs);
-                  scheduleFullRedraw();
                 },
                 disabled: !anyChecked,
               }),
@@ -170,7 +166,6 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
         oninput: (event: Event) => {
           const eventTarget = event.target as HTMLTextAreaElement;
           this.searchText = eventTarget.value;
-          scheduleFullRedraw();
         },
         value: this.searchText,
         placeholder: 'Filter options...',
@@ -185,7 +180,6 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
       return m(Button, {
         onclick: () => {
           this.searchText = '';
-          scheduleFullRedraw();
         },
         label: '',
         icon: 'close',
@@ -207,7 +201,6 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
         className: 'pf-multiselect-item',
         onchange: () => {
           onChange([{id, checked: !checked}]);
-          scheduleFullRedraw();
         },
       });
     });

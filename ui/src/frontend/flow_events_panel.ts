@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {Icons} from '../base/semantic_icons';
-import {raf} from '../core/raf_scheduler';
 import {Flow} from '../core/flow_types';
 import {TraceImpl} from '../core/trace_impl';
 
@@ -124,7 +123,6 @@ export class FlowEventsAreaSelectedPanel
                   flows.setCategoryVisible(ALL_CATEGORIES, false);
                 }
                 flows.setCategoryVisible(cat, !wasChecked);
-                raf.scheduleFullRedraw();
               },
             },
             wasChecked ? Icons.Checkbox : Icons.BlankCheckbox,

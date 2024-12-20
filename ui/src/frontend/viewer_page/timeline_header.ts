@@ -20,12 +20,11 @@ import {Rect2D, Size2D} from '../../base/geom';
 import {assertExists} from '../../base/logging';
 import {TimeScale} from '../../base/time_scale';
 import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
-import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {
   VirtualOverlayCanvas,
   VirtualOverlayCanvasDrawContext,
-} from '../../widgets/virtual_overlay_canvas';
+} from '../../components/widgets/virtual_overlay_canvas';
 import {TRACK_SHELL_WIDTH} from '../css_constants';
 import {NotesPanel} from './notes_panel';
 import {TickmarkPanel} from './tickmark_panel';
@@ -89,6 +88,7 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
       m(
         VirtualOverlayCanvas,
         {
+          raf: attrs.trace.raf,
           onCanvasRedraw: this.drawCanvas.bind(this),
           onCanvasResized: (size: Size2D) => {
             const rect = new Rect2D({
@@ -98,11 +98,6 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
               bottom: 0,
             });
             attrs.onTimelineBoundsChange?.(rect);
-          },
-          onCanvasCreate: (overlay) => {
-            overlay.trash.use(
-              raf.addCanvasRedrawCallback(() => overlay.redrawCanvas()),
-            );
           },
         },
         this.panels.map((p) => p.render()),

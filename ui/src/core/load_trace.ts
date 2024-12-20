@@ -147,7 +147,7 @@ async function createEngine(
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
     });
   }
-  engine.onResponseReceived = () => raf.scheduleFullRedraw('force');
+  engine.onResponseReceived = () => raf.scheduleFullRedraw();
 
   if (isMetatracingEnabled()) {
     engine.enableMetatrace(assertExists(getEnabledMetatracingCategories()));

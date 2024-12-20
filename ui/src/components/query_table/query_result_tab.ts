@@ -76,9 +76,6 @@ export class QueryResultTab implements Tab {
 
     // TODO(stevegolton): Do we really need to create this view upfront?
     this.sqlViewName = await this.createViewForDebugTrack(uuidv4());
-    if (this.sqlViewName) {
-      this.trace.scheduleFullRedraw();
-    }
   }
 
   getTitle(): string {

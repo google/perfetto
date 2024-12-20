@@ -19,7 +19,7 @@ import {currentTargetOffset} from '../base/dom_utils';
 import {Bounds2D, Point2D, Vector2D} from '../base/geom';
 import {assertExists} from '../base/logging';
 import {clamp} from '../base/math_utils';
-import {hasChildren} from '../base/mithril_utils';
+import {hasChildren, MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 import {Button, ButtonBar} from './button';
 import {Chip, ChipBar} from './chip';
@@ -305,7 +305,8 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       '.pf-track__canvas',
       {
         className: classNames(error && 'pf-track__canvas--error'),
-        onmousemove: (e: MouseEvent) => {
+        onmousemove: (e: MithrilEvent<MouseEvent>) => {
+          e.redraw = false;
           onTrackContentMouseMove?.(
             currentTargetOffset(e),
             getTargetContainerSize(e),

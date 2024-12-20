@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {raf} from './raf_scheduler';
 import {AppImpl} from './app_impl';
 
 const COOKIE_ACK_KEY = 'cookieAck';
@@ -59,7 +58,6 @@ export class CookieConsent implements m.ClassComponent {
             onclick: () => {
               this.showCookieConsent = false;
               localStorage.setItem(COOKIE_ACK_KEY, 'true');
-              raf.scheduleFullRedraw();
             },
           },
           'OK',

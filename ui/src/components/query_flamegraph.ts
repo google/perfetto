@@ -157,7 +157,6 @@ export class QueryFlamegraph {
       state: this.state.state,
       onStateChange: (state) => {
         this.state.state = state;
-        this.trace.scheduleFullRedraw();
       },
     });
   }

@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {hasChildren} from '../base/mithril_utils';
-import {scheduleFullRedraw} from './raf';
 
 // Heirachical tree layout with left and right values.
 // Right and left values of the same indentation level are horizontally aligned.
@@ -92,7 +91,6 @@ export class TreeNode implements m.ClassComponent<TreeNodeAttrs> {
             onclick: () => {
               this.collapsed = !this.isCollapsed(vnode);
               onCollapseChanged(this.collapsed, attrs);
-              scheduleFullRedraw();
             },
           }),
           left,
@@ -215,19 +213,16 @@ export class LazyTreeNode implements m.ClassComponent<LazyTreeNodeAttrs> {
             // Expanding
             if (this.renderChildren) {
               this.collapsed = false;
-              scheduleFullRedraw();
             } else {
               this.loading = true;
               fetchData().then((result) => {
                 this.loading = false;
                 this.collapsed = false;
                 this.renderChildren = result;
-                scheduleFullRedraw();
               });
             }
           }
           this.collapsed = collapsed;
-          scheduleFullRedraw();
         },
       },
       this.renderChildren && this.renderChildren(),
