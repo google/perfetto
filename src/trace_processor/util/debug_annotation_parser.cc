@@ -94,8 +94,7 @@ DebugAnnotationParser::ParseDebugAnnotationValue(
     }
     delegate.AddString(context_name, decoder->str().ToStdString());
   } else if (annotation.has_pointer_value()) {
-    delegate.AddPointer(context_name, reinterpret_cast<const void*>(
-                                          annotation.pointer_value()));
+    delegate.AddPointer(context_name, annotation.pointer_value());
   } else if (annotation.has_dict_entries()) {
     bool added_entry = false;
     for (auto it = annotation.dict_entries(); it; ++it) {
