@@ -97,10 +97,10 @@ class DebugAnnotationParserTest : public ::testing::Test,
     args_.push_back(ss.str());
   }
 
-  void AddPointer(const Key& key, const void* value) override {
+  void AddPointer(const Key& key, uint64_t value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << std::hex
-       << reinterpret_cast<uintptr_t>(value) << std::dec;
+    ss << key.flat_key << " " << key.key << " " << std::hex << value
+       << std::dec;
     args_.push_back(ss.str());
   }
 
