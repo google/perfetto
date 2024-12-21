@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HSLColor, hslToRgb, HSLuvColor} from '../public/color';
+import {HSLColor, hslToRgb, HSLuvColor} from '../base/color';
 
 describe('HSLColor', () => {
   const col = new HSLColor({h: 123, s: 66, l: 45});

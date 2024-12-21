@@ -531,9 +531,8 @@ export class UiMainPerTrace implements m.ClassComponent {
           title: alt ? 'Pinned query' : 'Omnibox query',
         };
         const tag = alt ? undefined : 'omnibox_query';
-        const trace = AppImpl.instance.trace;
-        if (trace === undefined) return; // No trace loaded
-        addQueryResultsTab(trace, config, tag);
+        if (this.trace === undefined) return; // No trace loaded
+        addQueryResultsTab(this.trace, config, tag);
       },
       onClose: () => {
         AppImpl.instance.omnibox.setText('');

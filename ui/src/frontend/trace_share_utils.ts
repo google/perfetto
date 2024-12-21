@@ -61,6 +61,6 @@ export async function shareTrace(trace: TraceImpl) {
   );
   if (result) {
     AppImpl.instance.analytics.logEvent('Trace Actions', 'Create permalink');
-    return await createPermalink();
+    return await createPermalink(trace);
   }
 }

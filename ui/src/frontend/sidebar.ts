@@ -121,19 +121,12 @@ function downloadTrace(trace: TraceImpl) {
   downloadUrl(fileName, url);
 }
 
-function highPrecisionTimersAvailable(): boolean {
-  // High precision timers are available either when the page is cross-origin
-  // isolated or when the trace processor is a standalone binary.
-  return (
-    window.crossOriginIsolated ||
-    AppImpl.instance.trace?.engine.mode === 'HTTP_RPC'
-  );
-}
-
 function recordMetatrace(engine: Engine) {
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Record metatrace');
 
-  if (!highPrecisionTimersAvailable()) {
+  const highPrecisionTimersAvailable =
+    window.crossOriginIsolated || engine.mode === 'HTTP_RPC';
+  if (!highPrecisionTimersAvailable) {
     const PROMPT = `High-precision timers are not available to WASM trace processor yet.
 
 Modern browsers restrict high-precision timers to cross-origin-isolated pages.
@@ -356,8 +349,8 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
   private _asyncJobPending = new Set<string>();
   private _sectionExpanded = new Map<string, boolean>();
 
-  constructor() {
-    registerMenuItems();
+  constructor({attrs}: m.CVnode<OptionalTraceImplAttrs>) {
+    registerMenuItems(attrs.trace);
   }
 
   view({attrs}: m.CVnode<OptionalTraceImplAttrs>) {
@@ -535,12 +528,11 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
 let globalItemsRegistered = false;
 const traceItemsRegistered = new WeakSet<TraceImpl>();
 
-function registerMenuItems() {
+function registerMenuItems(trace: TraceImpl | undefined) {
   if (!globalItemsRegistered) {
     globalItemsRegistered = true;
     registerGlobalSidebarEntries();
   }
-  const trace = AppImpl.instance.trace;
   if (trace !== undefined && !traceItemsRegistered.has(trace)) {
     traceItemsRegistered.add(trace);
     registerTraceMenuItems(trace);

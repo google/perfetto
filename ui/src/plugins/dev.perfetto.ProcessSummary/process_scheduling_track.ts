@@ -17,7 +17,7 @@ import {searchEq, searchRange} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import {drawTrackHoverTooltip} from '../../base/canvas_utils';
-import {Color} from '../../public/color';
+import {Color} from '../../base/color';
 import {colorForThread} from '../../components/colorizer';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';

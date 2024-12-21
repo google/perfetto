@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {hsluvToRgb} from 'hsluv';
-import {clamp} from '../base/math_utils';
+import {clamp} from './math_utils';
 
 // This file contains a library for working with colors in various color spaces
 // and formats.

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists} from '../base/logging';
 import {
   JsonSerialize,
   parseAppState,
@@ -33,6 +32,7 @@ import {z} from 'zod';
 import {showModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
 import {CopyableLink} from '../widgets/copyable_link';
+import {TraceImpl} from '../core/trace_impl';
 
 // Permalink serialization has two layers:
 // 1. Serialization of the app state (state_serialization.ts):
@@ -59,19 +59,18 @@ const PERMALINK_SCHEMA = z.object({
 
 type PermalinkState = z.infer<typeof PERMALINK_SCHEMA>;
 
-export async function createPermalink(): Promise<void> {
-  const hash = await createPermalinkInternal();
+export async function createPermalink(trace: TraceImpl): Promise<void> {
+  const hash = await createPermalinkInternal(trace);
   showPermalinkDialog(hash);
 }
 
 // Returns the file name, not the full url (i.e. the name of the GCS object).
-async function createPermalinkInternal(): Promise<string> {
+async function createPermalinkInternal(trace: TraceImpl): Promise<string> {
   const permalinkData: PermalinkState = {};
 
   // Check if we need to upload the trace file, before serializing the app
   // state.
   let alreadyUploadedUrl = '';
-  const trace = assertExists(AppImpl.instance.trace);
   const traceSource = trace.traceInfo.source;
   let dataToUpload: File | ArrayBuffer | undefined = undefined;
   let traceName = trace.traceInfo.traceTitle || 'trace';

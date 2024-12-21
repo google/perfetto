@@ -21,7 +21,7 @@ import {
   drawTrackHoverTooltip,
 } from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
-import {colorCompare} from '../../public/color';
+import {colorCompare} from '../../base/color';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {TrackEventDetails} from '../../public/selection';
 import {featureFlags} from '../../core/feature_flags';
