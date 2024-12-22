@@ -126,6 +126,7 @@ export class HttpRpcEngine extends EngineBase {
 
   [Symbol.dispose]() {
     this.disposed = true;
+    this.connected = false;
     const websocket = this.websocket;
     this.websocket = undefined;
     websocket?.close();
