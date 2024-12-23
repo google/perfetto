@@ -39,13 +39,6 @@ RUN set -ex; \
     apt-get -y autoremove; \
     rm -rf /var/lib/apt/lists/* /usr/share/man/* /usr/share/doc/*;
 
-RUN set -ex; \
-    curl -LO https://github.com/bazelbuild/bazel/releases/download/7.4.1/bazel-7.4.1-installer-linux-x86_64.sh; \
-    chmod +x bazel-*-installer-linux-x86_64.sh; \
-    ./bazel-*-installer-linux-x86_64.sh; \
-    rm bazel-*-installer-linux-x86_64.sh; \
-    bazel version;
-
 # Chrome/puppeteer deps.
 RUN set -ex; \
     export DEBIAN_FRONTEND=noninteractive; \
