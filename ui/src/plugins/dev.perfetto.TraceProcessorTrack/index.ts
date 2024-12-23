@@ -31,7 +31,7 @@ import {CounterSelectionAggregator} from './counter_selection_aggregator';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {SliceSelectionAggregator} from './slice_selection_aggregator';
 import {assertExists, assertTrue} from '../../base/logging';
-import {AsyncSliceTrack} from './async_slice_track';
+import {TraceProcessorSliceTrack} from './trace_processor_slice_track';
 import {removeFalsyValues} from '../../base/array_utils';
 
 const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
@@ -564,7 +564,7 @@ export default class implements PerfettoPlugin {
             kind: SLICE_TRACK_KIND,
             scope: 'global',
           },
-          track: new AsyncSliceTrack(ctx, uri, maxDepth, trackIds),
+          track: new TraceProcessorSliceTrack(ctx, uri, maxDepth, trackIds),
         });
         const trackNode = new TrackNode({
           uri,
@@ -637,7 +637,7 @@ export default class implements PerfettoPlugin {
           kind: SLICE_TRACK_KIND,
           scope: 'global',
         },
-        track: new AsyncSliceTrack(ctx, uri, maxDepth, trackIds),
+        track: new TraceProcessorSliceTrack(ctx, uri, maxDepth, trackIds),
       });
       const trackNode = new TrackNode({
         uri,
@@ -711,7 +711,7 @@ export default class implements PerfettoPlugin {
           scope: 'process',
           upid,
         },
-        track: new AsyncSliceTrack(ctx, uri, maxDepth, trackIds),
+        track: new TraceProcessorSliceTrack(ctx, uri, maxDepth, trackIds),
       });
       const track = new TrackNode({uri, title, sortOrder: 30});
       trackIds.forEach((id) => {
@@ -814,7 +814,7 @@ export default class implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        track: new AsyncSliceTrack(ctx, uri, maxDepth, trackIds),
+        track: new TraceProcessorSliceTrack(ctx, uri, maxDepth, trackIds),
       });
       const track = new TrackNode({uri, title, sortOrder: 20});
       trackIds.forEach((id) => {

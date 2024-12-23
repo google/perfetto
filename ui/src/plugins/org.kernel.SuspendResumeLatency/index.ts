@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
-import {AsyncSliceTrack} from '../dev.perfetto.TraceProcessorTrack/async_slice_track';
+import {TraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
@@ -26,7 +26,7 @@ import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 // SuspendResumeSliceTrack exists so as to override the `onSliceClick` function
 // in AsyncSliceTrack.
 // TODO(stevegolton): Remove this?
-class SuspendResumeSliceTrack extends AsyncSliceTrack {
+class SuspendResumeSliceTrack extends TraceProcessorSliceTrack {
   constructor(
     trace: Trace,
     uri: string,
