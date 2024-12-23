@@ -365,7 +365,14 @@ TrackEventTracker::ResolveDescriptorTrack(
                                  static_cast<int64_t>(uuid)),
               tracks::DynamicName(reservation.name), args_fn_non_root);
         }
-        set_parent_id(id);
+        // If the parent is the default thread scoped track, promote this track
+        // to also be a root thread level track: this is because the default
+        // thread scoped track is *not* owned by track_event and so we cannot
+        // make ourselves a child of it without making the semantics very
+        // strange.
+        if (!parent_resolved_track->is_default_thead_slice_track()) {
+          set_parent_id(id);
+        }
         return ResolvedDescriptorTrack::Thread(
             id, parent_resolved_track->utid(), reservation.is_counter, false);
       }

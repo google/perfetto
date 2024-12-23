@@ -171,6 +171,10 @@ class TrackEventTracker {
       PERFETTO_DCHECK(scope() == Scope::kThread);
       return utid_;
     }
+    bool is_default_thead_slice_track() const {
+      PERFETTO_DCHECK(scope() == Scope::kThread);
+      return is_default_thead_slice_track_;
+    }
     UniquePid upid() const {
       PERFETTO_DCHECK(scope() == Scope::kProcess);
       return upid_;
