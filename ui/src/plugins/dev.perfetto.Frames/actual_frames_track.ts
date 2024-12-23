@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HSLColor} from '../../public/color';
+import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
-import {ColorScheme} from '../../public/color_scheme';
+import {ColorScheme} from '../../base/color_scheme';
 import {
   NAMED_ROW,
   NamedSliceTrack,

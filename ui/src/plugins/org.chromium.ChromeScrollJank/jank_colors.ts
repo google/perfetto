@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HSLColor} from '../../public/color';
+import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
 
 export const JANK_COLOR = makeColorScheme(new HSLColor([343, 100, 43]));
