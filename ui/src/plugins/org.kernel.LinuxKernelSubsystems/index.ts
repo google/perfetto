@@ -15,15 +15,15 @@
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {AsyncSliceTrack} from '../dev.perfetto.AsyncSlices/async_slice_track';
+import {AsyncSliceTrack} from '../dev.perfetto.TraceProcessorTrack/async_slice_track';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
-import AsyncSlicesPlugin from '../dev.perfetto.AsyncSlices';
+import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 
 // This plugin renders visualizations of subsystems of the Linux kernel.
 export default class implements PerfettoPlugin {
   static readonly id = 'org.kernel.LinuxKernelSubsystems';
-  static readonly dependencies = [AsyncSlicesPlugin];
+  static readonly dependencies = [TraceProcessorTrackPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const kernel = new TrackNode({
