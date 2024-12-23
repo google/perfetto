@@ -443,7 +443,7 @@ export class TrackNode {
   }
 
   /**
-   * Find a track node by its id.
+   * Get a track node by its id.
    *
    * Node: This is an O(1) operation.
    *
@@ -455,14 +455,14 @@ export class TrackNode {
   }
 
   /**
-   * Find a track node via its URI.
+   * Get a track node via its URI.
    *
    * Node: This is an O(1) operation.
    *
    * @param uri The uri of the track to find.
    * @returns The node or undefined if no such node exists with this URI.
    */
-  findTrackByUri(uri: string): TrackNode | undefined {
+  getTrackByUri(uri: string): TrackNode | undefined {
     return this.tracksByUri.get(uri);
   }
 
@@ -597,21 +597,24 @@ export class Workspace {
   }
 
   /**
-   * Find a track node via its URI.
+   * Get a track node via its URI.
    *
-   * Note: This in an O(N) operation where N is the number of nodes in the
-   * workspace.
+   * Node: This is an O(1) operation.
    *
    * @param uri The uri of the track to find.
-   * @returns A reference to the track node if it exists in this workspace,
-   * otherwise undefined.
+   * @returns The node or undefined if no such node exists with this URI.
    */
-  findTrackByUri(uri: string): TrackNode | undefined {
+  getTrackByUri(uri: string): TrackNode | undefined {
     return this.tracks.flatTracks.find((t) => t.uri === uri);
   }
 
   /**
-   * Find a track by ID, also searching pinned tracks.
+   * Get a track node by its id.
+   *
+   * Node: This is an O(1) operation.
+   *
+   * @param id The id of the node we want to find.
+   * @returns The node or undefined if no such node exists.
    */
   getTrackById(id: string): TrackNode | undefined {
     return (

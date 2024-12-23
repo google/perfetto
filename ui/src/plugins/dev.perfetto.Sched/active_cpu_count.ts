@@ -40,7 +40,7 @@ export class ActiveCPUCountTrack extends BaseCounterTrack {
   getTrackShellButtons(): m.Children {
     return m(Button, {
       onclick: () => {
-        this.trace.workspace.findTrackByUri(this.uri)?.remove();
+        this.trace.workspace.getTrackByUri(this.uri)?.remove();
       },
       icon: Icons.Close,
       title: 'Close',

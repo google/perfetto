@@ -419,7 +419,7 @@ export class TrackView {
       // using _ = autoTimer();
       const uri = searchResults.trackUris[searchIndex];
       // Highlight if this or any children match the search results
-      if (uri === node.uri || node.findTrackByUri(uri)) {
+      if (uri === node.uri || node.getTrackByUri(uri)) {
         return true;
       }
     }
@@ -517,7 +517,7 @@ export class TrackView {
       // area selection, highlight this track as if it were in the area
       // selection too.
       selected = selection.trackUris.some((uri) =>
-        this.node.findTrackByUri(uri),
+        this.node.getTrackByUri(uri),
       );
     } else {
       // For non-summary tracks, simply highlight this track if it's in the area

@@ -114,7 +114,7 @@ export class ScrollHelper {
   private verticalScrollToTrack(trackUri: string, openGroup: boolean) {
     // Find the actual track node that uses that URI, we need various properties
     // from it.
-    const trackNode = this.workspace.findTrackByUri(trackUri);
+    const trackNode = this.workspace.getTrackByUri(trackUri);
     if (!trackNode) return;
 
     // Try finding the track directly.
