@@ -13,6 +13,7 @@ packet {
       thread_name: "t1"
     }
     sibling_order_rank: -10
+    disallow_merging_with_system_tracks: true
   }
   trace_packet_defaults {
     track_event_defaults {
@@ -35,6 +36,7 @@ packet {
       thread_name: "t2"
     }
     sibling_order_rank: -2
+    disallow_merging_with_system_tracks: true
   }
   trace_packet_defaults {
     track_event_defaults {
@@ -190,6 +192,7 @@ packet {
       tid: 1
       thread_name: "t3"
     }
+    disallow_merging_with_system_tracks: true
   }
 }
 # Should appear on t3.

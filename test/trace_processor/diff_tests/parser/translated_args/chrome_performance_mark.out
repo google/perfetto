@@ -5,7 +5,4 @@
 "chrome_hashed_performance_mark.site_hash","chrome_hashed_performance_mark.site_hash",10,"[NULL]"
 "event.category","event.category","[NULL]","cat1"
 "event.name","event.name","[NULL]","slice1"
-"is_root_in_scope","is_root_in_scope",1,"[NULL]"
-"source","source","[NULL]","descriptor"
-"trace_id","trace_id",12345,"[NULL]"
 "utid","utid",1,"[NULL]"
