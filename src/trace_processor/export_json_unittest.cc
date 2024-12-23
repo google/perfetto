@@ -780,7 +780,6 @@ TEST_F(ExportJsonTest, InstantEvent) {
             context_.storage->InternString("source"),
             Variadic::String(context_.storage->InternString("chrome")));
       });
-  context_.args_tracker->Flush();  // Flush track args.
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
@@ -788,8 +787,8 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   // Global track.
   TrackEventTracker track_event_tracker(&context_);
-  TrackId track2 = track_event_tracker.GetOrCreateDefaultDescriptorTrack();
-  context_.args_tracker->Flush();  // Flush track args.
+  TrackId track2 = *track_event_tracker.GetDescriptorTrack(
+      TrackEventTracker::kDefaultDescriptorTrackUuid);
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp2, 0, track2, cat_id, name_id, 0, 0, 0});
 
@@ -798,7 +797,6 @@ TEST_F(ExportJsonTest, InstantEvent) {
   reservation.parent_uuid = 0;
   track_event_tracker.ReserveDescriptorTrack(1234, reservation);
   TrackId track3 = *track_event_tracker.GetDescriptorTrack(1234);
-  context_.args_tracker->Flush();  // Flush track args.
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp3, 0, track3, cat_id, name_id, 0, 0, 0});
 
