@@ -174,7 +174,8 @@ std::optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
   // We resolve parent_id here to ensure that it's going to be smaller
   // than the id of the child.
   std::optional<TrackId> parent_id;
-  if (reservation.parent_uuid != 0) {
+  if (reservation.parent_uuid != kDefaultDescriptorTrackUuid &&
+      !resolved_track->is_root_in_scope()) {
     parent_id = GetDescriptorTrackImpl(reservation.parent_uuid);
   }
 
