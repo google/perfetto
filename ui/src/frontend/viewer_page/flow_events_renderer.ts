@@ -138,7 +138,7 @@ export function renderFlows(
       return undefined;
     }
 
-    const track = trackRoot.findTrackByUri(trackUri);
+    const track = trackRoot.getTrackByUri(trackUri);
     if (!track) {
       return undefined;
     }

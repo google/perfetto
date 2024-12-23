@@ -64,7 +64,7 @@ describe('workspace', () => {
     expect(workspace.getTrackById('bar')).toBe(undefined);
   });
 
-  test('findTrackByUri()', () => {
+  test('getTrackByUri()', () => {
     const workspace = new Workspace();
 
     const group = new TrackNode();
@@ -75,7 +75,7 @@ describe('workspace', () => {
     // Add group to workspace
     workspace.addChildLast(group);
 
-    expect(workspace.findTrackByUri('foo')).toBe(track);
+    expect(workspace.getTrackByUri('foo')).toBe(track);
   });
 
   test('findClosestVisibleAncestor()', () => {
