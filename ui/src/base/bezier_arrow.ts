@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Point2D, Vector2D} from '../geom';
-import {assertUnreachable} from '../logging';
+import {Point2D, Vector2D} from './geom';
+import {assertUnreachable} from './logging';
 
 export type CardinalDirection = 'north' | 'south' | 'east' | 'west';
 
