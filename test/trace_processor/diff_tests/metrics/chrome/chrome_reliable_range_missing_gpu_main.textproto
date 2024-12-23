@@ -11,19 +11,19 @@ packet {
       pid: 1
       tid: 1
     }
-    parent_uuid: 0
+    disallow_merging_with_system_tracks: true
   }
 }
 packet {
     timestamp: 2
     track_descriptor {
-        uuid: 2
-        process {
-            pid: 1
-        }
-        chrome_process {
-            process_type: PROCESS_GPU
-        }
+      uuid: 2
+      process {
+          pid: 1
+      }
+      chrome_process {
+          process_type: PROCESS_GPU
+      }
     }
 }
 
