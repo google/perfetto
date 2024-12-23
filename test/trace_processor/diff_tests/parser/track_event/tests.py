@@ -300,13 +300,13 @@ class TrackEvent(TestSuite):
         "async2","process=p1",1
         "async3","thread=t2",1
         "event_and_track_async3","process=p1",1
-        "process=p1","[NULL]","[NULL]"
+        "process=p1","[NULL]",1
         "process=p2","[NULL]","[NULL]"
         "process=p2","[NULL]","[NULL]"
-        "thread=t1","process=p1",1
-        "thread=t2","process=p1",1
-        "thread=t3","process=p1",1
-        "thread=t4","process=p2","[NULL]"
+        "thread=t1","[NULL]",1
+        "thread=t2","[NULL]",1
+        "thread=t3","[NULL]",1
+        "thread=t4","[NULL]","[NULL]"
         "tid=1","[NULL]","[NULL]"
         """))
 
@@ -853,10 +853,6 @@ class TrackEvent(TestSuite):
         6,0,"[NULL]","[NULL]"
         7,"[NULL]","[NULL]","[NULL]"
         8,7,"[NULL]","[NULL]"
-        9,"[NULL]","[NULL]","[NULL]"
-        10,"[NULL]","[NULL]","[NULL]"
-        11,"[NULL]","[NULL]","[NULL]"
-        12,0,"[NULL]","[NULL]"
         """))
 
   def test_track_event_tracks_machine_id(self):
@@ -897,13 +893,13 @@ class TrackEvent(TestSuite):
         "async2","process=p1",1
         "async3","thread=t2",1
         "event_and_track_async3","process=p1",1
-        "process=p1","[NULL]","[NULL]"
+        "process=p1","[NULL]",1
         "process=p2","[NULL]","[NULL]"
         "process=p2","[NULL]","[NULL]"
-        "thread=t1","process=p1",1
-        "thread=t2","process=p1",1
-        "thread=t3","process=p1",1
-        "thread=t4","process=p2","[NULL]"
+        "thread=t1","[NULL]",1
+        "thread=t2","[NULL]",1
+        "thread=t3","[NULL]",1
+        "thread=t4","[NULL]","[NULL]"
         "tid=1","[NULL]","[NULL]"
         """))
 

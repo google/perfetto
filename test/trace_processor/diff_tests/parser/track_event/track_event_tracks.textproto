@@ -181,7 +181,6 @@ packet {
   first_packet_on_sequence: true
   track_descriptor {
     uuid: 3
-    parent_uuid: 10
     thread {
       pid: 5
       tid: 1
@@ -234,7 +233,6 @@ packet {
   incremental_state_cleared: true
   track_descriptor {
     uuid: 21
-    parent_uuid: 20
     thread {
       pid: 5
       tid: 4
