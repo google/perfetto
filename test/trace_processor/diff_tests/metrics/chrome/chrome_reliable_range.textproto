@@ -13,7 +13,7 @@ packet {
       pid: 1
       tid: 1
     }
-    parent_uuid: 0
+    disallow_merging_with_system_tracks: true
   }
 }
 packet {
@@ -26,7 +26,7 @@ packet {
       pid: 2
       tid: 2
     }
-    parent_uuid: 0
+    disallow_merging_with_system_tracks: true
   }
 }
 packet {
