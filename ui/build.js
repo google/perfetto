@@ -120,7 +120,7 @@ const RULES = [
   {r: /ui\/src\/assets\/((.*)[.]png)/, f: copyAssets},
   {r: /buildtools\/typefaces\/(.+[.]woff2)/, f: copyAssets},
   {r: /buildtools\/catapult_trace_viewer\/(.+(js|html))/, f: copyAssets},
-  {r: /ui\/src\/assets\/.+[.]scss/, f: compileScss},
+  {r: /ui\/src\/assets\/.+[.]scss|ui\/src\/(?:plugins|core_plugins)\/.+\/styles[.]scss/, f: compileScss},
   {r: /ui\/src\/chrome_extension\/.*/, f: copyExtensionAssets},
   {r: /.*\/dist\/.+\/(?!manifest\.json).*/, f: genServiceWorkerManifestJson},
   {r: /.*\/dist\/.*[.](js|html|css|wasm)$/, f: notifyLiveServer},
@@ -251,6 +251,8 @@ async function main() {
     generateImports('ui/src/core_plugins', 'all_core_plugins');
     generateImports('ui/src/plugins', 'all_plugins');
     scanDir('ui/src/assets');
+    scanDir('ui/src/plugins', /styles[.]scss$/);
+    scanDir('ui/src/core_plugins', /styles[.]scss$/);
     scanDir('ui/src/chrome_extension');
     scanDir('buildtools/typefaces');
     scanDir('buildtools/catapult_trace_viewer');
