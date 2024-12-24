@@ -13,30 +13,28 @@
 // limitations under the License.
 
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {AreaSelection} from '../../public/selection';
+import {AreaSelection, AreaSelectionAggregator} from '../../public/selection';
+import {Dataset} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
-import {AreaSelectionAggregator} from '../../public/selection';
-import {UnionDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 export class SliceSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'slice_aggregation';
 
-  async createAggregateView(engine: Engine, area: AreaSelection) {
-    const desiredSchema = {
-      id: NUM,
-      name: STR,
-      ts: LONG,
-      dur: LONG,
-    };
-    const validDatasets = area.tracks
-      .map((track) => track.track.getDataset?.())
-      .filter((ds) => ds !== undefined)
-      .filter((ds) => ds.implements(desiredSchema));
-    if (validDatasets.length === 0) {
-      return false;
-    }
-    const unionDataset = new UnionDataset(validDatasets);
+  readonly schema = {
+    id: NUM,
+    name: STR,
+    ts: LONG,
+    dur: LONG,
+  } as const;
+
+  async createAggregateView(
+    engine: Engine,
+    area: AreaSelection,
+    dataset?: Dataset,
+  ) {
+    if (!dataset) return false;
+
     await engine.query(`
       create or replace perfetto table ${this.id} as
       select
@@ -44,7 +42,7 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
         sum(dur) AS total_dur,
         sum(dur)/count() as avg_dur,
         count() as occurrences
-        from (${unionDataset.optimize().query()})
+        from (${dataset.query()})
       where
         ts + dur > ${area.start}
         and ts < ${area.end}
