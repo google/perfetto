@@ -17,19 +17,25 @@ import {AreaSelection} from '../../public/selection';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
+import {LONG, STR} from '../../trace_processor/query_result';
+import {Dataset} from '../../trace_processor/dataset';
 
 export class FrameSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'frame_aggregation';
+  readonly priority = 1;
+  readonly schema = {
+    ts: LONG,
+    dur: LONG,
+    jank_type: STR,
+  } as const;
+  readonly trackKind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
 
-  async createAggregateView(engine: Engine, area: AreaSelection) {
-    const selectedSqlTrackIds: number[] = [];
-    for (const trackInfo of area.tracks) {
-      if (trackInfo?.tags?.kind === ACTUAL_FRAMES_SLICE_TRACK_KIND) {
-        trackInfo.tags.trackIds &&
-          selectedSqlTrackIds.push(...trackInfo.tags.trackIds);
-      }
-    }
-    if (selectedSqlTrackIds.length === 0) return false;
+  async createAggregateView(
+    engine: Engine,
+    area: AreaSelection,
+    dataset?: Dataset,
+  ) {
+    if (!dataset) return false;
 
     await engine.query(`
       create or replace perfetto table ${this.id} as
@@ -39,9 +45,8 @@ export class FrameSelectionAggregator implements AreaSelectionAggregator {
         min(dur) as minDur,
         avg(dur) as meanDur,
         max(dur) as maxDur
-      from actual_frame_timeline_slice
-      where track_id in (${selectedSqlTrackIds})
-        AND ts + dur > ${area.start}
+      from (${dataset.query()})
+      where ts + dur > ${area.start}
         AND ts < ${area.end}
       group by jank_type
     `);
