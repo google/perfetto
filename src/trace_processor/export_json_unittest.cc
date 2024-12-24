@@ -155,8 +155,8 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   // The thread_slice table is a sub table of slice.
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0, SliceId(0u), 0,
-       kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
+      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0, SliceId(0u),
+       std::nullopt, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
        kThreadInstructionDelta});
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -180,7 +180,7 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
   EXPECT_TRUE(event["args"].isObject());
-  EXPECT_EQ(event["args"].size(), 0u);
+  EXPECT_EQ(event["args"].size(), 0u) << event["args"].toStyledString();
 }
 
 TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
@@ -200,8 +200,8 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0, SliceId(0u), 0,
-       kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
+      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0, SliceId(0u),
+       std::nullopt, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
        kThreadInstructionDelta});
 
   base::TempFile temp_file = base::TempFile::Create();
