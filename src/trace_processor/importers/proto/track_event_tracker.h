@@ -18,13 +18,12 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_TRACKER_H_
 
 #include <cstdint>
-#include <map>
 #include <optional>
 #include <tuple>
 #include <unordered_set>
-#include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -34,6 +33,8 @@ namespace perfetto::trace_processor {
 // Tracks and stores tracks based on track types, ids and scopes.
 class TrackEventTracker {
  public:
+  static constexpr uint64_t kDefaultDescriptorTrackUuid = 0u;
+
   // Data from TrackDescriptor proto used to reserve a track before interning it
   // with |TrackTracker|.
   struct DescriptorTrackReservation {
@@ -52,18 +53,18 @@ class TrackEventTracker {
       double latest_value = 0;
       StringId unit = kNullStringId;
 
-      bool operator==(const CounterDetails& o) const {
+      bool IsForSameTrack(const CounterDetails& o) const {
         return std::tie(category, unit_multiplier, is_incremental,
-                        packet_sequence_id, latest_value) ==
+                        packet_sequence_id) ==
                std::tie(o.category, o.unit_multiplier, o.is_incremental,
-                        o.packet_sequence_id, o.latest_value);
+                        o.packet_sequence_id);
       }
     };
 
     uint64_t parent_uuid = 0;
     std::optional<uint32_t> pid;
     std::optional<uint32_t> tid;
-    int64_t min_timestamp = 0;  // only set if |pid| and/or |tid| is set.
+    int64_t min_timestamp = 0;
     StringId name = kNullStringId;
     bool use_separate_track = false;
     bool is_counter = false;
@@ -78,11 +79,16 @@ class TrackEventTracker {
     // Whether |other| is a valid descriptor for this track reservation. A track
     // should always remain nested underneath its original parent.
     bool IsForSameTrack(const DescriptorTrackReservation& other) {
-      // Note that |min_timestamp|, |latest_value|, and |name| are ignored for
-      // this comparison.
-      return std::tie(parent_uuid, pid, tid, is_counter, counter_details) ==
-             std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
-                      other.counter_details);
+      if (counter_details.has_value() != other.counter_details.has_value()) {
+        return false;
+      }
+      if (counter_details &&
+          !counter_details->IsForSameTrack(*other.counter_details)) {
+        return false;
+      }
+      return std::tie(parent_uuid, pid, tid, is_counter) ==
+             std::tie(other.parent_uuid, other.pid, other.tid,
+                      other.is_counter);
     }
   };
   explicit TrackEventTracker(TraceProcessorContext*);
@@ -104,12 +110,16 @@ class TrackEventTracker {
   // the |uuid|. If the track is a child track and doesn't have a name yet,
   // updates the track's name to event_name. Returns std::nullopt if no track
   // for a descriptor with this |uuid| has been reserved.
-  // TODO(lalitm): this method needs to be split up and moved back to
-  // TrackTracker.
   std::optional<TrackId> GetDescriptorTrack(
       uint64_t uuid,
       StringId event_name = kNullStringId,
-      std::optional<uint32_t> packet_sequence_id = std::nullopt);
+      std::optional<uint32_t> packet_sequence_id = std::nullopt) {
+    auto res = GetDescriptorTrackImpl(uuid, event_name, packet_sequence_id);
+    if (!res) {
+      return std::nullopt;
+    }
+    return res->track_id();
+  }
 
   // Converts the given counter value to an absolute value in the unit of the
   // counter, applying incremental delta encoding or unit multipliers as
@@ -121,11 +131,6 @@ class TrackEventTracker {
       uint32_t packet_sequence_id,
       double value);
 
-  // Returns the ID of the implicit trace-global default TrackDescriptor track.
-  // TODO(lalitm): this method needs to be moved back to TrackTracker once
-  // GetDescriptorTrack is moved back.
-  TrackId GetOrCreateDefaultDescriptorTrack();
-
   // Called by ProtoTraceReader whenever incremental state is cleared on a
   // packet sequence. Resets counter values for any incremental counters of
   // the sequence identified by |packet_sequence_id|.
@@ -133,12 +138,12 @@ class TrackEventTracker {
 
   void OnFirstPacketOnSequence(uint32_t packet_sequence_id);
 
-  void SetRangeOfInterestStartUs(int64_t range_of_interest_start_us) {
-    range_of_interest_start_us_ = range_of_interest_start_us;
-  }
-
   std::optional<int64_t> range_of_interest_start_us() const {
     return range_of_interest_start_us_;
+  }
+
+  void set_range_of_interest_us(int64_t range_of_interest_start_us) {
+    range_of_interest_start_us_ = range_of_interest_start_us;
   }
 
  private:
@@ -150,77 +155,71 @@ class TrackEventTracker {
       kGlobal,
     };
 
-    static ResolvedDescriptorTrack Process(UniquePid upid,
-                                           bool is_counter,
-                                           bool is_root);
-    static ResolvedDescriptorTrack Thread(UniqueTid utid,
+    static ResolvedDescriptorTrack Process(TrackId,
+                                           UniquePid upid,
+                                           bool is_counter);
+    static ResolvedDescriptorTrack Thread(TrackId,
+                                          UniqueTid utid,
                                           bool is_counter,
-                                          bool is_root,
-                                          bool use_separate_track);
-    static ResolvedDescriptorTrack Global(bool is_counter, bool is_root);
+                                          bool is_default_thead_slice_track);
+    static ResolvedDescriptorTrack Global(TrackId, bool is_counter);
 
+    TrackId track_id() const { return track_id_; }
     Scope scope() const { return scope_; }
     bool is_counter() const { return is_counter_; }
     UniqueTid utid() const {
       PERFETTO_DCHECK(scope() == Scope::kThread);
       return utid_;
     }
+    bool is_default_thead_slice_track() const {
+      PERFETTO_DCHECK(scope() == Scope::kThread);
+      return is_default_thead_slice_track_;
+    }
     UniquePid upid() const {
       PERFETTO_DCHECK(scope() == Scope::kProcess);
       return upid_;
     }
-    UniqueTid is_root_in_scope() const { return is_root_in_scope_; }
-    bool use_separate_track() const { return use_separate_track_; }
 
    private:
+    TrackId track_id_;
     Scope scope_;
     bool is_counter_;
-    bool is_root_in_scope_;
-    bool use_separate_track_;
 
     // Only set when |scope| == |Scope::kThread|.
     UniqueTid utid_;
+    bool is_default_thead_slice_track_ = false;
 
     // Only set when |scope| == |Scope::kProcess|.
     UniquePid upid_;
   };
 
-  std::optional<TrackId> GetDescriptorTrackImpl(
+  std::optional<ResolvedDescriptorTrack> GetDescriptorTrackImpl(
       uint64_t uuid,
-      std::optional<uint32_t> packet_sequence_id = std::nullopt);
-  TrackId CreateTrackFromResolved(uint64_t uuid,
-                                  std::optional<uint32_t> packet_sequence_id,
-                                  const DescriptorTrackReservation&,
-                                  const ResolvedDescriptorTrack&);
-  std::optional<ResolvedDescriptorTrack> ResolveDescriptorTrack(
+      StringId event_name,
+      std::optional<uint32_t> packet_sequence_id);
+
+  ResolvedDescriptorTrack ResolveDescriptorTrack(
       uint64_t uuid,
-      std::vector<uint64_t>* descendent_uuids);
-  std::optional<ResolvedDescriptorTrack> ResolveDescriptorTrackImpl(
-      uint64_t uuid,
-      const DescriptorTrackReservation&,
-      std::vector<uint64_t>* descendent_uuids);
+      const DescriptorTrackReservation& reservation,
+      std::optional<uint32_t> packet_sequence_id);
+
+  bool IsTrackHierarchyValid(uint64_t uuid);
 
   void AddTrackArgs(uint64_t uuid,
                     std::optional<uint32_t> packet_sequence_id,
                     const DescriptorTrackReservation&,
-                    const ResolvedDescriptorTrack&,
+                    bool,
                     ArgsTracker::BoundInserter&);
 
-  static constexpr uint64_t kDefaultDescriptorTrackUuid = 0u;
-
-  std::map<UniqueTid, TrackId> thread_tracks_;
-  std::map<UniquePid, TrackId> process_tracks_;
-
-  std::map<uint64_t /* uuid */, DescriptorTrackReservation>
+  base::FlatHashMap<uint64_t /* uuid */, DescriptorTrackReservation>
       reserved_descriptor_tracks_;
-  std::map<uint64_t /* uuid */, ResolvedDescriptorTrack>
+  base::FlatHashMap<uint64_t /* uuid */, ResolvedDescriptorTrack>
       resolved_descriptor_tracks_;
-  std::map<uint64_t /* uuid */, TrackId> descriptor_tracks_;
 
   // Stores the descriptor uuid used for the primary process/thread track
   // for the given upid / utid. Used for pid/tid reuse detection.
-  std::map<UniquePid, uint64_t /*uuid*/> descriptor_uuids_by_upid_;
-  std::map<UniqueTid, uint64_t /*uuid*/> descriptor_uuids_by_utid_;
+  base::FlatHashMap<UniquePid, uint64_t /*uuid*/> descriptor_uuids_by_upid_;
+  base::FlatHashMap<UniqueTid, uint64_t /*uuid*/> descriptor_uuids_by_utid_;
 
   std::unordered_set<uint32_t> sequences_with_first_packet_;
 
@@ -234,13 +233,10 @@ class TrackEventTracker {
   const StringId lexicographic_id_;
   const StringId chronological_id_;
   const StringId sibling_order_rank_key_;
-
   const StringId descriptor_source_;
-
   const StringId default_descriptor_track_name_;
 
   std::optional<int64_t> range_of_interest_start_us_;
-
   TraceProcessorContext* const context_;
 };
 

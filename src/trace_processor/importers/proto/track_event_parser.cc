@@ -66,7 +66,6 @@
 #include "protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
-#include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
@@ -450,7 +449,8 @@ class TrackEventParser::EventImporter {
         upid_ = storage_->thread_table()[*utid_].upid();
         track_id_ = track_tracker->InternThreadTrack(*utid_);
       } else {
-        track_id_ = track_event_tracker_->GetOrCreateDefaultDescriptorTrack();
+        track_id_ = *track_event_tracker_->GetDescriptorTrack(
+            TrackEventTracker::kDefaultDescriptorTrackUuid);
       }
     }
 
@@ -1554,13 +1554,15 @@ void TrackEventParser::ParseTrackDescriptor(
 
   if (decoder.has_thread()) {
     UniqueTid utid = ParseThreadDescriptor(decoder.thread());
-    if (decoder.has_chrome_thread())
+    if (decoder.has_chrome_thread()) {
       ParseChromeThreadDescriptor(utid, decoder.chrome_thread());
+    }
   } else if (decoder.has_process()) {
     UniquePid upid =
         ParseProcessDescriptor(packet_timestamp, decoder.process());
-    if (decoder.has_chrome_process())
+    if (decoder.has_chrome_process()) {
       ParseChromeProcessDescriptor(upid, decoder.chrome_process());
+    }
   }
 
   // Override the name with the most recent name seen (after sorting by ts).
@@ -1572,7 +1574,7 @@ void TrackEventParser::ParseTrackDescriptor(
   } else if (decoder.has_atrace_name()) {
     name = decoder.atrace_name();
   }
-  if (name.data != nullptr) {
+  if (name.data) {
     auto* tracks = context_->storage->mutable_track_table();
     const StringId raw_name_id = context_->storage->InternString(name);
     const StringId name_id =
