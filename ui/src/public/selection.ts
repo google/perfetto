@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {time, duration, TimeSpan} from '../base/time';
+import {Dataset, DatasetSchema} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {ColumnDef, Sorting, ThreadStateExtra} from './aggregation';
 import {TrackDescriptor} from './track';
@@ -74,12 +75,51 @@ export interface SelectionManager {
   registerSqlSelectionResolver(resolver: SqlSelectionResolver): void;
 }
 
+/**
+ * Aggregator tabs are displayed in descending order of specificity, determined
+ * by the following precedence hierarchy:
+ * 1. Aggregators explicitly defining a `trackKind` string take priority over
+ *    those that do not.
+ * 2. Otherwise, aggregators with schemas containing a greater number of keys
+ *    (higher specificity) are prioritized over those with fewer keys.
+ * 3. In cases of identical specificity, tabs are ranked based on their
+ *    registration order.
+ */
 export interface AreaSelectionAggregator {
   readonly id: string;
-  createAggregateView(engine: Engine, area: AreaSelection): Promise<boolean>;
+
+  /**
+   * If defined, the dataset passed to `createAggregateView` will only contain
+   * tracks with a matching `kind` tag.
+   */
+  readonly trackKind?: string;
+
+  /**
+   * If defined, the dataset passed to `createAggregateView` will only contain
+   * tracks that export datasets that implement this schema.
+   */
+  readonly schema?: DatasetSchema;
+
+  /**
+   * Creates a view for the aggregated data corresponding to the selected area.
+   *
+   * The dataset provided will be filtered based on the `trackKind` and `schema`
+   * if these properties are defined.
+   *
+   * @param engine - The query engine used to execute queries.
+   * @param area - The currently selected area to aggregate.
+   * @param dataset - The dataset representing a union of the data in the
+   * selected tracks.
+   */
+  createAggregateView(
+    engine: Engine,
+    area: AreaSelection,
+    dataset?: Dataset,
+  ): Promise<boolean>;
   getExtra(
     engine: Engine,
     area: AreaSelection,
+    dataset?: Dataset,
   ): Promise<ThreadStateExtra | void>;
   getTabName(): string;
   getDefaultSorting(): Sorting;
