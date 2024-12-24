@@ -23,15 +23,24 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {AreaSelectionAggregator} from '../../public/selection';
-import {UnionDataset} from '../../trace_processor/dataset';
+import {Dataset} from '../../trace_processor/dataset';
 import {translateState} from '../../components/sql_utils/thread_state';
-import {TrackDescriptor} from '../../public/track';
 
 export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'thread_state_aggregation';
 
-  async createAggregateView(engine: Engine, area: AreaSelection) {
-    const dataset = this.getDatasetFromTracks(area.tracks);
+  readonly schema = {
+    dur: LONG,
+    io_wait: NUM_NULL,
+    state: STR,
+    utid: NUM,
+  } as const;
+
+  async createAggregateView(
+    engine: Engine,
+    area: AreaSelection,
+    dataset?: Dataset,
+  ) {
     if (dataset === undefined) return false;
 
     await engine.query(`
@@ -60,8 +69,8 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
   async getExtra(
     engine: Engine,
     area: AreaSelection,
+    dataset?: Dataset,
   ): Promise<ThreadStateExtra | void> {
-    const dataset = this.getDatasetFromTracks(area.tracks);
     if (dataset === undefined) return;
 
     const query = `
@@ -163,25 +172,5 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
 
   getDefaultSorting(): Sorting {
     return {column: 'total_dur', direction: 'DESC'};
-  }
-
-  // Creates an optimized dataset containing the thread state events within a
-  // given list of tracks, or returns undefined if no compatible tracks are
-  // present in the list.
-  private getDatasetFromTracks(tracks: ReadonlyArray<TrackDescriptor>) {
-    const desiredSchema = {
-      dur: LONG,
-      io_wait: NUM_NULL,
-      state: STR,
-      utid: NUM,
-    };
-    const validDatasets = tracks
-      .map((track) => track.track.getDataset?.())
-      .filter((ds) => ds !== undefined)
-      .filter((ds) => ds.implements(desiredSchema));
-    if (validDatasets.length === 0) {
-      return undefined;
-    }
-    return new UnionDataset(validDatasets).optimize();
   }
 }

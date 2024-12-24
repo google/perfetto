@@ -12,24 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {exists} from '../../base/utils';
 import {ColumnDef, Sorting} from '../../public/aggregation';
 import {AreaSelection} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
+import {LONG, NUM} from '../../trace_processor/query_result';
+import {Dataset} from '../../trace_processor/dataset';
 
 export class CpuSliceSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'cpu_aggregation';
+  readonly trackKind = CPU_SLICE_TRACK_KIND;
+  readonly schema = {
+    dur: LONG,
+    ts: LONG,
+    utid: NUM,
+  } as const;
 
-  async createAggregateView(engine: Engine, area: AreaSelection) {
-    const selectedCpus: number[] = [];
-    for (const trackInfo of area.tracks) {
-      if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
-        exists(trackInfo.tags.cpu) && selectedCpus.push(trackInfo.tags.cpu);
-      }
-    }
-    if (selectedCpus.length === 0) return false;
+  async createAggregateView(
+    engine: Engine,
+    area: AreaSelection,
+    dataset?: Dataset,
+  ) {
+    if (!dataset) return false;
 
     await engine.query(`
       create or replace perfetto table ${this.id} as
@@ -43,11 +48,10 @@ export class CpuSliceSelectionAggregator implements AreaSelectionAggregator {
         count() as occurrences
       from process
       join thread using (upid)
-      join sched using (utid)
-      where cpu in (${selectedCpus})
-        and sched.ts + sched.dur > ${area.start}
+      join (${dataset.query()}) as sched using (utid)
+      where
+        sched.ts + sched.dur > ${area.start}
         and sched.ts < ${area.end}
-        and utid != 0
       group by utid
     `);
     return true;

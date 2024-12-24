@@ -38,9 +38,13 @@ import {Trace} from '../public/trace';
 import {Flamegraph} from '../widgets/flamegraph';
 
 interface View {
-  key: string;
-  name: string;
-  content: m.Children;
+  readonly key: string;
+  readonly name: string;
+  readonly specificity?: {
+    readonly kind: number;
+    readonly schema: number;
+  };
+  readonly content: m.Children;
 }
 
 export type AreaDetailsPanelAttrs = {trace: TraceImpl};
@@ -87,6 +91,12 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
         views.push({
           key: value.tabName,
           name: value.tabName,
+          specificity: {
+            kind: aggregator.trackKind ? 1 : 0,
+            schema: aggregator.schema
+              ? Object.keys(aggregator.schema).length
+              : 0,
+          },
           content: m(AggregationPanel, {
             aggregatorId,
             data: value,
@@ -95,6 +105,23 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
         });
       }
     }
+
+    views.sort((a, b) => {
+      if (a.specificity === undefined || b.specificity === undefined) {
+        return 0;
+      }
+
+      if (a.specificity.kind !== b.specificity.kind) {
+        return b.specificity.kind - a.specificity.kind;
+      }
+
+      if (a.specificity.schema !== b.specificity.schema) {
+        return b.specificity.schema - a.specificity.schema;
+      }
+
+      // If all else is equal, fall back to the registration order.
+      return 0;
+    });
 
     const pivotTableState = this.trace.pivotTable.state;
     const tree = pivotTableState.queryResult?.tree;
