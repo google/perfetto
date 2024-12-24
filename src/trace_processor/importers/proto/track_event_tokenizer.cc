@@ -88,7 +88,7 @@ ModuleResult TrackEventTokenizer::TokenizeRangeOfInterestPacket(
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     return ModuleResult::Handled();
   }
-  track_event_tracker_->SetRangeOfInterestStartUs(range_of_interest.start_us());
+  track_event_tracker_->set_range_of_interest_us(range_of_interest.start_us());
   context_->metadata_tracker->SetMetadata(
       metadata::range_of_interest_start_us,
       Variadic::Integer(range_of_interest.start_us()));
