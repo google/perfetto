@@ -105,7 +105,7 @@ export async function getSliceFromConstraints(
     threadDur: LONG_NULL,
     threadTs: LONG_NULL,
     category: STR_NULL,
-    argSetId: NUM,
+    argSetId: NUM_NULL,
     absTime: STR_NULL,
   });
 
@@ -135,7 +135,9 @@ export async function getSliceFromConstraints(
       threadDur: it.threadDur ?? undefined,
       threadTs: exists(it.threadTs) ? Time.fromRaw(it.threadTs) : undefined,
       category: it.category ?? undefined,
-      args: await getArgs(engine, asArgSetId(it.argSetId)),
+      args: exists(it.argSetId)
+        ? await getArgs(engine, asArgSetId(it.argSetId))
+        : undefined,
       absTime: it.absTime ?? undefined,
     });
   }
