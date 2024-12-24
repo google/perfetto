@@ -14,16 +14,14 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {DisposableStack} from '../base/disposable_stack';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Bounds2D, Point2D, Vector2D} from '../base/geom';
-import {assertExists} from '../base/logging';
-import {clamp} from '../base/math_utils';
 import {Icons} from '../base/semantic_icons';
 import {ButtonBar} from './button';
 import {Chip, ChipBar} from './chip';
 import {Icon} from './icon';
 import {MiddleEllipsis} from './middle_ellipsis';
+import {clamp} from '../base/math_utils';
 
 /**
  * The TrackWidget defines the look and style of a track.
@@ -42,12 +40,9 @@ import {MiddleEllipsis} from './middle_ellipsis';
  * └──────────────────────────────────────────────────────────────────┘
  */
 
-export interface TrackWidgetAttrs {
+export interface TrackComponentAttrs {
   // The title of this track.
   readonly title: string;
-
-  // Optional subtitle to display underneath the track name.
-  readonly subtitle?: string;
 
   // The full path to this track.
   readonly path?: string;
@@ -115,10 +110,8 @@ export interface TrackWidgetAttrs {
 const TRACK_HEIGHT_MIN_PX = 18;
 const INDENTATION_LEVEL_MAX = 16;
 
-export class TrackWidget implements m.ClassComponent<TrackWidgetAttrs> {
-  private readonly trash = new DisposableStack();
-
-  view({attrs}: m.CVnode<TrackWidgetAttrs>) {
+export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
+  view({attrs}: m.CVnode<TrackComponentAttrs>) {
     const {
       indentationLevel = 0,
       collapsible,
@@ -153,7 +146,7 @@ export class TrackWidget implements m.ClassComponent<TrackWidgetAttrs> {
     );
   }
 
-  oncreate(vnode: m.VnodeDOM<TrackWidgetAttrs>) {
+  oncreate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
     this.onupdate(vnode);
 
     if (vnode.attrs.revealOnCreate) {
@@ -161,31 +154,28 @@ export class TrackWidget implements m.ClassComponent<TrackWidgetAttrs> {
     }
   }
 
-  onupdate(vnode: m.VnodeDOM<TrackWidgetAttrs>) {
+  onupdate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
     this.decidePopupRequired(vnode.dom);
   }
 
   // Works out whether to display a title popup on hover, based on whether the
   // current title is truncated.
   private decidePopupRequired(dom: Element) {
-    const popup = assertExists(dom.querySelector('.pf-track__title-popup'));
-    const title = assertExists(dom.querySelector('.pf-track__title'));
+    const popupTitleElement = dom.querySelector(
+      '.pf-track-title-popup',
+    ) as HTMLElement;
+    const truncatedTitleElement = dom.querySelector(
+      '.pf-middle-ellipsis',
+    ) as HTMLElement;
 
-    const resizeObserver = new ResizeObserver(() => {
-      // Work out whether to display a title popup on hover, based on whether
-      // the title is ellipsized.
-      if (popup.clientWidth > title.clientWidth) {
-        popup.classList.add('pf-visible');
-      } else {
-        popup.classList.remove('pf-visible');
-      }
-    });
-    resizeObserver.observe(title);
-    resizeObserver.observe(popup);
-    this.trash.defer(() => resizeObserver.disconnect());
+    if (popupTitleElement.clientWidth > truncatedTitleElement.clientWidth) {
+      popupTitleElement.classList.add('pf-visible');
+    } else {
+      popupTitleElement.classList.remove('pf-visible');
+    }
   }
 
-  private renderShell(attrs: TrackWidgetAttrs): m.Children {
+  private renderShell(attrs: TrackComponentAttrs): m.Children {
     const chips =
       attrs.chips &&
       m(
@@ -272,17 +262,17 @@ export class TrackWidget implements m.ClassComponent<TrackWidgetAttrs> {
             top: `${topOffsetPx}px`,
           },
         },
-        collapsible &&
-          m(Icon, {icon: collapsed ? Icons.ExpandDown : Icons.ExpandUp}),
         m(
           'h1.pf-track-title',
           {
             ref: attrs.path, // TODO(stevegolton): Replace with aria tags?
           },
+          collapsible &&
+            m(Icon, {icon: collapsed ? Icons.ExpandDown : Icons.ExpandUp}),
           m(
             MiddleEllipsis,
-            {text: attrs.title, className: 'pf-track__title'},
-            m('.pf-track__title-popup', attrs.title),
+            {text: attrs.title},
+            m('.pf-track-title-popup', attrs.title),
           ),
           chips,
         ),
@@ -295,21 +285,14 @@ export class TrackWidget implements m.ClassComponent<TrackWidgetAttrs> {
           },
           attrs.buttons,
         ),
-        attrs.subtitle &&
-          !this.showSubtitleInContent(attrs) &&
-          m('h2.pf-track-subtitle', m(MiddleEllipsis, {text: attrs.subtitle})),
       ),
     );
-  }
-
-  private showSubtitleInContent(attrs: TrackWidgetAttrs) {
-    return attrs.isSummary && !attrs.collapsed;
   }
 
   private mouseDownPos?: Vector2D;
   private selectionOccurred = false;
 
-  private renderContent(attrs: TrackWidgetAttrs): m.Children {
+  private renderContent(attrs: TrackComponentAttrs): m.Children {
     const {
       heightPx,
       onTrackContentMouseMove,
@@ -318,58 +301,52 @@ export class TrackWidget implements m.ClassComponent<TrackWidgetAttrs> {
     } = attrs;
     const trackHeight = Math.max(heightPx, TRACK_HEIGHT_MIN_PX);
 
-    return m(
-      '.pf-track-content',
-      {
-        style: {
-          height: `${trackHeight}px`,
-        },
-        className: classNames(attrs.error && 'pf-track-content-error'),
-        onmousemove: (e: MouseEvent) => {
-          onTrackContentMouseMove?.(
+    return m('.pf-track-content', {
+      style: {
+        height: `${trackHeight}px`,
+      },
+      className: classNames(attrs.error && 'pf-track-content-error'),
+      onmousemove: (e: MouseEvent) => {
+        onTrackContentMouseMove?.(
+          currentTargetOffset(e),
+          getTargetContainerSize(e),
+        );
+      },
+      onmouseout: () => {
+        onTrackContentMouseOut?.();
+      },
+      onmousedown: (e: MouseEvent) => {
+        this.mouseDownPos = currentTargetOffset(e);
+      },
+      onmouseup: (e: MouseEvent) => {
+        if (!this.mouseDownPos) return;
+        if (
+          this.mouseDownPos.sub(currentTargetOffset(e)).manhattanDistance > 1
+        ) {
+          this.selectionOccurred = true;
+        }
+        this.mouseDownPos = undefined;
+      },
+      onclick: (e: MouseEvent) => {
+        // This click event occurs after any selection mouse up/drag events
+        // so we have to look if the mouse moved during this click to know
+        // if a selection occurred.
+        if (this.selectionOccurred) {
+          this.selectionOccurred = false;
+          return;
+        }
+
+        // Returns true if something was selected, so stop propagation.
+        if (
+          onTrackContentClick?.(
             currentTargetOffset(e),
             getTargetContainerSize(e),
-          );
-        },
-        onmouseout: () => {
-          onTrackContentMouseOut?.();
-        },
-        onmousedown: (e: MouseEvent) => {
-          this.mouseDownPos = currentTargetOffset(e);
-        },
-        onmouseup: (e: MouseEvent) => {
-          if (!this.mouseDownPos) return;
-          if (
-            this.mouseDownPos.sub(currentTargetOffset(e)).manhattanDistance > 1
-          ) {
-            this.selectionOccurred = true;
-          }
-          this.mouseDownPos = undefined;
-        },
-        onclick: (e: MouseEvent) => {
-          // This click event occurs after any selection mouse up/drag events
-          // so we have to look if the mouse moved during this click to know
-          // if a selection occurred.
-          if (this.selectionOccurred) {
-            this.selectionOccurred = false;
-            return;
-          }
-
-          // Returns true if something was selected, so stop propagation.
-          if (
-            onTrackContentClick?.(
-              currentTargetOffset(e),
-              getTargetContainerSize(e),
-            )
-          ) {
-            e.stopPropagation();
-          }
-        },
+          )
+        ) {
+          e.stopPropagation();
+        }
       },
-      attrs.subtitle &&
-        this.showSubtitleInContent(attrs) &&
-        m('h2', m(MiddleEllipsis, {text: attrs.subtitle})),
-    );
+    });
   }
 }
 
