@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -52,12 +53,13 @@ class TrackEventTracker {
       uint32_t packet_sequence_id = 0;
       double latest_value = 0;
       StringId unit = kNullStringId;
+      StringId builtin_type_str;
 
       bool IsForSameTrack(const CounterDetails& o) const {
         return std::tie(category, unit_multiplier, is_incremental,
-                        packet_sequence_id) ==
+                        packet_sequence_id, builtin_type_str) ==
                std::tie(o.category, o.unit_multiplier, o.is_incremental,
-                        o.packet_sequence_id);
+                        o.packet_sequence_id, o.builtin_type_str);
       }
     };
 
@@ -227,6 +229,7 @@ class TrackEventTracker {
   const StringId source_id_key_;
   const StringId is_root_in_scope_key_;
   const StringId category_key_;
+  const StringId builtin_counter_type_key_;
   const StringId has_first_packet_on_sequence_key_id_;
   const StringId child_ordering_key_;
   const StringId explicit_id_;

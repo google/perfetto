@@ -86,6 +86,8 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       source_id_key_(context->storage->InternString("trace_id")),
       is_root_in_scope_key_(context->storage->InternString("is_root_in_scope")),
       category_key_(context->storage->InternString("category")),
+      builtin_counter_type_key_(
+          context->storage->InternString("builtin_counter_type")),
       has_first_packet_on_sequence_key_id_(
           context->storage->InternString("has_first_packet_on_sequence")),
       child_ordering_key_(context->storage->InternString("child_ordering")),
@@ -500,10 +502,17 @@ void TrackEventTracker::AddTrackArgs(
   args.AddArg(source_key_, Variadic::String(descriptor_source_))
       .AddArg(source_id_key_, Variadic::Integer(static_cast<int64_t>(uuid)))
       .AddArg(is_root_in_scope_key_, Variadic::Boolean(is_root_in_scope));
-  if (reservation.counter_details &&
-      !reservation.counter_details->category.is_null())
-    args.AddArg(category_key_,
-                Variadic::String(reservation.counter_details->category));
+  if (reservation.counter_details) {
+    if (!reservation.counter_details->category.is_null()) {
+      args.AddArg(category_key_,
+                  Variadic::String(reservation.counter_details->category));
+    }
+    if (!reservation.counter_details->builtin_type_str.is_null()) {
+      args.AddArg(
+          builtin_counter_type_key_,
+          Variadic::String(reservation.counter_details->builtin_type_str));
+    }
+  }
   if (packet_sequence_id &&
       sequences_with_first_packet_.find(*packet_sequence_id) !=
           sequences_with_first_packet_.end()) {
