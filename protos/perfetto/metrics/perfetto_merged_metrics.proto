@@ -3135,7 +3135,7 @@ message CloneDuration {
 // Begin of protos/perfetto/metrics/metrics.proto
 
 // Trace processor metadata
-// Next id: 17
+// Next id: 18
 message TraceMetadata {
   reserved 1;
   optional int64 trace_duration_ns = 2;
@@ -3145,6 +3145,7 @@ message TraceMetadata {
   optional int64 statsd_triggering_subscription_id = 5;
   optional int64 trace_size_bytes = 6;
   repeated string trace_trigger = 7;
+  optional string trace_causal_trigger = 17;
   optional string unique_session_name = 8;
   optional string trace_config_pbtxt = 9;
   optional int64 sched_duration_ns = 10;
