@@ -27,7 +27,7 @@ RUN set -ex; \
                        libpulse0 libgl1 libxml2 libc6-dev-i386 libtinfo5 \
                        gnupg2 pkg-config zip g++ zlib1g-dev unzip \
                        python3-distutils gcc-8 g++-8 \
-                       openjdk-21-jdk; \
+                       openjdk-11-jdk; \
     apt-get -y install libc++-8-dev libc++abi-8-dev clang-8; \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1; \
     gcc-8 --version; \
