@@ -241,9 +241,12 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     auto unit = static_cast<uint32_t>(counter.unit());
     if (counter.type() == CounterDescriptor::COUNTER_THREAD_TIME_NS) {
       counter_details.unit = counter_unit_ids_[CounterDescriptor::UNIT_TIME_NS];
+      counter_details.builtin_type_str = counter_name_thread_time_id_;
     } else if (counter.type() ==
                CounterDescriptor::COUNTER_THREAD_INSTRUCTION_COUNT) {
       counter_details.unit = counter_unit_ids_[CounterDescriptor::UNIT_COUNT];
+      counter_details.builtin_type_str =
+          counter_name_thread_instruction_count_id_;
     } else if (unit < counter_unit_ids_.size() &&
                unit != CounterDescriptor::COUNTER_UNSPECIFIED) {
       counter_details.unit = counter_unit_ids_[unit];
