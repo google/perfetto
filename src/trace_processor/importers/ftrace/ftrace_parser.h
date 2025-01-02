@@ -315,6 +315,11 @@ class FtraceParser {
   void ParseParamSetValueCpm(protozero::ConstBytes blob);
   void ParseBlockIoStart(int64_t ts, protozero::ConstBytes blob);
   void ParseBlockIoDone(int64_t ts, protozero::ConstBytes blob);
+  void ParseCpuhpEnter(uint32_t fld_id,
+                       int64_t ts,
+                       uint32_t cpu,
+                       protozero::ConstBytes blob);
+  void ParseCpuhpExit(int64_t ts, protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -400,6 +405,8 @@ class FtraceParser {
   const StringId device_name_id_;
   const StringId block_io_id_;
   const StringId block_io_arg_sector_id_;
+  const StringId cpuhp_action_cpu_id_;
+  const StringId cpuhp_idx_id_;
 
   std::vector<StringId> syscall_arg_name_ids_;
 

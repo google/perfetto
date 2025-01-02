@@ -195,3 +195,9 @@ SELECT nominal_idle, override_idle
 FROM _idle_state_map as idle_map
 JOIN _wattson_device as device
 ON idle_map.device = device.name;
+
+-- Get the device specific deepest idle state if defined, otherwise use 1 as the
+-- deepest idle state
+CREATE PERFETTO TABLE _deepest_idle AS
+SELECT
+  IFNULL((SELECT MAX(override_idle) FROM _idle_state_map_override), 1) as idle;

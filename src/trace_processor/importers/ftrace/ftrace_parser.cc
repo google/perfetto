@@ -452,7 +452,9 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
           context->storage->InternString("event_type")),
       device_name_id_(context->storage->InternString("device_name")),
       block_io_id_(context->storage->InternString("block_io")),
-      block_io_arg_sector_id_(context->storage->InternString("sector")) {
+      block_io_arg_sector_id_(context->storage->InternString("sector")),
+      cpuhp_action_cpu_id_(context->storage->InternString("action_cpu")),
+      cpuhp_idx_id_(context->storage->InternString("cpuhp_idx")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -1339,6 +1341,17 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kBlockIoDoneFieldNumber: {
         ParseBlockIoDone(ts, fld_bytes);
+        break;
+      }
+      // Intentional fallthrough for Cpuhp multienter/enter, since they both
+      // have same fields and require identical processing.
+      case FtraceEvent::kCpuhpMultiEnterFieldNumber:
+      case FtraceEvent::kCpuhpEnterFieldNumber: {
+        ParseCpuhpEnter(fld.id(), ts, cpu, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kCpuhpExitFieldNumber: {
+        ParseCpuhpExit(ts, fld_bytes);
         break;
       }
       default:
@@ -3949,4 +3962,60 @@ void FtraceParser::ParseBlockIoDone(int64_t ts, protozero::ConstBytes blob) {
       });
 }
 
+namespace {
+constexpr auto kCpuHpBlueprint = tracks::SliceBlueprint(
+    "cpu_hotplug",
+    tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
+    tracks::FnNameBlueprint([](uint32_t cpu) {
+      return base::StackString<255>("CPU Hotplug %u", cpu);
+    }));
+}
+
+void FtraceParser::ParseCpuhpEnter(uint32_t fld_id,
+                                   int64_t ts,
+                                   uint32_t action_cpu,
+                                   protozero::ConstBytes blob) {
+  uint32_t hp_cpu = UINT32_MAX;
+  int32_t idx = INT32_MAX;
+  switch (fld_id) {
+    case protos::pbzero::FtraceEvent::kCpuhpEnterFieldNumber: {
+      protos::pbzero::CpuhpEnterFtraceEvent::Decoder cpuhp_event(blob);
+      hp_cpu = cpuhp_event.cpu();
+      idx = cpuhp_event.idx();
+      break;
+    }
+    case protos::pbzero::FtraceEvent::kCpuhpMultiEnterFieldNumber: {
+      protos::pbzero::CpuhpMultiEnterFtraceEvent::Decoder cpuhp_event(blob);
+      hp_cpu = cpuhp_event.cpu();
+      idx = cpuhp_event.idx();
+      break;
+    }
+    default:
+      // Only support hotplug_enter and hotplug_multi_enter
+      return;
+  }
+
+  // hp_cpu, the CPU being hotplugged, is stored in track dimension. action_cpu
+  // is the CPU assisting hp_cpu in the hotplug operation. action_cpu could be
+  // the hp_cpu itself or a different CPU, but the distinction is important
+  // since it helps indicate when exactly the hp_cpu is powered off.
+  StringId slice_name_id = context_->storage->InternString(
+      base::StackString<32>("cpuhp(%d)", idx).string_view());
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kCpuHpBlueprint, tracks::Dimensions(hp_cpu));
+  context_->slice_tracker->Begin(
+      ts, track_id, cpu_id_, slice_name_id,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(cpuhp_action_cpu_id_,
+                         Variadic::UnsignedInteger(action_cpu));
+        inserter->AddArg(cpuhp_idx_id_, Variadic::Integer(idx));
+      });
+}
+
+void FtraceParser::ParseCpuhpExit(int64_t ts, protozero::ConstBytes blob) {
+  protos::pbzero::CpuhpExitFtraceEvent::Decoder cpuhp_event(blob);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kCpuHpBlueprint, tracks::Dimensions(cpuhp_event.cpu()));
+  context_->slice_tracker->End(ts, track_id);
+}
 }  // namespace perfetto::trace_processor
