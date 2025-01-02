@@ -81,7 +81,6 @@ using StringId = StringPool::Id;
 static const StringId kNullStringId = StringId::Null();
 
 using ArgSetId = uint32_t;
-static const ArgSetId kInvalidArgSetId = 0;
 
 using TrackId = tables::TrackTable::Id;
 
