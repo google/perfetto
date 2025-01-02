@@ -519,12 +519,12 @@ class JsonExporter {
       PostprocessArgs();
     }
 
-    const Json::Value& GetArgs(ArgSetId set_id) const {
+    const Json::Value& GetArgs(std::optional<ArgSetId> set_id) const {
       // If |set_id| was empty and added to the storage last, it may not be in
       // args_sets_.
-      if (set_id > args_sets_.size())
+      if (!set_id || *set_id > args_sets_.size())
         return empty_value_;
-      return args_sets_[set_id];
+      return args_sets_[*set_id];
     }
 
    private:
@@ -1073,12 +1073,12 @@ class JsonExporter {
     for (auto it = flow_table.IterateRows(); it; ++it) {
       SliceId slice_out = it.slice_out();
       SliceId slice_in = it.slice_in();
-      uint32_t arg_set_id = it.arg_set_id();
+      std::optional<uint32_t> arg_set_id = it.arg_set_id();
 
       std::string cat;
       std::string name;
       auto args = args_builder_.GetArgs(arg_set_id);
-      if (arg_set_id != kInvalidArgSetId) {
+      if (arg_set_id != std::nullopt) {
         cat = args["cat"].asString();
         name = args["name"].asString();
         // Don't export these args since they are only used for this export and

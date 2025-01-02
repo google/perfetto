@@ -91,7 +91,7 @@ TEST_F(SliceTrackerTest, OneSliceDetailed) {
   EXPECT_EQ(slices[0].category().value_or(kNullStringId).raw_id(), 0u);
   EXPECT_EQ(slices[0].name().value_or(kNullStringId).raw_id(), 1u);
   EXPECT_EQ(slices[0].depth(), 0u);
-  EXPECT_EQ(slices[0].arg_set_id(), kInvalidArgSetId);
+  EXPECT_EQ(slices[0].arg_set_id(), std::nullopt);
 }
 
 TEST_F(SliceTrackerTest, OneSliceDetailedWithTranslatedName) {
@@ -115,7 +115,7 @@ TEST_F(SliceTrackerTest, OneSliceDetailedWithTranslatedName) {
   EXPECT_EQ(slices[0].name().value_or(kNullStringId).raw_id(),
             mapped_name.raw_id());
   EXPECT_EQ(slices[0].depth(), 0u);
-  EXPECT_EQ(slices[0].arg_set_id(), kInvalidArgSetId);
+  EXPECT_EQ(slices[0].arg_set_id(), std::nullopt);
 }
 
 TEST_F(SliceTrackerTest, NegativeTimestamps) {
@@ -137,7 +137,7 @@ TEST_F(SliceTrackerTest, NegativeTimestamps) {
   EXPECT_EQ(rr.category().value_or(kNullStringId).raw_id(), 0u);
   EXPECT_EQ(rr.name().value_or(kNullStringId).raw_id(), 1u);
   EXPECT_EQ(rr.depth(), 0u);
-  EXPECT_EQ(rr.arg_set_id(), kInvalidArgSetId);
+  EXPECT_EQ(rr.arg_set_id(), std::nullopt);
 }
 
 TEST_F(SliceTrackerTest, OneSliceWithArgs) {
