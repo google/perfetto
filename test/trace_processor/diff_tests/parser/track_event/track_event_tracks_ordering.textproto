@@ -8,7 +8,6 @@ packet {
     uuid: 1
     parent_uuid: 10
     sibling_order_rank: -10
-    disallow_merging_with_system_tracks: true
   }
   trace_packet_defaults {
     track_event_defaults {

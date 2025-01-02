@@ -18,9 +18,8 @@ import {
 } from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
-import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, STR} from '../../trace_processor/query_result';
 import {ActualFramesTrack} from './actual_frames_track';
 import {ExpectedFramesTrack} from './expected_frames_track';
 import {FrameSelectionAggregator} from './frame_selection_aggregator';
@@ -41,44 +40,36 @@ export default class implements PerfettoPlugin {
   async addExpectedFrames(ctx: Trace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
+      with summary as (
+        select
+          pt.upid,
+          group_concat(id) AS track_ids,
+          count() AS track_count
+        from process_track pt
+        join _slice_track_summary USING (id)
+        where pt.type = 'android_expected_frame_timeline'
+        group by pt.upid
+      )
       select
-        upid,
-        t.name as trackName,
+        t.upid,
         t.track_ids as trackIds,
-        process.name as processName,
-        process.pid as pid,
         __max_layout_depth(t.track_count, t.track_ids) as maxDepth
-      from _process_track_summary_by_upid_and_parent_id_and_name t
-      join process using(upid)
-      where t.name = "Expected Timeline"
+      from summary t
     `);
 
     const it = result.iter({
       upid: NUM,
-      trackName: STR_NULL,
       trackIds: STR,
-      processName: STR_NULL,
-      pid: NUM_NULL,
       maxDepth: NUM,
     });
 
     for (; it.valid(); it.next()) {
       const upid = it.upid;
-      const trackName = it.trackName;
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-      const processName = it.processName;
-      const pid = it.pid;
       const maxDepth = it.maxDepth;
 
-      const title = getTrackName({
-        name: trackName,
-        upid,
-        pid,
-        processName,
-        kind: 'ExpectedFrames',
-      });
-
+      const title = 'Expected Timeline';
       const uri = `/process_${upid}/expected_frames`;
       ctx.tracks.registerTrack({
         uri,
@@ -101,49 +92,35 @@ export default class implements PerfettoPlugin {
   async addActualFrames(ctx: Trace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
+      with summary as (
+        select
+          pt.upid,
+          group_concat(id) AS track_ids,
+          count() AS track_count
+        from process_track pt
+        join _slice_track_summary USING (id)
+        where pt.type = 'android_actual_frame_timeline'
+        group by pt.upid
+      )
       select
-        upid,
-        t.name as trackName,
+        t.upid,
         t.track_ids as trackIds,
-        process.name as processName,
-        process.pid as pid,
         __max_layout_depth(t.track_count, t.track_ids) as maxDepth
-      from _process_track_summary_by_upid_and_parent_id_and_name t
-      join process using(upid)
-      where t.name = "Actual Timeline"
+      from summary t
     `);
 
     const it = result.iter({
       upid: NUM,
-      trackName: STR_NULL,
       trackIds: STR,
-      processName: STR_NULL,
-      pid: NUM_NULL,
-      maxDepth: NUM_NULL,
+      maxDepth: NUM,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
-      const trackName = it.trackName;
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-      const processName = it.processName;
-      const pid = it.pid;
       const maxDepth = it.maxDepth;
 
-      if (maxDepth === null) {
-        // If there are no slices in this track, skip it.
-        continue;
-      }
-
-      const kind = 'ActualFrames';
-      const title = getTrackName({
-        name: trackName,
-        upid,
-        pid,
-        processName,
-        kind,
-      });
-
+      const title = 'Actual Timeline';
       const uri = `/process_${upid}/actual_frames`;
       ctx.tracks.registerTrack({
         uri,

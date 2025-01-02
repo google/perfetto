@@ -198,7 +198,7 @@ def find_plugin_declared_deps(path):
     return
   if len(all_deps) > 1:
     raise Exception('Ambiguous plugin deps in %s: %s' % (path, all_deps))
-  declared_deps = re.sub('\s*', '', all_deps[0]).split(',')
+  declared_deps = [x for x in re.sub('\s*', '', all_deps[0]).split(',') if x]
   for imported_as in declared_deps:
     resolved_dep = import_map.get(imported_as)
     if resolved_dep is None:
