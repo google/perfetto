@@ -55,7 +55,7 @@ export class WattsonThreadSelectionAggregator
 
       -- Only get idle attribution in user defined window and filter by selected
       -- CPUs and GROUP BY thread
-      CREATE OR REPLACE PERFETTO TABLE _per_thread_idle_attribution AS
+      CREATE OR REPLACE PERFETTO TABLE _per_thread_idle_cost AS
       SELECT
         ROUND(SUM(idle_cost_mws), 2) as idle_cost_mws,
         utid
@@ -141,7 +141,7 @@ export class WattsonThreadSelectionAggregator
         tid,
         pid
       FROM _unioned_per_cpu_total
-      LEFT JOIN _per_thread_idle_attribution USING (utid)
+      LEFT JOIN _per_thread_idle_cost USING (utid)
       GROUP BY utid;
     `;
 
