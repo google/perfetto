@@ -110,6 +110,7 @@
 
   &__canvas {
     grid-area: canvas;
+    overflow: hidden; // Keeps subtitle width contained
 
     &--error {
       // Necessary trig because we have 45deg stripes
