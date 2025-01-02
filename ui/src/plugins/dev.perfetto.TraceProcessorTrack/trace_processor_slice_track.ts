@@ -47,7 +47,7 @@ export class TraceProcessorSliceTrack extends NamedSliceTrack<
   constructor(
     trace: Trace,
     uri: string,
-    maxDepth: number,
+    maxDepth: number | undefined,
     private readonly trackIds: number[],
   ) {
     super(trace, uri);

@@ -37,7 +37,7 @@ export default class implements PerfettoPlugin {
       from counter c
       join cpu_counter_track t on c.track_id = t.id
       join _counter_track_summary s on t.id = s.id
-      where name = 'cpufreq';
+      where t.type = 'cpu_frequency';
     `);
     const maxCpuFreq = maxCpuFreqResult.firstRow({freq: NUM}).freq;
 
@@ -48,14 +48,14 @@ export default class implements PerfettoPlugin {
           id as cpuFreqId,
           (
             select id
-            from cpu_counter_track
-            where name = 'cpuidle'
-            and cpu = ${cpu}
+            from cpu_counter_track t
+            where t.type = 'cpu_idle'
+              and t.cpu = ${cpu}
             limit 1
           ) as cpuIdleId
-        from cpu_counter_track
+        from cpu_counter_track t
         join _counter_track_summary using (id)
-        where name = 'cpufreq' and cpu = ${cpu}
+        where t.type = 'cpu_frequency' and t.cpu = ${cpu}
         limit 1;
       `);
 
