@@ -44,8 +44,6 @@
       )
       1fr;
     grid-template-areas: "indent shell canvas";
-    border-bottom: solid 1px var(--track-border-color);
-    box-sizing: border-box;
 
     &::before {
       content: "";
@@ -68,7 +66,9 @@
 
   &__shell {
     grid-area: shell;
-    border-right: solid 1px var(--track-border-color);
+    border-width: 0 1px 1px 0; // Borders on bottom and right
+    border-style: solid;
+    border-color: var(--track-border-color);
 
     &--highlight {
       background-color: #ffe263;
@@ -111,6 +111,7 @@
   &__canvas {
     grid-area: canvas;
     overflow: hidden; // Keeps subtitle width contained
+    border-bottom: solid 1px var(--track-border-color);
 
     &--error {
       // Necessary trig because we have 45deg stripes
