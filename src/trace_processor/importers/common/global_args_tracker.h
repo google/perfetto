@@ -145,21 +145,18 @@ class GlobalArgsTracker {
 
     auto& arg_table = *storage_->mutable_arg_table();
 
+    uint32_t arg_set_id = arg_table.row_count();
     ArgSetHash digest = hash.digest();
-    auto it_and_inserted =
-        arg_row_for_hash_.Insert(digest, arg_table.row_count());
-    if (!it_and_inserted.second) {
+    auto [it, inserted] = arg_row_for_hash_.Insert(digest, arg_set_id);
+    if (!inserted) {
       // Already inserted.
-      return arg_table[*it_and_inserted.first].arg_set_id();
+      return *it;
     }
 
-    // Taking size() after the Insert() ensures that nothing has an id == 0
-    // (0 == kInvalidArgSetId).
-    auto id = static_cast<uint32_t>(arg_row_for_hash_.size());
     for (const CompactArg* ptr : valid) {
       const auto& arg = *ptr;
       tables::ArgTable::Row row;
-      row.arg_set_id = id;
+      row.arg_set_id = arg_set_id;
       row.flat_key = arg.flat_key;
       row.key = arg.key;
       switch (arg.value.type) {
@@ -190,7 +187,7 @@ class GlobalArgsTracker {
       row.value_type = storage_->GetIdForVariadicType(arg.value.type);
       arg_table.Insert(row);
     }
-    return id;
+    return arg_set_id;
   }
 
   base::FlatHashMap<ArgSetHash, uint32_t, base::AlreadyHashed<ArgSetHash>>

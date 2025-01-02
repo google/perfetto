@@ -287,8 +287,8 @@ class TablesCounters(TestSuite):
         """,
         out=Csv("""
         "id","arg_set_id"
-        1,1
-        15,8
+        1,0
+        15,14
         """))
 
   def test_cpu_counter_track_multi_machine(self):

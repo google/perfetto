@@ -2475,29 +2475,35 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   const auto& cpu_table = storage_->cpu_table();
   EXPECT_EQ(cpu_table[ucpu.value].cpu(), 0u);
   EXPECT_EQ(raw_table[0].utid(), 1u);
-  EXPECT_EQ(raw_table[0].arg_set_id(), 2u);
+  EXPECT_TRUE(raw_table[0].arg_set_id());
 
-  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.category"),
+  uint32_t arg_set_id = raw_table[0].arg_set_id();
+  EXPECT_TRUE(HasArg(arg_set_id,
+                     storage_->InternString("legacy_event.category"),
                      Variadic::String(cat_1)));
-  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.name"),
+  EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString("legacy_event.name"),
                      Variadic::String(ev_1)));
-  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.phase"),
+  EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString("legacy_event.phase"),
                      Variadic::String(question)));
-  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.duration_ns"),
+  EXPECT_TRUE(HasArg(arg_set_id,
+                     storage_->InternString("legacy_event.duration_ns"),
                      Variadic::Integer(23000)));
-  EXPECT_TRUE(HasArg(2u,
+  EXPECT_TRUE(HasArg(arg_set_id,
                      storage_->InternString("legacy_event.thread_timestamp_ns"),
                      Variadic::Integer(2005000)));
-  EXPECT_TRUE(HasArg(2u,
+  EXPECT_TRUE(HasArg(arg_set_id,
                      storage_->InternString("legacy_event.thread_duration_ns"),
                      Variadic::Integer(15000)));
-  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.use_async_tts"),
+  EXPECT_TRUE(HasArg(arg_set_id,
+                     storage_->InternString("legacy_event.use_async_tts"),
                      Variadic::Boolean(true)));
-  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.global_id"),
+  EXPECT_TRUE(HasArg(arg_set_id,
+                     storage_->InternString("legacy_event.global_id"),
                      Variadic::UnsignedInteger(99u)));
-  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.id_scope"),
+  EXPECT_TRUE(HasArg(arg_set_id,
+                     storage_->InternString("legacy_event.id_scope"),
                      Variadic::String(scope_1)));
-  EXPECT_TRUE(HasArg(2u, debug_an_1, Variadic::UnsignedInteger(10u)));
+  EXPECT_TRUE(HasArg(arg_set_id, debug_an_1, Variadic::UnsignedInteger(10u)));
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
@@ -2590,12 +2596,12 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
   EXPECT_EQ(raw_table.row_count(), 1u);
   EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("chrome_event.metadata"));
-  EXPECT_EQ(raw_table[0].arg_set_id(), 1u);
 
+  uint32_t arg_set_id = raw_table[0].arg_set_id();
   EXPECT_EQ(storage_->arg_table().row_count(), 2u);
-  EXPECT_TRUE(HasArg(1u, storage_->InternString(kStringName),
+  EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString(kStringName),
                      Variadic::String(storage_->InternString(kStringValue))));
-  EXPECT_TRUE(HasArg(1u, storage_->InternString(kIntName),
+  EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString(kIntName),
                      Variadic::Integer(kIntValue)));
 }
 
@@ -2621,10 +2627,10 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {
   EXPECT_EQ(raw_table.row_count(), 1u);
   EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("chrome_event.legacy_system_trace"));
-  EXPECT_EQ(raw_table[0].arg_set_id(), 1u);
 
   EXPECT_EQ(storage_->arg_table().row_count(), 1u);
-  EXPECT_TRUE(HasArg(1u, storage_->InternString("data"),
+  uint32_t arg_set_id = raw_table[0].arg_set_id();
+  EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString("data"),
                      Variadic::String(storage_->InternString(kFullData))));
 }
 
@@ -2649,11 +2655,11 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyJsonIntoRawTable) {
   EXPECT_EQ(raw_table.row_count(), 1u);
   EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("chrome_event.legacy_user_trace"));
-  EXPECT_EQ(raw_table[0].arg_set_id(), 1u);
 
+  uint32_t arg_set_id = raw_table[0].arg_set_id();
   EXPECT_EQ(storage_->arg_table().row_count(), 1u);
   EXPECT_TRUE(
-      HasArg(1u, storage_->InternString("data"),
+      HasArg(arg_set_id, storage_->InternString("data"),
              Variadic::String(storage_->InternString(kUserTraceEvent))));
 }
 
