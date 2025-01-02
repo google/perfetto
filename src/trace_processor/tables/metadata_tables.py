@@ -300,7 +300,9 @@ ARG_TABLE = Table(
     class_name='ArgTable',
     sql_name='__intrinsic_args',
     columns=[
-        C('arg_set_id', CppUint32(), flags=ColumnFlag.SORTED),
+        C('arg_set_id',
+          CppUint32(),
+          flags=ColumnFlag.SORTED | ColumnFlag.SET_ID),
         C('flat_key', CppString()),
         C('key', CppString()),
         C('int_value', CppOptional(CppInt64())),
