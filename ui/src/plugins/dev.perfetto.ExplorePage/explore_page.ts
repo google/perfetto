@@ -34,6 +34,7 @@ import {
 } from '../../widgets/split_panel';
 import {Trace} from '../../public/trace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {VerticalSplitContainer} from './vertical_split_container';
 
 export interface ExploreTableState {
   sqlTableViewState?: SqlTableViewState;
@@ -167,16 +168,13 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           },
           drawerContent: this.renderSqlTable(state, charts),
         },
-        m(
-          '.chart-container',
-          m(Menu, this.renderSelectableTablesMenuItems(trace, state)),
-        ),
-        m(
-          '.chart-container',
-          Array.from(charts.values()).map((chart) =>
-            this.renderRemovableChart(chart, charts),
+        m(VerticalSplitContainer, {
+          // TODO: Can replace the leftPane Menu with QueryBuilder
+          leftPane: m(Menu, this.renderSelectableTablesMenuItems(trace, state)),
+          rightPane: Array.from(attrs.charts.values()).map((chart) =>
+            this.renderRemovableChart(chart, attrs.charts),
           ),
-        ),
+        }),
       ),
     );
   }
