@@ -62,7 +62,7 @@ PROCESS_TABLE = Table(
         C('uid', CppOptional(CppUint32())),
         C('android_appid', CppOptional(CppUint32())),
         C('cmdline', CppOptional(CppString())),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='process',),
