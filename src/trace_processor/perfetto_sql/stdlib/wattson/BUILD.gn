@@ -19,6 +19,7 @@ perfetto_sql_source_set("wattson") {
     "arm_dsu.sql",
     "cpu_freq.sql",
     "cpu_freq_idle.sql",
+    "cpu_hotplug.sql",
     "cpu_idle.sql",
     "cpu_split.sql",
     "curves/device.sql",
