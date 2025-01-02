@@ -696,6 +696,9 @@ export abstract class BaseSliceTrack<
       // rowToSlice() method.
       slices.push(this.rowToSliceInternal(it));
     }
+    for (const incomplete of this.incomplete) {
+      maxDataDepth = Math.max(maxDataDepth, incomplete.depth);
+    }
     this.maxDataDepth = maxDataDepth;
     this.onUpdatedSlices(slices);
     this.slices = slices;

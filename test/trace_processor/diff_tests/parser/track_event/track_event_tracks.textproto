@@ -6,7 +6,6 @@ packet {
   first_packet_on_sequence: true
   track_descriptor {
     uuid: 1
-    parent_uuid: 10
     thread {
       pid: 5
       tid: 1
@@ -28,7 +27,6 @@ packet {
   first_packet_on_sequence: true
   track_descriptor {
     uuid: 2
-    parent_uuid: 10
     thread {
       pid: 5
       tid: 2

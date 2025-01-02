@@ -2054,7 +2054,8 @@ void FtraceParser::ParseDmaHeapStat(int64_t timestamp,
   protos::pbzero::DmaHeapStatFtraceEvent::Decoder dma_heap(data);
 
   static constexpr auto kBlueprint = tracks::CounterBlueprint(
-      "dma_heap", tracks::UnknownUnitBlueprint(), tracks::DimensionBlueprints(),
+      "android_dma_heap", tracks::UnknownUnitBlueprint(),
+      tracks::DimensionBlueprints(),
       tracks::StaticNameBlueprint("mem.dma_heap"));
 
   // Push the global counter.
@@ -2063,7 +2064,7 @@ void FtraceParser::ParseDmaHeapStat(int64_t timestamp,
       timestamp, static_cast<double>(dma_heap.total_allocated()), track);
 
   static constexpr auto kChangeBlueprint = tracks::CounterBlueprint(
-      "dma_heap_change", tracks::UnknownUnitBlueprint(),
+      "android_dma_heap_change", tracks::UnknownUnitBlueprint(),
       tracks::Dimensions(tracks::kThreadDimensionBlueprint),
       tracks::StaticNameBlueprint("mem.dma_heap_change"));
 
