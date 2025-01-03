@@ -62,6 +62,7 @@ export const defaultPlugins = [
   'dev.perfetto.Screenshots',
   'dev.perfetto.StandardGroups',
   'dev.perfetto.SqlModules',
+  'dev.perfetto.SysUIWorkspace',
   'dev.perfetto.Thread',
   'dev.perfetto.ThreadState',
   'dev.perfetto.TimelineSync',
