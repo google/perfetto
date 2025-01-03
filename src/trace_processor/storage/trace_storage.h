@@ -626,14 +626,6 @@ class TraceStorage {
     return &vulkan_memory_allocations_table_;
   }
 
-  const tables::GraphicsFrameSliceTable& graphics_frame_slice_table() const {
-    return graphics_frame_slice_table_;
-  }
-
-  tables::GraphicsFrameSliceTable* mutable_graphics_frame_slice_table() {
-    return &graphics_frame_slice_table_;
-  }
-
   const tables::MemorySnapshotTable& memory_snapshot_table() const {
     return memory_snapshot_table_;
   }
@@ -1097,9 +1089,6 @@ class TraceStorage {
 
   tables::VulkanMemoryAllocationsTable vulkan_memory_allocations_table_{
       &string_pool_};
-
-  tables::GraphicsFrameSliceTable graphics_frame_slice_table_{&string_pool_,
-                                                              &slice_table_};
 
   // Metadata for memory snapshot.
   tables::MemorySnapshotTable memory_snapshot_table_{&string_pool_};

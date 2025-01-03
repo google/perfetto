@@ -172,29 +172,6 @@ GPU_SLICE_TABLE = Table(
                 ''''''
         }))
 
-GRAPHICS_FRAME_SLICE_TABLE = Table(
-    python_module=__file__,
-    class_name='GraphicsFrameSliceTable',
-    sql_name='frame_slice',
-    columns=[
-        C('frame_number', CppUint32()),
-        C('layer_name', CppString()),
-        C('queue_to_acquire_time', CppInt64()),
-        C('acquire_to_latch_time', CppInt64()),
-        C('latch_to_present_time', CppInt64()),
-    ],
-    parent=SLICE_TABLE,
-    tabledoc=TableDoc(
-        doc='''''',
-        group='Slice',
-        columns={
-            'frame_number': '''''',
-            'layer_name': '''''',
-            'queue_to_acquire_time': '''''',
-            'acquire_to_latch_time': '''''',
-            'latch_to_present_time': ''''''
-        }))
-
 EXPECTED_FRAME_TIMELINE_SLICE_TABLE = Table(
     python_module=__file__,
     class_name='ExpectedFrameTimelineSliceTable',
@@ -401,6 +378,5 @@ ALL_TABLES = [
     EXPECTED_FRAME_TIMELINE_SLICE_TABLE,
     EXPERIMENTAL_FLAT_SLICE_TABLE,
     GPU_SLICE_TABLE,
-    GRAPHICS_FRAME_SLICE_TABLE,
     SLICE_TABLE,
 ]

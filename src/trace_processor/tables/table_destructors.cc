@@ -107,7 +107,6 @@ ThreadStateTable::~ThreadStateTable() = default;
 SliceTable::~SliceTable() = default;
 FlowTable::~FlowTable() = default;
 GpuSliceTable::~GpuSliceTable() = default;
-GraphicsFrameSliceTable::~GraphicsFrameSliceTable() = default;
 ExpectedFrameTimelineSliceTable::~ExpectedFrameTimelineSliceTable() = default;
 ActualFrameTimelineSliceTable::~ActualFrameTimelineSliceTable() = default;
 ExperimentalFlatSliceTable::~ExperimentalFlatSliceTable() = default;
