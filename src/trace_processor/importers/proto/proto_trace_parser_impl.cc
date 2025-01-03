@@ -45,6 +45,7 @@
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
@@ -164,10 +165,10 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   protos::pbzero::ChromeEventBundle::Decoder bundle(blob);
   ArgsTracker args(context_);
   if (bundle.has_metadata()) {
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
-    RawId id = storage->mutable_raw_table()
-                   ->Insert({ts, raw_chrome_metadata_event_id_, 0, 0, 0, ucpu})
-                   .id;
+    tables::ChromeRawTable::Id id =
+        storage->mutable_chrome_raw_table()
+            ->Insert({ts, raw_chrome_metadata_event_id_, 0, 0})
+            .id;
     auto inserter = args.AddArgsTo(id);
 
     uint32_t bundle_index =
@@ -212,11 +213,10 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   }
 
   if (bundle.has_legacy_ftrace_output()) {
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
-    RawId id = storage->mutable_raw_table()
-                   ->Insert({ts, raw_chrome_legacy_system_trace_event_id_, 0, 0,
-                             0, ucpu})
-                   .id;
+    tables::ChromeRawTable::Id id =
+        storage->mutable_chrome_raw_table()
+            ->Insert({ts, raw_chrome_legacy_system_trace_event_id_, 0, 0})
+            .id;
 
     std::string data;
     for (auto it = bundle.legacy_ftrace_output(); it; ++it) {
@@ -234,11 +234,10 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
           protos::pbzero::ChromeLegacyJsonTrace::USER_TRACE) {
         continue;
       }
-      auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
-      RawId id = storage->mutable_raw_table()
-                     ->Insert({ts, raw_chrome_legacy_user_trace_event_id_, 0, 0,
-                               0, ucpu})
-                     .id;
+      tables::ChromeRawTable::Id id =
+          storage->mutable_chrome_raw_table()
+              ->Insert({ts, raw_chrome_legacy_user_trace_event_id_, 0, 0})
+              .id;
       Variadic value =
           Variadic::String(storage->InternString(legacy_trace.data()));
       args.AddArgsTo(id).AddArg(data_name_id_, value);

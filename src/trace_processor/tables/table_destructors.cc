@@ -61,7 +61,7 @@ JitCodeTable::~JitCodeTable() = default;
 JitFrameTable::~JitFrameTable() = default;
 
 // metadata_tables_py.h
-RawTable::~RawTable() = default;
+ChromeRawTable::~ChromeRawTable() = default;
 FtraceEventTable::~FtraceEventTable() = default;
 ArgTable::~ArgTable() = default;
 ExpMissingChromeProcTable::~ExpMissingChromeProcTable() = default;

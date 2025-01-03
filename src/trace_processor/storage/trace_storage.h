@@ -100,8 +100,6 @@ using CallsiteId = tables::StackProfileCallsiteTable::Id;
 
 using MetadataId = tables::MetadataTable::Id;
 
-using RawId = tables::RawTable::Id;
-
 using FlamegraphId = tables::ExperimentalFlamegraphTable::Id;
 
 using VulkanAllocId = tables::VulkanMemoryAllocationsTable::Id;
@@ -348,7 +346,7 @@ class TraceStorage {
     track_table_.ShrinkToFit();
     counter_table_.ShrinkToFit();
     slice_table_.ShrinkToFit();
-    raw_table_.ShrinkToFit();
+    ftrace_event_table_.ShrinkToFit();
     sched_slice_table_.ShrinkToFit();
     thread_state_table_.ShrinkToFit();
     arg_table_.ShrinkToFit();
@@ -479,8 +477,12 @@ class TraceStorage {
   const tables::ArgTable& arg_table() const { return arg_table_; }
   tables::ArgTable* mutable_arg_table() { return &arg_table_; }
 
-  const tables::RawTable& raw_table() const { return raw_table_; }
-  tables::RawTable* mutable_raw_table() { return &raw_table_; }
+  const tables::ChromeRawTable& chrome_raw_table() const {
+    return chrome_raw_table_;
+  }
+  tables::ChromeRawTable* mutable_chrome_raw_table() {
+    return &chrome_raw_table_;
+  }
 
   const tables::FtraceEventTable& ftrace_event_table() const {
     return ftrace_event_table_;
@@ -1051,8 +1053,8 @@ class TraceStorage {
 
   SqlStats sql_stats_;
 
-  tables::RawTable raw_table_{&string_pool_};
-  tables::FtraceEventTable ftrace_event_table_{&string_pool_, &raw_table_};
+  tables::ChromeRawTable chrome_raw_table_{&string_pool_};
+  tables::FtraceEventTable ftrace_event_table_{&string_pool_};
 
   tables::MachineTable machine_table_{&string_pool_};
 

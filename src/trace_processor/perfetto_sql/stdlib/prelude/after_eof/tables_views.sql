@@ -260,42 +260,6 @@ SELECT
 FROM
   __intrinsic_thread_state;
 
--- Contains 'raw' events from the trace for some types of events. This table
--- only exists for debugging purposes and should not be relied on in production
--- usecases (i.e. metrics, standard library etc.)
-CREATE PERFETTO VIEW raw (
-  -- Unique identifier for this raw event.
-  id ID,
-  -- The timestamp of this event.
-  ts TIMESTAMP,
-  -- The name of the event. For ftrace events, this will be the ftrace event
-  -- name.
-  name STRING,
-  -- The CPU this event was emitted on (meaningful only in single machine
-  -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
-  -- CPU identifier of each machine.
-  cpu LONG,
-  -- The thread this event was emitted on.
-  utid JOINID(thread.id),
-  -- The set of key/value pairs associated with this event.
-  arg_set_id ARGSETID,
-  -- Ftrace event flags for this event. Currently only emitted for sched_waking
-  -- events.
-  common_flags LONG,
-  -- The unique CPU identifier that this event was emitted on.
-  ucpu LONG
-) AS
-SELECT
-  id,
-  ts,
-  name,
-  ucpu AS cpu,
-  utid,
-  arg_set_id,
-  common_flags,
-  ucpu
-FROM
-  __intrinsic_raw;
 
 -- Contains all the ftrace events in the trace. This table exists only for
 -- debugging purposes and should not be relied on in production usecases (i.e.
@@ -333,6 +297,33 @@ SELECT
   ucpu
 FROM
   __intrinsic_ftrace_event;
+
+-- This table is deprecated. Use `ftrace_event` instead which contains the same
+-- rows; this table is simply a (badly named) alias.
+CREATE PERFETTO VIEW raw (
+  -- Unique identifier for this raw event.
+  id ID,
+  -- The timestamp of this event.
+  ts TIMESTAMP,
+  -- The name of the event. For ftrace events, this will be the ftrace event
+  -- name.
+  name STRING,
+  -- The CPU this event was emitted on (meaningful only in single machine
+  -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
+  -- CPU identifier of each machine.
+  cpu LONG,
+  -- The thread this event was emitted on.
+  utid JOINID(thread.id),
+  -- The set of key/value pairs associated with this event.
+  arg_set_id ARGSETID,
+  -- Ftrace event flags for this event. Currently only emitted for sched_waking
+  -- events.
+  common_flags LONG,
+  -- The unique CPU identifier that this event was emitted on.
+  ucpu LONG
+) AS
+SELECT *
+FROM ftrace_event;
 
 -- The sched_slice table with the upid column.
 CREATE PERFETTO VIEW experimental_sched_upid (

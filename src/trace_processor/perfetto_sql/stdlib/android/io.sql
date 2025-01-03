@@ -77,7 +77,7 @@ WITH
       EXTRACT_ARG(arg_set_id, 'dev') AS dev,
       EXTRACT_ARG(arg_set_id, 'ino') AS ino,
       EXTRACT_ARG(arg_set_id, 'copied') AS copied
-    FROM raw
+    FROM ftrace_event
     WHERE name GLOB 'f2fs_write_end*'
   )
 SELECT

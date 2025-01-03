@@ -148,13 +148,17 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   SortingMode sorting_mode = SortingMode::kDefaultHeuristics;
 
   // When set to false, this option makes the trace processor not include ftrace
-  // events in the raw table; this makes converting events back to the systrace
-  // text format impossible. On the other hand, it also saves ~50% of memory
-  // usage of trace processor. For reference, Studio intends to use this option.
+  // events in the ftrace_event table; this makes converting events back to the
+  // systrace text format impossible. On the other hand, it also saves ~50% of
+  // memory usage of trace processor. For reference, Studio intends to use this
+  // option.
   //
-  // Note: "generic" ftrace events will be parsed into the raw table even if
-  // this flag is false and all other events which parse into the raw table are
-  // unaffected by this flag.
+  // Note: "generic" ftrace events will be parsed into the ftrace_event table
+  // even if this flag is false.
+  //
+  // Note: this option should really be named
+  // `ingest_ftrace_in_ftrace_event_table` as the use of the `raw` table is
+  // deprecated.
   bool ingest_ftrace_in_raw_table = true;
 
   // Indicates the event which should be used as a marker to drop ftrace data in

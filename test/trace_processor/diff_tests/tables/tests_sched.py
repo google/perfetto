@@ -120,12 +120,12 @@ class TablesSched(TestSuite):
         15748
         """))
 
-  def test_raw_common_flags(self):
+  def test_ftrace_event_common_flags(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
           SELECT id, ts, name, cpu, utid, arg_set_id, common_flags
-          FROM raw
+          FROM ftrace_event
           WHERE common_flags != 0
           ORDER BY ts LIMIT 10
         """,
@@ -677,13 +677,13 @@ class TablesSched(TestSuite):
         """))
 
   # Test the support of machine_id ID of the raw table.
-  def test_raw_machine_id(self):
+  def test_ftrace_event_machine_id(self):
     return DiffTestBlueprint(
         trace=DataPath('android_sched_and_ps.pb'),
         trace_modifier=TraceInjector(['ftrace_events'], {'machine_id': 1001}),
         query="""
         SELECT count(*)
-        FROM raw LEFT JOIN cpu USING (ucpu)
+        FROM ftrace_event LEFT JOIN cpu USING (ucpu)
         WHERE machine_id is NULL;
         """,
         out=Csv("""
