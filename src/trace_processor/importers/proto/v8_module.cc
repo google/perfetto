@@ -240,7 +240,7 @@ void V8Module::ParseV8RegExpCode(protozero::ConstBytes bytes,
 }
 
 void V8Module::ParseV8CodeMove(protozero::ConstBytes bytes,
-                               int64_t,
+                               int64_t ts,
                                const TracePacketData& data) {
   V8SequenceState& state =
       *data.sequence_state->GetCustomState<V8SequenceState>();
@@ -252,7 +252,13 @@ void V8Module::ParseV8CodeMove(protozero::ConstBytes bytes,
     return;
   }
 
-  // TODO(carlscab): Implement
+  std::optional<UniqueTid> utid =
+      GetUtid(*data.sequence_state, *isolate_id, v8_code_move);
+  if (!utid) {
+    return;
+  }
+
+  v8_tracker_->MoveCode(ts, *utid, *isolate_id, v8_code_move);
 }
 
 }  // namespace trace_processor
