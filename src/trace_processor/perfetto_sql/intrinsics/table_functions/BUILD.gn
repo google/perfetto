@@ -35,16 +35,14 @@ source_set("table_functions") {
     "experimental_flamegraph.h",
     "experimental_flat_slice.cc",
     "experimental_flat_slice.h",
-    "experimental_sched_upid.cc",
-    "experimental_sched_upid.h",
     "experimental_slice_layout.cc",
     "experimental_slice_layout.h",
     "flamegraph_construction_algorithms.cc",
     "flamegraph_construction_algorithms.h",
-    "winscope_proto_to_args_with_defaults.cc",
-    "winscope_proto_to_args_with_defaults.h",
     "table_info.cc",
     "table_info.h",
+    "winscope_proto_to_args_with_defaults.cc",
+    "winscope_proto_to_args_with_defaults.h",
   ]
   deps = [
     ":tables",
