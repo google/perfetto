@@ -1000,8 +1000,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
 
   RegisterStaticTable(storage->mutable_vulkan_memory_allocations_table());
 
-  RegisterStaticTable(storage->mutable_graphics_frame_slice_table());
-
   RegisterStaticTable(storage->mutable_expected_frame_timeline_slice_table());
   RegisterStaticTable(storage->mutable_actual_frame_timeline_slice_table());
 
