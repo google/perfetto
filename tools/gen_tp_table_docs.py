@@ -40,7 +40,7 @@ def gen_json_for_column(table: ParsedTable,
   assert table.table.tabledoc
 
   # id and type columns should be skipped if the table specifies so.
-  is_skippable_col = col.is_implicit_id or col.is_implicit_type
+  is_skippable_col = col.is_implicit_id
   if table.table.tabledoc.skip_id_and_type and is_skippable_col:
     return None
 
