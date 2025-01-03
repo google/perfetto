@@ -53,6 +53,7 @@
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/debug_annotation_parser.h"
@@ -1059,10 +1060,9 @@ class TrackEventParser::EventImporter {
     if (!utid_)
       return base::ErrStatus("raw legacy event without thread association");
 
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
-    RawId id =
-        storage_->mutable_raw_table()
-            ->Insert({ts_, parser_->raw_legacy_event_id_, *utid_, 0, 0, ucpu})
+    tables::ChromeRawTable::Id id =
+        storage_->mutable_chrome_raw_table()
+            ->Insert({ts_, parser_->raw_legacy_event_id_, *utid_, 0})
             .id;
 
     auto inserter = context_->args_tracker->AddArgsTo(id);

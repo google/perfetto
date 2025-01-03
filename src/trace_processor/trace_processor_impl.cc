@@ -348,7 +348,7 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
     const TraceStorage& storage) {
   int64_t start_ns = std::numeric_limits<int64_t>::max();
   int64_t end_ns = std::numeric_limits<int64_t>::min();
-  for (auto it = storage.raw_table().IterateRows(); it; ++it) {
+  for (auto it = storage.ftrace_event_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
   }
@@ -955,7 +955,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // that table in TraceStorage::ShrinkToFitTables.
   RegisterStaticTable(storage->mutable_machine_table());
   RegisterStaticTable(storage->mutable_arg_table());
-  RegisterStaticTable(storage->mutable_raw_table());
+  RegisterStaticTable(storage->mutable_chrome_raw_table());
   RegisterStaticTable(storage->mutable_ftrace_event_table());
   RegisterStaticTable(storage->mutable_thread_table());
   RegisterStaticTable(storage->mutable_process_table());
