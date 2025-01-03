@@ -17,7 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_WINSCOPE_PROTO_TO_ARGS_WITH_DEFAULTS_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_WINSCOPE_PROTO_TO_ARGS_WITH_DEFAULTS_H_
 
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
@@ -30,7 +36,7 @@ class TraceProcessorContext;
 class WinscopeProtoToArgsWithDefaults : public StaticTableFunction {
  public:
   explicit WinscopeProtoToArgsWithDefaults(StringPool*,
-                                           PerfettoSqlEngine*,
+                                           const PerfettoSqlEngine*,
                                            TraceProcessorContext* context);
 
   Table::Schema CreateSchema() override;
@@ -41,7 +47,7 @@ class WinscopeProtoToArgsWithDefaults : public StaticTableFunction {
 
  private:
   StringPool* string_pool_ = nullptr;
-  PerfettoSqlEngine* engine_ = nullptr;
+  const PerfettoSqlEngine* engine_ = nullptr;
   TraceProcessorContext* context_ = nullptr;
 };
 

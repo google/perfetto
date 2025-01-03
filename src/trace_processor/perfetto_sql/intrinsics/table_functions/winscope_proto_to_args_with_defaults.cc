@@ -16,9 +16,21 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
@@ -150,7 +162,7 @@ base::Status InsertRows(
 
 WinscopeProtoToArgsWithDefaults::WinscopeProtoToArgsWithDefaults(
     StringPool* string_pool,
-    PerfettoSqlEngine* engine,
+    const PerfettoSqlEngine* engine,
     TraceProcessorContext* context)
     : string_pool_(string_pool), engine_(engine), context_(context) {}
 
@@ -165,7 +177,7 @@ WinscopeProtoToArgsWithDefaults::ComputeTable(
   }
   std::string table_name = arguments[0].AsString();
 
-  const Table* static_table = engine_->GetStaticTableOrNull(table_name);
+  const Table* static_table = engine_->GetTableOrNull(table_name);
   if (!static_table) {
     return base::ErrStatus("Failed to find %s table.", table_name.c_str());
   }
