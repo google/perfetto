@@ -135,15 +135,6 @@ EXPERIMENTAL_COUNTER_DUR_TABLE = Table(
     ],
     parent=COUNTER_TABLE)
 
-EXPERIMENTAL_SCHED_UPID_TABLE = Table(
-    python_module=__file__,
-    class_name="ExperimentalSchedUpidTable",
-    sql_name="__intrinsic_sched_upid",
-    columns=[
-        C("upid", CppOptional(CppTableId(PROCESS_TABLE))),
-    ],
-    parent=SCHED_SLICE_TABLE)
-
 EXPERIMENTAL_SLICE_LAYOUT_TABLE = Table(
     python_module=__file__,
     class_name="ExperimentalSliceLayoutTable",
@@ -190,7 +181,6 @@ ALL_TABLES = [
     DFS_WEIGHT_BOUNDED_TABLE,
     EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE,
     EXPERIMENTAL_COUNTER_DUR_TABLE,
-    EXPERIMENTAL_SCHED_UPID_TABLE,
     EXPERIMENTAL_SLICE_LAYOUT_TABLE,
     TABLE_INFO_TABLE,
 ]

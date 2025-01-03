@@ -325,47 +325,6 @@ CREATE PERFETTO VIEW raw (
 SELECT *
 FROM ftrace_event;
 
--- The sched_slice table with the upid column.
-CREATE PERFETTO VIEW experimental_sched_upid (
-  -- Unique identifier for this scheduling slice.
-  id ID,
-  -- The timestamp at the start of the slice.
-  ts TIMESTAMP,
-  -- The duration of the slice.
-  dur DURATION,
-  -- The CPU that the slice executed on (meaningful only in single machine
-  -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
-  -- CPU identifier of each machine.
-  cpu LONG,
-  -- The thread's unique id in the trace.
-  utid JOINID(thread.id),
-  -- A string representing the scheduling state of the kernel thread at the end
-  -- of the slice. The individual characters in the string mean the following: R
-  -- (runnable), S (awaiting a wakeup), D (in an uninterruptible sleep), T
-  -- (suspended), t (being traced), X (exiting), P (parked), W (waking), I
-  -- (idle), N (not contributing to the load average), K (wakeable on fatal
-  -- signals) and Z (zombie, awaiting cleanup).
-  end_state STRING,
-  -- The kernel priority that the thread ran at.
-  priority LONG,
-  -- The unique CPU identifier that the slice executed on.
-  ucpu JOINID(cpu.id),
-  -- The process's unique id in the trace.
-  upid JOINID(process.id)
-) AS
-SELECT
-  id,
-  ts,
-  dur,
-  ucpu AS cpu,
-  utid,
-  end_state,
-  priority,
-  ucpu,
-  upid
-FROM
-  __intrinsic_sched_upid;
-
 -- Tracks which are associated to a single thread.
 CREATE PERFETTO TABLE thread_track (
   -- Unique identifier for this thread track.
