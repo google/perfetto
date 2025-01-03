@@ -121,7 +121,7 @@ class ProcessWorkspaceFactory {
 
   private findProcessTracks(): TrackNode[] {
     return this.trace.workspace.flatTracks.filter((track) => {
-      if (!track.uri) return undefined;
+      if (!track.uri) return false;
       const descriptor = this.trace.tracks.getTrack(track.uri);
       return descriptor?.tags?.upid === this.process.upid;
     });
@@ -227,6 +227,7 @@ class ProcessWorkspaceFactory {
 
       if (!trackGroups.has(groupName)) {
         const newGroup = new TrackNode({title: groupName, isSummary: true});
+        this.ws.addChildLast(newGroup);
         trackGroups.set(groupName, newGroup);
       }
       trackGroups.get(groupName)!.addChildLast(newTrack);
