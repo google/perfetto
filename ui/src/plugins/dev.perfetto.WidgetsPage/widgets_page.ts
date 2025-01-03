@@ -1016,7 +1016,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
                     {
                       icon: Icons.ContextMenu,
                     },
-                    'SELECT * FROM raw WHERE id = 123',
+                    'SELECT * FROM ftrace_event WHERE id = 123',
                   ),
                 },
                 m(MenuItem, {
