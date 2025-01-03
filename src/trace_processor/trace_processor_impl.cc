@@ -46,8 +46,8 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.h"
+#include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
 #include "src/trace_processor/importers/archive/gzip_trace_parser.h"
@@ -115,7 +115,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h"
@@ -1083,8 +1082,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       ConnectedFlow::Mode::kPrecedingFlow, context_.storage.get()));
   engine_->RegisterStaticTableFunction(std::make_unique<ConnectedFlow>(
       ConnectedFlow::Mode::kFollowingFlow, context_.storage.get()));
-  engine_->RegisterStaticTableFunction(std::make_unique<ExperimentalSchedUpid>(
-      storage->sched_slice_table(), storage->thread_table()));
   engine_->RegisterStaticTableFunction(
       std::make_unique<ExperimentalAnnotatedStack>(&context_));
   engine_->RegisterStaticTableFunction(

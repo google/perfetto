@@ -46,6 +46,11 @@ Unreleased:
       TIMESTAMP and DURATION refers to time columns in nanoseconds. ID column
       is a primary key for the column and JOINID is referencing ID
       column of other table.
+    * Removed the `experimental_sched_upid` table. Prefer the joining `sched`
+      and `thread` tables directly instead.
+    * Removed the experimental_counter_dur table. Prefer using the
+      `counter_leading_intervals` macro from the `counters.intervals` standard
+      library module.
   Trace Processor:
     *
   UI:

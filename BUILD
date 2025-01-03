@@ -2929,8 +2929,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h",
-        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.cc",
