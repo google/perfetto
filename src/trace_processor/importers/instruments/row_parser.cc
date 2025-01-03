@@ -64,47 +64,47 @@ void RowParser::ParseInstrumentsRow(int64_t ts, instruments_importer::Row row) {
     Frame* frame = data_.GetFrame(*it);
     Binary* binary = data_.GetBinary(frame->binary);
 
-    uint64_t rel_pc = static_cast<uint64_t>(frame->addr);
+    uint64_t pc = static_cast<uint64_t>(frame->addr);
     if (frame->binary) {
-      rel_pc -= static_cast<uint64_t>(binary->load_addr);
+      pc -= static_cast<uint64_t>(binary->load_addr);
     }
 
     // For non-leaf functions, the pc will be after the end of the call. Adjust
     // it to be within the call instruction.
-    if (rel_pc != 0 && it != leaf) {
-      --rel_pc;
+    if (pc != 0 && it != leaf) {
+      --pc;
     }
 
-    auto frame_inserted = frame_to_frame_id_.Insert(*it, FrameId{0});
-    if (frame_inserted.second) {
-      auto mapping_inserted = binary_to_mapping_.Insert(frame->binary, nullptr);
-      if (mapping_inserted.second) {
-        if (binary == nullptr) {
-          *mapping_inserted.first = GetDummyMapping(upid);
-        } else {
+    VirtualMemoryMapping* mapping = nullptr;
+    mapping = context_->mapping_tracker->FindUserMappingForAddress(upid, pc);
+    if (!mapping) {
+      if (binary == nullptr) {
+        mapping = GetDummyMapping(upid);
+      } else {
+        auto mapping_inserted =
+            binary_to_mapping_.Insert(frame->binary, nullptr);
+        if (mapping_inserted.second) {
           BuildId build_id = binary->uuid;
           *mapping_inserted.first =
               &context_->mapping_tracker->CreateUserMemoryMapping(
                   upid, {AddressRange(static_cast<uint64_t>(binary->load_addr),
                                       static_cast<uint64_t>(binary->max_addr)),
-                         0, 0, 0, binary->path, build_id});
+                         static_cast<uint64_t>(binary->load_addr), 0, 0,
+                         binary->path, build_id});
         }
+        mapping = *mapping_inserted.first;
       }
-      VirtualMemoryMapping* mapping = *mapping_inserted.first;
-
-      // Intern the frame with no function name -- the symbolizer will annotate
-      // frames later.
-      *frame_inserted.first =
-          mapping->InternFrame(rel_pc, base::StringView(""));
     }
-    FrameId frame_id = *frame_inserted.first;
+
+    FrameId frame_id = mapping->InternFrame(mapping->ToRelativePc(pc),
+                                            base::StringView(frame->name));
 
     parent = stack_profile_tracker.InternCallsite(parent, frame_id, depth);
     depth++;
   }
 
   context_->storage->mutable_instruments_sample_table()->Insert(
-      {ts, utid, row.core_id, parent});
+      {ts, utid, parent, row.core_id});
 }
 
 DummyMemoryMapping* RowParser::GetDummyMapping(UniquePid upid) {

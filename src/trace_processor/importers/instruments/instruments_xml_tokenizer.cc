@@ -280,6 +280,8 @@ class InstrumentsXmlTokenizer::Impl {
           std::string key(attrs[i]);
           if (key == "addr") {
             new_frame.ptr->addr = strtoll(attrs[i + 1], nullptr, 16);
+          } else if (key == "name") {
+            new_frame.ptr->name = std::string(attrs[i + 1]);
           }
         }
         current_new_frame_ = new_frame.id;
