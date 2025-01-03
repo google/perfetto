@@ -151,27 +151,20 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
   // Only used for 'B', 'E', and 'X' events so wrap in lambda so it gets
   // ignored in other cases. This lambda is only safe to call within the
   // scope of this function due to the capture by reference.
-  auto make_slice_row = [&](TrackId track_id) {
-    tables::SliceTable::Row row;
-    row.ts = timestamp;
-    row.track_id = track_id;
-    row.category = cat_id;
-    row.name =
-        name_id == kNullStringId ? storage->InternString("[No name]") : name_id;
-    row.thread_ts = json::CoerceToTs(value["tts"]);
-    // tdur will only exist on 'X' events.
-    row.thread_dur = json::CoerceToTs(value["tdur"]);
-    // JSON traces don't report these counters as part of slices.
-    row.thread_instruction_count = std::nullopt;
-    row.thread_instruction_delta = std::nullopt;
-    return row;
-  };
-
+  StringId slice_name_id =
+      name_id == kNullStringId ? storage->InternString("[No name]") : name_id;
   switch (phase) {
     case 'B': {  // TRACE_EVENT_BEGIN.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      slice_tracker->BeginTyped(storage->mutable_slice_table(),
-                                make_slice_row(track_id), args_inserter);
+      auto slice_id = slice_tracker->Begin(timestamp, track_id, cat_id,
+                                           slice_name_id, args_inserter);
+      if (slice_id) {
+        if (auto thread_ts = json::CoerceToTs(value["tts"]); thread_ts) {
+          auto rr =
+              context_->storage->mutable_slice_table()->FindById(*slice_id);
+          rr->set_thread_ts(*thread_ts);
+        }
+      }
       MaybeAddFlow(track_id, value);
       break;
     }
@@ -220,8 +213,8 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
       }
 
       if (phase == 'b') {
-        slice_tracker->BeginTyped(storage->mutable_slice_table(),
-                                  make_slice_row(track_id), args_inserter);
+        slice_tracker->Begin(timestamp, track_id, cat_id, slice_name_id,
+                             args_inserter);
         MaybeAddFlow(track_id, value);
       } else if (phase == 'e') {
         slice_tracker->End(timestamp, track_id, cat_id, name_id, args_inserter);
@@ -239,10 +232,17 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
       if (!opt_dur.has_value())
         return;
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      auto row = make_slice_row(track_id);
-      row.dur = opt_dur.value();
-      slice_tracker->ScopedTyped(storage->mutable_slice_table(), std::move(row),
-                                 args_inserter);
+      auto slice_id = slice_tracker->Scoped(
+          timestamp, track_id, cat_id, slice_name_id, *opt_dur, args_inserter);
+      if (slice_id) {
+        auto rr = context_->storage->mutable_slice_table()->FindById(*slice_id);
+        if (auto thread_ts = json::CoerceToTs(value["tts"]); thread_ts) {
+          rr->set_thread_ts(*thread_ts);
+        }
+        if (auto thread_dur = json::CoerceToTs(value["tdur"]); thread_dur) {
+          rr->set_thread_dur(*thread_dur);
+        }
+      }
       MaybeAddFlow(track_id, value);
       break;
     }
@@ -318,14 +318,15 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
           break;
         }
         track_id = context_->track_tracker->InternThreadTrack(utid);
-        auto row = make_slice_row(track_id);
-        row.dur = 0;
-        if (row.thread_ts) {
-          // Only set thread_dur to zero if we have a thread_ts.
-          row.thread_dur = 0;
+        auto slice_id = slice_tracker->Scoped(timestamp, track_id, cat_id,
+                                              slice_name_id, 0, args_inserter);
+        if (slice_id) {
+          if (auto thread_ts = json::CoerceToTs(value["tts"]); thread_ts) {
+            auto rr =
+                context_->storage->mutable_slice_table()->FindById(*slice_id);
+            rr->set_thread_ts(*thread_ts);
+          }
         }
-        slice_tracker->ScopedTyped(storage->mutable_slice_table(),
-                                   std::move(row), args_inserter);
         break;
       } else {
         context_->storage->IncrementStats(stats::json_parser_failure);

@@ -106,9 +106,6 @@ ThreadStateTable::~ThreadStateTable() = default;
 // slice_tables_py.h
 SliceTable::~SliceTable() = default;
 FlowTable::~FlowTable() = default;
-GpuSliceTable::~GpuSliceTable() = default;
-ExpectedFrameTimelineSliceTable::~ExpectedFrameTimelineSliceTable() = default;
-ActualFrameTimelineSliceTable::~ActualFrameTimelineSliceTable() = default;
 ExperimentalFlatSliceTable::~ExperimentalFlatSliceTable() = default;
 AndroidNetworkPacketsTable::~AndroidNetworkPacketsTable() = default;
 
