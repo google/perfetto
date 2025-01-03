@@ -35,18 +35,21 @@ export default class implements PerfettoPlugin {
     const res = await ctx.engine.query(`
       include perfetto module viz.summary.track_event;
       select
-        upid,
-        utid,
-        parent_id as parentId,
-        is_counter AS isCounter,
-        name,
-        unit,
-        builtin_counter_type as builtinCounterType,
-        has_data AS hasData,
-        has_children AS hasChildren,
-        track_ids as trackIds,
-        order_id as orderId
-      from _track_event_tracks_ordered_groups
+        g.upid,
+        g.utid,
+        g.parent_id as parentId,
+        g.is_counter AS isCounter,
+        g.name,
+        g.unit,
+        g.builtin_counter_type as builtinCounterType,
+        g.has_data AS hasData,
+        g.has_children AS hasChildren,
+        g.track_ids as trackIds,
+        g.order_id as orderId,
+        t.name as threadName,
+        t.tid as tid
+      from _track_event_tracks_ordered_groups g
+      left join thread t using (utid)
     `);
     const it = res.iter({
       upid: NUM_NULL,
@@ -60,6 +63,8 @@ export default class implements PerfettoPlugin {
       hasChildren: NUM,
       trackIds: STR,
       orderId: NUM,
+      threadName: STR_NULL,
+      tid: NUM_NULL,
     });
     const processGroupsPlugin = ctx.plugins.getPlugin(
       ProcessThreadGroupsPlugin,
@@ -78,6 +83,8 @@ export default class implements PerfettoPlugin {
         hasChildren,
         trackIds: rawTrackIds,
         orderId,
+        threadName,
+        tid,
       } = it;
 
       // Don't add track_event tracks which don't have any data and don't have
@@ -94,6 +101,8 @@ export default class implements PerfettoPlugin {
         upid,
         kind,
         threadTrack: utid !== null,
+        threadName,
+        tid,
       });
       const uri = `/track_event_${trackIds[0]}`;
       if (hasData && isCounter) {
