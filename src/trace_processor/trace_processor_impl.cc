@@ -112,7 +112,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dfs_weight_bounded.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
@@ -1059,8 +1058,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // Tables dynamically generated at query time.
   engine_->RegisterStaticTableFunction(
       std::make_unique<ExperimentalFlamegraph>(&context_));
-  engine_->RegisterStaticTableFunction(
-      std::make_unique<ExperimentalCounterDur>(storage->counter_table()));
   engine_->RegisterStaticTableFunction(
       std::make_unique<ExperimentalSliceLayout>(
           context_.storage->mutable_string_pool(), &storage->slice_table()));
