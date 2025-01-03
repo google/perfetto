@@ -24,7 +24,6 @@
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -64,10 +63,13 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
   row.track_id = track_id;
   row.category = kNullStringId;
   row.name = entry_name_id;
-  row.thread_ts = timestamp;
-  row.thread_dur = active_duration;
-  context_->slice_tracker->ScopedTyped(context_->storage->mutable_slice_table(),
-                                       row);
+  auto slice_id = context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, entry_name_id, duration);
+  if (slice_id) {
+    auto rr = context_->storage->mutable_slice_table()->FindById(*slice_id);
+    rr->set_thread_ts(timestamp);
+    rr->set_thread_dur(active_duration);
+  }
 }
 
 }  // namespace perfetto::trace_processor

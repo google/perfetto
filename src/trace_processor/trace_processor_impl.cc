@@ -967,7 +967,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_sched_slice_table());
   RegisterStaticTable(storage->mutable_spurious_sched_wakeup_table());
   RegisterStaticTable(storage->mutable_thread_state_table());
-  RegisterStaticTable(storage->mutable_gpu_slice_table());
 
   RegisterStaticTable(storage->mutable_track_table());
 
@@ -999,9 +998,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_android_input_event_dispatch_table());
 
   RegisterStaticTable(storage->mutable_vulkan_memory_allocations_table());
-
-  RegisterStaticTable(storage->mutable_expected_frame_timeline_slice_table());
-  RegisterStaticTable(storage->mutable_actual_frame_timeline_slice_table());
 
   RegisterStaticTable(storage->mutable_android_network_packets_table());
 

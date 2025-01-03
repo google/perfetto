@@ -33,7 +33,6 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/stats.h"
@@ -195,6 +194,7 @@ FrameTimelineEventParser::FrameTimelineEventParser(
           context->storage->InternString("Jank severity type")),
       layer_name_id_(context->storage->InternString("Layer name")),
       prediction_type_id_(context->storage->InternString("Prediction type")),
+      jank_tag_id_(context->storage->InternString("Jank tag")),
       is_buffer_id_(context->storage->InternString("Is Buffer?")),
       jank_tag_none_id_(context->storage->InternString("No Jank")),
       jank_tag_self_id_(context->storage->InternString("Self Jank")),
@@ -223,18 +223,11 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
       static_cast<uint32_t>(event.pid()));
   cookie_map_[cookie] = std::make_pair(upid, TrackType::kExpected);
 
-  tables::ExpectedFrameTimelineSliceTable::Row expected_row;
-  expected_row.ts = timestamp;
-  expected_row.track_id = context_->track_compressor->InternBegin(
+  TrackId track_id = context_->track_compressor->InternBegin(
       kExpectedBlueprint, tracks::Dimensions(upid), cookie);
-  expected_row.name = name_id;
-
-  expected_row.display_frame_token = token;
-  expected_row.upid = upid;
-
-  context_->slice_tracker->BeginTyped(
-      context_->storage->mutable_expected_frame_timeline_slice_table(),
-      expected_row, [this, token](ArgsTracker::BoundInserter* inserter) {
+  context_->slice_tracker->Begin(
+      timestamp, track_id, kNullStringId, name_id,
+      [this, token](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
       });
 }
@@ -257,15 +250,8 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
       static_cast<uint32_t>(event.pid()));
   cookie_map_[cookie] = std::make_pair(upid, TrackType::kActual);
 
-  tables::ActualFrameTimelineSliceTable::Row actual_row;
-  actual_row.ts = timestamp;
-  actual_row.track_id = context_->track_compressor->InternBegin(
+  TrackId track_id = context_->track_compressor->InternBegin(
       kActualBlueprint, tracks::Dimensions(upid), cookie);
-  actual_row.name = name_id;
-  actual_row.display_frame_token = token;
-  actual_row.upid = upid;
-  actual_row.on_time_finish = event.on_time_finish();
-  actual_row.gpu_composition = event.gpu_composition();
 
   // parse present type
   StringId present_type = present_type_ids_[0];
@@ -273,25 +259,22 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
       ValidatePresentType(context_, event.present_type())) {
     present_type = present_type_ids_[static_cast<size_t>(event.present_type())];
   }
-  actual_row.present_type = present_type;
 
   // parse jank type
   StringId jank_type = JankTypeBitmaskToStringId(context_, event.jank_type());
-  actual_row.jank_type = jank_type;
 
   // parse jank severity type
+  StringId jank_severity_type;
   if (event.has_jank_severity_type()) {
-    actual_row.jank_severity_type = jank_severity_type_ids_[static_cast<size_t>(
+    jank_severity_type = jank_severity_type_ids_[static_cast<size_t>(
         event.jank_severity_type())];
   } else {
     // NOTE: Older traces don't have this field. If JANK_NONE use
     // |severity_type| "None", and is not present, use "Unknown".
-    actual_row.jank_severity_type =
-        (event.jank_type() == FrameTimelineEvent::JANK_NONE)
-            ? jank_severity_type_ids_[1]  /* None */
-            : jank_severity_type_ids_[0]; /* Unknown */
+    jank_severity_type = (event.jank_type() == FrameTimelineEvent::JANK_NONE)
+                             ? jank_severity_type_ids_[1]  /* None */
+                             : jank_severity_type_ids_[0]; /* Unknown */
   }
-  StringId jank_severity_type = actual_row.jank_severity_type;
 
   // parse prediction type
   StringId prediction_type = prediction_type_ids_[0];
@@ -300,23 +283,21 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
     prediction_type =
         prediction_type_ids_[static_cast<size_t>(event.prediction_type())];
   }
-  actual_row.prediction_type = prediction_type;
 
+  StringId jank_tag;
   if (DisplayFrameJanky(event.jank_type())) {
-    actual_row.jank_tag = jank_tag_self_id_;
+    jank_tag = jank_tag_self_id_;
   } else if (event.jank_type() == FrameTimelineEvent::JANK_SF_STUFFING) {
-    actual_row.jank_tag = jank_tag_sf_stuffing_id_;
+    jank_tag = jank_tag_sf_stuffing_id_;
   } else if (event.jank_type() == FrameTimelineEvent::JANK_DROPPED) {
-    actual_row.jank_tag = jank_tag_dropped_id_;
+    jank_tag = jank_tag_dropped_id_;
   } else {
-    actual_row.jank_tag = jank_tag_none_id_;
+    jank_tag = jank_tag_none_id_;
   }
 
-  std::optional<SliceId> opt_slice_id = context_->slice_tracker->BeginTyped(
-      context_->storage->mutable_actual_frame_timeline_slice_table(),
-      actual_row,
-      [this, token, jank_type, jank_severity_type, present_type,
-       prediction_type, &event](ArgsTracker::BoundInserter* inserter) {
+  std::optional<SliceId> opt_slice_id = context_->slice_tracker->Begin(
+      timestamp, track_id, kNullStringId, name_id,
+      [&](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
         inserter->AddArg(present_type_id_, Variadic::String(present_type));
         inserter->AddArg(on_time_finish_id_,
@@ -328,6 +309,7 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
                          Variadic::String(jank_severity_type));
         inserter->AddArg(prediction_type_id_,
                          Variadic::String(prediction_type));
+        inserter->AddArg(jank_tag_id_, Variadic::String(jank_tag));
       });
 
   // SurfaceFrames will always be parsed before the matching DisplayFrame
@@ -385,21 +367,14 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(int64_t timestamp,
   StringId name_id =
       context_->storage->InternString(base::StringView(std::to_string(token)));
 
-  tables::ExpectedFrameTimelineSliceTable::Row expected_row;
-  expected_row.ts = timestamp;
-  expected_row.track_id = context_->track_compressor->InternBegin(
+  TrackId track_id = context_->track_compressor->InternBegin(
       kExpectedBlueprint, tracks::Dimensions(upid), cookie);
-  expected_row.name = name_id;
-
-  expected_row.surface_frame_token = token;
-  expected_row.display_frame_token = display_frame_token;
-  expected_row.upid = upid;
-  expected_row.layer_name = layer_name_id;
-  context_->slice_tracker->BeginTyped(
-      context_->storage->mutable_expected_frame_timeline_slice_table(),
-      expected_row,
-      [this, token, layer_name_id](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
+  context_->slice_tracker->Begin(
+      timestamp, track_id, kNullStringId, name_id,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
+        inserter->AddArg(display_frame_token_id_,
+                         Variadic::Integer(display_frame_token));
         inserter->AddArg(layer_name_id_, Variadic::String(layer_name_id));
       });
 }
@@ -429,17 +404,8 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   StringId name_id =
       context_->storage->InternString(base::StringView(std::to_string(token)));
 
-  tables::ActualFrameTimelineSliceTable::Row actual_row;
-  actual_row.ts = timestamp;
-  actual_row.track_id = context_->track_compressor->InternBegin(
+  TrackId track_id = context_->track_compressor->InternBegin(
       kActualBlueprint, tracks::Dimensions(upid), cookie);
-  actual_row.name = name_id;
-  actual_row.surface_frame_token = token;
-  actual_row.display_frame_token = display_frame_token;
-  actual_row.upid = upid;
-  actual_row.layer_name = layer_name_id;
-  actual_row.on_time_finish = event.on_time_finish();
-  actual_row.gpu_composition = event.gpu_composition();
 
   // parse present type
   StringId present_type = present_type_ids_[0];
@@ -449,25 +415,22 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
     present_type_validated = true;
     present_type = present_type_ids_[static_cast<size_t>(event.present_type())];
   }
-  actual_row.present_type = present_type;
 
   // parse jank type
   StringId jank_type = JankTypeBitmaskToStringId(context_, event.jank_type());
-  actual_row.jank_type = jank_type;
 
   // parse jank severity type
+  StringId jank_severity_type;
   if (event.has_jank_severity_type()) {
-    actual_row.jank_severity_type = jank_severity_type_ids_[static_cast<size_t>(
+    jank_severity_type = jank_severity_type_ids_[static_cast<size_t>(
         event.jank_severity_type())];
   } else {
     // NOTE: Older traces don't have this field. If JANK_NONE use
     // |severity_type| "None", and is not present, use "Unknown".
-    actual_row.jank_severity_type =
-        (event.jank_type() == FrameTimelineEvent::JANK_NONE)
-            ? jank_severity_type_ids_[1]  /* None */
-            : jank_severity_type_ids_[0]; /* Unknown */
+    jank_severity_type = (event.jank_type() == FrameTimelineEvent::JANK_NONE)
+                             ? jank_severity_type_ids_[1]  /* None */
+                             : jank_severity_type_ids_[0]; /* Unknown */
   }
-  StringId jank_severity_type = actual_row.jank_severity_type;
 
   // parse prediction type
   StringId prediction_type = prediction_type_ids_[0];
@@ -476,34 +439,32 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
     prediction_type =
         prediction_type_ids_[static_cast<size_t>(event.prediction_type())];
   }
-  actual_row.prediction_type = prediction_type;
 
+  StringId jank_tag;
   if (SurfaceFrameJanky(event.jank_type())) {
-    actual_row.jank_tag = jank_tag_self_id_;
+    jank_tag = jank_tag_self_id_;
   } else if (DisplayFrameJanky(event.jank_type())) {
-    actual_row.jank_tag = jank_tag_other_id_;
+    jank_tag = jank_tag_other_id_;
   } else if (event.jank_type() == FrameTimelineEvent::JANK_BUFFER_STUFFING) {
-    actual_row.jank_tag = jank_tag_buffer_stuffing_id_;
+    jank_tag = jank_tag_buffer_stuffing_id_;
   } else if (present_type_validated &&
              event.present_type() == FrameTimelineEvent::PRESENT_DROPPED) {
-    actual_row.jank_tag = jank_tag_dropped_id_;
+    jank_tag = jank_tag_dropped_id_;
   } else {
-    actual_row.jank_tag = jank_tag_none_id_;
+    jank_tag = jank_tag_none_id_;
   }
   StringId is_buffer = context_->storage->InternString("Unspecified");
   if (event.has_is_buffer()) {
-    if (event.is_buffer())
+    if (event.is_buffer()) {
       is_buffer = context_->storage->InternString("Yes");
-    else
+    } else {
       is_buffer = context_->storage->InternString("No");
+    }
   }
 
-  std::optional<SliceId> opt_slice_id = context_->slice_tracker->BeginTyped(
-      context_->storage->mutable_actual_frame_timeline_slice_table(),
-      actual_row,
-      [this, jank_type, jank_severity_type, present_type, token, layer_name_id,
-       display_frame_token, prediction_type, is_buffer,
-       &event](ArgsTracker::BoundInserter* inserter) {
+  std::optional<SliceId> opt_slice_id = context_->slice_tracker->Begin(
+      timestamp, track_id, kNullStringId, name_id,
+      [&](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
         inserter->AddArg(display_frame_token_id_,
                          Variadic::Integer(display_frame_token));
@@ -518,6 +479,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
                          Variadic::String(jank_severity_type));
         inserter->AddArg(prediction_type_id_,
                          Variadic::String(prediction_type));
+        inserter->AddArg(jank_tag_id_, Variadic::String(jank_tag));
         inserter->AddArg(is_buffer_id_, Variadic::String(is_buffer));
       });
 

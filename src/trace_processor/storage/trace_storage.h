@@ -411,11 +411,6 @@ class TraceStorage {
     return &virtual_track_slices_;
   }
 
-  const tables::GpuSliceTable& gpu_slice_table() const {
-    return gpu_slice_table_;
-  }
-  tables::GpuSliceTable* mutable_gpu_slice_table() { return &gpu_slice_table_; }
-
   const tables::CounterTable& counter_table() const { return counter_table_; }
   tables::CounterTable* mutable_counter_table() { return &counter_table_; }
 
@@ -653,25 +648,6 @@ class TraceStorage {
   }
   tables::MemorySnapshotEdgeTable* mutable_memory_snapshot_edge_table() {
     return &memory_snapshot_edge_table_;
-  }
-
-  const tables::ExpectedFrameTimelineSliceTable&
-  expected_frame_timeline_slice_table() const {
-    return expected_frame_timeline_slice_table_;
-  }
-
-  tables::ExpectedFrameTimelineSliceTable*
-  mutable_expected_frame_timeline_slice_table() {
-    return &expected_frame_timeline_slice_table_;
-  }
-
-  const tables::ActualFrameTimelineSliceTable&
-  actual_frame_timeline_slice_table() const {
-    return actual_frame_timeline_slice_table_;
-  }
-  tables::ActualFrameTimelineSliceTable*
-  mutable_actual_frame_timeline_slice_table() {
-    return &actual_frame_timeline_slice_table_;
   }
 
   const tables::AndroidNetworkPacketsTable& android_network_packets_table()
@@ -1035,10 +1011,6 @@ class TraceStorage {
   // NestableSlices).
   VirtualTrackSlices virtual_track_slices_;
 
-  // Additional attributes for gpu track slices (sub-type of
-  // NestableSlices).
-  tables::GpuSliceTable gpu_slice_table_{&string_pool_, &slice_table_};
-
   // The values from the Counter events from the trace. This includes CPU
   // frequency events as well systrace trace_marker counter events.
   tables::CounterTable counter_table_{&string_pool_};
@@ -1096,12 +1068,6 @@ class TraceStorage {
       &string_pool_};
   tables::MemorySnapshotNodeTable memory_snapshot_node_table_{&string_pool_};
   tables::MemorySnapshotEdgeTable memory_snapshot_edge_table_{&string_pool_};
-
-  // FrameTimeline tables
-  tables::ExpectedFrameTimelineSliceTable expected_frame_timeline_slice_table_{
-      &string_pool_, &slice_table_};
-  tables::ActualFrameTimelineSliceTable actual_frame_timeline_slice_table_{
-      &string_pool_, &slice_table_};
 
   // AndroidNetworkPackets tables
   tables::AndroidNetworkPacketsTable android_network_packets_table_{
