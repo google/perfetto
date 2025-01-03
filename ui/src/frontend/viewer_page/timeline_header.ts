@@ -89,15 +89,15 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
         VirtualOverlayCanvas,
         {
           raf: attrs.trace.raf,
-          onCanvasRedraw: this.drawCanvas.bind(this),
-          onCanvasResized: (size: Size2D) => {
+          onCanvasRedraw: (ctx) => {
             const rect = new Rect2D({
               left: TRACK_SHELL_WIDTH,
-              right: size.width,
+              right: ctx.virtualCanvasSize.width,
               top: 0,
               bottom: 0,
             });
             attrs.onTimelineBoundsChange?.(rect);
+            this.drawCanvas(ctx);
           },
         },
         this.panels.map((p) => p.render()),
