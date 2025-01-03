@@ -43,7 +43,6 @@ namespace {
 
 using SliceTable = tables::SliceTable;
 using ExpectedFrameTimelineSliceTable = tables::ExpectedFrameTimelineSliceTable;
-using RawTable = tables::RawTable;
 using FtraceEventTable = tables::FtraceEventTable;
 using HeapGraphObjectTable = tables::HeapGraphObjectTable;
 
@@ -201,14 +200,6 @@ struct FtraceEventTableForBenchmark {
     uint32_t cur_idx = 0;
     for (size_t i = 1; i < ftrace_event_rows.size(); ++i, cur_idx++) {
       std::vector<std::string> row_vec = SplitCSVLine(ftrace_event_rows[i]);
-      uint32_t idx = *base::StringToUInt32(row_vec[0]);
-      while (cur_idx < idx) {
-        std::vector<std::string> raw_row = SplitCSVLine(raw_rows[cur_idx + 1]);
-        RawTable::Row r;
-        r.ucpu = tables::CpuTable::Id(*base::StringToUInt32(raw_row[1]));
-        raw_.Insert(r);
-        cur_idx++;
-      }
       FtraceEventTable::Row row;
       row.ucpu = tables::CpuTable::Id(*base::StringToUInt32(row_vec[1]));
       table_.Insert(row);
@@ -216,8 +207,7 @@ struct FtraceEventTableForBenchmark {
   }
 
   StringPool pool_;
-  RawTable raw_{&pool_};
-  tables::FtraceEventTable table_{&pool_, &raw_};
+  tables::FtraceEventTable table_{&pool_};
 };
 
 struct HeapGraphObjectTableForBenchmark {

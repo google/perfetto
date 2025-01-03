@@ -1102,7 +1102,7 @@ class JsonExporter {
   }
 
   Json::Value ConvertLegacyRawEventToJson(
-      const tables::RawTable::ConstIterator& it) {
+      const tables::ChromeRawTable::ConstIterator& it) {
     Json::Value event;
     event["ts"] = Json::Int64(it.ts() / 1000);
 
@@ -1187,7 +1187,7 @@ class JsonExporter {
     std::optional<StringId> raw_chrome_metadata_event_id =
         storage_->string_pool().GetId("chrome_event.metadata");
 
-    const auto& events = storage_->raw_table();
+    const auto& events = storage_->chrome_raw_table();
     for (auto it = events.IterateRows(); it; ++it) {
       if (raw_legacy_event_key_id && it.name() == *raw_legacy_event_key_id) {
         Json::Value event = ConvertLegacyRawEventToJson(it);

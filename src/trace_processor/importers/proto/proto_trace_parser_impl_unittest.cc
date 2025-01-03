@@ -391,7 +391,7 @@ TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
   context_.sorter->ExtractEventsForced();
 }
 
-TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
+TEST_F(ProtoTraceParserTest, LoadEventsIntoFtraceEvent) {
   auto* bundle = trace_->add_packet()->set_ftrace_events();
   bundle->set_cpu(10);
 
@@ -422,7 +422,7 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  const auto& raw = context_.storage->raw_table();
+  const auto& raw = context_.storage->ftrace_event_table();
   ASSERT_EQ(raw.row_count(), 2u);
   const auto& args = context_.storage->arg_table();
   ASSERT_EQ(args.row_count(), 6u);
@@ -475,7 +475,7 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  const auto& raw = storage_->raw_table();
+  const auto& raw = storage_->ftrace_event_table();
 
   ASSERT_EQ(raw.row_count(), 1u);
   ASSERT_EQ(raw[raw.row_count() - 1].ts(), 100);
@@ -2466,14 +2466,11 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   ::testing::Mock::VerifyAndClearExpectations(storage_);
 
   // Verify raw_table and args contents.
-  const auto& raw_table = storage_->raw_table();
+  const auto& raw_table = storage_->chrome_raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
   EXPECT_EQ(raw_table[0].ts(), 1010000);
   EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("track_event.legacy_event"));
-  auto ucpu = raw_table[0].ucpu();
-  const auto& cpu_table = storage_->cpu_table();
-  EXPECT_EQ(cpu_table[ucpu.value].cpu(), 0u);
   EXPECT_EQ(raw_table[0].utid(), 1u);
   EXPECT_TRUE(raw_table[0].arg_set_id());
 
@@ -2564,7 +2561,7 @@ TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButWithoutClockSnapshot) {
   context_.sorter->ExtractEventsForced();
 
   // Metadata should have created a raw event.
-  const auto& raw_table = storage_->raw_table();
+  const auto& raw_table = storage_->chrome_raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
 }
 
@@ -2592,7 +2589,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
   context_.sorter->ExtractEventsForced();
 
   // Verify raw_table and args contents.
-  const auto& raw_table = storage_->raw_table();
+  const auto& raw_table = storage_->chrome_raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
   EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("chrome_event.metadata"));
@@ -2623,7 +2620,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {
   context_.sorter->ExtractEventsForced();
 
   // Verify raw_table and args contents.
-  const auto& raw_table = storage_->raw_table();
+  const auto& raw_table = storage_->chrome_raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
   EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("chrome_event.legacy_system_trace"));
@@ -2651,7 +2648,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyJsonIntoRawTable) {
   context_.sorter->ExtractEventsForced();
 
   // Verify raw_table and args contents.
-  const auto& raw_table = storage_->raw_table();
+  const auto& raw_table = storage_->chrome_raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
   EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("chrome_event.legacy_user_trace"));
