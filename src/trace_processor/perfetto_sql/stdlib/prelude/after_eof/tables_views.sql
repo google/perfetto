@@ -822,3 +822,53 @@ SELECT v.*, t.name, t.unit
 FROM counter v
 JOIN counter_track t ON v.track_id = t.id
 ORDER BY ts;
+
+-- Table containing graphics frame events on Android.
+CREATE PERFETTO VIEW frame_slice(
+  -- Alias of `slice.id`.
+  id ID(slice.id),
+  -- Alias of `slice.ts`.
+  ts TIMESTAMP,
+  -- Alias of `slice.dur`.
+  dur DURATION,
+  -- Alias of `slice.track_id`.
+  track_id JOINID(track.id),
+  -- Alias of `slice.category`.
+  category STRING,
+  -- Alias of `slice.name`.
+  name STRING,
+  -- Alias of `slice.depth`.
+  depth LONG,
+  -- Alias of `slice.parent_id`.
+  parent_id JOINID(frame_slice.id),
+  -- Alias of `slice.arg_set_id`.
+  arg_set_id LONG,
+  -- Name of the graphics layer this slice happened on.
+  layer_name STRING,
+  -- The frame number this slice is associated with.
+  frame_number LONG,
+  -- The time between queue and acquire for this buffer and layer.
+  queue_to_acquire_time LONG,
+  -- The time between acquire and latch for this buffer and layer.
+  acquire_to_latch_time LONG,
+  -- The time between latch and present for this buffer and layer.
+  latch_to_present_time LONG
+) AS
+SELECT
+  s.id,
+  s.ts,
+  s.dur,
+  s.track_id,
+  s.category,
+  s.name,
+  s.depth,
+  s.parent_id,
+  s.arg_set_id,
+  extract_arg(s.arg_set_id, 'layer_name') as layer_name,
+  extract_arg(s.arg_set_id, 'frame_number') as frame_number,
+  extract_arg(s.arg_set_id, 'queue_to_acquire_time') as queue_to_acquire_time,
+  extract_arg(s.arg_set_id, 'acquire_to_latch_time') as acquire_to_latch_time,
+  extract_arg(s.arg_set_id, 'latch_to_present_time') as latch_to_present_time
+FROM slice s
+JOIN track t ON s.track_id = t.id
+WHERE t.type = 'graphics_frame_event';
