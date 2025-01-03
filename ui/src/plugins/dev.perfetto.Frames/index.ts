@@ -25,6 +25,11 @@ import {ExpectedFramesTrack} from './expected_frames_track';
 import {FrameSelectionAggregator} from './frame_selection_aggregator';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
+// Build a standardized URI for a frames track
+function makeUri(upid: number, kind: 'expected_frames' | 'actual_frames') {
+  return `/process_${upid}/${kind}`;
+}
+
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Frames';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
@@ -35,6 +40,44 @@ export default class implements PerfettoPlugin {
     ctx.selection.registerAreaSelectionAggregator(
       new FrameSelectionAggregator(),
     );
+
+    ctx.selection.registerSqlSelectionResolver({
+      sqlTableName: 'slice',
+      callback: async (id: number) => {
+        const result = await ctx.engine.query(`
+          select
+            process_track.type as trackType,
+            process_track.upid as upid
+          from slice
+          join process_track on slice.track_id = process_track.id
+          where
+            slice.id = ${id}
+            and process_track.type in (
+              'android_expected_frame_timeline',
+              'android_actual_frame_timeline'
+            )
+        `);
+
+        if (result.numRows() === 0) {
+          return undefined;
+        }
+
+        const {trackType, upid} = result.firstRow({
+          trackType: STR,
+          upid: NUM,
+        });
+
+        const suffix =
+          trackType === 'expected_frame_timeline'
+            ? 'expected_frames'
+            : 'actual_frames';
+
+        return {
+          trackUri: makeUri(upid, suffix),
+          eventId: id,
+        };
+      },
+    });
   }
 
   async addExpectedFrames(ctx: Trace): Promise<void> {
@@ -70,7 +113,7 @@ export default class implements PerfettoPlugin {
       const maxDepth = it.maxDepth;
 
       const title = 'Expected Timeline';
-      const uri = `/process_${upid}/expected_frames`;
+      const uri = makeUri(upid, 'expected_frames');
       ctx.tracks.registerTrack({
         uri,
         title,
@@ -121,7 +164,7 @@ export default class implements PerfettoPlugin {
       const maxDepth = it.maxDepth;
 
       const title = 'Actual Timeline';
-      const uri = `/process_${upid}/actual_frames`;
+      const uri = makeUri(upid, 'actual_frames');
       ctx.tracks.registerTrack({
         uri,
         title,
