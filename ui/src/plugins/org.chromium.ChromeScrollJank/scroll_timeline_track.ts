@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
 import {
   NAMED_ROW,
@@ -20,7 +19,6 @@ import {
   NamedSliceTrack,
 } from '../../components/tracks/named_slice_track';
 import {Slice} from '../../public/track';
-import {sqlNameSafe} from '../../base/string_utils';
 import {SqlTableSliceTrackDetailsPanel} from '../../components/tracks/sql_table_slice_track_details_tab';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -32,6 +30,7 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {escapeQuery} from '../../trace_processor/query_utils';
+import {Engine} from '../../trace_processor/engine';
 
 interface StepTemplate {
   // The name of a stage of a scroll.
@@ -84,24 +83,62 @@ function checkColumnNameIsValidOrReturnNull(
 }
 
 export class ScrollTimelineTrack extends NamedSliceTrack<Slice, NamedRow> {
-  private readonly tableName;
-
-  constructor(trace: Trace, uri: string) {
+  /**
+   * Constructs a scroll timeline track for a given `trace`.
+   *
+   * @param trace - The trace whose data the track will display
+   * @param uri - The URI of the track
+   * @param tableName - The name of an existing SQL table which contains
+   * information about the slices of the track. IMPORTANT: You must create
+   * the table first using {@link ScrollTimelineTrack.createTableForTrack}
+   * BEFORE creating this track.
+   */
+  constructor(
+    trace: Trace,
+    uri: string,
+    private readonly tableName: string,
+  ) {
     super(trace, uri);
-    this.tableName = `scrolltimelinetrack_${sqlNameSafe(uri)}`;
   }
 
-  override async onInit(): Promise<AsyncDisposable> {
-    await super.onInit();
-    await this.engine.query(`INCLUDE PERFETTO MODULE chrome.chrome_scrolls;`);
-    const stepTemplates = await this.queryStepTemplates();
+  override getSqlSource(): string {
+    return `SELECT * FROM ${this.tableName}`;
+  }
+
+  override getRowSpec(): NamedRow {
+    return NAMED_ROW;
+  }
+
+  override rowToSlice(row: NamedRow): Slice {
+    return super.rowToSliceBase(row);
+  }
+
+  override detailsPanel(sel: TrackEventSelection): TrackEventDetailsPanel {
+    return new SqlTableSliceTrackDetailsPanel(
+      this.trace,
+      this.tableName,
+      sel.eventId,
+    );
+  }
+
+  /**
+   * Creates a Perfetto table named `tableName` representing the slices of a
+   * {@link ScrollTimelineTrack} for a given `trace`. You can use this table to
+   * construct the track.
+   */
+  static async createTableForTrack(
+    trace: Trace,
+    tableName: string,
+  ): Promise<void> {
+    const engine = trace.engine;
+    const stepTemplates = await ScrollTimelineTrack.queryStepTemplates(engine);
     // TODO: b/383549233 - Set ts+dur of each scroll update directly based on
     // our knowledge of the scrolling pipeline (as opposed to aggregating over
     // scroll_steps).
-    return await createPerfettoTable(
-      this.engine,
-      this.tableName,
-      `WITH
+    await engine.query(
+      `INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
+      CREATE PERFETTO TABLE ${tableName} AS
+      WITH
         -- Unpivot all ts+dur columns into rows. Each row corresponds to a step
         -- of a particular scroll update. Some of the rows might have null
         -- ts/dur values, which will be filtered out in unordered_slices.
@@ -185,12 +222,14 @@ export class ScrollTimelineTrack extends NamedSliceTrack<Slice, NamedRow> {
    * `StepTemplate.dur_column_name`. Unless null, the returned column names are
    * guaranteed to be valid column names of `chrome_scroll_update_info`.
    */
-  private async queryStepTemplates(): Promise<StepTemplate[]> {
+  private static async queryStepTemplates(
+    engine: Engine,
+  ): Promise<StepTemplate[]> {
     // Use a set for faster lookups.
     const columnNames = new Set(
-      await this.queryChromeScrollUpdateInfoColumnNames(),
+      await ScrollTimelineTrack.queryChromeScrollUpdateInfoColumnNames(engine),
     );
-    const stepTemplatesResult = await this.engine.query(`
+    const stepTemplatesResult = await engine.query(`
       INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
       SELECT
         step_name,
@@ -224,33 +263,15 @@ export class ScrollTimelineTrack extends NamedSliceTrack<Slice, NamedRow> {
   }
 
   /** Returns the names of columns of the `chrome_scroll_update_info` table. */
-  private async queryChromeScrollUpdateInfoColumnNames(): Promise<string[]> {
+  private static async queryChromeScrollUpdateInfoColumnNames(
+    engine: Engine,
+  ): Promise<string[]> {
     // See https://www.sqlite.org/pragma.html#pragfunc and
     // https://www.sqlite.org/pragma.html#pragma_table_info for more information
     // about `pragma_table_info`.
-    const columnNamesResult = await this.engine.query(`
+    const columnNamesResult = await engine.query(`
       INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
       SELECT name FROM pragma_table_info('chrome_scroll_update_info');`);
     return rows(columnNamesResult, {name: STR}).map((row) => row.name);
-  }
-
-  override getSqlSource(): string {
-    return `SELECT * FROM ${this.tableName}`;
-  }
-
-  override getRowSpec(): NamedRow {
-    return NAMED_ROW;
-  }
-
-  override rowToSlice(row: NamedRow): Slice {
-    return super.rowToSliceBase(row);
-  }
-
-  override detailsPanel(sel: TrackEventSelection): TrackEventDetailsPanel {
-    return new SqlTableSliceTrackDetailsPanel(
-      this.trace,
-      this.tableName,
-      sel.eventId,
-    );
   }
 }

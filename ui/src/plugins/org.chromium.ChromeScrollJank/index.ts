@@ -35,7 +35,7 @@ export default class implements PerfettoPlugin {
     await this.addEventLatencyTrack(ctx, group);
     await this.addScrollJankV3ScrollTrack(ctx, group);
     await ScrollJankCauseMap.initialize(ctx.engine);
-    this.addScrollTimelineTrack(ctx, group);
+    await this.addScrollTimelineTrack(ctx, group);
     ctx.workspace.addChildInOrder(group);
     group.expand();
   }
@@ -193,14 +193,21 @@ export default class implements PerfettoPlugin {
     group.addChildInOrder(track);
   }
 
-  private addScrollTimelineTrack(ctx: Trace, group: TrackNode) {
+  private async addScrollTimelineTrack(
+    ctx: Trace,
+    group: TrackNode,
+  ): Promise<void> {
     const uri = 'org.chromium.ChromeScrollJank#scrollTimeline';
     const title = 'Chrome Scroll Timeline';
+
+    const tableName =
+      'scrolltimelinetrack_org_chromium_ChromeScrollJank_scrollTimeline';
+    await ScrollTimelineTrack.createTableForTrack(ctx, tableName);
 
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new ScrollTimelineTrack(ctx, uri),
+      track: new ScrollTimelineTrack(ctx, uri, tableName),
     });
 
     const track = new TrackNode({uri, title});
