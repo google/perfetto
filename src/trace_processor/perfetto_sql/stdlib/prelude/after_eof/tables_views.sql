@@ -872,3 +872,193 @@ SELECT
 FROM slice s
 JOIN track t ON s.track_id = t.id
 WHERE t.type = 'graphics_frame_event';
+
+-- Table containing graphics frame events on Android.
+CREATE PERFETTO VIEW gpu_slice(
+  -- Alias of `slice.id`.
+  id ID(slice.id),
+  -- Alias of `slice.ts`.
+  ts TIMESTAMP,
+  -- Alias of `slice.dur`.
+  dur DURATION,
+  -- Alias of `slice.track_id`.
+  track_id JOINID(track.id),
+  -- Alias of `slice.category`.
+  category STRING,
+  -- Alias of `slice.name`.
+  name STRING,
+  -- Alias of `slice.depth`.
+  depth LONG,
+  -- Alias of `slice.parent_id`.
+  parent_id JOINID(frame_slice.id),
+  -- Alias of `slice.arg_set_id`.
+  arg_set_id LONG,
+  -- Context ID.
+  context_id LONG,
+  -- Render target ID.
+  render_target LONG,
+  -- The name of the render target.
+  render_target_name STRING,
+  -- Render pass ID.
+  render_pass LONG,
+  -- The name of the render pass.
+  render_pass_name STRING,
+  -- The command buffer ID.
+  command_buffer LONG,
+  -- The name of the command buffer.
+  command_buffer_name STRING,
+  -- Frame id.
+  frame_id LONG,
+  -- The submission id.
+  submission_id LONG,
+  -- The hardware queue id.
+  hw_queue_id LONG,
+  -- The id of the process.
+  upid JOINID(process.id),
+  -- Render subpasses.
+  render_subpasses STRING
+) AS
+SELECT
+  s.id,
+  s.ts,
+  s.dur,
+  s.track_id,
+  s.category,
+  s.name,
+  s.depth,
+  s.parent_id,
+  s.arg_set_id,
+  extract_arg(s.arg_set_id, 'context_id') as context_id,
+  extract_arg(s.arg_set_id, 'render_target') as render_target,
+  extract_arg(s.arg_set_id, 'render_target_name') as render_target_name,
+  extract_arg(s.arg_set_id, 'render_pass') as render_pass,
+  extract_arg(s.arg_set_id, 'render_pass_name') as render_pass_name,
+  extract_arg(s.arg_set_id, 'command_buffer') as command_buffer,
+  extract_arg(s.arg_set_id, 'command_buffer_name') as command_buffer_name,
+  extract_arg(s.arg_set_id, 'frame_id') as frame_id,
+  extract_arg(s.arg_set_id, 'submission_id') as submission_id,
+  extract_arg(s.arg_set_id, 'hw_queue_id') as hw_queue_id,
+  extract_arg(s.arg_set_id, 'upid') as upid,
+  extract_arg(s.arg_set_id, 'render_subpasses') as render_subpasses
+FROM slice s
+JOIN track t ON s.track_id = t.id
+WHERE t.type IN ('gpu_render_stage', 'vulkan_events', 'gpu_log');
+
+-- This table contains information on the expected timeline of either a display
+-- frame or a surface frame.
+CREATE PERFETTO TABLE expected_frame_timeline_slice(
+  -- Alias of `slice.id`.
+  id ID(slice.id),
+  -- Alias of `slice.ts`.
+  ts TIMESTAMP,
+  -- Alias of `slice.dur`.
+  dur DURATION,
+  -- Alias of `slice.track_id`.
+  track_id JOINID(track.id),
+  -- Alias of `slice.category`.
+  category STRING,
+  -- Alias of `slice.name`.
+  name STRING,
+  -- Alias of `slice.depth`.
+  depth LONG,
+  -- Alias of `slice.parent_id`.
+  parent_id JOINID(frame_slice.id),
+  -- Alias of `slice.arg_set_id`.
+  arg_set_id LONG,
+  -- Display frame token (vsync id).
+  display_frame_token LONG,
+  -- Surface frame token (vsync id), null if this is a display frame.
+  surface_frame_token LONG,
+  -- Unique process id of the app that generates the surface frame.
+  upid JOINID(process.id),
+  -- Layer name if this is a surface frame.
+  layer_name STRING
+) AS
+SELECT
+  s.id,
+  s.ts,
+  s.dur,
+  s.track_id,
+  s.category,
+  s.name,
+  s.depth,
+  s.parent_id,
+  s.arg_set_id,
+  extract_arg(s.arg_set_id, 'Display frame token') as display_frame_token,
+  extract_arg(s.arg_set_id, 'Surface frame token') as surface_frame_token,
+  t.upid,
+  extract_arg(s.arg_set_id, 'Layer name') as layer_name
+FROM slice s
+JOIN process_track t ON s.track_id = t.id
+WHERE t.type = 'android_expected_frame_timeline';
+
+-- This table contains information on the actual timeline and additional
+-- analysis related to the performance of either a display frame or a surface
+-- frame.
+CREATE PERFETTO TABLE actual_frame_timeline_slice(
+  -- Alias of `slice.id`.
+  id ID(slice.id),
+  -- Alias of `slice.ts`.
+  ts TIMESTAMP,
+  -- Alias of `slice.dur`.
+  dur DURATION,
+  -- Alias of `slice.track_id`.
+  track_id JOINID(track.id),
+  -- Alias of `slice.category`.
+  category STRING,
+  -- Alias of `slice.name`.
+  name STRING,
+  -- Alias of `slice.depth`.
+  depth LONG,
+  -- Alias of `slice.parent_id`.
+  parent_id JOINID(frame_slice.id),
+  -- Alias of `slice.arg_set_id`.
+  arg_set_id LONG,
+  -- Display frame token (vsync id).
+  display_frame_token LONG,
+  -- Surface frame token (vsync id), null if this is a display frame.
+  surface_frame_token LONG,
+  -- Unique process id of the app that generates the surface frame.
+  upid JOINID(process.id),
+  -- Layer name if this is a surface frame.
+  layer_name STRING,
+  -- Frame's present type (eg. on time / early / late).
+  present_type STRING,
+  -- Whether the frame finishes on time.
+  on_time_finish LONG,
+  -- Whether the frame used gpu composition.
+  gpu_composition LONG,
+  -- Specify the jank types for this frame if there's jank, or none if no jank
+  -- occurred.
+  jank_type STRING,
+  -- Severity of the jank: none if no jank.
+  jank_severity_type STRING,
+  -- Frame's prediction type (eg. valid / expired).
+  prediction_type STRING,
+  -- Jank tag based on jank type, used for slice visualization.
+  jank_tag STRING
+) AS
+SELECT
+  s.id,
+  s.ts,
+  s.dur,
+  s.track_id,
+  s.category,
+  s.name,
+  s.depth,
+  s.parent_id,
+  s.arg_set_id,
+  extract_arg(s.arg_set_id, 'Display frame token') as display_frame_token,
+  extract_arg(s.arg_set_id, 'Surface frame token') as surface_frame_token,
+  t.upid,
+  extract_arg(s.arg_set_id, 'Layer name') as layer_name,
+  extract_arg(s.arg_set_id, 'Present type') as present_type,
+  extract_arg(s.arg_set_id, 'On time finish') as on_time_finish,
+  extract_arg(s.arg_set_id, 'GPU composition') as gpu_composition,
+  extract_arg(s.arg_set_id, 'Jank type') as jank_type,
+  extract_arg(s.arg_set_id, 'Jank severity type') as jank_severity_type,
+  extract_arg(s.arg_set_id, 'Prediction type') as prediction_type,
+  extract_arg(s.arg_set_id, 'Jank tag') as jank_tag
+FROM slice s
+JOIN process_track t ON s.track_id = t.id
+WHERE t.type = 'android_actual_frame_timeline';
