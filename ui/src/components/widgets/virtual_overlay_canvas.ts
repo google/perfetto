@@ -68,10 +68,6 @@ export interface VirtualOverlayCanvasAttrs {
   // Called when the canvas needs to be repainted due to a layout shift or
   // or resize.
   onCanvasRedraw?(ctx: VirtualOverlayCanvasDrawContext): void;
-
-  // Called when the canvas is resized. This will immediately be followed by a
-  // call to onCanvasRedraw().
-  onCanvasResized?(size: Size2D): void;
 }
 
 // This mithril component acts as scrolling container for tall and/or wide
@@ -141,7 +137,6 @@ export class VirtualOverlayCanvas
       const dpr = window.devicePixelRatio;
       canvas.width = width * dpr;
       canvas.height = height * dpr;
-      assertExists(this.attrs).onCanvasResized?.(virtualCanvas.size);
     });
 
     // Whenever the canvas changes size or moves around (e.g. when scrolling),
