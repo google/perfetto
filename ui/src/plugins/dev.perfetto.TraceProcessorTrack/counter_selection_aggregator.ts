@@ -38,27 +38,36 @@ export class CounterSelectionAggregator implements AreaSelectionAggregator {
     if (trackIds.length === 1) {
       // Optimized query for the special case where there is only 1 track id.
       query = `CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
-      WITH aggregated AS (
-        SELECT
-          COUNT(1) AS count,
-          ROUND(SUM(
-            (MIN(ts + dur, ${area.end}) - MAX(ts,${area.start}))*value)/${duration},
-            2
-          ) AS avg_value,
-          (SELECT value FROM experimental_counter_dur WHERE track_id = ${trackIds[0]}
-            AND ts + dur >= ${area.start}
-            AND ts <= ${area.end} ORDER BY ts DESC LIMIT 1)
-            AS last_value,
-          (SELECT value FROM experimental_counter_dur WHERE track_id = ${trackIds[0]}
-            AND ts + dur >= ${area.start}
-            AND ts <= ${area.end} ORDER BY ts ASC LIMIT 1)
-            AS first_value,
-          MIN(value) AS min_value,
-          MAX(value) AS max_value
-        FROM experimental_counter_dur
-          WHERE track_id = ${trackIds[0]}
-          AND ts + dur >= ${area.start}
-          AND ts <= ${area.end})
+      WITH
+        res AS (
+          select c.*
+          from counter_leading_intervals!((
+            SELECT counter.*
+            FROM counter
+            WHERE counter.track_id = ${trackIds[0]}
+              AND counter.ts <= ${area.end}
+          )) c
+          WHERE c.ts + c.dur >= ${area.start}
+        ),
+        aggregated AS (
+          SELECT
+            COUNT(1) AS count,
+            ROUND(SUM(
+              (MIN(ts + dur, ${area.end}) - MAX(ts,${area.start}))*value)/${duration},
+              2
+            ) AS avg_value,
+            (SELECT value FROM counter WHERE track_id = ${trackIds[0]}
+              AND ts + dur >= ${area.start}
+              AND ts <= ${area.end} ORDER BY ts DESC LIMIT 1)
+              AS last_value,
+            (SELECT value FROM counter WHERE track_id = ${trackIds[0]}
+              AND ts + dur >= ${area.start}
+              AND ts <= ${area.end} ORDER BY ts ASC LIMIT 1)
+              AS first_value,
+            MIN(value) AS min_value,
+            MAX(value) AS max_value
+          FROM res
+        )
       SELECT
         (SELECT name FROM counter_track WHERE id = ${trackIds[0]}) AS name,
         *,
@@ -68,23 +77,31 @@ export class CounterSelectionAggregator implements AreaSelectionAggregator {
     } else {
       // Slower, but general purspose query that can aggregate multiple tracks
       query = `CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
-      WITH aggregated AS (
-        SELECT track_id,
-          COUNT(1) AS count,
-          ROUND(SUM(
-            (MIN(ts + dur, ${area.end}) - MAX(ts,${area.start}))*value)/${duration},
-            2
-          ) AS avg_value,
-          value_at_max_ts(-ts, value) AS first,
-          value_at_max_ts(ts, value) AS last,
-          MIN(value) AS min_value,
-          MAX(value) AS max_value
-        FROM experimental_counter_dur
-          WHERE track_id IN (${trackIds})
-          AND ts + dur >= ${area.start} AND
-          ts <= ${area.end}
-        GROUP BY track_id
-      )
+      WITH
+        res AS (
+          select c.*
+          from counter_leading_intervals!((
+            SELECT counter.*
+            FROM counter
+            WHERE counter.track_id in (${trackIds})
+              AND counter.ts <= ${area.end}
+          )) c
+          where c.ts + c.dur >= ${area.start}
+        ),
+        aggregated AS (
+          SELECT track_id,
+            COUNT(1) AS count,
+            ROUND(SUM(
+              (MIN(ts + dur, ${area.end}) - MAX(ts,${area.start}))*value)/${duration},
+              2
+            ) AS avg_value,
+            value_at_max_ts(-ts, value) AS first,
+            value_at_max_ts(ts, value) AS last,
+            MIN(value) AS min_value,
+            MAX(value) AS max_value
+          FROM res
+          GROUP BY track_id
+        )
       SELECT
         name,
         count,

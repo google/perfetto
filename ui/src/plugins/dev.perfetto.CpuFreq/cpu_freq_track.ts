@@ -26,7 +26,11 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {Point2D} from '../../base/geom';
-import {createView, createVirtualTable} from '../../trace_processor/sql_utils';
+import {
+  createPerfettoTable,
+  createView,
+  createVirtualTable,
+} from '../../trace_processor/sql_utils';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Trace} from '../../public/trace';
 
@@ -68,6 +72,9 @@ export class CpuFreqTrack implements Track {
 
   async onCreate() {
     this.trash = new AsyncDisposableStack();
+    await this.trace.engine.query(`
+      INCLUDE PERFETTO MODULE counters.intervals;
+    `);
     if (this.config.idleTrackId === undefined) {
       this.trash.use(
         await createView(
@@ -75,26 +82,32 @@ export class CpuFreqTrack implements Track {
           `raw_freq_idle_${this.trackUuid}`,
           `
             select ts, dur, value as freqValue, -1 as idleValue
-            from experimental_counter_dur c
-            where track_id = ${this.config.freqTrackId}
+            from counter_leading_intervals!((
+              select id, ts, track_id, value
+              from counter
+              where track_id = ${this.config.freqTrackId}
+            ))
           `,
         ),
       );
     } else {
       this.trash.use(
-        await createView(
+        await createPerfettoTable(
           this.trace.engine,
           `raw_freq_${this.trackUuid}`,
           `
             select ts, dur, value as freqValue
-            from experimental_counter_dur c
-            where track_id = ${this.config.freqTrackId}
+            from counter_leading_intervals!((
+              select id, ts, track_id, value
+              from counter
+             where track_id = ${this.config.freqTrackId}
+            ))
           `,
         ),
       );
 
       this.trash.use(
-        await createView(
+        await createPerfettoTable(
           this.trace.engine,
           `raw_idle_${this.trackUuid}`,
           `
@@ -102,8 +115,11 @@ export class CpuFreqTrack implements Track {
               ts,
               dur,
               iif(value = 4294967295, -1, cast(value as int)) as idleValue
-            from experimental_counter_dur c
-            where track_id = ${this.config.idleTrackId}
+            from counter_leading_intervals!((
+              select id, ts, track_id, value
+              from counter
+              where track_id = ${this.config.idleTrackId}
+            ))
           `,
         ),
       );
