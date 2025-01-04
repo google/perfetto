@@ -29,8 +29,6 @@ source_set("table_functions") {
     "dfs_weight_bounded.h",
     "experimental_annotated_stack.cc",
     "experimental_annotated_stack.h",
-    "experimental_counter_dur.cc",
-    "experimental_counter_dur.h",
     "experimental_flamegraph.cc",
     "experimental_flamegraph.h",
     "experimental_flat_slice.cc",
@@ -94,7 +92,6 @@ source_set("unittests") {
     "ancestor_unittest.cc",
     "connected_flow_unittest.cc",
     "descendant_unittest.cc",
-    "experimental_counter_dur_unittest.cc",
     "experimental_flat_slice_unittest.cc",
     "experimental_slice_layout_unittest.cc",
   ]
