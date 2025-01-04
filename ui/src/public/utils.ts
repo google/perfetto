@@ -73,14 +73,14 @@ export function getTrackName(
     return `${name} ${uid}`;
   } else if (hasName) {
     return `${name}`;
-  } else if (hasUpid && hasPid && hasProcessName) {
-    return `${processName} ${pid}`;
-  } else if (hasUpid && hasPid) {
-    return `Process ${pid}`;
   } else if (hasThreadName && hasTid) {
     return `${threadName} ${tid}`;
   } else if (hasTid) {
     return `Thread ${tid}`;
+  } else if (hasUpid && hasPid && hasProcessName) {
+    return `${processName} ${pid}`;
+  } else if (hasUpid && hasPid) {
+    return `Process ${pid}`;
   } else if (hasUpid) {
     return `upid: ${upid}${kindSuffix}`;
   } else if (hasUtid) {
