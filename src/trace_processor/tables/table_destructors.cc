@@ -61,7 +61,7 @@ JitCodeTable::~JitCodeTable() = default;
 JitFrameTable::~JitFrameTable() = default;
 
 // metadata_tables_py.h
-RawTable::~RawTable() = default;
+ChromeRawTable::~ChromeRawTable() = default;
 FtraceEventTable::~FtraceEventTable() = default;
 ArgTable::~ArgTable() = default;
 ExpMissingChromeProcTable::~ExpMissingChromeProcTable() = default;
@@ -106,10 +106,6 @@ ThreadStateTable::~ThreadStateTable() = default;
 // slice_tables_py.h
 SliceTable::~SliceTable() = default;
 FlowTable::~FlowTable() = default;
-GpuSliceTable::~GpuSliceTable() = default;
-GraphicsFrameSliceTable::~GraphicsFrameSliceTable() = default;
-ExpectedFrameTimelineSliceTable::~ExpectedFrameTimelineSliceTable() = default;
-ActualFrameTimelineSliceTable::~ActualFrameTimelineSliceTable() = default;
 ExperimentalFlatSliceTable::~ExperimentalFlatSliceTable() = default;
 AndroidNetworkPacketsTable::~AndroidNetworkPacketsTable() = default;
 

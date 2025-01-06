@@ -1,0 +1,196 @@
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@use "sass:math";
+@import "theme";
+
+.pf-track {
+  --text-color-dark: hsl(213, 22%, 30%);
+  --text-color-light: white;
+  --drag-highlight-color: rgb(29, 85, 189);
+  --default-background: white;
+  --collapsed-background: hsla(190, 49%, 97%, 1);
+  --expanded-background: hsl(215, 22%, 19%);
+  --indent-size: 8px;
+
+  // Default values - should be overridden from JS
+  --sticky-top: 0;
+  --depth: 0;
+
+  font-family: "Roboto Condensed", sans-serif;
+  font-weight: 300;
+  font-size: 14px;
+  color: var(--text-color-dark);
+  background-color: var(--default-background);
+  user-select: none;
+
+  &__header {
+    height: calc(var(--height) * 1px);
+    display: grid;
+    grid-template-columns:
+      calc(var(--depth) * var(--indent-size)) calc(
+        var(--track-shell-width) - (var(--depth) * var(--indent-size))
+      )
+      1fr;
+    grid-template-areas: "indent shell canvas";
+
+    &::before {
+      content: "";
+      grid-area: indent;
+      background: lightgray;
+    }
+
+    &--summary {
+      background-color: var(--collapsed-background);
+    }
+
+    &--expanded--summary {
+      position: sticky;
+      top: calc(var(--sticky-top) * 1px);
+      z-index: calc(16 - var(--depth));
+      background-color: var(--expanded-background);
+      color: var(--text-color-light);
+    }
+  }
+
+  &__shell {
+    grid-area: shell;
+    border-width: 0 1px 1px 0; // Borders on bottom and right
+    border-style: solid;
+    border-color: var(--track-border-color);
+
+    &--highlight {
+      background-color: #ffe263;
+      color: var(--text-color-dark);
+    }
+
+    &--drag-after {
+      box-shadow: inset 0 -6px 3px -3px var(--drag-highlight-color);
+    }
+
+    &--drag-before {
+      box-shadow: inset 0 6px 3px -3px var(--drag-highlight-color);
+    }
+
+    &--clickable {
+      cursor: pointer;
+    }
+
+    .pf-visible-on-hover {
+      visibility: hidden;
+
+      &.pf-active {
+        visibility: unset;
+      }
+    }
+
+    &:hover {
+      .pf-visible-on-hover {
+        visibility: unset;
+      }
+    }
+  }
+
+  &__buttons {
+    // Make the track buttons a little larger so they're easier to see & click
+    font-size: 16px;
+    margin-left: 2px;
+  }
+
+  &__canvas {
+    grid-area: canvas;
+    overflow: hidden; // Keeps subtitle width contained
+    border-bottom: solid 1px var(--track-border-color);
+
+    &--error {
+      // Necessary trig because we have 45deg stripes
+      $pattern-density: 1px * math.sqrt(2);
+      $pattern-col: #ddd;
+
+      background: repeating-linear-gradient(
+        -45deg,
+        $pattern-col,
+        $pattern-col $pattern-density,
+        white $pattern-density,
+        white $pattern-density * 4
+      );
+    }
+  }
+
+  &__menubar {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "icon title chips buttons"
+      "none subtitle subtitle subtitle";
+    padding: 1px;
+    position: sticky;
+    top: calc(var(--sticky-top) * 1px);
+  }
+
+  &__title-spacer {
+    grid-area: icon;
+    width: 2px;
+  }
+
+  &__collapse-button {
+    grid-area: icon;
+  }
+
+  &__title {
+    grid-area: title;
+
+    &-popup {
+      position: absolute;
+      border-radius: 2px;
+      color: rgba(0, 0, 0, 0);
+      background: rgba(255, 255, 255, 0);
+      text-overflow: unset;
+      pointer-events: none;
+      white-space: nowrap;
+      user-select: none;
+      width: max-content;
+      z-index: 10; /* Ensures it appears above other elements */
+    }
+
+    &:hover &-popup--visible {
+      box-shadow: 1px 1px 2px 2px var(--track-border-color);
+      background: white;
+      color: hsl(213, 22%, 30%);
+    }
+  }
+
+  &__chips {
+    grid-area: chips;
+    margin-left: 2px;
+  }
+
+  &__subtitle {
+    grid-area: subtitle;
+    font-size: 11px;
+  }
+
+  &__buttons {
+    grid-area: buttons;
+  }
+
+  &__crash-popup {
+    font-family: $pf-font;
+    max-width: 300px;
+    display: flex;
+    flex-direction: column;
+    row-gap: 6px;
+  }
+}

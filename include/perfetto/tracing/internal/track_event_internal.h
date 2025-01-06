@@ -271,8 +271,15 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
       auto it_and_inserted = incr_state->seen_tracks.insert(uuid);
       if (PERFETTO_LIKELY(!it_and_inserted.second))
         return;
-      uuid = WriteTrackDescriptor(Track(uuid, Track()), trace_writer,
-                                  incr_state, tls_state, timestamp);
+      std::optional<TrackRegistry::TrackInfo> track_info =
+          TrackRegistry::Get()->FindTrackInfo(uuid);
+      if (!track_info) {
+        return;
+      }
+      TrackRegistry::WriteTrackDescriptor(
+          std::move(track_info->desc),
+          NewTracePacket(trace_writer, incr_state, tls_state, timestamp));
+      uuid = track_info->parent_uuid;
     }
   }
 

@@ -91,6 +91,8 @@ export interface DragConfig {
   // Default: 0 - drags start instantly.
   readonly minDistance?: number;
 
+  onDragStart?(e: DragEvent, element: HTMLElement): void;
+
   // Optional: Called whenever the mouse is moved during a drag event.
   onDrag?(e: DragEvent, element: HTMLElement): void;
 

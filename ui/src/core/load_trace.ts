@@ -147,7 +147,7 @@ async function createEngine(
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
     });
   }
-  engine.onResponseReceived = () => raf.scheduleFullRedraw('force');
+  engine.onResponseReceived = () => raf.scheduleFullRedraw();
 
   if (isMetatracingEnabled()) {
     engine.enableMetatrace(assertExists(getEnabledMetatracingCategories()));
@@ -287,9 +287,6 @@ async function includeSummaryTables(trace: TraceImpl) {
 
   updateStatus(trace, 'Creating processes summaries');
   await engine.query(`include perfetto module viz.summary.processes;`);
-
-  updateStatus(trace, 'Creating track summaries');
-  await engine.query(`include perfetto module viz.summary.tracks;`);
 }
 
 function updateStatus(traceOrApp: TraceImpl | AppImpl, msg: string): void {

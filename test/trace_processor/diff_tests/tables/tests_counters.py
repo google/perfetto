@@ -108,52 +108,6 @@ class TablesCounters(TestSuite):
         """,
         out=Path('filter_row_vector_example_android_trace_30s.out'))
 
-  def test_counter_dur_example_android_trace_30s(self):
-    return DiffTestBlueprint(
-        trace=DataPath('example_android_trace_30s.pb'),
-        query=Path('counter_dur_test.sql'),
-        out=Csv("""
-        "ts","dur"
-        100351738640,-1
-        100351738640,-1
-        100351738640,-1
-        70731059648,19510835
-        70731059648,19510835
-        70731059648,19510835
-        73727335051,23522762
-        73727335051,23522762
-        73727335051,23522762
-        86726132752,24487554
-        """))
-
-  def test_counter_dur_example_android_trace_30s_machine_id(self):
-    return DiffTestBlueprint(
-        trace=DataPath('example_android_trace_30s.pb'),
-        trace_modifier=TraceInjector(
-            ['ftrace_events', 'sys_stats', 'process_stats', 'process_tree'],
-            {'machine_id': 1001}),
-        query="""
-        SELECT ts, dur, m.raw_id as raw_machine_id
-        FROM experimental_counter_dur c
-        JOIN counter_track t on c.track_id = t.id
-        JOIN machine m on t.machine_id = m.id
-        WHERE track_id IN (1, 2, 3)
-        ORDER BY dur LIMIT 10;
-        """,
-        out=Csv("""
-        "ts","dur","raw_machine_id"
-        100351738640,-1,1001
-        100351738640,-1,1001
-        100351738640,-1,1001
-        70731059648,19510835,1001
-        70731059648,19510835,1001
-        70731059648,19510835,1001
-        73727335051,23522762,1001
-        73727335051,23522762,1001
-        73727335051,23522762,1001
-        86726132752,24487554,1001
-        """))
-
   # Tests counter.machine_id and process_counter_track.machine.
   def test_filter_row_vector_example_android_trace_30s_machine_id(self):
     return DiffTestBlueprint(
@@ -287,8 +241,8 @@ class TablesCounters(TestSuite):
         """,
         out=Csv("""
         "id","arg_set_id"
-        1,1
-        15,8
+        1,0
+        15,14
         """))
 
   def test_cpu_counter_track_multi_machine(self):

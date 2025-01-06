@@ -21,6 +21,7 @@
 #include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
@@ -104,8 +105,12 @@ class ArgsTracker {
 
   virtual ~ArgsTracker();
 
-  BoundInserter AddArgsTo(RawId id) {
-    return AddArgsTo(context_->storage->mutable_raw_table(), id);
+  BoundInserter AddArgsTo(tables::ChromeRawTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_chrome_raw_table(), id);
+  }
+
+  BoundInserter AddArgsTo(tables::FtraceEventTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_ftrace_event_table(), id);
   }
 
   BoundInserter AddArgsTo(CounterId id) {

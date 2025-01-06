@@ -244,11 +244,6 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
       context.json_trace_parser->ParseJsonPacket(
           event.ts, std::move(token_buffer_.Extract<JsonEvent>(id).value));
       return;
-    case TimestampedEvent::Type::kJsonValueWithDur:
-      context.json_trace_parser->ParseJsonPacket(
-          event.ts,
-          std::move(token_buffer_.Extract<JsonWithDurEvent>(id).value));
-      return;
     case TimestampedEvent::Type::kSpeRecord:
       context.spe_record_parser->ParseSpeRecord(
           event.ts, token_buffer_.Extract<TraceBlobView>(id));
@@ -310,7 +305,6 @@ void TraceSorter::ParseEtwPacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kPerfRecord:
     case TimestampedEvent::Type::kInstrumentsRow:
     case TimestampedEvent::Type::kJsonValue:
-    case TimestampedEvent::Type::kJsonValueWithDur:
     case TimestampedEvent::Type::kFuchsiaRecord:
     case TimestampedEvent::Type::kAndroidDumpstateEvent:
     case TimestampedEvent::Type::kAndroidLogEvent:
@@ -348,7 +342,6 @@ void TraceSorter::ParseFtracePacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kPerfRecord:
     case TimestampedEvent::Type::kInstrumentsRow:
     case TimestampedEvent::Type::kJsonValue:
-    case TimestampedEvent::Type::kJsonValueWithDur:
     case TimestampedEvent::Type::kFuchsiaRecord:
     case TimestampedEvent::Type::kAndroidDumpstateEvent:
     case TimestampedEvent::Type::kAndroidLogEvent:
@@ -378,9 +371,6 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
       return;
     case TimestampedEvent::Type::kJsonValue:
       base::ignore_result(token_buffer_.Extract<JsonEvent>(id));
-      return;
-    case TimestampedEvent::Type::kJsonValueWithDur:
-      base::ignore_result(token_buffer_.Extract<JsonWithDurEvent>(id));
       return;
     case TimestampedEvent::Type::kSpeRecord:
       base::ignore_result(token_buffer_.Extract<TraceBlobView>(id));

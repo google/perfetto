@@ -120,27 +120,27 @@ class TablesSched(TestSuite):
         15748
         """))
 
-  def test_raw_common_flags(self):
+  def test_ftrace_event_common_flags(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
           SELECT id, ts, name, cpu, utid, arg_set_id, common_flags
-          FROM raw
+          FROM ftrace_event
           WHERE common_flags != 0
           ORDER BY ts LIMIT 10
         """,
         out=Csv("""
-        "id","ts","name","cpu","utid","arg_set_id","common_flags"
-        3,1735489788930,"sched_waking",0,300,4,1
-        4,1735489812571,"sched_waking",0,300,5,1
-        5,1735489833977,"sched_waking",1,305,6,1
-        8,1735489876788,"sched_waking",1,297,9,1
-        9,1735489879097,"sched_waking",0,304,10,1
-        12,1735489933912,"sched_waking",0,428,13,1
-        14,1735489972385,"sched_waking",1,232,15,1
-        17,1735489999987,"sched_waking",1,232,15,1
-        19,1735490039439,"sched_waking",1,298,18,1
-        20,1735490042084,"sched_waking",1,298,19,1
+          "id","ts","name","cpu","utid","arg_set_id","common_flags"
+          3,1735489788930,"sched_waking",0,300,21,1
+          4,1735489812571,"sched_waking",0,300,25,1
+          5,1735489833977,"sched_waking",1,305,29,1
+          8,1735489876788,"sched_waking",1,297,47,1
+          9,1735489879097,"sched_waking",0,304,51,1
+          12,1735489933912,"sched_waking",0,428,69,1
+          14,1735489972385,"sched_waking",1,232,80,1
+          17,1735489999987,"sched_waking",1,232,80,1
+          19,1735490039439,"sched_waking",1,298,98,1
+          20,1735490042084,"sched_waking",1,298,102,1
         """))
 
   def test_thread_executing_span_graph(self):
@@ -677,13 +677,13 @@ class TablesSched(TestSuite):
         """))
 
   # Test the support of machine_id ID of the raw table.
-  def test_raw_machine_id(self):
+  def test_ftrace_event_machine_id(self):
     return DiffTestBlueprint(
         trace=DataPath('android_sched_and_ps.pb'),
         trace_modifier=TraceInjector(['ftrace_events'], {'machine_id': 1001}),
         query="""
         SELECT count(*)
-        FROM raw LEFT JOIN cpu USING (ucpu)
+        FROM ftrace_event LEFT JOIN cpu USING (ucpu)
         WHERE machine_id is NULL;
         """,
         out=Csv("""

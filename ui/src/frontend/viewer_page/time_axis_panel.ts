@@ -28,17 +28,15 @@ import {
   MIN_PX_PER_STEP,
   TickType,
 } from './gridline_helper';
-import {Panel} from './panel_container';
 
-export class TimeAxisPanel implements Panel {
-  readonly kind = 'panel';
-  readonly selectable = false;
+export class TimeAxisPanel {
   readonly id = 'time-axis-panel';
+  readonly height = 22;
 
   constructor(private readonly trace: Trace) {}
 
   render(): m.Children {
-    return m('.time-axis-panel');
+    return m('', {style: {height: `${this.height}px`}});
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
@@ -55,7 +53,7 @@ export class TimeAxisPanel implements Panel {
     this.renderPanel(ctx, trackSize);
     ctx.restore();
 
-    ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
+    ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
   }
 
   private renderOffsetTimestamp(ctx: CanvasRenderingContext2D): void {

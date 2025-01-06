@@ -24,7 +24,7 @@ CREATE PERFETTO FUNCTION _get_frame_table_with_id(
     glob_str STRING
 ) RETURNS TABLE (
     -- Frame slice.
-    id JOINID(slice.id),
+    id ID(slice.id),
     -- Parsed frame id.
     frame_id LONG,
     -- Utid.
@@ -55,7 +55,7 @@ WHERE frame_id != 0;
 CREATE PERFETTO TABLE android_frames_choreographer_do_frame(
     -- Choreographer#doFrame slice. Slice with the name "Choreographer#doFrame
     -- {frame id}".
-    id JOINID(slice.id),
+    id ID(slice.id),
     -- Frame id. Taken as the value behind "Choreographer#doFrame" in slice
     -- name.
     frame_id LONG,
@@ -82,7 +82,7 @@ FROM _get_frame_table_with_id('Choreographer#doFrame*');
 -- notifications).
 CREATE PERFETTO TABLE android_frames_draw_frame(
     -- DrawFrame slice. Slice with the name "DrawFrame {frame id}".
-    id JOINID(slice.id),
+    id ID(slice.id),
     -- Frame id. Taken as the value behind "DrawFrame" in slice
     -- name.
     frame_id LONG,

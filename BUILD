@@ -1888,6 +1888,7 @@ perfetto_filegroup(
         "src/trace_processor/importers/etm/mapping_version.cc",
         "src/trace_processor/importers/etm/mapping_version.h",
         "src/trace_processor/importers/etm/opencsd.h",
+        "src/trace_processor/importers/etm/sql_values.h",
         "src/trace_processor/importers/etm/storage_handle.cc",
         "src/trace_processor/importers/etm/storage_handle.h",
         "src/trace_processor/importers/etm/target_memory.cc",
@@ -2495,6 +2496,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/android/android_batt.sql",
         "src/trace_processor/metrics/sql/android/android_binder.sql",
         "src/trace_processor/metrics/sql/android/android_blocking_calls_cuj_metric.sql",
+        "src/trace_processor/metrics/sql/android/android_blocking_calls_cuj_per_frame_metric.sql",
         "src/trace_processor/metrics/sql/android/android_blocking_calls_unagg.sql",
         "src/trace_processor/metrics/sql/android/android_boot.sql",
         "src/trace_processor/metrics/sql/android/android_boot_unagg.sql",
@@ -2870,6 +2872,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
     srcs = [
         "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h",
     ],
 )
 
@@ -2878,6 +2881,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
     srcs = [
         "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.cc",
     ],
 )
 
@@ -2919,14 +2923,10 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/dfs_weight_bounded.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.h",
-        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h",
-        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.cc",
@@ -3351,7 +3351,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/threads.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/threads_w_processes.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/trace.sql",
-        "src/trace_processor/perfetto_sql/stdlib/viz/summary/tracks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/viz/summary/track_event.sql",
     ],
 )
 
@@ -3372,6 +3372,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/arm_dsu.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu_freq.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu_freq_idle.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/cpu_hotplug.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu_idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu_split.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device.sql",
@@ -5276,7 +5277,9 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/ad_services_metric.proto",
         "protos/perfetto/metrics/android/android_anomaly_metric.proto",
         "protos/perfetto/metrics/android/android_blocking_call.proto",
+        "protos/perfetto/metrics/android/android_blocking_call_per_frame.proto",
         "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto",
+        "protos/perfetto/metrics/android/android_blocking_calls_cuj_per_frame_metric.proto",
         "protos/perfetto/metrics/android/android_blocking_calls_unagg.proto",
         "protos/perfetto/metrics/android/android_boot.proto",
         "protos/perfetto/metrics/android/android_boot_unagg.proto",

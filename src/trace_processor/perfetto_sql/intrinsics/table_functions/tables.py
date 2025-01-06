@@ -125,25 +125,6 @@ EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE = Table(
     ],
     parent=STACK_PROFILE_CALLSITE_TABLE)
 
-EXPERIMENTAL_COUNTER_DUR_TABLE = Table(
-    python_module=__file__,
-    class_name="ExperimentalCounterDurTable",
-    sql_name="experimental_counter_dur",
-    columns=[
-        C("dur", CppInt64()),
-        C("delta", CppDouble()),
-    ],
-    parent=COUNTER_TABLE)
-
-EXPERIMENTAL_SCHED_UPID_TABLE = Table(
-    python_module=__file__,
-    class_name="ExperimentalSchedUpidTable",
-    sql_name="__intrinsic_sched_upid",
-    columns=[
-        C("upid", CppOptional(CppTableId(PROCESS_TABLE))),
-    ],
-    parent=SCHED_SLICE_TABLE)
-
 EXPERIMENTAL_SLICE_LAYOUT_TABLE = Table(
     python_module=__file__,
     class_name="ExperimentalSliceLayoutTable",
@@ -189,8 +170,6 @@ ALL_TABLES = [
     DESCENDANT_SLICE_TABLE,
     DFS_WEIGHT_BOUNDED_TABLE,
     EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE,
-    EXPERIMENTAL_COUNTER_DUR_TABLE,
-    EXPERIMENTAL_SCHED_UPID_TABLE,
     EXPERIMENTAL_SLICE_LAYOUT_TABLE,
     TABLE_INFO_TABLE,
 ]

@@ -17,7 +17,7 @@ import {duration, time} from '../base/time';
 import {Size2D, VerticalBounds} from '../base/geom';
 import {TimeScale} from '../base/time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {ColorScheme} from './color_scheme';
+import {ColorScheme} from '../base/color_scheme';
 import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails, TrackEventSelection} from './selection';
 import {Dataset} from '../trace_processor/dataset';

@@ -12,14 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ArrowHeadStyle, drawBezierArrow} from '../../base/canvas/bezier_arrow';
-import {HorizontalBounds, Point2D, Size2D} from '../../base/geom';
+import {ArrowHeadStyle, drawBezierArrow} from '../../base/bezier_arrow';
+import {
+  HorizontalBounds,
+  Point2D,
+  Size2D,
+  VerticalBounds,
+} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
 import {Flow} from '../../core/flow_types';
 import {TraceImpl} from '../../core/trace_impl';
 import {TrackNode} from '../../public/workspace';
 import {ALL_CATEGORIES, getFlowCategories} from '../flow_events_panel';
-import {RenderedPanelInfo} from './panel_container';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;
@@ -40,6 +44,11 @@ type VerticalEdgeOrPoint =
   | ({kind: 'vertical_edge'} & Point2D)
   | ({kind: 'point'} & Point2D);
 
+export interface TrackInfo {
+  readonly node: TrackNode;
+  readonly verticalBounds: VerticalBounds;
+}
+
 /**
  * Renders the flows overlay on top of the timeline, given the set of panels and
  * a canvas to draw on.
@@ -50,24 +59,25 @@ type VerticalEdgeOrPoint =
  * @param trace - The Trace instance, which holds onto the FlowManager.
  * @param ctx - The canvas to draw on.
  * @param size - The size of the canvas.
- * @param panels - A list of panels and their locations on the canvas.
+ * @param tracks - A list of tracks and their vertical positions on the canvas.
+ * @param trackRoot - The root node of the tracks - used to find tracks quickly
+ * by URI.
+ * @param timescale - The current timescale used to convert flow timings into
+ * canvas positions.
+ *
  */
 export function renderFlows(
   trace: TraceImpl,
   ctx: CanvasRenderingContext2D,
   size: Size2D,
-  panels: ReadonlyArray<RenderedPanelInfo>,
+  tracks: ReadonlyArray<TrackInfo>,
   trackRoot: TrackNode,
+  timescale: TimeScale,
 ): void {
-  const timescale = new TimeScale(trace.timeline.visibleWindow, {
-    left: 0,
-    right: size.width,
-  });
-
   // Create an index of track node instances to panels. This doesn't need to be
   // a WeakMap because it's thrown away every render cycle.
-  const panelsByTrackNode = new Map(
-    panels.map((panel) => [panel.panel.trackNode, panel]),
+  const trackInfoByNode = new Map(
+    tracks.map((trackInfo) => [trackInfo.node, trackInfo]),
   );
 
   const drawFlow = (flow: Flow, hue: number) => {
@@ -128,15 +138,17 @@ export function renderFlows(
       return undefined;
     }
 
-    const track = trackRoot.findTrackByUri(trackUri);
+    const track = trackRoot.getTrackByUri(trackUri);
     if (!track) {
       return undefined;
     }
 
-    const trackPanel = panelsByTrackNode.get(track);
+    const trackPanel = trackInfoByNode.get(track);
     if (trackPanel) {
-      const trackRect = trackPanel.rect;
-      const sliceRectRaw = trackPanel.panel.getSliceVerticalBounds?.(depth);
+      const trackRect = trackPanel.verticalBounds;
+      const sliceRectRaw = trace.tracks
+        .getTrack(trackUri)
+        ?.track.getSliceVerticalBounds?.(depth);
       if (sliceRectRaw) {
         const sliceRect = {
           top: sliceRectRaw.top + trackRect.top,
@@ -159,12 +171,12 @@ export function renderFlows(
     } else {
       // If we didn't find a track, it might inside a group, so check for the group
       const containerNode = track.findClosestVisibleAncestor();
-      const groupPanel = panelsByTrackNode.get(containerNode);
+      const groupPanel = trackInfoByNode.get(containerNode);
       if (groupPanel) {
         return {
           kind: 'point',
           x,
-          y: groupPanel.rect.bottom - TRACK_GROUP_CONNECTION_OFFSET,
+          y: groupPanel.verticalBounds.bottom - TRACK_GROUP_CONNECTION_OFFSET,
         };
       }
     }

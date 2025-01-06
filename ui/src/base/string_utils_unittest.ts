@@ -20,6 +20,7 @@ import {
   binaryEncode,
   cropText,
   sqliteString,
+  splitLinesNonEmpty,
   utf8Decode,
   utf8Encode,
 } from './string_utils';
@@ -93,4 +94,15 @@ test('cropHelper regular text', () => {
   );
   expect(cropText(emoji + 'abc', 5, 2 * 5)).toBe(emoji);
   expect(cropText(emoji + 'abc', 5, 5 * 5)).toBe(emoji + 'a' + tripleDot);
+});
+
+test('string_utils.splitNonEmptyLines', () => {
+  expect(splitLinesNonEmpty('')).toEqual([]);
+  expect(splitLinesNonEmpty('foo')).toEqual(['foo']);
+  expect(splitLinesNonEmpty('foo  ')).toEqual(['foo']);
+  expect(splitLinesNonEmpty('foo\n')).toEqual(['foo']);
+  expect(splitLinesNonEmpty('foo\nbar')).toEqual(['foo', 'bar']);
+  expect(splitLinesNonEmpty('foo\nbar\n')).toEqual(['foo', 'bar']);
+  expect(splitLinesNonEmpty('foo\nbar\n')).toEqual(['foo', 'bar']);
+  expect(splitLinesNonEmpty('foo\n \nbar\n')).toEqual(['foo', 'bar']);
 });

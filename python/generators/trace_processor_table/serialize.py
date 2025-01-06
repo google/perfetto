@@ -41,7 +41,6 @@ class ColumnSerializer:
     self.data_layer_type = data_layer_type(table.table, self.parsed_col)
 
     self.is_implicit_id = self.parsed_col.is_implicit_id
-    self.is_implicit_type = self.parsed_col.is_implicit_type
     self.is_ancestor = self.parsed_col.is_ancestor
     self.is_string = parsed_type.cpp_type == 'StringPool::Id'
     self.is_optional = parsed_type.is_optional
@@ -53,26 +52,26 @@ class ColumnSerializer:
     return f'    using {self.name} = {self.typed_column_type};'
 
   def row_field(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     if self.is_ancestor:
       return None
     return f'    {self.cpp_type} {self.name};'
 
   def row_param(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     return f'{self.cpp_type} in_{self.name} = {{}}'
 
   def parent_row_initializer(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     if not self.is_ancestor:
       return None
     return f'in_{self.name}'
 
   def row_initializer(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     if self.is_ancestor:
       return None
@@ -84,7 +83,7 @@ class ColumnSerializer:
     }}'''
 
   def row_ref_getter(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     return f'''void set_{self.name}(
         ColumnType::{self.name}::non_optional_type v) {{
@@ -92,7 +91,7 @@ class ColumnSerializer:
     }}'''
 
   def flag(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     if self.is_ancestor:
       return None
@@ -106,7 +105,7 @@ class ColumnSerializer:
     '''
 
   def storage_init(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     if self.is_ancestor:
       return None
@@ -116,7 +115,7 @@ class ColumnSerializer:
     return f'''{self.name}_({storage}::Create<{dense}>())'''
 
   def column_init(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     if self.is_ancestor:
       return None
@@ -133,7 +132,7 @@ class ColumnSerializer:
     return f'    {self.name}_.ShrinkToFit();'
 
   def append(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     if self.is_ancestor:
       return None
@@ -148,7 +147,7 @@ class ColumnSerializer:
   '''
 
   def mutable_accessor(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     return f'''
   {self.typed_column_type}* mutable_{self.name}() {{
@@ -158,7 +157,7 @@ class ColumnSerializer:
   '''
 
   def storage(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     if self.is_ancestor:
       return None
@@ -176,7 +175,7 @@ class ColumnSerializer:
     '''
 
   def static_schema(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     return f'''
     schema.columns.emplace_back(Table::Schema::Column{{
@@ -187,26 +186,26 @@ class ColumnSerializer:
     '''
 
   def row_eq(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     return f'ColumnType::{self.name}::Equals({self.name}, other.{self.name})'
 
   def extend_parent_param(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     if self.is_ancestor:
       return None
     return f'ColumnStorage<ColumnType::{self.name}::stored_type> {self.name}'
 
   def extend_parent_param_arg(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     if self.is_ancestor:
       return None
     return f'std::move({self.name})'
 
   def static_assert_flags(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     if self.is_ancestor:
       return None
@@ -218,7 +217,7 @@ class ColumnSerializer:
     '''
 
   def extend_nullable_vector(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
+    if self.is_implicit_id:
       return None
     if self.is_ancestor:
       return None
@@ -345,13 +344,11 @@ class TableSerializer(object):
     Row({param},
         std::nullptr_t = nullptr)
         : {self.parent_class_name}::Row({parent_row_init}){parent_separator}
-          {row_init} {{
-      type_ = "{self.table.sql_name}";
-    }}
+          {row_init} {{}}
     {self.foreach_col(ColumnSerializer.row_field)}
 
     bool operator==(const {self.table_name}::Row& other) const {{
-      return type() == other.type() && {row_eq};
+      return {row_eq};
     }}
   }};
     '''
@@ -424,9 +421,10 @@ class TableSerializer(object):
       {self.table_name}* self,
       const macros_internal::MacroTable* parent) {{
     std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(self, parent);
+        CopyColumnsFromParentOrAddRootColumns(parent);
     {olay}
     {col_init}
+    base::ignore_result(self);
     return columns;
   }}
 
@@ -461,7 +459,6 @@ class TableSerializer(object):
       '''
     return '''
     Id id = Id{row_number};
-    type_.Append(string_pool()->InternString(row.type()));
       '''
 
   def const_iterator(self) -> str:
@@ -644,8 +641,6 @@ class {self.table_name} : public macros_internal::MacroTable {{
     Table::Schema schema;
     schema.columns.emplace_back(Table::Schema::Column{{
         "id", SqlValue::Type::kLong, true, true, false, false}});
-    schema.columns.emplace_back(Table::Schema::Column{{
-        "type", SqlValue::Type::kString, false, false, false, false}});
     {self.foreach_col(ColumnSerializer.static_schema)}
     return schema;
   }}

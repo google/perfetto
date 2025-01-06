@@ -17,7 +17,6 @@ import {copyToClipboard} from '../../base/clipboard';
 import {assertExists} from '../../base/logging';
 import {RecordConfig} from './record_config_types';
 import {assetSrc} from '../../base/assets';
-import {scheduleFullRedraw} from '../../widgets/raf';
 
 export declare type Setter<T> = (cfg: RecordConfig, val: T) => void;
 export declare type Getter<T> = (cfg: RecordConfig) => T;
@@ -63,7 +62,6 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
   view({attrs, children}: m.CVnode<ProbeAttrs>) {
     const onToggle = (enabled: boolean) => {
       attrs.setEnabled(attrs.recCfg, enabled);
-      scheduleFullRedraw();
     };
 
     const enabled = attrs.isEnabled(attrs.recCfg);
@@ -130,7 +128,6 @@ export class Toggle implements m.ClassComponent<ToggleAttrs> {
   view({attrs}: m.CVnode<ToggleAttrs>) {
     const onToggle = (enabled: boolean) => {
       attrs.setEnabled(attrs.recCfg, enabled);
-      scheduleFullRedraw();
     };
 
     const enabled = attrs.isEnabled(attrs.recCfg);
@@ -175,7 +172,6 @@ export interface SliderAttrs {
 export class Slider implements m.ClassComponent<SliderAttrs> {
   onValueChange(attrs: SliderAttrs, newVal: number) {
     attrs.set(attrs.recCfg, newVal);
-    scheduleFullRedraw();
   }
 
   onTimeValueChange(attrs: SliderAttrs, hms: string) {
@@ -276,7 +272,6 @@ export class Dropdown implements m.ClassComponent<DropdownAttrs> {
       selKeys.push(item.value);
     }
     attrs.set(attrs.recCfg, selKeys);
-    scheduleFullRedraw();
   }
 
   view({attrs}: m.CVnode<DropdownAttrs>) {
@@ -326,7 +321,6 @@ export interface TextareaAttrs {
 export class Textarea implements m.ClassComponent<TextareaAttrs> {
   onChange(attrs: TextareaAttrs, dom: HTMLTextAreaElement) {
     attrs.set(attrs.recCfg, dom.value);
-    scheduleFullRedraw();
   }
 
   view({attrs}: m.CVnode<TextareaAttrs>) {
@@ -400,7 +394,6 @@ export class CategoriesCheckboxList
     if (!enabled && index !== -1) {
       values.splice(index, 1);
     }
-    scheduleFullRedraw();
   }
 
   view({attrs}: m.CVnode<CategoriesCheckboxListParams>) {

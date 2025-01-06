@@ -12,102 +12,59 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.viewer-page {
-  position: relative;
+.pf-viewer-page {
+  isolation: isolate;
   overflow: hidden;
 
-  .pinned-panel-container {
-    max-height: 50%;
-    box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
-    z-index: 1;
-    flex-grow: 0;
-    flex-shrink: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-    scrollbar-gutter: stable;
+  &__overview {
+    z-index: 3;
+    background: white;
+
+    .pf-overview-timeline {
+      height: 70px;
+    }
   }
 
-  .scrolling-panel-container {
-    overflow-x: hidden;
-    overflow-y: auto;
-    scrollbar-gutter: stable;
-    flex: 1 1 auto;
-    will-change: transform; // Force layer creation.
-  }
-
-  .pf-timeline-header {
-    display: flex;
-    flex-direction: row;
+  &__header {
+    display: grid;
+    grid-template-columns: 1fr auto;
     box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
     z-index: 2;
+    background: white;
 
-    .header-panel-container {
-      flex-grow: 1;
-    }
-
-    .scrollbar-spacer-vertical {
+    &:after {
+      content: "";
       scrollbar-gutter: stable;
       overflow-y: scroll;
       visibility: hidden;
+      flex: 0 0 auto;
     }
   }
 
-  .pan-and-zoom-content {
-    height: 100%;
-    position: relative;
-    display: flex;
-    flex-flow: column nowrap;
-    overflow: hidden;
-  }
-
-  .overview-timeline {
-    height: 70px;
-  }
-
-  .time-axis-panel {
-    height: 22px;
-  }
-
-  .tickbar {
-    height: 5px;
-  }
-
-  .notes-panel {
-    height: 20px;
-    .pf-toolbar {
-      width: var(--track-shell-width);
-      padding-inline: 3px;
-
-      > .pf-text-input {
-        flex: auto;
-      }
-    }
-  }
-
-  .time-selection-panel {
-    height: 10px;
-  }
-
-  .helpful-hint {
-    position: absolute;
-    z-index: 10;
-    right: 5px;
-    top: 5px;
-    width: 300px;
-    background-color: white;
-    font-size: 12px;
-    color: #3f4040;
-    display: grid;
-    border-radius: 5px;
-    padding: 8px;
+  &__pinned-track-tree {
+    flex: 0 0 auto;
+    max-height: 40%;
+    z-index: 1;
     box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
+    scrollbar-gutter: stable;
+  }
+
+  &__scrolling-track-tree {
+    flex: 1 1 auto;
+    scrollbar-gutter: stable;
   }
 }
 
-.pf-track-crash-popup {
-  font-family: $pf-font;
-  max-width: 300px;
-  display: flex;
-  flex-direction: column;
-  row-gap: 6px;
+.pf-timeline-toolbar {
+  width: var(--track-shell-width);
+  border-right: solid 1px transparent;
+  padding-inline: 2px;
+
+  &__workspace-selector {
+    flex: 1;
+  }
+}
+
+.pf-track__track-details-popup {
+  min-width: 350px;
 }

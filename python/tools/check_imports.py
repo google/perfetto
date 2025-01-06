@@ -91,7 +91,10 @@ DEPS_ALLOWLIST = [
         ['/core/*', '/frontend/*', '/common/actions'],
     ),
 
-    # Miscl legitimate deps.
+    # The record plugin needs access to the wasm .d.ts for trace_config_utils.
+    ('/plugins/dev.perfetto.RecordTrace*', '/gen/trace_config_utils'),
+
+    # Misc legitimate deps.
     ('/frontend/index', ['/gen/*']),
     ('/traceconv/index', '/gen/traceconv'),
     ('/engine/wasm_bridge', '/gen/trace_processor'),
@@ -195,7 +198,7 @@ def find_plugin_declared_deps(path):
     return
   if len(all_deps) > 1:
     raise Exception('Ambiguous plugin deps in %s: %s' % (path, all_deps))
-  declared_deps = re.sub('\s*', '', all_deps[0]).split(',')
+  declared_deps = [x for x in re.sub('\s*', '', all_deps[0]).split(',') if x]
   for imported_as in declared_deps:
     resolved_dep = import_map.get(imported_as)
     if resolved_dep is None:

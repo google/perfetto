@@ -402,8 +402,8 @@ class Tables(TestSuite):
         query="SELECT id, slice_out, slice_in, trace_id, arg_set_id FROM flow;",
         out=Csv("""
           "id","slice_out","slice_in","trace_id","arg_set_id"
-          0,0,1,57,0
-          1,1,2,57,0
+          0,0,1,57,"[NULL]"
+          1,1,2,57,"[NULL]"
         """))
 
   def test_clock_snapshot_table_multiplier(self):

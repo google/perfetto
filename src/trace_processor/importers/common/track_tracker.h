@@ -60,7 +60,7 @@ class TrackTracker {
   //   ```
   //   void ParseMySpecialThreadScopedSlice(UniqueTid utid, ...(other args)) {
   //     static constexpr auto kBlueprint = tracks::SliceBlueprint(
-  //       // The classification of the track.
+  //       // The type of the track.
   //       "my_special_thread_scoped_slice",
   //       // The dimensions of the track. Can be >1 if the track is broken down
   //       // by multiple fields.
@@ -78,7 +78,7 @@ class TrackTracker {
   //   void ParseMySpecialCustomScopedCounter(uint32_t custom_scope,
   //                                          ... other args) {
   //     static constexpr auto kBlueprint = tracks::CounterBlueprint(
-  //       // The classification of the track.
+  //       // The type of the track.
   //       "my_special_custom_scoped_counter",
   //       // The dimensions of the track. Can be >1 if the track is broken down
   //       // by multiple fields.

@@ -161,7 +161,6 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
       this.trace.engine,
       asSliceSqlId(this.id),
     );
-    this.trace.scheduleFullRedraw();
   }
 
   async loadJankSlice() {

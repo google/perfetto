@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
+#include "perfetto/base/status.h"
 
+#include <cstdint>
+#include <cstring>
 #include <memory>
+#include <optional>
+#include <utility>
+#include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob.h"
-
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
@@ -30,58 +33,37 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
-#include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "protos/perfetto/common/sys_stats_counters.pbzero.h"
-#include "protos/perfetto/config/trace_config.pbzero.h"
-#include "protos/perfetto/trace/android/packages_list.pbzero.h"
-#include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
-#include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
-#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
-#include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
-#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
-#include "protos/perfetto/trace/ftrace/power.pbzero.h"
-#include "protos/perfetto/trace/ftrace/sched.pbzero.h"
-#include "protos/perfetto/trace/ftrace/task.pbzero.h"
-#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
-#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
-#include "protos/perfetto/trace/ps/process_tree.pbzero.h"
-#include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
-#include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
-#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
-#include "protos/perfetto/trace/track_event/log_message.pbzero.h"
-#include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
-#include "protos/perfetto/trace/track_event/source_location.pbzero.h"
-#include "protos/perfetto/trace/track_event/task_execution.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 using ::testing::_;
 using ::testing::Args;
@@ -197,60 +179,21 @@ class MockEventTracker : public EventTracker {
               (override));
 };
 
-class MockSliceTracker : public SliceTracker {
- public:
-  explicit MockSliceTracker(TraceProcessorContext* context)
-      : SliceTracker(context) {}
-
-  MOCK_METHOD(std::optional<SliceId>,
-              Begin,
-              (int64_t timestamp,
-               TrackId track_id,
-               StringId cat,
-               StringId name,
-               SetArgsCallback args_callback),
-              (override));
-  MOCK_METHOD(std::optional<SliceId>,
-              End,
-              (int64_t timestamp,
-               TrackId track_id,
-               StringId cat,
-               StringId name,
-               SetArgsCallback args_callback),
-              (override));
-  MOCK_METHOD(std::optional<SliceId>,
-              Scoped,
-              (int64_t timestamp,
-               TrackId track_id,
-               StringId cat,
-               StringId name,
-               int64_t duration,
-               SetArgsCallback args_callback),
-              (override));
-  MOCK_METHOD(std::optional<SliceId>,
-              StartSlice,
-              (int64_t timestamp,
-               TrackId track_id,
-               SetArgsCallback args_callback,
-               std::function<SliceId()> inserter),
-              (override));
-};
-
 class FuchsiaTraceParserTest : public ::testing::Test {
  public:
   FuchsiaTraceParserTest() {
-    context_.storage.reset(new TraceStorage());
+    context_.storage = std::make_shared<TraceStorage>();
     storage_ = context_.storage.get();
-    context_.track_tracker.reset(new TrackTracker(&context_));
-    context_.global_args_tracker.reset(
-        new GlobalArgsTracker(context_.storage.get()));
+    context_.track_tracker = std::make_unique<TrackTracker>(&context_);
+    context_.global_args_tracker =
+        std::make_shared<GlobalArgsTracker>(context_.storage.get());
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
-    context_.args_tracker.reset(new ArgsTracker(&context_));
+    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
-    context_.metadata_tracker.reset(
-        new MetadataTracker(context_.storage.get()));
-    context_.machine_tracker.reset(new MachineTracker(&context_, 0));
-    context_.cpu_tracker.reset(new CpuTracker(&context_));
+    context_.metadata_tracker =
+        std::make_unique<MetadataTracker>(context_.storage.get());
+    context_.machine_tracker = std::make_unique<MachineTracker>(&context_, 0);
+    context_.cpu_tracker = std::make_unique<CpuTracker>(&context_);
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
@@ -259,17 +202,19 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.process_tracker.reset(process_);
     context_.process_track_translation_table.reset(
         new ProcessTrackTranslationTable(storage_));
-    slice_ = new NiceMock<MockSliceTracker>(&context_);
-    context_.slice_tracker.reset(slice_);
-    context_.slice_translation_table.reset(new SliceTranslationTable(storage_));
-    context_.clock_tracker.reset(new ClockTracker(&context_));
+    context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
+    context_.slice_translation_table =
+        std::make_unique<SliceTranslationTable>(storage_);
+    context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
     clock_ = context_.clock_tracker.get();
-    context_.flow_tracker.reset(new FlowTracker(&context_));
-    context_.fuchsia_record_parser.reset(new FuchsiaTraceParser(&context_));
-    context_.proto_trace_parser.reset(new ProtoTraceParserImpl(&context_));
-    context_.sorter.reset(
-        new TraceSorter(&context_, TraceSorter::SortingMode::kFullSort));
-    context_.descriptor_pool_.reset(new DescriptorPool());
+    context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
+    context_.fuchsia_record_parser =
+        std::make_unique<FuchsiaTraceParser>(&context_);
+    context_.proto_trace_parser =
+        std::make_unique<ProtoTraceParserImpl>(&context_);
+    context_.sorter = std::make_shared<TraceSorter>(
+        &context_, TraceSorter::SortingMode::kFullSort);
+    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
 
     RegisterDefaultModules(&context_);
     RegisterAdditionalModules(&context_);
@@ -285,7 +230,7 @@ class FuchsiaTraceParserTest : public ::testing::Test {
 
   void SetUp() override { ResetTraceBuffers(); }
 
-  util::Status Tokenize() {
+  base::Status Tokenize() {
     const size_t num_bytes = trace_bytes_.size() * sizeof(uint64_t);
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[num_bytes]);
     memcpy(raw_trace.get(), trace_bytes_.data(), num_bytes);
@@ -305,7 +250,6 @@ class FuchsiaTraceParserTest : public ::testing::Test {
   MockEventTracker* event_;
   MockSchedEventTracker* sched_;
   MockProcessTracker* process_;
-  MockSliceTracker* slice_;
   ClockTracker* clock_;
   TraceStorage* storage_;
 };
@@ -475,22 +419,27 @@ TEST_F(FuchsiaTraceParserTest, FxtWithProtos) {
   // Only the begin thread time can be imported into the counter table.
   EXPECT_CALL(*event_, PushCounter(1005000, testing::DoubleEq(2003000),
                                    thread_time_track));
-  EXPECT_CALL(*slice_, StartSlice(1005000, track, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()),
-                      InvokeArgument<2>(&inserter), Return(SliceId(0u))));
   EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(2005000),
                                    thread_time_track));
-  EXPECT_CALL(*slice_, StartSlice(1010000, track, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()),
-                      InvokeArgument<2>(&inserter), Return(SliceId(1u))));
   EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(2010000),
                                    thread_time_track));
-  EXPECT_CALL(*slice_, End(1020000, track, unknown_cat, kNullStringId, _))
-      .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(SliceId(1u))));
 
   auto status = Tokenize();
   EXPECT_TRUE(status.ok());
   context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->slice_table().row_count(), 2u);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->ts(), 1005000);
+  EXPECT_EQ(rr_0->track_id(), track);
+
+  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
+  EXPECT_TRUE(rr_1);
+  EXPECT_EQ(rr_1->ts(), 1010000);
+  EXPECT_EQ(rr_1->track_id(), track);
+  EXPECT_EQ(rr_1->dur(), 10000);
+  EXPECT_EQ(rr_1->category(), unknown_cat);
 }
 
 TEST_F(FuchsiaTraceParserTest, SchedulerEvents) {
@@ -620,5 +569,4 @@ TEST_F(FuchsiaTraceParserTest, LegacySchedulerEvents) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

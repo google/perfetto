@@ -62,7 +62,7 @@ export class GcsUploader {
     this.start(data);
   }
 
-  async start(data: Blob | ArrayBuffer | string) {
+  private async start(data: Blob | ArrayBuffer | string) {
     let fname = this.args.fileName;
     if (fname === undefined) {
       // If the file name is unspecified, hash the contents.

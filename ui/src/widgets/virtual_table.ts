@@ -16,7 +16,6 @@ import m from 'mithril';
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {assertExists} from '../base/logging';
 import {Style} from './common';
-import {scheduleFullRedraw} from './raf';
 import {VirtualScrollHelper} from './virtual_scroll_helper';
 import {DisposableStack} from '../base/disposable_stack';
 
@@ -238,7 +237,7 @@ export class VirtualTable implements m.ClassComponent<VirtualTableAttrs> {
           const rowStart = Math.floor(rect.top / attrs.rowHeight / 2) * 2;
           const rowCount = Math.ceil(rect.height / attrs.rowHeight / 2) * 2;
           this.renderBounds = {rowStart, rowEnd: rowStart + rowCount};
-          scheduleFullRedraw();
+          m.redraw();
         },
       },
       {
@@ -248,6 +247,7 @@ export class VirtualTable implements m.ClassComponent<VirtualTableAttrs> {
           const rowStart = Math.floor(rect.top / attrs.rowHeight / 2) * 2;
           const rowEnd = Math.ceil(rect.bottom / attrs.rowHeight);
           attrs.onReload?.(rowStart, rowEnd - rowStart);
+          m.redraw();
         },
       },
     ]);

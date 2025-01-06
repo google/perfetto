@@ -31,7 +31,6 @@ export class DurationPrecisionMenuItem
         active: value === attrs.trace.timeline.durationPrecision,
         onclick: () => {
           attrs.trace.timeline.durationPrecision = value;
-          attrs.trace.scheduleFullRedraw();
         },
       });
     }

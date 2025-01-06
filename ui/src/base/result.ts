@@ -17,6 +17,7 @@
 export interface ErrorResult {
   ok: false;
   error: string;
+  value: undefined;
 }
 
 export interface OkResult<T> {
@@ -27,7 +28,7 @@ export interface OkResult<T> {
 export type Result<T> = ErrorResult | OkResult<T>;
 
 export function errResult(message: string): ErrorResult {
-  return {ok: false, error: message};
+  return {ok: false, error: message, value: undefined};
 }
 
 export function okResult<T>(value: T): OkResult<T> {

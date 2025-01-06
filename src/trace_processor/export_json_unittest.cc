@@ -155,8 +155,8 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   // The thread_slice table is a sub table of slice.
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0, SliceId(0u), 0,
-       kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
+      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0, SliceId(0u),
+       std::nullopt, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
        kThreadInstructionDelta});
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -180,7 +180,7 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
   EXPECT_TRUE(event["args"].isObject());
-  EXPECT_EQ(event["args"].size(), 0u);
+  EXPECT_EQ(event["args"].size(), 0u) << event["args"].toStyledString();
 }
 
 TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
@@ -200,8 +200,8 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0, SliceId(0u), 0,
-       kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
+      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0, SliceId(0u),
+       std::nullopt, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
        kThreadInstructionDelta});
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -414,11 +414,10 @@ TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
 
   TraceStorage* storage = context_.storage.get();
 
-  auto ucpu = context_.cpu_tracker->GetOrCreateCpu(0);
-  RawId id = storage->mutable_raw_table()
-                 ->Insert({0, storage->InternString("chrome_event.metadata"), 0,
-                           0, 0, ucpu})
-                 .id;
+  tables::ChromeRawTable::Id id =
+      storage->mutable_chrome_raw_table()
+          ->Insert({0, storage->InternString("chrome_event.metadata"), 0, 0})
+          .id;
 
   StringId name1_id = storage->InternString(base::StringView(kName1));
   StringId name2_id = storage->InternString(base::StringView(kName2));
@@ -780,7 +779,6 @@ TEST_F(ExportJsonTest, InstantEvent) {
             context_.storage->InternString("source"),
             Variadic::String(context_.storage->InternString("chrome")));
       });
-  context_.args_tracker->Flush();  // Flush track args.
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
@@ -788,8 +786,8 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   // Global track.
   TrackEventTracker track_event_tracker(&context_);
-  TrackId track2 = track_event_tracker.GetOrCreateDefaultDescriptorTrack();
-  context_.args_tracker->Flush();  // Flush track args.
+  TrackId track2 = *track_event_tracker.GetDescriptorTrack(
+      TrackEventTracker::kDefaultDescriptorTrackUuid);
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp2, 0, track2, cat_id, name_id, 0, 0, 0});
 
@@ -798,7 +796,6 @@ TEST_F(ExportJsonTest, InstantEvent) {
   reservation.parent_uuid = 0;
   track_event_tracker.ReserveDescriptorTrack(1234, reservation);
   TrackId track3 = *track_event_tracker.GetDescriptorTrack(1234);
-  context_.args_tracker->Flush();  // Flush track args.
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp3, 0, track3, cat_id, name_id, 0, 0, 0});
 
@@ -1428,10 +1425,8 @@ TEST_F(ExportJsonTest, RawEvent) {
   auto& tt = *context_.storage->mutable_thread_table();
   tt[utid].set_upid(upid);
 
-  auto ucpu = context_.cpu_tracker->GetOrCreateCpu(0);
-  auto id_and_row = storage->mutable_raw_table()->Insert(
-      {kTimestamp, storage->InternString("track_event.legacy_event"), utid, 0,
-       0, ucpu});
+  auto id_and_row = storage->mutable_chrome_raw_table()->Insert(
+      {kTimestamp, storage->InternString("track_event.legacy_event"), utid, 0});
   auto inserter = context_.args_tracker->AddArgsTo(id_and_row.id);
 
   auto add_arg = [&](const char* key, Variadic value) {
@@ -1500,7 +1495,7 @@ TEST_F(ExportJsonTest, LegacyRawEvents) {
   const char* kLegacyJsonData2 = "er\": 1},{\"user\": 2}";
 
   TraceStorage* storage = context_.storage.get();
-  auto* raw = storage->mutable_raw_table();
+  auto* raw = storage->mutable_chrome_raw_table();
 
   auto id_and_row = raw->Insert(
       {0, storage->InternString("chrome_event.legacy_system_trace"), 0, 0});
@@ -1726,8 +1721,8 @@ TEST_F(ExportJsonTest, MetadataFilter) {
 
   TraceStorage* storage = context_.storage.get();
 
-  auto* raw = storage->mutable_raw_table();
-  RawId id =
+  auto* raw = storage->mutable_chrome_raw_table();
+  tables::ChromeRawTable::Id id =
       raw->Insert({0, storage->InternString("chrome_event.metadata"), 0, 0}).id;
 
   StringId name1_id = storage->InternString(base::StringView(kName1));

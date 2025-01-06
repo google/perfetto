@@ -40,7 +40,7 @@ test.beforeAll(async ({browser}, _testInfo) => {
 });
 
 test('wattson aggregations', async () => {
-  const wattsonGrp = pth.locateTrackGroup('Wattson');
+  const wattsonGrp = pth.locateTrack('Wattson');
   await wattsonGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(wattsonGrp);
   const cpuEstimate = pth.locateTrack('Wattson/Cpu0 Estimate', wattsonGrp);

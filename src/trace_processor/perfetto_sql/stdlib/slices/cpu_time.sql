@@ -34,13 +34,13 @@ CREATE PERFETTO TABLE thread_slice_cpu_time(
   -- Duration of the time the slice was running.
   cpu_time LONG) AS
 SELECT
-id_0 AS id,
-name,
-ts.utid,
-thread_name,
-upid,
-process_name,
-SUM(ii.dur) AS cpu_time
+  id_0 AS id,
+  name,
+  ts.utid,
+  thread_name,
+  upid,
+  process_name,
+  SUM(ii.dur) AS cpu_time
 FROM _interval_intersect!((
   (SELECT * FROM thread_slice WHERE utid > 0 AND dur > 0),
   (SELECT * FROM sched WHERE dur > 0)

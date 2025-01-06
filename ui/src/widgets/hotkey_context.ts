@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {checkHotkey, Hotkey} from '../base/hotkeys';
-import {scheduleFullRedraw} from './raf';
 
 export interface HotkeyConfig {
   hotkey: Hotkey;
@@ -59,7 +58,7 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
         if (checkHotkey(hotkey, e)) {
           e.preventDefault();
           callback();
-          scheduleFullRedraw('force');
+          m.redraw();
         }
       });
     }

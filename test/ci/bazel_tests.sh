@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-INSTALL_BUILD_DEPS_ARGS=""
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
 # Save CI time by skipping runs on {UI,docs,infra}-only changes
@@ -23,8 +22,8 @@ echo "skipping build + test runs"
 exit 0
 fi
 
-bazel build //:all --verbose_failures
-bazel build //python:all --verbose_failures
+tools/bazel build //:all --verbose_failures
+tools/bazel build //python:all --verbose_failures
 
 # Smoke test that processes run without crashing.
 ./bazel-bin/traced &

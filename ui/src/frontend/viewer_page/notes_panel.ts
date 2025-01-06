@@ -17,15 +17,17 @@ import {canvasClip} from '../../base/canvas_utils';
 import {currentTargetOffset} from '../../base/dom_utils';
 import {Size2D} from '../../base/geom';
 import {assertUnreachable} from '../../base/logging';
+import {Icons} from '../../base/semantic_icons';
 import {TimeScale} from '../../base/time_scale';
 import {randomColor} from '../../components/colorizer';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {Note, SpanNote} from '../../public/note';
 import {Button, ButtonBar} from '../../widgets/button';
+import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {Select} from '../../widgets/select';
 import {TRACK_SHELL_WIDTH} from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
-import {Panel} from './panel_container';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -48,13 +50,12 @@ function getStartTimestamp(note: Note | SpanNote) {
   }
 }
 
-export class NotesPanel implements Panel {
-  readonly kind = 'panel';
-  readonly selectable = false;
+export class NotesPanel {
   private readonly trace: TraceImpl;
   private timescale?: TimeScale; // The timescale from the last render()
   private hoveredX: null | number = null;
   private mouseDragging = false;
+  readonly height = 20;
 
   constructor(trace: TraceImpl) {
     this.trace = trace;
@@ -65,9 +66,12 @@ export class NotesPanel implements Panel {
       (n) => n.collapsed,
     );
 
+    const workspaces = this.trace.workspaces;
+
     return m(
-      '.notes-panel',
+      '',
       {
+        style: {height: `${this.height}px`},
         onmousedown: () => {
           // If the user clicks & drags, very likely they just want to measure
           // the time horizontally, not set a flag. This debouncing is done to
@@ -98,7 +102,7 @@ export class NotesPanel implements Panel {
       },
       m(
         ButtonBar,
-        {className: 'pf-toolbar'},
+        {className: 'pf-timeline-toolbar'},
         m(Button, {
           onclick: (e: Event) => {
             e.preventDefault();
@@ -122,12 +126,77 @@ export class NotesPanel implements Panel {
             this.trace.workspace.pinnedTracks.forEach((t) =>
               this.trace.workspace.unpinTrack(t),
             );
-            raf.scheduleFullRedraw();
           },
           title: 'Clear all pinned tracks',
           icon: 'clear_all',
           compact: true,
         }),
+        m(
+          Select,
+          {
+            className: 'pf-timeline-toolbar__workspace-selector',
+            onchange: async (e) => {
+              const value = (e.target as HTMLSelectElement).value;
+              if (value === 'new-workspace') {
+                const ws =
+                  workspaces.createEmptyWorkspace('Untitled Workspace');
+                workspaces.switchWorkspace(ws);
+              } else {
+                const ws = workspaces.all.find(({id}) => id === value);
+                ws && this.trace?.workspaces.switchWorkspace(ws);
+              }
+            },
+          },
+          workspaces.all
+            .map((ws) => {
+              return m('option', {
+                value: `${ws.id}`,
+                label: ws.title,
+                selected: ws === this.trace?.workspace,
+              });
+            })
+            .concat([
+              m('option', {
+                value: 'new-workspace',
+                label: 'New workspace...',
+              }),
+            ]),
+        ),
+        m(
+          PopupMenu2,
+          {
+            trigger: m(Button, {
+              icon: 'more_vert',
+              title: 'Workspace options',
+              compact: true,
+            }),
+          },
+          m(MenuItem, {
+            icon: Icons.Delete,
+            label: 'Delete current workspace',
+            disabled:
+              workspaces.currentWorkspace === workspaces.defaultWorkspace,
+            onclick: () => {
+              workspaces.removeWorkspace(workspaces.currentWorkspace);
+              raf.scheduleFullRedraw();
+            },
+          }),
+          m(MenuItem, {
+            icon: 'edit',
+            label: 'Rename current workspace',
+            disabled:
+              workspaces.currentWorkspace === workspaces.defaultWorkspace,
+            onclick: async () => {
+              const newName = await this.trace.omnibox.prompt(
+                'Enter a new name...',
+              );
+              if (newName) {
+                workspaces.currentWorkspace.title = newName;
+              }
+              raf.scheduleFullRedraw();
+            },
+          }),
+        ),
         // TODO(stevegolton): Re-introduce this when we fix track filtering
         // m(TextInput, {
         //   placeholder: 'Filter tracks...',
@@ -155,7 +224,7 @@ export class NotesPanel implements Panel {
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
     ctx.fillStyle = '#999';
-    ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
+    ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
 
     const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
 

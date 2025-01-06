@@ -290,8 +290,8 @@ INSTRUMENTS_SAMPLE_TABLE = Table(
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED),
         C('utid', CppUint32()),
-        C('cpu', CppOptional(CppUint32())),
         C('callsite_id', CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
+        C('cpu', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -303,10 +303,10 @@ INSTRUMENTS_SAMPLE_TABLE = Table(
                 '''Timestamp of the sample.''',
             'utid':
                 '''Sampled thread.''',
-            'cpu':
-                '''Core the sampled thread was running on.''',
             'callsite_id':
                 '''If set, unwound callstack of the sampled thread.''',
+            'cpu':
+                '''Core the sampled thread was running on.''',
         }))
 
 SYMBOL_TABLE = Table(

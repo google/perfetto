@@ -539,23 +539,25 @@ export abstract class EngineBase implements Engine, Disposable {
 export class EngineProxy implements Engine, Disposable {
   private engine: EngineBase;
   private tag: string;
-  private _isAlive: boolean;
+  private disposed = false;
 
   constructor(engine: EngineBase, tag: string) {
     this.engine = engine;
     this.tag = tag;
-    this._isAlive = true;
   }
 
   async query(query: string, tag?: string): Promise<QueryResult> {
-    if (!this._isAlive) {
-      throw new Error(`EngineProxy ${this.tag} was disposed.`);
+    if (this.disposed) {
+      // If we are disposed (the trace was closed), return an empty QueryResult
+      // that will never see any data or EOF. We can't do otherwise or it will
+      // cause crashes to code calling firstRow() and expecting data.
+      return createQueryResult({query});
     }
     return await this.engine.query(query, tag);
   }
 
   async tryQuery(query: string, tag?: string): Promise<Result<QueryResult>> {
-    if (!this._isAlive) {
+    if (this.disposed) {
       return errResult(`EngineProxy ${this.tag} was disposed`);
     }
     return await this.engine.tryQuery(query, tag);
@@ -565,8 +567,8 @@ export class EngineProxy implements Engine, Disposable {
     metrics: string[],
     format: 'json' | 'prototext' | 'proto',
   ): Promise<string | Uint8Array> {
-    if (!this._isAlive) {
-      return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed.`));
+    if (this.disposed) {
+      return defer<string>(); // Return a promise that will hang forever.
     }
     return this.engine.computeMetric(metrics, format);
   }
@@ -600,7 +602,7 @@ export class EngineProxy implements Engine, Disposable {
   }
 
   [Symbol.dispose]() {
-    this._isAlive = false;
+    this.disposed = true;
   }
 }
 

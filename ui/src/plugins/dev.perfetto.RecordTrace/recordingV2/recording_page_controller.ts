@@ -15,15 +15,9 @@
 import {assertExists, assertTrue} from '../../../base/logging';
 import {currentDateHourAndMinute} from '../../../base/time';
 import {RecordingManager} from '../recording_manager';
-import {autosaveConfigStore} from '../record_config';
-import {
-  DEFAULT_ADB_WEBSOCKET_URL,
-  DEFAULT_TRACED_WEBSOCKET_URL,
-} from '../recording_ui_utils';
 import {couldNotClaimInterface} from '../reset_interface_modal';
 import {TraceConfig} from '../protos';
 import {TRACE_SUFFIX} from '../../../public/trace';
-import {genTraceConfig} from './recording_config_utils';
 import {RecordingError, showRecordingModal} from './recording_error_handling';
 import {
   RecordingTargetV2,
@@ -31,21 +25,8 @@ import {
   TracingSession,
   TracingSessionListener,
 } from './recording_interfaces_v2';
-import {
-  BUFFER_USAGE_NOT_ACCESSIBLE,
-  RECORDING_IN_PROGRESS,
-} from './recording_utils';
-import {
-  ANDROID_WEBSOCKET_TARGET_FACTORY,
-  AndroidWebsocketTargetFactory,
-} from './target_factories/android_websocket_target_factory';
-import {ANDROID_WEBUSB_TARGET_FACTORY} from './target_factories/android_webusb_target_factory';
-import {
-  HOST_OS_TARGET_FACTORY,
-  HostOsTargetFactory,
-} from './target_factories/host_os_target_factory';
+import {RECORDING_IN_PROGRESS} from './recording_utils';
 import {targetFactoryRegistry} from './target_factory_registry';
-import {scheduleFullRedraw} from '../../../widgets/raf';
 import {App} from '../../../public/app';
 
 // The recording page can be in any of these states. It can transition between
@@ -194,57 +175,6 @@ class TracingSessionWrapper {
       );
     }
   }
-
-  cancel() {
-    if (this.tracingSession) {
-      this.tracingSession.cancel();
-    } else {
-      // In some cases, the tracingSession may not be available to the
-      // TracingSessionWrapper when the user cancels it.
-      // For instance:
-      //  1. The user clicked 'Start'.
-      //  2. They clicked 'Stop' without authorizing on the device.
-      //  3. They clicked 'Start'.
-      //  4. They authorized on the device.
-      // In these cases, we want to cancel the tracing session as soon as it
-      // becomes available. Therefore, we keep the `isCancelled` boolean and
-      // check it when we receive the tracing session.
-      this.isCancelled = true;
-    }
-    this.controller.maybeClearRecordingState(this);
-  }
-
-  stop() {
-    const stateGeneratioNr = this.controller.getStateGeneration();
-    if (this.tracingSession) {
-      this.tracingSession.stop();
-      this.controller.maybeSetState(
-        this,
-        RecordingState.WAITING_FOR_TRACE_DISPLAY,
-        stateGeneratioNr,
-      );
-    } else {
-      // In some cases, the tracingSession may not be available to the
-      // TracingSessionWrapper when the user stops it.
-      // For instance:
-      //  1. The user clicked 'Start'.
-      //  2. They clicked 'Stop' without authorizing on the device.
-      //  3. They clicked 'Start'.
-      //  4. They authorized on the device.
-      // In these cases, we want to cancel the tracing session as soon as it
-      // becomes available. Therefore, we keep the `isCancelled` boolean and
-      // check it when we receive the tracing session.
-      this.isCancelled = true;
-      this.controller.maybeClearRecordingState(this);
-    }
-  }
-
-  getTraceBufferUsage(): Promise<number> {
-    if (!this.tracingSession) {
-      throw new RecordingError(BUFFER_USAGE_NOT_ACCESSIBLE);
-    }
-    return this.tracingSession.getTraceBufferUsage();
-  }
 }
 
 // Keeps track of the state the Ui is in. Has methods which are executed on
@@ -262,8 +192,6 @@ export class RecordingPageController {
   // (Ex: Android) it is only created after we have succesfully authenticated
   // with the target.
   private tracingSessionWrapper?: TracingSessionWrapper = undefined;
-  // How much of the buffer is used for the current tracing session.
-  private bufferUsagePercentage: number = 0;
   // A counter for state modifications. We use this to ensure that state
   // transitions don't override one another in async functions.
   private stateGeneration = 0;
@@ -271,14 +199,6 @@ export class RecordingPageController {
   constructor(app: App, recMgr: RecordingManager) {
     this.app = app;
     this.recMgr = recMgr;
-  }
-
-  getBufferUsagePercentage(): number {
-    return this.bufferUsagePercentage;
-  }
-
-  getState(): RecordingState {
-    return this.state;
   }
 
   getStateGeneration(): number {
@@ -298,7 +218,7 @@ export class RecordingPageController {
     }
     this.setState(state);
     this.recMgr.setRecordingStatus(undefined);
-    scheduleFullRedraw();
+    this.app.raf.scheduleFullRedraw();
   }
 
   maybeClearRecordingState(tracingSessionWrapper: TracingSessionWrapper): void {
@@ -392,140 +312,14 @@ export class RecordingPageController {
 
     if (!this.target) {
       this.setState(RecordingState.NO_TARGET);
-      scheduleFullRedraw();
+      this.app.raf.scheduleFullRedraw();
       return;
     }
     this.setState(RecordingState.TARGET_SELECTED);
-    scheduleFullRedraw();
+    this.app.raf.scheduleFullRedraw();
 
     this.tracingSessionWrapper = this.createTracingSessionWrapper(this.target);
     this.tracingSessionWrapper.fetchTargetInfo();
-  }
-
-  async addAndroidDevice(): Promise<void> {
-    try {
-      const target = await targetFactoryRegistry
-        .get(ANDROID_WEBUSB_TARGET_FACTORY)
-        .connectNewTarget();
-      this.selectTarget(target);
-    } catch (e) {
-      if (e instanceof RecordingError) {
-        showRecordingModal(e.message);
-      } else {
-        throw e;
-      }
-    }
-  }
-
-  onTargetSelection(targetName: string): void {
-    assertTrue(
-      RecordingState.NO_TARGET <= this.state &&
-        this.state < RecordingState.RECORDING,
-    );
-    const allTargets = targetFactoryRegistry.listTargets();
-    this.selectTarget(allTargets.find((t) => t.getInfo().name === targetName));
-  }
-
-  onStartRecordingPressed(): void {
-    assertTrue(RecordingState.TARGET_INFO_DISPLAYED === this.state);
-    location.href = '#!/record/instructions';
-    autosaveConfigStore.save(this.recMgr.state.recordConfig);
-
-    const target = this.getTarget();
-    const targetInfo = target.getInfo();
-    this.app.analytics.logEvent(
-      'Record Trace',
-      `Record trace (${targetInfo.targetType})`,
-    );
-    const traceConfig = genTraceConfig(
-      this.recMgr.state.recordConfig,
-      targetInfo,
-    );
-
-    this.tracingSessionWrapper = this.createTracingSessionWrapper(target);
-    this.tracingSessionWrapper.start(traceConfig);
-  }
-
-  onCancel() {
-    assertTrue(
-      RecordingState.AUTH_P2 <= this.state &&
-        this.state <= RecordingState.RECORDING,
-    );
-    // The 'Cancel' button will only be shown after a `tracingSessionWrapper`
-    // is created.
-    this.getTracingSessionWrapper().cancel();
-  }
-
-  onStop() {
-    assertTrue(
-      RecordingState.AUTH_P2 <= this.state &&
-        this.state <= RecordingState.RECORDING,
-    );
-    // The 'Stop' button will only be shown after a `tracingSessionWrapper`
-    // is created.
-    this.getTracingSessionWrapper().stop();
-  }
-
-  async fetchBufferUsage() {
-    assertTrue(this.state >= RecordingState.AUTH_P2);
-    if (!this.tracingSessionWrapper) return;
-    const session = this.tracingSessionWrapper;
-
-    try {
-      const usage = await session.getTraceBufferUsage();
-      if (this.tracingSessionWrapper === session) {
-        this.bufferUsagePercentage = usage;
-      }
-    } catch (e) {
-      // We ignore RecordingErrors because they are not necessary for the trace
-      // to be successfully collected.
-      if (!(e instanceof RecordingError)) {
-        throw e;
-      }
-    }
-    // We redraw if:
-    // 1. We received a correct buffer usage value.
-    // 2. We receive a RecordingError.
-    scheduleFullRedraw();
-  }
-
-  initFactories() {
-    assertTrue(this.state <= RecordingState.TARGET_INFO_DISPLAYED);
-    for (const targetFactory of targetFactoryRegistry.listTargetFactories()) {
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (targetFactory) {
-        targetFactory.setOnTargetChange(this.onTargetChange.bind(this));
-      }
-    }
-
-    if (targetFactoryRegistry.has(ANDROID_WEBSOCKET_TARGET_FACTORY)) {
-      const websocketTargetFactory = targetFactoryRegistry.get(
-        ANDROID_WEBSOCKET_TARGET_FACTORY,
-      ) as AndroidWebsocketTargetFactory;
-      websocketTargetFactory.tryEstablishWebsocket(DEFAULT_ADB_WEBSOCKET_URL);
-    }
-    if (targetFactoryRegistry.has(HOST_OS_TARGET_FACTORY)) {
-      const websocketTargetFactory = targetFactoryRegistry.get(
-        HOST_OS_TARGET_FACTORY,
-      ) as HostOsTargetFactory;
-      websocketTargetFactory.tryEstablishWebsocket(
-        DEFAULT_TRACED_WEBSOCKET_URL,
-      );
-    }
-  }
-
-  shouldShowTargetSelection(): boolean {
-    return (
-      RecordingState.NO_TARGET <= this.state &&
-      this.state < RecordingState.RECORDING
-    );
-  }
-
-  shouldShowStopCancelButtons(): boolean {
-    return (
-      RecordingState.AUTH_P2 <= this.state &&
-      this.state <= RecordingState.RECORDING
-    );
   }
 
   private onTargetChange() {
@@ -533,7 +327,7 @@ export class RecordingPageController {
     // If the change happens for an existing target, the controller keeps the
     // currently selected target in focus.
     if (this.target && allTargets.includes(this.target)) {
-      scheduleFullRedraw();
+      this.app.raf.scheduleFullRedraw();
       return;
     }
     // If the change happens to a new target or the controller does not have a
@@ -548,30 +342,16 @@ export class RecordingPageController {
   }
 
   private clearRecordingState(): void {
-    this.bufferUsagePercentage = 0;
     this.tracingSessionWrapper = undefined;
     this.setState(RecordingState.TARGET_INFO_DISPLAYED);
     this.recMgr.setRecordingStatus(undefined);
     // Redrawing because this method has changed the RecordingState, which will
     // affect the display of the record_page.
-    scheduleFullRedraw();
+    this.app.raf.scheduleFullRedraw();
   }
 
   private setState(state: RecordingState) {
     this.state = state;
     this.stateGeneration += 1;
-  }
-
-  private getTarget(): RecordingTargetV2 {
-    assertTrue(RecordingState.TARGET_INFO_DISPLAYED === this.state);
-    return assertExists(this.target);
-  }
-
-  private getTracingSessionWrapper(): TracingSessionWrapper {
-    assertTrue(
-      RecordingState.ASK_TO_FORCE_P2 <= this.state &&
-        this.state <= RecordingState.RECORDING,
-    );
-    return assertExists(this.tracingSessionWrapper);
   }
 }

@@ -220,8 +220,6 @@ export class SqlTableSliceTrackDetailsPanel implements TrackEventDetailsPanel {
       sqlValueToReadableString(this.data.args['table_name']),
       sqlValueToNumber(this.data.args['track_id']),
     );
-
-    this.trace.scheduleFullRedraw();
   }
 
   render() {

@@ -145,6 +145,12 @@ class AndroidMetrics(TestSuite):
         query=Metric('android_blocking_calls_cuj_metric'),
         out=Path('android_blocking_calls_cuj_different_ui_thread.out'))
 
+  def test_android_blocking_calls_cuj_per_frame(self):
+      return DiffTestBlueprint(
+          trace=Path('android_blocking_calls_cuj_per_frame_metric.py'),
+          query=Metric('android_blocking_calls_cuj_per_frame_metric'),
+          out=Path('android_blocking_calls_cuj_per_frame_metric.out'))
+
   def test_sysui_notif_shade_list_builder(self):
     return DiffTestBlueprint(
         trace=Path('android_sysui_notif_shade_list_builder_metric.py'),

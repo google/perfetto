@@ -53,8 +53,8 @@ namespace perfetto::trace_processor {
 // [1] https://en.wikipedia.org/wiki/Mipmap
 struct CounterMipmapOperator : sqlite::Module<CounterMipmapOperator> {
   struct Counter {
-    float min;
-    float max;
+    double min;
+    double max;
   };
   struct Agg {
     Counter operator()(const Counter& a, const Counter& b) {

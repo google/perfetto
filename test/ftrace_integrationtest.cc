@@ -209,8 +209,7 @@ TEST_F(PerfettoFtraceIntegrationTest, TestFtraceFlush) {
 // 1. On cuttlefish (x86-kvm). It's too slow when running on GCE (b/171771440).
 //    We cannot change the length of the production code in
 //    CanReadKernelSymbolAddresses() to deal with it.
-// 2. On user (i.e. non-userdebug) builds. As that doesn't work there by design.
-// 3. On ARM builds, because they fail on our CI.
+// 2. On ARM builds, because they fail on our CI.
 #if (PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && defined(__i386__)) || \
     defined(__arm__)
 #define MAYBE_KernelAddressSymbolization DISABLED_KernelAddressSymbolization
@@ -219,14 +218,10 @@ TEST_F(PerfettoFtraceIntegrationTest, TestFtraceFlush) {
 #endif
 TEST_F(PerfettoFtraceIntegrationTest, MAYBE_KernelAddressSymbolization) {
   // On Android in-tree builds (TreeHugger): this test must always run to
-  // prevent selinux / property-related regressions. However it can run only on
-  // userdebug.
+  // prevent selinux / property-related regressions.
   // On standalone builds and Linux, this can be optionally skipped because
   // there it requires root to lower kptr_restrict.
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  if (!IsDebuggableBuild())
-    GTEST_SKIP();
-#else
+#if !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   if (geteuid() != 0)
     GTEST_SKIP();
 #endif

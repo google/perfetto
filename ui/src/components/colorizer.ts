@@ -15,8 +15,8 @@
 import {hsl} from 'color-convert';
 import {hash} from '../base/hash';
 import {featureFlags} from '../core/feature_flags';
-import {Color, HSLColor, HSLuvColor} from '../public/color';
-import {ColorScheme} from '../public/color_scheme';
+import {Color, HSLColor, HSLuvColor} from '../base/color';
+import {ColorScheme} from '../base/color_scheme';
 import {RandState, pseudoRand} from '../base/rand';
 
 // 128 would provide equal weighting between dark and light text.

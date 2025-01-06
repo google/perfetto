@@ -31,7 +31,7 @@ test('load trace', async () => {
 });
 
 test('chronological order', async () => {
-  const chronologicalGrp = pth.locateTrackGroup('Root Chronological');
+  const chronologicalGrp = pth.locateTrack('Root Chronological');
   await chronologicalGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(chronologicalGrp);
 
@@ -39,7 +39,7 @@ test('chronological order', async () => {
 });
 
 test('explicit order', async () => {
-  const explicitGrp = pth.locateTrackGroup('Root Explicit');
+  const explicitGrp = pth.locateTrack('Root Explicit');
   await explicitGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(explicitGrp);
 
@@ -47,7 +47,7 @@ test('explicit order', async () => {
 });
 
 test('lexicographic tracks', async () => {
-  const lexicographicGrp = pth.locateTrackGroup('Root Lexicographic');
+  const lexicographicGrp = pth.locateTrack('Root Lexicographic');
   await lexicographicGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(lexicographicGrp);
 

@@ -136,12 +136,8 @@ class MetricsController {
             this._result = errResult(e);
             this._json = {};
           }
-        })
-        .finally(() => {
-          this.trace.scheduleFullRedraw();
         });
     }
-    this.trace.scheduleFullRedraw();
   }
 }
 

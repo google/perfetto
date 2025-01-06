@@ -23,7 +23,6 @@ import {
 } from '../public/track_kinds';
 import {TrackDescriptor, TrackManager} from '../public/track';
 import {AreaSelection, Selection, SelectionManager} from '../public/selection';
-import {raf} from './raf_scheduler';
 import {Engine} from '../trace_processor/engine';
 
 const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
@@ -448,12 +447,10 @@ export class FlowManager {
         }
       }
     }
-    raf.scheduleFullRedraw();
   }
 
   private setSelectedFlows(selectedFlows: Flow[]) {
     this._selectedFlows = selectedFlows;
-    raf.scheduleFullRedraw();
   }
 
   updateFlows(selection: Selection) {
@@ -511,7 +508,6 @@ export class FlowManager {
       );
       this._focusedFlowIdRight = nextFlowId;
     }
-    raf.scheduleFullRedraw();
   }
 
   // Select the slice connected to the flow in focus
@@ -563,7 +559,6 @@ export class FlowManager {
 
   setCategoryVisible(name: string, value: boolean) {
     this._visibleCategories.set(name, value);
-    raf.scheduleFullRedraw();
   }
 }
 

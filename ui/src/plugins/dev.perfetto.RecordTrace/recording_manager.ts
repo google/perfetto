@@ -25,12 +25,7 @@ import {AdbOverWebUsb} from './adb';
 import {isGetCategoriesResponse} from './chrome_proxy_record_controller';
 import {RecordConfig, createEmptyRecordConfig} from './record_config_types';
 import {RecordController} from './record_controller';
-import {scheduleFullRedraw} from '../../widgets/raf';
 import {App} from '../../public/app';
-import {targetFactoryRegistry} from './recordingV2/target_factory_registry';
-import {AndroidWebsocketTargetFactory} from './recordingV2/target_factories/android_websocket_target_factory';
-import {AndroidWebusbTargetFactory} from './recordingV2/target_factories/android_webusb_target_factory';
-import {exists} from '../../base/utils';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
@@ -41,31 +36,22 @@ export class RecordingManager {
   private _state: RecordingState = createEmptyState();
   private recCtl: RecordController;
 
-  constructor(app: App, useRecordingV2: boolean) {
+  constructor(app: App) {
     this.app = app;
     const extensionLocalChannel = new MessageChannel();
     this.recCtl = new RecordController(app, this, extensionLocalChannel.port1);
     this.setupExtentionPort(extensionLocalChannel);
 
-    if (useRecordingV2) {
-      targetFactoryRegistry.register(new AndroidWebsocketTargetFactory());
-      if (exists(navigator.usb)) {
-        targetFactoryRegistry.register(
-          new AndroidWebusbTargetFactory(navigator.usb),
-        );
-      }
-    } else {
-      this.updateAvailableAdbDevices();
-      try {
-        navigator.usb.addEventListener('connect', () =>
-          this.updateAvailableAdbDevices(),
-        );
-        navigator.usb.addEventListener('disconnect', () =>
-          this.updateAvailableAdbDevices(),
-        );
-      } catch (e) {
-        console.error('WebUSB API not supported');
-      }
+    this.updateAvailableAdbDevices();
+    try {
+      navigator.usb.addEventListener('connect', () =>
+        this.updateAvailableAdbDevices(),
+      );
+      navigator.usb.addEventListener('disconnect', () =>
+        this.updateAvailableAdbDevices(),
+      );
+    } catch (e) {
+      console.error('WebUSB API not supported');
     }
   }
 
@@ -158,7 +144,7 @@ export class RecordingManager {
         (message: object, _port: chrome.runtime.Port) => {
           if (isGetCategoriesResponse(message)) {
             this._state.chromeCategories = message.categories;
-            scheduleFullRedraw();
+            this.app.raf.scheduleFullRedraw();
             return;
           }
           extensionLocalChannel.port2.postMessage(message);
@@ -193,7 +179,7 @@ export class RecordingManager {
 
     this.setAvailableAdbDevices(availableAdbDevices);
     this.selectAndroidDeviceIfAvailable(availableAdbDevices, recordingTarget);
-    scheduleFullRedraw();
+    this.app.raf.scheduleFullRedraw();
     return availableAdbDevices;
   }
 

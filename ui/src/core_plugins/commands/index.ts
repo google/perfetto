@@ -277,7 +277,7 @@ export default class implements PerfettoPlugin {
       id: 'createNewEmptyWorkspace',
       name: 'Create new empty workspace',
       callback: async () => {
-        const workspaces = AppImpl.instance.trace?.workspaces;
+        const workspaces = ctx.workspaces;
         if (workspaces === undefined) return; // No trace loaded.
         const name = await ctx.omnibox.prompt('Give it a name...');
         if (name === undefined || name === '') return;
@@ -289,7 +289,7 @@ export default class implements PerfettoPlugin {
       id: 'switchWorkspace',
       name: 'Switch workspace',
       callback: async () => {
-        const workspaces = AppImpl.instance.trace?.workspaces;
+        const workspaces = ctx.workspaces;
         if (workspaces === undefined) return; // No trace loaded.
         const workspace = await ctx.omnibox.prompt('Choose a workspace...', {
           values: workspaces.all,

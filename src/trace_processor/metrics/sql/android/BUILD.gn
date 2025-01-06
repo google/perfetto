@@ -26,6 +26,7 @@ perfetto_sql_source_set("android") {
     "android_batt.sql",
     "android_binder.sql",
     "android_blocking_calls_cuj_metric.sql",
+    "android_blocking_calls_cuj_per_frame_metric.sql",
     "android_blocking_calls_unagg.sql",
     "android_boot.sql",
     "android_boot_unagg.sql",

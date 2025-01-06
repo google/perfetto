@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
-import {AsyncSliceTrack} from '../dev.perfetto.AsyncSlices/async_slice_track';
+import {TraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
@@ -21,12 +21,12 @@ import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {SuspendResumeDetailsPanel} from './suspend_resume_details';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import ThreadPlugin from '../dev.perfetto.Thread';
-import AsyncSlicesPlugin from '../dev.perfetto.AsyncSlices';
+import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 
 // SuspendResumeSliceTrack exists so as to override the `onSliceClick` function
 // in AsyncSliceTrack.
 // TODO(stevegolton): Remove this?
-class SuspendResumeSliceTrack extends AsyncSliceTrack {
+class SuspendResumeSliceTrack extends TraceProcessorSliceTrack {
   constructor(
     trace: Trace,
     uri: string,
@@ -44,7 +44,7 @@ class SuspendResumeSliceTrack extends AsyncSliceTrack {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.kernel.SuspendResumeLatency';
-  static readonly dependencies = [ThreadPlugin, AsyncSlicesPlugin];
+  static readonly dependencies = [ThreadPlugin, TraceProcessorTrackPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();

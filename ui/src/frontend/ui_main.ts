@@ -22,7 +22,6 @@ import {
   setDurationPrecision,
   setTimestampFormat,
 } from '../core/timestamp_format';
-import {raf} from '../core/raf_scheduler';
 import {Command} from '../public/command';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
@@ -140,7 +139,6 @@ export class UiMainPerTrace implements m.ClassComponent {
             getName: (x) => x.name,
           });
           result && setTimestampFormat(result.format);
-          raf.scheduleFullRedraw();
         },
       },
       {
@@ -159,7 +157,6 @@ export class UiMainPerTrace implements m.ClassComponent {
             },
           );
           result && setDurationPrecision(result.format);
-          raf.scheduleFullRedraw();
         },
       },
       {
@@ -171,7 +168,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.ShareTrace',
         name: 'Share trace',
-        callback: shareTrace,
+        callback: () => shareTrace(trace),
       },
       {
         id: 'perfetto.SearchNext',
@@ -429,12 +426,10 @@ export class UiMainPerTrace implements m.ClassComponent {
       selectedOptionIndex: omnibox.selectionIndex,
       onSelectedOptionChanged: (index) => {
         omnibox.setSelectionIndex(index);
-        raf.scheduleFullRedraw();
       },
       onInput: (value) => {
         omnibox.setText(value);
         omnibox.setSelectionIndex(0);
-        raf.scheduleFullRedraw();
       },
       onSubmit: (value, _alt) => {
         omnibox.resolvePrompt(value);
@@ -490,12 +485,10 @@ export class UiMainPerTrace implements m.ClassComponent {
       selectedOptionIndex: omnibox.selectionIndex,
       onSelectedOptionChanged: (index) => {
         omnibox.setSelectionIndex(index);
-        raf.scheduleFullRedraw();
       },
       onInput: (value) => {
         omnibox.setText(value);
         omnibox.setSelectionIndex(0);
-        raf.scheduleFullRedraw();
       },
       onClose: () => {
         if (this.omniboxInputEl) {
@@ -531,7 +524,6 @@ export class UiMainPerTrace implements m.ClassComponent {
 
       onInput: (value) => {
         AppImpl.instance.omnibox.setText(value);
-        raf.scheduleFullRedraw();
       },
       onSubmit: (query, alt) => {
         const config = {
@@ -539,9 +531,8 @@ export class UiMainPerTrace implements m.ClassComponent {
           title: alt ? 'Pinned query' : 'Omnibox query',
         };
         const tag = alt ? undefined : 'omnibox_query';
-        const trace = AppImpl.instance.trace;
-        if (trace === undefined) return; // No trace loaded
-        addQueryResultsTab(trace, config, tag);
+        if (this.trace === undefined) return; // No trace loaded
+        addQueryResultsTab(this.trace, config, tag);
       },
       onClose: () => {
         AppImpl.instance.omnibox.setText('');
@@ -549,7 +540,6 @@ export class UiMainPerTrace implements m.ClassComponent {
           this.omniboxInputEl.blur();
         }
         AppImpl.instance.omnibox.reset();
-        raf.scheduleFullRedraw();
       },
       onGoBack: () => {
         AppImpl.instance.omnibox.reset();

@@ -23,7 +23,7 @@ test('debuggable chip', async ({browser}) => {
   const page = await browser.newPage();
   const pth = new PerfettoTestHelper(page);
   await pth.openTraceFile('api32_startup_warm.perfetto-trace');
-  const trackGroup = pth.locateTrackGroup(
+  const trackGroup = pth.locateTrack(
     'androidx.benchmark.integration.macrobenchmark.test 7527',
   );
   await trackGroup.scrollIntoViewIfNeeded();

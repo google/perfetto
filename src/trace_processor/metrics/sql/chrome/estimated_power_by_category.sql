@@ -34,7 +34,6 @@ SELECT ts,
   end_state,
   priority,
   power_ma,
-  power_per_thread.type,
   name AS thread_name,
   upid,
   is_main_thread

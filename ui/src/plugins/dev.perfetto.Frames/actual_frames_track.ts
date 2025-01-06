@@ -12,18 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HSLColor} from '../../public/color';
+import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
-import {ColorScheme} from '../../public/color_scheme';
+import {ColorScheme} from '../../base/color_scheme';
 import {
   NAMED_ROW,
   NamedSliceTrack,
 } from '../../components/tracks/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../components/tracks/slice_layout';
-import {STR_NULL} from '../../trace_processor/query_result';
+import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {Trace} from '../../public/trace';
 import {TrackEventDetails} from '../../public/selection';
+import {SourceDataset} from '../../trace_processor/dataset';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -106,13 +107,23 @@ export class ActualFramesTrack extends NamedSliceTrack<Slice, ActualFrameRow> {
     };
   }
 
-  // Override dataset from base class NamedSliceTrack as we don't want these
-  // tracks to participate in generic area selection aggregation (frames tracks
-  // have their own dedicated aggregation panel).
-  // TODO(stevegolton): In future CLs this will be handled with aggregation keys
-  // instead, as this track will have to expose a dataset anyway.
   override getDataset() {
-    return undefined;
+    return new SourceDataset({
+      src: 'actual_frame_timeline_slice',
+      schema: {
+        id: NUM,
+        // Don't expose name to avoid this track getting selected by the generic
+        // slice aggregator, which is useless for frames tracks.
+        // name: STR,
+        ts: LONG,
+        dur: LONG,
+        jank_type: STR,
+      },
+      filter: {
+        col: 'track_id',
+        in: this.trackIds,
+      },
+    });
   }
 }
 

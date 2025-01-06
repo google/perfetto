@@ -231,32 +231,11 @@ class PerfettoSqlEngine {
 
   // Find table (Static or Runtime) registered with engine with provided name.
   const Table* GetTableOrNull(std::string_view name) const {
-    if (auto maybe_runtime = GetRuntimeTableOrNull(name); maybe_runtime) {
-      return maybe_runtime;
+    if (const auto* r = GetRuntimeTableOrNull(name); r) {
+      return r;
     }
     return GetStaticTableOrNull(name);
   }
-
-  // Find RuntimeTable registered with engine with provided name.
-  const RuntimeTable* GetRuntimeTableOrNull(std::string_view) const;
-
-  // Find static table registered with engine with provided name.
-  const Table* GetStaticTableOrNull(std::string_view) const;
-
-  // Find table (Static or Runtime) registered with engine with provided name.
-  Table* GetMutableTableOrNull(std::string_view name) {
-    if (auto maybe_runtime = GetMutableRuntimeTableOrNull(name);
-        maybe_runtime) {
-      return maybe_runtime;
-    }
-    return GetMutableStaticTableOrNull(name);
-  }
-
-  // Find RuntimeTable registered with engine with provided name.
-  RuntimeTable* GetMutableRuntimeTableOrNull(std::string_view);
-
-  // Find static table registered with engine with provided name.
-  Table* GetMutableStaticTableOrNull(std::string_view);
 
  private:
   base::Status ExecuteCreateFunction(const PerfettoSqlParser::CreateFunction&);
@@ -328,6 +307,26 @@ class PerfettoSqlEngine {
   base::Status IncludeModuleImpl(sql_modules::RegisteredPackage::ModuleFile&,
                                  const std::string& key,
                                  const PerfettoSqlParser&);
+
+  // Find table (Static or Runtime) registered with engine with provided name.
+  Table* GetTableOrNull(std::string_view name) {
+    if (auto* maybe_runtime = GetRuntimeTableOrNull(name); maybe_runtime) {
+      return maybe_runtime;
+    }
+    return GetStaticTableOrNull(name);
+  }
+
+  // Find RuntimeTable registered with engine with provided name.
+  RuntimeTable* GetRuntimeTableOrNull(std::string_view);
+
+  // Find static table registered with engine with provided name.
+  Table* GetStaticTableOrNull(std::string_view);
+
+  // Find RuntimeTable registered with engine with provided name.
+  const RuntimeTable* GetRuntimeTableOrNull(std::string_view) const;
+
+  // Find static table registered with engine with provided name.
+  const Table* GetStaticTableOrNull(std::string_view) const;
 
   StringPool* pool_ = nullptr;
   // If true, engine will perform additional consistency checks when e.g.

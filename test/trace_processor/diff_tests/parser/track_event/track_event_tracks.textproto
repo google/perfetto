@@ -6,12 +6,12 @@ packet {
   first_packet_on_sequence: true
   track_descriptor {
     uuid: 1
-    parent_uuid: 10
     thread {
       pid: 5
       tid: 1
       thread_name: "t1"
     }
+    disallow_merging_with_system_tracks: true
   }
   trace_packet_defaults {
     track_event_defaults {
@@ -27,12 +27,12 @@ packet {
   first_packet_on_sequence: true
   track_descriptor {
     uuid: 2
-    parent_uuid: 10
     thread {
       pid: 5
       tid: 2
       thread_name: "t2"
     }
+    disallow_merging_with_system_tracks: true
   }
   trace_packet_defaults {
     track_event_defaults {
@@ -179,12 +179,12 @@ packet {
   first_packet_on_sequence: true
   track_descriptor {
     uuid: 3
-    parent_uuid: 10
     thread {
       pid: 5
       tid: 1
       thread_name: "t3"
     }
+    disallow_merging_with_system_tracks: true
   }
 }
 # Should appear on t3.
@@ -231,7 +231,6 @@ packet {
   incremental_state_cleared: true
   track_descriptor {
     uuid: 21
-    parent_uuid: 20
     thread {
       pid: 5
       tid: 4

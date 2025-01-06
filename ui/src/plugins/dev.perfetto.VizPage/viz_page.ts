@@ -41,7 +41,6 @@ export class VizPage implements m.ClassComponent<VizPageAttrs> {
         initialText: attrs.spec,
         onUpdate: (text: string) => {
           attrs.setSpec(text);
-          attrs.trace.scheduleFullRedraw();
         },
       }),
     );
