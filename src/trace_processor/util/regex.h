@@ -48,7 +48,7 @@ class Regex {
       regfree(&regex_.value());
     }
   }
-  Regex(Regex&) = delete;
+  Regex(const Regex&) = delete;
   Regex(Regex&& other) {
     regex_ = std::move(other.regex_);
     other.regex_ = std::nullopt;
