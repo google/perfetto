@@ -44,11 +44,11 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessorStorage {
   // status if some unrecoverable error happened. If this happens, the
   // TraceProcessor will ignore the following Parse() requests, drop data on the
   // floor and return errors forever.
-  virtual util::Status Parse(TraceBlobView) = 0;
+  virtual base::Status Parse(TraceBlobView) = 0;
 
   // Shorthand for Parse(TraceBlobView(TraceBlob(TakeOwnership(buf, size))).
   // For compatibility with older API clients.
-  util::Status Parse(std::unique_ptr<uint8_t[]> buf, size_t size);
+  base::Status Parse(std::unique_ptr<uint8_t[]> buf, size_t size);
 
   // Forces all data in the trace to be pushed to tables without buffering data
   // in sorting queues. This is useful if queries need to be performed to

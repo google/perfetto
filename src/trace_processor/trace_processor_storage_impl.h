@@ -34,7 +34,7 @@ class TraceProcessorStorageImpl : public TraceProcessorStorage {
   explicit TraceProcessorStorageImpl(const Config&);
   ~TraceProcessorStorageImpl() override;
 
-  util::Status Parse(TraceBlobView) override;
+  base::Status Parse(TraceBlobView) override;
   void Flush() override;
   base::Status NotifyEndOfFile() override;
 

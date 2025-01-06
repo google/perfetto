@@ -128,7 +128,7 @@ AndroidLogReader::AndroidLogReader(TraceProcessorContext* context, int32_t year)
 
 AndroidLogReader::~AndroidLogReader() = default;
 
-util::Status AndroidLogReader::ParseLine(base::StringView line) {
+base::Status AndroidLogReader::ParseLine(base::StringView line) {
   if (line.size() < 30 ||
       (line.at(0) == '-' && line.at(1) == '-' && line.at(2) == '-')) {
     // These are markers like "--------- switch to radio" which we ignore.
@@ -221,12 +221,12 @@ util::Status AndroidLogReader::ParseLine(base::StringView line) {
   return ProcessEvent(event_ts, std::move(event));
 }
 
-util::Status AndroidLogReader::ProcessEvent(std::chrono::nanoseconds event_ts,
+base::Status AndroidLogReader::ProcessEvent(std::chrono::nanoseconds event_ts,
                                             AndroidLogEvent event) {
   return SendToSorter(event_ts, std::move(event));
 }
 
-util::Status AndroidLogReader::SendToSorter(std::chrono::nanoseconds event_ts,
+base::Status AndroidLogReader::SendToSorter(std::chrono::nanoseconds event_ts,
                                             AndroidLogEvent event) {
   event_ts -= timezone_offset_;
   ASSIGN_OR_RETURN(

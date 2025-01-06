@@ -95,7 +95,7 @@ bool AndroidBugreportReader::IsAndroidBugReport(
 }
 
 // static
-util::Status AndroidBugreportReader::Parse(TraceProcessorContext* context,
+base::Status AndroidBugreportReader::Parse(TraceProcessorContext* context,
                                            std::vector<util::ZipFile> files) {
   auto res = FindBugReportFile(files);
   if (!res.has_value()) {
@@ -136,7 +136,7 @@ AndroidBugreportReader::AndroidBugreportReader(
 
 AndroidBugreportReader::~AndroidBugreportReader() = default;
 
-util::Status AndroidBugreportReader::ParseImpl() {
+base::Status AndroidBugreportReader::ParseImpl() {
   // All logs in Android bugreports use wall time (which creates problems
   // in case of early boot events before NTP kicks in, which get emitted as
   // 1970), but that is the state of affairs.
