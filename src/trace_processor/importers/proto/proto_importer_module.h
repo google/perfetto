@@ -54,7 +54,7 @@ class TraceProcessorContext;
 
 class ModuleResult {
  public:
-  // Allow auto conversion from util::Status to Handled / Error result.
+  // Allow auto conversion from base::Status to Handled / Error result.
   ModuleResult(const base::Status& status)
       : ignored_(false),
         error_(status.ok() ? std::nullopt

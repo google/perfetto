@@ -58,7 +58,7 @@ AndroidBatteryStatsReader::AndroidBatteryStatsReader(
 
 AndroidBatteryStatsReader::~AndroidBatteryStatsReader() = default;
 
-util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
+base::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
   base::StringViewSplitter splitter(line, ',');
 
   // consume the legacy version number which we expect to be at the start of
@@ -131,7 +131,7 @@ util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
   return base::OkStatus();
 }
 
-util::Status AndroidBatteryStatsReader::ProcessBatteryStatsHistoryEvent(
+base::Status AndroidBatteryStatsReader::ProcessBatteryStatsHistoryEvent(
     base::StringView raw_event) {
   AndroidDumpstateEvent event{
       AndroidDumpstateEvent::EventType::kBatteryStatsHistoryEvent,
@@ -139,7 +139,7 @@ util::Status AndroidBatteryStatsReader::ProcessBatteryStatsHistoryEvent(
   return SendToSorter(std::chrono::milliseconds(current_timestamp_ms_), event);
 }
 
-util::Status AndroidBatteryStatsReader::SendToSorter(
+base::Status AndroidBatteryStatsReader::SendToSorter(
     std::chrono::nanoseconds event_ts,
     AndroidDumpstateEvent event) {
   ASSIGN_OR_RETURN(
