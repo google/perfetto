@@ -46,7 +46,7 @@ SystraceLineTokenizer::SystraceLineTokenizer()
 
 // TODO(hjd): This should be more robust to being passed random input.
 // This can happen if we mess up detecting a gzip trace for example.
-util::Status SystraceLineTokenizer::Tokenize(const std::string& buffer,
+base::Status SystraceLineTokenizer::Tokenize(const std::string& buffer,
                                              SystraceLine* line) {
   // An example line from buffer looks something like the following:
   // kworker/u16:1-77    (   77) [004] ....   316.196720: 0:
@@ -65,7 +65,7 @@ util::Status SystraceLineTokenizer::Tokenize(const std::string& buffer,
   std::smatch matches;
   bool matched = std::regex_search(buffer, matches, line_matcher_);
   if (!matched) {
-    return util::ErrStatus("Not a known systrace event format (line: %s)",
+    return base::ErrStatus("Not a known systrace event format (line: %s)",
                            buffer.c_str());
   }
 
@@ -80,23 +80,23 @@ util::Status SystraceLineTokenizer::Tokenize(const std::string& buffer,
 
   std::optional<uint32_t> maybe_pid = base::StringToUInt32(pid_str);
   if (!maybe_pid.has_value()) {
-    return util::Status("Could not convert pid " + pid_str);
+    return base::Status("Could not convert pid " + pid_str);
   }
   line->pid = maybe_pid.value();
 
   std::optional<uint32_t> maybe_cpu = base::StringToUInt32(cpu_str);
   if (!maybe_cpu.has_value()) {
-    return util::Status("Could not convert cpu " + cpu_str);
+    return base::Status("Could not convert cpu " + cpu_str);
   }
   line->cpu = maybe_cpu.value();
 
   std::optional<double> maybe_ts = base::StringToDouble(ts_str);
   if (!maybe_ts.has_value()) {
-    return util::Status("Could not convert ts");
+    return base::Status("Could not convert ts");
   }
   line->ts = static_cast<int64_t>(maybe_ts.value() * 1e9);
 
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 }  // namespace trace_processor

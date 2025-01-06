@@ -42,7 +42,7 @@ class AndroidBugreportReader {
  public:
   static bool IsAndroidBugReport(
       const std::vector<util::ZipFile>& zip_file_entries);
-  static util::Status Parse(TraceProcessorContext* context,
+  static base::Status Parse(TraceProcessorContext* context,
                             std::vector<util::ZipFile> zip_file_entries);
 
  private:
@@ -70,7 +70,7 @@ class AndroidBugreportReader {
                          BugReportFile bug_report,
                          std::set<LogFile> ordered_log_files);
   ~AndroidBugreportReader();
-  util::Status ParseImpl();
+  base::Status ParseImpl();
 
   base::StatusOr<std::vector<TimestampedAndroidLogEvent>>
   ParsePersistentLogcat();

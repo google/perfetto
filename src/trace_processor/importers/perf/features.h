@@ -74,15 +74,15 @@ enum Id : uint8_t {
 };
 
 struct BuildId {
-  static util::Status Parse(TraceBlobView,
-                            std::function<util::Status(BuildId)> cb);
+  static base::Status Parse(TraceBlobView,
+                            std::function<base::Status(BuildId)> cb);
   int32_t pid;
   std::string build_id;
   std::string filename;
 };
 
 struct HeaderGroupDesc {
-  static util::Status Parse(TraceBlobView, HeaderGroupDesc& out);
+  static base::Status Parse(TraceBlobView, HeaderGroupDesc& out);
   struct Entry {
     std::string string;
     uint32_t leader_idx;
@@ -92,15 +92,15 @@ struct HeaderGroupDesc {
 };
 
 struct EventDescription {
-  static util::Status Parse(TraceBlobView,
-                            std::function<util::Status(EventDescription)> cb);
+  static base::Status Parse(TraceBlobView,
+                            std::function<base::Status(EventDescription)> cb);
   perf_event_attr attr;
   std::string event_string;
   std::vector<uint64_t> ids;
 };
 
 struct SimpleperfMetaInfo {
-  static util::Status Parse(const TraceBlobView&, SimpleperfMetaInfo& out);
+  static base::Status Parse(const TraceBlobView&, SimpleperfMetaInfo& out);
   base::FlatHashMap<std::string, std::string> entries;
   struct EventTypeAndConfig {
     uint32_t type;
@@ -122,7 +122,7 @@ struct SimpleperfMetaInfo {
       event_type_info;
 };
 
-util::Status ParseSimpleperfFile2(TraceBlobView,
+base::Status ParseSimpleperfFile2(TraceBlobView,
                                   std::function<void(TraceBlobView)> cb);
 
 base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView blob);
