@@ -39,6 +39,7 @@
 #include <stdint.h>
 #include <map>
 #include <mutex>
+#include <optional>
 
 namespace perfetto {
 namespace internal {
