@@ -84,7 +84,7 @@ class AggregateContext {
     if (!builder_.AddSample(stack, sample_values_)) {
       return base::ErrStatus("Failed to add callstack");
     }
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
   void Final(sqlite3_context* ctx) {

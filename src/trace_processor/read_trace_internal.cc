@@ -41,7 +41,7 @@ namespace {
 // 1MB chunk size seems the best tradeoff on a MacBook Pro 2013 - i7 2.8 GHz.
 constexpr size_t kChunkSize = 1024 * 1024;
 
-util::Status ReadTraceUsingRead(
+base::Status ReadTraceUsingRead(
     TraceProcessor* tp,
     int fd,
     uint64_t* file_size,
@@ -57,7 +57,7 @@ util::Status ReadTraceUsingRead(
       break;
 
     if (rsize < 0) {
-      return util::ErrStatus("Reading trace file failed (errno: %d, %s)", errno,
+      return base::ErrStatus("Reading trace file failed (errno: %d, %s)", errno,
                              strerror(errno));
     }
 
@@ -65,11 +65,11 @@ util::Status ReadTraceUsingRead(
     TraceBlobView blob_view(std::move(blob), 0, static_cast<size_t>(rsize));
     RETURN_IF_ERROR(tp->Parse(std::move(blob_view)));
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 }  // namespace
 
-util::Status ReadTraceUnfinalized(
+base::Status ReadTraceUnfinalized(
     TraceProcessor* tp,
     const char* filename,
     const std::function<void(uint64_t parsed_size)>& progress_callback) {
@@ -102,7 +102,7 @@ util::Status ReadTraceUnfinalized(
   if (bytes_read == 0) {
     base::ScopedFile fd(base::OpenFile(filename, O_RDONLY));
     if (!fd)
-      return util::ErrStatus("Could not open trace file (path: %s)", filename);
+      return base::ErrStatus("Could not open trace file (path: %s)", filename);
     RETURN_IF_ERROR(
         ReadTraceUsingRead(tp, *fd, &bytes_read, progress_callback));
   }
@@ -110,7 +110,7 @@ util::Status ReadTraceUnfinalized(
 
   if (progress_callback)
     progress_callback(bytes_read);
-  return util::OkStatus();
+  return base::OkStatus();
 }
 }  // namespace trace_processor
 }  // namespace perfetto
