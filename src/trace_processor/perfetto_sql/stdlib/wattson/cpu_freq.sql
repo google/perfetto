@@ -30,9 +30,9 @@ CREATE PERFETTO TABLE _adjusted_cpu_freq AS
   ),
   -- Get first freq transition per CPU
   first_cpu_freq_slices AS (
-    SELECT ts, cpu FROM _cpu_freq
+    SELECT MIN(ts) as ts, cpu
+    FROM _cpu_freq
     GROUP BY cpu
-    ORDER by ts ASC
   )
 -- Prepend NULL slices up to first freq events on a per CPU basis
 SELECT
@@ -44,6 +44,7 @@ SELECT
   d_map.policy
 FROM first_cpu_freq_slices as first_slices
 JOIN _dev_cpu_policy_map as d_map ON first_slices.cpu = d_map.cpu
+WHERE dur > 0
 UNION ALL
 SELECT
   ts,
