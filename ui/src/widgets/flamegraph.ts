@@ -718,7 +718,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           onclick: () => {
             filterButtonClick({
               ...this.attrs.state,
-              view: {kind: 'PIVOT', pivot: name},
+              view: {kind: 'PIVOT', pivot: `^${name}$`},
             });
           },
         }),
