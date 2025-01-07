@@ -23,6 +23,7 @@ import {
   SqlPackage,
   SqlTable,
   SqlTableFunction,
+  SqlType,
 } from './sql_modules';
 import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
 import {
@@ -219,57 +220,62 @@ class StdlibDataObjectImpl implements SqlTable {
 
 class StdlibColumnImpl implements SqlColumn {
   name: string;
-  type: string;
+  type: SqlType;
   description: string;
 
   constructor(docs: DocsArgOrColSchemaType) {
-    this.type = docs.type;
+    this.type = {
+      name: docs.type,
+      shortName: docs.name.split('(')[0],
+      table: docs.table ? docs.table : undefined,
+      column: docs.column ? docs.column : undefined,
+    };
     this.description = docs.desc;
     this.name = docs.name;
   }
 
   asSimpleColumn(tableName: string): SimpleColumn {
-    if (this.type === 'TIMESTAMP') {
+    if (this.type.shortName === 'TIMESTAMP') {
       return createTimestampColumn(this.name);
     }
-    if (this.type === 'DURATION') {
+    if (this.type.shortName === 'DURATION') {
       return createDurationColumn(this.name);
     }
 
-    if (this.name === 'ID') {
-      if (tableName === 'slice') {
-        return createSliceIdColumn(this.name);
-      }
-      if (tableName === 'thread') {
-        return createThreadIdColumn(this.name);
-      }
-      if (tableName === 'process') {
-        return createProcessIdColumn(this.name);
-      }
-      if (tableName === 'thread_state') {
-        return createThreadStateIdColumn(this.name);
-      }
-      if (tableName === 'sched') {
-        return createSchedIdColumn(this.name);
+    if (this.type.shortName === 'ID') {
+      switch (tableName.toLowerCase()) {
+        case 'slice':
+          return createSliceIdColumn(this.name);
+        case 'thread':
+          return createThreadIdColumn(this.name);
+        case 'process':
+          return createProcessIdColumn(this.name);
+        case 'thread_state':
+          return createThreadStateIdColumn(this.name);
+        case 'sched':
+          return createSchedIdColumn(this.name);
       }
       return createStandardColumn(this.name);
     }
 
-    if (this.type === 'JOINID(slice.id)') {
-      return createSliceIdColumn(this.name);
+    if (this.type.shortName === 'JOINID') {
+      if (this.type.table === undefined) {
+        return createStandardColumn(this.name);
+      }
+      switch (this.type.table.toLowerCase()) {
+        case 'slice':
+          return createSliceIdColumn(this.name);
+        case 'thread':
+          return createThreadIdColumn(this.name);
+        case 'process':
+          return createProcessIdColumn(this.name);
+        case 'thread_state':
+          return createThreadStateIdColumn(this.name);
+        case 'sched':
+          return createSchedIdColumn(this.name);
+      }
     }
-    if (this.type === 'JOINID(thread.id)') {
-      return createThreadIdColumn(this.name);
-    }
-    if (this.type === 'JOINID(process.id)') {
-      return createProcessIdColumn(this.name);
-    }
-    if (this.type === 'JOINID(thread_state.id)') {
-      return createThreadStateIdColumn(this.name);
-    }
-    if (this.type === 'JOINID(sched.id)') {
-      return createSchedIdColumn(this.name);
-    }
+
     return createStandardColumn(this.name);
   }
 }
@@ -290,6 +296,8 @@ const ARG_OR_COL_SCHEMA = z.object({
   name: z.string(),
   type: z.string(),
   desc: z.string(),
+  table: z.string().nullable(),
+  column: z.string().nullable(),
 });
 type DocsArgOrColSchemaType = z.infer<typeof ARG_OR_COL_SCHEMA>;
 
