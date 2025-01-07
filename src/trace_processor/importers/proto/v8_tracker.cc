@@ -342,10 +342,13 @@ tables::V8JsFunctionTable::Id V8Tracker::InternJsFunction(
   row.is_toplevel = function.is_toplevel();
   row.kind =
       context_->storage->InternString(JsFunctionKindToString(function.kind()));
-  // TODO(carlscab): Line and column are hard. Offset is in bytes, line and
-  // column are in characters and we potentially have a multi byte encoding
-  // (UTF16). Good luck!
-  if (function.has_byte_offset()) {
+  if (function.has_line() && function.has_column()) {
+    row.line = function.line();
+    row.col = function.column();
+  } else if (function.has_byte_offset()) {
+    // TODO(carlscab): Line and column are hard. Offset is in bytes, line and
+    // column are in characters and we potentially have a multi byte encoding
+    // (UTF16). Good luck!
     row.line = 1;
     row.col = function.byte_offset();
   }
