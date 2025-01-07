@@ -67,6 +67,8 @@ v49.0 - 2025-01-06:
   UI:
     * Introduced `Open table:` command which would open any Perfetto Standard
       Library table in a new tab.
+    * Fixed behaviour of sorting and nesting of track event tracks for counter
+      tracks, thread tracks and process tracks.
     * Various improvements to timeline rendering performance.
     * Added workspace switcher and menu to move tracks between workspaces.
     * Completely overhauled recording page.
