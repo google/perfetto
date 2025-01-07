@@ -101,7 +101,7 @@ export interface SqlMacro {
 export interface SqlColumn {
   readonly name: string;
   readonly description: string;
-  readonly type: string;
+  readonly type: SqlType;
 
   // Translates this column to SimpleColumn.
   asSimpleColumn(tableName: string): SimpleColumn;
@@ -113,4 +113,11 @@ export interface SqlArgument {
   readonly name: string;
   readonly description: string;
   readonly type: string;
+}
+
+export interface SqlType {
+  readonly name: string;
+  readonly shortName: string;
+  readonly table: string | undefined;
+  readonly column: string | undefined;
 }
