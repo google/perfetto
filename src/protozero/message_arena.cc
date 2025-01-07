@@ -27,10 +27,6 @@ namespace protozero {
 MessageArena::MessageArena() {
   // The code below assumes that there is always at least one block.
   blocks_.emplace_front();
-  static_assert(
-      std::alignment_of<decltype(blocks_.front().storage[0])>::value >=
-          alignof(Message),
-      "MessageArea's storage is not properly aligned");
 }
 
 MessageArena::~MessageArena() = default;
@@ -44,7 +40,7 @@ Message* MessageArena::NewMessage() {
     block = &blocks_.front();
   }
   const auto idx = block->entries++;
-  void* storage = &block->storage[idx];
+  void* storage = block->storage[idx];
   PERFETTO_ASAN_UNPOISON(storage, sizeof(Message));
   return new (storage) Message();
 }
