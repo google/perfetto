@@ -14,6 +14,12 @@
 .explore-page {
   position: relative;
   overflow: auto;
+  padding: 0.25rem;
+
+  &__header {
+    display: flex;
+    align-items: center;
+  }
 
   .chart-card {
     border-radius: $pf-border-radius;
