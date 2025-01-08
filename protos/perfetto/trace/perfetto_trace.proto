@@ -4810,6 +4810,53 @@ message AndroidSystemProperty {
 
 // End of protos/perfetto/trace/android/android_system_property.proto
 
+// Begin of protos/perfetto/trace/android/bluetooth_trace.proto
+
+// Describes the packet type and direction. CMD and EVT are unidirectional, so
+// no need to differentiate the direction.
+enum BluetoothTracePacketType {
+  HCI_CMD = 1;
+  HCI_EVT = 2;
+  HCI_ACL_RX = 3;
+  HCI_ACL_TX = 4;
+  HCI_SCO_RX = 5;
+  HCI_SCO_TX = 6;
+  HCI_ISO_RX = 7;
+  HCI_ISO_TX = 8;
+}
+
+// Trace event for bluetooth
+message BluetoothTraceEvent {
+
+  // Packet type and direction
+  optional BluetoothTracePacketType packet_type = 1;
+
+  // Total count of the packets collected during the collection interval
+  optional uint32 count = 2;
+
+  // Total cumulative length of the packets collected during the collection
+  // interval
+  optional uint32 length = 3;
+
+  // The collection interval in ms. This is the duration between the first and
+  // last packets collected.
+  optional uint32 duration = 4;
+
+  // In case of CMD type, further breakdown of the type of command
+  optional uint32 op_code = 5;
+
+  // In the case of EVT type, further breakdown of the type of event
+  optional uint32 event_code = 6;
+
+  // When applicable for EVT type, further breakdown of event type into specific
+  // subevent
+  optional uint32 subevent_code = 7;
+
+  // Associated handle for the bluetooth packet
+  optional uint32 connection_handle = 8;
+}
+// End of protos/perfetto/trace/android/bluetooth_trace.proto
+
 // Begin of protos/perfetto/trace/android/camera_event.proto
 
 // A profiling event corresponding to a single camera frame. This message
@@ -15691,7 +15738,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 114.
+// Next id: 115.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -15832,6 +15879,8 @@ message TracePacket {
     PixelModemTokenDatabase pixel_modem_token_database = 111;
 
     Trigger clone_snapshot_trigger = 113;
+
+    BluetoothTraceEvent bluetooth_trace_event = 114;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
