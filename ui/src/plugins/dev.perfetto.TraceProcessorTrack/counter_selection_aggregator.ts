@@ -33,6 +33,8 @@ export class CounterSelectionAggregator implements AreaSelectionAggregator {
     const duration = area.end - area.start;
     const durationSec = Duration.toSeconds(duration);
 
+    await engine.query(`include perfetto module counters.intervals`);
+
     // TODO(lalitm): Rewrite this query in a way that is both simpler and faster
     let query;
     if (trackIds.length === 1) {
