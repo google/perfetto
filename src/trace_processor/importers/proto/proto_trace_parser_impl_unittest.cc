@@ -53,6 +53,7 @@
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
+#include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -267,6 +268,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+    context_.descriptor_pool_->AddFromFileDescriptorSet(
+        kTraceDescriptor.data(), kTraceDescriptor.size());
 
     context_.perf_sample_tracker.reset(new PerfSampleTracker(&context_));
 

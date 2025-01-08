@@ -138,7 +138,7 @@ class TraceProcessorImpl : public TraceProcessor,
   const Config config_;
   std::unique_ptr<PerfettoSqlEngine> engine_;
 
-  DescriptorPool pool_;
+  DescriptorPool metrics_descriptor_pool_;
 
   std::vector<metrics::SqlMetricFile> sql_metrics_;
 

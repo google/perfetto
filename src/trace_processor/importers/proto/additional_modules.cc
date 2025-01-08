@@ -15,26 +15,35 @@
  */
 
 #include "src/trace_processor/importers/proto/additional_modules.h"
+
+#include <memory>
+
 #include "src/trace_processor/importers/etw/etw_module_impl.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "src/trace_processor/importers/proto/android_camera_event_module.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
+#include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/metadata_module.h"
 #include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
 #include "src/trace_processor/importers/proto/network_trace_module.h"
 #include "src/trace_processor/importers/proto/pixel_modem_module.h"
+#include "src/trace_processor/importers/proto/profile_module.h"
 #include "src/trace_processor/importers/proto/statsd_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
+#include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 #include "src/trace_processor/importers/proto/v8_module.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_module.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 void RegisterAdditionalModules(TraceProcessorContext* context) {
+  // Content analyzer and metadata module both depend on this.
+  context->descriptor_pool_->AddFromFileDescriptorSet(kTraceDescriptor.data(),
+                                                      kTraceDescriptor.size());
+
   context->modules.emplace_back(new AndroidProbesModule(context));
   context->modules.emplace_back(new NetworkTraceModule(context));
   context->modules.emplace_back(new GraphicsEventModule(context));
@@ -47,6 +56,7 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new V8Module(context));
   context->modules.emplace_back(new WinscopeModule(context));
   context->modules.emplace_back(new PixelModemModule(context));
+  context->modules.emplace_back(new ProfileModule(context));
 
   // Ftrace/Etw modules are special, because it has one extra method for parsing
   // ftrace/etw packets. So we need to store a pointer to it separately.
@@ -60,7 +70,10 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
     context->multi_machine_trace_manager->EnableAdditionalModules(
         RegisterAdditionalModules);
   }
+
+  if (context->config.analyze_trace_proto_content) {
+    context->content_analyzer = std::make_unique<ProtoContentAnalyzer>(context);
+  }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
