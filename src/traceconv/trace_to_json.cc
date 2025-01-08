@@ -17,21 +17,16 @@
 #include "src/traceconv/trace_to_json.h"
 
 #include <stdio.h>
-#include <istream>
-#include <memory>
-#include <ostream>
-#include <string>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
-#include "perfetto/ext/trace_processor/export_json.h"
-#include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/util/status_macros.h"
-#include "src/traceconv/trace_to_systrace.h"
 #include "src/traceconv/utils.h"
 
-namespace perfetto::trace_to_text {
+namespace perfetto {
+namespace trace_to_text {
 
 namespace {
 
@@ -48,24 +43,35 @@ bool ExportUserspaceEvents(trace_processor::TraceProcessor* tp,
   fprintf(stderr, "Converting userspace events%c", kProgressChar);
   fflush(stderr);
 
-  struct StringWriter : public trace_processor::json::OutputWriter {
-    base::Status AppendString(const std::string& s) override {
-      res.append(s);
-      return base::OkStatus();
-    }
-    std::string res;
-  };
+  // Write userspace trace to a temporary file.
+  // TODO(eseckler): Support streaming the result out of TP directly instead.
+  auto file = base::TempFile::Create();
+  base::StackString<100> query("select export_json(\"%s\")",
+                               file.path().c_str());
+  auto it = tp->ExecuteQuery(query.ToStdString());
 
-  StringWriter string_writer;
-  base::Status status = trace_processor::json::ExportJson(tp, &string_writer);
-  if (!status.ok()) {
+  if (!it.Next()) {
+    auto status = it.Status();
+    PERFETTO_CHECK(!status.ok());
     PERFETTO_ELOG("Could not convert userspace events: %s", status.c_message());
     return false;
   }
 
-  // Skip writing the closing brace since we'll append system trace data.
-  writer->Write(string_writer.res.data(), string_writer.res.size() - 1);
+  base::ScopedFstream source(fopen(file.path().c_str(), "r"));
+  if (!source) {
+    PERFETTO_ELOG("Could not convert userspace events: Couldn't read file %s",
+                  file.path().c_str());
+    return false;
+  }
 
+  char buf[BUFSIZ];
+  size_t size;
+  while ((size = fread(buf, sizeof(char), BUFSIZ, *source)) > 0) {
+    // Skip writing the closing brace since we'll append system trace data.
+    if (feof(*source))
+      size--;
+    writer->Write(buf, size);
+  }
   return true;
 }
 
@@ -108,4 +114,5 @@ int TraceToJson(std::istream* input,
   return 0;
 }
 
-}  // namespace perfetto::trace_to_text
+}  // namespace trace_to_text
+}  // namespace perfetto
