@@ -474,17 +474,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   context_.reader_registry->RegisterTraceReader<TarTraceReader>(kTarTraceType);
 
-  if (context_.config.analyze_trace_proto_content) {
-    context_.content_analyzer =
-        std::make_unique<ProtoContentAnalyzer>(&context_);
-  }
-
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
   perf_importer::PerfTracker::GetOrCreate(&context_)->RegisterAuxTokenizer(
       PERF_AUXTRACE_CS_ETM, etm::CreateEtmV4StreamDemultiplexer);
 #endif
 
-  // Add metrics to descriptor pool
   const std::vector<std::string> sanitized_extension_paths =
       SanitizeMetricMountPaths(config_.skip_builtin_metric_paths);
   std::vector<std::string> skip_prefixes;
@@ -492,14 +486,16 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   for (const auto& path : sanitized_extension_paths) {
     skip_prefixes.push_back(kMetricProtoRoot + path);
   }
-  pool_.AddFromFileDescriptorSet(kMetricsDescriptor.data(),
-                                 kMetricsDescriptor.size(), skip_prefixes);
-  pool_.AddFromFileDescriptorSet(kAllChromeMetricsDescriptor.data(),
-                                 kAllChromeMetricsDescriptor.size(),
-                                 skip_prefixes);
-  pool_.AddFromFileDescriptorSet(kAllWebviewMetricsDescriptor.data(),
-                                 kAllWebviewMetricsDescriptor.size(),
-                                 skip_prefixes);
+
+  // Add metrics to descriptor pool
+  metrics_descriptor_pool_.AddFromFileDescriptorSet(
+      kMetricsDescriptor.data(), kMetricsDescriptor.size(), skip_prefixes);
+  metrics_descriptor_pool_.AddFromFileDescriptorSet(
+      kAllChromeMetricsDescriptor.data(), kAllChromeMetricsDescriptor.size(),
+      skip_prefixes);
+  metrics_descriptor_pool_.AddFromFileDescriptorSet(
+      kAllWebviewMetricsDescriptor.data(), kAllWebviewMetricsDescriptor.size(),
+      skip_prefixes);
 
   RegisterAdditionalModules(&context_);
   InitPerfettoSqlEngine();
@@ -835,22 +831,26 @@ base::Status TraceProcessorImpl::ExtendMetricsProto(
     const uint8_t* data,
     size_t size,
     const std::vector<std::string>& skip_prefixes) {
-  RETURN_IF_ERROR(pool_.AddFromFileDescriptorSet(data, size, skip_prefixes));
+  RETURN_IF_ERROR(metrics_descriptor_pool_.AddFromFileDescriptorSet(
+      data, size, skip_prefixes));
   RETURN_IF_ERROR(RegisterAllProtoBuilderFunctions(
-      &pool_, &proto_fn_name_to_path_, engine_.get(), this));
+      &metrics_descriptor_pool_, &proto_fn_name_to_path_, engine_.get(), this));
   return base::OkStatus();
 }
 
 base::Status TraceProcessorImpl::ComputeMetric(
     const std::vector<std::string>& metric_names,
     std::vector<uint8_t>* metrics_proto) {
-  auto opt_idx = pool_.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
+  auto opt_idx = metrics_descriptor_pool_.FindDescriptorIdx(
+      ".perfetto.protos.TraceMetrics");
   if (!opt_idx.has_value())
     return base::Status("Root metrics proto descriptor not found");
 
-  const auto& root_descriptor = pool_.descriptors()[opt_idx.value()];
+  const auto& root_descriptor =
+      metrics_descriptor_pool_.descriptors()[opt_idx.value()];
   return metrics::ComputeMetrics(engine_.get(), metric_names, sql_metrics_,
-                                 pool_, root_descriptor, metrics_proto);
+                                 metrics_descriptor_pool_, root_descriptor,
+                                 metrics_proto);
 }
 
 base::Status TraceProcessorImpl::ComputeMetricText(
@@ -864,13 +864,13 @@ base::Status TraceProcessorImpl::ComputeMetricText(
   switch (format) {
     case TraceProcessor::MetricResultFormat::kProtoText:
       *metrics_string = protozero_to_text::ProtozeroToText(
-          pool_, ".perfetto.protos.TraceMetrics",
+          metrics_descriptor_pool_, ".perfetto.protos.TraceMetrics",
           protozero::ConstBytes{metrics_proto.data(), metrics_proto.size()},
           protozero_to_text::kIncludeNewLines);
       break;
     case TraceProcessor::MetricResultFormat::kJson:
       *metrics_string = protozero_to_json::ProtozeroToJson(
-          pool_, ".perfetto.protos.TraceMetrics",
+          metrics_descriptor_pool_, ".perfetto.protos.TraceMetrics",
           protozero::ConstBytes{metrics_proto.data(), metrics_proto.size()},
           protozero_to_json::kPretty | protozero_to_json::kInlineErrors |
               protozero_to_json::kInlineAnnotations);
@@ -880,7 +880,7 @@ base::Status TraceProcessorImpl::ComputeMetricText(
 }
 
 std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
-  return pool_.SerializeAsDescriptorSet();
+  return metrics_descriptor_pool_.SerializeAsDescriptorSet();
 }
 
 void TraceProcessorImpl::InitPerfettoSqlEngine() {
@@ -1203,8 +1203,9 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
 
   // Metrics.
   {
-    auto status = RegisterAllProtoBuilderFunctions(
-        &pool_, &proto_fn_name_to_path_, engine_.get(), this);
+    auto status = RegisterAllProtoBuilderFunctions(&metrics_descriptor_pool_,
+                                                   &proto_fn_name_to_path_,
+                                                   engine_.get(), this);
     if (!status.ok()) {
       PERFETTO_FATAL("%s", status.c_message());
     }
@@ -1248,12 +1249,13 @@ void TraceProcessorImpl::IncludeAfterEofPrelude() {
 }
 
 bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
-  std::optional<uint32_t> desc_idx =
-      pool_.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
+  std::optional<uint32_t> desc_idx = metrics_descriptor_pool_.FindDescriptorIdx(
+      ".perfetto.protos.TraceMetrics");
   if (!desc_idx.has_value())
     return false;
   const auto* field_idx =
-      pool_.descriptors()[*desc_idx].FindFieldByName(metric_name);
+      metrics_descriptor_pool_.descriptors()[*desc_idx].FindFieldByName(
+          metric_name);
   return field_idx != nullptr;
 }
 

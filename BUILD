@@ -493,7 +493,6 @@ perfetto_cc_library(
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-               ":src_trace_processor_importers_proto_gen_cc_config_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -2321,17 +2320,6 @@ perfetto_cc_proto_descriptor(
     ],
     outs = [
         "src/trace_processor/importers/proto/chrome_track_event.descriptor.h",
-    ],
-)
-
-# GN target: //src/trace_processor/importers/proto:gen_cc_config_descriptor
-perfetto_cc_proto_descriptor(
-    name = "src_trace_processor_importers_proto_gen_cc_config_descriptor",
-    deps = [
-        ":protos_perfetto_config_descriptor",
-    ],
-    outs = [
-        "src/trace_processor/importers/proto/config.descriptor.h",
     ],
 )
 
@@ -6879,7 +6867,6 @@ perfetto_cc_library(
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-               ":src_trace_processor_importers_proto_gen_cc_config_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -7083,7 +7070,6 @@ perfetto_cc_binary(
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-               ":src_trace_processor_importers_proto_gen_cc_config_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -7287,7 +7273,6 @@ perfetto_cc_binary(
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-               ":src_trace_processor_importers_proto_gen_cc_config_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",

@@ -72,6 +72,9 @@ source_set("minimal") {
   ]
   public_deps = [ ":proto_importer_module" ]
   deps = [
+    ":gen_cc_android_track_event_descriptor",
+    ":gen_cc_chrome_track_event_descriptor",
+    ":gen_cc_track_event_descriptor",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:trace_processor",
     "../../../../protos/perfetto/common:zero",
@@ -164,7 +167,6 @@ source_set("full") {
     "vulkan_memory_tracker.h",
   ]
   deps = [
-    ":gen_cc_config_descriptor",
     ":gen_cc_statsd_atoms_descriptor",
     ":gen_cc_trace_descriptor",
     ":minimal",
@@ -263,11 +265,6 @@ perfetto_cc_proto_descriptor("gen_cc_android_track_event_descriptor") {
       "../../../../protos/perfetto/trace/android:android_track_event_descriptor"
 }
 
-perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
-  descriptor_name = "config.descriptor"
-  descriptor_target = "../../../../protos/perfetto/config:descriptor"
-}
-
 source_set("unittests") {
   testonly = true
   sources = [
@@ -284,6 +281,7 @@ source_set("unittests") {
   ]
   deps = [
     ":full",
+    ":gen_cc_trace_descriptor",
     ":minimal",
     ":packet_sequence_state_generation_hdr",
     "../../../../gn:default_deps",
