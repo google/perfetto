@@ -2,8 +2,7 @@ Unreleased:
   Tracing service and probes:
     *
   SQL Standard library:
-    * Removed the `EXPORT_JSON` function due to niche usecases and large binary
-      size impact; `traceconv json` is the recommended replacement.
+    *
   Trace Processor:
     *
   UI:

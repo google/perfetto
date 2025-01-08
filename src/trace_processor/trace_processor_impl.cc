@@ -900,6 +900,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterFunction<SourceGeq>(engine_.get(), "SOURCE_GEQ", -1);
   RegisterFunction<TablePtrBind>(engine_.get(), "__intrinsic_table_ptr_bind",
                                  -1);
+  RegisterFunction<ExportJson>(engine_.get(), "EXPORT_JSON", 1,
+                               context_.storage.get(), false);
   RegisterFunction<ExtractArg>(engine_.get(), "EXTRACT_ARG", 2,
                                context_.storage.get());
   RegisterFunction<AbsTimeStr>(engine_.get(), "ABS_TIME_STR", 1,

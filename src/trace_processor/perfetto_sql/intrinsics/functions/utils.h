@@ -18,34 +18,57 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_UTILS_H_
 
 #include <sqlite3.h>
-#include <cerrno>
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <memory>
-#include <optional>
-#include <string>
-#include <string_view>
+#include <unordered_map>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/hash.h"
-#include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/trace_processor/demangle.h"
-#include "perfetto/trace_processor/basic_types.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "src/trace_processor/db/column/utils.h"
+#include "src/trace_processor/export_json.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/regex.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto {
+namespace trace_processor {
+
+struct ExportJson : public SqlFunction {
+  using Context = TraceStorage;
+  static base::Status Run(TraceStorage* storage,
+                          size_t /*argc*/,
+                          sqlite3_value** argv,
+                          SqlValue& /*out*/,
+                          Destructors&);
+};
+
+base::Status ExportJson::Run(TraceStorage* storage,
+                             size_t /*argc*/,
+                             sqlite3_value** argv,
+                             SqlValue& /*out*/,
+                             Destructors&) {
+  base::ScopedFstream output;
+  if (sqlite3_value_type(argv[0]) == SQLITE_INTEGER) {
+    // Assume input is an FD.
+    output.reset(fdopen(sqlite3_value_int(argv[0]), "w"));
+    if (!output) {
+      return base::ErrStatus(
+          "EXPORT_JSON: Couldn't open output file from given FD");
+    }
+  } else {
+    const char* filename =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+    output = base::OpenFstream(filename, "w");
+    if (!output) {
+      return base::ErrStatus("EXPORT_JSON: Couldn't open output file");
+    }
+  }
+  return json::ExportJson(storage, output.get());
+}
 
 struct Hash : public SqlFunction {
   static base::Status Run(void*,
@@ -140,7 +163,7 @@ base::Status Base64Encode::Run(void*,
   if (sqlite3_value_type(value) != SQLITE_BLOB)
     return base::ErrStatus("Base64Encode only supports bytes argument");
 
-  auto byte_count = static_cast<size_t>(sqlite3_value_bytes(value));
+  size_t byte_count = static_cast<size_t>(sqlite3_value_bytes(value));
   std::string res = base::Base64Encode(sqlite3_value_blob(value), byte_count);
 
   std::unique_ptr<char, base::FreeDeleter> s(
@@ -271,7 +294,7 @@ base::Status ExtractArg::Run(TraceStorage* storage,
   if (sqlite3_value_type(argv[1]) != SQLITE_TEXT)
     return base::ErrStatus("EXTRACT_ARG: 2nd argument should be key");
 
-  auto arg_set_id = static_cast<uint32_t>(sqlite3_value_int(argv[0]));
+  uint32_t arg_set_id = static_cast<uint32_t>(sqlite3_value_int(argv[0]));
   const char* key = reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
 
   std::optional<Variadic> opt_value;
@@ -377,6 +400,7 @@ struct Regex : public SqlFunction {
   }
 };
 
-}  // namespace perfetto::trace_processor
+}  // namespace trace_processor
+}  // namespace perfetto
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_UTILS_H_
