@@ -402,7 +402,11 @@ export class SelectionManagerImpl implements SelectionManager {
         }
       }
     } else if (sel.kind === 'track_event') {
-      return TimeSpan.fromTimeAndDuration(sel.ts, sel.dur);
+      // Pretend incomplete slices are instants. The -1 duration here is just a
+      // flag, and doesn't actually represent the duration of the event.
+      // Besides, TimeSpan's will throw if created with a negative duration.
+      const dur = sel.dur === -1n ? 0n : sel.dur;
+      return TimeSpan.fromTimeAndDuration(sel.ts, dur);
     }
 
     return undefined;
