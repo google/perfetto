@@ -1813,7 +1813,12 @@ void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
     return;
   }
 
-  uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  // dpu_tracing_mark_write can be buggy and can indicate that the swapper
+  // thread is parented to some random process (probably because of IRQs). We
+  // should ignore this as it causes bad cascading effects down the line.
+  //
+  // See b/388130600 for context.
+  uint32_t tgid = pid == 0 ? 0 : static_cast<uint32_t>(evt.pid());
   SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.name(), tgid, evt.value());
@@ -3971,7 +3976,7 @@ constexpr auto kCpuHpBlueprint = tracks::SliceBlueprint(
     tracks::FnNameBlueprint([](uint32_t cpu) {
       return base::StackString<255>("CPU Hotplug %u", cpu);
     }));
-}
+}  // namespace
 
 void FtraceParser::ParseCpuhpEnter(uint32_t fld_id,
                                    int64_t ts,
