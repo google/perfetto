@@ -15,6 +15,7 @@
 
 INCLUDE PERFETTO MODULE graphs.hierarchy;
 INCLUDE PERFETTO MODULE graphs.scan;
+INCLUDE PERFETTO MODULE v8.jit;
 
 CREATE PERFETTO TABLE _callstack_spf_summary AS
 SELECT
@@ -52,9 +53,11 @@ SELECT
     s.id - 1
   ) AS parent_symbol_id,
   f.id AS frame_id,
+  jf.jit_code_id AS jit_code_id,
   s.id IS f.max_symbol_id AS is_leaf
 FROM stack_profile_callsite c
 JOIN _callstack_spf_summary f ON c.frame_id = f.id
+LEFT JOIN __intrinsic_jit_frame jf ON jf.frame_id = f.id
 LEFT JOIN stack_profile_symbol s USING (symbol_set_id)
 LEFT JOIN stack_profile_callsite p ON c.parent_id = p.id
 LEFT JOIN _callstack_spf_summary pf ON p.frame_id = pf.id
@@ -67,17 +70,29 @@ SELECT
   -- TODO(lalitm): consider demangling in a separate table as
   -- demangling is suprisingly inefficient and is taking a
   -- significant fraction of the runtime on big traces.
-  IFNULL(
+  COALESCE(
+    'JS: ' || IIF(jsf.name = "", "(anonymous)", jsf.name) || ':' || jsf.line || ':' || jsf.col || ' [' || LOWER(jsc.tier) || ']',
+    'WASM: ' || wc.function_name || ' [' || LOWER(wc.tier) || ']',
+    'REGEXP: ' || rc.pattern,
+    'V8: ' || v8c.function_name,
+    'JIT: ' || jc.function_name,
     DEMANGLE(COALESCE(s.name, f.deobfuscated_name, f.name)),
     COALESCE(s.name, f.deobfuscated_name, f.name, '[Unknown]')
   ) AS name,
   f.mapping AS mapping_id,
   s.source_file,
-  s.line_number,
+  COALESCE(jsf.line, s.line_number) as line_number,
+  COALESCE(jsf.col, 0) as column_number,
   c.callsite_id,
   c.is_leaf AS is_leaf_function_in_callsite_frame
 FROM _callstack_spc_raw_forest c
 JOIN stack_profile_frame f ON c.frame_id = f.id
+LEFT JOIN _v8_js_code jsc USING(jit_code_id)
+LEFT JOIN v8_js_function jsf USING(v8_js_function_id)
+LEFT JOIN _v8_internal_code v8c USING(jit_code_id)
+LEFT JOIN _v8_wasm_code wc USING(jit_code_id)
+LEFT JOIN _v8_regexp_code rc USING(jit_code_id)
+LEFT JOIN __intrinsic_jit_code jc ON c.jit_code_id = jc.id
 LEFT JOIN stack_profile_symbol s ON c.symbol_id = s.id
 LEFT JOIN _callstack_spc_raw_forest p ON
   p.callsite_id = c.parent_callsite_id
