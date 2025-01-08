@@ -16,29 +16,26 @@
 
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 
-#include "perfetto/ext/base/string_utils.h"
+#include <cstdint>
+#include <optional>
+#include <string>
+
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/trace_proto_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/proto_profiler.h"
 
-#include "src/trace_processor/importers/proto/trace.descriptor.h"
-
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 ProtoContentAnalyzer::ProtoContentAnalyzer(TraceProcessorContext* context)
     : context_(context),
-      pool_([]() {
-        DescriptorPool pool;
-        base::Status status = pool.AddFromFileDescriptorSet(
-            kTraceDescriptor.data(), kTraceDescriptor.size());
-        if (!status.ok()) {
-          PERFETTO_ELOG("Could not add TracePacket proto descriptor %s",
-                        status.c_message());
-        }
-        return pool;
-      }()),
-      computer_(&pool_, ".perfetto.protos.TracePacket") {}
+      computer_(context_->descriptor_pool_.get(),
+                ".perfetto.protos.TracePacket") {}
 
 ProtoContentAnalyzer::~ProtoContentAnalyzer() = default;
 
@@ -135,5 +132,4 @@ void ProtoContentAnalyzer::NotifyEndOfFile() {
   aggregated_samples_.Clear();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

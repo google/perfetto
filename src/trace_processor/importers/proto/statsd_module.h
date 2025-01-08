@@ -25,7 +25,6 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
-#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -34,27 +33,6 @@
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace perfetto::trace_processor {
-
-// Wraps a DescriptorPool and a pointer into that pool. This prevents
-// common bugs where moving/changing the pool invalidates the pointer.
-class PoolAndDescriptor {
- public:
-  PoolAndDescriptor(const uint8_t* data, size_t size, const char* name);
-  virtual ~PoolAndDescriptor();
-
-  PoolAndDescriptor(const PoolAndDescriptor&) = delete;
-  PoolAndDescriptor& operator=(const PoolAndDescriptor&) = delete;
-  PoolAndDescriptor(PoolAndDescriptor&&) = delete;
-  PoolAndDescriptor& operator=(PoolAndDescriptor&&) = delete;
-
-  const DescriptorPool* pool() const { return &pool_; }
-
-  const ProtoDescriptor* descriptor() const { return descriptor_; }
-
- private:
-  DescriptorPool pool_;
-  const ProtoDescriptor* descriptor_{};
-};
 
 class StatsdModule : public ProtoImporterModule {
  public:
@@ -80,7 +58,7 @@ class StatsdModule : public ProtoImporterModule {
 
   TraceProcessorContext* context_;
   base::FlatHashMap<uint32_t, StringId> atom_names_;
-  PoolAndDescriptor pool_;
+  const ProtoDescriptor* descriptor_ = nullptr;
   util::ProtoToArgsParser args_parser_;
   std::optional<TrackId> track_id_;
 };
