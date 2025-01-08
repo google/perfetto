@@ -60,7 +60,6 @@ source_set("functions") {
   deps = [
     ":tables",
     "../../..:demangle",
-    "../../..:export_json",
     "../../..:metatrace",
     "../../../../../gn:default_deps",
     "../../../../../gn:sqlite",

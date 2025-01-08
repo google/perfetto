@@ -15,8 +15,11 @@
  */
 
 #include "src/trace_processor/util/protozero_to_text.h"
+#include <cstdint>
 #include <optional>
+#include <string>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -27,9 +30,7 @@
 // This is the highest level that this protozero to text supports.
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace protozero_to_text {
+namespace perfetto::trace_processor::protozero_to_text {
 
 namespace {
 
@@ -456,44 +457,6 @@ std::string ProtozeroToText(const DescriptorPool& pool,
   return final_result;
 }
 
-std::string DebugTrackEventProtozeroToText(const std::string& type,
-                                           protozero::ConstBytes protobytes) {
-  DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
-                                              kTrackEventDescriptor.size());
-  PERFETTO_DCHECK(status.ok());
-  return ProtozeroToText(pool, type, protobytes, kIncludeNewLines);
-}
-
-std::string ShortDebugTrackEventProtozeroToText(
-    const std::string& type,
-    protozero::ConstBytes protobytes) {
-  DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
-                                              kTrackEventDescriptor.size());
-  PERFETTO_DCHECK(status.ok());
-  return ProtozeroToText(pool, type, protobytes, kSkipNewLines);
-}
-
-std::string ProtozeroEnumToText(const std::string& type, int32_t enum_value) {
-  DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
-                                              kTrackEventDescriptor.size());
-  PERFETTO_DCHECK(status.ok());
-  auto opt_enum_descriptor_idx = pool.FindDescriptorIdx(type);
-  if (!opt_enum_descriptor_idx) {
-    // Fall back to the integer representation of the field.
-    return std::to_string(enum_value);
-  }
-  auto opt_enum_string =
-      pool.descriptors()[*opt_enum_descriptor_idx].FindEnumString(enum_value);
-  if (!opt_enum_string) {
-    // Fall back to the integer representation of the field.
-    return std::to_string(enum_value);
-  }
-  return *opt_enum_string;
-}
-
 std::string ProtozeroToText(const DescriptorPool& pool,
                             const std::string& type,
                             const std::vector<uint8_t>& protobytes,
@@ -503,6 +466,4 @@ std::string ProtozeroToText(const DescriptorPool& pool,
       new_lines_mode);
 }
 
-}  // namespace protozero_to_text
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::protozero_to_text

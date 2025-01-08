@@ -28,8 +28,6 @@ source_set("minimal") {
     "chrome_system_probes_parser.h",
     "default_modules.cc",
     "default_modules.h",
-    "jit_tracker.cc",
-    "jit_tracker.h",
     "memory_tracker_snapshot_module.cc",
     "memory_tracker_snapshot_module.h",
     "memory_tracker_snapshot_parser.cc",
@@ -46,8 +44,6 @@ source_set("minimal") {
     "packet_sequence_state_generation.cc",
     "perf_sample_tracker.cc",
     "perf_sample_tracker.h",
-    "profile_module.cc",
-    "profile_module.h",
     "profile_packet_sequence_state.cc",
     "profile_packet_sequence_state.h",
     "profile_packet_utils.cc",
@@ -72,6 +68,9 @@ source_set("minimal") {
   ]
   public_deps = [ ":proto_importer_module" ]
   deps = [
+    ":gen_cc_android_track_event_descriptor",
+    ":gen_cc_chrome_track_event_descriptor",
+    ":gen_cc_track_event_descriptor",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:trace_processor",
     "../../../../protos/perfetto/common:zero",
@@ -136,6 +135,8 @@ source_set("full") {
     "heap_graph_module.h",
     "heap_graph_tracker.cc",
     "heap_graph_tracker.h",
+    "jit_tracker.cc",
+    "jit_tracker.h",
     "metadata_module.cc",
     "metadata_module.h",
     "pigweed_detokenizer.cc",
@@ -144,6 +145,8 @@ source_set("full") {
     "pixel_modem_module.h",
     "pixel_modem_parser.cc",
     "pixel_modem_parser.h",
+    "profile_module.cc",
+    "profile_module.h",
     "statsd_module.cc",
     "statsd_module.h",
     "string_encoding_utils.cc",
@@ -164,7 +167,6 @@ source_set("full") {
     "vulkan_memory_tracker.h",
   ]
   deps = [
-    ":gen_cc_config_descriptor",
     ":gen_cc_statsd_atoms_descriptor",
     ":gen_cc_trace_descriptor",
     ":minimal",
@@ -193,6 +195,7 @@ source_set("full") {
     "../../storage",
     "../../tables",
     "../../types",
+    "../../util:build_id",
     "../../util:descriptors",
     "../../util:profiler_util",
     "../../util:proto_profiler",
@@ -263,11 +266,6 @@ perfetto_cc_proto_descriptor("gen_cc_android_track_event_descriptor") {
       "../../../../protos/perfetto/trace/android:android_track_event_descriptor"
 }
 
-perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
-  descriptor_name = "config.descriptor"
-  descriptor_target = "../../../../protos/perfetto/config:descriptor"
-}
-
 source_set("unittests") {
   testonly = true
   sources = [
@@ -284,6 +282,7 @@ source_set("unittests") {
   ]
   deps = [
     ":full",
+    ":gen_cc_trace_descriptor",
     ":minimal",
     ":packet_sequence_state_generation_hdr",
     "../../../../gn:default_deps",
