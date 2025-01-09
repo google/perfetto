@@ -13654,6 +13654,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/winscope/inputmethod.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/winscope/viewcapture.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/winscope/windowmanager.sql",
+        "src/trace_processor/perfetto_sql/stdlib/appleos/instruments/samples.sql",
         "src/trace_processor/perfetto_sql/stdlib/callstacks/stack_profile.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql",
         "src/trace_processor/perfetto_sql/stdlib/counters/global_tracks.sql",
