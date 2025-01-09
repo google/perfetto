@@ -202,6 +202,7 @@ export enum ProfileType {
   JAVA_HEAP_SAMPLES = 'heap_profile:com.android.art',
   JAVA_HEAP_GRAPH = 'graph',
   PERF_SAMPLE = 'perf',
+  INSTRUMENTS_SAMPLE = 'instruments',
 }
 
 export function profileType(s: string): ProfileType {
