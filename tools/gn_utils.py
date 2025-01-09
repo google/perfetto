@@ -321,6 +321,7 @@ class GnParser(object):
       self.type = type
       self.testonly = False
       self.toolchain = None
+      self.direct_deps: Set[GnParser.Target] = set()
 
       # These are valid only for type == proto_library.
       # This is typically: 'proto', 'protozero', 'ipc'.
@@ -359,20 +360,23 @@ class GnParser(object):
       # placeholder target once we hit //gn:protoc or similar.
       self.is_third_party_dep_ = False
 
+    def non_proto_direct_deps(self):
+      return set(d for d in self.direct_deps if d.type != 'proto_library')
+
     def non_proto_or_source_set_deps(self):
       return set(d for d in self.deps
                  if d.type != 'proto_library' and d.type != 'source_set')
+
+    def cpp_proto_direct_deps(self):
+      return set(
+          d for d in self.direct_deps if d.type == 'proto_library' and
+          d.proto_plugin != 'descriptor' and d.proto_plugin != 'source_set')
 
     def proto_deps(self):
       return set(d for d in self.deps if d.type == 'proto_library')
 
     def transitive_proto_deps(self):
       return set(d for d in self.transitive_deps if d.type == 'proto_library')
-
-    def transitive_cpp_proto_deps(self):
-      return set(
-          d for d in self.transitive_deps if d.type == 'proto_library' and
-          d.proto_plugin != 'descriptor' and d.proto_plugin != 'source_set')
 
     def transitive_source_set_deps(self):
       return set(d for d in self.transitive_deps if d.type == 'source_set')
@@ -508,6 +512,7 @@ class GnParser(object):
       # add a dep.
       if dep.type == 'group' and not dep.is_third_party_dep_:
         target.update(dep)  # Bubble up groups's cflags/ldflags etc.
+        target.direct_deps.update(dep.direct_deps)
         continue
 
       # Linker units act as a hard boundary making all their internal deps
@@ -515,6 +520,8 @@ class GnParser(object):
       # transitively across them.
       if dep.type in LINKER_UNIT_TYPES:
         target.deps.add(dep)
+        target.transitive_deps.add(dep)
+        target.direct_deps.add(dep)
         continue
 
       if dep.type == 'source_set':
@@ -523,6 +530,7 @@ class GnParser(object):
         target.proto_paths.update(dep.proto_paths)
 
       target.deps.add(dep)
+      target.direct_deps.add(dep)
       target.transitive_deps.add(dep)
       target.transitive_deps.update(dep.transitive_deps)
 

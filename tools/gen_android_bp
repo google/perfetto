@@ -141,15 +141,11 @@ proto_groups = {
     },
     'config': {
         'types': ['lite', 'filegroup'],
-        'targets': [
-            '//protos/perfetto/config:source_set',
-        ]
+        'targets': ['//protos/perfetto/config:source_set',]
     },
     'metrics': {
         'types': ['python'],
-        'targets': [
-            '//protos/perfetto/metrics:source_set',
-        ]
+        'targets': ['//protos/perfetto/metrics:source_set',]
     },
 }
 
@@ -212,6 +208,7 @@ define_allowlist = r'^(GOOGLE_PROTO.*)|(ZLIB_.*)|(USE_MMAP)$'
 
 # The directory where the generated perfetto_build_flags.h will be copied into.
 buildflags_dir = 'include/perfetto/base/build_configs/android_tree'
+
 
 def enumerate_data_deps():
   with open(os.path.join(ROOT_DIR, 'tools', 'test_data.txt')) as f:
@@ -282,9 +279,8 @@ additional_args = {
         }),
     ],
     'libperfetto_client_experimental': [
-        ('apex_available', {
-            '//apex_available:platform', '//apex_available:anyapex'
-        }),
+        ('apex_available',
+         {'//apex_available:platform', '//apex_available:anyapex'}),
         ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
         ('export_include_dirs', {'include', buildflags_dir}),
@@ -305,10 +301,8 @@ additional_args = {
     'perfetto': [('required', {'perfetto_persistent_cfg.pbtxt'}),],
     'trace_redactor': [
         ('min_sdk_version', '35'),
-        ('apex_available', {
-            '//apex_available:platform',
-            'com.android.profiling'
-        }),
+        ('apex_available',
+         {'//apex_available:platform', 'com.android.profiling'}),
     ],
 }
 
@@ -357,7 +351,7 @@ def enable_libunwindstack(module):
     module.static_libs.add('liblzma')
     module.static_libs.add('libdexfile_support')
     module.runtime_libs.add('libdexfile')  # libdexfile_support dependency
-    module.shared_libs.add('libz') # libunwindstack dependency
+    module.shared_libs.add('libz')  # libunwindstack dependency
 
 
 def enable_libunwind(module):
@@ -786,8 +780,7 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
     # sandboxed in Soong.
     # Add to `srcs` instead of `tool_files` (the latter will require a
     # --proto_path that depends on Soong's sandbox implementation.)
-    descriptor_module.srcs.update(
-        src for src in tool_files)
+    descriptor_module.srcs.update(src for src in tool_files)
     for dep in target.transitive_proto_deps():
       current_target = gn.get_target(dep.name)
       descriptor_module.srcs.update(
@@ -805,7 +798,7 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
   # The .proto filegroup will be added to `tool_files` of rdeps so that the
   # genrules can be sandboxed.
 
-  for proto_dep in target.proto_deps().union(target.transitive_proto_deps()):
+  for proto_dep in target.transitive_proto_deps():
     tool_files.add(":" + label_to_module_name(proto_dep.name))
 
   filegroup_module = Module('filegroup', target_module_name, target.name)
@@ -821,8 +814,7 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
   # sandboxed in Soong.
   # Add to `srcs` instead of `tool_files` (the latter will require a
   # --proto_path that depends on Soong's sandbox implementation.)
-  source_module.srcs.update(
-      src for src in tool_files)
+  source_module.srcs.update(src for src in tool_files)
   blueprint.add_module(source_module)
 
   header_module = Module('genrule', source_module_name + '_headers',
@@ -873,7 +865,6 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
   header_module.cmd = source_module.cmd
   source_module.tools = tools
   header_module.tools = tools
-
 
   for sfx in suffixes:
     source_module.out.update('%s/%s' %
@@ -949,7 +940,7 @@ def create_amalgamated_sql_module(blueprint: Blueprint, gn: GnParser,
     # Use globs for the chrome stdlib so the file does not need to be
     # regenerated in autoroll CLs.
     if dep.name.startswith(
-          '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql'):
+        '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql'):
       module.srcs.add('src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql')
       continue
     module.srcs.update(
@@ -1101,15 +1092,16 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
   blueprint.add_module(module)
   module.host_supported = (name_without_toolchain in target_host_supported)
   module.vendor_available = (name_without_toolchain in target_vendor_available)
-  module.product_available = (name_without_toolchain in target_product_available)
+  module.product_available = (
+      name_without_toolchain in target_product_available)
   module.init_rc.update(target_initrc.get(target.name, []))
   if target.type != 'proto_library':
     # proto_library embeds a "root" filegroup in its srcs.
     # Skip to prevent adding dups
     module.srcs.update(
-      gn_utils.label_to_path(src)
-      for src in target.sources
-      if is_supported_source_file(src))
+        gn_utils.label_to_path(src)
+        for src in target.sources
+        if is_supported_source_file(src))
 
   if name_without_toolchain in needs_libfts:
     module.musl.static_libs.add('libfts')
