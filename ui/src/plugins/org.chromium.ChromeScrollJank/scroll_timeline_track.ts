@@ -181,6 +181,8 @@ export class ScrollTimelineTrack extends NamedSliceTrack<Slice, NamedRow> {
             sourceTable: 'scroll_update_bounds',
             ts: 'ts',
             dur: 'dur',
+            // Filter out scroll updates with no timestamps. See b/388756942.
+            whereClause: 'ts IS NOT NULL AND dur IS NOT NULL',
           })}
         ),
         -- We interleave the top-level scroll update slices (at even depths) and
