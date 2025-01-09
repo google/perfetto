@@ -81,16 +81,24 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
   // SHOULD assume `rootTable` has an id column is another matter...
   async getSelectionDetails(id: number): Promise<TrackEventDetails> {
     const query = `
-      WITH 
-        CTE AS (
+      WITH CTE AS (
+        SELECT
+          id,
+          ts as leftTs
+        FROM ${this.rootTable}
+        WHERE track_id = ${this.trackId} AND id = ${id}
+      )
+      SELECT
+        *,
+        (
           SELECT
-            id,
-            ts as leftTs,
-            LEAD(ts) OVER (ORDER BY ts) AS rightTs
+            ts
           FROM ${this.rootTable}
-          WHERE track_id = ${this.trackId}
-        )
-      SELECT * FROM CTE WHERE id = ${id}
+          WHERE track_id = ${this.trackId} AND ts > leftTs
+          ORDER BY ts ASC
+          LIMIT 1
+        ) as rightTs
+      FROM CTE
     `;
 
     const counter = await this.engine.query(query);
