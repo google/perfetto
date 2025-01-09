@@ -48,6 +48,13 @@ if (perfetto_build_standalone) {
   }
 }
 
+# Some .gn build files outside of this repo (v8, webrtc) still reference this
+# target.
+source_set("platform_impl") {
+  deps = [ "../../gn:default_deps" ]
+  sources = []
+}
+
 # Code that both public headers and other non-public sources (e.g.
 # src/tracing/core) need to depend on. It cannot be in the root :tracing target
 # otherwise there would be a cyclic dependency because public itself needs to
