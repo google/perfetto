@@ -3424,6 +3424,19 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/appleos/instruments:instruments
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_appleos_instruments_instruments",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/appleos/instruments/samples.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/stdlib/appleos:appleos
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_appleos_appleos",
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/callstacks:callstacks
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_callstacks_callstacks",
@@ -3691,6 +3704,8 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_android_memory_memory",
         ":src_trace_processor_perfetto_sql_stdlib_android_startup_startup",
         ":src_trace_processor_perfetto_sql_stdlib_android_winscope_winscope",
+        ":src_trace_processor_perfetto_sql_stdlib_appleos_appleos",
+        ":src_trace_processor_perfetto_sql_stdlib_appleos_instruments_instruments",
         ":src_trace_processor_perfetto_sql_stdlib_callstacks_callstacks",
         ":src_trace_processor_perfetto_sql_stdlib_chrome_chrome_sql",
         ":src_trace_processor_perfetto_sql_stdlib_counters_counters",
