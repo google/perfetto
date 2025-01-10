@@ -23,14 +23,10 @@ import {SqlTableSliceTrackDetailsPanel} from '../../components/tracks/sql_table_
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
-import {
-  QueryResult,
-  Row,
-  STR,
-  STR_NULL,
-} from '../../trace_processor/query_result';
+import {STR, STR_NULL} from '../../trace_processor/query_result';
 import {escapeQuery} from '../../trace_processor/query_utils';
 import {Engine} from '../../trace_processor/engine';
+import {rows} from './utils';
 
 interface StepTemplate {
   // The name of a stage of a scroll.
@@ -47,19 +43,6 @@ interface StepTemplate {
   // null, this is guaranteed to be a valid column name, i.e. it's safe to use
   // inline in an SQL query without any additional sanitization.
   durColumnName: string | null;
-}
-
-/** Returns an array of the rows in `queryResult`. */
-function rows<R extends Row>(queryResult: QueryResult, spec: R): R[] {
-  const results: R[] = [];
-  for (const it = queryResult.iter(spec); it.valid(); it.next()) {
-    const row: Row = {};
-    for (const key of Object.keys(spec)) {
-      row[key] = it[key];
-    }
-    results.push(row as R);
-  }
-  return results;
 }
 
 /**
