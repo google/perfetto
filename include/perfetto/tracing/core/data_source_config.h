@@ -21,8 +21,8 @@
 // using ::perfetto::Foo = ::perfetto::protos::gen::Foo.
 // See comments in forward_decls.h for the historical reasons of this
 // indirection layer.
-#include "perfetto/tracing/core/forward_decls.h"
+#include "perfetto/tracing/core/forward_decls.h"  // IWYU pragma: export
 
-#include "protos/perfetto/config/data_source_config.gen.h"
+#include "protos/perfetto/config/data_source_config.gen.h"  // IWYU pragma: export
 
 #endif  // INCLUDE_PERFETTO_TRACING_CORE_DATA_SOURCE_CONFIG_H_
