@@ -21,6 +21,7 @@ import {defer} from '../../../base/deferred';
 import {exists} from '../../../base/utils';
 import {assertExists, assertFalse, assertTrue} from '../../../base/logging';
 import {PacketAssembler} from './packet_assembler';
+import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
 
 /**
  * Implements the Consumer side of the Perfetto Tracing Protocol.
@@ -243,6 +244,30 @@ export class PacketStream {
   }
 }
 
+// QueryServiceStateResponse can be split in several chunks if the service state
+// exceeds the 128KB ipc limit. This class simply merges them and exposes the
+// merged result once hasMore = false.
+class ServiceStateMerger {
+  static createStreamingDecoder(): ServiceStateMerger {
+    return new ServiceStateMerger();
+  }
+
+  private rxBuf = new ResizableArrayBuffer();
+  readonly promise = defer<protos.QueryServiceStateResponse>();
+
+  decode(data: Uint8Array | undefined, hasMore: boolean) {
+    if (data !== undefined) {
+      this.rxBuf.append(data);
+    }
+
+    if (!hasMore) {
+      const msg = protos.QueryServiceStateResponse.decode(this.rxBuf.get());
+      this.rxBuf.clear();
+      this.promise.resolve(msg);
+    }
+  }
+}
+
 const RPC_METHODS = {
   EnableTracing: {
     argType: protos.EnableTracingRequest,
@@ -264,16 +289,16 @@ const RPC_METHODS = {
     argType: protos.GetTraceStatsRequest,
     respType: protos.GetTraceStatsResponse,
   },
-  QueryServiceState: {
-    argType: protos.QueryServiceStateRequest,
-    respType: protos.QueryServiceStateResponse,
-  },
 };
 
 const RPC_STREAMING_METHODS = {
   ReadBuffers: {
     argType: protos.ReadBuffersRequest,
     respType: PacketStream,
+  },
+  QueryServiceState: {
+    argType: protos.QueryServiceStateRequest,
+    respType: ServiceStateMerger,
   },
 };
 
