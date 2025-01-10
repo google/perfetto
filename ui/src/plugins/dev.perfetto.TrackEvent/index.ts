@@ -31,6 +31,8 @@ export default class implements PerfettoPlugin {
     TraceProcessorTrackPlugin,
   ];
 
+  private readonly trackIdToUri = new Map<number, string>();
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const res = await ctx.engine.query(`
       include perfetto module viz.summary.track_event;
@@ -122,6 +124,7 @@ export default class implements PerfettoPlugin {
         }
         assertTrue(trackIds.length === 1);
         const trackId = trackIds[0];
+        this.trackIdToUri.set(trackId, uri);
         ctx.tracks.registerTrack({
           uri,
           title,
@@ -142,6 +145,9 @@ export default class implements PerfettoPlugin {
           ),
         });
       } else if (hasData) {
+        for (const trackId of trackIds) {
+          this.trackIdToUri.set(trackId, uri);
+        }
         ctx.tracks.registerTrack({
           uri,
           title,
@@ -172,6 +178,26 @@ export default class implements PerfettoPlugin {
       parent.addChildInOrder(node);
       trackIdToTrackNode.set(trackIds[0], node);
     }
+
+    ctx.selection.registerSqlSelectionResolver({
+      sqlTableName: 'slice',
+      callback: async (eventId: number) => {
+        const res = await ctx.engine.query(`
+          select
+            track_id as trackId
+          from slice
+          where slice.id = ${eventId}
+        `);
+        const firstRow = res.maybeFirstRow({
+          trackId: NUM,
+        });
+        if (!firstRow) return undefined;
+        const trackId = firstRow.trackId;
+        const trackUri = this.trackIdToUri.get(trackId);
+        if (!trackUri) return undefined;
+        return {trackUri, eventId};
+      },
+    });
   }
 }
 
