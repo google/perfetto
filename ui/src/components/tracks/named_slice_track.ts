@@ -14,8 +14,7 @@
 
 import {getColorForSlice} from '../colorizer';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {TrackEventSelection} from '../../public/selection';
-import {Slice} from '../../public/track';
+import {Slice, TrackEventSelectionWithDetails} from '../../public/track';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {
   BASE_ROW,
@@ -70,7 +69,7 @@ export abstract class NamedSliceTrack<
     args.tooltip = [`${title} - [${duration}]`];
   }
 
-  detailsPanel(_sel: TrackEventSelection): TrackEventDetailsPanel {
+  detailsPanel(_sel: TrackEventSelectionWithDetails): TrackEventDetailsPanel {
     // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
     // TraceImpl (because of flows) but here we must take a Trace interface,
     // because this class is exposed to plugins (which see only Trace).

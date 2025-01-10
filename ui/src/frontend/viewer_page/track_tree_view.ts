@@ -584,11 +584,11 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     size: Size2D,
   ) {
     const selection = this.trace.selection.selection;
-    if (selection.kind === 'track_event' && selection.wakeupTs) {
+    if (selection.kind === 'track_event' && selection.details?.wakeupTs) {
       drawVerticalLineAtTime(
         ctx,
         timescale,
-        selection.wakeupTs,
+        selection.details.wakeupTs,
         size.height,
         `black`,
       );

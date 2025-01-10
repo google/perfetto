@@ -21,6 +21,7 @@ import {ColorScheme} from '../base/color_scheme';
 import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails, TrackEventSelection} from './selection';
 import {Dataset} from '../trace_processor/dataset';
+import {RequiredField} from '../base/utils';
 
 export interface TrackManager {
   /**
@@ -123,6 +124,13 @@ export interface TrackMouseEvent {
   readonly timescale: TimeScale;
 }
 
+// Defines a type that contains the track event selection data + non-optional
+// details field.
+export type TrackEventSelectionWithDetails = RequiredField<
+  TrackEventSelection,
+  'details'
+>;
+
 export interface Track {
   /**
    * Optional lifecycle hook called on the first render cycle. Should be used to
@@ -189,7 +197,7 @@ export interface Track {
   // Optional: A factory that returns a details panel object for a given track
   // event selection. This is called each time the selection is changed (and the
   // selection is relevant to this track).
-  detailsPanel?(sel: TrackEventSelection): TrackEventDetailsPanel;
+  detailsPanel?(sel: TrackEventSelectionWithDetails): TrackEventDetailsPanel;
 }
 
 // An set of key/value pairs describing a given track. These are used for

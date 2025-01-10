@@ -355,8 +355,8 @@ export class CpuSliceTrack implements Track {
           );
           ctx.closePath();
           // Draw arrow from wakeup time of current slice.
-          if (selection.wakeupTs) {
-            const wakeupPos = timescale.timeToPx(selection.wakeupTs);
+          if (selection.details?.wakeupTs) {
+            const wakeupPos = timescale.timeToPx(selection.details?.wakeupTs);
             const latencyWidth = rectStart - wakeupPos;
             drawDoubleHeadedArrow(
               ctx,
@@ -366,7 +366,7 @@ export class CpuSliceTrack implements Track {
               latencyWidth >= 20,
             );
             // Latency time with a white semi-transparent background.
-            const latency = tStart - selection.wakeupTs;
+            const latency = tStart - selection.details.wakeupTs;
             const displayText = Duration.humanise(latency);
             const measured = ctx.measureText(displayText);
             if (latencyWidth >= measured.width + 2) {
@@ -390,8 +390,13 @@ export class CpuSliceTrack implements Track {
       }
 
       // Draw diamond if the track being drawn is the cpu of the waker.
-      if (this.cpu === selection.wakerCpu && selection.wakeupTs) {
-        const wakeupPos = Math.floor(timescale.timeToPx(selection.wakeupTs));
+      if (
+        this.cpu === selection.details?.wakerCpu &&
+        selection.details?.wakeupTs
+      ) {
+        const wakeupPos = Math.floor(
+          timescale.timeToPx(selection.details.wakeupTs),
+        );
         ctx.beginPath();
         ctx.moveTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 + 8);
         ctx.fillStyle = 'black';
