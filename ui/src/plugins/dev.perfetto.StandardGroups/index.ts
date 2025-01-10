@@ -47,28 +47,40 @@ export default class implements PerfettoPlugin {
         // Expand this by default
         return getOrCreateGroup(
           workspace,
-          'user_interaction',
+          '/standard_group_user_interaction',
           'User Interaction',
-          true,
+          false,
         );
       case 'THERMALS':
-        return getOrCreateGroup(workspace, 'thermal', 'Thermals');
+        return getOrCreateGroup(
+          workspace,
+          '/standard_group_thermal',
+          'Thermals',
+        );
       case 'POWER':
-        return getOrCreateGroup(workspace, 'power', 'Power');
+        return getOrCreateGroup(workspace, '/standard_group_power', 'Power');
       case 'CPU':
-        return getOrCreateGroup(workspace, 'cpu', 'CPU');
+        return getOrCreateGroup(workspace, '/standard_group_cpu', 'CPU');
       case 'GPU':
-        return getOrCreateGroup(workspace, 'gpu', 'GPU');
+        return getOrCreateGroup(workspace, '/standard_group_gpu', 'GPU');
       case 'HARDWARE':
-        return getOrCreateGroup(workspace, 'hardware', 'Hardware');
+        return getOrCreateGroup(
+          workspace,
+          '/standard_group_hardware',
+          'Hardware',
+        );
       case 'IO':
-        return getOrCreateGroup(workspace, 'io', 'IO');
+        return getOrCreateGroup(workspace, '/standard_group_io', 'IO');
       case 'MEMORY':
-        return getOrCreateGroup(workspace, 'memory', 'Memory');
+        return getOrCreateGroup(workspace, '/standard_group_memory', 'Memory');
       case 'NETWORK':
-        return getOrCreateGroup(workspace, 'network', 'Network');
+        return getOrCreateGroup(
+          workspace,
+          '/standard_group_network',
+          'Network',
+        );
       case 'SYSTEM':
-        return getOrCreateGroup(workspace, 'system', 'System');
+        return getOrCreateGroup(workspace, '/standard_group_system', 'System');
     }
   }
 }
