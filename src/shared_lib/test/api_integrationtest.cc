@@ -882,9 +882,50 @@ TEST_F(SharedLibDataSourceTest, StopDone) {
   std::thread t([&]() { tracing_session.StopBlocking(); });
 
   stop_called.WaitForNotification();
+
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    struct PerfettoDsRootTracePacket trace_packet;
+    PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
+
+    {
+      struct perfetto_protos_TestEvent for_testing;
+      perfetto_protos_TracePacket_begin_for_testing(&trace_packet.msg,
+                                                    &for_testing);
+      {
+        struct perfetto_protos_TestEvent_TestPayload payload;
+        perfetto_protos_TestEvent_begin_payload(&for_testing, &payload);
+        perfetto_protos_TestEvent_TestPayload_set_cstr_str(&payload,
+                                                           "After stop");
+        perfetto_protos_TestEvent_end_payload(&for_testing, &payload);
+      }
+      perfetto_protos_TracePacket_end_for_testing(&trace_packet.msg,
+                                                  &for_testing);
+    }
+    PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
+  }
+
   PerfettoDsStopDone(stopper);
 
   t.join();
+
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    // After the postponed stop has been acknowledged, this should not be
+    // executed.
+    ADD_FAILURE();
+  }
+
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          MsgField(Contains(PbField(
+              perfetto_protos_TracePacket_for_testing_field_number,
+              MsgField(Contains(PbField(
+                  perfetto_protos_TestEvent_payload_field_number,
+                  MsgField(ElementsAre(PbField(
+                      perfetto_protos_TestEvent_TestPayload_str_field_number,
+                      StringField("After stop")))))))))))));
 }
 
 TEST_F(SharedLibDataSourceTest, FlushDone) {
