@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import {assertExists} from '../../base/logging';
-import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
+import {TrackEventDetails} from '../../public/selection';
 import {getColorForSample} from '../../components/colorizer';
 import {BaseSliceTrack} from '../../components/tracks/base_slice_track';
 import {NAMED_ROW, NamedRow} from '../../components/tracks/named_slice_track';
 import {NUM} from '../../trace_processor/query_result';
-import {Slice} from '../../public/track';
+import {Slice, TrackEventSelectionWithDetails} from '../../public/track';
 import {CpuProfileSampleFlamegraphDetailsPanel} from './cpu_profile_details_panel';
 import {Trace} from '../../public/trace';
 
@@ -75,8 +75,8 @@ export class CpuProfileTrack extends BaseSliceTrack<Slice, CpuProfileRow> {
     return {...baseDetails, utid: this.utid};
   }
 
-  detailsPanel(selection: TrackEventSelection) {
-    const {ts, utid} = selection;
+  detailsPanel(sel: TrackEventSelectionWithDetails) {
+    const {ts, utid} = sel.details;
     return new CpuProfileSampleFlamegraphDetailsPanel(
       this.trace,
       ts,
