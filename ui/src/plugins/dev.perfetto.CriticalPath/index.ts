@@ -113,8 +113,8 @@ async function getThreadInfoForUtidOrSelection(
   if (utid === undefined) {
     const selection = trace.selection.selection;
     if (selection.kind === 'track_event') {
-      if (selection.details?.utid !== undefined) {
-        utid = asUtid(selection.details.utid);
+      if (selection.utid !== undefined) {
+        utid = asUtid(selection.utid);
       }
     }
   }
