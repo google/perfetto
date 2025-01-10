@@ -27,6 +27,8 @@ import {
   ProcessSummaryTrack,
 } from './process_summary_track';
 import ThreadPlugin from '../dev.perfetto.Thread';
+import {createPerfettoIndex} from '../../trace_processor/sql_utils';
+import {uuidv4Sql} from '../../base/uuid';
 
 // This plugin is responsible for adding summary tracks for process and thread
 // groups.
@@ -40,10 +42,25 @@ export default class implements PerfettoPlugin {
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
+    // Makes the queries in `ProcessSchedulingTrack` significantly faster.
+    // TODO(lalitm): figure out a better way to do this without hardcoding this
+    // here.
+    await createPerfettoIndex(
+      ctx.engine,
+      `__process_scheduling_${uuidv4Sql()}`,
+      `__intrinsic_sched_slice(utid)`,
+    );
+    // Makes the queries in `ProcessSummaryTrack` significantly faster.
+    // TODO(lalitm): figure out a better way to do this without hardcoding this
+    // here.
+    await createPerfettoIndex(
+      ctx.engine,
+      `__process_summary_${uuidv4Sql()}`,
+      `__intrinsic_slice(track_id)`,
+    );
+
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
-
     const cpuCount = Math.max(...ctx.traceInfo.cpus, -1) + 1;
-
     const result = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.process_metadata;
 
@@ -87,8 +104,7 @@ export default class implements PerfettoPlugin {
         join thread using (utid)
         where upid is null
       )
-  `);
-
+    `);
     const it = result.iter({
       upid: NUM_NULL,
       utid: NUM_NULL,
