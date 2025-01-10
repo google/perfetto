@@ -678,6 +678,21 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   info->estimatedCost = cost_and_rows.cost;
   info->estimatedRows = cost_and_rows.rows;
 
+  PERFETTO_TP_TRACE(
+      metatrace::Category::QUERY_TIMELINE, "DB_SQLITE_BEST_INDEX",
+      [&](metatrace::Record* record) {
+        record->AddArg("name", t->table_name.c_str());
+        record->AddArg("idxStr", info->idxStr);
+        record->AddArg("idxNum",
+                       base::StackString<32>("%d", info->idxNum).c_str());
+        record->AddArg(
+            "estimatedCost",
+            base::StackString<32>("%f", info->estimatedCost).c_str());
+        record->AddArg(
+            "estimatedRows",
+            base::StackString<32>("%lld", info->estimatedRows).c_str());
+      });
+
   return SQLITE_OK;
 }
 
