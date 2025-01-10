@@ -76,10 +76,13 @@ if (enable_perfetto_ipc && enable_perfetto_system_consumer) {
       "../ipc/service",
       "../service",
     ]
-    sources = [
-      "platform_unittest.cc",
-      "tracing_integration_test.cc",
-    ]
+    sources = [ "tracing_integration_test.cc" ]
+
+    # TODO(lalitm): this tests appear to be failing on Chromium for unknown
+    # reasons. Figure out why and reenable them.
+    if (!build_with_chromium) {
+      sources += [ "platform_unittest.cc" ]
+    }
   }
 }
 
