@@ -14,11 +14,15 @@
 
 import m from 'mithril';
 import {NUM} from '../../trace_processor/query_result';
-import {Slice, TrackEventSelectionWithDetails} from '../../public/track';
+import {Slice} from '../../public/track';
 import {BaseSliceTrack} from '../../components/tracks/base_slice_track';
 import {NAMED_ROW, NamedRow} from '../../components/tracks/named_slice_track';
 import {getColorForSample} from '../../components/colorizer';
-import {ProfileType, TrackEventDetails} from '../../public/selection';
+import {
+  ProfileType,
+  TrackEventDetails,
+  TrackEventSelection,
+} from '../../public/selection';
 import {assertExists} from '../../base/logging';
 import {
   metricsFromTableOrSubquery,
@@ -98,9 +102,9 @@ export class ProcessInstrumentsSamplesProfileTrack extends BaseInstrumentsSample
     };
   }
 
-  detailsPanel(sel: TrackEventSelectionWithDetails) {
-    const upid = assertExists(sel.details.upid);
-    const ts = sel.details.ts;
+  detailsPanel(sel: TrackEventSelection) {
+    const upid = assertExists(sel.upid);
+    const ts = sel.ts;
 
     const metrics = metricsFromTableOrSubquery(
       `
@@ -193,9 +197,9 @@ export class ThreadInstrumentsSamplesProfileTrack extends BaseInstrumentsSamples
     };
   }
 
-  detailsPanel(sel: TrackEventSelectionWithDetails): TrackEventDetailsPanel {
-    const utid = assertExists(sel.details.utid);
-    const ts = sel.details.ts;
+  detailsPanel(sel: TrackEventSelection): TrackEventDetailsPanel {
+    const utid = assertExists(sel.utid);
+    const ts = sel.ts;
 
     const metrics = metricsFromTableOrSubquery(
       `

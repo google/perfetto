@@ -22,9 +22,10 @@ import {
   ProfileType,
   profileType,
   TrackEventDetails,
+  TrackEventSelection,
 } from '../../public/selection';
 import {Trace} from '../../public/trace';
-import {Slice, TrackEventSelectionWithDetails} from '../../public/track';
+import {Slice} from '../../public/track';
 import {LONG, STR} from '../../trace_processor/query_result';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
 
@@ -101,7 +102,7 @@ export class HeapProfileTrack extends BaseSliceTrack<
     };
   }
 
-  detailsPanel(sel: TrackEventSelectionWithDetails) {
+  detailsPanel(sel: TrackEventSelection) {
     return new HeapProfileFlamegraphDetailsPanel(
       this.trace,
       this.heapProfileIsIncomplete,
