@@ -465,10 +465,7 @@ export class FlowManager {
 
     // TODO(b/155483804): This is a hack as annotation slices don't contain
     // flows. We should tidy this up when fixing this bug.
-    if (
-      selection.kind === 'track_event' &&
-      selection.details?.tableName === 'slice'
-    ) {
+    if (selection.kind === 'track_event' && selection.tableName === 'slice') {
       this.sliceSelected(selection.eventId);
     } else {
       this.setConnectedFlows([]);

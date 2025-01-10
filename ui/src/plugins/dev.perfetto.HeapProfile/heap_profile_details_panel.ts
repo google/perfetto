@@ -26,7 +26,7 @@ import {
   TrackEventDetailsPanel,
   TrackEventDetailsPanelSerializeArgs,
 } from '../../public/details_panel';
-import {ProfileType} from '../../public/selection';
+import {ProfileType, TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
 import {Button} from '../../widgets/button';
@@ -40,7 +40,6 @@ import {
   FLAMEGRAPH_STATE_SCHEMA,
   FlamegraphState,
 } from '../../widgets/flamegraph';
-import {TrackEventSelectionWithDetails} from '../../public/track';
 
 interface Props {
   ts: time;
@@ -60,9 +59,9 @@ export class HeapProfileFlamegraphDetailsPanel
     private trace: Trace,
     private heapGraphIncomplete: boolean,
     private upid: number,
-    sel: TrackEventSelectionWithDetails,
+    sel: TrackEventSelection,
   ) {
-    const {profileType, ts} = sel.details;
+    const {profileType, ts} = sel;
     const metrics = flamegraphMetrics(assertExists(profileType), ts, upid);
     this.serialization = {
       schema: FLAMEGRAPH_STATE_SCHEMA,
