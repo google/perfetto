@@ -3916,12 +3916,25 @@ StringId FtraceParser::InternedKernelSymbolOrFallback(
 
 void FtraceParser::ParseDeviceFrequency(int64_t ts,
                                         protozero::ConstBytes blob) {
+
   static constexpr auto kBlueprint = tracks::CounterBlueprint(
       "linux_device_frequency", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kLinuxDeviceDimensionBlueprint));
+      tracks::DimensionBlueprints(tracks::kLinuxDeviceDimensionBlueprint),
+      tracks::FnNameBlueprint([](base::StringView dev_name) {
+        // The dev_name as is is prepended with an address (e.g. 17000000a), so
+        // truncate that by searching for "devfreq_". This ensures that in all
+        // cases, the track name is prefixed with "devfreq_", such that track
+        // names will be in the form of "devfreq_bci", "devfreq_dsu", etc.
+        std::string device = dev_name.ToStdString();
+        auto position = device.find("devfreq_");
+        return (position == std::string::npos)
+                ? base::StackString<255>("devfreq_%s", device.c_str())
+                : base::StackString<255>("%s", device.substr(position).c_str());
+
+      }));
   protos::pbzero::DevfreqFrequencyFtraceEvent::Decoder event(blob);
-  TrackId track_id =
-      context_->track_tracker->InternTrack(kBlueprint, {event.dev_name()});
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBlueprint, tracks::Dimensions(event.dev_name()));
   context_->event_tracker->PushCounter(ts, static_cast<double>(event.freq()),
                                        track_id);
 }
