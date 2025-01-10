@@ -18,7 +18,6 @@ import {
   NamedSliceTrack,
 } from '../../components/tracks/named_slice_track';
 import {Slice} from '../../public/track';
-import {SqlTableSliceTrackDetailsPanel} from '../../components/tracks/sql_table_slice_track_details_tab';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
@@ -30,6 +29,7 @@ import {ColorScheme} from '../../base/color_scheme';
 import {JANK_COLOR} from './jank_colors';
 import {makeColorScheme} from '../../components/colorizer';
 import {HSLColor} from '../../base/color';
+import {ScrollTimelineDetailsPanel} from './scroll_timeline_details_panel';
 
 interface StepTemplate {
   // The name of a stage of a scroll.
@@ -171,7 +171,7 @@ export class ScrollTimelineTrack extends NamedSliceTrack<
   }
 
   override detailsPanel(sel: TrackEventSelection): TrackEventDetailsPanel {
-    return new SqlTableSliceTrackDetailsPanel(
+    return new ScrollTimelineDetailsPanel(
       this.trace,
       this.tableName,
       sel.eventId,
@@ -204,7 +204,7 @@ export class ScrollTimelineTrack extends NamedSliceTrack<
           .map(
             (step) => `
               SELECT
-                id AS scroll_id,
+                id AS scroll_update_id,
                 ${step.tsColumnName ?? 'NULL'} AS ts,
                 ${step.durColumnName ?? 'NULL'} AS dur,
                 ${escapeQuery(step.stepName)} AS name
@@ -222,7 +222,7 @@ export class ScrollTimelineTrack extends NamedSliceTrack<
         -- joining the top-level table with the individual steps.
         scroll_updates_with_bounds AS (
           SELECT
-            scroll_update.id AS scroll_id,
+            scroll_update.id AS scroll_update_id,
             MIN(scroll_steps.ts) AS ts,
             MAX(scroll_steps.ts) - MIN(scroll_steps.ts) AS dur,
             -- Combine all applicable scroll update classifications into the
@@ -256,14 +256,20 @@ export class ScrollTimelineTrack extends NamedSliceTrack<
             END AS classification
           FROM
             chrome_scroll_update_info AS scroll_update
-            JOIN scroll_steps ON scroll_steps.scroll_id = scroll_update.id
+            JOIN scroll_steps ON scroll_steps.scroll_update_id = scroll_update.id
           GROUP BY scroll_update.id
         ),
         -- Now that we know the ts+dur of all scroll updates, we can lay them
         -- out efficiently (i.e. assign depths to them to avoid overlaps).
         scroll_updates_with_layouts AS (
           ${generateSqlWithInternalLayout({
-            columns: ['scroll_id', 'ts', 'dur', 'name', 'classification'],
+            columns: [
+              'scroll_update_id',
+              'ts',
+              'dur',
+              'name',
+              'classification',
+            ],
             sourceTable: 'scroll_updates_with_bounds',
             ts: 'ts',
             dur: 'dur',
@@ -279,7 +285,8 @@ export class ScrollTimelineTrack extends NamedSliceTrack<
             dur,
             2 * depth AS depth,
             name,
-            classification
+            classification,
+            scroll_update_id
           FROM scroll_updates_with_layouts
           UNION ALL
           SELECT
@@ -287,9 +294,10 @@ export class ScrollTimelineTrack extends NamedSliceTrack<
             MAX(scroll_steps.dur, 0) AS dur,
             2 * scroll_updates_with_layouts.depth + 1 AS depth,
             scroll_steps.name,
-            ${ScrollUpdateClassification.STEP} AS classification
+            ${ScrollUpdateClassification.STEP} AS classification,
+            scroll_updates_with_layouts.scroll_update_id
           FROM scroll_steps
-          JOIN scroll_updates_with_layouts USING(scroll_id)
+          JOIN scroll_updates_with_layouts USING(scroll_update_id)
           WHERE scroll_steps.ts IS NOT NULL AND scroll_steps.dur IS NOT NULL
         )
       -- Finally, we sort all slices chronologically and assign them

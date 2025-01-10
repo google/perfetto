@@ -59,3 +59,19 @@ export function rows<R extends Row>(queryResult: QueryResult, spec: R): R[] {
   }
   return results;
 }
+
+/**
+ * Converts a number to a boolean according to SQLite's conversion rules.
+ *
+ * See https://www.sqlite.org/lang_expr.html#boolean_expressions.
+ */
+export function fromSqlBool(value: number): boolean;
+export function fromSqlBool(value: null): undefined;
+export function fromSqlBool(value: number | null): boolean | undefined;
+export function fromSqlBool(value: number | null): boolean | undefined {
+  if (value === null) {
+    return undefined;
+  } else {
+    return value !== 0;
+  }
+}
