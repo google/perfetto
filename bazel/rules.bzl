@@ -367,14 +367,9 @@ def perfetto_cc_tp_tables(name, srcs, outs, deps = [], **kwargs):
         outs = outs,
     )
 
-    perfetto_cc_library(
+    perfetto_filegroup(
         name = name,
         srcs = [":" + name + "_gen"],
-        deps = deps + [
-            ":src_trace_processor_db_column_column",
-            ":src_trace_processor_db_minimal",
-            ":src_trace_processor_tables_macros_internal",
-        ],
         **kwargs,
     )
 

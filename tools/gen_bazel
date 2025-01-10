@@ -57,7 +57,7 @@ gn_args_base = {
     'perfetto_force_dcheck': '"off"',
     'enable_perfetto_llvm_demangle': 'true',
 }
-gn_args = ' '.join((map(lambda x: '='.join(x), gn_args_base.items())))
+gn_args = ' '.join((map(lambda x:'='.join(x), gn_args_base.items())))
 
 # We generate a second set of build rules for Windows, in order to
 # conditionally filter out targets which are gated behind !is_win
@@ -70,7 +70,7 @@ gn_args_win_base = {
     'target_cpu': '"x64"',
     'is_cross_compiling': 'false',
 }
-gn_args_win = ' '.join((map(lambda x: '='.join(x), gn_args_win_base.items())))
+gn_args_win = ' '.join((map(lambda x:'='.join(x), gn_args_win_base.items())))
 
 # Default targets to translate to the blueprint file.
 
@@ -192,20 +192,20 @@ external_python_deps: Dict[str, List[str]] = {
 
 # Additional arguments
 target_overrides = {
-    '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql': {
-        'srcs':
-            'glob(["src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql"])'
-    }
+  '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql': {
+    'srcs': 'glob(["src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql"])'
+  }
 }
 
 # Defines required for Bazel.
-bazel_required_defines = ["PERFETTO_SHLIB_SDK_IMPLEMENTATION"]
+bazel_required_defines = [
+  "PERFETTO_SHLIB_SDK_IMPLEMENTATION"
+]
 
 # Targets with the "avoid_dep" tag;
 avoid_dep_targets = set([
-    '//python:trace_processor_py_no_resolvers',
+  '//python:trace_processor_py_no_resolvers',
 ])
-
 
 # Filter defines that appear in the bazel build file to only those that bazel requires.
 def filter_defines(defines):
@@ -398,9 +398,9 @@ class BazelLabel(object):
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
     for k, v in sorted(iteritems(self.__dict__), key=key_sorter):
-      if k in ('type', 'comment', 'external_deps',
-               'win_srcs') or v is None or (v == [] and
-                                            (k != 'deps' or not any_deps)):
+      if k in ('type', 'comment',
+               'external_deps', 'win_srcs') or v is None or (v == [] and
+                                                 (k != 'deps' or not any_deps)):
         continue
       res += '    %s = ' % k
       if isinstance(v, basestring):
@@ -664,8 +664,7 @@ def gen_cc_tp_tables(target: GnParser.Target):
   return [label]
 
 
-def gen_target_helper(gn_target: GnParser.Target,
-                      win_target: GnParser.Target = None):
+def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = None):
   if gn_target.type == 'proto_library':
     return [gen_proto_label(gn_target)]
   elif gn_target.type == 'action':
@@ -689,7 +688,7 @@ def gen_target_helper(gn_target: GnParser.Target,
   elif gn_target.type == 'static_library':
     bazel_type = 'perfetto_cc_library'
   elif gn_target.type == 'source_set':
-    bazel_type = 'perfetto_cc_library'
+    bazel_type = 'perfetto_filegroup'
   elif gn_target.type == 'generated_file':
     return []
   else:
@@ -707,41 +706,71 @@ def gen_target_helper(gn_target: GnParser.Target,
       raise Error('%s: \'public\' currently supported only for cc_library' %
                   gn_target.name)
 
-  label.srcs = [x[2:] for x in gn_target.sources]
-  label.srcs += [x[2:] for x in gn_target.inputs]
+  raw_srcs = [x[2:] for x in gn_target.sources]
+  raw_srcs += [x[2:] for x in gn_target.inputs]
+  if bazel_type == 'perfetto_cc_library':
+    label.srcs += [x for x in raw_srcs if not x.startswith('include')]
+    label.hdrs += [x for x in raw_srcs if x.startswith('include')]
+
+    # Most Perfetto libraries cannot be dynamically linked as they would
+    # cause ODR violations.
+    label.__dict__['linkstatic'] = True
+  else:
+    label.srcs = raw_srcs
 
   is_public = gn_target.name in public_targets
   is_public_for_allowlist = gn_target.name in allowlist_public_targets
   if is_public and is_public_for_allowlist:
-    raise Error('Target %s in both public_targets and allowlist_public_targets',
-                gn.target.name)
+    raise Error('Target %s in both public_targets and allowlist_public_targets', gn.target.name)
   elif is_public:
     label.visibility = ['//visibility:public']
   elif is_public_for_allowlist:
     label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
 
   if win_target:
-    label.win_srcs = list(
-        set(label.srcs)
-        & {s[2:] for s in win_target.sources | win_target.inputs})
-  else:
-    label.win_srcs = []
+    label.win_srcs = list(set(label.srcs) & {s[2:] for s in win_target.sources | win_target.inputs})
 
-  for dep in sorted(gn_target.non_proto_direct_deps()):
-    dep_name = dep.name
-    if dep_name.startswith('//gn:'):
-      assert (dep_name in external_deps), dep
+  if gn_target.type in gn_utils.LINKER_UNIT_TYPES:
+    # |source_sets| contains the transitive set of source_set deps.
+    for trans_dep in gn_target.transitive_source_set_deps():
+      name = ':' + get_bazel_label_name(trans_dep.name)
+      if name.startswith(
+          ':include_perfetto_') and gn_target.type != 'executable':
+        label.hdrs += [name]
+      else:
+        if win_target:
+          win_target_names = [target.name for target in win_target.transitive_source_set_deps()]
+          if trans_dep.name in win_target_names:
+            label.win_srcs += [name]
 
-    if dep_name in external_deps:
-      assert (isinstance(external_deps[dep_name], list))
-      label.external_deps += external_deps[dep_name]
-    else:
-      label.deps += [':' + get_bazel_label_name(dep_name)]
+        label.srcs += [name]
 
-  label.deps += [
-      ':' + get_bazel_label_name(x.name)
-      for x in gn_target.cpp_proto_direct_deps()
-  ]
+      # Add defines from all transitive dependencies.
+      label.defines += trans_dep.defines
+
+    for dep in sorted(gn_target.non_proto_or_source_set_deps()):
+      dep_name = dep.name
+      if dep_name.startswith('//gn:'):
+        assert (dep_name in external_deps), dep
+
+      # tp_tables produces a filegroup not a cc_library so should end up srcs
+      # not deps.
+      if dep.custom_action_type == 'tp_tables':
+        label_name = ':' + get_bazel_label_name(dep_name)
+        win_target_names = [target.name for target in win_target.non_proto_or_source_set_deps()]
+        if win_target and dep_name in win_target_names:
+          label.win_srcs += [label_name]
+        label.srcs += [label_name]
+      elif dep_name in external_deps:
+        assert (isinstance(external_deps[dep_name], list))
+        label.external_deps += external_deps[dep_name]
+      else:
+        label.deps += [':' + get_bazel_label_name(dep_name)]
+
+    label.deps += [
+        ':' + get_bazel_label_name(x.name)
+        for x in gn_target.transitive_cpp_proto_deps()
+    ]
 
   # All items starting with : need to be sorted to the end of the list.
   # However, Python makes specifying a comparator function hard so cheat
@@ -950,8 +979,7 @@ def main():
   with open(args.extras, 'r') as extra_f:
     extras = extra_f.read()
 
-  contents = generate_build(desc, desc_win, args.targets or default_targets,
-                            extras)
+  contents = generate_build(desc, desc_win, args.targets or default_targets, extras)
   out_files.append(args.output + '.swp')
   with open(out_files[-1], 'w', newline='\n') as out_f:
     out_f.write(contents)
