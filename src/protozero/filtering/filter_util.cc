@@ -114,9 +114,9 @@ bool FilterUtil::LoadMessageDefinition(
     root_msg = root_file->message_type(0);
     if (root_msg)
       PERFETTO_LOG(
-          "The guessed root message name is \"%s\". Pass -r com.MyName to "
+          "The guessed root message name is \"%.*s\". Pass -r com.MyName to "
           "override",
-          root_msg->full_name().c_str());
+          int(root_msg->full_name().size()), root_msg->full_name().data());
   }
 
   if (!root_msg) {
@@ -166,13 +166,14 @@ bool FilterUtil::LoadMessageDefinition(
 FilterUtil::Message* FilterUtil::ParseProtoDescriptor(
     const google::protobuf::Descriptor* proto,
     DescriptorsByNameMap* descriptors_by_full_name) {
-  auto descr_it = descriptors_by_full_name->find(proto->full_name());
+  auto descr_it =
+      descriptors_by_full_name->find(std::string(proto->full_name()));
   if (descr_it != descriptors_by_full_name->end())
     return descr_it->second;
 
   descriptors_.emplace_back();
   Message* msg = &descriptors_.back();
-  msg->full_name = proto->full_name();
+  msg->full_name = std::string(proto->full_name());
   (*descriptors_by_full_name)[msg->full_name] = msg;
   for (int i = 0; i < proto->field_count(); ++i) {
     const auto* proto_field = proto->field(i);

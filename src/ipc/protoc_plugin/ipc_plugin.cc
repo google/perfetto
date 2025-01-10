@@ -113,7 +113,7 @@ void $c$Proxy::$m$(const $i$& request, Deferred$o$ reply, int fd) {
 )";
 
 std::string StripName(const FileDescriptor& file) {
-  return StripSuffix(file.name(), ".proto");
+  return StripSuffix(std::string(file.name()), ".proto");
 }
 
 std::string GetStubName(const FileDescriptor& file) {
@@ -128,8 +128,8 @@ void ForEachMethod(const ServiceDescriptor& svc,
     const MethodDescriptor& method = *svc.method(i);
     // TODO if the input or output type are in a different namespace we need to
     // emit the ::fully::qualified::name.
-    std::string input_type = method.input_type()->name();
-    std::string output_type = method.output_type()->name();
+    std::string input_type(method.input_type()->name());
+    std::string output_type(method.output_type()->name());
     function(method, input_type, output_type);
   }
 }
@@ -153,7 +153,7 @@ class IPCGenerator : public ::google::protobuf::compiler::CodeGenerator {
                              Printer* printer) const;
 
   std::vector<std::string> GetNamespaces(const FileDescriptor& file) const {
-    std::string pkg = file.package() + wrapper_namespace_;
+    std::string pkg = std::string(file.package()) + wrapper_namespace_;
     return SplitString(pkg, ".");
   }
 
@@ -273,7 +273,8 @@ bool IPCGenerator::Generate(const FileDescriptor* file,
   Printer h_printer(h_fstream.get(), '$');
   Printer cc_printer(cc_fstream.get(), '$');
 
-  std::string guard = ToUpper(file->package() + "_" + file->name() + "_H_");
+  std::string guard = ToUpper(std::string(file->package()) + "_" +
+                              std::string(file->name()) + "_H_");
   guard = StripChars(guard, ".-/\\", '_');
 
   h_printer.Print(kBanner);
