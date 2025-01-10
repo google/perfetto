@@ -186,10 +186,13 @@ export class TimeSelectionPanel {
         const end = Time.max(selection.start, selection.end);
         this.renderSpan(ctx, timescale, size, start, end);
       } else if (selection.kind === 'track_event') {
-        const start = selection.ts;
-        const end = Time.add(selection.ts, selection.dur);
-        if (end > start) {
-          this.renderSpan(ctx, timescale, size, start, end);
+        const details = selection.details;
+        if (details) {
+          const start = details.ts;
+          const end = Time.add(details.ts, details.dur);
+          if (end > start) {
+            this.renderSpan(ctx, timescale, size, start, end);
+          }
         }
       }
     }
