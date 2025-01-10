@@ -43,7 +43,7 @@ import {
   getPredictorJankDeltas,
   getPresentedScrollDeltas,
 } from './scroll_delta_graph';
-import {JANKS_TRACK_URI, renderSliceRef} from './selection_utils';
+import {JANKS_TRACK_URI, renderSliceRef} from './utils';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 
