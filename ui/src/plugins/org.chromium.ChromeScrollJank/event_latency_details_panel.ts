@@ -45,7 +45,7 @@ import {
 } from './scroll_jank_cause_link_utils';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {sliceRef} from '../../components/widgets/slice';
-import {JANKS_TRACK_URI, renderSliceRef} from './selection_utils';
+import {JANKS_TRACK_URI, renderSliceRef} from './utils';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 
