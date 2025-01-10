@@ -19,7 +19,7 @@ import {
   NUM,
   STR,
 } from '../../trace_processor/query_result';
-import {rows} from './utils';
+import {fromSqlBool, rows} from './utils';
 
 const T = protos.QueryResult.CellsBatch.CellType;
 
@@ -65,4 +65,12 @@ test('rows', () => {
     {column1: 'B', column2: 20, column3: 200n},
     {column1: 'C', column2: 30, column3: null},
   ]);
+});
+
+test('fromSqlBool', () => {
+  expect(fromSqlBool(null)).toBeUndefined();
+  expect(fromSqlBool(-1)).toStrictEqual(true);
+  expect(fromSqlBool(0)).toStrictEqual(false);
+  expect(fromSqlBool(0.1)).toStrictEqual(true);
+  expect(fromSqlBool(1)).toStrictEqual(true);
 });
