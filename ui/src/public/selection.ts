@@ -19,13 +19,19 @@ import {ColumnDef, Sorting, ThreadStateExtra} from './aggregation';
 import {TrackDescriptor} from './track';
 
 export interface SelectionManager {
+  // This contains the thing that is currently selected.
   readonly selection: Selection;
 
-  findTimeRangeOfSelection(): TimeSpan | undefined;
+  /**
+   * Clear the current selection - replacing it with an empty selection object.
+   */
   clear(): void;
 
   /**
    * Select a track event.
+   *
+   * A track event is an event on a track which is uniquely identified using
+   * it's id.
    *
    * @param trackUri - The URI of the track to select.
    * @param eventId - The value of the events ID column.
@@ -38,12 +44,21 @@ export interface SelectionManager {
   ): void;
 
   /**
-   * Select a track.
+   * Select a track itself, rather than an event on a track.
    *
    * @param trackUri - The URI for the track to select.
    * @param opts - Additional options.
    */
   selectTrack(trackUri: string, opts?: SelectionOpts): void;
+
+  /**
+   * Create an area selection for the purposes of aggregation.
+   *
+   * @param args - The area to select.
+   * @param opts - Additional options.
+   */
+
+  selectArea(args: Area, opts?: SelectionOpts): void;
 
   /**
    * Select a track event via a sql table name + id.
@@ -55,14 +70,23 @@ export interface SelectionManager {
   selectSqlEvent(sqlTableName: string, id: number, opts?: SelectionOpts): void;
 
   /**
-   * Create an area selection for the purposes of aggregation.
-   *
-   * @param args - The area to select.
-   * @param opts - Additional options.
+   * Returns a time span representing the range of time occupied by the
+   * currently selected entity, or undefined if nothing is selected or it
+   * doesn't represent a selection.
    */
-  selectArea(args: Area, opts?: SelectionOpts): void;
+  findTimeRangeOfSelection(): TimeSpan | undefined;
 
+  /**
+   * Scroll the currently selected entity into view.
+   */
   scrollToCurrentSelection(): void;
+
+  /**
+   * Register an area selection aggregator - this is an object that reacts to
+   * area selections and outputs details panels.
+   *
+   * @param aggr - The aggregator to register.
+   */
   registerAreaSelectionAggregator(aggr: AreaSelectionAggregator): void;
 
   /**
@@ -140,10 +164,11 @@ export interface SelectionOpts {
   scrollToSelection?: boolean; // Default: false.
 }
 
-export interface TrackEventSelection extends TrackEventDetails {
+export interface TrackEventSelection {
   readonly kind: 'track_event';
   readonly trackUri: string;
   readonly eventId: number;
+  readonly details?: TrackEventDetails;
 }
 
 export interface TrackSelection {

@@ -14,17 +14,19 @@
 
 import {assertTrue, assertUnreachable} from '../base/logging';
 import {
-  Selection,
   Area,
   SelectionOpts,
   SelectionManager,
   AreaSelectionAggregator,
   SqlSelectionResolver,
   TrackEventSelection,
+  TrackSelection,
+  AreaSelection,
+  NoteSelection,
+  EmptySelection,
+  TrackEventDetails,
 } from '../public/selection';
 import {TimeSpan} from '../base/time';
-import {raf} from './raf_scheduler';
-import {exists} from '../base/utils';
 import {TrackManagerImpl} from './track_manager';
 import {Engine} from '../trace_processor/engine';
 import {ScrollHelper} from './scroll_helper';
@@ -44,6 +46,17 @@ interface SelectionDetailsPanel {
   serializatonState(): unknown;
 }
 
+type InternalTrackEventSelection = TrackEventSelection & {
+  details?: TrackEventDetails;
+};
+
+type Selection =
+  | InternalTrackEventSelection
+  | TrackSelection
+  | AreaSelection
+  | NoteSelection
+  | EmptySelection;
+
 // There are two selection-related states in this class.
 // 1. _selection: This is the "input" / locator of the selection, what other
 //    parts of the codebase specify (e.g., a tuple of trackUri + eventId) to say
@@ -53,7 +66,7 @@ interface SelectionDetailsPanel {
 //    `_selection` is valid, this is filled in the near future. Doing so
 //    requires querying the SQL engine, which is an async operation.
 export class SelectionManagerImpl implements SelectionManager {
-  private readonly detailsPanelLimiter = new AsyncLimiter();
+  private readonly queryLimiter = new AsyncLimiter();
   private _selection: Selection = {kind: 'empty'};
   private _aggregationManager: SelectionAggregationManager;
   // Incremented every time _selection changes.
@@ -83,11 +96,7 @@ export class SelectionManagerImpl implements SelectionManager {
     this.setSelection({kind: 'empty'});
   }
 
-  async selectTrackEvent(
-    trackUri: string,
-    eventId: number,
-    opts?: SelectionOpts,
-  ) {
+  selectTrackEvent(trackUri: string, eventId: number, opts?: SelectionOpts) {
     this.selectTrackEventInternal(trackUri, eventId, opts);
   }
 
@@ -309,75 +318,84 @@ export class SelectionManagerImpl implements SelectionManager {
   private findFocusRangeOfSelection(): TimeSpan | undefined {
     const sel = this.selection;
     if (sel.kind === 'track_event') {
+      if (sel.details === undefined) return undefined;
       // The focus range of slices is different to that of the actual span
-      if (sel.dur === -1n) {
-        return TimeSpan.fromTimeAndDuration(sel.ts, INCOMPLETE_SLICE_DURATION);
-      } else if (sel.dur === 0n) {
-        return TimeSpan.fromTimeAndDuration(sel.ts, INSTANT_FOCUS_DURATION);
+      if (sel.details.dur === -1n) {
+        return TimeSpan.fromTimeAndDuration(
+          sel.details.ts,
+          INCOMPLETE_SLICE_DURATION,
+        );
+      } else if (sel.details.dur === 0n) {
+        return TimeSpan.fromTimeAndDuration(
+          sel.details.ts,
+          INSTANT_FOCUS_DURATION,
+        );
       } else {
-        return TimeSpan.fromTimeAndDuration(sel.ts, sel.dur);
+        return TimeSpan.fromTimeAndDuration(sel.details.ts, sel.details.dur);
       }
     } else {
       return this.findTimeRangeOfSelection();
     }
   }
 
-  private async selectTrackEventInternal(
+  private selectTrackEventInternal(
     trackUri: string,
     eventId: number,
     opts?: SelectionOpts,
     serializedDetailsPanel?: unknown,
   ) {
-    const details = await this.trackManager
-      .getTrack(trackUri)
-      ?.track.getSelectionDetails?.(eventId);
-
-    if (!exists(details)) {
-      throw new Error('Unable to resolve selection details');
-    }
-
     const selection: TrackEventSelection = {
-      ...details,
       kind: 'track_event',
       trackUri,
       eventId,
     };
-    this.createTrackEventDetailsPanel(selection, serializedDetailsPanel);
     this.setSelection(selection, opts);
+
+    // Kick off loading the track event details
+    this.loadTrackEventDetails(selection, serializedDetailsPanel);
   }
 
-  private createTrackEventDetailsPanel(
-    selection: TrackEventSelection,
+  private loadTrackEventDetails(
+    selection: InternalTrackEventSelection,
     serializedState: unknown,
   ) {
     const td = this.trackManager.getTrack(selection.trackUri);
     if (!td) {
       return;
     }
-    const panel = td.track.detailsPanel?.(selection);
-    if (!panel) {
-      return;
-    }
 
-    if (panel.serialization && serializedState !== undefined) {
-      const res = panel.serialization.schema.safeParse(serializedState);
-      if (res.success) {
-        panel.serialization.state = res.data;
+    this.queryLimiter.schedule(async () => {
+      const details = await td.track.getSelectionDetails?.(selection.eventId);
+
+      if (!details) {
+        throw new Error('Unable to resolve selection details');
       }
-    }
 
-    const detailsPanel: SelectionDetailsPanel = {
-      render: () => panel.render(),
-      serializatonState: () => panel.serialization?.state,
-      isLoading: true,
-    };
-    // Associate this details panel with this selection object
-    this.detailsPanels.set(selection, detailsPanel);
+      selection.details = details;
 
-    this.detailsPanelLimiter.schedule(async () => {
+      const panel = td.track.detailsPanel?.({...selection, details});
+      if (!panel) {
+        return;
+      }
+
+      if (panel.serialization && serializedState !== undefined) {
+        const res = panel.serialization.schema.safeParse(serializedState);
+        if (res.success) {
+          panel.serialization.state = res.data;
+        }
+      }
+
+      const detailsPanel: SelectionDetailsPanel = {
+        render: () => panel.render(),
+        serializatonState: () => panel.serialization?.state,
+        isLoading: true,
+      };
+
+      // Associate this details panel with this selection object
+      this.detailsPanels.set(selection, detailsPanel);
+
       await panel?.load?.(selection);
       detailsPanel.isLoading = false;
-      raf.scheduleFullRedraw();
     });
   }
 
@@ -402,11 +420,13 @@ export class SelectionManagerImpl implements SelectionManager {
         }
       }
     } else if (sel.kind === 'track_event') {
+      if (sel.details === undefined) return undefined;
+
       // Pretend incomplete slices are instants. The -1 duration here is just a
       // flag, and doesn't actually represent the duration of the event.
       // Besides, TimeSpan's will throw if created with a negative duration.
-      const dur = sel.dur === -1n ? 0n : sel.dur;
-      return TimeSpan.fromTimeAndDuration(sel.ts, dur);
+      const dur = sel.details.dur === -1n ? 0n : sel.details.dur;
+      return TimeSpan.fromTimeAndDuration(sel.details?.ts, dur);
     }
 
     return undefined;
