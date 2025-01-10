@@ -19,7 +19,7 @@ import {exists} from '../../base/utils';
 import {addEphemeralTab} from '../details/add_ephemeral_tab';
 import {getThreadInfo, getThreadName, ThreadInfo} from '../sql_utils/thread';
 import {Anchor} from '../../widgets/anchor';
-import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {ThreadDetailsTab} from '../details/thread_details_tab';
 import {
   createSqlIdRefRenderer,
@@ -88,7 +88,7 @@ export function renderThreadRef(info: {
   tid?: number;
 }): m.Children {
   return m(
-    PopupMenu2,
+    PopupMenu,
     {
       trigger: m(Anchor, getThreadName(info)),
     },

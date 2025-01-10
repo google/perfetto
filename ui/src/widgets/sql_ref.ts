@@ -16,7 +16,7 @@ import m from 'mithril';
 import {copyToClipboard} from '../base/clipboard';
 import {Icons} from '../base/semantic_icons';
 import {Anchor} from './anchor';
-import {MenuItem, PopupMenu2} from './menu';
+import {MenuItem, PopupMenu} from './menu';
 
 // This widget provides common styling and popup menu options for a SQL row,
 // given a table name and an ID.
@@ -33,7 +33,7 @@ export class SqlRef implements m.ClassComponent<SqlRefAttrs> {
     const {table, id} = attrs;
     if (id !== undefined) {
       return m(
-        PopupMenu2,
+        PopupMenu,
         {
           trigger: m(Anchor, {icon: Icons.ContextMenu}, `${table}[${id}]`),
         },

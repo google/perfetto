@@ -24,7 +24,7 @@ import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {Note, SpanNote} from '../../public/note';
 import {Button, ButtonBar} from '../../widgets/button';
-import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Select} from '../../widgets/select';
 import {TRACK_SHELL_WIDTH} from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
@@ -163,7 +163,7 @@ export class NotesPanel {
             ]),
         ),
         m(
-          PopupMenu2,
+          PopupMenu,
           {
             trigger: m(Button, {
               icon: 'more_vert',

@@ -42,7 +42,7 @@ import {Filter, SqlColumn} from '../components/widgets/sql/legacy_table/column';
 import {TraceImpl} from '../core/trace_impl';
 import {PivotTableManager} from '../core/pivot_table_manager';
 import {extensions} from '../components/extensions';
-import {MenuItem, PopupMenu2} from '../widgets/menu';
+import {MenuItem, PopupMenu} from '../widgets/menu';
 import {Button} from '../widgets/button';
 import {popupMenuIcon} from '../widgets/table';
 
@@ -433,7 +433,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       content: [
         this.readableAggregationName(aggregation),
         m(
-          PopupMenu2,
+          PopupMenu,
           {
             trigger: m(Button, {
               icon: popupMenuIcon(aggregation.sortDirection),
@@ -506,7 +506,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     return {
       content: [
         readableColumnName(pivot),
-        m(PopupMenu2, {trigger: m(Button, {icon: 'more_horiz'})}, items),
+        m(PopupMenu, {trigger: m(Button, {icon: 'more_horiz'})}, items),
       ],
     };
   }
@@ -564,7 +564,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           m(
             'td.menu',
             m(
-              PopupMenu2,
+              PopupMenu,
               {
                 trigger: m(Button, {icon: 'menu'}),
               },

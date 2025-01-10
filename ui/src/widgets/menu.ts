@@ -61,7 +61,7 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
     } = attrs;
 
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
         popupPosition: PopupPosition.RightStart,
         trigger: m(MenuItem, {
@@ -124,7 +124,7 @@ export class Menu implements m.ClassComponent<HTMLAttrs> {
   }
 }
 
-interface PopupMenu2Attrs extends PopupAttrs {
+interface PopupMenuAttrs extends PopupAttrs {
   // The trigger is mithril component which is used to toggle the popup when
   // clicked, and provides the anchor on the page which the popup shall hover
   // next to, and to which the popup's arrow shall point. The popup shall move
@@ -154,8 +154,8 @@ interface PopupMenu2Attrs extends PopupAttrs {
 // A combination of a Popup and a Menu component.
 // The menu contents are passed in as children, and are typically MenuItems or
 // MenuDividers, but really they can be any Mithril component.
-export class PopupMenu2 implements m.ClassComponent<PopupMenu2Attrs> {
-  view({attrs, children}: m.CVnode<PopupMenu2Attrs>) {
+export class PopupMenu implements m.ClassComponent<PopupMenuAttrs> {
+  view({attrs, children}: m.CVnode<PopupMenuAttrs>) {
     const {
       trigger,
       popupPosition = PopupPosition.Bottom,
