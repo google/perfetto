@@ -22,7 +22,7 @@ import {
   LegacyTableManager,
 } from './column';
 import {Button} from '../../../../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu2} from '../../../../widgets/menu';
+import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
 import {sqliteString} from '../../../../base/string_utils';
@@ -296,7 +296,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           : Icons.ContextMenu;
 
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
         trigger: m(Anchor, {icon}, columnTitle(column)),
       },

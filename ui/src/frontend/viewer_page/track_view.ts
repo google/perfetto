@@ -37,7 +37,7 @@ import {TrackRenderer} from '../../core/track_manager';
 import {Track, TrackDescriptor} from '../../public/track';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {SELECTION_FILL_COLOR} from '../css_constants';
@@ -279,7 +279,7 @@ export class TrackView {
 
   private renderTrackMenuButton(): m.Children {
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
         trigger: m(Button, {
           className: 'pf-visible-on-hover',
