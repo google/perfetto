@@ -395,6 +395,9 @@ ProtoToArgsParser::ScopedNestedKeyContext ProtoToArgsParser::EnterDictionary(
 base::Status ProtoToArgsParser::AddDefault(const FieldDescriptor& descriptor,
                                            Delegate& delegate) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+  if (!delegate.ShouldAddDefaultArg(key_prefix_)) {
+    return base::OkStatus();
+  }
   if (descriptor.is_repeated()) {
     delegate.AddNull(key_prefix_);
     return base::OkStatus();
