@@ -15,7 +15,12 @@
 import m from 'mithril';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
-import {LONG, NUM_NULL, STR} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM_NULL,
+  SqlValue,
+  STR,
+} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Duration, duration, Time, time} from '../../base/time';
@@ -24,9 +29,54 @@ import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {DurationWidget} from '../../components/widgets/duration';
-import {SqlRef} from '../../widgets/sql_ref';
-import {asSliceSqlId} from '../../components/sql_utils/core_types';
-import {fromSqlBool} from './utils';
+import {fromSqlBool, renderSliceRef, renderSqlRef} from './utils';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {
+  FromSimpleColumn,
+  LegacyTableColumn,
+  LegacyTableManager,
+} from '../../components/widgets/sql/legacy_table/column';
+import {
+  createDurationColumn,
+  createStandardColumn,
+  createTimestampColumn,
+  SimpleColumn,
+} from '../../components/widgets/sql/table/table';
+import {renderStandardCell} from '../../components/widgets/sql/legacy_table/render_cell_utils';
+
+function createPluginSliceIdColumn(
+  trace: Trace,
+  trackUri: string,
+  name: string,
+): SimpleColumn {
+  const col = createStandardColumn(name);
+  col.renderCell = (value: SqlValue, tableManager: LegacyTableManager) => {
+    if (value === null || typeof value !== 'bigint') {
+      return renderStandardCell(value, name, tableManager);
+    }
+    return renderSliceRef({
+      trace: trace,
+      id: Number(value),
+      trackUri: trackUri,
+      title: `${value}`,
+    });
+  };
+  return col;
+}
+
+function createScrollTimelineTableColumns(
+  trace: Trace,
+  trackUri: string,
+): LegacyTableColumn[] {
+  return [
+    new FromSimpleColumn(createPluginSliceIdColumn(trace, trackUri, 'id')),
+    new FromSimpleColumn(createStandardColumn('scroll_update_id')),
+    new FromSimpleColumn(createTimestampColumn('ts')),
+    new FromSimpleColumn(createDurationColumn('dur')),
+    new FromSimpleColumn(createStandardColumn('name')),
+    new FromSimpleColumn(createStandardColumn('classification')),
+  ];
+}
 
 export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
   // Information about the scroll update *slice*, which was emitted by
@@ -55,6 +105,7 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
   constructor(
     private readonly trace: Trace,
     private readonly tableName: string,
+    private readonly trackUri: string,
     // ID of the slice in tableName.
     private readonly id: number,
   ) {}
@@ -163,9 +214,17 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
         }),
         m(TreeNode, {
           left: 'SQL ID',
-          right: m(SqlRef, {
-            table: this.tableName,
-            id: asSliceSqlId(this.id),
+          right: renderSqlRef({
+            trace: this.trace,
+            tableName: this.tableName,
+            tableDescription: {
+              name: this.tableName,
+              columns: createScrollTimelineTableColumns(
+                this.trace,
+                this.trackUri,
+              ),
+            },
+            id: this.id,
           }),
         }),
       );
@@ -178,6 +237,11 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
     if (this.sliceData === undefined || this.scrollData === undefined) {
       child = 'Loading...';
     } else {
+      const scrollTableDescription = this.trace.plugins
+        .getPlugin(SqlModulesPlugin)
+        .getSqlModules()
+        .getModuleForTable('chrome_scroll_update_info')
+        ?.getSqlTableDescription('chrome_scroll_update_info');
       child = m(
         Tree,
         m(TreeNode, {
@@ -209,8 +273,12 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
         }),
         m(TreeNode, {
           left: 'SQL ID',
-          // TODO: b/383990024 - Make this a clickable reference.
-          right: `chrome_scroll_update_info[${this.sliceData.scrollUpdateId}]`,
+          right: renderSqlRef({
+            trace: this.trace,
+            tableName: 'chrome_scroll_update_info',
+            id: this.sliceData.scrollUpdateId,
+            tableDescription: scrollTableDescription,
+          }),
         }),
       );
     }
