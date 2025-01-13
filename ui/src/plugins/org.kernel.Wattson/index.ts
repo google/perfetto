@@ -37,19 +37,29 @@ export default class implements PerfettoPlugin {
     const group = new TrackNode({title: 'Wattson', isSummary: true});
     ctx.workspace.addChildInOrder(group);
 
+    // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
+    // if it's seen in sched slices.
+    const queryRes = await ctx.engine.query(
+      `select distinct ucpu from sched order by ucpu;`,
+    );
+    const ucpus = new Set<number>();
+    for (const it = queryRes.iter({ucpu: NUM}); it.valid(); it.next()) {
+      ucpus.add(it.ucpu);
+    }
+
     // CPUs estimate as part of CPU subsystem
-    const cpus = ctx.traceInfo.cpus;
+    const cpus = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
     for (const cpu of cpus) {
-      const queryKey = `cpu${cpu}_mw`;
-      const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu}`;
-      const title = `Cpu${cpu} Estimate`;
+      const queryKey = `cpu${cpu.ucpu}_mw`;
+      const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu.ucpu}`;
+      const title = `Cpu${cpu.toString()} Estimate`;
       ctx.tracks.registerTrack({
         uri,
         title,
         track: new CpuSubsystemEstimateTrack(ctx, uri, queryKey),
         tags: {
           kind: CPUSS_ESTIMATE_TRACK_KIND,
-          wattson: `CPU${cpu}`,
+          wattson: `CPU${cpu.ucpu}`,
           groupName: `Wattson`,
         },
       });
