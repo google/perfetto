@@ -107,7 +107,7 @@ class ShellTransitions(TestSuite):
         trace=Path('shell_handlers.textproto'),
         query="""
         SELECT COUNT(*) FROM window_manager_shell_transition_handlers
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        WHERE base64_proto_id IS NOT NULL
         """,
         out=Csv("""
         "COUNT(*)"

@@ -147,9 +147,10 @@ void WinscopeModule::ParseInputMethodClientsData(int64_t timestamp,
                                                  protozero::ConstBytes blob) {
   tables::InputMethodClientsTable::Row row;
   row.ts = timestamp;
-  row.base64_proto = context_->storage->mutable_string_pool()->InternString(
-      base::StringView(base::Base64Encode(blob.data, blob.size)));
-  row.base64_proto_id = row.base64_proto.raw_id();
+  row.base64_proto_id = context_->storage->mutable_string_pool()
+                            ->InternString(base::StringView(
+                                base::Base64Encode(blob.data, blob.size)))
+                            .raw_id();
   auto rowId =
       context_->storage->mutable_inputmethod_clients_table()->Insert(row).id;
 
@@ -172,9 +173,10 @@ void WinscopeModule::ParseInputMethodManagerServiceData(
     protozero::ConstBytes blob) {
   tables::InputMethodManagerServiceTable::Row row;
   row.ts = timestamp;
-  row.base64_proto = context_->storage->mutable_string_pool()->InternString(
-      base::StringView(base::Base64Encode(blob.data, blob.size)));
-  row.base64_proto_id = row.base64_proto.raw_id();
+  row.base64_proto_id = context_->storage->mutable_string_pool()
+                            ->InternString(base::StringView(
+                                base::Base64Encode(blob.data, blob.size)))
+                            .raw_id();
   auto rowId = context_->storage->mutable_inputmethod_manager_service_table()
                    ->Insert(row)
                    .id;
@@ -197,9 +199,10 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
                                                  protozero::ConstBytes blob) {
   tables::InputMethodServiceTable::Row row;
   row.ts = timestamp;
-  row.base64_proto = context_->storage->mutable_string_pool()->InternString(
-      base::StringView(base::Base64Encode(blob.data, blob.size)));
-  row.base64_proto_id = row.base64_proto.raw_id();
+  row.base64_proto_id = context_->storage->mutable_string_pool()
+                            ->InternString(base::StringView(
+                                base::Base64Encode(blob.data, blob.size)))
+                            .raw_id();
   auto rowId =
       context_->storage->mutable_inputmethod_service_table()->Insert(row).id;
 
@@ -223,9 +226,10 @@ void WinscopeModule::ParseViewCaptureData(
     PacketSequenceStateGeneration* sequence_state) {
   tables::ViewCaptureTable::Row row;
   row.ts = timestamp;
-  row.base64_proto = context_->storage->mutable_string_pool()->InternString(
-      base::StringView(base::Base64Encode(blob.data, blob.size)));
-  row.base64_proto_id = row.base64_proto.raw_id();
+  row.base64_proto_id = context_->storage->mutable_string_pool()
+                            ->InternString(base::StringView(
+                                base::Base64Encode(blob.data, blob.size)))
+                            .raw_id();
   auto rowId = context_->storage->mutable_viewcapture_table()->Insert(row).id;
 
   ArgsTracker tracker(context_);
@@ -246,9 +250,10 @@ void WinscopeModule::ParseWindowManagerData(int64_t timestamp,
                                             protozero::ConstBytes blob) {
   tables::WindowManagerTable::Row row;
   row.ts = timestamp;
-  row.base64_proto = context_->storage->mutable_string_pool()->InternString(
-      base::StringView(base::Base64Encode(blob.data, blob.size)));
-  row.base64_proto_id = row.base64_proto.raw_id();
+  row.base64_proto_id = context_->storage->mutable_string_pool()
+                            ->InternString(base::StringView(
+                                base::Base64Encode(blob.data, blob.size)))
+                            .raw_id();
   auto rowId = context_->storage->mutable_windowmanager_table()->Insert(row).id;
 
   ArgsTracker tracker(context_);
