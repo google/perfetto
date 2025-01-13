@@ -174,6 +174,7 @@ export class ScrollTimelineTrack extends NamedSliceTrack<
     return new ScrollTimelineDetailsPanel(
       this.trace,
       this.tableName,
+      this.uri,
       sel.eventId,
     );
   }
