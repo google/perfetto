@@ -25,12 +25,14 @@ export interface SqlRefAttrs {
   table: string;
   // The ID of our row.
   // If not provided, `table[Unknown]` is shown with no popup menu.
-  id?: number;
+  id?: number | bigint;
+  // Optional additional popup menu items.
+  additionalMenuItems?: m.Children;
 }
 
 export class SqlRef implements m.ClassComponent<SqlRefAttrs> {
   view({attrs}: m.CVnode<SqlRefAttrs>) {
-    const {table, id} = attrs;
+    const {table, id, additionalMenuItems} = attrs;
     if (id !== undefined) {
       return m(
         PopupMenu2,
@@ -48,6 +50,7 @@ export class SqlRef implements m.ClassComponent<SqlRefAttrs> {
           onclick: () =>
             copyToClipboard(`select * from ${table} where id=${id}`),
         }),
+        additionalMenuItems,
       );
     } else {
       return `${table}[Unknown]`;

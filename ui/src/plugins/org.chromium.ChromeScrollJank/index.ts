@@ -22,9 +22,12 @@ import {ScrollTimelineTrack} from './scroll_timeline_track';
 import {TopLevelScrollTrack} from './scroll_track';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
+  static readonly dependencies = [SqlModulesPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const group = new TrackNode({
       title: 'Chrome Scroll Jank',
