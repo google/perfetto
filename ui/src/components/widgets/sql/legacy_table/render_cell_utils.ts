@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {LegacyTableManager, SqlColumn} from './column';
-import {MenuItem, PopupMenu2} from '../../../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {isString} from '../../../../base/object_utils';
 import {sqliteString} from '../../../../base/string_utils';
@@ -175,7 +175,7 @@ export function renderStandardCell(
     tableManager,
   );
   return m(
-    PopupMenu2,
+    PopupMenu,
     {
       trigger: m(Anchor, displayValue(value)),
     },

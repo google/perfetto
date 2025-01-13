@@ -25,7 +25,7 @@ import {SqlTableState} from '../widgets/sql/legacy_table/state';
 import {SqlTable} from '../widgets/sql/legacy_table/table';
 import {SqlTableDescription} from '../widgets/sql/legacy_table/table_description';
 import {Trace} from '../../public/trace';
-import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {addEphemeralTab} from './add_ephemeral_tab';
 import {Tab} from '../../public/tab';
 import {addChartTab} from '../widgets/charts/chart_tab';
@@ -106,7 +106,7 @@ class LegacySqlTableTab implements Tab {
           ...navigation,
           addDebugTrack,
           m(
-            PopupMenu2,
+            PopupMenu,
             {
               trigger: m(Button, {
                 icon: Icons.Menu,

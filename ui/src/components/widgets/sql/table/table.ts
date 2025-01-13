@@ -32,7 +32,7 @@ import {
 } from '../../../sql_utils/core_types';
 import {SchedRef} from '../../sched';
 import {ThreadStateRef} from '../../thread_state';
-import {PopupMenu2} from '../../../../widgets/menu';
+import {PopupMenu} from '../../../../widgets/menu';
 import {Anchor} from '../../../../widgets/anchor';
 import {showThreadDetailsMenuItem} from '../../thread';
 import {showProcessDetailsMenuItem} from '../../process';
@@ -104,7 +104,7 @@ export function createThreadIdColumn(name: string): SimpleColumn {
   col.renderCell = (value: SqlValue, tableManager: LegacyTableManager) =>
     renderNumericCell(name, value, tableManager, (utid: bigint) => {
       return m(
-        PopupMenu2,
+        PopupMenu,
         {
           trigger: m(Anchor, `${utid}`),
         },
@@ -120,7 +120,7 @@ export function createProcessIdColumn(name: string): SimpleColumn {
   col.renderCell = (value: SqlValue, tableManager: LegacyTableManager) =>
     renderNumericCell(name, value, tableManager, (upid: bigint) => {
       return m(
-        PopupMenu2,
+        PopupMenu,
         {
           trigger: m(Anchor, `${upid}`),
         },
