@@ -172,8 +172,6 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
         C('ts', CppInt64()),
         C('transition_id', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto', CppString()),
-        C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='Window Manager Shell Transitions',
@@ -182,8 +180,6 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
             'ts': 'The timestamp the transition started playing',
             'transition_id': 'The id of the transition',
             'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto': 'Raw proto message encoded in base64',
-            'base64_proto_id': 'String id for raw proto message',
         }))
 
 WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
@@ -203,6 +199,22 @@ WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
             'handler_id': 'The id of the handler',
             'handler_name': 'The name of the handler',
             'base64_proto': 'Raw proto message encoded in base64',
+            'base64_proto_id': 'String id for raw proto message',
+        }))
+
+WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE = Table(
+    python_module=__file__,
+    class_name='WindowManagerShellTransitionProtosTable',
+    sql_name='__intrinsic_window_manager_shell_transition_protos',
+    columns=[
+        C('transition_id', CppInt64()),
+        C('base64_proto_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='Window Manager Shell Transition Protos',
+        group='Winscope',
+        columns={
+            'transition_id': 'The id of the transition',
             'base64_proto_id': 'String id for raw proto message',
         }))
 
@@ -269,5 +281,6 @@ ALL_TABLES = [
     VIEWCAPTURE_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE,
+    WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE,
     WINDOW_MANAGER_TABLE,
 ]
