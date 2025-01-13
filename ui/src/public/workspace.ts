@@ -38,9 +38,7 @@ let sessionUniqueIdCounter = 0;
  * everywhere where session-unique ids are required.
  */
 function createSessionUniqueId(): string {
-  // Return the counter in base36 (0-z) to keep the string as short as possible
-  // but still human readable.
-  return (sessionUniqueIdCounter++).toString(36);
+  return (sessionUniqueIdCounter++).toString();
 }
 
 /**
