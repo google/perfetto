@@ -19,7 +19,7 @@ import {QueryResponse, runQuery} from './queries';
 import {QueryError} from '../../trace_processor/query_result';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
 import {Button} from '../../widgets/button';
-import {PopupMenu2} from '../../widgets/menu';
+import {PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
 import {QueryTable} from './query_table';
 import {Trace} from '../../public/trace';
@@ -95,7 +95,7 @@ export class QueryResultTab implements Tab {
         this.sqlViewName === undefined
           ? null
           : m(
-              PopupMenu2,
+              PopupMenu,
               {
                 trigger: m(Button, {label: 'Show debug track'}),
                 popupPosition: PopupPosition.Top,

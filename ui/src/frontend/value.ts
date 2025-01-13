@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Tree, TreeNode} from '../widgets/tree';
-import {PopupMenu2} from '../widgets/menu';
+import {PopupMenu} from '../widgets/menu';
 import {Button} from '../widgets/button';
 
 // This file implements a component for rendering JSON-like values (with
@@ -139,7 +139,7 @@ function renderValue(name: string, value: Value): m.Children {
     name,
     value.contextMenu
       ? m(
-          PopupMenu2,
+          PopupMenu,
           {
             trigger: m(Button, {
               icon: 'arrow_drop_down',

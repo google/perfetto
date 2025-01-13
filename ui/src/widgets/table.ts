@@ -22,7 +22,7 @@ import {
   SortDirection,
   withDirection,
 } from '../base/comparison_utils';
-import {MenuItem, PopupMenu2} from './menu';
+import {MenuItem, PopupMenu} from './menu';
 import {Button} from './button';
 
 // For a table column that can be sorted; the standard popup icon should
@@ -245,7 +245,7 @@ export class Table implements m.ClassComponent<TableAttrs<any>> {
       column.name,
       items &&
         m(
-          PopupMenu2,
+          PopupMenu,
           {
             trigger: m(Button, {icon: popupMenuIcon(currDirection)}),
           },

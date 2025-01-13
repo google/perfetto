@@ -20,7 +20,7 @@ import {Engine} from '../../trace_processor/engine';
 import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
-import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
 import {Tree} from '../../widgets/tree';
 import {Flow, FlowPoint} from '../../core/flow_types';
@@ -370,7 +370,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         rightIcon: Icons.ContextMenu,
       });
       return m(
-        PopupMenu2,
+        PopupMenu,
         {trigger},
         contextMenuItems.map(({name, run}) =>
           m(MenuItem, {label: name, onclick: () => run(sliceInfo, this.trace)}),
