@@ -57,11 +57,31 @@ export default class implements PerfettoPlugin {
           cpu,
         },
         track: new CpuSliceTrack(ctx, uri, cpu, threads),
-        rootTable: 'sched_slice',
       });
       const trackNode = new TrackNode({uri, title: name, sortOrder: -50});
       ctx.workspace.addChildInOrder(trackNode);
     }
+
+    ctx.selection.registerSqlSelectionResolver({
+      sqlTableName: 'sched_slice',
+      callback: async (id: number) => {
+        const result = await ctx.engine.query(`
+          select
+            cpu
+          from sched_slice
+          where id = ${id}
+        `);
+
+        const cpu = result.firstRow({
+          cpu: NUM,
+        }).cpu;
+
+        return {
+          eventId: id,
+          trackUri: uriForSchedTrack(cpu),
+        };
+      },
+    });
   }
 
   async getAndroidCpuClusterTypes(

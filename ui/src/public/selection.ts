@@ -64,6 +64,15 @@ export interface SelectionManager {
 
   scrollToCurrentSelection(): void;
   registerAreaSelectionAggregator(aggr: AreaSelectionAggregator): void;
+
+  /**
+   * Register a new SQL selection resolver.
+   *
+   * A resolver consists of a SQL table name and a callback. When someone
+   * expresses an interest in selecting a slice on a matching table, the
+   * callback is called which can return a selection object or undefined.
+   */
+  registerSqlSelectionResolver(resolver: SqlSelectionResolver): void;
 }
 
 /**
