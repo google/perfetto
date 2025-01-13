@@ -101,6 +101,11 @@ export interface TrackDescriptor {
   readonly chips?: ReadonlyArray<string>;
 
   readonly pluginId?: string;
+
+  // Defines which root table the events in this track are from. The ids of the
+  // events on this track as defined in its dataset must be the same as the ids
+  // in this root table. Used for deep-linking et al.
+  readonly rootTable?: string;
 }
 
 /**
