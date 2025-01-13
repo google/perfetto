@@ -37,6 +37,12 @@ FROM perf_sample
 WHERE callsite_id IS NOT NULL
 GROUP BY utid;
 
+CREATE PERFETTO TABLE _instruments_sample_summary AS
+SELECT utid, count() AS instruments_sample_cnt
+FROM instruments_sample
+WHERE callsite_id IS NOT NULL
+GROUP BY utid;
+
 CREATE PERFETTO TABLE _thread_available_info_summary AS
 WITH raw AS (
   SELECT
@@ -53,7 +59,12 @@ WITH raw AS (
       SELECT perf_sample_cnt
       FROM _perf_sample_summary
       WHERE utid = t.utid
-    ) AS perf_sample_count
+    ) AS perf_sample_count,
+    (
+      SELECT instruments_sample_cnt
+      FROM _instruments_sample_summary
+      WHERE utid = t.utid
+    ) AS instruments_sample_count
   FROM thread t
   LEFT JOIN _sched_summary ss USING (utid)
 )
@@ -63,7 +74,8 @@ SELECT
   IFNULL(sum_running_dur, 0) AS sum_running_dur,
   IFNULL(running_count, 0) AS running_count,
   IFNULL(slice_count, 0) AS slice_count,
-  IFNULL(perf_sample_count, 0) AS perf_sample_count
+  IFNULL(perf_sample_count, 0) AS perf_sample_count,
+  IFNULL(instruments_sample_count, 0) AS instruments_sample_count
 FROM raw r
 WHERE
   NOT (
@@ -72,6 +84,7 @@ WHERE
     AND r.running_count IS NULL
     AND r.slice_count IS NULL
     AND r.perf_sample_count IS NULL
+    AND r.instruments_sample_count IS NULL
   )
   OR utid IN (SELECT utid FROM cpu_profile_stack_sample)
   OR utid IN (SELECT utid FROM thread_counter_track);

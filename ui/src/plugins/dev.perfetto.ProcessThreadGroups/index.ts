@@ -156,6 +156,7 @@ export default class implements PerfettoPlugin {
           sum_running_dur as sumRunningDur,
           thread_slice_count + process_slice_count as sliceCount,
           perf_sample_count as perfSampleCount,
+          instruments_sample_count as instrumentsSampleCount,
           allocation_count as heapProfileAllocationCount,
           graph_object_count as heapGraphObjectCount,
           (
@@ -182,7 +183,8 @@ export default class implements PerfettoPlugin {
           thread.name as threadName,
           sum_running_dur as sumRunningDur,
           slice_count as sliceCount,
-          perf_sample_count as perfSampleCount
+          perf_sample_count as perfSampleCount,
+          instruments_sample_count as instrumentsSampleCount
         from _thread_available_info_summary
         join thread using (utid)
         where upid is null
@@ -200,6 +202,7 @@ export default class implements PerfettoPlugin {
           heapProfileAllocationCount desc,
           heapGraphObjectCount desc,
           perfSampleCount desc,
+          instrumentsSampleCount desc,
           sumRunningDur desc,
           sliceCount desc,
           processName asc,
@@ -216,6 +219,7 @@ export default class implements PerfettoPlugin {
         from threadGroups
         order by
           perfSampleCount desc,
+          instrumentsSampleCount desc,
           sumRunningDur desc,
           sliceCount desc,
           threadName asc,
