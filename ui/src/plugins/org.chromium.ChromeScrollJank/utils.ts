@@ -17,6 +17,10 @@ import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {Trace} from '../../public/trace';
 import {QueryResult, Row} from '../../trace_processor/query_result';
+import {SqlRef} from '../../widgets/sql_ref';
+import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
+import {MenuItem} from '../../widgets/menu';
+import {extensions} from '../../components/extensions';
 
 export const SCROLLS_TRACK_URI = 'perfetto.ChromeScrollJank#toplevelScrolls';
 export const EVENT_LATENCY_TRACK_URI = 'perfetto.ChromeScrollJank#eventLatency';
@@ -40,6 +44,34 @@ export function renderSliceRef(args: {
     },
     args.title,
   );
+}
+
+export function renderSqlRef(args: {
+  trace: Trace;
+  tableName: string;
+  tableDescription: SqlTableDescription | undefined;
+  id: number | bigint;
+}) {
+  return m(SqlRef, {
+    table: args.tableName,
+    id: args.id,
+    additionalMenuItems: args.tableDescription && [
+      m(MenuItem, {
+        label: 'Show query results',
+        icon: 'table',
+        onclick: () =>
+          extensions.addLegacySqlTableTab(args.trace, {
+            table: args.tableDescription!,
+            filters: [
+              {
+                op: ([columnName]) => `${columnName} = ${args.id}`,
+                columns: ['id'],
+              },
+            ],
+          }),
+      }),
+    ],
+  });
 }
 
 /**
