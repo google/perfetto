@@ -19,6 +19,7 @@ import {
   SelectionOpts,
   SelectionManager,
   AreaSelectionAggregator,
+  SqlSelectionResolver,
   TrackEventSelection,
 } from '../public/selection';
 import {TimeSpan} from '../base/time';
@@ -33,7 +34,6 @@ import {SelectionAggregationManager} from './selection_aggregation_manager';
 import {AsyncLimiter} from '../base/async_limiter';
 import m from 'mithril';
 import {SerializedSelection} from './state_serialization_schema';
-import {NUM, STR} from '../trace_processor/query_result';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -56,13 +56,15 @@ export class SelectionManagerImpl implements SelectionManager {
   private readonly detailsPanelLimiter = new AsyncLimiter();
   private _selection: Selection = {kind: 'empty'};
   private _aggregationManager: SelectionAggregationManager;
+  // Incremented every time _selection changes.
+  private readonly selectionResolvers = new Array<SqlSelectionResolver>();
   private readonly detailsPanels = new WeakMap<
     Selection,
     SelectionDetailsPanel
   >();
 
   constructor(
-    private readonly engine: Engine,
+    engine: Engine,
     private trackManager: TrackManagerImpl,
     private noteManager: NoteManagerImpl,
     private scrollHelper: ScrollHelper,
@@ -202,39 +204,27 @@ export class SelectionManagerImpl implements SelectionManager {
     return this.detailsPanels.get(this._selection);
   }
 
+  registerSqlSelectionResolver(resolver: SqlSelectionResolver): void {
+    this.selectionResolvers.push(resolver);
+  }
+
   async resolveSqlEvent(
     sqlTableName: string,
     id: number,
   ): Promise<{eventId: number; trackUri: string} | undefined> {
-    const query = this.trackManager
-      .getAllTracks()
-      .filter((track) => track.rootTable === sqlTableName)
-      .map((track) => {
-        const dataset = track.track.getDataset?.();
-        if (!dataset) return undefined;
-        return [dataset, track] as const;
-      })
-      .filter(exists)
-      .filter(([dataset]) => dataset.implements({id: NUM}))
-      .map(
-        ([dataset, track]) => `
-          select
-            '${track.uri}' as uri
-          from (${dataset.query()})
-          where id = ${id}
-        `,
-      )
-      .join(' union all ');
+    const matchingResolvers = this.selectionResolvers.filter(
+      (r) => r.sqlTableName === sqlTableName,
+    );
 
-    // No valid sql to run
-    if (query === '') {
-      return undefined;
+    for (const resolver of matchingResolvers) {
+      const result = await resolver.callback(id, sqlTableName);
+      if (result) {
+        // If we have multiple resolvers for the same table, just return the first one.
+        return result;
+      }
     }
 
-    const result = await this.engine.query(query);
-    const firstRow = result.maybeFirstRow({uri: STR});
-    if (!firstRow) return undefined;
-    return {eventId: id, trackUri: firstRow.uri};
+    return undefined;
   }
 
   selectSqlEvent(sqlTableName: string, id: number, opts?: SelectionOpts): void {
