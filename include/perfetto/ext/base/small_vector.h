@@ -180,15 +180,14 @@ class SmallVector {
     return end_;
   }
 
-  T* inline_storage_begin() { return reinterpret_cast<T*>(&inline_storage_); }
+  T* inline_storage_begin() { return reinterpret_cast<T*>(inline_storage_); }
   bool is_using_heap() { return begin_ != inline_storage_begin(); }
 
   T* begin_ = inline_storage_begin();
   T* end_ = begin_;
   T* end_of_storage_ = begin_ + kInlineSize;
 
-  typename std::aligned_storage<sizeof(T) * kInlineSize, alignof(T)>::type
-      inline_storage_;
+  alignas(T) char inline_storage_[sizeof(T) * kInlineSize];
 };
 
 }  // namespace base
