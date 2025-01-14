@@ -5041,20 +5041,38 @@ bool TracingServiceImpl::ProducerEndpointImpl::IsAndroidProcessFrozen() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (in_process_ || uid() == base::kInvalidUid || pid() == base::kInvalidPid)
     return false;
-  base::StackString<255> path(
+
+  // As per aosp/3406861, there are three possible mount points for the cgroup.
+  // Look at all of them.
+  // - Historically everything was in /uid_xxx/pid_yyy (and still is if
+  //   PRODUCT_CGROUP_V2_SYS_APP_ISOLATION_ENABLED = false)
+  // - cgroup isolation introduces /apps /system subdirectories.
+  base::StackString<255> path_v1(
       "/sys/fs/cgroup/uid_%" PRIu32 "/pid_%" PRIu32 "/cgroup.freeze",
       static_cast<uint32_t>(uid()), static_cast<uint32_t>(pid()));
-  char frozen = '0';
-  auto fd = base::OpenFile(path.c_str(), O_RDONLY);
-  ssize_t rsize = 0;
-  if (fd) {
-    rsize = base::Read(*fd, &frozen, sizeof(frozen));
-    if (rsize > 0) {
-      return frozen == '1';
+  base::StackString<255> path_v2_app(
+      "/sys/fs/cgroup/apps/uid_%" PRIu32 "/pid_%" PRIu32 "/cgroup.freeze",
+      static_cast<uint32_t>(uid()), static_cast<uint32_t>(pid()));
+  base::StackString<255> path_v2_system(
+      "/sys/fs/cgroup/system/uid_%" PRIu32 "/pid_%" PRIu32 "/cgroup.freeze",
+      static_cast<uint32_t>(uid()), static_cast<uint32_t>(pid()));
+  const char* paths[] = {path_v1.c_str(), path_v2_app.c_str(),
+                         path_v2_system.c_str()};
+
+  for (const char* path : paths) {
+    char frozen = '0';
+    auto fd = base::OpenFile(path, O_RDONLY);
+    ssize_t rsize = 0;
+    if (fd) {
+      rsize = base::Read(*fd, &frozen, sizeof(frozen));
+      if (rsize > 0) {
+        return frozen == '1';
+      }
     }
   }
-  PERFETTO_DLOG("Failed to read %s (fd=%d, rsize=%d)", path.c_str(), !!fd,
-                static_cast<int>(rsize));
+  PERFETTO_DLOG("Failed to read cgroup.freeze from [%s, %s, %s]",
+                path_v1.c_str(), path_v2_app.c_str(), path_v2_system.c_str());
+
 #endif
   return false;
 }
