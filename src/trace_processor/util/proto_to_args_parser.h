@@ -123,6 +123,8 @@ class ProtoToArgsParser {
           typename FieldMetadata::cpp_field_type>();
     }
 
+    virtual bool ShouldAddDefaultArg(const Key&) { return true; }
+
    protected:
     virtual InternedMessageView* GetInternedMessageView(uint32_t field_id,
                                                         uint64_t iid) = 0;
