@@ -28,6 +28,7 @@ import "protos/perfetto/trace/android/frame_timeline_event.proto";
 import "protos/perfetto/trace/android/gpu_mem_event.proto";
 import "protos/perfetto/trace/android/graphics_frame_event.proto";
 import "protos/perfetto/trace/android/initial_display_state.proto";
+import "protos/perfetto/trace/android/kernel_wakelock_data.proto";
 import "protos/perfetto/trace/android/network_trace.proto";
 import "protos/perfetto/trace/android/packages_list.proto";
 import "protos/perfetto/trace/android/pixel_modem_events.proto";
@@ -105,7 +106,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 115.
+// Next id: 116.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -248,6 +249,8 @@ message TracePacket {
     Trigger clone_snapshot_trigger = 113;
 
     BluetoothTraceEvent bluetooth_trace_event = 114;
+
+    KernelWakelockData kernel_wakelock_data = 115;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
