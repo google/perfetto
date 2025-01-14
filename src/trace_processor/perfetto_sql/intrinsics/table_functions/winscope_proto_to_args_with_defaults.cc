@@ -47,55 +47,54 @@ WinscopeArgsWithDefaultsTable::~WinscopeArgsWithDefaultsTable() = default;
 }  // namespace tables
 
 namespace {
+using RowReference = tables::WinscopeArgsWithDefaultsTable::RowReference;
 using Row = tables::WinscopeArgsWithDefaultsTable::Row;
+using RowId = tables::WinscopeArgsWithDefaultsTable::Id;
+using KeyToRowMap = std::unordered_map<StringPool::Id, RowId>;
 
 class Delegate : public util::ProtoToArgsParser::Delegate {
  public:
   using Key = util::ProtoToArgsParser::Key;
   explicit Delegate(StringPool* pool,
                     const uint32_t base64_proto_id,
-                    tables::WinscopeArgsWithDefaultsTable* table)
-      : pool_(pool), base64_proto_id_(base64_proto_id), table_(table) {}
+                    tables::WinscopeArgsWithDefaultsTable* table,
+                    KeyToRowMap* key_to_row)
+      : pool_(pool),
+        base64_proto_id_(base64_proto_id),
+        table_(table),
+        key_to_row_(key_to_row) {}
 
   void AddInteger(const Key& key, int64_t res) override {
-    Row r;
-    r.int_value = res;
-    SetColumnsAndInsertRow(key, r);
+    RowReference r = GetOrCreateRow(key);
+    r.set_int_value(res);
   }
   void AddUnsignedInteger(const Key& key, uint64_t res) override {
-    Row r;
-    r.int_value = res;
-    SetColumnsAndInsertRow(key, r);
+    RowReference r = GetOrCreateRow(key);
+    r.set_int_value(int64_t(res));
   }
   void AddString(const Key& key, const protozero::ConstChars& res) override {
-    Row r;
-    r.string_value = pool_->InternString(base::StringView((res.ToStdString())));
-    SetColumnsAndInsertRow(key, r);
+    RowReference r = GetOrCreateRow(key);
+    r.set_string_value(
+        pool_->InternString(base::StringView((res.ToStdString()))));
   }
   void AddString(const Key& key, const std::string& res) override {
-    Row r;
-    r.string_value = pool_->InternString(base::StringView(res));
-    SetColumnsAndInsertRow(key, r);
+    RowReference r = GetOrCreateRow(key);
+    r.set_string_value(pool_->InternString(base::StringView(res)));
   }
   void AddDouble(const Key& key, double res) override {
-    Row r;
-    r.real_value = res;
-    SetColumnsAndInsertRow(key, r);
+    RowReference r = GetOrCreateRow(key);
+    r.set_real_value(res);
   }
   void AddBoolean(const Key& key, bool res) override {
-    Row r;
-    r.int_value = res;
-    SetColumnsAndInsertRow(key, r);
+    RowReference r = GetOrCreateRow(key);
+    r.set_int_value(res);
   }
   void AddBytes(const Key& key, const protozero::ConstBytes& res) override {
-    Row r;
-    r.string_value = pool_->InternString(base::StringView((res.ToStdString())));
-    SetColumnsAndInsertRow(key, r);
+    RowReference r = GetOrCreateRow(key);
+    r.set_string_value(
+        pool_->InternString(base::StringView((res.ToStdString()))));
   }
-  void AddNull(const Key& key) override {
-    Row r;
-    SetColumnsAndInsertRow(key, r);
-  }
+  void AddNull(const Key& key) override { GetOrCreateRow(key); }
   void AddPointer(const Key&, uint64_t) override {
     PERFETTO_FATAL("Unsupported");
   }
@@ -110,21 +109,48 @@ class Delegate : public util::ProtoToArgsParser::Delegate {
   }
   PacketSequenceStateGeneration* seq_state() override { return nullptr; }
 
+  bool ShouldAddDefaultArg(const Key& key) override {
+    if (!key_to_row_) {
+      return true;
+    }
+    auto key_id = pool_->InternString(base::StringView(key.key));
+    auto pos = key_to_row_->find(key_id);
+    return pos == key_to_row_->end();
+  }
+
  private:
   InternedMessageView* GetInternedMessageView(uint32_t, uint64_t) override {
     return nullptr;
   }
 
-  void SetColumnsAndInsertRow(const Key& key, Row& row) {
-    row.key = pool_->InternString(base::StringView(key.key));
-    row.flat_key = pool_->InternString(base::StringView(key.flat_key));
-    row.base64_proto_id = base64_proto_id_;
-    table_->Insert(row);
+  RowReference GetOrCreateRow(const Key& key) {
+    RowId row_id;
+    if (!key_to_row_) {
+      Row new_row;
+      row_id = table_->Insert(new_row).id;
+    } else {
+      auto key_id = pool_->InternString(base::StringView(key.key));
+      auto pos = key_to_row_->find(key_id);
+      if (pos != key_to_row_->end()) {
+        row_id = pos->second;
+      } else {
+        Row new_row;
+        row_id = table_->Insert(new_row).id;
+        key_to_row_->insert({key_id, row_id});
+      }
+    }
+
+    auto row = table_->FindById(row_id).value();
+    row.set_key(pool_->InternString(base::StringView(key.key)));
+    row.set_flat_key(pool_->InternString(base::StringView(key.flat_key)));
+    row.set_base64_proto_id(base64_proto_id_);
+    return row;
   }
 
   StringPool* pool_;
   const uint32_t base64_proto_id_;
   tables::WinscopeArgsWithDefaultsTable* table_;
+  KeyToRowMap* key_to_row_;
 };
 
 base::Status InsertRows(
@@ -132,15 +158,20 @@ base::Status InsertRows(
     tables::WinscopeArgsWithDefaultsTable* inflated_args_table,
     const std::string& proto_name,
     const std::vector<uint32_t>* allowed_fields,
+    const std::string* group_id_col_name,
     DescriptorPool& descriptor_pool,
     StringPool* string_pool) {
   util::ProtoToArgsParser args_parser{descriptor_pool};
   const auto base64_proto_id_col_idx =
       static_table.ColumnIdxFromName("base64_proto_id").value();
-  const auto base_64_proto_col_idx =
-      static_table.ColumnIdxFromName("base64_proto").value();
+
+  std::optional<uint32_t> group_id_col_idx;
+  if (group_id_col_name) {
+    group_id_col_idx = static_table.ColumnIdxFromName(*group_id_col_name);
+  }
 
   std::unordered_set<uint32_t> inflated_protos;
+  std::unordered_map<uint32_t, KeyToRowMap> group_id_to_key_row_map;
   for (auto it = static_table.IterateRows(); it; ++it) {
     const auto base64_proto_id =
         static_cast<uint32_t>(it.Get(base64_proto_id_col_idx).AsLong());
@@ -148,11 +179,26 @@ base::Status InsertRows(
       continue;
     }
     inflated_protos.insert(base64_proto_id);
-    const auto* raw_proto = it.Get(base_64_proto_col_idx).AsString();
+
+    const auto raw_proto =
+        string_pool->Get(StringPool::Id::Raw(base64_proto_id));
     const auto blob = *base::Base64Decode(raw_proto);
     const auto cb = protozero::ConstBytes{
         reinterpret_cast<const uint8_t*>(blob.data()), blob.size()};
-    Delegate delegate(string_pool, base64_proto_id, inflated_args_table);
+
+    KeyToRowMap* key_to_row = nullptr;
+    if (group_id_col_idx.has_value()) {
+      auto group_id = static_cast<uint32_t>(it.Get(*group_id_col_idx).AsLong());
+      auto pos = group_id_to_key_row_map.find(group_id);
+      if (pos != group_id_to_key_row_map.end()) {
+        key_to_row = &(pos->second);
+      } else {
+        key_to_row = &(group_id_to_key_row_map[group_id]);
+      }
+    }
+
+    Delegate delegate(string_pool, base64_proto_id, inflated_args_table,
+                      key_to_row);
     RETURN_IF_ERROR(args_parser.ParseMessage(cb, proto_name, allowed_fields,
                                              delegate, nullptr, true));
   }
@@ -188,12 +234,16 @@ WinscopeProtoToArgsWithDefaults::ComputeTable(
 
   auto table =
       std::make_unique<tables::WinscopeArgsWithDefaultsTable>(string_pool_);
-
   auto allowed_fields =
       util::winscope_proto_mapping::GetAllowedFields(table_name);
-  RETURN_IF_ERROR(InsertRows(*static_table, table.get(), proto_name,
-                             allowed_fields ? &allowed_fields.value() : nullptr,
-                             *context_->descriptor_pool_, string_pool_));
+  auto group_id_col_name =
+      util::winscope_proto_mapping::GetGroupIdColName(table_name);
+
+  RETURN_IF_ERROR(
+      InsertRows(*static_table, table.get(), proto_name,
+                 allowed_fields ? &allowed_fields.value() : nullptr,
+                 group_id_col_name ? &group_id_col_name.value() : nullptr,
+                 *context_->descriptor_pool_, string_pool_));
 
   return std::unique_ptr<Table>(std::move(table));
 }

@@ -1142,6 +1142,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       storage->mutable_window_manager_shell_transitions_table());
   RegisterStaticTable(
       storage->mutable_window_manager_shell_transition_handlers_table());
+  RegisterStaticTable(
+      storage->mutable_window_manager_shell_transition_protos_table());
 
   RegisterStaticTable(storage->mutable_protolog_table());
 
