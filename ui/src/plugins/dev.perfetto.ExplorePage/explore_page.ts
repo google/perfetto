@@ -13,18 +13,24 @@
 // limitations under the License.
 
 import m from 'mithril';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+
 import {PageWithTraceAttrs} from '../../public/page';
 import {SqlTableState as SqlTableViewState} from '../../components/widgets/sql/legacy_table/state';
 import {Chart} from '../../components/widgets/charts/chart';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {DataVisualiser} from './data_visualiser';
+import {QueryBuilder} from './query_builder';
+import {DataSourceViewer} from './data_source_viewer';
+import {QueryNode} from './query_state';
 
 export interface ExploreTableState {
   sqlTableViewState?: SqlTableViewState;
-  selectedTableName?: string;
+  queryNode?: QueryNode;
 }
 
 interface ExplorePageAttrs extends PageWithTraceAttrs {
+  readonly sqlModulesPlugin: SqlModulesPlugin;
   readonly state: ExploreTableState;
   readonly charts: Set<Chart>;
 }
@@ -59,8 +65,25 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           onOptionSelected: (i) => (this.selectedMode = i),
         }),
       ),
+
       this.selectedMode === ExplorePageModes.QUERY_BUILDER &&
-        m('div', 'Query builder goes here'),
+        m(
+          'div',
+          m(QueryBuilder, {
+            trace: attrs.trace,
+            sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
+            onQueryNodeCreated(arg) {
+              attrs.state.queryNode = arg;
+            },
+            queryNode: attrs.state.queryNode,
+          }),
+          attrs.state.queryNode?.finished &&
+            m(DataSourceViewer, {
+              trace: attrs.trace,
+              plugin: attrs.sqlModulesPlugin,
+              queryNode: attrs.state.queryNode,
+            }),
+        ),
       this.selectedMode === ExplorePageModes.DATA_VISUALISER &&
         m(DataVisualiser, {
           trace,
