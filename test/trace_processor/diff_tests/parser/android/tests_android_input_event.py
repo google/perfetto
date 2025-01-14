@@ -288,14 +288,14 @@ class AndroidInputEvent(TestSuite):
         trace=Path('input_event_trace.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.input;
-        SELECT COUNT(*) FROM android_key_events
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        SELECT COUNT(*) FROM __intrinsic_android_key_events
+        WHERE base64_proto_id IS NOT NULL
         UNION ALL
-        SELECT COUNT(*) FROM android_motion_events
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        SELECT COUNT(*) FROM __intrinsic_android_motion_events
+        WHERE base64_proto_id IS NOT NULL
         UNION ALL
-        SELECT COUNT(*) FROM android_input_event_dispatch
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        SELECT COUNT(*) FROM __intrinsic_android_input_event_dispatch
+        WHERE base64_proto_id IS NOT NULL
         """,
         out=Csv("""
         "COUNT(*)"
