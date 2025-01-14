@@ -23,6 +23,7 @@ import {TopLevelScrollTrack} from './scroll_track';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {createScrollTimelineModel} from './scroll_timeline_model';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
@@ -205,12 +206,12 @@ export default class implements PerfettoPlugin {
 
     const tableName =
       'scrolltimelinetrack_org_chromium_ChromeScrollJank_scrollTimeline';
-    await ScrollTimelineTrack.createTableForTrack(ctx, tableName);
+    const model = await createScrollTimelineModel(ctx.engine, tableName, uri);
 
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new ScrollTimelineTrack(ctx, uri, tableName),
+      track: new ScrollTimelineTrack(ctx, model),
     });
 
     const track = new TrackNode({uri, title});
