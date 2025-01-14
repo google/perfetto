@@ -74,6 +74,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
             trace,
             className: 'pf-viewer-page__scrolling-track-tree',
             rootNode: trace.workspace.tracks,
+            useTrackFilter: true,
           }),
         ],
       ),
