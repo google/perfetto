@@ -70,6 +70,7 @@ export interface TrackViewAttrs {
   readonly reorderable?: boolean;
   readonly depth: number;
   readonly stickyTop: number;
+  readonly collapsible: boolean;
 }
 
 /**
@@ -106,7 +107,7 @@ export class TrackView {
   }
 
   renderDOM(attrs: TrackViewAttrs, children: m.Children) {
-    const {scrollToOnCreate, reorderable = false} = attrs;
+    const {scrollToOnCreate, reorderable = false, collapsible} = attrs;
     const {node, renderer, height} = this;
 
     const buttons = attrs.lite
@@ -140,8 +141,8 @@ export class TrackView {
         chips: renderer?.desc.chips,
         buttons,
         scrollToOnCreate: scrollToOnCreate || scrollIntoView,
-        collapsible: node.hasChildren,
-        collapsed: node.collapsed,
+        collapsible: collapsible && node.hasChildren,
+        collapsed: collapsible && node.collapsed,
         highlight: this.isHighlighted(),
         summary: node.isSummary,
         reorderable,
