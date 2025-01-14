@@ -147,6 +147,8 @@ WindowManagerShellTransitionsTable::~WindowManagerShellTransitionsTable() =
     default;
 WindowManagerShellTransitionHandlersTable::
     ~WindowManagerShellTransitionHandlersTable() = default;
+WindowManagerShellTransitionProtosTable::
+    ~WindowManagerShellTransitionProtosTable() = default;
 
 }  // namespace tables
 
