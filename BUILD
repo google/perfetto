@@ -4642,6 +4642,7 @@ perfetto_proto_library(
     name = "protos_perfetto_config_gpu_protos",
     srcs = [
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
+        "protos/perfetto/config/gpu/gpu_renderstages_config.proto",
         "protos/perfetto/config/gpu/vulkan_memory_config.proto",
     ],
     visibility = [
