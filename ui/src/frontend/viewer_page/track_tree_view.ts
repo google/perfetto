@@ -61,6 +61,9 @@ import {
 import {TrackView} from './track_view';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
 import {featureFlags} from '../../core/feature_flags';
+import {EmptyState} from '../../widgets/empty_state';
+import {Button} from '../../widgets/button';
+import {Intent} from '../../widgets/common';
 
 const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   id: 'virtualTrackScrolling',
@@ -89,6 +92,10 @@ export interface TrackTreeViewAttrs {
   // Scroll to scroll to new tracks as they are added.
   // Default: false
   readonly scrollToNewTracks?: boolean;
+
+  // Optional: Whether to filter displayed tracks based on the track filter at
+  // `trace.tracks.trackFilterTerm`.
+  readonly useTrackFilter?: boolean;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -113,15 +120,39 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   }
 
   view({attrs}: m.Vnode<TrackTreeViewAttrs>): m.Children {
-    const {trace, scrollToNewTracks, reorderable, className, rootNode} = attrs;
+    const {
+      trace,
+      scrollToNewTracks,
+      reorderable,
+      className,
+      rootNode,
+      useTrackFilter,
+    } = attrs;
     const renderedTracks = new Array<TrackView>();
+    const trackFilterTerm = trace.tracks.trackFilterTerm.toLowerCase();
     let top = 0;
+
+    function filterMatches(node: TrackNode): boolean {
+      if (!useTrackFilter) return true; // Filter ignored, show all tracks.
+      if (trackFilterTerm === '') return true; // Empty filter, show all tracks.
+
+      // If this track name matches filter, show it.
+      if (node.title?.toLowerCase().includes(trackFilterTerm)) return true;
+
+      // Also show if any of our children match.
+      if (node.children?.some(filterMatches)) return true;
+
+      return false;
+    }
 
     const renderTrack = (
       node: TrackNode,
       depth = 0,
       stickyTop = 0,
     ): m.Children => {
+      // Skip nodes that don't match the filter and have no matching children.
+      if (!filterMatches(node)) return undefined;
+
       const trackView = new TrackView(trace, node, top);
       renderedTracks.push(trackView);
 
@@ -134,7 +165,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       }
 
       const children =
-        (node.headless || node.expanded) &&
+        (node.headless || node.expanded || trackFilterTerm) &&
         node.hasChildren &&
         node.children.map((track) =>
           renderTrack(track, childDepth, childStickyTop),
@@ -162,11 +193,41 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             reorderable,
             stickyTop,
             depth,
+            collapsible: !Boolean(trackFilterTerm),
           },
           children,
         );
       }
     };
+
+    const trackVnodes = rootNode.children.map((track) => renderTrack(track));
+
+    // If there are no truthy vnode values, show "empty state" placeholder.
+    if (trackVnodes.every((x) => !Boolean(x))) {
+      if (trackFilterTerm) {
+        // If we are filtering, show 'no matching tracks' empty state widget.
+        return m(
+          EmptyState,
+          {
+            className,
+            icon: 'filter_alt_off',
+            title: `No tracks match track filter "${trackFilterTerm}"`,
+          },
+          m(Button, {
+            intent: Intent.Primary,
+            label: 'Clear track filter',
+            onclick: () => (trace.tracks.trackFilterTerm = ''),
+          }),
+        );
+      } else {
+        // Not filtering, the workspace must be empty.
+        return m(EmptyState, {
+          className,
+          icon: 'inbox',
+          title: 'Empty workspace',
+        });
+      }
+    }
 
     return m(
       VirtualOverlayCanvas,
@@ -200,22 +261,13 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           }
         },
       },
-      m(
-        '',
-        {ref: TRACK_CONTAINER_REF},
-        rootNode.children.map((track) => renderTrack(track)),
-      ),
+      m('', {ref: TRACK_CONTAINER_REF}, trackVnodes),
     );
   }
 
-  oncreate({attrs, dom}: m.VnodeDOM<TrackTreeViewAttrs>) {
-    const interactionTarget = toHTMLElement(
-      assertExists(findRef(dom, TRACK_CONTAINER_REF)),
-    );
-    this.interactions = new ZonedInteractionHandler(interactionTarget);
-    this.trash.use(this.interactions);
+  oncreate(vnode: m.VnodeDOM<TrackTreeViewAttrs>) {
     this.trash.use(
-      attrs.trace.perfDebugging.addContainer({
+      vnode.attrs.trace.perfDebugging.addContainer({
         setPerfStatsEnabled: (enable: boolean) => {
           this.perfStatsEnabled = enable;
         },
@@ -231,10 +283,32 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         },
       }),
     );
+
+    this.onupdate(vnode);
+  }
+
+  onupdate({dom}: m.VnodeDOM<TrackTreeViewAttrs>) {
+    // Depending on the state of the filter/workspace, we sometimes have a
+    // TRACK_CONTAINER_REF element and sometimes we don't (see the view
+    // function). This means the DOM element could potentially appear/disappear
+    // or change every update cycle. This chunk of code hooks the
+    // ZonedInteractionHandler back up again if the DOM element is present,
+    // otherwise it just removes it.
+    const interactionTarget = findRef(dom, TRACK_CONTAINER_REF) ?? undefined;
+    if (interactionTarget !== this.interactions?.target) {
+      this.interactions?.[Symbol.dispose]();
+      if (!interactionTarget) {
+        this.interactions = undefined;
+      } else {
+        this.interactions = new ZonedInteractionHandler(
+          toHTMLElement(interactionTarget),
+        );
+      }
+    }
   }
 
   onremove() {
-    this.trash.dispose();
+    this.interactions?.[Symbol.dispose]();
   }
 
   private drawCanvas(
