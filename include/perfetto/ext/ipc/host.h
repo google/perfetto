@@ -41,12 +41,9 @@ class Host {
  public:
   // Creates an instance and starts listening on the given |socket_name|.
   // Returns nullptr if listening on the socket fails.
+  // socket_name can be fd://123 for sockets pre-bound by init and passed as FD
+  // across exec in an env var.
   static std::unique_ptr<Host> CreateInstance(const char* socket_name,
-                                              base::TaskRunner*);
-
-  // Like the above but takes a file descriptor to a pre-bound unix socket.
-  // Returns nullptr if listening on the socket fails.
-  static std::unique_ptr<Host> CreateInstance(base::ScopedSocketHandle,
                                               base::TaskRunner*);
 
   // Creates a Host which is not backed by a POSIX listening socket.
