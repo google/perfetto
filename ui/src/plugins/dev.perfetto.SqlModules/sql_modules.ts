@@ -22,12 +22,21 @@ import {SimpleColumn} from '../../components/widgets/sql/table/table';
 // Handles the access to all of the Perfetto SQL modules accessible to Trace
 //  Processor.
 export interface SqlModules {
+  // Returns all tables/views between all loaded Perfetto SQL modules.
+  listTables(): SqlTable[];
+
   // Returns names of all tables/views between all loaded Perfetto SQL modules.
-  listTables(): string[];
+  listTablesNames(): string[];
 
   // Returns Perfetto SQL table/view if it was loaded in one of the Perfetto
   // SQL module.
+  getTable(tableName: string): SqlTable | undefined;
+
+  // Returns module that contains Perfetto SQL table/view if it was loaded in one of the Perfetto
+  // SQL module.
   getModuleForTable(tableName: string): SqlModule | undefined;
+
+  findAllTablesWithLinkedId(tableAndColumn: TableAndColumn): SqlTable[];
 }
 
 // Handles the access to a specific Perfetto SQL Package. Package consists of
@@ -36,8 +45,13 @@ export interface SqlPackage {
   readonly name: string;
   readonly modules: SqlModule[];
 
+  // Returns all tables/views in this package.
+  listTables(): SqlTable[];
+
   // Returns names of all tables/views in this package.
-  listTables(): string[];
+  listTablesNames(): string[];
+
+  getTable(tableName: string): SqlTable | undefined;
 
   // Returns sqlModule containing table with provided name.
   getModuleForTable(tableName: string): SqlModule | undefined;
@@ -64,12 +78,23 @@ export interface SqlModule {
 // The definition of Perfetto SQL table/view.
 export interface SqlTable {
   readonly name: string;
+  readonly includeKey?: string;
   readonly description: string;
   readonly type: string;
   readonly columns: SqlColumn[];
 
+  readonly idColumn: SqlColumn | undefined;
+  readonly linkedIdColumns: SqlColumn[];
+  readonly joinIdColumns: SqlColumn[];
+
   // Returns all columns as TableColumns.
   getTableColumns(): (LegacyTableColumn | LegacyTableColumnSet)[];
+
+  getIdColumns(): SqlColumn[];
+  getJoinIdColumns(): SqlColumn[];
+
+  getIdTables(): TableAndColumn[];
+  getJoinIdTables(): TableAndColumn[];
 }
 
 // The definition of Perfetto SQL function.
@@ -115,9 +140,15 @@ export interface SqlArgument {
   readonly type: string;
 }
 
+export interface TableAndColumn {
+  table: string;
+  column: string;
+
+  isEqual(o: TableAndColumn): boolean;
+}
+
 export interface SqlType {
   readonly name: string;
   readonly shortName: string;
-  readonly table: string | undefined;
-  readonly column: string | undefined;
+  readonly tableAndColumn: TableAndColumn | undefined;
 }

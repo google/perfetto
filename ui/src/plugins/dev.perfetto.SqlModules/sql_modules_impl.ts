@@ -24,6 +24,7 @@ import {
   SqlTable,
   SqlTableFunction,
   SqlType,
+  TableAndColumn,
 } from './sql_modules';
 import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
 import {
@@ -50,8 +51,39 @@ export class SqlModulesImpl implements SqlModules {
     this.packages = docs.map((json) => new StdlibPackageImpl(json));
   }
 
-  listTables(): string[] {
+  findAllTablesWithLinkedId(tableAndColumn: TableAndColumn): SqlTable[] {
+    const linkedIdTables: SqlTable[] = [];
+    for (const t of this.listTables()) {
+      const allLinkedCols = t.linkedIdColumns;
+      if (
+        allLinkedCols.find(
+          (c) =>
+            c.type.tableAndColumn &&
+            c.type.tableAndColumn.isEqual(tableAndColumn),
+        )
+      ) {
+        linkedIdTables.push(t);
+      }
+    }
+    return linkedIdTables;
+  }
+
+  getTable(tableName: string): SqlTable | undefined {
+    for (const p of this.packages) {
+      const t = p.getTable(tableName);
+      if (t !== undefined) {
+        return t;
+      }
+    }
+    return;
+  }
+
+  listTables(): SqlTable[] {
     return this.packages.flatMap((p) => p.listTables());
+  }
+
+  listTablesNames(): string[] {
+    return this.packages.flatMap((p) => p.listTablesNames());
   }
 
   getModuleForTable(tableName: string): SqlModule | undefined {
@@ -77,6 +109,25 @@ export class StdlibPackageImpl implements SqlPackage {
     }
   }
 
+  getTable(tableName: string): SqlTable | undefined {
+    for (const module of this.modules) {
+      for (const dataObj of module.dataObjects) {
+        if (dataObj.name == tableName) {
+          return dataObj;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  listTables(): SqlTable[] {
+    return this.modules.flatMap((module) => module.dataObjects);
+  }
+
+  listTablesNames(): string[] {
+    return this.listTables().map((t) => t.name);
+  }
+
   getModuleForTable(tableName: string): SqlModule | undefined {
     for (const module of this.modules) {
       for (const dataObj of module.dataObjects) {
@@ -86,12 +137,6 @@ export class StdlibPackageImpl implements SqlPackage {
       }
     }
     return undefined;
-  }
-
-  listTables(): string[] {
-    return this.modules.flatMap((module) =>
-      module.dataObjects.map((dataObj) => dataObj.name),
-    );
   }
 
   getSqlTableDescription(tableName: string): SqlTableDescription | undefined {
@@ -115,9 +160,14 @@ export class StdlibModuleImpl implements SqlModule {
 
   constructor(docs: DocsModuleSchemaType) {
     this.includeKey = docs.module_name;
+
+    const neededInclude = this.includeKey.startsWith('prelude')
+      ? undefined
+      : this.includeKey;
     this.dataObjects = docs.data_objects.map(
-      (json) => new StdlibDataObjectImpl(json),
+      (json) => new SqlTableImpl(json, neededInclude),
     );
+
     this.functions = docs.functions.map((json) => new StdlibFunctionImpl(json));
     this.tableFunctions = docs.table_functions.map(
       (json) => new StdlibTableFunctionImpl(json),
@@ -198,17 +248,59 @@ class StdlibFunctionImpl implements SqlFunction {
   }
 }
 
-class StdlibDataObjectImpl implements SqlTable {
+class SqlTableImpl implements SqlTable {
   name: string;
+  includeKey?: string;
   description: string;
   type: string;
   columns: SqlColumn[];
+  idColumn: SqlColumn | undefined;
+  linkedIdColumns: SqlColumn[];
+  joinIdColumns: SqlColumn[];
 
-  constructor(docs: DocsDataObjectSchemaType) {
+  constructor(docs: DocsDataObjectSchemaType, includeKey: string | undefined) {
     this.name = docs.name;
+    this.includeKey = includeKey;
     this.description = docs.desc;
     this.type = docs.type;
     this.columns = docs.cols.map((json) => new StdlibColumnImpl(json));
+
+    this.linkedIdColumns = [];
+    this.joinIdColumns = [];
+    for (const c of this.columns) {
+      if (c.type.name === 'id') {
+        this.idColumn = c;
+        continue;
+      }
+      if (c.type.shortName === 'id') {
+        this.linkedIdColumns.push(c);
+        continue;
+      }
+      if (c.type.shortName === 'joinid') {
+        this.joinIdColumns.push(c);
+        continue;
+      }
+    }
+  }
+
+  getIdColumns(): SqlColumn[] {
+    return this.columns.filter((c) => c.type.shortName === 'id');
+  }
+
+  getJoinIdColumns(): SqlColumn[] {
+    return this.columns.filter((c) => c.type.shortName === 'joinid');
+  }
+
+  getIdTables(): TableAndColumn[] {
+    return this.getIdColumns()
+      .map((c) => c.type.tableAndColumn)
+      .filter((tAndC) => tAndC !== undefined) as TableAndColumn[];
+  }
+
+  getJoinIdTables(): TableAndColumn[] {
+    return this.getJoinIdColumns()
+      .map((c) => c.type.tableAndColumn)
+      .filter((tAndC) => tAndC !== undefined) as TableAndColumn[];
   }
 
   getTableColumns(): (LegacyTableColumn | LegacyTableColumnSet)[] {
@@ -225,10 +317,15 @@ class StdlibColumnImpl implements SqlColumn {
 
   constructor(docs: DocsArgOrColSchemaType) {
     this.type = {
-      name: docs.type,
-      shortName: docs.name.split('(')[0],
-      table: docs.table ? docs.table : undefined,
-      column: docs.column ? docs.column : undefined,
+      name: docs.type.toLowerCase(),
+      shortName: docs.type.split('(')[0].toLowerCase(),
+      tableAndColumn:
+        docs.table && docs.column
+          ? new TableAndColumnImpl(
+              docs.table.toLowerCase(),
+              docs.column.toLowerCase(),
+            )
+          : undefined,
     };
     this.description = docs.desc;
     this.name = docs.name;
@@ -259,10 +356,10 @@ class StdlibColumnImpl implements SqlColumn {
     }
 
     if (this.type.shortName === 'JOINID') {
-      if (this.type.table === undefined) {
+      if (this.type.tableAndColumn === undefined) {
         return createStandardColumn(this.name);
       }
-      switch (this.type.table.toLowerCase()) {
+      switch (this.type.tableAndColumn.table.toLowerCase()) {
         case 'slice':
           return createSliceIdColumn(this.name);
         case 'thread':
@@ -289,6 +386,18 @@ class StdlibFunctionArgImpl implements SqlArgument {
     this.type = docs.type;
     this.description = docs.desc;
     this.name = docs.name;
+  }
+}
+
+class TableAndColumnImpl implements TableAndColumn {
+  table: string;
+  column: string;
+  constructor(table: string, column: string) {
+    this.table = table;
+    this.column = column;
+  }
+  isEqual(o: TableAndColumn): boolean {
+    return o.table === this.table && o.column === this.column;
   }
 }
 
