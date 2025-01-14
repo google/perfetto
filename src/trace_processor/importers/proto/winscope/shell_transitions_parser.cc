@@ -82,9 +82,10 @@ void ShellTransitionsParser::ParseHandlerMappings(protozero::ConstBytes blob) {
     row.handler_id = mapping.id();
     row.handler_name = context_->storage->InternString(
         base::StringView(mapping.name().ToStdString()));
-    row.base64_proto = context_->storage->mutable_string_pool()->InternString(
-        base::StringView(base::Base64Encode(blob.data, blob.size)));
-    row.base64_proto_id = row.base64_proto.raw_id();
+    row.base64_proto_id = context_->storage->mutable_string_pool()
+                              ->InternString(base::StringView(
+                                  base::Base64Encode(blob.data, blob.size)))
+                              .raw_id();
     shell_handlers_table->Insert(row);
   }
 }
