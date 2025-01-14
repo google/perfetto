@@ -18,7 +18,7 @@ import {colorForFtrace} from '../../components/colorizer';
 import {DetailsShell} from '../../widgets/details_shell';
 import {
   MultiSelectDiff,
-  Option as MultiSelectOption,
+  MultiSelectOption,
   PopupMultiSelect,
 } from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';

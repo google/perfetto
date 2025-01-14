@@ -15,9 +15,9 @@
 import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {ExplorePage, ExploreTableState} from './explore_page';
 import {Chart} from '../../components/widgets/charts/chart';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
@@ -38,6 +38,7 @@ export default class implements PerfettoPlugin {
             ...attrs,
             state: this.state,
             charts: this.charts,
+            sqlModulesPlugin: attrs.trace.plugins.getPlugin(SqlModulesPlugin),
           }),
       },
     });

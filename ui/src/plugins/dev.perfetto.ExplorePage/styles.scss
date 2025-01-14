@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 .explore-page {
   position: relative;
   overflow: auto;
@@ -72,5 +73,67 @@
     &__right-pane {
       flex: 1;
     }
+  }
+
+  &__rowish {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+
+    & > * {
+      width: 50%;
+    }
+  }
+
+  &__columnar {
+    position: relative;
+  }
+}
+
+.pf-column-controller-fixed-size {
+  max-height: 300px;
+}
+
+.pf-column-controller-panel {
+  font-family: $pf-font;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 280px;
+  & > .pf-search-bar {
+    margin-bottom: 8px;
+    display: flex;
+    & > .pf-search-box {
+      flex-grow: 1;
+    }
+  }
+  .pf-column-controller-item {
+    // display: block; // Put each item on a new line
+    margin-top: 5px;
+  }
+
+  .pf-column-controller-item-on-hover {
+    float: right;
+  }
+
+  .pf-column-controller-header {
+    align-items: baseline;
+    display: flex;
+    position: sticky;
+    top: 0;
+    font-size: 1em;
+    background-color: white;
+    z-index: 1;
+    font-size: 0.75em;
+    border-bottom: solid 1px $pf-minimal-foreground;
+    padding-bottom: 2px;
+    min-width: max-content;
+    & > span {
+      margin-right: auto;
+    }
+  }
+  .pf-column-controller-container {
+    position: relative;
+    margin-bottom: 16px;
   }
 }
