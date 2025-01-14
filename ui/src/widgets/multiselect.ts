@@ -21,7 +21,7 @@ import {Popup, PopupPosition} from './popup';
 import {TextInput} from './text_input';
 import {Intent} from './common';
 
-export interface Option {
+export interface MultiSelectOption {
   // The ID is used to indentify this option, and is used in callbacks.
   id: string;
   // This is the name displayed and used for searching.
@@ -36,7 +36,7 @@ export interface MultiSelectDiff {
 }
 
 export interface MultiSelectAttrs {
-  options: Option[];
+  options: MultiSelectOption[];
   onChange?: (diffs: MultiSelectDiff[]) => void;
   repeatCheckedItemsAtTop?: boolean;
   showNumSelected?: boolean;
@@ -77,7 +77,10 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
     );
   }
 
-  private renderListOfItems(attrs: MultiSelectAttrs, options: Option[]) {
+  private renderListOfItems(
+    attrs: MultiSelectAttrs,
+    options: MultiSelectOption[],
+  ) {
     const {repeatCheckedItemsAtTop, onChange = () => {}} = attrs;
     const allChecked = options.every(({checked}) => checked);
     const anyChecked = options.some(({checked}) => checked);
@@ -189,7 +192,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
     }
   }
 
-  private renderOptions(attrs: MultiSelectAttrs, options: Option[]) {
+  private renderOptions(attrs: MultiSelectAttrs, options: MultiSelectOption[]) {
     const {onChange = () => {}} = attrs;
 
     return options.map((item) => {

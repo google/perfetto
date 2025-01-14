@@ -56,7 +56,8 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
     const sqlModules = trace.plugins
       .getPlugin(SqlModulesPlugin)
       .getSqlModules();
-    return sqlModules.listTables().map((tableName) => {
+    return sqlModules.listTables().map((t) => {
+      const tableName = t.name;
       const sqlTable = sqlModules
         .getModuleForTable(tableName)
         ?.getTable(tableName);
