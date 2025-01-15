@@ -363,6 +363,26 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'Q',
         callback: () => trace.tabs.toggleTabPanelVisibility(),
       },
+      {
+        id: 'perfetto.CopyPinnedToWorkspace',
+        name: 'Copy pinned tracks to new workspace',
+        defaultHotkey: 'Q',
+        callback: () => {
+          const pinnedTracks = trace.workspace.pinnedTracks;
+          if (!pinnedTracks.length) {
+            window.alert('No pinned tracks to copy');
+            return;
+          }
+
+          const ws = trace.workspaces.createEmptyWorkspace('Pinned Tracks');
+          for (const pinnedTrack of pinnedTracks) {
+            const clone = pinnedTrack.clone();
+            clone.removable = true;
+            ws.addChildLast(clone);
+          }
+          trace.workspaces.switchWorkspace(ws);
+        },
+      },
     ];
 
     // Register each command with the command manager
