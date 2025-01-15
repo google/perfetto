@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
-import {ColumnControllerRows} from './column_controller';
+import {ColumnControllerRows} from './query_builder/column_controller';
 
 export enum NodeType {
   kStdlibTable,

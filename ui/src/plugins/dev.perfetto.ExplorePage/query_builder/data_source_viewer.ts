@@ -13,18 +13,18 @@
 // limitations under the License.
 
 import m from 'mithril';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import SqlModulesPlugin from '../../dev.perfetto.SqlModules';
 
-import {PageWithTraceAttrs} from '../../public/page';
-import {Button} from '../../widgets/button';
-import {TextParagraph} from '../../widgets/text_paragraph';
-import {QueryTable} from '../../components/query_table/query_table';
-import {runQuery} from '../../components/query_table/queries';
-import {AsyncLimiter} from '../../base/async_limiter';
-import {QueryResponse} from '../../components/query_table/queries';
-import {Trace} from '../../public/trace';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
-import {QueryNode, getLastFinishedNode, getFirstNode} from './query_state';
+import {PageWithTraceAttrs} from '../../../public/page';
+import {Button} from '../../../widgets/button';
+import {TextParagraph} from '../../../widgets/text_paragraph';
+import {QueryTable} from '../../../components/query_table/query_table';
+import {runQuery} from '../../../components/query_table/queries';
+import {AsyncLimiter} from '../../../base/async_limiter';
+import {QueryResponse} from '../../../components/query_table/queries';
+import {Trace} from '../../../public/trace';
+import {SegmentedButtons} from '../../../widgets/segmented_buttons';
+import {QueryNode, getLastFinishedNode, getFirstNode} from '../query_state';
 import {ColumnControllerRows} from './column_controller';
 
 export interface DataSourceAttrs extends PageWithTraceAttrs {
