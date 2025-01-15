@@ -31,7 +31,7 @@ export class Histogram implements m.ClassComponent<ChartConfig> {
     );
   }
 
-  view() {
+  view({attrs}: m.Vnode<ChartConfig>) {
     if (this.state.isLoading()) {
       return m(Spinner);
     }
@@ -44,6 +44,8 @@ export class Histogram implements m.ClassComponent<ChartConfig> {
       m(VegaView, {
         spec: stringifyJsonWithBigints(this.state.spec),
         data: {},
+        onPointSelection: attrs.onPointSelection,
+        onIntervalSelection: attrs.onIntervalSelection,
       }),
     );
   }
