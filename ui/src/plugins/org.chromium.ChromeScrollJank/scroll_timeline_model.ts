@@ -160,59 +160,23 @@ async function createTable(
         -- difficulty is that some of those columns might be null, which is
         -- better handled by the aggregate MIN/MAX functions (which ignore null
         -- values) than the scalar MIN/MAX functions (which return null if any
-        -- argument is null). That's why we do it in such a roundabout way by
-        -- joining the top-level table with the individual steps.
-        scroll_updates_with_bounds AS (
+        -- argument is null). Furthermore, using a COALESCE function with so
+        -- many arguments (COL1_ts, COL2_ts, ..., COLn_ts) seems to cause
+        -- out-of-memory crashes.
+        scroll_update_bounds AS (
           SELECT
-            scroll_update.id AS scroll_update_id,
-            MIN(scroll_steps.ts) AS ts,
-            MAX(scroll_steps.ts) - MIN(scroll_steps.ts) AS dur,
-            -- Combine all applicable scroll update classifications into the
-            -- name. For example, if a scroll update is both janky and inertial,
-            -- its name will be name 'Janky Inertial Scroll Update'.
-            CONCAT_WS(
-              ' ',
-              IIF(scroll_update.is_janky, 'Janky', NULL),
-              IIF(scroll_update.is_first_scroll_update_in_scroll, 'First', NULL),
-              IIF(
-                NOT scroll_update.is_first_scroll_update_in_frame,
-                'Coalesced',
-                NULL
-              ),
-              IIF(scroll_update.is_inertial, 'Inertial', NULL),
-              'Scroll Update'
-            ) AS name,
-            -- Pick the highest-priority applicable scroll update
-            -- classification. For example, if a scroll update is both janky and
-            -- inertial, classify it as janky.
-            CASE
-              WHEN scroll_update.is_janky
-                THEN ${ScrollUpdateClassification.JANKY}
-              WHEN scroll_update.is_first_scroll_update_in_scroll
-                THEN ${ScrollUpdateClassification.FIRST_SCROLL_UPDATE_IN_FRAME}
-              WHEN NOT scroll_update.is_first_scroll_update_in_frame
-                THEN ${ScrollUpdateClassification.COALESCED}
-              WHEN scroll_update.is_inertial
-                THEN ${ScrollUpdateClassification.INERTIAL}
-              ELSE ${ScrollUpdateClassification.DEFAULT}
-            END AS classification
-          FROM
-            chrome_scroll_update_info AS scroll_update
-            JOIN scroll_steps ON scroll_steps.scroll_update_id = scroll_update.id
-          GROUP BY scroll_update.id
+            scroll_update_id,
+            MIN(ts) AS ts,
+            MAX(ts) - MIN(ts) AS dur
+          FROM scroll_steps
+          GROUP BY scroll_update_id
         ),
         -- Now that we know the ts+dur of all scroll updates, we can lay them
         -- out efficiently (i.e. assign depths to them to avoid overlaps).
-        scroll_updates_with_layouts AS (
+        scroll_update_layouts AS (
           ${generateSqlWithInternalLayout({
-            columns: [
-              'scroll_update_id',
-              'ts',
-              'dur',
-              'name',
-              'classification',
-            ],
-            sourceTable: 'scroll_updates_with_bounds',
+            columns: ['scroll_update_id', 'ts', 'dur'],
+            sourceTable: 'scroll_update_bounds',
             ts: 'ts',
             dur: 'dur',
             // Filter out scroll updates with no timestamps. See b/388756942.
@@ -223,23 +187,57 @@ async function createTable(
         -- their constituent step slices (at odd depths).
         unordered_slices AS (
           SELECT
-            ts,
-            dur,
-            2 * depth AS depth,
-            name,
-            classification,
-            scroll_update_id
-          FROM scroll_updates_with_layouts
+            scroll_update_layouts.ts,
+            scroll_update_layouts.dur,
+            2 * scroll_update_layouts.depth AS depth,
+            -- Combine all applicable scroll update classifications into the
+            -- name. For example, if a scroll update is both janky and inertial,
+            -- its name will be name 'Janky Inertial Scroll Update'.
+            CONCAT_WS(
+              ' ',
+              IIF(chrome_scroll_update_info.is_janky, 'Janky', NULL),
+              IIF(
+                chrome_scroll_update_info.is_first_scroll_update_in_scroll,
+                'First',
+                NULL
+              ),
+              IIF(
+                NOT chrome_scroll_update_info.is_first_scroll_update_in_frame,
+                'Coalesced',
+                NULL
+              ),
+              IIF(chrome_scroll_update_info.is_inertial, 'Inertial', NULL),
+              'Scroll Update'
+            ) AS name,
+            -- Pick the highest-priority applicable scroll update
+            -- classification. For example, if a scroll update is both janky and
+            -- inertial, classify it as janky.
+            CASE
+              WHEN chrome_scroll_update_info.is_janky
+                THEN ${ScrollUpdateClassification.JANKY}
+              WHEN chrome_scroll_update_info.is_first_scroll_update_in_scroll
+                THEN ${ScrollUpdateClassification.FIRST_SCROLL_UPDATE_IN_FRAME}
+              WHEN NOT chrome_scroll_update_info.is_first_scroll_update_in_frame
+                THEN ${ScrollUpdateClassification.COALESCED}
+              WHEN chrome_scroll_update_info.is_inertial
+                THEN ${ScrollUpdateClassification.INERTIAL}
+              ELSE ${ScrollUpdateClassification.DEFAULT}
+            END AS classification,
+            scroll_update_layouts.scroll_update_id
+          FROM scroll_update_layouts
+          JOIN chrome_scroll_update_info
+          ON scroll_update_layouts.scroll_update_id
+            = chrome_scroll_update_info.id
           UNION ALL
           SELECT
             scroll_steps.ts,
             MAX(scroll_steps.dur, 0) AS dur,
-            2 * scroll_updates_with_layouts.depth + 1 AS depth,
+            2 * scroll_update_layouts.depth + 1 AS depth,
             scroll_steps.name,
             ${ScrollUpdateClassification.STEP} AS classification,
-            scroll_updates_with_layouts.scroll_update_id
+            scroll_update_layouts.scroll_update_id
           FROM scroll_steps
-          JOIN scroll_updates_with_layouts USING(scroll_update_id)
+          JOIN scroll_update_layouts USING(scroll_update_id)
           WHERE scroll_steps.ts IS NOT NULL AND scroll_steps.dur IS NOT NULL
         )
       -- Finally, we sort all slices chronologically and assign them
