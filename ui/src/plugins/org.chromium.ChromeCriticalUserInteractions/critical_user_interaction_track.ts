@@ -15,16 +15,15 @@
 import {NAMED_ROW} from '../../components/tracks/named_slice_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
-import {
-  CustomSqlTableDefConfig,
-  CustomSqlTableSliceTrack,
-} from '../../components/tracks/custom_sql_table_slice_track';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {Duration, Time} from '../../base/time';
 import {PageLoadDetailsPanel} from './page_load_details_panel';
 import {StartupDetailsPanel} from './startup_details_panel';
 import {WebContentInteractionPanel} from './web_content_interaction_details_panel';
 import {GenericSliceDetailsTab} from './generic_slice_details_tab';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {Trace} from '../../public/trace';
 
 export const CRITICAL_USER_INTERACTIONS_KIND =
   'org.chromium.CriticalUserInteraction.track';
@@ -41,24 +40,35 @@ export interface CriticalUserInteractionSlice extends Slice {
   type: string;
 }
 
-export class CriticalUserInteractionTrack extends CustomSqlTableSliceTrack {
+export class CriticalUserInteractionTrack extends DatasetSliceTrack {
   static readonly kind = `/critical_user_interactions`;
 
-  getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      columns: [
+  constructor(trace: Trace, uri: string) {
+    super({
+      trace,
+      uri,
+      dataset: new SourceDataset({
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
         // The scoped_id is not a unique identifier within the table; generate
         // a unique id from type and scoped_id on the fly to use for slice
         // selection.
-        'hash(type, scoped_id) AS id',
-        'scoped_id AS scopedId',
-        'name',
-        'ts',
-        'dur',
-        'type',
-      ],
-      sqlTableName: 'chrome_interactions',
-    };
+        src: `
+          SELECT
+            hash(type, scoped_id) AS id,
+            scoped_id AS scopedId,
+            name,
+            ts,
+            dur,
+            type
+          FROM chrome_interactions
+        `,
+      }),
+    });
   }
 
   async getSelectionDetails(

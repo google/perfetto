@@ -18,12 +18,13 @@
 // Fields:
 // @columns: a string array list of the columns to be selected from the table.
 // required by the internal_layout function.
-// @sourceTable: the table in the FROM clause, source of the data.
+// @source: the table or select statement in the FROM clause.
 // @whereClause: the WHERE clause to filter data from the source table.
 // @orderByClause: the ORDER BY clause for the query data.
+// TODO(stevegolton): Move these comments inline.
 interface GenerateSqlArgs {
   columns: string[];
-  sourceTable: string;
+  source: string;
   ts: string;
   dur: string;
   whereClause?: string;
@@ -40,8 +41,7 @@ export function generateSqlWithInternalLayout(
     sqlArgs.columns.toString() +
     `, internal_layout(${sqlArgs.ts}, ${sqlArgs.dur}) OVER (ORDER BY ${sqlArgs.ts}` +
     ' ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS depth' +
-    ' FROM ' +
-    sqlArgs.sourceTable;
+    ` FROM (${sqlArgs.source})`;
   if (sqlArgs.whereClause !== undefined) {
     sql += ' WHERE ' + sqlArgs.whereClause;
   }

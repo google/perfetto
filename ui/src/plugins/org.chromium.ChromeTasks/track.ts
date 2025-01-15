@@ -13,29 +13,32 @@
 // limitations under the License.
 
 import {Utid} from '../../components/sql_utils/core_types';
-import {
-  CustomSqlTableDefConfig,
-  CustomSqlTableSliceTrack,
-} from '../../components/tracks/custom_sql_table_slice_track';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {Trace} from '../../public/trace';
 import {TrackEventSelection} from '../../public/selection';
 import {ChromeTasksDetailsPanel} from './details';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
 
-export class ChromeTasksThreadTrack extends CustomSqlTableSliceTrack {
-  constructor(
-    trace: Trace,
-    uri: string,
-    private readonly utid: Utid,
-  ) {
-    super(trace, uri);
-  }
-
-  getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      columns: ['name', 'id', 'ts', 'dur'],
-      sqlTableName: 'chrome_tasks',
-      whereClause: `utid = ${this.utid}`,
-    };
+export class ChromeTasksThreadTrack extends DatasetSliceTrack {
+  constructor(trace: Trace, uri: string, utid: Utid) {
+    super({
+      trace,
+      uri,
+      dataset: new SourceDataset({
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+        src: 'chrome_tasks',
+        filter: {
+          col: 'utid',
+          eq: utid,
+        },
+      }),
+    });
   }
 
   override detailsPanel(sel: TrackEventSelection) {
