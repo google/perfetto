@@ -150,9 +150,9 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     PERFETTO_CHECK(false);
 #else
-    base::ScopedFile producer_fd(atoi(env_prod));
-    base::ScopedFile consumer_fd(atoi(env_cons));
-    started = svc->Start(std::move(producer_fd), std::move(consumer_fd));
+    base::StackString<32> prod_sock("fd://%s", env_prod);
+    base::StackString<32> cons_sock("fd://%s", env_cons);
+    started = svc->Start({prod_sock.ToStdString()}, cons_sock.c_str());
 #endif
   } else {
     auto producer_sockets = TokenizeProducerSockets(GetProducerSocket());
