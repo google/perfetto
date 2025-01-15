@@ -14,18 +14,18 @@
 
 import m from 'mithril';
 
-import {PageWithTraceAttrs} from '../../public/page';
-import {Button} from '../../widgets/button';
-import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
-import {Section} from '../../widgets/section';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
-import {JoinState, QueryBuilderJoin} from './query_builder_operations/join';
+import {PageWithTraceAttrs} from '../../../public/page';
+import {Button} from '../../../widgets/button';
+import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
+import {Section} from '../../../widgets/section';
+import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 import {
   ColumnController,
   ColumnControllerDiff,
   ColumnControllerRows,
 } from './column_controller';
-import {QueryNode, StdlibTableState, NodeType} from './query_state';
+import {QueryNode, StdlibTableState, NodeType} from '../query_state';
+import {JoinState, QueryBuilderJoin} from './operations/join';
 
 export interface QueryBuilderTable {
   name: string;
