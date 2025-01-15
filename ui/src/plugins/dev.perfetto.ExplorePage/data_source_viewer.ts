@@ -25,6 +25,7 @@ import {QueryResponse} from '../../components/query_table/queries';
 import {Trace} from '../../public/trace';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {QueryNode, getLastFinishedNode, getFirstNode} from './query_state';
+import {ColumnControllerRows} from './column_controller';
 
 export interface DataSourceAttrs extends PageWithTraceAttrs {
   readonly plugin: SqlModulesPlugin;
@@ -162,7 +163,7 @@ function sqlToRun(node: QueryNode): string | undefined {
 
   const colsStr: string = currentNode.columns
     .filter((c) => c.checked)
-    .map((c) => (c.source ? `${c.source}.${c.column.name}` : c.column.name))
+    .map((c) => getColStr(c))
     .join(',\n  ');
 
   const sourceStr = getSource(node);
@@ -171,4 +172,11 @@ function sqlToRun(node: QueryNode): string | undefined {
   }
 
   return `${importsStr}\n\nSELECT\n  ${colsStr}\nFROM ${sourceStr};`.trim();
+}
+
+function getColStr(col: ColumnControllerRows) {
+  const colWithSource = col.source
+    ? `${col.source}.${col.column.name}`
+    : col.column.name;
+  return col.alias ? `${colWithSource} AS ${col.alias}` : colWithSource;
 }

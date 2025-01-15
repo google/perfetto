@@ -76,15 +76,17 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       return (
         attrs.queryNode.columns &&
         m(ColumnController, {
+          hasValidColumns: true,
           options: attrs.queryNode.columns,
           onChange: (diffs: ColumnControllerDiff[]) => {
-            diffs.forEach(({id, checked}) => {
+            diffs.forEach(({id, checked, alias}) => {
               if (attrs.queryNode?.columns === undefined) {
                 return;
               }
               for (const option of attrs.queryNode?.columns) {
-                if (option.id == id) {
+                if (option.id === id) {
                   option.checked = checked;
+                  option.alias = alias;
                 }
               }
             });
