@@ -168,14 +168,16 @@ export class QueryBuilderJoin implements m.ClassComponent<JoinOperationAttrs> {
           {title: `From ${attrs.joinState.prevNode.getTitle()}`},
           m(ColumnController, {
             options: attrs.joinState.primaryColumnsPicked,
+            hasValidColumns: true,
             onChange: (diffs: ColumnControllerDiff[]) => {
-              diffs.forEach(({id, checked}) => {
+              diffs.forEach(({id, checked, alias}) => {
                 if (attrs.joinState.primaryColumnsPicked === undefined) {
                   return;
                 }
                 for (const option of attrs.joinState.primaryColumnsPicked) {
                   if (option.id == id) {
                     option.checked = checked;
+                    option.alias = alias;
                   }
                 }
               });
@@ -190,14 +192,16 @@ export class QueryBuilderJoin implements m.ClassComponent<JoinOperationAttrs> {
           },
           m(ColumnController, {
             options: attrs.joinState.secondaryColumnsPicked,
+            hasValidColumns: true,
             onChange: (diffs: ColumnControllerDiff[]) => {
-              diffs.forEach(({id, checked}) => {
+              diffs.forEach(({id, checked, alias}) => {
                 if (attrs.joinState.secondaryColumnsPicked === undefined) {
                   return;
                 }
                 for (const option of attrs.joinState.secondaryColumnsPicked) {
                   if (option.id == id) {
                     option.checked = checked;
+                    option.alias = alias;
                   }
                 }
               });

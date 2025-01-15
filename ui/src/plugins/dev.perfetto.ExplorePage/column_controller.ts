@@ -20,6 +20,7 @@ import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
 import {Checkbox} from '../../widgets/checkbox';
 import {SqlColumn} from '../dev.perfetto.SqlModules/sql_modules';
+import {TextInput} from '../../widgets/text_input';
 
 export class ColumnControllerRows {
   // The ID is used to indentify this option, and is used in callbacks.
@@ -28,8 +29,10 @@ export class ColumnControllerRows {
   checked: boolean;
   // This is the name displayed and used for searching.
   column: SqlColumn;
-
+  // What is the data source of the column. Used for formatting for SQL.
   source?: string;
+  // Word column was renamed to.
+  alias?: string;
 
   constructor(column: SqlColumn) {
     this.id = column.name;
@@ -42,12 +45,14 @@ export class ColumnControllerRows {
 export interface ColumnControllerDiff {
   id: string;
   checked: boolean;
+  alias?: string;
 }
 
 export interface ColumnControllerAttrs {
   options: ColumnControllerRows[];
   onChange?: (diffs: ColumnControllerDiff[]) => void;
   fixedSize?: boolean;
+  hasValidColumns: boolean;
 }
 
 export class ColumnController
@@ -94,7 +99,7 @@ export class ColumnController
                 onclick: () => {
                   const diffs = options
                     .filter(({checked}) => !checked)
-                    .map(({id}) => ({id, checked: true}));
+                    .map(({id, alias}) => ({id, checked: true, alias: alias}));
                   onChange(diffs);
                 },
                 disabled: allChecked,
@@ -106,7 +111,7 @@ export class ColumnController
                 onclick: () => {
                   const diffs = options
                     .filter(({checked}) => checked)
-                    .map(({id}) => ({id, checked: false}));
+                    .map(({id, alias}) => ({id, checked: false, alias: alias}));
                   onChange(diffs);
                 },
                 disabled: !anyChecked,
@@ -126,7 +131,7 @@ export class ColumnController
     const {onChange = () => {}} = attrs;
 
     return options.map((item) => {
-      const {id, checked, column} = item;
+      const {id, checked, column, alias} = item;
       return m(
         '',
         {key: id},
@@ -135,7 +140,18 @@ export class ColumnController
           checked,
           className: 'pf-column-controller-item',
           onchange: () => {
-            onChange([{id, checked: !checked}]);
+            onChange([{id, alias, checked: !checked}]);
+          },
+        }),
+        ' as ',
+        m(TextInput, {
+          placeholder: item.alias ? item.alias : column.name,
+          type: 'string',
+          oninput: (e: KeyboardEvent) => {
+            if (!e.target) return;
+            onChange([
+              {id, checked, alias: (e.target as HTMLInputElement).value.trim()},
+            ]);
           },
         }),
         m(Popup, {
@@ -182,4 +198,22 @@ export class PopupColumnController
     const {label} = attrs;
     return label;
   }
+}
+
+export function hasDuplicateColumnsSelected(
+  cols: ColumnControllerRows[],
+): string[] {
+  const seenNames: {[key: string]: boolean} = {};
+  const duplicates: string[] = [];
+
+  for (const col of cols) {
+    const name = col.alias || col.column.name;
+    if (seenNames[name] && col.checked) {
+      duplicates.push(name);
+    } else {
+      seenNames[name] = true;
+    }
+  }
+
+  return duplicates;
 }
