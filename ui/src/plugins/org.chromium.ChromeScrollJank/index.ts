@@ -24,6 +24,8 @@ import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {createScrollTimelineModel} from './scroll_timeline_model';
+import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {FlatColoredDurationTrack} from './flat_colored_duration_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
@@ -40,6 +42,7 @@ export default class implements PerfettoPlugin {
     await this.addScrollJankV3ScrollTrack(ctx, group);
     await ScrollJankCauseMap.initialize(ctx.engine);
     await this.addScrollTimelineTrack(ctx, group);
+    await this.addVsyncTracks(ctx, group);
     ctx.workspace.addChildInOrder(group);
     group.expand();
   }
@@ -216,5 +219,66 @@ export default class implements PerfettoPlugin {
 
     const track = new TrackNode({uri, title});
     group.addChildInOrder(track);
+  }
+
+  private async addVsyncTracks(ctx: Trace, group: TrackNode) {
+    const vsyncTable = '_chrome_scroll_jank_plugin_vsyncs';
+    await ctx.engine.query(`
+      INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
+
+      CREATE PERFETTO TABLE ${vsyncTable} AS
+      SELECT
+        id,
+        ts,
+        dur,
+        track_id,
+        name
+      FROM slice
+      WHERE name = 'Extend_VSync'`);
+
+    {
+      // Add a track for the VSync slices.
+      const uri = 'org.chromium.ChromeScrollJank#ChromeVsync';
+      const track = await createQuerySliceTrack({
+        trace: ctx,
+        data: {sqlSource: `SELECT * FROM ${vsyncTable}`},
+        argColumns: ['id', 'track_id', 'ts', 'dur'],
+        uri,
+      });
+      const title = 'Chrome VSync';
+      ctx.tracks.registerTrack({uri, title, track});
+      group.addChildInOrder(new TrackNode({uri, title}));
+    }
+
+    {
+      // Add a track which tracks the differences between VSyncs.
+      const uri = 'org.chromium.ChromeScrollJank#ChromeVsyncDelta';
+      const track = new FlatColoredDurationTrack(
+        ctx,
+        uri,
+        `(SELECT id, ts, LEAD(ts) OVER (ORDER BY ts) - ts as dur FROM ${vsyncTable})`,
+      );
+      const title = 'Chrome VSync delta';
+      ctx.tracks.registerTrack({uri, title, track});
+      group.addChildInOrder(new TrackNode({uri, title}));
+    }
+
+    {
+      // Add a track which tracks the differences between inputs.
+      const uri = 'org.chromium.ChromeScrollJank#ChromeInputDelta';
+      const track = new FlatColoredDurationTrack(
+        ctx,
+        uri,
+        `(SELECT
+          ROW_NUMBER() OVER () AS id,
+          generation_ts AS ts,
+          LEAD(generation_ts) OVER (ORDER BY generation_ts) - generation_ts as dur
+        FROM chrome_scroll_update_info
+        WHERE generation_ts IS NOT NULL)`,
+      );
+      const title = 'Chrome input delta';
+      ctx.tracks.registerTrack({uri, title, track});
+      group.addChildInOrder(new TrackNode({uri, title}));
+    }
   }
 }
