@@ -20,8 +20,8 @@ import {SqlTableState as SqlTableViewState} from '../../components/widgets/sql/l
 import {Chart} from '../../components/widgets/charts/chart';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {DataVisualiser} from './data_visualiser';
-import {QueryBuilder} from './query_builder';
-import {DataSourceViewer} from './data_source_viewer';
+import {QueryBuilder} from './query_builder/query_builder';
+import {DataSourceViewer} from './query_builder/data_source_viewer';
 import {QueryNode} from './query_state';
 
 export interface ExploreTableState {

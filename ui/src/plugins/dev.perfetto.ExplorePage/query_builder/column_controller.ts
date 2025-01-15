@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Intent} from '../../widgets/common';
-import {Popup, PopupPosition} from '../../widgets/popup';
-import {EmptyState} from '../../widgets/empty_state';
-import {Button} from '../../widgets/button';
-import {Icons} from '../../base/semantic_icons';
-import {Checkbox} from '../../widgets/checkbox';
-import {SqlColumn} from '../dev.perfetto.SqlModules/sql_modules';
-import {TextInput} from '../../widgets/text_input';
+import {Intent} from '../../../widgets/common';
+import {Popup, PopupPosition} from '../../../widgets/popup';
+import {EmptyState} from '../../../widgets/empty_state';
+import {Button} from '../../../widgets/button';
+import {Icons} from '../../../base/semantic_icons';
+import {Checkbox} from '../../../widgets/checkbox';
+import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
+import {TextInput} from '../../../widgets/text_input';
 
 export class ColumnControllerRows {
   // The ID is used to indentify this option, and is used in callbacks.

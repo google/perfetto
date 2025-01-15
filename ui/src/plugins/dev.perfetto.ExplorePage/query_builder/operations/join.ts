@@ -13,24 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TextParagraph} from '../../../widgets/text_paragraph';
 import {
   SqlColumn,
   SqlModules,
   SqlTable,
   TableAndColumn,
-} from '../../dev.perfetto.SqlModules/sql_modules';
-import {Select} from '../../../widgets/select';
-import {Checkbox} from '../../../widgets/checkbox';
-import {CheckboxAttrs} from '../../../widgets/checkbox';
+} from '../../../dev.perfetto.SqlModules/sql_modules';
+import {NodeType, QueryNode} from '../../query_state';
 import {
   ColumnController,
   ColumnControllerDiff,
   ColumnControllerRows,
 } from '../column_controller';
-import {Section} from '../../../widgets/section';
-import {Button} from '../../../widgets/button';
-import {NodeType, QueryNode} from '../query_state';
+import {Button} from '../../../../widgets/button';
+import {CheckboxAttrs, Checkbox} from '../../../../widgets/checkbox';
+import {Section} from '../../../../widgets/section';
+import {Select} from '../../../../widgets/select';
+import {TextParagraph} from '../../../../widgets/text_paragraph';
 
 export interface JoinOperationAttrs {
   readonly sqlModules: SqlModules;
