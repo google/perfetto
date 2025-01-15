@@ -72,9 +72,8 @@ class AndroidBugreportReader {
   ~AndroidBugreportReader();
   base::Status ParseImpl();
 
-  base::StatusOr<std::vector<TimestampedAndroidLogEvent>>
-  ParsePersistentLogcat();
-  base::Status ParseDumpstateTxt(std::vector<TimestampedAndroidLogEvent>);
+  base::StatusOr<std::vector<TimestampedAndroidLogEvent>> ParseDumpstateTxt();
+  base::Status ParsePersistentLogcat(std::vector<TimestampedAndroidLogEvent>);
 
   TraceProcessorContext* const context_;
   BugReportFile bug_report_;
