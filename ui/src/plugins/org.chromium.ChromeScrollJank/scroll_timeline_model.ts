@@ -176,7 +176,7 @@ async function createTable(
         scroll_update_layouts AS (
           ${generateSqlWithInternalLayout({
             columns: ['scroll_update_id', 'ts', 'dur'],
-            sourceTable: 'scroll_update_bounds',
+            source: 'scroll_update_bounds',
             ts: 'ts',
             dur: 'dur',
             // Filter out scroll updates with no timestamps. See b/388756942.

@@ -14,30 +14,31 @@
 
 import {NamedRow} from '../../components/tracks/named_slice_track';
 import {Slice} from '../../public/track';
-import {
-  CustomSqlTableDefConfig,
-  CustomSqlTableSliceTrack,
-} from '../../components/tracks/custom_sql_table_slice_track';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {JANK_COLOR} from './jank_colors';
 import {TrackEventSelection} from '../../public/selection';
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {Trace} from '../../public/trace';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
-export class EventLatencyTrack extends CustomSqlTableSliceTrack {
-  constructor(
-    trace: Trace,
-    uri: string,
-    private baseTable: string,
-  ) {
-    super(trace, uri);
-  }
-
-  getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      sqlTableName: this.baseTable,
-    };
+export class EventLatencyTrack extends DatasetSliceTrack {
+  constructor(trace: Trace, uri: string, baseTable: string) {
+    super({
+      trace,
+      uri,
+      dataset: new SourceDataset({
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+        src: baseTable,
+      }),
+    });
   }
 
   rowToSlice(row: NamedRow): Slice {

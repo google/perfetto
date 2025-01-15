@@ -14,34 +14,45 @@
 
 import {NamedRow} from '../../components/tracks/named_slice_track';
 import {Slice} from '../../public/track';
-import {
-  CustomSqlTableDefConfig,
-  CustomSqlTableSliceTrack,
-} from '../../components/tracks/custom_sql_table_slice_track';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {JANK_COLOR} from './jank_colors';
 import {getColorForSlice} from '../../components/colorizer';
 import {TrackEventSelection} from '../../public/selection';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {Trace} from '../../public/trace';
 
 const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';
 
-export class ScrollJankV3Track extends CustomSqlTableSliceTrack {
-  getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      columns: [
-        `IIF(
-          cause_of_jank IS NOT NULL,
-          cause_of_jank || IIF(
-            sub_cause_of_jank IS NOT NULL, "::" || sub_cause_of_jank, ""
-            ), "${UNKNOWN_SLICE_NAME}") || "${JANK_SLICE_NAME}" AS name`,
-        'id',
-        'ts',
-        'dur',
-        'event_latency_id',
-      ],
-      sqlTableName: 'chrome_janky_frame_presentation_intervals',
-    };
+export class ScrollJankV3Track extends DatasetSliceTrack {
+  constructor(trace: Trace, uri: string) {
+    super({
+      trace,
+      uri,
+      dataset: new SourceDataset({
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+        src: `
+          SELECT
+            IIF(
+              cause_of_jank IS NOT NULL,
+              cause_of_jank || IIF(
+                sub_cause_of_jank IS NOT NULL, "::" || sub_cause_of_jank, ""
+                ), "${UNKNOWN_SLICE_NAME}") || "${JANK_SLICE_NAME}" AS name,
+            id,
+            ts,
+            dur,
+            event_latency_id
+          FROM chrome_janky_frame_presentation_intervals
+        `,
+      }),
+    });
   }
 
   rowToSlice(row: NamedRow): Slice {

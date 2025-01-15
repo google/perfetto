@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  CustomSqlTableDefConfig,
-  CustomSqlTableSliceTrack,
-} from './custom_sql_table_slice_track';
+import {DatasetSliceTrack} from './dataset_slice_track';
 import {
   ARG_PREFIX,
   SqlTableSliceTrackDetailsPanel,
@@ -25,6 +22,8 @@ import {Trace} from '../../public/trace';
 import {TrackEventSelection} from '../../public/selection';
 import {sqlNameSafe} from '../../base/string_utils';
 import {Engine} from '../../trace_processor/engine';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 export interface QuerySliceTrackArgs {
   // The trace object used to run queries.
@@ -131,19 +130,25 @@ async function createPerfettoTableForTrack(
   return await createPerfettoTable(engine, tableName, query);
 }
 
-class SqlTableSliceTrack extends CustomSqlTableSliceTrack {
+class SqlTableSliceTrack extends DatasetSliceTrack {
   constructor(
     trace: Trace,
     uri: string,
     private readonly sqlTableName: string,
   ) {
-    super(trace, uri);
-  }
-
-  override getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      sqlTableName: this.sqlTableName,
-    };
+    super({
+      trace,
+      uri,
+      dataset: new SourceDataset({
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+        src: sqlTableName,
+      }),
+    });
   }
 
   override detailsPanel({eventId}: TrackEventSelection) {
