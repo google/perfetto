@@ -30,47 +30,6 @@ namespace perfetto ::trace_processor {
 
 class TraceProcessorContext;
 
-// Parses log lines coming from persistent logcat (FS/data/misc/logd), interns
-// string in the TP string pools and populates a vector of AndroidLogEvent
-// structs. Does NOT insert log events into any table (for testing isolation),
-// the caller is in charge to do that.
-// It supports the following formats (auto-detected):
-// 1) 12-31 23:59:00.123456 <pid> <tid> I tag: message
-//    This is typically found in persistent logcat (FS/data/misc/logd/)
-// 2) 06-24 15:57:11.346 <uid> <pid> <tid> D Tag: Message
-//    This is typically found in the recent logcat dump in bugreport-xxx.txt
-class AndroidLogReader : public ChunkedLineReader {
- public:
-  // Log cat will not write year into the trace so the caller needs to figure it
-  // out. If not provided the reader will make a best guess.
-  explicit AndroidLogReader(TraceProcessorContext* context);
-  AndroidLogReader(TraceProcessorContext* context, int32_t year);
-
-  ~AndroidLogReader() override;
-
-  base::Status ParseLine(base::StringView line) override;
-  void EndOfStream(base::StringView leftovers) override;
-
-  // Called for each event parsed from the stream.
-  // `event_ts_ns` is the ts of the event as read from the log.
-  // Default implementation just calls `SendToSorter`.
-  virtual base::Status ProcessEvent(std::chrono::nanoseconds event_ts,
-                                    AndroidLogEvent event);
-
- protected:
-  // Sends the given event to the sorting stage.
-  // `event_ts` is the ts of the event as read from the log and will be
-  // converted to a trace_ts (with necessary clock conversions applied)
-  base::Status SendToSorter(std::chrono::nanoseconds event_ts,
-                            AndroidLogEvent event);
-
- private:
-  TraceProcessorContext* const context_;
-  std::optional<AndroidLogEvent::Format> format_;
-  int32_t year_;
-  std::chrono::nanoseconds timezone_offset_;
-};
-
 // Helper struct to deduplicate events.
 // When reading bug reports log data will be present in a dumpstate file and in
 // the log cat files.
@@ -90,12 +49,63 @@ struct TimestampedAndroidLogEvent {
   }
 };
 
+// Parses log lines coming from persistent logcat (FS/data/misc/logd), interns
+// string in the TP string pools and populates a vector of AndroidLogEvent
+// structs. Does NOT insert log events into any table (for testing isolation),
+// the caller is in charge to do that.
+// It supports the following formats (auto-detected):
+// 1) 12-31 23:59:00.123456 <pid> <tid> I tag: message
+//    This is typically found in persistent logcat (FS/data/misc/logd/)
+// 2) 06-24 15:57:11.346 <uid> <pid> <tid> D Tag: Message
+//    This is typically found in the recent logcat dump in bugreport-xxx.txt
+class AndroidLogReader : public ChunkedLineReader {
+ public:
+  // Log cat will not write year into the trace so the caller needs to figure it
+  // out. If not provided the reader will make a best guess.
+  explicit AndroidLogReader(TraceProcessorContext* context);
+  AndroidLogReader(TraceProcessorContext* context,
+                   int32_t year,
+                   bool wait_for_tz = false);
+
+  ~AndroidLogReader() override;
+
+  base::Status ParseLine(base::StringView line) override;
+  void EndOfStream(base::StringView leftovers) override;
+
+  // Called for each event parsed from the stream.
+  // `event_ts_ns` is the ts of the event as read from the log.
+  // Default implementation just calls `SendToSorter`.
+  virtual base::Status ProcessEvent(std::chrono::nanoseconds event_ts,
+                                    AndroidLogEvent event);
+
+ protected:
+  // Sends the given event to the sorting stage.
+  // `event_ts` is the ts of the event as read from the log and will be
+  // converted to a trace_ts (with necessary clock conversions applied)
+  base::Status SendToSorter(std::chrono::nanoseconds event_ts,
+                            AndroidLogEvent event);
+
+  // Send any events to the sorter that have not already had their timestamp
+  // adjusted based on the timezone. This is meant to be called once the TZ
+  // offset becomes known, or we reach the end of the input without any TZ info.
+  base::Status FlushNonTzAdjustedEvents();
+
+ private:
+  TraceProcessorContext* const context_;
+  std::optional<AndroidLogEvent::Format> format_;
+  int32_t year_;
+  bool wait_for_tz_;
+  std::vector<TimestampedAndroidLogEvent> non_tz_adjusted_events_;
+};
+
 // Same as AndroidLogReader (sends events to sorter), but also stores them in a
 // vector that can later be feed to a `DedupingAndroidLogReader` instance.
 class BufferingAndroidLogReader : public AndroidLogReader {
  public:
-  BufferingAndroidLogReader(TraceProcessorContext* context, int32_t year)
-      : AndroidLogReader(context, year) {}
+  BufferingAndroidLogReader(TraceProcessorContext* context,
+                            int32_t year,
+                            bool wait_for_tz = false)
+      : AndroidLogReader(context, year, wait_for_tz) {}
   ~BufferingAndroidLogReader() override;
 
   base::Status ProcessEvent(std::chrono::nanoseconds event_ts,
@@ -120,7 +130,12 @@ class DedupingAndroidLogReader : public AndroidLogReader {
   // subsequent event will not match that entry.
   DedupingAndroidLogReader(TraceProcessorContext* context,
                            int32_t year,
+                           bool wait_for_tz,
                            std::vector<TimestampedAndroidLogEvent> events);
+  DedupingAndroidLogReader(TraceProcessorContext* context,
+                           int32_t year,
+                           std::vector<TimestampedAndroidLogEvent> events)
+      : DedupingAndroidLogReader(context, year, false, events) {}
   ~DedupingAndroidLogReader() override;
 
   base::Status ProcessEvent(std::chrono::nanoseconds event_ts,
