@@ -131,9 +131,9 @@ class AndroidBugreport(TestSuite):
         out=Csv("""
         "id","parent_id","name","size","trace_type","processing_order"
         0,"[NULL]","[NULL]",6220586,"zip",0
-        16,0,"FS/data/misc/logd/logcat.01",2169697,"android_logcat",1
-        15,0,"FS/data/misc/logd/logcat",2152073,"android_logcat",2
-        1,0,"bugreport-crosshatch-SPB5.210812.002-2021-08-24-23-35-40.txt",43132864,"android_dumpstate",3
+        1,0,"bugreport-crosshatch-SPB5.210812.002-2021-08-24-23-35-40.txt",43132864,"android_dumpstate",1
+        16,0,"FS/data/misc/logd/logcat.01",2169697,"android_logcat",2
+        15,0,"FS/data/misc/logd/logcat",2152073,"android_logcat",3
         """))
 
   def test_android_bugreport_trace_types(self):
