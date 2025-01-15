@@ -673,6 +673,7 @@ perfetto_cc_library(
             ":src_kernel_utils_syscall_table",
             ":src_protozero_proto_ring_buffer",
             ":src_traced_probes_android_game_intervention_list_android_game_intervention_list",
+            ":src_traced_probes_android_kernel_wakelocks_android_kernel_wakelocks",
             ":src_traced_probes_android_log_android_log",
             ":src_traced_probes_android_system_property_android_system_property",
             ":src_traced_probes_common_common",
@@ -1204,6 +1205,7 @@ perfetto_filegroup(
         "src/android_internal/power_stats.h",
         "src/android_internal/statsd.h",
         "src/android_internal/statsd_logging.h",
+        "src/android_internal/suspend_control_service.h",
         "src/android_internal/tracing_service_proxy.h",
     ],
 )
@@ -3946,6 +3948,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/traced/probes/android_kernel_wakelocks:android_kernel_wakelocks
+perfetto_filegroup(
+    name = "src_traced_probes_android_kernel_wakelocks_android_kernel_wakelocks",
+    srcs = [
+        "src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks_data_source.cc",
+        "src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks_data_source.h",
+    ],
+)
+
 # GN target: //src/traced/probes/android_log:android_log
 perfetto_filegroup(
     name = "src_traced_probes_android_log_android_log",
@@ -4746,6 +4757,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/android_polled_state_config.proto",
         "protos/perfetto/config/android/android_sdk_sysprop_guard_config.proto",
         "protos/perfetto/config/android/android_system_property_config.proto",
+        "protos/perfetto/config/android/kernel_wakelocks_config.proto",
         "protos/perfetto/config/android/network_trace_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",
         "protos/perfetto/config/android/pixel_modem_config.proto",
@@ -5512,6 +5524,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/gpu_mem_event.proto",
         "protos/perfetto/trace/android/graphics_frame_event.proto",
         "protos/perfetto/trace/android/initial_display_state.proto",
+        "protos/perfetto/trace/android/kernel_wakelock_data.proto",
         "protos/perfetto/trace/android/network_trace.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",

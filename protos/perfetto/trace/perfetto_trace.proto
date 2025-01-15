@@ -628,6 +628,16 @@ message AndroidSystemPropertyConfig {
 
 // End of protos/perfetto/config/android/android_system_property_config.proto
 
+// Begin of protos/perfetto/config/android/kernel_wakelocks_config.proto
+
+// Data source that records kernel (and native) wakelock data.
+message KernelWakelocksConfig {
+  // Record at this frequency.
+  optional uint32 poll_ms = 1;
+}
+
+// End of protos/perfetto/config/android/kernel_wakelocks_config.proto
+
 // Begin of protos/perfetto/config/android/network_trace_config.proto
 
 // Network tracing data source that records details on all packets sent or
@@ -3601,7 +3611,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 132
+// Next id: 133
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3758,6 +3768,9 @@ message DataSourceConfig {
 
   // Data source name: org.chromium.system_metrics
   optional ChromiumSystemMetricsConfig chromium_system_metrics = 131 [lazy = true];
+
+  // Data source name: android.kernel_wakelocks
+  optional KernelWakelocksConfig kernel_wakelocks_config = 132 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -5241,6 +5254,42 @@ message InitialDisplayState {
 }
 
 // End of protos/perfetto/trace/android/initial_display_state.proto
+
+// Begin of protos/perfetto/trace/android/kernel_wakelock_data.proto
+
+message KernelWakelockData {
+  message Wakelock {
+    enum Type {
+      WAKELOCK_TYPE_UNKNOWN = 0;
+      WAKELOCK_TYPE_KERNEL = 1;
+      WAKELOCK_TYPE_NATIVE = 2;
+    }
+
+    // Interning id.
+    optional uint32 wakelock_id = 1;
+
+    // Name of the wakelock.
+    optional string wakelock_name = 2;
+
+    // Type of the wakelock. We record data about both true kernel wakelocks
+    // and "native" wakelocks which are taken in userspace but are more
+    // conceptually similar to kernel wakelocks than normal userspace ones.
+    optional Type wakelock_type = 3;
+  }
+
+  // This is only emitted when we encounter new wakelocks.
+  repeated Wakelock wakelock = 1;
+
+  // Interning id.
+  repeated uint32 wakelock_id = 2 [packed = true];
+
+  // If we interned the wakelock name in this packet, this is the total time
+  // the wakelock has been held.
+  // If not, it's a delta from the last time we saw it.
+  repeated uint64 time_held_millis = 3 [packed = true];
+}
+
+// End of protos/perfetto/trace/android/kernel_wakelock_data.proto
 
 // Begin of protos/perfetto/trace/android/network_trace.proto
 
@@ -15738,7 +15787,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 115.
+// Next id: 116.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -15881,6 +15930,8 @@ message TracePacket {
     Trigger clone_snapshot_trigger = 113;
 
     BluetoothTraceEvent bluetooth_trace_event = 114;
+
+    KernelWakelockData kernel_wakelock_data = 115;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

@@ -170,6 +170,7 @@ shared_library_allowlist = [
     'android.hardware.health-V2-ndk',
     'android.hardware.power.stats@1.0',
     'android.hardware.power.stats-V1-cpp',
+    'android.system.suspend.control.internal-cpp',
     'base',
     'binder',
     'binder_ndk',
