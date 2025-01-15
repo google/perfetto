@@ -76,7 +76,7 @@ export default class implements PerfettoPlugin {
   ): Promise<void> {
     const subTableSql = generateSqlWithInternalLayout({
       columns: ['id', 'ts', 'dur', 'track_id', 'name'],
-      sourceTable: 'chrome_event_latencies',
+      source: 'chrome_event_latencies',
       ts: 'ts',
       dur: 'dur',
       whereClause: `
