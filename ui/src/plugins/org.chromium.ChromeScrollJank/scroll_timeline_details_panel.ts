@@ -43,6 +43,7 @@ import {
   SimpleColumn,
 } from '../../components/widgets/sql/table/table';
 import {renderStandardCell} from '../../components/widgets/sql/legacy_table/render_cell_utils';
+import {ScrollTimelineModel} from './scroll_timeline_model';
 
 function createPluginSliceIdColumn(
   trace: Trace,
@@ -104,8 +105,7 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
 
   constructor(
     private readonly trace: Trace,
-    private readonly tableName: string,
-    private readonly trackUri: string,
+    private readonly model: ScrollTimelineModel,
     // ID of the slice in tableName.
     private readonly id: number,
   ) {}
@@ -123,7 +123,7 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
         ts,
         dur,
         scroll_update_id
-      FROM ${this.tableName}
+      FROM ${this.model.tableName}
       WHERE id = ${this.id}`);
     const row = queryResult.firstRow({
       name: STR,
@@ -216,12 +216,12 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
           left: 'SQL ID',
           right: renderSqlRef({
             trace: this.trace,
-            tableName: this.tableName,
+            tableName: this.model.tableName,
             tableDescription: {
-              name: this.tableName,
+              name: this.model.tableName,
               columns: createScrollTimelineTableColumns(
                 this.trace,
-                this.trackUri,
+                this.model.trackUri,
               ),
             },
             id: this.id,
