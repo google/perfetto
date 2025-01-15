@@ -67,18 +67,6 @@ bool ServiceIPCHostImpl::Start(
   return DoStart();
 }
 
-bool ServiceIPCHostImpl::Start(base::ScopedSocketHandle producer_socket_fd,
-                               base::ScopedSocketHandle consumer_socket_fd) {
-  PERFETTO_CHECK(!svc_);  // Check if already started.
-
-  // Initialize the IPC transport.
-  producer_ipc_ports_.emplace_back(
-      ipc::Host::CreateInstance(std::move(producer_socket_fd), task_runner_));
-  consumer_ipc_port_ =
-      ipc::Host::CreateInstance(std::move(consumer_socket_fd), task_runner_);
-  return DoStart();
-}
-
 bool ServiceIPCHostImpl::Start(std::unique_ptr<ipc::Host> producer_host,
                                std::unique_ptr<ipc::Host> consumer_host) {
   PERFETTO_CHECK(!svc_);  // Check if already started.
