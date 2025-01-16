@@ -39,7 +39,6 @@ import "protos/perfetto/config/chrome/system_metrics.proto";
 import "protos/perfetto/config/ftrace/ftrace_config.proto";
 import "protos/perfetto/config/gpu/gpu_counter_config.proto";
 import "protos/perfetto/config/gpu/vulkan_memory_config.proto";
-import "protos/perfetto/config/gpu/gpu_renderstages_config.proto";
 import "protos/perfetto/config/inode_file/inode_file_config.proto";
 import "protos/perfetto/config/interceptor_config.proto";
 import "protos/perfetto/config/power/android_power_config.proto";
@@ -54,7 +53,7 @@ import "protos/perfetto/config/track_event/track_event_config.proto";
 import "protos/perfetto/config/system_info/system_info.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 133
+// Next id: 132
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -132,10 +131,8 @@ message DataSourceConfig {
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
   // Data source name: android.log
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
-  // Data source name: gpu.counters
+  // TODO(fmayer): Add data source name for this.
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
-  // Data source name: gpu.renderstages
-  optional GpuRenderStagesConfig gpu_renderstages_config = 132 [lazy = true];
   // Data source name: android.game_interventions
   optional AndroidGameInterventionListConfig
       android_game_intervention_list_config = 116 [lazy = true];
