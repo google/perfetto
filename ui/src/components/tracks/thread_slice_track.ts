@@ -41,16 +41,11 @@ export class ThreadSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
     maxDepth: number,
     private readonly tableName: string = 'slice',
   ) {
-    super(trace, uri);
+    super(trace, uri, THREAD_SLICE_ROW);
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
       depthGuess: maxDepth,
     };
-  }
-
-  // This is used by the base class to call iter().
-  protected getRowSpec() {
-    return THREAD_SLICE_ROW;
   }
 
   getSqlSource(): string {

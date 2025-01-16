@@ -53,7 +53,7 @@ export class DatasetSliceTrack extends NamedSliceTrack<Slice, NamedRow> {
   private readonly createTableOnInit: boolean;
 
   constructor(private readonly attrs: DatasetSliceTrackAttrs) {
-    super(attrs.trace, attrs.uri);
+    super(attrs.trace, attrs.uri, NAMED_ROW);
 
     // This is the minimum viable implementation that the source dataset must
     // implement for the track to work properly.
@@ -82,10 +82,6 @@ export class DatasetSliceTrack extends NamedSliceTrack<Slice, NamedRow> {
       this.createTableOnInit = true;
       this.sqlSource = `__dataset_slice_track_${sqlNameSafe(attrs.uri)}`;
     }
-  }
-
-  getRowSpec(): NamedRow {
-    return NAMED_ROW;
   }
 
   rowToSlice(row: NamedRow): Slice {

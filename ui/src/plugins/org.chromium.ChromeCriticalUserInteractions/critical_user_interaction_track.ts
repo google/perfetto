@@ -101,10 +101,6 @@ export class CriticalUserInteractionTrack extends DatasetSliceTrack {
     };
   }
 
-  getRowSpec(): CriticalUserInteractionRow {
-    return CRITICAL_USER_INTERACTIONS_ROW;
-  }
-
   rowToSlice(row: CriticalUserInteractionRow): CriticalUserInteractionSlice {
     const baseSlice = super.rowToSlice(row);
     const scopedId = row.scopedId;

@@ -44,8 +44,8 @@ export abstract class NamedSliceTrack<
   SliceType extends Slice = Slice,
   RowType extends NamedRow = NamedRow,
 > extends BaseSliceTrack<SliceType, RowType> {
-  constructor(trace: Trace, uri: string) {
-    super(trace, uri);
+  constructor(trace: Trace, uri: string, rowSpec: RowType) {
+    super(trace, uri, rowSpec);
   }
 
   // Converts a SQL result row to an "Impl" Slice.
