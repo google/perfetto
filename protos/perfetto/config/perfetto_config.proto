@@ -1211,6 +1211,26 @@ message GpuCounterConfig {
 
 // End of protos/perfetto/config/gpu/gpu_counter_config.proto
 
+// Begin of protos/perfetto/config/gpu/gpu_renderstages_config.proto
+
+message GpuRenderStagesConfig {
+  // Enable to separate the color and depth/stencil load and store stages
+  // into a separate stages. If disabled, the depth/stencil load and store
+  // stages will be combined.  Disabled by default. This option has no effect if
+  // Low Overhead mode is enabled.
+  optional bool full_loadstore = 1;
+
+  // Use the low overhead mode for traces. In this mode render stages are
+  // combined into a single workload stage. This provides less granular data but
+  // induces minimal GPU overhead. Disabled by default.
+  optional bool low_overhead = 2;
+
+  // Trace metrics to capture for each render stage
+  repeated string trace_metrics = 3;
+}
+
+// End of protos/perfetto/config/gpu/gpu_renderstages_config.proto
+
 // Begin of protos/perfetto/config/gpu/vulkan_memory_config.proto
 
 message VulkanMemoryConfig {
@@ -3611,7 +3631,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 132
+// Next id: 134
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3689,7 +3709,7 @@ message DataSourceConfig {
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
   // Data source name: android.log
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
-  // TODO(fmayer): Add data source name for this.
+  // Data source name: gpu.counters
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
   // Data source name: android.game_interventions
   optional AndroidGameInterventionListConfig
@@ -3771,6 +3791,9 @@ message DataSourceConfig {
 
   // Data source name: android.kernel_wakelocks
   optional KernelWakelocksConfig kernel_wakelocks_config = 132 [lazy = true];
+
+  // Data source name: gpu.renderstages
+  optional GpuRenderStagesConfig gpu_renderstages_config = 133 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
