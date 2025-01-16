@@ -34,6 +34,7 @@ import {SelectionAggregationManager} from './selection_aggregation_manager';
 import {AsyncLimiter} from '../base/async_limiter';
 import m from 'mithril';
 import {SerializedSelection} from './state_serialization_schema';
+import {showModal} from '../widgets/modal';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -134,21 +135,51 @@ export class SelectionManagerImpl implements SelectionManager {
     if (serialized === undefined) {
       return;
     }
-    switch (serialized.kind) {
-      case 'TRACK_EVENT':
-        this.selectTrackEventInternal(
-          serialized.trackKey,
-          parseInt(serialized.eventId),
-          undefined,
-          serialized.detailsPanel,
-        );
-        break;
-      case 'AREA':
-        this.selectArea({
-          start: serialized.start,
-          end: serialized.end,
-          trackUris: serialized.trackUris,
-        });
+    this.deserializeInternal(serialized);
+  }
+
+  private async deserializeInternal(serialized: SerializedSelection) {
+    try {
+      switch (serialized.kind) {
+        case 'TRACK_EVENT':
+          await this.selectTrackEventInternal(
+            serialized.trackKey,
+            parseInt(serialized.eventId),
+            undefined,
+            serialized.detailsPanel,
+          );
+          break;
+        case 'AREA':
+          this.selectArea({
+            start: serialized.start,
+            end: serialized.end,
+            trackUris: serialized.trackUris,
+          });
+      }
+    } catch (ex) {
+      showModal({
+        title: 'Failed to restore the selected event',
+        content: m(
+          'div',
+          m(
+            'p',
+            `Due to a version skew between the version of the UI the trace was
+             shared with and the version of the UI you are using, we were
+             unable to restore the selected event.`,
+          ),
+          m(
+            'p',
+            `These backwards incompatible changes are very rare but is in some
+             cases unavoidable. We apologise for the inconvenience.`,
+          ),
+        ),
+        buttons: [
+          {
+            text: 'Continue',
+            primary: true,
+          },
+        ],
+      });
     }
   }
 
