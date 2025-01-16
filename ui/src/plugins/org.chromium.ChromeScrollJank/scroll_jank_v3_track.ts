@@ -65,10 +65,9 @@ export class ScrollJankV3Track extends DatasetSliceTrack {
           return getColorForSlice(stage);
         }
       },
+      detailsPanel: (sel: TrackEventSelection) => {
+        return new ScrollJankV3DetailsPanel(this.trace, sel.eventId);
+      },
     });
-  }
-
-  override detailsPanel(sel: TrackEventSelection) {
-    return new ScrollJankV3DetailsPanel(this.trace, sel.eventId);
   }
 }

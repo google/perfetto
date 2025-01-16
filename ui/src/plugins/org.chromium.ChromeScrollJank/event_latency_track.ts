@@ -42,10 +42,9 @@ export class EventLatencyTrack extends DatasetSliceTrack {
           ? JANK_COLOR
           : getColorForSlice(row.name);
       },
+      detailsPanel: (sel: TrackEventSelection) => {
+        return new EventLatencySliceDetailsPanel(this.trace, sel.eventId);
+      },
     });
-  }
-
-  override detailsPanel(sel: TrackEventSelection) {
-    return new EventLatencySliceDetailsPanel(this.trace, sel.eventId);
   }
 }

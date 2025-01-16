@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
-import {TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
@@ -35,10 +34,7 @@ export class ScreenshotsTrack extends DatasetSliceTrack {
         },
         src: 'android_screenshots',
       }),
+      detailsPanel: () => new ScreenshotDetailsPanel(this.trace.engine),
     });
-  }
-
-  override detailsPanel(_sel: TrackEventSelection) {
-    return new ScreenshotDetailsPanel(this.trace.engine);
   }
 }

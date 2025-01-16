@@ -38,9 +38,9 @@ export class TopLevelScrollTrack extends DatasetSliceTrack {
           FROM chrome_scrolls
         `,
       }),
+      detailsPanel: (sel: TrackEventSelection) => {
+        return new ScrollDetailsPanel(this.trace, sel.eventId);
+      },
     });
-  }
-  override detailsPanel(sel: TrackEventSelection) {
-    return new ScrollDetailsPanel(this.trace, sel.eventId);
   }
 }

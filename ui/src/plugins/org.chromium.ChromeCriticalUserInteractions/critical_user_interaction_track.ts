@@ -70,6 +70,23 @@ export class CriticalUserInteractionTrack extends DatasetSliceTrack {
           FROM chrome_interactions
         `,
       }),
+      detailsPanel: (sel: TrackEventSelection) => {
+        switch (sel.interactionType) {
+          case 'chrome_page_loads':
+            return new PageLoadDetailsPanel(this.trace, sel.eventId);
+          case 'chrome_startups':
+            return new StartupDetailsPanel(this.trace, sel.eventId);
+          case 'chrome_web_content_interactions':
+            return new WebContentInteractionPanel(this.trace, sel.eventId);
+          default:
+            return new GenericSliceDetailsTab(
+              this.trace,
+              'chrome_interactions',
+              sel.eventId,
+              'Chrome Interaction',
+            );
+        }
+      },
     });
   }
 
@@ -101,23 +118,5 @@ export class CriticalUserInteractionTrack extends DatasetSliceTrack {
       dur: Duration.fromRaw(row.dur),
       interactionType: row.type,
     };
-  }
-
-  override detailsPanel(sel: TrackEventSelection) {
-    switch (sel.interactionType) {
-      case 'chrome_page_loads':
-        return new PageLoadDetailsPanel(this.trace, sel.eventId);
-      case 'chrome_startups':
-        return new StartupDetailsPanel(this.trace, sel.eventId);
-      case 'chrome_web_content_interactions':
-        return new WebContentInteractionPanel(this.trace, sel.eventId);
-      default:
-        return new GenericSliceDetailsTab(
-          this.trace,
-          'chrome_interactions',
-          sel.eventId,
-          'Chrome Interaction',
-        );
-    }
   }
 }

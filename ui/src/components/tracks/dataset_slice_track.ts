@@ -27,6 +27,8 @@ import {
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {assertTrue} from '../../base/logging';
 import {ColorScheme} from '../../base/color_scheme';
+import {TrackEventSelection} from '../../public/selection';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
 
 /**
  * This track implementation is defined using a dataset, with optional automatic
@@ -53,6 +55,11 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   // slice in the dataset. If omitted, the default slice colour scheme will be
   // used instead.
   colorizer?(row: T): ColorScheme;
+
+  // Optional: A callback used to customize the details panel displayed when an
+  // event on this track is selected. The callback function is called every time
+  // an event on this track is selected.
+  detailsPanel?(sel: TrackEventSelection): TrackEventDetailsPanel;
 }
 
 // This is the minimum viable schema that all datasets must implement.
@@ -132,5 +139,9 @@ export class DatasetSliceTrack<
 
   getDataset(): Dataset {
     return this.attrs.dataset;
+  }
+
+  detailsPanel(sel: TrackEventSelection): TrackEventDetailsPanel | undefined {
+    return this.attrs.detailsPanel?.(sel) ?? super.detailsPanel(sel);
   }
 }

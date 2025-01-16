@@ -38,10 +38,9 @@ export class ChromeTasksThreadTrack extends DatasetSliceTrack {
           eq: utid,
         },
       }),
+      detailsPanel: (sel: TrackEventSelection) => {
+        return new ChromeTasksDetailsPanel(this.trace, sel.eventId);
+      },
     });
-  }
-
-  override detailsPanel(sel: TrackEventSelection) {
-    return new ChromeTasksDetailsPanel(this.trace, sel.eventId);
   }
 }

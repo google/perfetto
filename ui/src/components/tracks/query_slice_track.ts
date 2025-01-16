@@ -131,11 +131,7 @@ async function createPerfettoTableForTrack(
 }
 
 class SqlTableSliceTrack extends DatasetSliceTrack {
-  constructor(
-    trace: Trace,
-    uri: string,
-    private readonly sqlTableName: string,
-  ) {
+  constructor(trace: Trace, uri: string, sqlTableName: string) {
     super({
       trace,
       uri,
@@ -148,14 +144,13 @@ class SqlTableSliceTrack extends DatasetSliceTrack {
         },
         src: sqlTableName,
       }),
+      detailsPanel: ({eventId}: TrackEventSelection) => {
+        return new SqlTableSliceTrackDetailsPanel(
+          this.trace,
+          sqlTableName,
+          eventId,
+        );
+      },
     });
-  }
-
-  override detailsPanel({eventId}: TrackEventSelection) {
-    return new SqlTableSliceTrackDetailsPanel(
-      this.trace,
-      this.sqlTableName,
-      eventId,
-    );
   }
 }
