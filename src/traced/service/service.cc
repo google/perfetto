@@ -150,21 +150,25 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     PERFETTO_CHECK(false);
 #else
-    base::StackString<32> prod_sock("fd://%s", env_prod);
-    base::StackString<32> cons_sock("fd://%s", env_cons);
-    started = svc->Start({prod_sock.ToStdString()}, cons_sock.c_str());
+    ListenEndpoint consumer_ep(base::ScopedFile(atoi(env_cons)));
+    std::list<ListenEndpoint> producer_eps;
+    producer_eps.emplace_back(ListenEndpoint(base::ScopedFile(atoi(env_prod))));
+    started = svc->Start(std::move(producer_eps), std::move(consumer_ep));
 #endif
   } else {
-    auto producer_sockets = TokenizeProducerSockets(GetProducerSocket());
-    for (const auto& producer_socket : producer_sockets) {
-      remove(producer_socket.c_str());
+    std::list<ListenEndpoint> producer_eps;
+    auto producer_socket_names = TokenizeProducerSockets(GetProducerSocket());
+    for (const auto& producer_socket_name : producer_socket_names) {
+      remove(producer_socket_name.c_str());
+      producer_eps.emplace_back(ListenEndpoint(producer_socket_name));
     }
     remove(GetConsumerSocket());
-    started = svc->Start(producer_sockets, GetConsumerSocket());
+    started = svc->Start(std::move(producer_eps),
+                         ListenEndpoint(GetConsumerSocket()));
 
     if (!producer_socket_group.empty()) {
       auto status = base::OkStatus();
-      for (const auto& producer_socket : producer_sockets) {
+      for (const auto& producer_socket : producer_socket_names) {
         if (base::GetSockFamily(producer_socket.c_str()) !=
             base::SockFamily::kUnix) {
           // Socket permissions is only available to unix sockets.

@@ -26,7 +26,6 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/crash_keys.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
@@ -125,33 +124,35 @@ std::unique_ptr<Host> Host::CreateInstance(const char* socket_name,
 }
 
 // static
+std::unique_ptr<Host> Host::CreateInstance(base::ScopedSocketHandle socket_fd,
+                                           base::TaskRunner* task_runner) {
+  std::unique_ptr<HostImpl> host(
+      new HostImpl(std::move(socket_fd), task_runner));
+  if (!host->sock() || !host->sock()->is_listening())
+    return nullptr;
+  return std::unique_ptr<Host>(std::move(host));
+}
+
+// static
 std::unique_ptr<Host> Host::CreateInstance_Fuchsia(
     base::TaskRunner* task_runner) {
   return std::unique_ptr<HostImpl>(new HostImpl(task_runner));
 }
 
+HostImpl::HostImpl(base::ScopedSocketHandle socket_fd,
+                   base::TaskRunner* task_runner)
+    : task_runner_(task_runner), weak_ptr_factory_(this) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  sock_ = base::UnixSocket::Listen(std::move(socket_fd), this, task_runner_,
+                                   kHostSockFamily, base::SockType::kStream);
+}
+
 HostImpl::HostImpl(const char* socket_name, base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-
-  static constexpr char kFdPrefix[] = "fd://";
-  if (strncmp(socket_name, kFdPrefix, strlen(kFdPrefix)) == 0) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    PERFETTO_FATAL("%s is only supported on POSIX systems", socket_name);
-#else
-    auto fd_num = base::CStringToInt32(&socket_name[strlen(kFdPrefix)]);
-    if (!fd_num.has_value()) {
-      PERFETTO_FATAL("Failed to parse fd:// number from %s", socket_name);
-    }
-    sock_ = base::UnixSocket::Listen(base::ScopedFile(*fd_num), this,
-                                     task_runner_, base::SockFamily::kUnix,
-                                     base::SockType::kStream);
-#endif
-  } else {
-    sock_ = base::UnixSocket::Listen(socket_name, this, task_runner_,
-                                     base::GetSockFamily(socket_name),
-                                     base::SockType::kStream);
-  }
+  sock_ = base::UnixSocket::Listen(socket_name, this, task_runner_,
+                                   base::GetSockFamily(socket_name),
+                                   base::SockType::kStream);
   if (!sock_) {
     PERFETTO_PLOG("Failed to create %s", socket_name);
   }

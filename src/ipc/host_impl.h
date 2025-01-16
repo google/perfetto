@@ -38,10 +38,9 @@ constexpr uint32_t kDefaultIpcTxTimeoutMs = 10000;
 
 class HostImpl : public Host, public base::UnixSocket::EventListener {
  public:
-  // socket_name can be fd://123 for sockets pre-bound by init and passed as FD
-  // across exec in an env var.
   HostImpl(const char* socket_name, base::TaskRunner*);
-  explicit HostImpl(base::TaskRunner* task_runner);
+  HostImpl(base::ScopedSocketHandle, base::TaskRunner*);
+  HostImpl(base::TaskRunner* task_runner);
   ~HostImpl() override;
 
   // Host implementation.
