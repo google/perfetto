@@ -32,11 +32,7 @@ export class CpuProfileTrack extends BaseSliceTrack<Slice, CpuProfileRow> {
     uri: string,
     private utid: number,
   ) {
-    super(trace, uri);
-  }
-
-  protected getRowSpec(): CpuProfileRow {
-    return {...NAMED_ROW, callsiteId: NUM};
+    super(trace, uri, {...NAMED_ROW, callsiteId: NUM});
   }
 
   protected rowToSlice(row: CpuProfileRow): Slice {

@@ -14,8 +14,11 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {getColorForSlice} from '../../components/colorizer';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.ExampleNestedTracks';
@@ -35,16 +38,29 @@ export default class implements PerfettoPlugin {
       values
         ('Foo', ${traceStartTime}, ${traceDur}, 'aaa'),
         ('Bar', ${traceStartTime}, ${traceDur / 2n}, 'bbb'),
-        ('Baz', ${traceStartTime}, ${traceDur / 3n}, 'bbb');
+        ('Baz', ${traceStartTime}, ${traceDur / 3n}, 'aaa'),
+        ('Qux', ${traceStartTime + traceDur / 2n}, ${traceDur / 2n}, 'bbb')
+      ;
     `);
 
     const title = 'Test Track';
     const uri = `com.example.ExampleNestedTracks#TestTrack`;
-    const track = await createQuerySliceTrack({
+    const track = new DatasetSliceTrack({
       trace: ctx,
       uri,
-      data: {
-        sqlSource: 'select * from example_events',
+      dataset: new SourceDataset({
+        src: 'select *, id as depth from example_events',
+        schema: {
+          ts: LONG,
+          name: STR,
+          dur: LONG,
+          id: NUM,
+          arg: STR,
+        },
+      }),
+      colorizer: (row) => {
+        // Example usage of colorizer
+        return getColorForSlice(`${row.arg}`);
       },
     });
     ctx.tracks.registerTrack({
