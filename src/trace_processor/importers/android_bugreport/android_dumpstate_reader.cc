@@ -18,15 +18,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <iomanip>
-#include <sstream>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/string_view_splitter.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_battery_stats_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
@@ -41,7 +37,7 @@ AndroidDumpstateReader::AndroidDumpstateReader(TraceProcessorContext* context,
                                                int32_t year)
     : context_(context),
       battery_stats_reader_(context),
-      log_reader_(context, year, true) {}
+      log_reader_(context, year) {}
 
 AndroidDumpstateReader::~AndroidDumpstateReader() = default;
 
@@ -87,7 +83,6 @@ base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
     section = section.substr(0, section.size() - 7);
     bool end_marker = section.find("was the duration of") != npos;
     current_service_id_ = StringId::Null();
-    current_serivce_ = "";
     if (end_marker) {
       current_section_id_ = StringId::Null();
     } else {
@@ -115,7 +110,6 @@ base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
   if (current_section_ == Section::kDumpsys && line.StartsWith("--------- ") &&
       line.find("was the duration of dumpsys") != npos) {
     current_service_id_ = StringId::Null();
-    current_serivce_ = "";
     return base::OkStatus();
   }
   if (current_section_ == Section::kDumpsys && current_service_id_.is_null() &&
@@ -133,10 +127,6 @@ base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
     base::StringView svc = line.substr(line.rfind(' ') + 1);
     svc = svc.substr(0, svc.size() - 1);
     current_service_id_ = context_->storage->InternString(svc);
-    current_serivce_ = svc;
-  } else if (current_section_ == Section::kDumpsys &&
-             current_serivce_ == "alarm") {
-    maybeSetTzOffsetFromAlarmService(line);
   } else if (current_section_ == Section::kLog) {
     RETURN_IF_ERROR(log_reader_.ParseLine(line));
   } else if (current_section_ == Section::kBatteryStats) {
@@ -149,53 +139,6 @@ base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
        context_->storage->InternString(line)});
 
   return base::OkStatus();
-}
-
-void AndroidDumpstateReader::maybeSetTzOffsetFromAlarmService(
-    base::StringView line) {
-  // attempt to parse the line if it has the following form:
-  //  nowRTC=1629844744041=2021-08-24 23:39:04.041 nowELAPSED=403532
-  if (line.StartsWith("  nowRTC=")) {
-    size_t end_of_rtc_str = line.find(" nowELAPSED=");
-    if (end_of_rtc_str == base::StringView::npos) {
-      return;
-    }
-    base::StringViewSplitter svs(line.substr(0, end_of_rtc_str), '=');
-
-    // discard the first token which is just "nowRTC"
-    svs.NextToken();
-
-    // Parse the UTC integer timestamp
-    std::optional<int64_t> non_tz_adjusted_ts_ms =
-        base::StringViewToInt64(svs.NextToken());
-    if (!non_tz_adjusted_ts_ms.has_value()) {
-      return;
-    }
-
-    // Parse tz adjusted string in the form 2021-08-24 23:38:14.510
-    // milliseconds part will be handled separately since std::get_time()
-    // only supports seconds precision.
-    base::StringViewSplitter date_decimal_splitter(svs.NextToken(), '.');
-
-    // Compute Seconds granularity
-    struct tm time_struct = {};
-    const std::string date_str =
-        date_decimal_splitter.NextToken().ToStdString();
-    std::istringstream ss(date_str);
-    ss >> std::get_time(&time_struct, "%Y-%m-%d %H:%M:%S");
-    int64_t tz_adjusted_ts_ms = timegm(&time_struct) * 1000ll;
-
-    // compute the milliseconds component
-    auto ms_part_str = date_decimal_splitter.NextToken();
-    std::optional<int64_t> ms_part = base::StringViewToInt64(ms_part_str);
-    if (!ms_part.has_value()) {
-      return;
-    }
-    tz_adjusted_ts_ms += ms_part.value();
-    int64_t tz_offset_ns =
-        (tz_adjusted_ts_ms - non_tz_adjusted_ts_ms.value()) * 1000 * 1000;
-    context_->clock_tracker->set_timezone_offset(tz_offset_ns);
-  }
 }
 
 void AndroidDumpstateReader::EndOfStream(base::StringView) {}
