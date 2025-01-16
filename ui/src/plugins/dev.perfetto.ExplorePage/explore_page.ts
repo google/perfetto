@@ -13,146 +13,40 @@
 // limitations under the License.
 
 import m from 'mithril';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+
 import {PageWithTraceAttrs} from '../../public/page';
 import {SqlTableState as SqlTableViewState} from '../../components/widgets/sql/legacy_table/state';
-import {SqlTable as SqlTableView} from '../../components/widgets/sql/legacy_table/table';
-import {exists} from '../../base/utils';
-import {Menu, MenuItem, MenuItemAttrs} from '../../widgets/menu';
-import {Button} from '../../widgets/button';
-import {Icons} from '../../base/semantic_icons';
-import {DetailsShell} from '../../widgets/details_shell';
-import {
-  Chart,
-  ChartOption,
-  createChartConfigFromSqlTableState,
-  renderChartComponent,
-} from '../../components/widgets/charts/chart';
-import {AddChartMenuItem} from '../../components/widgets/charts/add_chart_menu';
-import {
-  SplitPanel,
-  SplitPanelDrawerVisibility,
-} from '../../widgets/split_panel';
-import {Trace} from '../../public/trace';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import {VerticalSplitContainer} from './vertical_split_container';
+import {Chart} from '../../components/widgets/charts/chart';
+import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {DataVisualiser} from './data_visualiser';
+import {QueryBuilder} from './query_builder/query_builder';
+import {DataSourceViewer} from './query_builder/data_source_viewer';
+import {QueryNode} from './query_state';
 
 export interface ExploreTableState {
   sqlTableViewState?: SqlTableViewState;
-  selectedTableName?: string;
+  queryNode?: QueryNode;
 }
 
 interface ExplorePageAttrs extends PageWithTraceAttrs {
+  readonly sqlModulesPlugin: SqlModulesPlugin;
   readonly state: ExploreTableState;
   readonly charts: Set<Chart>;
 }
 
+enum ExplorePageModes {
+  QUERY_BUILDER,
+  DATA_VISUALISER,
+}
+
+const ExplorePageModeToLabel: Record<ExplorePageModes, string> = {
+  [ExplorePageModes.QUERY_BUILDER]: 'Query Builder',
+  [ExplorePageModes.DATA_VISUALISER]: 'Data Visualiser',
+};
+
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
-  private visibility = SplitPanelDrawerVisibility.VISIBLE;
-
-  // Show menu with standard library tables
-  private renderSelectableTablesMenuItems(
-    trace: Trace,
-    state: ExploreTableState,
-  ): m.Vnode<MenuItemAttrs, unknown>[] {
-    const sqlModules = trace.plugins
-      .getPlugin(SqlModulesPlugin)
-      .getSqlModules();
-    return sqlModules.listTables().map((tableName) => {
-      const sqlTable = sqlModules
-        .getModuleForTable(tableName)
-        ?.getTable(tableName);
-      const sqlTableViewDescription = sqlModules
-        .getModuleForTable(tableName)
-        ?.getSqlTableDescription(tableName);
-
-      return m(MenuItem, {
-        label: tableName,
-        onclick: () => {
-          if (
-            (state.selectedTableName &&
-              tableName === state.selectedTableName) ||
-            sqlTable === undefined ||
-            sqlTableViewDescription === undefined
-          ) {
-            return;
-          }
-
-          state.selectedTableName = sqlTable.name;
-          state.sqlTableViewState = new SqlTableViewState(
-            trace,
-            {
-              name: tableName,
-              columns: sqlTable.getTableColumns(),
-            },
-            {imports: sqlTableViewDescription.imports},
-          );
-        },
-      });
-    });
-  }
-
-  private renderSqlTable(state: ExploreTableState, charts: Set<Chart>) {
-    const sqlTableViewState = state.sqlTableViewState;
-
-    if (sqlTableViewState === undefined) return;
-
-    const range = sqlTableViewState.getDisplayedRange();
-    const rowCount = sqlTableViewState.getTotalRowCount();
-
-    const navigation = [
-      exists(range) &&
-        exists(rowCount) &&
-        `Showing rows ${range.from}-${range.to} of ${rowCount}`,
-      m(Button, {
-        icon: Icons.GoBack,
-        disabled: !sqlTableViewState.canGoBack(),
-        onclick: () => sqlTableViewState!.goBack(),
-      }),
-      m(Button, {
-        icon: Icons.GoForward,
-        disabled: !sqlTableViewState.canGoForward(),
-        onclick: () => sqlTableViewState!.goForward(),
-      }),
-    ];
-
-    return m(
-      DetailsShell,
-      {
-        title: 'Explore Table',
-        buttons: navigation,
-        fillParent: false,
-      },
-      m(SqlTableView, {
-        state: sqlTableViewState,
-        addColumnMenuItems: (column, columnAlias) =>
-          m(AddChartMenuItem, {
-            chartConfig: createChartConfigFromSqlTableState(
-              column,
-              columnAlias,
-              sqlTableViewState,
-            ),
-            chartOptions: [ChartOption.HISTOGRAM],
-            addChart: (chart) => charts.add(chart),
-          }),
-      }),
-    );
-  }
-
-  private renderRemovableChart(chart: Chart, charts: Set<Chart>) {
-    return m(
-      '.chart-card',
-      {
-        key: `${chart.option}-${chart.config.columnTitle}`,
-      },
-      m(Button, {
-        icon: Icons.Close,
-        onclick: () => {
-          charts.delete(chart);
-        },
-      }),
-      renderChartComponent(chart),
-    );
-  }
+  private selectedMode = ExplorePageModes.QUERY_BUILDER;
 
   view({attrs}: m.CVnode<ExplorePageAttrs>) {
     const {trace, state, charts} = attrs;
@@ -160,22 +54,42 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     return m(
       '.page.explore-page',
       m(
-        SplitPanel,
-        {
-          visibility: this.visibility,
-          onVisibilityChange: (visibility) => {
-            this.visibility = visibility;
-          },
-          drawerContent: this.renderSqlTable(state, charts),
-        },
-        m(VerticalSplitContainer, {
-          // TODO: Can replace the leftPane Menu with QueryBuilder
-          leftPane: m(Menu, this.renderSelectableTablesMenuItems(trace, state)),
-          rightPane: Array.from(attrs.charts.values()).map((chart) =>
-            this.renderRemovableChart(chart, attrs.charts),
-          ),
+        '.explore-page__header',
+        m('h1', 'Exploration Mode: '),
+        m(SegmentedButtons, {
+          options: [
+            {label: ExplorePageModeToLabel[ExplorePageModes.QUERY_BUILDER]},
+            {label: ExplorePageModeToLabel[ExplorePageModes.DATA_VISUALISER]},
+          ],
+          selectedOption: this.selectedMode,
+          onOptionSelected: (i) => (this.selectedMode = i),
         }),
       ),
+
+      this.selectedMode === ExplorePageModes.QUERY_BUILDER &&
+        m(
+          'div',
+          m(QueryBuilder, {
+            trace: attrs.trace,
+            sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
+            onQueryNodeCreated(arg) {
+              attrs.state.queryNode = arg;
+            },
+            queryNode: attrs.state.queryNode,
+          }),
+          attrs.state.queryNode?.finished &&
+            m(DataSourceViewer, {
+              trace: attrs.trace,
+              plugin: attrs.sqlModulesPlugin,
+              queryNode: attrs.state.queryNode,
+            }),
+        ),
+      this.selectedMode === ExplorePageModes.DATA_VISUALISER &&
+        m(DataVisualiser, {
+          trace,
+          state,
+          charts,
+        }),
     );
   }
 }

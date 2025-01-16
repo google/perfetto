@@ -60,6 +60,7 @@ source_set("probes_src") {
     "../../tracing/core",
     "../../tracing/ipc/producer",
     "android_game_intervention_list",
+    "android_kernel_wakelocks",
     "android_log",
     "android_system_property",
     "common",

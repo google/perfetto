@@ -25,7 +25,7 @@ import {Section} from '../../../widgets/section';
 import {
   MultiSelect,
   MultiSelectDiff,
-  Option as MultiSelectOption,
+  MultiSelectOption,
 } from '../../../widgets/multiselect';
 
 type ChromeCatFunction = () => Promise<string[]>;

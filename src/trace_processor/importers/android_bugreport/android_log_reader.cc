@@ -120,15 +120,14 @@ int32_t GuessYear(TraceProcessorContext* context) {
 AndroidLogReader::AndroidLogReader(TraceProcessorContext* context)
     : AndroidLogReader(context, GuessYear(context)) {}
 
-AndroidLogReader::AndroidLogReader(TraceProcessorContext* context, int32_t year)
-    : context_(context),
-      year_(year),
-      timezone_offset_(context_->clock_tracker->timezone_offset().value_or(0)) {
-}
+AndroidLogReader::AndroidLogReader(TraceProcessorContext* context,
+                                   int32_t year,
+                                   bool wait_for_tz)
+    : context_(context), year_(year), wait_for_tz_(wait_for_tz) {}
 
 AndroidLogReader::~AndroidLogReader() = default;
 
-util::Status AndroidLogReader::ParseLine(base::StringView line) {
+base::Status AndroidLogReader::ParseLine(base::StringView line) {
   if (line.size() < 30 ||
       (line.at(0) == '-' && line.at(1) == '-' && line.at(2) == '-')) {
     // These are markers like "--------- switch to radio" which we ignore.
@@ -221,30 +220,52 @@ util::Status AndroidLogReader::ParseLine(base::StringView line) {
   return ProcessEvent(event_ts, std::move(event));
 }
 
-util::Status AndroidLogReader::ProcessEvent(std::chrono::nanoseconds event_ts,
+base::Status AndroidLogReader::ProcessEvent(std::chrono::nanoseconds event_ts,
                                             AndroidLogEvent event) {
+  if (wait_for_tz_) {
+    if (!context_->clock_tracker->timezone_offset().has_value()) {
+      non_tz_adjusted_events_.push_back(TimestampedAndroidLogEvent{
+          std::chrono::duration_cast<std::chrono::milliseconds>(event_ts),
+          std::move(event), false});
+      return base::OkStatus();
+    } else {
+      RETURN_IF_ERROR(FlushNonTzAdjustedEvents());
+    }
+  }
   return SendToSorter(event_ts, std::move(event));
 }
 
-util::Status AndroidLogReader::SendToSorter(std::chrono::nanoseconds event_ts,
+base::Status AndroidLogReader::SendToSorter(std::chrono::nanoseconds event_ts,
                                             AndroidLogEvent event) {
-  event_ts -= timezone_offset_;
-  ASSIGN_OR_RETURN(
-      int64_t trace_ts,
-      context_->clock_tracker->ToTraceTime(
-          protos::pbzero::ClockSnapshot::Clock::REALTIME, event_ts.count()));
+  int64_t ts =
+      event_ts.count() - context_->clock_tracker->timezone_offset().value_or(0);
+  ASSIGN_OR_RETURN(int64_t trace_ts,
+                   context_->clock_tracker->ToTraceTime(
+                       protos::pbzero::ClockSnapshot::Clock::REALTIME, ts));
   context_->sorter->PushAndroidLogEvent(trace_ts, std::move(event));
   return base::OkStatus();
 }
 
-void AndroidLogReader::EndOfStream(base::StringView) {}
+base::Status AndroidLogReader::FlushNonTzAdjustedEvents() {
+  for (const TimestampedAndroidLogEvent& event : non_tz_adjusted_events_) {
+    RETURN_IF_ERROR(SendToSorter(event.ts, event.event));
+  }
+  non_tz_adjusted_events_.clear();
+  return base::OkStatus();
+}
+
+void AndroidLogReader::EndOfStream(base::StringView) {
+  // Flush all events once we reach the end of input, regarddless of if we got
+  // a TZ offset or not.
+  FlushNonTzAdjustedEvents();
+}
 
 BufferingAndroidLogReader::~BufferingAndroidLogReader() = default;
 
 base::Status BufferingAndroidLogReader::ProcessEvent(
     std::chrono::nanoseconds event_ts,
     AndroidLogEvent event) {
-  RETURN_IF_ERROR(SendToSorter(event_ts, event));
+  RETURN_IF_ERROR(AndroidLogReader::ProcessEvent(event_ts, event));
   events_.push_back(TimestampedAndroidLogEvent{
       std::chrono::duration_cast<std::chrono::milliseconds>(event_ts),
       std::move(event), false});
@@ -254,8 +275,9 @@ base::Status BufferingAndroidLogReader::ProcessEvent(
 DedupingAndroidLogReader::DedupingAndroidLogReader(
     TraceProcessorContext* context,
     int32_t year,
+    bool wait_for_tz,
     std::vector<TimestampedAndroidLogEvent> events)
-    : AndroidLogReader(context, year), events_(std::move(events)) {
+    : AndroidLogReader(context, year, wait_for_tz), events_(std::move(events)) {
   std::sort(events_.begin(), events_.end());
 }
 
@@ -283,7 +305,7 @@ base::Status DedupingAndroidLogReader::ProcessEvent(
     }
   }
 
-  return SendToSorter(event_ts, std::move(event));
+  return AndroidLogReader::ProcessEvent(event_ts, std::move(event));
 }
 
 }  // namespace perfetto::trace_processor

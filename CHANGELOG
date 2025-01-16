@@ -1,5 +1,18 @@
 Unreleased:
   Tracing service and probes:
+    *
+  SQL Standard library:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v49.0 - 2025-01-06:
+  Tracing service and probes:
     * Add `--clone-by-name` to the perfetto command line. This allows cloning a
       tracing session by its unique_session_name.
     * Fixed a bug that would delay the trace start acknowledgement, resulting
@@ -51,11 +64,11 @@ Unreleased:
     * Removed the experimental_counter_dur table. Prefer using the
       `counter_leading_intervals` macro from the `counters.intervals` standard
       library module.
-  Trace Processor:
-    *
   UI:
     * Introduced `Open table:` command which would open any Perfetto Standard
       Library table in a new tab.
+    * Fixed behaviour of sorting and nesting of track event tracks for counter
+      tracks, thread tracks and process tracks.
     * Various improvements to timeline rendering performance.
     * Added workspace switcher and menu to move tracks between workspaces.
     * Completely overhauled recording page.

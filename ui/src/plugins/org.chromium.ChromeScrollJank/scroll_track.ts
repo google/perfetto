@@ -12,21 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  CustomSqlTableDefConfig,
-  CustomSqlTableSliceTrack,
-} from '../../components/tracks/custom_sql_table_slice_track';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {TrackEventSelection} from '../../public/selection';
+import {Trace} from '../../public/trace';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {ScrollDetailsPanel} from './scroll_details_panel';
 
-export class TopLevelScrollTrack extends CustomSqlTableSliceTrack {
-  getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      columns: [`printf("Scroll %s", CAST(id AS STRING)) AS name`, '*'],
-      sqlTableName: 'chrome_scrolls',
-    };
+export class TopLevelScrollTrack extends DatasetSliceTrack {
+  constructor(trace: Trace, uri: string) {
+    super({
+      trace,
+      uri,
+      dataset: new SourceDataset({
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+        src: `
+          SELECT
+            printf("Scroll %s", CAST(id AS STRING)) AS name,
+            *
+          FROM chrome_scrolls
+        `,
+      }),
+    });
   }
-
   override detailsPanel(sel: TrackEventSelection) {
     return new ScrollDetailsPanel(this.trace, sel.eventId);
   }

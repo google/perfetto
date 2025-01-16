@@ -33,13 +33,11 @@
 
 namespace perfetto::trace_processor {
 
-AndroidDumpstateReader::AndroidDumpstateReader(
-    TraceProcessorContext* context,
-    int32_t year,
-    std::vector<TimestampedAndroidLogEvent> logcat_events)
+AndroidDumpstateReader::AndroidDumpstateReader(TraceProcessorContext* context,
+                                               int32_t year)
     : context_(context),
       battery_stats_reader_(context),
-      log_reader_(context, year, std::move(logcat_events)) {}
+      log_reader_(context, year) {}
 
 AndroidDumpstateReader::~AndroidDumpstateReader() = default;
 

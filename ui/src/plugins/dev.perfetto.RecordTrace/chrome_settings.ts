@@ -22,7 +22,7 @@ import {
 import {
   MultiSelect,
   MultiSelectDiff,
-  Option as MultiSelectOption,
+  MultiSelectOption,
 } from '../../widgets/multiselect';
 import {Section} from '../../widgets/section';
 import {CategoryGetter, CompactProbe, Toggle} from './record_widgets';

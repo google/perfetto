@@ -46,6 +46,7 @@ export const defaultPlugins = [
   'dev.perfetto.Ftrace',
   'dev.perfetto.GpuFreq',
   'dev.perfetto.HeapProfile',
+  'dev.perfetto.InstrumentsSamplesProfile',
   'dev.perfetto.LargeScreensPerf',
   'dev.perfetto.MetricsPage',
   'dev.perfetto.PerfSamplesProfile',

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {canvasClip} from '../../base/canvas_utils';
-import {currentTargetOffset} from '../../base/dom_utils';
+import {currentTargetOffset, findRef} from '../../base/dom_utils';
 import {Size2D} from '../../base/geom';
 import {assertUnreachable} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
@@ -24,10 +24,12 @@ import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {Note, SpanNote} from '../../public/note';
 import {Button, ButtonBar} from '../../widgets/button';
-import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Select} from '../../widgets/select';
 import {TRACK_SHELL_WIDTH} from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
+import {TextInput} from '../../widgets/text_input';
+import {Popup} from '../../widgets/popup';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -49,6 +51,8 @@ function getStartTimestamp(note: Note | SpanNote) {
       assertUnreachable(noteType);
   }
 }
+
+const FILTER_TEXT_BOX_REF = 'filter-text-box';
 
 export class NotesPanel {
   private readonly trace: TraceImpl;
@@ -132,6 +136,50 @@ export class NotesPanel {
           compact: true,
         }),
         m(
+          Popup,
+          {
+            trigger: m(Button, {
+              icon: 'filter_alt',
+              title: 'Track filter',
+              compact: true,
+              iconFilled: Boolean(this.trace.tracks.trackFilterTerm),
+            }),
+          },
+          m(
+            'pf-timeline-toolbar__track-filter',
+            {
+              oncreate({dom}) {
+                // Focus & select text box when the popup opens.
+                const input = findRef(
+                  dom,
+                  FILTER_TEXT_BOX_REF,
+                ) as HTMLInputElement;
+                input.focus();
+                input.select();
+              },
+            },
+            m(TextInput, {
+              ref: FILTER_TEXT_BOX_REF,
+              placeholder: 'Filter tracks...',
+              title:
+                'Track filter - enter one or more comma-separated search terms',
+              value: this.trace.tracks.trackFilterTerm,
+              oninput: (e: Event) => {
+                const value = (e.target as HTMLInputElement).value;
+                this.trace.tracks.trackFilterTerm = value;
+              },
+            }),
+            m(Button, {
+              type: 'reset',
+              icon: 'backspace',
+              onclick: () => {
+                this.trace.tracks.trackFilterTerm = '';
+              },
+              title: 'Clear track filter',
+            }),
+          ),
+        ),
+        m(
           Select,
           {
             className: 'pf-timeline-toolbar__workspace-selector',
@@ -163,7 +211,7 @@ export class NotesPanel {
             ]),
         ),
         m(
-          PopupMenu2,
+          PopupMenu,
           {
             trigger: m(Button, {
               icon: 'more_vert',
@@ -197,27 +245,6 @@ export class NotesPanel {
             },
           }),
         ),
-        // TODO(stevegolton): Re-introduce this when we fix track filtering
-        // m(TextInput, {
-        //   placeholder: 'Filter tracks...',
-        //   title:
-        //     'Track filter - enter one or more comma-separated search terms',
-        //   value: this.trace.state.trackFilterTerm,
-        //   oninput: (e: Event) => {
-        //     const filterTerm = (e.target as HTMLInputElement).value;
-        //     this.trace.dispatch(Actions.setTrackFilterTerm({filterTerm}));
-        //   },
-        // }),
-        // m(Button, {
-        //   type: 'reset',
-        //   icon: 'backspace',
-        //   onclick: () => {
-        //     this.trace.dispatch(
-        //       Actions.setTrackFilterTerm({filterTerm: undefined}),
-        //     );
-        //   },
-        //   title: 'Clear track filter',
-        // }),
       ),
     );
   }

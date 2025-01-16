@@ -51,6 +51,7 @@
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/android/bluetooth_trace.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -115,6 +116,7 @@ AndroidProbesModule::AndroidProbesModule(TraceProcessorContext* context)
                    context);
   RegisterForField(TracePacket::kInitialDisplayStateFieldNumber, context);
   RegisterForField(TracePacket::kAndroidSystemPropertyFieldNumber, context);
+  RegisterForField(TracePacket::kBluetoothTraceEventFieldNumber, context);
 }
 
 ModuleResult AndroidProbesModule::TokenizePacket(
@@ -259,6 +261,9 @@ void AndroidProbesModule::ParseTracePacketData(
       return;
     case TracePacket::kAndroidSystemPropertyFieldNumber:
       parser_.ParseAndroidSystemProperty(ts, decoder.android_system_property());
+      return;
+    case TracePacket::kBluetoothTraceEventFieldNumber:
+      parser_.ParseBtTraceEvent(ts, decoder.bluetooth_trace_event());
       return;
   }
 }

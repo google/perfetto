@@ -28,7 +28,7 @@ import {getProcessName} from '../../components/sql_utils/process';
 import {getThreadName} from '../../components/sql_utils/thread';
 import {Anchor} from '../../widgets/anchor';
 import {renderError} from '../../widgets/error';
-import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {DurationWidget} from '../../components/widgets/duration';
 import {
   processRefMenuItems,
@@ -550,7 +550,7 @@ export class ThreadColumn extends LegacyTableColumn {
       rawTid !== null ? Number(rawTid) : undefined;
 
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
         trigger: m(
           Anchor,
@@ -655,7 +655,7 @@ export class ThreadIdColumn extends LegacyTableColumn {
     }
 
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
         trigger: m(Anchor, `${utid}`),
       },
@@ -811,7 +811,7 @@ export class ProcessColumn extends LegacyTableColumn {
       rawPid !== null ? Number(rawPid) : undefined;
 
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
         trigger: m(
           Anchor,
@@ -916,7 +916,7 @@ export class ProcessIdColumn extends LegacyTableColumn {
     }
 
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
         trigger: m(Anchor, `${upid}`),
       },
@@ -1110,7 +1110,7 @@ class ArgColumn extends LegacyTableColumn {
       );
     }
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
         trigger: m(Anchor, displayValue(value)),
       },

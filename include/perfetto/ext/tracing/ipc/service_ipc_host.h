@@ -49,21 +49,19 @@ class PERFETTO_EXPORT_COMPONENT ServiceIPCHost {
 
   // The overload to wrap the multi-value producer socket name in the
   // single-value variant for compatibility in tests.
+  // The socket name can be fd://123 to pass a pre-bound socket. This is used
+  // when building as part of the Android tree, where init opens and binds the
+  // socket beore exec()-ing us.
   bool Start(const char* producer_socket_name,
              const char* consumer_socket_name) {
     return Start(TokenizeProducerSockets(producer_socket_name),
                  consumer_socket_name);
   }
+
   // Start listening on the Producer & Consumer ports. Returns false in case of
   // failure (e.g., something else is listening on |socket_name|).
   virtual bool Start(const std::vector<std::string>& producer_socket_names,
                      const char* consumer_socket_name) = 0;
-
-  // Like the above, but takes two file descriptors to already bound sockets.
-  // This is used when building as part of the Android tree, where init opens
-  // and binds the socket beore exec()-ing us.
-  virtual bool Start(base::ScopedSocketHandle producer_socket_fd,
-                     base::ScopedSocketHandle consumer_socket_fd) = 0;
 
   // Allows callers to supply preconstructed Hosts.
   virtual bool Start(std::unique_ptr<ipc::Host> producer_host,

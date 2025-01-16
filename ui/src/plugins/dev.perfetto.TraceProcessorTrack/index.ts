@@ -218,7 +218,7 @@ export default class implements PerfettoPlugin {
         s.type,
         s.name,
         s.utid,
-        s.upid,
+        ifnull(s.upid, tp.upid) as upid,
         s.trackIds as trackIds,
         __max_layout_depth(s.trackCount, s.trackIds) as maxDepth,
         thread.tid,
@@ -349,7 +349,7 @@ function addTrack(
       const standardGroup = ctx.plugins
         .getPlugin(StandardGroupsPlugin)
         .getOrCreateStandardGroup(ctx.workspace, topLevelGroup);
-      getGroupByName(standardGroup, group, upid).addChildInOrder(track);
+      getGroupByName(standardGroup, group, null).addChildInOrder(track);
       break;
     }
   }

@@ -65,7 +65,8 @@ config("extra_warnings") {
     # mimics the newer Clang used in Perfetto CI on Linux.
     if (is_mac && is_clang) {
       cflags += [
-        "-Wsign-conversion"
+        "-Wextra-semi",
+        "-Wsign-conversion",
       ]
     }
   }

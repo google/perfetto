@@ -46,16 +46,21 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
     row.set_ts(transition.dispatch_time_ns());
   }
 
-  auto base64_proto = context_->storage->mutable_string_pool()->InternString(
-      base::StringView(base::Base64Encode(blob.data, blob.size)));
-  row.set_base64_proto(base64_proto);
-  row.set_base64_proto_id(base64_proto.raw_id());
+  tables::WindowManagerShellTransitionProtosTable::Row protos;
+  protos.transition_id = transition.id();
+  protos.base64_proto_id = context_->storage->mutable_string_pool()
+                               ->InternString(base::StringView(
+                                   base::Base64Encode(blob.data, blob.size)))
+                               .raw_id();
+  context_->storage->mutable_window_manager_shell_transition_protos_table()
+      ->Insert(protos);
+
   auto inserter = context_->args_tracker->AddArgsTo(row_id);
   ArgsParser writer(/*timestamp=*/0, inserter, *context_->storage.get());
   base::Status status = args_parser_.ParseMessage(
       blob,
       *util::winscope_proto_mapping::GetProtoName(
-          tables::WindowManagerShellTransitionsTable::Name()),
+          tables::WindowManagerShellTransitionProtosTable::Name()),
       nullptr /* parse all fields */, writer);
 
   if (!status.ok()) {
@@ -77,9 +82,10 @@ void ShellTransitionsParser::ParseHandlerMappings(protozero::ConstBytes blob) {
     row.handler_id = mapping.id();
     row.handler_name = context_->storage->InternString(
         base::StringView(mapping.name().ToStdString()));
-    row.base64_proto = context_->storage->mutable_string_pool()->InternString(
-        base::StringView(base::Base64Encode(blob.data, blob.size)));
-    row.base64_proto_id = row.base64_proto.raw_id();
+    row.base64_proto_id = context_->storage->mutable_string_pool()
+                              ->InternString(base::StringView(
+                                  base::Base64Encode(blob.data, blob.size)))
+                              .raw_id();
     shell_handlers_table->Insert(row);
   }
 }

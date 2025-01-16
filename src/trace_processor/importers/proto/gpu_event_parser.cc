@@ -457,13 +457,8 @@ void GpuEventParser::ParseGpuRenderStageEvent(
                                       ? context_->storage->InternString(
                                             command_buffer_name.value().c_str())
                                       : kNullStringId;
-    StringId name_id;
-    if (event.has_submission_id()) {
-      name_id = context_->storage->InternString(
-          std::to_string(event.submission_id()).c_str());
-    } else {
-      name_id = GetFullStageName(sequence_state, event);
-    }
+    StringId name_id = GetFullStageName(sequence_state, event);
+
     context_->slice_tracker->Scoped(
         ts, track_id, kNullStringId, name_id,
         static_cast<int64_t>(event.duration()),

@@ -25,6 +25,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -56,21 +57,55 @@ class TraceProcessorImpl : public TraceProcessor,
 
   ~TraceProcessorImpl() override;
 
-  // TraceProcessorStorage implementation:
+  // =================================================================
+  // |        TraceProcessorStorage implementation starts here       |
+  // =================================================================
+
   base::Status Parse(TraceBlobView) override;
   void Flush() override;
   base::Status NotifyEndOfFile() override;
 
-  // TraceProcessor implementation:
+  // =================================================================
+  // |        PerfettoSQL related functionality starts here          |
+  // =================================================================
+
   Iterator ExecuteQuery(const std::string& sql) override;
+
+  base::Status RegisterSqlPackage(SqlPackage) override;
+
+  base::Status RegisterSqlModule(SqlModule module) override;
+
+  // =================================================================
+  // |        Metatracing related functionality starts here          |
+  // =================================================================
+
+  void EnableMetatrace(MetatraceConfig config) override;
+
+  base::Status DisableAndReadMetatrace(
+      std::vector<uint8_t>* trace_proto) override;
+
+  // =================================================================
+  // |              Advanced functionality starts here               |
+  // =================================================================
+
+  std::string GetCurrentTraceName() override;
+  void SetCurrentTraceName(const std::string&) override;
+
+  base::Status RegisterFileContent(const std::string& path,
+                                   TraceBlobView content) override;
+
+  void InterruptQuery() override;
+
+  size_t RestoreInitialTables() override;
+
+  // =================================================================
+  // |  Trace-based metrics (v1) related functionality starts here   |
+  // =================================================================
 
   base::Status RegisterMetric(const std::string& path,
                               const std::string& sql) override;
 
-  base::Status RegisterSqlPackage(SqlPackage) override;
-
   base::Status ExtendMetricsProto(const uint8_t* data, size_t size) override;
-
   base::Status ExtendMetricsProto(
       const uint8_t* data,
       size_t size,
@@ -78,36 +113,11 @@ class TraceProcessorImpl : public TraceProcessor,
 
   base::Status ComputeMetric(const std::vector<std::string>& metric_names,
                              std::vector<uint8_t>* metrics) override;
-
   base::Status ComputeMetricText(const std::vector<std::string>& metric_names,
                                  TraceProcessor::MetricResultFormat format,
                                  std::string* metrics_string) override;
 
   std::vector<uint8_t> GetMetricDescriptors() override;
-
-  void InterruptQuery() override;
-
-  size_t RestoreInitialTables() override;
-
-  std::string GetCurrentTraceName() override;
-  void SetCurrentTraceName(const std::string&) override;
-
-  void EnableMetatrace(MetatraceConfig config) override;
-
-  base::Status DisableAndReadMetatrace(
-      std::vector<uint8_t>* trace_proto) override;
-
-  base::Status RegisterSqlModule(SqlModule module) override {
-    SqlPackage package;
-    package.name = std::move(module.name);
-    package.modules = std::move(module.files);
-    package.allow_override = module.allow_module_override;
-
-    return RegisterSqlPackage(package);
-  }
-
-  base::Status RegisterFileContent(const std::string& path,
-                                   TraceBlobView content) override;
 
  private:
   // Needed for iterators to be able to access the context.
@@ -128,7 +138,7 @@ class TraceProcessorImpl : public TraceProcessor,
   const Config config_;
   std::unique_ptr<PerfettoSqlEngine> engine_;
 
-  DescriptorPool pool_;
+  DescriptorPool metrics_descriptor_pool_;
 
   std::vector<metrics::SqlMetricFile> sql_metrics_;
 

@@ -300,19 +300,13 @@ CREATE PERFETTO VIEW android_key_events(
   -- The timestamp of when the input event was processed by the system
   ts TIMESTAMP,
   -- Details of the input event parsed from the proto message
-  arg_set_id ARGSETID,
-  -- Raw proto message encoded in base64
-  base64_proto STRING,
-  -- String id for raw proto message
-  base64_proto_id LONG
+  arg_set_id ARGSETID
 ) AS
 SELECT
   id,
   event_id,
   ts,
-  arg_set_id,
-  base64_proto,
-  base64_proto_id
+  arg_set_id
 FROM __intrinsic_android_key_events;
 
 -- Motion events processed by the Android framework (from android.input.inputevent data source).
@@ -325,19 +319,13 @@ CREATE PERFETTO VIEW android_motion_events(
   -- The timestamp of when the input event was processed by the system
   ts TIMESTAMP,
   -- Details of the input event parsed from the proto message
-  arg_set_id ARGSETID,
-  -- Raw proto message encoded in base64
-  base64_proto STRING,
-  -- String id for raw proto message
-  base64_proto_id LONG
+  arg_set_id ARGSETID
 ) AS
 SELECT
   id,
   event_id,
   ts,
-  arg_set_id,
-  base64_proto,
-  base64_proto_id
+  arg_set_id
 FROM __intrinsic_android_motion_events;
 
 -- Input event dispatching information in Android (from android.input.inputevent data source).
@@ -348,10 +336,6 @@ CREATE PERFETTO VIEW android_input_event_dispatch(
   event_id LONG,
   -- Details of the input event parsed from the proto message
   arg_set_id ARGSETID,
-  -- Raw proto message encoded in base64
-  base64_proto STRING,
-  -- String id for raw proto message
-  base64_proto_id LONG,
   -- Vsync ID that identifies the state of the windows during which the dispatch decision was made
   vsync_id LONG,
   -- Window ID of the window receiving the event
@@ -361,8 +345,6 @@ SELECT
   id,
   event_id,
   arg_set_id,
-  base64_proto,
-  base64_proto_id,
   vsync_id,
   window_id
 FROM __intrinsic_android_input_event_dispatch;

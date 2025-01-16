@@ -85,8 +85,8 @@ class ViewCapture(TestSuite):
         trace=Path('viewcapture.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.winscope.viewcapture;
-        SELECT COUNT(*) FROM android_viewcapture
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        SELECT COUNT(*) FROM __intrinsic_viewcapture
+        WHERE base64_proto_id IS NOT NULL
         """,
         out=Csv("""
         "COUNT(*)"

@@ -66,11 +66,13 @@ void ScatteredStreamWriter::WriteBytesSlowPath(const uint8_t* src,
 // TODO(primiano): perf optimization: I suspect that at the end this will always
 // be called with |size| == 4, in which case we might just hardcode it.
 uint8_t* ScatteredStreamWriter::ReserveBytes(size_t size) {
-  if (write_ptr_ + size > cur_range_.end) {
+  PERFETTO_DCHECK(write_ptr_ <= cur_range_.end);
+  if (size > static_cast<size_t>(cur_range_.end - write_ptr_)) {
     // Assume the reservations are always < Delegate::GetNewBuffer().size(),
     // so that one single call to Extend() will definitely give enough headroom.
     Extend();
-    PERFETTO_DCHECK(write_ptr_ + size <= cur_range_.end);
+    PERFETTO_DCHECK(write_ptr_ <= cur_range_.end);
+    PERFETTO_DCHECK(size <= static_cast<size_t>(cur_range_.end - write_ptr_));
   }
   uint8_t* begin = write_ptr_;
   write_ptr_ += size;
