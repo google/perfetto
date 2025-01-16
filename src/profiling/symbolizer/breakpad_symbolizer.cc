@@ -92,8 +92,8 @@ std::vector<std::vector<SymbolizedFrame>> BreakpadSymbolizer::Symbolize(
     }
     result.push_back({std::move(frame)});
   }
-  PERFETTO_PLOG("Symbolized %zu of %zu frames.", num_symbolized_frames,
-                address.size());
+  PERFETTO_PLOG("Symbolized %zu of %zu frames on symbol file %s.",
+                num_symbolized_frames, address.size(), file_path.c_str());
   return result;
 }
 
