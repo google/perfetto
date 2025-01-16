@@ -1499,20 +1499,24 @@ class ModalShowcase implements m.ClassComponent {
     if (staticContent) {
       content = m('.modal-pre', 'Content of the modal dialog.\nEnd of content');
     } else {
-      const component = {
-        oninit: function (vnode: m.Vnode<{}, {progress: number}>) {
-          vnode.state.progress = ((vnode.state.progress as number) || 0) + 1;
-        },
-        view: function (vnode: m.Vnode<{}, {progress: number}>) {
-          vnode.state.progress = (vnode.state.progress + 1) % 100;
-          return m(
-            'div',
-            m('div', 'You should see an animating progress bar'),
-            m('progress', {value: vnode.state.progress, max: 100}),
-          );
-        },
-      } as m.Component<{}, {progress: number}>;
-      content = () => m(component);
+      // The humble counter is basically the VDOM 'Hello world'!
+      function CounterComponent() {
+        let counter = 0;
+        return {
+          view: () => {
+            return m(
+              '',
+              `Counter value: ${counter}`,
+              m(Button, {
+                intent: Intent.Primary,
+                label: 'Increment Counter',
+                onclick: () => ++counter,
+              }),
+            );
+          },
+        };
+      }
+      content = () => m(CounterComponent);
     }
     const closePromise = showModal({
       title: `Modal dialog ${id}`,
