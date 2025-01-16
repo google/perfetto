@@ -15,6 +15,7 @@
 import {raf} from '../../../../core/raf_scheduler';
 import {Engine} from '../../../../trace_processor/engine';
 import {Row} from '../../../../trace_processor/query_result';
+import {VegaLiteSelectionTypes} from '../../vega_view';
 import {ChartData, ChartState, VegaLiteChartSpec} from '../chart';
 
 export interface HistogramChartConfig extends VegaLiteChartSpec {
@@ -66,6 +67,19 @@ export class HistogramState implements ChartState {
       data: {
         values: this.data?.rows,
       },
+      params: [
+        {
+          name: VegaLiteSelectionTypes.INTERVAL,
+          select: {
+            type: VegaLiteSelectionTypes.INTERVAL,
+            encodings: [this.aggregationType !== 'nominal' ? 'x' : 'y'],
+          },
+        },
+        {
+          name: VegaLiteSelectionTypes.POINT,
+          select: {type: VegaLiteSelectionTypes.POINT},
+        },
+      ],
       encoding: {
         x:
           this.aggregationType !== 'nominal'
