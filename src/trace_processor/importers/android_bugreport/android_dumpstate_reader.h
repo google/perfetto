@@ -39,16 +39,12 @@ class AndroidDumpstateReader : public ChunkedLineReader {
 
   BufferingAndroidLogReader& log_reader() { return log_reader_; }
 
- protected:
-  void maybeSetTzOffsetFromAlarmService(base::StringView line);
-
  private:
   enum class Section { kOther = 0, kDumpsys, kLog, kBatteryStats };
   TraceProcessorContext* const context_;
   AndroidBatteryStatsReader battery_stats_reader_;
   BufferingAndroidLogReader log_reader_;
   Section current_section_ = Section::kOther;
-  base::StringView current_serivce_ = "";
   StringId current_section_id_ = StringId::Null();
   StringId current_service_id_ = StringId::Null();
 };
