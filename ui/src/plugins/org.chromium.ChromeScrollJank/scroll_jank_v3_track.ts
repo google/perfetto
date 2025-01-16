@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NamedRow} from '../../components/tracks/named_slice_track';
-import {Slice} from '../../public/track';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {JANK_COLOR} from './jank_colors';
 import {getColorForSlice} from '../../components/colorizer';
@@ -52,25 +50,22 @@ export class ScrollJankV3Track extends DatasetSliceTrack {
           FROM chrome_janky_frame_presentation_intervals
         `,
       }),
+      colorizer: (row) => {
+        let stage = row.name.substring(0, row.name.indexOf(JANK_SLICE_NAME));
+        // Stage may include substage, in which case we use the substage for
+        // color selection.
+        const separator = '::';
+        if (stage.indexOf(separator) != -1) {
+          stage = stage.substring(stage.indexOf(separator) + separator.length);
+        }
+
+        if (stage == UNKNOWN_SLICE_NAME) {
+          return JANK_COLOR;
+        } else {
+          return getColorForSlice(stage);
+        }
+      },
     });
-  }
-
-  rowToSlice(row: NamedRow): Slice {
-    const slice = super.rowToSlice(row);
-
-    let stage = slice.title.substring(0, slice.title.indexOf(JANK_SLICE_NAME));
-    // Stage may include substage, in which case we use the substage for
-    // color selection.
-    const separator = '::';
-    if (stage.indexOf(separator) != -1) {
-      stage = stage.substring(stage.indexOf(separator) + separator.length);
-    }
-
-    if (stage == UNKNOWN_SLICE_NAME) {
-      return {...slice, colorScheme: JANK_COLOR};
-    } else {
-      return {...slice, colorScheme: getColorForSlice(stage)};
-    }
   }
 
   override detailsPanel(sel: TrackEventSelection) {

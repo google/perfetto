@@ -20,11 +20,13 @@ import {sqlNameSafe} from '../../base/string_utils';
 import {Trace} from '../../public/trace';
 import {
   Dataset,
+  DatasetSchema,
   filterToQuery,
   SourceDataset,
 } from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {assertTrue} from '../../base/logging';
+import {ColorScheme} from '../../base/color_scheme';
 
 /**
  * This track implementation is defined using a dataset, with optional automatic
@@ -42,32 +44,46 @@ import {assertTrue} from '../../base/logging';
  * overlapping slices.
  */
 
-export interface DatasetSliceTrackAttrs {
+export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   readonly trace: Trace;
   readonly uri: string;
-  readonly dataset: SourceDataset;
+  readonly dataset: SourceDataset<T>;
+
+  // Optional: Define a function which can override the color scheme for each
+  // slice in the dataset. If omitted, the default slice colour scheme will be
+  // used instead.
+  colorizer?(row: T): ColorScheme;
 }
 
-export class DatasetSliceTrack extends NamedSliceTrack<Slice, NamedRow> {
+// This is the minimum viable schema that all datasets must implement.
+const rowSchema = {
+  id: NUM,
+  ts: LONG,
+  dur: LONG,
+  name: STR,
+};
+
+type ROW_SCHEMA = typeof rowSchema;
+
+export class DatasetSliceTrack<
+  // TODO(stevegolton): Once we remove all classes that extend DatasetSliceTrack
+  // we can remove this default type value. TypeScript is not able to
+  // automatically infer this type when using inheritance, but it is able to if
+  // instantiating this class directly, so we use a default value here to avoid
+  // every subclass from having to pass a type here.
+  T extends ROW_SCHEMA = ROW_SCHEMA,
+> extends NamedSliceTrack<Slice, NamedRow & T> {
   protected readonly sqlSource: string;
   private readonly createTableOnInit: boolean;
 
-  constructor(private readonly attrs: DatasetSliceTrackAttrs) {
-    super(attrs.trace, attrs.uri, NAMED_ROW);
+  constructor(private readonly attrs: DatasetSliceTrackAttrs<T>) {
+    super(attrs.trace, attrs.uri, {...NAMED_ROW, ...attrs.dataset.schema});
 
     // This is the minimum viable implementation that the source dataset must
-    // implement for the track to work properly.
-    assertTrue(
-      this.attrs.dataset.implements({
-        id: NUM,
-        ts: LONG,
-        dur: LONG,
-        name: STR,
-      }),
-    );
-
-    // TODO(stevegolton): If we ever support typed datasets, we should enforce
-    // this at the type-system level.
+    // implement for the track to work properly. Typescript should enforce this
+    // now, but typescript can be worked around, and checking it is cheap.
+    // Better to error out early.
+    assertTrue(this.attrs.dataset.implements(rowSchema));
 
     // If the dataset already has a depth property, don't bother doing the
     // automatic layout.
@@ -84,8 +100,13 @@ export class DatasetSliceTrack extends NamedSliceTrack<Slice, NamedRow> {
     }
   }
 
-  rowToSlice(row: NamedRow): Slice {
-    return this.rowToSliceBase(row);
+  rowToSlice(row: NamedRow & T): Slice {
+    const slice = this.rowToSliceBase(row);
+    // Use the colorizer if we have been passed one.
+    return {
+      ...slice,
+      colorScheme: this.attrs.colorizer?.(row) ?? slice.colorScheme,
+    };
   }
 
   async onInit() {

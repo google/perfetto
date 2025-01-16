@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NamedRow} from '../../components/tracks/named_slice_track';
-import {Slice} from '../../public/track';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {JANK_COLOR} from './jank_colors';
 import {TrackEventSelection} from '../../public/selection';
@@ -21,6 +19,7 @@ import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {getColorForSlice} from '../../components/colorizer';
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
@@ -38,16 +37,12 @@ export class EventLatencyTrack extends DatasetSliceTrack {
         },
         src: baseTable,
       }),
+      colorizer: (row) => {
+        return row.name === JANKY_LATENCY_NAME
+          ? JANK_COLOR
+          : getColorForSlice(row.name);
+      },
     });
-  }
-
-  rowToSlice(row: NamedRow): Slice {
-    const baseSlice = super.rowToSlice(row);
-    if (baseSlice.title === JANKY_LATENCY_NAME) {
-      return {...baseSlice, colorScheme: JANK_COLOR};
-    } else {
-      return baseSlice;
-    }
   }
 
   override detailsPanel(sel: TrackEventSelection) {

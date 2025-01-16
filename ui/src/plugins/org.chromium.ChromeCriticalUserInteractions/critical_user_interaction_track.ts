@@ -53,6 +53,8 @@ export class CriticalUserInteractionTrack extends DatasetSliceTrack {
           ts: LONG,
           dur: LONG,
           name: STR,
+          scopedId: NUM,
+          type: STR,
         },
         // The scoped_id is not a unique identifier within the table; generate
         // a unique id from type and scoped_id on the fly to use for slice
@@ -99,13 +101,6 @@ export class CriticalUserInteractionTrack extends DatasetSliceTrack {
       dur: Duration.fromRaw(row.dur),
       interactionType: row.type,
     };
-  }
-
-  rowToSlice(row: CriticalUserInteractionRow): CriticalUserInteractionSlice {
-    const baseSlice = super.rowToSlice(row);
-    const scopedId = row.scopedId;
-    const type = row.type;
-    return {...baseSlice, scopedId, type};
   }
 
   override detailsPanel(sel: TrackEventSelection) {
