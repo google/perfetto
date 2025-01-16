@@ -94,7 +94,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends NamedSliceTrack<
     if (attrs.dataset.implements({depth: NUM})) {
       // The dataset already has a depth property, we don't need to handle the
       // layout ourselves.
-      this.sqlSource = attrs.dataset.src;
+      this.sqlSource = attrs.dataset.query();
       this.createTableOnInit = false;
     } else {
       // The dataset doesn't have a depth column, create a new table (on init)
