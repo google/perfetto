@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_DRM_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_DRM_TRACKER_H_
 
+#include <cstdint>
 #include <deque>
 #include <memory>
 
@@ -25,8 +26,7 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -40,7 +40,6 @@ class DrmTracker {
                 protozero::ConstBytes blob);
 
  private:
-  TrackId InternVblankTrack(int32_t crtc);
   void DrmVblankEvent(int64_t timestamp, int32_t crtc, uint32_t seqno);
   void DrmVblankEventDelivered(int64_t timestamp, int32_t crtc, uint32_t seqno);
 
@@ -111,7 +110,6 @@ class DrmTracker {
   base::FlatHashMap<uint32_t, std::unique_ptr<FenceTimeline>> fence_timelines_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_DRM_TRACKER_H_

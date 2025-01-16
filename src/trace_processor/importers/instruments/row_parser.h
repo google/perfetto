@@ -41,10 +41,8 @@ class RowParser : public InstrumentsRowParser {
   TraceProcessorContext* context_;
   RowDataTracker& data_;
 
-  // Cache FrameId and binary mappings by instruments frame and binary
-  // pointers, respectively. These are already de-duplicated in the
-  // instruments XML parsing.
-  base::FlatHashMap<BacktraceFrameId, FrameId> frame_to_frame_id_;
+  // Cache binary mappings by instruments binary pointers. These are already
+  // de-duplicated in the instruments XML parsing.
   base::FlatHashMap<BinaryId, VirtualMemoryMapping*> binary_to_mapping_;
   base::FlatHashMap<UniquePid, DummyMemoryMapping*> dummy_mappings_;
 };

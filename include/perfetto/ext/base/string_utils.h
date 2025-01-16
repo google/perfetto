@@ -21,9 +21,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <charconv>
 #include <cinttypes>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "perfetto/ext/base/string_view.h"
@@ -98,6 +100,68 @@ inline std::optional<int64_t> StringToInt64(const std::string& s,
 inline std::optional<double> StringToDouble(const std::string& s) {
   return CStringToDouble(s.c_str());
 }
+
+template <typename T>
+inline std::optional<T> StringViewToNumber(const base::StringView& sv,
+                                           int base = 10) {
+  // std::from_chars() does not regonize the leading '+' character and only
+  // recognizes '-' so remove the '+' if it exists to avoid errors and match
+  // the behavior of the other string conversion utilities above.
+  size_t start_offset = !sv.empty() && sv.at(0) == '+' ? 1 : 0;
+  T value;
+  auto result =
+      std::from_chars(sv.begin() + start_offset, sv.end(), value, base);
+  if (result.ec == std::errc() && result.ptr == sv.end()) {
+    return value;
+  } else {
+    return std::nullopt;
+  }
+}
+
+inline std::optional<uint32_t> StringViewToUInt32(const base::StringView& sv,
+                                                  int base = 10) {
+  // std::from_chars() does not recognize the leading '-' character for
+  // unsigned conversions, but strtol does. To Mimic the behavior of strtol,
+  // attempt a signed converion if we see a leading '-', and then cast the
+  // result back to unsigned.
+  if (sv.size() > 0 && sv.at(0) == '-') {
+    return static_cast<std::optional<uint32_t> >(
+        StringViewToNumber<int32_t>(sv, base));
+  } else {
+    return StringViewToNumber<uint32_t>(sv, base);
+  }
+}
+
+inline std::optional<int32_t> StringViewToInt32(const base::StringView& sv,
+                                                int base = 10) {
+  return StringViewToNumber<int32_t>(sv, base);
+}
+
+inline std::optional<uint64_t> StringViewToUInt64(const base::StringView& sv,
+                                                  int base = 10) {
+  // std::from_chars() does not recognize the leading '-' character for
+  // unsigned conversions, but strtol does. To Mimic the behavior of strtol,
+  // attempt a signed converion if we see a leading '-', and then cast the
+  // result back to unsigned.
+  if (sv.size() > 0 && sv.at(0) == '-') {
+    return static_cast<std::optional<uint64_t> >(
+        StringViewToNumber<int64_t>(sv, base));
+  } else {
+    return StringViewToNumber<uint64_t>(sv, base);
+  }
+}
+
+inline std::optional<int64_t> StringViewToInt64(const base::StringView& sv,
+                                                int base = 10) {
+  return StringViewToNumber<int64_t>(sv, base);
+}
+
+// TODO: As of Clang 19.0 std::from_chars is unimplemented for type double
+// despite being part of C++17 standard, and already being supported by GCC and
+// MSVC. Enable this once we have double support in Clang.
+// inline std::optional<double> StringViewToDouble(const base::StringView& sv) {
+//   return StringViewToNumber<double>(sv);
+// }
 
 bool StartsWith(const std::string& str, const std::string& prefix);
 bool EndsWith(const std::string& str, const std::string& suffix);

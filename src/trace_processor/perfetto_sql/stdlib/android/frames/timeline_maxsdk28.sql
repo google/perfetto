@@ -27,18 +27,23 @@ CREATE PERFETTO TABLE _frames_maxsdk_28(
     -- Duration of the frame, defined as the duration until the last
     -- "DrawFrame" of this frame finishes.
     dur DURATION,
-    -- `slice.id` of "Choreographer#doFrame" slice.
-    do_frame_id LONG,
-    -- `slice.id` of "DrawFrame" slice. Fetched as one of the "DrawFrame"
-    -- slices that happen for the same process as "Choreographer#doFrame" slice
-    -- and start after it started and before the next "doFrame" started.
-    draw_frame_id LONG,
+    -- Slice with name "Choreographer#doFrame" corresponding to this frame.
+    do_frame_id JOINID(slice.id),
+    -- Slice with name "DrawFrame" corresponding to this frame. Fetched as one
+    -- of the "DrawFrame" slices that happen for the same process as
+    -- "Choreographer#doFrame" slice and start after it started and before the
+    -- next "doFrame" started.
+    draw_frame_id JOINID(slice.id),
     -- `utid` of the render thread.
-    render_thread_utid LONG,
+    render_thread_utid JOINID(thread.id),
     -- `utid` of the UI thread.
-    ui_thread_utid LONG,
+    ui_thread_utid JOINID(thread.id),
     -- "maxsdk28"
-    sdk STRING
+    sdk STRING,
+    -- process id.
+    upid JOINID(process.id),
+    -- process name.
+    process_name STRING
 ) AS
 WITH choreographer AS (
   SELECT id
@@ -76,7 +81,10 @@ SELECT
   draw.id AS draw_frame_id,
   draw.utid AS render_thread_utid,
   do.utid AS ui_thread_utid,
+  do.upid as upid,
+  process.name as process_name,
   "maxsdk28" AS sdk
 FROM do_frames do
 JOIN draw_frames draw ON (do.upid = draw.upid AND draw.ts >= do.ts AND draw.ts < next_do_frame)
+JOIN process USING(upid)
 ORDER BY do.ts;

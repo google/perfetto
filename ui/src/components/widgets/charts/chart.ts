@@ -14,10 +14,14 @@
 import m from 'mithril';
 import {Row} from '../../../trace_processor/query_result';
 import {Engine} from '../../../trace_processor/engine';
-import {Filter, TableColumn, TableColumnSet} from '../sql/table/column';
+import {
+  Filter,
+  LegacyTableColumn,
+  LegacyTableColumnSet,
+} from '../sql/legacy_table/column';
 import {Histogram} from './histogram/histogram';
-import {SqlTableState} from '../sql/table/state';
-import {columnTitle} from '../sql/table/table';
+import {SqlTableState} from '../sql/legacy_table/state';
+import {columnTitle} from '../sql/legacy_table/table';
 
 export interface VegaLiteChartSpec {
   $schema: string;
@@ -73,7 +77,7 @@ export interface ChartData {
 export interface ChartState {
   readonly engine: Engine;
   readonly query: string;
-  readonly columns: TableColumn[] | TableColumnSet[] | string[];
+  readonly columns: LegacyTableColumn[] | LegacyTableColumnSet[] | string[];
   data?: ChartData;
   spec?: VegaLiteChartSpec;
   loadData(): Promise<void>;
@@ -102,7 +106,7 @@ export function renderChartComponent(chart: Chart) {
 }
 
 export function createChartConfigFromSqlTableState(
-  column: TableColumn,
+  column: LegacyTableColumn,
   columnAlias: string,
   sqlTableState: SqlTableState,
 ) {

@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_DUMPSTATE_READER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_DUMPSTATE_READER_H_
 
+#include "src/trace_processor/importers/android_bugreport/android_battery_stats_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
 #include "src/trace_processor/importers/android_bugreport/chunked_line_reader.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -30,17 +31,19 @@ class AndroidDumpstateReader : public ChunkedLineReader {
  public:
   // Create a reader that will only forward events that are not present in the
   // given list.
-  AndroidDumpstateReader(TraceProcessorContext* context,
-                         int32_t year,
-                         std::vector<TimestampedAndroidLogEvent> logcat_events);
+  AndroidDumpstateReader(
+      TraceProcessorContext* context,
+      int32_t year = 0,
+      std::vector<TimestampedAndroidLogEvent> logcat_events = {});
   ~AndroidDumpstateReader() override;
 
   base::Status ParseLine(base::StringView line) override;
   void EndOfStream(base::StringView leftovers) override;
 
  private:
-  enum class Section { kOther = 0, kDumpsys, kLog };
+  enum class Section { kOther = 0, kDumpsys, kLog, kBatteryStats };
   TraceProcessorContext* const context_;
+  AndroidBatteryStatsReader battery_stats_reader_;
   DedupingAndroidLogReader log_reader_;
   Section current_section_ = Section::kOther;
   StringId current_section_id_ = StringId::Null();

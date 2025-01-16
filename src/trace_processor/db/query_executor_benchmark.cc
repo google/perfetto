@@ -42,19 +42,12 @@ namespace perfetto::trace_processor {
 namespace {
 
 using SliceTable = tables::SliceTable;
-using ThreadTrackTable = tables::ThreadTrackTable;
-using ExpectedFrameTimelineSliceTable = tables::ExpectedFrameTimelineSliceTable;
-using RawTable = tables::RawTable;
 using FtraceEventTable = tables::FtraceEventTable;
 using HeapGraphObjectTable = tables::HeapGraphObjectTable;
 
 // `SELECT * FROM SLICE` on android_monitor_contention_trace.at
 constexpr std::string_view kSliceTable =
     "test/data/slice_table_for_benchmarks.csv";
-
-// `SELECT * FROM SLICE` on android_monitor_contention_trace.at
-constexpr std::string_view kExpectedFrameTimelineTable =
-    "test/data/expected_frame_timeline_for_benchmarks.csv";
 
 // `SELECT id, cpu FROM raw` on chrome_android_systrace.pftrace.
 constexpr std::string_view kRawTable = "test/data/raw_cpu_for_benchmarks.csv";
@@ -123,7 +116,7 @@ SliceTable::Row GetSliceTableRow(const std::string& string_row,
   PERFETTO_CHECK(row_vec.size() >= 14);
   row.ts = *base::StringToInt64(row_vec[2]);
   row.dur = *base::StringToInt64(row_vec[3]);
-  row.track_id = ThreadTrackTable::Id(*base::StringToUInt32(row_vec[4]));
+  row.track_id = tables::TrackTable::Id(*base::StringToUInt32(row_vec[4]));
   row.category = StripAndIntern(pool, row_vec[5]);
   row.name = StripAndIntern(pool, row_vec[6]);
   row.depth = *base::StringToUInt32(row_vec[7]);
@@ -152,47 +145,6 @@ struct SliceTableForBenchmark {
   SliceTable table_;
 };
 
-struct ExpectedFrameTimelineTableForBenchmark {
-  explicit ExpectedFrameTimelineTableForBenchmark(benchmark::State& state)
-      : table_{&pool_, &parent_} {
-    std::vector<std::string> table_rows_as_string =
-        ReadCSV(state, kExpectedFrameTimelineTable);
-    std::vector<std::string> parent_rows_as_string =
-        ReadCSV(state, kSliceTable);
-
-    uint32_t cur_idx = 0;
-    for (size_t i = 1; i < table_rows_as_string.size(); ++i, ++cur_idx) {
-      std::vector<std::string> row_vec = SplitCSVLine(table_rows_as_string[i]);
-
-      uint32_t idx = *base::StringToUInt32(row_vec[0]);
-      while (cur_idx < idx) {
-        parent_.Insert(
-            GetSliceTableRow(parent_rows_as_string[cur_idx + 1], pool_));
-        cur_idx++;
-      }
-
-      ExpectedFrameTimelineSliceTable::Row row;
-      row.ts = *base::StringToInt64(row_vec[2]);
-      row.dur = *base::StringToInt64(row_vec[3]);
-      row.track_id = ThreadTrackTable::Id(*base::StringToUInt32(row_vec[4]));
-      row.depth = *base::StringToUInt32(row_vec[7]);
-      row.stack_id = *base::StringToInt32(row_vec[8]);
-      row.parent_stack_id = *base::StringToInt32(row_vec[9]);
-      row.parent_id = base::StringToUInt32(row_vec[11]).has_value()
-                          ? std::make_optional<SliceTable::Id>(
-                                *base::StringToUInt32(row_vec[11]))
-                          : std::nullopt;
-      row.arg_set_id = *base::StringToUInt32(row_vec[11]);
-      row.thread_ts = base::StringToInt64(row_vec[12]);
-      row.thread_dur = base::StringToInt64(row_vec[13]);
-      table_.Insert(row);
-    }
-  }
-  StringPool pool_;
-  SliceTable parent_{&pool_};
-  ExpectedFrameTimelineSliceTable table_;
-};
-
 struct FtraceEventTableForBenchmark {
   explicit FtraceEventTableForBenchmark(benchmark::State& state) {
     std::vector<std::string> raw_rows = ReadCSV(state, kRawTable);
@@ -202,14 +154,6 @@ struct FtraceEventTableForBenchmark {
     uint32_t cur_idx = 0;
     for (size_t i = 1; i < ftrace_event_rows.size(); ++i, cur_idx++) {
       std::vector<std::string> row_vec = SplitCSVLine(ftrace_event_rows[i]);
-      uint32_t idx = *base::StringToUInt32(row_vec[0]);
-      while (cur_idx < idx) {
-        std::vector<std::string> raw_row = SplitCSVLine(raw_rows[cur_idx + 1]);
-        RawTable::Row r;
-        r.ucpu = tables::CpuTable::Id(*base::StringToUInt32(raw_row[1]));
-        raw_.Insert(r);
-        cur_idx++;
-      }
       FtraceEventTable::Row row;
       row.ucpu = tables::CpuTable::Id(*base::StringToUInt32(row_vec[1]));
       table_.Insert(row);
@@ -217,8 +161,7 @@ struct FtraceEventTableForBenchmark {
   }
 
   StringPool pool_;
-  RawTable raw_{&pool_};
-  tables::FtraceEventTable table_{&pool_, &raw_};
+  tables::FtraceEventTable table_{&pool_};
 };
 
 struct HeapGraphObjectTableForBenchmark {
@@ -265,23 +208,6 @@ void BenchmarkSliceTableSort(benchmark::State& state,
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
-                         benchmark::Counter::kIsIterationInvariantRate |
-                             benchmark::Counter::kInvert);
-}
-
-void BenchmarkExpectedFrameTableQuery(
-    benchmark::State& state,
-    ExpectedFrameTimelineTableForBenchmark& table,
-    Query q) {
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.FilterToIterator(q));
-  }
-  state.counters["s/row"] =
-      benchmark::Counter(static_cast<double>(table.table_.row_count()),
-                         benchmark::Counter::kIsIterationInvariantRate |
-                             benchmark::Counter::kInvert);
-  state.counters["s/out"] =
-      benchmark::Counter(CountRows(table.table_.FilterToIterator(q)),
                          benchmark::Counter::kIsIterationInvariantRate |
                              benchmark::Counter::kInvert);
 }
@@ -370,14 +296,6 @@ void BM_QESliceTableSorted(benchmark::State& state) {
                              table.table_.ts().lt(1738950140556)});
 }
 BENCHMARK(BM_QESliceTableSorted);
-
-void BM_QEFilterWithSparseSelector(benchmark::State& state) {
-  ExpectedFrameTimelineTableForBenchmark table(state);
-  Query q;
-  q.constraints = {table.table_.track_id().eq(1445)};
-  BenchmarkExpectedFrameTableQuery(state, table, q);
-}
-BENCHMARK(BM_QEFilterWithSparseSelector);
 
 void BM_QEFilterWithDenseSelector(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);
@@ -586,15 +504,6 @@ void BM_QEFtraceEventSortSelectorNumericDesc(benchmark::State& state) {
 }
 BENCHMARK(BM_QEFtraceEventSortSelectorNumericDesc);
 
-void BM_QEDistinctWithSparseSelector(benchmark::State& state) {
-  ExpectedFrameTimelineTableForBenchmark table(state);
-  Query q;
-  q.order_type = Query::OrderType::kDistinct;
-  q.orders = {table.table_.track_id().descending()};
-  BenchmarkExpectedFrameTableQuery(state, table, q);
-}
-BENCHMARK(BM_QEDistinctWithSparseSelector);
-
 void BM_QEDistinctWithDenseSelector(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);
   Query q;
@@ -603,15 +512,6 @@ void BM_QEDistinctWithDenseSelector(benchmark::State& state) {
   BenchmarkFtraceEventTableQuery(state, table, q);
 }
 BENCHMARK(BM_QEDistinctWithDenseSelector);
-
-void BM_QEDistinctSortedWithSparseSelector(benchmark::State& state) {
-  ExpectedFrameTimelineTableForBenchmark table(state);
-  Query q;
-  q.order_type = Query::OrderType::kDistinctAndSort;
-  q.orders = {table.table_.track_id().descending()};
-  BenchmarkExpectedFrameTableQuery(state, table, q);
-}
-BENCHMARK(BM_QEDistinctSortedWithSparseSelector);
 
 void BM_QEDistinctSortedWithDenseSelector(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);

@@ -29,7 +29,7 @@ INPUTMETHOD_CLIENTS_TABLE = Table(
     sql_name='__intrinsic_inputmethod_clients',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
@@ -49,7 +49,7 @@ INPUTMETHOD_MANAGER_SERVICE_TABLE = Table(
     sql_name='__intrinsic_inputmethod_manager_service',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
@@ -69,7 +69,7 @@ INPUTMETHOD_SERVICE_TABLE = Table(
     sql_name='__intrinsic_inputmethod_service',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
@@ -89,7 +89,7 @@ SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
     sql_name='surfaceflinger_layers_snapshot',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
@@ -109,7 +109,7 @@ SURFACE_FLINGER_LAYER_TABLE = Table(
     sql_name='surfaceflinger_layer',
     columns=[
         C('snapshot_id', CppTableId(SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE)),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
@@ -129,7 +129,7 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
     sql_name='surfaceflinger_transactions',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
@@ -150,7 +150,7 @@ VIEWCAPTURE_TABLE = Table(
     sql_name='__intrinsic_viewcapture',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
@@ -171,7 +171,7 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
     columns=[
         C('ts', CppInt64()),
         C('transition_id', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
@@ -212,7 +212,7 @@ WINDOW_MANAGER_TABLE = Table(
     sql_name='__intrinsic_windowmanager',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],

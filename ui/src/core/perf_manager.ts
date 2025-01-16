@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {raf} from './raf_scheduler';
 import {PerfStats, PerfStatsContainer, runningStatStr} from './perf_stats';
+import {MithrilEvent} from '../base/mithril_utils';
 
 export class PerfManager {
   private _enabled = false;
@@ -79,12 +80,15 @@ class PerfStatsUi implements m.ClassComponent<PerfStatsUiAttrs> {
       m(
         'button.close-button',
         {
-          onclick: () => (attrs.perfMgr.enabled = false),
+          onclick: () => {
+            attrs.perfMgr.enabled = false;
+            raf.scheduleFullRedraw();
+          },
         },
         m('i.material-icons', 'close'),
       ),
       attrs.perfMgr.containers.map((c, i) =>
-        m('section', m('div', `Panel Container ${i + 1}`), c.renderPerfStats()),
+        m('section', m('div', `Container #${i + 1}`), c.renderPerfStats()),
       ),
     );
   }
@@ -95,7 +99,12 @@ class PerfStatsUi implements m.ClassComponent<PerfStatsUiAttrs> {
       m('div', [
         m(
           'button',
-          {onclick: () => raf.scheduleCanvasRedraw()},
+          {
+            onclick: (e: MithrilEvent) => {
+              e.redraw = false;
+              raf.scheduleCanvasRedraw();
+            },
+          },
           'Do Canvas Redraw',
         ),
         '   |   ',

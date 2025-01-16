@@ -17,7 +17,7 @@ import {searchEq, searchRange} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import {drawTrackHoverTooltip} from '../../base/canvas_utils';
-import {Color} from '../../public/color';
+import {Color} from '../../base/color';
 import {colorForThread} from '../../components/colorizer';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
@@ -72,18 +72,19 @@ export class ProcessSchedulingTrack implements Track {
         create virtual table process_scheduling_${this.trackUuid}
         using __intrinsic_slice_mipmap((
           select
-            id,
-            ts,
+            s.id,
+            s.ts,
             iif(
-              dur = -1,
-              lead(ts, 1, trace_end()) over (partition by cpu order by ts) - ts,
-              dur
+              s.dur = -1,
+              lead(s.ts, 1, trace_end()) over (partition by s.cpu order by s.ts) - s.ts,
+              s.dur
             ) as dur,
-            cpu as depth
-          from experimental_sched_upid
+            s.cpu as depth
+          from sched s
+          join thread t using (utid)
           where
-            utid != 0 and
-            upid = ${this.config.upid}
+            s.utid != 0 and
+            t.upid = ${this.config.upid}
         ));
       `);
     } else {

@@ -38,3 +38,4 @@ fmayer@google.com
 eseckler@chromium.org
 nuskos@chromium.org
 skyostil@chromium.org
+include platform/system/core:main:/janitors/OWNERS #{LAST_RESORT_SUGGESTION}

@@ -17,9 +17,12 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
+import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceMetadata';
+  static readonly dependencies = [StandardGroupsPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const res = await ctx.engine.query(`
       select count() as cnt from (select 1 from clock_snapshot limit 1)
@@ -46,6 +49,9 @@ export default class implements PerfettoPlugin {
       track,
     });
     const trackNode = new TrackNode({uri, title});
-    ctx.workspace.addChildInOrder(trackNode);
+    const group = ctx.plugins
+      .getPlugin(StandardGroupsPlugin)
+      .getOrCreateStandardGroup(ctx.workspace, 'SYSTEM');
+    group.addChildInOrder(trackNode);
   }
 }

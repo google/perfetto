@@ -64,5 +64,6 @@ declare namespace Wasm {
     printErr(s: string): void;
     onRuntimeInitialized(): void;
     onAbort?(): void;
+    wasmBinary ?: ArrayBuffer;
   }
 }

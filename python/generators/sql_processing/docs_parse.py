@@ -72,6 +72,7 @@ def get_module_prefix_error(name: str, path: str, module: str) -> Optional[str]:
 
 class Arg(NamedTuple):
   type: str
+  long_type: str
   description: str
 
 
@@ -109,20 +110,17 @@ class AbstractDocParser(ABC):
                     'comment in front of the column definition')
         continue
 
-
-      # TODO(b/380555264): Enable checks when google3 is migrated to new types.
-
-      # upper_arg_type = properties.type.upper()
-      # if kind is ObjKind.table_function:
-      #   if upper_arg_type not in COLUMN_TYPES:
-      #     self._error(
-      #         f'Table function column "{column_name}" has unsupported type "{properties.type}".')
-      # elif kind is ObjKind.table_view:
-      #   if upper_arg_type not in COLUMN_TYPES:
-      #     self._error(
-      #         f'Table/view column "{column_name}" has unsupported type "{properties.type}".')
-      # else:
-      #   self._error(f'This Perfetto SQL object doesnt support columns".')
+      upper_arg_type = properties.type.upper()
+      if kind is ObjKind.table_function:
+        if upper_arg_type not in COLUMN_TYPES:
+          self._error(
+              f'Table function column "{column_name}" has unsupported type "{properties.type}".')
+      elif kind is ObjKind.table_view:
+        if upper_arg_type not in COLUMN_TYPES:
+          self._error(
+              f'Table/view column "{column_name}" has unsupported type "{properties.type}".')
+      else:
+        self._error(f'This Perfetto SQL object doesnt support columns".')
 
     return columns
 
@@ -134,19 +132,17 @@ class AbstractDocParser(ABC):
         self._error(f'Arg "{arg}" is missing a description. '
                     'Please add a comment in front of the arg definition.')
 
-      # TODO(b/380555264): Enable checks when google3 is migrated to new types.
-
-      # upper_arg_type = args[arg].type.upper()
-      # if (kind is ObjKind.function or kind is ObjKind.table_function):
-      #   if upper_arg_type not in COLUMN_TYPES:
-      #     self._error(
-      #         f'Function arg "{arg}" has unsupported type "{args[arg].type}".')
-      # elif (kind is ObjKind.macro):
-      #   if upper_arg_type not in MACRO_ARG_TYPES:
-      #     self._error(
-      #         f'Macro arg "{arg}" has unsupported type "{args[arg].type}".')
-      # else:
-      #   self._error(f'This Perfetto SQL object doesnt support types".')
+      upper_arg_type = args[arg].type.upper()
+      if (kind is ObjKind.function or kind is ObjKind.table_function):
+        if upper_arg_type not in COLUMN_TYPES:
+          self._error(
+              f'Function arg "{arg}" has unsupported type "{args[arg].type}".')
+      elif (kind is ObjKind.macro):
+        if upper_arg_type not in MACRO_ARG_TYPES:
+          self._error(
+              f'Macro arg "{arg}" has unsupported type "{args[arg].type}".')
+      else:
+        self._error(f'This Perfetto SQL object doesnt support types".')
 
     return args
 
@@ -166,7 +162,20 @@ class AbstractDocParser(ABC):
       comment = '' if groups[0] is None else parse_comment(groups[0])
       name = groups[-3]
       type = groups[-2]
-      result[name] = Arg(type, comment)
+
+      m = re.match(r'JOINID\(([_A-Za-z\.]*)\)', type)
+      if m:
+        result[name] = Arg('JOINID', type, comment)
+        remaining_args = groups[-1].lstrip().lstrip(',').lstrip()
+        continue
+
+      m = re.match(r'ID\(([_A-Za-z\.]*)\)', type)
+      if m:
+        result[name] = Arg('ID', type, comment)
+        remaining_args = groups[-1].lstrip().lstrip(',').lstrip()
+        continue
+
+      result[name] = Arg(type, type, comment)
       # Strip whitespace and comma and parse the next arg.
       remaining_args = groups[-1].lstrip().lstrip(',').lstrip()
 
@@ -229,12 +238,14 @@ class TableViewDocParser(AbstractDocParser):
       self._error(f'{type} "{self.name}": Virtual tables cannot be exposed.')
       return
 
+    cols = self._parse_columns(schema, ObjKind.table_view)
+
+
     return TableOrView(
         name=self._parse_name(),
         type=type,
         desc=self._parse_desc_not_empty(doc.description),
-        cols=self._parse_columns(schema, ObjKind.table_view),
-    )
+        cols=self._parse_columns(schema, ObjKind.table_view))
 
 
 class Function:

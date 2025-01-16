@@ -17,7 +17,10 @@
 #ifndef INCLUDE_PERFETTO_BASE_FLAT_SET_H_
 #define INCLUDE_PERFETTO_BASE_FLAT_SET_H_
 
+#include <stddef.h>
+
 #include <algorithm>
+#include <utility>
 #include <vector>
 
 // A vector-based set::set-like container.

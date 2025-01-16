@@ -15,13 +15,21 @@
  */
 
 #include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
+
+#include <cstdint>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/virtio_gpu.pbzero.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 enum virtio_gpu_ctrl_type {
   VIRTIO_GPU_UNDEFINED = 0,
@@ -118,8 +126,22 @@ static const char* virtio_gpu_ctrl_name(uint32_t type) {
   }
 }
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
+
+namespace {
+
+constexpr auto kVirtgpuNameDimension =
+    tracks::StringDimensionBlueprint("virtgpu_name");
+
+constexpr auto kQueueBlueprint = TrackCompressor::SliceBlueprint(
+    "virtgpu_queue_event",
+    tracks::Dimensions(kVirtgpuNameDimension),
+    tracks::FnNameBlueprint([](base::StringView name) {
+      return base::StackString<255>("Virtgpu %.*s Queue", int(name.size()),
+                                    name.data());
+    }));
+
+}  // namespace
 
 VirtioGpuTracker::VirtioGpuTracker(TraceProcessorContext* context)
     : virtgpu_control_queue_(context, "Control"),
@@ -145,23 +167,23 @@ void VirtioGpuTracker::ParseVirtioGpu(int64_t timestamp,
       break;
   }
 }
+
 VirtioGpuTracker::VirtioGpuQueue::VirtioGpuQueue(TraceProcessorContext* context,
                                                  const char* name)
-    : context_(context) {
-  base::StackString<255> num_free_name("Virtgpu %s Free", name);
-  base::StackString<255> latency_name("Virtgpu %s Latency", name);
-  base::StackString<255> queue_track_name("Virtgpu %s Queue", name);
-
-  num_free_id_ = context->storage->InternString(num_free_name.string_view());
-  latency_id_ = context->storage->InternString(latency_name.string_view());
-  queue_track_id_ =
-      context->storage->InternString(queue_track_name.string_view());
-}
+    : context_(context), name_(name) {}
 
 void VirtioGpuTracker::VirtioGpuQueue::HandleNumFree(int64_t timestamp,
                                                      uint32_t num_free) {
-  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
-      TrackTracker::Group::kVirtio, num_free_id_);
+  static constexpr auto kBlueprint = tracks::CounterBlueprint(
+      "virtgpu_num_free", tracks::UnknownUnitBlueprint(),
+      tracks::DimensionBlueprints(kVirtgpuNameDimension),
+      tracks::FnNameBlueprint([](base::StringView name) {
+        return base::StackString<255>("Virtgpu %.*s Free", int(name.size()),
+                                      name.data());
+      }));
+
+  TrackId track = context_->track_tracker->InternTrack(
+      kBlueprint, tracks::Dimensions(name_));
   context_->event_tracker->PushCounter(timestamp, static_cast<double>(num_free),
                                        track);
 }
@@ -170,11 +192,8 @@ void VirtioGpuTracker::VirtioGpuQueue::HandleCmdQueue(int64_t timestamp,
                                                       uint32_t seqno,
                                                       uint32_t type,
                                                       uint64_t fence_id) {
-  auto async_track =
-      context_->async_track_set_tracker->InternGlobalTrackSet(queue_track_id_);
-  TrackId start_id =
-      context_->async_track_set_tracker->Begin(async_track, seqno);
-
+  TrackId start_id = context_->track_compressor->InternBegin(
+      kQueueBlueprint, tracks::Dimensions(name_), seqno);
   context_->slice_tracker->Begin(
       timestamp, start_id, kNullStringId,
       context_->storage->InternString(
@@ -190,30 +209,36 @@ void VirtioGpuTracker::VirtioGpuQueue::HandleCmdQueue(int64_t timestamp,
 
 void VirtioGpuTracker::VirtioGpuQueue::HandleCmdResponse(int64_t timestamp,
                                                          uint32_t seqno) {
-  auto async_track =
-      context_->async_track_set_tracker->InternGlobalTrackSet(queue_track_id_);
-  TrackId end_id = context_->async_track_set_tracker->End(async_track, seqno);
+  TrackId end_id = context_->track_compressor->InternEnd(
+      kQueueBlueprint, tracks::Dimensions(name_), seqno);
   context_->slice_tracker->End(timestamp, end_id);
 
   int64_t* start_timestamp = start_timestamps_.Find(seqno);
-  if (!start_timestamp)
+  if (!start_timestamp) {
     return;
+  }
 
   int64_t duration = timestamp - *start_timestamp;
 
-  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
-      TrackTracker::Group::kVirtio, latency_id_);
+  static constexpr auto kBlueprint = tracks::CounterBlueprint(
+      "virtgpu_latency", tracks::UnknownUnitBlueprint(),
+      tracks::DimensionBlueprints(kVirtgpuNameDimension),
+      tracks::FnNameBlueprint([](base::StringView name) {
+        return base::StackString<255>("Virtgpu %.*s Latency", int(name.size()),
+                                      name.data());
+      }));
+
+  TrackId track = context_->track_tracker->InternTrack(
+      kBlueprint, tracks::Dimensions(name_));
   context_->event_tracker->PushCounter(timestamp, static_cast<double>(duration),
                                        track);
-
   start_timestamps_.Erase(seqno);
 }
 
 void VirtioGpuTracker::ParseVirtioGpuCmdQueue(int64_t timestamp,
                                               uint32_t /*pid*/,
                                               protozero::ConstBytes blob) {
-  protos::pbzero::VirtioGpuCmdQueueFtraceEvent::Decoder evt(blob.data,
-                                                            blob.size);
+  protos::pbzero::VirtioGpuCmdQueueFtraceEvent::Decoder evt(blob);
 
   auto name = base::StringView(evt.name());
   if (name == "control") {
@@ -230,8 +255,7 @@ void VirtioGpuTracker::ParseVirtioGpuCmdQueue(int64_t timestamp,
 void VirtioGpuTracker::ParseVirtioGpuCmdResponse(int64_t timestamp,
                                                  uint32_t /*pid*/,
                                                  protozero::ConstBytes blob) {
-  protos::pbzero::VirtioGpuCmdResponseFtraceEvent::Decoder evt(blob.data,
-                                                               blob.size);
+  protos::pbzero::VirtioGpuCmdResponseFtraceEvent::Decoder evt(blob);
   auto name = base::StringView(evt.name());
   if (name == "control") {
     virtgpu_control_queue_.HandleNumFree(timestamp, evt.num_free());
@@ -242,5 +266,4 @@ void VirtioGpuTracker::ParseVirtioGpuCmdResponse(int64_t timestamp,
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

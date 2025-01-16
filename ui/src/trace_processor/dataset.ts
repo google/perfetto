@@ -104,7 +104,7 @@ export interface Dataset {
  * Defines a list of columns and types that define the shape of the data
  * represented by a dataset.
  */
-export type DatasetSchema = Record<string, ColumnType>;
+export type DatasetSchema = Readonly<Record<string, ColumnType>>;
 
 /**
  * A filter used to express that a column must equal a value.

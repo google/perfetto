@@ -86,7 +86,7 @@ ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
     row.track_id = track_id;
     row.category = kNullStringId;
     row.name = kNullStringId;
-    row.arg_set_id = kInvalidArgSetId;
+    row.arg_set_id = std::nullopt;
     row.source_id = std::nullopt;
     row.start_bound = start_bound;
     row.end_bound = end_bound;

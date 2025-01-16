@@ -17,6 +17,7 @@ import argparse
 import os
 import sys
 import json
+import re
 from collections import defaultdict
 from typing import Dict
 
@@ -29,6 +30,13 @@ from python.generators.sql_processing.docs_parse import parse_file
 def _summary_desc(s: str) -> str:
   return s.split('. ')[0].replace('\n', ' ')
 
+def _long_type_to_table(s: str):
+    pattern = '(?:[A-Z]*)\(([a-z_]*).([a-z_]*)\)'
+    m = re.match(pattern, s)
+    if not m:
+      return (None, None)
+    g = m.groups()
+    return (g[0], g[1])
 
 def main():
   parser = argparse.ArgumentParser()
@@ -100,8 +108,10 @@ def main():
                 table.type,
             'cols': [{
                 'name': col_name,
-                'type': col.type,
-                'desc': col.description
+                'type': col.long_type,
+                'desc': col.description,
+                'table': _long_type_to_table(col.long_type)[0],
+                'column': _long_type_to_table(col.long_type)[1],
             } for (col_name, col) in table.cols.items()]
         } for table in docs.table_views],
         'functions': [{
@@ -110,8 +120,10 @@ def main():
             'summary_desc': _summary_desc(function.desc),
             'args': [{
                 'name': arg_name,
-                'type': arg.type,
+                'type': arg.long_type,
                 'desc': arg.description,
+                'table': _long_type_to_table(arg.long_type)[0],
+                'column': _long_type_to_table(arg.long_type)[1],
             } for (arg_name, arg) in function.args.items()],
             'return_type': function.return_type,
             'return_desc': function.return_desc,
@@ -125,12 +137,16 @@ def main():
                 _summary_desc(function.desc),
             'args': [{
                 'name': arg_name,
-                'type': arg.type,
+                'type': arg.long_type,
                 'desc': arg.description,
+                'table': _long_type_to_table(arg.long_type)[0],
+                'column': _long_type_to_table(arg.long_type)[1],
             } for (arg_name, arg) in function.args.items()],
             'cols': [{
                 'name': col_name,
-                'type': col.type,
+                'type': col.long_type,
+                'table': _long_type_to_table(col.long_type)[0],
+                'column': _long_type_to_table(col.long_type)[1],
                 'desc': col.description
             } for (col_name, col) in function.cols.items()]
         } for function in docs.table_functions],
@@ -147,8 +163,10 @@ def main():
                 macro.return_type,
             'args': [{
                 'name': arg_name,
-                'type': arg.type,
+                'type': arg.long_type,
                 'desc': arg.description,
+                'table': _long_type_to_table(arg.long_type)[0],
+                'column': _long_type_to_table(arg.long_type)[1],
             } for (arg_name, arg) in macro.args.items()],
         } for macro in docs.macros],
     }

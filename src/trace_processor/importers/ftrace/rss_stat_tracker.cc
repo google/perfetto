@@ -16,30 +16,46 @@
 
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 
+#include <cstdint>
+#include <optional>
+
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/kmem.pbzero.h"
 #include "protos/perfetto/trace/ftrace/synthetic.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
+namespace {
 
 using FtraceEvent = protos::pbzero::FtraceEvent;
 
-RssStatTracker::RssStatTracker(TraceProcessorContext* context)
-    : context_(context) {
-  rss_members_.emplace_back(context->storage->InternString("mem.rss.file"));
-  rss_members_.emplace_back(context->storage->InternString("mem.rss.anon"));
-  rss_members_.emplace_back(context->storage->InternString("mem.swap"));
-  rss_members_.emplace_back(context->storage->InternString("mem.rss.shmem"));
-  rss_members_.emplace_back(
-      context->storage->InternString("mem.unreclaimable"));
-  rss_members_.emplace_back(
-      context->storage->InternString("mem.unknown"));  // Keep this last.
+const char* GetProcessMemoryKey(uint32_t member) {
+  switch (member) {
+    case 0:
+      return "rss.file";
+    case 1:
+      return "rss.anon";
+    case 2:
+      return "swap";
+    case 3:
+      return "rss.shmem";
+    case 4:
+      return "unreclaimable";
+    default:
+      return "unknown";
+  }
 }
+
+}  // namespace
+
+RssStatTracker::RssStatTracker(TraceProcessorContext* context)
+    : context_(context) {}
 
 void RssStatTracker::ParseRssStat(int64_t ts,
                                   uint32_t field_id,
@@ -51,7 +67,7 @@ void RssStatTracker::ParseRssStat(int64_t ts,
   std::optional<int64_t> mm_id;
 
   if (field_id == FtraceEvent::kRssStatFieldNumber) {
-    protos::pbzero::RssStatFtraceEvent::Decoder rss(blob.data, blob.size);
+    protos::pbzero::RssStatFtraceEvent::Decoder rss(blob);
 
     member = static_cast<uint32_t>(rss.member());
     size = rss.size();
@@ -64,8 +80,7 @@ void RssStatTracker::ParseRssStat(int64_t ts,
 
     ParseRssStat(ts, pid, size, member, curr, mm_id);
   } else if (field_id == FtraceEvent::kRssStatThrottledFieldNumber) {
-    protos::pbzero::RssStatThrottledFtraceEvent::Decoder rss(blob.data,
-                                                             blob.size);
+    protos::pbzero::RssStatThrottledFtraceEvent::Decoder rss(blob);
 
     member = static_cast<uint32_t>(rss.member());
     size = rss.size();
@@ -84,12 +99,11 @@ void RssStatTracker::ParseRssStat(int64_t ts,
                                   uint32_t member,
                                   std::optional<bool> curr,
                                   std::optional<int64_t> mm_id) {
-  const auto kRssStatUnknown = static_cast<uint32_t>(rss_members_.size()) - 1;
-  if (member >= rss_members_.size()) {
+  const char* memory_key = GetProcessMemoryKey(member);
+  if (!memory_key) {
     context_->storage->IncrementStats(stats::rss_stat_unknown_keys);
-    member = kRssStatUnknown;
+    return;
   }
-
   if (size < 0) {
     context_->storage->IncrementStats(stats::rss_stat_negative_size);
     return;
@@ -104,7 +118,8 @@ void RssStatTracker::ParseRssStat(int64_t ts,
 
   if (utid) {
     context_->event_tracker->PushProcessCounterForThread(
-        ts, static_cast<double>(size), rss_members_[member], *utid);
+        EventTracker::RssStat{memory_key}, ts, static_cast<double>(size),
+        *utid);
   } else {
     context_->storage->IncrementStats(stats::rss_stat_unknown_thread_for_mm_id);
   }
@@ -152,5 +167,4 @@ std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
   return mm_utid;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

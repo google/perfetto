@@ -14,6 +14,44 @@
 
 import {Vector2D} from './geom';
 
+export type CSSCursor =
+  | 'alias'
+  | 'all-scroll'
+  | 'auto'
+  | 'cell'
+  | 'context-menu'
+  | 'col-resize'
+  | 'copy'
+  | 'crosshair'
+  | 'default'
+  | 'e-resize'
+  | 'ew-resize'
+  | 'grab'
+  | 'grabbing'
+  | 'help'
+  | 'move'
+  | 'n-resize'
+  | 'ne-resize'
+  | 'nesw-resize'
+  | 'ns-resize'
+  | 'nw-resize'
+  | 'nwse-resize'
+  | 'no-drop'
+  | 'none'
+  | 'not-allowed'
+  | 'pointer'
+  | 'progress'
+  | 'row-resize'
+  | 's-resize'
+  | 'se-resize'
+  | 'sw-resize'
+  | 'text'
+  | 'vertical-text'
+  | 'w-resize'
+  | 'wait'
+  | 'zoom-in'
+  | 'zoom-out';
+
 // Check whether a DOM element contains another, or whether they're the same
 export function isOrContains(container: Element, target: Element): boolean {
   return container === target || container.contains(target);
@@ -83,4 +121,18 @@ export function currentTargetOffset(e: MouseEvent): Vector2D {
   }
 
   return new Vector2D({x: e.offsetX, y: e.offsetY});
+}
+
+// Adds an event listener to a DOM element, returning a disposable to remove it.
+export function bindEventListener<K extends keyof HTMLElementEventMap>(
+  element: EventTarget,
+  event: K,
+  handler: (event: HTMLElementEventMap[K]) => void,
+): Disposable {
+  element.addEventListener(event, handler as EventListener);
+  return {
+    [Symbol.dispose]() {
+      element.removeEventListener(event, handler as EventListener);
+    },
+  };
 }

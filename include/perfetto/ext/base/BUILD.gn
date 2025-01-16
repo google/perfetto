@@ -45,6 +45,7 @@ source_set("base") {
     "string_splitter.h",
     "string_utils.h",
     "string_view.h",
+    "string_view_splitter.h",
     "string_writer.h",
     "subprocess.h",
     "sys_types.h",
@@ -61,6 +62,7 @@ source_set("base") {
     "watchdog_noop.h",
     "watchdog_posix.h",
     "weak_ptr.h",
+    "weak_runner.h",
   ]
   if (enable_perfetto_ipc) {
     sources += [ "unix_socket.h" ]

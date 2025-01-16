@@ -20,20 +20,18 @@
 CREATE PERFETTO VIEW android_statsd_atoms(
   -- Unique identifier for this slice.
   id LONG,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
   dur DURATION,
   -- The id of the argument set associated with this slice.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- The value of the CPU instruction counter at the start of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
   thread_instruction_count LONG,
   -- The change in value of the CPU instruction counter between the start and end of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
   thread_instruction_delta LONG,
   -- The id of the track this slice is located on.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- The "category" of the slice. If this slice originated with track_event, this column contains the category emitted. Otherwise, it is likely to be null (with limited exceptions).
   category STRING,
   -- The name of the slice. The name describes what was happening during the slice.
@@ -53,7 +51,6 @@ CREATE PERFETTO VIEW android_statsd_atoms(
 ) AS
 SELECT
   slice.id AS id,
-  slice.type AS type,
   slice.ts AS ts,
   slice.dur AS dur,
   slice.arg_set_id AS arg_set_id,

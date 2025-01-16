@@ -61,6 +61,10 @@ class StringSplitter {
   // cur_token()), false if no more tokens are found.
   bool Next();
 
+  // Returns the next token if found (in which case it will be stored in
+  // cur_token()), nullptr if no more tokens are found.
+  char* NextToken() { return Next() ? cur_token() : nullptr; }
+
   // Returns the current token iff last call to Next() returned true. In this
   // case it guarantees that the returned string is always null terminated.
   // In all other cases (before the 1st call to Next() and after Next() returns
@@ -69,6 +73,13 @@ class StringSplitter {
 
   // Returns the length of the current token (excluding the null terminator).
   size_t cur_token_size() const { return cur_size_; }
+
+  // Return the untokenized remainder of the input string that occurs after the
+  // current token.
+  char* remainder() { return next_; }
+
+  // Returns the size of the untokenized input
+  size_t remainder_size() { return static_cast<size_t>(end_ - next_); }
 
  private:
   StringSplitter(const StringSplitter&) = delete;

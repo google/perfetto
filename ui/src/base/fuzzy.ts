@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Fzf} from 'fzf';
+import {byLengthAsc, Fzf} from 'fzf';
 import {SyncOptionsTuple} from 'fzf/dist/types/finders';
 
 export interface FuzzySegment {
@@ -39,7 +39,9 @@ export class FuzzyFinder<T> {
   ) {
     // NOTE(stevegolton): This type assertion because FZF appears to be very
     // fussy about its input types.
-    const options = [{selector: keyLookup}] as SyncOptionsTuple<T>;
+    const options = [
+      {selector: keyLookup, tiebreakers: [byLengthAsc]},
+    ] as SyncOptionsTuple<T>;
     this.fzf = new Fzf<ReadonlyArray<T>>(items, ...options);
   }
 

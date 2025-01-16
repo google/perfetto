@@ -17,7 +17,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackDescriptor} from '../../public/track';
 import {z} from 'zod';
-import {assertExists, assertIsInstance} from '../../base/logging';
+import {assertIsInstance} from '../../base/logging';
 
 const PLUGIN_ID = 'dev.perfetto.RestorePinnedTrack';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
@@ -114,16 +114,13 @@ export default class implements PerfettoPlugin {
         }
         const res = await this.ctx.omnibox.prompt(
           'Select name of set of pinned tracks to restore',
-          tracksByName.map((x) => ({
-            key: x.name,
-            displayName: x.name,
-          })),
+          {
+            values: tracksByName,
+            getName: (x) => x.name,
+          },
         );
         if (res) {
-          const tracks = assertExists(
-            tracksByName.find((x) => x.name === res)?.tracks,
-          );
-          this.restoreTracks(tracks);
+          this.restoreTracks(res.tracks);
         }
       },
     });
@@ -137,18 +134,14 @@ export default class implements PerfettoPlugin {
           alert('No saved tracks. Use the Save by name command first');
           return;
         }
-        const name = await this.ctx.omnibox.prompt(
+        const tracks = await this.ctx.omnibox.prompt(
           'Select name of set of pinned tracks to export',
-          tracksByName.map((x) => ({
-            key: x.name,
-            displayName: x.name,
-          })),
+          {
+            values: tracksByName,
+            getName: (x) => x.name,
+          },
         );
-        if (name) {
-          const tracks = assertExists(
-            tracksByName.find((x) => x.name === name),
-          );
-
+        if (tracks) {
           const a = document.createElement('a');
           a.href =
             'data:application/json;charset=utf-8,' + JSON.stringify(tracks);

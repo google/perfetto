@@ -19,7 +19,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -32,6 +31,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/base/test/status_matchers.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
@@ -58,12 +58,13 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "protos/perfetto/common/perf_events.gen.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
@@ -230,45 +231,6 @@ class MockBoundInserter : public ArgsTracker::BoundInserter {
   ArgsTracker tracker_;
 };
 
-class MockSliceTracker : public SliceTracker {
- public:
-  explicit MockSliceTracker(TraceProcessorContext* context)
-      : SliceTracker(context) {}
-
-  MOCK_METHOD(std::optional<SliceId>,
-              Begin,
-              (int64_t timestamp,
-               TrackId track_id,
-               StringId cat,
-               StringId name,
-               SetArgsCallback args_callback),
-              (override));
-  MOCK_METHOD(std::optional<SliceId>,
-              End,
-              (int64_t timestamp,
-               TrackId track_id,
-               StringId cat,
-               StringId name,
-               SetArgsCallback args_callback),
-              (override));
-  MOCK_METHOD(std::optional<SliceId>,
-              Scoped,
-              (int64_t timestamp,
-               TrackId track_id,
-               StringId cat,
-               StringId name,
-               int64_t duration,
-               SetArgsCallback args_callback),
-              (override));
-  MOCK_METHOD(std::optional<SliceId>,
-              StartSlice,
-              (int64_t timestamp,
-               TrackId track_id,
-               SetArgsCallback args_callback,
-               std::function<SliceId()> inserter),
-              (override));
-};
-
 class ProtoTraceParserTest : public ::testing::Test {
  public:
   ProtoTraceParserTest() {
@@ -294,8 +256,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.process_tracker.reset(process_);
     context_.process_track_translation_table.reset(
         new ProcessTrackTranslationTable(storage_));
-    slice_ = new NiceMock<MockSliceTracker>(&context_);
-    context_.slice_tracker.reset(slice_);
+    context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);
     clock_ = new ClockTracker(&context_);
@@ -355,7 +316,6 @@ class ProtoTraceParserTest : public ::testing::Test {
   MockEventTracker* event_;
   MockSchedEventTracker* sched_;
   MockProcessTracker* process_;
-  MockSliceTracker* slice_;
   ClockTracker* clock_;
   TraceStorage* storage_;
 };
@@ -388,7 +348,7 @@ TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
   context_.sorter->ExtractEventsForced();
 }
 
-TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
+TEST_F(ProtoTraceParserTest, LoadEventsIntoFtraceEvent) {
   auto* bundle = trace_->add_packet()->set_ftrace_events();
   bundle->set_cpu(10);
 
@@ -419,7 +379,7 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  const auto& raw = context_.storage->raw_table();
+  const auto& raw = context_.storage->ftrace_event_table();
   ASSERT_EQ(raw.row_count(), 2u);
   const auto& args = context_.storage->arg_table();
   ASSERT_EQ(args.row_count(), 6u);
@@ -472,7 +432,7 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  const auto& raw = storage_->raw_table();
+  const auto& raw = storage_->ftrace_event_table();
 
   ASSERT_EQ(raw.row_count(), 1u);
   ASSERT_EQ(raw[raw.row_count() - 1].ts(), 100);
@@ -649,7 +609,11 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->cpu_counter_track_table()[0].cpu(), 10u);
+  auto dim_set_id = context_.storage->track_table()[0].dimension_arg_set_id();
+  ASSERT_TRUE(dim_set_id.has_value());
+  std::optional<Variadic> cpu;
+  ASSERT_OK(context_.storage->ExtractArg(*dim_set_id, "cpu", &cpu));
+  EXPECT_EQ(cpu->int_value, 10u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
@@ -668,14 +632,20 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
-  EXPECT_EQ(context_.storage->cpu_counter_track_table().row_count(), 2u);
 
-  auto row = context_.storage->cpu_counter_track_table().FindById(TrackId(0));
+  auto row = context_.storage->track_table().FindById(TrackId(0));
   EXPECT_EQ(context_.storage->GetString(row->name()), "cpufreq");
-  EXPECT_EQ(row->cpu(), 0u);
+  std::optional<Variadic> cpu;
+  ASSERT_OK(context_.storage->ExtractArg(row->dimension_arg_set_id().value(),
+                                         "cpu", &cpu));
+  ASSERT_EQ(cpu->type, Variadic::Type::kInt);
+  EXPECT_EQ(cpu->uint_value, 0u);
 
-  row = context_.storage->cpu_counter_track_table().FindById(TrackId(1));
-  EXPECT_EQ(row->cpu(), 1u);
+  row = context_.storage->track_table().FindById(TrackId(1));
+  ASSERT_OK(context_.storage->ExtractArg(row->dimension_arg_set_id().value(),
+                                         "cpu", &cpu));
+  ASSERT_EQ(cpu->type, Variadic::Type::kInt);
+  EXPECT_EQ(cpu->uint_value, 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuIdleStats) {
@@ -703,11 +673,11 @@ TEST_F(ProtoTraceParserTest, LoadGpuFreqStats) {
   auto* bundle = packet->set_sys_stats();
   bundle->add_gpufreq_mhz(300);
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts),
-                                   static_cast<double>(300), TrackId{1u}));
+                                   static_cast<double>(300), TrackId{0u}));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
@@ -721,11 +691,11 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   meminfo->set_value(value);
 
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts),
-                                   DoubleEq(value * 1024.0), TrackId{1u}));
+                                   DoubleEq(value * 1024.0), TrackId{0u}));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadVmStats) {
@@ -739,11 +709,11 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
   meminfo->set_value(value);
 
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), DoubleEq(value),
-                                   TrackId{1u}));
+                                   TrackId{0u}));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadThermal) {
@@ -758,11 +728,11 @@ TEST_F(ProtoTraceParserTest, LoadThermal) {
 
   EXPECT_CALL(*event_,
               PushCounter(static_cast<int64_t>(ts),
-                          DoubleEq(static_cast<double>(temp)), TrackId{1u}));
+                          DoubleEq(static_cast<double>(temp)), TrackId{0u}));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
@@ -965,28 +935,16 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 
   MockBoundInserter inserter;
 
-  StringId unknown_cat = storage_->InternString("unknown(1)");
-
-  constexpr TrackId track{0u};
   constexpr TrackId thread_time_track{1u};
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
   // Only the begin thread time can be imported into the counter table.
   EXPECT_CALL(*event_, PushCounter(1005000, testing::DoubleEq(2003000),
                                    thread_time_track));
-  EXPECT_CALL(*slice_, StartSlice(1005000, track, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()),
-                      InvokeArgument<2>(&inserter), Return(SliceId(0u))));
   EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(2005000),
                                    thread_time_track));
-  EXPECT_CALL(*slice_, StartSlice(1010000, track, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()),
-                      InvokeArgument<2>(&inserter), Return(SliceId(1u))));
   EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(2010000),
                                    thread_time_track));
-  EXPECT_CALL(*slice_, End(1020000, track, unknown_cat, kNullStringId, _))
-      .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(SliceId(1u))));
-
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
@@ -1055,26 +1013,15 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
 
   MockBoundInserter inserter;
 
-  StringId unknown_cat1 = storage_->InternString("unknown(1)");
-
-  constexpr TrackId track{0u};
   constexpr TrackId thread_time_track{1u};
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
   EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(2005000),
                                    thread_time_track));
-  EXPECT_CALL(*slice_, StartSlice(1010000, track, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()),
-                      InvokeArgument<2>(&inserter), Return(SliceId(0u))));
   EXPECT_CALL(*event_, PushCounter(1015000, testing::DoubleEq(2007000),
                                    thread_time_track));
-  EXPECT_CALL(*slice_, StartSlice(1015000, track, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()),
-                      InvokeArgument<2>(&inserter), Return(SliceId(1u))));
   EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(2010000),
                                    thread_time_track));
-  EXPECT_CALL(*slice_, End(1020000, track, unknown_cat1, kNullStringId, _))
-      .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(SliceId(0u))));
 
   context_.sorter->ExtractEventsForced();
 
@@ -1227,13 +1174,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   row.upid = 2u;
   storage_->mutable_thread_table()->Insert(row);
 
-  constexpr TrackId thread_1_track{0u};
   constexpr TrackId thread_time_track{1u};
   constexpr TrackId thread_instruction_count_track{2u};
-  constexpr TrackId process_2_track{3u};
-
-  StringId cat_1 = storage_->InternString("cat1");
-  StringId ev_1 = storage_->InternString("ev1");
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
@@ -1243,41 +1185,25 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
                                    thread_time_track));
   EXPECT_CALL(*event_, PushCounter(1005000, testing::DoubleEq(3010),
                                    thread_instruction_count_track));
-  EXPECT_CALL(*slice_, StartSlice(1005000, thread_1_track, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()),
-                      InvokeArgument<2>(&inserter), Return(SliceId(0u))));
 
   EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(2005000),
                                    thread_time_track));
   EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(3020),
                                    thread_instruction_count_track));
-  EXPECT_CALL(*slice_, StartSlice(1010000, thread_1_track, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()),
-                      InvokeArgument<2>(&inserter), Return(SliceId(1u))));
 
   EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(2010000),
                                    thread_time_track));
   EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(3040),
                                    thread_instruction_count_track));
-  EXPECT_CALL(*slice_, End(1020000, thread_1_track, cat_1, ev_1, _))
-      .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(SliceId(1u))));
 
   EXPECT_CALL(*event_, PushCounter(1040000, testing::DoubleEq(2030000),
                                    thread_time_track));
   EXPECT_CALL(*event_, PushCounter(1040000, testing::DoubleEq(3100),
                                    thread_instruction_count_track));
-  EXPECT_CALL(*slice_, StartSlice(1040000, thread_1_track, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()),
-                      InvokeArgument<2>(&inserter), Return(SliceId(2u))));
-
-  EXPECT_CALL(*slice_, Scoped(1050000, process_2_track, cat_1, ev_1, 0, _))
-      .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(SliceId(3u))));
-  // Second slice should have a legacy_event.passthrough_utid arg.
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(1u), _));
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->slice_table().row_count(), 3u);
+  EXPECT_EQ(storage_->slice_table().row_count(), 4u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
   EXPECT_TRUE(rr_0);
   EXPECT_EQ(rr_0->thread_ts(), 2003000);
@@ -1400,9 +1326,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   row.upid = 1u;
   storage_->mutable_thread_table()->Insert(row);
 
-  StringId cat_1 = storage_->InternString("cat1");
   StringId ev_1 = storage_->InternString("ev1");
-  StringId cat_2 = storage_->InternString("cat2");
   StringId ev_2 = storage_->InternString("ev2");
 
   TrackId thread_time_track{2u};
@@ -1414,17 +1338,10 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
                                    thread_time_track));
   EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(3020),
                                    thread_instruction_count_track));
-  EXPECT_CALL(*slice_, Begin(1010000, TrackId{1}, cat_1, ev_1, _))
-      .WillOnce(Return(SliceId(0u)));
-  EXPECT_CALL(*slice_, Scoped(1015000, TrackId{1}, cat_1, ev_2, 0, _));
-  EXPECT_CALL(*slice_, Scoped(1018000, TrackId{4}, cat_2, ev_2, 0, _));
   EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(2010000),
                                    thread_time_track));
   EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(3040),
                                    thread_instruction_count_track));
-  EXPECT_CALL(*slice_, End(1020000, TrackId{1}, cat_1, ev_1, _))
-      .WillOnce(Return(SliceId(SliceId(0u))));
-  EXPECT_CALL(*slice_, Scoped(1030000, TrackId{5}, cat_2, ev_2, 0, _));
 
   context_.sorter->ExtractEventsForced();
 
@@ -1435,10 +1352,9 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   EXPECT_EQ(storage_->track_table()[4].name(), ev_2);
   EXPECT_EQ(storage_->track_table()[5].name(), ev_2);
 
-  EXPECT_EQ(storage_->process_track_table().row_count(), 3u);
-  EXPECT_EQ(storage_->process_track_table()[0].upid(), 1u);
-  EXPECT_EQ(storage_->process_track_table()[1].upid(), 1u);
-  EXPECT_EQ(storage_->process_track_table()[2].upid(), 1u);
+  EXPECT_EQ(storage_->track_table()[1].upid(), std::nullopt);
+  EXPECT_EQ(storage_->track_table()[4].upid(), std::nullopt);
+  EXPECT_EQ(storage_->track_table()[5].upid(), 1u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
   EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], SliceId(0u));
@@ -1590,27 +1506,13 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
 
   Tokenize();
 
-  StringId cat_1 = storage_->InternString("cat1");
-  StringId ev_1 = storage_->InternString("ev1");
-
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
-
-  EXPECT_CALL(*slice_, Begin(1010000, TrackId{1}, cat_1, ev_1, _))
-      .WillOnce(Return(SliceId(2u)));
 
   EXPECT_CALL(*event_,
               PushCounter(1015000, testing::DoubleEq(2007000), TrackId{3}));
-  EXPECT_CALL(*slice_, StartSlice(1015000, TrackId{0}, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()), Return(SliceId(0u))));
 
   EXPECT_CALL(*event_,
               PushCounter(1016000, testing::DoubleEq(2008000), TrackId{4}));
-  EXPECT_CALL(*slice_, StartSlice(1016000, TrackId{2}, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()), Return(SliceId(1u))));
-
-  EXPECT_CALL(*slice_,
-              End(1020000, TrackId{1}, kNullStringId, kNullStringId, _))
-      .WillOnce(Return(SliceId(2u)));
 
   context_.sorter->ExtractEventsForced();
 
@@ -1624,12 +1526,11 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
             "Async track 1");
   EXPECT_EQ(storage_->GetString((storage_->track_table()[2].name())),
             "Thread track 2");
-  EXPECT_EQ(storage_->thread_track_table().row_count(), 2u);
-  EXPECT_EQ(storage_->thread_track_table()[0].utid(), 1u);
-  EXPECT_EQ(storage_->thread_track_table()[1].utid(), 2u);
+  EXPECT_EQ(storage_->track_table()[3].utid(), 1u);
+  EXPECT_EQ(storage_->track_table()[4].utid(), 2u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
-  EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], SliceId(2u));
+  EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], SliceId(0u));
   EXPECT_EQ(storage_->virtual_track_slices().thread_timestamp_ns()[0], 2005000);
   EXPECT_EQ(storage_->virtual_track_slices().thread_duration_ns()[0], 5000);
   EXPECT_EQ(storage_->virtual_track_slices().thread_instruction_counts()[0],
@@ -1637,15 +1538,15 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   EXPECT_EQ(storage_->virtual_track_slices().thread_instruction_deltas()[0],
             20);
 
-  EXPECT_EQ(storage_->slice_table().row_count(), 2u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_EQ(storage_->slice_table().row_count(), 3u);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(1u));
   EXPECT_TRUE(rr_0);
   EXPECT_EQ(rr_0->thread_ts(), 2007000);
   EXPECT_EQ(rr_0->thread_dur(), 0);
   // There was no thread instructions in the packets above.
   EXPECT_FALSE(rr_0->thread_instruction_count());
   EXPECT_FALSE(rr_0->thread_instruction_delta());
-  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
+  auto rr_1 = storage_->slice_table().FindById(SliceId(2u));
   EXPECT_TRUE(rr_1);
   EXPECT_EQ(rr_1->thread_ts(), 2008000);
   EXPECT_EQ(rr_1->thread_dur(), 0);
@@ -1726,13 +1627,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
 
   EXPECT_CALL(*event_,
               PushCounter(1000, testing::DoubleEq(1000000), TrackId{1}));
-  EXPECT_CALL(*slice_, StartSlice(1000, TrackId{0}, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()), Return(SliceId(0u))));
 
   EXPECT_CALL(*event_,
               PushCounter(1100, testing::DoubleEq(1010000), TrackId{1}));
-  EXPECT_CALL(*slice_, End(1100, TrackId{0}, kNullStringId, kNullStringId, _))
-      .WillOnce(Return(SliceId(0u)));
 
   EXPECT_CALL(*process_,
               UpdateThreadNameByUtid(1u, storage_->InternString("t1"),
@@ -1742,8 +1639,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
 
   // First track is thread time track, second is "t1".
   EXPECT_EQ(storage_->track_table().row_count(), 2u);
-  EXPECT_EQ(storage_->thread_track_table().row_count(), 1u);
-  EXPECT_EQ(storage_->thread_track_table()[0].utid(), 1u);
+  EXPECT_EQ(storage_->track_table()[1].utid(), 1u);
 
   // Counter values should also be imported into thread slices.
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
@@ -1806,9 +1702,13 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
   StringId cat1 = storage_->InternString("cat1");
   StringId ev2 = storage_->InternString("ev2");
 
-  EXPECT_CALL(*slice_, Scoped(2100000, TrackId{0}, cat1, ev2, 0, _))
-      .WillOnce(Return(SliceId(0u)));
   context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->slice_table().row_count(), 1u);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->category(), cat1);
+  EXPECT_EQ(rr_0->name(), ev2);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
@@ -1845,9 +1745,16 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
   StringId cat1 = storage_->InternString("cat1");
   StringId ev1 = storage_->InternString("ev1");
 
-  EXPECT_CALL(*slice_, Scoped(2000000, TrackId{0}, cat1, ev1, 0, _))
-      .WillOnce(Return(SliceId(0u)));
   context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->slice_table().row_count(), 1u);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->ts(), 2000000);
+  EXPECT_EQ(rr_0->track_id(), TrackId{0});
+  EXPECT_EQ(rr_0->dur(), 0);
+  EXPECT_EQ(rr_0->category(), cat1);
+  EXPECT_EQ(rr_0->name(), ev1);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
@@ -1935,10 +1842,17 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
   StringId unknown_cat = storage_->InternString("unknown(1)");
   constexpr TrackId track{0u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
-  EXPECT_CALL(*slice_, StartSlice(1010000, track, _, _));
-  EXPECT_CALL(*slice_, End(2010000, track, unknown_cat, kNullStringId, _));
 
   context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->slice_table().row_count(), 1u);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->ts(), 1010000);
+  EXPECT_EQ(rr_0->track_id(), track);
+  EXPECT_EQ(rr_0->dur(), 1000000);
+  EXPECT_EQ(rr_0->category(), unknown_cat);
+  EXPECT_EQ(rr_0->name(), std::nullopt);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
@@ -2038,12 +1952,24 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
   constexpr TrackId thread_1_track{1u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
-  EXPECT_CALL(*slice_, StartSlice(1005000, thread_2_track, _, _));
-  EXPECT_CALL(*slice_, StartSlice(1010000, thread_1_track, _, _));
-  EXPECT_CALL(*slice_, End(1015000, thread_2_track, cat_1, ev_2, _));
-  EXPECT_CALL(*slice_, End(1020000, thread_1_track, cat_1, ev_1, _));
-
   context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->slice_table().row_count(), 2u);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->ts(), 1005000);
+  EXPECT_EQ(rr_0->track_id(), thread_2_track);
+  EXPECT_EQ(rr_0->dur(), 10000);
+  EXPECT_EQ(rr_0->category(), cat_1);
+  EXPECT_EQ(rr_0->name(), ev_2);
+
+  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
+  EXPECT_TRUE(rr_1);
+  EXPECT_EQ(rr_1->ts(), 1010000);
+  EXPECT_EQ(rr_1->track_id(), thread_1_track);
+  EXPECT_EQ(rr_1->dur(), 10000);
+  EXPECT_EQ(rr_1->category(), cat_1);
+  EXPECT_EQ(rr_1->name(), ev_1);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
@@ -2176,75 +2102,19 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
 
   StringId cat_1 = storage_->InternString("cat1");
   StringId ev_1 = storage_->InternString("ev1");
-  StringId debug_an_1 = storage_->InternString("debug.an1");
-  StringId debug_an_2_child_1 = storage_->InternString("debug.an2.child1");
-  StringId debug_an_2_child_2 = storage_->InternString("debug.an2.child2");
-  StringId debug_an_2_child_2_0 = storage_->InternString("debug.an2.child2[0]");
-  StringId child21 = storage_->InternString("child21");
-  StringId debug_an_2_child_2_1 = storage_->InternString("debug.an2.child2[1]");
-  StringId debug_an_2_child_2_2 = storage_->InternString("debug.an2.child2[2]");
-  StringId debug_an_3 = storage_->InternString("debug.an3");
-  StringId debug_an_4 = storage_->InternString("debug.an4");
-  StringId debug_an_5 = storage_->InternString("debug.an5");
-  StringId debug_an_6 = storage_->InternString("debug.an6");
-  StringId debug_an_7 = storage_->InternString("debug.an7");
-  StringId val_7 = storage_->InternString("val7");
-  StringId debug_an_8_val8_a = storage_->InternString("debug.an8.val8.a");
-  StringId debug_an_8_val8_b = storage_->InternString("debug.an8.val8.b");
-  StringId val_8b = storage_->InternString("val8b");
-  StringId debug_an_8_arr8 = storage_->InternString("debug.an8.arr8");
-  StringId debug_an_8_arr8_0 = storage_->InternString("debug.an8.arr8[0]");
-  StringId debug_an_8_arr8_1 = storage_->InternString("debug.an8.arr8[1]");
-  StringId debug_an_8_arr8_2 = storage_->InternString("debug.an8.arr8[2]");
-  StringId debug_an_8_foo = storage_->InternString("debug.an8_foo");
 
   constexpr TrackId track{0u};
 
-  EXPECT_CALL(*slice_, StartSlice(1010000, track, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()),
-                      InvokeArgument<2>(&inserter), Return(SliceId(0u))));
-  EXPECT_CALL(inserter, AddArg(debug_an_1, debug_an_1,
-                               Variadic::UnsignedInteger(10u), _));
-
-  EXPECT_CALL(inserter, AddArg(debug_an_2_child_1, debug_an_2_child_1,
-                               Variadic::Boolean(true), _));
-
-  EXPECT_CALL(inserter, AddArg(debug_an_2_child_2, debug_an_2_child_2_0,
-                               Variadic::String(child21), _));
-
-  EXPECT_CALL(inserter, AddArg(debug_an_2_child_2, debug_an_2_child_2_1,
-                               Variadic::Real(2.2), _));
-
-  EXPECT_CALL(inserter, AddArg(debug_an_2_child_2, debug_an_2_child_2_2,
-                               Variadic::Integer(23), _));
-
-  EXPECT_CALL(*slice_, End(1020000, track, cat_1, ev_1, _))
-      .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(SliceId(0u))));
-
-  EXPECT_CALL(inserter,
-              AddArg(debug_an_3, debug_an_3, Variadic::Integer(-3), _));
-  EXPECT_CALL(inserter,
-              AddArg(debug_an_4, debug_an_4, Variadic::Boolean(true), _));
-  EXPECT_CALL(inserter,
-              AddArg(debug_an_5, debug_an_5, Variadic::Real(-5.5), _));
-  EXPECT_CALL(inserter,
-              AddArg(debug_an_6, debug_an_6, Variadic::Pointer(20u), _));
-  EXPECT_CALL(inserter,
-              AddArg(debug_an_7, debug_an_7, Variadic::String(val_7), _));
-  EXPECT_CALL(inserter, AddArg(debug_an_8_val8_a, debug_an_8_val8_a,
-                               Variadic::Integer(42), _));
-  EXPECT_CALL(inserter, AddArg(debug_an_8_val8_b, debug_an_8_val8_b,
-                               Variadic::String(val_8b), _));
-  EXPECT_CALL(inserter, AddArg(debug_an_8_arr8, debug_an_8_arr8_0,
-                               Variadic::Integer(1), _));
-  EXPECT_CALL(inserter, AddArg(debug_an_8_arr8, debug_an_8_arr8_1,
-                               Variadic::Integer(2), _));
-  EXPECT_CALL(inserter, AddArg(debug_an_8_arr8, debug_an_8_arr8_2,
-                               Variadic::Integer(3), _));
-  EXPECT_CALL(inserter,
-              AddArg(debug_an_8_foo, debug_an_8_foo, Variadic::Integer(15), _));
-
   context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->slice_table().row_count(), 1u);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->ts(), 1010000);
+  EXPECT_EQ(rr_0->track_id(), track);
+  EXPECT_EQ(rr_0->dur(), 10000);
+  EXPECT_EQ(rr_0->category(), cat_1);
+  EXPECT_EQ(rr_0->name(), ev_1);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
@@ -2293,20 +2163,15 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
 
   constexpr TrackId track{0u};
 
-  StringId file_1 = storage_->InternString("file1");
-  StringId func_1 = storage_->InternString("func1");
-
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
-  MockBoundInserter inserter;
-  EXPECT_CALL(*slice_, StartSlice(1010000, track, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()),
-                      InvokeArgument<2>(&inserter), Return(SliceId(0u))));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(file_1), _));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(func_1), _));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(42), _));
-
   context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->slice_table().row_count(), 1u);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->ts(), 1010000);
+  EXPECT_EQ(rr_0->track_id(), track);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
@@ -2363,25 +2228,18 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   storage_->mutable_thread_table()->Insert(row);
 
   StringId body_1 = storage_->InternString("body1");
-  StringId file_1 = storage_->InternString("file1");
-  StringId func_1 = storage_->InternString("func1");
   StringId source_location_id = storage_->InternString("file1:1");
 
   constexpr TrackId track{0};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
-  MockBoundInserter inserter;
-  EXPECT_CALL(*slice_, StartSlice(1010000, track, _, _))
-      .WillOnce(DoAll(IgnoreResult(InvokeArgument<3>()),
-                      InvokeArgument<2>(&inserter), Return(SliceId(0u))));
-
-  // Call with logMessageBody (body1 in this case).
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(body_1), _));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(file_1), _));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(func_1), _));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::Integer(1), _));
-
   context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->slice_table().row_count(), 1u);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->ts(), 1010000);
+  EXPECT_EQ(rr_0->track_id(), track);
 
   EXPECT_GT(context_.storage->android_log_table().row_count(), 0u);
   EXPECT_EQ(context_.storage->android_log_table()[0].ts(), 1010000);
@@ -2456,38 +2314,41 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   ::testing::Mock::VerifyAndClearExpectations(storage_);
 
   // Verify raw_table and args contents.
-  const auto& raw_table = storage_->raw_table();
+  const auto& raw_table = storage_->chrome_raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
   EXPECT_EQ(raw_table[0].ts(), 1010000);
   EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("track_event.legacy_event"));
-  auto ucpu = raw_table[0].ucpu();
-  const auto& cpu_table = storage_->cpu_table();
-  EXPECT_EQ(cpu_table[ucpu.value].cpu(), 0u);
   EXPECT_EQ(raw_table[0].utid(), 1u);
-  EXPECT_EQ(raw_table[0].arg_set_id(), 3u);
+  EXPECT_TRUE(raw_table[0].arg_set_id());
 
-  EXPECT_TRUE(HasArg(3u, storage_->InternString("legacy_event.category"),
+  uint32_t arg_set_id = raw_table[0].arg_set_id();
+  EXPECT_TRUE(HasArg(arg_set_id,
+                     storage_->InternString("legacy_event.category"),
                      Variadic::String(cat_1)));
-  EXPECT_TRUE(HasArg(3u, storage_->InternString("legacy_event.name"),
+  EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString("legacy_event.name"),
                      Variadic::String(ev_1)));
-  EXPECT_TRUE(HasArg(3u, storage_->InternString("legacy_event.phase"),
+  EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString("legacy_event.phase"),
                      Variadic::String(question)));
-  EXPECT_TRUE(HasArg(3u, storage_->InternString("legacy_event.duration_ns"),
+  EXPECT_TRUE(HasArg(arg_set_id,
+                     storage_->InternString("legacy_event.duration_ns"),
                      Variadic::Integer(23000)));
-  EXPECT_TRUE(HasArg(3u,
+  EXPECT_TRUE(HasArg(arg_set_id,
                      storage_->InternString("legacy_event.thread_timestamp_ns"),
                      Variadic::Integer(2005000)));
-  EXPECT_TRUE(HasArg(3u,
+  EXPECT_TRUE(HasArg(arg_set_id,
                      storage_->InternString("legacy_event.thread_duration_ns"),
                      Variadic::Integer(15000)));
-  EXPECT_TRUE(HasArg(3u, storage_->InternString("legacy_event.use_async_tts"),
+  EXPECT_TRUE(HasArg(arg_set_id,
+                     storage_->InternString("legacy_event.use_async_tts"),
                      Variadic::Boolean(true)));
-  EXPECT_TRUE(HasArg(3u, storage_->InternString("legacy_event.global_id"),
+  EXPECT_TRUE(HasArg(arg_set_id,
+                     storage_->InternString("legacy_event.global_id"),
                      Variadic::UnsignedInteger(99u)));
-  EXPECT_TRUE(HasArg(3u, storage_->InternString("legacy_event.id_scope"),
+  EXPECT_TRUE(HasArg(arg_set_id,
+                     storage_->InternString("legacy_event.id_scope"),
                      Variadic::String(scope_1)));
-  EXPECT_TRUE(HasArg(3u, debug_an_1, Variadic::UnsignedInteger(10u)));
+  EXPECT_TRUE(HasArg(arg_set_id, debug_an_1, Variadic::UnsignedInteger(10u)));
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
@@ -2523,12 +2384,14 @@ TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
   storage_->mutable_thread_table()->Insert(row);
 
   constexpr TrackId track{0u};
-  InSequence in_sequence;  // Below slices should be sorted by timestamp.
-
-  // Timestamp should be adjusted to trace time (BOOTTIME).
-  EXPECT_CALL(*slice_, StartSlice(10000, track, _, _));
 
   context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->slice_table().row_count(), 1u);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->ts(), 10000);
+  EXPECT_EQ(rr_0->track_id(), track);
 }
 
 TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButWithoutClockSnapshot) {
@@ -2548,7 +2411,7 @@ TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButWithoutClockSnapshot) {
   context_.sorter->ExtractEventsForced();
 
   // Metadata should have created a raw event.
-  const auto& raw_table = storage_->raw_table();
+  const auto& raw_table = storage_->chrome_raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
 }
 
@@ -2576,16 +2439,16 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
   context_.sorter->ExtractEventsForced();
 
   // Verify raw_table and args contents.
-  const auto& raw_table = storage_->raw_table();
+  const auto& raw_table = storage_->chrome_raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
   EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("chrome_event.metadata"));
-  EXPECT_EQ(raw_table[0].arg_set_id(), 1u);
 
+  uint32_t arg_set_id = raw_table[0].arg_set_id();
   EXPECT_EQ(storage_->arg_table().row_count(), 2u);
-  EXPECT_TRUE(HasArg(1u, storage_->InternString(kStringName),
+  EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString(kStringName),
                      Variadic::String(storage_->InternString(kStringValue))));
-  EXPECT_TRUE(HasArg(1u, storage_->InternString(kIntName),
+  EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString(kIntName),
                      Variadic::Integer(kIntValue)));
 }
 
@@ -2607,14 +2470,14 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {
   context_.sorter->ExtractEventsForced();
 
   // Verify raw_table and args contents.
-  const auto& raw_table = storage_->raw_table();
+  const auto& raw_table = storage_->chrome_raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
   EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("chrome_event.legacy_system_trace"));
-  EXPECT_EQ(raw_table[0].arg_set_id(), 1u);
 
   EXPECT_EQ(storage_->arg_table().row_count(), 1u);
-  EXPECT_TRUE(HasArg(1u, storage_->InternString("data"),
+  uint32_t arg_set_id = raw_table[0].arg_set_id();
+  EXPECT_TRUE(HasArg(arg_set_id, storage_->InternString("data"),
                      Variadic::String(storage_->InternString(kFullData))));
 }
 
@@ -2635,15 +2498,15 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyJsonIntoRawTable) {
   context_.sorter->ExtractEventsForced();
 
   // Verify raw_table and args contents.
-  const auto& raw_table = storage_->raw_table();
+  const auto& raw_table = storage_->chrome_raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
   EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("chrome_event.legacy_user_trace"));
-  EXPECT_EQ(raw_table[0].arg_set_id(), 1u);
 
+  uint32_t arg_set_id = raw_table[0].arg_set_id();
   EXPECT_EQ(storage_->arg_table().row_count(), 1u);
   EXPECT_TRUE(
-      HasArg(1u, storage_->InternString("data"),
+      HasArg(arg_set_id, storage_->InternString("data"),
              Variadic::String(storage_->InternString(kUserTraceEvent))));
 }
 
@@ -3093,19 +2956,26 @@ TEST_F(ProtoTraceParserTest, PerfEventWithMultipleCounter) {
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->track_table().row_count(), 3u);
+  const auto& tracks = storage_->track_table();
+  EXPECT_EQ(tracks.row_count(), 3u);
 
-  // Validate the perf counter track table.
-  EXPECT_EQ(storage_->perf_counter_track_table().row_count(), 3u);
+  EXPECT_EQ(tracks[0].name(), storage_->InternString("leader"));
+  EXPECT_EQ(tracks[1].name(), storage_->InternString("cycle-follower"));
+  EXPECT_EQ(tracks[2].name(), storage_->InternString("cache-follower"));
 
-  const auto& perf_counter_names = storage_->perf_counter_track_table().name();
-  EXPECT_EQ(perf_counter_names[0], storage_->InternString("leader"));
-  EXPECT_EQ(perf_counter_names[1], storage_->InternString("cycle-follower"));
-  EXPECT_EQ(perf_counter_names[2], storage_->InternString("cache-follower"));
-  const auto& cpu_ids = storage_->perf_counter_track_table().cpu();
-  EXPECT_EQ(cpu_ids[0], 0u);
-  EXPECT_EQ(cpu_ids[1], 0u);
-  EXPECT_EQ(cpu_ids[2], 0u);
+  std::optional<Variadic> cpu;
+  auto get_cpu = [&, this](uint32_t i) {
+    auto dim_set_id = tracks[i].dimension_arg_set_id();
+    ASSERT_TRUE(dim_set_id.has_value());
+    ASSERT_OK(context_.storage->ExtractArg(*dim_set_id, "cpu", &cpu));
+    ASSERT_TRUE(cpu.has_value());
+  };
+  get_cpu(0);
+  EXPECT_EQ(cpu->int_value, 0u);
+  get_cpu(1);
+  EXPECT_EQ(cpu->int_value, 0u);
+  get_cpu(2);
+  EXPECT_EQ(cpu->int_value, 0u);
 }
 
 }  // namespace

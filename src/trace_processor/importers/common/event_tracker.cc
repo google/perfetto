@@ -16,14 +16,14 @@
 
 #include "src/trace_processor/importers/common/event_tracker.h"
 
-#include <cinttypes>
 #include <cstdint>
 #include <optional>
 
-#include "perfetto/base/logging.h"
+#include "perfetto/base/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -34,44 +34,33 @@ EventTracker::EventTracker(TraceProcessorContext* context)
 
 EventTracker::~EventTracker() = default;
 
-std::optional<CounterId> EventTracker::PushProcessCounterForThread(
-    int64_t timestamp,
-    double value,
-    StringId name_id,
-    UniqueTid utid) {
+void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
+                                               int64_t timestamp,
+                                               double value,
+                                               UniqueTid utid) {
   const auto& counter = context_->storage->counter_table();
   auto opt_id = PushCounter(timestamp, value, kInvalidTrackId);
   if (opt_id) {
     PendingUpidResolutionCounter pending;
     pending.row = counter.FindById(*opt_id)->ToRowNumber().row_number();
     pending.utid = utid;
-    pending.name_id = name_id;
+    pending.counter = pcounter;
     pending_upid_resolution_counter_.emplace_back(pending);
   }
-  return opt_id;
 }
 
 std::optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
                                                    double value,
                                                    TrackId track_id) {
-  if (timestamp < max_timestamp_) {
-    PERFETTO_DLOG(
-        "counter event (ts: %" PRId64 ") out of order by %.4f ms, skipping",
-        timestamp, static_cast<double>(max_timestamp_ - timestamp) / 1e6);
-    context_->storage->IncrementStats(stats::counter_events_out_of_order);
-    return std::nullopt;
-  }
-  max_timestamp_ = timestamp;
-
-  auto* counter_values = context_->storage->mutable_counter_table();
-  return counter_values->Insert({timestamp, track_id, value, {}}).id;
+  auto* counters = context_->storage->mutable_counter_table();
+  return counters->Insert({timestamp, track_id, value, {}}).id;
 }
 
 std::optional<CounterId> EventTracker::PushCounter(
     int64_t timestamp,
     double value,
     TrackId track_id,
-    SetArgsCallback args_callback) {
+    const SetArgsCallback& args_callback) {
   auto maybe_counter_id = PushCounter(timestamp, value, track_id);
   if (maybe_counter_id) {
     auto inserter = context_->args_tracker->AddArgsTo(*maybe_counter_id);
@@ -86,16 +75,64 @@ void EventTracker::FlushPendingEvents() {
     UniqueTid utid = pending_counter.utid;
     std::optional<UniquePid> upid = thread_table[utid].upid();
 
-    TrackId track_id = kInvalidTrackId;
-    if (upid.has_value()) {
-      track_id = context_->track_tracker->LegacyInternProcessCounterTrack(
-          pending_counter.name_id, *upid);
-    } else {
-      // If we still don't know which process this thread belongs to, fall back
-      // onto creating a thread counter track. It's too late to drop data
-      // because the counter values have already been inserted.
-      track_id = context_->track_tracker->LegacyInternThreadCounterTrack(
-          pending_counter.name_id, utid);
+    // If we still don't know which process this thread belongs to, fall back
+    // onto creating a thread counter track. It's too late to drop data
+    // because the counter values have already been inserted.
+    TrackId track_id;
+    switch (pending_counter.counter.index()) {
+      case base::variant_index<ProcessCounterForThread, OomScoreAdj>():
+        if (upid.has_value()) {
+          track_id = context_->track_tracker->InternTrack(
+              tracks::kOomScoreAdjBlueprint, tracks::Dimensions(*upid));
+        } else {
+          track_id = context_->track_tracker->InternTrack(
+              tracks::kOomScoreAdjThreadFallbackBlueprint,
+              tracks::Dimensions(utid));
+        }
+        break;
+      case base::variant_index<ProcessCounterForThread, MmEvent>(): {
+        const auto& mm_event = std::get<MmEvent>(pending_counter.counter);
+        if (upid.has_value()) {
+          track_id = context_->track_tracker->InternTrack(
+              tracks::kMmEventBlueprint,
+              tracks::Dimensions(*upid, mm_event.type, mm_event.metric));
+        } else {
+          track_id = context_->track_tracker->InternTrack(
+              tracks::kMmEventThreadFallbackBlueprint,
+              tracks::Dimensions(utid, mm_event.type, mm_event.metric));
+        }
+        break;
+      }
+      case base::variant_index<ProcessCounterForThread, RssStat>(): {
+        const auto& rss_stat = std::get<RssStat>(pending_counter.counter);
+        if (upid.has_value()) {
+          track_id = context_->track_tracker->InternTrack(
+              tracks::kProcessMemoryBlueprint,
+              tracks::Dimensions(*upid, rss_stat.process_memory_key));
+        } else {
+          track_id = context_->track_tracker->InternTrack(
+              tracks::kProcessMemoryThreadFallbackBlueprint,
+              tracks::Dimensions(utid, rss_stat.process_memory_key));
+        }
+        break;
+      }
+      case base::variant_index<ProcessCounterForThread, JsonCounter>(): {
+        const auto& json = std::get<JsonCounter>(pending_counter.counter);
+        if (upid.has_value()) {
+          track_id = context_->track_tracker->InternTrack(
+              tracks::kJsonCounterBlueprint,
+              tracks::Dimensions(
+                  *upid, context_->storage->GetString(json.counter_name_id)),
+              tracks::DynamicName(json.counter_name_id));
+        } else {
+          track_id = context_->track_tracker->InternTrack(
+              tracks::kJsonCounterThreadFallbackBlueprint,
+              tracks::Dimensions(
+                  utid, context_->storage->GetString(json.counter_name_id)),
+              tracks::DynamicName(json.counter_name_id));
+        }
+        break;
+      }
     }
     auto& counter = *context_->storage->mutable_counter_table();
     counter[pending_counter.row].set_track_id(track_id);

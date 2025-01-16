@@ -83,7 +83,7 @@ base::StatusOr<protozero::ConstBytes> ValidateSingleNonEmptyMessage(
                                                       single_field.size);
 
   if (single.type() != schema_type) {
-    return base::ErrStatus("Message field has wrong wire type %d",
+    return base::ErrStatus("Message field has wrong wire type %u",
                            single.type());
   }
 
@@ -207,7 +207,7 @@ base::Status ProtoBuilder::AppendSingleLong(const FieldDescriptor& field,
     default: {
       return base::ErrStatus(
           "Tried to write value of type long into field %s (in proto type %s) "
-          "which has type %d",
+          "which has type %u",
           field.name().c_str(), descriptor_->full_name().c_str(), field.type());
     }
   }
@@ -230,7 +230,7 @@ base::Status ProtoBuilder::AppendSingleDouble(const FieldDescriptor& field,
     default: {
       return base::ErrStatus(
           "Tried to write value of type double into field %s (in proto type "
-          "%s) which has type %d",
+          "%s) which has type %u",
           field.name().c_str(), descriptor_->full_name().c_str(), field.type());
     }
   }
@@ -272,7 +272,7 @@ base::Status ProtoBuilder::AppendSingleString(const FieldDescriptor& field,
     default: {
       return base::ErrStatus(
           "Tried to write value of type string into field %s (in proto type "
-          "%s) which has type %d",
+          "%s) which has type %u",
           field.name().c_str(), descriptor_->full_name().c_str(), field.type());
     }
   }
@@ -316,7 +316,7 @@ base::Status ProtoBuilder::AppendSingleBytes(const FieldDescriptor& field,
 
   return base::ErrStatus(
       "Tried to write value of type bytes into field %s (in proto type %s) "
-      "which has type %d",
+      "which has type %u",
       field.name().c_str(), descriptor_->full_name().c_str(), field.type());
 }
 

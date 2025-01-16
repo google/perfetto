@@ -21,7 +21,7 @@ CREATE PERFETTO VIEW android_anrs(
   -- PID of the process that triggered the ANR.
   pid LONG,
   -- UPID of the process that triggered the ANR.
-  upid LONG,
+  upid JOINID(process.id),
   -- UUID of the ANR (generated on the platform).
   error_id STRING,
   -- Timestamp of the ANR.

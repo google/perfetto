@@ -17,8 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_SYSTRACE_SYSTRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_SYSTRACE_SYSTRACE_PARSER_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <ostream>
+#include <tuple>
 
+#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "perfetto/base/logging.h"
@@ -317,9 +321,9 @@ class SystraceParser : public Destructible {
 
   TraceProcessorContext* const context_;
   const StringId lmk_id_;
-  const StringId oom_score_adj_id_;
-  const StringId screen_state_id_;
   const StringId cookie_id_;
+  const StringId utid_id_;
+  const StringId end_utid_id_;
 };
 
 }  // namespace trace_processor

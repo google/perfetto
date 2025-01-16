@@ -161,7 +161,7 @@ class WattsonStdlib(TestSuite):
         out=Csv("""
             "duration","freq_0","idle_0","freq_1","idle_1","freq_2","idle_2","freq_3","idle_3","suspended"
             16606175990,614400,1,614400,1,614400,1,614400,1,0
-            10648392546,1708800,-1,1708800,-1,1708800,-1,1708800,-1,1
+            10648392546,1708800,1,1708800,1,1708800,1,1708800,1,1
             6972220533,1708800,-1,1708800,-1,1708800,-1,1708800,-1,0
             1649400745,614400,0,614400,0,614400,0,614400,0,0
             1206977074,614400,-1,614400,1,614400,1,614400,1,0
@@ -201,7 +201,9 @@ class WattsonStdlib(TestSuite):
         trace=DataPath('wattson_dsu_pmu.pb'),
         query=("""
             INCLUDE PERFETTO MODULE wattson.curves.estimates;
-              select * from _w_independent_cpus_calc
+              select
+              ts,dur,l3_hit_count,l3_miss_count,freq_0,idle_0,freq_1,idle_1,freq_2,idle_2,freq_3,idle_3,freq_4,idle_4,freq_5,idle_5,freq_6,idle_6,freq_7,idle_7,policy_4,policy_5,policy_6,policy_7,no_static,cpu0_curve,cpu1_curve,cpu2_curve,cpu3_curve,cpu4_curve,cpu5_curve,cpu6_curve,cpu7_curve,static_4,static_5,static_6,static_7
+              from _w_independent_cpus_calc
               WHERE ts > 359661672577
               ORDER by ts ASC
               LIMIT 10
@@ -321,26 +323,26 @@ class WattsonStdlib(TestSuite):
             """),
         out=Csv("""
             "idle_transition_cost_mws","utid","upid"
-            18.291706,10,10
-            6.929671,73,73
-            5.366740,146,146
-            4.596243,457,457
-            4.488426,515,137
-            4.178230,1262,401
-            3.907947,694,353
-            3.580991,169,169
-            3.575903,11,11
-            3.270123,147,147
-            3.251823,396,396
-            3.156336,486,486
-            2.998187,727,356
-            2.945958,606,326
-            2.899400,464,464
-            2.781249,29,29
-            2.567914,1270,401
-            2.446651,471,471
-            2.434878,172,172
-            2.256320,414,414
+            19.068358,10,10
+            7.642105,73,73
+            6.069991,146,146
+            4.887564,457,457
+            4.641823,694,353
+            4.575867,1262,401
+            4.513442,515,137
+            3.819375,169,169
+            3.803823,11,11
+            3.617314,147,147
+            3.522582,396,396
+            3.385840,486,486
+            3.351066,727,356
+            3.279231,606,326
+            3.155939,464,464
+            2.949362,29,29
+            2.848033,414,414
+            2.660892,471,471
+            2.573006,1270,401
+            2.488196,172,172
             """))
 
   # Tests that DSU devfreq calculations are merged correctly
@@ -349,7 +351,9 @@ class WattsonStdlib(TestSuite):
         trace=DataPath('wattson_tk4_pcmark.pb'),
         query=("""
             INCLUDE PERFETTO MODULE wattson.curves.w_dsu_dependence;
-            SELECT * FROM _cpu_curves
+            SELECT
+            ts,dur,freq_0,idle_0,freq_1,idle_1,freq_2,idle_2,freq_3,idle_3,cpu4_curve,cpu5_curve,cpu6_curve,cpu7_curve,l3_hit_count,l3_miss_count,no_static,all_cpu_deep_idle
+            FROM _cpu_curves
             WHERE ts > 4108586775197
             LIMIT 20
             """),
@@ -447,10 +451,10 @@ class WattsonStdlib(TestSuite):
             """),
         out=Csv("""
             "ts","dur","cpu0_id","cpu1_id","cpu2_id","cpu3_id","suspended"
-            385019771468,61975407053,12041,12218,10488,8910,1
-            448320364476,3674872885,13005,12954,11166,9272,1
-            452415394221,69579176303,13654,13361,11651,9609,1
-            564873995228,135118729231,45223,37594,22798,20132,1
+            385019771468,61975407053,12042,12219,10489,8911,1
+            448320364476,3674872885,13008,12957,11169,9275,1
+            452415394221,69579176303,13659,13366,11656,9614,1
+            564873995228,135118729231,45230,37601,22805,20139,1
             """))
 
   # Tests traces from VM that have incomplete CPU tracks
@@ -478,4 +482,77 @@ class WattsonStdlib(TestSuite):
             25150367720,37480,0.000000,0.000000,0.000000,176.280000,70.050000,0.000000,0.000000
             25150405200,15120,0.000000,176.280000,0.000000,176.280000,70.050000,0.000000,0.000000
             25150420320,15920,0.000000,176.280000,0.000000,0.000000,70.050000,0.000000,0.000000
+            """))
+
+  # Tests suspend path with devfreq code path
+  def test_wattson_devfreq_hotplug_and_suspend(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_cpuhp_devfreq_suspend.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.curves.estimates;
+               SELECT
+                 ts, dur, cpu0_mw, cpu1_mw, cpu2_mw, cpu3_mw, cpu4_mw, cpu5_mw,
+                 cpu6_mw, cpu7_mw, dsu_scu_mw
+               FROM _system_state_mw
+               WHERE ts > 165725449108
+              LIMIT 6
+            """),
+        out=Csv("""
+            "ts","dur","cpu0_mw","cpu1_mw","cpu2_mw","cpu3_mw","cpu4_mw","cpu5_mw","cpu6_mw","cpu7_mw","dsu_scu_mw"
+            165725450194,7527,111.020000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,375.490000,14.560000
+            165725457721,17334,111.020000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,14.560000
+            165725475055,6999,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000
+            165725482054,1546,111.020000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,14.560000
+            165725483600,4468465,111.020000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,14.560000
+            165729952065,73480460119,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000
+            """))
+
+  # Tests remapping of idle states
+  def test_wattson_idle_remap(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_idle_map.pb'),
+        query=("""
+               INCLUDE PERFETTO MODULE wattson.curves.estimates;
+               SELECT ts, dur, cpu, idle
+               FROM _adjusted_deep_idle
+               WHERE ts > 1450338950433 AND cpu = 3
+               LIMIT 10
+               """),
+        out=Csv("""
+               "ts","dur","cpu","idle"
+               1450338950434,1395365,3,1
+               1450340345799,96927,3,-1
+               1450340442726,301250,3,0
+               1450340743976,24010,3,-1
+               1450340767986,3748386,3,1
+               1450344516372,70208,3,-1
+               1450344586580,2400521,3,1
+               1450346987101,306458,3,-1
+               1450347293559,715573,3,0
+               1450348009132,82292,3,-1
+               """))
+
+  # Tests that hotplug slices that defined CPU off region are correct
+  def test_wattson_hotplug_tk(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_cpuhp_devfreq_suspend.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.cpu_hotplug;
+            SELECT cpu, ts, dur
+            FROM _gapless_hotplug_slices
+            WHERE cpu < 2
+            """),
+        out=Csv("""
+            "cpu","ts","dur"
+            0,86747008512,302795933205
+            1,86747008512,3769632400
+            1,90516640912,4341919
+            1,90520982831,73692291133
+            1,164213273964,1478796428
+            1,165692070392,73525895666
+            1,239217966058,10896074956
+            1,250114041014,95948
+            1,250114136962,4705159
+            1,250118842121,137102890041
+            1,387221732162,2321209555
             """))

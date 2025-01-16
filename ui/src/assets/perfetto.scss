@@ -14,7 +14,6 @@
 
 @import "typefaces";
 @import "common";
-@import "panel_container";
 @import "viewer_page";
 @import "home_page";
 @import "query_page";
@@ -38,7 +37,6 @@
 @import "widgets/editor";
 @import "widgets/empty_state";
 @import "widgets/error";
-@import "widgets/collapsible_panel.scss";
 @import "widgets/flamegraph";
 @import "widgets/form";
 @import "widgets/grid_layout";
@@ -52,15 +50,18 @@
 @import "widgets/segmented_buttons";
 @import "widgets/select";
 @import "widgets/spinner";
+@import "widgets/split_panel";
 @import "widgets/switch";
+@import "widgets/tabbed_split_panel";
 @import "widgets/tag_input";
 @import "widgets/text_input";
 @import "widgets/text_paragraph";
 @import "widgets/timestamp";
-@import "widgets/track_widget";
+@import "widgets/track_shell";
 @import "widgets/tree";
 @import "widgets/treetable";
 @import "widgets/vega_view";
+@import "widgets/virtual_overlay_canvas";
 @import "widgets/virtual_scroll_container";
 @import "widgets/virtual_table";
 

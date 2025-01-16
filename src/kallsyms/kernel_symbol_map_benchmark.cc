@@ -101,7 +101,9 @@ static void BM_KallSymsFind(benchmark::State& state) {
   // which slows down significantly the CI.
   const bool skip = IsBenchmarkFunctionalOnly();
   if (!skip) {
-    kallsyms.Parse(perfetto::base::GetTestDataPath("test/data/kallsyms.txt"));
+    auto fd = perfetto::base::OpenFile(
+        perfetto::base::GetTestDataPath("test/data/kallsyms.txt"), O_RDONLY);
+    kallsyms.Parse(*fd);
   }
 
   for (auto _ : state) {
@@ -137,7 +139,8 @@ static void BM_KallSymsLoad(benchmark::State& state) {
   for (auto _ : state) {
     perfetto::KernelSymbolMap kallsyms;
     if (!skip) {
-      kallsyms.Parse(kallsyms_path);
+      auto fd = perfetto::base::OpenFile(kallsyms_path, O_RDONLY);
+      kallsyms.Parse(*fd);
     }
   }
 }

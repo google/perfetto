@@ -514,14 +514,14 @@ RETURNS TableOrSubQuery AS (
 -- start of the thread_executing_span and the start of the next span in the critical path.
 CREATE PERFETTO FUNCTION _thread_executing_span_critical_path(
   -- Utid of the thread to compute the critical path for.
-  root_utid LONG,
+  root_utid JOINID(thread.id),
   -- Timestamp.
   ts TIMESTAMP,
   -- Duration.
   dur DURATION)
 RETURNS TABLE(
   -- Thread Utid the critical path was filtered to.
-  root_utid LONG,
+  root_utid JOINID(thread.id),
   -- Id of thread executing span following the sleeping thread state for which the critical path is
   -- computed.
   root_id LONG,
@@ -532,7 +532,7 @@ RETURNS TABLE(
   -- Duration of thread_executing_span.
   dur DURATION,
   -- Utid of thread with thread_state.
-  utid LONG
+  utid JOINID(thread.id)
 ) AS
 SELECT root_utid, root_id, id, ts, dur, utid FROM _critical_path_by_intervals!(
   (SELECT $root_utid AS utid, $ts as ts, $dur AS dur),

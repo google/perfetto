@@ -64,6 +64,10 @@
 #include "src/base/vm_sockets.h"
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+#include <sys/time.h>
+#endif
+
 namespace perfetto {
 namespace base {
 
@@ -341,8 +345,9 @@ UnixSocketRaw::UnixSocketRaw(ScopedSocketHandle fd,
   setsockopt(*fd_, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe));
 #endif
 
-  if (family == SockFamily::kInet || family == SockFamily::kInet6 ||
-      family == SockFamily::kVsock) {
+// QNX doesn't support setting SO_REUSEADDR option when using vsocks.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+  if (family == SockFamily::kVsock) {
     int flag = 1;
     // The reinterpret_cast<const char*> is needed for Windows, where the 4th
     // arg is a const char* (on other POSIX system is a const void*).
@@ -350,9 +355,15 @@ UnixSocketRaw::UnixSocketRaw(ScopedSocketHandle fd,
                                reinterpret_cast<const char*>(&flag),
                                sizeof(flag)));
   }
+#endif
 
   if (family == SockFamily::kInet || family == SockFamily::kInet6) {
     int flag = 1;
+    // The reinterpret_cast<const char*> is needed for Windows, where the 4th
+    // arg is a const char* (on other POSIX system is a const void*).
+    PERFETTO_CHECK(!setsockopt(*fd_, SOL_SOCKET, SO_REUSEADDR,
+                               reinterpret_cast<const char*>(&flag),
+                               sizeof(flag)));
     // Disable Nagle's algorithm, optimize for low-latency.
     // See https://github.com/google/perfetto/issues/70.
     setsockopt(*fd_, IPPROTO_TCP, TCP_NODELAY,
@@ -670,6 +681,13 @@ bool UnixSocketRaw::SetTxTimeout(uint32_t timeout_ms) {
   timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(
       (timeout_ms - (timeout_sec * 1000)) * 1000);
 #endif
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+  if (family() == SockFamily::kVsock) {
+      // QNX doesn't support SO_SNDTIMEO for vsocks.
+      return true;
+  }
+#endif
+
   return setsockopt(*fd_, SOL_SOCKET, SO_SNDTIMEO,
                     reinterpret_cast<const char*>(&timeout),
                     sizeof(timeout)) == 0;
@@ -727,7 +745,7 @@ std::string UnixSocketRaw::GetSockAddr() const {
                           PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID))
   if (stg.ss_family == AF_VSOCK) {
     auto* saddr = reinterpret_cast<struct sockaddr_vm*>(&stg);
-    base::StackString<255> addr_and_port("%s%d:%d", kVsockNamePrefix,
+    base::StackString<255> addr_and_port("%s%u:%u", kVsockNamePrefix,
                                          saddr->svm_cid, saddr->svm_port);
     return addr_and_port.ToStdString();
   }
@@ -917,7 +935,12 @@ void UnixSocket::ReadPeerCredentialsPosix() {
     return;
   PERFETTO_CHECK(peer_cred_mode_ != SockPeerCredMode::kIgnore);
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+  int fd = sock_raw_.fd();
+  int res = getpeereid(fd, &peer_uid_, nullptr);
+  PERFETTO_CHECK(res == 0);
+  // There is no pid when obtaining peer credentials for QNX
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   struct ucred user_cred;
   socklen_t len = sizeof(user_cred);

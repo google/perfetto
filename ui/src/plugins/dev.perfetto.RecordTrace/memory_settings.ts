@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {MeminfoCounters, VmstatCounters} from '../../protos';
+import {MeminfoCounters, VmstatCounters} from './protos';
 import {Dropdown, Probe, Slider, Textarea, Toggle} from './record_widgets';
 import {POLL_INTERVAL_MS, RecordingSectionAttrs} from './recording_sections';
 

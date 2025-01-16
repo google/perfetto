@@ -33,32 +33,97 @@ class GraphicsParser(TestSuite):
         WHERE scope = 'graphics_frame_event'
         ORDER BY ts;
         """,
-        out=Path('graphics_frame_events.out'))
+        out=Csv('''
+          "ts","track_name","dur","slice_name","frame_number","layer_name"
+          1,"Buffer: 1 layer1",0,"Dequeue",11,"layer1"
+          1,"APP_1 layer1",3,"11",11,"layer1"
+          4,"Buffer: 1 layer1",0,"Queue",11,"layer1"
+          4,"GPU_1 layer1",2,"11",11,"layer1"
+          6,"Buffer: 1 layer1",0,"AcquireFenceSignaled",11,"layer1"
+          6,"Buffer: 2 layer2",0,"Dequeue",12,"layer2"
+          6,"APP_2 layer2",3,"12",12,"layer2"
+          7,"Buffer: 7 layer7",0,"unknown_event",15,"layer7"
+          8,"Buffer: 1 layer1",0,"Latch",11,"layer1"
+          8,"Buffer: 2 layer2",0,"AcquireFenceSignaled",12,"layer2"
+          8,"SF_1 layer1",6,"11",11,"layer1"
+          9,"Buffer: 2 layer2",0,"Queue",12,"layer2"
+          11,"Buffer: 2 layer2",0,"Latch",12,"layer2"
+          11,"SF_2 layer2",5,"12",12,"layer2"
+          14,"Buffer: 1 layer1",0,"PresentFenceSignaled",11,"layer1"
+          14,"Display_layer1",10,"11",11,"layer1"
+          16,"Buffer: 2 layer2",0,"PresentFenceSignaled",12,"layer2"
+          16,"Display_layer2",-1,"12",12,"layer2"
+          24,"Buffer: 1 layer1",0,"PresentFenceSignaled",13,"layer1"
+          24,"Display_layer1",-1,"13",13,"layer1"
+          31,"Buffer: 1 layer1",0,"Dequeue",21,"layer1"
+          31,"APP_1 layer1",3,"21",21,"layer1"
+          34,"Buffer: 1 layer1",0,"Queue",21,"layer1"
+          34,"GPU_1 layer1",-1,"21",21,"layer1"
+          37,"Buffer: 1 layer1",0,"Dequeue",22,"layer1"
+          37,"APP_1 layer1",4,"22",22,"layer1"
+          41,"Buffer: 1 layer1",0,"Queue",22,"layer1"
+          41,"GPU_1 layer1",5,"22",22,"layer1"
+          46,"Buffer: 1 layer1",0,"AcquireFenceSignaled",22,"layer1"
+          53,"Buffer: 2 layer2",0,"Dequeue",24,"layer2"
+          53,"APP_2 layer2",-1,"0",0,"layer2"
+          59,"Buffer: 2 layer2",0,"AcquireFenceSignaled",24,"layer2"
+          61,"Buffer: 2 layer2",0,"Latch",24,"layer2"
+          61,"SF_2 layer2",-1,"24",24,"layer2"
+          63,"Buffer: 1 layer1",0,"Dequeue",25,"layer1"
+          63,"APP_1 layer1",-1,"0",0,"layer1"
+          73,"Buffer: 1 layer1",0,"Dequeue",26,"layer1"
+          73,"APP_1 layer1",2,"26",26,"layer1"
+          75,"Buffer: 1 layer1",0,"Queue",26,"layer1"
+          75,"GPU_1 layer1",4,"26",26,"layer1"
+          79,"Buffer: 1 layer1",0,"AcquireFenceSignaled",26,"layer1"
+          81,"Buffer: 1 layer1",0,"Dequeue",30,"layer1"
+          81,"APP_1 layer1",2,"30",30,"layer1"
+          83,"Buffer: 1 layer1",0,"Queue",30,"layer1"
+          83,"GPU_1 layer1",-1,"30",30,"layer1"
+          90,"Buffer: 1 layer2",0,"Dequeue",35,"layer2"
+          90,"APP_1 layer2",2,"35",35,"layer2"
+          92,"Buffer: 1 layer2",0,"Queue",35,"layer2"
+          92,"GPU_1 layer2",-1,"35",35,"layer2"
+        '''))
 
   # GPU Memory ftrace packets
   def test_gpu_mem_total(self):
     return DiffTestBlueprint(
         trace=Path('gpu_mem_total.py'),
-        query=Path('gpu_mem_total_test.sql'),
+        query='''
+          SELECT ct.name, ct.unit, c.ts, p.pid, cast_int!(c.value) AS value
+          FROM counter_track ct
+          LEFT JOIN process_counter_track pct USING (id)
+          LEFT JOIN process p USING (upid)
+          LEFT JOIN counter c ON c.track_id = ct.id
+          ORDER BY ts;
+        ''',
         out=Csv("""
-        "name","unit","description","ts","pid","value"
-        "GPU Memory","7","Total GPU memory used by the entire system",0,"[NULL]",123
-        "GPU Memory","7","Total GPU memory used by this process",0,1,100
-        "GPU Memory","7","Total GPU memory used by the entire system",5,"[NULL]",256
-        "GPU Memory","7","Total GPU memory used by this process",5,1,233
-        "GPU Memory","7","Total GPU memory used by the entire system",10,"[NULL]",123
-        "GPU Memory","7","Total GPU memory used by this process",10,1,0
+          "name","unit","ts","pid","value"
+          "GPU Memory","bytes",0,"[NULL]",123
+          "GPU Memory","bytes",0,1,100
+          "GPU Memory","bytes",5,"[NULL]",256
+          "GPU Memory","bytes",5,1,233
+          "GPU Memory","bytes",10,"[NULL]",123
+          "GPU Memory","bytes",10,1,0
         """))
 
   def test_gpu_mem_total_after_free_gpu_mem_total(self):
     return DiffTestBlueprint(
         trace=Path('gpu_mem_total_after_free.py'),
-        query=Path('gpu_mem_total_test.sql'),
+        query='''
+          SELECT ct.name, ct.unit, c.ts, p.pid, cast_int!(c.value) AS value
+          FROM counter_track ct
+          LEFT JOIN process_counter_track pct USING (id)
+          LEFT JOIN process p USING (upid)
+          LEFT JOIN counter c ON c.track_id = ct.id
+          ORDER BY ts;
+        ''',
         out=Csv("""
-        "name","unit","description","ts","pid","value"
-        "GPU Memory","7","Total GPU memory used by this process",0,1,100
-        "GPU Memory","7","Total GPU memory used by this process",5,1,233
-        "GPU Memory","7","Total GPU memory used by this process",10,1,50
+          "name","unit","ts","pid","value"
+          "GPU Memory","bytes",0,1,100
+          "GPU Memory","bytes",5,1,233
+          "GPU Memory","bytes",10,1,50
         """))
 
   # Clock sync
@@ -90,42 +155,52 @@ class GraphicsParser(TestSuite):
         query=Path('expected_frame_timeline_events_test.sql'),
         out=Csv("""
         "ts","dur","pid","display_frame_token","surface_frame_token","layer_name"
-        20,6,666,2,0,"[NULL]"
+        20,6,666,2,"[NULL]","[NULL]"
         21,15,1000,4,1,"Layer1"
-        40,6,666,4,0,"[NULL]"
+        40,6,666,4,"[NULL]","[NULL]"
         41,15,1000,6,5,"Layer1"
-        80,6,666,6,0,"[NULL]"
+        80,6,666,6,"[NULL]","[NULL]"
         90,16,1000,8,7,"Layer1"
-        120,6,666,8,0,"[NULL]"
-        140,6,666,12,0,"[NULL]"
+        120,6,666,8,"[NULL]","[NULL]"
+        140,6,666,12,"[NULL]","[NULL]"
         150,20,1000,15,14,"Layer1"
-        170,6,666,15,0,"[NULL]"
-        200,6,666,17,0,"[NULL]"
-        220,-1,666,18,0,"[NULL]"
-        220,10,666,18,0,"[NULL]"
+        170,6,666,15,"[NULL]","[NULL]"
+        200,6,666,17,"[NULL]","[NULL]"
+        220,-1,666,18,"[NULL]","[NULL]"
+        220,10,666,18,"[NULL]","[NULL]"
         """))
 
   def test_actual_frame_timeline_events(self):
     return DiffTestBlueprint(
         trace=Path('frame_timeline_events.py'),
-        query=Path('actual_frame_timeline_events_test.sql'),
+        query='''
+          SELECT ts, dur, process.pid, display_frame_token, surface_frame_token, layer_name,
+            present_type, on_time_finish, gpu_composition, jank_type, prediction_type, jank_tag, jank_severity_type
+          FROM
+            (SELECT t.*, process_track.name AS track_name FROM
+              process_track LEFT JOIN actual_frame_timeline_slice t
+              ON process_track.id = t.track_id) s
+          JOIN process USING(upid)
+          WHERE s.track_name = 'Actual Timeline'
+          ORDER BY ts;
+        ''',
         out=Csv("""
-        "ts","dur","pid","display_frame_token","surface_frame_token","layer_name","present_type","on_time_finish","gpu_composition","jank_type","prediction_type","jank_tag","jank_severity_type"
-        20,6,666,2,0,"[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
-        21,16,1000,4,1,"Layer1","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
-        41,33,1000,6,5,"Layer1","Late Present",0,0,"App Deadline Missed","Valid Prediction","Self Jank","Full"
-        42,5,666,4,0,"[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
-        80,110,1000,17,16,"Layer1","Unknown Present",0,0,"Unknown Jank","Expired Prediction","Self Jank","Partial"
-        81,7,666,6,0,"[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
-        90,16,1000,8,7,"Layer1","Early Present",1,0,"SurfaceFlinger Scheduling","Valid Prediction","Other Jank","Unknown"
-        108,4,666,8,0,"[NULL]","Early Present",1,0,"SurfaceFlinger Scheduling","Valid Prediction","Self Jank","Unknown"
-        148,8,666,12,0,"[NULL]","Late Present",0,0,"SurfaceFlinger Scheduling, SurfaceFlinger CPU Deadline Missed","Valid Prediction","Self Jank","Unknown"
-        150,17,1000,15,14,"Layer1","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
-        150,17,1000,15,14,"Layer2","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
-        170,6,666,15,0,"[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
-        200,6,666,17,0,"[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
-        245,-1,666,18,0,"[NULL]","Late Present",0,0,"SurfaceFlinger Stuffing","Valid Prediction","SurfaceFlinger Stuffing","Unknown"
-        245,15,666,18,0,"[NULL]","Dropped Frame",0,0,"Dropped Frame","Unspecified Prediction","Dropped Frame","Unknown"
+          "ts","dur","pid","display_frame_token","surface_frame_token","layer_name","present_type","on_time_finish","gpu_composition","jank_type","prediction_type","jank_tag","jank_severity_type"
+          20,6,666,2,"[NULL]","[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
+          21,16,1000,4,1,"Layer1","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
+          41,33,1000,6,5,"Layer1","Late Present",0,0,"App Deadline Missed","Valid Prediction","Self Jank","Full"
+          42,5,666,4,"[NULL]","[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
+          80,110,1000,17,16,"Layer1","Unknown Present",0,0,"Unknown Jank","Expired Prediction","Self Jank","Partial"
+          81,7,666,6,"[NULL]","[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
+          90,16,1000,8,7,"Layer1","Early Present",1,0,"SurfaceFlinger Scheduling","Valid Prediction","Other Jank","Unknown"
+          108,4,666,8,"[NULL]","[NULL]","Early Present",1,0,"SurfaceFlinger Scheduling","Valid Prediction","Self Jank","Unknown"
+          148,8,666,12,"[NULL]","[NULL]","Late Present",0,0,"SurfaceFlinger Scheduling, SurfaceFlinger CPU Deadline Missed","Valid Prediction","Self Jank","Unknown"
+          150,17,1000,15,14,"Layer1","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
+          150,17,1000,15,14,"Layer2","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
+          170,6,666,15,"[NULL]","[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
+          200,6,666,17,"[NULL]","[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank","None"
+          245,-1,666,18,"[NULL]","[NULL]","Late Present",0,0,"SurfaceFlinger Stuffing","Valid Prediction","SurfaceFlinger Stuffing","Unknown"
+          245,15,666,18,"[NULL]","[NULL]","Dropped Frame",0,0,"Dropped Frame","Unspecified Prediction","Dropped Frame","Unknown"
         """))
 
   # Video 4 Linux 2 related tests
@@ -193,110 +268,6 @@ class GraphicsParser(TestSuite):
         1345090746311,1167135,"CTX_DETACH_RESOURCE"
         """))
 
-  # TODO(b/294866695): Reenable
-  # mali GPU events
-  #def test_mali(self):
-  #  return DiffTestBlueprint(
-  #      trace=TextProto(r"""
-  #      packet {
-  #        ftrace_events {
-  #          cpu: 2
-  #          event {
-  #            timestamp: 751796307210
-  #            pid: 2857
-  #            mali_mali_KCPU_CQS_WAIT_START {
-  #              info_val1: 1
-  #              info_val2: 0
-  #              kctx_tgid: 2201
-  #              kctx_id: 10
-  #              id: 0
-  #            }
-  #          }
-  #          event {
-  #            timestamp: 751800621175
-  #            pid: 2857
-  #            mali_mali_KCPU_CQS_WAIT_END {
-  #              info_val1: 412313493488
-  #              info_val2: 0
-  #              kctx_tgid: 2201
-  #              kctx_id: 10
-  #              id: 0
-  #            }
-  #          }
-  #          event {
-  #            timestamp: 751800638997
-  #            pid: 2857
-  #            mali_mali_KCPU_CQS_SET {
-  #              info_val1: 412313493480
-  #              info_val2: 0
-  #              kctx_tgid: 2201
-  #              kctx_id: 10
-  #              id: 0
-  #            }
-  #          }
-  #        }
-  #      }
-  #      """),
-  #      query="""
-  #      SELECT ts, dur, name FROM slice WHERE name GLOB "mali_KCPU_CQS*";
-  #      """,
-  #      out=Csv("""
-  #      "ts","dur","name"
-  #      751796307210,4313965,"mali_KCPU_CQS_WAIT"
-  #      751800638997,0,"mali_KCPU_CQS_SET"
-  #      """))
-
-  #def test_mali_fence(self):
-  #  return DiffTestBlueprint(
-  #      trace=TextProto(r"""
-  #      packet {
-  #        ftrace_events {
-  #          cpu: 2
-  #          event {
-  #            timestamp: 751796307210
-  #            pid: 2857
-  #            mali_mali_KCPU_FENCE_WAIT_START {
-  #              info_val1: 1
-  #              info_val2: 0
-  #              kctx_tgid: 2201
-  #              kctx_id: 10
-  #              id: 0
-  #            }
-  #          }
-  #          event {
-  #            timestamp: 751800621175
-  #            pid: 2857
-  #            mali_mali_KCPU_FENCE_WAIT_END {
-  #              info_val1: 412313493488
-  #              info_val2: 0
-  #              kctx_tgid: 2201
-  #              kctx_id: 10
-  #              id: 0
-  #            }
-  #          }
-  #          event {
-  #            timestamp: 751800638997
-  #            pid: 2857
-  #            mali_mali_KCPU_FENCE_SIGNAL {
-  #              info_val1: 412313493480
-  #              info_val2: 0
-  #              kctx_tgid: 2201
-  #              kctx_id: 10
-  #              id: 0
-  #            }
-  #          }
-  #        }
-  #      }
-  #      """),
-  #      query="""
-  #      SELECT ts, dur, name FROM slice WHERE name GLOB "mali_KCPU_FENCE*";
-  #      """,
-  #      out=Csv("""
-  #      "ts","dur","name"
-  #      751796307210,4313965,"mali_KCPU_FENCE_WAIT"
-  #      751800638997,0,"mali_KCPU_FENCE_SIGNAL"
-  #      """))
-
   # Tests gpu_track with machine_id ID.
   def test_graphics_frame_events_machine_id(self):
     return DiffTestBlueprint(
@@ -312,4 +283,55 @@ class GraphicsParser(TestSuite):
           AND gpu_track.machine_id IS NOT NULL
         ORDER BY ts;
         """,
-        out=Path('graphics_frame_events.out'))
+        out=Csv('''
+          "ts","track_name","dur","slice_name","frame_number","layer_name"
+          1,"Buffer: 1 layer1",0,"Dequeue",11,"layer1"
+          1,"APP_1 layer1",3,"11",11,"layer1"
+          4,"Buffer: 1 layer1",0,"Queue",11,"layer1"
+          4,"GPU_1 layer1",2,"11",11,"layer1"
+          6,"Buffer: 1 layer1",0,"AcquireFenceSignaled",11,"layer1"
+          6,"Buffer: 2 layer2",0,"Dequeue",12,"layer2"
+          6,"APP_2 layer2",3,"12",12,"layer2"
+          7,"Buffer: 7 layer7",0,"unknown_event",15,"layer7"
+          8,"Buffer: 1 layer1",0,"Latch",11,"layer1"
+          8,"Buffer: 2 layer2",0,"AcquireFenceSignaled",12,"layer2"
+          8,"SF_1 layer1",6,"11",11,"layer1"
+          9,"Buffer: 2 layer2",0,"Queue",12,"layer2"
+          11,"Buffer: 2 layer2",0,"Latch",12,"layer2"
+          11,"SF_2 layer2",5,"12",12,"layer2"
+          14,"Buffer: 1 layer1",0,"PresentFenceSignaled",11,"layer1"
+          14,"Display_layer1",10,"11",11,"layer1"
+          16,"Buffer: 2 layer2",0,"PresentFenceSignaled",12,"layer2"
+          16,"Display_layer2",-1,"12",12,"layer2"
+          24,"Buffer: 1 layer1",0,"PresentFenceSignaled",13,"layer1"
+          24,"Display_layer1",-1,"13",13,"layer1"
+          31,"Buffer: 1 layer1",0,"Dequeue",21,"layer1"
+          31,"APP_1 layer1",3,"21",21,"layer1"
+          34,"Buffer: 1 layer1",0,"Queue",21,"layer1"
+          34,"GPU_1 layer1",-1,"21",21,"layer1"
+          37,"Buffer: 1 layer1",0,"Dequeue",22,"layer1"
+          37,"APP_1 layer1",4,"22",22,"layer1"
+          41,"Buffer: 1 layer1",0,"Queue",22,"layer1"
+          41,"GPU_1 layer1",5,"22",22,"layer1"
+          46,"Buffer: 1 layer1",0,"AcquireFenceSignaled",22,"layer1"
+          53,"Buffer: 2 layer2",0,"Dequeue",24,"layer2"
+          53,"APP_2 layer2",-1,"0",0,"layer2"
+          59,"Buffer: 2 layer2",0,"AcquireFenceSignaled",24,"layer2"
+          61,"Buffer: 2 layer2",0,"Latch",24,"layer2"
+          61,"SF_2 layer2",-1,"24",24,"layer2"
+          63,"Buffer: 1 layer1",0,"Dequeue",25,"layer1"
+          63,"APP_1 layer1",-1,"0",0,"layer1"
+          73,"Buffer: 1 layer1",0,"Dequeue",26,"layer1"
+          73,"APP_1 layer1",2,"26",26,"layer1"
+          75,"Buffer: 1 layer1",0,"Queue",26,"layer1"
+          75,"GPU_1 layer1",4,"26",26,"layer1"
+          79,"Buffer: 1 layer1",0,"AcquireFenceSignaled",26,"layer1"
+          81,"Buffer: 1 layer1",0,"Dequeue",30,"layer1"
+          81,"APP_1 layer1",2,"30",30,"layer1"
+          83,"Buffer: 1 layer1",0,"Queue",30,"layer1"
+          83,"GPU_1 layer1",-1,"30",30,"layer1"
+          90,"Buffer: 1 layer2",0,"Dequeue",35,"layer2"
+          90,"APP_1 layer2",2,"35",35,"layer2"
+          92,"Buffer: 1 layer2",0,"Queue",35,"layer2"
+          92,"GPU_1 layer2",-1,"35",35,"layer2"
+        '''))

@@ -34,6 +34,7 @@ from diff_tests.metrics.chrome.tests_rail_modes import ChromeRailModes
 from diff_tests.metrics.chrome.tests_scroll_jank import ChromeScrollJankMetrics
 from diff_tests.metrics.chrome.tests_touch_gesture import ChromeTouchGesture
 from diff_tests.metrics.codecs.tests import Codecs
+from diff_tests.metrics.common.tests import CloneDurationMetrics
 from diff_tests.metrics.frame_timeline.tests import FrameTimeline
 from diff_tests.metrics.graphics.tests import GraphicsMetrics
 from diff_tests.metrics.irq.tests import IRQ
@@ -50,6 +51,7 @@ from diff_tests.parser.android_fs.tests import AndroidFs
 from diff_tests.parser.android.tests import AndroidParser
 from diff_tests.parser.android.tests_android_input_event import AndroidInputEvent
 from diff_tests.parser.android.tests_bugreport import AndroidBugreport
+from diff_tests.parser.android.tests_dumpstate import AndroidDumpstate
 from diff_tests.parser.android.tests_games import AndroidGames
 from diff_tests.parser.android.tests_inputmethod_clients import InputMethodClients
 from diff_tests.parser.android.tests_inputmethod_manager_service import InputMethodManagerService
@@ -67,6 +69,7 @@ from diff_tests.parser.chrome.tests import ChromeParser
 from diff_tests.parser.chrome.tests_memory_snapshots import ChromeMemorySnapshots
 from diff_tests.parser.chrome.tests_v8 import ChromeV8Parser
 from diff_tests.parser.cros.tests import Cros
+from diff_tests.parser.etm.tests import Etm
 from diff_tests.parser.fs.tests import Fs
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
@@ -131,6 +134,7 @@ from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
 from diff_tests.stdlib.linux.memory import Memory
 from diff_tests.stdlib.linux.tests import LinuxTests
+from diff_tests.stdlib.pixel.tests import PixelStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
@@ -164,6 +168,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
   parser_tests = [
       *AndroidBugreport(index_path, 'parser/android',
                         'AndroidBugreport').fetch(),
+      *AndroidDumpstate(index_path, 'parser/android',
+                        'AndroidDumpstate').fetch(),
       *AndroidFs(index_path, 'parser/android_fs', 'AndroidFs').fetch(),
       *AndroidGames(index_path, 'parser/android', 'AndroidGames').fetch(),
       *AndroidParser(index_path, 'parser/android', 'AndroidParser').fetch(),
@@ -175,6 +181,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ChromeParser(index_path, 'parser/chrome', 'ChromeParser').fetch(),
       *ChromeV8Parser(index_path, 'parser/chrome', 'ChromeV8Parser').fetch(),
       *Cros(index_path, 'parser/cros', 'Cros').fetch(),
+      *Etm(index_path, 'parser/etm', 'Etm').fetch(),
       *Fs(index_path, 'parser/fs', 'Fs').fetch(),
       *Fuchsia(index_path, 'parser/fuchsia', 'Fuchsia').fetch(),
       *GraphicsDrmRelatedFtraceEvents(index_path, 'parser/graphics',
@@ -271,6 +278,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *GraphicsMetrics(index_path, 'metrics/graphics',
                        'GraphicsMetrics').fetch(),
       *IRQ(index_path, 'metrics/irq', 'IRQ').fetch(),
+      *CloneDurationMetrics(index_path, 'metrics/common',
+                            'CloneDurationMetrics').fetch(),
       *MemoryMetrics(index_path, 'metrics/memory', 'MemoryMetrics').fetch(),
       *NetworkMetrics(index_path, 'metrics/network', 'orkMetrics').fetch(),
       *Power(index_path, 'metrics/power', 'Power').fetch(),
@@ -343,6 +352,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *Viz(index_path, 'stdlib/viz', 'Viz').fetch(),
       *WattsonStdlib(index_path, 'stdlib/wattson', 'WattsonStdlib').fetch(),
       *HeapProfile(index_path, 'stdlib/android', 'HeapProfile').fetch(),
+      *PixelStdlib(index_path, 'stdlib/pixel', 'PixelStdlib').fetch(),
   ] + chrome_stdlib_tests
 
   syntax_tests = [

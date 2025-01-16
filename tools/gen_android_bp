@@ -116,6 +116,7 @@ target_host_supported = [
 
 target_vendor_available = [
     '//:libperfetto_client_experimental',
+    '//src/shared_lib:libperfetto_c',
 ]
 
 target_product_available = [

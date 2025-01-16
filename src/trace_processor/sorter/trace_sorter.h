@@ -27,13 +27,16 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -132,6 +135,15 @@ class TraceSorter {
     sorter_data_by_machine_.emplace_back(context);
   }
 
+  void PushAndroidDumpstateEvent(
+      int64_t timestamp,
+      const AndroidDumpstateEvent& event,
+      std::optional<MachineId> machine_id = std::nullopt) {
+    AppendNonFtraceEvent(timestamp,
+                         TimestampedEvent::Type::kAndroidDumpstateEvent, event,
+                         machine_id);
+  }
+
   void PushAndroidLogEvent(int64_t timestamp,
                            const AndroidLogEvent& event,
                            std::optional<MachineId> machine_id = std::nullopt) {
@@ -178,17 +190,15 @@ class TraceSorter {
 
   void PushJsonValue(int64_t timestamp,
                      std::string json_value,
-                     std::optional<int64_t> dur = std::nullopt) {
-    if (dur.has_value()) {
-      // We need to account for slices with duration by sorting them first: this
-      // requires us to use the slower comparator which takes this into account.
+                     const JsonEvent::Type& type) {
+    if (const auto* scoped = std::get_if<JsonEvent::Scoped>(&type); scoped) {
+      // We need to account for slices with duration by sorting them specially:
+      // this requires us to use the slower comparator which takes this into
+      // account.
       use_slow_sorting_ = true;
-      AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kJsonValueWithDur,
-                           JsonWithDurEvent{*dur, std::move(json_value)});
-      return;
     }
     AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kJsonValue,
-                         JsonEvent{std::move(json_value)});
+                         JsonEvent{std::move(json_value), type});
   }
 
   void PushFuchsiaRecord(int64_t timestamp, FuchsiaRecord fuchsia_record) {
@@ -338,6 +348,7 @@ class TraceSorter {
  private:
   struct TimestampedEvent {
     enum class Type : uint8_t {
+      kAndroidDumpstateEvent,
       kAndroidLogEvent,
       kEtwEvent,
       kFtraceEvent,
@@ -346,7 +357,6 @@ class TraceSorter {
       kInlineSchedWaking,
       kInstrumentsRow,
       kJsonValue,
-      kJsonValueWithDur,
       kLegacyV8CpuProfileEvent,
       kPerfRecord,
       kSpeRecord,
@@ -399,18 +409,26 @@ class TraceSorter {
       bool operator()(const TimestampedEvent& a,
                       const TimestampedEvent& b) const {
         int64_t a_key =
-            a.type() == Type::kJsonValueWithDur
-                ? std::numeric_limits<int64_t>::max() -
-                      buffer.Get<JsonWithDurEvent>(GetTokenBufferId(a))->dur
-                : std::numeric_limits<int64_t>::max();
+            KeyForType(buffer.Get<JsonEvent>(GetTokenBufferId(a))->type);
         int64_t b_key =
-            b.type() == Type::kJsonValueWithDur
-                ? std::numeric_limits<int64_t>::max() -
-                      buffer.Get<JsonWithDurEvent>(GetTokenBufferId(b))->dur
-                : std::numeric_limits<int64_t>::max();
+            KeyForType(buffer.Get<JsonEvent>(GetTokenBufferId(b))->type);
         return std::tie(a.ts, a_key, a.chunk_index, a.chunk_offset) <
                std::tie(b.ts, b_key, b.chunk_index, b.chunk_offset);
       }
+
+      static int64_t KeyForType(const JsonEvent::Type& type) {
+        switch (type.index()) {
+          case base::variant_index<JsonEvent::Type, JsonEvent::End>():
+            return std::numeric_limits<int64_t>::min();
+          case base::variant_index<JsonEvent::Type, JsonEvent::Scoped>():
+            return std::numeric_limits<int64_t>::max() -
+                   std::get<JsonEvent::Scoped>(type).dur;
+          default:
+            return std::numeric_limits<int64_t>::max();
+        }
+        PERFETTO_FATAL("For GCC");
+      }
+
       TraceTokenBuffer& buffer;
     };
   };
@@ -451,7 +469,6 @@ class TraceSorter {
         // after that index, instead, will need a sorting pass before moving
         // events to the next pipeline stage.
         if (sort_start_idx_ == 0) {
-          PERFETTO_DCHECK(events_.size() >= 2);
           sort_start_idx_ = events_.size() - 1;
           sort_min_ts_ = ts;
         } else {

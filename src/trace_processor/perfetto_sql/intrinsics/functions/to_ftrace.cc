@@ -615,7 +615,7 @@ SystraceSerializer::SystraceSerializer(TraceProcessorContext* context)
 
 SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
     uint32_t raw_row) {
-  const auto& raw = storage_->raw_table();
+  const auto& raw = storage_->ftrace_event_table();
 
   char line[4096];
   base::StringWriter writer(line, sizeof(line));
@@ -648,7 +648,7 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
 
 void SystraceSerializer::SerializePrefix(uint32_t raw_row,
                                          base::StringWriter* writer) {
-  const auto& raw = storage_->raw_table();
+  const auto& raw = storage_->ftrace_event_table();
   const auto& cpu_table = storage_->cpu_table();
 
   int64_t ts = raw.ts()[raw_row];

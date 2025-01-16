@@ -27,10 +27,27 @@ source_set("android_log_event") {
   ]
 }
 
+source_set("android_dumpstate_event") {
+  sources = [
+    "android_dumpstate_event.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base:base",
+    "../../containers",
+  ]
+}
+
 source_set("android_bugreport") {
   sources = [
+    "android_battery_stats_history_string_tracker.cc",
+    "android_battery_stats_history_string_tracker.h",
+    "android_battery_stats_reader.cc",
+    "android_battery_stats_reader.h",
     "android_bugreport_reader.cc",
     "android_bugreport_reader.h",
+    "android_dumpstate_event_parser_impl.cc",
+    "android_dumpstate_event_parser_impl.h",
     "android_dumpstate_reader.cc",
     "android_dumpstate_reader.h",
     "android_log_event_parser_impl.cc",
@@ -41,6 +58,7 @@ source_set("android_bugreport") {
     "chunked_line_reader.h",
   ]
   deps = [
+    ":android_dumpstate_event",
     ":android_log_event",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor",
@@ -63,6 +81,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":android_bugreport",
+    ":android_dumpstate_event",
     ":android_log_event",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",

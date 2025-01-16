@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/proto/track_event_parser.h"
 
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -42,6 +43,9 @@
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
@@ -49,6 +53,7 @@
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/debug_annotation_parser.h"
@@ -62,7 +67,6 @@
 #include "protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
-#include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
@@ -377,39 +381,40 @@ class TrackEventParser::EventImporter {
         track_event_tracker_->ReserveDescriptorTrack(track_uuid_, r);
         opt_track_id = track_event_tracker_->GetDescriptorTrack(
             track_uuid_, name_id_, packet_sequence_id_);
+
+        if (!opt_track_id) {
+          return base::ErrStatus(
+              "track_event_parser: unable to find track matching UUID %" PRIu64,
+              track_uuid_);
+        }
       }
       track_id_ = *opt_track_id;
 
-      auto tt_rr = storage_->thread_track_table().FindById(track_id_);
-      if (tt_rr) {
-        utid_ = tt_rr->utid();
+      auto rr = storage_->mutable_track_table()->FindById(track_id_);
+      if (rr && rr->utid()) {
+        utid_ = rr->utid();
         upid_ = storage_->thread_table()[*utid_].upid();
+      } else if (rr && rr->upid()) {
+        upid_ = rr->upid();
+        if (sequence_state_->pid_and_tid_valid()) {
+          auto pid = static_cast<uint32_t>(sequence_state_->pid());
+          auto tid = static_cast<uint32_t>(sequence_state_->tid());
+          UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
+          if (storage_->thread_table()[utid_candidate].upid() == upid_) {
+            legacy_passthrough_utid_ = utid_candidate;
+          }
+        }
       } else {
-        auto pt_rr = storage_->process_track_table().FindById(track_id_);
-        if (pt_rr) {
-          upid_ = pt_rr->upid();
-          if (sequence_state_->pid_and_tid_valid()) {
-            auto pid = static_cast<uint32_t>(sequence_state_->pid());
-            auto tid = static_cast<uint32_t>(sequence_state_->tid());
-            UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
-            if (storage_->thread_table()[utid_candidate].upid() == upid_) {
-              legacy_passthrough_utid_ = utid_candidate;
-            }
+        if (rr) {
+          StringPool::Id id = rr->name();
+          if (id.is_null()) {
+            rr->set_name(name_id_);
           }
-        } else {
-          auto* tracks = context_->storage->mutable_track_table();
-          auto t_rr = tracks->FindById(track_id_);
-          if (t_rr) {
-            StringPool::Id id = t_rr->name();
-            if (id.is_null()) {
-              t_rr->set_name(name_id_);
-            }
-          }
-          if (sequence_state_->pid_and_tid_valid()) {
-            auto pid = static_cast<uint32_t>(sequence_state_->pid());
-            auto tid = static_cast<uint32_t>(sequence_state_->tid());
-            legacy_passthrough_utid_ = procs->UpdateThread(tid, pid);
-          }
+        }
+        if (sequence_state_->pid_and_tid_valid()) {
+          auto pid = static_cast<uint32_t>(sequence_state_->pid());
+          auto tid = static_cast<uint32_t>(sequence_state_->tid());
+          legacy_passthrough_utid_ = procs->UpdateThread(tid, pid);
         }
       }
     } else {
@@ -445,7 +450,8 @@ class TrackEventParser::EventImporter {
         upid_ = storage_->thread_table()[*utid_].upid();
         track_id_ = track_tracker->InternThreadTrack(*utid_);
       } else {
-        track_id_ = track_event_tracker_->GetOrCreateDefaultDescriptorTrack();
+        track_id_ = *track_event_tracker_->GetDescriptorTrack(
+            TrackEventTracker::kDefaultDescriptorTrackUuid);
       }
     }
 
@@ -495,7 +501,7 @@ class TrackEventParser::EventImporter {
           id_scope = storage_->InternString(base::StringView(concat));
         }
 
-        track_id_ = context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
+        track_id_ = context_->track_tracker->InternLegacyAsyncTrack(
             name_id_, upid_.value_or(0), source_id, source_id_is_process_scoped,
             id_scope);
         legacy_passthrough_utid_ = utid_;
@@ -515,8 +521,9 @@ class TrackEventParser::EventImporter {
             }
             break;
           case LegacyEvent::SCOPE_GLOBAL:
-            track_id_ = context_->track_tracker->InternGlobalTrack(
-                tracks::legacy_chrome_global_instants, TrackTracker::AutoName(),
+            track_id_ = context_->track_tracker->InternTrack(
+                tracks::kLegacyGlobalInstantsBlueprint, tracks::Dimensions(),
+                tracks::BlueprintName(),
                 [this](ArgsTracker::BoundInserter& inserter) {
                   inserter.AddArg(
                       context_->storage->InternString("source"),
@@ -532,11 +539,15 @@ class TrackEventParser::EventImporter {
                   "Process-scoped instant event without process association");
             }
 
-            track_id_ = context_->track_tracker->InternProcessTrack(
-                tracks::chrome_process_instant, *upid_);
-            context_->args_tracker->AddArgsTo(track_id_).AddArg(
-                context_->storage->InternString("source"),
-                Variadic::String(context_->storage->InternString("chrome")));
+            track_id_ = context_->track_tracker->InternTrack(
+                tracks::kChromeProcessInstantBlueprint,
+                tracks::Dimensions(*upid_), tracks::BlueprintName(),
+                [this](ArgsTracker::BoundInserter& inserter) {
+                  inserter.AddArg(
+                      context_->storage->InternString("source"),
+                      Variadic::String(
+                          context_->storage->InternString("chrome")));
+                });
             legacy_passthrough_utid_ = utid_;
             utid_ = std::nullopt;
             break;
@@ -570,7 +581,7 @@ class TrackEventParser::EventImporter {
   base::Status ParseCounterEvent() {
     // Tokenizer ensures that TYPE_COUNTER events are associated with counter
     // tracks and have values.
-    PERFETTO_DCHECK(storage_->counter_track_table().FindById(track_id_));
+    PERFETTO_DCHECK(storage_->track_table().FindById(track_id_));
     PERFETTO_DCHECK(event_.has_counter_value() ||
                     event_.has_double_counter_value());
 
@@ -590,16 +601,25 @@ class TrackEventParser::EventImporter {
     // EventTracker expects counters to be pushed in order of their timestamps.
     // One more reason to switch to split begin/end events.
     if (thread_timestamp_) {
-      TrackId track_id =
-          context_->track_tracker->LegacyInternThreadCounterTrack(
-              parser_->counter_name_thread_time_id_, *utid_);
+      static constexpr auto kBlueprint = tracks::CounterBlueprint(
+          "thread_time", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint),
+          tracks::DynamicNameBlueprint());
+      TrackId track_id = context_->track_tracker->InternTrack(
+          kBlueprint, tracks::Dimensions(*utid_),
+          tracks::DynamicName(parser_->counter_name_thread_time_id_));
       context_->event_tracker->PushCounter(
           ts_, static_cast<double>(*thread_timestamp_), track_id);
     }
     if (thread_instruction_count_) {
-      TrackId track_id =
-          context_->track_tracker->LegacyInternThreadCounterTrack(
-              parser_->counter_name_thread_instruction_count_id_, *utid_);
+      static constexpr auto kBlueprint = tracks::CounterBlueprint(
+          "thread_instructions", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint),
+          tracks::DynamicNameBlueprint());
+      TrackId track_id = context_->track_tracker->InternTrack(
+          kBlueprint, tracks::Dimensions(*utid_),
+          tracks::DynamicName(
+              parser_->counter_name_thread_instruction_count_id_));
       context_->event_tracker->PushCounter(
           ts_, static_cast<double>(*thread_instruction_count_), track_id);
     }
@@ -648,7 +668,7 @@ class TrackEventParser::EventImporter {
 
     std::optional<TrackId> track_id = track_event_tracker_->GetDescriptorTrack(
         *track_uuid_it, kNullStringId, packet_sequence_id_);
-    auto counter_row = storage_->counter_track_table().FindById(*track_id);
+    auto counter_row = storage_->track_table().FindById(*track_id);
 
     double value = event_data_->extra_counter_values[index];
     context_->event_tracker->PushCounter(ts_, value, *track_id);
@@ -670,12 +690,18 @@ class TrackEventParser::EventImporter {
           "TrackEvent with phase B without thread association");
     }
 
-    auto* thread_slices = storage_->mutable_slice_table();
-    auto opt_slice_id = context_->slice_tracker->BeginTyped(
-        thread_slices, MakeThreadSliceRow(),
+    auto opt_slice_id = context_->slice_tracker->Begin(
+        ts_, track_id_, category_id_, name_id_,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
-
     if (opt_slice_id.has_value()) {
+      auto rr =
+          context_->storage->mutable_slice_table()->FindById(*opt_slice_id);
+      if (thread_timestamp_) {
+        rr->set_thread_ts(*thread_timestamp_);
+      }
+      if (thread_instruction_count_) {
+        rr->set_thread_instruction_count(*thread_instruction_count_);
+      }
       MaybeParseFlowEvents(opt_slice_id.value());
     }
     return base::OkStatus();
@@ -728,20 +754,22 @@ class TrackEventParser::EventImporter {
     if (duration_ns < 0)
       return base::ErrStatus("TrackEvent with phase X with negative duration");
 
-    auto* thread_slices = storage_->mutable_slice_table();
-    tables::SliceTable::Row row = MakeThreadSliceRow();
-    row.dur = duration_ns;
-    if (legacy_event_.has_thread_duration_us()) {
-      row.thread_dur = legacy_event_.thread_duration_us() * 1000;
-    }
-    if (legacy_event_.has_thread_instruction_delta()) {
-      row.thread_instruction_delta = legacy_event_.thread_instruction_delta();
-    }
-    auto opt_slice_id = context_->slice_tracker->ScopedTyped(
-        thread_slices, row,
+    auto opt_slice_id = context_->slice_tracker->Scoped(
+        ts_, track_id_, category_id_, name_id_, duration_ns,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
-
     if (opt_slice_id.has_value()) {
+      auto rr =
+          context_->storage->mutable_slice_table()->FindById(*opt_slice_id);
+      PERFETTO_CHECK(rr);
+      if (thread_timestamp_) {
+        rr->set_thread_ts(*thread_timestamp_);
+        rr->set_thread_dur(legacy_event_.thread_duration_us() * 1000);
+      }
+      if (thread_instruction_count_) {
+        rr->set_thread_instruction_count(*thread_instruction_count_);
+        rr->set_thread_instruction_delta(
+            legacy_event_.thread_instruction_delta());
+      }
       MaybeParseFlowEvents(opt_slice_id.value());
     }
     return base::OkStatus();
@@ -860,25 +888,23 @@ class TrackEventParser::EventImporter {
                          Variadic::String(phase_id));
       }
     };
+    opt_slice_id =
+        context_->slice_tracker->Scoped(ts_, track_id_, category_id_, name_id_,
+                                        duration_ns, std::move(args_inserter));
+    if (!opt_slice_id) {
+      return base::OkStatus();
+    }
     if (utid_) {
-      auto* thread_slices = storage_->mutable_slice_table();
-      tables::SliceTable::Row row = MakeThreadSliceRow();
-      row.dur = duration_ns;
+      auto rr =
+          context_->storage->mutable_slice_table()->FindById(*opt_slice_id);
       if (thread_timestamp_) {
-        row.thread_dur = duration_ns;
+        rr->set_thread_ts(*thread_timestamp_);
+        rr->set_thread_dur(duration_ns);
       }
       if (thread_instruction_count_) {
-        row.thread_instruction_delta = tidelta;
+        rr->set_thread_instruction_count(*thread_instruction_count_);
+        rr->set_thread_instruction_delta(tidelta);
       }
-      opt_slice_id = context_->slice_tracker->ScopedTyped(
-          thread_slices, row, std::move(args_inserter));
-    } else {
-      opt_slice_id = context_->slice_tracker->Scoped(
-          ts_, track_id_, category_id_, name_id_, duration_ns,
-          std::move(args_inserter));
-    }
-    if (!opt_slice_id.has_value()) {
-      return base::OkStatus();
     }
     MaybeParseFlowEvents(opt_slice_id.value());
     return base::OkStatus();
@@ -1040,10 +1066,9 @@ class TrackEventParser::EventImporter {
     if (!utid_)
       return base::ErrStatus("raw legacy event without thread association");
 
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
-    RawId id =
-        storage_->mutable_raw_table()
-            ->Insert({ts_, parser_->raw_legacy_event_id_, *utid_, 0, 0, ucpu})
+    tables::ChromeRawTable::Id id =
+        storage_->mutable_chrome_raw_table()
+            ->Insert({ts_, parser_->raw_legacy_event_id_, *utid_, 0})
             .id;
 
     auto inserter = context_->args_tracker->AddArgsTo(id);
@@ -1317,19 +1342,6 @@ class TrackEventParser::EventImporter {
     return base::OkStatus();
   }
 
-  tables::SliceTable::Row MakeThreadSliceRow() {
-    tables::SliceTable::Row row;
-    row.ts = ts_;
-    row.track_id = track_id_;
-    row.category = category_id_;
-    row.name = name_id_;
-    row.thread_ts = thread_timestamp_;
-    row.thread_dur = std::nullopt;
-    row.thread_instruction_count = thread_instruction_count_;
-    row.thread_instruction_delta = std::nullopt;
-    return row;
-  }
-
   TraceProcessorContext* context_;
   TrackEventTracker* track_event_tracker_;
   TraceStorage* storage_;
@@ -1453,9 +1465,6 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       event_category_key_id_(context_->storage->InternString("event.category")),
       event_name_key_id_(context_->storage->InternString("event.name")),
       chrome_string_lookup_(context->storage.get()),
-      counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
-                         context_->storage->InternString("count"),
-                         context_->storage->InternString("bytes")}},
       active_chrome_processes_tracker_(context) {
   args_parser_.AddParsingOverrideForField(
       "chrome_mojo_event_info.mojo_interface_method_iid",
@@ -1529,20 +1538,24 @@ void TrackEventParser::ParseTrackDescriptor(
 
   // Ensure that the track and its parents are resolved. This may start a new
   // process and/or thread (i.e. new upid/utid).
-  TrackId track_id = *track_event_tracker_->GetDescriptorTrack(
+  std::optional<TrackId> track_id = track_event_tracker_->GetDescriptorTrack(
       decoder.uuid(), kNullStringId, packet_sequence_id);
+  if (!track_id) {
+    context_->storage->IncrementStats(stats::track_event_parser_errors);
+    return;
+  }
 
   if (decoder.has_thread()) {
     UniqueTid utid = ParseThreadDescriptor(decoder.thread());
-    if (decoder.has_chrome_thread())
+    if (decoder.has_chrome_thread()) {
       ParseChromeThreadDescriptor(utid, decoder.chrome_thread());
+    }
   } else if (decoder.has_process()) {
     UniquePid upid =
         ParseProcessDescriptor(packet_timestamp, decoder.process());
-    if (decoder.has_chrome_process())
+    if (decoder.has_chrome_process()) {
       ParseChromeProcessDescriptor(upid, decoder.chrome_process());
-  } else if (decoder.has_counter()) {
-    ParseCounterDescriptor(track_id, decoder.counter());
+    }
   }
 
   // Override the name with the most recent name seen (after sorting by ts).
@@ -1554,12 +1567,12 @@ void TrackEventParser::ParseTrackDescriptor(
   } else if (decoder.has_atrace_name()) {
     name = decoder.atrace_name();
   }
-  if (name.data != nullptr) {
+  if (name.data) {
     auto* tracks = context_->storage->mutable_track_table();
     const StringId raw_name_id = context_->storage->InternString(name);
     const StringId name_id =
         context_->process_track_translation_table->TranslateName(raw_name_id);
-    tracks->FindById(track_id)->set_name(name_id);
+    tracks->FindById(*track_id)->set_name(name_id);
   }
 }
 
@@ -1655,40 +1668,6 @@ void TrackEventParser::ParseChromeThreadDescriptor(
   StringId name_id = chrome_string_lookup_.GetThreadName(decoder.thread_type());
   context_->process_tracker->UpdateThreadNameByUtid(
       utid, name_id, ThreadNamePriority::kTrackDescriptorThreadType);
-}
-
-void TrackEventParser::ParseCounterDescriptor(
-    TrackId track_id,
-    protozero::ConstBytes counter_descriptor) {
-  using protos::pbzero::CounterDescriptor;
-
-  CounterDescriptor::Decoder decoder(counter_descriptor);
-  auto* counter_tracks = context_->storage->mutable_counter_track_table();
-
-  size_t unit_index = static_cast<size_t>(decoder.unit());
-  if (unit_index >= counter_unit_ids_.size())
-    unit_index = CounterDescriptor::UNIT_UNSPECIFIED;
-
-  auto opt_rr = counter_tracks->FindById(track_id);
-  if (!opt_rr) {
-    context_->storage->IncrementStats(stats::track_event_parser_errors);
-    return;
-  }
-
-  auto& rr = *opt_rr;
-  switch (decoder.type()) {
-    case CounterDescriptor::COUNTER_UNSPECIFIED:
-      break;
-    case CounterDescriptor::COUNTER_THREAD_TIME_NS:
-      unit_index = CounterDescriptor::UNIT_TIME_NS;
-      rr.set_name(counter_name_thread_time_id_);
-      break;
-    case CounterDescriptor::COUNTER_THREAD_INSTRUCTION_COUNT:
-      unit_index = CounterDescriptor::UNIT_COUNT;
-      rr.set_name(counter_name_thread_instruction_count_id_);
-      break;
-  }
-  rr.set_unit(counter_unit_ids_[unit_index]);
 }
 
 void TrackEventParser::ParseTrackEvent(int64_t ts,

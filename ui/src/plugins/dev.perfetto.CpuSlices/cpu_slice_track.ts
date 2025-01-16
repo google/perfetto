@@ -22,7 +22,7 @@ import {
   drawTrackHoverTooltip,
 } from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
-import {Color} from '../../public/color';
+import {Color} from '../../base/color';
 import {colorForThread} from '../../components/colorizer';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
@@ -96,11 +96,16 @@ export class CpuSliceTrack implements Track {
 
   getDataset(): Dataset | undefined {
     return new SourceDataset({
-      src: 'select id, ts, dur, cpu from sched where utid != 0',
+      // TODO(stevegolton): Once we allow datasets to have more than one filter,
+      // move this where clause to a dataset filter and change this src to
+      // 'sched'.
+      src: 'select id, ts, dur, cpu, utid from sched where utid != 0',
       schema: {
         id: NUM,
         ts: LONG,
         dur: LONG,
+        cpu: NUM,
+        utid: NUM,
       },
       filter: {
         col: 'cpu',

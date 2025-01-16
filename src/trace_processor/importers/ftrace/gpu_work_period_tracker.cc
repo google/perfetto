@@ -22,11 +22,11 @@
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 
@@ -39,12 +39,12 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
                                                    protozero::ConstBytes blob) {
   protos::pbzero::GpuWorkPeriodFtraceEvent::Decoder evt(blob);
 
-  TrackTracker::DimensionsBuilder dims_builder =
-      context_->track_tracker->CreateDimensionsBuilder();
-  dims_builder.AppendGpu(evt.gpu_id());
-  dims_builder.AppendUid(static_cast<int32_t>(evt.uid()));
+  static constexpr auto kTrackBlueprint = tracks::SliceBlueprint(
+      "android_gpu_work_period",
+      tracks::DimensionBlueprints(tracks::kGpuDimensionBlueprint,
+                                  tracks::kUidDimensionBlueprint));
   TrackId track_id = context_->track_tracker->InternTrack(
-      tracks::android_gpu_work_period, std::move(dims_builder).Build());
+      kTrackBlueprint, {evt.gpu_id(), static_cast<int32_t>(evt.uid())});
 
   const auto duration =
       static_cast<int64_t>(evt.end_time_ns() - evt.start_time_ns());
@@ -63,10 +63,13 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
   row.track_id = track_id;
   row.category = kNullStringId;
   row.name = entry_name_id;
-  row.thread_ts = timestamp;
-  row.thread_dur = active_duration;
-  context_->slice_tracker->ScopedTyped(context_->storage->mutable_slice_table(),
-                                       row);
+  auto slice_id = context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, entry_name_id, duration);
+  if (slice_id) {
+    auto rr = context_->storage->mutable_slice_table()->FindById(*slice_id);
+    rr->set_thread_ts(timestamp);
+    rr->set_thread_dur(active_duration);
+  }
 }
 
 }  // namespace perfetto::trace_processor

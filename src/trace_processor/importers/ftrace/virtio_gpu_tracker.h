@@ -17,16 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_VIRTIO_GPU_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_VIRTIO_GPU_TRACKER_H_
 
-#include <deque>
-#include <memory>
+#include <cstdint>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -41,18 +39,6 @@ class VirtioGpuTracker {
 
  private:
   class VirtioGpuQueue {
-    TraceProcessorContext* context_;
-    StringId num_free_id_;
-    StringId latency_id_;
-    StringId queue_track_id_;
-
-    // Maps a seqno to the timestamp of a VirtioGpuCmdQueue.  The events
-    // come in pairs of VirtioGpuCmdQueue plus VirtioGpuCmdResponse and
-    // can be matched up via their seqno field.  To calculate the slice
-    // duration we need to lookup the timestamp of the matching CmdQueue
-    // event when we get the CmdResponse event.
-    base::FlatHashMap<uint32_t, int64_t> start_timestamps_;
-
    public:
     VirtioGpuQueue(TraceProcessorContext* context, const char* name);
 
@@ -62,6 +48,17 @@ class VirtioGpuTracker {
                         uint32_t type,
                         uint64_t fence_id);
     void HandleCmdResponse(int64_t timestamp, uint32_t seqno);
+
+   private:
+    TraceProcessorContext* context_;
+    base::StringView name_;
+
+    // Maps a seqno to the timestamp of a VirtioGpuCmdQueue.  The events
+    // come in pairs of VirtioGpuCmdQueue plus VirtioGpuCmdResponse and
+    // can be matched up via their seqno field.  To calculate the slice
+    // duration we need to lookup the timestamp of the matching CmdQueue
+    // event when we get the CmdResponse event.
+    base::FlatHashMap<uint32_t, int64_t> start_timestamps_;
   };
 
   VirtioGpuQueue virtgpu_control_queue_;
@@ -75,7 +72,6 @@ class VirtioGpuTracker {
                                  protozero::ConstBytes blob);
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_VIRTIO_GPU_TRACKER_H_

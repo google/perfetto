@@ -16,21 +16,26 @@
 
 #include "src/trace_processor/importers/proto/android_camera_event_module.h"
 
+#include <cinttypes>
+#include <cstdint>
+#include <utility>
+
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
-#include "src/trace_processor/importers/common/machine_tracker.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/trace/android/camera_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
@@ -73,26 +78,25 @@ void AndroidCameraEventModule::ParseTracePacketData(
 
 void AndroidCameraEventModule::InsertCameraFrameSlice(
     protozero::ConstBytes bytes) {
-  const auto android_camera_frame_event =
-      protos::pbzero::AndroidCameraFrameEvent::Decoder(bytes);
-  StringId track_name = context_->storage->InternString(
-      base::StackString<32>("Camera %d Frames",
-                            android_camera_frame_event.camera_id())
-          .string_view());
+  protos::pbzero::AndroidCameraFrameEvent::Decoder evt(bytes);
   StringId slice_name = context_->storage->InternString(
-      base::StackString<32>("Frame %" PRId64,
-                            android_camera_frame_event.frame_number())
+      base::StackString<32>("Frame %" PRId64, evt.frame_number())
           .string_view());
-  int64_t ts = android_camera_frame_event.request_processing_started_ns();
-  int64_t dur = android_camera_frame_event.responses_all_sent_ns() -
-                android_camera_frame_event.request_processing_started_ns();
-  auto track_set_id =
-      context_->async_track_set_tracker->InternGlobalTrackSet(track_name);
-  auto track_id =
-      context_->async_track_set_tracker->Scoped(track_set_id, ts, dur);
+  int64_t ts = evt.request_processing_started_ns();
+  int64_t dur =
+      evt.responses_all_sent_ns() - evt.request_processing_started_ns();
+
+  constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
+      "android_camera_event",
+      tracks::Dimensions(tracks::UintDimensionBlueprint("android_camera_id")),
+      tracks::FnNameBlueprint([](uint32_t camera_id) {
+        return base::StackString<32>("Camera %u Frames", camera_id);
+      }));
+
+  TrackId track_id = context_->track_compressor->InternScoped(
+      kBlueprint, tracks::Dimensions(evt.camera_id()), ts, dur);
   context_->slice_tracker->Scoped(ts, track_id, /*category=*/kNullStringId,
                                   slice_name, dur);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

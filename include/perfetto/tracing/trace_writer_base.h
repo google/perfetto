@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_TRACING_TRACE_WRITER_BASE_H_
 #define INCLUDE_PERFETTO_TRACING_TRACE_WRITER_BASE_H_
 
+#include "perfetto/base/export.h"
 #include "perfetto/protozero/message_handle.h"
 
 namespace perfetto {
@@ -34,7 +35,7 @@ class TracePacket;
 // chunk and will write into the shared buffer without any locking most of the
 // time.
 
-class TraceWriterBase {
+class PERFETTO_EXPORT_COMPONENT TraceWriterBase {
  public:
   virtual ~TraceWriterBase();
 

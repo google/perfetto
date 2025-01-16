@@ -46,6 +46,8 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.h"
+#include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
 #include "src/trace_processor/importers/archive/gzip_trace_parser.h"
@@ -110,10 +112,8 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dfs_weight_bounded.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h"
@@ -140,6 +140,14 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
 #include "src/trace_processor/importers/instruments/row_parser.h"
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+#include "src/trace_processor/importers/etm/etm_tracker.h"
+#include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
+#include "src/trace_processor/importers/etm/file_tracker.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
 #endif
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -338,7 +346,7 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
     const TraceStorage& storage) {
   int64_t start_ns = std::numeric_limits<int64_t>::max();
   int64_t end_ns = std::numeric_limits<int64_t>::min();
-  for (auto it = storage.raw_table().IterateRows(); it; ++it) {
+  for (auto it = storage.ftrace_event_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
   }
@@ -397,6 +405,11 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
+  context_.reader_registry->RegisterTraceReader<AndroidDumpstateReader>(
+      kAndroidDumpstateTraceType);
+  context_.android_dumpstate_event_parser =
+      std::make_unique<AndroidDumpstateEventParserImpl>(&context_);
+
   context_.reader_registry->RegisterTraceReader<AndroidLogReader>(
       kAndroidLogcatTraceType);
   context_.android_log_event_parser =
@@ -466,6 +479,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     context_.content_analyzer =
         std::make_unique<ProtoContentAnalyzer>(&context_);
   }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  perf_importer::PerfTracker::GetOrCreate(&context_)->RegisterAuxTokenizer(
+      PERF_AUXTRACE_CS_ETM, etm::CreateEtmV4StreamDemultiplexer);
+#endif
 
   // Add metrics to descriptor pool
   const std::vector<std::string> sanitized_extension_paths =
@@ -540,6 +558,12 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
 
   // Last opportunity to flush all pending data.
   Flush();
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  if (context_.etm_tracker) {
+    RETURN_IF_ERROR(etm::EtmTracker::GetOrCreate(&context_)->Finalize());
+  }
+#endif
 
   RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
   if (context_.perf_tracker) {
@@ -879,6 +903,14 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_->sqlite_engine()->RegisterVirtualTableModule<SliceMipmapOperator>(
       "__intrinsic_slice_mipmap",
       std::make_unique<SliceMipmapOperator::Context>(engine_.get()));
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  engine_->sqlite_engine()
+      ->RegisterVirtualTableModule<etm::EtmDecodeTraceVtable>(
+          "__intrinsic_etm_decode_trace", storage);
+  engine_->sqlite_engine()
+      ->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
+          "__intrinsic_etm_iterate_instruction_range", storage);
+#endif
 
   // Register stdlib packages.
   auto packages = GetStdlibPackages();
@@ -921,7 +953,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // that table in TraceStorage::ShrinkToFitTables.
   RegisterStaticTable(storage->mutable_machine_table());
   RegisterStaticTable(storage->mutable_arg_table());
-  RegisterStaticTable(storage->mutable_raw_table());
+  RegisterStaticTable(storage->mutable_chrome_raw_table());
   RegisterStaticTable(storage->mutable_ftrace_event_table());
   RegisterStaticTable(storage->mutable_thread_table());
   RegisterStaticTable(storage->mutable_process_table());
@@ -933,23 +965,12 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_sched_slice_table());
   RegisterStaticTable(storage->mutable_spurious_sched_wakeup_table());
   RegisterStaticTable(storage->mutable_thread_state_table());
-  RegisterStaticTable(storage->mutable_gpu_slice_table());
 
   RegisterStaticTable(storage->mutable_track_table());
-  RegisterStaticTable(storage->mutable_thread_track_table());
-  RegisterStaticTable(storage->mutable_process_track_table());
-  RegisterStaticTable(storage->mutable_cpu_track_table());
-  RegisterStaticTable(storage->mutable_gpu_track_table());
 
   RegisterStaticTable(storage->mutable_counter_table());
 
-  RegisterStaticTable(storage->mutable_counter_track_table());
-  RegisterStaticTable(storage->mutable_process_counter_track_table());
-  RegisterStaticTable(storage->mutable_thread_counter_track_table());
-  RegisterStaticTable(storage->mutable_cpu_counter_track_table());
-  RegisterStaticTable(storage->mutable_gpu_counter_track_table());
   RegisterStaticTable(storage->mutable_gpu_counter_group_table());
-  RegisterStaticTable(storage->mutable_perf_counter_track_table());
 
   RegisterStaticTable(storage->mutable_heap_graph_object_table());
   RegisterStaticTable(storage->mutable_heap_graph_reference_table());
@@ -976,11 +997,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
 
   RegisterStaticTable(storage->mutable_vulkan_memory_allocations_table());
 
-  RegisterStaticTable(storage->mutable_graphics_frame_slice_table());
-
-  RegisterStaticTable(storage->mutable_expected_frame_timeline_slice_table());
-  RegisterStaticTable(storage->mutable_actual_frame_timeline_slice_table());
-
   RegisterStaticTable(storage->mutable_android_network_packets_table());
 
   RegisterStaticTable(storage->mutable_v8_isolate_table());
@@ -994,6 +1010,12 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
 
   RegisterStaticTable(storage->mutable_jit_code_table());
   RegisterStaticTable(storage->mutable_jit_frame_table());
+
+  RegisterStaticTable(storage->mutable_etm_v4_configuration_table());
+  RegisterStaticTable(storage->mutable_etm_v4_session_table());
+  RegisterStaticTable(storage->mutable_etm_v4_trace_table());
+  RegisterStaticTable(storage->mutable_elf_file_table());
+  RegisterStaticTable(storage->mutable_file_table());
 
   RegisterStaticTable(storage->mutable_spe_record_table());
   RegisterStaticTable(storage->mutable_mmap_record_table());
@@ -1037,8 +1059,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_->RegisterStaticTableFunction(
       std::make_unique<ExperimentalFlamegraph>(&context_));
   engine_->RegisterStaticTableFunction(
-      std::make_unique<ExperimentalCounterDur>(storage->counter_table()));
-  engine_->RegisterStaticTableFunction(
       std::make_unique<ExperimentalSliceLayout>(
           context_.storage->mutable_string_pool(), &storage->slice_table()));
   engine_->RegisterStaticTableFunction(std::make_unique<TableInfo>(
@@ -1059,8 +1079,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       ConnectedFlow::Mode::kPrecedingFlow, context_.storage.get()));
   engine_->RegisterStaticTableFunction(std::make_unique<ConnectedFlow>(
       ConnectedFlow::Mode::kFollowingFlow, context_.storage.get()));
-  engine_->RegisterStaticTableFunction(std::make_unique<ExperimentalSchedUpid>(
-      storage->sched_slice_table(), storage->thread_table()));
   engine_->RegisterStaticTableFunction(
       std::make_unique<ExperimentalAnnotatedStack>(&context_));
   engine_->RegisterStaticTableFunction(
@@ -1199,6 +1217,17 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
       });
   *trace_proto = trace.SerializeAsArray();
   return base::OkStatus();
+}
+
+base::Status TraceProcessorImpl::RegisterFileContent(
+    [[maybe_unused]] const std::string& path,
+    [[maybe_unused]] TraceBlobView content) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  return etm::FileTracker::GetOrCreate(&context_)->AddFile(path,
+                                                           std::move(content));
+#else
+  return base::OkStatus();
+#endif
 }
 
 }  // namespace perfetto::trace_processor

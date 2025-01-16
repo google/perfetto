@@ -17,9 +17,9 @@
 -- also process data.
 CREATE PERFETTO TABLE linux_kernel_threads(
     -- Upid of kernel thread. Alias of |process.upid|.
-    upid LONG,
+    upid JOINID(process.id),
     -- Utid of kernel thread. Alias of |thread.utid|.
-    utid LONG,
+    utid JOINID(thread.id),
     -- Pid of kernel thread. Alias of |process.pid|.
     pid LONG,
     -- Tid of kernel thread. Alias of |process.pid|.

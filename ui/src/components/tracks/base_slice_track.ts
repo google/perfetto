@@ -21,7 +21,7 @@ import {
   drawTrackHoverTooltip,
 } from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
-import {colorCompare} from '../../public/color';
+import {colorCompare} from '../../base/color';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {TrackEventDetails} from '../../public/selection';
 import {featureFlags} from '../../core/feature_flags';
@@ -221,7 +221,11 @@ export abstract class BaseSliceTrack<
   protected abstract getRowSpec(): RowT;
   onSliceOver(_args: OnSliceOverArgs<SliceT>): void {}
   onSliceOut(_args: OnSliceOutArgs<SliceT>): void {}
-  onSliceClick(_args: OnSliceClickArgs<SliceT>): void {}
+
+  // By default, clicked slices create track selections
+  onSliceClick({slice}: OnSliceClickArgs<Slice>): void {
+    this.trace.selection.selectTrackEvent(this.uri, slice.id);
+  }
 
   // The API contract of onUpdatedSlices() is:
   //  - I am going to draw these slices in the near future.
@@ -691,6 +695,9 @@ export abstract class BaseSliceTrack<
       // the full derived T["slice"] (e.g. CpuSlice) in the
       // rowToSlice() method.
       slices.push(this.rowToSliceInternal(it));
+    }
+    for (const incomplete of this.incomplete) {
+      maxDataDepth = Math.max(maxDataDepth, incomplete.depth);
     }
     this.maxDataDepth = maxDataDepth;
     this.onUpdatedSlices(slices);

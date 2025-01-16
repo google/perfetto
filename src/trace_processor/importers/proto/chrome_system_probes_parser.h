@@ -39,12 +39,6 @@ class ChromeSystemProbesParser {
   TraceProcessorContext* const context_;
 
   const StringId is_peak_rss_resettable_id_;
-
-  // Maps a proto field number for memcounters in ProcessStats::Process to
-  // their StringId. Keep kProcStatsProcessSize equal to 1 + max proto field
-  // id of ProcessStats::Process. Also update SystemProbesParser.
-  static constexpr size_t kProcStatsProcessSize = 24;
-  std::array<StringId, kProcStatsProcessSize> proc_stats_process_names_{};
 };
 
 }  // namespace trace_processor

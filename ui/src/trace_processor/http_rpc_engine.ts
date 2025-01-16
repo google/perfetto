@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import protos from '../protos';
 import {fetchWithTimeout} from '../base/http_utils';
 import {assertExists} from '../base/logging';
-import {StatusResult} from '../protos';
 import {EngineBase} from '../trace_processor/engine';
 
 const RPC_CONNECT_TIMEOUT_MS = 2000;
 
 export interface HttpRpcState {
   connected: boolean;
-  status?: StatusResult;
+  status?: protos.StatusResult;
   failure?: string;
 }
 
@@ -112,7 +112,7 @@ export class HttpRpcEngine extends EngineBase {
       } else {
         const buf = new Uint8Array(await resp.arrayBuffer());
         httpRpcState.connected = true;
-        httpRpcState.status = StatusResult.decode(buf);
+        httpRpcState.status = protos.StatusResult.decode(buf);
       }
     } catch (err) {
       httpRpcState.failure = `${err}`;
@@ -126,6 +126,7 @@ export class HttpRpcEngine extends EngineBase {
 
   [Symbol.dispose]() {
     this.disposed = true;
+    this.connected = false;
     const websocket = this.websocket;
     this.websocket = undefined;
     websocket?.close();

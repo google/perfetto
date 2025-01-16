@@ -89,21 +89,21 @@ class PinCujScopedJank implements MetricHandler {
     const tableWithJankyFramesName = `_janky_frames_during_cuj_from_metric_key_${Math.floor(Math.random() * 1_000_000)}`;
 
     const createJankyCujFrameTable = `
-    CREATE OR REPLACE PERFETTO TABLE ${tableWithJankyFramesName} AS
-    SELECT
-      f.vsync as id,
-      f.ts AS ts,
-      f.dur as dur
-    FROM android_jank_cuj_frame f LEFT JOIN android_jank_cuj cuj USING (cuj_id)
-    WHERE cuj.process_name = "${processName}"
-    AND cuj_name = "${cuj}" ${jankTypeFilter}
+      CREATE OR REPLACE PERFETTO TABLE ${tableWithJankyFramesName} AS
+      SELECT
+        f.vsync as id,
+        f.ts AS ts,
+        f.dur as dur
+      FROM android_jank_cuj_frame f LEFT JOIN android_jank_cuj cuj USING (cuj_id)
+      WHERE cuj.process_name = "${processName}"
+      AND cuj_name = "${cuj}" ${jankTypeFilter}
     `;
 
     await ctx.engine.query(createJankyCujFrameTable);
 
     const jankyFramesDuringCujQuery = `
-        SELECT id, ts, dur
-        FROM ${tableWithJankyFramesName}
+      SELECT id, ts, dur
+      FROM ${tableWithJankyFramesName}
     `;
 
     const trackName = jankTypeDisplayName + ' missed frames in ' + processName;
@@ -126,13 +126,11 @@ class PinCujScopedJank implements MetricHandler {
 
   private async focusOnFirstJank(ctx: Trace, tableWithJankyFramesName: string) {
     const queryForFirstJankyFrame = `
-        SELECT slice_id, track_id
-        FROM slice
-        WHERE type = "actual_frame_timeline_slice"
-          AND name =
-              CAST(
-                      (SELECT id FROM ${tableWithJankyFramesName} LIMIT 1)
-                  AS VARCHAR(20));
+      SELECT id as slice_id, track_id
+      FROM actual_frame_timeline_slice
+      WHERE name = cast_string!(
+        (SELECT id FROM ${tableWithJankyFramesName} LIMIT 1)
+      );
     `;
     const queryResult = await ctx.engine.query(queryForFirstJankyFrame);
     if (queryResult.numRows() === 0) {

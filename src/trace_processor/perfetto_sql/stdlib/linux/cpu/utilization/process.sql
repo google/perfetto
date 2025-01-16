@@ -26,7 +26,7 @@ CREATE PERFETTO FUNCTION cpu_process_utilization_per_period(
     -- Length of the period on which utilization should be averaged.
     interval LONG,
     -- Upid of the process.
-    upid LONG
+    upid JOINID(process.id)
 )
 RETURNS TABLE(
   -- Timestamp of start of a second.
@@ -57,7 +57,7 @@ SELECT * FROM _cpu_avg_utilization_per_period!($interval, sched_for_upid);
 -- first and last period might have lower then real utilization.
 CREATE PERFETTO FUNCTION cpu_process_utilization_per_second(
   -- Upid of the process.
-  upid LONG
+  upid JOINID(process.id)
 )
 RETURNS TABLE (
   -- Timestamp of start of a second.
@@ -76,7 +76,7 @@ SELECT * FROM cpu_process_utilization_per_period(time_from_s(1), $upid);
 -- Aggregated CPU statistics for each process.
 CREATE PERFETTO TABLE cpu_cycles_per_process(
   -- Unique process id
-  upid LONG,
+  upid JOINID(process.id),
   -- Sum of CPU millicycles
   millicycles LONG,
   -- Sum of CPU megacycles
@@ -111,8 +111,8 @@ CREATE PERFETTO FUNCTION cpu_cycles_per_process_in_interval(
     dur LONG
 )
 RETURNS TABLE(
-  -- Unique process id. Joinable with `process.id`.
-  upid LONG,
+  -- Unique process id.
+  upid JOINID(process.id),
   -- Sum of CPU millicycles
   millicycles LONG,
   -- Sum of CPU megacycles

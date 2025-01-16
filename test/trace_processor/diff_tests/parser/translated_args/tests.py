@@ -25,7 +25,21 @@ class TranslatedArgs(TestSuite):
     return DiffTestBlueprint(
         trace=Path('java_class_name_arg.textproto'),
         query=Path('chrome_args_test.sql'),
-        out=Path('java_class_name_arg.out'))
+        out=Csv('''
+          "flat_key","key","int_value","string_value"
+          "android_view_dump.activity.name","android_view_dump.activity[0].name","[NULL]","A1"
+          "android_view_dump.activity.view.class_name","android_view_dump.activity[0].view[0].class_name","[NULL]","class_A"
+          "android_view_dump.activity.view.class_name","android_view_dump.activity[0].view[1].class_name","[NULL]","def"
+          "android_view_dump.activity.view.class_name","android_view_dump.activity[0].view[2].class_name","[NULL]","ghi"
+          "android_view_dump.activity.name","android_view_dump.activity[1].name","[NULL]","B1"
+          "android_view_dump.activity.view.class_name","android_view_dump.activity[1].view[0].class_name","[NULL]","class_J"
+          "event.category","event.category","[NULL]","cat1"
+          "event.name","event.name","[NULL]","name1"
+          "is_root_in_scope","is_root_in_scope",1,"[NULL]"
+          "source","source","[NULL]","descriptor"
+          "trace_id","trace_id",0,"[NULL]"
+          "track_uuid","track_uuid",0,"[NULL]"
+        '''))
 
   def test_chrome_histogram(self):
     return DiffTestBlueprint(
@@ -131,12 +145,13 @@ class TranslatedArgs(TestSuite):
     return DiffTestBlueprint(
         trace=Path('process_track_name.textproto'),
         query="""
-        SELECT
-          name
-        FROM track
-        WHERE
-          name IS NOT NULL
-          AND type in ('process_track', 'process_counter_track')
+        SELECT name
+        FROM process_track
+        WHERE name IS NOT NULL
+        UNION ALL
+        SELECT name
+        FROM process_counter_track
+        WHERE name IS NOT NULL
         ORDER BY name;
         """,
         out=Csv("""

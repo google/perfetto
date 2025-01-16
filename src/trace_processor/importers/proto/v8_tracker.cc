@@ -51,6 +51,7 @@ using ::perfetto::protos::pbzero::InternedV8Isolate;
 using ::perfetto::protos::pbzero::InternedV8JsFunction;
 using ::perfetto::protos::pbzero::InternedV8JsScript;
 using ::perfetto::protos::pbzero::InternedV8WasmScript;
+using ::perfetto::protos::pbzero::V8CodeMove;
 using ::perfetto::protos::pbzero::V8InternalCode;
 using ::perfetto::protos::pbzero::V8JsCode;
 using ::perfetto::protos::pbzero::V8RegExpCode;
@@ -518,6 +519,24 @@ void V8Tracker::AddRegExpCode(int64_t timestamp,
 
   context_->storage->mutable_v8_regexp_code_table()->Insert(
       {jit_code_id, isolate_id, pattern});
+}
+
+void V8Tracker::MoveCode(int64_t timestamp,
+                         UniqueTid utid,
+                         IsolateId isolate_id,
+                         const V8CodeMove::Decoder& code) {
+  if (!code.has_from_instruction_start_address())
+    return;
+
+  const AddressRange code_range = AddressRange::FromStartAndSize(
+      code.from_instruction_start_address(), code.instruction_size_bytes());
+  JitCache* const jit_cache = FindJitCache(isolate_id, code_range);
+  if (!jit_cache) {
+    return;
+  }
+
+  jit_cache->MoveCode(timestamp, utid, code.from_instruction_start_address(),
+                      code.to_instruction_start_address());
 }
 
 StringId V8Tracker::InternV8String(const V8String::Decoder& v8_string) {

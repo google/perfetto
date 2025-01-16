@@ -43,6 +43,10 @@ SELECT TraceMetadata(
     FROM track JOIN slice ON track.id = slice.track_id
     WHERE track.name = 'Trace Triggers'
   ),
+  'trace_causal_trigger', (
+      SELECT str_value FROM metadata
+      WHERE name = 'trace_trigger'
+  ),
   'trace_config_pbtxt', (
     SELECT str_value FROM metadata
     WHERE name = 'trace_config_pbtxt'

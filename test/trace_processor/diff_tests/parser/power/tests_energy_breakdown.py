@@ -34,7 +34,7 @@ class PowerEnergyBreakdown(TestSuite):
           EXTRACT_ARG(source_arg_set_id, 'consumer_type') AS consumer_type,
           EXTRACT_ARG(source_arg_set_id, 'ordinal') AS ordinal
         FROM track
-        WHERE classification = 'android_energy_estimation_breakdown';
+        WHERE type = 'android_energy_estimation_breakdown';
         """,
         out=Csv("""
         "consumer_id","name","consumer_type","ordinal"
@@ -66,7 +66,7 @@ class PowerEnergyBreakdown(TestSuite):
           ) AS consumer_id,
           EXTRACT_ARG(dimension_arg_set_id, 'uid') AS uid
         FROM track
-        WHERE classification = 'android_energy_estimation_breakdown_per_uid';
+        WHERE type = 'android_energy_estimation_breakdown_per_uid';
         """,
         out=Csv("""
         "consumer_id","uid"
@@ -85,7 +85,7 @@ class PowerEnergyBreakdown(TestSuite):
           EXTRACT_ARG(dimension_arg_set_id, 'uid') AS uid,
           name
         FROM track
-        WHERE classification = 'android_energy_estimation_breakdown_per_uid'
+        WHERE type = 'android_energy_estimation_breakdown_per_uid'
           AND machine_id IS NOT NULL;
         """,
         out=Csv("""
@@ -110,7 +110,7 @@ class PowerEnergyBreakdown(TestSuite):
           EXTRACT_ARG(source_arg_set_id, 'consumer_type') AS consumer_type,
           EXTRACT_ARG(source_arg_set_id, 'ordinal') AS ordinal
         FROM track
-        WHERE classification = 'android_energy_estimation_breakdown'
+        WHERE type = 'android_energy_estimation_breakdown'
           AND machine_id IS NOT NULL;
         """,
         out=Csv("""

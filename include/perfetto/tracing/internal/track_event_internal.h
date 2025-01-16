@@ -259,22 +259,42 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
       TrackEventIncrementalState* incr_state,
       const TrackEventTlsState& tls_state,
       const TraceTimestamp& timestamp) {
-    auto it_and_inserted = incr_state->seen_tracks.insert(track.uuid);
-    if (PERFETTO_LIKELY(!it_and_inserted.second))
-      return;
-    WriteTrackDescriptor(track, trace_writer, incr_state, tls_state, timestamp);
+    uint64_t uuid = track.uuid;
+    if (uuid) {
+      auto it_and_inserted = incr_state->seen_tracks.insert(uuid);
+      if (PERFETTO_LIKELY(!it_and_inserted.second))
+        return;
+      uuid = WriteTrackDescriptor(track, trace_writer, incr_state, tls_state,
+                                  timestamp);
+    }
+    while (uuid) {
+      auto it_and_inserted = incr_state->seen_tracks.insert(uuid);
+      if (PERFETTO_LIKELY(!it_and_inserted.second))
+        return;
+      std::optional<TrackRegistry::TrackInfo> track_info =
+          TrackRegistry::Get()->FindTrackInfo(uuid);
+      if (!track_info) {
+        return;
+      }
+      TrackRegistry::WriteTrackDescriptor(
+          std::move(track_info->desc),
+          NewTracePacket(trace_writer, incr_state, tls_state, timestamp));
+      uuid = track_info->parent_uuid;
+    }
   }
 
   // Unconditionally write a track descriptor into the trace.
+  //
+  // Returns the parent track uuid.
   template <typename TrackType>
-  static void WriteTrackDescriptor(const TrackType& track,
-                                   TraceWriterBase* trace_writer,
-                                   TrackEventIncrementalState* incr_state,
-                                   const TrackEventTlsState& tls_state,
-                                   const TraceTimestamp& timestamp) {
+  static uint64_t WriteTrackDescriptor(const TrackType& track,
+                                       TraceWriterBase* trace_writer,
+                                       TrackEventIncrementalState* incr_state,
+                                       const TrackEventTlsState& tls_state,
+                                       const TraceTimestamp& timestamp) {
     ResetIncrementalStateIfRequired(trace_writer, incr_state, tls_state,
                                     timestamp);
-    TrackRegistry::Get()->SerializeTrack(
+    return TrackRegistry::Get()->SerializeTrack(
         track, NewTracePacket(trace_writer, incr_state, tls_state, timestamp));
   }
 

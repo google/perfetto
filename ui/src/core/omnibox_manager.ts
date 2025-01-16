@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {OmniboxManager, PromptOption} from '../public/omnibox';
+import {OmniboxManager, PromptChoices} from '../public/omnibox';
 import {raf} from './raf_scheduler';
 
 export enum OmniboxMode {
@@ -24,8 +24,8 @@ export enum OmniboxMode {
 
 interface Prompt {
   text: string;
-  options?: PromptOption[];
-  resolve(result: string | undefined): void;
+  options?: ReadonlyArray<{key: string; displayName: string}>;
+  resolve(result: unknown): void;
 }
 
 const defaultMode = OmniboxMode.Search;
@@ -79,7 +79,6 @@ export class OmniboxManagerImpl implements OmniboxManager {
   focus(cursorPlacement?: number): void {
     this._focusOmniboxNextRender = true;
     this._pendingCursorPlacement = cursorPlacement;
-    raf.scheduleFullRedraw();
   }
 
   clearFocusFlag(): void {
@@ -92,7 +91,6 @@ export class OmniboxManagerImpl implements OmniboxManager {
     this._focusOmniboxNextRender = focus;
     this._omniboxSelectionIndex = 0;
     this.rejectPendingPrompt();
-    raf.scheduleFullRedraw();
   }
 
   showStatusMessage(msg: string, durationMs = 2000) {
@@ -104,7 +102,6 @@ export class OmniboxManagerImpl implements OmniboxManager {
       }, durationMs);
     }
     this._statusMessageContainer = statusMessageContainer;
-    raf.scheduleFullRedraw();
   }
 
   get statusMessage(): string | undefined {
@@ -113,23 +110,44 @@ export class OmniboxManagerImpl implements OmniboxManager {
 
   // Start a prompt. If options are supplied, the user must pick one from the
   // list, otherwise the input is free-form text.
-  prompt(text: string, options?: PromptOption[]): Promise<string | undefined> {
+  prompt(text: string): Promise<string | undefined>;
+  prompt(
+    text: string,
+    options?: ReadonlyArray<string>,
+  ): Promise<string | undefined>;
+  prompt<T>(text: string, options?: PromptChoices<T>): Promise<T | undefined>;
+  prompt<T>(
+    text: string,
+    choices?: ReadonlyArray<string> | PromptChoices<T>,
+  ): Promise<string | T | undefined> {
     this._mode = OmniboxMode.Prompt;
     this._omniboxSelectionIndex = 0;
     this.rejectPendingPrompt();
+    this._focusOmniboxNextRender = true;
 
-    const promise = new Promise<string | undefined>((resolve) => {
+    if (choices && 'getName' in choices) {
+      return new Promise<T | undefined>((resolve) => {
+        const choiceMap = new Map(
+          choices.values.map((choice) => [choices.getName(choice), choice]),
+        );
+        this._pendingPrompt = {
+          text,
+          options: Array.from(choiceMap.keys()).map((key) => ({
+            key,
+            displayName: key,
+          })),
+          resolve: (key: string) => resolve(choiceMap.get(key)),
+        };
+      });
+    }
+
+    return new Promise<string | undefined>((resolve) => {
       this._pendingPrompt = {
         text,
-        options,
+        options: choices?.map((value) => ({key: value, displayName: value})),
         resolve,
       };
     });
-
-    this._focusOmniboxNextRender = true;
-    raf.scheduleFullRedraw();
-
-    return promise;
   }
 
   // Resolve the pending prompt with a value to return to the prompter.
@@ -153,7 +171,6 @@ export class OmniboxManagerImpl implements OmniboxManager {
     this.setMode(defaultMode, focus);
     this._omniboxSelectionIndex = 0;
     this._statusMessageContainer = {};
-    raf.scheduleFullRedraw();
   }
 
   private rejectPendingPrompt() {

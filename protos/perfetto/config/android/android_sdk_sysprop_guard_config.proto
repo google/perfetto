@@ -52,7 +52,7 @@ message AndroidSdkSyspropGuardConfig {
   //   - debug.tracing.ctl.renderengine.skia_use_perfetto_track_events
   //
   // Does not affect actual track_event data *collection*, which must be
-  // configured seperately.
+  // configured separately.
   optional bool surfaceflinger_skia_track_events = 1;
 
   // If true, configures HWUI apps to initialize Skia's Perfetto integration
@@ -73,7 +73,7 @@ message AndroidSdkSyspropGuardConfig {
   //   - debug.tracing.ctl.hwui.skia_use_perfetto_track_events.<package.name>
   //
   // Does not affect actual track_event data *collection*, which must be
-  // configured seperately.
+  // configured separately.
   optional bool hwui_skia_track_events = 2;
 
   // If non-empty, hwui_skia_track_events applies to only the packages listed.

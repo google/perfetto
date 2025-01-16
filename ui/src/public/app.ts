@@ -21,6 +21,7 @@ import {PluginManager} from './plugin';
 import {Trace} from './trace';
 import {PageManager} from './page';
 import {FeatureFlagManager} from './feature_flag';
+import {Raf} from './raf';
 
 /**
  * The API endpoint to interact programmaticaly with the UI before a trace has
@@ -52,9 +53,10 @@ export interface App {
    */
   readonly trace?: Trace;
 
-  // TODO(primiano): this should be needed in extremely rare cases. We should
-  // probably switch to mithril auto-redraw at some point.
-  scheduleFullRedraw(force?: 'force'): void;
+  /**
+   * Used to schedule things.
+   */
+  readonly raf: Raf;
 
   /**
    * Navigate to a new page.

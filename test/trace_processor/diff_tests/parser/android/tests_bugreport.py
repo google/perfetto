@@ -20,6 +20,65 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class AndroidBugreport(TestSuite):
+  def test_android_bugreport_battery_stats(self):
+    return DiffTestBlueprint(
+        trace=DataPath('bugreport-crosshatch-SPB5.zip'),
+        query="""
+        WITH first_100_events AS (
+          SELECT ts, slice.name, dur
+          FROM slice
+          JOIN track on slice.track_id = track.id
+          WHERE track.name LIKE 'battery_stats.%'
+          ORDER BY 1, 2, 3 ASC
+          LIMIT 100
+        ),
+        first_100_states AS (
+          SELECT ts, name, value
+          FROM counter
+          JOIN counter_track on counter.track_id = counter_track.id
+          WHERE name LIKE 'battery_stats.%'
+          ORDER BY 1, 2, 3 ASC
+          LIMIT 100
+        )
+        SELECT * FROM first_100_events
+        UNION ALL
+        SELECT * FROM first_100_states;
+        """,
+        out=Path('android_bugreport_battery_stats_test.out'))
+
+  def test_android_bugreport_battery_stats_counts(self):
+    return DiffTestBlueprint(
+        trace=DataPath('bugreport-crosshatch-SPB5.zip'),
+        query="""
+        WITH event_counts(type, count) AS ( VALUES
+          ('battery_stats_history_events', (
+              SELECT
+                  COUNT(1)
+              FROM slice
+              JOIN track
+                  ON slice.track_id = track.id
+              WHERE
+                  track.name LIKE 'battery_stats.%'
+            )
+          ),
+          ('battery_stats_history_states', (
+              SELECT
+                  COUNT(1)
+              FROM counter
+              JOIN counter_track
+                  ON counter.track_id = counter_track.id
+              WHERE
+                  name LIKE 'battery_stats.%'
+            )
+          )
+        )
+        SELECT * FROM event_counts
+        """,
+        out=Csv("""
+        "type","count"
+        "battery_stats_history_events",4237
+        "battery_stats_history_states",12245
+        """))
 
   def test_android_bugreport_logs(self):
     return DiffTestBlueprint(
@@ -64,17 +123,17 @@ class AndroidBugreport(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('bugreport-crosshatch-SPB5.zip'),
         query="""
-        SELECT *
+        SELECT id, parent_id, name, size, trace_type, processing_order
         FROM __intrinsic_trace_file
         WHERE trace_type <> "unknown"
         ORDER BY processing_order
         """,
         out=Csv("""
-        "id","type","parent_id","name","size","trace_type","processing_order"
-        0,"__intrinsic_trace_file","[NULL]","[NULL]",6220586,"zip",0
-        16,"__intrinsic_trace_file",0,"FS/data/misc/logd/logcat.01",2169697,"android_logcat",1
-        15,"__intrinsic_trace_file",0,"FS/data/misc/logd/logcat",2152073,"android_logcat",2
-        1,"__intrinsic_trace_file",0,"bugreport-crosshatch-SPB5.210812.002-2021-08-24-23-35-40.txt",43132864,"android_dumpstate",3
+        "id","parent_id","name","size","trace_type","processing_order"
+        0,"[NULL]","[NULL]",6220586,"zip",0
+        16,0,"FS/data/misc/logd/logcat.01",2169697,"android_logcat",1
+        15,0,"FS/data/misc/logd/logcat",2152073,"android_logcat",2
+        1,0,"bugreport-crosshatch-SPB5.210812.002-2021-08-24-23-35-40.txt",43132864,"android_dumpstate",3
         """))
 
   def test_android_bugreport_trace_types(self):

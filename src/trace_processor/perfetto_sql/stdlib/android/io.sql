@@ -49,13 +49,13 @@ ORDER BY sum DESC;
 -- Aggregates f2fs_write stats by inode and thread.
 CREATE PERFETTO VIEW _android_io_f2fs_write_stats(
   -- Utid of the thread.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Tid of the thread.
   tid LONG,
   -- Name of the thread.
   thread_name STRING,
   -- Upid of the process.
-  upid LONG,
+  upid JOINID(process.id),
   -- Pid of the process.
   pid LONG,
   -- Name of the thread.
@@ -77,7 +77,7 @@ WITH
       EXTRACT_ARG(arg_set_id, 'dev') AS dev,
       EXTRACT_ARG(arg_set_id, 'ino') AS ino,
       EXTRACT_ARG(arg_set_id, 'copied') AS copied
-    FROM raw
+    FROM ftrace_event
     WHERE name GLOB 'f2fs_write_end*'
   )
 SELECT

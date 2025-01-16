@@ -14,21 +14,25 @@
  * limitations under the License.
  */
 
+#include <cinttypes>
+#include <cstddef>
 #include <cstdint>
-#include <limits>
+#include <functional>
+#include <optional>
+#include <utility>
 
-#include <stdint.h>
-
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 constexpr uint32_t kMaxDepth = 512;
 }
@@ -144,13 +148,6 @@ std::optional<SliceId> SliceTracker::StartSlice(
     TrackId track_id,
     SetArgsCallback args_callback,
     std::function<SliceId()> inserter) {
-  // At this stage all events should be globally timestamp ordered.
-  if (timestamp < prev_timestamp_) {
-    context_->storage->IncrementStats(stats::slice_out_of_order);
-    return std::nullopt;
-  }
-  prev_timestamp_ = timestamp;
-
   auto& track_info = stacks_[track_id];
   auto& stack = track_info.slice_stack;
 
@@ -213,14 +210,7 @@ std::optional<SliceId> SliceTracker::CompleteSlice(
     TrackId track_id,
     SetArgsCallback args_callback,
     std::function<std::optional<uint32_t>(const SlicesStack&)> finder) {
-  // At this stage all events should be globally timestamp ordered.
-  if (timestamp < prev_timestamp_) {
-    context_->storage->IncrementStats(stats::slice_out_of_order);
-    return std::nullopt;
-  }
-  prev_timestamp_ = timestamp;
-
-  auto it = stacks_.Find(track_id);
+  auto* it = stacks_.Find(track_id);
   if (!it)
     return std::nullopt;
 
@@ -426,8 +416,8 @@ int64_t SliceTracker::GetStackHash(const SlicesStack& stack) {
   const auto& slices = context_->storage->slice_table();
 
   base::Hasher hash;
-  for (size_t i = 0; i < stack.size(); i++) {
-    auto ref = stack[i].row.ToRowReference(slices);
+  for (const auto& i : stack) {
+    auto ref = i.row.ToRowReference(slices);
     hash.Update(ref.category().value_or(kNullStringId).raw_id());
     hash.Update(ref.name().value_or(kNullStringId).raw_id());
   }
@@ -456,5 +446,4 @@ void SliceTracker::StackPush(TrackId track_id,
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

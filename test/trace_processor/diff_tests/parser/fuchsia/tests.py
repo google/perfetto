@@ -86,16 +86,16 @@ class Fuchsia(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('fuchsia_trace.fxt'),
         query="""
-        SELECT track.type AS type, depth, count(*) AS count
+        SELECT depth, count(*) AS count
         FROM slice
         JOIN track ON slice.track_id = track.id
-        GROUP BY track.type, depth
-        ORDER BY track.type, depth;
+        GROUP BY depth
+        ORDER BY depth;
         """,
         out=Csv("""
-        "type","depth","count"
-        "thread_track",0,2153
-        "thread_track",1,1004
+        "depth","count"
+        0,2153
+        1,1004
         """))
 
   def test_fuchsia_smoke_instants(self):
@@ -175,23 +175,22 @@ class Fuchsia(TestSuite):
         query="""
         SELECT
           id,
-          name,
-          type
+          name
         FROM track
         LIMIT 10;
         """,
         out=Csv("""
-        "id","name","type"
-        0,"[NULL]","thread_track"
-        1,"[NULL]","thread_track"
-        2,"[NULL]","thread_track"
-        3,"[NULL]","thread_track"
-        4,"[NULL]","thread_track"
-        5,"cpu_usage:average_cpu_percentage:0","process_counter_track"
-        6,"[NULL]","thread_track"
-        7,"[NULL]","thread_track"
-        8,"[NULL]","thread_track"
-        9,"[NULL]","thread_track"
+        "id","name"
+        0,"[NULL]"
+        1,"[NULL]"
+        2,"[NULL]"
+        3,"[NULL]"
+        4,"[NULL]"
+        5,"cpu_usage:average_cpu_percentage:0"
+        6,"[NULL]"
+        7,"[NULL]"
+        8,"[NULL]"
+        9,"[NULL]"
         """))
 
   # Smoke test a high-CPU trace.
@@ -199,13 +198,35 @@ class Fuchsia(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('fuchsia_workstation.fxt'),
         query="""
-        SELECT track.type AS type, depth, count(*) AS count
+        SELECT depth, count(*) AS count
         FROM slice
         JOIN track ON slice.track_id = track.id
-        GROUP BY track.type, depth
-        ORDER BY track.type, depth;
+        GROUP BY depth
+        ORDER BY depth;
         """,
-        out=Path('fuchsia_workstation_smoke_slices.out'))
+        out=Csv('''
+          "depth","count"
+          0,15283
+          1,11621
+          2,10182
+          3,1927
+          4,4001
+          5,2543
+          6,1856
+          7,2209
+          8,2200
+          9,1672
+          10,353
+          11,331
+          12,304
+          13,246
+          14,207
+          15,175
+          16,114
+          17,38
+          18,12
+          19,1
+        '''))
 
   def test_fuchsia_workstation_smoke_args(self):
     return DiffTestBlueprint(

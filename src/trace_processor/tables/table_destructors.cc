@@ -16,8 +16,10 @@
 
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
+#include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
+#include "src/trace_processor/tables/macros_internal.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/perf_tables_py.h"
@@ -29,8 +31,7 @@
 #include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace macros_internal {
 // macros_internal.h
 MacroTable::~MacroTable() = default;
@@ -48,12 +49,19 @@ AndroidInputEventDispatchTable::~AndroidInputEventDispatchTable() = default;
 // counter_tables_py.h
 CounterTable::~CounterTable() = default;
 
+// etm_tables.py
+ElfFileTable::~ElfFileTable() = default;
+EtmV4ConfigurationTable::~EtmV4ConfigurationTable() = default;
+EtmV4SessionTable::~EtmV4SessionTable() = default;
+EtmV4TraceTable::~EtmV4TraceTable() = default;
+FileTable::~FileTable() = default;
+
 // jit_tables.py
 JitCodeTable::~JitCodeTable() = default;
 JitFrameTable::~JitFrameTable() = default;
 
 // metadata_tables_py.h
-RawTable::~RawTable() = default;
+ChromeRawTable::~ChromeRawTable() = default;
 FtraceEventTable::~FtraceEventTable() = default;
 ArgTable::~ArgTable() = default;
 ExpMissingChromeProcTable::~ExpMissingChromeProcTable() = default;
@@ -98,25 +106,11 @@ ThreadStateTable::~ThreadStateTable() = default;
 // slice_tables_py.h
 SliceTable::~SliceTable() = default;
 FlowTable::~FlowTable() = default;
-GpuSliceTable::~GpuSliceTable() = default;
-GraphicsFrameSliceTable::~GraphicsFrameSliceTable() = default;
-ExpectedFrameTimelineSliceTable::~ExpectedFrameTimelineSliceTable() = default;
-ActualFrameTimelineSliceTable::~ActualFrameTimelineSliceTable() = default;
 ExperimentalFlatSliceTable::~ExperimentalFlatSliceTable() = default;
 AndroidNetworkPacketsTable::~AndroidNetworkPacketsTable() = default;
 
 // track_tables_py.h
 TrackTable::~TrackTable() = default;
-ProcessTrackTable::~ProcessTrackTable() = default;
-ThreadTrackTable::~ThreadTrackTable() = default;
-CpuTrackTable::~CpuTrackTable() = default;
-GpuTrackTable::~GpuTrackTable() = default;
-CounterTrackTable::~CounterTrackTable() = default;
-ThreadCounterTrackTable::~ThreadCounterTrackTable() = default;
-ProcessCounterTrackTable::~ProcessCounterTrackTable() = default;
-CpuCounterTrackTable::~CpuCounterTrackTable() = default;
-GpuCounterTrackTable::~GpuCounterTrackTable() = default;
-PerfCounterTrackTable::~PerfCounterTrackTable() = default;
 
 // trace_proto_tables_py.h
 ExperimentalProtoPathTable::~ExperimentalProtoPathTable() = default;
@@ -156,5 +150,4 @@ WindowManagerShellTransitionHandlersTable::
 
 }  // namespace tables
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

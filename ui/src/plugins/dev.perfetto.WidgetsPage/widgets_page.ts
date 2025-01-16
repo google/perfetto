@@ -55,9 +55,11 @@ import {TagInput} from '../../widgets/tag_input';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
 import {Chip, ChipBar} from '../../widgets/chip';
-import {TrackWidget} from '../../widgets/track_widget';
-import {scheduleFullRedraw} from '../../widgets/raf';
+import {TrackShell} from '../../widgets/track_shell';
 import {CopyableLink} from '../../widgets/copyable_link';
+import {VirtualOverlayCanvas} from '../../components/widgets/virtual_overlay_canvas';
+import {SplitPanel} from '../../widgets/split_panel';
+import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -310,7 +312,6 @@ function PortalButton() {
           intent: Intent.Primary,
           onclick: () => {
             portalOpen = !portalOpen;
-            scheduleFullRedraw();
           },
         }),
         portalOpen &&
@@ -362,7 +363,6 @@ function ControlledPopup() {
           label: 'Close Popup',
           onclick: () => {
             popupOpen = !popupOpen;
-            scheduleFullRedraw();
           },
         }),
       );
@@ -498,7 +498,6 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       label: key,
       onchange: () => {
         this.optValues[key] = !Boolean(this.optValues[key]);
-        scheduleFullRedraw();
       },
     });
   }
@@ -512,7 +511,6 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
         value: this.optValues[key],
         oninput: (e: Event) => {
           this.optValues[key] = (e.target as HTMLInputElement).value;
-          scheduleFullRedraw();
         },
       }),
     );
@@ -530,7 +528,6 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
           this.optValues[key] = Number.parseInt(
             (e.target as HTMLInputElement).value,
           );
-          scheduleFullRedraw();
         },
       }),
     );
@@ -550,7 +547,6 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
           onchange: (e: Event) => {
             const el = e.target as HTMLSelectElement;
             this.optValues[key] = el.value;
-            scheduleFullRedraw();
           },
         },
         optionElements,
@@ -642,14 +638,12 @@ function TagInputDemo() {
         onTagAdd: (tag) => {
           tags.push(tag);
           tagInputValue = '';
-          scheduleFullRedraw();
         },
         onChange: (value) => {
           tagInputValue = value;
         },
         onTagRemove: (index) => {
           tags.splice(index, 1);
-          scheduleFullRedraw();
         },
       });
     },
@@ -666,7 +660,6 @@ function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
         selectedOption: selectedIdx,
         onOptionSelected: (num) => {
           selectedIdx = num;
-          scheduleFullRedraw();
         },
       });
     },
@@ -866,7 +859,6 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
               diffs.forEach(({id, checked}) => {
                 options[id] = checked;
               });
-              scheduleFullRedraw();
             },
             ...rest,
           }),
@@ -893,7 +885,6 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
               diffs.forEach(({id, checked}) => {
                 options[id] = checked;
               });
-              scheduleFullRedraw();
             },
             ...rest,
           }),
@@ -1025,7 +1016,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
                     {
                       icon: Icons.ContextMenu,
                     },
-                    'SELECT * FROM raw WHERE id = 123',
+                    'SELECT * FROM ftrace_event WHERE id = 123',
                   ),
                 },
                 m(MenuItem, {
@@ -1273,7 +1264,6 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
                 offset: rowOffset,
                 rows,
               };
-              scheduleFullRedraw();
             },
           };
           return m(VirtualTable, attrs);
@@ -1330,22 +1320,29 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         },
       }),
       m(WidgetShowcase, {
-        label: 'Track',
-        description: `A track`,
+        label: 'TrackShell',
+        description: `The Mithril parts of a track (the shell, mainly).`,
         renderWidget: (opts) => {
-          const {buttons, chips, multipleTracks, ...rest} = opts;
+          const {buttons, chips, multipleTracks, error, ...rest} = opts;
           const dummyButtons = () => [
             m(Button, {icon: 'info', compact: true}),
             m(Button, {icon: 'settings', compact: true}),
           ];
           const dummyChips = () => ['foo', 'bar'];
 
-          const renderTrack = () =>
-            m(TrackWidget, {
-              buttons: Boolean(buttons) ? dummyButtons() : undefined,
-              chips: Boolean(chips) ? dummyChips() : undefined,
-              ...rest,
-            });
+          const renderTrack = (children?: m.Children) =>
+            m(
+              TrackShell,
+              {
+                buttons: Boolean(buttons) ? dummyButtons() : undefined,
+                chips: Boolean(chips) ? dummyChips() : undefined,
+                error: Boolean(error)
+                  ? new Error('An error has occurred')
+                  : undefined,
+                ...rest,
+              },
+              children,
+            );
 
           return m(
             '',
@@ -1359,17 +1356,123 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         },
         initialOpts: {
           title: 'This is the title of the track',
+          subtitle: 'This is the subtitle of the track',
           buttons: true,
           chips: true,
           heightPx: 32,
-          indentationLevel: 3,
           collapsible: true,
           collapsed: true,
-          isSummary: false,
+          summary: false,
           highlight: false,
           error: false,
           multipleTracks: false,
           reorderable: false,
+          depth: 0,
+          lite: false,
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'Virtual Overlay Canvas',
+        description: `A scrolling container that draws a virtual canvas over
+          the top of it's content and keeps it in the viewport to make it appear
+          like there is one big canvas over the top of the content.`,
+        renderWidget: () => {
+          const width = 200;
+          const rowCount = 65536;
+          const rowHeight = 20;
+          return m(
+            VirtualOverlayCanvas,
+            {
+              className: 'virtual-canvas',
+              scrollAxes: 'y',
+              onCanvasRedraw({ctx, canvasRect}) {
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 1;
+
+                ctx.font = '20px Arial';
+                ctx.fillStyle = 'black';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+
+                for (let i = 0; i < rowCount; i++) {
+                  const rect = {
+                    left: 0,
+                    top: i * rowHeight,
+                    right: width,
+                    bottom: i * rowHeight + rowHeight,
+                  };
+                  if (canvasRect.overlaps(rect)) {
+                    ctx.strokeRect(0, i * rowHeight, width, rowHeight);
+                    ctx.fillText(`Row: ${i}`, 0, i * rowHeight);
+                  }
+                }
+              },
+            },
+            m('', {
+              style: {height: `${rowCount * rowHeight}px`, width: `${width}px`},
+            }),
+          );
+        },
+        initialOpts: {},
+      }),
+
+      m(WidgetShowcase, {
+        label: 'SplitPanel',
+        description: `Horizontal split panel with draggable handle and controls.`,
+        renderWidget: (opts) => {
+          return m(
+            '',
+            {style: {height: '400px', width: '400px', border: 'solid 2px red'}},
+            m(
+              SplitPanel,
+              {
+                drawerContent: 'Drawer Content',
+                handleContent: Boolean(opts.handleContent) && 'Handle Content',
+              },
+              'Main Content',
+            ),
+          );
+        },
+        initialOpts: {
+          handleContent: false,
+        },
+      }),
+
+      m(WidgetShowcase, {
+        label: 'TabbedSplitPanel',
+        description: `SplitPanel + tabs.`,
+        renderWidget: (opts) => {
+          return m(
+            '',
+            {style: {height: '400px', width: '400px', border: 'solid 2px red'}},
+            m(
+              TabbedSplitPanel,
+              {
+                leftHandleContent:
+                  Boolean(opts.leftContent) &&
+                  m(Button, {icon: 'Menu', compact: true}),
+                tabs: [
+                  {
+                    key: 'foo',
+                    title: 'Foo',
+                    content: 'Foo content',
+                    hasCloseButton: opts.showCloseButtons,
+                  },
+                  {
+                    key: 'bar',
+                    title: 'Bar',
+                    content: 'Bar content',
+                    hasCloseButton: opts.showCloseButtons,
+                  },
+                ],
+              },
+              'Main Content',
+            ),
+          );
+        },
+        initialOpts: {
+          leftContent: true,
+          showCloseButtons: true,
         },
       }),
     );
@@ -1402,7 +1505,6 @@ class ModalShowcase implements m.ClassComponent {
         },
         view: function (vnode: m.Vnode<{}, {progress: number}>) {
           vnode.state.progress = (vnode.state.progress + 1) % 100;
-          scheduleFullRedraw();
           return m(
             'div',
             m('div', 'You should see an animating progress bar'),

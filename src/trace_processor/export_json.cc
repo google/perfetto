@@ -28,6 +28,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
@@ -36,12 +37,15 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/export_json.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -500,28 +504,24 @@ class JsonExporter {
           inf_value_(Json::StaticString("Infinity")),
           neg_inf_value_(Json::StaticString("-Infinity")) {
       const auto& arg_table = storage_->arg_table();
-      uint32_t count = arg_table.row_count();
-      if (count == 0) {
-        args_sets_.resize(1, empty_value_);
-        return;
-      }
-      args_sets_.resize(arg_table[count - 1].arg_set_id() + 1, empty_value_);
-
+      Json::Value* cur_args_ptr = nullptr;
+      uint32_t cur_args_set_id = std::numeric_limits<uint32_t>::max();
       for (auto it = arg_table.IterateRows(); it; ++it) {
         ArgSetId set_id = it.arg_set_id();
+        if (set_id != cur_args_set_id) {
+          cur_args_ptr =
+              args_sets_.Insert(set_id, Json::Value(Json::objectValue)).first;
+          cur_args_set_id = set_id;
+        }
         const char* key = storage->GetString(it.key()).c_str();
         Variadic value = storage_->GetArgValue(it.row_number().row_number());
-        AppendArg(set_id, key, VariadicToJson(value));
+        AppendArg(cur_args_ptr, key, VariadicToJson(value));
       }
       PostprocessArgs();
     }
 
-    const Json::Value& GetArgs(ArgSetId set_id) const {
-      // If |set_id| was empty and added to the storage last, it may not be in
-      // args_sets_.
-      if (set_id > args_sets_.size())
-        return empty_value_;
-      return args_sets_[set_id];
+    const Json::Value& GetArgs(std::optional<ArgSetId> set_id) const {
+      return set_id ? *args_sets_.Find(*set_id) : empty_value_;
     }
 
    private:
@@ -563,15 +563,13 @@ class JsonExporter {
       PERFETTO_FATAL("Not reached");  // For gcc.
     }
 
-    void AppendArg(ArgSetId set_id,
-                   const std::string& key,
-                   const Json::Value& value) {
-      Json::Value* target = &args_sets_[set_id];
+    static void AppendArg(Json::Value* target,
+                          const std::string& key,
+                          const Json::Value& value) {
       for (base::StringSplitter parts(key, '.'); parts.Next();) {
         if (PERFETTO_UNLIKELY(!target->isNull() && !target->isObject())) {
           PERFETTO_DLOG("Malformed arguments. Can't append %s to %s.",
-                        key.c_str(),
-                        args_sets_[set_id].toStyledString().c_str());
+                        key.c_str(), target->toStyledString().c_str());
           return;
         }
         std::string key_part = parts.cur_token();
@@ -589,8 +587,7 @@ class JsonExporter {
                                                     bracketpos - 1);
             if (PERFETTO_UNLIKELY(!target->isNull() && !target->isArray())) {
               PERFETTO_DLOG("Malformed arguments. Can't append %s to %s.",
-                            key.c_str(),
-                            args_sets_[set_id].toStyledString().c_str());
+                            key.c_str(), target->toStyledString().c_str());
               return;
             }
             std::optional<uint32_t> index = base::StringToUInt32(s);
@@ -608,7 +605,8 @@ class JsonExporter {
     }
 
     void PostprocessArgs() {
-      for (Json::Value& args : args_sets_) {
+      for (auto it = args_sets_.GetIterator(); it; ++it) {
+        auto& args = it.value();
         // Move all fields from "debug" key to upper level.
         if (args.isMember("debug")) {
           Json::Value debug = args["debug"];
@@ -645,7 +643,7 @@ class JsonExporter {
     }
 
     const TraceStorage* storage_;
-    std::vector<Json::Value> args_sets_;
+    base::FlatHashMap<ArgSetId, Json::Value> args_sets_;
     const Json::Value empty_value_;
     const Json::Value nan_value_;
     const Json::Value inf_value_;
@@ -815,8 +813,6 @@ class JsonExporter {
                          !(*track_args)["is_root_in_scope"].asBool();
       }
 
-      const auto& thread_track = storage_->thread_track_table();
-      const auto& process_track = storage_->process_track_table();
       const auto& virtual_track_slices = storage_->virtual_track_slices();
 
       int64_t duration_ns = it.dur();
@@ -848,11 +844,9 @@ class JsonExporter {
         }
       }
 
-      auto tt_rr = thread_track.FindById(track_id);
-      if (tt_rr && !is_child_track) {
+      if (track_row_ref.utid() && !is_child_track) {
         // Synchronous (thread) slice or instant event.
-        UniqueTid utid = tt_rr->utid();
-        auto pid_and_tid = UtidToPidAndTid(utid);
+        auto pid_and_tid = UtidToPidAndTid(*track_row_ref.utid());
         event["pid"] = Json::Int(pid_and_tid.first);
         event["tid"] = Json::Int(pid_and_tid.second);
 
@@ -897,13 +891,11 @@ class JsonExporter {
       } else if (is_child_track ||
                  (legacy_chrome_track && track_args->isMember("trace_id"))) {
         // Async event slice.
-        auto pt_rr = process_track.FindById(track_id);
         if (legacy_chrome_track) {
           // Legacy async tracks are always process-associated and have args.
-          PERFETTO_DCHECK(pt_rr);
           PERFETTO_DCHECK(track_args);
-          UniquePid upid = pt_rr->upid();
-          uint32_t exported_pid = UpidToPid(upid);
+          PERFETTO_DCHECK(track_args->isMember("upid"));
+          uint32_t exported_pid = UpidToPid((*track_args)["upid"].asUInt());
           event["pid"] = Json::Int(exported_pid);
           event["tid"] =
               Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
@@ -914,7 +906,7 @@ class JsonExporter {
           PERFETTO_DCHECK(track_args->isMember("trace_id"));
           PERFETTO_DCHECK(track_args->isMember("trace_id_is_process_scoped"));
           PERFETTO_DCHECK(track_args->isMember("source_scope"));
-          uint64_t trace_id =
+          auto trace_id =
               static_cast<uint64_t>((*track_args)["trace_id"].asInt64());
           std::string source_scope = (*track_args)["source_scope"].asString();
           if (!source_scope.empty())
@@ -931,15 +923,13 @@ class JsonExporter {
             event["id"] = base::Uint64ToHexString(trace_id);
           }
         } else {
-          if (tt_rr) {
-            UniqueTid utid = tt_rr->utid();
-            auto pid_and_tid = UtidToPidAndTid(utid);
+          if (track_row_ref.utid()) {
+            auto pid_and_tid = UtidToPidAndTid(*track_row_ref.utid());
             event["pid"] = Json::Int(pid_and_tid.first);
             event["tid"] = Json::Int(pid_and_tid.second);
             event["id2"]["local"] = base::Uint64ToHexString(track_id.value);
-          } else if (pt_rr) {
-            uint32_t upid = pt_rr->upid();
-            uint32_t exported_pid = UpidToPid(upid);
+          } else if (track_row_ref.upid()) {
+            uint32_t exported_pid = UpidToPid(*track_row_ref.upid());
             event["pid"] = Json::Int(exported_pid);
             event["tid"] =
                 Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
@@ -1017,10 +1007,8 @@ class JsonExporter {
             event["ph"] = legacy_phase;
           }
 
-          auto pt_rr = process_track.FindById(track_id);
-          if (pt_rr.has_value()) {
-            UniquePid upid = pt_rr->upid();
-            uint32_t exported_pid = UpidToPid(upid);
+          if (track_row_ref.upid()) {
+            uint32_t exported_pid = UpidToPid(*track_row_ref.upid());
             event["pid"] = Json::Int(exported_pid);
             event["tid"] =
                 Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
@@ -1043,7 +1031,6 @@ class JsonExporter {
                                                Json::Value args,
                                                bool flow_begin) {
     const auto& slices = storage_->slice_table();
-    const auto& thread_tracks = storage_->thread_track_table();
 
     auto opt_slice_rr = slices.FindById(slice_id);
     if (!opt_slice_rr)
@@ -1051,12 +1038,15 @@ class JsonExporter {
     auto slice_rr = opt_slice_rr.value();
 
     TrackId track_id = slice_rr.track_id();
-    auto opt_ttrr = thread_tracks.FindById(track_id);
-    // catapult only supports flow events attached to thread-track slices
-    if (!opt_ttrr)
-      return std::nullopt;
+    auto rr = storage_->track_table().FindById(track_id);
 
-    auto pid_and_tid = UtidToPidAndTid(opt_ttrr->utid());
+    // catapult only supports flow events attached to thread-track slices
+    if (!rr || !rr->utid()) {
+      return std::nullopt;
+    }
+
+    UniqueTid utid = *rr->utid();
+    auto pid_and_tid = UtidToPidAndTid(utid);
     Json::Value event;
     event["id"] = flow_id;
     event["pid"] = Json::Int(pid_and_tid.first);
@@ -1078,12 +1068,12 @@ class JsonExporter {
     for (auto it = flow_table.IterateRows(); it; ++it) {
       SliceId slice_out = it.slice_out();
       SliceId slice_in = it.slice_in();
-      uint32_t arg_set_id = it.arg_set_id();
+      std::optional<uint32_t> arg_set_id = it.arg_set_id();
 
       std::string cat;
       std::string name;
       auto args = args_builder_.GetArgs(arg_set_id);
-      if (arg_set_id != kInvalidArgSetId) {
+      if (arg_set_id != std::nullopt) {
         cat = args["cat"].asString();
         name = args["name"].asString();
         // Don't export these args since they are only used for this export and
@@ -1112,7 +1102,7 @@ class JsonExporter {
   }
 
   Json::Value ConvertLegacyRawEventToJson(
-      const tables::RawTable::ConstIterator& it) {
+      const tables::ChromeRawTable::ConstIterator& it) {
     Json::Value event;
     event["ts"] = Json::Int64(it.ts() / 1000);
 
@@ -1197,7 +1187,7 @@ class JsonExporter {
     std::optional<StringId> raw_chrome_metadata_event_id =
         storage_->string_pool().GetId("chrome_event.metadata");
 
-    const auto& events = storage_->raw_table();
+    const auto& events = storage_->chrome_raw_table();
     for (auto it = events.IterateRows(); it; ++it) {
       if (raw_legacy_event_key_id && it.name() == *raw_legacy_event_key_id) {
         Json::Value event = ConvertLegacyRawEventToJson(it);
@@ -1539,6 +1529,11 @@ class JsonExporter {
     std::optional<StringId> peak_resident_set_id =
         storage_->string_pool().GetId("chrome.peak_resident_set_kb");
 
+    std::string_view chrome_process_stats =
+        tracks::kChromeProcessStatsBlueprint.type;
+    std::optional<StringId> process_stats = storage_->string_pool().GetId(
+        {chrome_process_stats.data(), chrome_process_stats.size()});
+
     for (auto sit = memory_snapshots.IterateRows(); sit; ++sit) {
       Json::Value event_base;
 
@@ -1556,15 +1551,18 @@ class JsonExporter {
 
       // Export OS dump events for processes with relevant data.
       const auto& process_table = storage_->process_table();
+      const auto& track_table = storage_->track_table();
       for (auto pit = process_table.IterateRows(); pit; ++pit) {
         Json::Value event = FillInProcessEventDetails(event_base, pit.pid());
         Json::Value& totals = event["args"]["dumps"]["process_totals"];
 
-        const auto& process_counters = storage_->process_counter_track_table();
-
-        for (auto it = process_counters.IterateRows(); it; ++it) {
-          if (it.upid() != pit.id().value)
+        for (auto it = track_table.IterateRows(); it; ++it) {
+          if (it.type() != process_stats) {
             continue;
+          }
+          if (it.upid() != pit.id().value) {
+            continue;
+          }
           TrackId track_id = it.id();
           if (private_footprint_id && (it.name() == private_footprint_id)) {
             totals["private_footprint_bytes"] = base::Uint64ToHexStringNoPrefix(

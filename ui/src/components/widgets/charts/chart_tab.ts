@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {DetailsShell} from '../../../widgets/details_shell';
-import {filterTitle} from '../sql/table/column';
+import {filterTitle} from '../sql/legacy_table/column';
 import {addEphemeralTab} from '../../details/add_ephemeral_tab';
 import {Tab} from '../../../public/tab';
 import {Chart, renderChartComponent, toTitleCase} from './chart';

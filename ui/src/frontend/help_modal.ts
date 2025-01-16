@@ -13,17 +13,18 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {assertExists} from '../base/logging';
+import {AppImpl} from '../core/app_impl';
+import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {showModal} from '../widgets/modal';
 import {Spinner} from '../widgets/spinner';
 import {
   KeyboardLayoutMap,
   nativeKeyboardLayoutMap,
   NotSupportedError,
-} from './keyboard_layout_map';
-import {KeyMapping} from './pan_and_zoom_handler';
-import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
-import {assertExists} from '../base/logging';
-import {AppImpl} from '../core/app_impl';
+} from '../base/keyboard_layout_map';
+import {KeyMapping} from './viewer_page/wasd_navigation_handler';
+import {raf} from '../core/raf_scheduler';
 
 export function toggleHelp() {
   AppImpl.instance.analytics.logEvent('User Actions', 'Show help');
@@ -54,7 +55,7 @@ class KeyMappingsHelp implements m.ClassComponent {
     nativeKeyboardLayoutMap()
       .then((keyMap: KeyboardLayoutMap) => {
         this.keyMap = keyMap;
-        AppImpl.instance.scheduleFullRedraw('force');
+        raf.scheduleFullRedraw();
       })
       .catch((e) => {
         if (
@@ -69,7 +70,7 @@ class KeyMappingsHelp implements m.ClassComponent {
           // The alternative would be to show key mappings for all keyboard
           // layouts which is not feasible.
           this.keyMap = new EnglishQwertyKeyboardLayoutMap();
-          AppImpl.instance.scheduleFullRedraw('force');
+          raf.scheduleFullRedraw();
         } else {
           // Something unexpected happened. Either the browser doesn't conform
           // to the keyboard API spec, or the keyboard API spec has changed!

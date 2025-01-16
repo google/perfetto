@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_BASE_TIME_H_
 #define INCLUDE_PERFETTO_BASE_TIME_H_
 
+#include <stdint.h>
 #include <time.h>
 
 #include <chrono>
@@ -184,6 +185,33 @@ inline TimeNanos GetThreadCPUTimeNs() {
 
 inline TimeNanos GetBootTimeNs() {
   return TimeNanos(0);
+}
+
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+
+constexpr clockid_t kWallTimeClockSource = CLOCK_MONOTONIC;
+
+inline TimeNanos GetTimeInternalNs(clockid_t clk_id) {
+  struct timespec ts = {};
+  PERFETTO_CHECK(clock_gettime(clk_id, &ts) == 0);
+  return FromPosixTimespec(ts);
+}
+
+inline TimeNanos GetWallTimeNs() {
+  return GetTimeInternalNs(kWallTimeClockSource);
+}
+
+inline TimeNanos GetWallTimeRawNs() {
+  return GetTimeInternalNs(CLOCK_MONOTONIC);
+}
+
+inline TimeNanos GetThreadCPUTimeNs() {
+  return GetTimeInternalNs(CLOCK_THREAD_CPUTIME_ID);
+}
+
+// TODO: Clock that counts time during suspend is not implemented on QNX.
+inline TimeNanos GetBootTimeNs() {
+  return GetWallTimeNs();
 }
 
 #else  // posix

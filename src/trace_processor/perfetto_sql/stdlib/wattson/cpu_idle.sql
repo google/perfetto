@@ -60,13 +60,27 @@ WITH
     FROM idle_prev
     JOIN _filtered_deep_idle_offsets USING (cpu)
   ),
+  -- Use EITHER idle states as is OR device specific override of idle states
   _cpu_idle AS (
+    -- Idle state calculations as is
     SELECT
       ts,
       LEAD(ts, 1, trace_end()) OVER (PARTITION BY cpu ORDER by ts) - ts as dur,
       cpu,
       cast_int!(IIF(idle = 4294967295, -1, idle)) AS idle
     FROM idle_mod
+    WHERE NOT EXISTS(SELECT 1 FROM _idle_state_map_override)
+    UNION ALL
+    -- Device specific override of idle states
+    SELECT
+      ts,
+      LEAD(ts, 1, trace_end()) OVER (PARTITION BY cpu ORDER by ts) - ts as dur,
+      cpu,
+      override_idle as idle
+    FROM idle_mod
+    JOIN _idle_state_map_override AS idle_map
+    ON idle_mod.idle = idle_map.nominal_idle
+    WHERE EXISTS(SELECT 1 FROM _idle_state_map_override)
   ),
   -- Get first idle transition per CPU
   first_cpu_idle_slices AS (

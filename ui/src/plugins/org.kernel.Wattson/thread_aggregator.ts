@@ -55,7 +55,7 @@ export class WattsonThreadSelectionAggregator
 
       -- Only get idle attribution in user defined window and filter by selected
       -- CPUs and GROUP BY thread
-      CREATE OR REPLACE PERFETTO TABLE _per_thread_idle_attribution AS
+      CREATE OR REPLACE PERFETTO TABLE _per_thread_idle_cost AS
       SELECT
         ROUND(SUM(idle_cost_mws), 2) as idle_cost_mws,
         utid
@@ -132,12 +132,16 @@ export class WattsonThreadSelectionAggregator
         ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
         ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
         COALESCE(idle_cost_mws, 0) as idle_cost_mws,
+        ROUND(
+          COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
+          2
+        ) as total_mws,
         thread_name,
         utid,
         tid,
         pid
       FROM _unioned_per_cpu_total
-      LEFT JOIN _per_thread_idle_attribution USING (utid)
+      LEFT JOIN _per_thread_idle_cost USING (utid)
       GROUP BY utid;
     `;
 
@@ -185,6 +189,13 @@ export class WattsonThreadSelectionAggregator
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'idle_cost_mws',
+        sum: true,
+      },
+      {
+        title: 'Total energy (estimated mWs)',
+        kind: 'NUMBER',
+        columnConstructor: Float64Array,
+        columnId: 'total_mws',
         sum: true,
       },
     ];

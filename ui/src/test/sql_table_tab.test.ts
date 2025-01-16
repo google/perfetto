@@ -30,7 +30,7 @@ test('slices with same name', async () => {
   const sliceName = 'animation';
   await pth.searchSlice(sliceName);
   await page
-    .locator('.details-panel-container a.pf-anchor', {hasText: sliceName})
+    .locator('.pf-details-shell a.pf-anchor', {hasText: sliceName})
     .click();
   await page
     .locator('.pf-popup-portal button', {hasText: 'Slices with the same name'})

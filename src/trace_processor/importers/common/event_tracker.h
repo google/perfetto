@@ -17,22 +17,37 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_EVENT_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_EVENT_TRACKER_H_
 
-#include <array>
-#include <limits>
+#include <algorithm>
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <variant>
+#include <vector>
 
-#include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
 // Tracks sched events, instants, and counters.
 class EventTracker {
  public:
+  struct OomScoreAdj {};
+  struct MmEvent {
+    const char* type;
+    const char* metric;
+  };
+  struct RssStat {
+    const char* process_memory_key;
+  };
+  struct JsonCounter {
+    StringId counter_name_id;
+  };
+  using ProcessCounterForThread =
+      std::variant<OomScoreAdj, MmEvent, RssStat, JsonCounter>;
+
   using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter*)>;
 
   explicit EventTracker(TraceProcessorContext*);
@@ -51,7 +66,7 @@ class EventTracker {
   std::optional<CounterId> PushCounter(int64_t timestamp,
                                        double value,
                                        TrackId track_id,
-                                       SetArgsCallback args_callback);
+                                       const SetArgsCallback& args_callback);
 
   // Adds a counter event to the counters table for counter events which
   // should be associated with a process but only have a thread context
@@ -59,40 +74,28 @@ class EventTracker {
   //
   // This function will resolve the utid to a upid when the events are
   // flushed (see |FlushPendingEvents()|).
-  virtual std::optional<CounterId> PushProcessCounterForThread(
-      int64_t timestamp,
-      double value,
-      StringId name_id,
-      UniqueTid utid);
+  void PushProcessCounterForThread(ProcessCounterForThread,
+                                   int64_t timestamp,
+                                   double value,
+                                   UniqueTid utid);
 
   // Called at the end of trace to flush any events which are pending to the
   // storage.
   void FlushPendingEvents();
 
-  // For SchedEventTracker.
-  int64_t max_timestamp() const { return max_timestamp_; }
-  void UpdateMaxTimestamp(int64_t ts) {
-    max_timestamp_ = std::max(ts, max_timestamp_);
-  }
-
  private:
   // Represents a counter event which is currently pending upid resolution.
   struct PendingUpidResolutionCounter {
+    ProcessCounterForThread counter;
     uint32_t row = 0;
-    StringId name_id = kNullStringId;
     UniqueTid utid = 0;
   };
 
   // Store the rows in the counters table which need upids resolved.
   std::vector<PendingUpidResolutionCounter> pending_upid_resolution_counter_;
 
-  // Timestamp of the previous event. Used to discard events arriving out
-  // of order.
-  int64_t max_timestamp_ = 0;
-
   TraceProcessorContext* const context_;
 };
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_EVENT_TRACKER_H_

@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {Icon} from './icon';
-import {scheduleFullRedraw} from './raf';
 
 // This module deals with modal dialogs. Unlike most components, here we want to
 // render the DOM elements outside of the corresponding vdom tree. For instance
@@ -80,7 +79,7 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
   onbeforeremove(vnode: m.VnodeDOM<ModalAttrs>) {
     const removePromise = defer<void>();
     vnode.dom.addEventListener('animationend', () => {
-      scheduleFullRedraw('force');
+      m.redraw();
       removePromise.resolve();
     });
     vnode.dom.classList.add('modal-fadeout');
@@ -234,7 +233,7 @@ export async function showModal(userAttrs: ModalAttrs): Promise<void> {
 // evident why a redraw is requested.
 export function redrawModal() {
   if (currentModal !== undefined) {
-    scheduleFullRedraw('force');
+    m.redraw();
   }
 }
 
@@ -253,7 +252,7 @@ export function closeModal(key?: string) {
     return;
   }
   currentModal = undefined;
-  scheduleFullRedraw('force');
+  m.redraw();
 }
 
 export function getCurrentModalKey(): string | undefined {

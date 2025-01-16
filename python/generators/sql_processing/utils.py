@@ -44,7 +44,9 @@ COLUMN_TYPES = [
     # Special types
     'TIMESTAMP',
     'DURATION',
-    'ID'
+    'ID',
+    'JOINID',
+    'ARGSETID'
 ]
 
 MACRO_ARG_TYPES = ['TABLEORSUBQUERY', 'EXPR', 'COLUMNNAME']
@@ -52,9 +54,10 @@ MACRO_ARG_TYPES = ['TABLEORSUBQUERY', 'EXPR', 'COLUMNNAME']
 NAME = r'[a-zA-Z_\d\{\}]+'
 ANY_WORDS = r'[^\s].*'
 ANY_NON_QUOTE = r'[^\']*.*'
-TYPE = r'[a-zA-Z]+'
+TYPE = r'[_a-zA-Z\(\)\.]+'
 SQL = r'[\s\S]*?'
 WS = r'\s*'
+
 COMMENT = r' --[^\n]*\n'
 COMMENTS = rf'(?:{COMMENT})*'
 ARG = rf'{COMMENTS} {NAME} {TYPE}'
@@ -228,7 +231,7 @@ def check_banned_drop(sql: str) -> List[str]:
   errors = []
   for _, matches in match_pattern(DROP_TABLE_VIEW_PATTERN, sql).items():
     sql_type = matches[0]
-    name = matches[2]
+    name = matches[1]
     errors.append(f"Dropping object {sql_type} '{name}' is banned.")
   return errors
 

@@ -731,7 +731,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
                       record->AddArg("cols", base::Join(index.col_names, ", "));
                     });
 
-  Table* t = GetMutableTableOrNull(index.table_name);
+  Table* t = GetTableOrNull(index.table_name);
   if (!t) {
     return base::ErrStatus("CREATE PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
@@ -759,7 +759,7 @@ base::Status PerfettoSqlEngine::ExecuteDropIndex(
                       record->AddArg("table_name", index.table_name);
                     });
 
-  Table* t = GetMutableTableOrNull(index.table_name);
+  Table* t = GetTableOrNull(index.table_name);
   if (!t) {
     return base::ErrStatus("DROP PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
@@ -1015,16 +1015,16 @@ PerfettoSqlEngine::GetColumnNamesFromSelectStatement(
     std::string col_name =
         sqlite3_column_name(stmt.sqlite_stmt(), static_cast<int>(i));
     if (col_name.empty()) {
-      return base::ErrStatus("%s: column %d: name must not be empty", tag, i);
+      return base::ErrStatus("%s: column %u: name must not be empty", tag, i);
     }
     if (!std::isalpha(col_name.front())) {
       return base::ErrStatus(
-          "%s: Column %i: name '%s' has to start with a letter.", tag, i,
+          "%s: Column %u: name '%s' has to start with a letter.", tag, i,
           col_name.c_str());
     }
     if (!sql_argument::IsValidName(base::StringView(col_name))) {
       return base::ErrStatus(
-          "%s: Column %i: name '%s' has to contain only alphanumeric "
+          "%s: Column %u: name '%s' has to contain only alphanumeric "
           "characters and underscores.",
           tag, i, col_name.c_str());
     }
@@ -1114,8 +1114,7 @@ const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(
   return state ? state->runtime_table.get() : nullptr;
 }
 
-RuntimeTable* PerfettoSqlEngine::GetMutableRuntimeTableOrNull(
-    std::string_view name) {
+RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(std::string_view name) {
   auto* state = runtime_table_context_->manager.FindStateByName(name);
   return state ? state->runtime_table.get() : nullptr;
 }
@@ -1126,7 +1125,7 @@ const Table* PerfettoSqlEngine::GetStaticTableOrNull(
   return state ? state->static_table : nullptr;
 }
 
-Table* PerfettoSqlEngine::GetMutableStaticTableOrNull(std::string_view name) {
+Table* PerfettoSqlEngine::GetStaticTableOrNull(std::string_view name) {
   auto* state = static_table_context_->manager.FindStateByName(name);
   return state ? state->static_table : nullptr;
 }

@@ -39,8 +39,8 @@ source_set("service") {
     "../../../include/perfetto/tracing",
   ]
   deps = [
+    ":builtin_producer",
     "../../../gn:default_deps",
-    "../../../protos/perfetto/config/android:zero",
     "../../base",
     "../../base:version",
     "../../tracing/core",
@@ -51,17 +51,32 @@ source_set("service") {
     deps += [ "../../tracing/service:zlib_compressor" ]
   }
 
+  sources = [ "service.cc" ]
+}
+
+source_set("builtin_producer") {
+  public_deps = [
+    "../../../include/perfetto/ext/traced",
+    "../../../include/perfetto/tracing",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../protos/perfetto/config/android:zero",
+    "../../base",
+    "../../tracing/core",
+    "../../tracing/service:service",
+  ]
+
   sources = [
     "builtin_producer.cc",
     "builtin_producer.h",
-    "service.cc",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
-    ":service",
+    ":builtin_producer",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../protos/perfetto/config/android:cpp",

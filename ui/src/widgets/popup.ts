@@ -19,7 +19,6 @@ import {MountOptions, Portal, PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, isOrContains, toHTMLElement} from '../base/dom_utils';
 import {assertExists} from '../base/logging';
-import {scheduleFullRedraw} from './raf';
 
 type CustomModifier = Modifier<'sameWidth', {}>;
 type ExtendedModifiers = StrictModifiers | CustomModifier;
@@ -352,13 +351,12 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     if (this.isOpen) {
       this.isOpen = false;
       this.onChange(this.isOpen);
-      scheduleFullRedraw('force');
+      m.redraw();
     }
   }
 
   private togglePopup() {
     this.isOpen = !this.isOpen;
     this.onChange(this.isOpen);
-    scheduleFullRedraw('force');
   }
 }

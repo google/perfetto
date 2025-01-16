@@ -177,7 +177,7 @@ def RunSteps(api, repository):
           build_input.gitiles_commit.ref
           if build_input.gitiles_commit else 'refs/heads/main')
       # Fetch tags so `git describe` works.
-      api.step('fetch', ['git', 'fetch', '--tags', repository, ref])
+      api.step('fetch', ['git', 'fetch', '--tags', '--force', repository, ref])
       api.step('checkout', ['git', 'checkout', 'FETCH_HEAD'])
 
       # Store information about the git revision and the tag if available.

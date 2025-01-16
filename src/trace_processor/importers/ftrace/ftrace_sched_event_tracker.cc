@@ -16,9 +16,14 @@
 
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <limits>
+#include <optional>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -29,15 +34,16 @@
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/task_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
+#include "src/trace_processor/types/version_number.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 FtraceSchedEventTracker::FtraceSchedEventTracker(TraceProcessorContext* context)
     : context_(context) {
@@ -75,11 +81,6 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
                                               uint32_t next_pid,
                                               base::StringView next_comm,
                                               int32_t next_prio) {
-  if (!context_->sched_event_tracker->UpdateEventTrackerTimestamp(
-          ts, "sched_switch", stats::sched_switch_out_of_order)) {
-    return;
-  }
-
   StringId next_comm_id = context_->storage->InternString(next_comm);
   UniqueTid next_utid = context_->process_tracker->UpdateThreadName(
       next_pid, next_comm_id, ThreadNamePriority::kFtrace);
@@ -134,11 +135,6 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
                                                      int32_t next_prio,
                                                      StringId next_comm_id,
                                                      bool parse_only_into_raw) {
-  if (!context_->sched_event_tracker->UpdateEventTrackerTimestamp(
-          ts, "sched_switch", stats::sched_switch_out_of_order)) {
-    return;
-  }
-
   UniqueTid next_utid = context_->process_tracker->UpdateThreadName(
       next_pid, next_comm_id, ThreadNamePriority::kFtrace);
 
@@ -218,11 +214,6 @@ void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
                                                      StringId comm_id,
                                                      uint16_t common_flags,
                                                      bool parse_only_into_raw) {
-  if (!context_->sched_event_tracker->UpdateEventTrackerTimestamp(
-          ts, "sched_waking", stats::sched_waking_out_of_order)) {
-    return;
-  }
-
   // We infer the task that emitted the event (i.e. common_pid) from the
   // scheduling slices. Drop the event if we haven't seen any sched_switch
   // events for this cpu yet.
@@ -244,7 +235,8 @@ void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
     row.ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
 
     // Add an entry to the raw table.
-    RawId id = context_->storage->mutable_ftrace_event_table()->Insert(row).id;
+    tables::FtraceEventTable::Id id =
+        context_->storage->mutable_ftrace_event_table()->Insert(row).id;
 
     using SW = protos::pbzero::SchedWakingFtraceEvent;
     auto inserter = context_->args_tracker->AddArgsTo(id);
@@ -281,9 +273,10 @@ void FtraceSchedEventTracker::AddRawSchedSwitchEvent(uint32_t cpu,
     // Push the raw event - this is done as the raw ftrace event codepath does
     // not insert sched_switch.
     auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
-    RawId id = context_->storage->mutable_ftrace_event_table()
-                   ->Insert({ts, sched_switch_id_, prev_utid, {}, {}, ucpu})
-                   .id;
+    tables::FtraceEventTable::Id id =
+        context_->storage->mutable_ftrace_event_table()
+            ->Insert({ts, sched_switch_id_, prev_utid, {}, {}, ucpu})
+            .id;
 
     // Note: this ordering is important. The events should be pushed in the same
     // order as the order of fields in the proto; this is used by the raw table
@@ -317,5 +310,4 @@ StringId FtraceSchedEventTracker::TaskStateToStringId(int64_t task_state_int) {
              : kNullStringId;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

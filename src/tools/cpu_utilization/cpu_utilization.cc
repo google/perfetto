@@ -111,7 +111,7 @@ int CpuUtilizationMain(int argc, char** argv) {
   PERFETTO_LOG("--- setup: ---");
   PERFETTO_LOG("target pid: %d", target_pid);
   PERFETTO_LOG("intervals: %d x %uus", sleep_intervals, sleep_duration_us);
-  PERFETTO_LOG("utime/stime ticks per sec: %ld", ticks_per_s);
+  PERFETTO_LOG("utime/stime ticks per sec: %lu", ticks_per_s);
   PERFETTO_LOG("wall clock resolution (ns): %ld", ts.tv_nsec);
   PERFETTO_LOG("--- timings: ---");
 

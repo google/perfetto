@@ -31,6 +31,6 @@ test('trace loaded', async () => {
 });
 
 test('expand all tracks', async () => {
-  await page.click('.header-panel-container button[title="Expand all"]');
+  await page.click('.pf-viewer-page__header button[title="Expand all"]');
   await pth.waitForIdleAndScreenshot('all_tracks_expanded.png');
 });

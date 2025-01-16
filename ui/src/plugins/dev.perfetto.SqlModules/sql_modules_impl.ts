@@ -24,6 +24,23 @@ import {
   SqlTable,
   SqlTableFunction,
 } from './sql_modules';
+import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
+import {
+  FromSimpleColumn,
+  LegacyTableColumn,
+  LegacyTableColumnSet,
+} from '../../components/widgets/sql/legacy_table/column';
+import {
+  createDurationColumn,
+  createProcessIdColumn,
+  createSchedIdColumn,
+  createSliceIdColumn,
+  createStandardColumn,
+  createThreadIdColumn,
+  createThreadStateIdColumn,
+  createTimestampColumn,
+  SimpleColumn,
+} from '../../components/widgets/sql/table/table';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
@@ -58,6 +75,7 @@ export class StdlibPackageImpl implements SqlPackage {
       this.modules.push(new StdlibModuleImpl(moduleJson));
     }
   }
+
   getModuleForTable(tableName: string): SqlModule | undefined {
     for (const module of this.modules) {
       for (const dataObj of module.dataObjects) {
@@ -73,6 +91,17 @@ export class StdlibPackageImpl implements SqlPackage {
     return this.modules.flatMap((module) =>
       module.dataObjects.map((dataObj) => dataObj.name),
     );
+  }
+
+  getSqlTableDescription(tableName: string): SqlTableDescription | undefined {
+    for (const module of this.modules) {
+      for (const dataObj of module.dataObjects) {
+        if (dataObj.name == tableName) {
+          return module.getSqlTableDescription(tableName);
+        }
+      }
+    }
+    return undefined;
   }
 }
 
@@ -94,6 +123,7 @@ export class StdlibModuleImpl implements SqlModule {
     );
     this.macros = docs.macros.map((json) => new StdlibMacroImpl(json));
   }
+
   getTable(tableName: string): SqlTable | undefined {
     for (const obj of this.dataObjects) {
       if (obj.name == tableName) {
@@ -101,6 +131,18 @@ export class StdlibModuleImpl implements SqlModule {
       }
     }
     return undefined;
+  }
+
+  getSqlTableDescription(tableName: string): SqlTableDescription | undefined {
+    const sqlTable = this.getTable(tableName);
+    if (sqlTable === undefined) {
+      return undefined;
+    }
+    return {
+      imports: [this.includeKey],
+      name: sqlTable.name,
+      columns: sqlTable.getTableColumns(),
+    };
   }
 }
 
@@ -167,6 +209,12 @@ class StdlibDataObjectImpl implements SqlTable {
     this.type = docs.type;
     this.columns = docs.cols.map((json) => new StdlibColumnImpl(json));
   }
+
+  getTableColumns(): (LegacyTableColumn | LegacyTableColumnSet)[] {
+    return this.columns.map(
+      (col) => new FromSimpleColumn(col.asSimpleColumn(this.name)),
+    );
+  }
 }
 
 class StdlibColumnImpl implements SqlColumn {
@@ -178,6 +226,51 @@ class StdlibColumnImpl implements SqlColumn {
     this.type = docs.type;
     this.description = docs.desc;
     this.name = docs.name;
+  }
+
+  asSimpleColumn(tableName: string): SimpleColumn {
+    if (this.type === 'TIMESTAMP') {
+      return createTimestampColumn(this.name);
+    }
+    if (this.type === 'DURATION') {
+      return createDurationColumn(this.name);
+    }
+
+    if (this.name === 'ID') {
+      if (tableName === 'slice') {
+        return createSliceIdColumn(this.name);
+      }
+      if (tableName === 'thread') {
+        return createThreadIdColumn(this.name);
+      }
+      if (tableName === 'process') {
+        return createProcessIdColumn(this.name);
+      }
+      if (tableName === 'thread_state') {
+        return createThreadStateIdColumn(this.name);
+      }
+      if (tableName === 'sched') {
+        return createSchedIdColumn(this.name);
+      }
+      return createStandardColumn(this.name);
+    }
+
+    if (this.type === 'JOINID(slice.id)') {
+      return createSliceIdColumn(this.name);
+    }
+    if (this.type === 'JOINID(thread.id)') {
+      return createThreadIdColumn(this.name);
+    }
+    if (this.type === 'JOINID(process.id)') {
+      return createProcessIdColumn(this.name);
+    }
+    if (this.type === 'JOINID(thread_state.id)') {
+      return createThreadStateIdColumn(this.name);
+    }
+    if (this.type === 'JOINID(sched.id)') {
+      return createSchedIdColumn(this.name);
+    }
+    return createStandardColumn(this.name);
   }
 }
 

@@ -84,19 +84,47 @@ first_non_swapper_slice AS (
     idle_group,
     utid,
     upid,
-    MIN(ts) as min
+    MIN(ts) as min,
+    MIN(ts) + dur as next_ts
   FROM _ii_idle_threads
   WHERE utid != 0
   GROUP BY idle_group
+),
+-- MAX() here will give the last time slice in the group. This will be the
+-- utid = 0 slice immediately preceding the active to idle transition.
+last_swapper_slice AS (
+  SELECT
+    ts,
+    dur,
+    cpu,
+    idle_group,
+    MAX(ts) as min
+  FROM _ii_idle_threads
+  GROUP BY idle_group
 )
 SELECT
-  ts,
-  dur,
-  cpu,
-  utid,
-  upid
-FROM first_non_swapper_slice
-JOIN first_swapper_slice USING (idle_group);
+  swapper_info.ts,
+  swapper_info.dur,
+  swapper_info.cpu,
+  thread_info.utid,
+  thread_info.upid
+FROM first_non_swapper_slice thread_info
+JOIN first_swapper_slice swapper_info USING (idle_group)
+UNION ALL
+-- Adds the last slice to idle transition attribution IF this is a singleton
+-- thread wakeup. This is true if there is only one thread between swapper idle
+-- exits/wakeups. For example, groups with order of swapper, thread X, swapper
+-- will be included. Entries that have multiple thread between swappers, such as
+-- swapper, thread X, thread Y, swapper will not be included.
+SELECT
+  swapper_info.ts,
+  swapper_info.dur,
+  swapper_info.cpu,
+  thread_info.utid,
+  thread_info.upid
+FROM first_non_swapper_slice thread_info
+JOIN last_swapper_slice swapper_info USING (idle_group)
+WHERE ts = next_ts;
 
 -- Interval intersect with the estimate power track, so that each slice can be
 -- attributed to the power of the CPU in that time duration
@@ -132,7 +160,7 @@ JOIN _system_state_mw as power ON power._auto_id = id_1;
 -- information can then further be filtered by specific CPU and GROUP BY on
 -- either utid or upid
 CREATE PERFETTO FUNCTION _filter_idle_attribution(ts TIMESTAMP, dur LONG)
-RETURNS Table(idle_cost_mws LONG, utid LONG, upid LONG, cpu LONG) AS
+RETURNS Table(idle_cost_mws LONG, utid JOINID(thread.id), upid JOINID(process.id), cpu LONG) AS
 SELECT
   cost.estimated_mw * cost.dur / 1e9 as idle_cost_mws,
   cost.utid,

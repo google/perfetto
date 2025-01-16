@@ -24,9 +24,9 @@ packet {
       tid: 1
     }
     process {
-        pid: 1
+      pid: 1
     }
-    parent_uuid: 0
+    disallow_merging_with_system_tracks: true
   }
 }
 

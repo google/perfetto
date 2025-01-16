@@ -47,14 +47,6 @@ class AndroidProbesParser {
  private:
   TraceProcessorContext* const context_;
 
-  const StringId batt_charge_id_;
-  const StringId batt_capacity_id_;
-  const StringId batt_current_id_;
-  const StringId batt_current_avg_id_;
-  const StringId batt_voltage_id_;
-  const StringId batt_power_id_;
-  const StringId screen_state_id_;
-  const StringId device_state_id_;
   const StringId battery_status_id_;
   const StringId plug_type_id_;
   const StringId rail_packet_timestamp_id_;

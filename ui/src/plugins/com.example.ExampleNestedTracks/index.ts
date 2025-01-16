@@ -72,5 +72,25 @@ export default class implements PerfettoPlugin {
     track1.addChildLast(track12);
     track12.addChildLast(track121);
     track2.addChildLast(track21);
+
+    ctx.commands.registerCommand({
+      id: 'com.example.ExampleNestedTracks#CloneTracksToNewWorkspace',
+      name: 'Clone track to new workspace',
+      callback: () => {
+        const ws = ctx.workspaces.createEmptyWorkspace('New workspace');
+        ws.addChildLast(trackRoot.clone());
+        ctx.workspaces.switchWorkspace(ws);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'com.example.ExampleNestedTracks#DeepCloneTracksToNewWorkspace',
+      name: 'Clone all tracks to new workspace',
+      callback: () => {
+        const ws = ctx.workspaces.createEmptyWorkspace('Deep workspace');
+        ws.addChildLast(trackRoot.clone(true));
+        ctx.workspaces.switchWorkspace(ws);
+      },
+    });
   }
 }

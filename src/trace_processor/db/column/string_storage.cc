@@ -289,7 +289,7 @@ RangeOrBitVector StringStorage::ChainImpl::SearchValidated(
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
-
+  const StringPool::Id* start = data_->data();
   if (is_sorted_) {
     switch (op) {
       case FilterOp::kEq:
@@ -298,12 +298,11 @@ RangeOrBitVector StringStorage::ChainImpl::SearchValidated(
       case FilterOp::kLe:
       case FilterOp::kLt: {
         auto first_non_null = static_cast<uint32_t>(std::distance(
-            data_->begin(),
-            std::partition_point(data_->begin() + search_range.start,
-                                 data_->begin() + search_range.end,
-                                 [](StringPool::Id id) {
-                                   return id == StringPool::Id::Null();
-                                 })));
+            start, std::partition_point(start + search_range.start,
+                                        start + search_range.end,
+                                        [](StringPool::Id id) {
+                                          return id == StringPool::Id::Null();
+                                        })));
         return RangeOrBitVector(BinarySearchIntrinsic(
             op, sql_val,
             {std::max(search_range.start, first_non_null), search_range.end}));
@@ -313,12 +312,11 @@ RangeOrBitVector StringStorage::ChainImpl::SearchValidated(
         // define a range, and rather just `not` range returned with `equal`
         // operation on non null values.
         auto first_non_null = static_cast<uint32_t>(std::distance(
-            data_->begin(),
-            std::partition_point(data_->begin() + search_range.start,
-                                 data_->begin() + search_range.end,
-                                 [](StringPool::Id id) {
-                                   return id == StringPool::Id::Null();
-                                 })));
+            start, std::partition_point(start + search_range.start,
+                                        start + search_range.end,
+                                        [](StringPool::Id id) {
+                                          return id == StringPool::Id::Null();
+                                        })));
         Range ret = BinarySearchIntrinsic(
             FilterOp::kEq, sql_val,
             {std::max(search_range.start, first_non_null), search_range.end});

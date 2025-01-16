@@ -47,6 +47,17 @@ export class HighPrecisionTime {
     this.fractional = fractional - fractionalFloor;
   }
 
+  static max(a: HighPrecisionTime, b: HighPrecisionTime) {
+    if (a.integral > b.integral) return a;
+    if (a.integral < b.integral) return b;
+    if (a.fractional > b.fractional) return a;
+    return b;
+  }
+
+  static min(a: HighPrecisionTime, b: HighPrecisionTime) {
+    return HighPrecisionTime.max(a, b) === a ? b : a;
+  }
+
   /**
    * Converts to an integer time value.
    *

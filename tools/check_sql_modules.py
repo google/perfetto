@@ -17,7 +17,7 @@
 # '_' is documented with proper schema.
 
 import argparse
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import os
 import sys
 import re
@@ -89,6 +89,8 @@ def main():
   all_errors = 0
   for path, sql, parsed in modules:
     errors = []
+
+    # Check for banned statements.
     lines = [l.strip() for l in sql.split('\n')]
     for line in lines:
       if line.startswith('--'):
@@ -98,7 +100,7 @@ def main():
       if 'insert into' in line.casefold():
         errors.append("INSERT INTO table is not allowed in standard library.")
 
-    # Validate includes
+    # Validate includes.
     package = parsed.package_name
     for include in parsed.includes:
       package = package.lower()

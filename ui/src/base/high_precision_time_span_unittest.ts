@@ -49,6 +49,20 @@ describe('HighPrecisionTimeSpan', () => {
     expect(span.duration).toBeCloseTo(10);
   });
 
+  it('can be constructed from hp times', () => {
+    const span = HPTimeSpan.fromHpTimes(hptime('123'), hptime('456'));
+    expect(span.start.integral).toEqual(123n);
+    expect(span.start.fractional).toBeCloseTo(0);
+    expect(span.duration).toBeCloseTo(333);
+  });
+
+  it('can be constructed from hp times reversed', () => {
+    const span = HPTimeSpan.fromHpTimes(hptime('456'), hptime('123'));
+    expect(span.start.integral).toEqual(123n);
+    expect(span.start.fractional).toBeCloseTo(0);
+    expect(span.duration).toBeCloseTo(333);
+  });
+
   test('end', () => {
     const span = HPTimeSpan.fromTime(t(10n), t(20n));
     expect(span.end.integral).toEqual(20n);

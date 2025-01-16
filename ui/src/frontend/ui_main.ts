@@ -22,7 +22,6 @@ import {
   setDurationPrecision,
   setTimestampFormat,
 } from '../core/timestamp_format';
-import {raf} from '../core/raf_scheduler';
 import {Command} from '../public/command';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
@@ -36,12 +35,11 @@ import {Topbar} from './topbar';
 import {shareTrace} from './trace_share_utils';
 import {AggregationsTabs} from './aggregation_tab';
 import {OmniboxMode} from '../core/omnibox_manager';
-import {PromptOption} from '../public/omnibox';
 import {DisposableStack} from '../base/disposable_stack';
 import {Spinner} from '../widgets/spinner';
 import {TraceImpl} from '../core/trace_impl';
 import {AppImpl} from '../core/app_impl';
-import {NotesEditorTab} from './notes_panel';
+import {NotesEditorTab} from './notes_editor_tab';
 import {NotesListEditor} from './notes_list_editor';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
@@ -123,48 +121,42 @@ export class UiMainPerTrace implements m.ClassComponent {
         id: 'perfetto.SetTimestampFormat',
         name: 'Set timestamp and duration format',
         callback: async () => {
-          const options: PromptOption[] = [
-            {key: TimestampFormat.Timecode, displayName: 'Timecode'},
-            {key: TimestampFormat.UTC, displayName: 'Realtime (UTC)'},
-            {
-              key: TimestampFormat.TraceTz,
-              displayName: 'Realtime (Trace TZ)',
-            },
-            {key: TimestampFormat.Seconds, displayName: 'Seconds'},
-            {key: TimestampFormat.Milliseconds, displayName: 'Milliseconds'},
-            {key: TimestampFormat.Microseconds, displayName: 'Microseconds'},
-            {key: TimestampFormat.TraceNs, displayName: 'Trace nanoseconds'},
-            {
-              key: TimestampFormat.TraceNsLocale,
-              displayName:
-                'Trace nanoseconds (with locale-specific formatting)',
-            },
-          ];
-          const promptText = 'Select format...';
-
-          const result = await app.omnibox.prompt(promptText, options);
-          if (result === undefined) return;
-          setTimestampFormat(result as TimestampFormat);
-          raf.scheduleFullRedraw();
+          const TF = TimestampFormat;
+          const result = await app.omnibox.prompt('Select format...', {
+            values: [
+              {format: TF.Timecode, name: 'Timecode'},
+              {format: TF.UTC, name: 'Realtime (UTC)'},
+              {format: TF.TraceTz, name: 'Realtime (Trace TZ)'},
+              {format: TF.Seconds, name: 'Seconds'},
+              {format: TF.Milliseconds, name: 'Milliseconds'},
+              {format: TF.Microseconds, name: 'Microseconds'},
+              {format: TF.TraceNs, name: 'Trace nanoseconds'},
+              {
+                format: TF.TraceNsLocale,
+                name: 'Trace nanoseconds (with locale-specific formatting)',
+              },
+            ],
+            getName: (x) => x.name,
+          });
+          result && setTimestampFormat(result.format);
         },
       },
       {
         id: 'perfetto.SetDurationPrecision',
         name: 'Set duration precision',
         callback: async () => {
-          const options: PromptOption[] = [
-            {key: DurationPrecision.Full, displayName: 'Full'},
+          const DF = DurationPrecision;
+          const result = await app.omnibox.prompt(
+            'Select duration precision mode...',
             {
-              key: DurationPrecision.HumanReadable,
-              displayName: 'Human readable',
+              values: [
+                {format: DF.Full, name: 'Full'},
+                {format: DF.HumanReadable, name: 'Human readable'},
+              ],
+              getName: (x) => x.name,
             },
-          ];
-          const promptText = 'Select duration precision mode...';
-
-          const result = await app.omnibox.prompt(promptText, options);
-          if (result === undefined) return;
-          setDurationPrecision(result as DurationPrecision);
-          raf.scheduleFullRedraw();
+          );
+          result && setDurationPrecision(result.format);
         },
       },
       {
@@ -176,7 +168,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.ShareTrace',
         name: 'Share trace',
-        callback: shareTrace,
+        callback: () => shareTrace(trace),
       },
       {
         id: 'perfetto.SearchNext',
@@ -239,6 +231,16 @@ export class UiMainPerTrace implements m.ClassComponent {
               end: range.end,
               id: '__temp__',
             });
+
+            // Also select an area for this span
+            const selection = trace.selection.selection;
+            if (selection.kind === 'track_event') {
+              trace.selection.selectArea({
+                start: range.start,
+                end: range.end,
+                trackUris: [selection.trackUri],
+              });
+            }
           }
         },
         defaultHotkey: 'M',
@@ -424,12 +426,10 @@ export class UiMainPerTrace implements m.ClassComponent {
       selectedOptionIndex: omnibox.selectionIndex,
       onSelectedOptionChanged: (index) => {
         omnibox.setSelectionIndex(index);
-        raf.scheduleFullRedraw();
       },
       onInput: (value) => {
         omnibox.setText(value);
         omnibox.setSelectionIndex(0);
-        raf.scheduleFullRedraw();
       },
       onSubmit: (value, _alt) => {
         omnibox.resolvePrompt(value);
@@ -454,10 +454,11 @@ export class UiMainPerTrace implements m.ClassComponent {
       };
     });
 
-    // Sort by recentsIndex then by alphabetical order
+    // Sort recentsIndex first
     const sorted = commandsWithHeuristics.sort((a, b) => {
       if (b.recentsIndex === a.recentsIndex) {
-        return a.cmd.name.localeCompare(b.cmd.name);
+        // If recentsIndex is the same, retain original sort order
+        return 0;
       } else {
         return b.recentsIndex - a.recentsIndex;
       }
@@ -484,12 +485,10 @@ export class UiMainPerTrace implements m.ClassComponent {
       selectedOptionIndex: omnibox.selectionIndex,
       onSelectedOptionChanged: (index) => {
         omnibox.setSelectionIndex(index);
-        raf.scheduleFullRedraw();
       },
       onInput: (value) => {
         omnibox.setText(value);
         omnibox.setSelectionIndex(0);
-        raf.scheduleFullRedraw();
       },
       onClose: () => {
         if (this.omniboxInputEl) {
@@ -525,7 +524,6 @@ export class UiMainPerTrace implements m.ClassComponent {
 
       onInput: (value) => {
         AppImpl.instance.omnibox.setText(value);
-        raf.scheduleFullRedraw();
       },
       onSubmit: (query, alt) => {
         const config = {
@@ -533,9 +531,8 @@ export class UiMainPerTrace implements m.ClassComponent {
           title: alt ? 'Pinned query' : 'Omnibox query',
         };
         const tag = alt ? undefined : 'omnibox_query';
-        const trace = AppImpl.instance.trace;
-        if (trace === undefined) return; // No trace loaded
-        addQueryResultsTab(trace, config, tag);
+        if (this.trace === undefined) return; // No trace loaded
+        addQueryResultsTab(this.trace, config, tag);
       },
       onClose: () => {
         AppImpl.instance.omnibox.setText('');
@@ -543,7 +540,6 @@ export class UiMainPerTrace implements m.ClassComponent {
           this.omniboxInputEl.blur();
         }
         AppImpl.instance.omnibox.reset();
-        raf.scheduleFullRedraw();
       },
       onGoBack: () => {
         AppImpl.instance.omnibox.reset();

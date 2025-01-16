@@ -85,21 +85,21 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT * FROM spurious_sched_wakeup
+        SELECT id, ts, thread_state_id, irq_context, utid, waker_utid FROM spurious_sched_wakeup
         ORDER BY ts LIMIT 10
         """,
         out=Csv("""
-        "id","type","ts","thread_state_id","irq_context","utid","waker_utid"
-        0,"spurious_sched_wakeup",1735850782904,423,0,230,1465
-        1,"spurious_sched_wakeup",1736413914899,886,0,230,1467
-        2,"spurious_sched_wakeup",1736977755745,1298,0,230,1469
-        3,"spurious_sched_wakeup",1737046900004,1473,0,1472,1473
-        4,"spurious_sched_wakeup",1737047159060,1502,0,1474,1472
-        5,"spurious_sched_wakeup",1737081636170,2992,0,1214,1319
-        6,"spurious_sched_wakeup",1737108696536,5010,0,501,557
-        7,"spurious_sched_wakeup",1737153309978,6431,0,11,506
-        8,"spurious_sched_wakeup",1737165240546,6915,0,565,499
-        9,"spurious_sched_wakeup",1737211563344,8999,0,178,1195
+        "id","ts","thread_state_id","irq_context","utid","waker_utid"
+        0,1735850782904,423,0,230,1465
+        1,1736413914899,886,0,230,1467
+        2,1736977755745,1298,0,230,1469
+        3,1737046900004,1473,0,1472,1473
+        4,1737047159060,1502,0,1474,1472
+        5,1737081636170,2992,0,1214,1319
+        6,1737108696536,5010,0,501,557
+        7,1737153309978,6431,0,11,506
+        8,1737165240546,6915,0,565,499
+        9,1737211563344,8999,0,178,1195
         """))
 
   def test_sched_waker_id(self):
@@ -120,25 +120,27 @@ class TablesSched(TestSuite):
         15748
         """))
 
-  def test_raw_common_flags(self):
+  def test_ftrace_event_common_flags(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT id, type, ts, name, cpu, utid, arg_set_id, common_flags
-        FROM raw WHERE common_flags != 0 ORDER BY ts LIMIT 10
+          SELECT id, ts, name, cpu, utid, arg_set_id, common_flags
+          FROM ftrace_event
+          WHERE common_flags != 0
+          ORDER BY ts LIMIT 10
         """,
         out=Csv("""
-        "id","type","ts","name","cpu","utid","arg_set_id","common_flags"
-        3,"__intrinsic_ftrace_event",1735489788930,"sched_waking",0,300,4,1
-        4,"__intrinsic_ftrace_event",1735489812571,"sched_waking",0,300,5,1
-        5,"__intrinsic_ftrace_event",1735489833977,"sched_waking",1,305,6,1
-        8,"__intrinsic_ftrace_event",1735489876788,"sched_waking",1,297,9,1
-        9,"__intrinsic_ftrace_event",1735489879097,"sched_waking",0,304,10,1
-        12,"__intrinsic_ftrace_event",1735489933912,"sched_waking",0,428,13,1
-        14,"__intrinsic_ftrace_event",1735489972385,"sched_waking",1,232,15,1
-        17,"__intrinsic_ftrace_event",1735489999987,"sched_waking",1,232,15,1
-        19,"__intrinsic_ftrace_event",1735490039439,"sched_waking",1,298,18,1
-        20,"__intrinsic_ftrace_event",1735490042084,"sched_waking",1,298,19,1
+          "id","ts","name","cpu","utid","arg_set_id","common_flags"
+          3,1735489788930,"sched_waking",0,300,21,1
+          4,1735489812571,"sched_waking",0,300,25,1
+          5,1735489833977,"sched_waking",1,305,29,1
+          8,1735489876788,"sched_waking",1,297,47,1
+          9,1735489879097,"sched_waking",0,304,51,1
+          12,1735489933912,"sched_waking",0,428,69,1
+          14,1735489972385,"sched_waking",1,232,80,1
+          17,1735489999987,"sched_waking",1,232,80,1
+          19,1735490039439,"sched_waking",1,298,98,1
+          20,1735490042084,"sched_waking",1,298,102,1
         """))
 
   def test_thread_executing_span_graph(self):
@@ -675,13 +677,13 @@ class TablesSched(TestSuite):
         """))
 
   # Test the support of machine_id ID of the raw table.
-  def test_raw_machine_id(self):
+  def test_ftrace_event_machine_id(self):
     return DiffTestBlueprint(
         trace=DataPath('android_sched_and_ps.pb'),
         trace_modifier=TraceInjector(['ftrace_events'], {'machine_id': 1001}),
         query="""
         SELECT count(*)
-        FROM raw LEFT JOIN cpu USING (ucpu)
+        FROM ftrace_event LEFT JOIN cpu USING (ucpu)
         WHERE machine_id is NULL;
         """,
         out=Csv("""

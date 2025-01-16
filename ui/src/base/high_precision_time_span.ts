@@ -31,6 +31,19 @@ export class HighPrecisionTimeSpan {
   }
 
   /**
+   * Create a new span from two high precision times. The earlier time is used
+   * as the start and and the later time as the end of the span.
+   */
+  static fromHpTimes(
+    a: HighPrecisionTime,
+    b: HighPrecisionTime,
+  ): HighPrecisionTimeSpan {
+    const start = HighPrecisionTime.min(a, b);
+    const end = HighPrecisionTime.max(a, b);
+    return new HighPrecisionTimeSpan(start, Number(end.sub(start)));
+  }
+
+  /**
    * Create a new span from integral start and end points.
    *
    * @param start The start of the span.

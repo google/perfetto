@@ -78,10 +78,6 @@ class ParsedColumn:
   # parsing the tables rather than by the user.
   is_implicit_id: bool = False
 
-  # Whether this column is the implicit "type" column which is added by while
-  # parsing the tables rather than by the user.
-  is_implicit_type: bool = False
-
   # Whether this column comes from copying a column from the ancestor. If this
   # is set to false, the user explicitly specified it for this table.
   is_ancestor: bool = False
@@ -200,14 +196,6 @@ def _create_implicit_columns_for_root(table: Table) -> List[ParsedColumn]:
           _to_column_doc(id_doc) if id_doc else ColumnDoc(
               doc=f'Unique identifier for this {sql_name}.'),
           is_implicit_id=True),
-      ParsedColumn(
-          Column('type', CppString(), ColumnFlag.NONE),
-          _to_column_doc(type_doc) if type_doc else ColumnDoc(doc='''
-                The name of the "most-specific" child table containing this
-                row.
-              '''),
-          is_implicit_type=True,
-      )
   ]
 
 

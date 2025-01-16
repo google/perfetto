@@ -28,6 +28,7 @@ static_library("perfetto_cts_deps") {
     "../../protos/perfetto/config/process_stats:cpp",
     "../../protos/perfetto/config/profiling:cpp",
     "../../protos/perfetto/trace:cpp",
+    "../../protos/perfetto/trace/interned_data:cpp",
     "../../protos/perfetto/trace/profiling:cpp",
     "../../src/base:test_support",
     "../../src/protozero/filtering:bytecode_generator",

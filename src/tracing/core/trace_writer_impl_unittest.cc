@@ -129,8 +129,9 @@ class TraceWriterImplTest : public AlignedBufferTest {
     SharedMemoryABI* abi = arbiter_->shmem_abi_for_testing();
     bool was_fragmenting = false;
     for (size_t page_idx = 0; page_idx < abi->num_pages(); page_idx++) {
-      uint32_t page_layout = abi->GetPageLayout(page_idx);
-      size_t num_chunks = SharedMemoryABI::GetNumChunksForLayout(page_layout);
+      uint32_t header_bitmap = abi->GetPageHeaderBitmap(page_idx);
+      size_t num_chunks =
+          SharedMemoryABI::GetNumChunksFromHeaderBitmap(header_bitmap);
       for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
         SharedMemoryABI::ChunkState chunk_state =
             abi->GetChunkState(page_idx, chunk_idx);
@@ -188,21 +189,22 @@ class TraceWriterImplTest : public AlignedBufferTest {
 
   struct ChunkInABI {
     size_t page_idx;
-    uint32_t page_layout;
+    uint32_t header_bitmap;
     size_t chunk_idx;
   };
   std::optional<ChunkInABI> GetFirstChunkBeingWritten() {
     SharedMemoryABI* abi = arbiter_->shmem_abi_for_testing();
     for (size_t page_idx = 0; page_idx < abi->num_pages(); page_idx++) {
-      uint32_t page_layout = abi->GetPageLayout(page_idx);
-      size_t num_chunks = SharedMemoryABI::GetNumChunksForLayout(page_layout);
+      uint32_t header_bitmap = abi->GetPageHeaderBitmap(page_idx);
+      size_t num_chunks =
+          SharedMemoryABI::GetNumChunksFromHeaderBitmap(header_bitmap);
       for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
         SharedMemoryABI::ChunkState chunk_state =
             abi->GetChunkState(page_idx, chunk_idx);
         if (chunk_state != SharedMemoryABI::kChunkBeingWritten) {
           continue;
         }
-        return ChunkInABI{page_idx, page_layout, chunk_idx};
+        return ChunkInABI{page_idx, header_bitmap, chunk_idx};
       }
     }
     return std::nullopt;
@@ -552,9 +554,9 @@ TEST_P(TraceWriterImplTest, MessageHandleDestroyedPacketScrapable) {
   ASSERT_TRUE(chunk_in_abi.has_value());
 
   auto* abi = arbiter_->shmem_abi_for_testing();
-  SharedMemoryABI::Chunk chunk =
-      abi->GetChunkUnchecked(chunk_in_abi->page_idx, chunk_in_abi->page_layout,
-                             chunk_in_abi->chunk_idx);
+  SharedMemoryABI::Chunk chunk = abi->GetChunkUnchecked(
+      chunk_in_abi->page_idx, chunk_in_abi->header_bitmap,
+      chunk_in_abi->chunk_idx);
   ASSERT_TRUE(chunk.is_valid());
 
   EXPECT_EQ(chunk.header()->packets.load().count, 1);
@@ -603,9 +605,9 @@ TEST_P(TraceWriterImplTest, FinishTracePacketScrapable) {
   ASSERT_TRUE(chunk_in_abi.has_value());
 
   auto* abi = arbiter_->shmem_abi_for_testing();
-  SharedMemoryABI::Chunk chunk =
-      abi->GetChunkUnchecked(chunk_in_abi->page_idx, chunk_in_abi->page_layout,
-                             chunk_in_abi->chunk_idx);
+  SharedMemoryABI::Chunk chunk = abi->GetChunkUnchecked(
+      chunk_in_abi->page_idx, chunk_in_abi->header_bitmap,
+      chunk_in_abi->chunk_idx);
   ASSERT_TRUE(chunk.is_valid());
 
   EXPECT_EQ(chunk.header()->packets.load().count, 1);
@@ -651,9 +653,9 @@ TEST_P(TraceWriterImplTest,
   ASSERT_TRUE(chunk_in_abi.has_value());
 
   auto* abi = arbiter_->shmem_abi_for_testing();
-  SharedMemoryABI::Chunk chunk =
-      abi->GetChunkUnchecked(chunk_in_abi->page_idx, chunk_in_abi->page_layout,
-                             chunk_in_abi->chunk_idx);
+  SharedMemoryABI::Chunk chunk = abi->GetChunkUnchecked(
+      chunk_in_abi->page_idx, chunk_in_abi->header_bitmap,
+      chunk_in_abi->chunk_idx);
   ASSERT_TRUE(chunk.is_valid());
 
   EXPECT_EQ(chunk.header()->packets.load().count, 1);
@@ -700,9 +702,9 @@ TEST_P(TraceWriterImplTest, MessageHandleDestroyedPacketFullChunk) {
   ASSERT_TRUE(chunk_in_abi.has_value());
 
   auto* abi = arbiter_->shmem_abi_for_testing();
-  SharedMemoryABI::Chunk chunk =
-      abi->GetChunkUnchecked(chunk_in_abi->page_idx, chunk_in_abi->page_layout,
-                             chunk_in_abi->chunk_idx);
+  SharedMemoryABI::Chunk chunk = abi->GetChunkUnchecked(
+      chunk_in_abi->page_idx, chunk_in_abi->header_bitmap,
+      chunk_in_abi->chunk_idx);
   ASSERT_TRUE(chunk.is_valid());
 
   EXPECT_EQ(chunk.header()->packets.load().count, 1);
@@ -749,9 +751,9 @@ TEST_P(TraceWriterImplTest, FinishTracePacketFullChunk) {
   ASSERT_TRUE(chunk_in_abi.has_value());
 
   auto* abi = arbiter_->shmem_abi_for_testing();
-  SharedMemoryABI::Chunk chunk =
-      abi->GetChunkUnchecked(chunk_in_abi->page_idx, chunk_in_abi->page_layout,
-                             chunk_in_abi->chunk_idx);
+  SharedMemoryABI::Chunk chunk = abi->GetChunkUnchecked(
+      chunk_in_abi->page_idx, chunk_in_abi->header_bitmap,
+      chunk_in_abi->chunk_idx);
   ASSERT_TRUE(chunk.is_valid());
 
   EXPECT_EQ(chunk.header()->packets.load().count, 1);

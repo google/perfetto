@@ -30,7 +30,7 @@ CREATE PERFETTO TABLE cpu_profiling_samples(
   -- The timestamp of the sample.
   ts TIMESTAMP,
   -- The utid of the thread of the sample, if available.
-  utid LONG,
+  utid JOINID(thread.id),
   -- The tid of the sample, if available.
   tid LONG,
   -- The thread name of thread of the sample, if available.

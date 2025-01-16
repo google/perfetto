@@ -23,7 +23,6 @@
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
@@ -41,6 +40,7 @@
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/android_track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/chrome_track_event.descriptor.h"
@@ -62,7 +62,7 @@ TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
     multi_machine_trace_manager.reset(new MultiMachineTraceManager(this));
   }
   track_tracker.reset(new TrackTracker(this));
-  async_track_set_tracker.reset(new AsyncTrackSetTracker(this));
+  track_compressor.reset(new TrackCompressor(this));
   args_tracker.reset(new ArgsTracker(this));
   args_translation_table.reset(new ArgsTranslationTable(storage.get()));
   slice_tracker.reset(new SliceTracker(this));

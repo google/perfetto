@@ -15,99 +15,144 @@
  */
 
 #include "src/trace_processor/importers/ftrace/thermal_tracker.h"
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/ftrace/thermal.pbzero.h"
 #include "protos/perfetto/trace/ftrace/thermal_exynos.pbzero.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
+namespace {
 
-constexpr const char* kTemperatureSuffix = "Temperature";
-constexpr const char* kCoolingDeviceSuffix = "Cooling Device";
+constexpr std::array<const char*, 7> kAcpmThermalZones = {
+    "BIG", "MID", "LITTLE", "GPU", "ISP", "TPU", "AUR",
+};
+
+constexpr char kThermalZoneIdKey[] = "thermal_zone_id";
+
+constexpr auto kThermalZoneDimension =
+    tracks::StringDimensionBlueprint("thermal_zone");
+
+constexpr auto kAcpmTemperatureTrackBlueprint = tracks::CounterBlueprint(
+    "acpm_thermal_temperature",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(kThermalZoneDimension),
+    tracks::FnNameBlueprint([](base::StringView zone) {
+      return base::StackString<64>("%.*s Temperature",
+                                   static_cast<int>(zone.size()), zone.data());
+    }));
+
+constexpr auto kAcpmCoolingTrackBlueprint = tracks::CounterBlueprint(
+    "acpm_cooling_device_counter",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(kThermalZoneDimension),
+    tracks::FnNameBlueprint([](base::StringView zone) {
+      return base::StackString<64>("Tj-%.*s Cooling Device",
+                                   static_cast<int>(zone.size()), zone.data());
+    }));
+
+}  // namespace
 
 ThermalTracker::ThermalTracker(TraceProcessorContext* context)
-    : context_(context) {
-  const std::array<const char*, kAcpmThermalZones> acpm_thermal_zones = {
-      "BIG", "MID", "LITTLE", "GPU", "ISP", "TPU", "AUR",
-  };
-  for (size_t i = 0; i < kAcpmThermalZones; i++) {
-    base::StackString<32> temperature_counter("%s %s", acpm_thermal_zones[i],
-                                              kTemperatureSuffix);
-    acpm_temperature_counters_[i] =
-        context_->storage->InternString(temperature_counter.string_view());
-    base::StackString<32> cooling_device_counter(
-        "Tj-%s %s", acpm_thermal_zones[i], kCoolingDeviceSuffix);
-    acpm_cooling_device_counters_[i] =
-        context_->storage->InternString(cooling_device_counter.string_view());
-  }
-}
+    : context_(context) {}
 
 void ThermalTracker::ParseThermalTemperature(int64_t timestamp,
                                              protozero::ConstBytes blob) {
   protos::pbzero::ThermalTemperatureFtraceEvent::Decoder event(blob);
-  base::StringView tz = event.thermal_zone();
-  base::StackString<255> counter_name("%.*s %s", static_cast<int>(tz.size()),
-                                      tz.data(), kTemperatureSuffix);
-  StringId counter_id =
-      context_->storage->InternString(counter_name.string_view());
-  PushCounter(timestamp, counter_id, static_cast<double>(event.temp()));
+  TrackId track = context_->track_tracker->InternTrack(
+      tracks::kThermalTemperatureBlueprint,
+      tracks::Dimensions(event.thermal_zone()));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(event.temp()), track);
 }
 
 void ThermalTracker::ParseCdevUpdate(int64_t timestamp,
                                      protozero::ConstBytes blob) {
   protos::pbzero::CdevUpdateFtraceEvent::Decoder event(blob);
-  base::StringView cdev = event.type();
-  base::StackString<255> counter_name("%.*s %s", static_cast<int>(cdev.size()),
-                                      cdev.data(), kCoolingDeviceSuffix);
-  StringId counter_id =
-      context_->storage->InternString(counter_name.string_view());
-  PushCounter(timestamp, counter_id, static_cast<double>(event.target()));
+  TrackId track = context_->track_tracker->InternTrack(
+      tracks::kCoolingDeviceCounterBlueprint, tracks::Dimensions(event.type()));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(event.target()), track);
 }
 
 void ThermalTracker::ParseThermalExynosAcpmBulk(protozero::ConstBytes blob) {
   protos::pbzero::ThermalExynosAcpmBulkFtraceEvent::Decoder event(blob);
-  auto tz_id = static_cast<size_t>(event.tz_id());
-  if (tz_id >= kAcpmThermalZones) {
+  auto tz_id = static_cast<uint32_t>(event.tz_id());
+  if (tz_id >= kAcpmThermalZones.size()) {
     context_->storage->IncrementStats(
         stats::ftrace_thermal_exynos_acpm_unknown_tz_id);
     return;
   }
   auto timestamp = static_cast<int64_t>(event.timestamp());
-  // Record acpm tz's temperature.
-  PushCounter(timestamp, acpm_temperature_counters_[tz_id],
-              static_cast<double>(event.current_temp()));
-  // Record cdev target of acpm tz's cooling device.
-  PushCounter(timestamp, acpm_cooling_device_counters_[tz_id],
-              static_cast<double>(event.cdev_state()));
+  {
+    TrackId track = context_->track_tracker->InternTrack(
+        kAcpmTemperatureTrackBlueprint,
+        tracks::Dimensions(kAcpmThermalZones[tz_id]));
+    context_->event_tracker->PushCounter(
+        timestamp, static_cast<double>(event.current_temp()), track,
+        [this, tz_id](ArgsTracker::BoundInserter* inserter) {
+          StringId key = context_->storage->InternString(kThermalZoneIdKey);
+          inserter->AddArg(key, Variadic::Integer(tz_id));
+        });
+  }
+  {
+    TrackId track = context_->track_tracker->InternTrack(
+        kAcpmCoolingTrackBlueprint,
+        tracks::Dimensions(kAcpmThermalZones[tz_id]));
+    context_->event_tracker->PushCounter(
+        timestamp, static_cast<double>(event.cdev_state()), track,
+        [this, tz_id](ArgsTracker::BoundInserter* inserter) {
+          StringId key = context_->storage->InternString(kThermalZoneIdKey);
+          inserter->AddArg(key, Variadic::Integer(tz_id));
+        });
+  }
 }
 
 void ThermalTracker::ParseThermalExynosAcpmHighOverhead(
     int64_t timestamp,
     protozero::ConstBytes blob) {
   protos::pbzero::ThermalExynosAcpmHighOverheadFtraceEvent::Decoder event(blob);
-  auto tz_id = static_cast<size_t>(event.tz_id());
-  if (tz_id >= kAcpmThermalZones) {
+  auto tz_id = static_cast<uint32_t>(event.tz_id());
+  if (tz_id >= kAcpmThermalZones.size()) {
     context_->storage->IncrementStats(
         stats::ftrace_thermal_exynos_acpm_unknown_tz_id);
     return;
   }
-  // Record acpm tz's temperature.
-  PushCounter(timestamp, acpm_temperature_counters_[tz_id],
-              static_cast<double>(event.current_temp()));
-  // Record cdev target of acpm tz's cooling device.
-  PushCounter(timestamp, acpm_cooling_device_counters_[tz_id],
-              static_cast<double>(event.cdev_state()));
+  {
+    TrackId track = context_->track_tracker->InternTrack(
+        kAcpmTemperatureTrackBlueprint,
+        tracks::Dimensions(kAcpmThermalZones[tz_id]));
+    context_->event_tracker->PushCounter(
+        timestamp, static_cast<double>(event.current_temp()), track,
+        [this, tz_id](ArgsTracker::BoundInserter* inserter) {
+          StringId key = context_->storage->InternString(kThermalZoneIdKey);
+          inserter->AddArg(key, Variadic::Integer(tz_id));
+        });
+  }
+  {
+    TrackId track = context_->track_tracker->InternTrack(
+        kAcpmCoolingTrackBlueprint,
+        tracks::Dimensions(kAcpmThermalZones[tz_id]));
+    context_->event_tracker->PushCounter(
+        timestamp, static_cast<double>(event.cdev_state()), track,
+        [this, tz_id](ArgsTracker::BoundInserter* inserter) {
+          StringId key = context_->storage->InternString(kThermalZoneIdKey);
+          inserter->AddArg(key, Variadic::Integer(tz_id));
+        });
+  }
 }
 
-void ThermalTracker::PushCounter(int64_t timestamp,
-                                 StringId counter_id,
-                                 double value) {
-  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
-      TrackTracker::Group::kThermals, counter_id);
-  context_->event_tracker->PushCounter(timestamp, value, track);
-}
-
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

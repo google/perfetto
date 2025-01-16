@@ -16,15 +16,35 @@
 
 #include "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/base/proc_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/trace_processor/importers/memory_tracker/graph.h"
+#include "perfetto/ext/trace_processor/importers/memory_tracker/graph_processor.h"
+#include "perfetto/ext/trace_processor/importers/memory_tracker/memory_allocator_node_id.h"
+#include "perfetto/ext/trace_processor/importers/memory_tracker/memory_graph_edge.h"
+#include "perfetto/ext/trace_processor/importers/memory_tracker/raw_memory_graph_node.h"
+#include "perfetto/ext/trace_processor/importers/memory_tracker/raw_process_memory_node.h"
 #include "protos/perfetto/trace/memory_graph.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 MemoryTrackerSnapshotParser::MemoryTrackerSnapshotParser(
     TraceProcessorContext* context)
@@ -58,7 +78,7 @@ void MemoryTrackerSnapshotParser::ReadProtoSnapshot(
     ConstBytes blob,
     RawMemoryNodeMap& raw_nodes,
     LevelOfDetail& level_of_detail) {
-  protos::pbzero::MemoryTrackerSnapshot::Decoder snapshot(blob.data, blob.size);
+  protos::pbzero::MemoryTrackerSnapshot::Decoder snapshot(blob);
   level_of_detail = LevelOfDetail::kDetailed;
 
   switch (snapshot.level_of_detail()) {
@@ -78,8 +98,7 @@ void MemoryTrackerSnapshotParser::ReadProtoSnapshot(
     protos::pbzero::MemoryTrackerSnapshot::ProcessSnapshot::Decoder
         process_memory_dump(*process_it);
 
-    base::PlatformProcessId pid =
-        static_cast<base::PlatformProcessId>(process_memory_dump.pid());
+    auto pid = static_cast<base::PlatformProcessId>(process_memory_dump.pid());
 
     RawProcessMemoryNode::MemoryNodesMap nodes_map;
     RawProcessMemoryNode::AllocatorNodeEdgesMap edges_map;
@@ -170,9 +189,9 @@ void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
 
   // For now, we use the existing global instant event track for chrome events,
   // since memory dumps are global.
-  TrackId track_id = context_->track_tracker->InternGlobalTrack(
-      tracks::legacy_chrome_global_instants, TrackTracker::AutoName(),
-      [this](ArgsTracker::BoundInserter& inserter) {
+  TrackId track_id = context_->track_tracker->InternTrack(
+      tracks::kLegacyGlobalInstantsBlueprint, tracks::Dimensions(),
+      tracks::BlueprintName(), [this](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(
             context_->storage->InternString("source"),
             Variadic::String(context_->storage->InternString("chrome")));
@@ -325,5 +344,4 @@ void MemoryTrackerSnapshotParser::GenerateGraphFromRawNodesAndEmitRows() {
   aggregate_raw_nodes_.clear();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

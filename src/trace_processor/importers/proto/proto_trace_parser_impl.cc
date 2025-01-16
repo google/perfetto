@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -23,7 +24,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
 #include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -33,17 +33,19 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
@@ -160,13 +162,13 @@ void ProtoTraceParserImpl::ParseInlineSchedWaking(uint32_t cpu,
 
 void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   TraceStorage* storage = context_->storage.get();
-  protos::pbzero::ChromeEventBundle::Decoder bundle(blob.data, blob.size);
+  protos::pbzero::ChromeEventBundle::Decoder bundle(blob);
   ArgsTracker args(context_);
   if (bundle.has_metadata()) {
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
-    RawId id = storage->mutable_raw_table()
-                   ->Insert({ts, raw_chrome_metadata_event_id_, 0, 0, 0, ucpu})
-                   .id;
+    tables::ChromeRawTable::Id id =
+        storage->mutable_chrome_raw_table()
+            ->Insert({ts, raw_chrome_metadata_event_id_, 0, 0})
+            .id;
     auto inserter = args.AddArgsTo(id);
 
     uint32_t bundle_index =
@@ -211,11 +213,10 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   }
 
   if (bundle.has_legacy_ftrace_output()) {
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
-    RawId id = storage->mutable_raw_table()
-                   ->Insert({ts, raw_chrome_legacy_system_trace_event_id_, 0, 0,
-                             0, ucpu})
-                   .id;
+    tables::ChromeRawTable::Id id =
+        storage->mutable_chrome_raw_table()
+            ->Insert({ts, raw_chrome_legacy_system_trace_event_id_, 0, 0})
+            .id;
 
     std::string data;
     for (auto it = bundle.legacy_ftrace_output(); it; ++it) {
@@ -233,11 +234,10 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
           protos::pbzero::ChromeLegacyJsonTrace::USER_TRACE) {
         continue;
       }
-      auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
-      RawId id = storage->mutable_raw_table()
-                     ->Insert({ts, raw_chrome_legacy_user_trace_event_id_, 0, 0,
-                               0, ucpu})
-                     .id;
+      tables::ChromeRawTable::Id id =
+          storage->mutable_chrome_raw_table()
+              ->Insert({ts, raw_chrome_legacy_user_trace_event_id_, 0, 0})
+              .id;
       Variadic value =
           Variadic::String(storage->InternString(legacy_trace.data()));
       args.AddArgsTo(id).AddArg(data_name_id_, value);
@@ -246,12 +246,10 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
 }
 
 void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::PerfettoMetatrace::Decoder event(blob.data, blob.size);
+  protos::pbzero::PerfettoMetatrace::Decoder event(blob);
   auto utid = context_->process_tracker->GetOrCreateThread(event.thread_id());
 
   StringId cat_id = metatrace_id_;
-  StringId name_id = kNullStringId;
-
   for (auto it = event.interned_strings(); it; ++it) {
     protos::pbzero::PerfettoMetatrace::InternedString::Decoder interned_string(
         it->data(), it->size());
@@ -324,12 +322,13 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 
   if (event.has_event_id() || event.has_event_name() ||
       event.has_event_name_iid()) {
+    StringId name_id;
     if (event.has_event_id()) {
       auto eid = event.event_id();
       if (eid < metatrace::EVENTS_MAX) {
         name_id = context_->storage->InternString(metatrace::kEventNames[eid]);
       } else {
-        base::StackString<64> fallback("Event %d", eid);
+        base::StackString<64> fallback("Event %u", eid);
         name_id = context_->storage->InternString(fallback.string_view());
       }
     } else if (event.has_event_name_iid()) {
@@ -342,20 +341,33 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
         ts, track_id, cat_id, name_id,
         static_cast<int64_t>(event.event_duration_ns()), args_fn);
   } else if (event.has_counter_id() || event.has_counter_name()) {
+    static constexpr auto kBlueprint = tracks::CounterBlueprint(
+        "metatrace_counter", tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(
+            tracks::kThreadDimensionBlueprint,
+            tracks::StringDimensionBlueprint("counter_name")),
+        tracks::DynamicNameBlueprint());
+    TrackId track;
     if (event.has_counter_id()) {
       auto cid = event.counter_id();
+      StringId name_id;
       if (cid < metatrace::COUNTERS_MAX) {
         name_id =
             context_->storage->InternString(metatrace::kCounterNames[cid]);
       } else {
-        base::StackString<64> fallback("Counter %d", cid);
+        base::StackString<64> fallback("Counter %u", cid);
         name_id = context_->storage->InternString(fallback.string_view());
       }
+      track = context_->track_tracker->InternTrack(
+          kBlueprint,
+          tracks::Dimensions(utid, context_->storage->GetString(name_id)),
+          tracks::DynamicName(name_id));
     } else {
-      name_id = context_->storage->InternString(event.counter_name());
+      track = context_->track_tracker->InternTrack(
+          kBlueprint, tracks::Dimensions(utid, event.counter_name()),
+          tracks::DynamicName(
+              context_->storage->InternString(event.counter_name())));
     }
-    TrackId track =
-        context_->track_tracker->LegacyInternThreadCounterTrack(name_id, utid);
     auto opt_id =
         context_->event_tracker->PushCounter(ts, event.counter_value(), track);
     if (opt_id) {

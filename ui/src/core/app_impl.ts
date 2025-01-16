@@ -36,6 +36,8 @@ import {PerfManager} from './perf_manager';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
 import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import {featureFlags} from './feature_flags';
+import {Raf} from '../public/raf';
+import {AsyncLimiter} from '../base/async_limiter';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
@@ -71,6 +73,7 @@ export class AppContext {
   readonly initArgs: AppInitArgs;
   readonly embeddedMode: boolean;
   readonly testingMode: boolean;
+  readonly openTraceAsyncLimiter = new AsyncLimiter();
 
   // This is normally empty and is injected with extra google-internal packages
   // via is_internal_user.js
@@ -214,8 +217,8 @@ export class AppImpl implements App {
     return this.appCtx.currentTrace?.forPlugin(this.pluginId);
   }
 
-  scheduleFullRedraw(force?: 'force'): void {
-    raf.scheduleFullRedraw(force);
+  get raf(): Raf {
+    return raf;
   }
 
   get httpRpc() {
@@ -249,30 +252,35 @@ export class AppImpl implements App {
   }
 
   private async openTrace(src: TraceSource) {
-    this.appCtx.closeCurrentTrace();
-    this.appCtx.isLoadingTrace = true;
-    try {
-      // loadTrace() in trace_loader.ts will do the following:
-      // - Create a new engine.
-      // - Pump the data from the TraceSource into the engine.
-      // - Do the initial queries to build the TraceImpl object
-      // - Call AppImpl.setActiveTrace(TraceImpl)
-      // - Continue with the trace loading logic (track decider, plugins, etc)
-      // - Resolve the promise when everything is done.
-      await loadTrace(this, src);
-      this.omnibox.reset(/* focus= */ false);
-      // loadTrace() internally will call setActiveTrace() and change our
-      // _currentTrace in the middle of its ececution. We cannot wait for
-      // loadTrace to be finished before setting it because some internal
-      // implementation details of loadTrace() rely on that trace to be current
-      // to work properly (mainly the router hash uuid).
-    } catch (err) {
-      this.omnibox.showStatusMessage(`${err}`);
-      throw err;
-    } finally {
-      this.appCtx.isLoadingTrace = false;
-      raf.scheduleFullRedraw();
-    }
+    // Rationale for asyncLimiter: openTrace takes several seconds and involves
+    // a long sequence of async tasks (e.g. invoking plugins' onLoad()). These
+    // tasks cannot overlap if the user opens traces in rapid succession, as
+    // they will mess up the state of registries. So once we start, we must
+    // complete trace loading (we don't bother supporting cancellations. If the
+    // user is too bothered, they can reload the tab).
+    this.appCtx.openTraceAsyncLimiter.schedule(async () => {
+      this.appCtx.closeCurrentTrace();
+      this.appCtx.isLoadingTrace = true;
+      try {
+        // loadTrace() in trace_loader.ts will do the following:
+        // - Create a new engine.
+        // - Pump the data from the TraceSource into the engine.
+        // - Do the initial queries to build the TraceImpl object
+        // - Call AppImpl.setActiveTrace(TraceImpl)
+        // - Continue with the trace loading logic (track decider, plugins, etc)
+        // - Resolve the promise when everything is done.
+        await loadTrace(this, src);
+        this.omnibox.reset(/* focus= */ false);
+        // loadTrace() internally will call setActiveTrace() and change our
+        // _currentTrace in the middle of its ececution. We cannot wait for
+        // loadTrace to be finished before setting it because some internal
+        // implementation details of loadTrace() rely on that trace to be current
+        // to work properly (mainly the router hash uuid).
+      } finally {
+        this.appCtx.isLoadingTrace = false;
+        raf.scheduleFullRedraw();
+      }
+    });
   }
 
   // Called by trace_loader.ts soon after it has created a new TraceImpl.

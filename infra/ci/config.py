@@ -116,7 +116,7 @@ JOB_CONFIGS = {
     'linux-clang-x86_64-bazel': {
         'PERFETTO_TEST_GN_ARGS': '',
         'PERFETTO_TEST_SCRIPT': 'test/ci/bazel_tests.sh',
-        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '--bazel',
     },
     'ui-clang-x86_64-release': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false',

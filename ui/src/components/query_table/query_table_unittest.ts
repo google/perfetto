@@ -26,13 +26,6 @@ describe('getSliceId', () => {
     expect(getSliceId({type: 'foo', slice_id: 456})).toBe(456);
     expect(getSliceId({type: 'foo', id: 123, slice_id: 456})).toBe(456);
   });
-
-  test('get id if present when row looks like a slice', () => {
-    expect(getSliceId({type: 'slice'})).toBe(undefined);
-    expect(getSliceId({type: 'slice', id: 123})).toBe(123);
-    expect(getSliceId({type: 'slice', slice_id: 456})).toBe(undefined);
-    expect(getSliceId({type: 'slice', id: 123, slice_id: 456})).toBe(123);
-  });
 });
 
 test('isSliceish', () => {

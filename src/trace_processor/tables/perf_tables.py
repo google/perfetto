@@ -28,6 +28,7 @@ from python.generators.trace_processor_table.public import TableDoc
 from .profiler_tables import STACK_PROFILE_FRAME_TABLE
 from .profiler_tables import STACK_PROFILE_MAPPING_TABLE
 from .metadata_tables import THREAD_TABLE
+from .etm_tables import FILE_TABLE
 
 SPE_RECORD_TABLE = Table(
     python_module=__file__,
@@ -106,7 +107,28 @@ MMAP_RECORD = Table(
         C('ts', CppInt64()),
         C('upid', CppOptional(CppUint32())),
         C('mapping_id', CppTableId(STACK_PROFILE_MAPPING_TABLE)),
-    ])
+        C('file_id', CppOptional(CppTableId(FILE_TABLE))),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          This table has a row for each mmap or mmap2 record in a perf trace.
+          It allows us to determine when mappings are created, what process
+          created them and what is the actual data contained in the mapping.
+        ''',
+        group='Perf',
+        columns={
+            'ts':
+                'Time the mapping was created.',
+            'upid':
+                'Process that created the mapping',
+            'mapping_id':
+                ColumnDoc('Mapping', joinable='stack_profile_mapping.id'),
+            'file_id':
+                ColumnDoc(
+                    'References a file that backs the contents of this mapping',
+                    joinable='__intrinsic_file.id'),
+        },
+    ))
 
 ALL_TABLES = [
     SPE_RECORD_TABLE,

@@ -12,15 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {ExplorePage} from './explore_page';
+import {ExplorePage, ExploreTableState} from './explore_page';
+import {Chart} from '../../components/widgets/charts/chart';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
+  static readonly dependencies = [SqlModulesPlugin];
+
+  // The following allows us to have persistent
+  // state/charts for the lifecycle of a single
+  // trace.
+  private readonly state: ExploreTableState = {};
+  private charts: Set<Chart> = new Set();
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    trace.pages.registerPage({route: '/explore', page: ExplorePage});
+    trace.pages.registerPage({
+      route: '/explore',
+      page: {
+        view: ({attrs}) =>
+          m(ExplorePage, {
+            ...attrs,
+            state: this.state,
+            charts: this.charts,
+          }),
+      },
+    });
     trace.sidebar.addMenuItem({
       section: 'current_trace',
       text: 'Explore',

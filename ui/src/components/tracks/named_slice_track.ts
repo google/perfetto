@@ -20,7 +20,6 @@ import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {
   BASE_ROW,
   BaseSliceTrack,
-  OnSliceClickArgs,
   OnSliceOverArgs,
   SLICE_FLAGS_INCOMPLETE,
   SLICE_FLAGS_INSTANT,
@@ -69,10 +68,6 @@ export abstract class NamedSliceTrack<
       duration = formatDuration(this.trace, dur);
     }
     args.tooltip = [`${title} - [${duration}]`];
-  }
-
-  onSliceClick(args: OnSliceClickArgs<SliceType>) {
-    this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
   }
 
   detailsPanel(_sel: TrackEventSelection): TrackEventDetailsPanel {

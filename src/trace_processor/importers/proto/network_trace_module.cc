@@ -16,18 +16,34 @@
 
 #include "src/trace_processor/importers/proto/network_trace_module.h"
 
-#include "perfetto/ext/base/string_writer.h"
+#include <cinttypes>
+#include <cstdint>
+#include <utility>
+#include <vector>
+
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/trace_processor/importers/common/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/tcp_state.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 // From android.os.UserHandle.PER_USER_RANGE
 constexpr int kPerUserRange = 100000;
@@ -152,15 +168,12 @@ void NetworkTraceModule::ParseGenericEvent(
     int64_t count,
     protos::pbzero::NetworkPacketEvent::Decoder& evt) {
   // Tracks are per interface and per direction.
-  const char* track_suffix =
+  const char* direction =
       evt.direction() == TrafficDirection::DIR_INGRESS  ? "Received"
       : evt.direction() == TrafficDirection::DIR_EGRESS ? "Transmitted"
                                                         : "DIR_UNKNOWN";
 
-  base::StackString<64> name("%.*s %s", static_cast<int>(evt.interface().size),
-                             evt.interface().data, track_suffix);
-  StringId track_name = context_->storage->InternString(name.string_view());
-  StringId direction = context_->storage->InternString(track_suffix);
+  StringId direction_id = context_->storage->InternString(direction);
   StringId iface = context_->storage->InternString(evt.interface());
 
   if (!loaded_package_names_) {
@@ -190,18 +203,27 @@ void NetworkTraceModule::ParseGenericEvent(
     slice_name = context_->storage->InternString(title_str.string_view());
   }
 
-  TrackId track_id = context_->async_track_set_tracker->Scoped(
-      context_->async_track_set_tracker->InternGlobalTrackSet(track_name), ts,
-      dur);
+  static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
+      "network_packets",
+      tracks::Dimensions(tracks::StringDimensionBlueprint("net_interface"),
+                         tracks::StringDimensionBlueprint("net_direction")),
+      tracks::FnNameBlueprint([](base::StringView interface,
+                                 base::StringView direction) {
+        return base::StackString<64>("%.*s %.*s", int(interface.size()),
+                                     interface.data(), int(direction.size()),
+                                     direction.data());
+      }));
+
+  TrackId track_id = context_->track_compressor->InternScoped(
+      kBlueprint, tracks::Dimensions(evt.interface(), direction), ts, dur);
 
   tables::AndroidNetworkPacketsTable::Row actual_row;
   actual_row.ts = ts;
   actual_row.dur = dur;
   actual_row.name = slice_name;
   actual_row.track_id = track_id;
-  actual_row.category = track_name;
   actual_row.iface = iface;
-  actual_row.direction = direction;
+  actual_row.direction = direction_id;
   actual_row.packet_transport = GetIpProto(evt);
   actual_row.packet_length = length;
   actual_row.packet_count = count;
@@ -271,7 +293,7 @@ StringId NetworkTraceModule::GetIpProto(NetworkPacketEvent::Decoder& evt) {
       return net_ipproto_icmpv6_;
     default:
       return context_->storage->InternString(
-          base::StackString<32>("IPPROTO (%d)", evt.ip_proto()).string_view());
+          base::StackString<32>("IPPROTO (%u)", evt.ip_proto()).string_view());
   }
 }
 
@@ -301,5 +323,4 @@ void NetworkTraceModule::PushPacketBufferForSort(
   packet_buffer_.Reset();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -2214,6 +2214,47 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
   EXPECT_EQ(4, event_count);
 }
 
+TEST_P(PerfettoApiTest, CustomTrackDescriptorForParent) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  // SetTrackDescriptor before starting the tracing session.
+  auto parent_track = perfetto::NamedTrack("MyCustomParent");
+  auto desc = parent_track.Serialize();
+  perfetto::TrackEvent::SetTrackDescriptor(parent_track, std::move(desc));
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_INSTANT("bar", "AsyncEvent",
+                      perfetto::NamedTrack("MyCustomChild", 123, parent_track));
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+
+  bool found_parent_desc = false;
+  bool found_child_desc = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor()) {
+      const auto& td = packet.track_descriptor();
+
+      if (td.static_name() == "MyCustomParent") {
+        found_parent_desc = true;
+      } else if (td.static_name() == "MyCustomChild") {
+        found_child_desc = true;
+      }
+    }
+  }
+  // SetTrackDescriptor for the parent happened before the tracing session was
+  // running, but when emitting the child, the parent should be emitted as well.
+  EXPECT_TRUE(found_parent_desc);
+  EXPECT_TRUE(found_child_desc);
+}
+
 TEST_P(PerfettoApiTest, TrackEventCustomTimestampClock) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"foo"});
@@ -2463,7 +2504,9 @@ TEST_P(PerfettoApiTest, TrackEventAnonymousCustomTrack) {
   for (const auto& packet : trace.packet()) {
     if (packet.has_track_descriptor() &&
         !packet.track_descriptor().has_process() &&
-        !packet.track_descriptor().has_thread()) {
+        !packet.track_descriptor().has_thread() &&
+        packet.track_descriptor().uuid() !=
+            perfetto::ThreadTrack::Current().uuid) {
       auto td = packet.track_descriptor();
       EXPECT_EQ(track.uuid, td.uuid());
       EXPECT_EQ(perfetto::ThreadTrack::Current().uuid, td.parent_uuid());
@@ -6058,6 +6101,44 @@ TEST_P(PerfettoApiTest, Counters) {
               ElementsAre("Framerate = 120", "Goats teleported = 0.25",
                           "Goats teleported = 0.5", "Goats teleported = 0.75",
                           "Voltage = 220", "Power = 1.21"));
+}
+
+TEST_P(PerfettoApiTest, CounterTrackUuid) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+
+  perfetto::CounterTrack track1 = perfetto::CounterTrack("MyCustomCounter", 1);
+  perfetto::CounterTrack track2 = perfetto::CounterTrack("MyCustomCounter", 2);
+
+  TRACE_COUNTER("cat", track1, 1);
+  TRACE_COUNTER("cat", track2, 2);
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+
+  std::map<uint64_t, size_t> counter_tracks;
+  std::map<uint64_t, size_t> counter_events;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_event()) {
+      auto track_event = packet.track_event();
+      EXPECT_EQ(perfetto::protos::gen::TrackEvent_Type_TYPE_COUNTER,
+                track_event.type());
+      ++counter_events[track_event.track_uuid()];
+    }
+    if (packet.has_track_descriptor() &&
+        packet.track_descriptor().has_counter()) {
+      auto desc = packet.track_descriptor();
+      EXPECT_EQ("MyCustomCounter", desc.static_name());
+      ++counter_tracks[desc.uuid()];
+    }
+  }
+  ASSERT_EQ(counter_events.size(), 2U);
+  ASSERT_EQ(counter_tracks.size(), 2U);
+  for (auto track : counter_tracks) {
+    ASSERT_EQ(counter_events.count(track.first), 1U);
+    EXPECT_EQ(counter_events.at(track.first), 1U);
+    EXPECT_EQ(track.second, 1U);
+  }
 }
 
 TEST_P(PerfettoApiTest, ScrapingTrackEventBegin) {

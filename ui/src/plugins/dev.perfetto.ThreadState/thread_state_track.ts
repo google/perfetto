@@ -16,18 +16,19 @@ import {colorForState} from '../../components/colorizer';
 import {
   BASE_ROW,
   BaseSliceTrack,
-  OnSliceClickArgs,
 } from '../../components/tracks/base_slice_track';
 import {
   SLICE_LAYOUT_FLAT_DEFAULTS,
   SliceLayout,
 } from '../../components/tracks/slice_layout';
-import {NUM_NULL, STR} from '../../trace_processor/query_result';
+import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {translateState} from '../../components/sql_utils/thread_state';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {ThreadStateDetailsPanel} from './thread_state_details_panel';
 import {Trace} from '../../public/trace';
+import {Dataset, SourceDataset} from '../../trace_processor/dataset';
+import {Time} from '../../base/time';
 
 export const THREAD_STATE_ROW = {
   ...BASE_ROW,
@@ -71,6 +72,25 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
     `;
   }
 
+  getDataset(): Dataset | undefined {
+    return new SourceDataset({
+      src: 'thread_state',
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        cpu: NUM,
+        state: STR,
+        io_wait: NUM_NULL,
+        utid: NUM,
+      },
+      filter: {
+        col: 'utid',
+        eq: this.utid,
+      },
+    });
+  }
+
   rowToSlice(row: ThreadStateRow): Slice {
     const baseSlice = this.rowToSliceBase(row);
     const ioWait = row.ioWait === null ? undefined : !!row.ioWait;
@@ -85,16 +105,32 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
     }
   }
 
-  onSliceClick(args: OnSliceClickArgs<Slice>) {
-    this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
-  }
-
-  // Add utid to selection details
   override async getSelectionDetails(
     id: number,
   ): Promise<TrackEventDetails | undefined> {
-    const details = await super.getSelectionDetails(id);
-    return details && {...details, utid: this.utid};
+    // We purposely don't call super.getSelectionDetails(id) here, as we want to
+    // be able to return details for sleeping slices, but this super function
+    // uses the query in getSqlSource() which omits sleeping slices.
+    // See b/371972519.
+    // TODO(stevegolton): Use dataset instead.
+    const result = await this.trace.engine.query(`
+      select
+        ts,
+        dur
+      from thread_state
+      where
+        utid = ${this.utid}
+        and id = ${id}
+    `);
+
+    const firstRow = result.maybeFirstRow({ts: LONG, dur: LONG});
+    if (!firstRow) return undefined;
+
+    return {
+      ts: Time.fromRaw(firstRow.ts),
+      dur: firstRow.dur,
+      utid: this.utid,
+    };
   }
 
   detailsPanel({eventId}: TrackEventSelection) {

@@ -24,7 +24,6 @@ import {featureFlags} from '../core/feature_flags';
 import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 import {initWasm} from '../trace_processor/wasm_engine_proxy';
-import {setScheduleFullRedraw} from '../widgets/raf';
 import {UiMain} from './ui_main';
 import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';
@@ -36,13 +35,13 @@ import {postMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
-import {ViewerPage} from './viewer_page';
+import {ViewerPage} from './viewer_page/viewer_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
-import {addSqlTableTab} from '../components/details/sql_table_tab';
+import {addLegacyTableTab} from '../components/details/sql_table_tab';
 import {configureExtensions} from '../components/extensions';
 import {
   addDebugCounterTrack,
@@ -63,7 +62,7 @@ const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
 });
 
 function routeChange(route: Route) {
-  raf.scheduleFullRedraw('force', () => {
+  raf.scheduleFullRedraw(() => {
     if (route.fragment) {
       // This needs to happen after the next redraw call. It's not enough
       // to use setTimeout(..., 0); since that may occur before the
@@ -146,9 +145,6 @@ function main() {
   AppImpl.initialize({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
   });
-
-  // Wire up raf for widgets.
-  setScheduleFullRedraw((force?: 'force') => raf.scheduleFullRedraw(force));
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
   // appendChild returns.
@@ -313,7 +309,7 @@ configureExtensions({
   addDebugCounterTrack,
   addDebugSliceTrack,
   addVisualizedArgTracks,
-  addSqlTableTab,
+  addLegacySqlTableTab: addLegacyTableTab,
   addQueryResultsTab,
 });
 

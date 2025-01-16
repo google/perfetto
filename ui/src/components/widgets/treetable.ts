@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
-import {raf} from '../../core/raf_scheduler';
 
 interface ColumnDescriptor<T> {
   name: string;
@@ -73,7 +72,6 @@ export class TreeTable<T> implements m.ClassComponent<TreeTableAttrs<T>> {
                 } else {
                   this.collapsePath(thisPath);
                 }
-                raf.scheduleFullRedraw();
               },
             }),
             getData(row),

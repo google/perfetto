@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {BigintMath} from '../../base/bigint_math';
 import {copyToClipboard} from '../../base/clipboard';
-import {isString} from '../../base/object_utils';
 import {Time} from '../../base/time';
 import {QueryResponse} from './queries';
 import {Row} from '../../trace_processor/query_result';
@@ -55,14 +54,6 @@ function hasTrackId(row: Row): row is Row & {track_id: Numeric} {
   return 'track_id' in row && isIntegral(row.track_id);
 }
 
-function hasType(row: Row): row is Row & {type: string} {
-  return 'type' in row && isString(row.type);
-}
-
-function hasId(row: Row): row is Row & {id: Numeric} {
-  return 'id' in row && isIntegral(row.id);
-}
-
 function hasSliceId(row: Row): row is Row & {slice_id: Numeric} {
   return 'slice_id' in row && isIntegral(row.slice_id);
 }
@@ -82,14 +73,8 @@ export function isSliceish(row: Row): row is Row & Sliceish {
 
 // Attempts to extract a slice ID from a row, or undefined if none can be found
 export function getSliceId(row: Row): number | undefined {
-  if (hasType(row) && row.type.includes('slice')) {
-    if (hasId(row)) {
-      return Number(row.id);
-    }
-  } else {
-    if (hasSliceId(row)) {
-      return Number(row.slice_id);
-    }
+  if (hasSliceId(row)) {
+    return Number(row.slice_id);
   }
   return undefined;
 }

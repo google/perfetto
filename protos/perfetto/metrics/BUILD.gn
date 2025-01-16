@@ -17,7 +17,10 @@ import("../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
   proto_generators = [ "lite" ]
-  deps = [ "android:@TYPE@" ]
+  deps = [
+    "android:@TYPE@",
+    "common:@TYPE@",
+  ]
   sources = [ "metrics.proto" ]
   generate_descriptor = "metrics.descriptor"
   descriptor_root_source = "metrics.proto"

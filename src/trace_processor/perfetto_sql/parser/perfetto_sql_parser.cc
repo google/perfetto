@@ -525,60 +525,122 @@ bool PerfettoSqlParser::ParseCreatePerfettoMacro(bool replace) {
   return true;
 }
 
+bool PerfettoSqlParser::ParseComplexArgumentType(
+    std::pair<SqliteTokenizer::Token, SqliteTokenizer::Token>& table_and_col) {
+  enum TokenType { kRp, kDot, kTableName, kColumnName };
+  TokenType expected = kTableName;
+  for (Token tok = tokenizer_.NextNonWhitespace();;
+       tok = tokenizer_.NextNonWhitespace()) {
+    switch (expected) {
+      case kTableName: {
+        if (tok.token_type != TK_ID) {
+          return ErrorAtToken(tok, "Expected table name");
+        }
+        table_and_col.first = tok;
+        expected = kDot;
+        continue;
+      }
+      case kDot: {
+        if (tok.token_type != TK_DOT) {
+          return ErrorAtToken(tok,
+                              "Expected dot between table and column names");
+        }
+        expected = kColumnName;
+        continue;
+      }
+      case kColumnName: {
+        if (tok.token_type != TK_ID) {
+          return ErrorAtToken(tok, "Expected column name");
+        }
+        table_and_col.second = tok;
+        expected = kRp;
+        continue;
+      }
+      case kRp:
+        if (tok.token_type == TK_RP) {
+          return true;
+        }
+        return ErrorAtToken(tok, "Expected closing parenthesis");
+    }
+  }
+}
+
 bool PerfettoSqlParser::ParseRawArguments(std::vector<RawArgument>& args) {
+  Token tok = tokenizer_.NextNonWhitespace();
+  // Fast path for no args
+  if (tok.token_type == TK_RP)
+    return true;
+
   enum TokenType {
-    kIdOrRp,
-    kId,
-    kType,
-    kCommaOrRp,
+    kArgName,
+    kArgType,
+    kCommaOrLpOrRp,
   };
 
   std::optional<Token> id = std::nullopt;
-  TokenType expected = kIdOrRp;
-  for (Token tok = tokenizer_.NextNonWhitespace();;
-       tok = tokenizer_.NextNonWhitespace()) {
-    if (expected == kCommaOrRp) {
-      PERFETTO_CHECK(expected == kCommaOrRp);
-      if (tok.token_type == TK_RP) {
-        return true;
+  TokenType expected = kArgName;
+  std::optional<RawArgument> maybe_arg;
+  for (;; tok = tokenizer_.NextNonWhitespace()) {
+    switch (expected) {
+      case kArgName: {
+        if (tok.token_type != TK_ID && tok.token_type != TK_KEY &&
+            tok.token_type != TK_FUNCTION) {
+          // TODO(lalitm): add a link to documentation.
+          base::StackString<1024> err("'%.*s' is not a valid argument name",
+                                      static_cast<int>(tok.str.size()),
+                                      tok.str.data());
+          return ErrorAtToken(tok, err.c_str());
+        }
+        id = tok;
+        expected = kArgType;
+        break;
       }
-      if (tok.token_type == TK_COMMA) {
-        expected = kId;
-        continue;
-      }
-      return ErrorAtToken(tok, "')' or ',' expected");
-    }
-    if (expected == kType) {
-      if (tok.token_type != TK_ID) {
-        // TODO(lalitm): add a link to documentation.
-        base::StackString<1024> err("%.*s is not a valid argument type",
-                                    static_cast<int>(tok.str.size()),
-                                    tok.str.data());
-        return ErrorAtToken(tok, err.c_str());
-      }
-      PERFETTO_CHECK(id);
-      args.push_back({*id, tok});
-      id = std::nullopt;
-      expected = kCommaOrRp;
-      continue;
-    }
 
-    // kIdOrRp only happens on the very first token.
-    if (tok.token_type == TK_RP && expected == kIdOrRp) {
-      return true;
-    }
+      case kArgType: {
+        if (tok.token_type != TK_ID) {
+          // TODO(lalitm): add a link to documentation.
+          base::StackString<1024> err("'%.*s' is not a valid argument type",
+                                      static_cast<int>(tok.str.size()),
+                                      tok.str.data());
+          return ErrorAtToken(tok, err.c_str());
+        }
+        PERFETTO_CHECK(id);
+        RawArgument arg;
+        arg.name = *id;
+        arg.type = tok;
+        maybe_arg = arg;
+        id = std::nullopt;
+        expected = kCommaOrLpOrRp;
+        break;
+      }
 
-    if (tok.token_type != TK_ID && tok.token_type != TK_KEY &&
-        tok.token_type != TK_FUNCTION) {
-      // TODO(lalitm): add a link to documentation.
-      base::StackString<1024> err("%.*s is not a valid argument name",
-                                  static_cast<int>(tok.str.size()),
-                                  tok.str.data());
-      return ErrorAtToken(tok, err.c_str());
+      case kCommaOrLpOrRp: {
+        if (tok.token_type == TK_RP) {
+          if (maybe_arg)
+            args.push_back(*maybe_arg);
+          return true;
+        }
+
+        // Next argument
+        if (tok.token_type == TK_COMMA) {
+          PERFETTO_CHECK(maybe_arg);
+          args.push_back(*maybe_arg);
+          maybe_arg = std::nullopt;
+          expected = kArgName;
+          continue;
+        }
+
+        // Start of complex argument.
+        if (tok.token_type == TK_LP) {
+          PERFETTO_CHECK(maybe_arg);
+          std::pair<SqliteTokenizer::Token, SqliteTokenizer::Token>
+              table_and_col;
+          if (!ParseComplexArgumentType(table_and_col))
+            return false;
+          maybe_arg->complex_arg_table_and_column = table_and_col;
+        }
+      }
     }
-    id = tok;
-    expected = kType;
-    continue;
   }
 }
 
