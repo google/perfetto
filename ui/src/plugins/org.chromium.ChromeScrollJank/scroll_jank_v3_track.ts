@@ -15,7 +15,6 @@
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {JANK_COLOR} from './jank_colors';
 import {getColorForSlice} from '../../components/colorizer';
-import {TrackEventSelection} from '../../public/selection';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
@@ -24,50 +23,46 @@ import {Trace} from '../../public/trace';
 const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';
 
-export class ScrollJankV3Track extends DatasetSliceTrack {
-  constructor(trace: Trace, uri: string) {
-    super({
-      trace,
-      uri,
-      dataset: new SourceDataset({
-        schema: {
-          id: NUM,
-          ts: LONG,
-          dur: LONG,
-          name: STR,
-        },
-        src: `
-          SELECT
-            IIF(
-              cause_of_jank IS NOT NULL,
-              cause_of_jank || IIF(
-                sub_cause_of_jank IS NOT NULL, "::" || sub_cause_of_jank, ""
-                ), "${UNKNOWN_SLICE_NAME}") || "${JANK_SLICE_NAME}" AS name,
-            id,
-            ts,
-            dur,
-            event_latency_id
-          FROM chrome_janky_frame_presentation_intervals
-        `,
-      }),
-      colorizer: (row) => {
-        let stage = row.name.substring(0, row.name.indexOf(JANK_SLICE_NAME));
-        // Stage may include substage, in which case we use the substage for
-        // color selection.
-        const separator = '::';
-        if (stage.indexOf(separator) != -1) {
-          stage = stage.substring(stage.indexOf(separator) + separator.length);
-        }
+export function createScrollJankV3Track(trace: Trace, uri: string) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        name: STR,
+      },
+      src: `
+        SELECT
+          IIF(
+            cause_of_jank IS NOT NULL,
+            cause_of_jank || IIF(
+              sub_cause_of_jank IS NOT NULL, "::" || sub_cause_of_jank, ""
+              ), "${UNKNOWN_SLICE_NAME}") || "${JANK_SLICE_NAME}" AS name,
+          id,
+          ts,
+          dur,
+          event_latency_id
+        FROM chrome_janky_frame_presentation_intervals
+      `,
+    }),
+    colorizer: (row) => {
+      let stage = row.name.substring(0, row.name.indexOf(JANK_SLICE_NAME));
+      // Stage may include substage, in which case we use the substage for
+      // color selection.
+      const separator = '::';
+      if (stage.indexOf(separator) != -1) {
+        stage = stage.substring(stage.indexOf(separator) + separator.length);
+      }
 
-        if (stage == UNKNOWN_SLICE_NAME) {
-          return JANK_COLOR;
-        } else {
-          return getColorForSlice(stage);
-        }
-      },
-      detailsPanel: (sel: TrackEventSelection) => {
-        return new ScrollJankV3DetailsPanel(this.trace, sel.eventId);
-      },
-    });
-  }
+      if (stage == UNKNOWN_SLICE_NAME) {
+        return JANK_COLOR;
+      } else {
+        return getColorForSlice(stage);
+      }
+    },
+    detailsPanel: (row) => new ScrollJankV3DetailsPanel(trace, row.id),
+  });
 }

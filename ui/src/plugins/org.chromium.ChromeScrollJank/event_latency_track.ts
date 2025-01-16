@@ -14,7 +14,6 @@
 
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {JANK_COLOR} from './jank_colors';
-import {TrackEventSelection} from '../../public/selection';
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -23,28 +22,28 @@ import {getColorForSlice} from '../../components/colorizer';
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
-export class EventLatencyTrack extends DatasetSliceTrack {
-  constructor(trace: Trace, uri: string, baseTable: string) {
-    super({
-      trace,
-      uri,
-      dataset: new SourceDataset({
-        schema: {
-          id: NUM,
-          ts: LONG,
-          dur: LONG,
-          name: STR,
-        },
-        src: baseTable,
-      }),
-      colorizer: (row) => {
-        return row.name === JANKY_LATENCY_NAME
-          ? JANK_COLOR
-          : getColorForSlice(row.name);
+export function createEventLatencyTrack(
+  trace: Trace,
+  uri: string,
+  baseTable: string,
+) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        name: STR,
       },
-      detailsPanel: (sel: TrackEventSelection) => {
-        return new EventLatencySliceDetailsPanel(this.trace, sel.eventId);
-      },
-    });
-  }
+      src: baseTable,
+    }),
+    colorizer: (row) => {
+      return row.name === JANKY_LATENCY_NAME
+        ? JANK_COLOR
+        : getColorForSlice(row.name);
+    },
+    detailsPanel: (row) => new EventLatencySliceDetailsPanel(trace, row.id),
+  });
 }

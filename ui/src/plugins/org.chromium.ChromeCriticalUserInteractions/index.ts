@@ -14,20 +14,22 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {CriticalUserInteractionTrack} from './critical_user_interaction_track';
 import {TrackNode} from '../../public/workspace';
+import {createCriticalUserInteractionTrack} from './critical_user_interaction_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.CriticalUserInteraction';
   async onTraceLoad(ctx: Trace): Promise<void> {
     await ctx.engine.query('include perfetto module chrome.interactions;');
 
+    const uri = `/critical_user_interactions`;
+
     ctx.commands.registerCommand({
       id: 'perfetto.CriticalUserInteraction.AddInteractionTrack',
       name: 'Add track: Chrome interactions',
       callback: () => {
         const track = new TrackNode({
-          uri: CriticalUserInteractionTrack.kind,
+          uri,
           title: 'Chrome Interactions',
         });
         ctx.workspace.addChildInOrder(track);
@@ -36,15 +38,9 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.tracks.registerTrack({
-      uri: CriticalUserInteractionTrack.kind,
-      tags: {
-        kind: CriticalUserInteractionTrack.kind,
-      },
+      uri,
       title: 'Chrome Interactions',
-      track: new CriticalUserInteractionTrack(
-        ctx,
-        CriticalUserInteractionTrack.kind,
-      ),
+      track: createCriticalUserInteractionTrack(ctx, uri),
     });
   }
 }

@@ -18,23 +18,21 @@ import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {ScreenshotDetailsPanel} from './screenshot_panel';
 
-export class ScreenshotsTrack extends DatasetSliceTrack {
-  static readonly kind = 'dev.perfetto.ScreenshotsTrack';
-
-  constructor(trace: Trace, uri: string) {
-    super({
-      trace,
-      uri,
-      dataset: new SourceDataset({
-        schema: {
-          id: NUM,
-          ts: LONG,
-          dur: LONG,
-          name: STR,
-        },
-        src: 'android_screenshots',
-      }),
-      detailsPanel: () => new ScreenshotDetailsPanel(this.trace.engine),
-    });
-  }
+export function createScreenshotsTrack(trace: Trace, uri: string) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        name: STR,
+      },
+      src: 'android_screenshots',
+    }),
+    detailsPanel: () => {
+      return new ScreenshotDetailsPanel(trace.engine);
+    },
+  });
 }

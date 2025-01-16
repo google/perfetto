@@ -27,8 +27,9 @@ import {
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {assertTrue} from '../../base/logging';
 import {ColorScheme} from '../../base/color_scheme';
-import {TrackEventSelection} from '../../public/selection';
+import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
+import {Time} from '../../base/time';
 
 /**
  * This track implementation is defined using a dataset, with optional automatic
@@ -59,7 +60,7 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   // Optional: A callback used to customize the details panel displayed when an
   // event on this track is selected. The callback function is called every time
   // an event on this track is selected.
-  detailsPanel?(sel: TrackEventSelection): TrackEventDetailsPanel;
+  detailsPanel?(row: T): TrackEventDetailsPanel;
 }
 
 // This is the minimum viable schema that all datasets must implement.
@@ -72,14 +73,10 @@ const rowSchema = {
 
 type ROW_SCHEMA = typeof rowSchema;
 
-export class DatasetSliceTrack<
-  // TODO(stevegolton): Once we remove all classes that extend DatasetSliceTrack
-  // we can remove this default type value. TypeScript is not able to
-  // automatically infer this type when using inheritance, but it is able to if
-  // instantiating this class directly, so we use a default value here to avoid
-  // every subclass from having to pass a type here.
-  T extends ROW_SCHEMA = ROW_SCHEMA,
-> extends NamedSliceTrack<Slice, NamedRow & T> {
+export class DatasetSliceTrack<T extends ROW_SCHEMA> extends NamedSliceTrack<
+  Slice,
+  NamedRow & T
+> {
   protected readonly sqlSource: string;
   private readonly createTableOnInit: boolean;
 
@@ -142,6 +139,33 @@ export class DatasetSliceTrack<
   }
 
   detailsPanel(sel: TrackEventSelection): TrackEventDetailsPanel | undefined {
-    return this.attrs.detailsPanel?.(sel) ?? super.detailsPanel(sel);
+    // This type assertion is required as a temporary patch while the specifics
+    // of selection details are being worked out. Eventually we will change the
+    // selection details to be purely based on dataset, but there are currently
+    // some use cases preventing us from doing so. For now, this type assertion
+    // is safe as we know we just returned the entire row from from
+    // getSelectionDetails() so we know it must at least implement the row's
+    // type `T`.
+    return (
+      this.attrs.detailsPanel?.(sel as unknown as T) ?? super.detailsPanel(sel)
+    );
+  }
+
+  override async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const {trace, dataset} = this.attrs;
+    const result = await trace.engine.query(`
+      SELECT *
+      FROM (${dataset.query()})
+      WHERE id = ${id}
+    `);
+    const row = result.maybeFirstRow(dataset.schema);
+    if (!row) return undefined;
+    return {
+      ...row,
+      ts: Time.fromRaw(row.ts),
+      dur: row.dur,
+    };
   }
 }
