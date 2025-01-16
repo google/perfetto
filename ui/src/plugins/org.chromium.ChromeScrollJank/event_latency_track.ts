@@ -36,6 +36,7 @@ export function createEventLatencyTrack(
         ts: LONG,
         dur: LONG,
         name: STR,
+        depth: NUM,
       },
       src: baseTable,
     }),
