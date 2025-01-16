@@ -16,16 +16,19 @@ import {uuidv4Sql} from '../../base/uuid';
 import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {EventLatencyTrack, JANKY_LATENCY_NAME} from './event_latency_track';
-import {ScrollJankV3Track} from './scroll_jank_v3_track';
+import {
+  createEventLatencyTrack,
+  JANKY_LATENCY_NAME,
+} from './event_latency_track';
+import {createScrollJankV3Track} from './scroll_jank_v3_track';
 import {ScrollTimelineTrack} from './scroll_timeline_track';
-import {TopLevelScrollTrack} from './scroll_track';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {createScrollTimelineModel} from './scroll_timeline_model';
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {FlatColoredDurationTrack} from './flat_colored_duration_track';
+import {createTopLevelScrollTrack} from './scroll_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
@@ -63,7 +66,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new TopLevelScrollTrack(ctx, uri),
+      track: createTopLevelScrollTrack(ctx, uri),
     });
 
     const track = new TrackNode({uri, title});
@@ -172,7 +175,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new EventLatencyTrack(ctx, uri, baseTable),
+      track: createEventLatencyTrack(ctx, uri, baseTable),
     });
 
     const track = new TrackNode({uri, title});
@@ -193,7 +196,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new ScrollJankV3Track(ctx, uri),
+      track: createScrollJankV3Track(ctx, uri),
     });
 
     const track = new TrackNode({uri, title});

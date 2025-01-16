@@ -166,7 +166,6 @@ export interface TrackEventDetails {
   readonly utid?: number;
   readonly tableName?: string;
   readonly profileType?: ProfileType;
-  readonly interactionType?: string;
 }
 
 export interface Area {

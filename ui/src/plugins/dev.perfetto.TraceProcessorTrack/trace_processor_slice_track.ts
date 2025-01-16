@@ -50,15 +50,11 @@ export class TraceProcessorSliceTrack extends NamedSliceTrack<
     maxDepth: number | undefined,
     private readonly trackIds: number[],
   ) {
-    super(trace, uri);
+    super(trace, uri, THREAD_SLICE_ROW);
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
       depthGuess: maxDepth,
     };
-  }
-
-  getRowSpec(): ThreadSliceRow {
-    return THREAD_SLICE_ROW;
   }
 
   rowToSlice(row: ThreadSliceRow): Slice {

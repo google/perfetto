@@ -44,11 +44,7 @@ abstract class BasePerfSamplesProfileTrack extends BaseSliceTrack<
   PerfSampleRow
 > {
   constructor(trace: Trace, uri: string) {
-    super(trace, uri);
-  }
-
-  protected getRowSpec(): PerfSampleRow {
-    return {...NAMED_ROW, callsiteId: NUM};
+    super(trace, uri, {...NAMED_ROW, callsiteId: NUM});
   }
 
   protected rowToSlice(row: PerfSampleRow): Slice {
