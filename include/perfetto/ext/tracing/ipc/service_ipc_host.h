@@ -17,14 +17,13 @@
 #ifndef INCLUDE_PERFETTO_EXT_TRACING_IPC_SERVICE_IPC_HOST_H_
 #define INCLUDE_PERFETTO_EXT_TRACING_IPC_SERVICE_IPC_HOST_H_
 
+#include <list>
 #include <memory>
 
 #include "perfetto/base/export.h"
-#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
-#include "perfetto/tracing/default_socket.h"
 
 namespace perfetto {
 namespace base {
@@ -34,6 +33,32 @@ class TaskRunner;
 namespace ipc {
 class Host;
 }  // namespace ipc
+
+// The argument passed to ServiceIPCHost::Start. Can be either:
+// 1. a socket name (e.g., "/dev/unix/socket" for AF_UNIX, "127.0.0.1:1234" for
+//    TCP, "vsock://1:1234")
+// 2. A FD of a pre-bound socket. This handles the case of Android in-tree
+//    builds where init creates the socket and passes the FD in env var
+//    (See perfetto.rc).
+// 3. A pre-existing ipc::Host object.
+struct ListenEndpoint {
+  explicit ListenEndpoint(const char* socket_name);
+  explicit ListenEndpoint(std::string socket_name);
+  explicit ListenEndpoint(base::ScopedSocketHandle);
+  explicit ListenEndpoint(std::unique_ptr<ipc::Host>);
+  ~ListenEndpoint();
+
+  // Allow move but not copy.
+  ListenEndpoint(ListenEndpoint&&) noexcept;
+  ListenEndpoint& operator=(ListenEndpoint&&);
+  ListenEndpoint(const ListenEndpoint&) noexcept = delete;
+  ListenEndpoint& operator=(const ListenEndpoint&) noexcept = delete;
+
+  // Only one of these is ever set.
+  std::string sock_name;
+  base::ScopedSocketHandle sock_handle;
+  std::unique_ptr<ipc::Host> ipc_host;
+};
 
 // Creates an instance of the service (business logic + UNIX socket transport).
 // Exposed to:
@@ -47,29 +72,32 @@ class PERFETTO_EXPORT_COMPONENT ServiceIPCHost {
       TracingService::InitOpts = {});
   virtual ~ServiceIPCHost();
 
-  // The overload to wrap the multi-value producer socket name in the
-  // single-value variant for compatibility in tests.
-  bool Start(const char* producer_socket_name,
-             const char* consumer_socket_name) {
-    return Start(TokenizeProducerSockets(producer_socket_name),
-                 consumer_socket_name);
-  }
   // Start listening on the Producer & Consumer ports. Returns false in case of
   // failure (e.g., something else is listening on |socket_name|).
-  virtual bool Start(const std::vector<std::string>& producer_socket_names,
-                     const char* consumer_socket_name) = 0;
+  virtual bool Start(std::list<ListenEndpoint> producer_sockets,
+                     ListenEndpoint consumer_socket) = 0;
+
+  virtual TracingService* service() const = 0;
+
+  // The methods below are for API compatibility with other projects that use
+  // some of the old flavours of Start(), back in the days when we supported
+  // only one socket or fd.
 
   // Like the above, but takes two file descriptors to already bound sockets.
   // This is used when building as part of the Android tree, where init opens
   // and binds the socket beore exec()-ing us.
-  virtual bool Start(base::ScopedSocketHandle producer_socket_fd,
-                     base::ScopedSocketHandle consumer_socket_fd) = 0;
+  // Note: An internal Google project uses this (b/390202952).
+  bool Start(base::ScopedSocketHandle producer_socket_fd,
+             base::ScopedSocketHandle consumer_socket_fd);
 
   // Allows callers to supply preconstructed Hosts.
-  virtual bool Start(std::unique_ptr<ipc::Host> producer_host,
-                     std::unique_ptr<ipc::Host> consumer_host) = 0;
+  bool Start(std::unique_ptr<ipc::Host> producer_host,
+             std::unique_ptr<ipc::Host> consumer_host);
 
-  virtual TracingService* service() const = 0;
+  // Used by tests. producer_socket_name can be a comma-separated list of N
+  // endpoints to listen onto.
+  bool Start(const char* producer_socket_names,
+             const char* consumer_socket_name);
 
  protected:
   ServiceIPCHost();
