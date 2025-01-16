@@ -34,6 +34,33 @@ function isVegaLite(spec: unknown): boolean {
   return true;
 }
 
+// Vega-Lite specific interactions
+// types (https://vega.github.io/vega-lite/docs/selection.html#select)
+export enum VegaLiteSelectionTypes {
+  INTERVAL = 'interval',
+  POINT = 'point',
+}
+
+export type VegaEventType =
+  | 'click'
+  | 'dblclick'
+  | 'dragenter'
+  | 'dragleave'
+  | 'dragover'
+  | 'keydown'
+  | 'keypress'
+  | 'keyup'
+  | 'mousedown'
+  | 'mousemove'
+  | 'mouseout'
+  | 'mouseover'
+  | 'mouseup'
+  | 'mousewheel'
+  | 'touchend'
+  | 'touchmove'
+  | 'touchstart'
+  | 'wheel';
+
 export interface VegaViewData {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [name: string]: any;
@@ -43,6 +70,8 @@ interface VegaViewAttrs {
   spec: string;
   data: VegaViewData;
   engine?: Engine;
+  onPointSelection?: (item: vega.Item) => void;
+  onIntervalSelection?: (value: vega.SignalValue) => void;
 }
 
 // VegaWrapper is in exactly one of these states:
@@ -125,6 +154,9 @@ class VegaWrapper {
   private _error?: string;
   private _engine?: Engine;
 
+  private _onPointSelection?: (item: vega.Item) => void;
+  private _onIntervalSelection?: (value: vega.SignalValue) => void;
+
   constructor(dom: Element) {
     this.dom = dom;
     this._status = Status.Empty;
@@ -155,6 +187,14 @@ class VegaWrapper {
 
   set engine(engine: Engine | undefined) {
     this._engine = engine;
+  }
+
+  set onPointSelection(cb: ((item: vega.Item) => void) | undefined) {
+    this._onPointSelection = cb;
+  }
+
+  set onIntervalSelection(cb: ((value: vega.SignalValue) => void) | undefined) {
+    this._onIntervalSelection = cb;
   }
 
   onResize() {
@@ -206,6 +246,28 @@ class VegaWrapper {
       this.view.initialize(this.dom);
       for (const [key, value] of Object.entries(this._data)) {
         this.view.data(key, value);
+      }
+
+      // Attaching event listeners for Vega-Lite
+      // selection interactions only (interval and point selection)
+      // Both will trigger a pointerup event
+      if (isVegaLite(this._spec)) {
+        this.view.addEventListener('pointerup', (_, item) => {
+          if (item) {
+            if (
+              this.view?.signal(VegaLiteSelectionTypes.INTERVAL) !==
+                undefined &&
+              Object.values(this.view?.signal(VegaLiteSelectionTypes.INTERVAL))
+                .length > 0
+            ) {
+              this._onIntervalSelection?.(
+                this.view?.signal(VegaLiteSelectionTypes.INTERVAL),
+              );
+            } else {
+              this._onPointSelection?.(item);
+            }
+          }
+        });
       }
 
       const pending = this.view.runAsync();
@@ -260,6 +322,11 @@ export class VegaView implements m.ClassComponent<VegaViewAttrs> {
     wrapper.spec = attrs.spec;
     wrapper.data = attrs.data;
     wrapper.engine = attrs.engine;
+
+    // Chart interactivity handlers
+    wrapper.onPointSelection = attrs.onPointSelection;
+    wrapper.onIntervalSelection = attrs.onIntervalSelection;
+
     this.wrapper = wrapper;
     this.resize = new SimpleResizeObserver(dom, () => {
       wrapper.onResize();

@@ -22,6 +22,8 @@ import {
 import {Histogram} from './histogram/histogram';
 import {SqlTableState} from '../sql/legacy_table/state';
 import {columnTitle} from '../sql/legacy_table/table';
+import {Item, SignalValue} from 'vega';
+import {VegaEventType, VegaLiteSelectionTypes} from '../vega_view';
 
 export interface VegaLiteChartSpec {
   $schema: string;
@@ -42,11 +44,21 @@ export interface VegaLiteChartSpec {
     | 'errorband'
     | 'errorbar';
   data: {values?: string | Row[]};
-
   encoding: {
     x: {[key: string]: unknown};
     y: {[key: string]: unknown};
   };
+  params?: {
+    name: VegaLiteSelectionTypes;
+    select: {
+      type: VegaLiteSelectionTypes;
+      encodings?: [string];
+      fields?: [string];
+      on?: VegaEventType;
+      clear?: VegaEventType | boolean;
+      resolve?: string;
+    };
+  }[];
 }
 
 // Holds the various chart types and human readable string
@@ -62,6 +74,8 @@ export interface ChartConfig {
   readonly tableDisplay?: string; // Human readable table name (ex: slices)
   readonly query: string; // SQL query for the underlying data
   readonly aggregationType?: 'nominal' | 'quantitative'; // Aggregation type.
+  onPointSelection?: (item: Item) => void;
+  onIntervalSelection?: (value: SignalValue) => void;
 }
 
 export interface Chart {
@@ -109,7 +123,9 @@ export function createChartConfigFromSqlTableState(
   column: LegacyTableColumn,
   columnAlias: string,
   sqlTableState: SqlTableState,
-) {
+  onPointSelection?: (item: Item) => void,
+  onIntervalSelection?: (value: SignalValue) => void,
+): ChartConfig {
   return {
     engine: sqlTableState.trace.engine,
     columnTitle: columnTitle(column),
@@ -120,5 +136,7 @@ export function createChartConfigFromSqlTableState(
       Object.fromEntries([[columnAlias, column.primaryColumn()]]),
     ),
     aggregationType: column.aggregation?.().dataType,
+    onPointSelection,
+    onIntervalSelection,
   };
 }
