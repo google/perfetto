@@ -62,6 +62,7 @@ export default defineConfig({
         launchOptions: {
           executablePath: isCi ? ciChromePath : undefined,
           args: [
+            '--headless',
             '--disable-accelerated-2d-canvas',
             '--disable-font-subpixel-positioning',
             '--disable-gpu',
