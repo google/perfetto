@@ -125,6 +125,14 @@ export interface TrackMouseEvent {
 
 export interface Track {
   /**
+   * Describes which root table the events on this track come from. This is
+   * mainly for use by flows (before they get refactored to be more generic) and
+   * will be used by the SQL table resolver mechanism along with dataset.
+   * TODO(stevegolton): Maybe move this onto dataset directly?
+   */
+  readonly rootTableName?: string;
+
+  /**
    * Optional lifecycle hook called on the first render cycle. Should be used to
    * create any required resources.
    *
