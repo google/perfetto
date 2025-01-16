@@ -189,7 +189,7 @@ export interface Track {
   // Optional: A factory that returns a details panel object for a given track
   // event selection. This is called each time the selection is changed (and the
   // selection is relevant to this track).
-  detailsPanel?(sel: TrackEventSelection): TrackEventDetailsPanel;
+  detailsPanel?(sel: TrackEventSelection): TrackEventDetailsPanel | undefined;
 }
 
 // An set of key/value pairs describing a given track. These are used for

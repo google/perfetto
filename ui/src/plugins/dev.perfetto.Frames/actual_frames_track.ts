@@ -59,16 +59,11 @@ export class ActualFramesTrack extends NamedSliceTrack<Slice, ActualFrameRow> {
     uri: string,
     private trackIds: number[],
   ) {
-    super(trace, uri);
+    super(trace, uri, ACTUAL_FRAME_ROW);
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
       depthGuess: maxDepth,
     };
-  }
-
-  // This is used by the base class to call iter().
-  protected getRowSpec() {
-    return ACTUAL_FRAME_ROW;
   }
 
   getSqlSource(): string {

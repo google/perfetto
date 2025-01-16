@@ -44,8 +44,8 @@ export abstract class NamedSliceTrack<
   SliceType extends Slice = Slice,
   RowType extends NamedRow = NamedRow,
 > extends BaseSliceTrack<SliceType, RowType> {
-  constructor(trace: Trace, uri: string) {
-    super(trace, uri);
+  constructor(trace: Trace, uri: string, rowSpec: RowType) {
+    super(trace, uri, rowSpec);
   }
 
   // Converts a SQL result row to an "Impl" Slice.
@@ -70,7 +70,7 @@ export abstract class NamedSliceTrack<
     args.tooltip = [`${title} - [${duration}]`];
   }
 
-  detailsPanel(_sel: TrackEventSelection): TrackEventDetailsPanel {
+  detailsPanel(_sel: TrackEventSelection): TrackEventDetailsPanel | undefined {
     // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
     // TraceImpl (because of flows) but here we must take a Trace interface,
     // because this class is exposed to plugins (which see only Trace).

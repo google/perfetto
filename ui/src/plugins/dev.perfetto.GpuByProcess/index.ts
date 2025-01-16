@@ -28,12 +28,8 @@ class GpuPidTrack extends NamedSliceTrack {
     uri: string,
     protected readonly upid: number,
   ) {
-    super(trace, uri);
+    super(trace, uri, NAMED_ROW);
     this.upid = upid;
-  }
-
-  protected getRowSpec(): NamedRow {
-    return NAMED_ROW;
   }
 
   protected rowToSlice(row: NamedRow): Slice {

@@ -46,12 +46,7 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
     uri: string,
     private utid: number,
   ) {
-    super(trace, uri);
-  }
-
-  // This is used by the base class to call iter().
-  getRowSpec(): ThreadStateRow {
-    return THREAD_STATE_ROW;
+    super(trace, uri, THREAD_STATE_ROW);
   }
 
   getSqlSource(): string {

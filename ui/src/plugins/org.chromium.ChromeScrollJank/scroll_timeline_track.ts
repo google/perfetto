@@ -75,15 +75,11 @@ export class ScrollTimelineTrack extends NamedSliceTrack<
     trace: Trace,
     private readonly model: ScrollTimelineModel,
   ) {
-    super(trace, model.trackUri);
+    super(trace, model.trackUri, SCROLL_TIMELINE_TRACK_ROW);
   }
 
   override getSqlSource(): string {
     return `SELECT * FROM ${this.model.tableName}`;
-  }
-
-  override getRowSpec(): ScrollTimelineTrackRow {
-    return SCROLL_TIMELINE_TRACK_ROW;
   }
 
   override rowToSlice(row: ScrollTimelineTrackRow): Slice {

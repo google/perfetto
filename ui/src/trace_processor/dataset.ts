@@ -31,11 +31,11 @@ import {ColumnType, SqlValue} from './query_result';
  * Users can also use the `schema` property and `implements()` to get and test
  * the schema of a given dataset.
  */
-export interface Dataset {
+export interface Dataset<T extends DatasetSchema = DatasetSchema> {
   /**
    * Get or calculate the resultant schema of this dataset.
    */
-  readonly schema: DatasetSchema;
+  readonly schema: T;
 
   /**
    * Produce a query for this dataset.
@@ -90,7 +90,7 @@ export interface Dataset {
    * },
    * ```
    */
-  optimize(): Dataset;
+  optimize(): Dataset<T>;
 
   /**
    * Returns true if this dataset implements a given schema.
@@ -130,9 +130,9 @@ type Filter = EqFilter | InFilter;
 /**
  * Named arguments for a SourceDataset.
  */
-interface SourceDatasetConfig {
+interface SourceDatasetConfig<T extends DatasetSchema> {
   readonly src: string;
-  readonly schema: DatasetSchema;
+  readonly schema: T;
   readonly filter?: Filter;
 }
 
@@ -140,12 +140,14 @@ interface SourceDatasetConfig {
  * Defines a dataset with a source SQL select statement of table name, a
  * schema describing the columns, and an optional filter.
  */
-export class SourceDataset implements Dataset {
+export class SourceDataset<T extends DatasetSchema = DatasetSchema>
+  implements Dataset<T>
+{
   readonly src: string;
-  readonly schema: DatasetSchema;
+  readonly schema: T;
   readonly filter?: Filter;
 
-  constructor(config: SourceDatasetConfig) {
+  constructor(config: SourceDatasetConfig<T>) {
     this.src = config.src;
     this.schema = config.schema;
     this.filter = config.filter;
