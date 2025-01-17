@@ -17,17 +17,13 @@ import m from 'mithril';
 import {PageWithTraceAttrs} from '../../../public/page';
 import {Button} from '../../../widgets/button';
 import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
-import {Section} from '../../../widgets/section';
-import {SegmentedButtons} from '../../../widgets/segmented_buttons';
-import {
-  ColumnController,
-  ColumnControllerDiff,
-  ColumnControllerRows,
-} from './column_controller';
-import {QueryNode, StdlibTableState, NodeType} from '../query_state';
+import {ColumnControllerRows} from './column_controller';
+import {QueryNode, StdlibTableState} from '../query_state';
 import {JoinState, QueryBuilderJoin} from './operations/join';
 import {Intent} from '../../../widgets/common';
 import {showModal} from '../../../widgets/modal';
+import {DataSourceViewer} from './data_source_viewer';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
 
 export interface QueryBuilderTable {
   name: string;
@@ -46,7 +42,8 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
     const trace = attrs.trace;
 
-    function renderChooseTable(): m.Child {
+    // Create starting node.
+    function chooseTableButton(): m.Child {
       return m(Button, {
         label: 'Choose a table',
         intent: Intent.Primary,
@@ -67,65 +64,48 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       });
     }
 
-    function renderPickColumns(): m.Child {
-      if (
-        !attrs.rootNode?.finished ||
-        attrs.rootNode.type !== NodeType.kStdlibTable
-      ) {
-        return;
-      }
-
-      return (
-        attrs.rootNode.columns &&
-        m(ColumnController, {
-          hasValidColumns: true,
-          options: attrs.rootNode.columns,
-          onChange: (diffs: ColumnControllerDiff[]) => {
-            diffs.forEach(({id, checked, alias}) => {
-              if (attrs.rootNode?.columns === undefined) {
-                return;
-              }
-              for (const option of attrs.rootNode?.columns) {
-                if (option.id === id) {
-                  option.checked = checked;
-                  option.alias = alias;
-                }
-              }
-            });
-          },
-        })
-      );
-    }
-
-    function renderOperationButtons(): m.Child {
-      return m(SegmentedButtons, {
-        ...attrs,
-        options: [{label: 'JOIN on ID'}, {label: 'INTERSECT'}],
-        selectedOption: 0,
-        onOptionSelected: () => {
-          if (attrs.rootNode === undefined) {
-            return;
-          }
-          attrs.rootNode.nextNode = new JoinState(attrs.rootNode);
+    // Followup node
+    function chooseOperationButton() {
+      return m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            label: '+',
+            intent: Intent.Primary,
+          }),
         },
-      });
+        m(MenuItem, {
+          label: 'JOIN',
+          onclick: () => {
+            if (attrs.rootNode === undefined) {
+              return;
+            }
+            attrs.rootNode.nextNode = new JoinState(attrs.rootNode);
+            operationsModal();
+          },
+        }),
+        m(MenuItem, {label: 'INTERSECT'}),
+      );
     }
 
     function operationsModal() {
       function Operations() {
         return {
           view: () => {
-            return [
-              renderOperationButtons(),
+            if (attrs.rootNode === undefined) {
+              return;
+            }
+            return (
               attrs.rootNode?.nextNode instanceof JoinState &&
-                m(QueryBuilderJoin, {
-                  sqlModules: attrs.sqlModules,
-                  joinState: attrs.rootNode.nextNode,
-                }),
-            ];
+              m(QueryBuilderJoin, {
+                sqlModules: attrs.sqlModules,
+                joinState: attrs.rootNode.nextNode,
+              })
+            );
           },
         };
       }
+
       const content = () => m(Operations);
 
       showModal({
@@ -140,24 +120,45 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       });
     }
 
-    function renderNodes(): m.Children {
-      let row = 1;
-      if (attrs.rootNode === undefined) {
-        return m(
-          '',
-          {
-            style: {
-              gridColumn: 3,
-              gridRow: row,
+    function renderNodesPanel(): m.Children {
+      function renderNodes() {
+        let row = 1;
+        if (attrs.rootNode === undefined) {
+          return m(
+            '',
+            {
+              style: {
+                gridColumn: 3,
+                gridRow: row,
+              },
             },
-          },
-          renderChooseTable(),
-        );
-      }
+            chooseTableButton(),
+          );
+        }
 
-      let curNode: QueryNode | undefined = attrs.rootNode;
-      const nodes: m.Child[] = [];
-      while (curNode && curNode.finished) {
+        let curNode: QueryNode | undefined = attrs.rootNode;
+        const nodes: m.Child[] = [];
+        while (curNode && curNode.finished) {
+          nodes.push(
+            m(
+              '',
+              {
+                style: {
+                  gridColumn: 3,
+                  gridRow: row,
+                },
+              },
+              m(Button, {
+                label: curNode.getTitle(),
+                intent: Intent.Primary,
+                onclick: async () => {},
+              }),
+            ),
+          );
+          row++;
+          curNode = curNode.nextNode;
+        }
+
         nodes.push(
           m(
             '',
@@ -167,41 +168,12 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
                 gridRow: row,
               },
             },
-            m(Button, {
-              label: curNode.getTitle(),
-              intent: Intent.Primary,
-              onclick: async () => {},
-            }),
+            chooseOperationButton(),
           ),
         );
-        row++;
-        curNode = curNode.nextNode;
+        return nodes;
       }
-
-      nodes.push(
-        m(
-          '',
-          {
-            style: {
-              gridColumn: 3,
-              gridRow: row,
-            },
-          },
-          m(Button, {
-            label: `+`,
-            intent: Intent.Primary,
-            onclick: async () => {
-              operationsModal();
-            },
-          }),
-        ),
-      );
-      return nodes;
-    }
-
-    return m(
-      '.explore-page__columnar',
-      m(
+      return m(
         '',
         {
           style: {
@@ -212,11 +184,42 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           },
         },
         renderNodes(),
+      );
+    }
+
+    return m(
+      '',
+      {
+        style: {
+          display: 'grid',
+          gridTemplateColumns: '50% 50%',
+          gridTemplateRows: '50% 50%',
+          gap: '10px',
+        },
+      },
+      m(
+        '',
+        {
+          style: {
+            gridColumn: 1,
+          },
+        },
+        renderNodesPanel(),
       ),
-      attrs.rootNode?.finished &&
-        m('.explore-page__columnar', [
-          m(Section, {title: attrs.rootNode.getTitle()}, renderPickColumns()),
-        ]),
+      m(
+        '',
+        {
+          style: {
+            gridColumn: 2,
+          },
+        },
+        attrs.rootNode?.finished && [
+          m(DataSourceViewer, {
+            trace: attrs.trace,
+            queryNode: attrs.rootNode,
+          }),
+        ],
+      ),
     );
   }
 }
