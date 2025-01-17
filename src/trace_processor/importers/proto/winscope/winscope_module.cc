@@ -20,6 +20,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
@@ -241,6 +242,26 @@ void WinscopeModule::ParseViewCaptureData(
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::ViewCaptureTable::Name()),
                                 nullptr /* parse all fields */, writer);
+
+  auto* deinterned_data_table =
+      context_->storage->mutable_viewcapture_interned_data_table();
+  for (auto i = writer.flat_key_to_iid_args.GetIterator(); i; ++i) {
+    const auto& flat_key = i.key();
+    ViewCaptureArgsParser::IidToStringMap& iids_to_add = i.value();
+
+    for (auto j = iids_to_add.GetIterator(); j; ++j) {
+      const auto iid = j.key();
+      const auto& deinterned_value = j.value();
+
+      tables::ViewCaptureInternedDataTable::Row interned_data_row;
+      interned_data_row.base64_proto_id = row.base64_proto_id.value();
+      interned_data_row.flat_key = flat_key;
+      interned_data_row.iid = static_cast<int64_t>(iid);
+      interned_data_row.deinterned_value = deinterned_value;
+      deinterned_data_table->Insert(interned_data_row);
+    }
+  }
+
   if (!status.ok()) {
     context_->storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
   }

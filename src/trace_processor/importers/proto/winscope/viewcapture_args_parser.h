@@ -28,6 +28,7 @@ namespace trace_processor {
 class ViewCaptureArgsParser : public ArgsParser {
  public:
   using Key = ArgsParser::Key;
+  using IidToStringMap = base::FlatHashMap<uint64_t, StringId>;
 
   ViewCaptureArgsParser(int64_t packet_timestamp,
                         ArgsTracker::BoundInserter& inserter,
@@ -35,6 +36,8 @@ class ViewCaptureArgsParser : public ArgsParser {
                         PacketSequenceStateGeneration* sequence_state);
   void AddInteger(const Key&, int64_t) override;
   void AddUnsignedInteger(const Key&, uint64_t) override;
+
+  base::FlatHashMap<StringId, IidToStringMap> flat_key_to_iid_args;
 
  private:
   bool TryAddDeinternedString(const Key&, uint64_t);
