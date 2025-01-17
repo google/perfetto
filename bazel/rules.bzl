@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
 load("@perfetto//bazel:proto_gen.bzl", "proto_descriptor_gen", "proto_gen")
+load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
+load("@rules_android//android:rules.bzl", "android_binary", "android_library")
 
 # +----------------------------------------------------------------------------+
 # | Base C++ rules.                                                            |
@@ -100,6 +101,67 @@ def perfetto_jspb_proto_library(**kwargs):
     _rule_override("jspb_proto_library", **kwargs)
 
 # +----------------------------------------------------------------------------+
+# | Android-related rules                                                      |
+# +----------------------------------------------------------------------------+
+def perfetto_android_binary(**kwargs):
+    if not _rule_override("android_binary", **kwargs):
+        android_binary(**kwargs)
+
+def perfetto_android_library(**kwargs):
+    if not _rule_override("android_library", **kwargs):
+        android_library(**kwargs)
+
+def perfetto_android_jni_library(**kwargs):
+    if not _rule_override("android_jni_library", **kwargs):
+        _perfetto_android_jni_library(**kwargs)
+
+def _perfetto_android_jni_library(
+        name,
+        binary_name,
+        **input_cc_library_kwargs):
+    # By default 'android_binary' rule merges all native libraries into one,
+    # named '"lib%s.so" % android_binary_target_name'.
+    # This is unsuitable for us: we want our native library to have a
+    # predictable name to be able to load it from Java using
+    # 'System.loadLibrary'.
+    # To workaround this behaviour we wrap the 'cc_library'
+    # target into 'cc_binary' that gives a name to the resulting library.
+    # The same trick is done in 'android_jni_library' macro in google3.
+    # See https://yaqs.corp.google.com/eng/q/1025522191808069632.
+    #
+    # 'binary_name' argument should be of pattern 'lib%s.so',
+    # for this macro to be consistent with android_jni_library from google3.
+    if not binary_name:
+        fail("'binary_name' shouldn't be None")
+    if not (binary_name.startswith("lib") and binary_name.endswith(".so")):
+        fail("'binary_name' should sharts with 'lib' and ends with '.so'" +
+             ", got %s instead" % binary_name)
+    # We strip the name, since `native.cc_binary` adds prefix and suffix
+    # to the generated library name.
+    binary_target_name = binary_name.removeprefix("lib").removesuffix(".so")
+    input_cc_library_name = name + "_input"
+    # We add 'target_compatible_with = ' to all the cc_library targets to
+    # exclude them from being build when invoke `bazel build :all`,
+    # since these targets won't be able to compile anyway, see
+    # https://bazel.build/docs/android-ndk#cclibrary-android.
+    native.cc_library(
+        name = input_cc_library_name,
+        target_compatible_with = ["@platforms//os:android"],
+        **input_cc_library_kwargs
+    )
+    native.cc_binary(
+        name = binary_target_name,
+        linkshared = True,
+        deps = [input_cc_library_name],
+        target_compatible_with = ["@platforms//os:android"],
+    )
+    native.cc_library(
+        name = name,
+        srcs = [binary_target_name],
+        target_compatible_with = ["@platforms//os:android"],
+    )
+
+# +----------------------------------------------------------------------------+
 # | Misc rules.                                                                |
 # +----------------------------------------------------------------------------+
 
@@ -127,13 +189,13 @@ def perfetto_cc_protozero_library(name, deps, **kwargs):
         fail("Too many proto deps for target %s" % name)
 
     args = {
-        'name': name + "_src",
-        'deps': _proto_deps,
-        'suffix': "pbzero",
-        'plugin': PERFETTO_CONFIG.root + ":protozero_plugin",
-        'wrapper_namespace': "pbzero",
-        'protoc': PERFETTO_CONFIG.deps.protoc[0],
-        'root': PERFETTO_CONFIG.root,
+        "name": name + "_src",
+        "deps": _proto_deps,
+        "suffix": "pbzero",
+        "plugin": PERFETTO_CONFIG.root + ":protozero_plugin",
+        "wrapper_namespace": "pbzero",
+        "protoc": PERFETTO_CONFIG.deps.protoc[0],
+        "root": PERFETTO_CONFIG.root,
     }
     if not _rule_override("proto_gen", **args):
         proto_gen(**args)
@@ -171,13 +233,13 @@ def perfetto_cc_ipc_library(name, deps, **kwargs):
 
     # Generates .ipc.{cc,h}.
     args = {
-        'name': name + "_src",
-        'deps': _proto_deps,
-        'suffix': "ipc",
-        'plugin': PERFETTO_CONFIG.root + ":ipc_plugin",
-        'wrapper_namespace': "gen",
-        'protoc': PERFETTO_CONFIG.deps.protoc[0],
-        'root': PERFETTO_CONFIG.root,
+        "name": name + "_src",
+        "deps": _proto_deps,
+        "suffix": "ipc",
+        "plugin": PERFETTO_CONFIG.root + ":ipc_plugin",
+        "wrapper_namespace": "gen",
+        "protoc": PERFETTO_CONFIG.deps.protoc[0],
+        "root": PERFETTO_CONFIG.root,
     }
     if not _rule_override("proto_gen", **args):
         proto_gen(**args)
@@ -222,13 +284,13 @@ def perfetto_cc_protocpp_library(name, deps, **kwargs):
         fail("Too many proto deps for target %s" % name)
 
     args = {
-        'name': name + "_gen",
-        'deps': _proto_deps,
-        'suffix': "gen",
-        'plugin': PERFETTO_CONFIG.root + ":cppgen_plugin",
-        'wrapper_namespace': "gen",
-        'protoc': PERFETTO_CONFIG.deps.protoc[0],
-        'root': PERFETTO_CONFIG.root,
+        "name": name + "_gen",
+        "deps": _proto_deps,
+        "suffix": "gen",
+        "plugin": PERFETTO_CONFIG.root + ":cppgen_plugin",
+        "wrapper_namespace": "gen",
+        "protoc": PERFETTO_CONFIG.deps.protoc[0],
+        "root": PERFETTO_CONFIG.root,
     }
     if not _rule_override("proto_gen", **args):
         proto_gen(**args)
@@ -254,9 +316,9 @@ def perfetto_cc_protocpp_library(name, deps, **kwargs):
 
 def perfetto_proto_descriptor(name, deps, outs, **kwargs):
     args = {
-        'name': name,
-        'deps': deps,
-        'outs': outs,
+        "name": name,
+        "deps": deps,
+        "outs": outs,
     }
     if not _rule_override("proto_descriptor_gen", **args):
         proto_descriptor_gen(**args)
@@ -267,7 +329,7 @@ def perfetto_cc_proto_descriptor(name, deps, outs, **kwargs):
         "$(location gen_cc_proto_descriptor_py)",
         "--cpp_out=$@",
         "--gen_dir=$(GENDIR)",
-        "$<"
+        "$<",
     ]
     perfetto_genrule(
         name = name + "_gen",
@@ -370,7 +432,7 @@ def perfetto_cc_tp_tables(name, srcs, outs, deps = [], **kwargs):
     perfetto_filegroup(
         name = name,
         srcs = [":" + name + "_gen"],
-        **kwargs,
+        **kwargs
     )
 
 # +----------------------------------------------------------------------------+
