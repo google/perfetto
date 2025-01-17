@@ -423,8 +423,8 @@ const THERMAL_THROTTLING = `
   from step2
   where severity != 'NONE'`;
 
-const KERNEL_WAKELOCKS = `
-  create or replace perfetto table kernel_wakelocks as
+const KERNEL_WAKELOCKS_STATSD = `
+  create or replace perfetto table kernel_wakelocks_statsd as
   with kernel_wakelock_args as (
     select
       arg_set_id,
@@ -486,9 +486,9 @@ const KERNEL_WAKELOCKS = `
     min(100.0 * wakelock_dur / (ts_end - ts - suspended_dur), 100) as value
   from step3`;
 
-const KERNEL_WAKELOCKS_SUMMARY = `
+const KERNEL_WAKELOCKS_STATSD_SUMMARY = `
   select wakelock_name, max(value) as max_value
-  from kernel_wakelocks
+  from kernel_wakelocks_statsd
   where wakelock_name not in ('PowerManager.SuspendLockout', 'PowerManagerService.Display')
   group by 1
   having max_value > 1
@@ -1573,24 +1573,49 @@ export default class implements PerfettoPlugin {
     }
   }
 
-  async addKernelWakelocks(ctx: Trace, features: Set<string>): Promise<void> {
+  async addKernelWakelocks(ctx: Trace): Promise<void> {
+    const e = ctx.engine;
+    await e.query(`INCLUDE PERFETTO MODULE android.kernel_wakelocks;`);
+    const result = await e.query(
+      `SELECT DISTINCT name, type FROM android_kernel_wakelocks`,
+    );
+    const it = result.iter({name: 'str', type: 'str'});
+    for (; it.valid(); it.next()) {
+      await this.addCounterTrack(
+        ctx,
+        it.name,
+        `SELECT ts, dur, held_ratio * 100 AS value
+         FROM android_kernel_wakelocks
+         WHERE name = "${it.name}"`,
+        'Kernel Wakelock Summary',
+        {yRangeSharingKey: 'kernel_wakelock', unit: '%'},
+      );
+    }
+  }
+
+  async addKernelWakelocksStatsd(
+    ctx: Trace,
+    features: Set<string>,
+  ): Promise<void> {
     if (!features.has('atom.kernel_wakelock')) {
       return;
     }
-    const groupName = 'Kernel Wakelock Summary';
+    const groupName = 'Kernel Wakelock Summary (statsd)';
 
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.suspend;`);
-    await e.query(KERNEL_WAKELOCKS);
-    const result = await e.query(KERNEL_WAKELOCKS_SUMMARY);
+    await e.query(KERNEL_WAKELOCKS_STATSD);
+    const result = await e.query(KERNEL_WAKELOCKS_STATSD_SUMMARY);
     const it = result.iter({wakelock_name: 'str'});
     for (; it.valid(); it.next()) {
       await this.addCounterTrack(
         ctx,
-        it.wakelock_name,
-        `select ts, dur, value from kernel_wakelocks where wakelock_name = "${it.wakelock_name}"`,
+        `${it.wakelock_name} (statsd)`,
+        `select ts, dur, value
+         from kernel_wakelocks_statsd
+         where wakelock_name = "${it.wakelock_name}"`,
         groupName,
-        {yRangeSharingKey: 'kernel_wakelock', unit: '%'},
+        {yRangeSharingKey: 'kernel_wakelock_statsd', unit: '%'},
       );
     }
   }
@@ -1906,7 +1931,8 @@ export default class implements PerfettoPlugin {
     await this.addAtomCounters(ctx);
     await this.addAtomSlices(ctx);
     await this.addModemDetail(ctx, features);
-    await this.addKernelWakelocks(ctx, features);
+    await this.addKernelWakelocks(ctx);
+    await this.addKernelWakelocksStatsd(ctx, features);
     await this.addWakeups(ctx, features);
     await this.addDeviceState(ctx, features);
     await this.addHighCpu(ctx, features);
