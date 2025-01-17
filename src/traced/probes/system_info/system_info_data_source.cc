@@ -120,18 +120,16 @@ void SystemInfoDataSource::Start() {
       cpu_index = "";
 
       // Set Arm CPU identifier if available
-      if (implementer || architecture || part || variant || revision) {
-        if (implementer && architecture && part && variant && revision) {
-          auto* identifier = cpu->set_arm_identifier();
-          identifier->set_implementer(implementer.value());
-          identifier->set_architecture(architecture.value());
-          identifier->set_variant(variant.value());
-          identifier->set_part(part.value());
-          identifier->set_revision(revision.value());
-        } else {
-          PERFETTO_ILOG(
-              "Failed to parse Arm specific fields from /proc/cpuinfo");
-        }
+      if (implementer && architecture && part && variant && revision) {
+        auto* identifier = cpu->set_arm_identifier();
+        identifier->set_implementer(implementer.value());
+        identifier->set_architecture(architecture.value());
+        identifier->set_variant(variant.value());
+        identifier->set_part(part.value());
+        identifier->set_revision(revision.value());
+      } else if (implementer || architecture || part || variant || revision) {
+        PERFETTO_ILOG(
+            "Failed to parse Arm specific fields from /proc/cpuinfo");
       }
 
       implementer = std::nullopt;
