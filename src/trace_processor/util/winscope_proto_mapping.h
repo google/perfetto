@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_UTIL_WINSCOPE_PROTO_MAPPING_H_
 
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 
@@ -78,6 +79,15 @@ inline std::optional<const std::string> GetGroupIdColName(
     const std::string& table_name) {
   if (table_name == tables::WindowManagerShellTransitionProtosTable::Name()) {
     return "transition_id";
+  }
+  return std::nullopt;
+}
+
+inline std::optional<const Table*> GetInternedDataTable(
+    const std::string& table_name,
+    TraceStorage* storage) {
+  if (table_name == tables::ViewCaptureTable::Name()) {
+    return storage->mutable_viewcapture_interned_data_table();
   }
   return std::nullopt;
 }
