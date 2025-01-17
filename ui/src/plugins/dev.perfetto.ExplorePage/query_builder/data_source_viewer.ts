@@ -88,24 +88,18 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
     return (
       this.currentSql &&
       m(
-        '.explore-page__rowish',
-        m(
-          '.explore-page__columnar',
-          this.renderRunButton(this.currentSql, attrs.trace),
-          renderTable(this.queryResult),
-        ),
-        m(
-          '.explore-page__columnar',
-          renderButtons(),
-          this.showSql === 0
-            ? m(TextParagraph, {
-                text: this.currentSql,
-                compressSpace: false,
-              })
-            : m(TextParagraph, {
-                text: 'FUTURE COLUMNS',
-              }),
-        ),
+        '.explore-page__columnar',
+        renderButtons(),
+        this.showSql === 0
+          ? m(TextParagraph, {
+              text: this.currentSql,
+              compressSpace: false,
+            })
+          : m(TextParagraph, {
+              text: 'FUTURE COLUMNS',
+            }),
+        this.renderRunButton(this.currentSql, attrs.trace),
+        renderTable(this.queryResult),
       )
     );
   }

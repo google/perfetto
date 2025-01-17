@@ -137,3 +137,12 @@
     margin-bottom: 16px;
   }
 }
+
+.pf-parent {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+.pf-child {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
