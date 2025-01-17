@@ -21,6 +21,7 @@
 #include "src/trace_processor/importers/etw/etw_module_impl.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "src/trace_processor/importers/proto/android_camera_event_module.h"
+#include "src/trace_processor/importers/proto/android_kernel_wakelocks_module.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
@@ -44,6 +45,7 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->descriptor_pool_->AddFromFileDescriptorSet(kTraceDescriptor.data(),
                                                       kTraceDescriptor.size());
 
+  context->modules.emplace_back(new AndroidKernelWakelocksModule(context));
   context->modules.emplace_back(new AndroidProbesModule(context));
   context->modules.emplace_back(new NetworkTraceModule(context));
   context->modules.emplace_back(new GraphicsEventModule(context));
