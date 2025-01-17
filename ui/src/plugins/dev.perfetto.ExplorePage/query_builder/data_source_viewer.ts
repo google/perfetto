@@ -13,22 +13,28 @@
 // limitations under the License.
 
 import m from 'mithril';
-import SqlModulesPlugin from '../../dev.perfetto.SqlModules';
 
 import {PageWithTraceAttrs} from '../../../public/page';
-import {Button} from '../../../widgets/button';
 import {TextParagraph} from '../../../widgets/text_paragraph';
 import {QueryTable} from '../../../components/query_table/query_table';
 import {runQuery} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {Trace} from '../../../public/trace';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
-import {QueryNode, getLastFinishedNode, getFirstNode} from '../query_state';
-import {ColumnControllerRows} from './column_controller';
+import {
+  QueryNode,
+  getLastFinishedNode,
+  getFirstNode,
+  NodeType,
+} from '../query_state';
+import {
+  ColumnController,
+  ColumnControllerDiff,
+  ColumnControllerRows,
+} from './column_controller';
+import {Section} from '../../../widgets/section';
 
 export interface DataSourceAttrs extends PageWithTraceAttrs {
-  readonly plugin: SqlModulesPlugin;
   readonly queryNode: QueryNode;
 }
 
@@ -36,18 +42,9 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
   private readonly tableAsyncLimiter = new AsyncLimiter();
   private queryResult: QueryResponse | undefined;
   private showSql: number = 0;
-  private currentSql?: string;
 
-  private renderRunButton(sql: string, trace: Trace): m.Child {
-    return m(Button, {
-      label: 'Run',
-      onclick: () => {
-        this.tableAsyncLimiter.schedule(async () => {
-          this.queryResult = await runQuery(sql, trace.engine);
-        });
-      },
-    });
-  }
+  private prevSql?: string;
+  private currentSql?: string;
 
   view({attrs}: m.CVnode<DataSourceAttrs>) {
     this.currentSql = sqlToRun(attrs.queryNode);
@@ -55,20 +52,64 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
       return;
     }
 
-    const renderTable = (queryResp: QueryResponse | undefined) => {
-      if (queryResp === undefined) {
+    function renderPickColumns(): m.Child {
+      if (
+        !attrs.queryNode.finished ||
+        attrs.queryNode.type !== NodeType.kStdlibTable
+      ) {
         return;
       }
-      if (queryResp.error !== undefined) {
-        return m(TextParagraph, {text: `Error: ${queryResp.error}`});
+
+      return (
+        attrs.queryNode.columns &&
+        m(ColumnController, {
+          hasValidColumns: true,
+          options: attrs.queryNode.columns,
+          onChange: (diffs: ColumnControllerDiff[]) => {
+            diffs.forEach(({id, checked, alias}) => {
+              if (attrs.queryNode.columns === undefined) {
+                return;
+              }
+              for (const option of attrs.queryNode.columns) {
+                if (option.id === id) {
+                  option.checked = checked;
+                  option.alias = alias;
+                }
+              }
+            });
+          },
+        })
+      );
+    }
+
+    const renderTable = () => {
+      if (this.currentSql !== this.prevSql) {
+        this.tableAsyncLimiter.schedule(async () => {
+          if (this.currentSql === undefined) {
+            return;
+          }
+          this.queryResult = await runQuery(
+            this.currentSql,
+            attrs.trace.engine,
+          );
+        });
       }
+
+      if (this.queryResult === undefined) {
+        return;
+      }
+      if (this.queryResult.error !== undefined) {
+        return m(TextParagraph, {text: `Error: ${this.queryResult.error}`});
+      }
+
+      this.prevSql = this.currentSql;
 
       return [
         this.currentSql &&
           m(QueryTable, {
             trace: attrs.trace,
             query: this.currentSql,
-            resp: queryResp,
+            resp: this.queryResult,
             fillParent: false,
           }),
       ];
@@ -88,18 +129,19 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
     return (
       this.currentSql &&
       m(
-        '.explore-page__columnar',
-        renderButtons(),
-        this.showSql === 0
-          ? m(TextParagraph, {
-              text: this.currentSql,
-              compressSpace: false,
-            })
-          : m(TextParagraph, {
-              text: 'FUTURE COLUMNS',
-            }),
-        this.renderRunButton(this.currentSql, attrs.trace),
-        renderTable(this.queryResult),
+        '',
+        m(
+          Section,
+          {title: attrs.queryNode.getTitle()},
+          renderButtons(),
+          this.showSql === 0
+            ? m(TextParagraph, {
+                text: this.currentSql,
+                compressSpace: false,
+              })
+            : renderPickColumns(),
+        ),
+        renderTable(),
       )
     );
   }
