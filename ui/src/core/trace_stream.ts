@@ -78,6 +78,15 @@ export class TraceBufferStream implements TraceStream {
   private bytesRead = 0;
 
   constructor(traceBuf: ArrayBuffer) {
+    // This is subtle. Technically speaking a Uint8Array is type-compatible with
+    // ArrayBuffer, so you can pass here a Uint8Array rather than an ArrayBufer.
+    // However, the new Uint8Array(buf, off, len) below works only if the arg
+    // is an ArrayBuffer, and silently ignores the (off,len) if the argument is
+    // a Uint8Array. We could try to deal gracefully with both cases in this
+    // class, but then other parts of the code (e.g. cache_manager.ts) will have
+    // similar bugs if traceInfo.source is not a pure ArrayBuffer.
+    // See b/390473162.
+    assertTrue(traceBuf instanceof ArrayBuffer);
     this.traceBuf = traceBuf;
   }
 
