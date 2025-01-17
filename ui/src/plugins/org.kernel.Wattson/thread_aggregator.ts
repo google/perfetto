@@ -128,21 +128,36 @@ export class WattsonThreadSelectionAggregator
 
       -- Grouped again by UTID, but this time to make it CPU agnostic
       CREATE VIEW ${this.id} AS
-      SELECT
-        ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
-        ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
-        COALESCE(idle_cost_mws, 0) as idle_cost_mws,
-        ROUND(
-          COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
-          2
-        ) as total_mws,
-        thread_name,
-        utid,
-        tid,
-        pid
-      FROM _unioned_per_cpu_total
-      LEFT JOIN _per_thread_idle_cost USING (utid)
-      GROUP BY utid;
+    WITH
+          base AS (
+            SELECT
+              ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
+              ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
+              COALESCE(idle_cost_mws, 0) as idle_cost_mws,
+              ROUND(
+                COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
+                2
+              ) as total_mws,
+              thread_name,
+              utid,
+              tid,
+              pid
+            FROM _unioned_per_cpu_total
+            LEFT JOIN _per_thread_idle_cost USING (utid)
+            GROUP BY utid
+          ),
+      secondary AS (
+        SELECT utid,
+          ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 2)
+            AS percent_of_total_energy
+        FROM base
+        GROUP BY utid
+      )
+
+      select *
+        from base INNER JOIN secondary
+        USING (utid);
+
     `;
 
     engine.query(query);
@@ -197,6 +212,13 @@ export class WattsonThreadSelectionAggregator
         columnConstructor: Float64Array,
         columnId: 'total_mws',
         sum: true,
+      },
+      {
+        title: '% of total energy',
+        kind: 'PERCENT',
+        columnConstructor: Float64Array,
+        columnId: 'percent_of_total_energy',
+        sum: false,
       },
     ];
   }
