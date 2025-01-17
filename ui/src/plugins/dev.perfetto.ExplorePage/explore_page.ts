@@ -20,7 +20,7 @@ import {SqlTableState as SqlTableViewState} from '../../components/widgets/sql/l
 import {Chart} from '../../components/widgets/charts/chart';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {DataVisualiser} from './data_visualiser';
-import {QueryBuilder} from './query_builder/query_builder';
+import {QueryBuilder} from './query_builder/builder';
 import {DataSourceViewer} from './query_builder/data_source_viewer';
 import {QueryNode} from './query_state';
 
@@ -68,14 +68,14 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
       this.selectedMode === ExplorePageModes.QUERY_BUILDER &&
         m(
-          'div',
+          '.explore-page__rowish',
           m(QueryBuilder, {
             trace: attrs.trace,
             sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
             onQueryNodeCreated(arg) {
               attrs.state.queryNode = arg;
             },
-            queryNode: attrs.state.queryNode,
+            rootNode: attrs.state.queryNode,
           }),
           attrs.state.queryNode?.finished &&
             m(DataSourceViewer, {
