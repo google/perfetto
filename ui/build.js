@@ -209,8 +209,9 @@ async function main() {
   process.on('SIGINT', () => {
     console.log('\nSIGINT received. Killing all child processes and exiting');
     for (const proc of subprocesses) {
-      if (proc) proc.kill('SIGINT');
+      if (proc) proc.kill('SIGKILL');
     }
+    process.kill(0, 'SIGKILL');  // Kill the whole process group.
     process.exit(130);  // 130 -> Same behavior of bash when killed by SIGINT.
   });
 
