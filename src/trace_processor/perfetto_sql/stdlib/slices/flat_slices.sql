@@ -44,7 +44,6 @@ INCLUDE PERFETTO MODULE intervals.overlap;
 -- @column dur                Duration of `slice.id` as the most active slice until the next active slice.
 -- @column depth              Depth of `slice.id` in the original stack.
 -- @column name               Name of `slice.id`.
--- @column root_name          Name of the top most slice of the stack.
 -- @column root_id            Id of of the top most slice of the stack.
 -- @column track_id           Alias for `slice.track_id`.
 -- @column utid               Alias for `thread.utid`.
@@ -66,7 +65,7 @@ WITH
     WHERE slice.parent_id IS NOT NULL
   ),
   flat_slices AS (
-    SELECT id, ts, dur
+    SELECT root_id, id, ts, dur
     FROM _intervals_flatten !(_intervals_merge_root_and_children!(root_slices, child_slices))
   )
 SELECT
@@ -75,6 +74,7 @@ SELECT
   flat_slices.dur,
   depth,
   name,
+  root_id,
   track_id,
   utid,
   tid,
