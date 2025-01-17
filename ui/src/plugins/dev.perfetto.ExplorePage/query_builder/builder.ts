@@ -17,13 +17,13 @@ import m from 'mithril';
 import {PageWithTraceAttrs} from '../../../public/page';
 import {Button} from '../../../widgets/button';
 import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
-import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 import {ColumnControllerRows} from './column_controller';
 import {QueryNode, StdlibTableState} from '../query_state';
 import {JoinState, QueryBuilderJoin} from './operations/join';
 import {Intent} from '../../../widgets/common';
 import {showModal} from '../../../widgets/modal';
 import {DataSourceViewer} from './data_source_viewer';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
 
 export interface QueryBuilderTable {
   name: string;
@@ -42,7 +42,8 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
     const trace = attrs.trace;
 
-    function renderChooseTable(): m.Child {
+    // Create starting node.
+    function chooseTableButton(): m.Child {
       return m(Button, {
         label: 'Choose a table',
         intent: Intent.Primary,
@@ -63,35 +64,48 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       });
     }
 
-    function renderOperationButtons(): m.Child {
-      return m(SegmentedButtons, {
-        ...attrs,
-        options: [{label: 'JOIN on ID'}, {label: 'INTERSECT'}],
-        selectedOption: 0,
-        onOptionSelected: () => {
-          if (attrs.rootNode === undefined) {
-            return;
-          }
-          attrs.rootNode.nextNode = new JoinState(attrs.rootNode);
+    // Followup node
+    function chooseOperationButton() {
+      return m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            label: '+',
+            intent: Intent.Primary,
+          }),
         },
-      });
+        m(MenuItem, {
+          label: 'JOIN',
+          onclick: () => {
+            if (attrs.rootNode === undefined) {
+              return;
+            }
+            attrs.rootNode.nextNode = new JoinState(attrs.rootNode);
+            operationsModal();
+          },
+        }),
+        m(MenuItem, {label: 'INTERSECT'}),
+      );
     }
 
     function operationsModal() {
       function Operations() {
         return {
           view: () => {
-            return [
-              renderOperationButtons(),
+            if (attrs.rootNode === undefined) {
+              return;
+            }
+            return (
               attrs.rootNode?.nextNode instanceof JoinState &&
-                m(QueryBuilderJoin, {
-                  sqlModules: attrs.sqlModules,
-                  joinState: attrs.rootNode.nextNode,
-                }),
-            ];
+              m(QueryBuilderJoin, {
+                sqlModules: attrs.sqlModules,
+                joinState: attrs.rootNode.nextNode,
+              })
+            );
           },
         };
       }
+
       const content = () => m(Operations);
 
       showModal({
@@ -118,7 +132,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
                 gridRow: row,
               },
             },
-            renderChooseTable(),
+            chooseTableButton(),
           );
         }
 
@@ -154,13 +168,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
                 gridRow: row,
               },
             },
-            m(Button, {
-              label: `+`,
-              intent: Intent.Primary,
-              onclick: async () => {
-                operationsModal();
-              },
-            }),
+            chooseOperationButton(),
           ),
         );
         return nodes;
@@ -184,8 +192,8 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       {
         style: {
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gridTemplateRows: '1fr 1fr',
+          gridTemplateColumns: '50% 50%',
+          gridTemplateRows: '50% 50%',
           gap: '10px',
         },
       },
