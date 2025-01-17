@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import SqlModulesPlugin from '../../dev.perfetto.SqlModules';
 
 import {PageWithTraceAttrs} from '../../../public/page';
 import {Button} from '../../../widgets/button';
@@ -24,11 +23,20 @@ import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {Trace} from '../../../public/trace';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
-import {QueryNode, getLastFinishedNode, getFirstNode} from '../query_state';
-import {ColumnControllerRows} from './column_controller';
+import {
+  QueryNode,
+  getLastFinishedNode,
+  getFirstNode,
+  NodeType,
+} from '../query_state';
+import {
+  ColumnController,
+  ColumnControllerDiff,
+  ColumnControllerRows,
+} from './column_controller';
+import {Section} from '../../../widgets/section';
 
 export interface DataSourceAttrs extends PageWithTraceAttrs {
-  readonly plugin: SqlModulesPlugin;
   readonly queryNode: QueryNode;
 }
 
@@ -53,6 +61,36 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
     this.currentSql = sqlToRun(attrs.queryNode);
     if (this.currentSql === undefined) {
       return;
+    }
+
+    function renderPickColumns(): m.Child {
+      if (
+        !attrs.queryNode.finished ||
+        attrs.queryNode.type !== NodeType.kStdlibTable
+      ) {
+        return;
+      }
+
+      return (
+        attrs.queryNode.columns &&
+        m(ColumnController, {
+          hasValidColumns: true,
+          options: attrs.queryNode.columns,
+          onChange: (diffs: ColumnControllerDiff[]) => {
+            diffs.forEach(({id, checked, alias}) => {
+              if (attrs.queryNode.columns === undefined) {
+                return;
+              }
+              for (const option of attrs.queryNode.columns) {
+                if (option.id === id) {
+                  option.checked = checked;
+                  option.alias = alias;
+                }
+              }
+            });
+          },
+        })
+      );
     }
 
     const renderTable = (queryResp: QueryResponse | undefined) => {
@@ -88,16 +126,18 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
     return (
       this.currentSql &&
       m(
-        '.explore-page__columnar',
-        renderButtons(),
-        this.showSql === 0
-          ? m(TextParagraph, {
-              text: this.currentSql,
-              compressSpace: false,
-            })
-          : m(TextParagraph, {
-              text: 'FUTURE COLUMNS',
-            }),
+        '',
+        m(
+          Section,
+          {title: attrs.queryNode.getTitle()},
+          renderButtons(),
+          this.showSql === 0
+            ? m(TextParagraph, {
+                text: this.currentSql,
+                compressSpace: false,
+              })
+            : renderPickColumns(),
+        ),
         this.renderRunButton(this.currentSql, attrs.trace),
         renderTable(this.queryResult),
       )
