@@ -18,6 +18,7 @@
 #include <algorithm>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -135,6 +136,16 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
   init_opts.compressor_fn = &ZlibCompressFn;
 #endif
+  std::string relay_producer_socket;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  relay_producer_socket =
+      base::GetAndroidProp("persist.traced.relay_producer_port");
+  // If a guest producer port is defined, then the relay endpoint should be
+  // enabled regardless. This is used in cases where perf data is passed
+  // from guest machines or the hypervisor to Android.
+  if (!relay_producer_socket.empty())
+    init_opts.enable_relay_endpoint = true;
+#endif
   if (enable_relay_endpoint)
     init_opts.enable_relay_endpoint = true;
   svc = ServiceIPCHost::CreateInstance(&task_runner, init_opts);
@@ -153,6 +164,9 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     ListenEndpoint consumer_ep(base::ScopedFile(atoi(env_cons)));
     std::list<ListenEndpoint> producer_eps;
     producer_eps.emplace_back(ListenEndpoint(base::ScopedFile(atoi(env_prod))));
+    if (!relay_producer_socket.empty()) {
+      producer_eps.emplace_back(ListenEndpoint(relay_producer_socket));
+    }
     started = svc->Start(std::move(producer_eps), std::move(consumer_ep));
 #endif
   } else {
