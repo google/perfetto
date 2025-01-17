@@ -55,19 +55,33 @@ export class WattsonProcessSelectionAggregator
 
       -- Grouped by UPID and made CPU agnostic
       CREATE VIEW ${this.id} AS
-      SELECT
-        ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
-        ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
-        COALESCE(idle_cost_mws, 0) as idle_cost_mws,
-        ROUND(
-          COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
-          2
-        ) as total_mws,
-        pid,
-        process_name
-      FROM _unioned_per_cpu_total
-      LEFT JOIN _per_process_idle_attribution USING (upid)
-      GROUP BY upid;
+      WITH
+        base AS (
+          SELECT
+            ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
+            ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
+            COALESCE(idle_cost_mws, 0) as idle_cost_mws,
+            ROUND(
+              COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
+              2
+            ) as total_mws,
+            pid,
+            process_name
+          FROM _unioned_per_cpu_total
+          LEFT JOIN _per_process_idle_attribution USING (upid)
+          GROUP BY upid
+        ),
+        secondary AS (
+        SELECT pid,
+          ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 2)
+            AS percent_of_total_energy
+        FROM base
+        GROUP BY pid
+      )
+
+      select *
+        from base INNER JOIN secondary
+        USING (pid);
     `);
 
     return true;
@@ -114,6 +128,13 @@ export class WattsonProcessSelectionAggregator
         columnConstructor: Float64Array,
         columnId: 'total_mws',
         sum: true,
+      },
+      {
+        title: '% of total energy',
+        kind: 'PERCENT',
+        columnConstructor: Float64Array,
+        columnId: 'percent_of_total_energy',
+        sum: false,
       },
     ];
   }
