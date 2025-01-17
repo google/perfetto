@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE wattson.cpu_split;
 
 -- The final system state for the CPU subsystem, which has all the information
 -- needed by Wattson to estimate energy for the CPU subsystem.
-CREATE PERFETTO TABLE wattson_system_states(
+CREATE PERFETTO TABLE _wattson_system_states(
   -- Starting timestamp of the current counter where system state is constant.
   ts TIMESTAMP,
   -- Duration of the current counter where system state is constant.
