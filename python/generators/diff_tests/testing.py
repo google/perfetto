@@ -256,14 +256,12 @@ class TestSuite:
   def __init__(
       self,
       include_index_dir: str,
-      dir_name: str,
-      class_name: str,
       test_data_dir: str = os.path.abspath(
           os.path.join(__file__, '../../../../test/data'))
   ) -> None:
-    self.dir_name = dir_name
-    self.index_dir = os.path.join(include_index_dir, dir_name)
-    self.class_name = class_name
+    self.dir_name = '/'.join(self.__class__.__module__.split('.')[1:-1])
+    self.index_dir = os.path.join(include_index_dir, self.dir_name)
+    self.class_name = self.__class__.__name__
     self.test_data_dir = test_data_dir
 
   def __test_name(self, method_name):
