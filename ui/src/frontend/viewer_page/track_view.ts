@@ -312,41 +312,38 @@ export class TrackView {
         ),
         m(MenuDivider),
         m(MenuItem, {
-          label: 'New workspace',
+          label: 'New workspace...',
           onclick: () => this.copyToWorkspace(),
         }),
       ),
       m(
         MenuItem,
-        {label: 'Take to workspace'},
+        {label: 'Copy & switch to workspace'},
         this.trace.workspaces.all.map((ws) =>
           m(MenuItem, {
             label: ws.title,
             onclick: async () => {
-              await this.copyToWorkspace(ws);
+              this.copyToWorkspace(ws);
               this.trace.workspaces.switchWorkspace(ws);
             },
           }),
         ),
         m(MenuDivider),
         m(MenuItem, {
-          label: 'New workspace',
+          label: 'New workspace...',
           onclick: async () => {
-            const ws = await this.copyToWorkspace();
-            ws && this.trace.workspaces.switchWorkspace(ws);
+            const ws = this.copyToWorkspace();
+            this.trace.workspaces.switchWorkspace(ws);
           },
         }),
       ),
     );
   }
 
-  private async copyToWorkspace(ws?: Workspace) {
+  private copyToWorkspace(ws?: Workspace) {
+    // If no workspace provided, create a new one.
     if (!ws) {
-      const name = await this.trace.omnibox.prompt(
-        'Enter a name for the new workspace...',
-      );
-      if (!name) return;
-      ws = this.trace.workspaces.createEmptyWorkspace(name);
+      ws = this.trace.workspaces.createEmptyWorkspace('Untitled Workspace');
     }
     const newNode = this.node.clone();
     newNode.removable = true;
