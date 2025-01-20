@@ -44,25 +44,36 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
     const trace = attrs.trace;
 
     // Create starting node.
-    function chooseTableButton(): m.Child {
-      return m(Button, {
-        label: 'Choose a table',
-        intent: Intent.Primary,
-        onclick: async () => {
-          const tableName = await trace.omnibox.prompt(
-            'Choose a table...',
-            attrs.sqlModules.listTablesNames(),
-          );
-          if (tableName === undefined) {
-            return;
-          }
-          const sqlTable = attrs.sqlModules.getTable(tableName);
-          if (sqlTable === undefined) {
-            return;
-          }
-          attrs.onQueryNodeCreated(new StdlibTableState(sqlTable));
+    function chooseSourceButton(): m.Child {
+      return m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            label: 'Choose a source',
+            intent: Intent.Primary,
+          }),
         },
-      });
+        m(MenuItem, {
+          label: 'Table',
+          onclick: async () => {
+            const tableName = await trace.omnibox.prompt(
+              'Choose a table...',
+              attrs.sqlModules.listTablesNames(),
+            );
+            if (tableName === undefined) {
+              return;
+            }
+            const sqlTable = attrs.sqlModules.getTable(tableName);
+            if (sqlTable === undefined) {
+              return;
+            }
+            attrs.onQueryNodeCreated(new StdlibTableState(sqlTable));
+          },
+        }),
+        m(MenuItem, {label: 'Slices', disabled: true}),
+        m(MenuItem, {label: 'SQL', disabled: true}),
+        m(MenuItem, {label: 'Interval intersect', disabled: true}),
+      );
     }
 
     // Followup node
@@ -134,7 +145,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
                 gridRow: row,
               },
             },
-            chooseTableButton(),
+            chooseSourceButton(),
           );
         }
 
