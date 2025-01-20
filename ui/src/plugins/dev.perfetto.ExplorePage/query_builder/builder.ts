@@ -24,6 +24,7 @@ import {Intent} from '../../../widgets/common';
 import {showModal} from '../../../widgets/modal';
 import {DataSourceViewer} from './data_source_viewer';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {getLastFinishedNode} from '../query_state';
 
 export interface QueryBuilderTable {
   name: string;
@@ -80,28 +81,27 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             if (attrs.rootNode === undefined) {
               return;
             }
-            attrs.rootNode.nextNode = new JoinState(attrs.rootNode);
-            operationsModal();
+            const curNode = getLastFinishedNode(attrs.rootNode);
+            if (curNode === undefined) {
+              return;
+            }
+            const newJoinState = new JoinState(attrs.rootNode);
+            joinModal(newJoinState);
+            curNode.nextNode = newJoinState;
           },
         }),
         m(MenuItem, {label: 'INTERSECT'}),
       );
     }
 
-    function operationsModal() {
+    function joinModal(joinState: JoinState) {
       function Operations() {
         return {
           view: () => {
-            if (attrs.rootNode === undefined) {
-              return;
-            }
-            return (
-              attrs.rootNode?.nextNode instanceof JoinState &&
-              m(QueryBuilderJoin, {
-                sqlModules: attrs.sqlModules,
-                joinState: attrs.rootNode.nextNode,
-              })
-            );
+            return m(QueryBuilderJoin, {
+              sqlModules: attrs.sqlModules,
+              joinState: joinState,
+            });
           },
         };
       }
@@ -109,7 +109,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       const content = () => m(Operations);
 
       showModal({
-        title: `Modal dialog`,
+        title: `JOIN`,
         buttons: [
           {
             text: 'Show another now',
