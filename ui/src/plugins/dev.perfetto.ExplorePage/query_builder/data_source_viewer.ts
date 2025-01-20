@@ -21,12 +21,7 @@ import {runQuery} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
-import {
-  QueryNode,
-  getLastFinishedNode,
-  getFirstNode,
-  NodeType,
-} from '../query_state';
+import {QueryNode, getLastFinishedNode, getFirstNode} from '../query_state';
 import {
   ColumnController,
   ColumnControllerDiff,
@@ -52,25 +47,18 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
       return;
     }
 
-    function renderPickColumns(): m.Child {
-      if (
-        !attrs.queryNode.finished ||
-        attrs.queryNode.type !== NodeType.kStdlibTable
-      ) {
-        return;
-      }
-
+    function renderPickColumns(node: QueryNode): m.Child {
       return (
-        attrs.queryNode.columns &&
+        node.columns &&
         m(ColumnController, {
           hasValidColumns: true,
-          options: attrs.queryNode.columns,
+          options: node.columns,
           onChange: (diffs: ColumnControllerDiff[]) => {
             diffs.forEach(({id, checked, alias}) => {
-              if (attrs.queryNode.columns === undefined) {
+              if (node.columns === undefined) {
                 return;
               }
-              for (const option of attrs.queryNode.columns) {
+              for (const option of node.columns) {
                 if (option.id === id) {
                   option.checked = checked;
                   option.alias = alias;
@@ -104,15 +92,15 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
 
       this.prevSql = this.currentSql;
 
-      return [
+      return (
         this.currentSql &&
-          m(QueryTable, {
-            trace: attrs.trace,
-            query: this.currentSql,
-            resp: this.queryResult,
-            fillParent: false,
-          }),
-      ];
+        m(QueryTable, {
+          trace: attrs.trace,
+          query: this.currentSql,
+          resp: this.queryResult,
+          fillParent: false,
+        })
+      );
     };
 
     const renderButtons = (): m.Child => {
@@ -126,23 +114,24 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
       });
     };
 
+    const lastNode = getLastFinishedNode(attrs.queryNode);
+    if (lastNode === undefined) return;
+
     return (
-      this.currentSql &&
-      m(
-        '',
+      this.currentSql && [
         m(
           Section,
-          {title: attrs.queryNode.getTitle()},
+          {title: lastNode.getTitle()},
           renderButtons(),
           this.showSql === 0
             ? m(TextParagraph, {
                 text: this.currentSql,
                 compressSpace: false,
               })
-            : renderPickColumns(),
+            : renderPickColumns(lastNode),
         ),
         renderTable(),
-      )
+      ]
     );
   }
 }
