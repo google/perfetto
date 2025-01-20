@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {duration, Time, time} from '../../base/time';
-import {colorForFtrace} from '../../components/colorizer';
+import {materialColorScheme} from '../../components/colorizer';
 import {LIMIT} from '../../components/tracks/track_data';
 import {Store, TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
@@ -121,7 +121,7 @@ export class FtraceRawTrack implements Track {
     for (let row = 0; it.valid(); it.next(), row++) {
       events.push({
         timestamp: Time.fromRaw(it.tsQuant),
-        color: colorForFtrace(it.name).base.cssString,
+        color: materialColorScheme(it.name).base.cssString,
       });
     }
     return {
