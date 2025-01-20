@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  ACTUAL_FRAMES_SLICE_TRACK_KIND,
-  EXPECTED_FRAMES_SLICE_TRACK_KIND,
-} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR} from '../../trace_processor/query_result';
 import {ActualFramesTrack} from './actual_frames_track';
 import {ExpectedFramesTrack} from './expected_frames_track';
-import {FrameSelectionAggregator} from './frame_selection_aggregator';
+import {
+  ACTUAL_FRAMES_SLICE_TRACK_KIND,
+  FrameSelectionAggregator,
+} from './frame_selection_aggregator';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 // Build a standardized URI for a frames track
@@ -121,7 +120,6 @@ export default class implements PerfettoPlugin {
         tags: {
           trackIds,
           upid,
-          kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
         },
       });
       const group = ctx.plugins
