@@ -17,7 +17,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackDescriptor} from '../../public/track';
 import {z} from 'zod';
-import {assertIsInstance} from '../../base/logging';
+import {assertExists, assertIsInstance} from '../../base/logging';
 
 const PLUGIN_ID = 'dev.perfetto.RestorePinnedTrack';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
@@ -182,9 +182,12 @@ export default class implements PerfettoPlugin {
   }
 
   private getCurrentPinnedTracks() {
-    return this.ctx.workspace.pinnedTracks.map((track) =>
-      this.toSavedTrack(track),
-    );
+    const res = [];
+    for (const track of this.ctx.workspace.pinnedTracks) {
+      const actual = this.ctx.workspace.getTrackByUri(assertExists(track.uri));
+      res.push(this.toSavedTrack(assertExists(actual)));
+    }
+    return res;
   }
 
   private findMatchingTrack(
@@ -345,11 +348,7 @@ function addOrReplaceNamedPinnedTracks({name, tracks}: SavedNamedPinnedTracks) {
 // Return the displayname of the containing group
 // If the track is a child of a workspace, return undefined...
 function groupName(track: TrackNode): string | undefined {
-  const parent = track.parent;
-  if (parent instanceof TrackNode) {
-    return parent.title;
-  }
-  return undefined;
+  return track.parent?.title;
 }
 
 const SAVED_PINNED_TRACK_SCHEMA = z
