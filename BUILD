@@ -271,6 +271,7 @@ perfetto_cc_binary(
         ":src_protozero_filtering_filter_util",
         ":src_protozero_filtering_message_filter",
         ":src_protozero_filtering_string_filter",
+        ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_config_utils_txt_to_pb",
         "src/tools/proto_filter/proto_filter.cc",
     ],
@@ -1542,6 +1543,15 @@ perfetto_filegroup(
     srcs = [
         "src/protozero/filtering/string_filter.cc",
         "src/protozero/filtering/string_filter.h",
+    ],
+)
+
+# GN target: //src/protozero/text_to_proto:text_to_proto
+perfetto_filegroup(
+    name = "src_protozero_text_to_proto_text_to_proto",
+    srcs = [
+        "src/protozero/text_to_proto/text_to_proto.cc",
+        "src/protozero/text_to_proto/text_to_proto.h",
     ],
 )
 
@@ -6652,6 +6662,7 @@ perfetto_cc_binary(
         ":src_perfetto_cmd_bugreport_path",
         ":src_perfetto_cmd_perfetto_cmd",
         ":src_perfetto_cmd_trigger_producer",
+        ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_config_utils_txt_to_pb",
         ":src_tracing_common",
         ":src_tracing_core_core",
