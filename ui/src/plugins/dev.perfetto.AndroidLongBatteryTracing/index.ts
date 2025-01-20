@@ -548,189 +548,11 @@ const HIGH_CPU = `
   from with_ratio
   group by 1, 3, 4`;
 
-const WAKEUPS = `
-  drop table if exists wakeups;
-  create table wakeups as
-  with wakeup_reason as (
-      select
-      ts,
-      substr(i.name, 0, instr(i.name, ' ')) as id_timestamp,
-      substr(i.name, instr(i.name, ' ') + 1) as raw_wakeup
-      from track t join instant i on t.id = i.track_id
-      where t.name = 'wakeup_reason'
-  ),
-  wakeup_attribution as (
-      select
-      substr(i.name, 0, instr(i.name, ' ')) as id_timestamp,
-      substr(i.name, instr(i.name, ' ') + 1) as attribution
-      from track t join instant i on t.id = i.track_id
-      where t.name = 'wakeup_attribution'
-  ),
-  step1 as(
-    select
-      ts,
-      raw_wakeup,
-      attribution,
-      null as raw_backoff
-    from wakeup_reason r
-      left outer join wakeup_attribution using(id_timestamp)
-    union all
-    select
-      ts,
-      null as raw_wakeup,
-      null as attribution,
-      i.name as raw_backoff
-    from track t join instant i on t.id = i.track_id
-    where t.name = 'suspend_backoff'
-  ),
-  step2 as (
-    select
-      ts,
-      raw_wakeup,
-      attribution,
-      lag(raw_backoff) over (order by ts) as raw_backoff
-    from step1
-  ),
-  step3 as (
-    select
-      ts,
-      raw_wakeup,
-      attribution,
-      str_split(raw_backoff, ' ', 0) as suspend_quality,
-      str_split(raw_backoff, ' ', 1) as backoff_state,
-      str_split(raw_backoff, ' ', 2) as backoff_reason,
-      cast(str_split(raw_backoff, ' ', 3) as int) as backoff_count,
-      cast(str_split(raw_backoff, ' ', 4) as int) as backoff_millis,
-      false as suspend_end
-    from step2
-    where raw_wakeup is not null
-    union all
-    select
-      ts,
-      null as raw_wakeup,
-      null as attribution,
-      null as suspend_quality,
-      null as backoff_state,
-      null as backoff_reason,
-      null as backoff_count,
-      null as backoff_millis,
-      true as suspend_end
-    from android_suspend_state
-    where power_state = 'suspended'
-  ),
-  step4 as (
-    select
-      ts,
-      case suspend_quality
-        when 'good' then
-          min(
-            lead(ts, 1, ts + 5e9) over (order by ts) - ts,
-            5e9
-          )
-        when 'bad' then backoff_millis * 1000000
-        else 0
-      end as dur,
-      raw_wakeup,
-      attribution,
-      suspend_quality,
-      backoff_state,
-      backoff_reason,
-      backoff_count,
-      backoff_millis,
-      suspend_end
-    from step3
-  ),
-  step5 as (
-    select
-      ts,
-      dur,
-      raw_wakeup,
-      attribution,
-      suspend_quality,
-      backoff_state,
-      backoff_reason,
-      backoff_count,
-      backoff_millis
-    from step4
-    where not suspend_end
-  ),
-  step6 as (
-    select
-      ts,
-      dur,
-      raw_wakeup,
-      attribution,
-      suspend_quality,
-      backoff_state,
-      backoff_reason,
-      backoff_count,
-      backoff_millis,
-      case
-        when raw_wakeup like 'Abort: Pending Wakeup Sources: %' then 'abort_pending'
-        when raw_wakeup like 'Abort: Last active Wakeup Source: %' then 'abort_last_active'
-        when raw_wakeup like 'Abort: %' then 'abort_other'
-        else 'normal'
-      end as type,
-      case
-        when raw_wakeup like 'Abort: Pending Wakeup Sources: %' then substr(raw_wakeup, 32)
-        when raw_wakeup like 'Abort: Last active Wakeup Source: %' then substr(raw_wakeup, 35)
-        when raw_wakeup like 'Abort: %' then substr(raw_wakeup, 8)
-        else raw_wakeup
-      end as main,
-      case
-        when raw_wakeup like 'Abort: Pending Wakeup Sources: %' then ' '
-        when raw_wakeup like 'Abort: %' then 'no delimiter needed'
-        else ':'
-      end as delimiter
-    from step5
-  ),
-  step7 as (
-    select
-      ts,
-      dur,
-      raw_wakeup,
-      attribution,
-      suspend_quality,
-      backoff_state,
-      backoff_reason,
-      backoff_count,
-      backoff_millis,
-      type,
-      str_split(main, delimiter, 0) as item_0,
-      str_split(main, delimiter, 1) as item_1,
-      str_split(main, delimiter, 2) as item_2,
-      str_split(main, delimiter, 3) as item_3
-    from step6
-  ),
-  step8 as (
-    select ts, dur, raw_wakeup, attribution, suspend_quality, backoff_state, backoff_reason, backoff_count, backoff_millis, type, item_0 as item from step7
-    union all
-    select ts, dur, raw_wakeup, attribution, suspend_quality, backoff_state, backoff_reason, backoff_count, backoff_millis, type, item_1 as item from step7 where item_1 is not null
-    union all
-    select ts, dur, raw_wakeup, attribution, suspend_quality, backoff_state, backoff_reason, backoff_count, backoff_millis, type, item_2 as item from step7 where item_2 is not null
-    union all
-    select ts, dur, raw_wakeup, attribution, suspend_quality, backoff_state, backoff_reason, backoff_count, backoff_millis, type, item_3 as item from step7 where item_3 is not null
-  )
-  select
-    ts,
-    dur,
-    ts + dur as ts_end,
-    raw_wakeup,
-    attribution,
-    suspend_quality,
-    backoff_state,
-    ifnull(backoff_reason, 'none') as backoff_reason,
-    backoff_count,
-    backoff_millis,
-    type,
-    case when type = 'normal' then ifnull(str_split(item, ' ', 1), item) else item end as item
-  from step8`;
-
 const WAKEUPS_COLUMNS = [
   'item',
   'type',
   'raw_wakeup',
-  'attribution',
+  'on_device_attribution',
   'suspend_quality',
   'backoff_state',
   'backoff_reason',
@@ -1627,12 +1449,11 @@ export default class implements PerfettoPlugin {
 
     const e = ctx.engine;
     const groupName = 'Wakeups';
-    await e.query(`INCLUDE PERFETTO MODULE android.suspend;`);
-    await e.query(WAKEUPS);
+    await e.query(`INCLUDE PERFETTO MODULE android.wakeups;`);
     const result = await e.query(`select
           item,
           sum(dur) as sum_dur
-      from wakeups
+      from android_wakeups
       group by 1
       having sum_dur > 600e9`);
     const it = result.iter({item: 'str'});
@@ -1647,13 +1468,13 @@ export default class implements PerfettoPlugin {
                 item,
                 type,
                 raw_wakeup,
-                attribution,
+                on_device_attribution,
                 suspend_quality,
                 backoff_state,
                 backoff_reason,
                 backoff_count,
                 backoff_millis
-            from wakeups`;
+            from android_wakeups`;
     const items = [];
     let labelOther = false;
     for (; it.valid(); it.next()) {
