@@ -14,11 +14,12 @@
 
 import {ColumnDef, Sorting} from '../../public/aggregation';
 import {AreaSelection} from '../../public/selection';
-import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
 import {LONG, STR} from '../../trace_processor/query_result';
 import {Dataset} from '../../trace_processor/dataset';
+
+export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
 export class FrameSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'frame_aggregation';
