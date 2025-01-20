@@ -246,6 +246,13 @@ class TestCase:
     return bool(query_metric_pattern.match(os.path.basename(self.name)))
 
 
+# str.removeprefix is available in Python 3.9+, but the Perfetto CI runs on
+# older versions.
+def removeprefix(s: str, prefix: str):
+  if s.startswith(prefix):
+    return s[len(prefix):]
+  return s
+
 # Virtual class responsible for fetching diff tests.
 # All functions with name starting with `test_` have to return
 # DiffTestBlueprint and function name is a test name. All DiffTestModules have
@@ -259,7 +266,11 @@ class TestSuite:
       test_data_dir: str = os.path.abspath(
           os.path.join(__file__, '../../../../test/data'))
   ) -> None:
-    self.dir_name = '/'.join(self.__class__.__module__.split('.')[1:-1])
+    # The last path in the module is the module name itself, which is not a part
+    # of the directory. The first part is "diff_tests.", but it is not present
+    # when running difftests from Chrome, so we strip it conditionally.
+    self.dir_name = '/'.join(
+        removeprefix(self.__class__.__module__, 'diff_tests.').split('.')[:-1])
     self.index_dir = os.path.join(include_index_dir, self.dir_name)
     self.class_name = self.__class__.__name__
     self.test_data_dir = test_data_dir
