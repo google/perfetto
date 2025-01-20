@@ -7610,7 +7610,10 @@ perfetto_android_jni_library(
         "src/java_sdk/main/cpp/com_google_perfetto_sdk_PerfettoExampleWrapper.h",
     ],
     binary_name = "libperfetto_jni_wrapper_lib.so",
-    linkopts = ["-llog"],
+    linkopts = select({
+        "@platforms//os:android": ["-llog"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":java_sdk_perfetto_example_lib",
     ],
