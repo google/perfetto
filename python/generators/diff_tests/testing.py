@@ -16,7 +16,7 @@
 import inspect
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Union, Callable, Tuple
+from typing import Any, Dict, List, Optional, Union, Callable, Tuple
 from enum import Enum
 import re
 
@@ -38,6 +38,11 @@ class DataPath(Path):
 @dataclass
 class Metric:
   name: str
+
+
+@dataclass
+class MetricV2SpecTextproto:
+  contents: str
 
 
 @dataclass
@@ -111,6 +116,7 @@ class TraceInjector:
 class TestType(Enum):
   QUERY = 1
   METRIC = 2
+  METRIC_V2 = 3
 
 
 # Blueprint for running the diff test. 'query' is being run over data from the
@@ -120,10 +126,10 @@ class TestType(Enum):
 class DiffTestBlueprint:
 
   trace: Union[Path, DataPath, Json, Systrace, TextProto]
-  query: Union[str, Path, DataPath, Metric]
+  query: Union[str, Path, DataPath, Metric, MetricV2SpecTextproto]
   out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto]
   trace_modifier: Union[TraceInjector, None] = None
-  register_files_dir: DataPath = None
+  register_files_dir: Optional[DataPath] = None
 
   def is_trace_file(self):
     return isinstance(self.trace, Path)
@@ -142,6 +148,9 @@ class DiffTestBlueprint:
 
   def is_metric(self):
     return isinstance(self.query, Metric)
+
+  def is_metric_v2(self):
+    return isinstance(self.query, MetricV2SpecTextproto)
 
   def is_out_file(self):
     return isinstance(self.out, Path)
@@ -165,13 +174,39 @@ class DiffTestBlueprint:
 # script.
 class TestCase:
 
-  def __get_query_path(self) -> str:
+  def __init__(
+      self,
+      name: str,
+      blueprint: DiffTestBlueprint,
+      index_dir: str,
+      test_data_dir: str,
+  ) -> None:
+    self.name = name
+    self.blueprint = blueprint
+    self.index_dir = index_dir
+    self.test_data_dir = test_data_dir
+
+    if blueprint.is_metric():
+      self.type = TestType.METRIC
+    elif blueprint.is_metric_v2():
+      self.type = TestType.METRIC_V2
+    else:
+      self.type = TestType.QUERY
+
+    self.query_path = self.__get_query_path()
+    self.trace_path = self.__get_trace_path()
+    self.expected_path = self.__get_expected_path()
+    self.expected_str = self.__get_expected_str()
+    self.register_files_dir = self.__get_register_files_dir()
+
+  def __get_query_path(self) -> Optional[str]:
     if not self.blueprint.is_query_file():
       return None
 
     if isinstance(self.blueprint.query, DataPath):
       path = os.path.join(self.test_data_dir, self.blueprint.query.filename)
     else:
+      assert isinstance(self.blueprint.query, Path)
       path = os.path.abspath(
           os.path.join(self.index_dir, self.blueprint.query.filename))
 
@@ -180,13 +215,14 @@ class TestCase:
           f"Query file ({path}) for test '{self.name}' does not exist.")
     return path
 
-  def __get_trace_path(self) -> str:
+  def __get_trace_path(self) -> Optional[str]:
     if not self.blueprint.is_trace_file():
       return None
 
     if isinstance(self.blueprint.trace, DataPath):
       path = os.path.join(self.test_data_dir, self.blueprint.trace.filename)
     else:
+      assert isinstance(self.blueprint.trace, Path)
       path = os.path.abspath(
           os.path.join(self.index_dir, self.blueprint.trace.filename))
 
@@ -195,13 +231,14 @@ class TestCase:
           f"Trace file ({path}) for test '{self.name}' does not exist.")
     return path
 
-  def __get_out_path(self) -> str:
+  def __get_expected_path(self) -> Optional[str]:
     if not self.blueprint.is_out_file():
       return None
 
     if isinstance(self.blueprint.out, DataPath):
       path = os.path.join(self.test_data_dir, self.blueprint.out.filename)
     else:
+      assert isinstance(self.blueprint.out, Path)
       path = os.path.abspath(
           os.path.join(self.index_dir, self.blueprint.out.filename))
 
@@ -210,7 +247,7 @@ class TestCase:
           f"Out file ({path}) for test '{self.name}' does not exist.")
     return path
 
-  def __get_register_files_dir(self) -> str:
+  def __get_register_files_dir(self) -> Optional[str]:
     if not self.blueprint.register_files_dir:
       return None
 
@@ -222,22 +259,19 @@ class TestCase:
           f"Out file ({path}) for test '{self.name}' does not exist.")
     return path
 
-  def __init__(self, name: str, blueprint: DiffTestBlueprint, index_dir: str,
-               test_data_dir: str) -> None:
-    self.name = name
-    self.blueprint = blueprint
-    self.index_dir = index_dir
-    self.test_data_dir = test_data_dir
-
-    if blueprint.is_metric():
-      self.type = TestType.METRIC
-    else:
-      self.type = TestType.QUERY
-
-    self.query_path = self.__get_query_path()
-    self.trace_path = self.__get_trace_path()
-    self.expected_path = self.__get_out_path()
-    self.register_files_dir = self.__get_register_files_dir()
+  def __get_expected_str(self) -> str:
+    if self.blueprint.is_out_file():
+      assert self.expected_path
+      with open(self.expected_path, 'r') as expected_file:
+        return expected_file.read()
+    assert isinstance(self.blueprint.out, (
+        TextProto,
+        Json,
+        Csv,
+        BinaryProto,
+        Systrace,
+    ))
+    return self.blueprint.out.contents
 
   # Verifies that the test should be in test suite. If False, test will not be
   # executed.

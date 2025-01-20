@@ -22,11 +22,10 @@ import sys
 import tempfile
 from binascii import unhexlify
 from dataclasses import dataclass
-from itertools import chain, product
 from typing import List, Tuple, Optional
 
-from google.protobuf import text_format, message_factory, descriptor_pool
-from python.generators.diff_tests.testing import TestCase, TestType, BinaryProto
+from google.protobuf import text_format
+from python.generators.diff_tests.testing import Metric, MetricV2SpecTextproto, Path, TestCase, TestType, BinaryProto, TextProto
 from python.generators.diff_tests.utils import (
     ColorFormatter, create_message_factory, get_env, get_trace_descriptor_path,
     read_all_tests, serialize_python_trace, serialize_textproto_trace,
@@ -68,9 +67,17 @@ class TestResult:
   exit_code: int
   perf_result: Optional[PerfResult]
 
-  def __init__(self, test: TestCase, gen_trace_path: str, cmd: List[str],
-               expected_text: str, actual_text: str, stderr: str,
-               exit_code: int, perf_lines: List[str]) -> None:
+  def __init__(
+      self,
+      test: TestCase,
+      gen_trace_path: str,
+      cmd: List[str],
+      expected_text: str,
+      actual_text: str,
+      stderr: str,
+      exit_code: int,
+      perf_lines: List[str],
+  ) -> None:
     self.test = test
     self.trace = gen_trace_path
     self.cmd = cmd
@@ -103,18 +110,6 @@ class TestResult:
         expected_lines, actual_lines, fromfile='expected', tofile='actual')
     return "".join(list(diff))
 
-  def rebase(self, rebase) -> str:
-    if not rebase or self.passed:
-      return ""
-    if not self.test.blueprint.is_out_file():
-      return f"Can't rebase expected results passed as strings.\n"
-    if self.exit_code != 0:
-      return f"Rebase failed for {self.test.name} as query failed\n"
-
-    with open(self.test.expected_path, 'w') as f:
-      f.write(self.actual)
-    return f"Rebasing {self.test.name}\n"
-
 
 # Results of running the test suite. Mostly used for printing aggregated
 # results.
@@ -122,7 +117,6 @@ class TestResult:
 class TestResults:
   test_failures: List[str]
   perf_data: List[PerfResult]
-  rebased: List[str]
   test_time_ms: int
 
   def str(self, no_colors: bool, tests_no: int):
@@ -138,12 +132,6 @@ class TestResults:
         res += f"{c.red('[  FAILED  ]')} {failure}\n"
     return res
 
-  def rebase_str(self):
-    res = f"\n[  REBASED  ] {len(self.rebased)} tests.\n"
-    for name in self.rebased:
-      res += f"[  REBASED  ] {name}\n"
-    return res
-
 
 # Responsible for executing singular diff test.
 @dataclass
@@ -157,160 +145,227 @@ class TestCaseRunner:
   def __output_to_text_proto(self, actual: str, out: BinaryProto) -> str:
     """Deserializes a binary proto and returns its text representation.
 
-  Args:
-    actual: (string) HEX encoded serialized proto message
-    message_type: (string) Message type
+    Args:
+      actual: (string) HEX encoded serialized proto message
+      message_type: (string) Message type
 
-  Returns:
-    Text proto
-  """
+    Returns:
+      Text proto
+    """
     try:
+      protos_dir = os.path.join(
+          ROOT_DIR,
+          os.path.dirname(self.trace_processor_path),
+          'gen',
+          'protos',
+      )
       raw_data = unhexlify(actual.splitlines()[-1][1:-1])
-      out_path = os.path.dirname(self.trace_processor_path)
       descriptor_paths = [
           f.path
           for f in os.scandir(
-              os.path.join(ROOT_DIR, out_path, 'gen', 'protos', 'perfetto',
-                           'trace_processor'))
+              os.path.join(protos_dir, 'perfetto', 'trace_processor'))
           if f.is_file() and os.path.splitext(f.name)[1] == '.descriptor'
       ]
       descriptor_paths.append(
-          os.path.join(ROOT_DIR, out_path, 'gen', 'protos', 'third_party',
-                       'pprof', 'profile.descriptor'))
+          os.path.join(protos_dir, 'third_party', 'pprof',
+                       'profile.descriptor'))
       proto = create_message_factory(descriptor_paths, out.message_type)()
       proto.ParseFromString(raw_data)
       try:
         return out.post_processing(proto)
       except:
         return '<Proto post processing failed>'
-      return text_format.MessageToString(proto)
     except:
       return '<Invalid input for proto deserializaiton>'
 
   def __run_metrics_test(self, trace_path: str,
                          metrics_message_factory) -> TestResult:
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_perf_file:
+      assert isinstance(self.test.blueprint.query, Metric)
 
-    if self.test.blueprint.is_out_file():
-      with open(self.test.expected_path, 'r') as expected_file:
-        expected = expected_file.read()
-    else:
-      expected = self.test.blueprint.out.contents
+      is_json_output_file = self.test.blueprint.is_out_file(
+      ) and os.path.basename(self.test.expected_path).endswith('.json.out')
+      is_json_output = is_json_output_file or self.test.blueprint.is_out_json()
+      cmd = [
+          self.trace_processor_path,
+          '--analyze-trace-proto-content',
+          '--crop-track-events',
+          '--extra-checks',
+          '--run-metrics',
+          self.test.blueprint.query.name,
+          '--metrics-output=%s' % ('json' if is_json_output else 'binary'),
+          '--perf-file',
+          tmp_perf_file.name,
+          trace_path,
+      ]
+      if self.test.register_files_dir:
+        cmd += ['--register-files-dir', self.test.register_files_dir]
+      for sql_module_path in self.override_sql_module_paths:
+        cmd += ['--override-sql-module', sql_module_path]
+      tp = subprocess.Popen(
+          cmd,
+          stdout=subprocess.PIPE,
+          stderr=subprocess.PIPE,
+          env=get_env(ROOT_DIR))
+      (stdout, stderr) = tp.communicate()
 
-    tmp_perf_file = tempfile.NamedTemporaryFile(delete=False)
-    is_json_output_file = self.test.blueprint.is_out_file(
-    ) and os.path.basename(self.test.expected_path).endswith('.json.out')
-    is_json_output = is_json_output_file or self.test.blueprint.is_out_json()
-    cmd = [
-        self.trace_processor_path,
-        '--analyze-trace-proto-content',
-        '--crop-track-events',
-        '--extra-checks',
-        '--run-metrics',
-        self.test.blueprint.query.name,
-        '--metrics-output=%s' % ('json' if is_json_output else 'binary'),
-        '--perf-file',
-        tmp_perf_file.name,
-        trace_path,
-    ]
-    if self.test.register_files_dir:
-      cmd += ['--register-files-dir', self.test.register_files_dir]
-    for sql_module_path in self.override_sql_module_paths:
-      cmd += ['--override-sql-module', sql_module_path]
-    tp = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=get_env(ROOT_DIR))
-    (stdout, stderr) = tp.communicate()
+      if is_json_output:
+        expected_text = self.test.expected_str
+        actual_text = stdout.decode('utf8')
+      else:
+        # Expected will be in text proto format and we'll need to parse it to
+        # a real proto.
+        expected_message = metrics_message_factory()
+        text_format.Merge(self.test.expected_str, expected_message)
 
-    if is_json_output:
-      expected_text = expected
-      actual_text = stdout.decode('utf8')
-    else:
+        # Actual will be the raw bytes of the proto and we'll need to parse it
+        # into a message.
+        actual_message = metrics_message_factory()
+        actual_message.ParseFromString(stdout)
+
+        # Convert both back to text format.
+        expected_text = text_format.MessageToString(expected_message)
+        actual_text = text_format.MessageToString(actual_message)
+
+      os.remove(tmp_perf_file.name)
+
+      return TestResult(
+          self.test,
+          trace_path,
+          cmd,
+          expected_text,
+          actual_text,
+          stderr.decode('utf8'),
+          tp.returncode,
+          [line.decode('utf8') for line in tmp_perf_file.readlines()],
+      )
+
+  def __run_metrics_v2_test(
+      self,
+      trace_path: str,
+      summary_spec_message_factory,
+      summary_message_factory,
+  ) -> TestResult:
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_perf_file, \
+         tempfile.NamedTemporaryFile(delete=False) as tmp_spec_file:
+      assert isinstance(self.test.blueprint.query, MetricV2SpecTextproto)
+
+      spec_message = summary_spec_message_factory()
+      text_format.Merge(self.test.blueprint.query.contents,
+                        spec_message.metric_spec.add())
+
+      tmp_spec_file.write(spec_message.SerializeToString())
+      tmp_spec_file.flush()
+
+      cmd = [
+          self.trace_processor_path,
+          '--analyze-trace-proto-content',
+          '--crop-track-events',
+          '--extra-checks',
+          '--perf-file',
+          tmp_perf_file.name,
+          '--summary-spec',
+          tmp_spec_file.name,
+          '--compute-metrics-v2',
+          spec_message.metric_spec[0].id,
+          '--summary-format',
+          'binary',
+          trace_path,
+      ]
+      for sql_module_path in self.override_sql_module_paths:
+        cmd += ['--override-sql-module', sql_module_path]
+      tp = subprocess.Popen(
+          cmd,
+          stdout=subprocess.PIPE,
+          stderr=subprocess.PIPE,
+          env=get_env(ROOT_DIR),
+      )
+      (stdout, stderr) = tp.communicate()
+
       # Expected will be in text proto format and we'll need to parse it to
       # a real proto.
-      expected_message = metrics_message_factory()
-      text_format.Merge(expected, expected_message)
+      expected_summary = summary_message_factory()
+      text_format.Merge(self.test.expected_str, expected_summary.metric.add())
 
       # Actual will be the raw bytes of the proto and we'll need to parse it
       # into a message.
-      actual_message = metrics_message_factory()
-      actual_message.ParseFromString(stdout)
+      actual_summary = summary_message_factory()
+      actual_summary.ParseFromString(stdout)
 
-      # Convert both back to text format.
-      expected_text = text_format.MessageToString(expected_message)
-      actual_text = text_format.MessageToString(actual_message)
+      os.remove(tmp_perf_file.name)
+      os.remove(tmp_spec_file.name)
 
-    perf_lines = [line.decode('utf8') for line in tmp_perf_file.readlines()]
-    tmp_perf_file.close()
-    os.remove(tmp_perf_file.name)
-    return TestResult(self.test, trace_path, cmd, expected_text, actual_text,
-                      stderr.decode('utf8'), tp.returncode, perf_lines)
+      return TestResult(
+          self.test,
+          trace_path,
+          cmd,
+          text_format.MessageToString(expected_summary.metric[0]),
+          text_format.MessageToString(actual_summary.metric[0]),
+          stderr.decode('utf8'),
+          tp.returncode,
+          [line.decode('utf8') for line in tmp_perf_file.readlines()],
+      )
 
   # Run a query based Diff Test.
-  def __run_query_test(self, trace_path: str, keep_query: bool) -> TestResult:
-    # Fetch expected text.
-    if self.test.expected_path:
-      with open(self.test.expected_path, 'r') as expected_file:
-        expected = expected_file.read()
-    else:
-      expected = self.test.blueprint.out.contents
+  def __run_query_test(self, trace_path: str) -> TestResult:
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_perf_file:
+      cmd = [
+          self.trace_processor_path,
+          '--analyze-trace-proto-content',
+          '--crop-track-events',
+          '--extra-checks',
+          '--perf-file',
+          tmp_perf_file.name,
+          trace_path,
+      ]
+      if self.test.blueprint.is_query_file():
+        cmd += ['-q', self.test.query_path]
+      else:
+        assert isinstance(self.test.blueprint.query, str)
+        cmd += ['-Q', self.test.blueprint.query]
+      if self.test.register_files_dir:
+        cmd += ['--register-files-dir', self.test.register_files_dir]
+      for sql_module_path in self.override_sql_module_paths:
+        cmd += ['--override-sql-module', sql_module_path]
+      tp = subprocess.Popen(
+          cmd,
+          stdout=subprocess.PIPE,
+          stderr=subprocess.PIPE,
+          env=get_env(ROOT_DIR))
+      (stdout, stderr) = tp.communicate()
 
-    # Fetch query.
-    if self.test.blueprint.is_query_file():
-      query = self.test.query_path
-    else:
-      tmp_query_file = tempfile.NamedTemporaryFile(delete=False)
-      with open(tmp_query_file.name, 'w') as query_file:
-        query_file.write(self.test.blueprint.query)
-      query = tmp_query_file.name
+      actual = stdout.decode('utf8')
+      if self.test.blueprint.is_out_binaryproto():
+        assert isinstance(self.test.blueprint.out, BinaryProto)
+        actual = self.__output_to_text_proto(actual, self.test.blueprint.out)
 
-    tmp_perf_file = tempfile.NamedTemporaryFile(delete=False)
-    cmd = [
-        self.trace_processor_path,
-        '--analyze-trace-proto-content',
-        '--crop-track-events',
-        '--extra-checks',
-        '-q',
-        query,
-        '--perf-file',
-        tmp_perf_file.name,
-        trace_path,
-    ]
-    if self.test.register_files_dir:
-      cmd += ['--register-files-dir', self.test.register_files_dir]
-    for sql_module_path in self.override_sql_module_paths:
-      cmd += ['--override-sql-module', sql_module_path]
-    tp = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=get_env(ROOT_DIR))
-    (stdout, stderr) = tp.communicate()
+      os.remove(tmp_perf_file.name)
 
-    if not self.test.blueprint.is_query_file() and not keep_query:
-      tmp_query_file.close()
-      os.remove(tmp_query_file.name)
-    perf_lines = [line.decode('utf8') for line in tmp_perf_file.readlines()]
-    tmp_perf_file.close()
-    os.remove(tmp_perf_file.name)
+      return TestResult(
+          self.test,
+          trace_path,
+          cmd,
+          self.test.expected_str,
+          actual,
+          stderr.decode('utf8'),
+          tp.returncode,
+          [line.decode('utf8') for line in tmp_perf_file.readlines()],
+      )
 
-    actual = stdout.decode('utf8')
-    if self.test.blueprint.is_out_binaryproto():
-      actual = self.__output_to_text_proto(actual, self.test.blueprint.out)
-
-    return TestResult(self.test, trace_path, cmd, expected, actual,
-                      stderr.decode('utf8'), tp.returncode, perf_lines)
-
-  def __run(self, metrics_descriptor_paths: List[str],
-            extension_descriptor_paths: List[str], keep_input,
-            rebase) -> Tuple[TestResult, str]:
+  def __run(
+      self,
+      summary_descriptor_path: str,
+      metrics_descriptor_paths: List[str],
+      extension_descriptor_paths: List[str],
+      keep_input,
+  ) -> Tuple[TestResult, str]:
     # We can't use delete=True here. When using that on Windows, the
     # resulting file is opened in exclusive mode (in turn that's a subtle
     # side-effect of the underlying CreateFile(FILE_ATTRIBUTE_TEMPORARY))
     # and TP fails to open the passed path.
     gen_trace_file = None
     if self.test.blueprint.is_trace_file():
+      assert self.test.trace_path
       if self.test.trace_path.endswith('.py'):
         gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
         serialize_python_trace(ROOT_DIR, self.trace_descriptor_path,
@@ -327,6 +382,7 @@ class TestCaseRunner:
       proto = create_message_factory([self.trace_descriptor_path] +
                                      extension_descriptor_paths,
                                      'perfetto.protos.Trace')()
+      assert isinstance(self.test.blueprint.trace, TextProto)
       text_format.Merge(self.test.blueprint.trace.contents, proto)
       gen_trace_file.write(proto.SerializeToString())
       gen_trace_file.flush()
@@ -353,23 +409,31 @@ class TestCaseRunner:
       trace_path = os.path.realpath(gen_trace_file.name)
     else:
       trace_path = self.test.trace_path
+    assert trace_path
 
     str = f"{self.colors.yellow('[ RUN      ]')} {self.test.name}\n"
 
     if self.test.type == TestType.QUERY:
-      result = self.__run_query_test(trace_path, keep_input)
+      result = self.__run_query_test(trace_path)
     elif self.test.type == TestType.METRIC:
       result = self.__run_metrics_test(
           trace_path,
           create_message_factory(metrics_descriptor_paths,
-                                 'perfetto.protos.TraceMetrics'))
+                                 'perfetto.protos.TraceMetrics'),
+      )
+    elif self.test.type == TestType.METRIC_V2:
+      result = self.__run_metrics_v2_test(
+          trace_path,
+          create_message_factory([summary_descriptor_path],
+                                 'perfetto.protos.TraceSummarySpec'),
+          create_message_factory([summary_descriptor_path],
+                                 'perfetto.protos.TraceSummary'),
+      )
     else:
       assert False
 
     if gen_trace_file:
-      if keep_input:
-        str += f"Saving generated input trace: {trace_path}\n"
-      else:
+      if not keep_input:
         gen_trace_file.close()
         os.remove(trace_path)
 
@@ -398,23 +462,32 @@ class TestCaseRunner:
         str += write_cmdlines()
 
       str += (f"{self.colors.red('[  FAILED  ]')} {self.test.name}\n")
-      str += result.rebase(rebase)
 
       return result, str
     else:
+      assert result.perf_result
       str += (f"{self.colors.green('[       OK ]')} {self.test.name} "
               f"(ingest: {result.perf_result.ingest_time_ns / 1000000:.2f} ms "
               f"query: {result.perf_result.real_time_ns / 1000000:.2f} ms)\n")
     return result, str
 
   # Run a TestCase.
-  def execute(self, extension_descriptor_paths: List[str],
-              metrics_descriptor_paths: List[str], keep_input: bool,
-              rebase: bool) -> Tuple[str, str, TestResult]:
+  def execute(
+      self,
+      summary_descriptor_path: str,
+      metrics_descriptor_paths: List[str],
+      extension_descriptor_paths: List[str],
+      keep_input: bool,
+  ) -> Tuple[str, str, TestResult]:
     if not metrics_descriptor_paths:
       out_path = os.path.dirname(self.trace_processor_path)
-      metrics_protos_path = os.path.join(out_path, 'gen', 'protos', 'perfetto',
-                                         'metrics')
+      metrics_protos_path = os.path.join(
+          out_path,
+          'gen',
+          'protos',
+          'perfetto',
+          'metrics',
+      )
       metrics_descriptor_paths = [
           os.path.join(metrics_protos_path, 'metrics.descriptor'),
           os.path.join(metrics_protos_path, 'chrome',
@@ -422,11 +495,12 @@ class TestCaseRunner:
           os.path.join(metrics_protos_path, 'webview',
                        'all_webview_metrics.descriptor')
       ]
-    result, run_str = self.__run(metrics_descriptor_paths,
-                                 extension_descriptor_paths, keep_input, rebase)
-    if not result:
-      return self.test.name, run_str, None
-
+    result, run_str = self.__run(
+        summary_descriptor_path,
+        metrics_descriptor_paths,
+        extension_descriptor_paths,
+        keep_input,
+    )
     return self.test.name, run_str, result
 
 
@@ -439,41 +513,60 @@ class DiffTestsRunner:
   test_runners: List[TestCaseRunner]
   quiet: bool
 
-  def __init__(self, name_filter: str, trace_processor_path: str,
-               trace_descriptor: str, no_colors: bool,
-               override_sql_module_paths: List[str], test_dir: str,
-               quiet: bool):
+  def __init__(
+      self,
+      name_filter: str,
+      trace_processor_path: str,
+      trace_descriptor: str,
+      no_colors: bool,
+      override_sql_module_paths: List[str],
+      test_dir: str,
+      quiet: bool,
+  ):
     self.tests = read_all_tests(name_filter, test_dir)
     self.trace_processor_path = trace_processor_path
     self.quiet = quiet
 
     out_path = os.path.dirname(self.trace_processor_path)
     self.trace_descriptor_path = get_trace_descriptor_path(
-        out_path, trace_descriptor)
+        out_path,
+        trace_descriptor,
+    )
     self.test_runners = []
     color_formatter = ColorFormatter(no_colors)
     for test in self.tests:
       self.test_runners.append(
-          TestCaseRunner(test, self.trace_processor_path,
-                         self.trace_descriptor_path, color_formatter,
-                         override_sql_module_paths))
+          TestCaseRunner(
+              test,
+              self.trace_processor_path,
+              self.trace_descriptor_path,
+              color_formatter,
+              override_sql_module_paths,
+          ))
 
-  def run_all_tests(self, metrics_descriptor_paths: List[str],
-                    chrome_extensions: str, test_extensions: str,
-                    winscope_extensions: str, keep_input: bool,
-                    rebase: bool) -> TestResults:
+  def run_all_tests(
+      self,
+      summary_descriptor: str,
+      metrics_descriptor_paths: List[str],
+      chrome_extensions: str,
+      test_extensions: str,
+      winscope_extensions: str,
+      keep_input: bool,
+  ) -> TestResults:
     perf_results = []
     failures = []
-    rebased = []
     test_run_start = datetime.datetime.now()
     completed_tests = 0
 
     with concurrent.futures.ProcessPoolExecutor() as e:
       fut = [
-          e.submit(test.execute,
-                   [chrome_extensions, test_extensions, winscope_extensions],
-                   metrics_descriptor_paths, keep_input, rebase)
-          for test in self.test_runners
+          e.submit(
+              test.execute,
+              summary_descriptor,
+              metrics_descriptor_paths,
+              [chrome_extensions, test_extensions, winscope_extensions],
+              keep_input,
+          ) for test in self.test_runners
       ]
       for res in concurrent.futures.as_completed(fut):
         test_name, res_str, result = res.result()
@@ -488,8 +581,6 @@ class DiffTestsRunner:
           sys.stderr.write(res_str)
 
         if not result or not result.passed:
-          if rebase:
-            rebased.append(test_name)
           failures.append(test_name)
         else:
           perf_results.append(result.perf_result)
@@ -497,4 +588,4 @@ class DiffTestsRunner:
         (datetime.datetime.now() - test_run_start).total_seconds() * 1000)
     if self.quiet:
       sys.stderr.write(f"\r")
-    return TestResults(failures, perf_results, rebased, test_time_ms)
+    return TestResults(failures, perf_results, test_time_ms)
