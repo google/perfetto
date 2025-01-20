@@ -71,10 +71,45 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // name.
   virtual base::Status RegisterSqlPackage(SqlPackage) = 0;
 
-  // Deprecated. Use |RegisterSqlPackage()| instead, which is identical in
-  // functionality to |RegisterSqlModule()| and the only difference is in
-  // the argument, which is directly translatable to |SqlPackage|.
-  virtual base::Status RegisterSqlModule(SqlModule) = 0;
+  // =================================================================
+  // |        Trace summary related functionality starts here        |
+  // =================================================================
+
+  // Computes the v2 metrics (if non-empty, only the ones given by `metric_ids`)
+  // on the currently loaded trace based on the metric specifications inside
+  // `specs`.
+  //
+  // Each entry in `specs` should point to an instance of the `TraceSummarySpec`
+  // proto with `spec_format` defining the file format of each specs. This
+  // function accepts a vector to make it easy to compute metrics in the common
+  // case of having many different `TraceSummarySpec` files, each with a subset
+  // of the metrics which need to be computed.
+  //
+  // The result of computing the metrics will be returned in `output` (with a
+  // schema specified by the `TraceSummary` proto) with `output_format` defining
+  // the format that the data should be returned in.
+  //
+  // `metric_ids` is an optional parameter which controls which metric ids from
+  // the specs should be computed. If empty, *all* metrics in all provided specs
+  // will be computed. If specified, every id must match the id of a metric in
+  // the spec or an error will be returned.
+  //
+  // Note: this function will only consider the `metric_spec` and `shared_query`
+  // fields of all the provided specs: any other fields will be silently
+  // ignored.
+  //
+  // Note: this function will only populate the `metric` field of the output,
+  // any other fields are guaranteed to be empty.
+  //
+  // Implementation note: after this function returns, any or all of the
+  // referenced PerfettoSQL modules in any computed metrics will remain
+  // included. This behaviour is *not* considered part of the API and should not
+  // be relied on. It is possible this will change in the future.
+  virtual base::Status ComputeV2Metrics(
+      const std::vector<TraceSummarySpecBytes>& specs,
+      std::vector<uint8_t>* output,
+      TraceSummaryOutputFormat output_format,
+      const std::vector<std::string>& metric_ids = {}) = 0;
 
   // =================================================================
   // |        Metatracing related functionality starts here          |
@@ -122,6 +157,11 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // of objects created in runtime that has been deleted.
   // NOTE: No Iterators can active when called.
   virtual size_t RestoreInitialTables() = 0;
+
+  // Deprecated. Use |RegisterSqlPackage()| instead, which is identical in
+  // functionality to |RegisterSqlModule()| and the only difference is in
+  // the argument, which is directly translatable to |SqlPackage|.
+  virtual base::Status RegisterSqlModule(SqlModule) = 0;
 
   // =================================================================
   // |  Trace-based metrics (v1) related functionality starts here   |

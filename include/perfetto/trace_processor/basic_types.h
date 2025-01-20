@@ -306,6 +306,34 @@ struct SqlPackage {
   bool allow_override = false;
 };
 
+// The file format of the output returned from the trace summary functions.
+enum class TraceSummaryOutputFormat : uint8_t {
+  // Indicates that the ouput is `TraceSummary` encoded as a binary protobuf.
+  kBinaryProto,
+  // Indicates that the ouput is `TraceSummary` encoded as a text protobuf.
+  kTextProto,
+};
+
+// A struct wrapping the bytes of a `TraceSummarySpec` instance.
+struct TraceSummarySpecBytes {
+  // The pointer to the contents of `TraceSummarySpec`
+  const uint8_t* ptr;
+
+  // The number of bytes of the `TraceSummarySpec.
+  size_t size;
+
+  // The format of the data located at the pointer above.
+  enum class Format : uint8_t {
+    // Indicates that the spec is `TraceSummarySpec` encoded as a binary
+    // protobuf.
+    kBinaryProto,
+    // Indicates that the spec is `TraceSummarySpec` encoded as a text
+    // protobuf.
+    kTextProto,
+  };
+  Format format;
+};
+
 // Deprecated. Please use `RegisterSqlPackage` and `SqlPackage` instead.
 struct SqlModule {
   std::string name;
