@@ -1239,6 +1239,7 @@ cc_binary {
         ":perfetto_src_perfetto_cmd_protos_cpp_gen",
         ":perfetto_src_perfetto_cmd_trigger_producer",
         ":perfetto_src_protozero_protozero",
+        ":perfetto_src_protozero_text_to_proto_text_to_proto",
         ":perfetto_src_trace_config_utils_txt_to_pb",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
@@ -12240,6 +12241,14 @@ genrule {
     ],
 }
 
+// GN: //src/protozero/text_to_proto:text_to_proto
+filegroup {
+    name: "perfetto_src_protozero_text_to_proto_text_to_proto",
+    srcs: [
+        "src/protozero/text_to_proto/text_to_proto.cc",
+    ],
+}
+
 // GN: //src/protozero:unittests
 filegroup {
     name: "perfetto_src_protozero_unittests",
@@ -15742,6 +15751,7 @@ cc_test {
         ":perfetto_src_protozero_testing_messages_subpackage_lite_gen",
         ":perfetto_src_protozero_testing_messages_subpackage_zero_gen",
         ":perfetto_src_protozero_testing_messages_zero_gen",
+        ":perfetto_src_protozero_text_to_proto_text_to_proto",
         ":perfetto_src_protozero_unittests",
         ":perfetto_src_shared_lib_intern_map",
         ":perfetto_src_shared_lib_unittests",
