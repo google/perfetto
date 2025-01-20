@@ -301,95 +301,6 @@ const SUSPEND_RESUME = `
   FROM android_suspend_state
   WHERE power_state = 'suspended'`;
 
-const SCREEN_STATE = `
-  WITH _counter AS (
-    SELECT counter.id, ts, 0 AS track_id, value
-    FROM counter
-    JOIN counter_track ON counter_track.id = counter.track_id
-    WHERE name = 'ScreenState'
-  )
-  SELECT
-    ts,
-    dur,
-    CASE value
-      -- Should be kept in sync with the enums in Display.java
-      WHEN 1 THEN 'Screen off'                        -- Display.STATE_OFF
-      WHEN 2 THEN 'Screen on'                         -- Display.STATE_ON
-      WHEN 3 THEN 'Always-on display (doze)'          -- Display.STATE_DOZE
-      WHEN 4 THEN 'Always-on display (doze-suspend)'  -- Display.STATE_DOZE_SUSPEND
-      WHEN 5 THEN 'Screen on (VR)'                    -- Display.STATE_VR
-      WHEN 6 THEN 'Screen on (suspend)'               -- Display.STATE_ON_SUSPEND
-      ELSE 'unknown'
-    END AS name
-  FROM counter_leading_intervals!(_counter)`;
-
-// See DeviceIdleController.java for where these states come from and how
-// they transition.
-const DOZE_LIGHT = `
-  WITH _counter AS (
-    SELECT counter.id, ts, 0 AS track_id, value
-    FROM counter
-    JOIN counter_track ON counter_track.id = counter.track_id
-    WHERE name = 'DozeLightState'
-  )
-  SELECT
-    ts,
-    dur,
-    CASE value
-      WHEN 0 THEN 'active'
-      WHEN 1 THEN 'inactive'
-      WHEN 4 THEN 'idle'
-      WHEN 5 THEN 'waiting_for_network'
-      WHEN 6 THEN 'idle_maintenance'
-      WHEN 7 THEN 'override'
-      ELSE 'unknown'
-    END AS name
-  FROM counter_leading_intervals!(_counter)`;
-
-const DOZE_DEEP = `
-  WITH _counter AS (
-    SELECT counter.id, ts, 0 AS track_id, value
-    FROM counter
-    JOIN counter_track ON counter_track.id = counter.track_id
-    WHERE name = 'DozeDeepState'
-  )
-  SELECT
-    ts,
-    dur,
-    CASE value
-      WHEN 0 THEN 'active'
-      WHEN 1 THEN 'inactive'
-      WHEN 2 THEN 'idle_pending'
-      WHEN 3 THEN 'sensing'
-      WHEN 4 THEN 'locating'
-      WHEN 5 THEN 'idle'
-      WHEN 6 THEN 'idle_maintenance'
-      WHEN 7 THEN 'quick_doze_delay'
-      ELSE 'unknown'
-    END AS name
-  FROM counter_leading_intervals!(_counter)`;
-
-const CHARGING = `
-  WITH _counter AS (
-    SELECT counter.id, ts, 0 AS track_id, value
-    FROM counter
-    JOIN counter_track ON counter_track.id = counter.track_id
-    WHERE name = 'BatteryStatus'
-  )
-  SELECT
-    ts,
-    dur,
-    CASE value
-      -- 0 and 1 are both unknown
-      WHEN 2 THEN 'Charging'
-      WHEN 3 THEN 'Discharging'
-      -- special case when charger is present but battery isn't charging
-      WHEN 4 THEN 'Not charging'
-      WHEN 5 THEN 'Full'
-      ELSE 'unknown'
-    END AS name
-  FROM counter_leading_intervals!(_counter)`;
-
 const THERMAL_THROTTLING = `
   with step1 as (
       select
@@ -1044,17 +955,35 @@ export default class implements PerfettoPlugin {
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
     await e.query(`INCLUDE PERFETTO MODULE android.suspend;`);
-    await e.query(`INCLUDE PERFETTO MODULE counters.intervals;`);
+    await e.query(`INCLUDE PERFETTO MODULE android.battery.charging_states;`);
+    await e.query(`INCLUDE PERFETTO MODULE android.battery.doze;`);
+    await e.query(`INCLUDE PERFETTO MODULE android.screen_state;`);
 
-    await this.addSliceTrack(ctx, 'Device State: Screen state', SCREEN_STATE);
-    await this.addSliceTrack(ctx, 'Device State: Charging', CHARGING);
+    await this.addSliceTrack(
+      ctx,
+      'Device State: Screen state',
+      `SELECT ts, dur, screen_state AS name FROM android_screen_state`,
+    );
+    await this.addSliceTrack(
+      ctx,
+      'Device State: Charging',
+      `SELECT ts, dur, charging_state AS name FROM android_charging_states`,
+    );
     await this.addSliceTrack(
       ctx,
       'Device State: Suspend / resume',
       SUSPEND_RESUME,
     );
-    await this.addSliceTrack(ctx, 'Device State: Doze light state', DOZE_LIGHT);
-    await this.addSliceTrack(ctx, 'Device State: Doze deep state', DOZE_DEEP);
+    await this.addSliceTrack(
+      ctx,
+      'Device State: Doze light state',
+      `SELECT ts, dur, light_idle_state AS name FROM android_light_idle_state`,
+    );
+    await this.addSliceTrack(
+      ctx,
+      'Device State: Doze deep state',
+      `SELECT ts, dur, deep_idle_state AS name FROM android_deep_idle_state`,
+    );
 
     query('Device State: Top app', 'battery_stats.top');
 

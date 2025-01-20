@@ -3011,6 +3011,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_battery_battery",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/battery/charging_states.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/battery/doze.sql",
     ],
 )
 
@@ -3127,6 +3128,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/oom_adjuster.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/power_rails.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/process_metadata.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/screen_state.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/screenshots.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/services.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/slices.sql",
