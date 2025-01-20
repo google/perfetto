@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 #include "src/trace_config_utils/pb_to_txt.h"
+
+#include <string>
+
 #include "src/trace_config_utils/config.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
