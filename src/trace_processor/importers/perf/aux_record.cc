@@ -33,8 +33,7 @@ base::Status AuxRecord::Parse(const Record& record) {
     return base::ErrStatus("Failed to parse AUX record");
   }
 
-  uint64_t unused;
-  if (!SafeAdd(offset, size, &unused)) {
+  if (offset > std::numeric_limits<decltype(offset)>::max() - size) {
     return base::ErrStatus("AUX record overflows");
   }
 

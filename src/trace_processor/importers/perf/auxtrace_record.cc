@@ -19,7 +19,6 @@
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/record.h"
-#include "src/trace_processor/importers/perf/util.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -29,8 +28,7 @@ base::Status AuxtraceRecord::Parse(const Record& record) {
     return base::ErrStatus("Failed to parse PERF_RECORD_AUXTRACE");
   }
 
-  uint64_t unused;
-  if (!SafeAdd(offset, size, &unused)) {
+  if (offset > std::numeric_limits<decltype(offset)>::max() - size) {
     return base::ErrStatus("AUXTRACE record overflows");
   }
 
