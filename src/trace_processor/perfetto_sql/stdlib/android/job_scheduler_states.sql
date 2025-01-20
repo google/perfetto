@@ -15,46 +15,8 @@
 
 INCLUDE PERFETTO MODULE counters.intervals;
 INCLUDE PERFETTO MODULE android.battery.charging_states;
+INCLUDE PERFETTO MODULE android.screen_state;
 INCLUDE PERFETTO MODULE intervals.intersect;
-
-CREATE PERFETTO TABLE _screen_states AS
-SELECT
-  id,
-  ts,
-  dur,
-  screen_state
-FROM (
-  WITH _screen_state_span AS (
-  SELECT *
-  FROM counter_leading_intervals!((
-    SELECT counter.id, ts, 0 AS track_id, value
-    FROM counter
-    JOIN counter_track ON counter_track.id = counter.track_id
-    WHERE name = 'ScreenState'
-  ))) SELECT
-    id,
-    ts,
-    dur,
-    CASE value
-      WHEN 1 THEN 'Screen off'
-      WHEN 2 THEN 'Screen on'
-      WHEN 3 THEN 'Always-on display (doze)'
-      ELSE 'Unknown'
-      END AS screen_state
-    FROM _screen_state_span
-    WHERE dur > 0
-    -- Either the above select statement is populated or the
-    -- select statement after the union is populated but not both.
-    UNION
-     -- When the trace does not have a slice in the screen state track then
-    -- we will assume that the screen state for the entire trace is Unknown.
-    -- This ensures that we still have job data even if the screen state is
-    -- not known. The following statement will only ever return a single row.
-    SELECT 1, TRACE_START() as ts, TRACE_DUR() as dur, 'Unknown'
-    WHERE NOT EXISTS (
-      SELECT * FROM _screen_state_span
-    ) AND TRACE_DUR() > 0
-);
 
 CREATE PERFETTO TABLE _job_states AS
 SELECT
@@ -182,11 +144,11 @@ SELECT
   c.charging_state,
   s.screen_state
 FROM _interval_intersect!(
-  (android_charging_states, _screen_states),
+  (android_charging_states, android_screen_state),
   ()
 ) ii
 JOIN android_charging_states c ON c.id = ii.id_0
-JOIN _screen_states s ON s.id = ii.id_1;
+JOIN android_screen_state s ON s.id = ii.id_1;
 
 -- This table returns constraint changes that a
 -- job will go through in a single trace.
