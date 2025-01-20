@@ -160,6 +160,7 @@ from diff_tests.syntax.view_tests import PerfettoView
 from diff_tests.tables.tests import Tables
 from diff_tests.tables.tests_counters import TablesCounters
 from diff_tests.tables.tests_sched import TablesSched
+from diff_tests.summary.metrics_v2_tests import SummaryMetricsV2
 
 sys.path.pop()
 
@@ -314,9 +315,19 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       TablesSched,
   ]
 
-  all_tests = parser_tests + metrics_tests + stdlib_tests + syntax_tests + tables_tests
-  test_instances = [x for t in all_tests for x in t(index_path).fetch()]
+  summary_tests = [SummaryMetricsV2]
 
+  all_tests = []
+  all_tests += parser_tests
+  all_tests += metrics_tests
+  all_tests += stdlib_tests
+  all_tests += syntax_tests
+  all_tests += tables_tests
+  all_tests += summary_tests
+  all_test_instances = [x for t in all_tests for x in t(index_path).fetch()]
+
+  # Chrome is special because it is rolled in from externally. So it has its
+  # own segregated copy of everything.
   chrome_test_dir = os.path.abspath(
       os.path.join(__file__, '../../../data/chrome'))
   chrome_stdlib_tests_instances = []
@@ -324,4 +335,4 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
     test_suite = test_suite_cls(index_path, chrome_test_dir)
     chrome_stdlib_tests_instances += test_suite.fetch()
 
-  return test_instances + chrome_stdlib_tests_instances
+  return all_test_instances + chrome_stdlib_tests_instances
