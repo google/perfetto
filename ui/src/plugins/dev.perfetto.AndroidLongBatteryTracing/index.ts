@@ -129,14 +129,14 @@ const NETWORK_SUMMARY = `
       select
           cast(ts / 5000000000 as int64) * 5000000000 AS ts,
           case
-              when track_name glob '*wlan*' then 'wifi'
-              when track_name glob '*rmnet*' then 'modem'
+              when iface glob '*wlan*' then 'wifi'
+              when iface glob '*rmnet*' then 'modem'
               else 'unknown'
           end as dev_type,
           package_name as pkg,
           sum(packet_length) AS value
       from android_network_packets
-      where (track_name glob '*wlan*' or track_name glob '*rmnet*')
+      where (iface glob '*wlan*' or iface glob '*rmnet*')
       group by 1,2,3
   ),
   zeroes as (
