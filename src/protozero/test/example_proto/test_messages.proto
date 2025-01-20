@@ -48,6 +48,11 @@ enum BigEnum {
   END = 100500;
 }
 
+enum VeryNegativeEnum {
+  DEF = 0;
+  VAL = -2147483648;
+}
+
 message EveryField {
   optional int32 field_int32 = 1;
   optional int64 field_int64 = 2;
@@ -67,6 +72,7 @@ message EveryField {
   optional SmallEnum small_enum = 51;
   optional SignedEnum signed_enum = 52;
   optional BigEnum big_enum = 53;
+  optional VeryNegativeEnum very_negative_enum = 54;
 
   optional string field_string = 500;
   optional bytes field_bytes = 505;
