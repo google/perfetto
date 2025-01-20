@@ -25,7 +25,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -74,6 +73,16 @@ class TraceProcessorImpl : public TraceProcessor,
   base::Status RegisterSqlPackage(SqlPackage) override;
 
   base::Status RegisterSqlModule(SqlModule module) override;
+
+  // =================================================================
+  // |  Trace-based metrics (v2) related functionality starts here   |
+  // =================================================================
+
+  base::Status ComputeV2Metrics(
+      const std::vector<TraceSummarySpecBytes>& specs,
+      std::vector<uint8_t>* output,
+      TraceSummaryOutputFormat output_format,
+      const std::vector<std::string>& metric_ids) override;
 
   // =================================================================
   // |        Metatracing related functionality starts here          |
