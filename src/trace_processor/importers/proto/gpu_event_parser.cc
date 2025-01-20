@@ -407,9 +407,11 @@ void GpuEventParser::ParseGpuRenderStageEvent(
           tracks::Dimensions("iid", hw_queue_id, decoder->name()),
           tracks::DynamicName(context_->storage->InternString(decoder->name())),
           [&, this](ArgsTracker::BoundInserter& inserter) {
-            inserter.AddArg(description_id_,
-                            Variadic::String(context_->storage->InternString(
-                                decoder->description())));
+            if (decoder->description().size > 0) {
+              inserter.AddArg(description_id_,
+                              Variadic::String(context_->storage->InternString(
+                                  decoder->description())));
+            }
           });
     } else {
       hw_queue_id = static_cast<uint32_t>(event.hw_queue_id());
