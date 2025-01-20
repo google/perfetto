@@ -85,16 +85,18 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             if (curNode === undefined) {
               return;
             }
-            const newJoinState = new JoinState(attrs.rootNode);
-            joinModal(newJoinState);
-            curNode.nextNode = newJoinState;
+            const newJoinState = new JoinState(curNode);
+            joinModal(newJoinState, () => {
+              newJoinState.validate();
+              curNode.nextNode = newJoinState;
+            });
           },
         }),
-        m(MenuItem, {label: 'INTERSECT'}),
+        m(MenuItem, {label: 'INTERSECT', disabled: true}),
       );
     }
 
-    function joinModal(joinState: JoinState) {
+    function joinModal(joinState: JoinState, f: () => void) {
       function Operations() {
         return {
           view: () => {
@@ -112,8 +114,8 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         title: `JOIN`,
         buttons: [
           {
-            text: 'Show another now',
-            action: () => m('CHEESE'),
+            text: 'Add node',
+            action: f,
           },
         ],
         content,

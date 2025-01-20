@@ -25,7 +25,6 @@ import {
   ColumnControllerDiff,
   ColumnControllerRows,
 } from '../column_controller';
-import {Button} from '../../../../widgets/button';
 import {CheckboxAttrs, Checkbox} from '../../../../widgets/checkbox';
 import {Section} from '../../../../widgets/section';
 import {Select} from '../../../../widgets/select';
@@ -76,6 +75,22 @@ export class JoinState implements QueryNode {
     }
 
     return `JOIN ${this.secondaryTable?.name} ON ${this.prevNode.dataName}.${this.joinColumn?.name}=${this.secondaryTable?.name}.${this.secondaryJoinColumn?.name}`;
+  }
+
+  validate(): boolean {
+    if (
+      findCollisions(this) === undefined ||
+      findCollisions(this)?.length !== 0
+    ) {
+      return false;
+    }
+    const primaryPicked = this.primaryColumnsPicked?.filter((c) => c.checked);
+    const secondaryPicked = this.secondaryColumnsPicked?.filter(
+      (c) => c.checked,
+    );
+    this.columns = primaryPicked?.concat(secondaryPicked || []);
+    this.finished = true;
+    return true;
   }
 }
 
@@ -210,21 +225,8 @@ export class QueryBuilderJoin implements m.ClassComponent<JoinOperationAttrs> {
       );
     };
 
-    function findCollisions(): string[] | undefined {
-      if (
-        attrs.joinState.primaryColumnsPicked === undefined ||
-        attrs.joinState.secondaryColumnsPicked === undefined
-      ) {
-        return;
-      }
-      return findNameCollisions(
-        attrs.joinState.primaryColumnsPicked,
-        attrs.joinState.secondaryColumnsPicked,
-      );
-    }
-
     function renderCollisions(): m.Child {
-      const collisions = findCollisions();
+      const collisions = findCollisions(attrs.joinState);
 
       if (collisions === undefined || collisions.length === 0) {
         return;
@@ -262,32 +264,6 @@ export class QueryBuilderJoin implements m.ClassComponent<JoinOperationAttrs> {
         }),
       pickColumnsForJoin(),
       renderCollisions(),
-      attrs.joinState?.secondaryJoinColumn &&
-        m(Button, {
-          label: 'Run JOIN',
-          onclick: () => {
-            if (
-              findCollisions() === undefined ||
-              findCollisions()?.length !== 0
-            ) {
-              return;
-            }
-            const primaryPicked = attrs.joinState.primaryColumnsPicked?.filter(
-              (c) => c.checked,
-            );
-            const secondaryPicked =
-              attrs.joinState.secondaryColumnsPicked?.filter((c) => c.checked);
-            attrs.joinState.columns = primaryPicked?.concat(
-              secondaryPicked || [],
-            );
-            attrs.joinState.finished = true;
-          },
-        }),
-      attrs.joinState.finished &&
-        m(TextParagraph, {
-          text: `Finished running join.`,
-          compressSpace: false,
-        }),
     );
   }
 }
@@ -447,4 +423,17 @@ function findNameCollisions(
   return secondaryCols
     .filter((col) => col.checked && primaryNames.has(col.column.name))
     .map((c) => c.column.name);
+}
+
+function findCollisions(joinState: JoinState): string[] | undefined {
+  if (
+    joinState.primaryColumnsPicked === undefined ||
+    joinState.secondaryColumnsPicked === undefined
+  ) {
+    return;
+  }
+  return findNameCollisions(
+    joinState.primaryColumnsPicked,
+    joinState.secondaryColumnsPicked,
+  );
 }

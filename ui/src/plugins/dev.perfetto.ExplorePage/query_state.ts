@@ -33,6 +33,8 @@ export interface QueryNode {
 
   getSourceSql(): string | undefined;
   getTitle(): string;
+
+  validate(): boolean;
 }
 
 export class StdlibTableState implements QueryNode {
@@ -53,6 +55,9 @@ export class StdlibTableState implements QueryNode {
   }
   getTitle(): string {
     return `Table ${this.sqlTable.name}`;
+  }
+  validate(): boolean {
+    return true;
   }
 
   constructor(sqlTable: SqlTable) {
