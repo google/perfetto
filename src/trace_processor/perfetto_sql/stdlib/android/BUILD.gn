@@ -56,5 +56,6 @@ perfetto_sql_source_set("android") {
     "suspend.sql",
     "thread.sql",
     "version.sql",
+    "wakeups.sql",
   ]
 }
