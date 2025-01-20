@@ -5709,6 +5709,109 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/perfetto_sql:cpp
+filegroup {
+    name: "perfetto_protos_perfetto_perfetto_sql_cpp",
+    srcs: [
+        "protos/perfetto/perfetto_sql/structured_query.proto",
+    ],
+}
+
+// GN: //protos/perfetto/perfetto_sql:cpp
+genrule {
+    name: "perfetto_protos_perfetto_perfetto_sql_cpp_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_perfetto_sql_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_perfetto_sql_cpp)",
+    out: [
+        "external/perfetto/protos/perfetto/perfetto_sql/structured_query.gen.cc",
+    ],
+}
+
+// GN: //protos/perfetto/perfetto_sql:cpp
+genrule {
+    name: "perfetto_protos_perfetto_perfetto_sql_cpp_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_perfetto_sql_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_perfetto_sql_cpp)",
+    out: [
+        "external/perfetto/protos/perfetto/perfetto_sql/structured_query.gen.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //protos/perfetto/perfetto_sql:descriptor
+genrule {
+    name: "perfetto_protos_perfetto_perfetto_sql_descriptor",
+    srcs: [
+        "protos/perfetto/perfetto_sql/structured_query.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
+    out: [
+        "perfetto_protos_perfetto_perfetto_sql_descriptor.bin",
+    ],
+}
+
+// GN: //protos/perfetto/perfetto_sql:zero
+filegroup {
+    name: "perfetto_protos_perfetto_perfetto_sql_zero",
+    srcs: [
+        "protos/perfetto/perfetto_sql/structured_query.proto",
+    ],
+}
+
+// GN: //protos/perfetto/perfetto_sql:zero
+genrule {
+    name: "perfetto_protos_perfetto_perfetto_sql_zero_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_perfetto_sql_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_perfetto_sql_zero)",
+    out: [
+        "external/perfetto/protos/perfetto/perfetto_sql/structured_query.pbzero.cc",
+    ],
+}
+
+// GN: //protos/perfetto/perfetto_sql:zero
+genrule {
+    name: "perfetto_protos_perfetto_perfetto_sql_zero_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_perfetto_sql_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_perfetto_sql_zero)",
+    out: [
+        "external/perfetto/protos/perfetto/perfetto_sql/structured_query.pbzero.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/perfetto/trace/android:android_track_event_descriptor
 genrule {
     name: "perfetto_protos_perfetto_trace_android_android_track_event_descriptor",
@@ -13412,6 +13515,37 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/perfetto_sql/generator:gen_cc_perfetto_sql_descriptor
+genrule {
+    name: "perfetto_src_trace_processor_perfetto_sql_generator_gen_cc_perfetto_sql_descriptor",
+    srcs: [
+        ":perfetto_protos_perfetto_perfetto_sql_descriptor",
+    ],
+    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    out: [
+        "src/trace_processor/perfetto_sql/generator/perfettosql.descriptor.h",
+    ],
+    tool_files: [
+        "tools/gen_cc_proto_descriptor.py",
+    ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/generator:generator
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_generator_generator",
+    srcs: [
+        "src/trace_processor/perfetto_sql/generator/structured_query_generator.cc",
+    ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/generator:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_generator_unittests",
+    srcs: [
+        "src/trace_processor/perfetto_sql/generator/structured_query_generator_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/perfetto_sql/grammar:grammar
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_grammar_grammar",
@@ -15612,6 +15746,8 @@ cc_test {
         ":perfetto_protos_perfetto_ipc_cpp_gen",
         ":perfetto_protos_perfetto_ipc_ipc_gen",
         ":perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen",
+        ":perfetto_protos_perfetto_perfetto_sql_cpp_gen",
+        ":perfetto_protos_perfetto_perfetto_sql_zero_gen",
         ":perfetto_protos_perfetto_trace_android_cpp_gen",
         ":perfetto_protos_perfetto_trace_android_lite_gen",
         ":perfetto_protos_perfetto_trace_android_winscope_common_cpp_gen",
@@ -15822,6 +15958,8 @@ cc_test {
         ":perfetto_src_trace_processor_metrics_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
         ":perfetto_src_trace_processor_perfetto_sql_engine_unittests",
+        ":perfetto_src_trace_processor_perfetto_sql_generator_generator",
+        ":perfetto_src_trace_processor_perfetto_sql_generator_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_grammar_grammar",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_functions",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_interface",
@@ -16010,6 +16148,8 @@ cc_test {
         "perfetto_protos_perfetto_ipc_cpp_gen_headers",
         "perfetto_protos_perfetto_ipc_ipc_gen_headers",
         "perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen_headers",
+        "perfetto_protos_perfetto_perfetto_sql_cpp_gen_headers",
+        "perfetto_protos_perfetto_perfetto_sql_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_android_lite_gen_headers",
         "perfetto_protos_perfetto_trace_android_winscope_common_cpp_gen_headers",
@@ -16101,6 +16241,7 @@ cc_test {
         "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+        "perfetto_src_trace_processor_perfetto_sql_generator_gen_cc_perfetto_sql_descriptor",
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",

@@ -324,6 +324,7 @@ perfetto_unittest_source_set("unittests") {
     "importers/proto:unittests",
     "importers/syscalls:unittests",
     "importers/systrace:unittests",
+    "perfetto_sql/generator:unittests",
     "rpc:unittests",
     "sorter:unittests",
     "tables:unittests",
