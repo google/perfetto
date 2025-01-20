@@ -366,7 +366,6 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.CopyPinnedToWorkspace',
         name: 'Copy pinned tracks to new workspace',
-        defaultHotkey: 'Q',
         callback: () => {
           const pinnedTracks = trace.workspace.pinnedTracks;
           if (!pinnedTracks.length) {
