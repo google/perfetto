@@ -1403,7 +1403,9 @@ source_set("jsoncpp") {
 }
 
 config("no_format_warning") {
-  cflags = [ "-Wno-format" ]
+  if (!is_win || is_clang) {
+    cflags = [ "-Wno-format" ]
+  }
 }
 
 if (enable_perfetto_trace_processor_mac_instruments) {
