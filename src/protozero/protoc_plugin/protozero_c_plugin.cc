@@ -448,11 +448,11 @@ class GeneratorJob {
         stub_h_->Print(
             "PERFETTO_PB_ENUM_IN_MSG_ENTRY($msg$, $val$) = $number$,\n", "msg",
             GetCppClassName(enumeration->containing_type()), "val", value_name,
-            "number", IntLiteralToString(value->number()));
+            "number", IntLiteralString(value->number()));
       } else {
         stub_h_->Print("PERFETTO_PB_ENUM_ENTRY($val$) = $number$, \n", "val",
                        full_namespace_prefix_ + "_" + value_name, "number",
-                       IntLiteralToString(value->number()));
+                       IntLiteralString(value->number()));
       }
     }
     stub_h_->Outdent();
