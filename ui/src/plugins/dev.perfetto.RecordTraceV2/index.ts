@@ -34,6 +34,7 @@ import {targetSelectionPage} from './pages/target_selection_page';
 import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
 import {savedConfigsPage} from './pages/saved_configs';
+import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_provider';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
@@ -67,6 +68,8 @@ export default class implements PerfettoPlugin {
       this.recordingMgr = recMgr;
       recMgr.registerProvider(new AdbWebusbTargetProvider());
       recMgr.registerProvider(new AdbWebsocketTargetProvider());
+      recMgr.registerProvider(new WebDeviceProxyTargetProvider());
+
       const chromeProvider = new ChromeExtensionTargetProvider();
       recMgr.registerProvider(chromeProvider);
       recMgr.registerProvider(new TracedWebsocketTargetProvider());
@@ -87,6 +90,8 @@ export default class implements PerfettoPlugin {
       );
       recMgr.restorePluginStateFromLocalstorage();
     }
+
+    // For devtools debugging purposes.
     (window as {} as {recordingMgr: unknown}).recordingMgr = this.recordingMgr;
     return this.recordingMgr;
   }
