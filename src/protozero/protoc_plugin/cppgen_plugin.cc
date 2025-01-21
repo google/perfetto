@@ -492,6 +492,15 @@ std::string CppObjGenerator::GetPackedWireType(
   abort();
 }
 
+std::string IntLiteralString(int number) {
+  // Special case for -2147483648. If int is 32-bit, the compiler will
+  // misinterpret it.
+  if (number == std::numeric_limits<int32_t>::min()) {
+    return "-2147483647 - 1";
+  }
+  return std::to_string(number);
+}
+
 void CppObjGenerator::GenEnum(const EnumDescriptor* enum_desc,
                               Printer* p) const {
   std::string full_name = GetFullName(enum_desc);
@@ -513,7 +522,7 @@ void CppObjGenerator::GenEnum(const EnumDescriptor* enum_desc,
   for (int e = 0; e < enum_desc->value_count(); e++) {
     const EnumValueDescriptor* value = enum_desc->value(e);
     p->Print("  $p$$n$ = $v$,\n", "p", prefix, "n", std::string(value->name()),
-             "v", std::to_string(value->number()));
+             "v", IntLiteralString(value->number()));
   }
   p->Print("};\n");
 }

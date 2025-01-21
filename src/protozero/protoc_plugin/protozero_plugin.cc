@@ -88,6 +88,15 @@ inline std::string ProtoStubName(const FileDescriptor* proto) {
   return StripSuffix(std::string(proto->name()), ".proto") + ".pbzero";
 }
 
+std::string Int32LiteralString(int32_t number) {
+  // Special case for -2147483648. If int is 32-bit, the compiler will
+  // misinterpret it.
+  if (number == std::numeric_limits<int32_t>::min()) {
+    return "-2147483647 - 1";
+  }
+  return std::to_string(number);
+}
+
 class GeneratorJob {
  public:
   GeneratorJob(const FileDescriptor* file, Printer* stub_h_printer)
@@ -608,7 +617,7 @@ class GeneratorJob {
       const EnumValueDescriptor* value = enumeration->value(i);
       const std::string value_name(value->name());
       stub_h_->Print("$name$ = $number$,\n", "name", value_name, "number",
-                     std::to_string(value->number()));
+                     Int32LiteralString(value->number()));
       if (value->number() < min_val) {
         min_val = value->number();
         min_name = value_name;
