@@ -467,6 +467,17 @@ bool UnixSocketRaw::Connect(const std::string& socket_name) {
   bool continue_async = WSAGetLastError() == WSAEWOULDBLOCK;
 #else
   bool continue_async = errno == EINPROGRESS;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+  if (family_ == SockFamily::kVsock && res < 0 && continue_async) {
+    // QNX doesn't support the SO_ERROR socket option for vsock.
+    // Therefore block the connect call by polling the socket
+    // until it is writable.
+    pollfd pfd{*fd_, POLLOUT, 0};
+    if (PERFETTO_EINTR(poll(&pfd, 1 /*nfds*/, 3000 /*timeout*/)) <= 0)
+      return false;
+    return (pfd.revents & POLLOUT) != 0;
+  }
+#endif
 #endif
   if (res && !continue_async)
     return false;
@@ -1050,11 +1061,22 @@ void UnixSocket::OnEvent() {
 
   if (state_ == State::kConnecting) {
     PERFETTO_DCHECK(sock_raw_);
-    int sock_err = EINVAL;
-    socklen_t err_len = sizeof(sock_err);
-    int res =
-        getsockopt(sock_raw_.fd(), SOL_SOCKET, SO_ERROR, &sock_err, &err_len);
-
+    int res = 0, sock_err = 0;
+    bool is_error_opt_supported = true;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+    // QNX doesn't support the SO_ERROR socket option for vsock.
+    // Since, we make the connect call blocking, it is fine to skip
+    // the error check and simply continue with the connection flow.
+    if (sock_raw_.family() == SockFamily::kVsock) {
+      is_error_opt_supported = false;
+    }
+#endif
+    if (is_error_opt_supported) {
+      sock_err = EINVAL;
+      socklen_t err_len = sizeof(sock_err);
+      res =
+          getsockopt(sock_raw_.fd(), SOL_SOCKET, SO_ERROR, &sock_err, &err_len);
+    }
     if (res == 0 && sock_err == EINPROGRESS)
       return;  // Not connected yet, just a spurious FD watch wakeup.
     if (res == 0 && sock_err == 0) {
