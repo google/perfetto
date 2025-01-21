@@ -559,18 +559,25 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
 }
 
 void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
-  static constexpr auto kBlueprint = tracks::CounterBlueprint(
-      "cpu_idle_state", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(
-          tracks::kCpuDimensionBlueprint,
-          tracks::StringDimensionBlueprint("cpu_idle_state")));
-
   protos::pbzero::SysStats::CpuIdleState::Decoder cpuidle_state(blob);
   uint32_t cpu = cpuidle_state.cpu_id();
+  static constexpr auto kBlueprint = tracks::CounterBlueprint(
+      "cpu_idle_state", tracks::StaticUnitBlueprint("us"),
+      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint,
+                                  tracks::StringDimensionBlueprint("state")),
+      tracks::FnNameBlueprint([](uint32_t cpu, base::StringView state) {
+        return base::StackString<1024>("cpuidle%u.%.*s", cpu, int(state.size()),
+                                       state.data());
+      }));
+
   for (auto f = cpuidle_state.cpuidle_state_entry(); f; ++f) {
     protos::pbzero::SysStats::CpuIdleStateEntry::Decoder idle(*f);
-    TrackId track =
-        context_->track_tracker->InternTrack(kBlueprint, {cpu, idle.state()});
+    std::string state_name = idle.state().ToStdString();
+
+    TrackId track = context_->track_tracker->InternTrack(
+        kBlueprint, tracks::Dimensions(cpu, state_name.c_str()),
+        tracks::BlueprintName());
+
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(idle.duration_us()), track);
   }

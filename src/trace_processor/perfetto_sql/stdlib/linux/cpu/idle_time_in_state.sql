@@ -43,8 +43,7 @@ idle_states AS (
     c.value,
     c.track_id,
     t.machine_id,
-    EXTRACT_ARG(t.dimension_arg_set_id, 'cpu_idle_state') as state,
-    EXTRACT_ARG(t.dimension_arg_set_id, 'cpu') as cpu
+    EXTRACT_ARG(t.dimension_arg_set_id, 'state') as state
   FROM counter c
   JOIN track t on c.track_id = t.id
   WHERE t.type = 'cpu_idle_state'
@@ -53,7 +52,6 @@ residency_deltas AS (
   SELECT
     ts,
     state,
-    cpu,
     machine_id,
     value - (LAG(value) OVER (PARTITION BY track_id ORDER BY ts)) as delta
   FROM idle_states
