@@ -115,7 +115,8 @@ AS
     f.name,
     m.name AS mapping_name,
     f.source_file,
-    f.line_number
+    f.line_number,
+    f.is_leaf_function_in_callsite_frame
   FROM _tree_reachable_ancestors_or_self!(
     _callstack_spc_forest,
     (
@@ -149,7 +150,11 @@ AS
     c.mapping_name,
     c.source_file,
     c.line_number,
-    IFNULL(m.self_count, 0) AS self_count
+    IIF(
+      c.is_leaf_function_in_callsite_frame,
+      IFNULL(m.self_count, 0),
+      0
+    ) AS self_count
   FROM _callstacks_for_stack_profile_samples!(metrics) c
   LEFT JOIN metrics m USING (callsite_id)
 );
