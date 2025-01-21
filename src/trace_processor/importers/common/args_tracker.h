@@ -164,6 +164,10 @@ class ArgsTracker {
     return AddArgsTo(context_->storage->mutable_viewcapture_table(), id);
   }
 
+  BoundInserter AddArgsTo(tables::ViewCaptureViewTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_viewcapture_view_table(), id);
+  }
+
   BoundInserter AddArgsTo(tables::WindowManagerTable::Id id) {
     return AddArgsTo(context_->storage->mutable_windowmanager_table(), id);
   }

@@ -150,6 +150,24 @@ VIEWCAPTURE_TABLE = Table(
             'base64_proto_id': 'String id for raw proto message',
         }))
 
+VIEWCAPTURE_VIEW_TABLE = Table(
+    python_module=__file__,
+    class_name='ViewCaptureViewTable',
+    sql_name='__intrinsic_viewcapture_view',
+    columns=[
+        C('snapshot_id', CppTableId(VIEWCAPTURE_TABLE)),
+        C('arg_set_id', CppOptional(CppUint32())),
+        C('base64_proto_id', CppOptional(CppUint32())),
+    ],
+    tabledoc=TableDoc(
+        doc='ViewCapture view',
+        group='Winscope',
+        columns={
+            'snapshot_id': 'The snapshot that generated this view',
+            'arg_set_id': 'Extra args parsed from the proto message',
+            'base64_proto_id': 'String id for raw proto message',
+        }))
+
 VIEWCAPTURE_INTERNED_DATA_TABLE = Table(
     python_module=__file__,
     class_name='ViewCaptureInternedDataTable',
@@ -281,6 +299,7 @@ ALL_TABLES = [
     SURFACE_FLINGER_LAYER_TABLE,
     SURFACE_FLINGER_TRANSACTIONS_TABLE,
     VIEWCAPTURE_TABLE,
+    VIEWCAPTURE_VIEW_TABLE,
     VIEWCAPTURE_INTERNED_DATA_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE,

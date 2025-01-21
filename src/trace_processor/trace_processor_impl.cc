@@ -1147,6 +1147,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_surfaceflinger_transactions_table());
 
   RegisterStaticTable(storage->mutable_viewcapture_table());
+  RegisterStaticTable(storage->mutable_viewcapture_view_table());
 
   RegisterStaticTable(storage->mutable_windowmanager_table());
 

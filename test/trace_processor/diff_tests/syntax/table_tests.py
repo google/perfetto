@@ -676,7 +676,7 @@ class PerfettoTable(TestSuite):
     return DiffTestBlueprint(
         trace=Path('../parser/android/viewcapture.textproto'),
         query="""
-        SELECT flat_key, key, int_value, string_value FROM __intrinsic_winscope_proto_to_args_with_defaults('__intrinsic_viewcapture')
+        SELECT flat_key, key, int_value, string_value FROM __intrinsic_winscope_proto_to_args_with_defaults('__intrinsic_viewcapture_view')
         WHERE flat_key LIKE '%_iid'
           OR flat_key LIKE '%_name'
           OR flat_key LIKE '%view_id'
@@ -684,20 +684,12 @@ class PerfettoTable(TestSuite):
         """,
         out=Csv("""
         "flat_key","key","int_value","string_value"
-        "package_name","package_name","[NULL]","com.google.android.apps.nexuslauncher"
-        "views.class_name","views[0].class_name","[NULL]","com.android.internal.policy.PhoneWindow@6cec234"
-        "views.view_id","views[0].view_id","[NULL]","NO_ID"
-        "views.class_name","views[1].class_name","[NULL]","com.android.internal.policy.DecorView"
-        "views.view_id","views[1].view_id","[NULL]","STRING DE-INTERNING ERROR"
-        "views.view_id_iid","views[1].view_id_iid",3,"[NULL]"
-        "window_name","window_name","[NULL]","STRING DE-INTERNING ERROR"
-        "window_name_iid","window_name_iid",1,"[NULL]"
-        "package_name","package_name","[NULL]","com.google.android.apps.nexuslauncher"
-        "views.class_name","views[0].class_name","[NULL]","com.android.internal.policy.PhoneWindow@6cec234"
-        "views.view_id","views[0].view_id","[NULL]","NO_ID"
-        "views.class_name","views[1].class_name","[NULL]","STRING DE-INTERNING ERROR"
-        "views.class_name_iid","views[1].class_name_iid",3,"[NULL]"
-        "views.view_id","views[1].view_id","[NULL]","NO_ID"
-        "window_name","window_name","[NULL]","STRING DE-INTERNING ERROR"
-        "window_name_iid","window_name_iid",1,"[NULL]"
+        "class_name","class_name","[NULL]","com.android.internal.policy.PhoneWindow@6cec234"
+        "view_id","view_id","[NULL]","NO_ID"
+        "class_name","class_name","[NULL]","com.android.internal.policy.DecorView"
+        "view_id","view_id","[NULL]","STRING DE-INTERNING ERROR"
+        "view_id_iid","view_id_iid",3,"[NULL]"
+        "class_name","class_name","[NULL]","STRING DE-INTERNING ERROR"
+        "class_name_iid","class_name_iid",3,"[NULL]"
+        "view_id","view_id","[NULL]","NO_ID"
         """))
