@@ -52,21 +52,30 @@ CREATE PERFETTO TABLE android_wakeups(
   -- triggered.
   backoff_millis LONG) AS
 with wakeup_reason as (
-    select
+  -- wakeup_reason is recorded ASAP after wakeup; its packet timestamp is reliable. It also contains
+  -- a millisecond timestamp which we can use to associate the wakeup_reason with a later
+  -- wakeup_attribution.
+  select
     ts,
     substr(i.name, 0, instr(i.name, ' ')) as id_timestamp,
     substr(i.name, instr(i.name, ' ') + 1) as raw_wakeup
-    from track t join instant i on t.id = i.track_id
-    where t.name = 'wakeup_reason'
+  from track t join instant i on t.id = i.track_id
+  where t.name = 'wakeup_reason'
 ),
 wakeup_attribution as (
-    select
+  -- wakeup_attribution is recorded at some later time after wakeup and after batterystat has decided
+  -- how to attribute it. We therefore associate it with the original wakeup via the embedded
+  -- millisecond timestamp.
+  select
     substr(i.name, 0, instr(i.name, ' ')) as id_timestamp,
     substr(i.name, instr(i.name, ' ') + 1) as on_device_attribution
-    from track t join instant i on t.id = i.track_id
-    where t.name = 'wakeup_attribution'
+  from track t join instant i on t.id = i.track_id
+  where t.name = 'wakeup_attribution'
 ),
 step1 as(
+  -- Join reason, attribution, and backoff. reason and attribution contain a timestamp that can be
+  -- used as an ID for joining. backoff does not but we know if it occurs at all it will always
+  -- occur just before the reason. We therefore "join" with a union+lag() to be efficient.
   select
     ts,
     raw_wakeup,
@@ -118,6 +127,12 @@ step3 as (
   from android_suspend_state
   where power_state = 'suspended'
 ),
+-- If the device is in a failure-to-suspend loop it will back off and take
+-- up to ~1 minute to suspend. We should allow ourselves to apportion that time
+-- to the wakeup (unless there was another wakeup or suspend following it).
+-- NB a failure to suspend loop can also manifest as actually suspending and then
+-- waking up after a few milliseconds so we don't attempt to filter by aborted
+-- suspends here.
 step4 as (
   select
     ts,
@@ -154,6 +169,22 @@ step5 as (
   from step4
   where not suspend_end
 ),
+-- Each wakeup can contain multiple reasons. We need to parse the wakeup in order to get them out.
+-- This is made more annoying by the fact it can be in multiple formats:
+-- If the wakeup represents an aborted attempt at suspending, it will be prefixed with one of a
+-- couple of variations on "Abort:" and may (in the pending wakeup case) contain multiple reasons,
+-- separated by spaces
+--
+-- example: "Abort: Device 0001:01:00.0 failed to suspend: error -16"
+-- example: "Abort: Pending Wakeup Sources: wlan_oob_irq_wake wlan_txfl_wake wlan_rx_wake"
+-- example: "Abort: Last active Wakeup Source: wlan_oob_irq_wake"
+--
+-- For a normal wakeup there may be multiple reasons separated by ":" and each preceded by a numeric
+-- IRQ. Essentially the text is a looked-up explanation of the IRQ number.
+--
+-- example: "170 176a0000.mbox:440 dhdpcie_host_wake"
+-- example: "374 max_fg_irq:440 dhdpcie_host_wake"
+--
 step6 as (
   select
     ts,
@@ -217,6 +248,7 @@ select
   raw_wakeup,
   on_device_attribution,
   type,
+  -- Remove the numeric IRQ, it duplicates the text and is less comprehensible.
   case when type = 'normal' then ifnull(str_split(item, ' ', 1), item) else item end as item,
   suspend_quality,
   backoff_state,
