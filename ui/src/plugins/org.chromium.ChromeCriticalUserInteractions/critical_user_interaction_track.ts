@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NAMED_ROW} from '../../components/tracks/named_slice_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {Slice} from '../../public/track';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {PageLoadDetailsPanel} from './page_load_details_panel';
 import {StartupDetailsPanel} from './startup_details_panel';
@@ -22,21 +20,6 @@ import {WebContentInteractionPanel} from './web_content_interaction_details_pane
 import {GenericSliceDetailsTab} from './generic_slice_details_tab';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {Trace} from '../../public/trace';
-
-export const CRITICAL_USER_INTERACTIONS_KIND =
-  'org.chromium.CriticalUserInteraction.track';
-
-export const CRITICAL_USER_INTERACTIONS_ROW = {
-  ...NAMED_ROW,
-  scopedId: NUM,
-  type: STR,
-};
-export type CriticalUserInteractionRow = typeof CRITICAL_USER_INTERACTIONS_ROW;
-
-export interface CriticalUserInteractionSlice extends Slice {
-  scopedId: number;
-  type: string;
-}
 
 export function createCriticalUserInteractionTrack(trace: Trace, uri: string) {
   return new DatasetSliceTrack({
