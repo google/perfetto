@@ -120,7 +120,7 @@ class ImplicitSegmentForest {
   uint32_t size() const { return static_cast<uint32_t>(values_.size() / 2); }
 
  private:
-  static uint32_t Lsp(uint32_t x) { return x & -x; }
+  static uint32_t Lsp(uint32_t x) { return x & ~(x - 1); }
   static uint32_t Msp(uint32_t x) {
     return (1u << (sizeof(x) * 8 - 1)) >> __builtin_clz(x);
   }
