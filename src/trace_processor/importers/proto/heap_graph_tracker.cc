@@ -272,6 +272,7 @@ ObjectTable::RowReference HeapGraphTracker::GetOrInsertObject(
                                             0,
                                             /*reference_set_id=*/std::nullopt,
                                             /*reachable=*/0,
+                                            /*heap_type=*/std::nullopt,
                                             {},
                                             /*root_type=*/std::nullopt,
                                             /*root_distance*/ -1});
@@ -307,6 +308,7 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
     return;
 
   sequence_state.last_object_id = obj.object_id;
+  sequence_state.last_heap_type = obj.heap_type;
 
   ObjectTable::RowReference owner_row_ref =
       GetOrInsertObject(&sequence_state, obj.object_id);
@@ -317,6 +319,10 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
 
   owner_row_ref.set_self_size(static_cast<int64_t>(obj.self_size));
   owner_row_ref.set_type_id(type_id);
+  if (obj.heap_type != protos::pbzero::HeapGraphObject::HEAP_TYPE_UNKNOWN) {
+    owner_row_ref.set_heap_type(storage_->InternString(base::StringView(
+        protos::pbzero::HeapGraphObject_HeapType_Name(obj.heap_type))));
+  }
 
   if (obj.self_size == 0) {
     sequence_state.deferred_size_objects_for_type_[type_id].push_back(

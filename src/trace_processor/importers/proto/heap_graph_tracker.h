@@ -72,6 +72,8 @@ class HeapGraphTracker : public Destructible {
     uint64_t object_id = 0;
     uint64_t self_size = 0;
     uint64_t type_id = 0;
+    protos::pbzero::HeapGraphObject::HeapType heap_type =
+        protos::pbzero::HeapGraphObject::HEAP_TYPE_UNKNOWN;
 
     std::vector<uint64_t> field_name_ids;
     std::vector<uint64_t> referred_objects;
@@ -142,6 +144,11 @@ class HeapGraphTracker : public Destructible {
     return GetOrCreateSequence(seq_id).last_object_id;
   }
 
+  perfetto::protos::pbzero::HeapGraphObject::HeapType GetLastObjectHeapType(
+      uint32_t seq_id) {
+    return GetOrCreateSequence(seq_id).last_heap_type;
+  }
+
  private:
   struct InternedField {
     StringId name;
@@ -161,6 +168,8 @@ class HeapGraphTracker : public Destructible {
     UniquePid current_upid = 0;
     int64_t current_ts = 0;
     uint64_t last_object_id = 0;
+    protos::pbzero::HeapGraphObject::HeapType last_heap_type =
+        protos::pbzero::HeapGraphObject::HEAP_TYPE_UNKNOWN;
     std::vector<SourceRoot> current_roots;
 
     // Note: the below maps are a mix of std::map and base::FlatHashMap because
