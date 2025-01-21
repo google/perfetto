@@ -87,6 +87,7 @@ export default class implements PerfettoPlugin {
       );
       recMgr.restorePluginStateFromLocalstorage();
     }
+    (window as {} as {recordingMgr: unknown}).recordingMgr = this.recordingMgr;
     return this.recordingMgr;
   }
 }

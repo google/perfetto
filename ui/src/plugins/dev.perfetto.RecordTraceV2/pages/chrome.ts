@@ -143,9 +143,22 @@ const DISAB_PREFIX = 'disabled-by-default-';
 
 export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
+  private fetchedRuntimeCategories = false;
 
   constructor(private chromeCategoryGetter: ChromeCatFunction) {
+    // Initialize first with the static list of builtin categories (in case
+    // something goes wrong with the extension).
     this.initializeCategories(BUILTIN_CATEGORIES);
+    // But then try to fetch the updated list from the Tracing Extension and use
+    // that instead if available.
+    this.fetchRuntimeCategoriesIfNeeded();
+  }
+
+  private async fetchRuntimeCategoriesIfNeeded() {
+    if (this.fetchedRuntimeCategories) return;
+    const runtimeCategories = await this.chromeCategoryGetter();
+    this.initializeCategories(runtimeCategories);
+    this.fetchedRuntimeCategories = true;
   }
 
   private initializeCategories(cats: string[]) {
@@ -153,7 +166,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       .map((cat) => ({
         id: cat,
         name: cat.replace(DISAB_PREFIX, ''),
-        checked: false,
+        checked: this.options.find((o) => o.id === cat)?.checked ?? false,
       }))
       .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
   }
@@ -187,8 +200,11 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     return m(
       'div.chrome-categories',
       {
-        oninit: async () =>
-          this.initializeCategories(await this.chromeCategoryGetter()),
+        // This shouldn't be necessary in most cases. It's only needed:
+        // 1. The first time the user installs the extension.
+        // 2. In rare cases if the extension fails to respond to the call in the
+        //    constructor, to deal with its flakiness.
+        oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
       m(
         Section,
