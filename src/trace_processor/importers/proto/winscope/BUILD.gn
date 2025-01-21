@@ -32,6 +32,8 @@ source_set("full") {
     "surfaceflinger_transactions_parser.h",
     "viewcapture_args_parser.cc",
     "viewcapture_args_parser.h",
+    "viewcapture_parser.cc",
+    "viewcapture_parser.h",
     "winscope_module.cc",
     "winscope_module.h",
   ]

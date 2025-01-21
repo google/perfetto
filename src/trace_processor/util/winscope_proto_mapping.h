@@ -51,6 +51,9 @@ inline base::StatusOr<const char* const> GetProtoName(
   if (table_name == tables::ViewCaptureTable::Name()) {
     return ".perfetto.protos.ViewCapture";
   }
+  if (table_name == tables::ViewCaptureViewTable::Name()) {
+    return ".perfetto.protos.ViewCapture.View";
+  }
   if (table_name == tables::WindowManagerTable::Name()) {
     return ".perfetto.protos.WindowManagerTraceEntry";
   }
@@ -72,6 +75,9 @@ inline std::optional<const std::vector<uint32_t>> GetAllowedFields(
   if (table_name == tables::SurfaceFlingerLayersSnapshotTable::Name()) {
     return std::vector<uint32_t>({1, 2, 4, 5, 6, 7, 8});
   }
+  if (table_name == tables::ViewCaptureTable::Name()) {
+    return std::vector<uint32_t>({1, 2});
+  }
   return std::nullopt;
 }
 
@@ -86,7 +92,8 @@ inline std::optional<const std::string> GetGroupIdColName(
 inline std::optional<const Table*> GetInternedDataTable(
     const std::string& table_name,
     TraceStorage* storage) {
-  if (table_name == tables::ViewCaptureTable::Name()) {
+  if (table_name == tables::ViewCaptureTable::Name() ||
+      table_name == tables::ViewCaptureViewTable::Name()) {
     return storage->mutable_viewcapture_interned_data_table();
   }
   return std::nullopt;

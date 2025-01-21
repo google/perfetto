@@ -820,6 +820,13 @@ class TraceStorage {
     return &viewcapture_table_;
   }
 
+  const tables::ViewCaptureViewTable& viewcapture_view_table() const {
+    return viewcapture_view_table_;
+  }
+  tables::ViewCaptureViewTable* mutable_viewcapture_view_table() {
+    return &viewcapture_view_table_;
+  }
+
   const tables::ViewCaptureInternedDataTable& viewcapture_interned_data_table()
       const {
     return viewcapture_interned_data_table_;
@@ -1132,6 +1139,7 @@ class TraceStorage {
   tables::SurfaceFlingerTransactionsTable surfaceflinger_transactions_table_{
       &string_pool_};
   tables::ViewCaptureTable viewcapture_table_{&string_pool_};
+  tables::ViewCaptureViewTable viewcapture_view_table_{&string_pool_};
   tables::ViewCaptureInternedDataTable viewcapture_interned_data_table_{
       &string_pool_};
   tables::WindowManagerTable windowmanager_table_{&string_pool_};
