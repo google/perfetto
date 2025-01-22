@@ -294,6 +294,27 @@ export class UiMainPerTrace implements m.ClassComponent {
         callback: () => trace.flows.moveByFocusedFlow('Backward'),
         defaultHotkey: '[',
       },
+
+      // Provides a test bed for resolving events using a SQL table name and ID
+      // which is used in deep-linking, amongst other places.
+      {
+        id: 'perfetto.SelectEventByTableNameAndId',
+        name: 'Select event by table name and ID',
+        callback: async () => {
+          const rootTableName = await trace.omnibox.prompt('Enter table name');
+          if (rootTableName === undefined) return;
+
+          const id = await trace.omnibox.prompt('Enter ID');
+          if (id === undefined) return;
+
+          const num = Number(id);
+          if (!isFinite(num)) return; // Rules out NaN or +-Infinity
+
+          trace.selection.selectSqlEvent(rootTableName, num, {
+            scrollToSelection: true,
+          });
+        },
+      },
       {
         id: 'perfetto.SelectAll',
         name: 'Select all',

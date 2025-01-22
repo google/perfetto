@@ -37,7 +37,7 @@ import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {Point2D, VerticalBounds} from '../../base/geom';
 import {Trace} from '../../public/trace';
-import {SourceDataset, Dataset} from '../../trace_processor/dataset';
+import {SourceDataset} from '../../trace_processor/dataset';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -994,7 +994,7 @@ export abstract class BaseSliceTrack<
     return {ts: Time.fromRaw(row.ts), dur: Duration.fromRaw(row.dur)};
   }
 
-  getDataset(): Dataset | undefined {
+  getDataset(): SourceDataset {
     return new SourceDataset({
       src: this.getSqlSource(),
       schema: {
