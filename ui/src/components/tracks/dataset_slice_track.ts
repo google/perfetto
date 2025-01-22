@@ -21,11 +21,7 @@ import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {Slice} from '../../public/track';
-import {
-  Dataset,
-  DatasetSchema,
-  SourceDataset,
-} from '../../trace_processor/dataset';
+import {DatasetSchema, SourceDataset} from '../../trace_processor/dataset';
 import {ColumnType, LONG, NUM} from '../../trace_processor/query_result';
 import {getColorForSlice} from '../colorizer';
 import {ThreadSliceDetailsPanel} from '../details/thread_slice_details_tab';
@@ -263,7 +259,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     return this.sqlSource;
   }
 
-  getDataset(): Dataset {
+  getDataset() {
     return this.attrs.dataset;
   }
 

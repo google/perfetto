@@ -92,30 +92,5 @@ export default class implements PerfettoPlugin {
       const track = new TrackNode({uri, title, sortOrder: 10});
       group?.addChildInOrder(track);
     }
-
-    ctx.selection.registerSqlSelectionResolver({
-      sqlTableName: 'thread_state',
-      callback: async (id: number) => {
-        const result = await ctx.engine.query(`
-          select
-            thread_state.utid,
-            thread.upid
-          from
-            thread_state
-            join thread on thread_state.utid = thread.id
-          where thread_state.id = ${id}
-        `);
-
-        const {upid, utid} = result.firstRow({
-          upid: NUM_NULL,
-          utid: NUM,
-        });
-
-        return {
-          eventId: id,
-          trackUri: uriForThreadStateTrack(upid, utid),
-        };
-      },
-    });
   }
 }

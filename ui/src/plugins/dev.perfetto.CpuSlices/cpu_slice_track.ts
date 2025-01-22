@@ -39,7 +39,7 @@ import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 import {exists} from '../../base/utils';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
-import {Dataset, SourceDataset} from '../../trace_processor/dataset';
+import {SourceDataset} from '../../trace_processor/dataset';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -65,6 +65,8 @@ export class CpuSliceTrack implements Track {
 
   private lastRowId = -1;
   private trackUuid = uuidv4Sql();
+
+  readonly rootTableName = 'sched_slice';
 
   constructor(
     private readonly trace: Trace,
@@ -94,7 +96,7 @@ export class CpuSliceTrack implements Track {
     this.lastRowId = it.firstRow({lastRowId: NUM}).lastRowId;
   }
 
-  getDataset(): Dataset | undefined {
+  getDataset() {
     return new SourceDataset({
       // TODO(stevegolton): Once we allow datasets to have more than one filter,
       // move this where clause to a dataset filter and change this src to

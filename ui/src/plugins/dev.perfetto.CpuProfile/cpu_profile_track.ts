@@ -28,24 +28,16 @@ export function createCpuProfileTrack(trace: Trace, uri: string, utid: number) {
       schema: {
         id: NUM,
         ts: LONG,
-        callsiteId: NUM,
+        callsite_id: NUM,
       },
-      src: `
-        SELECT
-          id,
-          ts,
-          callsite_id as callsiteId,
-          utid
-        FROM cpu_profile_stack_sample
-        ORDER BY ts
-      `,
+      src: `cpu_profile_stack_sample`,
       filter: {
         col: 'utid',
         eq: utid,
       },
     }),
     sliceName: () => 'CPU Sample',
-    colorizer: (row) => getColorForSample(row.callsiteId),
+    colorizer: (row) => getColorForSample(row.callsite_id),
     detailsPanel: (row) => {
       return new CpuProfileSampleFlamegraphDetailsPanel(
         trace,
