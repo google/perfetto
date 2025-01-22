@@ -24,7 +24,7 @@ import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {SLICE_TRACK_SCHEMAS} from './slice_tracks';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {COUNTER_TRACK_SCHEMAS} from './counter_tracks';
-import {TraceProcessorSliceTrack} from './trace_processor_slice_track';
+import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
 import {TopLevelTrackGroup, TrackGroupSchema} from './types';
 import {removeFalsyValues} from '../../base/array_utils';
 
@@ -286,7 +286,7 @@ export default class implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        track: new TraceProcessorSliceTrack(ctx, uri, maxDepth, trackIds),
+        track: createTraceProcessorSliceTrack(ctx, uri, maxDepth, trackIds),
       });
       addTrack(
         ctx,

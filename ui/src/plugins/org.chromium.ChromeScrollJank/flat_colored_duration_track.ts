@@ -25,7 +25,7 @@ import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {
   DatasetSliceTrack,
-  DepthSource,
+  flatDepthProvider,
 } from '../../components/tracks/dataset_slice_track';
 import {Time} from '../../base/time';
 
@@ -58,7 +58,7 @@ export function createFlatColoredDurationTrack(
         FROM (${sqlSrc})
       `,
     }),
-    depthSource: DepthSource.Flat,
+    depthProvider: flatDepthProvider,
     colorizer: (row) => {
       // Use the log2 of the duration in ms as the value, as we want to focus on
       // differentiating between 4ms, 8ms, 16ms and 32ms values.

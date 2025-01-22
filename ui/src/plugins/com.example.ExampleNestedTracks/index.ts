@@ -18,7 +18,7 @@ import {TrackNode} from '../../public/workspace';
 import {
   DatasetSliceTrack,
   DatasetSliceTrackAttrs,
-  DepthSource,
+  flatDepthProvider,
   ROW_SCHEMA,
 } from '../../components/tracks/dataset_slice_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
@@ -121,7 +121,7 @@ export default class implements PerfettoPlugin {
           name: STR,
         },
       }),
-      depthSource: DepthSource.Flat,
+      depthProvider: flatDepthProvider,
       colorizer: () => makeColorScheme(new HSLColor({h: 180, s: 50, l: 50})),
     });
   }
