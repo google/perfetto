@@ -122,7 +122,7 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
    * omitted, the value in the `name` column from the dataset is used, otherwise
    * the slice is left blank.
    */
-  title?(row: T): string;
+  sliceName?(row: T): string;
 
   /**
    * An optional function to override the tooltip content for each event. If
@@ -248,7 +248,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
   }
 
   private getTitle(row: T) {
-    if (this.attrs.title) return this.attrs.title(row);
+    if (this.attrs.sliceName) return this.attrs.sliceName(row);
     if ('name' in row && typeof row.name === 'string') return row.name;
     return undefined;
   }

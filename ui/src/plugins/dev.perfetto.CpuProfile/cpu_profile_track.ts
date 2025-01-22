@@ -44,7 +44,7 @@ export function createCpuProfileTrack(trace: Trace, uri: string, utid: number) {
         eq: utid,
       },
     }),
-    title: () => 'CPU Sample',
+    sliceName: () => 'CPU Sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
       return new CpuProfileSampleFlamegraphDetailsPanel(
