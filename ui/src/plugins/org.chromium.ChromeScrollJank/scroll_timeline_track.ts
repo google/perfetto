@@ -65,6 +65,7 @@ export function createScrollTimelineTrack(
         dur: LONG,
         name: STR,
         classification: NUM,
+        depth: NUM,
       },
     }),
     colorizer: (row) => {
