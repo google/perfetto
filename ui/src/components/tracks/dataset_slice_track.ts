@@ -14,11 +14,7 @@
 
 import m from 'mithril';
 import {ColorScheme} from '../../base/color_scheme';
-import {
-  assertIsInstance,
-  assertTrue,
-  assertUnreachable,
-} from '../../base/logging';
+import {assertIsInstance, assertTrue} from '../../base/logging';
 import {Time} from '../../base/time';
 import {TraceImpl} from '../../core/trace_impl';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -44,6 +40,8 @@ import {
   SLICE_FLAGS_INSTANT,
 } from './base_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from './slice_layout';
+
+export type DepthProvider = (dataset: SourceDataset) => string;
 
 export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   /**
@@ -108,9 +106,10 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   readonly rootTableName?: string;
 
   /**
-   * Configures how depth is calculated. Defaults to {@link DepthSource.Auto}.
+   * This is a function that, given a dataset, returns a query that definitely
+   * contains a non-null depth column.
    */
-  readonly depthSource?: DepthSource;
+  readonly depthProvider?: DepthProvider;
 
   /**
    * An optional function to override the color scheme for each event.
@@ -154,44 +153,32 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   shellButtons?(): m.Children;
 }
 
-export enum DepthSource {
-  /**
-   * Default behavior: Determines the best data source based on the schema of
-   * the dataset.
-   * - If the dataset has a `depth` column, {@link DepthSource.Dataset} will be
-   *   used.
-   * - If the dataset lacks a `depth` column but has a `dur` column,
-   *   {@link DepthSource.InternalLayout} is used.
-   * - If neither `depth` nor `dur` is present, {@link DepthSource.Flat} layout
-   *   is used.
-   */
-  Auto,
-
-  /**
-   * Sets the depth of all slices to 0, creating a flat layout. This may cause
-   * rendering and usability issues if slices overlap.
-   */
-  Flat,
-
-  /**
-   * Uses the `depth` value from the dataset. The column must have type `NUM`.
-   * Undefined behavior occurs if the dataset lacks a `depth` column or if the
-   * column type is not `NUM`.
-   */
-  Dataset,
-
-  /**
-   * Uses the `internal_layout()` window function to automatically arrange
-   * slices based on their `ts` and `dur` fields. This might be slower.
-   * Undefined behavior occurs if the dataset lacks a `dur` column.
-   */
-  InternalLayout,
-}
-
 const rowSchema = {
   id: NUM,
   ts: LONG,
 };
+
+/**
+ * Pre-canned depth provider that lays out slices automatically to minimize
+ * depth while avoiding overlaps. The source dataset requires ts and dur
+ * columns.
+ */
+export function internalLayoutDepthProvider(dataset: SourceDataset) {
+  return generateSqlWithInternalLayout({
+    columns: ['*'],
+    source: dataset.query(),
+    ts: 'ts',
+    dur: 'dur',
+    orderByClause: 'ts',
+  });
+}
+
+/**
+ * Simple flat layout provider that just lays out all slices in one flat layer.
+ */
+export function flatDepthProvider(dataset: SourceDataset) {
+  return `select 0 as depth, * from (${dataset.query()})`;
+}
 
 export type ROW_SCHEMA = typeof rowSchema;
 
@@ -204,7 +191,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
 
   constructor(private readonly attrs: DatasetSliceTrackAttrs<T>) {
     super(attrs.trace, attrs.uri, {...BASE_ROW, ...attrs.dataset.schema});
-    const {dataset, depthSource = DepthSource.Auto} = attrs;
+    const {dataset, depthProvider} = attrs;
 
     // This is the minimum viable implementation that the source dataset must
     // implement for the track to work properly. Typescript should enforce this
@@ -212,7 +199,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     // Better to error out early.
     assertTrue(this.attrs.dataset.implements(rowSchema));
 
-    const sqlSource = this.getDepthSource(depthSource, dataset);
+    const sqlSource = depthProvider?.(dataset) ?? this.getDepthSource(dataset);
     if (dataset.implements({dur: LONG})) {
       this.sqlSource = sqlSource;
     } else {
@@ -239,30 +226,13 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     };
   }
 
-  private getDepthSource(depthSource: DepthSource, dataset: SourceDataset<T>) {
-    if (depthSource === DepthSource.Auto) {
-      if (dataset.implements({depth: NUM})) {
-        depthSource = DepthSource.Dataset;
-      } else if (dataset.implements({dur: LONG})) {
-        depthSource = DepthSource.InternalLayout;
-      } else {
-        depthSource = DepthSource.Flat;
-      }
-    }
-    switch (depthSource) {
-      case DepthSource.Dataset:
-        return dataset.query();
-      case DepthSource.Flat:
-        return `select 0 as depth, * from (${dataset.query()})`;
-      case DepthSource.InternalLayout:
-        return generateSqlWithInternalLayout({
-          columns: ['*'],
-          source: dataset.query(),
-          ts: 'ts',
-          dur: 'dur',
-        });
-      default:
-        assertUnreachable(depthSource);
+  private getDepthSource(dataset: SourceDataset<T>) {
+    if (dataset.implements({depth: NUM})) {
+      return dataset.query();
+    } else if (dataset.implements({dur: LONG})) {
+      return internalLayoutDepthProvider(dataset);
+    } else {
+      return flatDepthProvider(dataset);
     }
   }
 

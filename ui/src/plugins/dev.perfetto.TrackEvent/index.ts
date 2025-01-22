@@ -20,7 +20,7 @@ import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
 import {assertExists, assertTrue} from '../../base/logging';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {TraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
+import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {getTrackName} from '../../public/utils';
 
@@ -157,7 +157,7 @@ export default class implements PerfettoPlugin {
             upid: upid ?? undefined,
             utid: utid ?? undefined,
           },
-          track: new TraceProcessorSliceTrack(ctx, uri, undefined, trackIds),
+          track: createTraceProcessorSliceTrack(ctx, uri, undefined, trackIds),
         });
       }
       const parent = findParentTrackNode(
