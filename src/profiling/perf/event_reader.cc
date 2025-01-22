@@ -410,7 +410,13 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
     }
   }
 
-  PERFETTO_CHECK(parse_pos == record_start + sample_size);
+  // Note: historically, we asserted that parse_pos is exactly at the end of the
+  // record according to the kernel (record_start + sample_size). This verified
+  // that the record is as densely packed as possible.
+  // This is no longer true for kernels above ~6.7 (at least when sampling on
+  // static tracepoints), which can leave some zero padding at the end of the
+  // record.
+  PERFETTO_CHECK(parse_pos <= record_start + sample_size);
   return sample;
 }
 
