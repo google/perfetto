@@ -182,8 +182,12 @@ export function flatDepthProvider(dataset: SourceDataset) {
 
 export type ROW_SCHEMA = typeof rowSchema;
 
+// We attach a copy of our rows to each slice, so that the tooltip can be
+// resolved properly.
+type SliceWithRow<T> = Slice & {row: T};
+
 export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
-  Slice,
+  SliceWithRow<T>,
   BaseRow & T
 > {
   protected readonly sqlSource: string;
@@ -213,16 +217,23 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     };
   }
 
-  rowToSlice(row: BaseRow & T): Slice {
+  rowToSlice(row: BaseRow & T): SliceWithRow<T> {
     const slice = this.rowToSliceBase(row);
     const title = this.getTitle(row);
     const color = this.getColor(row, title);
+
+    // Take a copy of the row, only copying the keys listed in the schema.
+    const cols = Object.keys(this.attrs.dataset.schema);
+    const clonedRow = Object.fromEntries(
+      Object.entries(row).filter(([key]) => cols.includes(key)),
+    ) as T;
 
     return {
       ...slice,
       title,
       colorScheme: color,
       fillRatio: this.attrs.fillRatio?.(row) ?? slice.fillRatio,
+      row: clonedRow,
     };
   }
 
@@ -312,7 +323,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     return this.attrs.shellButtons?.();
   }
 
-  onSliceOver(args: OnSliceOverArgs<Slice>) {
+  onSliceOver(args: OnSliceOverArgs<SliceWithRow<T>>) {
     const {title, dur, flags} = args.slice;
     let duration;
     if (flags & SLICE_FLAGS_INCOMPLETE) {
@@ -328,9 +339,6 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
       args.tooltip = [`[${duration}]`];
     }
 
-    // TODO(stevegolton): Use attrs.tooltip to implement the tooltip. Requires
-    // access to the underlying row, not just the slice....
-    //
-    // if (this.attrs.tooltip) { args.tooltip = this.attrs.tooltip(row) }
+    args.tooltip = this.attrs.tooltip?.(args.slice.row) ?? args.tooltip;
   }
 }
