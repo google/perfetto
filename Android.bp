@@ -9618,6 +9618,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_processor_zero_gen",
     srcs: [
         ":perfetto_protos_perfetto_common_zero",
+        ":perfetto_protos_perfetto_perfetto_sql_zero",
         ":perfetto_protos_perfetto_trace_processor_zero",
     ],
     tools: [
@@ -9638,6 +9639,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
     srcs: [
         ":perfetto_protos_perfetto_common_zero",
+        ":perfetto_protos_perfetto_perfetto_sql_zero",
         ":perfetto_protos_perfetto_trace_processor_zero",
     ],
     tools: [
@@ -17333,6 +17335,7 @@ cc_binary {
         ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
+        ":perfetto_protos_perfetto_perfetto_sql_zero_gen",
         ":perfetto_protos_perfetto_trace_android_winscope_common_zero_gen",
         ":perfetto_protos_perfetto_trace_android_winscope_regular_zero_gen",
         ":perfetto_protos_perfetto_trace_android_zero_gen",
@@ -17422,6 +17425,7 @@ cc_binary {
         "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
+        "perfetto_protos_perfetto_perfetto_sql_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_winscope_common_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_winscope_regular_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_zero_gen_headers",
