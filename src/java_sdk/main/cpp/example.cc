@@ -18,70 +18,73 @@
 // This program adds trace in a few example functions like DrawPlayer DrawGame
 // etc. and collect the trace in file `example.pftrace`.
 //
-// This file was copied from 'examples/sdk/example.cc'
+// This file was copied from 'examples/sdk/example.cc' and migrated
+// to use the 'libperfetto_c' API.
 
 #include "src/java_sdk/main/cpp/example.h"
+
+#include "src/java_sdk/main/cpp/utils.h"
+
+#include "perfetto/public/producer.h"
+#include "perfetto/public/te_category_macros.h"
+#include "perfetto/public/te_macros.h"
+#include "perfetto/public/track_event.h"
+#include "perfetto/tracing/track_event.h"
 
 #include <chrono>
 #include <fstream>
 #include <string>
 #include <thread>
 
-// Reserves internal static storage for our tracing categories.
-PERFETTO_TRACK_EVENT_STATIC_STORAGE();
-
 namespace {
+#define EXAMPLE_CATEGORIES(C)                                    \
+  C(rendering, "rendering", "Rendering and graphics events")     \
+  C(network, "network.debug", "Verbose network events", "debug") \
+  C(audio, "audio.latency", "Detailed audio latency metrics", "verbose")
+
+PERFETTO_TE_CATEGORIES_DEFINE(EXAMPLE_CATEGORIES)
 
 void InitializePerfetto() {
-  perfetto::TracingInitArgs args;
-  // The backends determine where trace events are recorded. For this example we
-  // are going to use the in-process tracing service, which only includes in-app
-  // events.
-  args.backends = perfetto::kInProcessBackend;
-
-  perfetto::Tracing::Initialize(args);
-  perfetto::TrackEvent::Register();
+  PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
+  args.backends = PERFETTO_BACKEND_IN_PROCESS;
+  PerfettoProducerInit(args);
+  PerfettoTeInit();
+  PERFETTO_TE_REGISTER_CATEGORIES(EXAMPLE_CATEGORIES);
 }
 
-std::unique_ptr<perfetto::TracingSession> StartTracing() {
-  // The trace config defines which types of data sources are enabled for
-  // recording. In this example we just need the "track_event" data source,
-  // which corresponds to the TRACE_EVENT trace points.
-  perfetto::TraceConfig cfg;
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-
-  auto tracing_session = perfetto::Tracing::NewTrace();
-  tracing_session->Setup(cfg);
-  tracing_session->StartBlocking();
-  return tracing_session;
+std::unique_ptr<perfetto::java_sdk::utils::TracingSession> StartTracing() {
+  using perfetto::java_sdk::utils::TracingSession;
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+  return std::make_unique<TracingSession>(std::move(tracing_session));
 }
 
-void StopTracing(std::unique_ptr<perfetto::TracingSession> tracing_session,
-                 const std::string output_file_path) {
-  // Make sure the last event is closed for this example.
-  perfetto::TrackEvent::Flush();
-
+void StopTracing(
+    std::unique_ptr<perfetto::java_sdk::utils::TracingSession> tracing_session,
+    const std::string& output_file_path) {
   // Stop tracing and read the trace data.
   tracing_session->StopBlocking();
-  std::vector<char> trace_data(tracing_session->ReadTraceBlocking());
+  std::vector<uint8_t> trace_data(tracing_session->ReadBlocking());
 
   // Write the result into a file.
   // Note: To save memory with longer traces, you can tell Perfetto to write
   // directly into a file by passing a file descriptor into Setup() above.
   std::ofstream output;
   output.open(output_file_path, std::ios::out | std::ios::binary);
-  output.write(&trace_data[0], std::streamsize(trace_data.size()));
+  output.write(reinterpret_cast<const std::ostream::char_type*>(&trace_data[0]),
+               static_cast<std::streamsize>(trace_data.size()));
   output.close();
-  PERFETTO_LOG(
+  printf(
       "Trace written in %s file. To read this trace in "
-      "text form, run `./tools/traceconv text example.pftrace`",
+      "text form, run `./tools/traceconv text example.pftrace`\n",
       output_file_path.c_str());
 }
 
 void DrawPlayer(int player_number) {
-  TRACE_EVENT("rendering", "DrawPlayer", "player_number", player_number);
+  PERFETTO_TE_SCOPED(rendering, PERFETTO_TE_SLICE("DrawPlayer"),
+                     PERFETTO_TE_ARG_INT64("player_number", player_number));
   // Sleep to simulate a long computation.
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
@@ -89,26 +92,22 @@ void DrawPlayer(int player_number) {
 void DrawGame() {
   // This is an example of an unscoped slice, which begins and ends at specific
   // points (instead of at the end of the current block scope).
-  TRACE_EVENT_BEGIN("rendering", "DrawGame");
+  PERFETTO_TE(rendering, PERFETTO_TE_SLICE_BEGIN("DrawGame"));
   DrawPlayer(1);
   DrawPlayer(2);
-  TRACE_EVENT_END("rendering");
+  PERFETTO_TE(rendering, PERFETTO_TE_SLICE_END());
 
   // Record the rendering framerate as a counter sample.
-  TRACE_COUNTER("rendering", "Framerate", 120);
+  PERFETTO_TE(
+      rendering, PERFETTO_TE_COUNTER(),
+      PERFETTO_TE_COUNTER_TRACK("Framerate", PerfettoTeProcessTrackUuid()),
+      PERFETTO_TE_INT_COUNTER(120));
 }
-
 }  // namespace
 
-int run_main(const std::string output_file_path) {
+int run_main(const std::string& output_file_path) {
   InitializePerfetto();
   auto tracing_session = StartTracing();
-
-  // Give a custom name for the traced process.
-  perfetto::ProcessTrack process_track = perfetto::ProcessTrack::Current();
-  perfetto::protos::gen::TrackDescriptor desc = process_track.Serialize();
-  desc.mutable_process()->set_process_name("Example");
-  perfetto::TrackEvent::SetTrackDescriptor(process_track, desc);
 
   // Simulate some work that emits trace events.
   DrawGame();
