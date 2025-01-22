@@ -340,8 +340,12 @@ export class SelectionManagerImpl implements SelectionManager {
   private findFocusRangeOfSelection(): TimeSpan | undefined {
     const sel = this.selection;
     if (sel.kind === 'track_event') {
-      // The focus range of slices is different to that of the actual span
-      if (sel.dur === -1n) {
+      if (sel.dur === undefined) {
+        // Selected entity has no duration, so we can't possibly return a
+        // timespan.
+        return undefined;
+        // The focus range of slices is different to that of the actual span
+      } else if (sel.dur === -1n) {
         return TimeSpan.fromTimeAndDuration(sel.ts, INCOMPLETE_SLICE_DURATION);
       } else if (sel.dur === 0n) {
         return TimeSpan.fromTimeAndDuration(sel.ts, INSTANT_FOCUS_DURATION);
@@ -433,6 +437,7 @@ export class SelectionManagerImpl implements SelectionManager {
         }
       }
     } else if (sel.kind === 'track_event') {
+      if (sel.dur === undefined) return undefined;
       // Pretend incomplete slices are instants. The -1 duration here is just a
       // flag, and doesn't actually represent the duration of the event.
       // Besides, TimeSpan's will throw if created with a negative duration.
