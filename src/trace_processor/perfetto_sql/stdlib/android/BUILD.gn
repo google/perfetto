@@ -43,11 +43,13 @@ perfetto_sql_source_set("android") {
     "io.sql",
     "job_scheduler.sql",
     "job_scheduler_states.sql",
+    "kernel_wakelocks.sql",
     "monitor_contention.sql",
     "network_packets.sql",
     "oom_adjuster.sql",
     "power_rails.sql",
     "process_metadata.sql",
+    "screen_state.sql",
     "screenshots.sql",
     "services.sql",
     "slices.sql",
@@ -55,5 +57,6 @@ perfetto_sql_source_set("android") {
     "suspend.sql",
     "thread.sql",
     "version.sql",
+    "wakeups.sql",
   ]
 }

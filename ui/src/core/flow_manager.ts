@@ -17,10 +17,6 @@ import {featureFlags} from './feature_flags';
 import {FlowDirection, Flow} from './flow_types';
 import {asSliceSqlId} from '../components/sql_utils/core_types';
 import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
-import {
-  ACTUAL_FRAMES_SLICE_TRACK_KIND,
-  SLICE_TRACK_KIND,
-} from '../public/track_kinds';
 import {TrackDescriptor, TrackManager} from '../public/track';
 import {AreaSelection, Selection, SelectionManager} from '../public/selection';
 import {Engine} from '../trace_processor/engine';
@@ -372,11 +368,13 @@ export class FlowManager {
     const trackIds: number[] = [];
 
     for (const trackInfo of area.tracks) {
-      const kind = trackInfo?.tags?.kind;
-      if (
-        kind === SLICE_TRACK_KIND ||
-        kind === ACTUAL_FRAMES_SLICE_TRACK_KIND
-      ) {
+      // Flows are only applicable for tracks whose slices derive from the
+      // 'slice' root table.
+      //
+      // TODO(stevegolton): We can remove this check entirely once flows are
+      // made more generic.
+      const rootTableName = trackInfo.track.rootTableName;
+      if (rootTableName === 'slice') {
         if (trackInfo?.tags?.trackIds) {
           for (const trackId of trackInfo.tags.trackIds) {
             trackIds.push(trackId);
@@ -463,9 +461,11 @@ export class FlowManager {
       return;
     }
 
-    // TODO(b/155483804): This is a hack as annotation slices don't contain
-    // flows. We should tidy this up when fixing this bug.
-    if (selection.kind === 'track_event' && selection.tableName === 'slice') {
+    if (
+      selection.kind === 'track_event' &&
+      this.trackMgr.getTrack(selection.trackUri)?.track.rootTableName ===
+        'slice'
+    ) {
       this.sliceSelected(selection.eventId);
     } else {
       this.setConnectedFlows([]);

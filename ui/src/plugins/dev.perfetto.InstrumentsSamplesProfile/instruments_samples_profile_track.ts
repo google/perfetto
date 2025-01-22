@@ -44,11 +44,7 @@ abstract class BaseInstrumentsSamplesProfileTrack extends BaseSliceTrack<
   InstrumentsSampleRow
 > {
   constructor(trace: Trace, uri: string) {
-    super(trace, uri);
-  }
-
-  protected getRowSpec(): InstrumentsSampleRow {
-    return {...NAMED_ROW, callsiteId: NUM};
+    super(trace, uri, {...NAMED_ROW, callsiteId: NUM});
   }
 
   protected rowToSlice(row: InstrumentsSampleRow): Slice {

@@ -97,7 +97,6 @@ source_set("protozero_to_text") {
     "../../../protos/perfetto/trace/track_event:zero",
     "../../base",
     "../../protozero",
-    "../importers/proto:gen_cc_track_event_descriptor",
   ]
 }
 
@@ -286,10 +285,11 @@ source_set("trace_type") {
 }
 
 source_set("winscope_proto_mapping") {
-  sources = ["winscope_proto_mapping.h"]
+  sources = [ "winscope_proto_mapping.h" ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base:base",
+    "../storage:storage",
     "../tables",
   ]
 }

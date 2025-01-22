@@ -18,7 +18,6 @@ import {NAMED_ROW, NamedSliceTrack} from './named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from './slice_layout';
 import {LONG_NULL} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
-import {TrackEventDetails} from '../../public/selection';
 import {ThreadSliceDetailsPanel} from '../details/thread_slice_details_tab';
 import {TraceImpl} from '../../core/trace_impl';
 import {assertIsInstance} from '../../base/logging';
@@ -34,6 +33,8 @@ export const THREAD_SLICE_ROW = {
 export type ThreadSliceRow = typeof THREAD_SLICE_ROW;
 
 export class ThreadSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
+  readonly rootTableName: string;
+
   constructor(
     trace: Trace,
     uri: string,
@@ -41,16 +42,12 @@ export class ThreadSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
     maxDepth: number,
     private readonly tableName: string = 'slice',
   ) {
-    super(trace, uri);
+    super(trace, uri, THREAD_SLICE_ROW);
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
       depthGuess: maxDepth,
     };
-  }
-
-  // This is used by the base class to call iter().
-  protected getRowSpec() {
-    return THREAD_SLICE_ROW;
+    this.rootTableName = tableName;
   }
 
   getSqlSource(): string {
@@ -83,17 +80,6 @@ export class ThreadSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
     for (const slice of slices) {
       slice.isHighlighted = slice === this.hoveredSlice;
     }
-  }
-
-  async getSelectionDetails(
-    id: number,
-  ): Promise<TrackEventDetails | undefined> {
-    const baseDetails = await super.getSelectionDetails(id);
-    if (!baseDetails) return undefined;
-    return {
-      ...baseDetails,
-      tableName: this.tableName,
-    };
   }
 
   override detailsPanel() {

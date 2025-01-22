@@ -142,6 +142,8 @@ SurfaceFlingerLayersSnapshotTable::~SurfaceFlingerLayersSnapshotTable() =
 SurfaceFlingerLayerTable::~SurfaceFlingerLayerTable() = default;
 SurfaceFlingerTransactionsTable::~SurfaceFlingerTransactionsTable() = default;
 ViewCaptureTable::~ViewCaptureTable() = default;
+ViewCaptureViewTable::~ViewCaptureViewTable() = default;
+ViewCaptureInternedDataTable::~ViewCaptureInternedDataTable() = default;
 WindowManagerTable::~WindowManagerTable() = default;
 WindowManagerShellTransitionsTable::~WindowManagerShellTransitionsTable() =
     default;

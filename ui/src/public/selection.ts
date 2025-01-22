@@ -164,9 +164,7 @@ export interface TrackEventDetails {
   readonly wakerCpu?: number;
   readonly upid?: number;
   readonly utid?: number;
-  readonly tableName?: string;
   readonly profileType?: ProfileType;
-  readonly interactionType?: string;
 }
 
 export interface Area {

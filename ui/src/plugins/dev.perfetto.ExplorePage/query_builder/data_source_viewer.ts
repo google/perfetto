@@ -13,22 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
-import SqlModulesPlugin from '../../dev.perfetto.SqlModules';
 
 import {PageWithTraceAttrs} from '../../../public/page';
-import {Button} from '../../../widgets/button';
 import {TextParagraph} from '../../../widgets/text_paragraph';
 import {QueryTable} from '../../../components/query_table/query_table';
 import {runQuery} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {Trace} from '../../../public/trace';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 import {QueryNode, getLastFinishedNode, getFirstNode} from '../query_state';
-import {ColumnControllerRows} from './column_controller';
+import {
+  ColumnController,
+  ColumnControllerDiff,
+  ColumnControllerRows,
+} from './column_controller';
+import {Section} from '../../../widgets/section';
 
 export interface DataSourceAttrs extends PageWithTraceAttrs {
-  readonly plugin: SqlModulesPlugin;
   readonly queryNode: QueryNode;
 }
 
@@ -36,18 +37,9 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
   private readonly tableAsyncLimiter = new AsyncLimiter();
   private queryResult: QueryResponse | undefined;
   private showSql: number = 0;
-  private currentSql?: string;
 
-  private renderRunButton(sql: string, trace: Trace): m.Child {
-    return m(Button, {
-      label: 'Run',
-      onclick: () => {
-        this.tableAsyncLimiter.schedule(async () => {
-          this.queryResult = await runQuery(sql, trace.engine);
-        });
-      },
-    });
-  }
+  private prevSql?: string;
+  private currentSql?: string;
 
   view({attrs}: m.CVnode<DataSourceAttrs>) {
     this.currentSql = sqlToRun(attrs.queryNode);
@@ -55,23 +47,60 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
       return;
     }
 
-    const renderTable = (queryResp: QueryResponse | undefined) => {
-      if (queryResp === undefined) {
-        return;
-      }
-      if (queryResp.error !== undefined) {
-        return m(TextParagraph, {text: `Error: ${queryResp.error}`});
+    function renderPickColumns(node: QueryNode): m.Child {
+      return (
+        node.columns &&
+        m(ColumnController, {
+          hasValidColumns: true,
+          options: node.columns,
+          onChange: (diffs: ColumnControllerDiff[]) => {
+            diffs.forEach(({id, checked, alias}) => {
+              if (node.columns === undefined) {
+                return;
+              }
+              for (const option of node.columns) {
+                if (option.id === id) {
+                  option.checked = checked;
+                  option.alias = alias;
+                }
+              }
+            });
+          },
+        })
+      );
+    }
+
+    const renderTable = () => {
+      if (this.currentSql !== this.prevSql) {
+        this.tableAsyncLimiter.schedule(async () => {
+          if (this.currentSql === undefined) {
+            return;
+          }
+          this.queryResult = await runQuery(
+            this.currentSql,
+            attrs.trace.engine,
+          );
+        });
       }
 
-      return [
+      if (this.queryResult === undefined) {
+        return;
+      }
+      if (this.queryResult.error !== undefined) {
+        return m(TextParagraph, {text: `Error: ${this.queryResult.error}`});
+      }
+
+      this.prevSql = this.currentSql;
+
+      return (
         this.currentSql &&
-          m(QueryTable, {
-            trace: attrs.trace,
-            query: this.currentSql,
-            resp: queryResp,
-            fillParent: false,
-          }),
-      ];
+        m(QueryTable, {
+          trace: attrs.trace,
+          query: this.currentSql,
+          resp: this.queryResult,
+          fillParent: false,
+        })
+      );
     };
 
     const renderButtons = (): m.Child => {
@@ -85,28 +114,24 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
       });
     };
 
+    const lastNode = getLastFinishedNode(attrs.queryNode);
+    if (lastNode === undefined) return;
+
     return (
-      this.currentSql &&
-      m(
-        '.explore-page__rowish',
+      this.currentSql && [
         m(
-          '.explore-page__columnar',
-          this.renderRunButton(this.currentSql, attrs.trace),
-          renderTable(this.queryResult),
-        ),
-        m(
-          '.explore-page__columnar',
+          Section,
+          {title: lastNode.getTitle()},
           renderButtons(),
           this.showSql === 0
             ? m(TextParagraph, {
                 text: this.currentSql,
                 compressSpace: false,
               })
-            : m(TextParagraph, {
-                text: 'FUTURE COLUMNS',
-              }),
+            : renderPickColumns(lastNode),
         ),
-      )
+        renderTable(),
+      ]
     );
   }
 }

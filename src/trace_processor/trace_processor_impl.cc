@@ -73,7 +73,6 @@
 #include "src/trace_processor/importers/perf_text/perf_text_trace_parser_impl.h"
 #include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
-#include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
@@ -124,6 +123,7 @@
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/summary/summary.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/trace_reader_registry.h"
@@ -627,6 +627,18 @@ base::Status TraceProcessorImpl::RegisterSqlModule(SqlModule module) {
   package.modules = std::move(module.files);
   package.allow_override = module.allow_module_override;
   return RegisterSqlPackage(package);
+}
+
+// =================================================================
+// |  Trace-based metrics (v2) related functionality starts here   |
+// =================================================================
+
+base::Status TraceProcessorImpl::ComputeV2Metrics(
+    const std::vector<TraceSummarySpecBytes>& specs,
+    std::vector<uint8_t>* output,
+    TraceSummaryOutputFormat format,
+    const std::vector<std::string>& metric_ids) {
+  return summary::ComputeV2Metrics(this, specs, output, format, metric_ids);
 }
 
 // =================================================================
@@ -1135,6 +1147,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_surfaceflinger_transactions_table());
 
   RegisterStaticTable(storage->mutable_viewcapture_table());
+  RegisterStaticTable(storage->mutable_viewcapture_view_table());
 
   RegisterStaticTable(storage->mutable_windowmanager_table());
 

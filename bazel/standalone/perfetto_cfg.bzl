@@ -135,6 +135,10 @@ PERFETTO_CONFIG = struct(
         go_proto_library = None,
 
         jspb_proto_library = None,
+
+        android_binary = None,
+        android_library = None,
+        android_jni_library = None,
     ),
 
     # The default copts which we use to compile C++ code.

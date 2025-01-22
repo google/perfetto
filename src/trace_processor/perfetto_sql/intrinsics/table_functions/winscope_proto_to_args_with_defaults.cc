@@ -27,7 +27,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -35,6 +37,7 @@
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
@@ -47,6 +50,55 @@ WinscopeArgsWithDefaultsTable::~WinscopeArgsWithDefaultsTable() = default;
 }  // namespace tables
 
 namespace {
+constexpr char kDeinternError[] = "STRING DE-INTERNING ERROR";
+
+// Interned data stored in table with columns:
+// - base64_proto_id
+// - flat_key
+// - iid
+// - deinterned_value
+// Mapping reconstructed using nested FlatHashMaps to optionally
+// deintern strings from proto data.
+using ProtoId = uint32_t;
+using FlatKey = StringPool::Id;
+using Iid = uint64_t;
+using DeinternedValue = StringPool::Id;
+
+using DeinternedIids = base::FlatHashMap<Iid, DeinternedValue>;
+using InternedData = base::FlatHashMap<FlatKey, DeinternedIids>;
+using ProtoToInternedData = base::FlatHashMap<ProtoId, InternedData>;
+
+ProtoToInternedData GetProtoToInternedData(const std::string& table_name,
+                                           TraceStorage* storage,
+                                           StringPool* pool) {
+  ProtoToInternedData proto_to_interned_data;
+  auto interned_data_table =
+      util::winscope_proto_mapping::GetInternedDataTable(table_name, storage);
+  if (interned_data_table) {
+    const Table* table = interned_data_table.value();
+    const auto proto_id_idx =
+        table->ColumnIdxFromName("base64_proto_id").value();
+    const auto flat_key_idx = table->ColumnIdxFromName("flat_key").value();
+    const auto iid_idx = table->ColumnIdxFromName("iid").value();
+    const auto deinterned_value_idx =
+        table->ColumnIdxFromName("deinterned_value").value();
+
+    for (auto it = table->IterateRows(); it; ++it) {
+      const auto proto_id =
+          static_cast<uint32_t>(it.Get(proto_id_idx).AsLong());
+      const auto flat_key = pool->InternString(
+          base::StringView(std::string(it.Get(flat_key_idx).AsString())));
+      const auto iid = static_cast<uint64_t>(it.Get(iid_idx).AsLong());
+      const auto deinterned_value = pool->InternString(base::StringView(
+          std::string(it.Get(deinterned_value_idx).AsString())));
+
+      auto& deinterned_iids = proto_to_interned_data[proto_id][flat_key];
+      deinterned_iids.Insert(iid, deinterned_value);
+    }
+  }
+  return proto_to_interned_data;
+}
+
 using RowReference = tables::WinscopeArgsWithDefaultsTable::RowReference;
 using Row = tables::WinscopeArgsWithDefaultsTable::Row;
 using RowId = tables::WinscopeArgsWithDefaultsTable::Id;
@@ -58,17 +110,25 @@ class Delegate : public util::ProtoToArgsParser::Delegate {
   explicit Delegate(StringPool* pool,
                     const uint32_t base64_proto_id,
                     tables::WinscopeArgsWithDefaultsTable* table,
-                    KeyToRowMap* key_to_row)
+                    KeyToRowMap* key_to_row,
+                    const InternedData* interned_data)
       : pool_(pool),
         base64_proto_id_(base64_proto_id),
         table_(table),
-        key_to_row_(key_to_row) {}
+        key_to_row_(key_to_row),
+        interned_data_(interned_data) {}
 
   void AddInteger(const Key& key, int64_t res) override {
+    if (TryAddDeinternedString(key, static_cast<uint64_t>(res))) {
+      return;
+    }
     RowReference r = GetOrCreateRow(key);
     r.set_int_value(res);
   }
   void AddUnsignedInteger(const Key& key, uint64_t res) override {
+    if (TryAddDeinternedString(key, static_cast<uint64_t>(res))) {
+      return;
+    }
     RowReference r = GetOrCreateRow(key);
     r.set_int_value(int64_t(res));
   }
@@ -147,10 +207,41 @@ class Delegate : public util::ProtoToArgsParser::Delegate {
     return row;
   }
 
+  bool TryAddDeinternedString(const Key& key, uint64_t iid) {
+    if (!interned_data_ || !base::EndsWith(key.key, "_iid")) {
+      return false;
+    }
+    const auto deinterned_key =
+        Key{key.flat_key.substr(0, key.flat_key.size() - 4),
+            key.key.substr(0, key.key.size() - 4)};
+    const auto deinterned_value = TryDeinternString(key, iid);
+    if (!deinterned_value) {
+      AddString(deinterned_key,
+                protozero::ConstChars{kDeinternError, sizeof(kDeinternError)});
+      return false;
+    }
+    AddString(deinterned_key, *deinterned_value);
+    return true;
+  }
+
+  std::optional<std::string> TryDeinternString(const Key& key, uint64_t iid) {
+    DeinternedIids* deinterned_iids = interned_data_->Find(
+        pool_->InternString(base::StringView(key.flat_key)));
+    if (!deinterned_iids) {
+      return std::nullopt;
+    }
+    auto* deinterned_value = deinterned_iids->Find(iid);
+    if (!deinterned_value) {
+      return std::nullopt;
+    }
+    return pool_->Get(*(deinterned_value)).data();
+  }
+
   StringPool* pool_;
   const uint32_t base64_proto_id_;
   tables::WinscopeArgsWithDefaultsTable* table_;
   KeyToRowMap* key_to_row_;
+  const InternedData* interned_data_;
 };
 
 base::Status InsertRows(
@@ -160,7 +251,8 @@ base::Status InsertRows(
     const std::vector<uint32_t>* allowed_fields,
     const std::string* group_id_col_name,
     DescriptorPool& descriptor_pool,
-    StringPool* string_pool) {
+    StringPool* string_pool,
+    const ProtoToInternedData& proto_to_interned_data) {
   util::ProtoToArgsParser args_parser{descriptor_pool};
   const auto base64_proto_id_col_idx =
       static_table.ColumnIdxFromName("base64_proto_id").value();
@@ -197,8 +289,9 @@ base::Status InsertRows(
       }
     }
 
+    InternedData* interned_data = proto_to_interned_data.Find(base64_proto_id);
     Delegate delegate(string_pool, base64_proto_id, inflated_args_table,
-                      key_to_row);
+                      key_to_row, interned_data);
     RETURN_IF_ERROR(args_parser.ParseMessage(cb, proto_name, allowed_fields,
                                              delegate, nullptr, true));
   }
@@ -238,12 +331,14 @@ WinscopeProtoToArgsWithDefaults::ComputeTable(
       util::winscope_proto_mapping::GetAllowedFields(table_name);
   auto group_id_col_name =
       util::winscope_proto_mapping::GetGroupIdColName(table_name);
+  auto proto_to_interned_data =
+      GetProtoToInternedData(table_name, context_->storage.get(), string_pool_);
 
-  RETURN_IF_ERROR(
-      InsertRows(*static_table, table.get(), proto_name,
-                 allowed_fields ? &allowed_fields.value() : nullptr,
-                 group_id_col_name ? &group_id_col_name.value() : nullptr,
-                 *context_->descriptor_pool_, string_pool_));
+  RETURN_IF_ERROR(InsertRows(
+      *static_table, table.get(), proto_name,
+      allowed_fields ? &allowed_fields.value() : nullptr,
+      group_id_col_name ? &group_id_col_name.value() : nullptr,
+      *context_->descriptor_pool_, string_pool_, proto_to_interned_data));
 
   return std::unique_ptr<Table>(std::move(table));
 }

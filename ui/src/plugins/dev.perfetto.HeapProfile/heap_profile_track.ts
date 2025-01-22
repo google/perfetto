@@ -49,15 +49,11 @@ export class HeapProfileTrack extends BaseSliceTrack<
     private readonly upid: number,
     private readonly heapProfileIsIncomplete: boolean,
   ) {
-    super(trace, uri);
+    super(trace, uri, HEAP_PROFILE_ROW);
   }
 
   getSqlSource(): string {
     return this.tableName;
-  }
-
-  getRowSpec(): HeapProfileRow {
-    return HEAP_PROFILE_ROW;
   }
 
   rowToSlice(row: HeapProfileRow): HeapProfileSlice {

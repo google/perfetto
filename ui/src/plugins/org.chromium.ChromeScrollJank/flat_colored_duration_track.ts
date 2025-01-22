@@ -41,7 +41,7 @@ export class FlatColoredDurationTrack extends NamedSliceTrack<Slice, NamedRow> {
     uri: string,
     private readonly table: string,
   ) {
-    super(trace, uri);
+    super(trace, uri, NAMED_ROW);
   }
 
   getSqlSource(): string {
@@ -52,10 +52,6 @@ export class FlatColoredDurationTrack extends NamedSliceTrack<Slice, NamedRow> {
       printf('%.3fms', dur / 1e6) AS name,
       0 as depth
     FROM ${this.table}`;
-  }
-
-  protected getRowSpec(): NamedRow {
-    return NAMED_ROW;
   }
 
   protected rowToSlice(row: NamedRow): Slice {

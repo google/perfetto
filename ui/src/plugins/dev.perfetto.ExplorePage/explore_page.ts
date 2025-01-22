@@ -20,9 +20,10 @@ import {SqlTableState as SqlTableViewState} from '../../components/widgets/sql/l
 import {Chart} from '../../components/widgets/charts/chart';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {DataVisualiser} from './data_visualiser';
-import {QueryBuilder} from './query_builder/query_builder';
-import {DataSourceViewer} from './query_builder/data_source_viewer';
+import {QueryBuilder} from './query_builder/builder';
 import {QueryNode} from './query_state';
+import {Button} from '../../widgets/button';
+import {Intent} from '../../widgets/common';
 
 export interface ExploreTableState {
   sqlTableViewState?: SqlTableViewState;
@@ -55,7 +56,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       '.page.explore-page',
       m(
         '.explore-page__header',
-        m('h1', 'Exploration Mode: '),
+        'Exploration Mode: ',
         m(SegmentedButtons, {
           options: [
             {label: ExplorePageModeToLabel[ExplorePageModes.QUERY_BUILDER]},
@@ -64,26 +65,25 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           selectedOption: this.selectedMode,
           onOptionSelected: (i) => (this.selectedMode = i),
         }),
+        m('span', {style: {flexGrow: 1}}),
+        m(Button, {
+          label: 'Reset',
+          intent: Intent.Primary,
+          onclick: () => {
+            attrs.state.queryNode = undefined;
+          },
+        }),
       ),
 
       this.selectedMode === ExplorePageModes.QUERY_BUILDER &&
-        m(
-          'div',
-          m(QueryBuilder, {
-            trace: attrs.trace,
-            sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
-            onQueryNodeCreated(arg) {
-              attrs.state.queryNode = arg;
-            },
-            queryNode: attrs.state.queryNode,
-          }),
-          attrs.state.queryNode?.finished &&
-            m(DataSourceViewer, {
-              trace: attrs.trace,
-              plugin: attrs.sqlModulesPlugin,
-              queryNode: attrs.state.queryNode,
-            }),
-        ),
+        m(QueryBuilder, {
+          trace: attrs.trace,
+          sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
+          onQueryNodeCreated(arg) {
+            attrs.state.queryNode = arg;
+          },
+          rootNode: attrs.state.queryNode,
+        }),
       this.selectedMode === ExplorePageModes.DATA_VISUALISER &&
         m(DataVisualiser, {
           trace,

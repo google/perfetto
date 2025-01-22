@@ -3942,10 +3942,13 @@ void FtraceParser::ParseDeviceFrequency(int64_t ts,
 void FtraceParser::ParseParamSetValueCpm(protozero::ConstBytes blob) {
   static constexpr auto kBlueprint = tracks::CounterBlueprint(
       "pixel_cpm_counters", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kNameFromTraceDimensionBlueprint));
+      tracks::DimensionBlueprints(tracks::kNameFromTraceDimensionBlueprint),
+      tracks::FnNameBlueprint([](base::StringView body) {
+        return base::StackString<255>("%.*s", int(body.size()), body.data());
+      }));
   protos::pbzero::ParamSetValueCpmFtraceEvent::Decoder event(blob);
-  TrackId track_id =
-      context_->track_tracker->InternTrack(kBlueprint, {event.body()});
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBlueprint, tracks::Dimensions(event.body()));
   context_->event_tracker->PushCounter(static_cast<int64_t>(event.timestamp()),
                                        event.value(), track_id);
 }

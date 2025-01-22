@@ -43,18 +43,18 @@ SELECT
   c.id AS callsite_id,
   s.id AS symbol_id,
   IIF(
-    s.id IS f.min_symbol_id,
+    s.id IS f.max_symbol_id,
     c.parent_id,
     c.id
   ) AS parent_callsite_id,
   IIF(
-    s.id IS f.min_symbol_id,
-    pf.max_symbol_id,
-    s.id - 1
+    s.id IS f.max_symbol_id,
+    pf.min_symbol_id,
+    s.id + 1
   ) AS parent_symbol_id,
   f.id AS frame_id,
   jf.jit_code_id AS jit_code_id,
-  s.id IS f.max_symbol_id AS is_leaf
+  s.id IS f.min_symbol_id AS is_leaf
 FROM stack_profile_callsite c
 JOIN _callstack_spf_summary f ON c.frame_id = f.id
 LEFT JOIN __intrinsic_jit_frame jf ON jf.frame_id = f.id
@@ -115,7 +115,8 @@ AS
     f.name,
     m.name AS mapping_name,
     f.source_file,
-    f.line_number
+    f.line_number,
+    f.is_leaf_function_in_callsite_frame
   FROM _tree_reachable_ancestors_or_self!(
     _callstack_spc_forest,
     (
@@ -149,7 +150,11 @@ AS
     c.mapping_name,
     c.source_file,
     c.line_number,
-    IFNULL(m.self_count, 0) AS self_count
+    IIF(
+      c.is_leaf_function_in_callsite_frame,
+      IFNULL(m.self_count, 0),
+      0
+    ) AS self_count
   FROM _callstacks_for_stack_profile_samples!(metrics) c
   LEFT JOIN metrics m USING (callsite_id)
 );

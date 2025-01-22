@@ -20,6 +20,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
@@ -48,7 +49,8 @@ WinscopeModule::WinscopeModule(TraceProcessorContext* context)
       surfaceflinger_transactions_parser_(context),
       shell_transitions_parser_(context),
       protolog_parser_(context),
-      android_input_event_parser_(context) {
+      android_input_event_parser_(context),
+      viewcapture_parser_(context) {
   context->descriptor_pool_->AddFromFileDescriptorSet(
       kWinscopeDescriptor.data(), kWinscopeDescriptor.size());
   RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber,
@@ -129,8 +131,8 @@ void WinscopeModule::ParseWinscopeExtensionsData(protozero::ConstBytes blob,
   } else if (field =
                  decoder.Get(WinscopeExtensionsImpl::kViewcaptureFieldNumber);
              field.valid()) {
-    ParseViewCaptureData(timestamp, field.as_bytes(),
-                         data.sequence_state.get());
+    viewcapture_parser_.Parse(timestamp, field.as_bytes(),
+                              data.sequence_state.get());
   } else if (field = decoder.Get(
                  WinscopeExtensionsImpl::kAndroidInputEventFieldNumber);
              field.valid()) {
@@ -217,32 +219,6 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
   if (!status.ok()) {
     context_->storage->IncrementStats(
         stats::winscope_inputmethod_service_parse_errors);
-  }
-}
-
-void WinscopeModule::ParseViewCaptureData(
-    int64_t timestamp,
-    protozero::ConstBytes blob,
-    PacketSequenceStateGeneration* sequence_state) {
-  tables::ViewCaptureTable::Row row;
-  row.ts = timestamp;
-  row.base64_proto_id = context_->storage->mutable_string_pool()
-                            ->InternString(base::StringView(
-                                base::Base64Encode(blob.data, blob.size)))
-                            .raw_id();
-  auto rowId = context_->storage->mutable_viewcapture_table()->Insert(row).id;
-
-  ArgsTracker tracker(context_);
-  auto inserter = tracker.AddArgsTo(rowId);
-  ViewCaptureArgsParser writer(timestamp, inserter, *context_->storage,
-                               sequence_state);
-  base::Status status =
-      args_parser_.ParseMessage(blob,
-                                *util::winscope_proto_mapping::GetProtoName(
-                                    tables::ViewCaptureTable::Name()),
-                                nullptr /* parse all fields */, writer);
-  if (!status.ok()) {
-    context_->storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
   }
 }
 
