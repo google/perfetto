@@ -29,6 +29,7 @@ import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
+import {exists} from '../../base/utils';
 
 /*
   This is a custom track which displays the intervals between uniform events
@@ -82,10 +83,11 @@ export class FlatColoredDurationTrack extends NamedSliceTrack<Slice, NamedRow> {
               left: 'Timestamp',
               right: m(Timestamp, {ts: sel.ts}),
             }),
-            m(TreeNode, {
-              left: 'Duration',
-              right: m(DurationWidget, {dur: sel.dur}),
-            }),
+            exists(sel.dur) &&
+              m(TreeNode, {
+                left: 'Duration',
+                right: m(DurationWidget, {dur: sel.dur}),
+              }),
             // TODO: Consider adding a link to the original event.
           ),
         );

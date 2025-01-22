@@ -12,76 +12,199 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {generateSqlWithInternalLayout} from '../sql_utils/layout';
-import {NAMED_ROW, NamedRow, NamedSliceTrack} from './named_slice_track';
-import {createView} from '../../trace_processor/sql_utils';
-import {Slice} from '../../public/track';
-import {sqlNameSafe} from '../../base/string_utils';
+import m from 'mithril';
+import {ColorScheme} from '../../base/color_scheme';
+import {
+  assertIsInstance,
+  assertTrue,
+  assertUnreachable,
+} from '../../base/logging';
+import {Time} from '../../base/time';
+import {TraceImpl} from '../../core/trace_impl';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
+import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
+import {Slice} from '../../public/track';
 import {
   Dataset,
   DatasetSchema,
-  filterToQuery,
   SourceDataset,
 } from '../../trace_processor/dataset';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {assertTrue} from '../../base/logging';
-import {ColorScheme} from '../../base/color_scheme';
-import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Time} from '../../base/time';
-
-/**
- * This track implementation is defined using a dataset, with optional automatic
- * layout functionality.
- *
- * At the bare minimum, the following columns must be available in the dataset:
- *
- * - id: NUM
- * - ts: LONG
- * - dur: LONG
- * - name: STR
- *
- * If a `depth: NUM` column is provided, this shall be used to show the depth of
- * the slice, otherwise the slices shall be arranged automatically to avoid
- * overlapping slices.
- */
+import {ColumnType, LONG, NUM} from '../../trace_processor/query_result';
+import {getColorForSlice} from '../colorizer';
+import {ThreadSliceDetailsPanel} from '../details/thread_slice_details_tab';
+import {generateSqlWithInternalLayout} from '../sql_utils/layout';
+import {formatDuration} from '../time_utils';
+import {
+  BASE_ROW,
+  BaseRow,
+  BaseSliceTrack,
+  OnSliceOverArgs,
+  SLICE_FLAGS_INCOMPLETE,
+  SLICE_FLAGS_INSTANT,
+} from './base_slice_track';
+import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from './slice_layout';
 
 export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
+  /**
+   * The trace object used by the track for accessing the query engine and other
+   * trace-related resources.
+   */
   readonly trace: Trace;
+
+  /**
+   * The URI of this track, which must match the URI specified in the track
+   * descriptor.
+   *
+   * TODO(stevegolton): Merge `TrackDescriptor` and `Track` into one entity to
+   * avoid duplication.
+   */
   readonly uri: string;
+
+  /**
+   * The source dataset defining the content of this track.
+   *
+   * A source dataset consists of a SQL select statement or table name with a
+   * column schema and optional filtering information. It represents a set of
+   * instructions to extract slice-like rows from trace processor that
+   * represents the content of this track, which avoids the need to materialize
+   * all slices into JavaScript beforehand. This approach minimizes memory usage
+   * and improves performance by only materializing the necessary rows on
+   * demand.
+   *
+   * Required columns:
+   * - `id` (NUM): Unique identifier for slices in the track.
+   * - `ts` (LONG): Timestamp of each event (in nanoseconds). Serves as the
+   *   start time for slices with a `dur` column or the instant time otherwise.
+   *
+   * Optional columns:
+   * - `dur` (LONG): Duration of each event (in nanoseconds). Without this
+   *   column, all slices are treated as instant events and rendered as
+   *   chevrons. With this column, each slice is rendered as a box where the
+   *   width corresponds to the duration of the slice.
+   * - `depth` (NUM): Depth of each event, used for vertical arrangement. Higher
+   *   depth values are rendered lower down on the track.
+   */
   readonly dataset: SourceDataset<T>;
 
-  // Optional: Define a function which can override the color scheme for each
-  // slice in the dataset. If omitted, the default slice colour scheme will be
-  // used instead.
+  /**
+   * An optional initial estimate for the maximum depth value. Helps minimize
+   * flickering while scrolling by stabilizing the track height before all
+   * slices are loaded. Even without this value, the height of the track still
+   * adjusts dynamically as slices are loaded to accommodate the highest depth
+   * value.
+   */
+  readonly initialMaxDepth?: number;
+
+  /**
+   * An optional root table name for the track's data source.
+   *
+   * This typically represents a well-known table name and serves as the root
+   * `id` namespace for the track. It is primarily used for resolving events
+   * with a combination of table name and `id`.
+   *
+   * TODO(stevegolton): Consider moving this to dataset.
+   */
+  readonly rootTableName?: string;
+
+  /**
+   * Configures how depth is calculated. Defaults to {@link DepthSource.Auto}.
+   */
+  readonly depthSource?: DepthSource;
+
+  /**
+   * An optional function to override the color scheme for each event.
+   * If omitted, the default slice color scheme is used.
+   */
   colorizer?(row: T): ColorScheme;
 
-  // Optional: A callback used to customize the details panel displayed when an
-  // event on this track is selected. The callback function is called every time
-  // an event on this track is selected.
+  /**
+   * An optional function to override the text displayed on each event. If
+   * omitted, the value in the `name` column from the dataset is used, otherwise
+   * the slice is left blank.
+   */
+  title?(row: T): string;
+
+  /**
+   * An optional function to override the tooltip content for each event. If
+   * omitted, the title & slice duration will be used.
+   */
+  tooltip?(row: T): string[];
+
+  /**
+   * An optional callback to customize the details panel for events on this
+   * track. Called whenever an event is selected.
+   */
   detailsPanel?(row: T): TrackEventDetailsPanel;
+
+  /**
+   * An optional callback to define the fill ratio for slices. The fill ratio is
+   * an extra bit of information that can be rendered on each slice, where the
+   * slice essentially contains a single horizontal bar chart. The value
+   * returned can be a figure between 0.0 and 1.0 where 0 is empty and 1 is
+   * full. If omitted, all slices will be rendered with their fill ratios set to
+   * 'full'.
+   */
+  fillRatio?(row: T): number;
+
+  /**
+   * An optional function to define buttons which are displayed on the track
+   * shell. This function is called every Mithril render cycle.
+   */
+  shellButtons?(): m.Children;
 }
 
-// This is the minimum viable schema that all datasets must implement.
+export enum DepthSource {
+  /**
+   * Default behavior: Determines the best data source based on the schema of
+   * the dataset.
+   * - If the dataset has a `depth` column, {@link DepthSource.Dataset} will be
+   *   used.
+   * - If the dataset lacks a `depth` column but has a `dur` column,
+   *   {@link DepthSource.InternalLayout} is used.
+   * - If neither `depth` nor `dur` is present, {@link DepthSource.Flat} layout
+   *   is used.
+   */
+  Auto,
+
+  /**
+   * Sets the depth of all slices to 0, creating a flat layout. This may cause
+   * rendering and usability issues if slices overlap.
+   */
+  Flat,
+
+  /**
+   * Uses the `depth` value from the dataset. The column must have type `NUM`.
+   * Undefined behavior occurs if the dataset lacks a `depth` column or if the
+   * column type is not `NUM`.
+   */
+  Dataset,
+
+  /**
+   * Uses the `internal_layout()` window function to automatically arrange
+   * slices based on their `ts` and `dur` fields. This might be slower.
+   * Undefined behavior occurs if the dataset lacks a `dur` column.
+   */
+  InternalLayout,
+}
+
 const rowSchema = {
   id: NUM,
   ts: LONG,
-  dur: LONG,
-  name: STR,
 };
 
-type ROW_SCHEMA = typeof rowSchema;
+export type ROW_SCHEMA = typeof rowSchema;
 
-export class DatasetSliceTrack<T extends ROW_SCHEMA> extends NamedSliceTrack<
+export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
   Slice,
-  NamedRow & T
+  BaseRow & T
 > {
   protected readonly sqlSource: string;
-  private readonly createTableOnInit: boolean;
+  readonly rootTableName?: string;
 
   constructor(private readonly attrs: DatasetSliceTrackAttrs<T>) {
-    super(attrs.trace, attrs.uri, {...NAMED_ROW, ...attrs.dataset.schema});
+    super(attrs.trace, attrs.uri, {...BASE_ROW, ...attrs.dataset.schema});
+    const {dataset, depthSource = DepthSource.Auto} = attrs;
 
     // This is the minimum viable implementation that the source dataset must
     // implement for the track to work properly. Typescript should enforce this
@@ -89,45 +212,70 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends NamedSliceTrack<
     // Better to error out early.
     assertTrue(this.attrs.dataset.implements(rowSchema));
 
-    // If the dataset already has a depth property, don't bother doing the
-    // automatic layout.
-    if (attrs.dataset.implements({depth: NUM})) {
-      // The dataset already has a depth property, we don't need to handle the
-      // layout ourselves.
-      this.sqlSource = attrs.dataset.query();
-      this.createTableOnInit = false;
+    const sqlSource = this.getDepthSource(depthSource, dataset);
+    if (dataset.implements({dur: LONG})) {
+      this.sqlSource = sqlSource;
     } else {
-      // The dataset doesn't have a depth column, create a new table (on init)
-      // that lays out slices automatically.
-      this.createTableOnInit = true;
-      this.sqlSource = `__dataset_slice_track_${sqlNameSafe(attrs.uri)}`;
+      this.sqlSource = `select 0 as dur, * from (${sqlSource})`;
     }
-  }
+    this.rootTableName = attrs.rootTableName;
 
-  rowToSlice(row: NamedRow & T): Slice {
-    const slice = this.rowToSliceBase(row);
-    // Use the colorizer if we have been passed one.
-    return {
-      ...slice,
-      colorScheme: this.attrs.colorizer?.(row) ?? slice.colorScheme,
+    this.sliceLayout = {
+      ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
+      depthGuess: attrs.initialMaxDepth,
     };
   }
 
-  async onInit() {
-    if (!this.createTableOnInit) return undefined;
+  rowToSlice(row: BaseRow & T): Slice {
+    const slice = this.rowToSliceBase(row);
+    const title = this.getTitle(row);
+    const color = this.getColor(row, title);
 
-    const dataset = this.attrs.dataset;
-    return await createView(
-      this.engine,
-      this.sqlSource,
-      generateSqlWithInternalLayout({
-        columns: Object.keys(dataset.schema),
-        source: dataset.src,
-        ts: 'ts',
-        dur: 'dur',
-        whereClause: dataset.filter ? filterToQuery(dataset.filter) : undefined,
-      }),
-    );
+    return {
+      ...slice,
+      title,
+      colorScheme: color,
+      fillRatio: this.attrs.fillRatio?.(row) ?? slice.fillRatio,
+    };
+  }
+
+  private getDepthSource(depthSource: DepthSource, dataset: SourceDataset<T>) {
+    if (depthSource === DepthSource.Auto) {
+      if (dataset.implements({depth: NUM})) {
+        depthSource = DepthSource.Dataset;
+      } else if (dataset.implements({dur: LONG})) {
+        depthSource = DepthSource.InternalLayout;
+      } else {
+        depthSource = DepthSource.Flat;
+      }
+    }
+    switch (depthSource) {
+      case DepthSource.Dataset:
+        return dataset.query();
+      case DepthSource.Flat:
+        return `select 0 as depth, * from (${dataset.query()})`;
+      case DepthSource.InternalLayout:
+        return generateSqlWithInternalLayout({
+          columns: ['*'],
+          source: dataset.query(),
+          ts: 'ts',
+          dur: 'dur',
+        });
+      default:
+        assertUnreachable(depthSource);
+    }
+  }
+
+  private getTitle(row: T) {
+    if (this.attrs.title) return this.attrs.title(row);
+    if ('name' in row && typeof row.name === 'string') return row.name;
+    return undefined;
+  }
+
+  private getColor(row: T, title: string | undefined) {
+    if (this.attrs.colorizer) return this.attrs.colorizer(row);
+    if (title) return getColorForSlice(title);
+    return getColorForSlice(`${row.id}`);
   }
 
   getSqlSource(): string {
@@ -146,9 +294,17 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends NamedSliceTrack<
     // is safe as we know we just returned the entire row from from
     // getSelectionDetails() so we know it must at least implement the row's
     // type `T`.
-    return (
-      this.attrs.detailsPanel?.(sel as unknown as T) ?? super.detailsPanel(sel)
-    );
+
+    if (this.attrs.detailsPanel) {
+      return this.attrs.detailsPanel(sel as unknown as T);
+    } else {
+      // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
+      // TraceImpl (because of flows) but here we must take a Trace interface,
+      // because this class is exposed to plugins (which see only Trace).
+      return new ThreadSliceDetailsPanel(
+        assertIsInstance(this.trace, TraceImpl),
+      );
+    }
   }
 
   override async getSelectionDetails(
@@ -160,12 +316,51 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends NamedSliceTrack<
       FROM (${dataset.query()})
       WHERE id = ${id}
     `);
-    const row = result.maybeFirstRow(dataset.schema);
-    if (!row) return undefined;
+
+    const row = result.iter(dataset.schema);
+    if (!row.valid()) return undefined;
+
+    // Pull the fields out from the results
+    const data: {[key: string]: ColumnType} = {};
+    for (const col of result.columns()) {
+      data[col] = row.get(col);
+    }
+
     return {
-      ...row,
+      ...data,
       ts: Time.fromRaw(row.ts),
-      dur: row.dur,
     };
+  }
+
+  override onUpdatedSlices(slices: Slice[]) {
+    for (const slice of slices) {
+      slice.isHighlighted = slice === this.hoveredSlice;
+    }
+  }
+
+  getTrackShellButtons() {
+    return this.attrs.shellButtons?.();
+  }
+
+  onSliceOver(args: OnSliceOverArgs<Slice>) {
+    const {title, dur, flags} = args.slice;
+    let duration;
+    if (flags & SLICE_FLAGS_INCOMPLETE) {
+      duration = 'Incomplete';
+    } else if (flags & SLICE_FLAGS_INSTANT) {
+      duration = 'Instant';
+    } else {
+      duration = formatDuration(this.trace, dur);
+    }
+    if (title) {
+      args.tooltip = [`${title} - [${duration}]`];
+    } else {
+      args.tooltip = [`[${duration}]`];
+    }
+
+    // TODO(stevegolton): Use attrs.tooltip to implement the tooltip. Requires
+    // access to the underlying row, not just the slice....
+    //
+    // if (this.attrs.tooltip) { args.tooltip = this.attrs.tooltip(row) }
   }
 }

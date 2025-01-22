@@ -270,7 +270,7 @@ export interface Slice {
   readonly fillRatio: number;
 
   // These can be changed by the Impl.
-  title: string;
+  title?: string;
   subTitle: string;
   colorScheme: ColorScheme;
   isHighlighted: boolean;

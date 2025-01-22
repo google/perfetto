@@ -156,8 +156,12 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
   query(schema?: DatasetSchema) {
     schema = schema ?? this.schema;
     const cols = Object.keys(schema);
-    const whereClause = this.filter ? filterToQuery(this.filter) : '';
-    return `select ${cols.join(', ')} from (${this.src}) ${whereClause}`.trim();
+    const selectSql = `select ${cols.join(', ')} from (${this.src})`;
+    const filterSql = this.filterQuery();
+    if (filterSql === undefined) {
+      return selectSql;
+    }
+    return `${selectSql} where ${filterSql}`;
   }
 
   optimize() {
@@ -170,16 +174,19 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
       return name in this.schema && this.schema[name] === kind;
     });
   }
-}
 
-// Convert a 'Filter' to a where clause.
-export function filterToQuery(filter: Filter) {
-  if ('eq' in filter) {
-    return `where ${filter.col} = ${filter.eq}`;
-  } else if ('in' in filter) {
-    return `where ${filter.col} in (${filter.in.join(',')})`;
-  } else {
-    assertUnreachable(filter);
+  // Convert filter to a SQL expression (without the where clause), or undefined
+  // if we have no filter.
+  private filterQuery() {
+    if (!this.filter) return undefined;
+
+    if ('eq' in this.filter) {
+      return `${this.filter.col} = ${this.filter.eq}`;
+    } else if ('in' in this.filter) {
+      return `${this.filter.col} in (${this.filter.in.join(',')})`;
+    } else {
+      assertUnreachable(this.filter);
+    }
   }
 }
 
