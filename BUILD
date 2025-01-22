@@ -1641,6 +1641,7 @@ perfetto_cc_library(
     ],
     deps = [
         ":protos_perfetto_common_zero",
+        ":protos_perfetto_perfetto_sql_zero",
         ":protos_perfetto_trace_processor_zero",
         ":src_base_base",
     ],
@@ -4711,6 +4712,7 @@ perfetto_proto_library(
     name = "trace_processor_proto",
     deps = [
         ":protos_perfetto_common_protos",
+        ":protos_perfetto_perfetto_sql_protos",
         ":protos_perfetto_trace_processor_protos",
     ],
 )
@@ -6263,6 +6265,7 @@ perfetto_proto_library(
     ],
     deps = [
         ":protos_perfetto_common_protos",
+        ":protos_perfetto_perfetto_sql_protos",
     ],
 )
 
@@ -6271,6 +6274,7 @@ perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_processor_zero",
     deps = [
         ":protos_perfetto_common_zero",
+        ":protos_perfetto_perfetto_sql_zero",
         ":protos_perfetto_trace_processor_protos",
     ],
 )
