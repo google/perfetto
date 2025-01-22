@@ -21,14 +21,14 @@ import {
   JANKY_LATENCY_NAME,
 } from './event_latency_track';
 import {createScrollJankV3Track} from './scroll_jank_v3_track';
-import {ScrollTimelineTrack} from './scroll_timeline_track';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {createScrollTimelineModel} from './scroll_timeline_model';
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
-import {FlatColoredDurationTrack} from './flat_colored_duration_track';
+import {createFlatColoredDurationTrack} from './flat_colored_duration_track';
 import {createTopLevelScrollTrack} from './scroll_track';
+import {createScrollTimelineTrack} from './scroll_timeline_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
@@ -217,7 +217,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new ScrollTimelineTrack(ctx, model),
+      track: createScrollTimelineTrack(ctx, model),
     });
 
     const track = new TrackNode({uri, title});
@@ -256,7 +256,7 @@ export default class implements PerfettoPlugin {
     {
       // Add a track which tracks the differences between VSyncs.
       const uri = 'org.chromium.ChromeScrollJank#ChromeVsyncDelta';
-      const track = new FlatColoredDurationTrack(
+      const track = createFlatColoredDurationTrack(
         ctx,
         uri,
         `(SELECT id, ts, LEAD(ts) OVER (ORDER BY ts) - ts as dur FROM ${vsyncTable})`,
@@ -269,7 +269,7 @@ export default class implements PerfettoPlugin {
     {
       // Add a track which tracks the differences between inputs.
       const uri = 'org.chromium.ChromeScrollJank#ChromeInputDelta';
-      const track = new FlatColoredDurationTrack(
+      const track = createFlatColoredDurationTrack(
         ctx,
         uri,
         `(SELECT

@@ -19,8 +19,8 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {assertExists} from '../../base/logging';
 import {
-  ProcessInstrumentsSamplesProfileTrack,
-  ThreadInstrumentsSamplesProfileTrack,
+  createProcessInstrumentsSamplesProfileTrack,
+  createThreadInstrumentsSamplesProfileTrack,
 } from './instruments_samples_profile_track';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
@@ -56,7 +56,7 @@ export default class implements PerfettoPlugin {
           kind: INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND,
           upid,
         },
-        track: new ProcessInstrumentsSamplesProfileTrack(ctx, uri, upid),
+        track: createProcessInstrumentsSamplesProfileTrack(ctx, uri, upid),
       });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
@@ -98,7 +98,7 @@ export default class implements PerfettoPlugin {
           utid,
           upid: upid ?? undefined,
         },
-        track: new ThreadInstrumentsSamplesProfileTrack(ctx, uri, utid),
+        track: createThreadInstrumentsSamplesProfileTrack(ctx, uri, utid),
       });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)

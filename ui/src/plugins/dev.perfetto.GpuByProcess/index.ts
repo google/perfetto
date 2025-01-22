@@ -12,38 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
-import {Slice} from '../../public/track';
-import {PerfettoPlugin} from '../../public/plugin';
 import {
-  NAMED_ROW,
-  NamedRow,
-  NamedSliceTrack,
-} from '../../components/tracks/named_slice_track';
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-class GpuPidTrack extends NamedSliceTrack {
-  constructor(
-    trace: Trace,
-    uri: string,
-    protected readonly upid: number,
-  ) {
-    super(trace, uri, NAMED_ROW);
-    this.upid = upid;
-  }
-
-  protected rowToSlice(row: NamedRow): Slice {
-    return this.rowToSliceBase(row);
-  }
-
-  getSqlSource(): string {
-    return `
-      SELECT *
-      FROM gpu_slice
-      WHERE upid = ${this.upid}
-    `;
-  }
-}
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SourceDataset} from '../../trace_processor/dataset';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.GpuByProcess';
@@ -81,7 +61,25 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
-        track: new GpuPidTrack(ctx, uri, upid),
+        track: new DatasetSliceTrack({
+          trace: ctx,
+          uri,
+          dataset: new SourceDataset({
+            src: 'gpu_slice',
+            schema: {
+              id: NUM,
+              name: STR,
+              ts: LONG,
+              dur: LONG,
+              depth: NUM,
+              upid: NUM,
+            },
+            filter: {
+              col: 'upid',
+              eq: upid,
+            },
+          }),
+        }),
       });
       const track = new TrackNode({uri, title});
       ctx.workspace.addChildInOrder(track);

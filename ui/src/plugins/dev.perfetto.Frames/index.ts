@@ -16,8 +16,8 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR} from '../../trace_processor/query_result';
-import {ActualFramesTrack} from './actual_frames_track';
-import {ExpectedFramesTrack} from './expected_frames_track';
+import {createActualFramesTrack} from './actual_frames_track';
+import {createExpectedFramesTrack} from './expected_frames_track';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   FrameSelectionAggregator,
@@ -116,7 +116,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
-        track: new ExpectedFramesTrack(ctx, maxDepth, uri, trackIds),
+        track: createExpectedFramesTrack(ctx, uri, maxDepth, trackIds),
         tags: {
           trackIds,
           upid,
@@ -166,7 +166,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
-        track: new ActualFramesTrack(ctx, maxDepth, uri, trackIds),
+        track: createActualFramesTrack(ctx, uri, maxDepth, trackIds),
         tags: {
           upid,
           trackIds,
