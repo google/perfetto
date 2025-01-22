@@ -27,7 +27,7 @@ import {translateState} from '../../components/sql_utils/thread_state';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {ThreadStateDetailsPanel} from './thread_state_details_panel';
 import {Trace} from '../../public/trace';
-import {Dataset, SourceDataset} from '../../trace_processor/dataset';
+import {SourceDataset} from '../../trace_processor/dataset';
 import {Time} from '../../base/time';
 
 export const THREAD_STATE_ROW = {
@@ -40,6 +40,7 @@ export type ThreadStateRow = typeof THREAD_STATE_ROW;
 
 export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
   protected sliceLayout: SliceLayout = {...SLICE_LAYOUT_FLAT_DEFAULTS};
+  readonly rootTableName = 'thread_state';
 
   constructor(
     trace: Trace,
@@ -67,14 +68,14 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
     `;
   }
 
-  getDataset(): Dataset | undefined {
+  getDataset(): SourceDataset {
     return new SourceDataset({
       src: 'thread_state',
       schema: {
         id: NUM,
         ts: LONG,
         dur: LONG,
-        cpu: NUM,
+        cpu: NUM_NULL,
         state: STR,
         io_wait: NUM_NULL,
         utid: NUM,

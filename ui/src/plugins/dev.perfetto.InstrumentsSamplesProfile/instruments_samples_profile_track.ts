@@ -59,7 +59,7 @@ export function createProcessInstrumentsSamplesProfileTrack(
         eq: upid,
       },
     }),
-    title: () => 'Instruments Sample',
+    sliceName: () => 'Instruments Sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
       const metrics = metricsFromTableOrSubquery(
@@ -147,7 +147,7 @@ export function createThreadInstrumentsSamplesProfileTrack(
         eq: utid,
       },
     }),
-    title: () => 'Instruments Sample',
+    sliceName: () => 'Instruments Sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
       const metrics = metricsFromTableOrSubquery(

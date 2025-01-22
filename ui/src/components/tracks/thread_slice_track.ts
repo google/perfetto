@@ -48,7 +48,8 @@ export function createThreadSliceTrack(
           dur,
           depth,
           ifnull(name, '') as name,
-          thread_dur as threadDur
+          thread_dur as threadDur,
+          track_id
         FROM ${tableName}
       `,
       filter: {
