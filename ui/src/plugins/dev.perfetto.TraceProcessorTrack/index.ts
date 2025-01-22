@@ -38,35 +38,6 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addCounters(ctx);
     await this.addSlices(ctx);
-
-    ctx.selection.registerSqlSelectionResolver({
-      sqlTableName: 'slice',
-      callback: async (id: number) => {
-        const compatibleTypes = SLICE_TRACK_SCHEMAS.map(
-          (schema) => `'${schema.type}'`,
-        ).join(',');
-
-        // Locate the track for a given id in the slice table
-        const result = await ctx.engine.query(`
-          select
-            slice.track_id as trackId
-          from slice
-          join track on slice.track_id = track.id
-          where slice.id = ${id} and track.type in (${compatibleTypes})
-        `);
-
-        if (result.numRows() === 0) {
-          return undefined;
-        }
-        const {trackId} = result.firstRow({
-          trackId: NUM,
-        });
-        return {
-          trackUri: `/slice_${trackId}`,
-          eventId: id,
-        };
-      },
-    });
   }
 
   private async addCounters(ctx: Trace) {

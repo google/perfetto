@@ -59,7 +59,7 @@ export function createProcessPerfSamplesProfileTrack(
         eq: upid,
       },
     }),
-    title: () => 'Perf Sample',
+    sliceName: () => 'Perf Sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
       const metrics = metricsFromTableOrSubquery(
@@ -147,7 +147,7 @@ export function createThreadPerfSamplesProfileTrack(
         eq: utid,
       },
     }),
-    title: () => 'Perf Sample',
+    sliceName: () => 'Perf Sample',
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
       const metrics = metricsFromTableOrSubquery(
