@@ -15,12 +15,21 @@
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {
+  DatasetSliceTrack,
+  DatasetSliceTrackAttrs,
+  DepthSource,
+  ROW_SCHEMA,
+} from '../../components/tracks/dataset_slice_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {getColorForSlice} from '../../components/colorizer';
+import {getColorForSlice, makeColorScheme} from '../../components/colorizer';
+import {HSLColor} from '../../base/color';
 
 export default class implements PerfettoPlugin {
+  // TODO(stevegolton): Call this plugins ExampleTracks or something, as it has
+  // turned into more of a generic plugin showcasing what you can do with
+  // tracks.
   static readonly id = 'com.example.ExampleNestedTracks';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const traceStartTime = ctx.traceInfo.start;
@@ -70,6 +79,66 @@ export default class implements PerfettoPlugin {
     });
 
     this.addNestedTracks(ctx, uri);
+
+    // The following are some examples of dataset tracks with different configurations.
+    this.addTrack(ctx, {
+      trace: ctx,
+      uri: 'Red track',
+      dataset: new SourceDataset({
+        src: 'example_events',
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+      }),
+      colorizer: () => makeColorScheme(new HSLColor({h: 0, s: 50, l: 50})),
+    });
+
+    this.addTrack(ctx, {
+      trace: ctx,
+      uri: 'Instants',
+      dataset: new SourceDataset({
+        src: 'example_events',
+        schema: {
+          id: NUM,
+          ts: LONG,
+        },
+      }),
+      colorizer: () => makeColorScheme(new HSLColor({h: 90, s: 50, l: 50})),
+    });
+
+    this.addTrack(ctx, {
+      trace: ctx,
+      uri: 'Flat',
+      dataset: new SourceDataset({
+        src: 'example_events',
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+      }),
+      depthSource: DepthSource.Flat,
+      colorizer: () => makeColorScheme(new HSLColor({h: 180, s: 50, l: 50})),
+    });
+  }
+
+  private addTrack<T extends ROW_SCHEMA>(
+    ctx: Trace,
+    attrs: DatasetSliceTrackAttrs<T>,
+  ) {
+    const title = attrs.uri;
+    const uri = attrs.uri;
+    const track = new DatasetSliceTrack(attrs);
+    ctx.tracks.registerTrack({
+      uri,
+      title,
+      track,
+    });
+    ctx.workspace.addChildInOrder(new TrackNode({title, uri, sortOrder: -100}));
   }
 
   private addNestedTracks(ctx: Trace, uri: string): void {
