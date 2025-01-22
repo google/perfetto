@@ -15,15 +15,10 @@
 import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
 import {ColorScheme} from '../../base/color_scheme';
-import {
-  NAMED_ROW,
-  NamedSliceTrack,
-} from '../../components/tracks/named_slice_track';
-import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../components/tracks/slice_layout';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
-import {Slice} from '../../public/track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -41,75 +36,37 @@ const LIGHT_GREEN_100 = makeColorScheme(new HSLColor('#DCEDC8'));
 const PINK_500 = makeColorScheme(new HSLColor('#F515E0'));
 const PINK_200 = makeColorScheme(new HSLColor('#F48FB1'));
 
-export const ACTUAL_FRAME_ROW = {
-  // Base columns (tsq, ts, dur, id, depth).
-  ...NAMED_ROW,
-
-  // Jank-specific columns.
-  jankTag: STR_NULL,
-  jankSeverityType: STR_NULL,
-};
-export type ActualFrameRow = typeof ACTUAL_FRAME_ROW;
-
-export class ActualFramesTrack extends NamedSliceTrack<Slice, ActualFrameRow> {
-  readonly rootTableName = 'slice';
-
-  constructor(
-    trace: Trace,
-    maxDepth: number,
-    uri: string,
-    private trackIds: number[],
-  ) {
-    super(trace, uri, ACTUAL_FRAME_ROW);
-    this.sliceLayout = {
-      ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
-      depthGuess: maxDepth,
-    };
-  }
-
-  getSqlSource(): string {
-    return `
-      SELECT
-        s.ts as ts,
-        s.dur as dur,
-        s.layout_depth as depth,
-        s.name as name,
-        s.id as id,
-        afs.jank_tag as jankTag,
-        afs.jank_severity_type as jankSeverityType
-      from experimental_slice_layout s
-      join actual_frame_timeline_slice afs using(id)
-      where
-        filter_track_ids = '${this.trackIds.join(',')}'
-    `;
-  }
-
-  rowToSlice(row: ActualFrameRow): Slice {
-    const baseSlice = this.rowToSliceBase(row);
-    return {
-      ...baseSlice,
-      colorScheme: getColorSchemeForJank(row.jankTag, row.jankSeverityType),
-    };
-  }
-
-  override getDataset() {
-    return new SourceDataset({
+export function createActualFramesTrack(
+  trace: Trace,
+  uri: string,
+  maxDepth: number,
+  trackIds: ReadonlyArray<number>,
+) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: new SourceDataset({
       src: 'actual_frame_timeline_slice',
       schema: {
         id: NUM,
-        // Don't expose name to avoid this track getting selected by the generic
-        // slice aggregator, which is useless for frames tracks.
-        // name: STR,
+        name: STR,
         ts: LONG,
         dur: LONG,
         jank_type: STR,
+        jank_tag: STR_NULL,
+        jank_severity_type: STR_NULL,
       },
       filter: {
         col: 'track_id',
-        in: this.trackIds,
+        in: trackIds,
       },
-    });
-  }
+    }),
+    colorizer: (row) => {
+      return getColorSchemeForJank(row.jank_tag, row.jank_severity_type);
+    },
+    initialMaxDepth: maxDepth,
+    rootTableName: 'slice',
+  });
 }
 
 function getColorSchemeForJank(
