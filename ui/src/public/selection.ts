@@ -154,8 +154,11 @@ export interface TrackSelection {
 export interface TrackEventDetails {
   // ts and dur are required by the core, and must be provided.
   readonly ts: time;
-  // Note: dur can be -1 for instant events.
-  readonly dur: duration;
+
+  // Note: dur can be 0 for instant events or -1 for DNF slices. Will be
+  // undefined if this selection has no duration, i.e. profile / counter
+  // samples.
+  readonly dur?: duration;
 
   // Optional additional information.
   // TODO(stevegolton): Find an elegant way of moving this information out of
