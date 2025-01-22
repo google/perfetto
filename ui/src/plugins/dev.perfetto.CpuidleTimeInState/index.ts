@@ -17,9 +17,12 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {CounterOptions} from '../../components/tracks/base_counter_track';
 import {TrackNode} from '../../public/workspace';
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuidleTimeInState';
+  static readonly dependencies = [StandardGroupsPlugin];
+
   private async addCounterTrack(
     ctx: Trace,
     name: string,
@@ -74,7 +77,11 @@ export default class implements PerfettoPlugin {
       );
     }
     if (group.hasChildren) {
-      ctx.workspace.addChildInOrder(group);
+      const cpu_group = ctx.plugins
+      .getPlugin(StandardGroupsPlugin)
+      .getOrCreateStandardGroup(ctx.workspace, 'CPU');
+
+      cpu_group.addChildInOrder(group);
     }
   }
 }
