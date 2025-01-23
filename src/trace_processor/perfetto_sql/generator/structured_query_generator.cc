@@ -428,12 +428,16 @@ base::StatusOr<std::string> GeneratorImpl::SelectColumnsNoAggregates(
   }
   std::string sql;
   for (auto it = select_columns; it; ++it) {
-    StructuredQuery::SelectColumn::Decoder alias(*it);
+    StructuredQuery::SelectColumn::Decoder column(*it);
     if (!sql.empty()) {
       sql += ", ";
     }
-    sql += alias.column_name().ToStdString() + " AS " +
-           alias.alias().ToStdString();
+    if (column.has_alias()) {
+      sql += column.column_name().ToStdString() + " AS " +
+             column.alias().ToStdString();
+    } else {
+      sql += column.column_name().ToStdString();
+    }
   }
   return sql;
 }

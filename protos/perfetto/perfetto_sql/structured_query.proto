@@ -268,7 +268,8 @@ message PerfettoSqlStructuredQuery {
     // The existing name of the column from the source. Required.
     optional string column_name = 1;
 
-    // The new name of the column. Required.
+    // The new name of the column. If not set, the name of the column is
+    // `column_name`. Optional.
     optional string alias = 2;
   }
   repeated SelectColumn select_columns = 10;
