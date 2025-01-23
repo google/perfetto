@@ -53,7 +53,13 @@ constexpr char kTsColumnName[] = "ts";
 constexpr char kDurColumnName[] = "dur";
 
 bool IsRequiredColumn(const std::string& name) {
-  return name == kTsColumnName || name == kDurColumnName;
+  return name == kTsColumnName;
+}
+
+bool IsSpecialColumn(const std::string& name,
+                     const std::optional<std::string>& partition_col) {
+  return name == kTsColumnName || name == kDurColumnName ||
+         name == partition_col;
 }
 
 std::optional<std::string> HasDuplicateColumns(
@@ -62,7 +68,7 @@ std::optional<std::string> HasDuplicateColumns(
     const std::optional<std::string>& partition_col) {
   std::unordered_set<std::string> seen_names;
   for (const auto& col : t1) {
-    if (IsRequiredColumn(col.second) || col.second == partition_col) {
+    if (IsSpecialColumn(col.second, partition_col)) {
       continue;
     }
     if (seen_names.count(col.second) > 0) {
@@ -71,7 +77,7 @@ std::optional<std::string> HasDuplicateColumns(
     seen_names.insert(col.second);
   }
   for (const auto& col : t2) {
-    if (IsRequiredColumn(col.second) || col.second == partition_col) {
+    if (IsSpecialColumn(col.second, partition_col)) {
       continue;
     }
     if (seen_names.count(col.second) > 0) {
@@ -220,7 +226,7 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
 
   uint32_t required_columns_found = 0;
   uint32_t ts_idx = std::numeric_limits<uint32_t>::max();
-  uint32_t dur_idx = std::numeric_limits<uint32_t>::max();
+  std::optional<uint32_t> dur_idx;
   uint32_t partition_idx = std::numeric_limits<uint32_t>::max();
   for (uint32_t i = 0; i < cols.size(); i++) {
     auto col = cols[i];
@@ -244,10 +250,9 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
       partition_idx = i;
     }
   }
-  if (required_columns_found != 2) {
-    return base::ErrStatus(
-        "SPAN_JOIN: Missing one of columns {ts, dur} in table %s",
-        desc.name.c_str());
+  if (required_columns_found != 1) {
+    return base::ErrStatus("SPAN_JOIN: Missing ts column in table %s",
+                           desc.name.c_str());
   }
   if (desc.IsPartitioned() && partition_idx >= cols.size()) {
     return base::ErrStatus(
@@ -256,7 +261,6 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
   }
 
   PERFETTO_DCHECK(ts_idx < cols.size());
-  PERFETTO_DCHECK(dur_idx < cols.size());
 
   *defn = TableDefinition(desc.name, desc.partition_col, std::move(cols),
                           emit_shadow_type, ts_idx, dur_idx, partition_idx);
@@ -267,7 +271,7 @@ std::string
 SpanJoinOperatorModule::TableDefinition::CreateVtabCreateTableSection() const {
   std::string cols;
   for (const auto& col : columns()) {
-    if (IsRequiredColumn(col.second) || col.second == partition_col()) {
+    if (IsSpecialColumn(col.second, partition_col())) {
       continue;
     }
     if (col.first == SqlValue::Type::kNull) {
@@ -521,7 +525,7 @@ SpanJoinOperatorModule::TableDefinition::TableDefinition(
     std::vector<std::pair<SqlValue::Type, std::string>> cols,
     EmitShadowType emit_shadow_type,
     uint32_t ts_idx,
-    uint32_t dur_idx,
+    std::optional<uint32_t> dur_idx,
     uint32_t partition_idx)
     : emit_shadow_type_(emit_shadow_type),
       name_(std::move(name)),
@@ -680,6 +684,16 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
                                    &state->t2_defn);
   if (!status.ok()) {
     *pzErr = sqlite3_mprintf("%s", status.c_message());
+    return SQLITE_ERROR;
+  }
+
+  if (!state->t1_defn.dur_idx().has_value() &&
+      !state->t2_defn.dur_idx().has_value()) {
+    *pzErr = sqlite3_mprintf(
+        "SPAN_JOIN: column %s must be present in at least one of tables %s and "
+        "%s",
+        kDurColumnName, state->t1_defn.name().c_str(),
+        state->t2_defn.name().c_str());
     return SQLITE_ERROR;
   }
 
