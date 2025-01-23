@@ -87,6 +87,10 @@ export interface Engine {
   enableMetatrace(categories?: protos.MetatraceCategories): void;
   stopAndGetMetatrace(): Promise<protos.DisableAndReadMetatraceResult>;
 
+  analyzeStructuredQuery(
+    structuredQueries: protos.PerfettoSqlStructuredQuery[],
+  ): Promise<protos.AnalyzeStructuredQueryResult>;
+
   getProxy(tag: string): EngineProxy;
   readonly numRequestsPending: number;
   readonly failed: string | undefined;
@@ -117,6 +121,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<protos.DisableAndReadMetatraceResult>;
   private pendingRegisterSqlPackage?: Deferred<void>;
+  private pendingAnalyzeStructuredQueries?: Deferred<protos.AnalyzeStructuredQueryResult>;
   private _isMetatracingEnabled = false;
   private _numRequestsPending = 0;
   private _failed: string | undefined = undefined;
@@ -272,6 +277,14 @@ export abstract class EngineBase implements Engine, Disposable {
         } else {
           res.resolve();
         }
+        break;
+      case TPM.TPM_ANALYZE_STRUCTURED_QUERY:
+        const analyzeRes = assertExists(
+          rpc.analyzeStructuredQueryResult,
+        ) as {} as protos.AnalyzeStructuredQueryResult;
+        const x = assertExists(this.pendingAnalyzeStructuredQueries);
+        x.resolve(analyzeRes);
+        this.pendingAnalyzeStructuredQueries = undefined;
         break;
       default:
         console.log(
@@ -481,7 +494,7 @@ export abstract class EngineBase implements Engine, Disposable {
     modules: {name: string; sql: string}[];
   }): Promise<void> {
     if (this.pendingRegisterSqlPackage) {
-      return Promise.reject(new Error('Already finalising a metatrace'));
+      return Promise.reject(new Error('Already registering SQL package'));
     }
 
     const result = defer<void>();
@@ -494,6 +507,23 @@ export abstract class EngineBase implements Engine, Disposable {
     args.modules = pkg.modules;
     args.allowOverride = true;
     this.pendingRegisterSqlPackage = result;
+    this.rpcSendRequest(rpc);
+    return result;
+  }
+
+  analyzeStructuredQuery(
+    structuredQueries: protos.PerfettoSqlStructuredQuery[],
+  ): Promise<protos.AnalyzeStructuredQueryResult> {
+    if (this.pendingAnalyzeStructuredQueries) {
+      return Promise.reject(new Error('Already analyzing structured queries'));
+    }
+    const result = defer<protos.AnalyzeStructuredQueryResult>();
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_ANALYZE_STRUCTURED_QUERY;
+    const args = (rpc.analyzeStructuredQueryArgs =
+      new protos.AnalyzeStructuredQueryArgs());
+    args.queries = structuredQueries;
+    this.pendingAnalyzeStructuredQueries = result;
     this.rpcSendRequest(rpc);
     return result;
   }
@@ -579,6 +609,12 @@ export class EngineProxy implements Engine, Disposable {
 
   stopAndGetMetatrace(): Promise<protos.DisableAndReadMetatraceResult> {
     return this.engine.stopAndGetMetatrace();
+  }
+
+  analyzeStructuredQuery(
+    structuredQueries: protos.PerfettoSqlStructuredQuery[],
+  ): Promise<protos.AnalyzeStructuredQueryResult> {
+    return this.engine.analyzeStructuredQuery(structuredQueries);
   }
 
   get engineId(): string {

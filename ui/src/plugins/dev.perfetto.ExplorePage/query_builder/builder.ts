@@ -25,6 +25,8 @@ import {showModal} from '../../../widgets/modal';
 import {DataSourceViewer} from './data_source_viewer';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {getLastFinishedNode} from '../query_state';
+import protos from '../../../protos';
+import {AsyncLimiter} from '../../../base/async_limiter';
 
 export interface QueryBuilderTable {
   name: string;
@@ -40,8 +42,18 @@ export interface QueryBuilderAttrs extends PageWithTraceAttrs {
 }
 
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
+  private readonly analyzeSQAsyncLimiter = new AsyncLimiter();
+  private analyzedSq?: protos.AnalyzeStructuredQueryResult;
+
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
     const trace = attrs.trace;
+    const sq = new protos.PerfettoSqlStructuredQuery();
+
+    if (this.analyzedSq === undefined) {
+      this.analyzeSQAsyncLimiter.schedule(async () => {
+        this.analyzedSq = await trace.engine.analyzeStructuredQuery([sq]);
+      });
+    }
 
     // Create starting node.
     function chooseSourceButton(): m.Child {
