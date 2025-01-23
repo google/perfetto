@@ -365,6 +365,10 @@ message TraceMetrics {
   optional AndroidCujBlockingCallsPerFrameMetric
       android_blocking_calls_cuj_per_frame_metric = 78;
 
+  // Android Wattson thread attribution during app startups.
+  optional AndroidWattsonTasksAttributionMetric wattson_app_startup_threads =
+      79;
+
   // Android
   // Demo extensions.
   extensions 450 to 499;
