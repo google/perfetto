@@ -50,7 +50,8 @@ class StructuredQueryGenerator {
   //
   // This query implicitly assumes that all SQL modules indicated by
   // `referenced_modules` have been included and all shared queries indicated
-  // by `referenced_shared_queries` have been created as tables or views.
+  // by `referenced_shared_queries` are available, either by tables or views or
+  // as a common table expression (CTE).
   base::StatusOr<std::string> Generate(const uint8_t* data, size_t size);
 
   // Adds a shared query to the internal state to reference in all future
