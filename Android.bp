@@ -13488,6 +13488,7 @@ genrule {
         "src/trace_processor/metrics/sql/android/sysui_update_notif_on_ui_mode_changed_metric.sql",
         "src/trace_processor/metrics/sql/android/unsymbolized_frames.sql",
         "src/trace_processor/metrics/sql/android/wattson_app_startup_rails.sql",
+        "src/trace_processor/metrics/sql/android/wattson_app_startup_threads.sql",
         "src/trace_processor/metrics/sql/android/wattson_atrace_apps_rails.sql",
         "src/trace_processor/metrics/sql/android/wattson_markers_rails.sql",
         "src/trace_processor/metrics/sql/android/wattson_markers_threads.sql",
