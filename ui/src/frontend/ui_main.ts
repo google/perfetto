@@ -403,6 +403,30 @@ export class UiMainPerTrace implements m.ClassComponent {
           trace.workspaces.switchWorkspace(ws);
         },
       },
+      {
+        id: 'perfetto.CopyFilteredToWorkspace',
+        name: 'Copy filtered tracks to new workspace',
+        callback: () => {
+          // Copies all filtered tracks as a flat list to a new workspace. This
+          // means parents are not included.
+          const tracks = trace.workspace.flatTracks.filter((track) =>
+            track.title.toLowerCase().includes(trace.tracks.trackFilterTerm),
+          );
+
+          if (!tracks.length) {
+            window.alert('No filtered tracks to copy');
+            return;
+          }
+
+          const ws = trace.workspaces.createEmptyWorkspace('Filtered Tracks');
+          for (const track of tracks) {
+            const clone = track.clone();
+            clone.removable = true;
+            ws.addChildLast(clone);
+          }
+          trace.workspaces.switchWorkspace(ws);
+        },
+      },
     ];
 
     // Register each command with the command manager
