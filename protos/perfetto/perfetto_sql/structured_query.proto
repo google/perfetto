@@ -211,15 +211,18 @@ message PerfettoSqlStructuredQuery {
       LESS_THAN_EQUAL = 4;
       GREATER_THAN = 5;
       GREATER_THAN_EQUAL = 6;
+      IS_NULL = 8;
+      IS_NOT_NULL = 9;
 
       // Unix GLOB. Only makes sense for string columns.
       GLOB = 7;
     }
     optional Operator op = 2;
 
-    // The RHS for filtering. All values specfied here will be ORed together
-    // allowing easy IN and GLOB IN filtering. At least one of these fields
-    // must be non-empty. Only the first non-empty field will be considered.
+    // The RHS for filtering. All values specified here will be ORed together
+    // allowing easy IN and GLOB IN filtering. If operation is different than
+    // IS_NULL or IS_NOT_NULL, at least one of these fields must be non-empty.
+    // Only the first non-empty field will be considered.
     repeated string string_rhs = 3;
     repeated double double_rhs = 4;
     repeated int64 int64_rhs = 5;
