@@ -94,10 +94,8 @@ base::Status CreateSharedQueriesAndComputeMetrics(
             row->add_dimension()->set_string_value(dim.AsString());
             break;
           case SqlValue::kNull:
-            return base::ErrStatus(
-                "Received null for dimension in metric %s: this is not "
-                "supported",
-                m.key().c_str());
+            row->add_dimension()->set_null_value();
+            break;
           case SqlValue::kBytes:
             return base::ErrStatus(
                 "Received bytes for dimension in metric %s: this is not "
