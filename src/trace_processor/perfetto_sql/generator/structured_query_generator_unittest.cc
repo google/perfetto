@@ -60,6 +60,76 @@ MATCHER_P(EqualsIgnoringWhitespace, param, "") {
   return RemoveAllWhitespace(arg) == RemoveAllWhitespace(param);
 }
 
+TEST(StructuredQueryGeneratorTest, Operations) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "thread_slice_cpu_time"
+      module_name: "linux.memory.process"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: EQUAL
+      string_rhs: "bar"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: NOT_EQUAL
+      string_rhs: "bar"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: LESS_THAN
+      string_rhs: "bar"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: LESS_THAN_EQUAL
+      string_rhs: "bar"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: GREATER_THAN
+      string_rhs: "bar"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: GREATER_THAN_EQUAL
+      string_rhs: "bar"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: IS_NULL
+    }
+    filters: {
+      column_name: "thread_name"
+      op: IS_NOT_NULL
+    }
+    filters: {
+      column_name: "thread_name"
+      op: GLOB
+      string_rhs: "bar"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS
+    (
+        SELECT * FROM thread_slice_cpu_time
+        WHERE thread_name = 'bar'
+        AND thread_name != 'bar'
+        AND thread_name < 'bar'
+        AND thread_name <= 'bar'
+        AND thread_name > 'bar'
+        AND thread_name >= 'bar'
+        AND thread_name IS NULL
+        AND thread_name IS NOT NULL
+        AND thread_name GLOB 'bar'
+      ) SELECT * FROM sq_0
+    )"));
+}
+
 TEST(StructuredQueryGeneratorTest, Smoke) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
