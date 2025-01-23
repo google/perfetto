@@ -323,28 +323,34 @@ base::StatusOr<std::string> GeneratorImpl::Filters(
     }
 
     std::string column_name = filter.column_name().ToStdString();
+    auto op = static_cast<StructuredQuery::Filter::Operator>(filter.op());
+    ASSIGN_OR_RETURN(std::string op_str, OperatorToString(op));
 
-    ASSIGN_OR_RETURN(
-        std::string op,
-        OperatorToString(
-            static_cast<StructuredQuery::Filter::Operator>(filter.op())));
-    sql += column_name + " " + op + " ";
+    if (op == StructuredQuery::Filter::Operator::IS_NULL ||
+        op == StructuredQuery::Filter::Operator::IS_NOT_NULL) {
+      sql += column_name + " " + op_str;
+      continue;
+    }
+
+    sql += column_name + " " + op_str + " ";
 
     if (auto srhs = filter.string_rhs(); srhs) {
       sql += "'" + (*srhs++).ToStdString() + "'";
       for (; srhs; ++srhs) {
-        sql += " OR " + column_name + " " + op + " '" + (*srhs).ToStdString() +
-               "'";
+        sql += " OR " + column_name + " " + op_str + " '" +
+               (*srhs).ToStdString() + "'";
       }
     } else if (auto drhs = filter.double_rhs(); drhs) {
       sql += std::to_string((*drhs++));
       for (; drhs; ++drhs) {
-        sql += " OR " + column_name + " " + op + " " + std::to_string(*drhs);
+        sql +=
+            " OR " + column_name + " " + op_str + " " + std::to_string(*drhs);
       }
     } else if (auto irhs = filter.int64_rhs(); irhs) {
       sql += std::to_string(*irhs++);
       for (; irhs; ++irhs) {
-        sql += " OR " + column_name + " " + op + " " + std::to_string(*irhs);
+        sql +=
+            " OR " + column_name + " " + op_str + " " + std::to_string(*irhs);
       }
     } else {
       return base::ErrStatus("Filter must specify a right-hand side");
@@ -459,6 +465,10 @@ base::StatusOr<std::string> GeneratorImpl::OperatorToString(
       return std::string(">=");
     case StructuredQuery::Filter::GLOB:
       return std::string("GLOB");
+    case StructuredQuery::Filter::IS_NULL:
+      return std::string("IS NULL");
+    case StructuredQuery::Filter::IS_NOT_NULL:
+      return std::string("IS NOT NULL");
     case StructuredQuery::Filter::UNKNOWN:
       return base::ErrStatus("Invalid filter operator %d", op);
   }
