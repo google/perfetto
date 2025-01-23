@@ -38,7 +38,7 @@ export class ScrollHelper {
     raf.scheduleCanvasRedraw();
 
     if (time !== undefined) {
-      if (time.end === undefined) {
+      if (time.end === undefined || time.start === time.end) {
         this.timeline.panToTimestamp(time.start);
       } else if (time.viewPercentage !== undefined) {
         this.focusHorizontalRangePercentage(
