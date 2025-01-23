@@ -48,9 +48,13 @@ constexpr char kRssStatThrottledTrigger[] =
     "hist:keys=mm_id,member:bucket=size/0x80000"
     ":onchange($bucket).rss_stat_throttled(mm_id,curr,member,size)";
 
+// Kernel tracepoints |syscore_resume| and |timekeeping_freeze| are mutually
+// exclusive: for any given suspend, one event (but not both) will be emitted
+// depending on whether it is |S2RAM| vs |S2idle| codepath respectively.
 constexpr char kSuspendResumeMinimalTrigger[] =
     "hist:keys=start:size=128:onmatch(power.suspend_resume)"
-    ".trace(suspend_resume_minimal, start) if action == 'syscore_resume'";
+    ".trace(suspend_resume_minimal, start) if (action == 'syscore_resume')"
+    "||(action == 'timekeeping_freeze')";
 }  // namespace
 
 void KernelLogWrite(const char* s) {
