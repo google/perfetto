@@ -230,10 +230,12 @@ message TraceMetricV2 {
     // dimensions matches precisely the order of dimension names given by the
     // `spec`.
     message Dimension {
+      message Null {}
       oneof value_oneof {
         string string_value = 1;
         int64 int64_value = 2;
         double double_value = 3;
+        Null null_value = 4;
       }
     }
     repeated Dimension dimension = 2;
