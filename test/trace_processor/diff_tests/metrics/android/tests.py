@@ -146,10 +146,10 @@ class AndroidMetrics(TestSuite):
         out=Path('android_blocking_calls_cuj_different_ui_thread.out'))
 
   def test_android_blocking_calls_cuj_per_frame(self):
-      return DiffTestBlueprint(
-          trace=Path('android_blocking_calls_cuj_per_frame_metric.py'),
-          query=Metric('android_blocking_calls_cuj_per_frame_metric'),
-          out=Path('android_blocking_calls_cuj_per_frame_metric.out'))
+    return DiffTestBlueprint(
+        trace=Path('android_blocking_calls_cuj_per_frame_metric.py'),
+        query=Metric('android_blocking_calls_cuj_per_frame_metric'),
+        out=Path('android_blocking_calls_cuj_per_frame_metric.out'))
 
   def test_sysui_notif_shade_list_builder(self):
     return DiffTestBlueprint(
@@ -575,3 +575,9 @@ class AndroidMetrics(TestSuite):
         trace=DataPath('wattson_jank_cuj.pb'),
         query=Metric("wattson_atrace_apps_rails"),
         out=Path('wattson_atrace_apps_rails.out'))
+
+  def test_wattson_app_startup_threads_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_calculator_startup.pb'),
+        query=Metric("wattson_app_startup_threads"),
+        out=Path('wattson_app_startup_threads.out'))
