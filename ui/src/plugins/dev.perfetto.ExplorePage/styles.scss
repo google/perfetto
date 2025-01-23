@@ -22,18 +22,18 @@
     align-items: center;
   }
 
-  .chart-card {
+  .pf-chart-card {
     border-radius: $pf-border-radius;
     border: solid 1px $pf-colour-thin-border;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
 
-    .chart {
+    &__chart {
       grid-row: 2;
       grid-column: 1 / 4;
     }
 
-    button {
+    &__button {
       grid-column: 4;
       grid-row: 1;
     }
