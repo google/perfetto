@@ -38,9 +38,6 @@ import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
 import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
 import {TrackDescriptor} from '../public/track';
 
-const INSTANT_FOCUS_DURATION = 1n;
-const INCOMPLETE_SLICE_DURATION = 30_000n;
-
 interface SelectionDetailsPanel {
   isLoading: boolean;
   render(): m.Children;
@@ -376,34 +373,11 @@ export class SelectionManagerImpl implements SelectionManager {
           return undefined;
       }
     })();
-    const range = this.findFocusRangeOfSelection();
+    const range = this.findTimeRangeOfSelection();
     this.scrollHelper.scrollTo({
       time: range ? {...range} : undefined,
       track: uri ? {uri: uri, expandGroup: true} : undefined,
     });
-  }
-
-  // Finds the time range range that we should actually focus on - using dummy
-  // values for instant and incomplete slices, so we don't end up super zoomed
-  // in.
-  private findFocusRangeOfSelection(): TimeSpan | undefined {
-    const sel = this.selection;
-    if (sel.kind === 'track_event') {
-      if (sel.dur === undefined) {
-        // Selected entity has no duration, so we can't possibly return a
-        // timespan.
-        return undefined;
-        // The focus range of slices is different to that of the actual span
-      } else if (sel.dur === -1n) {
-        return TimeSpan.fromTimeAndDuration(sel.ts, INCOMPLETE_SLICE_DURATION);
-      } else if (sel.dur === 0n) {
-        return TimeSpan.fromTimeAndDuration(sel.ts, INSTANT_FOCUS_DURATION);
-      } else {
-        return TimeSpan.fromTimeAndDuration(sel.ts, sel.dur);
-      }
-    } else {
-      return this.findTimeRangeOfSelection();
-    }
   }
 
   private async selectTrackEventInternal(
@@ -477,10 +451,8 @@ export class SelectionManagerImpl implements SelectionManager {
           case 'SPAN':
             return new TimeSpan(selectedNote.start, selectedNote.end);
           case 'DEFAULT':
-            return TimeSpan.fromTimeAndDuration(
-              selectedNote.timestamp,
-              INSTANT_FOCUS_DURATION,
-            );
+            // A TimeSpan where start === end is treated as an instant event.
+            return new TimeSpan(selectedNote.timestamp, selectedNote.timestamp);
           default:
             assertUnreachable(kind);
         }
