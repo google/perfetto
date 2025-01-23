@@ -296,6 +296,9 @@ TEST_F(PerfSampleTrackerTest, FollowersTracks) {
     // Check the track exists and looks sensible.
     ASSERT_TRUE(rr.has_value());
 
+    std::string track_name =
+        context.storage->GetString(rr->name()).ToStdString();
+
     ASSERT_OK_AND_ASSIGN(auto perf_session_id,
                          GetDimension(*rr, "perf_session_id"));
     EXPECT_EQ(perf_session_id, Variadic::Integer(stream.perf_session_id.value));
@@ -304,11 +307,9 @@ TEST_F(PerfSampleTrackerTest, FollowersTracks) {
     EXPECT_EQ(cpu, Variadic::Integer(cpu_id));
 
     ASSERT_OK_AND_ASSIGN(auto is_timebase, GetArg(*rr, "is_timebase"));
-    EXPECT_EQ(is_timebase, Variadic::Boolean(true));
+    EXPECT_EQ(is_timebase, Variadic::Boolean(track_name == "leader"));
 
     // Using the config-supplied name for the track.
-    std::string track_name =
-        context.storage->GetString(rr->name()).ToStdString();
     ASSERT_EQ(track_name, track_names[i]);
   }
 }
