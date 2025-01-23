@@ -115,7 +115,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
                     std::vector<std::pair<SqlValue::Type, std::string>> cols,
                     EmitShadowType emit_shadow_type,
                     uint32_t ts_idx,
-                    uint32_t dur_idx,
+                    std::optional<uint32_t> dur_idx,
                     uint32_t partition_idx);
 
     static base::Status Create(PerfettoSqlEngine* engine,
@@ -152,7 +152,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     }
 
     uint32_t ts_idx() const { return ts_idx_; }
-    uint32_t dur_idx() const { return dur_idx_; }
+    std::optional<uint32_t> dur_idx() const { return dur_idx_; }
     uint32_t partition_idx() const { return partition_idx_; }
 
    private:
@@ -163,7 +163,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     std::vector<std::pair<SqlValue::Type, std::string>> cols_;
 
     uint32_t ts_idx_ = std::numeric_limits<uint32_t>::max();
-    uint32_t dur_idx_ = std::numeric_limits<uint32_t>::max();
+    std::optional<uint32_t> dur_idx_;
     uint32_t partition_idx_ = std::numeric_limits<uint32_t>::max();
   };
 
@@ -312,7 +312,10 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
 
     int64_t CursorDur() const {
       PERFETTO_DCHECK(!cursor_eof_);
-      auto dur_idx = static_cast<int>(defn_->dur_idx());
+      if (!defn_->dur_idx().has_value()) {
+        return 0;
+      }
+      auto dur_idx = static_cast<int>(defn_->dur_idx().value());
       return sqlite3_column_int64(stmt_->sqlite_stmt(), dur_idx);
     }
 
