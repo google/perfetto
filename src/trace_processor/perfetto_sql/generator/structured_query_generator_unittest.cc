@@ -156,5 +156,36 @@ TEST(StructuredQueryGeneratorTest, Smoke2) {
                                    "linux.memory.process", "slices.slices"));
 }
 
+TEST(StructuredQueryGeneratorTest, ColumnSelection) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    id: "table_source_thread_slice"
+    table: {
+      table_name: "thread_slice"
+      module_name: "slices.with_context"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+    }
+    select_columns: {column_name: "id"}
+    select_columns: {
+      column_name: "dur"
+      alias: "cheese"
+    }
+    select_columns: {column_name: "ts"}
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+    WITH sq_table_source_thread_slice AS
+      (SELECT
+        id,
+        dur AS cheese,
+        ts
+      FROM thread_slice)
+    SELECT * FROM sq_table_source_thread_slice
+  )"));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::perfetto_sql::generator
