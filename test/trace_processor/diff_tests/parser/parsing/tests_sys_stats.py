@@ -52,7 +52,7 @@ class ParsingSysStats(TestSuite):
         query="""
         SELECT
           ts,
-          EXTRACT_ARG(t.dimension_arg_set_id, 'cpu_idle_state') as state,
+          EXTRACT_ARG(t.dimension_arg_set_id, 'state') as state,
           value,
           EXTRACT_ARG(t.dimension_arg_set_id, 'cpu') as cpu
         FROM counter c
