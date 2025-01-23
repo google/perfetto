@@ -927,7 +927,7 @@ function displayPercentage(size: number, totalSize: number): string {
 
 function updateState(state: FlamegraphState, filter: string): FlamegraphState {
   const lwr = filter.toLowerCase();
-  const splitFilterFn = (f: string) => f.split(':', 2)[1].trim();
+  const splitFilterFn = (f: string) => f.substring(f.indexOf(':') + 1).trim();
   if (lwr.startsWith('ss:') || lwr.startsWith('show stack:')) {
     return addFilter(state, {
       kind: 'SHOW_STACK',
