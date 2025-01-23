@@ -82,6 +82,7 @@
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
+#include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.h"
@@ -647,6 +648,23 @@ base::Status TraceProcessorImpl::ComputeV2Metrics(
 
 void TraceProcessorImpl::EnableMetatrace(MetatraceConfig config) {
   metatrace::Enable(config);
+}
+
+// =================================================================
+// |                      Experimental                             |
+// =================================================================
+
+base::Status TraceProcessorImpl::AnalyzeStructuredQueries(
+    const std::vector<StructuredQueryBytes>& sqs,
+    std::vector<AnalyzedStructuredQuery>* output) {
+  perfetto_sql::generator::StructuredQueryGenerator sqg;
+  for (const auto& sq : sqs) {
+    AnalyzedStructuredQuery newAnalyzedSq;
+    ASSIGN_OR_RETURN(newAnalyzedSq.sql, sqg.Generate(sq.ptr, sq.size));
+    sqg.AddSharedQuery(sq.ptr, sq.size);
+    output->push_back(newAnalyzedSq);
+  }
+  return base::OkStatus();
 }
 
 namespace {

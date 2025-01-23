@@ -216,6 +216,14 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // loaded by trace processor shell at runtime. The message is encoded as
   // DescriptorSet, defined in perfetto/trace_processor/trace_processor.proto.
   virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
+
+  // =================================================================
+  // |                        Experimental                           |
+  // =================================================================
+
+  virtual base::Status AnalyzeStructuredQueries(
+      const std::vector<StructuredQueryBytes>& queries,
+      std::vector<AnalyzedStructuredQuery>* output) = 0;
 };
 
 }  // namespace perfetto::trace_processor
