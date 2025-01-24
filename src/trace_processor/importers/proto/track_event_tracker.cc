@@ -542,7 +542,7 @@ void TrackEventTracker::AddTrackArgs(
 bool TrackEventTracker::IsTrackHierarchyValid(uint64_t uuid) {
   // Do a basic tree walking algorithm to find if there are duplicate ids or
   // the path to the root is longer than kMaxAncestors.
-  static constexpr size_t kMaxAncestors = 10;
+  static constexpr size_t kMaxAncestors = 100;
   std::array<uint64_t, kMaxAncestors> seen;
   uint64_t current_uuid = uuid;
   for (uint32_t i = 0; i < kMaxAncestors; ++i) {
