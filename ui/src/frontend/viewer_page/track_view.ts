@@ -307,6 +307,7 @@ export class TrackView {
         this.trace.workspaces.all.map((ws) =>
           m(MenuItem, {
             label: ws.title,
+            disabled: this.trace.workspaces.currentWorkspace === ws,
             onclick: () => this.copyToWorkspace(ws),
           }),
         ),
@@ -322,6 +323,7 @@ export class TrackView {
         this.trace.workspaces.all.map((ws) =>
           m(MenuItem, {
             label: ws.title,
+            disabled: this.trace.workspaces.currentWorkspace === ws,
             onclick: async () => {
               this.copyToWorkspace(ws);
               this.trace.workspaces.switchWorkspace(ws);
