@@ -19,21 +19,6 @@
 
 #include <string>
 
-#include "perfetto/tracing/core/trace_config.h"
-#include "perfetto/tracing/tracing.h"
-#include "perfetto/tracing/track_event.h"
-
-// The set of track event categories that the example is using.
-PERFETTO_DEFINE_CATEGORIES(
-    perfetto::Category("rendering")
-        .SetDescription("Rendering and graphics events"),
-    perfetto::Category("network.debug")
-        .SetTags("debug")
-        .SetDescription("Verbose network events"),
-    perfetto::Category("audio.latency")
-        .SetTags("verbose")
-        .SetDescription("Detailed audio latency metrics"));
-
-int run_main(const std::string output_file_path);
+int run_main(const std::string& output_file_path);
 
 #endif  // SRC_JAVA_SDK_MAIN_CPP_EXAMPLE_H_

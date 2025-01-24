@@ -45,7 +45,7 @@ public class MainActivity extends Activity {
         String outputFileSize = Formatter.formatShortFileSize(this, perfettoOutput.length());
 
         String message = "Perfetto result (expected result: 0): " + perfettoResult
-                + ", output file size (expected size ~1.4kB): " + outputFileSize + ".";
+                + ", output file size (expected size ~1.3kB): " + outputFileSize + ".";
         Log.i(TAG, message);
         tv.setText(message);
     }
