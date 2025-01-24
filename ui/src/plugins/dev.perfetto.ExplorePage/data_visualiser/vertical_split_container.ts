@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DisposableStack} from '../../base/disposable_stack';
-import {DragGestureHandler} from '../../base/drag_gesture_handler';
-import {assertExists} from '../../base/logging';
+import {DisposableStack} from '../../../base/disposable_stack';
+import {DragGestureHandler} from '../../../base/drag_gesture_handler';
+import {assertExists} from '../../../base/logging';
 
 interface VerticalSplitContainerAttrs {
   leftPane: m.Children;
