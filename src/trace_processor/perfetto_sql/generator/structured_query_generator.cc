@@ -493,7 +493,8 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
     case StructuredQuery::GroupBy::Aggregate::MEDIAN:
       return "MEDIAN(" + column_name + ")";
     case StructuredQuery::GroupBy::Aggregate::DURATION_WEIGHTED_MEAN:
-      return "SUM(" + column_name + " * dur) / SUM(dur)";
+      return "SUM(cast_double!(" + column_name +
+             " * dur)) / cast_double!(SUM(dur))";
     case StructuredQuery::GroupBy::Aggregate::UNSPECIFIED:
       return base::ErrStatus("Invalid aggregate operator %d", op);
   }

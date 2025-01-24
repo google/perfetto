@@ -243,6 +243,7 @@ class TestCaseRunner:
   def __run_metrics_v2_test(
       self,
       trace_path: str,
+      keep_input: bool,
       summary_spec_message_factory,
       summary_message_factory,
   ) -> TestResult:
@@ -293,7 +294,9 @@ class TestCaseRunner:
       actual_summary.ParseFromString(stdout)
 
       os.remove(tmp_perf_file.name)
-      os.remove(tmp_spec_file.name)
+      if not keep_input:
+        os.remove(tmp_spec_file.name)
+
 
       return TestResult(
           self.test,
@@ -424,6 +427,7 @@ class TestCaseRunner:
     elif self.test.type == TestType.METRIC_V2:
       result = self.__run_metrics_v2_test(
           trace_path,
+          keep_input,
           create_message_factory([summary_descriptor_path],
                                  'perfetto.protos.TraceSummarySpec'),
           create_message_factory([summary_descriptor_path],
