@@ -108,11 +108,12 @@ perfetto_cc_library(
     srcs = [
         "src/java_sdk/main/cpp/example.cc",
         "src/java_sdk/main/cpp/example.h",
+        "src/java_sdk/main/cpp/utils.cc",
+        "src/java_sdk/main/cpp/utils.h",
     ],
     hdrs = ["src/java_sdk/main/cpp/example.h"],
     deps = [
-        ":libperfetto_client_experimental",
-        ":protos_perfetto_trace_track_event_cpp",
+        ":libperfetto_c",
     ],
 )
 
