@@ -220,16 +220,6 @@ export class NotesPanel {
             }),
           },
           m(MenuItem, {
-            icon: Icons.Delete,
-            label: 'Delete current workspace',
-            disabled:
-              workspaces.currentWorkspace === workspaces.defaultWorkspace,
-            onclick: () => {
-              workspaces.removeWorkspace(workspaces.currentWorkspace);
-              raf.scheduleFullRedraw();
-            },
-          }),
-          m(MenuItem, {
             icon: 'edit',
             label: 'Rename current workspace',
             disabled:
@@ -241,6 +231,16 @@ export class NotesPanel {
               if (newName) {
                 workspaces.currentWorkspace.title = newName;
               }
+              raf.scheduleFullRedraw();
+            },
+          }),
+          m(MenuItem, {
+            icon: Icons.Delete,
+            label: 'Delete current workspace',
+            disabled:
+              workspaces.currentWorkspace === workspaces.defaultWorkspace,
+            onclick: () => {
+              workspaces.removeWorkspace(workspaces.currentWorkspace);
               raf.scheduleFullRedraw();
             },
           }),
