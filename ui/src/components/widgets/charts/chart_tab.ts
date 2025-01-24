@@ -14,41 +14,30 @@
 
 import m from 'mithril';
 import {DetailsShell} from '../../../widgets/details_shell';
-import {filterTitle} from '../sql/legacy_table/column';
 import {addEphemeralTab} from '../../details/add_ephemeral_tab';
 import {Tab} from '../../../public/tab';
-import {Chart, renderChartComponent, toTitleCase} from './chart';
+import {ChartAttrs, renderChart, toTitleCase} from './chart';
 
-export function addChartTab(chart: Chart): void {
-  addEphemeralTab('histogramTab', new ChartTab(chart));
+export function addChartTab(chart: ChartAttrs): void {
+  addEphemeralTab(`${chart.chartType}Tab`, new ChartTab(chart));
 }
 
 export class ChartTab implements Tab {
-  constructor(private readonly chart: Chart) {}
+  constructor(private readonly chart: ChartAttrs) {}
 
   render() {
     return m(
       DetailsShell,
       {
-        title: this.getTitle(),
-        description: this.getDescription(),
+        title:
+          this.chart.title !== undefined ? this.chart.title : this.getTitle(),
+        description: this.chart.description,
       },
-      renderChartComponent(this.chart),
+      renderChart(this.chart),
     );
   }
 
   getTitle(): string {
-    return `${toTitleCase(this.chart.config.columnTitle)} Histogram`;
-  }
-
-  private getDescription(): string {
-    let desc = `Count distribution for ${this.chart.config.tableDisplay ?? ''} table`;
-
-    if (this.chart.config.filters && this.chart.config.filters.length > 0) {
-      desc += ' where ';
-      desc += this.chart.config.filters.map((f) => filterTitle(f)).join(', ');
-    }
-
-    return desc;
+    return `${toTitleCase(this.chart.columns[0])} ${toTitleCase(this.chart.chartType)}`;
   }
 }

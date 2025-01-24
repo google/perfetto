@@ -17,7 +17,7 @@ import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 import {PageWithTraceAttrs} from '../../public/page';
 import {SqlTableState as SqlTableViewState} from '../../components/widgets/sql/legacy_table/state';
-import {Chart} from '../../components/widgets/charts/chart';
+import {ChartAttrs} from '../../components/widgets/charts/chart';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {DataVisualiser} from './data_visualiser';
 import {QueryBuilder} from './query_builder/builder';
@@ -33,7 +33,7 @@ export interface ExploreTableState {
 interface ExplorePageAttrs extends PageWithTraceAttrs {
   readonly sqlModulesPlugin: SqlModulesPlugin;
   readonly state: ExploreTableState;
-  readonly charts: Set<Chart>;
+  readonly charts: Set<ChartAttrs>;
 }
 
 enum ExplorePageModes {
