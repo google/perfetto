@@ -15,26 +15,24 @@
 import m from 'mithril';
 import {MenuItem} from '../../../widgets/menu';
 import {Icons} from '../../../base/semantic_icons';
-import {Chart, ChartConfig, ChartOption, toTitleCase} from './chart';
+import {ChartAttrs, toTitleCase} from './chart';
 
 interface AddChartMenuItemAttrs {
-  readonly chartConfig: ChartConfig;
-  readonly chartOptions: Array<ChartOption>;
-  readonly addChart: (chart: Chart) => void;
+  readonly chartOptions: Array<ChartAttrs>;
+  readonly addChart: (chart: ChartAttrs) => void;
 }
 
 export class AddChartMenuItem
   implements m.ClassComponent<AddChartMenuItemAttrs>
 {
   private renderAddChartOptions(
-    config: ChartConfig,
-    chartOptions: Array<ChartOption>,
-    addChart: (chart: Chart) => void,
+    chartOptions: Array<ChartAttrs>,
+    addChart: (chartAttrs: ChartAttrs) => void,
   ): m.Children {
-    return chartOptions.map((option) => {
+    return chartOptions.map((chartAttrs) => {
       return m(MenuItem, {
-        label: toTitleCase(option),
-        onclick: () => addChart({option, config}),
+        label: toTitleCase(chartAttrs.chartType),
+        onclick: () => addChart(chartAttrs),
       });
     });
   }
@@ -43,11 +41,7 @@ export class AddChartMenuItem
     return m(
       MenuItem,
       {label: 'Add chart', icon: Icons.Chart},
-      this.renderAddChartOptions(
-        attrs.chartConfig,
-        attrs.chartOptions,
-        attrs.addChart,
-      ),
+      this.renderAddChartOptions(attrs.chartOptions, attrs.addChart),
     );
   }
 }

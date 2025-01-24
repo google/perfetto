@@ -14,10 +14,9 @@
 import m from 'mithril';
 import {SqlTableState} from '../../components/widgets/sql/legacy_table/state';
 import {
-  Chart,
-  ChartOption,
-  createChartConfigFromSqlTableState,
-  renderChartComponent,
+  ChartAttrs,
+  ChartType,
+  renderChart,
 } from '../../components/widgets/charts/chart';
 import {Trace} from '../../public/trace';
 import {Menu, MenuItem, MenuItemAttrs} from '../../widgets/menu';
@@ -42,7 +41,7 @@ export interface DataVisualiserState {
 export interface DataVisualiserAttrs {
   trace: Trace;
   readonly state: DataVisualiserState;
-  charts: Set<Chart>;
+  charts: Set<ChartAttrs>;
 }
 
 export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
@@ -91,7 +90,7 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
     });
   }
 
-  private renderSqlTable(state: DataVisualiserState, charts: Set<Chart>) {
+  private renderSqlTable(state: DataVisualiserState, charts: Set<ChartAttrs>) {
     const sqlTableViewState = state.sqlTableViewState;
 
     if (sqlTableViewState === undefined) return;
@@ -124,25 +123,35 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
       },
       m(SqlTable, {
         state: sqlTableViewState,
-        addColumnMenuItems: (column, columnAlias) =>
-          m(AddChartMenuItem, {
-            chartConfig: createChartConfigFromSqlTableState(
-              column,
-              columnAlias,
-              sqlTableViewState,
-            ),
-            chartOptions: [ChartOption.HISTOGRAM],
+        addColumnMenuItems: (_, columnAlias) => {
+          const chartAttrs = {
+            data: sqlTableViewState.nonPaginatedData?.rows,
+            columns: [columnAlias],
+          };
+
+          return m(AddChartMenuItem, {
+            chartOptions: [
+              {
+                chartType: ChartType.BAR_CHART,
+                ...chartAttrs,
+              },
+              {
+                chartType: ChartType.HISTOGRAM,
+                ...chartAttrs,
+              },
+            ],
             addChart: (chart) => charts.add(chart),
-          }),
+          });
+        },
       }),
     );
   }
 
-  private renderRemovableChart(chart: Chart, charts: Set<Chart>) {
+  private renderRemovableChart(chart: ChartAttrs, charts: Set<ChartAttrs>) {
     return m(
       '.chart-card',
       {
-        key: `${chart.option}-${chart.config.columnTitle}`,
+        key: `${chart.chartType}-${chart.columns[0]}`,
       },
       m(Button, {
         icon: Icons.Close,
@@ -150,7 +159,7 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
           charts.delete(chart);
         },
       }),
-      renderChartComponent(chart),
+      renderChart(chart),
     );
   }
 
