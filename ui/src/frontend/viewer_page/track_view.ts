@@ -345,7 +345,8 @@ export class TrackView {
     if (!ws) {
       ws = this.trace.workspaces.createEmptyWorkspace('Untitled Workspace');
     }
-    const newNode = this.node.clone();
+    // Deep clone makes sure all group's content is also copied
+    const newNode = this.node.clone(true);
     newNode.removable = true;
     ws.addChildLast(newNode);
     return ws;
