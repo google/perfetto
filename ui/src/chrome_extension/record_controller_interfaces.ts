@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TRACE_SUFFIX} from '../../public/trace';
 import {ConsumerPortResponse} from './consumer_port_types';
 
 export type ErrorCallback = (_: string) => void;
@@ -47,7 +46,7 @@ export abstract class RpcConsumerPort {
   // .perfetto-trace however if the trace is recorded compressed if could be
   // .perfetto-trace.gz etc.
   getRecordedTraceSuffix(): string {
-    return TRACE_SUFFIX;
+    return '.perfetto-trace';
   }
 }
 
