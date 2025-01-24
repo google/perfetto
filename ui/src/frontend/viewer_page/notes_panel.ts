@@ -24,12 +24,14 @@ import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {Note, SpanNote} from '../../public/note';
 import {Button, ButtonBar} from '../../widgets/button';
-import {MenuItem, PopupMenu} from '../../widgets/menu';
+import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {Select} from '../../widgets/select';
 import {TRACK_SHELL_WIDTH} from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {TextInput} from '../../widgets/text_input';
 import {Popup} from '../../widgets/popup';
+import {Workspace} from '../../public/workspace';
+import {AreaSelection} from '../../public/selection';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -71,6 +73,7 @@ export class NotesPanel {
     );
 
     const workspaces = this.trace.workspaces;
+    const selection = this.trace.selection.selection;
 
     return m(
       '',
@@ -219,16 +222,8 @@ export class NotesPanel {
               compact: true,
             }),
           },
-          m(MenuItem, {
-            icon: Icons.Delete,
-            label: 'Delete current workspace',
-            disabled:
-              workspaces.currentWorkspace === workspaces.defaultWorkspace,
-            onclick: () => {
-              workspaces.removeWorkspace(workspaces.currentWorkspace);
-              raf.scheduleFullRedraw();
-            },
-          }),
+          selection.kind === 'area' &&
+            this.renderCopySelectedTracksToWorkspace(selection),
           m(MenuItem, {
             icon: 'edit',
             label: 'Rename current workspace',
@@ -241,12 +236,82 @@ export class NotesPanel {
               if (newName) {
                 workspaces.currentWorkspace.title = newName;
               }
-              raf.scheduleFullRedraw();
+            },
+          }),
+          m(MenuItem, {
+            icon: Icons.Delete,
+            label: 'Delete current workspace',
+            disabled:
+              workspaces.currentWorkspace === workspaces.defaultWorkspace,
+            onclick: () => {
+              workspaces.removeWorkspace(workspaces.currentWorkspace);
             },
           }),
         ),
       ),
     );
+  }
+
+  private renderCopySelectedTracksToWorkspace(selection: AreaSelection) {
+    return [
+      m(
+        MenuItem,
+        {label: 'Copy selected tracks to workspace'},
+        this.trace.workspaces.all.map((ws) =>
+          m(MenuItem, {
+            label: ws.title,
+            disabled: ws === this.trace.workspaces.currentWorkspace,
+            onclick: () => this.copySelectedToWorkspace(ws, selection),
+          }),
+        ),
+        m(MenuDivider),
+        m(MenuItem, {
+          label: 'New workspace...',
+          onclick: () => this.copySelectedToWorkspace(undefined, selection),
+        }),
+      ),
+      m(
+        MenuItem,
+        {label: 'Copy selected tracks & switch to workspace'},
+        this.trace.workspaces.all.map((ws) =>
+          m(MenuItem, {
+            label: ws.title,
+            disabled: ws === this.trace.workspaces.currentWorkspace,
+            onclick: async () => {
+              this.copySelectedToWorkspace(ws, selection);
+              this.trace.workspaces.switchWorkspace(ws);
+            },
+          }),
+        ),
+        m(MenuDivider),
+        m(MenuItem, {
+          label: 'New workspace...',
+          onclick: async () => {
+            const ws = this.copySelectedToWorkspace(undefined, selection);
+            this.trace.workspaces.switchWorkspace(ws);
+          },
+        }),
+      ),
+      m(MenuDivider),
+    ];
+  }
+
+  private copySelectedToWorkspace(
+    ws: Workspace | undefined,
+    selection: AreaSelection,
+  ) {
+    // If no workspace provided, create a new one.
+    if (!ws) {
+      ws = this.trace.workspaces.createEmptyWorkspace('Untitled Workspace');
+    }
+    for (const track of selection.tracks) {
+      const node = this.trace.workspace.getTrackByUri(track.uri);
+      if (!node) continue;
+      const newNode = node.clone();
+      newNode.removable = true;
+      ws.addChildLast(newNode);
+    }
+    return ws;
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
