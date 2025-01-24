@@ -15,7 +15,6 @@
 import {bindMithrilAttrs} from '../../base/mithril_utils';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
-import RecordingV1Plugin from '../dev.perfetto.RecordTrace';
 import {AdbWebsocketTargetProvider} from './adb/websocket/adb_websocket_target_provider';
 import {AdbWebusbTargetProvider} from './adb/webusb/adb_webusb_target_provider';
 import {ChromeExtensionTargetProvider} from './chrome/chrome_extension_target_provider';
@@ -38,11 +37,9 @@ import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_pr
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
-  static readonly dependencies = [RecordingV1Plugin];
   private static recordingMgr?: RecordingManager;
 
   static onActivate(app: App) {
-    if (!RecordingV1Plugin.useRecordingV2) return;
     app.sidebar.addMenuItem({
       section: 'navigation',
       text: 'Record new trace',

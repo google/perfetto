@@ -12,13 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  IDisableTracingResponse,
-  IEnableTracingResponse,
-  IFreeBuffersResponse,
-  IGetTraceStatsResponse,
-  IReadBuffersResponse,
-} from './protos';
+import protos from '../protos';
 
 export interface Typed {
   type: string;
@@ -37,14 +31,22 @@ export function isTyped(obj: object): obj is Typed {
   return obj.hasOwnProperty('type');
 }
 
-export interface ReadBuffersResponse extends Typed, IReadBuffersResponse {}
-export interface EnableTracingResponse extends Typed, IEnableTracingResponse {}
-export interface GetTraceStatsResponse extends Typed, IGetTraceStatsResponse {}
-export interface FreeBuffersResponse extends Typed, IFreeBuffersResponse {}
+export interface ReadBuffersResponse
+  extends Typed,
+    protos.IReadBuffersResponse {}
+export interface EnableTracingResponse
+  extends Typed,
+    protos.IEnableTracingResponse {}
+export interface GetTraceStatsResponse
+  extends Typed,
+    protos.IGetTraceStatsResponse {}
+export interface FreeBuffersResponse
+  extends Typed,
+    protos.IFreeBuffersResponse {}
 export interface GetCategoriesResponse extends Typed {}
 export interface DisableTracingResponse
   extends Typed,
-    IDisableTracingResponse {}
+    protos.IDisableTracingResponse {}
 
 export type ConsumerPortResponse =
   | EnableTracingResponse
