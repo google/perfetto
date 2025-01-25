@@ -152,7 +152,7 @@ TEST(StructuredQueryGeneratorTest, Smoke) {
                 WITH sq_0 AS (
                   SELECT
                     process_name AS process_name,
-                    SUM(rss_and_swap * dur) / SUM(dur) AS avg_rss_and_swap
+                    SUM(cast_double!(rss_and_swap * dur)) / cast_double!(SUM(dur)) AS avg_rss_and_swap
                   FROM memory_rss_and_swap_per_process
                   GROUP BY process_name
                 )
