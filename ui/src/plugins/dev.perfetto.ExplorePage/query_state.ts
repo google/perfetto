@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import protos from '../../protos';
 import {SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
 import {ColumnControllerRows} from './query_builder/column_controller';
 
@@ -33,6 +34,7 @@ export interface QueryNode {
 
   getSourceSql(): string | undefined;
   getTitle(): string;
+  getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
 
   validate(): boolean;
 }
@@ -58,6 +60,33 @@ export class StdlibTableState implements QueryNode {
   }
   validate(): boolean {
     return true;
+  }
+  getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
+    if (!this.validate()) return;
+
+    const sq = new protos.PerfettoSqlStructuredQuery();
+    sq.id = `table_source_${this.sqlTable.name}`;
+    sq.table = new protos.PerfettoSqlStructuredQuery.Table();
+    sq.table.tableName = this.sqlTable.name;
+    sq.table.moduleName = this.sqlTable.includeKey
+      ? this.sqlTable.includeKey
+      : undefined;
+    sq.table.columnNames = this.columns
+      .filter((c) => c.checked)
+      .map((c) => c.column.name);
+
+    const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] =
+      [];
+    for (const c of this.columns.filter((c) => c.checked)) {
+      const newC = new protos.PerfettoSqlStructuredQuery.SelectColumn();
+      newC.columnName = c.column.name;
+      if (c.alias) {
+        newC.alias = c.alias;
+      }
+      selectedColumns.push(newC);
+    }
+    sq.selectColumns = selectedColumns;
+    return sq;
   }
 
   constructor(sqlTable: SqlTable) {
