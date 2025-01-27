@@ -17,7 +17,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {ThreadStateTrack} from './thread_state_track';
+import {createThreadStateTrack} from './thread_state_track';
 import {removeFalsyValues} from '../../base/array_utils';
 import {TrackNode} from '../../public/workspace';
 import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
@@ -83,7 +83,7 @@ export default class implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        track: new ThreadStateTrack(ctx, uri, utid),
+        track: createThreadStateTrack(ctx, uri, utid),
       });
 
       const group = ctx.plugins
