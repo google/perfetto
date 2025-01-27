@@ -30,7 +30,6 @@ import {Track} from '../../public/track';
 import {Slice} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
-import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
 import {uuidv4Sql} from '../../base/uuid';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
@@ -159,12 +158,29 @@ interface SliceInternal {
 // the subclass should implement we use just S hiding x & w.
 type CastInternal<S extends Slice> = S & SliceInternal;
 
+export interface SliceLayout {
+  // Vertical spacing between slices and track.
+  readonly padding: number;
+
+  // Spacing between rows.
+  readonly rowGap: number;
+
+  // Height of each slice (i.e. height of each row).
+  readonly sliceHeight: number;
+
+  // Title font size.
+  readonly titleSizePx: number;
+
+  // Subtitle font size.
+  readonly subtitleSizePx: number;
+}
+
 export abstract class BaseSliceTrack<
   SliceT extends Slice = Slice,
   RowT extends BaseRow = BaseRow,
 > implements Track
 {
-  protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
+  protected readonly sliceLayout: SliceLayout;
   protected trackUuid = uuidv4Sql();
 
   // This is the over-skirted cached bounds:
@@ -194,8 +210,6 @@ export abstract class BaseSliceTrack<
 
   // Computed layout.
   private computedTrackHeight = 0;
-  private computedSliceHeight = 0;
-  private computedRowSpacing = 0;
 
   private readonly trash: AsyncDisposableStack;
 
@@ -247,6 +261,8 @@ export abstract class BaseSliceTrack<
     protected readonly trace: Trace,
     protected readonly uri: string,
     protected readonly rowSpec: RowT,
+    sliceLayout: Partial<SliceLayout> = {},
+    protected readonly depthGuess: number = 0,
   ) {
     // Work out the extra columns.
     // This is the union of the embedder-defined columns and the base columns
@@ -256,20 +272,14 @@ export abstract class BaseSliceTrack<
     this.extraSqlColumns = allCols.filter((key) => !baseCols.includes(key));
 
     this.trash = new AsyncDisposableStack();
-  }
 
-  setSliceLayout(sliceLayout: SliceLayout) {
-    if (
-      sliceLayout.isFlat &&
-      sliceLayout.depthGuess !== undefined &&
-      sliceLayout.depthGuess !== 0
-    ) {
-      const {isFlat, depthGuess} = sliceLayout;
-      throw new Error(
-        `if isFlat (${isFlat}) then depthGuess (${depthGuess}) must be 0 if defined`,
-      );
-    }
-    this.sliceLayout = sliceLayout;
+    this.sliceLayout = {
+      padding: sliceLayout.padding ?? 3,
+      rowGap: sliceLayout.rowGap ?? 0,
+      sliceHeight: sliceLayout.sliceHeight ?? 18,
+      titleSizePx: sliceLayout.titleSizePx ?? 12,
+      subtitleSizePx: sliceLayout.subtitleSizePx ?? 8,
+    };
   }
 
   onFullRedraw(): void {
@@ -282,12 +292,12 @@ export abstract class BaseSliceTrack<
   }
 
   private getTitleFont(): string {
-    const size = this.sliceLayout.titleSizePx ?? 12;
+    const size = this.sliceLayout.titleSizePx;
     return `${size}px Roboto Condensed`;
   }
 
   private getSubtitleFont(): string {
-    const size = this.sliceLayout.subtitleSizePx ?? 8;
+    const size = this.sliceLayout.subtitleSizePx;
     return `${size}px Roboto Condensed`;
   }
 
@@ -316,7 +326,7 @@ export abstract class BaseSliceTrack<
     if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
       queryRes = await this.engine.query(`
           select
-            ${this.depthColumn()},
+            depth,
             ts as tsQ,
             ts,
             -1 as durQ,
@@ -329,7 +339,7 @@ export abstract class BaseSliceTrack<
     } else {
       queryRes = await this.engine.query(`
         select
-          ${this.depthColumn()},
+          depth,
           max(ts) as tsQ,
           ts,
           -1 as durQ,
@@ -352,7 +362,7 @@ export abstract class BaseSliceTrack<
     await this.engine.query(`
       create virtual table ${this.getTableName()}
       using __intrinsic_slice_mipmap((
-        select id, ts, dur, ${this.depthColumn()}
+        select id, ts, dur, depth
         from (${this.getSqlSource()})
         where dur != -1
       ));
@@ -412,9 +422,9 @@ export abstract class BaseSliceTrack<
     // everything in one go. The key is that state changes operations on the
     // canvas (e.g., color, fonts) dominate any number crunching we do in JS.
 
-    const sliceHeight = this.computedSliceHeight;
+    const sliceHeight = this.sliceLayout.sliceHeight;
     const padding = this.sliceLayout.padding;
-    const rowSpacing = this.computedRowSpacing;
+    const rowSpacing = this.sliceLayout.rowGap;
 
     // First pass: compute geometry of slices.
 
@@ -760,16 +770,16 @@ export abstract class BaseSliceTrack<
 
   private findSlice({x, y, timescale}: TrackMouseEvent): undefined | SliceT {
     const trackHeight = this.computedTrackHeight;
-    const sliceHeight = this.computedSliceHeight;
+    const sliceHeight = this.sliceLayout.sliceHeight;
     const padding = this.sliceLayout.padding;
-    const rowSpacing = this.computedRowSpacing;
+    const rowGap = this.sliceLayout.rowGap;
 
     // Need at least a draw pass to resolve the slice layout.
     if (sliceHeight === 0) {
       return undefined;
     }
 
-    const depth = Math.floor((y - padding) / (sliceHeight + rowSpacing));
+    const depth = Math.floor((y - padding) / (sliceHeight + rowGap));
 
     if (y >= padding && y <= trackHeight - padding) {
       for (const slice of this.slices) {
@@ -797,14 +807,6 @@ export abstract class BaseSliceTrack<
     }
 
     return undefined;
-  }
-
-  private isFlat(): boolean {
-    return this.sliceLayout.isFlat ?? false;
-  }
-
-  private depthColumn(): string {
-    return this.isFlat() ? '0 as depth' : 'depth';
   }
 
   onMouseMove(event: TrackMouseEvent): void {
@@ -885,31 +887,14 @@ export abstract class BaseSliceTrack<
   }
 
   private updateSliceAndTrackHeight() {
-    const lay = this.sliceLayout;
-    const rows = Math.max(this.maxDataDepth, lay.depthGuess ?? 0) + 1;
+    const rows = Math.max(this.maxDataDepth, this.depthGuess) + 1;
+    const {padding = 2, sliceHeight = 12, rowGap = 0} = this.sliceLayout;
 
     // Compute the track height.
-    let trackHeight;
-    if (lay.heightMode === 'FIXED') {
-      trackHeight = lay.fixedHeight;
-    } else {
-      trackHeight = 2 * lay.padding + rows * (lay.sliceHeight + lay.rowSpacing);
-    }
+    const trackHeight = 2 * padding + rows * (sliceHeight + rowGap);
 
     // Compute the slice height.
-    let sliceHeight: number;
-    let rowSpacing: number = lay.rowSpacing;
-    if (lay.heightMode === 'FIXED') {
-      const rowHeight = (trackHeight - 2 * lay.padding) / rows;
-      sliceHeight = Math.floor(Math.max(rowHeight - lay.rowSpacing, 0.5));
-      rowSpacing = Math.max(lay.rowSpacing, rowHeight - sliceHeight);
-      rowSpacing = Math.floor(rowSpacing * 2) / 2;
-    } else {
-      sliceHeight = lay.sliceHeight;
-    }
-    this.computedSliceHeight = sliceHeight;
     this.computedTrackHeight = trackHeight;
-    this.computedRowSpacing = rowSpacing;
   }
 
   private drawChevron(
@@ -959,12 +944,13 @@ export abstract class BaseSliceTrack<
   getSliceVerticalBounds(depth: number): VerticalBounds | undefined {
     this.updateSliceAndTrackHeight();
 
-    const totalSliceHeight = this.computedRowSpacing + this.computedSliceHeight;
+    const totalSliceHeight =
+      this.sliceLayout.rowGap + this.sliceLayout.sliceHeight;
     const top = this.sliceLayout.padding + depth * totalSliceHeight;
 
     return {
       top,
-      bottom: top + this.computedSliceHeight,
+      bottom: top + this.sliceLayout.sliceHeight,
     };
   }
 
