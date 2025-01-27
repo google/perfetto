@@ -48,7 +48,7 @@ export interface JankIntervalPlotDetails {
 
 export async function getInputScrollDeltas(
   engine: Engine,
-  scrollId: number,
+  scrollId: bigint,
 ): Promise<ScrollDeltaDetails[]> {
   const queryResult = await engine.query(`
     INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
@@ -85,7 +85,7 @@ export async function getInputScrollDeltas(
 
 export async function getPresentedScrollDeltas(
   engine: Engine,
-  scrollId: number,
+  scrollId: bigint,
 ): Promise<ScrollDeltaDetails[]> {
   const queryResult = await engine.query(`
     INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
@@ -126,7 +126,7 @@ export async function getPresentedScrollDeltas(
 
 export async function getPredictorJankDeltas(
   engine: Engine,
-  scrollId: number,
+  scrollId: bigint,
 ): Promise<ScrollDeltaDetails[]> {
   const queryResult = await engine.query(`
     INCLUDE PERFETTO MODULE chrome.scroll_jank.predictor_error;
