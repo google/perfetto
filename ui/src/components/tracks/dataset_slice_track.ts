@@ -34,8 +34,8 @@ import {
   OnSliceOverArgs,
   SLICE_FLAGS_INCOMPLETE,
   SLICE_FLAGS_INSTANT,
+  SliceLayout,
 } from './base_slice_track';
-import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from './slice_layout';
 
 export type DepthProvider = (dataset: SourceDataset) => string;
 
@@ -106,6 +106,8 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
    * contains a non-null depth column.
    */
   readonly depthProvider?: DepthProvider;
+
+  readonly sliceLayout?: Partial<SliceLayout>;
 
   /**
    * An optional function to override the color scheme for each event.
@@ -190,7 +192,13 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
   readonly rootTableName?: string;
 
   constructor(private readonly attrs: DatasetSliceTrackAttrs<T>) {
-    super(attrs.trace, attrs.uri, {...BASE_ROW, ...attrs.dataset.schema});
+    super(
+      attrs.trace,
+      attrs.uri,
+      {...BASE_ROW, ...attrs.dataset.schema},
+      attrs.sliceLayout,
+      attrs.initialMaxDepth,
+    );
     const {dataset, depthProvider} = attrs;
 
     // This is the minimum viable implementation that the source dataset must
@@ -206,11 +214,6 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
       this.sqlSource = `select 0 as dur, * from (${sqlSource})`;
     }
     this.rootTableName = attrs.rootTableName;
-
-    this.sliceLayout = {
-      ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
-      depthGuess: attrs.initialMaxDepth,
-    };
   }
 
   rowToSlice(row: BaseRow & T): SliceWithRow<T> {
