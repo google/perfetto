@@ -38,6 +38,10 @@ export function createTopLevelScrollTrack(trace: Trace, uri: string) {
           ts,
           dur
         FROM chrome_scrolls
+        -- If the scroll has started before the trace started, we won't have
+        -- an id for it, so skip it to ensure that we can show the remaining
+        -- traces.
+        WHERE id IS NOT NULL
       `,
     }),
     detailsPanel: (row) => new ScrollDetailsPanel(trace, row.rawId),
