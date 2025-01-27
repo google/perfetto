@@ -23,10 +23,7 @@ import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {
-  DatasetSliceTrack,
-  flatDepthProvider,
-} from '../../components/tracks/dataset_slice_track';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {Time} from '../../base/time';
 
 /*
@@ -48,17 +45,18 @@ export function createFlatColoredDurationTrack(
         ts: LONG,
         dur: LONG,
         name: STR,
+        depth: NUM,
       },
       src: `
         SELECT
           id,
           ts,
           dur,
-          printf('%.3fms', dur / 1e6) AS name
+          printf('%.3fms', dur / 1e6) AS name,
+          0 as depth
         FROM (${sqlSrc})
       `,
     }),
-    depthProvider: flatDepthProvider,
     colorizer: (row) => {
       // Use the log2 of the duration in ms as the value, as we want to focus on
       // differentiating between 4ms, 8ms, 16ms and 32ms values.
