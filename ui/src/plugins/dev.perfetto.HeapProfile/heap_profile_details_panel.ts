@@ -263,6 +263,7 @@ function flamegraphMetrics(
               parent_id as parentId,
               ifnull(name, '[Unknown]') as name,
               root_type,
+              heap_type,
               self_size as value,
               self_count
             from _heap_graph_class_tree
@@ -270,6 +271,7 @@ function flamegraphMetrics(
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
+            {name: 'heap_type', displayName: 'Heap Type'},
           ],
           aggregatableProperties: [
             {
@@ -290,6 +292,7 @@ function flamegraphMetrics(
               parent_id as parentId,
               ifnull(name, '[Unknown]') as name,
               root_type,
+              heap_type,
               self_size,
               self_count as value
             from _heap_graph_class_tree
@@ -297,6 +300,7 @@ function flamegraphMetrics(
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
+            {name: 'heap_type', displayName: 'Heap Type'},
           ],
         },
         {
@@ -310,6 +314,7 @@ function flamegraphMetrics(
               parent_id as parentId,
               ifnull(name, '[Unknown]') as name,
               root_type,
+              heap_type,
               self_size as value,
               self_count
             from _heap_graph_dominator_class_tree
@@ -317,6 +322,7 @@ function flamegraphMetrics(
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
+            {name: 'heap_type', displayName: 'Heap Type'},
           ],
           aggregatableProperties: [
             {
@@ -337,13 +343,15 @@ function flamegraphMetrics(
               parent_id as parentId,
               ifnull(name, '[Unknown]') as name,
               root_type,
+              heap_type,
               self_size,
               self_count as value
-            from _heap_graph_class_tree
+            from _heap_graph_dominator_class_tree
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
+            {name: 'heap_type', displayName: 'Heap Type'},
           ],
         },
       ];
