@@ -27,8 +27,9 @@ import {
   MultiSelectDiff,
   MultiSelectOption,
 } from '../../../widgets/multiselect';
+import {Result} from '../../../base/result';
 
-type ChromeCatFunction = () => Promise<string[]>;
+type ChromeCatFunction = () => Promise<Result<string[]>>;
 
 export function chromeRecordSection(
   chromeCategoryGetter: ChromeCatFunction,
@@ -149,15 +150,15 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     // Initialize first with the static list of builtin categories (in case
     // something goes wrong with the extension).
     this.initializeCategories(BUILTIN_CATEGORIES);
-    // But then try to fetch the updated list from the Tracing Extension and use
-    // that instead if available.
-    this.fetchRuntimeCategoriesIfNeeded();
   }
 
   private async fetchRuntimeCategoriesIfNeeded() {
     if (this.fetchedRuntimeCategories) return;
     const runtimeCategories = await this.chromeCategoryGetter();
-    this.initializeCategories(runtimeCategories);
+    if (runtimeCategories.ok) {
+      this.initializeCategories(runtimeCategories.value);
+      m.redraw();
+    }
     this.fetchedRuntimeCategories = true;
   }
 
