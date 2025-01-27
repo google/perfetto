@@ -25,17 +25,21 @@ export function createTopLevelScrollTrack(trace: Trace, uri: string) {
     dataset: new SourceDataset({
       schema: {
         id: NUM,
+        rawId: LONG,
         ts: LONG,
         dur: LONG,
         name: STR,
       },
       src: `
         SELECT
+          ROW_NUMBER() OVER (ORDER BY ts) as id,
+          id as rawId,
           printf("Scroll %s", CAST(id AS STRING)) AS name,
-          *
+          ts,
+          dur
         FROM chrome_scrolls
       `,
     }),
-    detailsPanel: (row) => new ScrollDetailsPanel(trace, row.id),
+    detailsPanel: (row) => new ScrollDetailsPanel(trace, row.rawId),
   });
 }
