@@ -49,7 +49,7 @@ export function createThreadStateTrack(
       sliceHeight: 12,
       titleSizePx: 10,
     },
-    depthProvider: (dataset) => {
+    queryGenerator: (dataset) => {
       // We actually abuse the depth provider here just a little. Instead of
       // providing just a depth value, we also filter out non-sleeping/idle
       // slices. In effect, we're using this function as a little escape hatch

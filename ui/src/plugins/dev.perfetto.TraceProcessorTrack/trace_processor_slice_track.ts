@@ -52,7 +52,7 @@ export function createTraceProcessorSliceTrack(
     }),
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
-    depthProvider: getDepthProvider(trackIds),
+    queryGenerator: getDepthProvider(trackIds),
     fillRatio: (row) => {
       if (row.dur > 0n && row.thread_dur !== null) {
         return clamp(BIMath.ratio(row.thread_dur, row.dur), 0, 1);
