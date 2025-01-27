@@ -100,6 +100,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         },
         m(MenuItem, {
           label: 'JOIN',
+          disabled: true,
           onclick: () => {
             if (attrs.rootNode === undefined) {
               return;
