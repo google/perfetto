@@ -57,40 +57,65 @@ namespace perfetto::trace_processor {
 namespace {
 
 const char* MapToFriendlyPowerRailName(base::StringView raw) {
-  if (raw == "S4M_VDD_CPUCL0") {
+  if (raw.EndsWith("M_VDD_CPUCL0")) {
     return "cpu.little";
-  } else if (raw == "S3M_VDD_CPUCL1") {
+  } else if (raw.EndsWith("M_VDD_CPUCL0_M")) {
+    return "cpu.little.mem";
+  } else if (raw.EndsWith("M_VDD_CPUCL1")) {
     return "cpu.mid";
-  } else if (raw == "S2M_VDD_CPUCL2") {
+  } else if (raw.EndsWith("M_VDD_CPUCL1_M")) {
+    return "cpu.mid.mem";
+  } else if (raw.EndsWith("M_VDD_CPUCL2")) {
     return "cpu.big";
-  } else if (raw == "S5M_VDD_INT") {
+  } else if (raw.EndsWith("M_VDD_INT")) {
     return "system.fabric";
-  } else if (raw == "S10M_VDD_TPU" || raw == "S7M_VDD_TPU") {
+  } else if (raw.EndsWith("M_VDD_TPU")) {
     return "tpu";
-  } else if (raw == "PPVAR_VSYS_PWR_DISP" || raw == "VSYS_PWR_DISPLAY") {
+  } else if (raw.EndsWith("VSYS_PWR_DISP") ||
+             raw.EndsWith("VSYS_PWR_DISPLAY")) {
     return "display";
-  } else if (raw == "VSYS_PWR_MODEM") {
+  } else if (raw.EndsWith("M_DISP")) {
+    return "ldo.main.a.display";
+  } else if (raw.EndsWith("VSYS_PWR_MODEM")) {
     return "modem";
-  } else if (raw == "S1M_VDD_MIF") {
+  } else if (raw.EndsWith("M_VDD_MIF")) {
     return "memory.interface";
-  } else if (raw == "VSYS_PWR_WLAN_BT") {
+  } else if (raw.EndsWith("VSYS_PWR_WLAN_BT")) {
     return "wifi.bt";
-  } else if (raw == "L2S_VDD_AOC_RET") {
+  } else if (raw.EndsWith("VSYS_PWR_MMWAVE")) {
+    return "mmwave";
+  } else if (raw.EndsWith("S_VDD_AOC_RET")) {
     return "aoc.memory";
-  } else if (raw == "S9S_VDD_AOC") {
+  } else if (raw.EndsWith("S_VDD_AOC")) {
     return "aoc.logic";
-  } else if (raw == "S5S_VDDQ_MEM") {
+  } else if (raw.EndsWith("S_VDDQ_MEM")) {
     return "ddr.a";
-  } else if (raw == "S10S_VDD2L") {
+  } else if (raw.EndsWith("S_VDD2L") || raw.EndsWith("S_VDD2L_MEM")) {
     return "ddr.b";
-  } else if (raw == "S4S_VDD2H_MEM") {
+  } else if (raw.EndsWith("S_VDD2H_MEM")) {
     return "ddr.c";
-  } else if (raw == "S2S_VDD_G3D") {
+  } else if (raw.EndsWith("S_VDD_G3D")) {
     return "gpu";
-  } else if (raw == "L9S_GNSS_CORE") {
+  } else if (raw.EndsWith("S_VDD_G3D_L2")) {
+    return "gpu.l2";
+  } else if (raw.EndsWith("S_GNSS_CORE")) {
     return "gps";
-  } else if (raw == "VSYS_PWR_RFFE") {
+  } else if (raw.EndsWith("VSYS_PWR_RFFE")) {
     return "radio.frontend";
+  } else if (raw.EndsWith("VSYS_PWR_CAMERA")) {
+    return "camera";
+  } else if (raw.EndsWith("S_VDD_CAM")) {
+    return "multimedia";
+  } else if (raw.EndsWith("S_UDFPS")) {
+    return "udfps";
+  } else if (raw.EndsWith("S_PLL_MIPI_UFS")) {
+    return "ufs";
+  } else if (raw.EndsWith("M_LLDO1")) {
+    return "ldo.main.a";
+  } else if (raw.EndsWith("M_LLDO2")) {
+    return "ldo.main.b";
+  } else if (raw.EndsWith("S_LLDO1")) {
+    return "ldo.sub";
   }
   return nullptr;
 }
