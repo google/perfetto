@@ -21,13 +21,11 @@ import {runQuery} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
-import {QueryNode, getLastFinishedNode, getFirstNode} from '../query_state';
-import {
-  ColumnController,
-  ColumnControllerDiff,
-  ColumnControllerRows,
-} from './column_controller';
+import {QueryNode, getLastFinishedNode} from '../query_state';
+import {ColumnController, ColumnControllerDiff} from './column_controller';
 import {Section} from '../../../widgets/section';
+import {Engine} from '../../../trace_processor/engine';
+import protos from '../../../protos';
 
 export interface DataSourceAttrs extends PageWithTraceAttrs {
   readonly queryNode: QueryNode;
@@ -35,18 +33,16 @@ export interface DataSourceAttrs extends PageWithTraceAttrs {
 
 export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
   private readonly tableAsyncLimiter = new AsyncLimiter();
-  private queryResult: QueryResponse | undefined;
-  private showSql: number = 0;
 
-  private prevSql?: string;
+  private queryResult: QueryResponse | undefined;
+  private showDataSourceInfoPanel: number = 0;
+
+  private prevSqString?: string;
+  private curSqString?: string;
+
   private currentSql?: string;
 
   view({attrs}: m.CVnode<DataSourceAttrs>) {
-    this.currentSql = sqlToRun(attrs.queryNode);
-    if (this.currentSql === undefined) {
-      return;
-    }
-
     function renderPickColumns(node: QueryNode): m.Child {
       return (
         node.columns &&
@@ -71,27 +67,12 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
     }
 
     const renderTable = () => {
-      if (this.currentSql !== this.prevSql) {
-        this.tableAsyncLimiter.schedule(async () => {
-          if (this.currentSql === undefined) {
-            return;
-          }
-          this.queryResult = await runQuery(
-            this.currentSql,
-            attrs.trace.engine,
-          );
-        });
-      }
-
       if (this.queryResult === undefined) {
         return;
       }
       if (this.queryResult.error !== undefined) {
         return m(TextParagraph, {text: `Error: ${this.queryResult.error}`});
       }
-
-      this.prevSql = this.currentSql;
-
       return (
         this.currentSql &&
         m(QueryTable, {
@@ -106,29 +87,60 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
     const renderButtons = (): m.Child => {
       return m(SegmentedButtons, {
         ...attrs,
-        options: [{label: 'Show SQL'}, {label: 'Show columns'}],
-        selectedOption: this.showSql,
+        options: [
+          {label: 'Show SQL'},
+          {label: 'Show columns'},
+          {label: 'Show proto'},
+        ],
+        selectedOption: this.showDataSourceInfoPanel,
         onOptionSelected: (num) => {
-          this.showSql = num;
+          this.showDataSourceInfoPanel = num;
         },
       });
     };
-
     const lastNode = getLastFinishedNode(attrs.queryNode);
     if (lastNode === undefined) return;
 
+    const sq = lastNode.getStructuredQuery();
+    if (sq === undefined) {
+      return;
+    }
+    this.curSqString = JSON.stringify(sq.toJSON());
+
+    if (this.curSqString !== this.prevSqString) {
+      this.tableAsyncLimiter.schedule(async () => {
+        this.currentSql = await sqlToRun(lastNode, attrs.trace.engine);
+        if (this.currentSql === undefined) {
+          return;
+        }
+        this.queryResult = await runQuery(this.currentSql, attrs.trace.engine);
+        this.prevSqString = this.curSqString;
+      });
+    }
+
+    if (this.currentSql === undefined) {
+      return;
+    }
+
+    const jsonSq = attrs.queryNode.getStructuredQuery()?.toJSON();
     return (
       this.currentSql && [
         m(
           Section,
           {title: lastNode.getTitle()},
           renderButtons(),
-          this.showSql === 0
-            ? m(TextParagraph, {
-                text: this.currentSql,
-                compressSpace: false,
-              })
-            : renderPickColumns(lastNode),
+          this.showDataSourceInfoPanel === 0 &&
+            m(TextParagraph, {
+              text: this.currentSql,
+              compressSpace: false,
+            }),
+          this.showDataSourceInfoPanel === 1 && renderPickColumns(lastNode),
+          this.showDataSourceInfoPanel === 2 &&
+            jsonSq &&
+            m(TextParagraph, {
+              text: JSON.stringify(jsonSq) || '',
+              compressSpace: false,
+            }),
         ),
         renderTable(),
       ]
@@ -136,72 +148,43 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
   }
 }
 
-function getImports(node: QueryNode): string[] | undefined {
-  if (!node.finished) {
+function getStructuredQueries(
+  finalNode: QueryNode,
+): protos.PerfettoSqlStructuredQuery[] | undefined {
+  if (!finalNode.finished || finalNode.columns === undefined) {
     return;
   }
-
-  const imports = new Set<string>();
-  while (node.nextNode) {
-    if (!node.nextNode.finished) {
-      node.imports?.forEach((i) => imports.add(i));
-    }
-    node = node.nextNode;
-  }
-  return Array.from(imports);
-}
-
-function getSource(node: QueryNode): string | undefined {
-  let currentNode = getFirstNode(node);
-  if (currentNode === undefined) {
-    return;
-  }
-
-  const ret: string[] = [];
-  while (currentNode.finished) {
-    const curSql = currentNode.getSourceSql();
-    if (curSql === undefined) {
+  const revStructuredQueries: protos.PerfettoSqlStructuredQuery[] = [];
+  let curNode: QueryNode | undefined = finalNode;
+  while (curNode) {
+    const curSq = curNode.getStructuredQuery();
+    if (curSq === undefined) {
       return;
     }
-    ret.push(curSql);
-    if (currentNode.nextNode === undefined) {
-      break;
+    revStructuredQueries.push(curSq);
+    if (curNode.prevNode && !curNode.prevNode.validate()) {
+      return;
     }
-    currentNode = currentNode.nextNode;
+    curNode = curNode.prevNode;
   }
-  return ret.join('\n');
+  return revStructuredQueries.reverse();
 }
 
-function sqlToRun(node: QueryNode): string | undefined {
-  const currentNode = getLastFinishedNode(node);
-  if (currentNode === undefined || currentNode.columns === undefined) {
+async function sqlToRun(
+  node: QueryNode,
+  engine: Engine,
+): Promise<string | undefined> {
+  const structuredQueries = getStructuredQueries(node);
+  if (structuredQueries === undefined) return;
+
+  const res = await engine.analyzeStructuredQuery(structuredQueries);
+  if (
+    res.error ||
+    res.sql.length === 0 ||
+    res.sql.length !== structuredQueries.length
+  ) {
     return;
   }
 
-  const imports = getImports(currentNode);
-  if (imports === undefined) {
-    return;
-  }
-  const importsStr = imports
-    .map((i) => `INCLUDE PERFETTO MODULE ${i};`)
-    .join('\n');
-
-  const colsStr: string = currentNode.columns
-    .filter((c) => c.checked)
-    .map((c) => getColStr(c))
-    .join(',\n  ');
-
-  const sourceStr = getSource(node);
-  if (sourceStr === undefined) {
-    return;
-  }
-
-  return `${importsStr}\n\nSELECT\n  ${colsStr}\nFROM ${sourceStr};`.trim();
-}
-
-function getColStr(col: ColumnControllerRows) {
-  const colWithSource = col.source
-    ? `${col.source}.${col.column.name}`
-    : col.column.name;
-  return col.alias ? `${colWithSource} AS ${col.alias}` : colWithSource;
+  return res.sql[res.sql.length - 1];
 }
