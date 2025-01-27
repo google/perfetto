@@ -18,7 +18,6 @@ import {TrackNode} from '../../public/workspace';
 import {
   DatasetSliceTrack,
   DatasetSliceTrackAttrs,
-  flatDepthProvider,
   ROW_SCHEMA,
 } from '../../components/tracks/dataset_slice_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
@@ -113,15 +112,15 @@ export default class implements PerfettoPlugin {
       trace: ctx,
       uri: 'Flat',
       dataset: new SourceDataset({
-        src: 'example_events',
+        src: 'select 0 as depth, * from example_events',
         schema: {
           id: NUM,
           ts: LONG,
           dur: LONG,
           name: STR,
+          depth: NUM,
         },
       }),
-      depthProvider: flatDepthProvider,
       colorizer: () => makeColorScheme(new HSLColor({h: 180, s: 50, l: 50})),
     });
   }
