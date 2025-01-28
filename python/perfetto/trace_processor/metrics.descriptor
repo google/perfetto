@@ -404,32 +404,49 @@ avgFreqKhze
 threads (2(.perfetto.protos.AndroidCpuMetric.ThreadRthreads>
 core (2*.perfetto.protos.AndroidCpuMetric.CoreDataRcoreK
 	core_type (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreTypeJ
-’	
-3protos/perfetto/metrics/android/codec_metrics.protoperfetto.protos0protos/perfetto/metrics/android/cpu_metric.proto"⁄
+ñ
+3protos/perfetto/metrics/android/codec_metrics.protoperfetto.protos0protos/perfetto/metrics/android/cpu_metric.proto"õ
 AndroidCodecMetricsJ
 	cpu_usage (2-.perfetto.protos.AndroidCodecMetrics.CpuUsageRcpuUsageY
 codec_function (22.perfetto.protos.AndroidCodecMetrics.CodecFunctionRcodecFunctionC
-energy (2+.perfetto.protos.AndroidCodecMetrics.EnergyRenergyê
-Detail
-thread_name (	R
-threadName 
+energy (2+.perfetto.protos.AndroidCodecMetrics.EnergyRenergyœ
+Detail 
 total_cpu_ns (R
 totalCpuNs$
-running_cpu_ns (RrunningCpuNs
-
-cpu_cycles (R	cpuCyclesö
+running_cpu_ns (RrunningCpuNs+
+avg_running_cpu_ns	 (RavgRunningCpuNs(
+total_cpu_cycles (RtotalCpuCycles$
+avg_cpu_cycles (RavgCpuCycles
+avg_time_ns (R	avgTimeNs
+count (RcountG
+self (23.perfetto.protos.AndroidCodecMetrics.Detail.LatencyRself{
+Latency
+max_us (RmaxUs
+min_us (RminUs
+avg_us (RavgUs
+agg_us (RaggUs
+count (RcountJÊ
 CodecFunction!
-codec_string (	RcodecString!
-process_name (	RprocessNameC
-detail (2+.perfetto.protos.AndroidCodecMetrics.DetailRdetailÊ
+codec_string (	RcodecStringT
+process (2:.perfetto.protos.AndroidCodecMetrics.CodecFunction.ProcessRprocess€
+Process
+name (	RnameY
+thread (2A.perfetto.protos.AndroidCodecMetrics.CodecFunction.Process.ThreadRthreada
+Thread
+name (	RnameC
+detail (2+.perfetto.protos.AndroidCodecMetrics.DetailRdetailú
 CpuUsage!
-process_name (	RprocessName
-thread_name (	R
-threadName"
-thread_cpu_ns (RthreadCpuNs
-num_threads (R
+process_name (	RprocessNameP
+thread (28.perfetto.protos.AndroidCodecMetrics.CpuUsage.ThreadInfoRthreadî
+
+ThreadInfo
+name (	RnameT
+info (2@.perfetto.protos.AndroidCodecMetrics.CpuUsage.ThreadInfo.DetailsRinfoõ
+Details"
+thread_cpu_ns (RthreadCpuNs
+num_threads (R
 numThreadsK
-	core_data (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreDataJô
+	core_data (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreDataJô
 Rail
 name (	RnameB
 info (2..perfetto.protos.AndroidCodecMetrics.Rail.InfoRinfo9
