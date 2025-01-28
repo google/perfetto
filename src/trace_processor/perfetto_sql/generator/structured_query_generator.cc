@@ -222,11 +222,13 @@ base::StatusOr<std::string> GeneratorImpl::SimpleSlices(
     const StructuredQuery::SimpleSlices::Decoder& slices) {
   referenced_modules_.Insert("slices.slices", nullptr);
 
-  std::string sql = "SELECT * FROM _slice_with_thread_and_process_info";
+  std::string sql =
+      "SELECT id, ts, dur, name AS slice_name, thread_name, process_name, "
+      "track_name FROM _slice_with_thread_and_process_info";
 
   std::vector<std::string> conditions;
   if (slices.has_slice_name_glob()) {
-    conditions.push_back("name GLOB '" +
+    conditions.push_back("slice_name GLOB '" +
                          slices.slice_name_glob().ToStdString() + "'");
   }
   if (slices.has_thread_name_glob()) {
