@@ -71,7 +71,7 @@ message PerfettoSqlStructuredQuery {
   // to be very commonly used by users.
   //
   // Produces a source with the schema
-  // (slice_name, thread_name, process_name, track_name).
+  // (id, ts, dur, slice_name, thread_name, process_name, track_name).
   message SimpleSlices {
     // Glob for the name of the slices. Optional.
     optional string slice_name_glob = 1;
