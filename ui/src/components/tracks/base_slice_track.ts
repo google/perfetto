@@ -14,7 +14,7 @@
 
 import {assertExists} from '../../base/logging';
 import {clamp, floatEqual} from '../../base/math_utils';
-import {Duration, Time, time} from '../../base/time';
+import {Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {
   drawIncompleteSlice,
@@ -23,7 +23,6 @@ import {
 import {cropText} from '../../base/string_utils';
 import {colorCompare} from '../../base/color';
 import {UNEXPECTED_PINK} from '../colorizer';
-import {TrackEventDetails} from '../../public/selection';
 import {featureFlags} from '../../core/feature_flags';
 import {raf} from '../../core/raf_scheduler';
 import {Track} from '../../public/track';
@@ -36,7 +35,6 @@ import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {Point2D, VerticalBounds} from '../../base/geom';
 import {Trace} from '../../public/trace';
-import {SourceDataset} from '../../trace_processor/dataset';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -231,6 +229,25 @@ export abstract class BaseSliceTrack<
   // For example you might return an SQL expression of the form:
   // `select id, ts, dur, 0 as depth from foo where bar = 'baz'`
   abstract getSqlSource(): string;
+
+  // This should return a fast sql select statement or table name with slightly
+  // relaxed constraints compared to getSqlSource(). It's the query used to join
+  // the results of the mipmap table in order to fetch the real `ts` and `dur`
+  // from the quantized slices.
+  //
+  // This query only needs to provide `ts`, `dur` and `id` columns (no depth
+  // required), and it doesn't even need to be filtered (because it's just used
+  // in the join), it just needs to be fast! This means that most of the time
+  // this can just be the root table of wherever this track comes from (e.g. the
+  // slice table).
+  //
+  // If in doubt, this can just return the same query as getSqlSource(), which
+  // is perfectly valid, however you may be leaving some performance on the
+  // table.
+  //
+  // TODO(stevegolton): If we merge BST with DST, this abstraction can be
+  // avoided.
+  abstract getJoinSqlSource(): string;
 
   onSliceOver(_args: OnSliceOverArgs<SliceT>): void {}
   onSliceOut(_args: OnSliceOutArgs<SliceT>): void {}
@@ -691,7 +708,7 @@ export abstract class BaseSliceTrack<
           ${slicesKey.end},
           ${resolution}
         ) z
-        CROSS JOIN (${this.getSqlSource()}) s using (id)
+        CROSS JOIN (${this.getJoinSqlSource()}) s using (id)
       `);
 
       const it = queryRes.iter(this.rowSpec);
@@ -956,39 +973,6 @@ export abstract class BaseSliceTrack<
 
   protected get engine() {
     return this.trace.engine;
-  }
-
-  async getSelectionDetails(
-    id: number,
-  ): Promise<TrackEventDetails | undefined> {
-    const query = `
-      SELECT
-        ts,
-        dur
-      FROM (${this.getSqlSource()})
-      WHERE id = ${id}
-    `;
-
-    const result = await this.engine.query(query);
-    if (result.numRows() === 0) {
-      return undefined;
-    }
-    const row = result.iter({
-      ts: LONG,
-      dur: LONG,
-    });
-    return {ts: Time.fromRaw(row.ts), dur: Duration.fromRaw(row.dur)};
-  }
-
-  getDataset(): SourceDataset {
-    return new SourceDataset({
-      src: this.getSqlSource(),
-      schema: {
-        id: NUM,
-        ts: LONG,
-        dur: LONG,
-      },
-    });
   }
 }
 
