@@ -98,6 +98,8 @@ export class TracingProtocol {
     const method = RPC_METHODS[methodName];
     const resultPromise = defer<ResponseType<T>>();
     const pendingInvoke: PendingInvoke = {
+      methodName,
+      failSilently: 'failSilently' in method && method.failSilently,
       onResponse: (data: Uint8Array | undefined, hasMore: boolean) => {
         assertFalse(hasMore); // Should have used invokeStreaming instead.
         const response = exists(data)
@@ -118,6 +120,7 @@ export class TracingProtocol {
     const streamDecoder = method.respType.createStreamingDecoder();
 
     const pendingInvoke: PendingInvoke = {
+      methodName,
       onResponse: (data: Uint8Array | undefined, hasMore: boolean) => {
         streamDecoder.decode(data, hasMore);
       },
@@ -189,12 +192,13 @@ export class TracingProtocol {
     const frame = protos.IPCFrame.decode(frameData.slice());
     if (frame.msg === 'msgInvokeMethodReply') {
       const reply = assertExists(frame.msgInvokeMethodReply);
+      const pendInvoke = assertExists(this.pendingInvokes.get(frame.requestId));
       // We process messages without a `replyProto` field (for instance
       // `FreeBuffers` does not have `replyProto`). However, we ignore messages
       // without a valid 'success' field.
-      assertTrue(Boolean(reply.success));
-
-      const pendInvoke = assertExists(this.pendingInvokes.get(frame.requestId));
+      if (reply.success === false && !pendInvoke.failSilently) {
+        throw new Error(`Tracing Protocol: ${pendInvoke.methodName} failed`);
+      }
       pendInvoke.onResponse(
         reply.replyProto ?? undefined,
         Boolean(reply.hasMore),
@@ -280,6 +284,7 @@ const RPC_METHODS = {
   Flush: {
     argType: protos.FlushRequest,
     respType: protos.FlushResponse,
+    failSilently: true,
   },
   FreeBuffers: {
     argType: protos.FreeBuffersRequest,
@@ -322,5 +327,7 @@ type StreamingResponseType<T extends RpcStreamingMethodName> = InstanceType<
 >;
 
 interface PendingInvoke {
+  methodName: RpcAllMethodName; // This exists only to make debugging easier.
   onResponse: (data: Uint8Array | undefined, hasMore: boolean) => void;
+  failSilently?: boolean;
 }
