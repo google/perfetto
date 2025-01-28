@@ -14,7 +14,7 @@
 
 import {assertExists} from '../../base/logging';
 import {clamp, floatEqual} from '../../base/math_utils';
-import {Duration, Time, time} from '../../base/time';
+import {Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {
   drawIncompleteSlice,
@@ -23,7 +23,6 @@ import {
 import {cropText} from '../../base/string_utils';
 import {colorCompare} from '../../base/color';
 import {UNEXPECTED_PINK} from '../colorizer';
-import {TrackEventDetails} from '../../public/selection';
 import {featureFlags} from '../../core/feature_flags';
 import {raf} from '../../core/raf_scheduler';
 import {Track} from '../../public/track';
@@ -36,7 +35,6 @@ import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {Point2D, VerticalBounds} from '../../base/geom';
 import {Trace} from '../../public/trace';
-import {SourceDataset} from '../../trace_processor/dataset';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -956,39 +954,6 @@ export abstract class BaseSliceTrack<
 
   protected get engine() {
     return this.trace.engine;
-  }
-
-  async getSelectionDetails(
-    id: number,
-  ): Promise<TrackEventDetails | undefined> {
-    const query = `
-      SELECT
-        ts,
-        dur
-      FROM (${this.getSqlSource()})
-      WHERE id = ${id}
-    `;
-
-    const result = await this.engine.query(query);
-    if (result.numRows() === 0) {
-      return undefined;
-    }
-    const row = result.iter({
-      ts: LONG,
-      dur: LONG,
-    });
-    return {ts: Time.fromRaw(row.ts), dur: Duration.fromRaw(row.dur)};
-  }
-
-  getDataset(): SourceDataset {
-    return new SourceDataset({
-      src: this.getSqlSource(),
-      schema: {
-        id: NUM,
-        ts: LONG,
-        dur: LONG,
-      },
-    });
   }
 }
 

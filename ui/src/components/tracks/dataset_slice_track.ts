@@ -267,15 +267,14 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
   }
 
   detailsPanel(sel: TrackEventSelection): TrackEventDetailsPanel | undefined {
-    // This type assertion is required as a temporary patch while the specifics
-    // of selection details are being worked out. Eventually we will change the
-    // selection details to be purely based on dataset, but there are currently
-    // some use cases preventing us from doing so. For now, this type assertion
-    // is safe as we know we just returned the entire row from from
-    // getSelectionDetails() so we know it must at least implement the row's
-    // type `T`.
-
     if (this.attrs.detailsPanel) {
+      // This type assertion is required as a temporary patch while the
+      // specifics of selection details are being worked out. Eventually we will
+      // change the selection details to be purely based on dataset, but there
+      // are currently some use cases preventing us from doing so. For now, this
+      // type assertion is safe as we know we just returned the entire row from
+      // from getSelectionDetails() so we know it must at least implement the
+      // row's type `T`.
       return this.attrs.detailsPanel(sel as unknown as T);
     } else {
       // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
@@ -287,7 +286,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     }
   }
 
-  override async getSelectionDetails(
+  async getSelectionDetails(
     id: number,
   ): Promise<TrackEventDetails | undefined> {
     const {trace, dataset} = this.attrs;
