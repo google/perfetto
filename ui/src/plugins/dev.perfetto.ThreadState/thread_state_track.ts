@@ -82,6 +82,7 @@ export function createThreadStateTrack(
       return getState(row);
     },
     detailsPanel: (row) => new ThreadStateDetailsPanel(trace, row.id),
+    rootTableName: 'thread_state',
   });
 }
 
