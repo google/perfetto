@@ -162,7 +162,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         {
           class: `${highlightClass} ${dragClass} ${dropClass} ${globals.state.selectedTrackIds.has(attrs.trackState.id)? 'selected': ''}`,
           onclick: (e: MouseEvent)=>{
-            if (!e.ctrlKey) {
+            if (!(navigator.userAgent.includes('Mac')? e.metaKey : e.ctrlKey)) {
               globals.dispatch(
                 Actions.clearTrackAndGroupSelection({}));
             }
