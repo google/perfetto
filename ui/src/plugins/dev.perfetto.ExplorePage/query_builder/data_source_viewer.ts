@@ -98,13 +98,13 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
         },
       });
     };
+
     const lastNode = getLastFinishedNode(attrs.queryNode);
     if (lastNode === undefined) return;
 
     const sq = lastNode.getStructuredQuery();
-    if (sq === undefined) {
-      return;
-    }
+    if (sq === undefined) return;
+
     this.curSqString = JSON.stringify(sq.toJSON());
 
     if (this.curSqString !== this.prevSqString) {
@@ -121,9 +121,7 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
       });
     }
 
-    if (this.currentSql === undefined) {
-      return;
-    }
+    if (this.currentSql === undefined) return;
 
     const jsonSq = attrs.queryNode.getStructuredQuery()?.toJSON();
     return [
@@ -181,7 +179,7 @@ export function queryToRun(sql: Query): string {
   return includes + sql.sql;
 }
 
-async function analyzeNode(
+export async function analyzeNode(
   node: QueryNode,
   engine: Engine,
 ): Promise<Query | undefined> {
@@ -189,15 +187,16 @@ async function analyzeNode(
   if (structuredQueries === undefined) return;
 
   const res = await engine.analyzeStructuredQuery(structuredQueries);
-  if (
-    res.error ||
-    res.results.length === 0 ||
-    res.results.length !== structuredQueries.length
-  ) {
-    return;
+
+  if (res.error) throw Error(res.error);
+  if (res.results.length === 0) throw Error('No structured query results');
+  if (res.results.length !== structuredQueries.length) {
+    throw Error(
+      `Wrong structured query results. Asked for ${structuredQueries.length}, received ${res.results.length}`,
+    );
   }
 
-  const lastRes = res.results[structuredQueries.length - 1];
+  const lastRes = res.results[res.results.length - 1];
   if (lastRes.sql === null || lastRes.sql === undefined) {
     return;
   }

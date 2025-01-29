@@ -13,11 +13,15 @@
 // limitations under the License.
 
 import protos from '../../protos';
-import {SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
+
 import {ColumnControllerRows} from './query_builder/column_controller';
 
 export enum NodeType {
+  // Sources
   kStdlibTable,
+  kSimpleSlices,
+
+  // Operations
   kJoinOperator,
 }
 
@@ -28,73 +32,11 @@ export interface QueryNode {
   finished: boolean;
 
   dataName?: string;
-  cte: boolean;
-  imports?: string[];
   columns?: ColumnControllerRows[];
 
-  getSourceSql(): string | undefined;
+  validate(): boolean;
   getTitle(): string;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
-
-  validate(): boolean;
-}
-
-export class StdlibTableState implements QueryNode {
-  readonly type: NodeType = NodeType.kStdlibTable;
-  prevNode = undefined;
-  nextNode?: QueryNode;
-  finished: boolean = true;
-
-  dataName?: string;
-  cte = false;
-  imports: string[];
-  columns: ColumnControllerRows[];
-
-  sqlTable: SqlTable;
-
-  getSourceSql(): string | undefined {
-    return `${this.sqlTable.name}`;
-  }
-  getTitle(): string {
-    return `Table ${this.sqlTable.name}`;
-  }
-  validate(): boolean {
-    return true;
-  }
-  getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (!this.validate()) return;
-
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = `table_source_${this.sqlTable.name}`;
-    sq.table = new protos.PerfettoSqlStructuredQuery.Table();
-    sq.table.tableName = this.sqlTable.name;
-    sq.table.moduleName = this.sqlTable.includeKey
-      ? this.sqlTable.includeKey
-      : undefined;
-    sq.table.columnNames = this.columns
-      .filter((c) => c.checked)
-      .map((c) => c.column.name);
-
-    const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] =
-      [];
-    for (const c of this.columns.filter((c) => c.checked)) {
-      const newC = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      newC.columnName = c.column.name;
-      if (c.alias) {
-        newC.alias = c.alias;
-      }
-      selectedColumns.push(newC);
-    }
-    sq.selectColumns = selectedColumns;
-    return sq;
-  }
-
-  constructor(sqlTable: SqlTable) {
-    this.dataName = sqlTable.name;
-    this.imports = sqlTable.includeKey ? [sqlTable.includeKey] : [];
-    this.columns = sqlTable.columns.map((c) => new ColumnControllerRows(c));
-    this.sqlTable = sqlTable;
-  }
 }
 
 export function getLastFinishedNode(node: QueryNode): QueryNode | undefined {
