@@ -351,16 +351,21 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         n.size = it->size();
         queries.push_back(n);
       }
-      auto* res = resp->set_analyze_structured_query_result();
-      std::vector<AnalyzedStructuredQuery> results;
-      base::Status status =
-          trace_processor_->AnalyzeStructuredQueries(queries, &results);
+
+      std::vector<AnalyzedStructuredQuery> analyzed_queries;
+      base::Status status = trace_processor_->AnalyzeStructuredQueries(
+          queries, &analyzed_queries);
+      auto* analyze_result = resp->set_analyze_structured_query_result();
       if (!status.ok()) {
-        res->set_error(status.message());
+        analyze_result->set_error(status.message());
       }
 
-      for (const auto& r : results) {
-        res->add_sql(r.sql);
+      for (const auto& r : analyzed_queries) {
+        auto* query_res = analyze_result->add_results();
+        query_res->set_sql(r.sql);
+        for (const std::string& i : r.modules) {
+          query_res->add_modules(i);
+        }
       }
       resp.Send(rpc_response_fn_);
       break;
