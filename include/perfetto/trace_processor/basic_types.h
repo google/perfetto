@@ -358,6 +358,8 @@ struct StructuredQueryBytes {
 // used.
 struct AnalyzedStructuredQuery {
   std::string sql;
+  // Modules referenced by sql
+  std::vector<std::string> modules;
 };
 
 // Deprecated. Please use `RegisterSqlPackage` and `SqlPackage` instead.

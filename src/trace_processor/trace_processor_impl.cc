@@ -661,6 +661,7 @@ base::Status TraceProcessorImpl::AnalyzeStructuredQueries(
   for (const auto& sq : sqs) {
     AnalyzedStructuredQuery newAnalyzedSq;
     ASSIGN_OR_RETURN(newAnalyzedSq.sql, sqg.Generate(sq.ptr, sq.size));
+    newAnalyzedSq.modules = sqg.ComputeReferencedModules();
     sqg.AddSharedQuery(sq.ptr, sq.size);
     output->push_back(newAnalyzedSq);
   }
