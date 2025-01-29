@@ -70,17 +70,6 @@ export class JoinState implements QueryNode {
     return `JOIN with ${this.secondaryTable.name}`;
   }
 
-  getSourceSql(): string | undefined {
-    if (
-      this.primaryColumnsPicked === undefined ||
-      this.secondaryColumnsPicked === undefined
-    ) {
-      return;
-    }
-
-    return `JOIN ${this.secondaryTable?.name} ON ${this.prevNode.dataName}.${this.joinColumn?.name}=${this.secondaryTable?.name}.${this.secondaryJoinColumn?.name}`;
-  }
-
   validate(): boolean {
     if (
       findCollisions(this) === undefined ||
