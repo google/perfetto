@@ -159,11 +159,12 @@ class TrackEventTracker {
 
     static ResolvedDescriptorTrack Process(TrackId,
                                            UniquePid upid,
-                                           bool is_counter);
+                                           bool is_counter,
+                                           bool is_root);
     static ResolvedDescriptorTrack Thread(TrackId,
                                           UniqueTid utid,
                                           bool is_counter,
-                                          bool is_default_thead_slice_track);
+                                          bool is_root);
     static ResolvedDescriptorTrack Global(TrackId, bool is_counter);
 
     TrackId track_id() const { return track_id_; }
@@ -173,23 +174,20 @@ class TrackEventTracker {
       PERFETTO_DCHECK(scope() == Scope::kThread);
       return utid_;
     }
-    bool is_default_thead_slice_track() const {
-      PERFETTO_DCHECK(scope() == Scope::kThread);
-      return is_default_thead_slice_track_;
-    }
     UniquePid upid() const {
       PERFETTO_DCHECK(scope() == Scope::kProcess);
       return upid_;
     }
+    bool is_root() const { return is_root_; }
 
    private:
     TrackId track_id_;
     Scope scope_;
     bool is_counter_;
+    bool is_root_;
 
     // Only set when |scope| == |Scope::kThread|.
     UniqueTid utid_;
-    bool is_default_thead_slice_track_ = false;
 
     // Only set when |scope| == |Scope::kProcess|.
     UniquePid upid_;

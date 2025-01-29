@@ -1,4 +1,14 @@
-# Sequence 1 defaults to track for "t1".
+# Parent track. Two tracks below are its children.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 10
+    child_ordering: 3
+  }
+}
+
+# Sequence 1 defaults to track for "t1"
 packet {
   trusted_packet_sequence_id: 1
   timestamp: 0
@@ -32,23 +42,8 @@ packet {
     }
   }
 }
-# Both thread tracks are nested underneath this process track.
-packet {
-  trusted_packet_sequence_id: 1
-  timestamp: 0
-  track_descriptor {
-    uuid: 10
-    process {
-      pid: 5
-      process_name: "p1"
-    }
-    child_ordering: 3
-    chrome_process {
-      host_app_package_name: "host_app"
-    }
-  }
-}
-# And we have an async track underneath the process too.
+
+# And we have an async track underneath the parent track too.
 packet {
   trusted_packet_sequence_id: 1
   timestamp: 0
@@ -112,26 +107,55 @@ packet {
     type: 3
   }
 }
-# If we later see another track descriptor for pid 5, but with a different uuid,
-# we should detect pid reuse and start a new process.
+
+# Parent track that is also a process track, will have all of their children ignore the ordering.
 packet {
   trusted_packet_sequence_id: 4
-  timestamp: 20000
-  incremental_state_cleared: true
+  timestamp: 0
   track_descriptor {
     uuid: 20
     process {
       pid: 5
-      process_name: "p2"
+      process_name: "p1"
+    }
+    child_ordering: 3
+    chrome_process {
+      host_app_package_name: "host_app"
     }
   }
 }
+
+# Sequence 4 defaults to track for "t3"
 packet {
   trusted_packet_sequence_id: 4
-  timestamp: 22000
+  timestamp: 11001
   incremental_state_cleared: true
+  first_packet_on_sequence: true
   track_descriptor {
-    uuid: 21
+    uuid: 15
     parent_uuid: 20
+    sibling_order_rank: -10
+  }
+  trace_packet_defaults {
+    track_event_defaults {
+      track_uuid: 1
+    }
+  }
+}
+# Sequence 5 defaults to track for "t4".
+packet {
+  trusted_packet_sequence_id: 5
+  timestamp: 11002
+  incremental_state_cleared: true
+  first_packet_on_sequence: true
+  track_descriptor {
+    uuid: 16
+    parent_uuid: 20
+    sibling_order_rank: -2
+  }
+  trace_packet_defaults {
+    track_event_defaults {
+      track_uuid: 2
+    }
   }
 }

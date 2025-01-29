@@ -286,28 +286,28 @@ class TrackEvent(TestSuite):
           LEFT JOIN process ON t3.upid = process.id
           ORDER BY id
         )
-        SELECT t1.full_name AS name, t2.full_name AS parent_name,
-               EXTRACT_ARG(t1.source_arg_set_id, 'has_first_packet_on_sequence')
+        SELECT
+        t1.full_name AS name,
+        EXTRACT_ARG(t1.source_arg_set_id, 'has_first_packet_on_sequence')
                AS has_first_packet_on_sequence
         FROM track_with_name t1
-        LEFT JOIN track_with_name t2 ON t1.parent_id = t2.id
         ORDER BY 1, 2;
         """,
         out=Csv("""
-        "name","parent_name","has_first_packet_on_sequence"
-        "Default Track","[NULL]","[NULL]"
-        "async","process=p1",1
-        "async2","process=p1",1
-        "async3","thread=t2",1
-        "event_and_track_async3","process=p1",1
-        "process=p1","[NULL]",1
-        "process=p2","[NULL]","[NULL]"
-        "process=p2","[NULL]","[NULL]"
-        "thread=t1","[NULL]",1
-        "thread=t2","[NULL]",1
-        "thread=t3","[NULL]",1
-        "thread=t4","[NULL]","[NULL]"
-        "tid=1","[NULL]","[NULL]"
+        "name","has_first_packet_on_sequence"
+        "Default Track","[NULL]"
+        "async",1
+        "async2",1
+        "async3",1
+        "event_and_track_async3",1
+        "process=p1",1
+        "process=p2","[NULL]"
+        "process=p2","[NULL]"
+        "thread=t1",1
+        "thread=t2",1
+        "thread=t3",1
+        "thread=t4","[NULL]"
+        "tid=1","[NULL]"
         """))
 
   # Instant events
@@ -848,11 +848,12 @@ class TrackEvent(TestSuite):
         1,0,"[NULL]",-10
         2,0,"[NULL]",-2
         3,0,"[NULL]",1
-        4,0,"[NULL]",2
-        5,2,"[NULL]","[NULL]"
-        6,0,"[NULL]","[NULL]"
-        7,"[NULL]","[NULL]","[NULL]"
-        8,7,"[NULL]","[NULL]"
+        4,"[NULL]","explicit","[NULL]"
+        5,0,"[NULL]",2
+        6,2,"[NULL]","[NULL]"
+        7,0,"[NULL]","[NULL]"
+        8,"[NULL]","[NULL]",-10
+        9,"[NULL]","[NULL]",-2
         """))
 
   def test_track_event_tracks_machine_id(self):
@@ -879,28 +880,28 @@ class TrackEvent(TestSuite):
           WHERE t1.machine_id IS NOT NULL
           ORDER BY id
         )
-        SELECT t1.full_name AS name, t2.full_name AS parent_name,
-               EXTRACT_ARG(t1.source_arg_set_id, 'has_first_packet_on_sequence')
+        SELECT
+        t.full_name AS name,
+        EXTRACT_ARG(t.source_arg_set_id, 'has_first_packet_on_sequence')
                AS has_first_packet_on_sequence
-        FROM track_with_name t1
-        LEFT JOIN track_with_name t2 ON t1.parent_id = t2.id
+        FROM track_with_name t
         ORDER BY 1, 2;
         """,
         out=Csv("""
-        "name","parent_name","has_first_packet_on_sequence"
-        "Default Track","[NULL]","[NULL]"
-        "async","process=p1",1
-        "async2","process=p1",1
-        "async3","thread=t2",1
-        "event_and_track_async3","process=p1",1
-        "process=p1","[NULL]",1
-        "process=p2","[NULL]","[NULL]"
-        "process=p2","[NULL]","[NULL]"
-        "thread=t1","[NULL]",1
-        "thread=t2","[NULL]",1
-        "thread=t3","[NULL]",1
-        "thread=t4","[NULL]","[NULL]"
-        "tid=1","[NULL]","[NULL]"
+        "name","has_first_packet_on_sequence"
+        "Default Track","[NULL]"
+        "async",1
+        "async2",1
+        "async3",1
+        "event_and_track_async3",1
+        "process=p1",1
+        "process=p2","[NULL]"
+        "process=p2","[NULL]"
+        "thread=t1",1
+        "thread=t2",1
+        "thread=t3",1
+        "thread=t4","[NULL]"
+        "tid=1","[NULL]"
         """))
 
   # Tests thread_counter_track.machine_id is not null.
