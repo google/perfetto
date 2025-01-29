@@ -29,6 +29,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "protos/perfetto/perfetto_sql/structured_query.pbzero.h"
@@ -92,6 +93,7 @@ class GeneratorImpl {
   base::StatusOr<std::string> Table(const StructuredQuery::Table::Decoder&);
   base::StatusOr<std::string> SimpleSlices(
       const StructuredQuery::SimpleSlices::Decoder&);
+  base::StatusOr<std::string> SqlSource(const StructuredQuery::Sql::Decoder&);
 
   // Nested sources
   std::string NestedSource(protozero::ConstBytes);
@@ -174,6 +176,9 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     } else if (q.has_interval_intersect()) {
       StructuredQuery::IntervalIntersect::Decoder ii(q.interval_intersect());
       ASSIGN_OR_RETURN(source, IntervalIntersect(ii));
+    } else if (q.has_sql()) {
+      StructuredQuery::Sql::Decoder sql_source(q.sql());
+      ASSIGN_OR_RETURN(source, SqlSource(sql_source));
     } else if (q.has_inner_query()) {
       source = NestedSource(q.inner_query());
     } else if (q.has_inner_query_id()) {
@@ -216,6 +221,24 @@ base::StatusOr<std::string> GeneratorImpl::Table(
     referenced_modules_.Insert(table.module_name().ToStdString(), nullptr);
   }
   return table.table_name().ToStdString();
+}
+
+base::StatusOr<std::string> GeneratorImpl::SqlSource(
+    const StructuredQuery::Sql::Decoder& sql) {
+  if (sql.sql().size == 0) {
+    return base::ErrStatus("Sql field must be specified");
+  }
+  if (sql.column_names()->size() == 0) {
+    return base::ErrStatus("Sql must specify columns");
+  }
+
+  std::vector<std::string> cols;
+  for (auto it = sql.column_names(); it; ++it) {
+    cols.push_back(it->as_std_string());
+  }
+  std::string join_str = base::Join(cols, ", ");
+
+  return "(SELECT " + join_str + " FROM (" + sql.sql().ToStdString() + "))";
 }
 
 base::StatusOr<std::string> GeneratorImpl::SimpleSlices(

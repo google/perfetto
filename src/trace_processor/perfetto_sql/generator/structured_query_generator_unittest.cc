@@ -130,7 +130,7 @@ TEST(StructuredQueryGeneratorTest, Operations) {
     )"));
 }
 
-TEST(StructuredQueryGeneratorTest, Smoke) {
+TEST(StructuredQueryGeneratorTest, TableSource) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
     table: {
@@ -162,7 +162,30 @@ TEST(StructuredQueryGeneratorTest, Smoke) {
               UnorderedElementsAre("linux.memory.process"));
 }
 
-TEST(StructuredQueryGeneratorTest, Smoke2) {
+TEST(StructuredQueryGeneratorTest, SqlSource) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "SELECT id, ts, dur FROM slice"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM (
+        SELECT id, ts, dur
+        FROM (SELECT id, ts, dur FROM slice)
+      )
+    )
+    SELECT * FROM sq_0
+    )"));
+}
+
+TEST(StructuredQueryGeneratorTest, IntervalIntersectSource) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
     interval_intersect: {
