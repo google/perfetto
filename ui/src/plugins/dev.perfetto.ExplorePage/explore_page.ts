@@ -77,7 +77,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         m(QueryBuilder, {
           trace: attrs.trace,
           sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
-          onQueryNodeCreated(arg) {
+          onRootNodeCreated(arg) {
             attrs.state.queryNode = arg;
           },
           rootNode: attrs.state.queryNode,
