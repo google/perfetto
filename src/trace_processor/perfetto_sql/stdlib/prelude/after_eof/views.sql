@@ -41,9 +41,12 @@ FROM __intrinsic_counter;
 CREATE PERFETTO VIEW slice(
   -- The id of the slice.
   id ID,
-  -- The timestamp at the start of the slice.
+  -- The timestamp at the start of the slice in nanoseconds. The actual value
+  -- depends on the `primary_trace_clock` selected in TraceConfig. This is often
+  -- the value of a monotonic counter since device boot so is only meaningful in
+  -- the context of a trace.
   ts TIMESTAMP,
-  -- The duration of the slice.
+  -- The duration of the slice in nanoseconds.
   dur DURATION,
   -- The id of the track this slice is located on.
   track_id JOINID(track.id),
