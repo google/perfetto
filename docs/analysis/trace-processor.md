@@ -61,10 +61,13 @@ used in the rest of documentation.
 
 In the most general sense, a trace is simply a collection of timestamped
 "events". Events can have associated metadata and context which allows them to
-be interpreted and analyzed.
+be interpreted and analyzed. Timestamps are in nanoseconds; the values
+themselves depend on the [clock][primary_trace_clock] selected in TraceConfig.
 
 Events form the foundation of trace processor and are one of two types: slices
 and counters.
+
+[primary_trace_clock]: https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/protos/perfetto/config/trace_config.proto;l=114;drc=c74c8cf69e20d7b3261fb8c5ab4d057e8badce3e
 
 #### Slices
 
