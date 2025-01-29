@@ -17,7 +17,16 @@ import {
   LegacyTableColumnSet,
 } from '../../components/widgets/sql/legacy_table/column';
 import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
-import {SimpleColumn} from '../../components/widgets/sql/table/table';
+import {
+  createDurationColumn,
+  createProcessIdColumn,
+  createSchedIdColumn,
+  createSliceIdColumn,
+  createStandardColumn,
+  createThreadIdColumn,
+  createThreadStateIdColumn,
+  createTimestampColumn,
+} from '../../components/widgets/sql/table/table';
 
 // Handles the access to all of the Perfetto SQL modules accessible to Trace
 //  Processor.
@@ -125,11 +134,8 @@ export interface SqlMacro {
 // The definition of Perfetto SQL column.
 export interface SqlColumn {
   readonly name: string;
-  readonly description: string;
+  readonly description?: string;
   readonly type: SqlType;
-
-  // Translates this column to SimpleColumn.
-  asSimpleColumn(tableName: string): SimpleColumn;
 }
 
 // The definition of Perfetto SQL argument. Can be used for functions, table
@@ -150,5 +156,50 @@ export interface TableAndColumn {
 export interface SqlType {
   readonly name: string;
   readonly shortName: string;
-  readonly tableAndColumn: TableAndColumn | undefined;
+  readonly tableAndColumn?: TableAndColumn;
+}
+
+export function SqlColumnAsSimpleColumn(col: SqlColumn, tableName: string) {
+  if (col.type.shortName === 'TIMESTAMP') {
+    return createTimestampColumn(col.name);
+  }
+  if (col.type.shortName === 'DURATION') {
+    return createDurationColumn(col.name);
+  }
+
+  if (col.type.shortName === 'ID') {
+    switch (tableName.toLowerCase()) {
+      case 'slice':
+        return createSliceIdColumn(col.name);
+      case 'thread':
+        return createThreadIdColumn(col.name);
+      case 'process':
+        return createProcessIdColumn(col.name);
+      case 'thread_state':
+        return createThreadStateIdColumn(col.name);
+      case 'sched':
+        return createSchedIdColumn(col.name);
+    }
+    return createStandardColumn(col.name);
+  }
+
+  if (col.type.shortName === 'JOINID') {
+    if (col.type.tableAndColumn === undefined) {
+      return createStandardColumn(col.name);
+    }
+    switch (col.type.tableAndColumn.table.toLowerCase()) {
+      case 'slice':
+        return createSliceIdColumn(col.name);
+      case 'thread':
+        return createThreadIdColumn(col.name);
+      case 'process':
+        return createProcessIdColumn(col.name);
+      case 'thread_state':
+        return createThreadStateIdColumn(col.name);
+      case 'sched':
+        return createSchedIdColumn(col.name);
+    }
+  }
+
+  return createStandardColumn(col.name);
 }
