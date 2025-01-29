@@ -470,7 +470,6 @@ $bottom-tab-padding: 10px;
   overflow-x: hidden;
   overflow-y: auto;
   flex: 1 1 auto;
-  will-change: transform; // Force layer creation.
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
@@ -492,7 +491,7 @@ $bottom-tab-padding: 10px;
   grid-template-areas: "space";
 }
 
-.pinned-panel-container {
+.overview-panel-container {
   position: relative;
   // Override top level overflow: hidden so height of this flex item can be
   // its content height.
@@ -525,7 +524,7 @@ canvas.main-canvas {
   user-select: none;
 }
 
-.scrolling-panel-container > .panels > *:last-child {
+.scrolling-panel-container:not(.pinned-group) > .panels > *:last-child {
   margin-bottom: 500px;
 }
 

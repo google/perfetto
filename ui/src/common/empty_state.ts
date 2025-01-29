@@ -172,6 +172,7 @@ export function createEmptyState(): State {
 
     filteredTracks: [],
     pinnedGroupCollapsed: false,
+    pinnedPanelHeight: 400,
     selectedTrackGroupIds: new Set<string>(),
     selectedTrackIds: new Set<string>(),
   };
