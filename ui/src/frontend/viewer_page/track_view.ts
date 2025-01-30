@@ -42,6 +42,7 @@ import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {SELECTION_FILL_COLOR} from '../css_constants';
 import {calculateResolution} from './resolution';
+import {showModal} from '../../widgets/modal';
 
 const TRACK_HEIGHT_MIN_PX = 18;
 const TRACK_HEIGHT_DEFAULT_PX = 30;
@@ -68,6 +69,7 @@ export interface TrackViewAttrs {
   readonly lite: boolean;
   readonly scrollToOnCreate?: boolean;
   readonly reorderable?: boolean;
+  readonly removable?: boolean;
   readonly depth: number;
   readonly stickyTop: number;
   readonly collapsible: boolean;
@@ -107,14 +109,19 @@ export class TrackView {
   }
 
   renderDOM(attrs: TrackViewAttrs, children: m.Children) {
-    const {scrollToOnCreate, reorderable = false, collapsible} = attrs;
+    const {
+      scrollToOnCreate,
+      reorderable = false,
+      collapsible,
+      removable,
+    } = attrs;
     const {node, renderer, height} = this;
 
     const buttons = attrs.lite
       ? []
       : [
           renderer?.track.getTrackShellButtons?.(),
-          node.removable && this.renderCloseButton(),
+          (removable || node.removable) && this.renderCloseButton(),
           // We don't want summary tracks to be pinned as they rarely have
           // useful information.
           !node.isSummary && this.renderPinButton(),
@@ -127,6 +134,14 @@ export class TrackView {
     if (tracks.scrollToTrackNodeId === node.id) {
       tracks.scrollToTrackNodeId = undefined;
       scrollIntoView = true;
+    }
+
+    function showTrackMoveErrorModal(msg: string) {
+      showModal({
+        title: 'Error',
+        content: msg,
+        buttons: [{text: 'OK'}],
+      });
     }
 
     return m(
@@ -179,17 +194,42 @@ export class TrackView {
           renderer?.track.onFullRedraw?.();
         },
         onMoveBefore: (nodeId: string) => {
-          const targetNode = node.workspace?.getTrackById(nodeId);
-          if (targetNode !== undefined) {
+          // We are the reference node (the one to be moved relative to), nodeId
+          // references the target node (the one to be moved)
+          const nodeToMove = node.workspace?.getTrackById(nodeId);
+          const targetNode = this.node.parent;
+          if (nodeToMove && targetNode) {
             // Insert the target node before this one
-            targetNode.parent?.addChildBefore(targetNode, node);
+            const result = targetNode.addChildBefore(nodeToMove, node);
+            if (!result.ok) {
+              showTrackMoveErrorModal(result.error);
+            }
+          }
+        },
+        onMoveInside: (nodeId: string) => {
+          // This one moves the node inside this node & expand it if it's not
+          // expanded already.
+          const nodeToMove = node.workspace?.getTrackById(nodeId);
+          if (nodeToMove) {
+            const result = this.node.addChildLast(nodeToMove);
+            if (result.ok) {
+              this.node.expand();
+            } else {
+              showTrackMoveErrorModal(result.error);
+            }
           }
         },
         onMoveAfter: (nodeId: string) => {
-          const targetNode = node.workspace?.getTrackById(nodeId);
-          if (targetNode !== undefined) {
+          // We are the reference node (the one to be moved relative to), nodeId
+          // references the target node (the one to be moved)
+          const nodeToMove = node.workspace?.getTrackById(nodeId);
+          const targetNode = this.node.parent;
+          if (nodeToMove && targetNode) {
             // Insert the target node after this one
-            targetNode.parent?.addChildAfter(targetNode, node);
+            const result = targetNode.addChildAfter(nodeToMove, node);
+            if (!result.ok) {
+              showTrackMoveErrorModal(result.error);
+            }
           }
         },
       },
@@ -255,11 +295,16 @@ export class TrackView {
 
   private renderCloseButton() {
     return m(Button, {
+      // TODO(stevegolton): It probably makes sense to only show this button
+      // when hovered for consistency with the other buttons, but hiding this
+      // button currently breaks the tests as we wait for the buttons to become
+      // available, enabled and visible before clicking on them.
+      // className: 'pf-visible-on-hover',
       onclick: () => {
         this.node.remove();
       },
       icon: Icons.Close,
-      title: 'Close track',
+      title: 'Remove track',
       compact: true,
     });
   }
@@ -307,7 +352,7 @@ export class TrackView {
         this.trace.workspaces.all.map((ws) =>
           m(MenuItem, {
             label: ws.title,
-            disabled: this.trace.workspaces.currentWorkspace === ws,
+            disabled: !ws.userEditable,
             onclick: () => this.copyToWorkspace(ws),
           }),
         ),
@@ -323,7 +368,7 @@ export class TrackView {
         this.trace.workspaces.all.map((ws) =>
           m(MenuItem, {
             label: ws.title,
-            disabled: this.trace.workspaces.currentWorkspace === ws,
+            disabled: !ws.userEditable,
             onclick: async () => {
               this.copyToWorkspace(ws);
               this.trace.workspaces.switchWorkspace(ws);
@@ -349,7 +394,6 @@ export class TrackView {
     }
     // Deep clone makes sure all group's content is also copied
     const newNode = this.node.clone(true);
-    newNode.removable = true;
     ws.addChildLast(newNode);
     return ws;
   }
