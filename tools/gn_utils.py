@@ -385,13 +385,18 @@ class GnParser(object):
           (type(self).__name__, type(other).__name__))
 
     def __repr__(self):
-      return json.dumps(
-          {
-              k: (list(sorted(v)) if isinstance(v, set) else v)
-              for (k, v) in iteritems(self.__dict__)
-          },
-          indent=4,
-          sort_keys=True)
+      serializable_dict = dict()
+      # 'set' is not serializable type, so we convert sets to the sorted lists
+      # 'deps' and 'transitive_deps' fields are 'Set[Target]', we don't want to
+      # recursively dump all Targets, so we convert them to the list of names.
+      for (k, v) in iteritems(self.__dict__):
+        vv = v
+        if k == "deps" or k == "transitive_deps":
+          vv = sorted([target.name for target in v])
+        if isinstance(vv, set):
+          vv = sorted(vv)
+        serializable_dict[k] = vv
+      return json.dumps(serializable_dict, indent=4, sort_keys=True)
 
     def update(self, other):
       for key in ('cflags', 'data', 'defines', 'deps', 'include_dirs',
