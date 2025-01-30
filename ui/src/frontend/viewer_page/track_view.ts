@@ -43,6 +43,7 @@ import {Tree, TreeNode} from '../../widgets/tree';
 import {SELECTION_FILL_COLOR} from '../css_constants';
 import {calculateResolution} from './resolution';
 import {showModal} from '../../widgets/modal';
+import {Trace} from '../../public/trace';
 
 const TRACK_HEIGHT_MIN_PX = 18;
 const TRACK_HEIGHT_DEFAULT_PX = 30;
@@ -334,114 +335,14 @@ export class TrackView {
           title: 'Track options',
         }),
       },
-      m(MenuItem, {
-        label: 'Select track',
-        disabled: !this.node.uri,
-        onclick: () => {
-          this.trace.selection.selectTrack(this.node.uri!);
-        },
-        title: this.node.uri
-          ? 'Select track'
-          : 'Track has no URI and cannot be selected',
+      // Putting these menu items inside a component means that view is only
+      // called when the popup is actually open, which can improve DOM
+      // render performance when we have thousands of tracks on screen.
+      m(TrackPopupMenu, {
+        trace: this.trace,
+        node: this.node,
+        descriptor: this.descriptor,
       }),
-      m(MenuItem, {label: 'Track details'}, this.renderTrackDetails()),
-      m(MenuDivider),
-      m(
-        MenuItem,
-        {label: 'Copy to workspace'},
-        this.trace.workspaces.all.map((ws) =>
-          m(MenuItem, {
-            label: ws.title,
-            disabled: !ws.userEditable,
-            onclick: () => this.copyToWorkspace(ws),
-          }),
-        ),
-        m(MenuDivider),
-        m(MenuItem, {
-          label: 'New workspace...',
-          onclick: () => this.copyToWorkspace(),
-        }),
-      ),
-      m(
-        MenuItem,
-        {label: 'Copy & switch to workspace'},
-        this.trace.workspaces.all.map((ws) =>
-          m(MenuItem, {
-            label: ws.title,
-            disabled: !ws.userEditable,
-            onclick: async () => {
-              this.copyToWorkspace(ws);
-              this.trace.workspaces.switchWorkspace(ws);
-            },
-          }),
-        ),
-        m(MenuDivider),
-        m(MenuItem, {
-          label: 'New workspace...',
-          onclick: async () => {
-            const ws = this.copyToWorkspace();
-            this.trace.workspaces.switchWorkspace(ws);
-          },
-        }),
-      ),
-    );
-  }
-
-  private copyToWorkspace(ws?: Workspace) {
-    // If no workspace provided, create a new one.
-    if (!ws) {
-      ws = this.trace.workspaces.createEmptyWorkspace('Untitled Workspace');
-    }
-    // Deep clone makes sure all group's content is also copied
-    const newNode = this.node.clone(true);
-    ws.addChildLast(newNode);
-    return ws;
-  }
-
-  private renderTrackDetails(): m.Children {
-    let parent = this.node.parent;
-    let fullPath: m.ChildArray = [this.node.title];
-    while (parent && parent instanceof TrackNode) {
-      fullPath = [parent.title, ' \u2023 ', ...fullPath];
-      parent = parent.parent;
-    }
-
-    return m(
-      '.pf-track__track-details-popup',
-      m(
-        Tree,
-        m(TreeNode, {left: 'Track Node ID', right: this.node.id}),
-        m(TreeNode, {left: 'Collapsed', right: `${this.node.collapsed}`}),
-        m(TreeNode, {left: 'URI', right: this.node.uri}),
-        m(TreeNode, {
-          left: 'Is Summary Track',
-          right: `${this.node.isSummary}`,
-        }),
-        m(TreeNode, {
-          left: 'SortOrder',
-          right: this.node.sortOrder ?? '0 (undefined)',
-        }),
-        m(TreeNode, {left: 'Path', right: fullPath}),
-        m(TreeNode, {left: 'Title', right: this.node.title}),
-        m(TreeNode, {
-          left: 'Workspace',
-          right: this.node.workspace?.title ?? '[no workspace]',
-        }),
-        this.descriptor &&
-          m(TreeNode, {
-            left: 'Plugin ID',
-            right: this.descriptor.pluginId,
-          }),
-        this.descriptor &&
-          m(
-            TreeNode,
-            {left: 'Tags'},
-            this.descriptor.tags &&
-              Object.entries(this.descriptor.tags).map(([key, value]) => {
-                return m(TreeNode, {left: key, right: value?.toString()});
-              }),
-          ),
-      ),
     );
   }
 
@@ -559,7 +460,7 @@ export class TrackView {
     if (this.node.isSummary) {
       // Summary tracks cannot themselves be area-selected. So, as a visual aid,
       // if this track is a summary track and some of its children are in the
-      // area selection, highlight this track as if it were in the area
+      // area selecion, highlight this track as if it were in the area
       // selection too.
       selected = selection.trackUris.some((uri) =>
         this.node.getTrackByUri(uri),
@@ -619,4 +520,133 @@ export class TrackView {
     const statStr = `Track ${this.node.id} | ` + runningStatStr(renderStats);
     ctx.fillText(statStr, size.width - statW, size.height - 10);
   }
+}
+
+interface TrackPopupMenuAttrs {
+  readonly trace: Trace;
+  readonly node: TrackNode;
+  readonly descriptor?: TrackDescriptor;
+}
+
+// This component contains the track menu items which are displayed inside a
+// popup menu on each track. They're in a component to avoid having to render
+// them every single mithril cycle.
+const TrackPopupMenu = {
+  view({attrs}: m.Vnode<TrackPopupMenuAttrs>) {
+    return [
+      m(MenuItem, {
+        label: 'Select track',
+        disabled: !attrs.node.uri,
+        onclick: () => {
+          attrs.trace.selection.selectTrack(attrs.node.uri!);
+        },
+        title: attrs.node.uri
+          ? 'Select track'
+          : 'Track has no URI and cannot be selected',
+      }),
+      m(
+        MenuItem,
+        {label: 'Track details'},
+        renderTrackDetailsMenu(attrs.node, attrs.descriptor),
+      ),
+      m(MenuDivider),
+      m(
+        MenuItem,
+        {label: 'Copy to workspace'},
+        attrs.trace.workspaces.all.map((ws) =>
+          m(MenuItem, {
+            label: ws.title,
+            disabled: !ws.userEditable,
+            onclick: () => copyToWorkspace(attrs.trace, attrs.node, ws),
+          }),
+        ),
+        m(MenuDivider),
+        m(MenuItem, {
+          label: 'New workspace...',
+          onclick: () => copyToWorkspace(attrs.trace, attrs.node),
+        }),
+      ),
+      m(
+        MenuItem,
+        {label: 'Copy & switch to workspace'},
+        attrs.trace.workspaces.all.map((ws) =>
+          m(MenuItem, {
+            label: ws.title,
+            disabled: !ws.userEditable,
+            onclick: async () => {
+              copyToWorkspace(attrs.trace, attrs.node, ws);
+              attrs.trace.workspaces.switchWorkspace(ws);
+            },
+          }),
+        ),
+        m(MenuDivider),
+        m(MenuItem, {
+          label: 'New workspace...',
+          onclick: async () => {
+            const ws = copyToWorkspace(attrs.trace, attrs.node);
+            attrs.trace.workspaces.switchWorkspace(ws);
+          },
+        }),
+      ),
+    ];
+  },
+};
+
+function copyToWorkspace(trace: Trace, node: TrackNode, ws?: Workspace) {
+  // If no workspace provided, create a new one.
+  if (!ws) {
+    ws = trace.workspaces.createEmptyWorkspace('Untitled Workspace');
+  }
+  // Deep clone makes sure all group's content is also copied
+  const newNode = node.clone(true);
+  newNode.removable = true;
+  ws.addChildLast(newNode);
+  return ws;
+}
+
+function renderTrackDetailsMenu(node: TrackNode, descriptor?: TrackDescriptor) {
+  let parent = node.parent;
+  let fullPath: m.ChildArray = [node.title];
+  while (parent && parent instanceof TrackNode) {
+    fullPath = [parent.title, ' \u2023 ', ...fullPath];
+    parent = parent.parent;
+  }
+
+  return m(
+    '.pf-track__track-details-popup',
+    m(
+      Tree,
+      m(TreeNode, {left: 'Track Node ID', right: node.id}),
+      m(TreeNode, {left: 'Collapsed', right: `${node.collapsed}`}),
+      m(TreeNode, {left: 'URI', right: node.uri}),
+      m(TreeNode, {
+        left: 'Is Summary Track',
+        right: `${node.isSummary}`,
+      }),
+      m(TreeNode, {
+        left: 'SortOrder',
+        right: node.sortOrder ?? '0 (undefined)',
+      }),
+      m(TreeNode, {left: 'Path', right: fullPath}),
+      m(TreeNode, {left: 'Title', right: node.title}),
+      m(TreeNode, {
+        left: 'Workspace',
+        right: node.workspace?.title ?? '[no workspace]',
+      }),
+      descriptor &&
+        m(TreeNode, {
+          left: 'Plugin ID',
+          right: descriptor.pluginId,
+        }),
+      descriptor &&
+        m(
+          TreeNode,
+          {left: 'Tags'},
+          descriptor.tags &&
+            Object.entries(descriptor.tags).map(([key, value]) => {
+              return m(TreeNode, {left: key, right: value?.toString()});
+            }),
+        ),
+    ),
+  );
 }
