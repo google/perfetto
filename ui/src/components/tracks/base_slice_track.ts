@@ -280,6 +280,7 @@ export abstract class BaseSliceTrack<
     protected readonly rowSpec: RowT,
     sliceLayout: Partial<SliceLayout> = {},
     protected readonly depthGuess: number = 0,
+    protected readonly instantWidthPx: number = CHEVRON_WIDTH_PX,
   ) {
     // Work out the extra columns.
     // This is the union of the embedder-defined columns and the base columns
@@ -461,8 +462,8 @@ export abstract class BaseSliceTrack<
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         // In the case of an instant slice, set the slice geometry on the
         // bounding box that will contain the chevron.
-        slice.x -= CHEVRON_WIDTH_PX / 2;
-        slice.w = CHEVRON_WIDTH_PX;
+        slice.x -= this.instantWidthPx / 2;
+        slice.w = this.instantWidthPx;
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
         let widthPx;
         if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
@@ -914,7 +915,7 @@ export abstract class BaseSliceTrack<
     this.computedTrackHeight = trackHeight;
   }
 
-  private drawChevron(
+  protected drawChevron(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
