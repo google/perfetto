@@ -14,12 +14,13 @@
 
 import protos from '../../protos';
 
-import {ColumnControllerRows} from './query_builder/column_controller';
+import {ColumnControllerRow} from './query_builder/column_controller';
 
 export enum NodeType {
   // Sources
   kStdlibTable,
   kSimpleSlices,
+  kSqlSource,
 
   // Operations
   kJoinOperator,
@@ -32,7 +33,7 @@ export interface QueryNode {
   finished: boolean;
 
   dataName?: string;
-  columns?: ColumnControllerRows[];
+  columns?: ColumnControllerRow[];
 
   validate(): boolean;
   getTitle(): string;
