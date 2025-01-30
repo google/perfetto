@@ -98,6 +98,10 @@ message PerfettoSqlStructuredQuery {
 
     // The name of columns which will be returned by the SQL. Required.
     repeated string column_names = 2;
+
+    // SQL string that has to be run before running the SQL. Supports multi
+    // statement queries. Optional.
+    optional string preamble = 3;
   }
 
   // Performs a "time-based" intersection of data from `base` with multiple

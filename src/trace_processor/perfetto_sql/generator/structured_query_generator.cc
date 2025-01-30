@@ -75,10 +75,12 @@ class GeneratorImpl {
  public:
   GeneratorImpl(base::FlatHashMap<std::string, SharedQueryProto>& shared_protos,
                 std::vector<SharedQuery>& shared,
-                base::FlatHashMap<std::string, std::nullptr_t>& modules)
+                base::FlatHashMap<std::string, std::nullptr_t>& modules,
+                std::vector<std::string>& preambles)
       : shared_queries_protos_(shared_protos),
         shared_queries_(shared),
-        referenced_modules_(modules) {}
+        referenced_modules_(modules),
+        preambles_(preambles) {}
 
   base::StatusOr<std::string> Generate(protozero::ConstBytes);
 
@@ -128,6 +130,7 @@ class GeneratorImpl {
   base::FlatHashMap<std::string, SharedQueryProto>& shared_queries_protos_;
   std::vector<SharedQuery>& shared_queries_;
   base::FlatHashMap<std::string, std::nullptr_t>& referenced_modules_;
+  std::vector<std::string>& preambles_;
 };
 
 base::StatusOr<std::string> GeneratorImpl::Generate(
@@ -230,6 +233,10 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
   }
   if (sql.column_names()->size() == 0) {
     return base::ErrStatus("Sql must specify columns");
+  }
+
+  if (sql.has_preamble()) {
+    preambles_.push_back(sql.preamble().ToStdString());
   }
 
   std::vector<std::string> cols;
@@ -532,7 +539,7 @@ base::StatusOr<std::string> StructuredQueryGenerator::Generate(
     const uint8_t* data,
     size_t size) {
   GeneratorImpl impl(shared_queries_protos_, referenced_shared_queries_,
-                     referenced_modules_);
+                     referenced_modules_, preambles_);
   ASSIGN_OR_RETURN(std::string sql,
                    impl.Generate(protozero::ConstBytes{data, size}));
   return sql;
