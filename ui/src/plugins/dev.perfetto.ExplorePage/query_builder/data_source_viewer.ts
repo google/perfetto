@@ -172,6 +172,7 @@ function getStructuredQueries(
 export interface Query {
   sql: string;
   modules: string[];
+  preambles: string[];
 }
 
 export function queryToRun(sql: Query): string {
@@ -201,11 +202,10 @@ export async function analyzeNode(
     return;
   }
 
-  const modules: string[] = lastRes.modules ?? [];
-
   const sql: Query = {
     sql: lastRes.sql,
-    modules,
+    modules: lastRes.modules ?? [],
+    preambles: lastRes.preambles ?? [],
   };
   return sql;
 }
