@@ -360,6 +360,8 @@ struct AnalyzedStructuredQuery {
   std::string sql;
   // Modules referenced by sql
   std::vector<std::string> modules;
+  // Preambles referenced by sql
+  std::vector<std::string> preambles;
 };
 
 // Deprecated. Please use `RegisterSqlPackage` and `SqlPackage` instead.
