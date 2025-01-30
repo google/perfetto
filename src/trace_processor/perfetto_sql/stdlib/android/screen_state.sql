@@ -75,6 +75,17 @@ SELECT
   FROM screen_state_span
 WHERE dur > 0
 UNION
+-- Unknown period until the first counter.
+SELECT
+  1,
+  TRACE_START() as ts,
+  (SELECT min(ts) FROM screen_state_span) - TRACE_START() AS dur,
+  'unknown' as simple_screen_state,
+  'unknown' as short_screen_state,
+  'Unknown' as screen_state
+WHERE TRACE_START() < (SELECT min(ts) FROM screen_state_span)
+  AND EXISTS (SELECT * FROM screen_state_span)
+UNION
 -- Case when we do not have data.
 SELECT
   1,
