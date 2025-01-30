@@ -363,8 +363,11 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       for (const auto& r : analyzed_queries) {
         auto* query_res = analyze_result->add_results();
         query_res->set_sql(r.sql);
-        for (const std::string& i : r.modules) {
-          query_res->add_modules(i);
+        for (const std::string& m : r.modules) {
+          query_res->add_modules(m);
+        }
+        for (const std::string& p : r.preambles) {
+          query_res->add_preambles(p);
         }
       }
       resp.Send(rpc_response_fn_);
