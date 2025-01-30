@@ -55,30 +55,28 @@ export class WattsonProcessSelectionAggregator
 
       -- Grouped by UPID and made CPU agnostic
       CREATE VIEW ${this.id} AS
-      WITH
-        base AS (
-          SELECT
-            ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
-            ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
-            ROUND(COALESCE(idle_cost_mws, 0), 2) as idle_cost_mws,
-            ROUND(
-              COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
-              2
-            ) as total_mws,
-            pid,
-            process_name
-          FROM _unioned_per_cpu_total
-          LEFT JOIN _per_process_idle_attribution USING (upid)
-          GROUP BY upid
-        ),
-        secondary AS (
+      WITH base AS (
+        SELECT
+          ROUND(SUM(total_pws) / ${duration}, 3) as active_mw,
+          ROUND(SUM(total_pws) / 1000000000, 3) as active_mws,
+          ROUND(COALESCE(idle_cost_mws, 0), 3) as idle_cost_mws,
+          ROUND(
+            COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
+            3
+          ) as total_mws,
+          pid,
+          process_name
+        FROM _unioned_per_cpu_total
+        LEFT JOIN _per_process_idle_attribution USING (upid)
+        GROUP BY upid
+      ),
+      secondary AS (
         SELECT pid,
-          ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 2)
+          ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 3)
             AS percent_of_total_energy
         FROM base
         GROUP BY pid
       )
-
       select *
         from base INNER JOIN secondary
         USING (pid);
