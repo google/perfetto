@@ -397,7 +397,6 @@ export class UiMainPerTrace implements m.ClassComponent {
           const ws = trace.workspaces.createEmptyWorkspace('Pinned Tracks');
           for (const pinnedTrack of pinnedTracks) {
             const clone = pinnedTrack.clone();
-            clone.removable = true;
             ws.addChildLast(clone);
           }
           trace.workspaces.switchWorkspace(ws);
@@ -421,7 +420,6 @@ export class UiMainPerTrace implements m.ClassComponent {
           const ws = trace.workspaces.createEmptyWorkspace('Filtered Tracks');
           for (const track of tracks) {
             const clone = track.clone();
-            clone.removable = true;
             ws.addChildLast(clone);
           }
           trace.workspaces.switchWorkspace(ws);

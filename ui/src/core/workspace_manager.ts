@@ -24,6 +24,7 @@ export class WorkspaceManagerImpl implements WorkspaceManager {
 
   constructor() {
     this.defaultWorkspace.title = DEFAULT_WORKSPACE_NAME;
+    this.defaultWorkspace.userEditable = false;
     this._currentWorkspace = this.defaultWorkspace;
   }
 

@@ -79,6 +79,10 @@
       box-shadow: inset 0 -6px 3px -3px var(--drag-highlight-color);
     }
 
+    &--drag-inside {
+      box-shadow: inset -6px 0 3px -3px var(--drag-highlight-color);
+    }
+
     &--drag-before {
       box-shadow: inset 0 6px 3px -3px var(--drag-highlight-color);
     }

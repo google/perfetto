@@ -25,12 +25,14 @@ export interface OkResult<T> {
   value: T;
 }
 
-export type Result<T> = ErrorResult | OkResult<T>;
+export type Result<T = void> = ErrorResult | OkResult<T>;
 
 export function errResult(message: string): ErrorResult {
   return {ok: false, error: message, value: undefined};
 }
 
-export function okResult<T>(value: T): OkResult<T> {
+export function okResult(): OkResult<void>;
+export function okResult<T>(value: T): OkResult<T>;
+export function okResult<T>(value?: T): OkResult<T | void> {
   return {ok: true, value};
 }
