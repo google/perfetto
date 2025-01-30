@@ -116,6 +116,7 @@ export interface TrackShellAttrs extends HTMLAttrs {
   // If reorderable, these functions will be called when track shells are
   // dragged and dropped.
   onMoveBefore?(nodeId: string): void;
+  onMoveInside?(nodeId: string): void;
   onMoveAfter?(nodeId: string): void;
 }
 
@@ -183,15 +184,27 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       reorderable = false,
       onMoveAfter = () => {},
       onMoveBefore = () => {},
+      onMoveInside = () => {},
       buttons,
       highlight,
       lite,
+      summary,
     } = attrs;
 
     const block = 'pf-track';
     const blockElement = `${block}__shell`;
     const dragBeforeClassName = `${blockElement}--drag-before`;
+    const dragInsideClassName = `${blockElement}--drag-inside`;
     const dragAfterClassName = `${blockElement}--drag-after`;
+
+    function updateDragClassname(target: HTMLElement, className: string) {
+      // This is a bit brute-force, but gets the job done without triggering a
+      // full mithril redraw every frame while dragging...
+      target.classList.remove(dragBeforeClassName);
+      target.classList.remove(dragAfterClassName);
+      target.classList.remove(dragInsideClassName);
+      target.classList.add(className);
+    }
 
     return m(
       `.pf-track__shell`,
@@ -212,14 +225,30 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             return;
           }
           const target = e.currentTarget as HTMLElement;
-          const threshold = target.offsetHeight / 2;
           const position = currentTargetOffset(e);
-          if (position.y > threshold) {
-            target.classList.remove(dragBeforeClassName);
-            target.classList.add(dragAfterClassName);
+          if (summary) {
+            // For summary tracks, split the track into thirds, so it's
+            // possible to insert above, below and into.
+            const threshold = target.offsetHeight / 3;
+            if (position.y < threshold) {
+              // Hovering on the upper third, move before this node.
+              updateDragClassname(target, dragBeforeClassName);
+            } else if (position.y < threshold * 2) {
+              // Hovering in the middle, move inside this node.
+              updateDragClassname(target, dragInsideClassName);
+            } else {
+              // Hovering on the lower third, move after this node.
+              updateDragClassname(target, dragAfterClassName);
+            }
           } else {
-            target.classList.remove(dragAfterClassName);
-            target.classList.add(dragBeforeClassName);
+            // For non-summary tracks, split the track in half, as it's only
+            // possible to insert before and after.
+            const threshold = target.offsetHeight / 2;
+            if (position.y < threshold) {
+              updateDragClassname(target, dragBeforeClassName);
+            } else {
+              updateDragClassname(target, dragAfterClassName);
+            }
           }
         },
         ondragleave: (e: DragEvent) => {
@@ -239,16 +268,38 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           }
           const id = e.dataTransfer?.getData('text/plain');
           const target = e.currentTarget as HTMLElement;
-          const threshold = target.offsetHeight / 2;
+          const position = currentTargetOffset(e);
+
           if (id !== undefined) {
-            const position = currentTargetOffset(e);
-            if (position.y > threshold) {
-              onMoveAfter(id);
+            if (summary) {
+              // For summary tracks, split the track into thirds, so it's
+              // possible to insert above, below and into.
+              const threshold = target.offsetHeight / 3;
+              if (position.y < threshold) {
+                // Dropped on the upper third, move before this node.
+                onMoveBefore(id);
+              } else if (position.y < threshold * 2) {
+                // Dropped in the middle, move inside this node.
+                onMoveInside(id);
+              } else {
+                // Dropped on the lower third, move after this node.
+                onMoveAfter(id);
+              }
             } else {
-              onMoveBefore(id);
+              // For non-summary tracks, split the track in half, as it's only
+              // possible to insert before and after.
+              const threshold = target.offsetHeight / 2;
+              if (position.y < threshold) {
+                onMoveBefore(id);
+              } else {
+                onMoveAfter(id);
+              }
             }
           }
+
+          // Remove all the modifiers
           target.classList.remove(dragAfterClassName);
+          target.classList.remove(dragInsideClassName);
           target.classList.remove(dragBeforeClassName);
         },
       },

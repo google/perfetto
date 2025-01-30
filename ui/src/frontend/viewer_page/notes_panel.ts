@@ -30,7 +30,7 @@ import {TRACK_SHELL_WIDTH} from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {TextInput} from '../../widgets/text_input';
 import {Popup} from '../../widgets/popup';
-import {Workspace} from '../../public/workspace';
+import {TrackNode, Workspace} from '../../public/workspace';
 import {AreaSelection} from '../../public/selection';
 
 const FLAG_WIDTH = 16;
@@ -222,6 +222,18 @@ export class NotesPanel {
               compact: true,
             }),
           },
+          this.trace.workspace.userEditable &&
+            m(MenuItem, {
+              icon: 'create_new_folder',
+              label: 'Create new group track',
+              onclick: async () => {
+                const result = await this.trace.omnibox.prompt('Group name...');
+                if (result) {
+                  const group = new TrackNode({title: result, isSummary: true});
+                  this.trace.workspace.addChildLast(group);
+                }
+              },
+            }),
           selection.kind === 'area' &&
             this.renderCopySelectedTracksToWorkspace(selection),
           m(MenuItem, {
@@ -260,7 +272,7 @@ export class NotesPanel {
         this.trace.workspaces.all.map((ws) =>
           m(MenuItem, {
             label: ws.title,
-            disabled: ws === this.trace.workspaces.currentWorkspace,
+            disabled: !ws.userEditable,
             onclick: () => this.copySelectedToWorkspace(ws, selection),
           }),
         ),
@@ -276,7 +288,7 @@ export class NotesPanel {
         this.trace.workspaces.all.map((ws) =>
           m(MenuItem, {
             label: ws.title,
-            disabled: ws === this.trace.workspaces.currentWorkspace,
+            disabled: !ws.userEditable,
             onclick: async () => {
               this.copySelectedToWorkspace(ws, selection);
               this.trace.workspaces.switchWorkspace(ws);
@@ -308,7 +320,6 @@ export class NotesPanel {
       const node = this.trace.workspace.getTrackByUri(track.uri);
       if (!node) continue;
       const newNode = node.clone();
-      newNode.removable = true;
       ws.addChildLast(newNode);
     }
     return ws;
