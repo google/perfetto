@@ -42,8 +42,10 @@ import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {SELECTION_FILL_COLOR} from '../css_constants';
 import {calculateResolution} from './resolution';
-import {showModal} from '../../widgets/modal';
 import {Trace} from '../../public/trace';
+import {Anchor} from '../../widgets/anchor';
+import {showModal} from '../../widgets/modal';
+import {copyToClipboard} from '../../base/clipboard';
 
 const TRACK_HEIGHT_MIN_PX = 18;
 const TRACK_HEIGHT_DEFAULT_PX = 30;
@@ -612,6 +614,8 @@ function renderTrackDetailsMenu(node: TrackNode, descriptor?: TrackDescriptor) {
     parent = parent.parent;
   }
 
+  const query = descriptor?.track.getDataset?.()?.query();
+
   return m(
     '.pf-track__track-details-popup',
     m(
@@ -637,6 +641,28 @@ function renderTrackDetailsMenu(node: TrackNode, descriptor?: TrackDescriptor) {
         m(TreeNode, {
           left: 'Plugin ID',
           right: descriptor.pluginId,
+        }),
+      query &&
+        m(TreeNode, {
+          left: 'Track Query',
+          right: m(
+            Anchor,
+            {
+              onclick: () => {
+                showModal({
+                  title: 'Query for track',
+                  content: m('pre', query),
+                  buttons: [
+                    {
+                      text: 'Copy to clipboard',
+                      action: () => copyToClipboard(query),
+                    },
+                  ],
+                });
+              },
+            },
+            'Show query',
+          ),
         }),
       descriptor &&
         m(
