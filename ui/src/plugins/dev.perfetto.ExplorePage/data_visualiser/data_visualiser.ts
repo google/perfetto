@@ -30,6 +30,7 @@ import {AddChartMenuItem} from '../../../components/widgets/charts/add_chart_men
 import {exists} from '../../../base/utils';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {SqlTable} from '../../../components/widgets/sql/legacy_table/table';
+import {opToVisFilterOption, VisFilterOptions} from './filters';
 
 export interface DataVisualiserState {
   queryNode?: QueryNode;
@@ -105,6 +106,20 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
             addChart: (chart) => this.viewSource?.addChart(chart),
           });
         },
+        extraAddFilterActions: (op, column, value) => {
+          this.viewSource?.addFilter({
+            filterOption: VisFilterOptions[op],
+            columnName: column,
+            value,
+          });
+        },
+        extraRemoveFilterActions: (op, column, value) => {
+          this.viewSource?.removeFilter({
+            filterOption: opToVisFilterOption(op),
+            columnName: column,
+            value,
+          });
+        },
       }),
     );
   }
@@ -138,9 +153,9 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
       },
       m('.pf-chart-card', this.renderSqlTable()),
       this.viewSource?.visViews &&
-        Array.from(this.viewSource?.visViews.charts.values()).map((chart) =>
-          this.renderRemovableChart(chart),
-        ),
+        Array.from(this.viewSource?.visViews.charts.values()).map((chart) => {
+          return this.renderRemovableChart(chart);
+        }),
     );
   }
 }
