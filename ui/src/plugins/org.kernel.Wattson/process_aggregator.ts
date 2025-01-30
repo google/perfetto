@@ -47,7 +47,7 @@ export class WattsonProcessSelectionAggregator
       -- CPUs and GROUP BY process
       CREATE OR REPLACE PERFETTO TABLE _per_process_idle_attribution AS
       SELECT
-        ROUND(SUM(idle_cost_mws), 2) as idle_cost_mws,
+        SUM(idle_cost_mws) as idle_cost_mws,
         upid
       FROM _filter_idle_attribution(${area.start}, ${duration})
       WHERE cpu in ${cpusCsv}
@@ -60,7 +60,7 @@ export class WattsonProcessSelectionAggregator
           SELECT
             ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
             ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
-            COALESCE(idle_cost_mws, 0) as idle_cost_mws,
+            ROUND(COALESCE(idle_cost_mws, 0), 2) as idle_cost_mws,
             ROUND(
               COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
               2
