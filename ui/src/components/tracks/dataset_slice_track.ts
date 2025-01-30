@@ -36,6 +36,24 @@ import {
   SLICE_FLAGS_INSTANT,
   SliceLayout,
 } from './base_slice_track';
+import {Point2D, Size2D} from '../../base/geom';
+
+export interface InstantStyle {
+  /**
+   * Defines the width of an instant event. This, combined with the row height,
+   * defines the event's hitbox. This width is forwarded to the render function.
+   */
+  readonly width: number;
+
+  /**
+   * Customize how instant events are rendered.
+   *
+   * @param ctx - CanvasRenderingContext to draw to.
+   * @param rect - Position of the TL corner & size of the instant event's
+   * bounding box.
+   */
+  render(ctx: CanvasRenderingContext2D, rect: Size2D & Point2D): void;
+}
 
 export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   /**
@@ -104,6 +122,11 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
    * track.
    */
   readonly sliceLayout?: Partial<SliceLayout>;
+
+  /**
+   * Override the appearance of instant events.
+   */
+  readonly instantStyle?: InstantStyle;
 
   /**
    * This function can optionally be used to override the query that is
@@ -187,6 +210,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
       {...BASE_ROW, ...attrs.dataset.schema},
       attrs.sliceLayout,
       attrs.initialMaxDepth,
+      attrs.instantStyle?.width,
     );
     const {dataset, queryGenerator} = attrs;
 
@@ -360,5 +384,24 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     }
 
     args.tooltip = this.attrs.tooltip?.(args.slice.row) ?? args.tooltip;
+  }
+
+  // Override the drawChevron function.
+  protected override drawChevron(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    h: number,
+  ) {
+    if (this.attrs.instantStyle?.render) {
+      this.attrs.instantStyle.render(ctx, {
+        x,
+        y,
+        height: h,
+        width: this.attrs.instantStyle.width,
+      });
+    } else {
+      super.drawChevron(ctx, x, y, h);
+    }
   }
 }
