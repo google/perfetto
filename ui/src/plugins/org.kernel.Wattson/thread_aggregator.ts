@@ -56,12 +56,25 @@ export class WattsonThreadSelectionAggregator
       -- Only get idle attribution in user defined window and filter by selected
       -- CPUs and GROUP BY thread
       CREATE OR REPLACE PERFETTO TABLE _per_thread_idle_cost AS
+      WITH base AS (
+        SELECT
+          SUM(idle_cost_mws) as idle_cost_mws,
+          utid
+        FROM _filter_idle_attribution(${area.start}, ${duration})
+        WHERE cpu in ${cpusCsv}
+        GROUP BY utid
+      )
       SELECT
-        ROUND(SUM(idle_cost_mws), 2) as idle_cost_mws,
+        idle_cost_mws,
         utid
-      FROM _filter_idle_attribution(${area.start}, ${duration})
-      WHERE cpu in ${cpusCsv}
-      GROUP BY utid;
+      FROM base
+      -- Give the negative sum of idle costs to the swapper thread, which by
+      -- definition has a utid = 0 and by definition will not already be defined
+      UNION ALL
+      SELECT
+        (SELECT -1 * SUM(idle_cost_mws) FROM base) AS idle_cost_mws,
+        0 AS utid
+      ;
     `);
     this.runEstimateThreadsQuery(engine, selectedCpus, duration);
 
@@ -128,36 +141,33 @@ export class WattsonThreadSelectionAggregator
 
       -- Grouped again by UTID, but this time to make it CPU agnostic
       CREATE VIEW ${this.id} AS
-    WITH
-          base AS (
-            SELECT
-              ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
-              ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
-              COALESCE(idle_cost_mws, 0) as idle_cost_mws,
-              ROUND(
-                COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
-                2
-              ) as total_mws,
-              thread_name,
-              utid,
-              tid,
-              pid
-            FROM _unioned_per_cpu_total
-            LEFT JOIN _per_thread_idle_cost USING (utid)
-            GROUP BY utid
-          ),
+      WITH base AS (
+        SELECT
+          ROUND(SUM(total_pws) / ${duration}, 3) as active_mw,
+          ROUND(SUM(total_pws) / 1000000000, 3) as active_mws,
+          ROUND(COALESCE(idle_cost_mws, 0), 3) as idle_cost_mws,
+          ROUND(
+            COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
+            3
+          ) as total_mws,
+          thread_name,
+          utid,
+          tid,
+          pid
+        FROM _unioned_per_cpu_total
+        LEFT JOIN _per_thread_idle_cost USING (utid)
+        GROUP BY utid
+      ),
       secondary AS (
         SELECT utid,
-          ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 2)
+          ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 3)
             AS percent_of_total_energy
         FROM base
         GROUP BY utid
       )
-
       select *
         from base INNER JOIN secondary
         USING (utid);
-
     `;
 
     engine.query(query);
@@ -204,7 +214,7 @@ export class WattsonThreadSelectionAggregator
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'idle_cost_mws',
-        sum: true,
+        sum: false,
       },
       {
         title: 'Total energy (estimated mWs)',
