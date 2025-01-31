@@ -74,8 +74,8 @@ export class WattsonEstimateSelectionAggregator
       query += `
         SELECT
         '${estimateTrack}' as name,
-        ROUND(SUM(${estimateTrack}_mw * dur) / ${duration}, 2) as power,
-        ROUND(SUM(${estimateTrack}_mw * dur) / 1000000000, 2) as energy
+        ROUND(SUM(${estimateTrack}_mw * dur) / ${duration}, 3) as power,
+        ROUND(SUM(${estimateTrack}_mw * dur) / 1000000000, 3) as energy
         FROM _windowed_cpuss_estimate
       `;
     });
