@@ -742,7 +742,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
     if (!opt_col) {
       return base::ErrStatus(
           "CREATE PERFETTO INDEX: Column '%s' not found in table '%s'",
-          index.col_names.front().c_str(), index.table_name.c_str());
+          col_name.c_str(), index.table_name.c_str());
     }
     col_idxs.push_back(*opt_col);
   }
