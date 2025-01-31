@@ -97,6 +97,10 @@ export async function getPresentedScrollDeltas(
       relative_offset_y AS offsetY
     FROM chrome_presented_scroll_offsets
     WHERE scroll_id = ${scrollId}
+      -- Filter out the deltas which do not have a presented timestamp.
+      -- This is needed for now as we don't perfectly all EventLatencies to
+      -- presentation, e.g. for dropped frames (crbug.com/380286381).
+      AND ts IS NOT NULL
       AND delta_y IS NOT NULL;
   `);
 
