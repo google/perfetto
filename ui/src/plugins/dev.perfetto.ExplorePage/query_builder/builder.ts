@@ -17,7 +17,7 @@ import m from 'mithril';
 import {PageWithTraceAttrs} from '../../../public/page';
 import {Button} from '../../../widgets/button';
 import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
-import {ColumnControllerRows} from './column_controller';
+import {ColumnControllerRow} from './column_controller';
 import {QueryNode} from '../query_state';
 import {JoinState, QueryBuilderJoin} from './operations/join';
 import {Intent} from '../../../widgets/common';
@@ -32,12 +32,14 @@ import {
   StdlibTableState,
   SimpleSlicesAttrs,
   SimpleSlicesState,
+  SqlSourceAttrs,
+  SqlSourceState,
 } from './source_nodes';
 
 export interface QueryBuilderTable {
   name: string;
   asSqlTable: SqlTable;
-  columnOptions: ColumnControllerRows[];
+  columnOptions: ColumnControllerRow[];
   sql: string;
 }
 
@@ -100,8 +102,19 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             });
           },
         }),
+        m(MenuItem, {
+          label: 'SQL',
+          onclick: () => {
+            const sqlAttrs: SqlSourceAttrs = {};
+            sqlSourceModal(sqlAttrs, () => {
+              const newSlices = new SqlSourceState(sqlAttrs);
+              if (newSlices.validate()) {
+                attrs.onRootNodeCreated(new SqlSourceState(sqlAttrs));
+              }
+            });
+          },
+        }),
         m(MenuItem, {label: 'Interval intersect', disabled: true}),
-        m(MenuItem, {label: 'SQL', disabled: true}),
       );
     }
 
@@ -234,6 +247,78 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
 
       showModal({
         title: `Slices source`,
+        buttons: [
+          {
+            text: 'Add node',
+            action: f,
+          },
+        ],
+        content,
+      });
+    }
+
+    function sqlSourceModal(attrs: SqlSourceAttrs, f: () => void) {
+      function Operations() {
+        return {
+          view: () => {
+            return m(
+              '',
+              m(
+                '',
+                'Preamble',
+                m(TextInput, {
+                  id: 'preamble',
+                  type: 'string',
+                  oninput: (e: KeyboardEvent) => {
+                    if (!e.target) return;
+                    attrs.preamble = (
+                      e.target as HTMLInputElement
+                    ).value.trim();
+                  },
+                }),
+              ),
+              m(
+                '',
+                'Sql ',
+                m(TextInput, {
+                  id: 'sql_source',
+                  type: 'string',
+                  oninput: (e: KeyboardEvent) => {
+                    if (!e.target) return;
+                    attrs.sql = (e.target as HTMLInputElement).value
+                      .trim()
+                      .split(';')[0];
+                  },
+                }),
+              ),
+              m(
+                '',
+                'Column names (comma separated strings) ',
+                m(TextInput, {
+                  id: 'columns',
+                  type: 'string',
+                  oninput: (e: KeyboardEvent) => {
+                    if (!e.target) return;
+                    const colsStr = (e.target as HTMLInputElement).value.trim();
+                    attrs.columns = [];
+                    colsStr.split(',').forEach((col) => {
+                      if (!attrs.columns) {
+                        attrs.columns = [];
+                      }
+                      attrs.columns.push(col.trim());
+                    });
+                  },
+                }),
+              ),
+            );
+          },
+        };
+      }
+
+      const content = () => m(Operations);
+
+      showModal({
+        title: `Sql source`,
         buttons: [
           {
             text: 'Add node',
