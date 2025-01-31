@@ -22,7 +22,7 @@ import {Checkbox} from '../../../widgets/checkbox';
 import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 import {TextInput} from '../../../widgets/text_input';
 
-export class ColumnControllerRows {
+export interface ColumnControllerRow {
   // The ID is used to indentify this option, and is used in callbacks.
   id: string;
   // Whether this column is selected or not.
@@ -33,13 +33,24 @@ export class ColumnControllerRows {
   source?: string;
   // Word column was renamed to.
   alias?: string;
+}
 
-  constructor(column: SqlColumn) {
-    this.id = column.name;
-    this.checked = true;
+export function columnControllerRowFromSqlColumn(
+  column: SqlColumn,
+): ColumnControllerRow {
+  return {
+    id: column.name,
+    checked: true,
+    column: column,
+  };
+}
 
-    this.column = column;
-  }
+export function columnControllerRowFromName(name: string): ColumnControllerRow {
+  return {
+    id: name,
+    checked: true,
+    column: {name: name, type: {name: 'NA', shortName: 'NA'}},
+  };
 }
 
 export interface ColumnControllerDiff {
@@ -49,7 +60,7 @@ export interface ColumnControllerDiff {
 }
 
 export interface ColumnControllerAttrs {
-  options: ColumnControllerRows[];
+  options: ColumnControllerRow[];
   onChange?: (diffs: ColumnControllerDiff[]) => void;
   fixedSize?: boolean;
   hasValidColumns: boolean;
@@ -73,7 +84,7 @@ export class ColumnController
 
   private renderListOfItems(
     attrs: ColumnControllerAttrs,
-    options: ColumnControllerRows[],
+    options: ColumnControllerRow[],
   ) {
     const {onChange = () => {}} = attrs;
     const allChecked = options.every(({checked}) => checked);
@@ -126,7 +137,7 @@ export class ColumnController
 
   private renderColumnRows(
     attrs: ColumnControllerAttrs,
-    options: ColumnControllerRows[],
+    options: ColumnControllerRow[],
   ): m.Children {
     const {onChange = () => {}} = attrs;
 
@@ -201,7 +212,7 @@ export class PopupColumnController
 }
 
 export function hasDuplicateColumnsSelected(
-  cols: ColumnControllerRows[],
+  cols: ColumnControllerRow[],
 ): string[] {
   const seenNames: {[key: string]: boolean} = {};
   const duplicates: string[] = [];
