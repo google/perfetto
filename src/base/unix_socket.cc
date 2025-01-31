@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -90,6 +91,15 @@ using CBufLenType = socklen_t;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 constexpr char kVsockNamePrefix[] = "vsock://";
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+bool IsQNXHypervisor() {
+  static bool is_qnx_hypervisor = [] {
+    return base::GetAndroidProp("ro.traced.hypervisor") == "qnx";
+  }();
+  return is_qnx_hypervisor;
+}
 #endif
 
 // A wrapper around variable-size sockaddr structs.
@@ -226,6 +236,13 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       addr.svm_family = AF_VSOCK;
       addr.svm_cid = *base::StringToUInt32(parts[0]);
       addr.svm_port = *base::StringToUInt32(parts[1]);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+      if (IsQNXHypervisor()) {
+        // VM-to-VM VSOCK communication in QNX requires messages to be
+        // routed through the host.
+        addr.svm_flags = VMADDR_FLAG_TO_HOST;
+      }
+#endif
       SockaddrAny res(&addr, sizeof(addr));
       return res;
 #else
@@ -468,16 +485,24 @@ bool UnixSocketRaw::Connect(const std::string& socket_name) {
 #else
   bool continue_async = errno == EINPROGRESS;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
-  if (family_ == SockFamily::kVsock && res < 0 && continue_async) {
-    // QNX doesn't support the SO_ERROR socket option for vsock.
-    // Therefore block the connect call by polling the socket
-    // until it is writable.
+  // QNX doesn't support the SO_ERROR socket option for vsock.
+  // Therefore block the connect call by polling the socket
+  // until it is writable.
+  bool is_blocking_call = family_ == SockFamily::kVsock;
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // VM-to-VM communication in QNX needs to go through the host.
+  // Therefore the connect call should be handled as if it is
+  // hypervisor-to-VM.
+  bool is_blocking_call = family_ == SockFamily::kVsock && IsQNXHypervisor();
+#else
+  bool is_blocking_call = false;
+#endif
+  if (is_blocking_call && res < 0 && continue_async) {
     pollfd pfd{*fd_, POLLOUT, 0};
     if (PERFETTO_EINTR(poll(&pfd, 1 /*nfds*/, 3000 /*timeout*/)) <= 0)
       return false;
     return (pfd.revents & POLLOUT) != 0;
   }
-#endif
 #endif
   if (res && !continue_async)
     return false;
