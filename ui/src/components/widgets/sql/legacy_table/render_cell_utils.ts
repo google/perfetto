@@ -23,52 +23,67 @@ import {copyToClipboard} from '../../../../base/clipboard';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
 import {Anchor} from '../../../../widgets/anchor';
 
-interface FilterOp {
-  op: string;
-  requiresParam: boolean; // Denotes if the operator acts on an input value
+export interface LegacySqlTableFilterOp {
+  op: string; // string representation of the operation (to be injected to SQL)
+  label: LegacySqlTableFilterLabel; // human readable name for operation
+  requiresParam?: boolean; // Denotes if the operator acts on an input value
 }
 
-export enum FilterOption {
-  GLOB = 'glob',
-  EQUALS_TO = 'equals to',
-  NOT_EQUALS_TO = 'not equals to',
-  GREATER_THAN = 'greater than',
-  GREATER_OR_EQUALS_THAN = 'greater or equals than',
-  LESS_THAN = 'less than',
-  LESS_OR_EQUALS_THAN = 'less or equals than',
-  IS_NULL = 'is null',
-  IS_NOT_NULL = 'is not null',
-}
+export type LegacySqlTableFilterLabel =
+  | 'glob'
+  | 'equals to'
+  | 'not equals to'
+  | 'greater than'
+  | 'greater or equals than'
+  | 'less than'
+  | 'less or equals than'
+  | 'is null'
+  | 'is not null';
 
-export const FILTER_OPTION_TO_OP: Record<FilterOption, FilterOp> = {
-  [FilterOption.GLOB]: {op: 'glob', requiresParam: true},
-  [FilterOption.EQUALS_TO]: {op: '=', requiresParam: true},
-  [FilterOption.NOT_EQUALS_TO]: {op: '!=', requiresParam: true},
-  [FilterOption.GREATER_THAN]: {op: '>', requiresParam: true},
-  [FilterOption.GREATER_OR_EQUALS_THAN]: {op: '>=', requiresParam: true},
-  [FilterOption.LESS_THAN]: {op: '<', requiresParam: true},
-  [FilterOption.LESS_OR_EQUALS_THAN]: {op: '<=', requiresParam: true},
-  [FilterOption.IS_NULL]: {op: 'IS NULL', requiresParam: false},
-  [FilterOption.IS_NOT_NULL]: {op: 'IS NOT NULL', requiresParam: false},
+export const LegacySqlTableFilterOptions: Record<
+  LegacySqlTableFilterLabel,
+  LegacySqlTableFilterOp
+> = {
+  'glob': {op: 'glob', label: 'glob', requiresParam: true},
+  'equals to': {op: '=', label: 'equals to', requiresParam: true},
+  'not equals to': {op: '!=', label: 'not equals to', requiresParam: true},
+  'greater than': {op: '>', label: 'greater than', requiresParam: true},
+  'greater or equals than': {
+    op: '>=',
+    label: 'greater or equals than',
+    requiresParam: true,
+  },
+  'less than': {op: '<', label: 'less than', requiresParam: true},
+  'less or equals than': {
+    op: '<=',
+    label: 'less or equals than',
+    requiresParam: true,
+  },
+  'is null': {op: 'IS NULL', label: 'is null', requiresParam: false},
+  'is not null': {
+    op: 'IS NOT NULL',
+    label: 'is not null',
+    requiresParam: false,
+  },
 };
 
-export const NUMERIC_FILTER_OPTIONS = [
-  FilterOption.EQUALS_TO,
-  FilterOption.NOT_EQUALS_TO,
-  FilterOption.GREATER_THAN,
-  FilterOption.GREATER_OR_EQUALS_THAN,
-  FilterOption.LESS_THAN,
-  FilterOption.LESS_OR_EQUALS_THAN,
+export const NUMERIC_FILTER_OPTIONS: LegacySqlTableFilterLabel[] = [
+  'equals to',
+  'not equals to',
+  'greater than',
+  'greater or equals than',
+  'less than',
+  'less or equals than',
 ];
 
-export const STRING_FILTER_OPTIONS = [
-  FilterOption.EQUALS_TO,
-  FilterOption.NOT_EQUALS_TO,
+export const STRING_FILTER_OPTIONS: LegacySqlTableFilterLabel[] = [
+  'equals to',
+  'not equals to',
 ];
 
-export const NULL_FILTER_OPTIONS = [
-  FilterOption.IS_NULL,
-  FilterOption.IS_NOT_NULL,
+export const NULL_FILTER_OPTIONS: LegacySqlTableFilterLabel[] = [
+  'is null',
+  'is not null',
 ];
 
 function filterOptionMenuItem(
@@ -92,32 +107,33 @@ export function getStandardFilters(
   tableManager: LegacyTableManager,
 ): m.Child[] {
   if (value === null) {
-    return NULL_FILTER_OPTIONS.map((option) =>
+    return NULL_FILTER_OPTIONS.map((label) =>
       filterOptionMenuItem(
-        option,
+        label,
         c,
-        (cols) => `${cols[0]} ${FILTER_OPTION_TO_OP[option].op}`,
+        (cols) => `${cols[0]} ${LegacySqlTableFilterOptions[label].op}`,
         tableManager,
       ),
     );
   }
   if (isString(value)) {
-    return STRING_FILTER_OPTIONS.map((option) =>
+    return STRING_FILTER_OPTIONS.map((label) =>
       filterOptionMenuItem(
-        option,
+        label,
         c,
         (cols) =>
-          `${cols[0]} ${FILTER_OPTION_TO_OP[option].op} ${sqliteString(value)}`,
+          `${cols[0]} ${LegacySqlTableFilterOptions[label].op} ${sqliteString(value)}`,
         tableManager,
       ),
     );
   }
   if (typeof value === 'bigint' || typeof value === 'number') {
-    return NUMERIC_FILTER_OPTIONS.map((option) =>
+    return NUMERIC_FILTER_OPTIONS.map((label) =>
       filterOptionMenuItem(
-        option,
+        label,
         c,
-        (cols) => `${cols[0]} ${FILTER_OPTION_TO_OP[option].op} ${value}`,
+        (cols) =>
+          `${cols[0]} ${LegacySqlTableFilterOptions[label].op} ${value}`,
         tableManager,
       ),
     );

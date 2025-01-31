@@ -175,6 +175,7 @@ export class SqlTableState {
     return buildSqlQuery({
       table: this.config.name,
       columns,
+      prefix: this.config.prefix,
       filters: this.filters,
       orderBy: this.getOrderedBy(),
     });

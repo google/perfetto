@@ -36,7 +36,10 @@ import {BasicTable, ReorderableColumns} from '../../../../widgets/basic_table';
 import {Spinner} from '../../../../widgets/spinner';
 
 import {ArgumentSelector} from './argument_selector';
-import {FILTER_OPTION_TO_OP, FilterOption} from './render_cell_utils';
+import {
+  LegacySqlTableFilterOptions,
+  LegacySqlTableFilterLabel,
+} from './render_cell_utils';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
 import {Intent} from '../../../../widgets/common';
@@ -50,6 +53,17 @@ export interface SqlTableConfig {
     column: LegacyTableColumn,
     columnAlias: string,
   ) => m.Children;
+  // For additional filter actions
+  readonly extraAddFilterActions?: (
+    op: string,
+    column: string,
+    value?: string,
+  ) => void;
+  readonly extraRemoveFilterActions?: (
+    op: string,
+    column: string,
+    value?: string,
+  ) => void;
 }
 
 type AdditionalColumnMenuItems = Record<string, m.Children>;
@@ -112,9 +126,10 @@ class AddColumnMenuItem implements m.ClassComponent<AddColumnMenuItemAttrs> {
 }
 
 interface ColumnFilterAttrs {
-  filterOption: FilterOption;
+  filterOption: LegacySqlTableFilterLabel;
   columns: SqlColumn[];
   state: SqlTableState;
+  extraAddFilterActions?: (op: string, column: string, value?: string) => void;
 }
 
 // Separating out an individual column filter into a class
@@ -130,7 +145,7 @@ class ColumnFilter implements m.ClassComponent<ColumnFilterAttrs> {
   view({attrs}: m.Vnode<ColumnFilterAttrs>) {
     const {filterOption, columns, state} = attrs;
 
-    const {op, requiresParam} = FILTER_OPTION_TO_OP[filterOption];
+    const {op, requiresParam} = LegacySqlTableFilterOptions[filterOption];
 
     return m(
       MenuItem,
@@ -145,6 +160,12 @@ class ColumnFilter implements m.ClassComponent<ColumnFilterAttrs> {
                 op: (cols) => `${cols[0]} ${op}`,
                 columns,
               });
+
+              // Extra actions
+              attrs.extraAddFilterActions?.(
+                filterOption,
+                typeof columns[0] === 'string' ? columns[0] : columns[0].column,
+              );
             }
           : undefined,
       },
@@ -178,6 +199,13 @@ class ColumnFilter implements m.ClassComponent<ColumnFilterAttrs> {
                 op: (cols) => `${cols[0]} ${op} ${filterValue}`,
                 columns,
               });
+
+              // Extra actions
+              attrs.extraAddFilterActions?.(
+                filterOption,
+                typeof columns[0] === 'string' ? columns[0] : columns[0].column,
+                this.inputValue,
+              );
             },
             submitLabel: 'Filter',
           },
@@ -206,7 +234,13 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     this.table = this.state.config;
   }
 
-  renderFilters(): m.Children {
+  renderFilters(
+    extraRemoveFilterActions?: (
+      op: string,
+      column: string,
+      value?: string,
+    ) => void,
+  ): m.Children {
     const filters: m.Child[] = [];
     for (const filter of this.state.getFilters()) {
       const label = filterTitle(filter);
@@ -217,6 +251,15 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           intent: Intent.Primary,
           onclick: () => {
             this.state.removeFilter(filter);
+
+            if (extraRemoveFilterActions) {
+              const [column, op, value] = label.split(' ');
+              extraRemoveFilterActions(
+                op,
+                column,
+                value !== undefined ? value.replaceAll("'", '') : value,
+              );
+            }
           },
         }),
       );
@@ -272,12 +315,18 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
   renderColumnFilterOptions(
     c: LegacyTableColumn,
+    extraAddFilterActions?: (
+      op: string,
+      column: string,
+      value?: string,
+    ) => void,
   ): m.Vnode<ColumnFilterAttrs, unknown>[] {
-    return Object.values(FilterOption).map((filterOption) =>
+    return Object.keys(LegacySqlTableFilterOptions).map((label) =>
       m(ColumnFilter, {
-        filterOption,
+        filterOption: label as LegacySqlTableFilterLabel,
         columns: [c.primaryColumn()],
         state: this.state,
+        extraAddFilterActions,
       }),
     );
   }
@@ -286,6 +335,11 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     column: LegacyTableColumn,
     index: number,
     additionalColumnHeaderMenuItems?: m.Children,
+    extraAddFilterActions?: (
+      op: string,
+      column: string,
+      value?: string,
+    ) => void,
   ) {
     const sorted = this.state.isSortedBy(column);
     const icon =
@@ -337,7 +391,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       m(
         MenuItem,
         {label: 'Add filter', icon: Icons.Filter},
-        this.renderColumnFilterOptions(column),
+        this.renderColumnFilterOptions(column, extraAddFilterActions),
       ),
       additionalColumnHeaderMenuItems,
       // Menu items before divider apply to selected column
@@ -389,13 +443,14 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                 sqlColumnId(column.primaryColumn())
               ]
             ],
+          attrs.extraAddFilterActions,
         ),
         render: (row: Row) => renderCell(column, row, this.state),
       };
     });
 
     return [
-      m('div', this.renderFilters()),
+      m('div', this.renderFilters(attrs.extraRemoveFilterActions)),
       m(
         BasicTable<Row>,
         {
