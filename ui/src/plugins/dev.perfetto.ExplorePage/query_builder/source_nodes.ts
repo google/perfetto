@@ -15,7 +15,11 @@
 import {TableAndColumnImpl} from '../../dev.perfetto.SqlModules/sql_modules_impl';
 import {SqlTable, SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode, NodeType} from '../query_state';
-import {ColumnControllerRows} from './column_controller';
+import {
+  ColumnControllerRow,
+  columnControllerRowFromName,
+  columnControllerRowFromSqlColumn,
+} from './column_controller';
 
 import protos from '../../../protos';
 
@@ -26,13 +30,15 @@ export class StdlibTableState implements QueryNode {
   finished: boolean = true;
 
   dataName: string;
-  columns: ColumnControllerRows[];
+  columns: ColumnControllerRow[];
 
   sqlTable: SqlTable;
 
   constructor(sqlTable: SqlTable) {
     this.dataName = sqlTable.name;
-    this.columns = sqlTable.columns.map((c) => new ColumnControllerRows(c));
+    this.columns = sqlTable.columns.map((c) =>
+      columnControllerRowFromSqlColumn(c),
+    );
     this.sqlTable = sqlTable;
   }
 
@@ -85,7 +91,7 @@ export class SimpleSlicesState implements QueryNode {
   finished: boolean = true;
 
   dataName: string = 'Simple slices';
-  columns: ColumnControllerRows[];
+  columns: ColumnControllerRow[];
 
   attrs: SimpleSlicesAttrs;
 
@@ -182,6 +188,67 @@ export class SimpleSlicesState implements QueryNode {
         },
       },
     ];
-    this.columns = cols.map((c) => new ColumnControllerRows(c));
+    this.columns = cols.map((c) => columnControllerRowFromSqlColumn(c));
+  }
+}
+
+export interface SqlSourceAttrs {
+  sql?: string;
+  columns?: string[];
+  preamble?: string;
+}
+
+export class SqlSourceState implements QueryNode {
+  type: NodeType = NodeType.kSqlSource;
+  prevNode = undefined;
+  nextNode?: QueryNode;
+  finished = true;
+
+  dataName: string = 'Sql source';
+  columns: ColumnControllerRow[];
+
+  attrs: SqlSourceAttrs;
+
+  validate(): boolean {
+    return (
+      this.attrs.sql !== undefined &&
+      this.attrs.columns !== undefined &&
+      this.attrs.preamble !== undefined &&
+      this.columns.length > 0
+    );
+  }
+  getTitle(): string {
+    return `Sql source`;
+  }
+  getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
+    if (!this.validate()) return;
+
+    const sq = new protos.PerfettoSqlStructuredQuery();
+    sq.id = `sql_source`;
+    const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
+
+    if (this.attrs.sql) sqlProto.sql = this.attrs.sql;
+    if (this.attrs.columns) sqlProto.columnNames = this.attrs.columns;
+    if (this.attrs.preamble) sqlProto.preamble = this.attrs.preamble;
+
+    const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] =
+      [];
+    for (const c of this.columns.filter((c) => c.checked)) {
+      const newC = new protos.PerfettoSqlStructuredQuery.SelectColumn();
+      newC.columnName = c.column.name;
+      if (c.alias) {
+        newC.alias = c.alias;
+      }
+      selectedColumns.push(newC);
+    }
+    sq.sql = sqlProto;
+    sq.selectColumns = selectedColumns;
+    return sq;
+  }
+
+  constructor(attrs: SqlSourceAttrs) {
+    this.attrs = attrs;
+    this.columns =
+      attrs.columns?.map((c) => columnControllerRowFromName(c)) ?? [];
   }
 }
