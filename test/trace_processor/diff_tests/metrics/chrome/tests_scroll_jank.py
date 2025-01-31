@@ -309,23 +309,6 @@ class ChromeScrollJankMetrics(TestSuite):
             'experimental_reliable_chrome_tasks_delaying_input_processing_test.out'
         ))
 
-  def test_chrome_scroll_inputs_per_frame(self):
-    return DiffTestBlueprint(
-        trace=DataPath('scrolling_with_blocked_nonblocked_frames.pftrace'),
-        query="""
-        SELECT RUN_METRIC('chrome/chrome_scroll_inputs_per_frame.sql');
-
-        SELECT
-          count_for_frame,
-          ts
-        FROM chrome_scroll_inputs_per_frame
-        WHERE ts = 60934316798158;
-        """,
-        out=Csv("""
-        "count_for_frame","ts"
-        4,60934316798158
-        """))
-
   def test_chrome_thread_slice_repeated(self):
     return DiffTestBlueprint(
         trace=Path('../../parser/track_event/track_event_counters.textproto'),
