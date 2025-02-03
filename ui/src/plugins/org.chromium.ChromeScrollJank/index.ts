@@ -29,6 +29,10 @@ import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {createFlatColoredDurationTrack} from './flat_colored_duration_track';
 import {createTopLevelScrollTrack} from './scroll_track';
 import {createScrollTimelineTrack} from './scroll_timeline_track';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {escapeQuery} from '../../trace_processor/query_utils';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
@@ -282,6 +286,63 @@ export default class implements PerfettoPlugin {
       const title = 'Chrome input delta';
       ctx.tracks.registerTrack({uri, title, track});
       group.addChildInOrder(new TrackNode({uri, title}));
+    }
+
+    {
+      const steps = [
+        {
+          column: 'scroll_update_created_slice_id',
+          name: 'Step: send event (UI, ScrollUpdate)',
+        },
+        {
+          column: 'compositor_dispatch_slice_id',
+          name: 'Step: compositor dispatch (ScrollUpdate)',
+        },
+        {
+          column: 'compositor_resample_slice_id',
+          name: 'Step: resample input',
+        },
+        {
+          column: 'compositor_generate_compositor_frame_slice_id',
+          name: 'Step: generate frame (compositor)',
+        },
+        {
+          column: 'viz_receive_compositor_frame_slice_id',
+          name: 'Step: receive frame (viz)',
+        },
+      ];
+
+      for (const step of steps) {
+        const uri = `org.chromium.ChromeScrollJank#chrome_scroll_update_info.${step.column}`;
+        const track = new DatasetSliceTrack({
+          trace: ctx,
+          uri,
+          dataset: new SourceDataset({
+            schema: {
+              id: NUM,
+              ts: LONG,
+              dur: LONG,
+              name: STR,
+            },
+            src: `
+              WITH slice_ids AS MATERIALIZED (
+                SELECT DISTINCT ${step.column} AS slice_id
+                FROM chrome_scroll_update_info
+                WHERE ${step.column} IS NOT NULL
+              )
+              SELECT
+                slice.id,
+                slice.ts,
+                slice.dur,
+                 ${escapeQuery(step.name)} AS name
+              FROM slice_ids
+              JOIN slice USING (slice_id)
+            `,
+          }),
+        });
+        ctx.tracks.registerTrack({uri, title: step.name, track});
+        group.addChildInOrder(new TrackNode({uri, title: step.name}));
+      }
     }
   }
 }
