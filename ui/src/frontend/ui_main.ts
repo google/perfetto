@@ -43,6 +43,7 @@ import {NotesEditorTab} from './notes_editor_tab';
 import {NotesListEditor} from './notes_list_editor';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
+import {Workspace} from '../public/workspace';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 
@@ -386,15 +387,17 @@ export class UiMainPerTrace implements m.ClassComponent {
       },
       {
         id: 'perfetto.CopyPinnedToWorkspace',
-        name: 'Copy pinned tracks to new workspace',
-        callback: () => {
+        name: 'Copy pinned tracks to workspace',
+        callback: async () => {
           const pinnedTracks = trace.workspace.pinnedTracks;
           if (!pinnedTracks.length) {
             window.alert('No pinned tracks to copy');
             return;
           }
 
-          const ws = trace.workspaces.createEmptyWorkspace('Pinned Tracks');
+          const ws = await this.selectWorkspace(trace, 'Pinned tracks');
+          if (!ws) return;
+
           for (const pinnedTrack of pinnedTracks) {
             const clone = pinnedTrack.clone();
             ws.addChildLast(clone);
@@ -404,8 +407,8 @@ export class UiMainPerTrace implements m.ClassComponent {
       },
       {
         id: 'perfetto.CopyFilteredToWorkspace',
-        name: 'Copy filtered tracks to new workspace',
-        callback: () => {
+        name: 'Copy filtered tracks to workspace',
+        callback: async () => {
           // Copies all filtered tracks as a flat list to a new workspace. This
           // means parents are not included.
           const tracks = trace.workspace.flatTracks.filter((track) =>
@@ -417,12 +420,37 @@ export class UiMainPerTrace implements m.ClassComponent {
             return;
           }
 
-          const ws = trace.workspaces.createEmptyWorkspace('Filtered Tracks');
+          const ws = await this.selectWorkspace(trace, 'Filtered tracks');
+          if (!ws) return;
+
           for (const track of tracks) {
             const clone = track.clone();
             ws.addChildLast(clone);
           }
           trace.workspaces.switchWorkspace(ws);
+        },
+      },
+      {
+        id: 'perfetto.CopySelectedTracksToWorkspace',
+        name: 'Copy selected tracks to workspace',
+        callback: async () => {
+          const selection = trace.selection.selection;
+
+          if (selection.kind !== 'area' || selection.trackUris.length === 0) {
+            window.alert('No selected tracks to copy');
+            return;
+          }
+
+          const workspace = await this.selectWorkspace(trace);
+          if (!workspace) return;
+
+          for (const uri of selection.trackUris) {
+            const node = trace.workspace.getTrackByUri(uri);
+            if (!node) continue;
+            const newNode = node.clone();
+            workspace.addChildLast(newNode);
+          }
+          trace.workspaces.switchWorkspace(workspace);
         },
       },
     ];
@@ -431,6 +459,30 @@ export class UiMainPerTrace implements m.ClassComponent {
     cmds.forEach((cmd) => {
       this.trash.use(trace.commands.registerCommand(cmd));
     });
+  }
+
+  // Selects a workspace or creates a new one.
+  private async selectWorkspace(
+    trace: TraceImpl,
+    newWorkspaceName = 'Untitled workspace',
+  ): Promise<Workspace | undefined> {
+    const options = trace.workspaces.all
+      .filter((ws) => ws.userEditable)
+      .map((ws) => ({title: ws.title, fn: () => ws}))
+      .concat([
+        {
+          title: 'New workspace...',
+          fn: () => trace.workspaces.createEmptyWorkspace(newWorkspaceName),
+        },
+      ]);
+
+    const result = await trace.omnibox.prompt('Select a workspace...', {
+      values: options,
+      getName: (ws) => ws.title,
+    });
+
+    if (!result) return undefined;
+    return result.fn();
   }
 
   private renderOmnibox(): m.Children {
