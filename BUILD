@@ -4432,6 +4432,9 @@ perfetto_android_jni_library(
     deps = [
         ":libperfetto_c",
     ],
+    tags = [
+        "notap",
+    ],
 )
 
 # GN target: //src/java_sdk/main:java_sdk_app
