@@ -31,7 +31,7 @@ import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {TextInput} from '../../widgets/text_input';
 import {Popup} from '../../widgets/popup';
 import {TrackNode, Workspace} from '../../public/workspace';
-import {AreaSelection} from '../../public/selection';
+import {AreaSelection, Selection} from '../../public/selection';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -222,25 +222,17 @@ export class NotesPanel {
               compact: true,
             }),
           },
-          this.trace.workspace.userEditable &&
-            m(MenuItem, {
-              icon: 'create_new_folder',
-              label: 'Create new group track',
-              onclick: async () => {
-                const result = await this.trace.omnibox.prompt('Group name...');
-                if (result) {
-                  const group = new TrackNode({title: result, isSummary: true});
-                  this.trace.workspace.addChildLast(group);
-                }
-              },
-            }),
-          selection.kind === 'area' &&
-            this.renderCopySelectedTracksToWorkspace(selection),
+          this.renderCopySelectedTracksToWorkspace(selection),
+          m(MenuDivider),
+          this.renderNewGroupButton(),
+          m(MenuDivider),
           m(MenuItem, {
             icon: 'edit',
             label: 'Rename current workspace',
-            disabled:
-              workspaces.currentWorkspace === workspaces.defaultWorkspace,
+            disabled: !this.trace.workspace.userEditable,
+            title: this.trace.workspace.userEditable
+              ? 'Create new group'
+              : 'This workspace is not editable - please create a new workspace if you wish to modify it',
             onclick: async () => {
               const newName = await this.trace.omnibox.prompt(
                 'Enter a new name...',
@@ -253,8 +245,10 @@ export class NotesPanel {
           m(MenuItem, {
             icon: Icons.Delete,
             label: 'Delete current workspace',
-            disabled:
-              workspaces.currentWorkspace === workspaces.defaultWorkspace,
+            disabled: !this.trace.workspace.userEditable,
+            title: this.trace.workspace.userEditable
+              ? 'Create new group'
+              : 'This workspace is not editable - please create a new workspace if you wish to modify it',
             onclick: () => {
               workspaces.removeWorkspace(workspaces.currentWorkspace);
             },
@@ -264,47 +258,85 @@ export class NotesPanel {
     );
   }
 
-  private renderCopySelectedTracksToWorkspace(selection: AreaSelection) {
+  private renderNewGroupButton() {
+    return m(MenuItem, {
+      icon: 'create_new_folder',
+      label: 'Create new group track',
+      disabled: !this.trace.workspace.userEditable,
+      title: this.trace.workspace.userEditable
+        ? 'Create new group'
+        : 'This workspace is not editable - please create a new workspace if you wish to modify it',
+      onclick: async () => {
+        const result = await this.trace.omnibox.prompt('Group name...');
+        if (result) {
+          const group = new TrackNode({title: result, isSummary: true});
+          this.trace.workspace.addChildLast(group);
+        }
+      },
+    });
+  }
+
+  private renderCopySelectedTracksToWorkspace(selection: Selection) {
+    const isArea = selection.kind === 'area';
     return [
       m(
         MenuItem,
-        {label: 'Copy selected tracks to workspace'},
+        {
+          label: 'Copy selected tracks to workspace',
+          disabled: !isArea,
+          title: isArea
+            ? 'Copy selected tracks to workspace'
+            : 'Please create an area selection to copy tracks',
+        },
         this.trace.workspaces.all.map((ws) =>
           m(MenuItem, {
             label: ws.title,
             disabled: !ws.userEditable,
-            onclick: () => this.copySelectedToWorkspace(ws, selection),
+            onclick: isArea
+              ? () => this.copySelectedToWorkspace(ws, selection)
+              : undefined,
           }),
         ),
         m(MenuDivider),
         m(MenuItem, {
           label: 'New workspace...',
-          onclick: () => this.copySelectedToWorkspace(undefined, selection),
+          onclick: isArea
+            ? () => this.copySelectedToWorkspace(undefined, selection)
+            : undefined,
         }),
       ),
       m(
         MenuItem,
-        {label: 'Copy selected tracks & switch to workspace'},
+        {
+          label: 'Copy selected tracks & switch to workspace',
+          disabled: !isArea,
+          title: isArea
+            ? 'Copy selected tracks to workspace and switch to that workspace'
+            : 'Please create an area selection to copy tracks',
+        },
         this.trace.workspaces.all.map((ws) =>
           m(MenuItem, {
             label: ws.title,
             disabled: !ws.userEditable,
-            onclick: async () => {
-              this.copySelectedToWorkspace(ws, selection);
-              this.trace.workspaces.switchWorkspace(ws);
-            },
+            onclick: isArea
+              ? async () => {
+                  this.copySelectedToWorkspace(ws, selection);
+                  this.trace.workspaces.switchWorkspace(ws);
+                }
+              : undefined,
           }),
         ),
         m(MenuDivider),
         m(MenuItem, {
           label: 'New workspace...',
-          onclick: async () => {
-            const ws = this.copySelectedToWorkspace(undefined, selection);
-            this.trace.workspaces.switchWorkspace(ws);
-          },
+          onclick: isArea
+            ? async () => {
+                const ws = this.copySelectedToWorkspace(undefined, selection);
+                this.trace.workspaces.switchWorkspace(ws);
+              }
+            : undefined,
         }),
       ),
-      m(MenuDivider),
     ];
   }
 
