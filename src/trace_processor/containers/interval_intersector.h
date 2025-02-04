@@ -87,12 +87,10 @@ class IntervalIntersector {
                              return interval.end <= start;
                            });
 
-      if (mode_ == kBinarySearch) {
-        for (; overlap != intervals_.end() && overlap->start < e; ++overlap) {
-          UpdateResultVector(s, e, *overlap, res);
-        }
-        return;
+      for (; overlap != intervals_.end() && overlap->start < e; ++overlap) {
+        UpdateResultVector(s, e, *overlap, res);
       }
+      return;
     }
 
     // When using linear scan, we know only that the that if interval starts
