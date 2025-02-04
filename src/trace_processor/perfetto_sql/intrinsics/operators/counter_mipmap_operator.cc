@@ -183,9 +183,6 @@ int CounterMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
   int64_t start_ts = sqlite3_value_int64(argv[0]);
   int64_t end_ts = sqlite3_value_int64(argv[1]);
   int64_t step_ts = sqlite3_value_int64(argv[2]);
-  if (start_ts == end_ts) {
-    return sqlite::utils::SetError(t, "counter_mipmap: empty range provided");
-  }
 
   c->index = 0;
   c->counters.clear();
