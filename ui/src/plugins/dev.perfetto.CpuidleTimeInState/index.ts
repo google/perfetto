@@ -18,6 +18,7 @@ import {CounterOptions} from '../../components/tracks/base_counter_track';
 import {TrackNode} from '../../public/workspace';
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
+import {NUM, STR} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuidleTimeInState';
@@ -50,38 +51,89 @@ export default class implements PerfettoPlugin {
     group.addChildInOrder(node);
   }
 
+  async addIdleStateTrack(
+    ctx: Trace,
+    state: string,
+    group: TrackNode,
+  ): Promise<void> {
+    await this.addCounterTrack(
+      ctx,
+      `cpuidle.${state}`,
+      `
+        select
+          ts,
+          idle_percentage as value
+        from linux_cpu_idle_time_in_state_counters
+        where state = '${state}'
+      `,
+      group,
+      {unit: 'percent', yOverrideMaximum: 100, yOverrideMinimum: 0},
+    );
+  }
+
+  async addPerCpuIdleStateTrack(
+    ctx: Trace,
+    state: string,
+    cpu: number,
+    group: TrackNode,
+  ): Promise<void> {
+    await this.addCounterTrack(
+      ctx,
+      `cpuidle.cpu${cpu}.${state} Residency`,
+      `
+        select
+          ts,
+          idle_percentage as value
+        from linux_per_cpu_idle_time_in_state_counters
+        where state = '${state}' AND cpu = ${cpu}
+      `,
+      group,
+      {unit: 'percent', yOverrideMaximum: 100, yOverrideMinimum: 0},
+    );
+  }
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const group = new TrackNode({
       title: 'CPU Idle Time In State',
       isSummary: true,
     });
+
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE linux.cpu.idle_time_in_state;`);
-    const result = await e.query(
-      `select distinct state_name from cpu_idle_time_in_state_counters`,
+    const states = await e.query(
+      `select distinct state from linux_cpu_idle_time_in_state_counters`,
     );
-    const it = result.iter({state_name: 'str'});
+    const it = states.iter({state: STR});
     for (; it.valid(); it.next()) {
-      await this.addCounterTrack(
-        ctx,
-        it.state_name,
-        `
-          select
-            ts,
-            idle_percentage as value
-          from cpu_idle_time_in_state_counters
-          where state_name = '${it.state_name}'
-        `,
-        group,
-        {unit: 'percent'},
-      );
+      await this.addIdleStateTrack(ctx, it.state, group);
     }
-    if (group.hasChildren) {
-      const cpu_group = ctx.plugins
-      .getPlugin(StandardGroupsPlugin)
-      .getOrCreateStandardGroup(ctx.workspace, 'CPU');
 
-      cpu_group.addChildInOrder(group);
+    if (group.hasChildren) {
+      const cpuGroup = ctx.plugins
+        .getPlugin(StandardGroupsPlugin)
+        .getOrCreateStandardGroup(ctx.workspace, 'CPU');
+      cpuGroup.addChildInOrder(group);
+    }
+
+    const perCpuGroup = new TrackNode({
+      title: 'CPU Idle Per Cpu Time In State',
+      isSummary: true,
+    });
+
+    const perCpuStates = await e.query(
+      `select distinct state, cpu from linux_per_cpu_idle_time_in_state_counters`,
+    );
+    const pIt = perCpuStates.iter({state: STR, cpu: NUM});
+
+    for (; pIt.valid(); pIt.next()) {
+      await this.addPerCpuIdleStateTrack(ctx, pIt.state, pIt.cpu, perCpuGroup);
+    }
+
+    if (perCpuGroup.hasChildren) {
+      const cpuGroup = ctx.plugins
+        .getPlugin(StandardGroupsPlugin)
+        .getOrCreateStandardGroup(ctx.workspace, 'CPU');
+      cpuGroup.addChildInOrder(perCpuGroup);
     }
   }
 }
