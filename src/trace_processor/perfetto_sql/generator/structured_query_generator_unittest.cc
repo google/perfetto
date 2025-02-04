@@ -151,8 +151,49 @@ TEST(StructuredQueryGeneratorTest, TableSource) {
   ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
                 WITH sq_0 AS (
                   SELECT
-                    process_name AS process_name,
-                    SUM(cast_double!(rss_and_swap * dur)) / cast_double!(SUM(dur)) AS avg_rss_and_swap
+                    process_name,
+                    SUM(
+                      cast_double!(rss_and_swap * dur)) / cast_double!(SUM(dur))
+                      AS avg_rss_and_swap
+                  FROM memory_rss_and_swap_per_process
+                  GROUP BY process_name
+                )
+                SELECT * FROM sq_0
+              )"));
+  ASSERT_THAT(gen.ComputeReferencedModules(),
+              UnorderedElementsAre("linux.memory.process"));
+}
+
+TEST(StructuredQueryGeneratorTest, GroupBySelectColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "memory_rss_and_swap_per_process"
+      module_name: "linux.memory.process"
+    }
+    group_by: {
+      column_names: "process_name"
+      aggregates: {
+        column_name: "rss_and_swap"
+        op: DURATION_WEIGHTED_MEAN
+        result_column_name: "avg_rss_and_swap"
+      }
+    }
+    select_columns: {column_name: "process_name"}
+    select_columns: {
+      column_name: "avg_rss_and_swap"
+      alias : "cheese"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+                WITH sq_0 AS (
+                  SELECT
+                    process_name,
+                    SUM(
+                    cast_double!(rss_and_swap * dur))
+                    / cast_double!(SUM(dur)) AS cheese
                   FROM memory_rss_and_swap_per_process
                   GROUP BY process_name
                 )
