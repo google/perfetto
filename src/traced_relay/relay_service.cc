@@ -196,7 +196,7 @@ RelayService::RelayService(base::TaskRunner* task_runner)
     : task_runner_(task_runner), machine_id_hint_(GetMachineIdHint()) {}
 
 void RelayService::Start(const char* listening_socket_name,
-                         const char* client_socket_name) {
+                         std::string client_socket_name) {
   auto sock_family = base::GetSockFamily(listening_socket_name);
   listening_socket_ =
       base::UnixSocket::Listen(listening_socket_name, this, task_runner_,
@@ -215,7 +215,7 @@ void RelayService::Start(const char* listening_socket_name,
 }
 
 void RelayService::Start(base::ScopedSocketHandle server_socket_handle,
-                         const char* client_socket_name) {
+                         std::string client_socket_name) {
   // Called when the service is started by Android init, where
   // |server_socket_handle| is a unix socket.
   listening_socket_ = base::UnixSocket::Listen(
