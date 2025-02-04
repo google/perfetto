@@ -116,7 +116,7 @@ default_targets = [
 ] + public_targets + allowlist_public_targets
 
 default_android_targets = [
-    '//src/java_sdk/main:java_sdk_app',
+    '//src/java_sdk/main:perfetto_java_sdk_app',
 ]
 
 # Proto target groups which will be made public.
@@ -716,7 +716,7 @@ def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = 
       return gen_cc_tp_tables(gn_target)
     if gn_target.custom_action_type == 'perfetto_android_library':
       return gen_perfetto_android_library(gn_target)
-    if gn_target.custom_action_type == 'perfetto_android_binary':
+    if gn_target.custom_action_type == 'perfetto_android_app':
       return gen_perfetto_android_binary(gn_target)
     return []
   elif gn_target.type == 'group':
@@ -734,12 +734,12 @@ def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = 
   else:
     raise Error('target type not supported: %s' % gn_target.type)
 
-  custom_bazel_type = gn_target.metadata.get('perfetto_bazel_target_type')
+  custom_bazel_type = gn_target.custom_target_type()
   if custom_bazel_type:
-    if custom_bazel_type[0] == 'perfetto_android_jni_library':
-      bazel_type = custom_bazel_type[0]
+    if custom_bazel_type == 'perfetto_android_jni_library':
+      bazel_type = custom_bazel_type
     else:
-      raise Error('custom target type not supported: %s' % custom_bazel_type[0])
+      raise Error('custom target type not supported: %s' % custom_bazel_type)
 
   label = BazelLabel(get_bazel_label_name(gn_target.name), bazel_type)
   label.comment = gn_target.name
@@ -779,12 +779,8 @@ def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = 
 
   if bazel_type == 'perfetto_android_jni_library':
     label.tags += ['notap'] # This tag is needed to build in google3.
-    binary_name = gn_target.metadata.get('perfetto_bazel_argument_binary_name')
-    if binary_name:
-      label.binary_name = binary_name[0]
-    linkopts = gn_target.metadata.get('perfetto_bazel_argument_linkopts')
-    if linkopts:
-      label.linkopts = linkopts
+    label.binary_name = gn_target.binary_name()
+    label.linkopts = gn_target.linkopts()
 
   if gn_target.type in gn_utils.LINKER_UNIT_TYPES:
     # |source_sets| contains the transitive set of source_set deps.

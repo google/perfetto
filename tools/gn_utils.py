@@ -345,9 +345,9 @@ class GnParser(object):
       self.custom_action_type = None
       self.python_main = None
       # Used only when custom_action_type
-      # in ['perfetto_android_library', 'perfetto_android_binary']
+      # in ['perfetto_android_library', 'perfetto_android_app']
       self.manifest: Optional[str] = None
-      # Used only when custom_action_type == 'perfetto_android_binary'
+      # Used only when custom_action_type == 'perfetto_android_app'
       self.resource_files: Optional[str] = None
 
       # These variables are propagated up when encountering a dependency
@@ -384,6 +384,17 @@ class GnParser(object):
 
     def transitive_source_set_deps(self):
       return set(d for d in self.transitive_deps if d.type == 'source_set')
+
+    def custom_target_type(self) -> Optional[str]:
+      custom_bazel_type = self.metadata.get('perfetto_custom_target_type')
+      return custom_bazel_type[0] if custom_bazel_type else None
+
+    def linkopts(self) -> List[str]:
+      return self.metadata.get('perfetto_bazel_argument_linkopts', [])
+
+    def binary_name(self) -> Optional[str]:
+      binary_name = self.metadata.get('perfetto_argument_binary_name')
+      return binary_name[0] if binary_name else None
 
     def __lt__(self, other):
       if isinstance(other, self.__class__):
@@ -485,10 +496,15 @@ class GnParser(object):
       python_main = target.metadata.get('perfetto_python_main')
       target.python_main = python_main[0] if python_main else None
       manifest = target.metadata.get('perfetto_android_library_manifest')
-      target.manifest = manifest[0] if manifest else None
+      if manifest:
+        target.manifest = manifest[0]
+        assert (target.manifest.startswith('src/'))
       resource_files = target.metadata.get(
           'perfetto_android_resource_files_glob')
-      target.resource_files = resource_files[0] if resource_files else None
+      if resource_files:
+        target.resource_files = resource_files[0]
+        assert (target.resource_files.startswith('src/'))
+        assert (target.resource_files.endswith('/**/*'))
 
     # Default for 'public' is //* - all headers in 'sources' are public.
     # TODO(primiano): if a 'public' section is specified (even if empty), then
@@ -539,6 +555,13 @@ class GnParser(object):
         target.update(dep)  # Bubble up source set's cflags/ldflags etc.
       elif dep.type == 'proto_library':
         target.proto_paths.update(dep.proto_paths)
+
+      if (target.custom_action_type == 'perfetto_android_library' or
+          target.custom_action_type == 'perfetto_android_app'):
+        jni_library = dep.type == 'shared_library' and dep.custom_target_type(
+        ) == 'perfetto_android_jni_library'
+        android_lib = dep.custom_action_type == 'perfetto_android_library'
+        assert (jni_library or android_lib)
 
       target.deps.add(dep)
       target.transitive_deps.add(dep)
