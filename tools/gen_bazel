@@ -778,6 +778,7 @@ def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = 
     label.win_srcs = list(set(label.srcs) & {s[2:] for s in win_target.sources | win_target.inputs})
 
   if bazel_type == 'perfetto_android_jni_library':
+    label.tags += ['notap'] # This tag is needed to build in google3.
     binary_name = gn_target.metadata.get('perfetto_bazel_argument_binary_name')
     if binary_name:
       label.binary_name = binary_name[0]
