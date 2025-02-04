@@ -233,5 +233,62 @@ TEST_F(PerfettoSqlPreprocessorUnittest, Stringify) {
   }
 }
 
+TEST_F(PerfettoSqlPreprocessorUnittest, NestedStringify) {
+  auto sf = SqlSource::FromExecuteQuery(
+      "CREATE MACRO a(x EXPR) RETURNS Expr AS __intrinsic_stringify!($x)");
+  {
+    PerfettoSqlPreprocessor preprocessor(sf, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement());
+    ASSERT_EQ(preprocessor.statement(),
+              FindSubstr(sf,
+                         "CREATE MACRO a(x EXPR) RETURNS Expr AS "
+                         "__intrinsic_stringify!($x)"));
+    ASSERT_FALSE(preprocessor.NextStatement());
+    ASSERT_TRUE(preprocessor.status().ok());
+  }
+
+  macros_.Insert("a", Macro{
+                          false,
+                          "a",
+                          {"x"},
+                          FindSubstr(sf, "__intrinsic_stringify!($x)"),
+                      });
+  {
+    auto source = SqlSource::FromExecuteQuery("a!(foo)");
+    PerfettoSqlPreprocessor preprocessor(source, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement())
+        << preprocessor.status().message();
+    ASSERT_EQ(preprocessor.statement().sql(), "'foo'");
+    ASSERT_FALSE(preprocessor.NextStatement());
+  }
+
+  auto bar = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO MACRO b(x EXPR) RETURNS Expr AS a!($x)");
+  {
+    PerfettoSqlPreprocessor preprocessor(bar, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement());
+    ASSERT_EQ(preprocessor.statement(),
+              SqlSource::FromTraceProcessorImplementation(
+                  "CREATE PERFETTO MACRO b(x EXPR) RETURNS Expr AS "
+                  "__intrinsic_stringify!($x)"));
+    ASSERT_FALSE(preprocessor.NextStatement());
+    ASSERT_TRUE(preprocessor.status().ok());
+  }
+  macros_.Insert("b", Macro{
+                          false,
+                          "b",
+                          {"x"},
+                          FindSubstr(bar, "a!($x)"),
+                      });
+  {
+    auto source = SqlSource::FromExecuteQuery("b!(foo)");
+    PerfettoSqlPreprocessor preprocessor(source, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement())
+        << preprocessor.status().message();
+    ASSERT_EQ(preprocessor.statement().sql(), "'foo'");
+    ASSERT_FALSE(preprocessor.NextStatement());
+  }
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor
