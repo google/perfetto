@@ -21,7 +21,7 @@ template("perfetto_android_jni_library") {
   _vars_to_forward = [
     "sources",
     "deps",
-    "bazel_binary_name",
+    "binary_name",
     "bazel_linkopts",
     "testonly",
     "visibility",
@@ -29,8 +29,8 @@ template("perfetto_android_jni_library") {
   shared_library(target_name) {
     forward_variables_from(invoker, _vars_to_forward)
     metadata = {
-      perfetto_bazel_target_type = [ "perfetto_android_jni_library" ]
-      perfetto_bazel_argument_binary_name = [ bazel_binary_name ]
+      perfetto_custom_target_type = [ "perfetto_android_jni_library" ]
+      perfetto_argument_binary_name = [ binary_name ]
       perfetto_bazel_argument_linkopts = [ bazel_linkopts ]
     }
   }
@@ -62,7 +62,7 @@ template("perfetto_android_library") {
   }
 }
 
-template("perfetto_android_binary") {
+template("perfetto_android_app") {
   _vars_to_forward = [
     "sources",
     "deps",
@@ -83,7 +83,7 @@ template("perfetto_android_binary") {
     ]
     outputs = [ out_path ]
     metadata = {
-      perfetto_action_type_for_generator = [ "perfetto_android_binary" ]
+      perfetto_action_type_for_generator = [ "perfetto_android_app" ]
       perfetto_android_library_manifest = [ manifest ]
       perfetto_android_resource_files_glob = [ resource_files_glob ]
     }

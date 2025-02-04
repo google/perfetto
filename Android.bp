@@ -1154,6 +1154,26 @@ cc_library_static {
     min_sdk_version: "30",
 }
 
+// GN: //src/java_sdk/main/cpp:perfetto_example_jni_lib
+cc_library_shared {
+    name: "libperfetto_jni_wrapper_lib",
+    srcs: [
+        "src/java_sdk/main/cpp/com_google_perfetto_sdk_PerfettoExampleWrapper.cc",
+        "src/java_sdk/main/cpp/example.cc",
+        "src/java_sdk/main/cpp/utils.cc",
+    ],
+    shared_libs: [
+        "liblog",
+        "libperfetto_c",
+    ],
+    defaults: [
+        "perfetto_defaults",
+    ],
+    header_libs: [
+        "jni_headers",
+    ],
+}
+
 // GN: //src/perfetto_cmd:perfetto
 cc_binary {
     name: "perfetto",
@@ -2782,6 +2802,26 @@ cc_test {
         "general-tests",
     ],
     test_config: "PerfettoIntegrationTests.xml",
+}
+
+// GN: //src/java_sdk/main:perfetto_java_sdk_app
+android_app {
+    name: "perfetto_java_sdk_app",
+    srcs: [
+        "src/java_sdk/main/java/com/google/perfetto/sdk/MainActivity.java",
+    ],
+    resource_dirs: [
+        "src/java_sdk/main/res",
+    ],
+    manifest: "src/java_sdk/main/AndroidManifest.xml",
+    static_libs: [
+        "perfetto_src_java_sdk_main_perfetto_lib",
+    ],
+    sdk_version: "30",
+    jni_libs: [
+        "libperfetto_jni_wrapper_lib",
+    ],
+    jni_uses_platform_apis: true,
 }
 
 // GN: [//protos/perfetto/metrics:source_set]
@@ -11427,6 +11467,16 @@ filegroup {
         "src/ipc/host_impl_unittest.cc",
         "src/ipc/test/ipc_integrationtest.cc",
     ],
+}
+
+// GN: //src/java_sdk/main:perfetto_lib
+android_library {
+    name: "perfetto_src_java_sdk_main_perfetto_lib",
+    srcs: [
+        "src/java_sdk/main/java/com/google/perfetto/sdk/PerfettoExampleWrapper.java",
+    ],
+    manifest: "src/java_sdk/main/LibraryAndroidManifest.xml",
+    sdk_version: "30",
 }
 
 // GN: //src/kallsyms:kallsyms

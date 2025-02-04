@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../../gn/perfetto.gni")
 import("../../../../gn/perfetto_android_sdk.gni")
 
-assert(is_android)
+assert(perfetto_build_with_android || is_android)
 
 perfetto_android_jni_library("perfetto_example_jni_lib") {
   sources = [
@@ -30,6 +31,6 @@ perfetto_android_jni_library("perfetto_example_jni_lib") {
     "../../../../gn:default_deps",
     "../../../shared_lib:libperfetto_c",
   ]
-  bazel_binary_name = "libperfetto_jni_wrapper_lib.so"
+  binary_name = "libperfetto_jni_wrapper_lib.so"
   bazel_linkopts = "-llog"
 }

@@ -4437,9 +4437,9 @@ perfetto_android_jni_library(
     ],
 )
 
-# GN target: //src/java_sdk/main:java_sdk_app
+# GN target: //src/java_sdk/main:perfetto_java_sdk_app
 perfetto_android_binary(
-    name = "src_java_sdk_main_java_sdk_app",
+    name = "src_java_sdk_main_perfetto_java_sdk_app",
     srcs = [
         "src/java_sdk/main/java/com/google/perfetto/sdk/MainActivity.java",
     ],
