@@ -167,7 +167,7 @@ std::string BreakpadParser::GetRecordLabel(RecordType type) const {
     case RecordType::PUBLIC:
       return "PUBLIC";
   }
-  __builtin_unreachable();
+  PERFETTO_FATAL("For GCC");
 }
 
 void BreakpadParser::StoreSymbol(Symbol& symbol, RecordType type) {
