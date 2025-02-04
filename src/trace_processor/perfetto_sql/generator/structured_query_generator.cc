@@ -406,28 +406,31 @@ base::StatusOr<std::string> GeneratorImpl::GroupBy(
 }
 
 base::StatusOr<std::string> GeneratorImpl::SelectColumnsAggregates(
-    protozero::RepeatedFieldIterator<protozero::ConstChars> group_by,
+    protozero::RepeatedFieldIterator<protozero::ConstChars> group_by_cols,
     protozero::RepeatedFieldIterator<protozero::ConstBytes> aggregates,
-    protozero::RepeatedFieldIterator<protozero::ConstBytes> select_columns) {
-  base::FlatHashMap<std::string, std::string> output;
-  if (select_columns) {
-    for (auto it = select_columns; it; ++it) {
+    protozero::RepeatedFieldIterator<protozero::ConstBytes> select_cols) {
+  base::FlatHashMap<std::string, std::optional<std::string>> output;
+  if (select_cols) {
+    for (auto it = select_cols; it; ++it) {
       StructuredQuery::SelectColumn::Decoder select(*it);
+      std::string selected_col_name = select.column_name().ToStdString();
       output.Insert(select.column_name().ToStdString(),
-                    select.alias().ToStdString());
+                    select.has_alias()
+                        ? std::make_optional(select.alias().ToStdString())
+                        : std::nullopt);
     }
   } else {
-    for (auto it = group_by; it; ++it) {
-      output.Insert((*it).ToStdString(), (*it).ToStdString());
+    for (auto it = group_by_cols; it; ++it) {
+      output.Insert((*it).ToStdString(), std::nullopt);
     }
     for (auto it = aggregates; it; ++it) {
       StructuredQuery::GroupBy::Aggregate::Decoder aggregate(*it);
-      output.Insert(aggregate.result_column_name().ToStdString(),
-                    aggregate.result_column_name().ToStdString());
+      output.Insert(aggregate.result_column_name().ToStdString(), std::nullopt);
     }
   }
+
   std::string sql;
-  auto itg = group_by;
+  auto itg = group_by_cols;
   for (; itg; ++itg) {
     std::string column_name = (*itg).ToStdString();
     auto* o = output.Find(column_name);
@@ -437,12 +440,17 @@ base::StatusOr<std::string> GeneratorImpl::SelectColumnsAggregates(
     if (!sql.empty()) {
       sql += ", ";
     }
-    sql += (*itg).ToStdString() + " AS " + *o;
+    if (o->has_value()) {
+      sql += column_name + " AS " + o->value();
+    } else {
+      sql += column_name;
+    }
   }
+
   for (auto ita = aggregates; ita; ++ita) {
     StructuredQuery::GroupBy::Aggregate::Decoder aggregate(*ita);
-    std::string column_name = aggregate.result_column_name().ToStdString();
-    auto* o = output.Find(column_name);
+    std::string res_column_name = aggregate.result_column_name().ToStdString();
+    auto* o = output.Find(res_column_name);
     if (!o) {
       continue;
     }
@@ -454,7 +462,11 @@ base::StatusOr<std::string> GeneratorImpl::SelectColumnsAggregates(
         AggregateToString(static_cast<StructuredQuery::GroupBy::Aggregate::Op>(
                               aggregate.op()),
                           aggregate.column_name()));
-    sql += agg + " AS " + column_name;
+    if (o->has_value()) {
+      sql += agg + " AS " + o->value();
+    } else {
+      sql += agg + " AS " + res_column_name;
+    }
   }
   return sql;
 }
