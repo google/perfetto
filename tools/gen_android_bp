@@ -74,6 +74,7 @@ default_targets = [
     '//src/traced_relay:traced_relay',
     '//src/trace_processor:trace_processor_shell',
     '//src/trace_redaction:trace_redactor',
+    '//src/java_sdk/main:perfetto_java_sdk_app',
     '//test/cts:perfetto_cts_deps',
     '//test/cts:perfetto_cts_jni_deps',
     '//test:perfetto_gtest_logcat_printer',
@@ -579,6 +580,7 @@ class Module(object):
     self.strip = dict()
     self.data = set()
     self.apex_available = set()
+    self.sdk_version = None
     self.min_sdk_version = None
     self.proto = dict()
     self.output_extension: Optional[str] = None
@@ -591,6 +593,10 @@ class Module(object):
     self.test_suites = set()
     self.test_config = None
     self.stubs = {}
+    self.manifest: Optional[str] = None
+    self.resource_dirs: Optional[List[str]] = None
+    self.jni_libs: Optional[List[str]] = None
+    self.jni_uses_platform_apis: Optional[bool] = None
 
   def to_string(self, output):
     if self.comment:
@@ -598,6 +604,8 @@ class Module(object):
     output.append('%s {' % self.type)
     self._output_field(output, 'name')
     self._output_field(output, 'srcs')
+    self._output_field(output, 'resource_dirs')
+    self._output_field(output, 'manifest')
     self._output_field(output, 'shared_libs')
     self._output_field(output, 'static_libs')
     self._output_field(output, 'whole_static_libs')
@@ -626,6 +634,7 @@ class Module(object):
     self._output_field(output, 'data')
     self._output_field(output, 'stl')
     self._output_field(output, 'apex_available')
+    self._output_field(output, 'sdk_version')
     self._output_field(output, 'min_sdk_version')
     self._output_field(output, 'version_script')
     self._output_field(output, 'test_suites')
@@ -634,6 +643,8 @@ class Module(object):
     self._output_field(output, 'proto')
     self._output_field(output, 'main')
     self._output_field(output, 'output_extension')
+    self._output_field(output, 'jni_libs')
+    self._output_field(output, 'jni_uses_platform_apis')
 
     target_out = []
     self._output_field(target_out, 'android')
@@ -725,7 +736,7 @@ def label_to_module_name(label: str):
 
 def is_supported_source_file(name: str):
   """Returns True if |name| can appear in a 'srcs' list."""
-  return os.path.splitext(name)[1] in ['.c', '.cc', '.proto']
+  return os.path.splitext(name)[1] in ['.c', '.cc', '.java', '.proto']
 
 
 def create_proto_modules(blueprint: Blueprint, gn: GnParser,
@@ -1036,6 +1047,91 @@ def create_proto_group_modules(blueprint, gn: GnParser, module_name: str,
       raise Error('Unhandled proto group type: {}'.format(group.type))
 
 
+def is_target_android_jni_lib(target: GnParser.Target):
+  custom_target_type = target.custom_target_type()
+  return custom_target_type == 'perfetto_android_jni_library'
+
+
+def android_jni_lib_custom_target_name(target: GnParser.Target):
+  """
+  Android.bp 'cc_library_shared' rule generates binary with the name equal to
+  the rule name (plus the ".so" suffix).
+  So we change the target name to get the JNI library with the expected name.
+  """
+  assert is_target_android_jni_lib(target)
+  return target.binary_name().rstrip('.so')
+
+
+class AndroidJavaSDKModulesGenerator:
+  """
+  This code is split into its own class to hide implementation details.
+  """
+
+  def __init__(self, blueprint: Blueprint, gn: GnParser):
+    self.blueprint = blueprint
+    self.gn = gn
+
+  def create_android_app_module(self, target: GnParser.Target,
+      bp_module_name: str):
+    module = Module('android_app', bp_module_name, target.name)
+    module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
+
+    non_jni_lib_deps = self.generate_deps_modules_and_return_non_jni_lib_deps(
+        target)
+    module.static_libs = [self._bp_module_name_from_gn_target(dep)
+                          for dep in non_jni_lib_deps]
+
+    maybe_jni_lib_targets = set()
+    self._collect_all_transitive_deps(target, maybe_jni_lib_targets)
+    jni_lib_targets = [target for target in maybe_jni_lib_targets
+                       if is_target_android_jni_lib(target)]
+    module.jni_libs = [android_jni_lib_custom_target_name(target)
+                       for target in jni_lib_targets]
+
+    module.manifest = target.manifest
+    module.resource_dirs = [target.resource_files.rstrip('/**/*')]
+    module.jni_uses_platform_apis = True
+    module.sdk_version = 30
+    self.blueprint.add_module(module)
+    return module
+
+  def create_android_library_module(self, target: GnParser.Target,
+      bp_module_name: str):
+    module = Module('android_library', bp_module_name, target.name)
+    module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
+
+    # All JNI libs will be added to the 'jni_libs' argument of the 'android_app'
+    # rule that depends on this 'android_library' rule.
+    non_jni_lib_deps = self.generate_deps_modules_and_return_non_jni_lib_deps(
+      target)
+    module.static_libs = [self._bp_module_name_from_gn_target(dep)
+                          for dep in non_jni_lib_deps]
+
+    module.manifest = target.manifest
+    module.sdk_version = 30
+    self.blueprint.add_module(module)
+    return module
+
+  def generate_deps_modules_and_return_non_jni_lib_deps(self,
+      target: GnParser.Target):
+    non_jni_lib_deps = []
+    for dep in target.non_proto_or_source_set_deps():
+      create_modules_from_target(self.blueprint, self.gn, dep.name)
+      if not is_target_android_jni_lib(dep):
+        non_jni_lib_deps.append(dep)
+    return non_jni_lib_deps
+
+  def _bp_module_name_from_gn_target(self, target: GnParser.Target):
+    module = create_modules_from_target(self.blueprint, self.gn, target.name)
+    return module.name if module else None
+
+  def _collect_all_transitive_deps(self, target: GnParser.Target, visited):
+    if target in visited:
+      return
+    visited.add(target)
+    for d in target.non_proto_or_source_set_deps():
+      self._collect_all_transitive_deps(d, visited)
+
 def _get_cflags(target: GnParser.Target):
   cflags = {flag for flag in target.cflags if re.match(cflag_allowlist, flag)}
   cflags |= set("-D%s" % define
@@ -1073,6 +1169,8 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
   elif target.type == 'static_library':
     module = Module('cc_library_static', bp_module_name, gn_target_name)
   elif target.type == 'shared_library':
+    if is_target_android_jni_lib(target):
+      bp_module_name = android_jni_lib_custom_target_name(target)
     module = Module('cc_library_shared', bp_module_name, gn_target_name)
   elif target.type == 'source_set':
     module = Module('filegroup', bp_module_name, gn_target_name)
@@ -1089,6 +1187,14 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
       return create_amalgamated_sql_module(blueprint, gn, target)
     if target.custom_action_type == 'tp_tables':
       return create_tp_tables_module(blueprint, gn, target)
+    if target.custom_action_type == 'perfetto_android_library':
+      return AndroidJavaSDKModulesGenerator(blueprint,
+                                            gn).create_android_library_module(
+        target, bp_module_name)
+    if target.custom_action_type == 'perfetto_android_app':
+      return AndroidJavaSDKModulesGenerator(blueprint,
+                                            gn).create_android_app_module(
+        target, bp_module_name)
 
     if target.custom_action_type == 'cc_proto_descriptor':
       module = create_cc_proto_descriptor_module(blueprint, target)
@@ -1137,6 +1243,9 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
   # If the module is a static library, export all the generated headers.
   if module.type == 'cc_library_static':
     module.export_generated_headers = module.generated_headers
+
+  if is_target_android_jni_lib(target):
+    module.header_libs.add('jni_headers')
 
   # Merge in additional hardcoded arguments.
   for key, add_val in additional_args.get(module.name, []):

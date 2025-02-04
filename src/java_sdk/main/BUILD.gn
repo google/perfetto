@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/perfetto.gni")
 import("../../../gn/perfetto_android_sdk.gni")
 
 assert(is_android)
@@ -23,7 +24,7 @@ perfetto_android_library("perfetto_lib") {
   testonly = true
 }
 
-perfetto_android_binary("java_sdk_app") {
+perfetto_android_app("perfetto_java_sdk_app") {
   sources = [ "java/com/google/perfetto/sdk/MainActivity.java" ]
   manifest = "src/java_sdk/main/AndroidManifest.xml"
   resource_files_glob = "src/java_sdk/main/res/**/*"
