@@ -47,10 +47,10 @@ TEST(BreakpadParserTest, ContainsNoFuncRecord) {
       "MODULE mac x86_64 E3A0F28FBCB43C15986D8608AF1DD2380 exif.so\n"
       "FILE 0 /Applications/../MacOSX10.10.sdk/usr/include/ctype.h\n"
       "1031 2 39 4\n"
-      "PUBLIC 313c0 0 items\n"
       "STACK CFI 1014 .cfa: $rbp 16 +\n";
   ASSERT_TRUE(parser.ParseFromString(kTestFileContents));
   EXPECT_TRUE(parser.symbols_for_testing().empty());
+  EXPECT_TRUE(parser.public_symbols_for_testing().empty());
 }
 
 TEST(BreakpadParserTest, ContainsOneFuncRecord) {
@@ -62,6 +62,7 @@ TEST(BreakpadParserTest, ContainsOneFuncRecord) {
       "PUBLIC 2e7c0 0 items\n";
   ASSERT_TRUE(parser.ParseFromString(kTestFileContents));
   ASSERT_EQ(parser.symbols_for_testing().size(), 1u);
+  ASSERT_EQ(parser.public_symbols_for_testing().size(), 1u);
   EXPECT_STREQ(parser.symbols_for_testing()[0].symbol_name.c_str(),
                "foo::bar()");
   EXPECT_EQ(parser.symbols_for_testing()[0].start_address,
@@ -170,7 +171,11 @@ constexpr char kGetSymbolTestContents[] =
     "10c4 0 0 0\n"
     "FUNC 10d0 6b 0 baz\n"
     "1136 5 44 5\n"
-    "113b 0 0 0\n";
+    "113b 0 0 0\n"
+    "PUBLIC 12010 0 p_foo\n"
+    "PUBLIC 12018 0 p_bar\n"
+    "PUBLIC 12050 0 p_bax\n"
+    "PUBLIC 12090 0 p_baz\n";
 
 TEST(BreakpadParserTest, GivenStartAddr) {
   BreakpadParser parser(kFakeFilePath);
@@ -178,6 +183,12 @@ TEST(BreakpadParserTest, GivenStartAddr) {
   ASSERT_EQ(parser.symbols_for_testing().size(), 3u);
   EXPECT_EQ(*parser.GetSymbol(0x1010U), "foo");
   EXPECT_EQ(*parser.GetSymbol(0x10d0U), "baz");
+
+  ASSERT_EQ(parser.public_symbols_for_testing().size(), 4u);
+  EXPECT_EQ(*parser.GetPublicSymbol(0x12010U), "p_foo");
+  EXPECT_EQ(*parser.GetPublicSymbol(0x12018U), "p_bar");
+  EXPECT_EQ(*parser.GetPublicSymbol(0x12050U), "p_bax");
+  EXPECT_FALSE(parser.GetPublicSymbol(0x12090U));
 }
 
 TEST(BreakpadParserTest, GivenAddrInRange) {
@@ -186,6 +197,11 @@ TEST(BreakpadParserTest, GivenAddrInRange) {
   ASSERT_EQ(parser.symbols_for_testing().size(), 3u);
   EXPECT_EQ(*parser.GetSymbol(0x1030U), "foo");
   EXPECT_EQ(*parser.GetSymbol(0x10c0U), "bar");
+
+  ASSERT_EQ(parser.public_symbols_for_testing().size(), 4u);
+  EXPECT_EQ(*parser.GetPublicSymbol(0x12014U), "p_foo");
+  EXPECT_EQ(*parser.GetPublicSymbol(0x12038U), "p_bar");
+  EXPECT_EQ(*parser.GetPublicSymbol(0x12068U), "p_bax");
 }
 
 TEST(BreakpadParserTest, AddrTooLow) {
@@ -193,6 +209,9 @@ TEST(BreakpadParserTest, AddrTooLow) {
   ASSERT_TRUE(parser.ParseFromString(kGetSymbolTestContents));
   ASSERT_EQ(parser.symbols_for_testing().size(), 3u);
   EXPECT_FALSE(parser.GetSymbol(0x1000U));
+
+  ASSERT_EQ(parser.public_symbols_for_testing().size(), 4u);
+  EXPECT_FALSE(parser.GetPublicSymbol(0x12000U));
 }
 
 TEST(BreakpadParserTest, AddrTooHigh) {
@@ -200,6 +219,9 @@ TEST(BreakpadParserTest, AddrTooHigh) {
   ASSERT_TRUE(parser.ParseFromString(kGetSymbolTestContents));
   ASSERT_EQ(parser.symbols_for_testing().size(), 3u);
   EXPECT_FALSE(parser.GetSymbol(0x3000U));
+
+  ASSERT_EQ(parser.public_symbols_for_testing().size(), 4u);
+  EXPECT_FALSE(parser.GetPublicSymbol(0x15000U));
 }
 
 TEST(BreakpadParserTest, AddrBetweenFunctions) {
