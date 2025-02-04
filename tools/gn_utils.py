@@ -27,6 +27,7 @@ import shutil
 import subprocess
 import sys
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Set
 from typing import Tuple
@@ -333,6 +334,8 @@ class GnParser(object):
       # bubbled-up sources.
       self.public_headers = set()  # 'public'
 
+      self.metadata: Dict[str, List[str]] = dict()
+
       # These are valid only for type == 'action'
       self.data = set()
       self.inputs = set()
@@ -341,6 +344,11 @@ class GnParser(object):
       self.args = []
       self.custom_action_type = None
       self.python_main = None
+      # Used only when custom_action_type
+      # in ['perfetto_android_library', 'perfetto_android_binary']
+      self.manifest: Optional[str] = None
+      # Used only when custom_action_type == 'perfetto_android_binary'
+      self.resource_files: Optional[str] = None
 
       # These variables are propagated up when encountering a dependency
       # on a source_set target.
@@ -441,6 +449,8 @@ class GnParser(object):
       target.is_third_party_dep_ = True
       return target
 
+    target.metadata = desc.get('metadata', {})
+
     proto_target_type, proto_desc = self.get_proto_target_type(target)
     if proto_target_type:
       assert proto_desc
@@ -461,7 +471,7 @@ class GnParser(object):
       target.sources.update(desc.get('sources', []))
     elif target.type == 'action':
       self.actions[gn_target_name] = target
-      target.data.update(desc.get('metadata', {}).get('perfetto_data', []))
+      target.data.update(target.metadata.get('perfetto_data', []))
       target.inputs.update(desc.get('inputs', []))
       target.sources.update(desc.get('sources', []))
       outs = [re.sub('^//out/.+?/gen/', '', x) for x in desc['outputs']]
@@ -470,12 +480,15 @@ class GnParser(object):
       # Args are typically relative to the root build dir (../../xxx)
       # because root build dir is typically out/xxx/).
       target.args = [re.sub('^../../', '//', x) for x in desc['args']]
-      action_types = desc.get('metadata',
-                              {}).get('perfetto_action_type_for_generator', [])
-      target.custom_action_type = action_types[0] if len(
-          action_types) > 0 else None
-      python_main = desc.get('metadata', {}).get('perfetto_python_main', [])
+      action_types = target.metadata.get('perfetto_action_type_for_generator')
+      target.custom_action_type = action_types[0] if action_types else None
+      python_main = target.metadata.get('perfetto_python_main')
       target.python_main = python_main[0] if python_main else None
+      manifest = target.metadata.get('perfetto_android_library_manifest')
+      target.manifest = manifest[0] if manifest else None
+      resource_files = target.metadata.get(
+          'perfetto_android_resource_files_glob')
+      target.resource_files = resource_files[0] if resource_files else None
 
     # Default for 'public' is //* - all headers in 'sources' are public.
     # TODO(primiano): if a 'public' section is specified (even if empty), then
