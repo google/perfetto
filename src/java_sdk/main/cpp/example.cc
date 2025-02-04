@@ -29,7 +29,6 @@
 #include "perfetto/public/te_category_macros.h"
 #include "perfetto/public/te_macros.h"
 #include "perfetto/public/track_event.h"
-#include "perfetto/tracing/track_event.h"
 
 #include <chrono>
 #include <fstream>

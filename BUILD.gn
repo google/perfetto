@@ -142,6 +142,10 @@ if (enable_perfetto_integration_tests) {
   }
 }
 
+if (enable_perfetto_android_java_sdk) {
+  all_targets += [ "src/java_sdk/main:perfetto_lib" ]
+}
+
 if (enable_perfetto_trace_processor_json) {
   test("trace_processor_minimal_smoke_tests") {
     testonly = true
