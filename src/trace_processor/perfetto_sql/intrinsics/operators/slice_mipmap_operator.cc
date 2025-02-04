@@ -197,10 +197,6 @@ int SliceMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
   int64_t end = sqlite3_value_int64(argv[1]);
   int64_t step = sqlite3_value_int64(argv[2]);
 
-  if (start == end) {
-    return sqlite::utils::SetError(t, "slice_mipmap: empty range provided");
-  }
-
   for (uint32_t depth = 0; depth < state->by_depth.size(); ++depth) {
     auto& by_depth = state->by_depth[depth];
     const auto& tses = by_depth.timestamps;
