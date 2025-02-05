@@ -1301,6 +1301,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         mali_gpu_event_tracker_.ParseMaliGpuMcuStateEvent(ts, fld.id());
         break;
       }
+      case FtraceEvent::kMaliGpuPowerStateFieldNumber: {
+        ParseMaliGpuPowerState(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kTracingMarkWriteFieldNumber: {
         ParseMdssTracingMarkWrite(ts, pid, fld_bytes);
         break;
@@ -4176,5 +4180,18 @@ void FtraceParser::ParseHrtimerExpireExit(uint32_t cpu,
   TrackId track = context_->track_tracker->InternTrack(kHrtimerBlueprint,
                                                        tracks::Dimensions(cpu));
   context_->slice_tracker->End(timestamp, track, hrtimer_id_);
+}
+
+void FtraceParser::ParseMaliGpuPowerState(int64_t ts,
+                                          protozero::ConstBytes blob) {
+  static constexpr auto kMaliGpuPowerStateBlueprint = tracks::CounterBlueprint(
+      "mali_gpu_power_state", tracks::UnknownUnitBlueprint(),
+      tracks::DimensionBlueprints(),
+      tracks::StaticNameBlueprint("mali_gpu_power_state"));
+
+  protos::pbzero::MaliGpuPowerStateFtraceEvent::Decoder event(blob);
+  TrackId track =
+      context_->track_tracker->InternTrack(kMaliGpuPowerStateBlueprint);
+  context_->event_tracker->PushCounter(ts, event.to_state(), track);
 }
 }  // namespace perfetto::trace_processor
