@@ -161,7 +161,7 @@ export class QueryBuilderJoin implements m.ClassComponent<JoinOperationAttrs> {
       if (attrs.joinState.secondaryColumnsPicked === undefined) {
         attrs.joinState.secondaryColumnsPicked =
           attrs.joinState.secondaryTable.columns.map((c) =>
-            columnControllerRowFromSqlColumn(c),
+            columnControllerRowFromSqlColumn(c, true),
           );
         attrs.joinState.secondaryColumnsPicked.map(
           (c) => (c.source = attrs.joinState.secondaryTable?.name),
@@ -176,7 +176,6 @@ export class QueryBuilderJoin implements m.ClassComponent<JoinOperationAttrs> {
           {title: `From ${attrs.joinState.prevNode.getTitle()}`},
           m(ColumnController, {
             options: attrs.joinState.primaryColumnsPicked,
-            hasValidColumns: true,
             onChange: (diffs: ColumnControllerDiff[]) => {
               diffs.forEach(({id, checked, alias}) => {
                 if (attrs.joinState.primaryColumnsPicked === undefined) {
@@ -200,7 +199,6 @@ export class QueryBuilderJoin implements m.ClassComponent<JoinOperationAttrs> {
           },
           m(ColumnController, {
             options: attrs.joinState.secondaryColumnsPicked,
-            hasValidColumns: true,
             onChange: (diffs: ColumnControllerDiff[]) => {
               diffs.forEach(({id, checked, alias}) => {
                 if (attrs.joinState.secondaryColumnsPicked === undefined) {

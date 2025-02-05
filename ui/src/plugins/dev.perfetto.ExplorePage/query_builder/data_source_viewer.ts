@@ -47,7 +47,6 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
       return (
         node.columns &&
         m(ColumnController, {
-          hasValidColumns: true,
           options: node.columns,
           onChange: (diffs: ColumnControllerDiff[]) => {
             diffs.forEach(({id, checked, alias}) => {
@@ -105,7 +104,7 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
     const sq = lastNode.getStructuredQuery();
     if (sq === undefined) return;
 
-    this.curSqString = JSON.stringify(sq.toJSON());
+    this.curSqString = JSON.stringify(sq.toJSON(), null, 2);
 
     if (this.curSqString !== this.prevSqString) {
       this.tableAsyncLimiter.schedule(async () => {
@@ -123,7 +122,6 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
 
     if (this.currentSql === undefined) return;
 
-    const jsonSq = attrs.queryNode.getStructuredQuery()?.toJSON();
     return [
       m(
         Section,
@@ -136,9 +134,9 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
           }),
         this.showDataSourceInfoPanel === 1 && renderPickColumns(lastNode),
         this.showDataSourceInfoPanel === 2 &&
-          jsonSq &&
+          this.curSqString &&
           m(TextParagraph, {
-            text: JSON.stringify(jsonSq) || '',
+            text: this.curSqString || '',
             compressSpace: false,
           }),
       ),
@@ -150,7 +148,7 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
 function getStructuredQueries(
   finalNode: QueryNode,
 ): protos.PerfettoSqlStructuredQuery[] | undefined {
-  if (!finalNode.finished || finalNode.columns === undefined) {
+  if (finalNode.columns === undefined) {
     return;
   }
   const revStructuredQueries: protos.PerfettoSqlStructuredQuery[] = [];
