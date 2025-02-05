@@ -35,6 +35,11 @@ import {
   SqlSourceAttrs,
   SqlSourceState,
 } from './source_nodes';
+import {
+  GroupByAttrs,
+  GroupByNode,
+  GroupByOperation,
+} from './operations/groupy_by';
 
 export interface QueryBuilderTable {
   name: string;
@@ -146,8 +151,44 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             });
           },
         }),
-        m(MenuItem, {label: 'INTERSECT', disabled: true}),
+        m(MenuItem, {
+          label: 'GROUP BY',
+          onclick: () => {
+            if (attrs.rootNode === undefined) return;
+
+            const curNode = getLastFinishedNode(attrs.rootNode);
+            if (curNode === undefined) return;
+
+            const newGroupByAttrs: GroupByAttrs = {prevNode: curNode};
+            groupByModal(newGroupByAttrs, () => {
+              curNode.nextNode = new GroupByNode(newGroupByAttrs);
+            });
+          },
+        }),
       );
+    }
+
+    function groupByModal(attrs: GroupByAttrs, f: () => void) {
+      function Operations() {
+        return {
+          view: () => {
+            return m(GroupByOperation, attrs);
+          },
+        };
+      }
+
+      const content = () => m(Operations);
+
+      showModal({
+        title: `GROUP BY`,
+        buttons: [
+          {
+            text: 'Add node',
+            action: f,
+          },
+        ],
+        content,
+      });
     }
 
     function joinModal(joinState: JoinState, f: () => void) {
@@ -347,7 +388,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
 
         let curNode: QueryNode | undefined = attrs.rootNode;
         const nodes: m.Child[] = [];
-        while (curNode && curNode.finished) {
+        while (curNode) {
           nodes.push(
             m(
               '',
@@ -422,7 +463,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             gridColumn: 2,
           },
         },
-        attrs.rootNode?.finished && [
+        attrs.rootNode && [
           m(DataSourceViewer, {
             trace: attrs.trace,
             queryNode: attrs.rootNode,

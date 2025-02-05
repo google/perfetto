@@ -84,7 +84,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         }),
       this.selectedMode === ExplorePageModes.DATA_VISUALISER &&
         queryNode !== undefined &&
-        queryNode.finished &&
         m(DataVisualiser, {
           trace,
           state: {
