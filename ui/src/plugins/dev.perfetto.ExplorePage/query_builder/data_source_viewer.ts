@@ -47,7 +47,6 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
       return (
         node.columns &&
         m(ColumnController, {
-          hasValidColumns: true,
           options: node.columns,
           onChange: (diffs: ColumnControllerDiff[]) => {
             diffs.forEach(({id, checked, alias}) => {

@@ -137,6 +137,7 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
 
       return m(ColumnController, {
         options: attrs.groupByColumns,
+        allowAlias: false,
         onChange: (diffs: ColumnControllerDiff[]) => {
           if (attrs.groupByColumns === undefined) return;
 
@@ -150,7 +151,6 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
             if (column) column.checked = diff.checked;
           }
         },
-        hasValidColumns: true,
       });
     };
 
@@ -159,6 +159,7 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
 
       return m(ColumnController, {
         options: this.selectForAggregationColumns,
+        allowAlias: false,
         onChange: (diffs: ColumnControllerDiff[]) => {
           if (this.selectForAggregationColumns === undefined) {
             return;
@@ -170,7 +171,6 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
             if (column) column.checked = diff.checked;
           }
         },
-        hasValidColumns: true,
       });
     };
 
