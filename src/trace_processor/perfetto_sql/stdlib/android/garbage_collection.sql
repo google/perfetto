@@ -256,7 +256,8 @@ WITH
       dur,
       startup_id as id
     FROM android_startups
-    WHERE dur > 0   -- b/384732321
+    -- b/384732321
+    WHERE dur > 0
   ),
   gcs_for_intersect AS (
     SELECT
