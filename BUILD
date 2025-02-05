@@ -3333,6 +3333,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_level_parallelism.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_state_flattened.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/time_in_state.sql",
+        "src/trace_processor/perfetto_sql/stdlib/sched/with_context.sql",
     ],
 )
 
