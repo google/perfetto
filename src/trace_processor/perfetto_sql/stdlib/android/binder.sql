@@ -121,11 +121,14 @@ WITH maybe_broken_binder_txn AS (
       ON binder_reply.track_id = reply_thread_track.id
     JOIN thread reply_thread ON reply_thread.utid = reply_thread_track.utid
     JOIN process reply_process ON reply_process.upid = reply_thread.upid
-    LEFT JOIN slice aidl ON aidl.parent_id = binder_reply.id
-        -- Filter for only server side AIDL slices as there are some client side ones for cpp
-        AND (aidl.name GLOB 'AIDL::*Server'
+    LEFT JOIN slice aidl ON
+        aidl.parent_id = binder_reply.id
+        AND (
+          -- Filter for only server side AIDL slices as there are some client side ones for cpp
+          aidl.name GLOB 'AIDL::*Server'
              OR aidl.name GLOB 'AIDL::*server'
-             OR aidl.name GLOB 'HIDL::*server')
+             OR aidl.name GLOB 'HIDL::*server'
+        )
   )
 SELECT
   MIN(aidl_name) AS aidl_name,

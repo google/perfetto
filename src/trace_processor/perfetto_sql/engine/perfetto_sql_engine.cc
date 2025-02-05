@@ -147,11 +147,9 @@ SqlSource RewriteToDummySql(const SqlSource& source) {
       SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
 }
 
-constexpr std::array<const char*, 8> kTokensAllowedInMacro({
-    "_ArgumentList",
+constexpr std::array<const char*, 6> kTokensAllowedInMacro({
     "_ColumnNameList",
-    "_Macro",
-    "_SqlFragment",
+    "_ProjectionFragment",
     "_TableNameList",
     "ColumnName",
     "Expr",
