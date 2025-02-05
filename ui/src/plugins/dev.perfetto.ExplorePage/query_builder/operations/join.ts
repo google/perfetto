@@ -161,7 +161,7 @@ export class QueryBuilderJoin implements m.ClassComponent<JoinOperationAttrs> {
       if (attrs.joinState.secondaryColumnsPicked === undefined) {
         attrs.joinState.secondaryColumnsPicked =
           attrs.joinState.secondaryTable.columns.map((c) =>
-            columnControllerRowFromSqlColumn(c),
+            columnControllerRowFromSqlColumn(c, true),
           );
         attrs.joinState.secondaryColumnsPicked.map(
           (c) => (c.source = attrs.joinState.secondaryTable?.name),

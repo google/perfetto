@@ -37,20 +37,40 @@ export interface ColumnControllerRow {
 
 export function columnControllerRowFromSqlColumn(
   column: SqlColumn,
+  checked: boolean = false,
 ): ColumnControllerRow {
   return {
     id: column.name,
-    checked: true,
+    checked,
     column: column,
   };
 }
 
-export function columnControllerRowFromName(name: string): ColumnControllerRow {
+export function columnControllerRowFromName(
+  name: string,
+  checked: boolean = false,
+): ColumnControllerRow {
   return {
     id: name,
-    checked: true,
+    checked,
     column: {name: name, type: {name: 'NA', shortName: 'NA'}},
   };
+}
+
+export function newColumnControllerRow(
+  oldCol: ColumnControllerRow,
+  checked: boolean = false,
+) {
+  return {
+    id: oldCol.alias ?? oldCol.column.name,
+    column: oldCol.column,
+    alias: undefined,
+    checked,
+  };
+}
+
+export function newColumnControllerRows(oldCols: ColumnControllerRow[]) {
+  return oldCols.map((col) => newColumnControllerRow(col));
 }
 
 export interface ColumnControllerDiff {

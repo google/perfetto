@@ -37,7 +37,7 @@ export class StdlibTableState implements QueryNode {
   constructor(sqlTable: SqlTable) {
     this.dataName = sqlTable.name;
     this.columns = sqlTable.columns.map((c) =>
-      columnControllerRowFromSqlColumn(c),
+      columnControllerRowFromSqlColumn(c, true),
     );
     this.sqlTable = sqlTable;
   }
@@ -188,7 +188,7 @@ export class SimpleSlicesState implements QueryNode {
         },
       },
     ];
-    this.columns = cols.map((c) => columnControllerRowFromSqlColumn(c));
+    this.columns = cols.map((c) => columnControllerRowFromSqlColumn(c, true));
   }
 }
 
