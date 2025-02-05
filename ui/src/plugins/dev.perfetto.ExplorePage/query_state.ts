@@ -24,13 +24,13 @@ export enum NodeType {
 
   // Operations
   kJoinOperator,
+  kGroupByOperator,
 }
 
 export interface QueryNode {
   readonly type: NodeType;
   readonly prevNode?: QueryNode;
   nextNode?: QueryNode;
-  finished: boolean;
 
   dataName?: string;
   columns?: ColumnControllerRow[];
@@ -41,26 +41,14 @@ export interface QueryNode {
 }
 
 export function getLastFinishedNode(node: QueryNode): QueryNode | undefined {
-  if (!node.finished) {
-    return;
-  }
   while (node.nextNode) {
-    if (!node.nextNode.finished) {
-      return node;
-    }
     node = node.nextNode;
   }
   return node;
 }
 
 export function getFirstNode(node: QueryNode): QueryNode | undefined {
-  if (!node.finished) {
-    return;
-  }
   while (node.prevNode) {
-    if (!node.finished) {
-      return;
-    }
     node = node.prevNode;
   }
   return node;
