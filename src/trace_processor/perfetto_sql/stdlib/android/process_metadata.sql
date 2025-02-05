@@ -44,9 +44,8 @@ WITH min_distance AS (
     (
       $uid = uid
       AND (
-        -- unique match
+        -- Either a unique match or process name is a prefix the package name
         $uid_count = 1
-        -- or process name is a prefix the package name
         OR $process_name GLOB package_name || '*'
       )
     )

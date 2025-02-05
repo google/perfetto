@@ -13,14 +13,16 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE PERFETTO MACRO _graph_scan_df_agg(x Expr, y Expr)
-RETURNS Expr AS __intrinsic_stringify!($x), init_table.$y;
+-- sqlformat file off
 
-CREATE PERFETTO MACRO _graph_scan_bind(x Expr, y Expr)
+CREATE PERFETTO MACRO _graph_scan_df_agg(x ColumnName, y ColumnName)
+RETURNS _ProjectionFragment AS __intrinsic_stringify!($x), init_table.$y;
+
+CREATE PERFETTO MACRO _graph_scan_bind(x ColumnName, y ColumnName)
 RETURNS Expr AS __intrinsic_table_ptr_bind(result.$x, __intrinsic_stringify!($y));
 
-CREATE PERFETTO MACRO _graph_scan_select(x Expr, y Expr)
-RETURNS Expr AS result.$x as $y;
+CREATE PERFETTO MACRO _graph_scan_select(x ColumnName, y ColumnName)
+RETURNS _ProjectionFragment AS result.$x as $y;
 
 -- Performs a "scan" over the graph starting at `init_table` and using `graph_table`
 -- for edges to follow.
