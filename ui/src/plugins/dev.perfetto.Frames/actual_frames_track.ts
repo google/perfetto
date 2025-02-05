@@ -23,7 +23,6 @@ import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../components/tracks/slice_l
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {Trace} from '../../public/trace';
-import {TrackEventDetails} from '../../public/selection';
 import {SourceDataset} from '../../trace_processor/dataset';
 
 // color named and defined based on Material Design color palettes
@@ -53,22 +52,19 @@ export const ACTUAL_FRAME_ROW = {
 export type ActualFrameRow = typeof ACTUAL_FRAME_ROW;
 
 export class ActualFramesTrack extends NamedSliceTrack<Slice, ActualFrameRow> {
+  readonly rootTableName = 'slice';
+
   constructor(
     trace: Trace,
     maxDepth: number,
     uri: string,
     private trackIds: number[],
   ) {
-    super(trace, uri);
+    super(trace, uri, ACTUAL_FRAME_ROW);
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
       depthGuess: maxDepth,
     };
-  }
-
-  // This is used by the base class to call iter().
-  protected getRowSpec() {
-    return ACTUAL_FRAME_ROW;
   }
 
   getSqlSource(): string {
@@ -93,17 +89,6 @@ export class ActualFramesTrack extends NamedSliceTrack<Slice, ActualFrameRow> {
     return {
       ...baseSlice,
       colorScheme: getColorSchemeForJank(row.jankTag, row.jankSeverityType),
-    };
-  }
-
-  override async getSelectionDetails(
-    id: number,
-  ): Promise<TrackEventDetails | undefined> {
-    const baseDetails = await super.getSelectionDetails(id);
-    if (!baseDetails) return undefined;
-    return {
-      ...baseDetails,
-      tableName: 'slice',
     };
   }
 

@@ -18,7 +18,7 @@ import {sqliteString} from '../../base/string_utils';
 import {exists} from '../../base/utils';
 import {SliceDetails} from '../sql_utils/slice';
 import {Anchor} from '../../widgets/anchor';
-import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../widgets/tree';
@@ -50,7 +50,7 @@ export function renderDetails(
       m(TreeNode, {
         left: 'Name',
         right: m(
-          PopupMenu2,
+          PopupMenu,
           {
             trigger: m(Anchor, slice.name),
           },

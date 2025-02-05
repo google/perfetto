@@ -44,7 +44,7 @@ class ProtoTraceReaderTest : public ::testing::Test {
     proto_trace_reader_ = std::make_unique<ProtoTraceReader>(&context_);
   }
 
-  util::Status Tokenize() {
+  base::Status Tokenize() {
     trace_->Finalize();
     std::vector<uint8_t> trace_bytes = trace_.SerializeAsArray();
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[trace_bytes.size()]);

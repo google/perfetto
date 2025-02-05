@@ -164,9 +164,7 @@ export interface TrackEventDetails {
   readonly wakerCpu?: number;
   readonly upid?: number;
   readonly utid?: number;
-  readonly tableName?: string;
   readonly profileType?: ProfileType;
-  readonly interactionType?: string;
 }
 
 export interface Area {
@@ -202,6 +200,7 @@ export enum ProfileType {
   JAVA_HEAP_SAMPLES = 'heap_profile:com.android.art',
   JAVA_HEAP_GRAPH = 'graph',
   PERF_SAMPLE = 'perf',
+  INSTRUMENTS_SAMPLE = 'instruments',
 }
 
 export function profileType(s: string): ProfileType {

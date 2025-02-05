@@ -17,22 +17,21 @@
 #ifndef INCLUDE_PERFETTO_TRACE_PROCESSOR_TRACE_PROCESSOR_H_
 #define INCLUDE_PERFETTO_TRACE_PROCESSOR_TRACE_PROCESSOR_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/metatrace_config.h"
-#include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Extends TraceProcessorStorage to support execution of SQL queries on loaded
 // traces. See TraceProcessorStorage for parsing of trace files.
@@ -46,6 +45,10 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   static std::unique_ptr<TraceProcessor> CreateInstance(const Config&);
 
   ~TraceProcessor() override;
+
+  // =================================================================
+  // |        PerfettoSQL related functionality starts here          |
+  // =================================================================
 
   // Executes the SQL on the loaded portion of the trace.
   //
@@ -67,6 +70,109 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // a package name and there can be only one package registered with a given
   // name.
   virtual base::Status RegisterSqlPackage(SqlPackage) = 0;
+
+  // =================================================================
+  // |        Trace summary related functionality starts here        |
+  // =================================================================
+
+  // Computes the v2 metrics (if non-empty, only the ones given by `metric_ids`)
+  // on the currently loaded trace based on the metric specifications inside
+  // `specs`.
+  //
+  // Each entry in `specs` should point to an instance of the `TraceSummarySpec`
+  // proto with `spec_format` defining the file format of each specs. This
+  // function accepts a vector to make it easy to compute metrics in the common
+  // case of having many different `TraceSummarySpec` files, each with a subset
+  // of the metrics which need to be computed.
+  //
+  // The result of computing the metrics will be returned in `output` (with a
+  // schema specified by the `TraceSummary` proto) with `output_format` defining
+  // the format that the data should be returned in.
+  //
+  // `metric_ids` is an optional parameter which controls which metric ids from
+  // the specs should be computed. If empty, *all* metrics in all provided specs
+  // will be computed. If specified, every id must match the id of a metric in
+  // the spec or an error will be returned.
+  //
+  // Note: this function will only consider the `metric_spec` and `shared_query`
+  // fields of all the provided specs: any other fields will be silently
+  // ignored.
+  //
+  // Note: this function will only populate the `metric` field of the output,
+  // any other fields are guaranteed to be empty.
+  //
+  // Implementation note: after this function returns, any or all of the
+  // referenced PerfettoSQL modules in any computed metrics will remain
+  // included. This behaviour is *not* considered part of the API and should not
+  // be relied on. It is possible this will change in the future.
+  virtual base::Status ComputeV2Metrics(
+      const std::vector<TraceSummarySpecBytes>& specs,
+      std::vector<uint8_t>* output,
+      TraceSummaryOutputFormat output_format,
+      const std::vector<std::string>& metric_ids = {}) = 0;
+
+  // =================================================================
+  // |        Metatracing related functionality starts here          |
+  // =================================================================
+
+  // Enables "meta-tracing" of trace processor.
+  // Metatracing involves tracing trace processor itself to root-cause
+  // performace issues in trace processor. See |DisableAndReadMetatrace| for
+  // more information on the format of the metatrace.
+  using MetatraceConfig = metatrace::MetatraceConfig;
+  using MetatraceCategories = metatrace::MetatraceCategories;
+  virtual void EnableMetatrace(MetatraceConfig config = {}) = 0;
+
+  // Disables "meta-tracing" of trace processor and writes the trace as a
+  // sequence of |TracePackets| into |trace_proto| returning the status of this
+  // read.
+  virtual base::Status DisableAndReadMetatrace(
+      std::vector<uint8_t>* trace_proto) = 0;
+
+  // =================================================================
+  // |              Advanced functionality starts here               |
+  // =================================================================
+
+  // Sets/returns the name of the currently loaded trace or an empty string if
+  // no trace is fully loaded yet. This has no effect on the Trace Processor
+  // functionality and is used for UI purposes only.
+  // The returned name is NOT a path and will contain extra text w.r.t. the
+  // argument originally passed to SetCurrentTraceName(), e.g., "file (42 MB)".
+  virtual std::string GetCurrentTraceName() = 0;
+  virtual void SetCurrentTraceName(const std::string&) = 0;
+
+  // Registers the contents of a file.
+  // This method can be used to pass out of band data to the trace processor
+  // which can be used by importers to do some advanced processing. For example
+  // if you pass binaries these are used to decode ETM traces.
+  // Registering the same file twice will return an error.
+  virtual base::Status RegisterFileContent(const std::string& path,
+                                           TraceBlobView content) = 0;
+
+  // Interrupts the current query. Typically used by Ctrl-C handler.
+  virtual void InterruptQuery() = 0;
+
+  // Restores Trace Processor to its pristine state. It preserves the built-in
+  // tables/views/functions created by the ingestion process. Returns the number
+  // of objects created in runtime that has been deleted.
+  // NOTE: No Iterators can active when called.
+  virtual size_t RestoreInitialTables() = 0;
+
+  // Deprecated. Use |RegisterSqlPackage()| instead, which is identical in
+  // functionality to |RegisterSqlModule()| and the only difference is in
+  // the argument, which is directly translatable to |SqlPackage|.
+  virtual base::Status RegisterSqlModule(SqlModule) = 0;
+
+  // =================================================================
+  // |  Trace-based metrics (v1) related functionality starts here   |
+  // =================================================================
+  //
+  // WARNING: The metrics v1 system is "soft" deprecated: no new metrics are
+  // allowed but we still fully support any existing metrics written using this
+  // system.
+  //
+  // If possible, prefer using the metrics v2 methods above for any new
+  // usecases.
 
   // Registers a metric at the given path which will run the specified SQL.
   virtual base::Status RegisterMetric(const std::string& path,
@@ -105,58 +211,13 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
       MetricResultFormat format,
       std::string* metrics_string) = 0;
 
-  // Interrupts the current query. Typically used by Ctrl-C handler.
-  virtual void InterruptQuery() = 0;
-
-  // Restores Trace Processor to its pristine state. It preserves the built-in
-  // tables/views/functions created by the ingestion process. Returns the number
-  // of objects created in runtime that has been deleted.
-  // NOTE: No Iterators can active when called.
-  virtual size_t RestoreInitialTables() = 0;
-
-  // Sets/returns the name of the currently loaded trace or an empty string if
-  // no trace is fully loaded yet. This has no effect on the Trace Processor
-  // functionality and is used for UI purposes only.
-  // The returned name is NOT a path and will contain extra text w.r.t. the
-  // argument originally passed to SetCurrentTraceName(), e.g., "file (42 MB)".
-  virtual std::string GetCurrentTraceName() = 0;
-  virtual void SetCurrentTraceName(const std::string&) = 0;
-
-  // Enables "meta-tracing" of trace processor.
-  // Metatracing involves tracing trace processor itself to root-cause
-  // performace issues in trace processor. See |DisableAndReadMetatrace| for
-  // more information on the format of the metatrace.
-  using MetatraceConfig = metatrace::MetatraceConfig;
-  using MetatraceCategories = metatrace::MetatraceCategories;
-  virtual void EnableMetatrace(MetatraceConfig config = {}) = 0;
-
-  // Disables "meta-tracing" of trace processor and writes the trace as a
-  // sequence of |TracePackets| into |trace_proto| returning the status of this
-  // read.
-  virtual base::Status DisableAndReadMetatrace(
-      std::vector<uint8_t>* trace_proto) = 0;
-
   // Gets all the currently loaded proto descriptors used in metric computation.
   // This includes all compiled-in binary descriptors, and all proto descriptors
   // loaded by trace processor shell at runtime. The message is encoded as
   // DescriptorSet, defined in perfetto/trace_processor/trace_processor.proto.
   virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
-
-  // Deprecated. Use |RegisterSqlPackage()| instead, which is identical in
-  // functionality to |RegisterSqlModule()| and the only difference is in
-  // the argument, which is directly translatable to |SqlPackage|.
-  virtual base::Status RegisterSqlModule(SqlModule) = 0;
-
-  // Registers the contents of a file.
-  // This method can be used to pass out of band data to the trace processor
-  // which can be used by importers to do some advanced processing. For example
-  // if you pass binaries these are used to decode ETM traces.
-  // Registering the same file twice will return an error.
-  virtual base::Status RegisterFileContent(const std::string& path,
-                                           TraceBlobView content) = 0;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // INCLUDE_PERFETTO_TRACE_PROCESSOR_TRACE_PROCESSOR_H_

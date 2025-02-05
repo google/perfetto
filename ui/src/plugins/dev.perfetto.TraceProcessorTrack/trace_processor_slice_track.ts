@@ -19,7 +19,6 @@ import {
   NamedSliceTrack,
 } from '../../components/tracks/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../components/tracks/slice_layout';
-import {TrackEventDetails} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {Slice} from '../../public/track';
 import {SourceDataset, Dataset} from '../../trace_processor/dataset';
@@ -44,21 +43,19 @@ export class TraceProcessorSliceTrack extends NamedSliceTrack<
   Slice,
   ThreadSliceRow
 > {
+  readonly rootTableName = 'slice';
+
   constructor(
     trace: Trace,
     uri: string,
     maxDepth: number | undefined,
     private readonly trackIds: number[],
   ) {
-    super(trace, uri);
+    super(trace, uri, THREAD_SLICE_ROW);
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
       depthGuess: maxDepth,
     };
-  }
-
-  getRowSpec(): ThreadSliceRow {
-    return THREAD_SLICE_ROW;
   }
 
   rowToSlice(row: ThreadSliceRow): Slice {
@@ -106,17 +103,6 @@ export class TraceProcessorSliceTrack extends NamedSliceTrack<
     for (const slice of slices) {
       slice.isHighlighted = slice === this.hoveredSlice;
     }
-  }
-
-  async getSelectionDetails(
-    id: number,
-  ): Promise<TrackEventDetails | undefined> {
-    const baseDetails = await super.getSelectionDetails(id);
-    if (!baseDetails) return undefined;
-    return {
-      ...baseDetails,
-      tableName: 'slice',
-    };
   }
 
   override getDataset(): Dataset {

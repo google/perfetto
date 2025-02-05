@@ -16,8 +16,8 @@
 
 #include "src/traceconv/pprof_reader.h"
 
+#include <algorithm>
 #include <cinttypes>
-#include <fstream>
 
 #include "perfetto/ext/base/file_utils.h"
 

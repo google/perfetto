@@ -606,3 +606,90 @@ class PerfettoTable(TestSuite):
         "where","where","[NULL]","bufferLatched","[NULL]"
         "displays.dpi_x","displays[0].dpi_x","[NULL]","[NULL]",0.000000
         """))
+
+  def test_winscope_proto_to_args_with_defaults_with_multiple_packets_per_proto(self):
+      return DiffTestBlueprint(
+          trace=Path('../parser/android/shell_transitions.textproto'),
+          query="""
+          SELECT key, int_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('__intrinsic_window_manager_shell_transition_protos') as tbl
+          ORDER BY tbl.base64_proto_id, key
+          LIMIT 53
+          """,
+          out=Csv("""
+          "key","int_value","real_value"
+          "create_time_ns",76799049027,"[NULL]"
+          "finish_time_ns",0,"[NULL]"
+          "finish_transaction_id",5604932321954,"[NULL]"
+          "flags",0,"[NULL]"
+          "merge_request_time_ns",0,"[NULL]"
+          "merge_target",0,"[NULL]"
+          "merge_time_ns",0,"[NULL]"
+          "send_time_ns",76875395422,"[NULL]"
+          "shell_abort_time_ns",0,"[NULL]"
+          "start_transaction_id",5604932321952,"[NULL]"
+          "targets","[NULL]","[NULL]"
+          "type",0,"[NULL]"
+          "wm_abort_time_ns",0,"[NULL]"
+          "create_time_ns",77854865352,"[NULL]"
+          "finish_transaction_id",5604932322159,"[NULL]"
+          "flags",0,"[NULL]"
+          "merge_request_time_ns",0,"[NULL]"
+          "merge_target",0,"[NULL]"
+          "merge_time_ns",0,"[NULL]"
+          "send_time_ns",77894307328,"[NULL]"
+          "shell_abort_time_ns",0,"[NULL]"
+          "start_transaction_id",5604932322158,"[NULL]"
+          "starting_window_remove_time_ns",0,"[NULL]"
+          "targets","[NULL]","[NULL]"
+          "type",0,"[NULL]"
+          "wm_abort_time_ns",0,"[NULL]"
+          "create_time_ns",82498121051,"[NULL]"
+          "finish_time_ns",0,"[NULL]"
+          "finish_transaction_id",5604932322347,"[NULL]"
+          "flags",0,"[NULL]"
+          "merge_request_time_ns",0,"[NULL]"
+          "merge_target",0,"[NULL]"
+          "merge_time_ns",0,"[NULL]"
+          "send_time_ns",82535513345,"[NULL]"
+          "shell_abort_time_ns",0,"[NULL]"
+          "start_transaction_id",5604932322346,"[NULL]"
+          "starting_window_remove_time_ns",0,"[NULL]"
+          "targets","[NULL]","[NULL]"
+          "type",0,"[NULL]"
+          "wm_abort_time_ns",0,"[NULL]"
+          "create_time_ns",76955664017,"[NULL]"
+          "finish_time_ns",0,"[NULL]"
+          "finish_transaction_id",5604932322029,"[NULL]"
+          "flags",0,"[NULL]"
+          "merge_request_time_ns",0,"[NULL]"
+          "send_time_ns",77277756832,"[NULL]"
+          "shell_abort_time_ns",0,"[NULL]"
+          "start_transaction_id",5604932322028,"[NULL]"
+          "starting_window_remove_time_ns",0,"[NULL]"
+          "targets","[NULL]","[NULL]"
+          "type",0,"[NULL]"
+          "wm_abort_time_ns",0,"[NULL]"
+          "starting_window_remove_time_ns",77706603918,"[NULL]"
+          """))
+
+  def test_winscope_proto_to_args_with_defaults_with_interned_strings(self):
+    return DiffTestBlueprint(
+        trace=Path('../parser/android/viewcapture.textproto'),
+        query="""
+        SELECT flat_key, key, int_value, string_value FROM __intrinsic_winscope_proto_to_args_with_defaults('__intrinsic_viewcapture_view')
+        WHERE flat_key LIKE '%_iid'
+          OR flat_key LIKE '%_name'
+          OR flat_key LIKE '%view_id'
+        ORDER BY base64_proto_id, key
+        """,
+        out=Csv("""
+        "flat_key","key","int_value","string_value"
+        "class_name","class_name","[NULL]","com.android.internal.policy.PhoneWindow@6cec234"
+        "view_id","view_id","[NULL]","NO_ID"
+        "class_name","class_name","[NULL]","com.android.internal.policy.DecorView"
+        "view_id","view_id","[NULL]","STRING DE-INTERNING ERROR"
+        "view_id_iid","view_id_iid",3,"[NULL]"
+        "class_name","class_name","[NULL]","STRING DE-INTERNING ERROR"
+        "class_name_iid","class_name_iid",3,"[NULL]"
+        "view_id","view_id","[NULL]","NO_ID"
+        """))

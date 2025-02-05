@@ -22,7 +22,7 @@ import {raf} from '../../core/raf_scheduler';
 import {CacheKey} from './timeline_cache';
 import {Track, TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {Button} from '../../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
@@ -417,7 +417,7 @@ export abstract class BaseCounterTrack implements Track {
   // it manually, if they want to customise rendering track buttons.
   protected getCounterContextMenu(): m.Child {
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
         trigger: m(Button, {icon: 'show_chart', compact: true}),
       },

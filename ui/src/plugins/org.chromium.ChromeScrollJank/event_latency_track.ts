@@ -12,44 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NamedRow} from '../../components/tracks/named_slice_track';
-import {Slice} from '../../public/track';
-import {
-  CustomSqlTableDefConfig,
-  CustomSqlTableSliceTrack,
-} from '../../components/tracks/custom_sql_table_slice_track';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {JANK_COLOR} from './jank_colors';
-import {TrackEventSelection} from '../../public/selection';
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {Trace} from '../../public/trace';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {getColorForSlice} from '../../components/colorizer';
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
-export class EventLatencyTrack extends CustomSqlTableSliceTrack {
-  constructor(
-    trace: Trace,
-    uri: string,
-    private baseTable: string,
-  ) {
-    super(trace, uri);
-  }
-
-  getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      sqlTableName: this.baseTable,
-    };
-  }
-
-  rowToSlice(row: NamedRow): Slice {
-    const baseSlice = super.rowToSlice(row);
-    if (baseSlice.title === JANKY_LATENCY_NAME) {
-      return {...baseSlice, colorScheme: JANK_COLOR};
-    } else {
-      return baseSlice;
-    }
-  }
-
-  override detailsPanel(sel: TrackEventSelection) {
-    return new EventLatencySliceDetailsPanel(this.trace, sel.eventId);
-  }
+export function createEventLatencyTrack(
+  trace: Trace,
+  uri: string,
+  baseTable: string,
+) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        name: STR,
+        depth: NUM,
+      },
+      src: baseTable,
+    }),
+    colorizer: (row) => {
+      return row.name === JANKY_LATENCY_NAME
+        ? JANK_COLOR
+        : getColorForSlice(row.name);
+    },
+    detailsPanel: (row) => new EventLatencySliceDetailsPanel(trace, row.id),
+  });
 }

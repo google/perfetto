@@ -37,7 +37,7 @@ export default class implements PerfettoPlugin {
     const res = await ctx.engine.query(`
       include perfetto module viz.summary.track_event;
       select
-        g.upid,
+        ifnull(g.upid, t.upid) as upid,
         g.utid,
         g.parent_id as parentId,
         g.is_counter AS isCounter,
@@ -49,9 +49,13 @@ export default class implements PerfettoPlugin {
         g.track_ids as trackIds,
         g.order_id as orderId,
         t.name as threadName,
-        t.tid as tid
+        t.tid as tid,
+        ifnull(p.pid, tp.pid) as pid,
+        ifnull(p.name, tp.name) as processName
       from _track_event_tracks_ordered_groups g
+      left join process p using (upid)
       left join thread t using (utid)
+      left join process tp on tp.upid = t.upid
     `);
     const it = res.iter({
       upid: NUM_NULL,
@@ -67,6 +71,8 @@ export default class implements PerfettoPlugin {
       orderId: NUM,
       threadName: STR_NULL,
       tid: NUM_NULL,
+      pid: NUM_NULL,
+      processName: STR_NULL,
     });
     const processGroupsPlugin = ctx.plugins.getPlugin(
       ProcessThreadGroupsPlugin,
@@ -87,6 +93,8 @@ export default class implements PerfettoPlugin {
         orderId,
         threadName,
         tid,
+        pid,
+        processName,
       } = it;
 
       // Don't add track_event tracks which don't have any data and don't have
@@ -104,7 +112,9 @@ export default class implements PerfettoPlugin {
         kind,
         threadTrack: utid !== null,
         threadName,
+        processName,
         tid,
+        pid,
       });
       const uri = `/track_event_${trackIds[0]}`;
       if (hasData && isCounter) {
@@ -203,11 +213,11 @@ function findParentTrackNode(
   if (parentId !== undefined) {
     return assertExists(trackIdToTrackNode.get(parentId));
   }
-  if (upid !== undefined) {
-    return assertExists(processGroupsPlugin.getGroupForProcess(upid));
-  }
   if (utid !== undefined) {
     return assertExists(processGroupsPlugin.getGroupForThread(utid));
+  }
+  if (upid !== undefined) {
+    return assertExists(processGroupsPlugin.getGroupForProcess(upid));
   }
   if (hasChildren) {
     return ctx.workspace.tracks;

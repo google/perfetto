@@ -29,6 +29,11 @@ import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {Point2D} from '../../base/geom';
 import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
+import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {
+  createPerfettoTable,
+  createVirtualTable,
+} from '../../trace_processor/sql_utils';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -67,45 +72,70 @@ export class ProcessSchedulingTrack implements Track {
   ) {}
 
   async onCreate(): Promise<void> {
-    if (this.config.upid !== null) {
-      await this.trace.engine.query(`
-        create virtual table process_scheduling_${this.trackUuid}
-        using __intrinsic_slice_mipmap((
+    const getQuery = () => {
+      if (this.config.upid !== null) {
+        // TODO(lalitm): remove the harcoding of the cross join here.
+        return `
           select
             s.id,
             s.ts,
-            iif(
-              s.dur = -1,
-              lead(s.ts, 1, trace_end()) over (partition by s.cpu order by s.ts) - s.ts,
-              s.dur
-            ) as dur,
-            s.cpu as depth
-          from sched s
-          join thread t using (utid)
+            s.dur,
+            s.cpu
+          from thread t
+          cross join sched s using (utid)
           where
             s.utid != 0 and
             t.upid = ${this.config.upid}
-        ));
-      `);
-    } else {
+          order by ts
+        `;
+      }
       assertExists(this.config.utid);
-      await this.trace.engine.query(`
-        create virtual table process_scheduling_${this.trackUuid}
-        using __intrinsic_slice_mipmap((
-          select
-            id,
-            ts,
-            iif(
-              dur = -1,
-              lead(ts, 1, trace_end()) over (partition by cpu order by ts) - ts,
-              dur
-            ) as dur,
-            cpu as depth
-          from sched
-          where utid = ${this.config.utid}
-        ));
-      `);
-    }
+      return `
+        select
+          s.id,
+          s.ts,
+          s.dur,
+          s.cpu
+        from sched s
+        where
+          s.utid = ${this.config.utid}
+      `;
+    };
+
+    const trash = new AsyncDisposableStack();
+    trash.use(
+      await createPerfettoTable(
+        this.trace.engine,
+        `tmp_${this.trackUuid}`,
+        getQuery(),
+      ),
+    );
+    await createVirtualTable(
+      this.trace.engine,
+      `process_scheduling_${this.trackUuid}`,
+      `__intrinsic_slice_mipmap((
+        select
+          s.id,
+          s.ts,
+          iif(
+            s.dur = -1,
+            ifnull(
+              (
+                select n.ts
+                from tmp_${this.trackUuid} n
+                where n.ts > s.ts and n.cpu = s.cpu
+                order by ts
+                limit 1
+              ),
+              trace_end()
+            ) - s.ts,
+            s.dur
+          ) as dur,
+          s.cpu as depth
+        from tmp_${this.trackUuid} s
+      ))`,
+    );
+    await trash.asyncDispose();
   }
 
   async onUpdate({

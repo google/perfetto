@@ -83,7 +83,7 @@ FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
 
 FuchsiaTraceTokenizer::~FuchsiaTraceTokenizer() = default;
 
-util::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
+base::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
   size_t size = blob.size();
 
   // The relevant internal state is |leftover_bytes_|. Each call to Parse should
@@ -111,7 +111,7 @@ util::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
     // record, so just add the new bytes to |leftover_bytes_| and return.
     leftover_bytes_.insert(leftover_bytes_.end(), blob.data() + byte_offset,
                            blob.data() + size);
-    return util::OkStatus();
+    return base::OkStatus();
   }
   if (!leftover_bytes_.empty()) {
     // There is a record starting from leftover bytes.
@@ -155,7 +155,7 @@ util::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
       // have to leftover_bytes_ and wait for more.
       leftover_bytes_.insert(leftover_bytes_.end(), blob.data() + byte_offset,
                              blob.data() + byte_offset + size);
-      return util::OkStatus();
+      return base::OkStatus();
     }
   }
 
@@ -172,7 +172,7 @@ util::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
         fuchsia_trace_utils::ReadField<uint32_t>(header, 4, 15) *
         sizeof(uint64_t);
     if (record_len_bytes == 0)
-      return util::ErrStatus("Unexpected record of size 0");
+      return base::ErrStatus("Unexpected record of size 0");
 
     if (record_offset + record_len_bytes > size)
       break;

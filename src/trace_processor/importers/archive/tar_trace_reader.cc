@@ -126,7 +126,7 @@ TarTraceReader::TarTraceReader(TraceProcessorContext* context)
 
 TarTraceReader::~TarTraceReader() = default;
 
-util::Status TarTraceReader::Parse(TraceBlobView blob) {
+base::Status TarTraceReader::Parse(TraceBlobView blob) {
   ParseResult result = ParseResult::kOk;
   buffer_.PushBack(std::move(blob));
   while (!buffer_.empty() && result == ParseResult::kOk) {

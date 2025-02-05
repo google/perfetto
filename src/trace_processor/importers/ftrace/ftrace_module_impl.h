@@ -44,7 +44,7 @@ class FtraceModuleImpl : public FtraceModule {
   void ParseFtraceEventData(uint32_t cpu,
                             int64_t ts,
                             const TracePacketData& data) override {
-    util::Status res = parser_.ParseFtraceEvent(cpu, ts, data);
+    base::Status res = parser_.ParseFtraceEvent(cpu, ts, data);
     if (!res.ok()) {
       PERFETTO_ELOG("%s", res.message().c_str());
     }
@@ -53,7 +53,7 @@ class FtraceModuleImpl : public FtraceModule {
   void ParseInlineSchedSwitch(uint32_t cpu,
                               int64_t ts,
                               const InlineSchedSwitch& data) override {
-    util::Status res = parser_.ParseInlineSchedSwitch(cpu, ts, data);
+    base::Status res = parser_.ParseInlineSchedSwitch(cpu, ts, data);
     if (!res.ok()) {
       PERFETTO_ELOG("%s", res.message().c_str());
     }
@@ -62,7 +62,7 @@ class FtraceModuleImpl : public FtraceModule {
   void ParseInlineSchedWaking(uint32_t cpu,
                               int64_t ts,
                               const InlineSchedWaking& data) override {
-    util::Status res = parser_.ParseInlineSchedWaking(cpu, ts, data);
+    base::Status res = parser_.ParseInlineSchedWaking(cpu, ts, data);
     if (!res.ok()) {
       PERFETTO_ELOG("%s", res.message().c_str());
     }

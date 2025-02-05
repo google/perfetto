@@ -99,6 +99,10 @@ namespace perfetto::trace_processor::stats {
   F(interned_data_tokenizer_errors,       kSingle,  kInfo,     kAnalysis, ""), \
   F(invalid_clock_snapshots,              kSingle,  kError,    kAnalysis, ""), \
   F(invalid_cpu_times,                    kSingle,  kError,    kAnalysis, ""), \
+  F(kernel_wakelock_reused_id,            kSingle,  kError,    kAnalysis,      \
+       "Duplicated interning ID seen. Should never happen."),                  \
+  F(kernel_wakelock_unknown_id,           kSingle,  kError,    kAnalysis,      \
+       "Interning ID not found. Should never happen."),                        \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, ""), \
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, ""), \

@@ -30,7 +30,7 @@ class EtwParser {
  public:
   explicit EtwParser(TraceProcessorContext* context);
 
-  util::Status ParseEtwEvent(uint32_t cpu,
+  base::Status ParseEtwEvent(uint32_t cpu,
                              int64_t ts,
                              const TracePacketData& data);
 

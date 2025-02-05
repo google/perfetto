@@ -26,7 +26,7 @@ import {EmptyState} from '../../widgets/empty_state';
 import {Form, FormLabel} from '../../widgets/form';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {Icon} from '../../widgets/icon';
-import {Menu, MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
+import {Menu, MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {showModal} from '../../widgets/modal';
 import {
   MultiSelect,
@@ -927,10 +927,10 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           ),
       }),
       m(WidgetShowcase, {
-        label: 'PopupMenu2',
+        label: 'PopupMenu',
         renderWidget: (opts) =>
           m(
-            PopupMenu2,
+            PopupMenu,
             {
               trigger: m(Button, {
                 label: 'Menu',
@@ -1008,7 +1008,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
             m(TreeNode, {
               left: 'SQL',
               right: m(
-                PopupMenu2,
+                PopupMenu,
                 {
                   popupPosition: PopupPosition.RightStart,
                   trigger: m(
@@ -1089,7 +1089,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
               trigger: m(Button, {label: 'Open the popup'}),
             },
             m(
-              PopupMenu2,
+              PopupMenu,
               {
                 trigger: m(Button, {label: 'Select an option'}),
               },
@@ -1139,13 +1139,13 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         },
       }),
       m(WidgetShowcase, {
-        label: 'Form within PopupMenu2',
+        label: 'Form within PopupMenu',
         description: `A form placed inside a popup menu works just fine,
               and the cancel/submit buttons also dismiss the popup. A bit more
               margin is added around it too, which improves the look and feel.`,
         renderWidget: () =>
           m(
-            PopupMenu2,
+            PopupMenu,
             {
               trigger: m(Button, {label: 'Popup!'}),
             },
@@ -1499,20 +1499,24 @@ class ModalShowcase implements m.ClassComponent {
     if (staticContent) {
       content = m('.modal-pre', 'Content of the modal dialog.\nEnd of content');
     } else {
-      const component = {
-        oninit: function (vnode: m.Vnode<{}, {progress: number}>) {
-          vnode.state.progress = ((vnode.state.progress as number) || 0) + 1;
-        },
-        view: function (vnode: m.Vnode<{}, {progress: number}>) {
-          vnode.state.progress = (vnode.state.progress + 1) % 100;
-          return m(
-            'div',
-            m('div', 'You should see an animating progress bar'),
-            m('progress', {value: vnode.state.progress, max: 100}),
-          );
-        },
-      } as m.Component<{}, {progress: number}>;
-      content = () => m(component);
+      // The humble counter is basically the VDOM 'Hello world'!
+      function CounterComponent() {
+        let counter = 0;
+        return {
+          view: () => {
+            return m(
+              '',
+              `Counter value: ${counter}`,
+              m(Button, {
+                intent: Intent.Primary,
+                label: 'Increment Counter',
+                onclick: () => ++counter,
+              }),
+            );
+          },
+        };
+      }
+      content = () => m(CounterComponent);
     }
     const closePromise = showModal({
       title: `Modal dialog ${id}`,

@@ -1813,7 +1813,12 @@ void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
     return;
   }
 
-  uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  // dpu_tracing_mark_write can be buggy and can indicate that the swapper
+  // thread is parented to some random process (probably because of IRQs). We
+  // should ignore this as it causes bad cascading effects down the line.
+  //
+  // See b/388130600 for context.
+  uint32_t tgid = pid == 0 ? 0 : static_cast<uint32_t>(evt.pid());
   SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.name(), tgid, evt.value());
@@ -3911,12 +3916,25 @@ StringId FtraceParser::InternedKernelSymbolOrFallback(
 
 void FtraceParser::ParseDeviceFrequency(int64_t ts,
                                         protozero::ConstBytes blob) {
+
   static constexpr auto kBlueprint = tracks::CounterBlueprint(
       "linux_device_frequency", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kLinuxDeviceDimensionBlueprint));
+      tracks::DimensionBlueprints(tracks::kLinuxDeviceDimensionBlueprint),
+      tracks::FnNameBlueprint([](base::StringView dev_name) {
+        // The dev_name as is is prepended with an address (e.g. 17000000a), so
+        // truncate that by searching for "devfreq_". This ensures that in all
+        // cases, the track name is prefixed with "devfreq_", such that track
+        // names will be in the form of "devfreq_bci", "devfreq_dsu", etc.
+        std::string device = dev_name.ToStdString();
+        auto position = device.find("devfreq_");
+        return (position == std::string::npos)
+                ? base::StackString<255>("devfreq_%s", device.c_str())
+                : base::StackString<255>("%s", device.substr(position).c_str());
+
+      }));
   protos::pbzero::DevfreqFrequencyFtraceEvent::Decoder event(blob);
-  TrackId track_id =
-      context_->track_tracker->InternTrack(kBlueprint, {event.dev_name()});
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBlueprint, tracks::Dimensions(event.dev_name()));
   context_->event_tracker->PushCounter(ts, static_cast<double>(event.freq()),
                                        track_id);
 }
@@ -3924,10 +3942,13 @@ void FtraceParser::ParseDeviceFrequency(int64_t ts,
 void FtraceParser::ParseParamSetValueCpm(protozero::ConstBytes blob) {
   static constexpr auto kBlueprint = tracks::CounterBlueprint(
       "pixel_cpm_counters", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kNameFromTraceDimensionBlueprint));
+      tracks::DimensionBlueprints(tracks::kNameFromTraceDimensionBlueprint),
+      tracks::FnNameBlueprint([](base::StringView body) {
+        return base::StackString<255>("%.*s", int(body.size()), body.data());
+      }));
   protos::pbzero::ParamSetValueCpmFtraceEvent::Decoder event(blob);
-  TrackId track_id =
-      context_->track_tracker->InternTrack(kBlueprint, {event.body()});
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBlueprint, tracks::Dimensions(event.body()));
   context_->event_tracker->PushCounter(static_cast<int64_t>(event.timestamp()),
                                        event.value(), track_id);
 }
@@ -3971,7 +3992,7 @@ constexpr auto kCpuHpBlueprint = tracks::SliceBlueprint(
     tracks::FnNameBlueprint([](uint32_t cpu) {
       return base::StackString<255>("CPU Hotplug %u", cpu);
     }));
-}
+}  // namespace
 
 void FtraceParser::ParseCpuhpEnter(uint32_t fld_id,
                                    int64_t ts,

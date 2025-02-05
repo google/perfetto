@@ -504,6 +504,7 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
         C('native_size', CppInt64()),
         C('reference_set_id', CppOptional(CppUint32()), flags=ColumnFlag.DENSE),
         C('reachable', CppInt32()),
+        C('heap_type', CppOptional(CppString())),
         C('type_id', CppTableId(HEAP_GRAPH_CLASS_TABLE)),
         C('root_type', CppOptional(CppString())),
         C('root_distance', CppInt32(), flags=ColumnFlag.HIDDEN),
@@ -531,6 +532,9 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
             'reachable':
                 '''bool whether this object is reachable from a GC root. If
                 false, this object is uncollected garbage.''',
+            'heap_type':
+                '''The type of ART heap this object is stored on (app, zygote,
+                boot image)''',
             'type_id':
                 '''class this object is an instance of.''',
             'root_type':

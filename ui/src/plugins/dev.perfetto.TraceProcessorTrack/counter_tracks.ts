@@ -297,7 +297,7 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
   },
   {
     type: 'pixel_cpm_counters',
-    topLevelGroup: 'THERMALS',
+    topLevelGroup: 'HARDWARE',
     group: 'CPM Counters',
   },
   {

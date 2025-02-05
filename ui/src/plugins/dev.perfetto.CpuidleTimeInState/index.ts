@@ -17,14 +17,17 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {CounterOptions} from '../../components/tracks/base_counter_track';
 import {TrackNode} from '../../public/workspace';
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuidleTimeInState';
+  static readonly dependencies = [StandardGroupsPlugin];
+
   private async addCounterTrack(
     ctx: Trace,
     name: string,
     query: string,
-    group?: TrackNode,
+    group: TrackNode,
     options?: Partial<CounterOptions>,
   ) {
     const uri = `/cpuidle_time_in_state_${name}`;
@@ -43,18 +46,15 @@ export default class implements PerfettoPlugin {
       title: name,
       track,
     });
-    const trackNode = new TrackNode({uri, title: name});
-    if (group) {
-      group.addChildInOrder(trackNode);
-    }
+    const node = new TrackNode({uri, title: name});
+    group.addChildInOrder(node);
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const group = new TrackNode({
-      title: 'Cpuidle Time In State',
+      title: 'CPU Idle Time In State',
       isSummary: true,
     });
-
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE linux.cpu.idle_time_in_state;`);
     const result = await e.query(
@@ -62,7 +62,7 @@ export default class implements PerfettoPlugin {
     );
     const it = result.iter({state_name: 'str'});
     for (; it.valid(); it.next()) {
-      this.addCounterTrack(
+      await this.addCounterTrack(
         ctx,
         it.state_name,
         `
@@ -77,7 +77,11 @@ export default class implements PerfettoPlugin {
       );
     }
     if (group.hasChildren) {
-      ctx.workspace.addChildInOrder(group);
+      const cpu_group = ctx.plugins
+      .getPlugin(StandardGroupsPlugin)
+      .getOrCreateStandardGroup(ctx.workspace, 'CPU');
+
+      cpu_group.addChildInOrder(group);
     }
   }
 }

@@ -19,7 +19,7 @@ import {sqliteString} from '../../base/string_utils';
 import {exists} from '../../base/utils';
 import {ArgNode, convertArgsToTree, Key} from './slice_args_parser';
 import {Anchor} from '../../widgets/anchor';
-import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {TreeNode} from '../../widgets/tree';
 import {Arg} from '../sql_utils/args';
 import {assertExists} from '../../base/logging';
@@ -72,7 +72,7 @@ function renderArgKey(trace: Trace, key: string, value?: Arg): m.Children {
   } else {
     const {key: fullKey, displayValue} = value;
     return m(
-      PopupMenu2,
+      PopupMenu,
       {trigger: m(Anchor, {icon: Icons.ContextMenu}, key)},
       m(MenuItem, {
         label: 'Copy full key',

@@ -42,7 +42,7 @@ class WattsonStdlib(TestSuite):
         trace=DataPath('wattson_dsu_pmu.pb'),
         query="""
         INCLUDE PERFETTO MODULE wattson.system_state;
-        SELECT * from wattson_system_states
+        SELECT * from _wattson_system_states
         ORDER by ts DESC
         LIMIT 20
         """,
@@ -83,7 +83,7 @@ class WattsonStdlib(TestSuite):
 
         -- Final table that is cut off to fit within the requested time window.
         CREATE VIRTUAL TABLE time_window_intersect
-          USING SPAN_JOIN(wattson_system_states, wattson_time_window);
+          USING SPAN_JOIN(_wattson_system_states, wattson_time_window);
         """ + self.consolidate_tables_template.replace("SYSTEM_STATE_TABLE",
                                                        "time_window_intersect"),
         out=Csv("""
@@ -116,7 +116,7 @@ class WattsonStdlib(TestSuite):
         trace=DataPath('wattson_dsu_pmu.pb'),
         query=("INCLUDE PERFETTO MODULE wattson.system_state;\n" +
                self.consolidate_tables_template.replace(
-                   "SYSTEM_STATE_TABLE", "wattson_system_states")),
+                   "SYSTEM_STATE_TABLE", "_wattson_system_states")),
         out=Csv("""
             "duration","l3_hit_count","l3_miss_count","freq_0","idle_0","freq_1","idle_1","freq_2","idle_2","freq_3","idle_3","freq_4","idle_4","freq_5","idle_5","freq_6","idle_6","freq_7","idle_7","suspended"
             1280071578,1319309,419083,300000,1,300000,1,300000,1,300000,1,400000,1,400000,1,500000,1,500000,1,0
@@ -151,7 +151,7 @@ class WattsonStdlib(TestSuite):
           sum(dur) as duration,
           freq_0, idle_0, freq_1, idle_1, freq_2, idle_2, freq_3, idle_3,
           suspended
-        FROM wattson_system_states
+        FROM _wattson_system_states
         GROUP BY
           freq_0, idle_0, freq_1, idle_1, freq_2, idle_2, freq_3, idle_3,
           suspended

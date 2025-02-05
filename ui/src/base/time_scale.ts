@@ -26,7 +26,7 @@ export class TimeScale {
     this.pxBounds = pxBounds;
     this.timeSpan = timespan;
     const delta = pxBounds.right - pxBounds.left;
-    if (timespan.duration <= 0 || delta <= 0) {
+    if (delta <= 0) {
       this.timePerPx = 1;
     } else {
       this.timePerPx = timespan.duration / delta;

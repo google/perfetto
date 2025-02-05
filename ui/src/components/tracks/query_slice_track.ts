@@ -12,19 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  CustomSqlTableDefConfig,
-  CustomSqlTableSliceTrack,
-} from './custom_sql_table_slice_track';
+import {DatasetSliceTrack} from './dataset_slice_track';
 import {
   ARG_PREFIX,
   SqlTableSliceTrackDetailsPanel,
 } from './sql_table_slice_track_details_tab';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {Trace} from '../../public/trace';
-import {TrackEventSelection} from '../../public/selection';
 import {sqlNameSafe} from '../../base/string_utils';
 import {Engine} from '../../trace_processor/engine';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 export interface QuerySliceTrackArgs {
   // The trace object used to run queries.
@@ -89,7 +87,22 @@ export async function createQuerySliceTrack(args: QuerySliceTrackArgs) {
     args.columns,
     args.argColumns,
   );
-  return new SqlTableSliceTrack(args.trace, args.uri, tableName);
+  return new DatasetSliceTrack({
+    trace: args.trace,
+    uri: args.uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        name: STR,
+      },
+      src: tableName,
+    }),
+    detailsPanel: (row) => {
+      return new SqlTableSliceTrackDetailsPanel(args.trace, tableName, row.id);
+    },
+  });
 }
 
 async function createPerfettoTableForTrack(
@@ -129,28 +142,4 @@ async function createPerfettoTableForTrack(
   `;
 
   return await createPerfettoTable(engine, tableName, query);
-}
-
-class SqlTableSliceTrack extends CustomSqlTableSliceTrack {
-  constructor(
-    trace: Trace,
-    uri: string,
-    private readonly sqlTableName: string,
-  ) {
-    super(trace, uri);
-  }
-
-  override getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      sqlTableName: this.sqlTableName,
-    };
-  }
-
-  override detailsPanel({eventId}: TrackEventSelection) {
-    return new SqlTableSliceTrackDetailsPanel(
-      this.trace,
-      this.sqlTableName,
-      eventId,
-    );
-  }
 }

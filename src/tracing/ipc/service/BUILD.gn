@@ -37,6 +37,7 @@ source_set("service") {
   deps = [
     "..:common",
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/tracing",
     "../../../../protos/perfetto/ipc",
     "../../../base",
     "../../core:core",

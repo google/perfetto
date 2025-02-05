@@ -82,6 +82,15 @@ inline std::string ProtoStubName(const FileDescriptor* proto) {
   return StripSuffix(proto->name(), ".proto") + ".pzc";
 }
 
+std::string IntLiteralString(int number) {
+  // Special case for -2147483648. If int is 32-bit, the compiler will
+  // misinterpret it.
+  if (number == std::numeric_limits<int32_t>::min()) {
+    return "-2147483647 - 1";
+  }
+  return std::to_string(number);
+}
+
 class GeneratorJob {
  public:
   GeneratorJob(const FileDescriptor* file, Printer* stub_h_printer)
@@ -439,11 +448,11 @@ class GeneratorJob {
         stub_h_->Print(
             "PERFETTO_PB_ENUM_IN_MSG_ENTRY($msg$, $val$) = $number$,\n", "msg",
             GetCppClassName(enumeration->containing_type()), "val", value_name,
-            "number", std::to_string(value->number()));
+            "number", IntLiteralString(value->number()));
       } else {
         stub_h_->Print("PERFETTO_PB_ENUM_ENTRY($val$) = $number$, \n", "val",
                        full_namespace_prefix_ + "_" + value_name, "number",
-                       std::to_string(value->number()));
+                       IntLiteralString(value->number()));
       }
     }
     stub_h_->Outdent();

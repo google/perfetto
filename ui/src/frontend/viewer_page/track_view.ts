@@ -37,7 +37,7 @@ import {TrackRenderer} from '../../core/track_manager';
 import {Track, TrackDescriptor} from '../../public/track';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {SELECTION_FILL_COLOR} from '../css_constants';
@@ -70,6 +70,7 @@ export interface TrackViewAttrs {
   readonly reorderable?: boolean;
   readonly depth: number;
   readonly stickyTop: number;
+  readonly collapsible: boolean;
 }
 
 /**
@@ -106,7 +107,7 @@ export class TrackView {
   }
 
   renderDOM(attrs: TrackViewAttrs, children: m.Children) {
-    const {scrollToOnCreate, reorderable = false} = attrs;
+    const {scrollToOnCreate, reorderable = false, collapsible} = attrs;
     const {node, renderer, height} = this;
 
     const buttons = attrs.lite
@@ -140,8 +141,8 @@ export class TrackView {
         chips: renderer?.desc.chips,
         buttons,
         scrollToOnCreate: scrollToOnCreate || scrollIntoView,
-        collapsible: node.hasChildren,
-        collapsed: node.collapsed,
+        collapsible: collapsible && node.hasChildren,
+        collapsed: collapsible && node.collapsed,
         highlight: this.isHighlighted(),
         summary: node.isSummary,
         reorderable,
@@ -279,7 +280,7 @@ export class TrackView {
 
   private renderTrackMenuButton(): m.Children {
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
         trigger: m(Button, {
           className: 'pf-visible-on-hover',
@@ -311,41 +312,38 @@ export class TrackView {
         ),
         m(MenuDivider),
         m(MenuItem, {
-          label: 'New workspace',
+          label: 'New workspace...',
           onclick: () => this.copyToWorkspace(),
         }),
       ),
       m(
         MenuItem,
-        {label: 'Take to workspace'},
+        {label: 'Copy & switch to workspace'},
         this.trace.workspaces.all.map((ws) =>
           m(MenuItem, {
             label: ws.title,
             onclick: async () => {
-              await this.copyToWorkspace(ws);
+              this.copyToWorkspace(ws);
               this.trace.workspaces.switchWorkspace(ws);
             },
           }),
         ),
         m(MenuDivider),
         m(MenuItem, {
-          label: 'New workspace',
+          label: 'New workspace...',
           onclick: async () => {
-            const ws = await this.copyToWorkspace();
-            ws && this.trace.workspaces.switchWorkspace(ws);
+            const ws = this.copyToWorkspace();
+            this.trace.workspaces.switchWorkspace(ws);
           },
         }),
       ),
     );
   }
 
-  private async copyToWorkspace(ws?: Workspace) {
+  private copyToWorkspace(ws?: Workspace) {
+    // If no workspace provided, create a new one.
     if (!ws) {
-      const name = await this.trace.omnibox.prompt(
-        'Enter a name for the new workspace...',
-      );
-      if (!name) return;
-      ws = this.trace.workspaces.createEmptyWorkspace(name);
+      ws = this.trace.workspaces.createEmptyWorkspace('Untitled Workspace');
     }
     const newNode = this.node.clone();
     newNode.removable = true;

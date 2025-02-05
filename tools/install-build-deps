@@ -359,6 +359,7 @@ BUILD_DEPS_BAZEL = [
 # URLs and SHA1s taken from:
 # - https://dl.google.com/android/repository/repository-11.xml
 # - https://dl.google.com/android/repository/sys-img/android/sys-img.xml
+# - https://dl.google.com/android/repository/repository2-2.xml
 BUILD_DEPS_ANDROID = [
     # Android NDK
     Dependency(
@@ -371,6 +372,23 @@ BUILD_DEPS_ANDROID = [
         'https://dl.google.com/android/repository/android-ndk-r26c-linux.zip',
         '6d6e659834d28bb24ba7ae66148ad05115ebbad7dabed1af9b3265674774fcf6',
         'linux', 'x64'),
+    # Android Java SDK.
+    Dependency(
+        'buildtools/android_sdk/platforms/android-33.zip',
+        'https://dl.google.com/android/repository/platform-33-ext5_r01.zip',
+        '3d6189a18d0cebd4e518b8728de0e6b940d95c96b57316769dd56ee2d1708d10',
+        'all', 'all'),
+    # Android build tools.
+    Dependency(
+        'buildtools/android_sdk/build-tools/33.0.3.zip',
+        'https://dl.google.com/android/repository/build-tools_r33.0.3-linux.zip',
+        '533329cc3450850d83433c5103006fc8b9b48f2798bbcc41c78ef3223171d4b1',
+        'linux', 'all'),
+    Dependency(
+        'buildtools/android_sdk/build-tools/33.0.3.zip',
+        'https://dl.google.com/android/repository/build-tools_r33.0.3-macosx.zip',
+        '5a6c7380cb34ef8f7300f77d56edb2bb42a8c1ab575b99ca599632408e3550d1',
+        'darwin', 'all'),
 ]
 
 # Dependencies required to run Android tests.
@@ -750,7 +768,9 @@ def Main():
   if not args.no_toolchain:
     deps += BUILD_DEPS_TOOLCHAIN_HOST
   if args.bazel:
-    deps += BUILD_DEPS_BAZEL
+    # We build Android Java SDK using Bazel, so we need Android build deps
+    # to do build ":all" targets.
+    deps += BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID
   if args.android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
   if args.linux_arm:

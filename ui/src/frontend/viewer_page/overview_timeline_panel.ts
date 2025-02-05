@@ -29,10 +29,7 @@ import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {VirtualOverlayCanvas} from '../../components/widgets/virtual_overlay_canvas';
-import {
-  OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
-  TRACK_SHELL_WIDTH,
-} from '../css_constants';
+import {OVERVIEW_TIMELINE_NON_VISIBLE_COLOR} from '../css_constants';
 import {
   generateTicks,
   getMaxMajorTicks,
@@ -92,10 +89,10 @@ export class OverviewTimeline
     ctx: CanvasRenderingContext2D,
     size: Size2D,
   ) {
-    if (size.width <= TRACK_SHELL_WIDTH) return;
+    if (size.width <= 0) return;
 
     const traceTime = trace.traceInfo;
-    const pxBounds = {left: TRACK_SHELL_WIDTH, right: size.width};
+    const pxBounds = {left: 0, right: size.width};
     const hpTraceTime = HighPrecisionTimeSpan.fromTime(
       traceTime.start,
       traceTime.end,
@@ -109,8 +106,8 @@ export class OverviewTimeline
       trace.traceInfo.end,
     );
 
-    if (size.width > TRACK_SHELL_WIDTH && traceContext.duration > 0n) {
-      const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
+    if (size.width > 0 && traceContext.duration > 0n) {
+      const maxMajorTicks = getMaxMajorTicks(size.width);
       const offset = trace.timeline.timestampOffset();
       const tickGen = generateTicks(traceContext, maxMajorTicks, offset);
 
@@ -167,12 +164,7 @@ export class OverviewTimeline
     const vizEndPx = Math.ceil(right);
 
     ctx.fillStyle = OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
-    ctx.fillRect(
-      TRACK_SHELL_WIDTH - 1,
-      headerHeight,
-      vizStartPx - TRACK_SHELL_WIDTH,
-      tracksHeight,
-    );
+    ctx.fillRect(0, headerHeight, vizStartPx, tracksHeight);
     ctx.fillRect(vizEndPx, headerHeight, size.width - vizEndPx, tracksHeight);
 
     // Draw brushes.
@@ -251,7 +243,7 @@ export class OverviewTimeline
       {
         id: 'select',
         area: new Rect2D({
-          left: TRACK_SHELL_WIDTH,
+          left: 0,
           right: size.width,
           top: 0,
           bottom: size.height,

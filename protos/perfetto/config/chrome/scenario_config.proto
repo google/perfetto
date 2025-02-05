@@ -116,6 +116,10 @@ message ScenarioConfig {
   optional TraceConfig trace_config = 6;
 
   repeated NestedScenarioConfig nested_scenarios = 7;
+
+  // When set to true, this scenario initiates a tracing session using the
+  // system backend instead of the default in-browser custom backend.
+  optional bool use_system_backend = 8;
 }
 
 message ChromeFieldTracingConfig {

@@ -87,10 +87,10 @@ class SurfaceFlingerLayers(TestSuite):
         trace=Path('surfaceflinger_layers.textproto'),
         query="""
         SELECT COUNT(*) FROM surfaceflinger_layers_snapshot
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        WHERE base64_proto_id IS NOT NULL
         UNION ALL
         SELECT COUNT(*) FROM surfaceflinger_layer
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        WHERE base64_proto_id IS NOT NULL
         """,
         out=Csv("""
         "COUNT(*)"

@@ -820,6 +820,22 @@ class TraceStorage {
     return &viewcapture_table_;
   }
 
+  const tables::ViewCaptureViewTable& viewcapture_view_table() const {
+    return viewcapture_view_table_;
+  }
+  tables::ViewCaptureViewTable* mutable_viewcapture_view_table() {
+    return &viewcapture_view_table_;
+  }
+
+  const tables::ViewCaptureInternedDataTable& viewcapture_interned_data_table()
+      const {
+    return viewcapture_interned_data_table_;
+  }
+  tables::ViewCaptureInternedDataTable*
+  mutable_viewcapture_interned_data_table() {
+    return &viewcapture_interned_data_table_;
+  }
+
   const tables::WindowManagerTable& windowmanager_table() const {
     return windowmanager_table_;
   }
@@ -843,6 +859,15 @@ class TraceStorage {
   tables::WindowManagerShellTransitionHandlersTable*
   mutable_window_manager_shell_transition_handlers_table() {
     return &window_manager_shell_transition_handlers_table_;
+  }
+
+  const tables::WindowManagerShellTransitionProtosTable&
+  window_manager_shell_transition_protos_table() const {
+    return window_manager_shell_transition_protos_table_;
+  }
+  tables::WindowManagerShellTransitionProtosTable*
+  mutable_window_manager_shell_transition_protos_table() {
+    return &window_manager_shell_transition_protos_table_;
   }
 
   const tables::ProtoLogTable& protolog_table() const {
@@ -1114,11 +1139,16 @@ class TraceStorage {
   tables::SurfaceFlingerTransactionsTable surfaceflinger_transactions_table_{
       &string_pool_};
   tables::ViewCaptureTable viewcapture_table_{&string_pool_};
+  tables::ViewCaptureViewTable viewcapture_view_table_{&string_pool_};
+  tables::ViewCaptureInternedDataTable viewcapture_interned_data_table_{
+      &string_pool_};
   tables::WindowManagerTable windowmanager_table_{&string_pool_};
   tables::WindowManagerShellTransitionsTable
       window_manager_shell_transitions_table_{&string_pool_};
   tables::WindowManagerShellTransitionHandlersTable
       window_manager_shell_transition_handlers_table_{&string_pool_};
+  tables::WindowManagerShellTransitionProtosTable
+      window_manager_shell_transition_protos_table_{&string_pool_};
   tables::ProtoLogTable protolog_table_{&string_pool_};
 
   tables::ExperimentalProtoPathTable experimental_proto_path_table_{

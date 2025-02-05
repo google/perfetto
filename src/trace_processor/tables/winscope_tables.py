@@ -30,7 +30,6 @@ INPUTMETHOD_CLIENTS_TABLE = Table(
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -39,7 +38,6 @@ INPUTMETHOD_CLIENTS_TABLE = Table(
         columns={
             'ts': 'The timestamp the dump was triggered',
             'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto': 'Raw proto message encoded in base64',
             'base64_proto_id': 'String id for raw proto message',
         }))
 
@@ -50,7 +48,6 @@ INPUTMETHOD_MANAGER_SERVICE_TABLE = Table(
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -59,7 +56,6 @@ INPUTMETHOD_MANAGER_SERVICE_TABLE = Table(
         columns={
             'ts': 'The timestamp the dump was triggered',
             'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto': 'Raw proto message encoded in base64',
             'base64_proto_id': 'String id for raw proto message',
         }))
 
@@ -70,7 +66,6 @@ INPUTMETHOD_SERVICE_TABLE = Table(
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -79,7 +74,6 @@ INPUTMETHOD_SERVICE_TABLE = Table(
         columns={
             'ts': 'The timestamp the dump was triggered',
             'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto': 'Raw proto message encoded in base64',
             'base64_proto_id': 'String id for raw proto message',
         }))
 
@@ -90,7 +84,6 @@ SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -99,7 +92,6 @@ SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
         columns={
             'ts': 'Timestamp of the snapshot',
             'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto': 'Raw proto message encoded in base64',
             'base64_proto_id': 'String id for raw proto message',
         }))
 
@@ -110,7 +102,6 @@ SURFACE_FLINGER_LAYER_TABLE = Table(
     columns=[
         C('snapshot_id', CppTableId(SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE)),
         C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -119,7 +110,6 @@ SURFACE_FLINGER_LAYER_TABLE = Table(
         columns={
             'snapshot_id': 'The snapshot that generated this layer',
             'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto': 'Raw proto message encoded in base64',
             'base64_proto_id': 'String id for raw proto message',
         }))
 
@@ -130,7 +120,6 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -140,7 +129,6 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
         columns={
             'ts': 'Timestamp of the transactions commit',
             'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto': 'Raw proto message encoded in base64',
             'base64_proto_id': 'String id for raw proto message',
         }))
 
@@ -151,7 +139,6 @@ VIEWCAPTURE_TABLE = Table(
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -160,8 +147,45 @@ VIEWCAPTURE_TABLE = Table(
         columns={
             'ts': 'The timestamp the views were captured',
             'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto': 'Raw proto message encoded in base64',
             'base64_proto_id': 'String id for raw proto message',
+        }))
+
+VIEWCAPTURE_VIEW_TABLE = Table(
+    python_module=__file__,
+    class_name='ViewCaptureViewTable',
+    sql_name='__intrinsic_viewcapture_view',
+    columns=[
+        C('snapshot_id', CppTableId(VIEWCAPTURE_TABLE)),
+        C('arg_set_id', CppOptional(CppUint32())),
+        C('base64_proto_id', CppOptional(CppUint32())),
+    ],
+    tabledoc=TableDoc(
+        doc='ViewCapture view',
+        group='Winscope',
+        columns={
+            'snapshot_id': 'The snapshot that generated this view',
+            'arg_set_id': 'Extra args parsed from the proto message',
+            'base64_proto_id': 'String id for raw proto message',
+        }))
+
+VIEWCAPTURE_INTERNED_DATA_TABLE = Table(
+    python_module=__file__,
+    class_name='ViewCaptureInternedDataTable',
+    sql_name='__intrinsic_viewcapture_interned_data',
+    columns=[
+        C('base64_proto_id', CppUint32()),
+        C('flat_key', CppString()),
+        C('iid', CppInt64()),
+        C('deinterned_value', CppString()),
+    ],
+    tabledoc=TableDoc(
+        doc='ViewCapture interned data',
+        group='Winscope',
+        columns={
+            'base64_proto_id': 'String id for raw proto message',
+            'flat_key': 'Proto field name',
+            'iid': 'Int value set on proto',
+            'deinterned_value': 'Corresponding string value',
         }))
 
 WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
@@ -172,8 +196,6 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
         C('ts', CppInt64()),
         C('transition_id', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto', CppString()),
-        C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='Window Manager Shell Transitions',
@@ -182,8 +204,6 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
             'ts': 'The timestamp the transition started playing',
             'transition_id': 'The id of the transition',
             'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto': 'Raw proto message encoded in base64',
-            'base64_proto_id': 'String id for raw proto message',
         }))
 
 WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
@@ -193,7 +213,6 @@ WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
     columns=[
         C('handler_id', CppInt64()),
         C('handler_name', CppString()),
-        C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -202,7 +221,22 @@ WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
         columns={
             'handler_id': 'The id of the handler',
             'handler_name': 'The name of the handler',
-            'base64_proto': 'Raw proto message encoded in base64',
+            'base64_proto_id': 'String id for raw proto message',
+        }))
+
+WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE = Table(
+    python_module=__file__,
+    class_name='WindowManagerShellTransitionProtosTable',
+    sql_name='__intrinsic_window_manager_shell_transition_protos',
+    columns=[
+        C('transition_id', CppInt64()),
+        C('base64_proto_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='Window Manager Shell Transition Protos',
+        group='Winscope',
+        columns={
+            'transition_id': 'The id of the transition',
             'base64_proto_id': 'String id for raw proto message',
         }))
 
@@ -213,7 +247,6 @@ WINDOW_MANAGER_TABLE = Table(
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
     wrapping_sql_view=WrappingSqlView('windowmanager'),
@@ -223,7 +256,6 @@ WINDOW_MANAGER_TABLE = Table(
         columns={
             'ts': 'The timestamp the state snapshot was captured',
             'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto': 'Raw proto message encoded in base64',
             'base64_proto_id': 'String id for raw proto message',
         }))
 
@@ -267,7 +299,10 @@ ALL_TABLES = [
     SURFACE_FLINGER_LAYER_TABLE,
     SURFACE_FLINGER_TRANSACTIONS_TABLE,
     VIEWCAPTURE_TABLE,
+    VIEWCAPTURE_VIEW_TABLE,
+    VIEWCAPTURE_INTERNED_DATA_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE,
+    WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE,
     WINDOW_MANAGER_TABLE,
 ]

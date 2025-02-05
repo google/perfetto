@@ -407,9 +407,11 @@ void GpuEventParser::ParseGpuRenderStageEvent(
           tracks::Dimensions("iid", hw_queue_id, decoder->name()),
           tracks::DynamicName(context_->storage->InternString(decoder->name())),
           [&, this](ArgsTracker::BoundInserter& inserter) {
-            inserter.AddArg(description_id_,
-                            Variadic::String(context_->storage->InternString(
-                                decoder->description())));
+            if (decoder->description().size > 0) {
+              inserter.AddArg(description_id_,
+                              Variadic::String(context_->storage->InternString(
+                                  decoder->description())));
+            }
           });
     } else {
       hw_queue_id = static_cast<uint32_t>(event.hw_queue_id());
@@ -457,13 +459,8 @@ void GpuEventParser::ParseGpuRenderStageEvent(
                                       ? context_->storage->InternString(
                                             command_buffer_name.value().c_str())
                                       : kNullStringId;
-    StringId name_id;
-    if (event.has_submission_id()) {
-      name_id = context_->storage->InternString(
-          std::to_string(event.submission_id()).c_str());
-    } else {
-      name_id = GetFullStageName(sequence_state, event);
-    }
+    StringId name_id = GetFullStageName(sequence_state, event);
+
     context_->slice_tracker->Scoped(
         ts, track_id, kNullStringId, name_id,
         static_cast<int64_t>(event.duration()),

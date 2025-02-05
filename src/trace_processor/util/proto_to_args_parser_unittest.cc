@@ -706,8 +706,10 @@ TEST_F(ProtoToArgsParserTest, AddsDefaults) {
           "big_enum big_enum 0", "field_fixed32 field_fixed32 0",
           "field_sint32 field_sint32 0",
           "signed_enum signed_enum NEUTRAL",  // translates default enum
-          "small_enum small_enum NOT_TO_BE", "field_uint64 field_uint64 0",
-          "field_uint32 field_uint32 0", "field_int64 field_int64 0"));
+          "small_enum small_enum NOT_TO_BE",
+          "very_negative_enum very_negative_enum DEF",
+          "field_uint64 field_uint64 0", "field_uint32 field_uint32 0",
+          "field_int64 field_int64 0"));
 }
 
 }  // namespace

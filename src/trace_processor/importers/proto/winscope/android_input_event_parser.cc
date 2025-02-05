@@ -78,10 +78,11 @@ void AndroidInputEventParser::ParseMotionEvent(
   tables::AndroidMotionEventsTable::Row event_row;
   event_row.event_id = event_proto.event_id();
   event_row.ts = packet_ts;
-  event_row.base64_proto =
-      context_.storage->mutable_string_pool()->InternString(
-          base::StringView(base::Base64Encode(bytes.data, bytes.size)));
-  event_row.base64_proto_id = event_row.base64_proto.raw_id();
+  event_row.base64_proto_id =
+      context_.storage->mutable_string_pool()
+          ->InternString(
+              base::StringView(base::Base64Encode(bytes.data, bytes.size)))
+          .raw_id();
 
   auto event_row_id = context_.storage->mutable_android_motion_events_table()
                           ->Insert(event_row)
@@ -105,10 +106,11 @@ void AndroidInputEventParser::ParseKeyEvent(
   tables::AndroidKeyEventsTable::Row event_row;
   event_row.event_id = event_proto.event_id();
   event_row.ts = packet_ts;
-  event_row.base64_proto =
-      context_.storage->mutable_string_pool()->InternString(
-          base::StringView(base::Base64Encode(bytes.data, bytes.size)));
-  event_row.base64_proto_id = event_row.base64_proto.raw_id();
+  event_row.base64_proto_id =
+      context_.storage->mutable_string_pool()
+          ->InternString(
+              base::StringView(base::Base64Encode(bytes.data, bytes.size)))
+          .raw_id();
 
   auto event_row_id = context_.storage->mutable_android_key_events_table()
                           ->Insert(event_row)
@@ -133,10 +135,11 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
   event_row.event_id = event_proto.event_id();
   event_row.vsync_id = event_proto.vsync_id();
   event_row.window_id = event_proto.window_id();
-  event_row.base64_proto =
-      context_.storage->mutable_string_pool()->InternString(
-          base::StringView(base::Base64Encode(bytes.data, bytes.size)));
-  event_row.base64_proto_id = event_row.base64_proto.raw_id();
+  event_row.base64_proto_id =
+      context_.storage->mutable_string_pool()
+          ->InternString(
+              base::StringView(base::Base64Encode(bytes.data, bytes.size)))
+          .raw_id();
 
   auto event_row_id =
       context_.storage->mutable_android_input_event_dispatch_table()

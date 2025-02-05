@@ -218,7 +218,6 @@ export abstract class BaseSliceTrack<
   // `select id, ts, dur, 0 as depth from foo where bar = 'baz'`
   abstract getSqlSource(): string;
 
-  protected abstract getRowSpec(): RowT;
   onSliceOver(_args: OnSliceOverArgs<SliceT>): void {}
   onSliceOut(_args: OnSliceOutArgs<SliceT>): void {}
 
@@ -247,11 +246,12 @@ export abstract class BaseSliceTrack<
   constructor(
     protected readonly trace: Trace,
     protected readonly uri: string,
+    protected readonly rowSpec: RowT,
   ) {
     // Work out the extra columns.
     // This is the union of the embedder-defined columns and the base columns
     // we know about (ts, dur, ...).
-    const allCols = Object.keys(this.getRowSpec());
+    const allCols = Object.keys(rowSpec);
     const baseCols = Object.keys(BASE_ROW);
     this.extraSqlColumns = allCols.filter((key) => !baseCols.includes(key));
 
@@ -342,7 +342,7 @@ export abstract class BaseSliceTrack<
       `);
     }
     const incomplete = new Array<CastInternal<SliceT>>(queryRes.numRows());
-    const it = queryRes.iter(this.getRowSpec());
+    const it = queryRes.iter(this.rowSpec);
     for (let i = 0; it.valid(); it.next(), ++i) {
       incomplete[i] = this.rowToSliceInternal(it);
     }
@@ -658,6 +658,12 @@ export abstract class BaseSliceTrack<
       );
     }
 
+    // Here convert each row to a Slice. We do what we can do
+    // generically in the base class, and delegate the rest to the impl
+    // via that rowToSlice() abstract call.
+    const slices = new Array<CastInternal<SliceT>>();
+
+    // The mipmap virtual table will error out when passed a 0 length time span.
     const resolution = slicesKey.bucketSize;
     const extraCols = this.extraSqlColumns.join(',');
     const queryRes = await this.engine.query(`
@@ -677,14 +683,9 @@ export abstract class BaseSliceTrack<
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
 
-    // Here convert each row to a Slice. We do what we can do
-    // generically in the base class, and delegate the rest to the impl
-    // via that rowToSlice() abstract call.
-    const slices = new Array<CastInternal<SliceT>>();
-    const it = queryRes.iter(this.getRowSpec());
+    const it = queryRes.iter(this.rowSpec);
 
     let maxDataDepth = this.maxDataDepth;
-    this.slicesKey = slicesKey;
     for (let i = 0; it.valid(); it.next(), ++i) {
       if (it.dur === -1n) {
         continue;
@@ -700,6 +701,8 @@ export abstract class BaseSliceTrack<
       maxDataDepth = Math.max(maxDataDepth, incomplete.depth);
     }
     this.maxDataDepth = maxDataDepth;
+
+    this.slicesKey = slicesKey;
     this.onUpdatedSlices(slices);
     this.slices = slices;
 
@@ -806,6 +809,13 @@ export abstract class BaseSliceTrack<
     const {x, y} = event;
     this.hoverPos = {x, y};
     this.updateHoveredSlice(this.findSlice(event));
+
+    // We need to do a full redraw in order to update the hovered slice properly
+    // due to the way this system is plumbed together right now, despite the
+    // fact that changing the hovered slice SHOULD only require a canvas redraw.
+    //
+    // TODO(stevegolton): Fix this.
+    this.trace.raf.scheduleFullRedraw();
   }
 
   onMouseOut(): void {

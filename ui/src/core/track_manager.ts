@@ -60,6 +60,9 @@ export class TrackManagerImpl implements TrackManager {
   // uri, as this allows us to scroll to tracks that have no uri.
   scrollToTrackNodeId?: string;
 
+  // This track filter applies to tracks on the viewer page (not pinned tracks).
+  trackFilterTerm: string = '';
+
   registerTrack(trackDesc: TrackDescriptor): Disposable {
     return this.tracks.register(new TrackFSM(trackDesc));
   }

@@ -13,32 +13,33 @@
 // limitations under the License.
 
 import {Utid} from '../../components/sql_utils/core_types';
-import {
-  CustomSqlTableDefConfig,
-  CustomSqlTableSliceTrack,
-} from '../../components/tracks/custom_sql_table_slice_track';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {Trace} from '../../public/trace';
-import {TrackEventSelection} from '../../public/selection';
 import {ChromeTasksDetailsPanel} from './details';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
 
-export class ChromeTasksThreadTrack extends CustomSqlTableSliceTrack {
-  constructor(
-    trace: Trace,
-    uri: string,
-    private readonly utid: Utid,
-  ) {
-    super(trace, uri);
-  }
-
-  getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      columns: ['name', 'id', 'ts', 'dur'],
-      sqlTableName: 'chrome_tasks',
-      whereClause: `utid = ${this.utid}`,
-    };
-  }
-
-  override detailsPanel(sel: TrackEventSelection) {
-    return new ChromeTasksDetailsPanel(this.trace, sel.eventId);
-  }
+export function createChromeTasksThreadTrack(
+  trace: Trace,
+  uri: string,
+  utid: Utid,
+) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        name: STR,
+      },
+      src: 'chrome_tasks',
+      filter: {
+        col: 'utid',
+        eq: utid,
+      },
+    }),
+    detailsPanel: (row) => new ChromeTasksDetailsPanel(trace, row.id),
+  });
 }

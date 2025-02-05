@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {BigintMath} from '../../base/bigint_math';
 import {copyToClipboard} from '../../base/clipboard';
-import {Time} from '../../base/time';
 import {QueryResponse} from './queries';
 import {Row} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
@@ -24,9 +22,10 @@ import {Callout} from '../../widgets/callout';
 import {DetailsShell} from '../../widgets/details_shell';
 import {downloadData} from '../../base/download_utils';
 import {Router} from '../../core/router';
-import {scrollTo} from '../../public/scroll_helper';
 import {AppImpl} from '../../core/app_impl';
 import {Trace} from '../../public/trace';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
+import {Icons} from '../../base/semantic_icons';
 
 interface QueryTableRowAttrs {
   trace: Trace;
@@ -134,26 +133,10 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     row: Row & Sliceish,
     switchToCurrentSelectionTab: boolean,
   ) {
-    const trackId = Number(row.track_id);
-    const sliceStart = Time.fromRaw(BigInt(row.ts));
-    // row.dur can be negative. Clamp to 1ns.
-    const sliceDur = BigintMath.max(BigInt(row.dur), 1n);
-    const trackUri = this.trace.tracks.findTrack((td) =>
-      td.tags?.trackIds?.includes(trackId),
-    )?.uri;
-    if (trackUri !== undefined) {
-      scrollTo({
-        track: {uri: trackUri, expandGroup: true},
-        time: {start: sliceStart, end: Time.add(sliceStart, sliceDur)},
-      });
-      const sliceId = getSliceId(row);
-      if (sliceId !== undefined) {
-        this.selectSlice(sliceId, switchToCurrentSelectionTab);
-      }
+    const sliceId = getSliceId(row);
+    if (sliceId === undefined) {
+      return;
     }
-  }
-
-  private selectSlice(sliceId: number, switchToCurrentSelectionTab: boolean) {
     this.trace.selection.selectSqlEvent('slice', sliceId, {
       switchToCurrentSelectionTab,
       scrollToSelection: true,
@@ -247,20 +230,30 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   ) {
     return [
       contextButtons,
-      m(Button, {
-        label: 'Copy query',
-        onclick: () => {
-          copyToClipboard(query);
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            label: 'Copy',
+            rightIcon: Icons.ContextMenu,
+          }),
         },
-      }),
-      resp &&
-        resp.error === undefined &&
-        m(Button, {
-          label: 'Copy result (.tsv)',
-          onclick: () => {
-            queryResponseToClipboard(resp);
-          },
+        m(MenuItem, {
+          label: 'Query',
+          onclick: () => copyToClipboard(query),
         }),
+        resp &&
+          resp.error === undefined && [
+            m(MenuItem, {
+              label: 'Result (.tsv)',
+              onclick: () => queryResponseAsTsvToClipboard(resp),
+            }),
+            m(MenuItem, {
+              label: 'Result (.md)',
+              onclick: () => queryResponseAsMarkdownToClipboard(resp),
+            }),
+          ],
+      ),
     ];
   }
 
@@ -283,7 +276,9 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   }
 }
 
-async function queryResponseToClipboard(resp: QueryResponse): Promise<void> {
+async function queryResponseAsTsvToClipboard(
+  resp: QueryResponse,
+): Promise<void> {
   const lines: string[][] = [];
   lines.push(resp.columns);
   for (const row of resp.rows) {
@@ -294,5 +289,48 @@ async function queryResponseToClipboard(resp: QueryResponse): Promise<void> {
     }
     lines.push(line);
   }
-  copyToClipboard(lines.map((line) => line.join('\t')).join('\n'));
+  await copyToClipboard(lines.map((line) => line.join('\t')).join('\n'));
+}
+
+async function queryResponseAsMarkdownToClipboard(
+  resp: QueryResponse,
+): Promise<void> {
+  // Convert all values to strings.
+  // rows = [header, separators, ...body]
+  const rows: string[][] = [];
+  rows.push(resp.columns);
+  rows.push(resp.columns.map((_) => '---'));
+  for (const responseRow of resp.rows) {
+    rows.push(
+      resp.columns.map((responseCol) => {
+        const value = responseRow[responseCol];
+        return value === null ? 'NULL' : `${value}`;
+      }),
+    );
+  }
+
+  // Find the maximum width of each column.
+  const maxWidths: number[] = Array(resp.columns.length).fill(0);
+  for (const row of rows) {
+    for (let i = 0; i < resp.columns.length; i++) {
+      if (row[i].length > maxWidths[i]) {
+        maxWidths[i] = row[i].length;
+      }
+    }
+  }
+
+  const text = rows
+    .map((row, rowIndex) => {
+      // Pad each column to the maximum width with hyphens (separator row) or
+      // spaces (all other rows).
+      const expansionChar = rowIndex === 1 ? '-' : ' ';
+      const line: string[] = row.map(
+        (str, colIndex) =>
+          str + expansionChar.repeat(maxWidths[colIndex] - str.length),
+      );
+      return `| ${line.join(' | ')} |`;
+    })
+    .join('\n');
+
+  await copyToClipboard(text);
 }
