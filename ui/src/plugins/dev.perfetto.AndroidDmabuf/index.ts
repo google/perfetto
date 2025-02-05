@@ -25,7 +25,7 @@ import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
-import {TraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
+import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 
 async function registerAllocsTrack(
   ctx: Trace,
@@ -153,7 +153,7 @@ async function addGlobalAllocs(ctx: Trace, parent: () => TrackNode) {
       kind: SLICE_TRACK_KIND,
       trackIds: ids,
     },
-    track: new TraceProcessorSliceTrack(ctx, uri, undefined, ids),
+    track: createTraceProcessorSliceTrack(ctx, uri, undefined, ids),
   });
   const node = new TrackNode({
     uri,

@@ -19,12 +19,11 @@ import {
   SelectionOpts,
   SelectionManager,
   AreaSelectionAggregator,
-  SqlSelectionResolver,
   TrackEventSelection,
 } from '../public/selection';
 import {TimeSpan} from '../base/time';
 import {raf} from './raf_scheduler';
-import {exists} from '../base/utils';
+import {exists, getOrCreate} from '../base/utils';
 import {TrackManagerImpl} from './track_manager';
 import {Engine} from '../trace_processor/engine';
 import {ScrollHelper} from './scroll_helper';
@@ -35,9 +34,9 @@ import {AsyncLimiter} from '../base/async_limiter';
 import m from 'mithril';
 import {SerializedSelection} from './state_serialization_schema';
 import {showModal} from '../widgets/modal';
-
-const INSTANT_FOCUS_DURATION = 1n;
-const INCOMPLETE_SLICE_DURATION = 30_000n;
+import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
+import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
+import {TrackDescriptor} from '../public/track';
 
 interface SelectionDetailsPanel {
   isLoading: boolean;
@@ -57,15 +56,13 @@ export class SelectionManagerImpl implements SelectionManager {
   private readonly detailsPanelLimiter = new AsyncLimiter();
   private _selection: Selection = {kind: 'empty'};
   private _aggregationManager: SelectionAggregationManager;
-  // Incremented every time _selection changes.
-  private readonly selectionResolvers = new Array<SqlSelectionResolver>();
   private readonly detailsPanels = new WeakMap<
     Selection,
     SelectionDetailsPanel
   >();
 
   constructor(
-    engine: Engine,
+    private readonly engine: Engine,
     private trackManager: TrackManagerImpl,
     private noteManager: NoteManagerImpl,
     private scrollHelper: ScrollHelper,
@@ -235,23 +232,72 @@ export class SelectionManagerImpl implements SelectionManager {
     return this.detailsPanels.get(this._selection);
   }
 
-  registerSqlSelectionResolver(resolver: SqlSelectionResolver): void {
-    this.selectionResolvers.push(resolver);
-  }
-
   async resolveSqlEvent(
     sqlTableName: string,
     id: number,
   ): Promise<{eventId: number; trackUri: string} | undefined> {
-    const matchingResolvers = this.selectionResolvers.filter(
-      (r) => r.sqlTableName === sqlTableName,
-    );
+    // This function:
+    // 1. Find the list of tracks whose rootTableName is the same as the one we
+    //    are looking for
+    // 2. Groups them by their filter column - i.e. utid, cpu, or track_id.
+    // 3. Builds a map of which of these column values match which track.
+    // 4. Run one query per group, reading out the filter column value, and
+    //    looking up the originating track in the map.
+    // One flaw of this approach is that.
+    const groups = new Map<string, [SourceDataset, TrackDescriptor][]>();
 
-    for (const resolver of matchingResolvers) {
-      const result = await resolver.callback(id, sqlTableName);
-      if (result) {
-        // If we have multiple resolvers for the same table, just return the first one.
-        return result;
+    this.trackManager
+      .getAllTracks()
+      .filter((track) => track.track.rootTableName === sqlTableName)
+      .map((track) => {
+        const dataset = track.track.getDataset?.();
+        if (!dataset) return undefined;
+        return [dataset, track] as const;
+      })
+      .filter(exists)
+      .filter(([dataset]) => dataset.implements({id: NUM}))
+      .forEach(([dataset, track]) => {
+        const col = dataset.filter?.col;
+        if (col) {
+          const existingGroup = getOrCreate(groups, col, () => []);
+          existingGroup.push([dataset, track]);
+        }
+        // TODO(stevegolton): Support 'no filter' case
+      });
+
+    for (const [colName, values] of groups) {
+      // Build a map of the values -> track uri
+      const map = new Map<SqlValue, string>();
+      values.forEach(([dataset, track]) => {
+        const filter = dataset.filter;
+        if (filter) {
+          if ('eq' in filter) map.set(filter.eq, track.uri);
+          if ('in' in filter) filter.in.forEach((v) => map.set(v, track.uri));
+        }
+      });
+
+      const datasets = values.map(([dataset]) => dataset);
+      const union = new UnionDataset(datasets).optimize();
+
+      // Make sure to include the filter value in the schema.
+      const schema = {...union.schema, [colName]: UNKNOWN};
+      const query = `select * from (${union.query(schema)}) where id = ${id}`;
+      const result = await this.engine.query(query);
+
+      const row = result.iter(union.schema);
+      const value = row.get(colName);
+
+      let trackUri = map.get(value);
+
+      // If that didn't work, try converting the value to a number if it's a
+      // bigint. Unless specified as a NUM type, any integers on the wire will
+      // be parsed as a bigint to avoid losing precision.
+      if (trackUri === undefined && typeof value === 'bigint') {
+        trackUri = map.get(Number(value));
+      }
+
+      if (trackUri) {
+        return {eventId: id, trackUri};
       }
     }
 
@@ -327,30 +373,11 @@ export class SelectionManagerImpl implements SelectionManager {
           return undefined;
       }
     })();
-    const range = this.findFocusRangeOfSelection();
+    const range = this.findTimeRangeOfSelection();
     this.scrollHelper.scrollTo({
       time: range ? {...range} : undefined,
       track: uri ? {uri: uri, expandGroup: true} : undefined,
     });
-  }
-
-  // Finds the time range range that we should actually focus on - using dummy
-  // values for instant and incomplete slices, so we don't end up super zoomed
-  // in.
-  private findFocusRangeOfSelection(): TimeSpan | undefined {
-    const sel = this.selection;
-    if (sel.kind === 'track_event') {
-      // The focus range of slices is different to that of the actual span
-      if (sel.dur === -1n) {
-        return TimeSpan.fromTimeAndDuration(sel.ts, INCOMPLETE_SLICE_DURATION);
-      } else if (sel.dur === 0n) {
-        return TimeSpan.fromTimeAndDuration(sel.ts, INSTANT_FOCUS_DURATION);
-      } else {
-        return TimeSpan.fromTimeAndDuration(sel.ts, sel.dur);
-      }
-    } else {
-      return this.findTimeRangeOfSelection();
-    }
   }
 
   private async selectTrackEventInternal(
@@ -424,20 +451,22 @@ export class SelectionManagerImpl implements SelectionManager {
           case 'SPAN':
             return new TimeSpan(selectedNote.start, selectedNote.end);
           case 'DEFAULT':
-            return TimeSpan.fromTimeAndDuration(
-              selectedNote.timestamp,
-              INSTANT_FOCUS_DURATION,
-            );
+            // A TimeSpan where start === end is treated as an instant event.
+            return new TimeSpan(selectedNote.timestamp, selectedNote.timestamp);
           default:
             assertUnreachable(kind);
         }
       }
     } else if (sel.kind === 'track_event') {
-      // Pretend incomplete slices are instants. The -1 duration here is just a
-      // flag, and doesn't actually represent the duration of the event.
-      // Besides, TimeSpan's will throw if created with a negative duration.
-      const dur = sel.dur === -1n ? 0n : sel.dur;
-      return TimeSpan.fromTimeAndDuration(sel.ts, dur);
+      switch (sel.dur) {
+        case undefined:
+        case -1n:
+          // Events without a duration or with duration -1 (DNF) slices are just
+          // treated as if they were instant events.
+          return TimeSpan.fromTimeAndDuration(sel.ts, 0n);
+        default:
+          return TimeSpan.fromTimeAndDuration(sel.ts, sel.dur);
+      }
     }
 
     return undefined;

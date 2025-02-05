@@ -50,7 +50,8 @@ class StructuredQueryGenerator {
   //
   // This query implicitly assumes that all SQL modules indicated by
   // `referenced_modules` have been included and all shared queries indicated
-  // by `referenced_shared_queries` have been created as tables or views.
+  // by `referenced_shared_queries` are available, either by tables or views or
+  // as a common table expression (CTE).
   base::StatusOr<std::string> Generate(const uint8_t* data, size_t size);
 
   // Adds a shared query to the internal state to reference in all future
@@ -58,8 +59,16 @@ class StructuredQueryGenerator {
   base::Status AddSharedQuery(const uint8_t* data, size_t size);
 
   // Computes all the PerfettoSQL modules referenced by any past calls to
-  // `Generate`.
+  // `Generate` and `AddSharedQuery`.
   std::vector<std::string> ComputeReferencedModules() const;
+
+  // Computes all the PerfettoSQL preambles referenced by any past calls to
+  // `Generate` and `AddSharedQuery`.
+  // Preamble strings should be executed before executing the result of call
+  // to `Generate` to ensure it can be run safely.
+  const std::vector<std::string>& ComputePreambles() const {
+    return preambles_;
+  }
 
   // Returns a summary of all the shared queries which have been referenced
   // by any past calls to `Generate`.
@@ -74,6 +83,7 @@ class StructuredQueryGenerator {
   // We don't have FlatHashSet so just (ab)use FlatHashMap by storing a noop
   // value.
   base::FlatHashMap<std::string, std::nullptr_t> referenced_modules_;
+  std::vector<std::string> preambles_;
 };
 
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

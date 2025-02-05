@@ -41,6 +41,43 @@ export enum VegaLiteSelectionTypes {
   POINT = 'point',
 }
 
+// Vega-Lite Field Types
+// These are for axis field (data) types
+// https://vega.github.io/vega-lite/docs/type.html
+export type VegaLiteFieldType =
+  | 'quantitative'
+  | 'temporal'
+  | 'ordinal'
+  | 'nominal'
+  | 'geojson';
+
+// Vega-Lite supported aggregation operations
+// https://vega.github.io/vega-lite/docs/aggregate.html#ops
+export type VegaLiteAggregationOps =
+  | 'count'
+  | 'valid'
+  | 'values'
+  | 'missing'
+  | 'distinct'
+  | 'sum'
+  | 'product'
+  | 'mean'
+  | 'average'
+  | 'variance'
+  | 'variancep'
+  | 'stdev'
+  | 'stdevp'
+  | 'stderr'
+  | 'median'
+  | 'q1'
+  | 'q3'
+  | 'ci0'
+  | 'ci1'
+  | 'min'
+  | 'max'
+  | 'argmin'
+  | 'argmax';
+
 export type VegaEventType =
   | 'click'
   | 'dblclick'
@@ -269,6 +306,27 @@ class VegaWrapper {
           }
         });
       }
+      // Attaching event listeners for Vega-Lite
+      // selection interactions only (interval and point selection)
+      // Both will trigger a pointerup event
+      if (isVegaLite(this._spec)) {
+        this.view.addEventListener('pointerup', (_, item) => {
+          if (item) {
+            if (
+              this.view?.signal(VegaLiteSelectionTypes.INTERVAL) !==
+                undefined &&
+              Object.values(this.view?.signal(VegaLiteSelectionTypes.INTERVAL))
+                .length > 0
+            ) {
+              this._onIntervalSelection?.(
+                this.view?.signal(VegaLiteSelectionTypes.INTERVAL),
+              );
+            } else {
+              this._onPointSelection?.(item);
+            }
+          }
+        });
+      }
 
       const pending = this.view.runAsync();
       pending
@@ -324,6 +382,8 @@ export class VegaView implements m.ClassComponent<VegaViewAttrs> {
     wrapper.engine = attrs.engine;
 
     // Chart interactivity handlers
+    wrapper.onPointSelection = attrs.onPointSelection;
+    wrapper.onIntervalSelection = attrs.onIntervalSelection;
     wrapper.onPointSelection = attrs.onPointSelection;
     wrapper.onIntervalSelection = attrs.onIntervalSelection;
 

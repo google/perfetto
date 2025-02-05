@@ -16,7 +16,7 @@ import {CPU_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {CpuProfileTrack} from './cpu_profile_track';
+import {createCpuProfileTrack} from './cpu_profile_track';
 import {getThreadUriPrefix} from '../../public/utils';
 import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
@@ -62,7 +62,7 @@ export default class implements PerfettoPlugin {
           utid,
           ...(exists(upid) && {upid}),
         },
-        track: new CpuProfileTrack(ctx, uri, utid),
+        track: createCpuProfileTrack(ctx, uri, utid),
       });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)

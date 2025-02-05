@@ -194,16 +194,6 @@ extern template class NumericStorage<uint32_t>;
 extern template class NumericStorage<int32_t>;
 extern template class NumericStorage<int64_t>;
 
-// Define external templates to allow splitting minimal vs full targets.
-extern template std::unique_ptr<DataLayerChain>
-NumericStorage<double>::MakeChain();
-extern template std::unique_ptr<DataLayerChain>
-NumericStorage<uint32_t>::MakeChain();
-extern template std::unique_ptr<DataLayerChain>
-NumericStorage<int32_t>::MakeChain();
-extern template std::unique_ptr<DataLayerChain>
-NumericStorage<int64_t>::MakeChain();
-
 }  // namespace perfetto::trace_processor::column
 
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_NUMERIC_STORAGE_H_

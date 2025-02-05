@@ -39,49 +39,38 @@ export default class implements PerfettoPlugin {
       new CpuSliceByProcessSelectionAggregator(),
     );
 
-    const cpus = ctx.traceInfo.cpus;
+    // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
+    // if it's seen in sched slices.
+    const queryRes = await ctx.engine.query(
+      `select distinct ucpu from sched order by ucpu;`,
+    );
+    const ucpus = new Set<number>();
+    for (const it = queryRes.iter({ucpu: NUM}); it.valid(); it.next()) {
+      ucpus.add(it.ucpu);
+    }
+    const cpus = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
 
     for (const cpu of cpus) {
-      const size = cpuToClusterType.get(cpu);
-      const uri = uriForSchedTrack(cpu);
+      const uri = uriForSchedTrack(cpu.ucpu);
+      const size = cpuToClusterType.get(cpu.cpu);
+      const sizeStr = size === undefined ? `` : ` (${size})`;
+      const name = `Cpu ${cpu.cpu}${sizeStr}${cpu.maybeMachineLabel()}`;
 
       const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
 
-      const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
       ctx.tracks.registerTrack({
         uri,
         title: name,
         tags: {
           kind: CPU_SLICE_TRACK_KIND,
-          cpu,
+          cpu: cpu.ucpu,
         },
         track: new CpuSliceTrack(ctx, uri, cpu, threads),
       });
       const trackNode = new TrackNode({uri, title: name, sortOrder: -50});
       ctx.workspace.addChildInOrder(trackNode);
     }
-
-    ctx.selection.registerSqlSelectionResolver({
-      sqlTableName: 'sched_slice',
-      callback: async (id: number) => {
-        const result = await ctx.engine.query(`
-          select
-            cpu
-          from sched_slice
-          where id = ${id}
-        `);
-
-        const cpu = result.firstRow({
-          cpu: NUM,
-        }).cpu;
-
-        return {
-          eventId: id,
-          trackUri: uriForSchedTrack(cpu),
-        };
-      },
-    });
   }
 
   async getAndroidCpuClusterTypes(

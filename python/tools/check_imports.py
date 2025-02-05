@@ -92,7 +92,7 @@ DEPS_ALLOWLIST = [
     ),
 
     # The record plugin needs access to the wasm .d.ts for trace_config_utils.
-    ('/plugins/dev.perfetto.RecordTrace*', '/gen/trace_config_utils'),
+    ('/plugins/dev.perfetto.RecordTraceV2/*', '/gen/trace_config_utils'),
 
     # Misc legitimate deps.
     ('/frontend/index', ['/gen/*']),
@@ -117,12 +117,6 @@ DEPS_ALLOWLIST = [
             '/frontend/css_constants',
         ],
     ),
-
-    # TODO(primiano): Record page-related technical debt.
-    ('/plugins/dev.perfetto.RecordTrace/*',
-     ['/frontend/globals', '/gen/protos']),
-    ('/chrome_extension/chrome_tracing_controller',
-     '/plugins/dev.perfetto.RecordTrace/*'),
 
     # Bigtrace deps.
     ('/bigtrace/*', ['/base/*', '/widgets/*', '/trace_processor/*']),

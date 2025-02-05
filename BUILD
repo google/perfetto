@@ -38,6 +38,9 @@ load(
     "perfetto_py_library",
     "perfetto_py_proto_library",
     "perfetto_jspb_proto_library",
+    "perfetto_android_binary",
+    "perfetto_android_jni_library",
+    "perfetto_android_library",
 )
 
 package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])
@@ -1641,6 +1644,7 @@ perfetto_cc_library(
     ],
     deps = [
         ":protos_perfetto_common_zero",
+        ":protos_perfetto_perfetto_sql_zero",
         ":protos_perfetto_trace_processor_zero",
         ":src_base_base",
     ],
@@ -2624,6 +2628,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/android/sysui_update_notif_on_ui_mode_changed_metric.sql",
         "src/trace_processor/metrics/sql/android/unsymbolized_frames.sql",
         "src/trace_processor/metrics/sql/android/wattson_app_startup_rails.sql",
+        "src/trace_processor/metrics/sql/android/wattson_app_startup_threads.sql",
         "src/trace_processor/metrics/sql/android/wattson_atrace_apps_rails.sql",
         "src/trace_processor/metrics/sql/android/wattson_markers_rails.sql",
         "src/trace_processor/metrics/sql/android/wattson_markers_threads.sql",
@@ -2652,7 +2657,6 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/chrome/chrome_performance_mark_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_reliable_range.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_scroll_inputs_per_frame.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_caused_by_scheduling.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_v3.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_slice_names.sql",
@@ -4407,6 +4411,58 @@ perfetto_filegroup(
 )
 
 # ##############################################################################
+# Android Java SDK targets
+# ##############################################################################
+
+# GN target: //src/java_sdk/main/cpp:perfetto_example_jni_lib
+perfetto_android_jni_library(
+    name = "src_java_sdk_main_cpp_perfetto_example_jni_lib",
+    srcs = [
+        "src/java_sdk/main/cpp/com_google_perfetto_sdk_PerfettoExampleWrapper.cc",
+        "src/java_sdk/main/cpp/com_google_perfetto_sdk_PerfettoExampleWrapper.h",
+        "src/java_sdk/main/cpp/example.cc",
+        "src/java_sdk/main/cpp/example.h",
+        "src/java_sdk/main/cpp/utils.cc",
+        "src/java_sdk/main/cpp/utils.h",
+    ],
+    binary_name = "libperfetto_jni_wrapper_lib.so",
+    linkopts = [
+        "-llog",
+    ],
+    deps = [
+        ":libperfetto_c",
+    ],
+    tags = [
+        "notap",
+    ],
+)
+
+# GN target: //src/java_sdk/main:perfetto_java_sdk_app
+perfetto_android_binary(
+    name = "src_java_sdk_main_perfetto_java_sdk_app",
+    srcs = [
+        "src/java_sdk/main/java/com/google/perfetto/sdk/MainActivity.java",
+    ],
+    manifest = "src/java_sdk/main/AndroidManifest.xml",
+    resource_files = glob(["src/java_sdk/main/res/**/*"]),
+    deps = [
+        ":src_java_sdk_main_perfetto_lib",
+    ],
+)
+
+# GN target: //src/java_sdk/main:perfetto_lib
+perfetto_android_library(
+    name = "src_java_sdk_main_perfetto_lib",
+    srcs = [
+        "src/java_sdk/main/java/com/google/perfetto/sdk/PerfettoExampleWrapper.java",
+    ],
+    manifest = "src/java_sdk/main/LibraryAndroidManifest.xml",
+    deps = [
+        ":src_java_sdk_main_cpp_perfetto_example_jni_lib",
+    ],
+)
+
+# ##############################################################################
 # Proto libraries
 # ##############################################################################
 
@@ -4713,6 +4769,7 @@ perfetto_proto_library(
     name = "trace_processor_proto",
     deps = [
         ":protos_perfetto_common_protos",
+        ":protos_perfetto_perfetto_sql_protos",
         ":protos_perfetto_trace_processor_protos",
     ],
 )
@@ -6265,6 +6322,7 @@ perfetto_proto_library(
     ],
     deps = [
         ":protos_perfetto_common_protos",
+        ":protos_perfetto_perfetto_sql_protos",
     ],
 )
 
@@ -6273,6 +6331,7 @@ perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_processor_zero",
     deps = [
         ":protos_perfetto_common_zero",
+        ":protos_perfetto_perfetto_sql_zero",
         ":protos_perfetto_trace_processor_protos",
     ],
 )
@@ -7581,62 +7640,4 @@ perfetto_py_binary(
 exports_files(
     ["ui/src/assets/favicon.png"],
     visibility = PERFETTO_CONFIG.public_visibility,
-)
-
-# Android Java SDK targets.
-
-load(
-    "@perfetto//bazel:rules.bzl",
-    "perfetto_android_binary",
-    "perfetto_android_jni_library",
-    "perfetto_android_library",
-)
-
-perfetto_cc_library(
-    name = "java_sdk_perfetto_example_lib",
-    srcs = [
-        "src/java_sdk/main/cpp/example.cc",
-        "src/java_sdk/main/cpp/example.h",
-    ],
-    hdrs = ["src/java_sdk/main/cpp/example.h"],
-    deps = [
-        ":libperfetto_client_experimental",
-        ":protos_perfetto_trace_track_event_cpp",
-    ],
-)
-
-perfetto_android_jni_library(
-    name = "java_sdk_perfetto_example_jni_wrapper_lib",
-    srcs = [
-        "src/java_sdk/main/cpp/com_google_perfetto_sdk_PerfettoExampleWrapper.cc",
-        "src/java_sdk/main/cpp/com_google_perfetto_sdk_PerfettoExampleWrapper.h",
-    ],
-    binary_name = "libperfetto_jni_wrapper_lib.so",
-    linkopts = select({
-        "@platforms//os:android": ["-llog"],
-        "//conditions:default": [],
-    }),
-    deps = [
-        ":java_sdk_perfetto_example_lib",
-    ],
-)
-
-perfetto_android_library(
-    name = "java_sdk_perfetto_lib",
-    srcs = [
-        "src/java_sdk/main/java/com/google/perfetto/sdk/PerfettoExampleWrapper.java"
-    ],
-    manifest = "src/java_sdk/main/LibraryAndroidManifest.xml",
-    visibility = PERFETTO_CONFIG.public_visibility,
-    deps = [":java_sdk_perfetto_example_jni_wrapper_lib"],
-)
-
-perfetto_android_binary(
-    name = "java_sdk_app",
-    srcs = [
-        "src/java_sdk/main/java/com/google/perfetto/sdk/MainActivity.java",
-    ],
-    manifest = "src/java_sdk/main/AndroidManifest.xml",
-    resource_files = glob(["src/java_sdk/main/res/**/*"]),
-    deps = [":java_sdk_perfetto_lib"],
 )

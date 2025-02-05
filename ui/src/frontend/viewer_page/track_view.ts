@@ -42,6 +42,10 @@ import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {SELECTION_FILL_COLOR} from '../css_constants';
 import {calculateResolution} from './resolution';
+import {Trace} from '../../public/trace';
+import {Anchor} from '../../widgets/anchor';
+import {showModal} from '../../widgets/modal';
+import {copyToClipboard} from '../../base/clipboard';
 
 const TRACK_HEIGHT_MIN_PX = 18;
 const TRACK_HEIGHT_DEFAULT_PX = 30;
@@ -68,6 +72,7 @@ export interface TrackViewAttrs {
   readonly lite: boolean;
   readonly scrollToOnCreate?: boolean;
   readonly reorderable?: boolean;
+  readonly removable?: boolean;
   readonly depth: number;
   readonly stickyTop: number;
   readonly collapsible: boolean;
@@ -107,14 +112,19 @@ export class TrackView {
   }
 
   renderDOM(attrs: TrackViewAttrs, children: m.Children) {
-    const {scrollToOnCreate, reorderable = false, collapsible} = attrs;
+    const {
+      scrollToOnCreate,
+      reorderable = false,
+      collapsible,
+      removable,
+    } = attrs;
     const {node, renderer, height} = this;
 
     const buttons = attrs.lite
       ? []
       : [
           renderer?.track.getTrackShellButtons?.(),
-          node.removable && this.renderCloseButton(),
+          (removable || node.removable) && this.renderCloseButton(),
           // We don't want summary tracks to be pinned as they rarely have
           // useful information.
           !node.isSummary && this.renderPinButton(),
@@ -127,6 +137,14 @@ export class TrackView {
     if (tracks.scrollToTrackNodeId === node.id) {
       tracks.scrollToTrackNodeId = undefined;
       scrollIntoView = true;
+    }
+
+    function showTrackMoveErrorModal(msg: string) {
+      showModal({
+        title: 'Error',
+        content: msg,
+        buttons: [{text: 'OK'}],
+      });
     }
 
     return m(
@@ -179,17 +197,42 @@ export class TrackView {
           renderer?.track.onFullRedraw?.();
         },
         onMoveBefore: (nodeId: string) => {
-          const targetNode = node.workspace?.getTrackById(nodeId);
-          if (targetNode !== undefined) {
+          // We are the reference node (the one to be moved relative to), nodeId
+          // references the target node (the one to be moved)
+          const nodeToMove = node.workspace?.getTrackById(nodeId);
+          const targetNode = this.node.parent;
+          if (nodeToMove && targetNode) {
             // Insert the target node before this one
-            targetNode.parent?.addChildBefore(targetNode, node);
+            const result = targetNode.addChildBefore(nodeToMove, node);
+            if (!result.ok) {
+              showTrackMoveErrorModal(result.error);
+            }
+          }
+        },
+        onMoveInside: (nodeId: string) => {
+          // This one moves the node inside this node & expand it if it's not
+          // expanded already.
+          const nodeToMove = node.workspace?.getTrackById(nodeId);
+          if (nodeToMove) {
+            const result = this.node.addChildLast(nodeToMove);
+            if (result.ok) {
+              this.node.expand();
+            } else {
+              showTrackMoveErrorModal(result.error);
+            }
           }
         },
         onMoveAfter: (nodeId: string) => {
-          const targetNode = node.workspace?.getTrackById(nodeId);
-          if (targetNode !== undefined) {
+          // We are the reference node (the one to be moved relative to), nodeId
+          // references the target node (the one to be moved)
+          const nodeToMove = node.workspace?.getTrackById(nodeId);
+          const targetNode = this.node.parent;
+          if (nodeToMove && targetNode) {
             // Insert the target node after this one
-            targetNode.parent?.addChildAfter(targetNode, node);
+            const result = targetNode.addChildAfter(nodeToMove, node);
+            if (!result.ok) {
+              showTrackMoveErrorModal(result.error);
+            }
           }
         },
       },
@@ -255,11 +298,16 @@ export class TrackView {
 
   private renderCloseButton() {
     return m(Button, {
+      // TODO(stevegolton): It probably makes sense to only show this button
+      // when hovered for consistency with the other buttons, but hiding this
+      // button currently breaks the tests as we wait for the buttons to become
+      // available, enabled and visible before clicking on them.
+      // className: 'pf-visible-on-hover',
       onclick: () => {
         this.node.remove();
       },
       icon: Icons.Close,
-      title: 'Close track',
+      title: 'Remove track',
       compact: true,
     });
   }
@@ -289,112 +337,14 @@ export class TrackView {
           title: 'Track options',
         }),
       },
-      m(MenuItem, {
-        label: 'Select track',
-        disabled: !this.node.uri,
-        onclick: () => {
-          this.trace.selection.selectTrack(this.node.uri!);
-        },
-        title: this.node.uri
-          ? 'Select track'
-          : 'Track has no URI and cannot be selected',
+      // Putting these menu items inside a component means that view is only
+      // called when the popup is actually open, which can improve DOM
+      // render performance when we have thousands of tracks on screen.
+      m(TrackPopupMenu, {
+        trace: this.trace,
+        node: this.node,
+        descriptor: this.descriptor,
       }),
-      m(MenuItem, {label: 'Track details'}, this.renderTrackDetails()),
-      m(MenuDivider),
-      m(
-        MenuItem,
-        {label: 'Copy to workspace'},
-        this.trace.workspaces.all.map((ws) =>
-          m(MenuItem, {
-            label: ws.title,
-            onclick: () => this.copyToWorkspace(ws),
-          }),
-        ),
-        m(MenuDivider),
-        m(MenuItem, {
-          label: 'New workspace...',
-          onclick: () => this.copyToWorkspace(),
-        }),
-      ),
-      m(
-        MenuItem,
-        {label: 'Copy & switch to workspace'},
-        this.trace.workspaces.all.map((ws) =>
-          m(MenuItem, {
-            label: ws.title,
-            onclick: async () => {
-              this.copyToWorkspace(ws);
-              this.trace.workspaces.switchWorkspace(ws);
-            },
-          }),
-        ),
-        m(MenuDivider),
-        m(MenuItem, {
-          label: 'New workspace...',
-          onclick: async () => {
-            const ws = this.copyToWorkspace();
-            this.trace.workspaces.switchWorkspace(ws);
-          },
-        }),
-      ),
-    );
-  }
-
-  private copyToWorkspace(ws?: Workspace) {
-    // If no workspace provided, create a new one.
-    if (!ws) {
-      ws = this.trace.workspaces.createEmptyWorkspace('Untitled Workspace');
-    }
-    const newNode = this.node.clone();
-    newNode.removable = true;
-    ws.addChildLast(newNode);
-    return ws;
-  }
-
-  private renderTrackDetails(): m.Children {
-    let parent = this.node.parent;
-    let fullPath: m.ChildArray = [this.node.title];
-    while (parent && parent instanceof TrackNode) {
-      fullPath = [parent.title, ' \u2023 ', ...fullPath];
-      parent = parent.parent;
-    }
-
-    return m(
-      '.pf-track__track-details-popup',
-      m(
-        Tree,
-        m(TreeNode, {left: 'Track Node ID', right: this.node.id}),
-        m(TreeNode, {left: 'Collapsed', right: `${this.node.collapsed}`}),
-        m(TreeNode, {left: 'URI', right: this.node.uri}),
-        m(TreeNode, {
-          left: 'Is Summary Track',
-          right: `${this.node.isSummary}`,
-        }),
-        m(TreeNode, {
-          left: 'SortOrder',
-          right: this.node.sortOrder ?? '0 (undefined)',
-        }),
-        m(TreeNode, {left: 'Path', right: fullPath}),
-        m(TreeNode, {left: 'Title', right: this.node.title}),
-        m(TreeNode, {
-          left: 'Workspace',
-          right: this.node.workspace?.title ?? '[no workspace]',
-        }),
-        this.descriptor &&
-          m(TreeNode, {
-            left: 'Plugin ID',
-            right: this.descriptor.pluginId,
-          }),
-        this.descriptor &&
-          m(
-            TreeNode,
-            {left: 'Tags'},
-            this.descriptor.tags &&
-              Object.entries(this.descriptor.tags).map(([key, value]) => {
-                return m(TreeNode, {left: key, right: value?.toString()});
-              }),
-          ),
-      ),
     );
   }
 
@@ -512,7 +462,7 @@ export class TrackView {
     if (this.node.isSummary) {
       // Summary tracks cannot themselves be area-selected. So, as a visual aid,
       // if this track is a summary track and some of its children are in the
-      // area selection, highlight this track as if it were in the area
+      // area selecion, highlight this track as if it were in the area
       // selection too.
       selected = selection.trackUris.some((uri) =>
         this.node.getTrackByUri(uri),
@@ -572,4 +522,157 @@ export class TrackView {
     const statStr = `Track ${this.node.id} | ` + runningStatStr(renderStats);
     ctx.fillText(statStr, size.width - statW, size.height - 10);
   }
+}
+
+interface TrackPopupMenuAttrs {
+  readonly trace: Trace;
+  readonly node: TrackNode;
+  readonly descriptor?: TrackDescriptor;
+}
+
+// This component contains the track menu items which are displayed inside a
+// popup menu on each track. They're in a component to avoid having to render
+// them every single mithril cycle.
+const TrackPopupMenu = {
+  view({attrs}: m.Vnode<TrackPopupMenuAttrs>) {
+    return [
+      m(MenuItem, {
+        label: 'Select track',
+        disabled: !attrs.node.uri,
+        onclick: () => {
+          attrs.trace.selection.selectTrack(attrs.node.uri!);
+        },
+        title: attrs.node.uri
+          ? 'Select track'
+          : 'Track has no URI and cannot be selected',
+      }),
+      m(
+        MenuItem,
+        {label: 'Track details'},
+        renderTrackDetailsMenu(attrs.node, attrs.descriptor),
+      ),
+      m(MenuDivider),
+      m(
+        MenuItem,
+        {label: 'Copy to workspace'},
+        attrs.trace.workspaces.all.map((ws) =>
+          m(MenuItem, {
+            label: ws.title,
+            disabled: !ws.userEditable,
+            onclick: () => copyToWorkspace(attrs.trace, attrs.node, ws),
+          }),
+        ),
+        m(MenuDivider),
+        m(MenuItem, {
+          label: 'New workspace...',
+          onclick: () => copyToWorkspace(attrs.trace, attrs.node),
+        }),
+      ),
+      m(
+        MenuItem,
+        {label: 'Copy & switch to workspace'},
+        attrs.trace.workspaces.all.map((ws) =>
+          m(MenuItem, {
+            label: ws.title,
+            disabled: !ws.userEditable,
+            onclick: async () => {
+              copyToWorkspace(attrs.trace, attrs.node, ws);
+              attrs.trace.workspaces.switchWorkspace(ws);
+            },
+          }),
+        ),
+        m(MenuDivider),
+        m(MenuItem, {
+          label: 'New workspace...',
+          onclick: async () => {
+            const ws = copyToWorkspace(attrs.trace, attrs.node);
+            attrs.trace.workspaces.switchWorkspace(ws);
+          },
+        }),
+      ),
+    ];
+  },
+};
+
+function copyToWorkspace(trace: Trace, node: TrackNode, ws?: Workspace) {
+  // If no workspace provided, create a new one.
+  if (!ws) {
+    ws = trace.workspaces.createEmptyWorkspace('Untitled Workspace');
+  }
+  // Deep clone makes sure all group's content is also copied
+  const newNode = node.clone(true);
+  newNode.removable = true;
+  ws.addChildLast(newNode);
+  return ws;
+}
+
+function renderTrackDetailsMenu(node: TrackNode, descriptor?: TrackDescriptor) {
+  let parent = node.parent;
+  let fullPath: m.ChildArray = [node.title];
+  while (parent && parent instanceof TrackNode) {
+    fullPath = [parent.title, ' \u2023 ', ...fullPath];
+    parent = parent.parent;
+  }
+
+  const query = descriptor?.track.getDataset?.()?.query();
+
+  return m(
+    '.pf-track__track-details-popup',
+    m(
+      Tree,
+      m(TreeNode, {left: 'Track Node ID', right: node.id}),
+      m(TreeNode, {left: 'Collapsed', right: `${node.collapsed}`}),
+      m(TreeNode, {left: 'URI', right: node.uri}),
+      m(TreeNode, {
+        left: 'Is Summary Track',
+        right: `${node.isSummary}`,
+      }),
+      m(TreeNode, {
+        left: 'SortOrder',
+        right: node.sortOrder ?? '0 (undefined)',
+      }),
+      m(TreeNode, {left: 'Path', right: fullPath}),
+      m(TreeNode, {left: 'Title', right: node.title}),
+      m(TreeNode, {
+        left: 'Workspace',
+        right: node.workspace?.title ?? '[no workspace]',
+      }),
+      descriptor &&
+        m(TreeNode, {
+          left: 'Plugin ID',
+          right: descriptor.pluginId,
+        }),
+      query &&
+        m(TreeNode, {
+          left: 'Track Query',
+          right: m(
+            Anchor,
+            {
+              onclick: () => {
+                showModal({
+                  title: 'Query for track',
+                  content: m('pre', query),
+                  buttons: [
+                    {
+                      text: 'Copy to clipboard',
+                      action: () => copyToClipboard(query),
+                    },
+                  ],
+                });
+              },
+            },
+            'Show query',
+          ),
+        }),
+      descriptor &&
+        m(
+          TreeNode,
+          {left: 'Tags'},
+          descriptor.tags &&
+            Object.entries(descriptor.tags).map(([key, value]) => {
+              return m(TreeNode, {left: key, right: value?.toString()});
+            }),
+        ),
+    ),
+  );
 }

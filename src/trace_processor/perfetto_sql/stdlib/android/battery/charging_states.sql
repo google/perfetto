@@ -31,6 +31,8 @@ CREATE PERFETTO TABLE android_charging_states(
   -- Full, Unknown
   charging_state STRING
 ) AS
+-- Either the first statement is populated or the select statement after the
+-- union is populated but not both.
 WITH
   _counter AS (
     SELECT counter.id, ts, 0 AS track_id, value
@@ -63,8 +65,6 @@ SELECT
     END AS charging_state
 FROM counter_leading_intervals !(_counter)
 WHERE dur > 0
--- Either the above select statement is populated or the
--- select statement after the union is populated but not both.
 UNION
 -- When the trace does not have a slice in the charging state track then
 -- we will assume that the charging state for the entire trace is Unknown.

@@ -66,13 +66,12 @@ SELECT
       THEN $d2/MAX($d1, $d3) - $threshold
     WHEN MIN($d1, $d3)/$d2 >= $threshold
       THEN MIN($d1, $d3)/$d2 - $threshold
-    ELSE 0
+    ELSE 0.0
   END;
 
 CREATE PERFETTO TABLE _deltas_and_neighbors AS
 SELECT
   scroll_id,
-  event_latency_slice_id,
   scroll_update_id,
   ts,
   delta_y,
@@ -86,7 +85,6 @@ FROM chrome_presented_scroll_offsets;
 CREATE PERFETTO TABLE _deltas_and_neighbors_with_threshold AS
 SELECT
   scroll_id,
-  event_latency_slice_id,
   scroll_update_id,
   ts,
   delta_y,
@@ -106,9 +104,6 @@ CREATE PERFETTO TABLE chrome_predictor_error(
   -- An ID that ties all EventLatencies in a particular scroll. (implementation
   -- note: This is the EventLatency TraceId of the GestureScrollbegin).
   scroll_id LONG,
-  -- An ID for this particular EventLatency regardless of it being presented or
-  -- not.
-  event_latency_slice_id LONG,
   -- An ID that ties this |event_latency_id| with the Trace Id (another
   -- event_latency_id) that it was presented with.
   scroll_update_id LONG,
@@ -133,7 +128,6 @@ CREATE PERFETTO TABLE chrome_predictor_error(
 AS
 SELECT
   scroll_id,
-  event_latency_slice_id,
   scroll_update_id,
   ts AS present_ts,
   delta_y,

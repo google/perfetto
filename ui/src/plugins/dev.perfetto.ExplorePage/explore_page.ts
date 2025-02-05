@@ -16,24 +16,20 @@ import m from 'mithril';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 import {PageWithTraceAttrs} from '../../public/page';
-import {SqlTableState as SqlTableViewState} from '../../components/widgets/sql/legacy_table/state';
-import {Chart} from '../../components/widgets/charts/chart';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
-import {DataVisualiser} from './data_visualiser';
+import {DataVisualiser} from './data_visualiser/data_visualiser';
 import {QueryBuilder} from './query_builder/builder';
-import {QueryNode} from './query_state';
 import {Button} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
+import {getLastFinishedNode, QueryNode} from './query_state';
 
 export interface ExploreTableState {
-  sqlTableViewState?: SqlTableViewState;
   queryNode?: QueryNode;
 }
 
 interface ExplorePageAttrs extends PageWithTraceAttrs {
   readonly sqlModulesPlugin: SqlModulesPlugin;
   readonly state: ExploreTableState;
-  readonly charts: Set<Chart>;
 }
 
 enum ExplorePageModes {
@@ -50,7 +46,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private selectedMode = ExplorePageModes.QUERY_BUILDER;
 
   view({attrs}: m.CVnode<ExplorePageAttrs>) {
-    const {trace, state, charts} = attrs;
+    const {trace, state} = attrs;
+
+    const queryNode = state.queryNode;
 
     return m(
       '.page.explore-page',
@@ -79,16 +77,19 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         m(QueryBuilder, {
           trace: attrs.trace,
           sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
-          onQueryNodeCreated(arg) {
+          onRootNodeCreated(arg) {
             attrs.state.queryNode = arg;
           },
           rootNode: attrs.state.queryNode,
         }),
       this.selectedMode === ExplorePageModes.DATA_VISUALISER &&
+        queryNode !== undefined &&
+        queryNode.finished &&
         m(DataVisualiser, {
           trace,
-          state,
-          charts,
+          state: {
+            queryNode: getLastFinishedNode(queryNode),
+          },
         }),
     );
   }

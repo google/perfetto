@@ -148,6 +148,7 @@ class QueryBuilder {
 export function buildSqlQuery(args: {
   table: string;
   columns: {[key: string]: SqlColumn};
+  prefix?: string;
   filters?: Filter[];
   orderBy?: ColumnOrderClause[];
 }): string {
@@ -190,6 +191,7 @@ export function buildSqlQuery(args: {
       : `ORDER BY\n  ${normalisedOrderBy.map((orderBy) => `${builder.printColumn(orderBy.column)} ${orderBy.order}`).join(',  ')}`;
 
   return `
+    ${args.prefix === undefined ? '' : args.prefix}
     SELECT
       ${Object.entries(normalisedColumns)
         .map(([key, value]) => `${builder.printColumn(value)} AS ${key}`)

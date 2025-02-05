@@ -319,6 +319,13 @@ config("protobuf_gen_config") {
       "-Wno-undef",
     ]
   }
+  if (!is_clang && is_win) {
+    # MSVC
+    cflags += [
+      "/wd4838",  # conversion from 'unsigned long' to 'int' requires a
+                  # narrowing conversion
+    ]
+  }
 
   if (!perfetto_use_system_protobuf) {
     cflags += [

@@ -39,7 +39,8 @@ AS (
           o.upid,
           o.graph_sample_ts,
           o.type_id,
-          IFNULL(o.root_type, '')
+          IFNULL(o.root_type, ''),
+          IFNULL(o.heap_type, '')
         ) AS path_hash,
         0 AS parent_path_hash
       FROM $tab t
@@ -54,7 +55,7 @@ AS (
         IIF(
           o.type_id = t.parent_type_id,
           t.path_hash,
-          HASH(t.path_hash, o.type_id)
+          HASH(t.path_hash, o.type_id, IFNULL(o.heap_type, ""))
         ) AS path_hash,
         IIF(
           o.type_id = t.parent_type_id,
@@ -83,6 +84,7 @@ AS (
       parent_path_hash,
       COALESCE(c.deobfuscated_name, c.name) AS name,
       o.root_type,
+      o.heap_type,
       COUNT() AS self_count,
       SUM(o.self_size) AS self_size,
       SUM(o.native_size > 0) AS self_native_count,
@@ -99,6 +101,7 @@ AS (
     path_hash AS parent_path_hash,
     '[native] ' || x.name AS name,
     root_type,
+    'native' AS heap_type,
     SUM(x.self_native_count) AS self_count,
     SUM(x.self_native_size) AS self_size
   FROM x
@@ -112,6 +115,7 @@ AS (
     parent_path_hash,
     name,
     root_type,
+    heap_type,
     self_count,
     self_size
   FROM x
@@ -138,6 +142,7 @@ AS (
     ) AS parent_id,
     name,
     root_type,
+    heap_type,
     self_count,
     self_size
   FROM $tab c

@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackNode} from '../../public/workspace';
-import {CPU_FREQ_TRACK_KIND} from '../../public/track_kinds';
-import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
+import {CPU_FREQ_TRACK_KIND} from '../../public/track_kinds';
+import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {CpuFreqTrack} from './cpu_freq_track';
 
@@ -24,13 +24,23 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
 
-    const cpus = [];
-    const cpusResult = await engine.query(
-      'select distinct cpu from cpu_counter_track order by cpu;',
+    // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
+    // if it's seen in cpu_counter_track.
+    const queryRes = await ctx.engine.query(
+      `select distinct cpu, ifnull(machine_id, 0) as machine
+       from cpu_counter_track`,
     );
-    for (const it = cpusResult.iter({cpu: NUM}); it.valid(); it.next()) {
-      cpus.push(it.cpu);
+    const cpuAndMachine = new Set<string>();
+    for (
+      const it = queryRes.iter({cpu: NUM, machine: NUM});
+      it.valid();
+      it.next()
+    ) {
+      cpuAndMachine.add([it.cpu, it.machine].toString());
     }
+    const cpus = ctx.traceInfo.cpus.filter((cpu) =>
+      cpuAndMachine.has([cpu.cpu, cpu.machine].toString()),
+    );
 
     const maxCpuFreqResult = await engine.query(`
       select ifnull(max(value), 0) as freq
@@ -50,12 +60,13 @@ export default class implements PerfettoPlugin {
             select id
             from cpu_counter_track t
             where t.type = 'cpu_idle'
-              and t.cpu = ${cpu}
+            and t.cpu = ${cpu.cpu} and ifnull(t.machine_id, 0) = ${cpu.machine}
             limit 1
           ) as cpuIdleId
         from cpu_counter_track t
         join _counter_track_summary using (id)
-        where t.type = 'cpu_frequency' and t.cpu = ${cpu}
+        where t.type = 'cpu_frequency'
+        and t.cpu = ${cpu.cpu} and ifnull(t.machine_id, 0) = ${cpu.machine}
         limit 1;
       `);
 
@@ -68,20 +79,21 @@ export default class implements PerfettoPlugin {
         const idleTrackId = row.cpuIdleId === null ? undefined : row.cpuIdleId;
 
         const config = {
-          cpu,
+          // Coloring based Cpu number, same for all machines.
+          cpu: cpu.cpu,
           maximumValue: maxCpuFreq,
           freqTrackId,
           idleTrackId,
         };
 
-        const uri = `/cpu_freq_cpu${cpu}`;
-        const title = `Cpu ${cpu} Frequency`;
+        const uri = `/cpu_freq_cpu${cpu.ucpu}`;
+        const title = `Cpu ${cpu.toString()} Frequency`;
         ctx.tracks.registerTrack({
           uri,
           title,
           tags: {
             kind: CPU_FREQ_TRACK_KIND,
-            cpu,
+            cpu: cpu.ucpu,
           },
           track: new CpuFreqTrack(config, ctx),
         });

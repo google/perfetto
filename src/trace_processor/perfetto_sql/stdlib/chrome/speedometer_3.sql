@@ -117,14 +117,16 @@ AS
 WITH
   measure_slice AS (
     SELECT s.ts, s.dur, s.name, m.suite_name, m.test_name, m.measure_type
-    FROM slice s, _chrome_speedometer_3_measure_name AS m
-    USING (name)
+    FROM slice s
+    JOIN _chrome_speedometer_3_measure_name AS m
+      USING (name)
     WHERE s.category = 'blink.user_timing'
   )
 SELECT
   s.ts, s.dur, s.name, i.iteration, s.suite_name, s.test_name, s.measure_type
-FROM measure_slice AS s, _chrome_speedometer_3_iteration_slice i
-ON (s.ts >= i.ts AND s.ts < i.ts + i.dur)
+FROM measure_slice AS s
+JOIN _chrome_speedometer_3_iteration_slice i
+  ON s.ts >= i.ts AND s.ts < i.ts + i.dur
 ORDER BY s.ts ASC;
 
 -- Slice that covers one Speedometer iteration.
@@ -162,8 +164,9 @@ WITH
     GROUP BY iteration
   )
 SELECT s.ts, s.dur, s.name, i.iteration, i.geomean, 1000.0 / i.geomean AS score
-FROM iteration AS i, _chrome_speedometer_3_iteration_slice AS s
-USING (iteration);
+FROM iteration AS i
+JOIN _chrome_speedometer_3_iteration_slice AS s
+  USING (iteration);
 
 -- Returns the Speedometer 3 score for all iterations in the trace
 CREATE PERFETTO FUNCTION chrome_speedometer_3_score()
@@ -186,7 +189,8 @@ FROM thread_track
 WHERE
   id IN (
     SELECT track_id
-    FROM slice, start_event
-    USING (name)
+    FROM slice
+    JOIN start_event
+      USING (name)
     WHERE category = 'blink.user_timing'
   )

@@ -29,6 +29,7 @@ import {SortDirection} from '../../../../base/comparison_utils';
 import {assertTrue} from '../../../../base/logging';
 import {SqlTableDescription} from './table_description';
 import {Trace} from '../../../../public/trace';
+import {runQuery} from '../../../query_table/queries';
 
 const ROW_LIMIT = 100;
 
@@ -86,6 +87,8 @@ export class SqlTableState {
   private data?: Data;
   private rowCount?: RowCount;
 
+  private _nonPaginatedData?: Data;
+
   constructor(
     readonly trace: Trace,
     readonly config: SqlTableDescription,
@@ -135,6 +138,14 @@ export class SqlTableState {
     this.reload();
   }
 
+  get nonPaginatedData() {
+    if (this._nonPaginatedData === undefined) {
+      this.getNonPaginatedData();
+    }
+
+    return this._nonPaginatedData;
+  }
+
   clone(): SqlTableState {
     return new SqlTableState(this.trace, this.config, {
       initialColumns: this.columns,
@@ -164,6 +175,7 @@ export class SqlTableState {
     return buildSqlQuery({
       table: this.config.name,
       columns,
+      prefix: this.config.prefix,
       filters: this.filters,
       orderBy: this.getOrderedBy(),
     });
@@ -303,19 +315,11 @@ export class SqlTableState {
   }
 
   private async loadData(): Promise<Data> {
-    const queryRes = await this.trace.engine.query(this.request.query);
-    const rows: Row[] = [];
-    for (const it = queryRes.iter({}); it.valid(); it.next()) {
-      const row: Row = {};
-      for (const column of queryRes.columns()) {
-        row[column] = it.get(column);
-      }
-      rows.push(row);
-    }
+    const queryRes = await runQuery(this.request.query, this.trace.engine);
 
     return {
-      rows,
-      error: queryRes.error(),
+      rows: queryRes.rows,
+      error: queryRes.error,
     };
   }
 
@@ -353,6 +357,20 @@ export class SqlTableState {
     // If the request has changed since we started loading the data, do not update the state.
     if (this.request !== request) return;
     this.data = data;
+
+    raf.scheduleFullRedraw();
+  }
+
+  private async getNonPaginatedData() {
+    const queryRes = await runQuery(
+      this.getNonPaginatedSQLQuery(),
+      this.trace.engine,
+    );
+
+    this._nonPaginatedData = {
+      rows: queryRes.rows,
+      error: queryRes.error,
+    };
 
     raf.scheduleFullRedraw();
   }

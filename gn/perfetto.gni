@@ -201,6 +201,9 @@ declare_args() {
   enable_perfetto_integration_tests =
       perfetto_build_standalone || perfetto_build_with_android
 
+  enable_perfetto_android_java_sdk =
+      perfetto_build_with_android || (is_android && perfetto_build_standalone)
+
   enable_perfetto_benchmarks = perfetto_build_standalone && !is_win && !is_qnx
 
   enable_perfetto_fuzzers =

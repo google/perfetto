@@ -92,13 +92,13 @@ WITH
     SELECT slice.*
     FROM thread_slice slice
     JOIN _startup_root_slices startup
+      -- Inline the logic to check whether startup intervals overlap
+      -- with main thread slices. This is to improve performance until
+      -- interval_intersect doesn't require a JOIN.
+      -- TODO(zezeozue): Replace with interval intersect when JOINs are
+      -- not required.
       ON
         slice.utid = startup.utid
-        -- Inline the logic to check whether startup intervals overlap
-        -- with main thread slices. This is to improve performance until
-        -- interval_intersect doesn't require a JOIN.
-        -- TODO(zezeozue): Replace with interval intersect when JOINs are
-        -- not required.
         AND MAX(slice.ts, startup.ts) < MIN(slice.ts + slice.dur, startup.ts + startup.dur)
   )
 SELECT p.id, p.parent_id, p.depth, p.name, thread_slice.ts, thread_slice.dur, thread_slice.utid

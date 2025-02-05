@@ -25,6 +25,7 @@ import {
   SqlTableFunction,
   SqlType,
   TableAndColumn,
+  SqlColumnAsSimpleColumn,
 } from './sql_modules';
 import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
 import {
@@ -32,17 +33,6 @@ import {
   LegacyTableColumn,
   LegacyTableColumnSet,
 } from '../../components/widgets/sql/legacy_table/column';
-import {
-  createDurationColumn,
-  createProcessIdColumn,
-  createSchedIdColumn,
-  createSliceIdColumn,
-  createStandardColumn,
-  createThreadIdColumn,
-  createThreadStateIdColumn,
-  createTimestampColumn,
-  SimpleColumn,
-} from '../../components/widgets/sql/table/table';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
@@ -305,7 +295,7 @@ class SqlTableImpl implements SqlTable {
 
   getTableColumns(): (LegacyTableColumn | LegacyTableColumnSet)[] {
     return this.columns.map(
-      (col) => new FromSimpleColumn(col.asSimpleColumn(this.name)),
+      (col) => new FromSimpleColumn(SqlColumnAsSimpleColumn(col, this.name)),
     );
   }
 }
@@ -330,51 +320,6 @@ class StdlibColumnImpl implements SqlColumn {
     this.description = docs.desc;
     this.name = docs.name;
   }
-
-  asSimpleColumn(tableName: string): SimpleColumn {
-    if (this.type.shortName === 'TIMESTAMP') {
-      return createTimestampColumn(this.name);
-    }
-    if (this.type.shortName === 'DURATION') {
-      return createDurationColumn(this.name);
-    }
-
-    if (this.type.shortName === 'ID') {
-      switch (tableName.toLowerCase()) {
-        case 'slice':
-          return createSliceIdColumn(this.name);
-        case 'thread':
-          return createThreadIdColumn(this.name);
-        case 'process':
-          return createProcessIdColumn(this.name);
-        case 'thread_state':
-          return createThreadStateIdColumn(this.name);
-        case 'sched':
-          return createSchedIdColumn(this.name);
-      }
-      return createStandardColumn(this.name);
-    }
-
-    if (this.type.shortName === 'JOINID') {
-      if (this.type.tableAndColumn === undefined) {
-        return createStandardColumn(this.name);
-      }
-      switch (this.type.tableAndColumn.table.toLowerCase()) {
-        case 'slice':
-          return createSliceIdColumn(this.name);
-        case 'thread':
-          return createThreadIdColumn(this.name);
-        case 'process':
-          return createProcessIdColumn(this.name);
-        case 'thread_state':
-          return createThreadStateIdColumn(this.name);
-        case 'sched':
-          return createSchedIdColumn(this.name);
-      }
-    }
-
-    return createStandardColumn(this.name);
-  }
 }
 
 class StdlibFunctionArgImpl implements SqlArgument {
@@ -389,7 +334,7 @@ class StdlibFunctionArgImpl implements SqlArgument {
   }
 }
 
-class TableAndColumnImpl implements TableAndColumn {
+export class TableAndColumnImpl implements TableAndColumn {
   table: string;
   column: string;
   constructor(table: string, column: string) {

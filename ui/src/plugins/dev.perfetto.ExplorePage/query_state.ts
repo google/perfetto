@@ -12,11 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
-import {ColumnControllerRows} from './query_builder/column_controller';
+import protos from '../../protos';
+
+import {ColumnControllerRow} from './query_builder/column_controller';
 
 export enum NodeType {
+  // Sources
   kStdlibTable,
+  kSimpleSlices,
+  kSqlSource,
+
+  // Operations
   kJoinOperator,
 }
 
@@ -27,45 +33,11 @@ export interface QueryNode {
   finished: boolean;
 
   dataName?: string;
-  cte: boolean;
-  imports?: string[];
-  columns?: ColumnControllerRows[];
-
-  getSourceSql(): string | undefined;
-  getTitle(): string;
+  columns?: ColumnControllerRow[];
 
   validate(): boolean;
-}
-
-export class StdlibTableState implements QueryNode {
-  readonly type: NodeType = NodeType.kStdlibTable;
-  prevNode = undefined;
-  nextNode?: QueryNode;
-  finished: boolean = true;
-
-  dataName?: string;
-  cte = false;
-  imports: string[];
-  columns: ColumnControllerRows[];
-
-  sqlTable: SqlTable;
-
-  getSourceSql(): string | undefined {
-    return `${this.sqlTable.name}`;
-  }
-  getTitle(): string {
-    return `Table ${this.sqlTable.name}`;
-  }
-  validate(): boolean {
-    return true;
-  }
-
-  constructor(sqlTable: SqlTable) {
-    this.dataName = sqlTable.name;
-    this.imports = sqlTable.includeKey ? [sqlTable.includeKey] : [];
-    this.columns = sqlTable.columns.map((c) => new ColumnControllerRows(c));
-    this.sqlTable = sqlTable;
-  }
+  getTitle(): string;
+  getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
 }
 
 export function getLastFinishedNode(node: QueryNode): QueryNode | undefined {

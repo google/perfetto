@@ -18,7 +18,7 @@ import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {NUM} from '../../trace_processor/query_result';
-import {AndroidLogTrack} from './logs_track';
+import {createAndroidLogTrack} from './logs_track';
 import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
 
@@ -60,7 +60,7 @@ export default class implements PerfettoPlugin {
         uri,
         title,
         tags: {kind: ANDROID_LOGS_TRACK_KIND},
-        track: new AndroidLogTrack(ctx.engine),
+        track: createAndroidLogTrack(ctx, uri),
       });
       const track = new TrackNode({title, uri});
       ctx.workspace.addChildInOrder(track);

@@ -16,7 +16,7 @@ import {HEAP_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {HeapProfileTrack} from './heap_profile_track';
+import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
@@ -94,7 +94,7 @@ export default class implements PerfettoPlugin {
           kind: HEAP_PROFILE_TRACK_KIND,
           upid,
         },
-        track: new HeapProfileTrack(ctx, uri, tableName, upid, incomplete),
+        track: createHeapProfileTrack(ctx, uri, tableName, upid, incomplete),
       });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)

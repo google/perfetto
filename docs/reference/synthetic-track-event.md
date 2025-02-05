@@ -2,7 +2,7 @@
 
 This page acts as a reference guide to synthetically generate TrackEvent,
 Perfetto's native protobuf based tracing format. This allows using Perfetto's
-analysis and visualzation without using collecting traces using the Perfetto
+analysis and visualization without using collecting traces using the Perfetto
 SDK.
 
 TrackEvent protos can be manually written using the

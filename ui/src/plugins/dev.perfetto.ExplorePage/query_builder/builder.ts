@@ -17,31 +17,51 @@ import m from 'mithril';
 import {PageWithTraceAttrs} from '../../../public/page';
 import {Button} from '../../../widgets/button';
 import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
-import {ColumnControllerRows} from './column_controller';
-import {QueryNode, StdlibTableState} from '../query_state';
+import {ColumnControllerRow} from './column_controller';
+import {QueryNode} from '../query_state';
 import {JoinState, QueryBuilderJoin} from './operations/join';
 import {Intent} from '../../../widgets/common';
 import {showModal} from '../../../widgets/modal';
 import {DataSourceViewer} from './data_source_viewer';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {getLastFinishedNode} from '../query_state';
+import protos from '../../../protos';
+import {AsyncLimiter} from '../../../base/async_limiter';
+import {TextInput} from '../../../widgets/text_input';
+import {
+  StdlibTableState,
+  SimpleSlicesAttrs,
+  SimpleSlicesState,
+  SqlSourceAttrs,
+  SqlSourceState,
+} from './source_nodes';
 
 export interface QueryBuilderTable {
   name: string;
   asSqlTable: SqlTable;
-  columnOptions: ColumnControllerRows[];
+  columnOptions: ColumnControllerRow[];
   sql: string;
 }
 
 export interface QueryBuilderAttrs extends PageWithTraceAttrs {
   readonly sqlModules: SqlModules;
   readonly rootNode?: QueryNode;
-  readonly onQueryNodeCreated: (node: QueryNode) => void;
+  readonly onRootNodeCreated: (node: QueryNode) => void;
 }
 
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
+  private readonly analyzeSQAsyncLimiter = new AsyncLimiter();
+  private analyzedSq?: protos.AnalyzeStructuredQueryResult;
+
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
     const trace = attrs.trace;
+    const sq = new protos.PerfettoSqlStructuredQuery();
+
+    if (this.analyzedSq === undefined) {
+      this.analyzeSQAsyncLimiter.schedule(async () => {
+        this.analyzedSq = await trace.engine.analyzeStructuredQuery([sq]);
+      });
+    }
 
     // Create starting node.
     function chooseSourceButton(): m.Child {
@@ -67,11 +87,33 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             if (sqlTable === undefined) {
               return;
             }
-            attrs.onQueryNodeCreated(new StdlibTableState(sqlTable));
+            attrs.onRootNodeCreated(new StdlibTableState(sqlTable));
           },
         }),
-        m(MenuItem, {label: 'Slices', disabled: true}),
-        m(MenuItem, {label: 'SQL', disabled: true}),
+        m(MenuItem, {
+          label: 'Slices',
+          onclick: () => {
+            const sliceAttrs: SimpleSlicesAttrs = {};
+            simpleSlicesModal(sliceAttrs, () => {
+              const newSlices = new SimpleSlicesState(sliceAttrs);
+              if (newSlices.validate()) {
+                attrs.onRootNodeCreated(new SimpleSlicesState(sliceAttrs));
+              }
+            });
+          },
+        }),
+        m(MenuItem, {
+          label: 'SQL',
+          onclick: () => {
+            const sqlAttrs: SqlSourceAttrs = {};
+            sqlSourceModal(sqlAttrs, () => {
+              const newSlices = new SqlSourceState(sqlAttrs);
+              if (newSlices.validate()) {
+                attrs.onRootNodeCreated(new SqlSourceState(sqlAttrs));
+              }
+            });
+          },
+        }),
         m(MenuItem, {label: 'Interval intersect', disabled: true}),
       );
     }
@@ -88,6 +130,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         },
         m(MenuItem, {
           label: 'JOIN',
+          disabled: true,
           onclick: () => {
             if (attrs.rootNode === undefined) {
               return;
@@ -123,6 +166,159 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
 
       showModal({
         title: `JOIN`,
+        buttons: [
+          {
+            text: 'Add node',
+            action: f,
+          },
+        ],
+        content,
+      });
+    }
+
+    function simpleSlicesModal(slicesAttrs: SimpleSlicesAttrs, f: () => void) {
+      function Operations() {
+        return {
+          view: () => {
+            return m(
+              '',
+              m(
+                '',
+                'Slice name glob ',
+                m(TextInput, {
+                  id: 'slice_name_glob',
+                  type: 'string',
+                  oninput: (e: KeyboardEvent) => {
+                    if (!e.target) return;
+                    slicesAttrs.slice_name = (
+                      e.target as HTMLInputElement
+                    ).value.trim();
+                  },
+                }),
+              ),
+              m(
+                '',
+                'Thread name glob ',
+                m(TextInput, {
+                  id: 'thread_name_glob',
+                  type: 'string',
+                  oninput: (e: KeyboardEvent) => {
+                    if (!e.target) return;
+                    slicesAttrs.thread_name = (
+                      e.target as HTMLInputElement
+                    ).value.trim();
+                  },
+                }),
+              ),
+              m(
+                '',
+                'Process name glob ',
+                m(TextInput, {
+                  id: 'process_name_glob',
+                  type: 'string',
+                  oninput: (e: KeyboardEvent) => {
+                    if (!e.target) return;
+                    slicesAttrs.process_name = (
+                      e.target as HTMLInputElement
+                    ).value.trim();
+                  },
+                }),
+              ),
+              m(
+                '',
+                'Track name glob ',
+                m(TextInput, {
+                  id: 'track_name_glob',
+                  type: 'string',
+                  oninput: (e: KeyboardEvent) => {
+                    if (!e.target) return;
+                    slicesAttrs.track_name = (
+                      e.target as HTMLInputElement
+                    ).value.trim();
+                  },
+                }),
+              ),
+            );
+          },
+        };
+      }
+
+      const content = () => m(Operations);
+
+      showModal({
+        title: `Slices source`,
+        buttons: [
+          {
+            text: 'Add node',
+            action: f,
+          },
+        ],
+        content,
+      });
+    }
+
+    function sqlSourceModal(attrs: SqlSourceAttrs, f: () => void) {
+      function Operations() {
+        return {
+          view: () => {
+            return m(
+              '',
+              m(
+                '',
+                'Preamble',
+                m(TextInput, {
+                  id: 'preamble',
+                  type: 'string',
+                  oninput: (e: KeyboardEvent) => {
+                    if (!e.target) return;
+                    attrs.preamble = (
+                      e.target as HTMLInputElement
+                    ).value.trim();
+                  },
+                }),
+              ),
+              m(
+                '',
+                'Sql ',
+                m(TextInput, {
+                  id: 'sql_source',
+                  type: 'string',
+                  oninput: (e: KeyboardEvent) => {
+                    if (!e.target) return;
+                    attrs.sql = (e.target as HTMLInputElement).value
+                      .trim()
+                      .split(';')[0];
+                  },
+                }),
+              ),
+              m(
+                '',
+                'Column names (comma separated strings) ',
+                m(TextInput, {
+                  id: 'columns',
+                  type: 'string',
+                  oninput: (e: KeyboardEvent) => {
+                    if (!e.target) return;
+                    const colsStr = (e.target as HTMLInputElement).value.trim();
+                    attrs.columns = [];
+                    colsStr.split(',').forEach((col) => {
+                      if (!attrs.columns) {
+                        attrs.columns = [];
+                      }
+                      attrs.columns.push(col.trim());
+                    });
+                  },
+                }),
+              ),
+            );
+          },
+        };
+      }
+
+      const content = () => m(Operations);
+
+      showModal({
+        title: `Sql source`,
         buttons: [
           {
             text: 'Add node',

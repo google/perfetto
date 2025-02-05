@@ -16,6 +16,7 @@ import {LegacyTableColumn, LegacyTableColumnSet} from './column';
 
 export interface SqlTableDescription {
   readonly imports?: string[];
+  readonly prefix?: string; // prefix for ctes
   name: string;
   // In some cases, the name of the table we are querying is different from the name of the table we want to display to the user -- typically because the underlying table is wrapped into a view.
   displayName?: string;

@@ -72,6 +72,15 @@ gn_args_win_base = {
 }
 gn_args_win = ' '.join((map(lambda x:'='.join(x), gn_args_win_base.items())))
 
+gn_args_android_base = {
+    **gn_args_base,
+    'target_os': '"android"',
+    'enable_perfetto_android_java_sdk': 'true',
+    'is_cross_compiling': 'false',
+}
+gn_args_android = ' '.join(
+    (map(lambda x: '='.join(x), gn_args_android_base.items())))
+
 # Default targets to translate to the blueprint file.
 
 # These targets will be exported with public visibility in the generated BUILD.
@@ -105,6 +114,10 @@ default_targets = [
     '//src/trace_processor/rpc:trace_processor_rpc',
     '//test:client_api_example',
 ] + public_targets + allowlist_public_targets
+
+default_android_targets = [
+    '//src/java_sdk/main:perfetto_java_sdk_app',
+]
 
 # Proto target groups which will be made public.
 proto_groups = {
@@ -377,6 +390,10 @@ class BazelLabel(object):
     self.root_dir: Optional[str] = None
     self.namespace: Optional[str] = None
     self.tags: List[str] = []
+    self.binary_name: Optional[str] = None
+    self.linkopts: List[str] = []
+    self.manifest: Optional[str] = None
+    self.resource_files: Optional[str] = None
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
@@ -392,8 +409,9 @@ class BazelLabel(object):
     res += '%s(\n' % self.type
     any_deps = len(self.deps) + len(self.external_deps) > 0
     ORD = [
-        'name', 'srcs', 'hdrs', 'defines', 'visibility', 'data', 'deps', 'outs',
-        'cmd', 'tools', 'exports', 'main', 'python_version'
+        'name', 'srcs', 'binary_name', 'linkopts', 'manifest', 'resource_files',
+        'hdrs', 'defines', 'visibility', 'data', 'deps', 'outs', 'cmd', 'tools',
+        'exports', 'main', 'python_version'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
@@ -663,6 +681,24 @@ def gen_cc_tp_tables(target: GnParser.Target):
   label.outs += target.outputs
   return [label]
 
+def gen_perfetto_android_library(target: GnParser.Target):
+  label = BazelLabel(get_bazel_label_name(target.name),
+                     'perfetto_android_library')
+  label.comment = target.name
+  label.srcs += (gn_utils.label_to_path(x) for x in target.sources)
+  label.deps += sorted(':' + get_bazel_label_name(x.name) for x in target.deps)
+  label.manifest = target.manifest
+  return [label]
+
+def gen_perfetto_android_binary(target: GnParser.Target):
+  label = BazelLabel(get_bazel_label_name(target.name),
+                     'perfetto_android_binary')
+  label.comment = target.name
+  label.srcs += (gn_utils.label_to_path(x) for x in target.sources)
+  label.deps += sorted(':' + get_bazel_label_name(x.name) for x in target.deps)
+  label.manifest = target.manifest
+  label.resource_files = 'glob(["%s"])' % target.resource_files
+  return [label]
 
 def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = None):
   if gn_target.type == 'proto_library':
@@ -678,6 +714,10 @@ def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = 
       return gen_cc_proto_descriptor(gn_target)
     if gn_target.custom_action_type == 'tp_tables':
       return gen_cc_tp_tables(gn_target)
+    if gn_target.custom_action_type == 'perfetto_android_library':
+      return gen_perfetto_android_library(gn_target)
+    if gn_target.custom_action_type == 'perfetto_android_app':
+      return gen_perfetto_android_binary(gn_target)
     return []
   elif gn_target.type == 'group':
     return []
@@ -693,6 +733,13 @@ def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = 
     return []
   else:
     raise Error('target type not supported: %s' % gn_target.type)
+
+  custom_bazel_type = gn_target.custom_target_type()
+  if custom_bazel_type:
+    if custom_bazel_type == 'perfetto_android_jni_library':
+      bazel_type = custom_bazel_type
+    else:
+      raise Error('custom target type not supported: %s' % custom_bazel_type)
 
   label = BazelLabel(get_bazel_label_name(gn_target.name), bazel_type)
   label.comment = gn_target.name
@@ -729,6 +776,11 @@ def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = 
 
   if win_target:
     label.win_srcs = list(set(label.srcs) & {s[2:] for s in win_target.sources | win_target.inputs})
+
+  if bazel_type == 'perfetto_android_jni_library':
+    label.tags += ['notap'] # This tag is needed to build in google3.
+    label.binary_name = gn_target.binary_name()
+    label.linkopts = gn_target.linkopts()
 
   if gn_target.type in gn_utils.LINKER_UNIT_TYPES:
     # |source_sets| contains the transitive set of source_set deps.
@@ -801,9 +853,10 @@ def gen_target_str(gn_target, win_target: GnParser.Target = None):
   return ''.join(str(x) for x in gen_target(gn_target, win_target))
 
 
-def generate_build(gn_desc, gn_desc_win, targets, extras):
+def generate_build(gn_desc, gn_desc_win, gn_desc_android, targets, extras):
   gn = gn_utils.GnParser(gn_desc)
   gn_win = gn_utils.GnParser(gn_desc_win)
+  gn_android = gn_utils.GnParser(gn_desc_android)
   project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
   tool_name = os.path.relpath(os.path.abspath(__file__), project_root)
   tool_name = tool_name.replace('\\', '/')
@@ -848,6 +901,9 @@ load(
     "perfetto_py_library",
     "perfetto_py_proto_library",
     "perfetto_jspb_proto_library",
+    "perfetto_android_binary",
+    "perfetto_android_jni_library",
+    "perfetto_android_library",
 )
 
 package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])
@@ -886,6 +942,26 @@ exports_files(["NOTICE"])
     if target.name in default_targets or target.name in gn.proto_libs:
       continue
     res += gen_target_str(target, gn_win.get_target(target.name))
+
+  res += '''
+# ##############################################################################
+# Android Java SDK targets
+# ##############################################################################
+
+'''.lstrip()
+
+  # Populate android deps first.
+  for target_name in sorted(default_android_targets):
+    gn_android.get_target(target_name)
+
+  android_only_targets = gn_android.all_targets.keys() - gn.all_targets.keys()
+
+  android_str = ''
+  for target_name in sorted(android_only_targets):
+    target = gn_android.get_target(target_name)
+    android_str += gen_target_str(target)
+
+  res += android_str
 
   res += '''
 # ##############################################################################
@@ -973,13 +1049,17 @@ def main():
     desc = gn_utils.create_build_description(gn_args, args.repo_root)
 
   desc_win = gn_utils.create_build_description(gn_args_win, args.repo_root)
+
+  desc_android = gn_utils.create_build_description(gn_args_android,
+                                                   args.repo_root)
   out_files = []
 
   # Generate the main BUILD file.
   with open(args.extras, 'r') as extra_f:
     extras = extra_f.read()
 
-  contents = generate_build(desc, desc_win, args.targets or default_targets, extras)
+  contents = generate_build(desc, desc_win, desc_android,
+                            args.targets or default_targets, extras)
   out_files.append(args.output + '.swp')
   with open(out_files[-1], 'w', newline='\n') as out_f:
     out_f.write(contents)

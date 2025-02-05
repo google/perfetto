@@ -94,8 +94,9 @@ WITH
             FROM stack_profile_symbol s
             WHERE s.symbol_set_id = sfp.symbol_set_id
           ) AS inline_count
-        FROM stack_profile_callsite sfc, stack_profile_frame AS spf
-        ON (c.frame_id = spf.id)
+        FROM stack_profile_callsite spc
+        JOIN stack_profile_frame AS spf
+          ON (spc.frame_id = spf.id)
       )
   ),
   callsite_recursive AS (
@@ -105,17 +106,18 @@ WITH
       spc.parent_id,
       spc.frame_id
     FROM
-      (SELECT DISTINCT callsite_id, utid FROM perf_sample) s,
-      stack_profile_callsite spc
-    ON (spc.id = s.callsite_id)
+      (SELECT DISTINCT callsite_id, utid FROM perf_sample) s
+      JOIN stack_profile_callsite spc
+        ON spc.id = s.callsite_id
     UNION ALL
     SELECT
       child.utid,
       parent.id,
       parent.parent_id,
       parent.frame_id
-    FROM callsite_recursive AS child, stack_profile_callsite AS parent
-    ON (child.parent_id = parent.id)
+    FROM callsite_recursive AS child
+    JOIN stack_profile_callsite AS parent
+      ON child.parent_id = parent.id
   ),
   unique_callsite AS (
     SELECT DISTINCT * FROM callsite_recursive
@@ -129,8 +131,9 @@ WITH
       COALESCE(s.name, spf.name, '') AS name,
       COALESCE(s.inline_depth, 0) AS inline_depth,
       COALESCE(s.max_inline_depth, 0) AS max_inline_depth
-    FROM unique_callsite c, stack_profile_frame AS spf
-    ON (c.frame_id = spf.id)
+    FROM unique_callsite c
+    JOIN stack_profile_frame AS spf
+      ON (c.frame_id = spf.id)
     LEFT JOIN symbol s
       USING (symbol_set_id)
   )
@@ -164,9 +167,9 @@ WITH
       s.ts AS time,
       t.stack_table_index AS stack
     FROM
-      perf_sample AS s,
-      _export_to_firefox_table AS t
-    USING (utid, callsite_id)
+      perf_sample AS s
+      JOIN _export_to_firefox_table AS t
+        USING (utid, callsite_id)
     WHERE utid = $utid AND t.is_most_inlined
   )
 SELECT
@@ -355,8 +358,9 @@ SELECT
     -- isPrivateBrowsing?: boolean
     -- userContextId?: number
   )
-FROM thread, process
-USING (upid)
+FROM thread
+JOIN process
+  USING (upid)
 WHERE utid = $utid;
 
 -- Returns an array of `Thread` instances as defined in

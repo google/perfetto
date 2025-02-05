@@ -23,12 +23,14 @@ import {NodeType, QueryNode} from '../../query_state';
 import {
   ColumnController,
   ColumnControllerDiff,
-  ColumnControllerRows,
+  ColumnControllerRow,
+  columnControllerRowFromSqlColumn,
 } from '../column_controller';
 import {CheckboxAttrs, Checkbox} from '../../../../widgets/checkbox';
 import {Section} from '../../../../widgets/section';
 import {Select} from '../../../../widgets/select';
 import {TextParagraph} from '../../../../widgets/text_paragraph';
+import protos from '../../../../protos';
 
 export interface JoinOperationAttrs {
   readonly sqlModules: SqlModules;
@@ -44,19 +46,22 @@ export class JoinState implements QueryNode {
   dataName = undefined;
   cte: boolean;
   imports?: string[];
-  columns?: ColumnControllerRows[];
+  columns?: ColumnControllerRow[];
 
   joinColumn?: SqlColumn;
 
   secondaryTable?: SqlTable;
   secondaryJoinColumn?: SqlColumn;
 
-  primaryColumnsPicked?: ColumnControllerRows[];
-  secondaryColumnsPicked?: ColumnControllerRows[];
+  primaryColumnsPicked?: ColumnControllerRow[];
+  secondaryColumnsPicked?: ColumnControllerRow[];
 
   constructor(prevNode: QueryNode) {
     this.prevNode = prevNode;
     this.cte = false;
+  }
+  getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
+    throw new Error('Method not implemented.');
   }
 
   getTitle(): string {
@@ -64,17 +69,6 @@ export class JoinState implements QueryNode {
       return '';
     }
     return `JOIN with ${this.secondaryTable.name}`;
-  }
-
-  getSourceSql(): string | undefined {
-    if (
-      this.primaryColumnsPicked === undefined ||
-      this.secondaryColumnsPicked === undefined
-    ) {
-      return;
-    }
-
-    return `JOIN ${this.secondaryTable?.name} ON ${this.prevNode.dataName}.${this.joinColumn?.name}=${this.secondaryTable?.name}.${this.secondaryJoinColumn?.name}`;
   }
 
   validate(): boolean {
@@ -166,8 +160,8 @@ export class QueryBuilderJoin implements m.ClassComponent<JoinOperationAttrs> {
 
       if (attrs.joinState.secondaryColumnsPicked === undefined) {
         attrs.joinState.secondaryColumnsPicked =
-          attrs.joinState.secondaryTable.columns.map(
-            (c) => new ColumnControllerRows(c),
+          attrs.joinState.secondaryTable.columns.map((c) =>
+            columnControllerRowFromSqlColumn(c),
           );
         attrs.joinState.secondaryColumnsPicked.map(
           (c) => (c.source = attrs.joinState.secondaryTable?.name),
@@ -385,7 +379,7 @@ class SecondaryTableAndColumnSelector
   }
 }
 
-function getJoinIdColumns(cols: ColumnControllerRows[]): SqlColumn[] {
+function getJoinIdColumns(cols: ColumnControllerRow[]): SqlColumn[] {
   return cols
     .filter((c) => c.checked && c.column.type.shortName === 'joinid')
     .map((c) => c.column);
@@ -411,13 +405,13 @@ function getLinkedIdColumn(
   return;
 }
 
-function getPickedColumnNames(rows: ColumnControllerRows[]): string[] {
+function getPickedColumnNames(rows: ColumnControllerRow[]): string[] {
   return rows.filter((col) => col.checked).map((col) => col.column.name);
 }
 
 function findNameCollisions(
-  primaryCols: ColumnControllerRows[],
-  secondaryCols: ColumnControllerRows[],
+  primaryCols: ColumnControllerRow[],
+  secondaryCols: ColumnControllerRow[],
 ): string[] {
   const primaryNames = new Set(getPickedColumnNames(primaryCols));
   return secondaryCols

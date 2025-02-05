@@ -60,7 +60,77 @@ MATCHER_P(EqualsIgnoringWhitespace, param, "") {
   return RemoveAllWhitespace(arg) == RemoveAllWhitespace(param);
 }
 
-TEST(StructuredQueryGeneratorTest, Smoke) {
+TEST(StructuredQueryGeneratorTest, Operations) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "thread_slice_cpu_time"
+      module_name: "linux.memory.process"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: EQUAL
+      string_rhs: "bar"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: NOT_EQUAL
+      string_rhs: "bar"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: LESS_THAN
+      string_rhs: "bar"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: LESS_THAN_EQUAL
+      string_rhs: "bar"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: GREATER_THAN
+      string_rhs: "bar"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: GREATER_THAN_EQUAL
+      string_rhs: "bar"
+    }
+    filters: {
+      column_name: "thread_name"
+      op: IS_NULL
+    }
+    filters: {
+      column_name: "thread_name"
+      op: IS_NOT_NULL
+    }
+    filters: {
+      column_name: "thread_name"
+      op: GLOB
+      string_rhs: "bar"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS
+    (
+        SELECT * FROM thread_slice_cpu_time
+        WHERE thread_name = 'bar'
+        AND thread_name != 'bar'
+        AND thread_name < 'bar'
+        AND thread_name <= 'bar'
+        AND thread_name > 'bar'
+        AND thread_name >= 'bar'
+        AND thread_name IS NULL
+        AND thread_name IS NOT NULL
+        AND thread_name GLOB 'bar'
+      ) SELECT * FROM sq_0
+    )"));
+}
+
+TEST(StructuredQueryGeneratorTest, TableSource) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
     table: {
@@ -81,8 +151,10 @@ TEST(StructuredQueryGeneratorTest, Smoke) {
   ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
                 WITH sq_0 AS (
                   SELECT
-                    process_name AS process_name,
-                    SUM(rss_and_swap * dur) / SUM(dur) AS avg_rss_and_swap
+                    process_name,
+                    SUM(
+                      cast_double!(rss_and_swap * dur)) / cast_double!(SUM(dur))
+                      AS avg_rss_and_swap
                   FROM memory_rss_and_swap_per_process
                   GROUP BY process_name
                 )
@@ -92,7 +164,95 @@ TEST(StructuredQueryGeneratorTest, Smoke) {
               UnorderedElementsAre("linux.memory.process"));
 }
 
-TEST(StructuredQueryGeneratorTest, Smoke2) {
+TEST(StructuredQueryGeneratorTest, GroupBySelectColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "memory_rss_and_swap_per_process"
+      module_name: "linux.memory.process"
+    }
+    group_by: {
+      column_names: "process_name"
+      aggregates: {
+        column_name: "rss_and_swap"
+        op: DURATION_WEIGHTED_MEAN
+        result_column_name: "avg_rss_and_swap"
+      }
+    }
+    select_columns: {column_name: "process_name"}
+    select_columns: {
+      column_name: "avg_rss_and_swap"
+      alias : "cheese"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+                WITH sq_0 AS (
+                  SELECT
+                    process_name,
+                    SUM(
+                    cast_double!(rss_and_swap * dur))
+                    / cast_double!(SUM(dur)) AS cheese
+                  FROM memory_rss_and_swap_per_process
+                  GROUP BY process_name
+                )
+                SELECT * FROM sq_0
+              )"));
+  ASSERT_THAT(gen.ComputeReferencedModules(),
+              UnorderedElementsAre("linux.memory.process"));
+}
+
+TEST(StructuredQueryGeneratorTest, SqlSource) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "SELECT id, ts, dur FROM slice"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM (
+        SELECT id, ts, dur
+        FROM (SELECT id, ts, dur FROM slice)
+      )
+    )
+    SELECT * FROM sq_0
+    )"));
+}
+
+TEST(StructuredQueryGeneratorTest, SqlSourceWithPreamble) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "SELECT id, ts, dur FROM slice"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+      preamble: "SELECT 1; SELECT 2;"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM (
+        SELECT id, ts, dur
+        FROM (SELECT id, ts, dur FROM slice)
+      )
+    )
+    SELECT * FROM sq_0
+    )"));
+  ASSERT_THAT(gen.ComputePreambles(),
+              UnorderedElementsAre("SELECT 1; SELECT 2;"));
+}
+
+TEST(StructuredQueryGeneratorTest, IntervalIntersectSource) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
     interval_intersect: {
@@ -127,9 +287,16 @@ TEST(StructuredQueryGeneratorTest, Smoke2) {
   ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
                 WITH sq_2 AS (
                   SELECT * FROM (
-                    SELECT *
+                    SELECT
+                      id,
+                      ts,
+                      dur,
+                      name AS slice_name,
+                      thread_name,
+                      process_name,
+                      track_name
                     FROM _slice_with_thread_and_process_info
-                    WHERE name GLOB 'baz'
+                    WHERE slice_name GLOB 'baz'
                       AND process_name GLOB 'system_server'
                   )
                 ),
@@ -154,6 +321,37 @@ TEST(StructuredQueryGeneratorTest, Smoke2) {
   ASSERT_THAT(gen.ComputeReferencedModules(),
               UnorderedElementsAre("intervals.intersect",
                                    "linux.memory.process", "slices.slices"));
+}
+
+TEST(StructuredQueryGeneratorTest, ColumnSelection) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    id: "table_source_thread_slice"
+    table: {
+      table_name: "thread_slice"
+      module_name: "slices.with_context"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+    }
+    select_columns: {column_name: "id"}
+    select_columns: {
+      column_name: "dur"
+      alias: "cheese"
+    }
+    select_columns: {column_name: "ts"}
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+    WITH sq_table_source_thread_slice AS
+      (SELECT
+        id,
+        dur AS cheese,
+        ts
+      FROM thread_slice)
+    SELECT * FROM sq_table_source_thread_slice
+  )"));
 }
 
 }  // namespace

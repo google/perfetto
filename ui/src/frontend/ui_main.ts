@@ -43,6 +43,7 @@ import {NotesEditorTab} from './notes_editor_tab';
 import {NotesListEditor} from './notes_list_editor';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
+import {Workspace} from '../public/workspace';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 
@@ -294,6 +295,27 @@ export class UiMainPerTrace implements m.ClassComponent {
         callback: () => trace.flows.moveByFocusedFlow('Backward'),
         defaultHotkey: '[',
       },
+
+      // Provides a test bed for resolving events using a SQL table name and ID
+      // which is used in deep-linking, amongst other places.
+      {
+        id: 'perfetto.SelectEventByTableNameAndId',
+        name: 'Select event by table name and ID',
+        callback: async () => {
+          const rootTableName = await trace.omnibox.prompt('Enter table name');
+          if (rootTableName === undefined) return;
+
+          const id = await trace.omnibox.prompt('Enter ID');
+          if (id === undefined) return;
+
+          const num = Number(id);
+          if (!isFinite(num)) return; // Rules out NaN or +-Infinity
+
+          trace.selection.selectSqlEvent(rootTableName, num, {
+            scrollToSelection: true,
+          });
+        },
+      },
       {
         id: 'perfetto.SelectAll',
         name: 'Select all',
@@ -365,21 +387,70 @@ export class UiMainPerTrace implements m.ClassComponent {
       },
       {
         id: 'perfetto.CopyPinnedToWorkspace',
-        name: 'Copy pinned tracks to new workspace',
-        callback: () => {
+        name: 'Copy pinned tracks to workspace',
+        callback: async () => {
           const pinnedTracks = trace.workspace.pinnedTracks;
           if (!pinnedTracks.length) {
             window.alert('No pinned tracks to copy');
             return;
           }
 
-          const ws = trace.workspaces.createEmptyWorkspace('Pinned Tracks');
+          const ws = await this.selectWorkspace(trace, 'Pinned tracks');
+          if (!ws) return;
+
           for (const pinnedTrack of pinnedTracks) {
             const clone = pinnedTrack.clone();
-            clone.removable = true;
             ws.addChildLast(clone);
           }
           trace.workspaces.switchWorkspace(ws);
+        },
+      },
+      {
+        id: 'perfetto.CopyFilteredToWorkspace',
+        name: 'Copy filtered tracks to workspace',
+        callback: async () => {
+          // Copies all filtered tracks as a flat list to a new workspace. This
+          // means parents are not included.
+          const tracks = trace.workspace.flatTracks.filter((track) =>
+            track.title.toLowerCase().includes(trace.tracks.trackFilterTerm),
+          );
+
+          if (!tracks.length) {
+            window.alert('No filtered tracks to copy');
+            return;
+          }
+
+          const ws = await this.selectWorkspace(trace, 'Filtered tracks');
+          if (!ws) return;
+
+          for (const track of tracks) {
+            const clone = track.clone();
+            ws.addChildLast(clone);
+          }
+          trace.workspaces.switchWorkspace(ws);
+        },
+      },
+      {
+        id: 'perfetto.CopySelectedTracksToWorkspace',
+        name: 'Copy selected tracks to workspace',
+        callback: async () => {
+          const selection = trace.selection.selection;
+
+          if (selection.kind !== 'area' || selection.trackUris.length === 0) {
+            window.alert('No selected tracks to copy');
+            return;
+          }
+
+          const workspace = await this.selectWorkspace(trace);
+          if (!workspace) return;
+
+          for (const uri of selection.trackUris) {
+            const node = trace.workspace.getTrackByUri(uri);
+            if (!node) continue;
+            const newNode = node.clone();
+            workspace.addChildLast(newNode);
+          }
+          trace.workspaces.switchWorkspace(workspace);
         },
       },
     ];
@@ -388,6 +459,30 @@ export class UiMainPerTrace implements m.ClassComponent {
     cmds.forEach((cmd) => {
       this.trash.use(trace.commands.registerCommand(cmd));
     });
+  }
+
+  // Selects a workspace or creates a new one.
+  private async selectWorkspace(
+    trace: TraceImpl,
+    newWorkspaceName = 'Untitled workspace',
+  ): Promise<Workspace | undefined> {
+    const options = trace.workspaces.all
+      .filter((ws) => ws.userEditable)
+      .map((ws) => ({title: ws.title, fn: () => ws}))
+      .concat([
+        {
+          title: 'New workspace...',
+          fn: () => trace.workspaces.createEmptyWorkspace(newWorkspaceName),
+        },
+      ]);
+
+    const result = await trace.omnibox.prompt('Select a workspace...', {
+      values: options,
+      getName: (ws) => ws.title,
+    });
+
+    if (!result) return undefined;
+    return result.fn();
   }
 
   private renderOmnibox(): m.Children {
