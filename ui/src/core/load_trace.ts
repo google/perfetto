@@ -15,6 +15,7 @@
 import {assertExists, assertTrue} from '../base/logging';
 import {time, Time, TimeSpan} from '../base/time';
 import {cacheTrace} from './cache_manager';
+import {Cpu} from '../base/multi_machine_trace';
 import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
@@ -498,13 +499,17 @@ async function getTraceTimeBounds(engine: Engine): Promise<TimeSpan> {
 }
 
 // TODO(hjd): When streaming must invalidate this somehow.
-async function getCpus(engine: Engine): Promise<number[]> {
-  const cpus = [];
+async function getCpus(engine: Engine): Promise<Cpu[]> {
+  const cpus: Cpu[] = [];
   const queryRes = await engine.query(
-    'select distinct(cpu) as cpu from sched order by cpu;',
+    `select ucpu, cpu, ifnull(machine_id, 0) as machine from cpu`,
   );
-  for (const it = queryRes.iter({cpu: NUM}); it.valid(); it.next()) {
-    cpus.push(it.cpu);
+  for (
+    const it = queryRes.iter({ucpu: NUM, cpu: NUM, machine: NUM});
+    it.valid();
+    it.next()
+  ) {
+    cpus.push(new Cpu(it.ucpu, it.cpu, it.machine));
   }
   return cpus;
 }
