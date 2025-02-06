@@ -31,7 +31,7 @@ set +e
 (
   mkdir /ci/ramdisk/chrome
   cd /ci/ramdisk/chrome
-  CHROME_VERSION=132.0.6834.83
+  CHROME_VERSION=133.0.6943.53
   curl -Ls -o chrome.deb https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${CHROME_VERSION}-1_amd64.deb
   dpkg-deb -x chrome.deb  .
 )
