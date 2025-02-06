@@ -106,7 +106,7 @@ static int RelayServiceMain(int argc, char** argv) {
     }
   }
 
-  if (!GetRelaySocket()) {
+  if (GetRelaySocket().empty()) {
     PrintUsage(argv[0]);
     return 1;
   }
@@ -158,7 +158,7 @@ static int RelayServiceMain(int argc, char** argv) {
   watchdog->Start();
 
   PERFETTO_ILOG("Started traced_relay, listening on %s, forwarding to %s",
-                GetProducerSocket(), GetRelaySocket());
+                GetProducerSocket(), GetRelaySocket().c_str());
 
   task_runner.Run();
   return 0;
