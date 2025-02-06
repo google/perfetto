@@ -90,19 +90,18 @@ class FuchsiaTraceParser : public FuchsiaRecordParser {
   TraceProcessorContext* const context_;
 
   // Interned string ids for record arguments.
-  StringId weight_id_;
-  StringId incoming_weight_id_;
-  StringId outgoing_weight_id_;
+  const StringId weight_id_;
+  const StringId incoming_weight_id_;
+  const StringId outgoing_weight_id_;
 
   // Interned string ids for the relevant thread states.
-  StringId running_string_id_;
-  StringId runnable_string_id_;
-  StringId preempted_string_id_;
-  StringId waking_string_id_;
-  StringId blocked_string_id_;
-  StringId suspended_string_id_;
-  StringId exit_dying_string_id_;
-  StringId exit_dead_string_id_;
+  const StringId running_string_id_;
+  const StringId runnable_string_id_;
+  const StringId waking_string_id_;
+  const StringId blocked_string_id_;
+  const StringId suspended_string_id_;
+  const StringId exit_dying_string_id_;
+  const StringId exit_dead_string_id_;
 
   // Map from tid to Thread.
   std::unordered_map<uint64_t, Thread> threads_;

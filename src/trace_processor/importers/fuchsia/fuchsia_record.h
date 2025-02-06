@@ -26,8 +26,8 @@ namespace perfetto {
 namespace trace_processor {
 
 struct FuchsiaThreadInfo {
-  uint64_t pid;
-  uint64_t tid;
+  uint64_t pid{0};
+  uint64_t tid{0};
 };
 
 // Data from a trace provider that is necessary for interpreting a binary

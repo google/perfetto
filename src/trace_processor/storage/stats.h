@@ -90,7 +90,12 @@ namespace perfetto::trace_processor::stats {
                                           kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_non_numeric_counters,         kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_timestamp_overflow,           kSingle,  kError,    kAnalysis, ""), \
+  F(fuchsia_record_read_error,            kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_invalid_event,                kSingle,  kError,    kAnalysis, ""), \
+  F(fuchsia_invalid_event_arg_type,       kSingle,  kError,    kAnalysis, ""), \
+  F(fuchsia_invalid_event_arg_name,       kSingle,  kError,    kAnalysis, ""), \
+  F(fuchsia_unknown_event_arg,            kSingle,  kError,    kAnalysis, ""), \
+  F(fuchsia_invalid_string_ref,           kSingle,  kError,    kAnalysis, ""), \
   F(gpu_counters_invalid_spec,            kSingle,  kError,    kAnalysis, ""), \
   F(gpu_counters_missing_spec,            kSingle,  kError,    kAnalysis, ""), \
   F(gpu_render_stage_parser_errors,       kSingle,  kError,    kAnalysis, ""), \
