@@ -91,11 +91,11 @@ export class VirtualOverlayCanvas
           overflowY:
             attrs.scrollAxes === 'both' || attrs.scrollAxes === 'y'
               ? 'auto'
-              : 'hidden',
+              : 'visible',
           overflowX:
             attrs.scrollAxes === 'both' || attrs.scrollAxes === 'x'
               ? 'auto'
-              : 'hidden',
+              : 'visible',
         },
       },
       m(
