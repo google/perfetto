@@ -42,9 +42,25 @@ export interface TraceProcessorConfig {
   ftraceDropUntilAllCpusValid: boolean;
 }
 
+const QUERY_LOG_BUFFER_SIZE = 100;
+
+interface QueryLog {
+  readonly tag?: string;
+  readonly query: string;
+  readonly startTime: number;
+  readonly endTime?: number;
+  readonly success?: boolean;
+}
+
 export interface Engine {
   readonly mode: EngineMode;
   readonly engineId: string;
+
+  /**
+   * A list of the most recent queries along with their start times, end times
+   * and success status (if completed).
+   */
+  readonly queryLog: ReadonlyArray<QueryLog>;
 
   /**
    * Execute a query against the database, returning a promise that resolves
@@ -125,6 +141,11 @@ export abstract class EngineBase implements Engine, Disposable {
   private _isMetatracingEnabled = false;
   private _numRequestsPending = 0;
   private _failed: string | undefined = undefined;
+  private _queryLog: Array<QueryLog> = [];
+
+  get queryLog(): ReadonlyArray<QueryLog> {
+    return this._queryLog;
+  }
 
   // TraceController sets this to raf.scheduleFullRedraw().
   onResponseReceived?: () => void;
@@ -427,13 +448,32 @@ export abstract class EngineBase implements Engine, Disposable {
     return result;
   }
 
+  private logQueryStart(
+    query: string,
+    tag?: string,
+  ): {
+    endTime?: number;
+    success?: boolean;
+  } {
+    const startTime = performance.now();
+    const queryLog: QueryLog = {query, tag, startTime};
+    this._queryLog.push(queryLog);
+    if (this._queryLog.length > QUERY_LOG_BUFFER_SIZE) {
+      this._queryLog.shift();
+    }
+    return queryLog;
+  }
+
   // Wraps .streamingQuery(), captures errors and re-throws with current stack.
   //
   // Note: This function is less flexible than .execute() as it only returns a
   // promise which must be unwrapped before the QueryResult may be accessed.
   async query(sqlQuery: string, tag?: string): Promise<QueryResult> {
+    const queryLog = this.logQueryStart(sqlQuery);
     try {
-      return await this.streamingQuery(sqlQuery, tag);
+      const result = await this.streamingQuery(sqlQuery, tag);
+      queryLog.success = true;
+      return result;
     } catch (e) {
       // Replace the error's stack trace with the one from here
       // Note: It seems only V8 can trace the stack up the promise chain, so its
@@ -441,7 +481,10 @@ export abstract class EngineBase implements Engine, Disposable {
       // See
       // https://docs.google.com/document/d/13Sy_kBIJGP0XT34V1CV3nkWya4TwYx9L3Yv45LdGB6Q
       captureStackTrace(e);
+      queryLog.success = false;
       throw e;
+    } finally {
+      queryLog.endTime = performance.now();
     }
   }
 
@@ -570,6 +613,10 @@ export class EngineProxy implements Engine, Disposable {
   private engine: EngineBase;
   private tag: string;
   private disposed = false;
+
+  get queryLog() {
+    return this.engine.queryLog;
+  }
 
   constructor(engine: EngineBase, tag: string) {
     this.engine = engine;
