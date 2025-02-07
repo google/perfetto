@@ -707,7 +707,7 @@ def gen_perfetto_android_library(target: GnParser.Target):
   label.srcs += (gn_utils.label_to_path(x) for x in target.sources)
   _populate_android_library_or_binary_deps(target, label)
   if target.manifest:
-    label.manifest = target.manifest
+    label.manifest = gn_utils.label_to_path(target.manifest)
   return [label]
 
 def gen_perfetto_android_binary(target: GnParser.Target):
@@ -717,9 +717,10 @@ def gen_perfetto_android_binary(target: GnParser.Target):
   label.srcs += (gn_utils.label_to_path(x) for x in target.sources)
   _populate_android_library_or_binary_deps(target, label)
   if target.manifest:
-    label.manifest = target.manifest
+    label.manifest = gn_utils.label_to_path(target.manifest)
   if target.resource_files:
-    label.resource_files = 'glob(["%s"])' % target.resource_files
+    label.resource_files = 'glob(["%s"])' % gn_utils.label_to_path(
+      target.resource_files)
   if target.instruments:
     label.instruments = ':' + get_bazel_label_name(target.instruments)
   return [label]
