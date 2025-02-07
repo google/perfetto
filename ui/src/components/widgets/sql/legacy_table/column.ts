@@ -97,6 +97,7 @@ function sqlColumnName(column: SqlColumn): string {
 // Interface which allows TableColumn and TableColumnSet to interact with the table (e.g. add filters, or run the query).
 export interface LegacyTableManager {
   addFilter(filter: Filter): void;
+  removeFilter(filter: Filter): void;
 
   trace: Trace;
   getSqlQuery(data: {[key: string]: SqlColumn}): string;
