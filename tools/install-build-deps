@@ -768,9 +768,9 @@ def Main():
   if not args.no_toolchain:
     deps += BUILD_DEPS_TOOLCHAIN_HOST
   if args.bazel:
-    # We build Android Java SDK using Bazel, so we need Android build deps
-    # to do build ":all" targets.
-    deps += BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID
+    # We build Android Java SDK using Bazel, so we need Android build and test
+    # deps to do build ":all" targets and run tests.
+    deps += BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
   if args.android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
   if args.linux_arm:
