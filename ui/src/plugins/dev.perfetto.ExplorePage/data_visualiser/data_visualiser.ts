@@ -30,7 +30,8 @@ import {AddChartMenuItem} from '../../../components/widgets/charts/add_chart_men
 import {exists} from '../../../base/utils';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {SqlTable} from '../../../components/widgets/sql/legacy_table/table';
-import {opToVisFilterOption, VisFilterOptions} from './filters';
+import {VisFilterOptions} from './filters';
+import {SqlTableState} from '../../../components/widgets/sql/legacy_table/state';
 
 export interface DataVisualiserState {
   queryNode?: QueryNode;
@@ -52,9 +53,8 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
     this.viewSource = new VisViewSource(attrs.trace, queryNode);
   }
 
-  private renderSqlTable() {
+  private renderSqlTable(sqlTableViewState?: SqlTableState) {
     const viewSource = this.viewSource;
-    const sqlTableViewState = this.viewSource?.visViews?.sqlTableState;
 
     if (viewSource === undefined || sqlTableViewState === undefined) return;
 
@@ -97,10 +97,41 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
               {
                 chartType: ChartType.BAR_CHART,
                 ...chartAttrs,
+                onIntervalSelection: (value) => {
+                  this.viewSource?.addFilterFromChart(
+                    VisFilterOptions['in'],
+                    columnAlias,
+                    value[columnAlias],
+                  );
+                },
+                onPointSelection: (item) => {
+                  this.viewSource?.addFilterFromChart(
+                    VisFilterOptions['equals to'],
+                    columnAlias,
+                    item.datum[columnAlias],
+                  );
+                },
               },
               {
                 chartType: ChartType.HISTOGRAM,
                 ...chartAttrs,
+                onIntervalSelection: (value) => {
+                  this.viewSource?.addFilterFromChart(
+                    VisFilterOptions['between'],
+                    columnAlias,
+                    value[columnAlias],
+                  );
+                },
+                onPointSelection: (item) => {
+                  this.viewSource?.addFilterFromChart(
+                    VisFilterOptions['between'],
+                    columnAlias,
+                    [
+                      item.datum[`bin_maxbins_10_${columnAlias}`],
+                      item.datum[`bin_maxbins_10_${columnAlias}_end`],
+                    ],
+                  );
+                },
               },
             ],
             addChart: (chart) => this.viewSource?.addChart(chart),
@@ -113,12 +144,8 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
             value,
           });
         },
-        extraRemoveFilterActions: (op, column, value) => {
-          this.viewSource?.removeFilter({
-            filterOption: opToVisFilterOption(op),
-            columnName: column,
-            value,
-          });
+        extraRemoveFilterActions: (filterSqlStr) => {
+          this.viewSource?.removeFilter(filterSqlStr);
         },
       }),
     );
@@ -149,13 +176,16 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
         onVisibilityChange: (visibility) => {
           this.visibility = visibility;
         },
-        drawerContent: 'Add Chart info goes here',
+        drawerContent:
+          this.viewSource?.visViews &&
+          Array.from(this.viewSource?.visViews.charts.values()).map((chart) => {
+            return this.renderRemovableChart(chart);
+          }),
       },
-      m('.pf-chart-card', this.renderSqlTable()),
-      this.viewSource?.visViews &&
-        Array.from(this.viewSource?.visViews.charts.values()).map((chart) => {
-          return this.renderRemovableChart(chart);
-        }),
+      m(
+        '.pf-chart-card',
+        this.renderSqlTable(this.viewSource?.visViews?.sqlTableState),
+      ),
     );
   }
 }

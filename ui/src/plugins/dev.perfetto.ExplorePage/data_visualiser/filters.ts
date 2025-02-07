@@ -32,8 +32,8 @@ export interface VisFilterOp extends Omit<LegacySqlTableFilterOp, 'label'> {
 
 export const VisFilterOptions: Record<string, VisFilterOp> = {
   ...LegacySqlTableFilterOptions,
-  between: {op: 'IN', label: 'in'},
-  in: {op: 'BETWEEN', label: 'between'},
+  in: {op: 'IN', label: 'in'},
+  between: {op: 'BETWEEN', label: 'between'},
 };
 
 export function opToVisFilterOption(filterOp: string) {
@@ -50,15 +50,11 @@ export function filterToSql(filter: VisFilter) {
   let filterValue: ColumnType | undefined;
   if (value !== undefined) {
     if (Array.isArray(value)) {
-      if (filterOption.op === 'in') {
-        filterValue = '(';
-        value.forEach(
-          (v, i) => (filterValue += `${v} ${i < value.length - 1 ? ',' : ''}`),
-        );
-        filterValue += ')';
+      if (filterOption.op.toLowerCase() === 'in') {
+        filterValue = `(${value.map((v) => `${sqliteString(v)}`).join(',')})`;
       }
 
-      if (filterOption.op === 'between') {
+      if (filterOption.op.toLowerCase() === 'between') {
         filterValue = `${value[0]} AND ${value[1]}`;
       }
     } else if (Number.isNaN(Number.parseFloat(value))) {
