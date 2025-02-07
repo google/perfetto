@@ -29,7 +29,7 @@ perfetto_android_library("perfetto_test_lib") {
 
 perfetto_android_app("perfetto_java_sdk_test_app") {
   deps = [ ":perfetto_test_lib" ]
-  manifest = "src/java_sdk/test/AndroidTestManifest.xml"
+  manifest = "AndroidTestManifest.xml"
   testonly = true
 }
 

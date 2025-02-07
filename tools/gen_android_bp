@@ -1088,8 +1088,9 @@ class AndroidJavaSDKModulesGenerator:
     module.jni_libs = [android_jni_lib_custom_target_name(target)
                        for target in jni_lib_targets]
 
-    module.manifest = target.manifest
-    module.resource_dirs = [target.resource_files.rstrip('/**/*')]
+    module.manifest = gn_utils.label_to_path(target.manifest)
+    module.resource_dirs = [
+        gn_utils.label_to_path(target.resource_files.rstrip('/**/*'))]
     module.jni_uses_platform_apis = True
     module.sdk_version = 30
     self.blueprint.add_module(module)
@@ -1107,7 +1108,7 @@ class AndroidJavaSDKModulesGenerator:
     module.static_libs = [self._bp_module_name_from_gn_target(dep)
                           for dep in non_jni_lib_deps]
 
-    module.manifest = target.manifest
+    module.manifest = gn_utils.label_to_path(target.manifest)
     module.sdk_version = 30
     self.blueprint.add_module(module)
     return module
