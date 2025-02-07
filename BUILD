@@ -3522,6 +3522,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/utils.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/device_infos.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/estimates.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/gpu/freq_idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/system_state.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/utils.sql",
     ],
