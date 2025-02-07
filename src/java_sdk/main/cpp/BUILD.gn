@@ -15,7 +15,7 @@
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/perfetto_android_sdk.gni")
 
-assert(perfetto_build_with_android || is_android)
+assert(enable_perfetto_android_java_sdk)
 
 perfetto_android_jni_library("perfetto_example_jni_lib") {
   sources = [

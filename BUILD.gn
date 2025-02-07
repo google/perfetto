@@ -143,7 +143,11 @@ if (enable_perfetto_integration_tests) {
 }
 
 if (enable_perfetto_android_java_sdk) {
-  all_targets += [ "src/java_sdk/main:perfetto_lib" ]
+  all_targets += [
+    "src/java_sdk/main:perfetto_java_sdk_app",
+    "src/java_sdk/test:perfetto_java_sdk_test_app",
+    "src/java_sdk/test:perfetto_java_sdk_instrumentation_test",
+  ]
 }
 
 if (enable_perfetto_trace_processor_json) {
