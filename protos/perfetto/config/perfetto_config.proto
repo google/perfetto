@@ -902,6 +902,23 @@ message ChromeConfig {
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
 
+// Begin of protos/perfetto/config/chrome/histogram_samples.proto
+
+message ChromiumHistogramSamplesConfig {
+  // Records when a value within the specified bounds [min_value, max_value] is
+  // emitted into a Chrome histogram.
+  message HistogramSample {
+    optional string histogram_name = 1;
+    optional int64 min_value = 2;
+    optional int64 max_value = 3;
+  }
+  // List of histograms to record. If no histogram is specified, all histograms
+  // are recorded.
+  repeated HistogramSample histograms = 1;
+}
+
+// End of protos/perfetto/config/chrome/histogram_samples.proto
+
 // Begin of protos/perfetto/config/chrome/system_metrics.proto
 
 message ChromiumSystemMetricsConfig {
@@ -3683,7 +3700,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 134
+// Next id: 135
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3846,6 +3863,10 @@ message DataSourceConfig {
 
   // Data source name: gpu.renderstages
   optional GpuRenderStagesConfig gpu_renderstages_config = 133 [lazy = true];
+
+  // Data source name: org.chromium.histogram_samples
+  optional ChromiumHistogramSamplesConfig chromium_histogram_samples = 134
+      [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
