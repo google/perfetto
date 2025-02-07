@@ -289,6 +289,7 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     type: 'perf_counter',
     topLevelGroup: 'HARDWARE',
     group: 'perf counters',
+    mode: 'rate',
   },
   {
     type: 'pixel_cpm_counters',
