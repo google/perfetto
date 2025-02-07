@@ -112,10 +112,6 @@ export class ScrollHelper {
   }
 
   private verticalScrollToTrack(trackUri: string, openGroup: boolean) {
-    // Scroll to the center rather than nearest because tracks can get hidden
-    // underneath sticky group headers.
-    const blockScrollMode = 'center';
-
     // Find the actual track node that uses that URI, we need various properties
     // from it.
     const trackNode = this.workspace.getTrackByUri(trackUri);
@@ -126,7 +122,7 @@ export class ScrollHelper {
     if (element) {
       // block: 'nearest' means that it will only scroll if the track is not
       // currently in view.
-      element.scrollIntoView({behavior: 'smooth', block: blockScrollMode});
+      element.scrollIntoView({behavior: 'smooth', block: 'nearest'});
       return;
     }
 
@@ -144,7 +140,7 @@ export class ScrollHelper {
       const container = trackNode.findClosestVisibleAncestor();
       document
         .getElementById(container.id)
-        ?.scrollIntoView({behavior: 'smooth', block: blockScrollMode});
+        ?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
     }
   }
 }
