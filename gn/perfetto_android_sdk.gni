@@ -58,7 +58,7 @@ template("perfetto_android_library") {
     metadata = {
       perfetto_action_type_for_generator = [ "perfetto_android_library" ]
       if (defined(manifest)) {
-        perfetto_android_manifest = [ manifest ]
+        perfetto_android_manifest = [ get_path_info(manifest, "abspath") ]
       }
     }
   }
@@ -86,9 +86,10 @@ template("perfetto_android_app") {
     outputs = [ out_path ]
     metadata = {
       perfetto_action_type_for_generator = [ "perfetto_android_app" ]
-      perfetto_android_manifest = [ manifest ]
+      perfetto_android_manifest = [ get_path_info(manifest, "abspath") ]
       if (defined(resource_files_glob)) {
-        perfetto_android_resource_files_glob = [ resource_files_glob ]
+        perfetto_android_resource_files_glob =
+            [ get_path_info(resource_files_glob, "abspath") ]
       }
     }
   }
