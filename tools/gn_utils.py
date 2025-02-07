@@ -504,12 +504,10 @@ class GnParser(object):
       manifest = target.metadata.get('perfetto_android_manifest')
       if manifest:
         target.manifest = manifest[0]
-        assert (target.manifest.startswith('src/'))
       resource_files = target.metadata.get(
           'perfetto_android_resource_files_glob')
       if resource_files:
         target.resource_files = resource_files[0]
-        assert (target.resource_files.startswith('src/'))
         assert (target.resource_files.endswith('/**/*'))
       a_i_t_app = target.metadata.get('perfetto_android_a_i_t_app')
       target.a_i_t_app = a_i_t_app[0] if a_i_t_app else None
