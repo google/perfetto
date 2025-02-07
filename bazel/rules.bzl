@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@perfetto//bazel:proto_gen.bzl", "proto_descriptor_gen", "proto_gen")
+load("@perfetto//bazel:run_ait_with_adb.bzl", "android_instrumentation_test")
 load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
 load("@rules_android//android:rules.bzl", "android_binary", "android_library")
 
@@ -160,6 +161,10 @@ def _perfetto_android_jni_library(
         srcs = [binary_target_name],
         target_compatible_with = ["@platforms//os:android"],
     )
+
+def perfetto_android_instrumentation_test(**kwargs):
+    if not _rule_override("android_instrumentation_test", **kwargs):
+        android_instrumentation_test(**kwargs)
 
 # +----------------------------------------------------------------------------+
 # | Misc rules.                                                                |
