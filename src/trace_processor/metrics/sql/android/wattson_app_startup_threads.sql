@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE android.startup.startups;
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.estimates;
 INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 
 DROP VIEW IF EXISTS _app_startup_window;

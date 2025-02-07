@@ -15,11 +15,11 @@
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
-INCLUDE PERFETTO MODULE wattson.cpu_freq;
+INCLUDE PERFETTO MODULE wattson.cpu.freq;
 
-INCLUDE PERFETTO MODULE wattson.cpu_hotplug;
+INCLUDE PERFETTO MODULE wattson.cpu.hotplug;
 
-INCLUDE PERFETTO MODULE wattson.cpu_idle;
+INCLUDE PERFETTO MODULE wattson.cpu.idle;
 
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 
