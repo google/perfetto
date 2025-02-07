@@ -117,6 +117,8 @@ default_targets = [
 
 default_android_targets = [
     '//src/java_sdk/main:perfetto_java_sdk_app',
+    '//src/java_sdk/test:perfetto_java_sdk_test_app',
+    '//src/java_sdk/test:perfetto_java_sdk_instrumentation_test',
 ]
 
 # Proto target groups which will be made public.
@@ -201,6 +203,10 @@ external_python_deps: Dict[str, List[str]] = {
     '//gn:protobuf_py': ['PERFETTO_CONFIG.deps.protobuf_py'],
     '//gn:tp_vendor_py': ['PERFETTO_CONFIG.deps.tp_vendor_py'],
     '//gn:tp_resolvers_py': ['PERFETTO_CONFIG.deps.tp_resolvers_py'],
+}
+
+external_java_android_sdk_deps: Dict[str, List[str]] = {
+    '//gn:android_test_common': ['PERFETTO_CONFIG.deps.android_test_common'],
 }
 
 # Additional arguments
@@ -394,6 +400,9 @@ class BazelLabel(object):
     self.linkopts: List[str] = []
     self.manifest: Optional[str] = None
     self.resource_files: Optional[str] = None
+    self.instruments: Optional[str] = None
+    self.app: Optional[str] = None
+    self.test_app: Optional[str] = None
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
@@ -410,8 +419,8 @@ class BazelLabel(object):
     any_deps = len(self.deps) + len(self.external_deps) > 0
     ORD = [
         'name', 'srcs', 'binary_name', 'linkopts', 'manifest', 'resource_files',
-        'hdrs', 'defines', 'visibility', 'data', 'deps', 'outs', 'cmd', 'tools',
-        'exports', 'main', 'python_version'
+        'instruments', 'hdrs', 'defines', 'visibility', 'data', 'deps', 'outs',
+        'cmd', 'tools', 'exports', 'main', 'python_version'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
@@ -681,13 +690,24 @@ def gen_cc_tp_tables(target: GnParser.Target):
   label.outs += target.outputs
   return [label]
 
+
+def _populate_android_library_or_binary_deps(target: GnParser.Target,
+    label: BazelLabel):
+  for dep in sorted(target.non_proto_or_source_set_deps()):
+    if dep.name in external_java_android_sdk_deps:
+      assert (isinstance(external_java_android_sdk_deps[dep.name], list))
+      label.external_deps += external_java_android_sdk_deps[dep.name]
+    else:
+      label.deps += [':' + get_bazel_label_name(dep.name)]
+
 def gen_perfetto_android_library(target: GnParser.Target):
   label = BazelLabel(get_bazel_label_name(target.name),
                      'perfetto_android_library')
   label.comment = target.name
   label.srcs += (gn_utils.label_to_path(x) for x in target.sources)
-  label.deps += sorted(':' + get_bazel_label_name(x.name) for x in target.deps)
-  label.manifest = target.manifest
+  _populate_android_library_or_binary_deps(target, label)
+  if target.manifest:
+    label.manifest = target.manifest
   return [label]
 
 def gen_perfetto_android_binary(target: GnParser.Target):
@@ -695,9 +715,21 @@ def gen_perfetto_android_binary(target: GnParser.Target):
                      'perfetto_android_binary')
   label.comment = target.name
   label.srcs += (gn_utils.label_to_path(x) for x in target.sources)
-  label.deps += sorted(':' + get_bazel_label_name(x.name) for x in target.deps)
-  label.manifest = target.manifest
-  label.resource_files = 'glob(["%s"])' % target.resource_files
+  _populate_android_library_or_binary_deps(target, label)
+  if target.manifest:
+    label.manifest = target.manifest
+  if target.resource_files:
+    label.resource_files = 'glob(["%s"])' % target.resource_files
+  if target.instruments:
+    label.instruments = ':' + get_bazel_label_name(target.instruments)
+  return [label]
+
+def gen_perfetto_android_instrumentation_test(target: GnParser.Target):
+  label = BazelLabel(get_bazel_label_name(target.name),
+                     'perfetto_android_instrumentation_test')
+  label.comment = target.name
+  label.app = get_bazel_label_name(target.a_i_t_app)
+  label.test_app = get_bazel_label_name(target.a_i_t_test_app)
   return [label]
 
 def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = None):
@@ -718,6 +750,8 @@ def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = 
       return gen_perfetto_android_library(gn_target)
     if gn_target.custom_action_type == 'perfetto_android_app':
       return gen_perfetto_android_binary(gn_target)
+    if gn_target.custom_action_type == 'perfetto_android_instrumentation_test':
+      return gen_perfetto_android_instrumentation_test(gn_target)
     return []
   elif gn_target.type == 'group':
     return []
@@ -904,6 +938,7 @@ load(
     "perfetto_android_binary",
     "perfetto_android_jni_library",
     "perfetto_android_library",
+    "perfetto_android_instrumentation_test",
 )
 
 package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])
