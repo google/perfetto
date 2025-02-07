@@ -138,8 +138,7 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
 #endif
   std::string relay_producer_socket;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  relay_producer_socket =
-      base::GetAndroidProp("persist.traced.relay_producer_port");
+  relay_producer_socket = base::GetAndroidProp("traced.relay_producer_port");
   // If a guest producer port is defined, then the relay endpoint should be
   // enabled regardless. This is used in cases where perf data is passed
   // from guest machines or the hypervisor to Android.
