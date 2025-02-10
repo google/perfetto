@@ -11,6 +11,7 @@
         debuggable: false
       }
       pid: 1000
+      android_user_id: 0
     }
     ts: 0
     dur: 115000000
@@ -37,6 +38,7 @@
         debuggable: false
       }
       pid: 1000
+      android_user_id: 0
     }
     ts: 0
     dur: 802000000

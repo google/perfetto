@@ -44,6 +44,7 @@ android_startup {
         debuggable: false
       }
       pid: 3
+      android_user_id: 0
     }
     report_fully_drawn {
       dur_ns: 198000000000
