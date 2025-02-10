@@ -238,6 +238,7 @@ WHERE t.name='Heap size (KB)';
 CREATE PERFETTO TABLE _gc_heap_allocated
 AS
 SELECT
+  upid,
   ts,
   ts - LAG(ts) OVER (PARTITION BY upid ORDER BY ts) as dur,
   value,
@@ -304,15 +305,131 @@ WITH
   ),
   gc_periods AS (
     SELECT
+      upid,
       gc_ts + gc_dur - LAG(gc_ts + gc_dur) OVER (PARTITION BY upid ORDER BY gc_ts) AS gc_period,
       min_heap_mb,
       max_heap_mb
     FROM combined_gcs
   )
 SELECT
+  upid,
   SUM(gc_period * min_heap_mb)/1e9 AS heap_live_mbs,
   SUM(gc_period * max_heap_mb)/1e9 AS heap_total_mbs
-FROM gc_periods where min_heap_mb IS NOT NULL;
+FROM gc_periods where min_heap_mb IS NOT NULL
+GROUP BY upid;
+
+-- Summary stats about how garbage collection is behaving for a process,
+-- including causes, costs and other information relevant for tuning the
+-- garbage collector.
+CREATE PERFETTO TABLE _android_garbage_collection_process_stats (
+  -- Upid of process the stats are for.
+  upid JOINID(process.id),
+  -- The start of the window of time that the stats cover in the trace.
+  ts TIMESTAMP,
+  -- The duration of the window of time that the stats cover in the trace.
+  dur DURATION,
+  -- Megabyte-seconds of heap size of the process, used in the calculation
+  -- of heap_size_mb.
+  heap_size_mbs DOUBLE,
+  -- Average heap size of the process, in MB.
+  heap_size_mb DOUBLE,
+  -- Total number of bytes allocated by the process in the window if interest.
+  heap_allocated_mb DOUBLE,
+  -- Rate of heap allocations in MB per second.
+  heap_allocation_rate DOUBLE,
+  -- Megabyte-seconds of live heap for processes that had GC events.
+  heap_live_mbs DOUBLE,
+  -- Megabyte-seconds of total heap for processes that had GC events.
+  heap_total_mbs DOUBLE,
+  -- Average heap utilization for the process.
+  heap_utilization DOUBLE,
+  -- CPU time spent running GC. Used in the calculation of gc_running_rate.
+  gc_running_dur DURATION,
+  -- CPU time spent doing GC, as a fraction of the duration of the trace.
+  -- This gives a sense of the battery cost of GC.
+  gc_running_rate DOUBLE,
+  -- A measure of how efficient GC is with respect to cpu, independent of how
+  -- aggressively GC is tuned. Larger values indicate more efficient GC, so
+  -- larger is better.
+  gc_running_efficiency DOUBLE,
+  -- Time GC is running in the process during startup of some other app. Used
+  -- in the calculation of gc_during_android_startup_rate.
+  gc_during_android_startup_dur DURATION,
+  -- Total startup time in the trace, used to normalize
+  -- the gc_during_android_startup_rate.
+  total_android_startup_dur DURATION,
+  -- Time GC in this process is running during app startup, as a fraction of
+  -- startup time in the trace. This gives a sense of how much potential
+  -- interference there is between GC and application startup.
+  gc_during_android_startup_rate DOUBLE,
+  -- A measure of how efficient GC is with regards to gc during application
+  -- startup, independent of how aggressively GC is tuned. Larger values
+  -- indicate more efficient GC, so larger is better.
+  gc_during_android_startup_efficiency DOUBLE
+  )
+AS
+WITH
+  gc_running_stats AS (
+    SELECT
+      upid,
+      SUM(gc_running_dur) AS gc_running_dur
+    FROM android_garbage_collection_events
+    GROUP BY upid
+  ),
+  heap_size_stats AS (
+    SELECT
+      upid,
+      SUM(allocated)/1e3 AS heap_allocated_mb,
+      SUM(value * dur)/(1e3 * 1e9) AS heap_size_mbs
+    FROM _gc_heap_allocated
+    GROUP BY upid
+  ),
+  gc_startup_stats AS (
+    SELECT
+      upid,
+      SUM(dur) AS gc_during_android_startup_dur
+    FROM _gc_during_android_startup
+    LEFT JOIN android_garbage_collection_events using (gc_id)
+    GROUP BY upid
+  ),
+  startup_stats AS (
+    SELECT
+      SUM(dur) AS total_android_startup_dur
+    FROM android_startups
+  ),
+  pre_normalized_stats AS (
+    SELECT *
+    FROM heap_size_stats
+    LEFT JOIN gc_running_stats using (upid)
+    LEFT JOIN gc_startup_stats using (upid)
+    LEFT JOIN _gc_heap_utilization using (upid)
+    JOIN _gc_stats_window, startup_stats
+  ),
+  normalized_stats AS (
+    SELECT
+      upid,
+      gc_running_dur * 1.0 / gc_stats_window_dur AS gc_running_rate,
+      gc_during_android_startup_dur * 1.0 / total_android_startup_dur AS gc_during_android_startup_rate,
+      heap_allocated_mb * 1e9 / gc_stats_window_dur AS heap_allocation_rate,
+      heap_size_mbs * 1e9 / gc_stats_window_dur AS heap_size_mb,
+      heap_live_mbs / heap_total_mbs AS heap_utilization
+    FROM pre_normalized_stats
+  )
+SELECT
+  upid,
+  gc_stats_window_start AS ts,
+  gc_stats_window_dur AS dur,
+  heap_size_mbs, heap_size_mb,
+  heap_allocated_mb, heap_allocation_rate,
+  heap_live_mbs, heap_total_mbs, heap_utilization,
+  gc_running_dur, gc_running_rate,
+  heap_allocation_rate * heap_utilization / (gc_running_rate * (1 - heap_utilization)) AS gc_running_efficiency,
+  gc_during_android_startup_dur,
+  total_android_startup_dur,
+  gc_during_android_startup_rate,
+  heap_allocation_rate * heap_utilization / (gc_during_android_startup_rate * (1 - heap_utilization)) AS gc_during_android_startup_efficiency
+FROM pre_normalized_stats
+JOIN normalized_stats using (upid);
 
 -- Summary stats about how garbage collection is behaving across the device,
 -- including causes, costs and other information relevant for tuning the
@@ -365,51 +482,26 @@ CREATE PERFETTO TABLE _android_garbage_collection_stats (
   )
 AS
 WITH
-  gc_running_stats AS (
+  base_stats AS (
     SELECT
-      SUM(gc_running_dur) AS gc_running_dur
-    FROM android_garbage_collection_events
-  ),
-  heap_size_stats AS (
-    SELECT
-      SUM(allocated)/1e3 AS heap_allocated_mb,
-      SUM(value * dur)/(1e3 * 1e9) AS heap_size_mbs
-    FROM _gc_heap_allocated
-  ),
-  gc_startup_stats AS (
-    SELECT
-      SUM(dur) AS gc_during_android_startup_dur
-    FROM _gc_during_android_startup
-  ),
-  startup_stats AS (
-    SELECT
-      SUM(dur) AS total_android_startup_dur
-    FROM android_startups
-  ),
-  pre_normalized_stats AS (
-    SELECT *
-    FROM _gc_stats_window, gc_running_stats, heap_size_stats,
-         gc_startup_stats, startup_stats, _gc_heap_utilization
-  ),
-  normalized_stats AS (
-    SELECT
-      gc_running_dur * 1.0 / gc_stats_window_dur AS gc_running_rate,
-      gc_during_android_startup_dur * 1.0 / total_android_startup_dur AS gc_during_android_startup_rate,
-      heap_allocated_mb * 1e9 / gc_stats_window_dur AS heap_allocation_rate,
-      heap_size_mbs * 1e9 / gc_stats_window_dur AS heap_size_mb,
-      heap_live_mbs / heap_total_mbs AS heap_utilization
-    FROM pre_normalized_stats
+      ts,
+      dur,
+      SUM(heap_size_mbs) AS heap_size_mbs,
+      SUM(heap_size_mb) AS heap_size_mb,
+      SUM(heap_allocated_mb) AS heap_allocated_mb,
+      SUM(heap_allocation_rate) AS heap_allocation_rate,
+      SUM(heap_live_mbs) AS heap_live_mbs,
+      SUM(heap_total_mbs) AS heap_total_mbs,
+      SUM(heap_live_mbs) / SUM(heap_total_mbs) AS heap_utilization,
+      SUM(gc_running_dur) AS gc_running_dur,
+      SUM(gc_running_rate) AS gc_running_rate,
+      SUM(gc_during_android_startup_dur) AS gc_during_android_startup_dur,
+      total_android_startup_dur,
+      SUM(gc_during_android_startup_rate) AS gc_during_android_startup_rate
+    FROM _android_garbage_collection_process_stats
   )
 SELECT
-  gc_stats_window_start AS ts,
-  gc_stats_window_dur AS dur,
-  heap_size_mbs, heap_size_mb,
-  heap_allocated_mb, heap_allocation_rate,
-  heap_live_mbs, heap_total_mbs, heap_utilization,
-  gc_running_dur, gc_running_rate,
+  *,
   heap_allocation_rate * heap_utilization / (gc_running_rate * (1 - heap_utilization)) AS gc_running_efficiency,
-  gc_during_android_startup_dur,
-  total_android_startup_dur,
-  gc_during_android_startup_rate,
   heap_allocation_rate * heap_utilization / (gc_during_android_startup_rate * (1 - heap_utilization)) AS gc_during_android_startup_efficiency
-FROM pre_normalized_stats, normalized_stats;
+FROM base_stats;
