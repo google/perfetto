@@ -52,12 +52,17 @@ export interface VirtualOverlayCanvasDrawContext {
   readonly canvasRect: Rect2D;
 }
 
+export type Overflow = 'hidden' | 'visible' | 'auto';
+
 export interface VirtualOverlayCanvasAttrs {
   // Additional class names applied to the root element.
   readonly className?: string;
 
-  // Which axes should be scrollable.
-  readonly scrollAxes?: 'none' | 'x' | 'y' | 'both';
+  // Overflow rules for the horizontal axis.
+  readonly overflowX?: Overflow;
+
+  // Overflow rules for the vertical axis.
+  readonly overflowY?: Overflow;
 
   // Access to the raf. If not supplied, the canvas won't be redrawn when
   // redraws are scheduled using the raf, only when the floating canvas moves
@@ -68,6 +73,19 @@ export interface VirtualOverlayCanvasAttrs {
   // Called when the canvas needs to be repainted due to a layout shift or
   // or resize.
   onCanvasRedraw?(ctx: VirtualOverlayCanvasDrawContext): void;
+}
+
+function getScrollAxesFromOverflow(x: Overflow, y: Overflow) {
+  if (x === 'auto' && y === 'auto') {
+    return 'both';
+  } else if (x === 'auto') {
+    return 'x';
+  } else if (y === 'auto') {
+    return 'y';
+  } else {
+    //
+    return 'none';
+  }
 }
 
 // This mithril component acts as scrolling container for tall and/or wide
@@ -83,19 +101,15 @@ export class VirtualOverlayCanvas
 
   view({attrs, children}: m.CVnode<VirtualOverlayCanvasAttrs>) {
     this.attrs = attrs;
+    const {overflowX = 'visible', overflowY = 'visible'} = attrs;
+
     return m(
       '.pf-virtual-overlay-canvas', // The scrolling container
       {
         className: attrs.className,
         style: {
-          overflowY:
-            attrs.scrollAxes === 'both' || attrs.scrollAxes === 'y'
-              ? 'auto'
-              : 'visible',
-          overflowX:
-            attrs.scrollAxes === 'both' || attrs.scrollAxes === 'x'
-              ? 'auto'
-              : 'visible',
+          overflowX,
+          overflowY,
         },
       },
       m(
@@ -115,6 +129,7 @@ export class VirtualOverlayCanvas
     const canvasContainerElement = toHTMLElement(
       assertExists(findRef(dom, CANVAS_CONTAINER_REF)),
     );
+    const {overflowX = 'visible', overflowY = 'visible'} = attrs;
 
     // Create the virtual canvas inside the canvas container element. We assume
     // the scrolling container is the root level element of this component so we
@@ -122,7 +137,7 @@ export class VirtualOverlayCanvas
     const virtualCanvas = new VirtualCanvas(canvasContainerElement, dom, {
       overdrawPx: CANVAS_OVERDRAW_PX,
       tolerancePx: CANVAS_TOLERANCE_PX,
-      overdrawAxes: attrs.scrollAxes,
+      overdrawAxes: getScrollAxesFromOverflow(overflowX, overflowY),
     });
     this.trash.use(virtualCanvas);
     this.virtualCanvas = virtualCanvas;
