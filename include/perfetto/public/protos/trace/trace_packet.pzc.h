@@ -32,6 +32,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSystemProperty);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BatteryCounters);
+PERFETTO_PB_MSG_DECL(perfetto_protos_BluetoothTraceEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeBenchmarkMetadata);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeMetadataPacket);
@@ -54,6 +55,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_HeapGraph);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InitialDisplayState);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InodeFileMap);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InternedData);
+PERFETTO_PB_MSG_DECL(perfetto_protos_KernelWakelockData);
 PERFETTO_PB_MSG_DECL(perfetto_protos_LayersSnapshotProto);
 PERFETTO_PB_MSG_DECL(perfetto_protos_MemoryTrackerSnapshot);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ModuleSymbols);
@@ -511,6 +513,21 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_PixelModemTokenDatabase,
                   pixel_modem_token_database,
                   111);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_Trigger,
+                  clone_snapshot_trigger,
+                  113);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_BluetoothTraceEvent,
+                  bluetooth_trace_event,
+                  114);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_KernelWakelockData,
+                  kernel_wakelock_data,
+                  115);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TestEvent,
