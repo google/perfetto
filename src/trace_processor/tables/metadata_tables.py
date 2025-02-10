@@ -61,6 +61,7 @@ PROCESS_TABLE = Table(
         C('parent_upid', CppOptional(CppSelfTableId())),
         C('uid', CppOptional(CppUint32())),
         C('android_appid', CppOptional(CppUint32())),
+        C('android_user_id', CppOptional(CppUint32())),
         C('cmdline', CppOptional(CppString())),
         C('arg_set_id', CppOptional(CppUint32())),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
@@ -114,6 +115,12 @@ PROCESS_TABLE = Table(
                     joinable='package_list.uid'),
             'android_appid':
                 'Android appid of this process.',
+            'android_user_id':
+                '''
+                Android user id running the process.
+                Related to Android multi-user (not to be confused with the
+                unix uid)
+                ''',
             'cmdline':
                 '/proc/cmdline for this process.',
             'arg_set_id':

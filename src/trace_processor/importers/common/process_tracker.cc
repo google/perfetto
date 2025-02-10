@@ -396,6 +396,7 @@ void ProcessTracker::SetProcessUid(UniquePid upid, uint32_t uid) {
   // The notion of the app ID (as derived from the uid) is defined in
   // frameworks/base/core/java/android/os/UserHandle.java
   rr.set_android_appid(uid % 100000);
+  rr.set_android_user_id(uid / 100000);
 }
 
 void ProcessTracker::SetProcessNameIfUnset(UniquePid upid,
