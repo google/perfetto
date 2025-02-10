@@ -41,6 +41,7 @@ export function createAndroidLogTrack(trace: Trace, uri: string) {
   return new DatasetSliceTrack({
     trace,
     uri,
+    rootTableName: 'android_logs',
     dataset: new SourceDataset({
       src: `
         select
