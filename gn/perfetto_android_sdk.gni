@@ -46,9 +46,10 @@ template("perfetto_android_library") {
   ]
   action(target_name) {
     forward_variables_from(invoker, _vars_to_forward)
-    out_path = "$target_gen_dir/" + target_name + "_stub.txt"
+    out_file_name = target_name + "_stub.txt"
+    out_path = "$target_gen_dir/" + out_file_name
     rebased_out_path =
-        rebase_path(target_gen_dir, root_build_dir) + "/" + target_name
+        rebase_path(target_gen_dir, root_build_dir) + "/" + out_file_name
     script = "$perfetto_root_path/tools/touch_file.py"
     args = [
       "--output",
@@ -75,9 +76,10 @@ template("perfetto_android_app") {
   ]
   action(target_name) {
     forward_variables_from(invoker, _vars_to_forward)
-    out_path = "$target_gen_dir/" + target_name + "_stub.txt"
+    out_file_name = target_name + "_stub.txt"
+    out_path = "$target_gen_dir/" + out_file_name
     rebased_out_path =
-        rebase_path(target_gen_dir, root_build_dir) + "/" + target_name
+        rebase_path(target_gen_dir, root_build_dir) + "/" + out_file_name
     script = "$perfetto_root_path/tools/touch_file.py"
     args = [
       "--output",
@@ -104,9 +106,10 @@ template("perfetto_android_instrumentation_test") {
   ]
   action(target_name) {
     forward_variables_from(invoker, _vars_to_forward)
-    out_path = "$target_gen_dir/" + target_name + "_stub.txt"
+    out_file_name = target_name + "_stub.txt"
+    out_path = "$target_gen_dir/" + out_file_name
     rebased_out_path =
-        rebase_path(target_gen_dir, root_build_dir) + "/" + target_name
+        rebase_path(target_gen_dir, root_build_dir) + "/" + out_file_name
     script = "$perfetto_root_path/tools/touch_file.py"
     args = [
       "--output",
