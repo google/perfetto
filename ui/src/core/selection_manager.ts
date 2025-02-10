@@ -245,6 +245,7 @@ export class SelectionManagerImpl implements SelectionManager {
     //    looking up the originating track in the map.
     // One flaw of this approach is that.
     const groups = new Map<string, [SourceDataset, TrackDescriptor][]>();
+    const tracksWithNoFilter: [SourceDataset, TrackDescriptor][] = [];
 
     this.trackManager
       .getAllTracks()
@@ -261,9 +262,20 @@ export class SelectionManagerImpl implements SelectionManager {
         if (col) {
           const existingGroup = getOrCreate(groups, col, () => []);
           existingGroup.push([dataset, track]);
+        } else {
+          tracksWithNoFilter.push([dataset, track]);
         }
-        // TODO(stevegolton): Support 'no filter' case
       });
+
+    // Run one query per no-filter track. This is the only way we can reliably
+    // keep track of which track the event belonged to.
+    for (const [dataset, track] of tracksWithNoFilter) {
+      const query = `select id from (${dataset.query()}) where id = ${id}`;
+      const result = await this.engine.query(query);
+      if (result.numRows() > 0) {
+        return {eventId: id, trackUri: track.uri};
+      }
+    }
 
     for (const [colName, values] of groups) {
       // Build a map of the values -> track uri
@@ -346,7 +358,11 @@ export class SelectionManagerImpl implements SelectionManager {
         });
         break;
       case 'log':
-        // TODO(stevegolton): Get log selection working.
+        this.selectSqlEvent('android_logs', eventId, {
+          clearSearch: false,
+          scrollToSelection: true,
+          switchToCurrentSelectionTab: true,
+        });
         break;
       case 'slice':
         // Search results only include slices from the slice table for now.
