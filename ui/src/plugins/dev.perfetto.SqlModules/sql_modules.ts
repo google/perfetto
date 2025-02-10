@@ -160,14 +160,14 @@ export interface SqlType {
 }
 
 export function SqlColumnAsSimpleColumn(col: SqlColumn, tableName: string) {
-  if (col.type.shortName === 'TIMESTAMP') {
+  if (col.type.shortName === 'timestamp') {
     return createTimestampColumn(col.name);
   }
-  if (col.type.shortName === 'DURATION') {
+  if (col.type.shortName === 'duration') {
     return createDurationColumn(col.name);
   }
 
-  if (col.type.shortName === 'ID') {
+  if (col.type.shortName === 'id') {
     switch (tableName.toLowerCase()) {
       case 'slice':
         return createSliceIdColumn(col.name);
@@ -183,7 +183,7 @@ export function SqlColumnAsSimpleColumn(col: SqlColumn, tableName: string) {
     return createStandardColumn(col.name);
   }
 
-  if (col.type.shortName === 'JOINID') {
+  if (col.type.shortName === 'joinid') {
     if (col.type.tableAndColumn === undefined) {
       return createStandardColumn(col.name);
     }
