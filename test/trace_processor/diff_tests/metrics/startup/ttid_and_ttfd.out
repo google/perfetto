@@ -59,6 +59,7 @@ android_startup {
         name: "androidx.benchmark.integration.macrobenchmark.target"
         uid: 10246
         pid: 22871
+        android_user_id: 0
     }
     report_fully_drawn {
         dur_ns: 543742658

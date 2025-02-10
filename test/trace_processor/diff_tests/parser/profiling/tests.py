@@ -117,6 +117,7 @@ class Profiling(TestSuite):
               name: "system_server"
               uid: 1000
               pid: 2
+              android_user_id: 0
             }
             mappings {
               path: "[anon: libc_malloc]"
