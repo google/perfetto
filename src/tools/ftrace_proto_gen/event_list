@@ -541,3 +541,4 @@ fs/do_sys_open
 fs/open_exec
 block/block_io_start
 block/block_io_done
+mali/gpu_power_state
