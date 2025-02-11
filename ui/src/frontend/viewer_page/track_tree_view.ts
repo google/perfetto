@@ -240,7 +240,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       {
         raf: attrs.trace.raf,
         className: classNames(className, 'pf-track-tree'),
-        scrollAxes: 'y',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {
           this.drawCanvas(
             ctx,
