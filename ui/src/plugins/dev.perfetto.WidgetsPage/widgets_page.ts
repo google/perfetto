@@ -1384,7 +1384,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
             VirtualOverlayCanvas,
             {
               className: 'virtual-canvas',
-              scrollAxes: 'y',
+              overflowY: 'auto',
               onCanvasRedraw({ctx, canvasRect}) {
                 ctx.strokeStyle = 'red';
                 ctx.lineWidth = 1;
