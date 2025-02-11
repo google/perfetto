@@ -356,9 +356,16 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     }
 
     const dpr = window.devicePixelRatio;
-    ctx.canvas.width = this.parentWidth * dpr;
-    ctx.canvas.height = this.canvasHeight * dpr;
+    ctx.canvas.width = Math.floor(this.parentWidth * dpr);
+    ctx.canvas.height = Math.floor(this.canvasHeight * dpr);
     ctx.scale(dpr, dpr);
+
+    // When using fractional scaling (e.g. 110%), Browsers may round sub-pixel
+    // values differently for canvases even if they are meant to have the same
+    // dimensions, which can lead to slight misalignments between multiple
+    // canvases. To enforce consistent alignment, we set the CSS width
+    // explicitly to the parent's width rounded down to an integer.
+    ctx.canvas.style.width = `${Math.floor(this.parentWidth)}px`;
   }
 
   private repositionCanvas() {
