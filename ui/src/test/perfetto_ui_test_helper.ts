@@ -123,4 +123,10 @@ export class PerfettoTestHelper {
     }
     return fPath;
   }
+
+  async clickMenuItem(text: string | RegExp) {
+    await this.page
+      .locator('.pf-popup-content .pf-menu-item', {hasText: text})
+      .click();
+  }
 }
