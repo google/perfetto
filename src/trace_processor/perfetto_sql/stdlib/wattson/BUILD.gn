@@ -25,7 +25,7 @@ perfetto_sql_source_set("wattson") {
     "cpu/split.sql",
     "cpu/w_cpu_dependence.sql",
     "cpu/w_dsu_dependence.sql",
-    "curves/device.sql",
+    "curves/device_cpu.sql",
     "curves/utils.sql",
     "device_infos.sql",
     "estimates.sql",
