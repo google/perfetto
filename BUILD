@@ -4428,6 +4428,9 @@ perfetto_android_library(
     deps = [
         ":src_java_sdk_main_cpp_perfetto_example_jni_lib",
     ],
+    tags = [
+        "notap",
+    ],
 )
 
 # GN target: //src/java_sdk/test:perfetto_java_sdk_instrumentation_test
@@ -4456,6 +4459,9 @@ perfetto_android_library(
     deps = [
         ":src_java_sdk_main_perfetto_lib",
     ] + PERFETTO_CONFIG.deps.android_test_common,
+    tags = [
+        "notap",
+    ],
 )
 
 # ##############################################################################
