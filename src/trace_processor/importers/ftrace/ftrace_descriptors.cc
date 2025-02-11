@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 548> descriptors{{
+std::array<FtraceMessageDescriptor, 549> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6062,6 +6062,16 @@ std::array<FtraceMessageDescriptor, 548> descriptors{{
             {"rwbs", ProtoSchemaType::kString},
             {"comm", ProtoSchemaType::kString},
             {"cmd", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "mali_gpu_power_state",
+        3,
+        {
+            {},
+            {"change_ns", ProtoSchemaType::kUint64},
+            {"from_state", ProtoSchemaType::kInt32},
+            {"to_state", ProtoSchemaType::kInt32},
         },
     },
 }};
