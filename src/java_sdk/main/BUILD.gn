@@ -15,19 +15,19 @@
 import("../../../gn/perfetto.gni")
 import("../../../gn/perfetto_android_sdk.gni")
 
-assert(is_android)
+assert(enable_perfetto_android_java_sdk)
 
 perfetto_android_library("perfetto_lib") {
   sources = [ "java/com/google/perfetto/sdk/PerfettoExampleWrapper.java" ]
   deps = [ "cpp:perfetto_example_jni_lib" ]
-  manifest = "src/java_sdk/main/LibraryAndroidManifest.xml"
+  manifest = "LibraryAndroidManifest.xml"
   testonly = true
 }
 
 perfetto_android_app("perfetto_java_sdk_app") {
   sources = [ "java/com/google/perfetto/sdk/MainActivity.java" ]
-  manifest = "src/java_sdk/main/AndroidManifest.xml"
-  resource_files_glob = "src/java_sdk/main/res/**/*"
+  manifest = "AndroidManifest.xml"
+  resource_files_glob = "res/**/*"
   deps = [ ":perfetto_lib" ]
   testonly = true
 }

@@ -57,6 +57,12 @@ PERFETTO_CONFIG = struct(
         protobuf_descriptor_proto = ["@com_google_protobuf//:descriptor_proto"],
         open_csd = ["@perfetto_dep_open_csd//:open_csd"],
 
+        android_test_common = [
+            "@maven//:androidx_test_runner",
+            "@maven//:androidx_test_monitor",
+            "@maven//:junit_junit",
+        ],
+
         # The Python targets are empty on the standalone build because we assume
         # any relevant deps are installed on the system or are not applicable.
         protobuf_py = [],
@@ -139,6 +145,7 @@ PERFETTO_CONFIG = struct(
         android_binary = None,
         android_library = None,
         android_jni_library = None,
+        android_instrumentation_test = None,
     ),
 
     # The default copts which we use to compile C++ code.

@@ -41,6 +41,7 @@ load(
     "perfetto_android_binary",
     "perfetto_android_jni_library",
     "perfetto_android_library",
+    "perfetto_android_instrumentation_test",
 )
 
 package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])
@@ -2643,54 +2644,20 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_metrics_sql_chrome_chrome_sql",
     srcs = [
-        "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
-        "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_args_class_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_summaries.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals_base.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals_template.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_long_tasks.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_long_tasks_delaying_input_processing.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_performance_mark_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_reliable_range.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_caused_by_scheduling.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_v3.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_slice_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_stack_samples_for_task.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_study_hashes.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks_delaying_input_processing.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks_delaying_input_processing_base.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks_delaying_input_processing_template.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_thread_slice.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_unsymbolized_args.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_user_event_hashes.sql",
-        "src/trace_processor/metrics/sql/chrome/cpu_time_by_category.sql",
-        "src/trace_processor/metrics/sql/chrome/cpu_time_by_rail_mode.sql",
-        "src/trace_processor/metrics/sql/chrome/estimated_power_by_category.sql",
-        "src/trace_processor/metrics/sql/chrome/estimated_power_by_rail_mode.sql",
-        "src/trace_processor/metrics/sql/chrome/experimental_reliable_chrome_tasks_delaying_input_processing.sql",
-        "src/trace_processor/metrics/sql/chrome/gesture_flow_event.sql",
-        "src/trace_processor/metrics/sql/chrome/gesture_flow_event_queuing_delay.sql",
-        "src/trace_processor/metrics/sql/chrome/gesture_jank.sql",
-        "src/trace_processor/metrics/sql/chrome/rail_modes.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_flow_event.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_flow_event_queuing_delay.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_blocking_task.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_blocking_touch_move.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_get_bitmap.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/sufficient_chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/test_chrome_metric.sql",
-        "src/trace_processor/metrics/sql/chrome/touch_flow_event.sql",
-        "src/trace_processor/metrics/sql/chrome/touch_flow_event_queuing_delay.sql",
-        "src/trace_processor/metrics/sql/chrome/touch_jank.sql",
     ],
 )
 
@@ -3333,6 +3300,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_level_parallelism.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_state_flattened.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/time_in_state.sql",
+        "src/trace_processor/perfetto_sql/stdlib/sched/with_context.sql",
     ],
 )
 
@@ -4462,6 +4430,34 @@ perfetto_android_library(
     ],
 )
 
+# GN target: //src/java_sdk/test:perfetto_java_sdk_instrumentation_test
+perfetto_android_instrumentation_test(
+    name = "src_java_sdk_test_perfetto_java_sdk_instrumentation_test",
+    app = "src_java_sdk_main_perfetto_java_sdk_app",
+    test_app = "src_java_sdk_test_perfetto_java_sdk_test_app",
+)
+
+# GN target: //src/java_sdk/test:perfetto_java_sdk_test_app
+perfetto_android_binary(
+    name = "src_java_sdk_test_perfetto_java_sdk_test_app",
+    manifest = "src/java_sdk/test/AndroidTestManifest.xml",
+    instruments = ":src_java_sdk_main_perfetto_java_sdk_app",
+    deps = [
+        ":src_java_sdk_test_perfetto_test_lib",
+    ],
+)
+
+# GN target: //src/java_sdk/test:perfetto_test_lib
+perfetto_android_library(
+    name = "src_java_sdk_test_perfetto_test_lib",
+    srcs = [
+        "src/java_sdk/test/java/com/google/perfetto/sdk/test/SimpleInstrumentationTest.java",
+    ],
+    deps = [
+        ":src_java_sdk_main_perfetto_lib",
+    ] + PERFETTO_CONFIG.deps.android_test_common,
+)
+
 # ##############################################################################
 # Proto libraries
 # ##############################################################################
@@ -5134,6 +5130,7 @@ perfetto_proto_library(
     name = "protos_perfetto_config_protos",
     srcs = [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/histogram_samples.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",

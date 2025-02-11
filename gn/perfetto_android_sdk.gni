@@ -46,9 +46,10 @@ template("perfetto_android_library") {
   ]
   action(target_name) {
     forward_variables_from(invoker, _vars_to_forward)
-    out_path = "$target_gen_dir/" + target_name + "_stub.txt"
+    out_file_name = target_name + "_stub.txt"
+    out_path = "$target_gen_dir/" + out_file_name
     rebased_out_path =
-        rebase_path(target_gen_dir, root_build_dir) + "/" + target_name
+        rebase_path(target_gen_dir, root_build_dir) + "/" + out_file_name
     script = "$perfetto_root_path/tools/touch_file.py"
     args = [
       "--output",
@@ -57,7 +58,9 @@ template("perfetto_android_library") {
     outputs = [ out_path ]
     metadata = {
       perfetto_action_type_for_generator = [ "perfetto_android_library" ]
-      perfetto_android_library_manifest = [ manifest ]
+      if (defined(manifest)) {
+        perfetto_android_manifest = [ get_path_info(manifest, "abspath") ]
+      }
     }
   }
 }
@@ -73,9 +76,10 @@ template("perfetto_android_app") {
   ]
   action(target_name) {
     forward_variables_from(invoker, _vars_to_forward)
-    out_path = "$target_gen_dir/" + target_name + "_stub.txt"
+    out_file_name = target_name + "_stub.txt"
+    out_path = "$target_gen_dir/" + out_file_name
     rebased_out_path =
-        rebase_path(target_gen_dir, root_build_dir) + "/" + target_name
+        rebase_path(target_gen_dir, root_build_dir) + "/" + out_file_name
     script = "$perfetto_root_path/tools/touch_file.py"
     args = [
       "--output",
@@ -84,8 +88,48 @@ template("perfetto_android_app") {
     outputs = [ out_path ]
     metadata = {
       perfetto_action_type_for_generator = [ "perfetto_android_app" ]
-      perfetto_android_library_manifest = [ manifest ]
-      perfetto_android_resource_files_glob = [ resource_files_glob ]
+      perfetto_android_manifest = [ get_path_info(manifest, "abspath") ]
+      if (defined(resource_files_glob)) {
+        perfetto_android_resource_files_glob =
+            [ get_path_info(resource_files_glob, "abspath") ]
+      }
+    }
+  }
+}
+
+template("perfetto_android_instrumentation_test") {
+  _vars_to_forward = [
+    "app",
+    "test_app",
+    "testonly",
+    "visibility",
+  ]
+  action(target_name) {
+    forward_variables_from(invoker, _vars_to_forward)
+    out_file_name = target_name + "_stub.txt"
+    out_path = "$target_gen_dir/" + out_file_name
+    rebased_out_path =
+        rebase_path(target_gen_dir, root_build_dir) + "/" + out_file_name
+    script = "$perfetto_root_path/tools/touch_file.py"
+    args = [
+      "--output",
+      rebased_out_path,
+    ]
+
+    # Build generators ignore this 'deps' variable and read metada instead.
+    # We create this variable to tell GN that this test depends on two android
+    # app targets and to maintain build graph connectivity.
+    deps = [
+      app,
+      test_app,
+    ]
+    outputs = [ out_path ]
+    metadata = {
+      perfetto_action_type_for_generator =
+          [ "perfetto_android_instrumentation_test" ]
+      perfetto_android_a_i_t_app = [ get_label_info(app, "label_no_toolchain") ]
+      perfetto_android_a_i_t_test_app =
+          [ get_label_info(test_app, "label_no_toolchain") ]
     }
   }
 }

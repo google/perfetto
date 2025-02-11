@@ -21,19 +21,18 @@ import {QueryNode} from '../query_state';
 import {
   buildFilterSqlClause,
   VisFilter,
-  VisFilterOptions,
   VisFilterOp,
   filterToSql,
 } from './filters';
 import {SqlTableState} from '../../../components/widgets/sql/legacy_table/state';
-import {FromSimpleColumn} from '../../../components/widgets/sql/legacy_table/column';
 import {SqlColumnAsSimpleColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 import {analyzeNode, Query} from '../query_builder/data_source_viewer';
-import {
-  VegaLiteFieldType,
-  VegaLiteSelectionTypes,
-} from '../../../components/widgets/vega_view';
 import {Item, SignalValue} from 'vega';
+import {getTableManager} from '../../../components/widgets/sql/legacy_table/table';
+import {
+  Filter,
+  FromSimpleColumn,
+} from '../../../components/widgets/sql/legacy_table/column';
 
 export interface VisViewAttrs {
   charts: Set<ChartAttrs>;
@@ -91,23 +90,10 @@ export class VisViewSource {
   }
 
   addFilterFromChart(
-    selectionType: VegaLiteSelectionTypes,
+    filterOption: VisFilterOp,
     fieldName: string,
-    fieldType: VegaLiteFieldType,
     filterVal: Item | SignalValue,
   ) {
-    let filterOption: VisFilterOp = VisFilterOptions.glob;
-
-    if (selectionType === 'interval') {
-      if (fieldType === 'nominal') {
-        filterOption = VisFilterOptions.in;
-      } else if (fieldType === 'quantitative') {
-        filterOption = VisFilterOptions.between;
-      }
-    } else if (selectionType === 'point') {
-      filterOption = VisFilterOptions.equals_to;
-    }
-
     this.addFilter({
       columnName: fieldName,
       value: filterVal,
@@ -116,31 +102,49 @@ export class VisViewSource {
   }
 
   addFilter(filter: VisFilter) {
+    const match = this.matchingFilter(filter);
+
+    if (match !== undefined) return;
+
     this._filters.add(filter);
     this.loadData();
   }
 
-  removeFilter(filter: VisFilter) {
-    this._filters.forEach((visFilter) => {
-      if (filterToSql(filter) === filterToSql(visFilter)) {
-        this._filters.delete(visFilter);
-      }
-    });
+  removeFilter(filter: VisFilter | string) {
+    const match = this.matchingFilter(filter);
+
+    if (match === undefined) return;
+
+    this._filters.delete(match);
     this.loadData();
   }
 
+  private matchingFilter(f: VisFilter | string) {
+    let match;
+
+    Array.from(this._filters.values()).forEach((visFilter) => {
+      const filterStr = typeof f === 'string' ? f : filterToSql(f);
+
+      if (filterStr === filterToSql(visFilter)) {
+        match = visFilter;
+      }
+    });
+
+    return match;
+  }
+
   private async loadData() {
-    const query = this._baseQuery;
+    let query = this._baseQuery?.sql;
 
     if (query === undefined) return;
 
     if (this._filters.size > 0) {
-      query.sql += `WHERE ${buildFilterSqlClause(Array.from(this._filters.values()))}`;
+      query += `\n WHERE ${buildFilterSqlClause(Array.from(this._filters.values()))}`;
     }
 
-    if (query.sql === this._fullQuery) return;
+    if (query === this._fullQuery) return;
 
-    this._fullQuery = query.sql;
+    this._fullQuery = query;
 
     this.asyncLimiter.schedule(async () => {
       if (this._fullQuery === undefined) {
@@ -168,7 +172,6 @@ export class VisViewSource {
 
   private updateViews(data?: Row[], columns?: string[]) {
     const queryNodeColumns = this.queryNode.columns;
-    this.loadBaseQuery();
 
     if (
       data === undefined ||
@@ -194,9 +197,10 @@ export class VisViewSource {
       );
     }
 
-    const newVisViews: VisViewAttrs = {
-      charts: new Set<ChartAttrs>(newChartAttrs),
-      sqlTableState: new SqlTableState(this.trace, {
+    let sqlTableState = this.visViews?.sqlTableState;
+
+    if (sqlTableState === undefined) {
+      sqlTableState = new SqlTableState(this.trace, {
         imports: this._baseQuery.modules,
         prefix: `WITH vis_view_source_table AS (${this._baseQuery.sql})`,
         name: 'vis_view_source_table',
@@ -205,9 +209,34 @@ export class VisViewSource {
             // TODO: Figure out how to not require table name here.
             new FromSimpleColumn(SqlColumnAsSimpleColumn(col.column, '')),
         ),
-      }),
+      });
+    }
+
+    // remove existing filters
+    const tableManager = getTableManager(sqlTableState);
+    sqlTableState.getFilters().forEach((f) => tableManager.removeFilter(f));
+
+    Array.from(this._filters.values()).forEach((f) => {
+      const sqlTableFilter: Filter = {
+        op: (cols) => {
+          const newFilter = {
+            ...f,
+          };
+          newFilter.columnName = cols[0];
+          return filterToSql(newFilter);
+        },
+        columns: [f.columnName],
+      };
+      tableManager.addFilter(sqlTableFilter);
+    });
+
+    const newVisViews: VisViewAttrs = {
+      charts: new Set<ChartAttrs>(newChartAttrs),
+      sqlTableState,
     };
 
     this._visViews = newVisViews;
+
+    this.trace.raf.scheduleFullRedraw();
   }
 }

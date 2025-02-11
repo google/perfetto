@@ -21,8 +21,11 @@ message AndroidProcessMetadata {
   // Process name. Usually, cmdline or <package_name>(:<custom_name>)?.
   optional string name = 1;
 
-  // User id under which this process runs.
+  // App uid under which this process runs.
   optional int64 uid = 2;
+
+  // Android user-id running this process (applicable to multi-user android)
+  optional int64 android_user_id = 10;
 
   // Package metadata from Android package list.
   message Package {

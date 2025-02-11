@@ -206,6 +206,8 @@ CREATE PERFETTO VIEW process(
   uid LONG,
   -- Android appid of this process.
   android_appid LONG,
+  -- Android user id of this process.
+  android_user_id LONG,
   -- /proc/cmdline for this process.
   cmdline STRING,
   -- Extra args for this process.

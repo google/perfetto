@@ -349,6 +349,12 @@ class GnParser(object):
       self.manifest: Optional[str] = None
       # Used only when custom_action_type == 'perfetto_android_app'
       self.resource_files: Optional[str] = None
+      # Used only when custom_action_type == 'perfetto_android_app'
+      self.instruments: Optional[str] = None
+      # Used only when
+      # custom_action_type == 'perfetto_android_instrumentation_test'
+      self.a_i_t_app: Optional[str] = None
+      self.a_i_t_test_app: Optional[str] = None
 
       # These variables are propagated up when encountering a dependency
       # on a source_set target.
@@ -495,16 +501,18 @@ class GnParser(object):
       target.custom_action_type = action_types[0] if action_types else None
       python_main = target.metadata.get('perfetto_python_main')
       target.python_main = python_main[0] if python_main else None
-      manifest = target.metadata.get('perfetto_android_library_manifest')
+      manifest = target.metadata.get('perfetto_android_manifest')
       if manifest:
         target.manifest = manifest[0]
-        assert (target.manifest.startswith('src/'))
       resource_files = target.metadata.get(
           'perfetto_android_resource_files_glob')
       if resource_files:
         target.resource_files = resource_files[0]
-        assert (target.resource_files.startswith('src/'))
         assert (target.resource_files.endswith('/**/*'))
+      a_i_t_app = target.metadata.get('perfetto_android_a_i_t_app')
+      target.a_i_t_app = a_i_t_app[0] if a_i_t_app else None
+      a_i_t_test_app = target.metadata.get('perfetto_android_a_i_t_test_app')
+      target.a_i_t_test_app = a_i_t_test_app[0] if a_i_t_test_app else None
 
     # Default for 'public' is //* - all headers in 'sources' are public.
     # TODO(primiano): if a 'public' section is specified (even if empty), then
@@ -561,7 +569,15 @@ class GnParser(object):
         jni_library = dep.type == 'shared_library' and dep.custom_target_type(
         ) == 'perfetto_android_jni_library'
         android_lib = dep.custom_action_type == 'perfetto_android_library'
-        assert (jni_library or android_lib)
+        assert (jni_library or android_lib or dep.is_third_party_dep_)
+
+      if target.custom_action_type == 'perfetto_android_instrumentation_test':
+        assert (dep.custom_action_type == 'perfetto_android_app')
+        assert (dep.name == target.a_i_t_app or
+                dep.name == target.a_i_t_test_app)
+        if dep.name == target.a_i_t_test_app:
+          dep.instruments = target.a_i_t_app
+
 
       target.deps.add(dep)
       target.transitive_deps.add(dep)

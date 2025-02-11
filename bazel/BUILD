@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+exports_files(
+    ["run_ait_with_adb.sh"],
+    visibility = ["//visibility:private"],
+)
+
 config_setting(
     name = "os_osx",
     constraint_values = [

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("perfetto.gni")
+import("perfetto_android_sdk.gni")
 import("perfetto_python.gni")
 import("pkg_config.gni")
 import("proto_library.gni")
@@ -482,6 +483,10 @@ perfetto_py_library("tp_vendor_py") {
 perfetto_py_library("tp_resolvers_py") {
 }
 perfetto_py_library("protobuf_py") {
+}
+
+# Android Java SDK libraries wich need to be provided by other build systems.
+perfetto_android_library("android_test_common") {
 }
 
 if (enable_perfetto_etm_importer) {

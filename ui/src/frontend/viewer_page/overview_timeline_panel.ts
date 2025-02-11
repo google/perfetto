@@ -363,11 +363,17 @@ class OverviewDataLoader {
       // between each step, slowing down significantly the overall process.
       stepPromises.push(
         (async () => {
-          const schedResult = await this.trace.engine.query(
-            `select cast(sum(dur) as float)/${stepSize} as load, cpu from sched ` +
-              `where ts >= ${start} and ts < ${end} and utid != 0 ` +
-              'group by cpu order by cpu',
-          );
+          const schedResult = await this.trace.engine.query(`
+            select
+              cast(sum(dur) as float)/${stepSize} as load,
+              cpu from sched
+            where
+              ts >= ${start} and
+              ts < ${end} and
+              utid != 0
+            group by cpu
+            order by cpu
+          `);
           const schedData: {[key: string]: QuantizedLoad} = {};
           const it = schedResult.iter({load: NUM, cpu: NUM});
           for (; it.valid(); it.next()) {
@@ -384,22 +390,24 @@ class OverviewDataLoader {
 
   async loadSliceOverview(traceSpan: TimeSpan, stepSize: duration) {
     // Slices overview.
-    const sliceResult = await this.trace.engine.query(`select
-            bucket,
-            upid,
-            ifnull(sum(utid_sum) / cast(${stepSize} as float), 0) as load
-          from thread
-          inner join (
-            select
-              ifnull(cast((ts - ${traceSpan.start})/${stepSize} as int), 0) as bucket,
-              sum(dur) as utid_sum,
-              utid
-            from slice
-            inner join thread_track on slice.track_id = thread_track.id
-            group by bucket, utid
-          ) using(utid)
-          where upid is not null
-          group by bucket, upid`);
+    const sliceResult = await this.trace.engine.query(`
+      select
+        bucket,
+        upid,
+        ifnull(sum(utid_sum) / cast(${stepSize} as float), 0) as load
+      from thread
+      inner join (
+        select
+          ifnull(cast((ts - ${traceSpan.start})/${stepSize} as int), 0) as bucket,
+          sum(dur) as utid_sum,
+          utid
+        from slice
+        inner join thread_track on slice.track_id = thread_track.id
+        group by bucket, utid
+      ) using(utid)
+      where upid is not null
+      group by bucket, upid
+    `);
 
     const slicesData: {[key: string]: QuantizedLoad[]} = {};
     const it = sliceResult.iter({bucket: LONG, upid: NUM, load: NUM});

@@ -726,3 +726,28 @@ class TablesSched(TestSuite):
         4,0,1001
         7,0,1001
         """))
+
+  def test_sched_with_thread_process(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE sched.with_context;
+        SELECT id, ts, dur, process_name, thread_name
+        FROM sched_with_thread_process
+        WHERE process_name IS NOT NULL
+        ORDER BY id
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "id","ts","dur","process_name","thread_name"
+        0,1735489352733,126010,"/system/bin/traced","traced"
+        2,1735489730796,123226,"/system/bin/logd","logd.writer"
+        3,1735489844255,42185,"logcat","logcat"
+        4,1735489854022,42487,"/system/bin/logd","logd.reader.per"
+        5,1735489886440,89626,"/system/bin/traced_probes","traced_probes"
+        6,1735489896509,57264,"/apex/com.android.adbd/bin/adbd","shell svc 3468"
+        7,1735489953773,263504,"/system/bin/logcat","logcat"
+        8,1735489976066,19743,"/system/bin/init","init"
+        9,1735489995809,6031,"/system/bin/traced_probes","traced_probes"
+        10,1735490001840,54126,"/system/bin/init","init"
+        """))
