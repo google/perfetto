@@ -27,3 +27,8 @@ message DpuDsiTxFtraceEvent {
   optional uint32 last = 3;
   optional uint32 delay_ms = 4;
 }
+message DpuDispDpuUnderrunFtraceEvent {
+  optional int32 id = 1;
+  optional int32 frames_pending = 2;
+  optional int32 vsync_count = 3;
+}
