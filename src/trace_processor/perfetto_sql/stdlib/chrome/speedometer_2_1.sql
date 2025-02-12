@@ -225,8 +225,7 @@ FROM thread_track
 WHERE
   id IN (
     SELECT track_id
-    FROM slice
-    JOIN _chrome_speedometer_2_1_mark_name
-      USING (name)
+    FROM slice, _chrome_speedometer_2_1_mark_name
+    USING (name)
     WHERE category = 'blink.user_timing'
   );
