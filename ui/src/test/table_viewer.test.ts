@@ -26,35 +26,46 @@ async function clickTableHeader(headerName: string | RegExp) {
     .click();
 }
 
-function getTableCells(text: string | RegExp): Locator {
-  return page.locator('.pf-details-shell .generic-table a.pf-anchor', {
-    hasText: text,
-  });
+function getTableCells(text?: string | RegExp): Locator {
+  return page.locator(
+    '.pf-details-shell .generic-table tr:not(.header) a.pf-anchor',
+    {
+      hasText: text,
+    },
+  );
 }
 
 async function clickFirstTableCell(text: string | RegExp) {
-  await getTableCells(text).nth(1).click();
+  await getTableCells(text).nth(0).click();
 }
 
 test.beforeEach(async ({browser}, _testInfo) => {
   page = await browser.newPage();
   pth = new PerfettoTestHelper(page);
-  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
 });
 
 test('slices with same name', async () => {
+  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
+
   const sliceName = 'LatencyInfo.Flow';
   await pth.searchSlice(sliceName);
   await page
     .locator('.pf-details-shell a.pf-anchor', {hasText: sliceName})
     .click();
   await pth.clickMenuItem('Slices with the same name');
+  await clickTableHeader(/^id/);
+  await pth.clickMenuItem('Sort: lowest first');
   await pth.waitForIdleAndScreenshot(`slices-with-same-name.png`);
 });
 
 test('Table interactions', async () => {
+  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
+
   // Show the slice table via command.
   await pth.runCommand('perfetto.ShowTable.slice');
+  // Sort the table by id for consistent ordering.
+  await clickTableHeader(/^id/);
+  await pth.clickMenuItem('Sort: lowest first');
   await pth.waitForIdleAndScreenshot(`slices-table.png`);
 
   // Hide `category` column.
@@ -75,7 +86,7 @@ test('Table interactions', async () => {
   await pth.waitForIdleAndScreenshot(`slices-table-filter1.png`);
 
   // Filter to thread-only slices by clicking on the second NULL value.
-  await getTableCells('NULL').nth(2).click();
+  await getTableCells('NULL').nth(1).click();
   await pth.clickMenuItem('Add filter');
   await pth.clickMenuItem('is not null');
   await pth.waitForIdleAndScreenshot(`slices-table-filter2.png`);
@@ -103,4 +114,149 @@ test('Table interactions', async () => {
   await pth.clickMenuItem('Add filter');
   await pth.clickMenuItem('not equals');
   await pth.waitForIdleAndScreenshot(`slices-table-filter-by-argument.png`);
+});
+
+//
+// These tests check that the "go to" functionality for ID columns of the key tables
+// (slice, sched, thread_state, process and thread) —- for example, clicking on a
+// slice id column should update the selection and focus the relevant slice.
+//
+
+test('Go to slice', async () => {
+  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
+
+  // Show the slice table via command.
+  await pth.runCommand('perfetto.ShowTable.slice');
+  // Sort the table by id for consistent ordering.
+  await clickTableHeader(/^id/);
+  await pth.clickMenuItem('Sort: lowest first');
+  await pth.waitForIdleAndScreenshot(`open-table.png`);
+
+  // Sort the table by dur in descending order. Note that we must explicitly exclude
+  // the "thread_dur" column, as it also contains "dur" in its name.
+  await clickTableHeader(/^dur/);
+  await pth.clickMenuItem('Sort: highest first');
+  await pth.waitForIdleAndScreenshot(`sorted.png`);
+
+  // Go to the first slice.
+  await getTableCells().nth(0).click();
+  await pth.waitForIdleAndScreenshot(`go-to.png`);
+
+  // Go to current selection tab.
+  await pth.switchToTab('Current Selection');
+  await pth.waitForIdleAndScreenshot(`current-selection.png`);
+});
+
+test('Go to thread_state', async () => {
+  // Open Android trace with kernel scheduling data.
+  await pth.openTraceFile('api34_startup_cold.perfetto-trace');
+
+  // Show the slice table via command.
+  await pth.runCommand('perfetto.ShowTable.thread_state');
+  // Sort the table by id for consistent ordering.
+  await clickTableHeader(/^id/);
+  await pth.clickMenuItem('Sort: lowest first');
+  await pth.waitForIdleAndScreenshot(`open-table.png`);
+
+  // Sort the table by dur in descending order. Note that we must explicitly exclude
+  // the "thread_dur" column, as it also contains "dur" in its name.
+  await clickTableHeader(/^dur/);
+  await pth.clickMenuItem('Sort: highest first');
+  await pth.waitForIdleAndScreenshot(`sorted.png`);
+
+  // Filter out sleeps.
+  await clickFirstTableCell(/^S/);
+  await pth.clickMenuItem('Add filter');
+  await pth.clickMenuItem('not equals');
+  await pth.waitForIdleAndScreenshot(`filtered.png`);
+
+  // Go to the first thread_state.
+  await getTableCells().nth(0).click();
+  await pth.waitForIdleAndScreenshot(`go-to.png`);
+
+  // Go to current selection tab.
+  await pth.switchToTab('Current Selection');
+  await pth.waitForIdleAndScreenshot(`current-selection.png`);
+});
+
+test('Go to sched', async () => {
+  // Open Android trace with kernel scheduling data.
+  await pth.openTraceFile('api34_startup_cold.perfetto-trace');
+
+  // Show the slice table via command.
+  await pth.runCommand('perfetto.ShowTable.sched');
+  // Sort the table by id for consistent ordering.
+  await clickTableHeader(/^id/);
+  await pth.clickMenuItem('Sort: lowest first');
+  await pth.waitForIdleAndScreenshot(`open-table.png`);
+
+  // Sort the table by dur in descending order. Note that we must explicitly exclude
+  // the "thread_dur" column, as it also contains "dur" in its name.
+  await clickTableHeader(/^dur/);
+  await pth.clickMenuItem('Sort: highest first');
+  await pth.waitForIdleAndScreenshot(`sorted.png`);
+
+  // Filter out idle.
+  await clickFirstTableCell('swapper');
+  await pth.clickMenuItem('Add filter');
+  await getTableCells('120').nth(0).click();
+  await pth.clickMenuItem('Add filter');
+  await pth.clickMenuItem('not equals');
+  await pth.waitForIdleAndScreenshot(`filtered.png`);
+
+  // Go to the first slice.
+  await getTableCells().nth(0).click();
+  await pth.waitForIdleAndScreenshot(`go-to.png`);
+
+  // Go to current selection tab.
+  await pth.switchToTab('Current Selection');
+  await pth.waitForIdleAndScreenshot(`current-selection.png`);
+});
+
+//
+// For process and thread tables, we open a new tab instead of updating selection.
+//
+
+test('Go to process', async () => {
+  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
+
+  // Show the slice table via command.
+  await pth.runCommand('perfetto.ShowTable.process');
+  // Sort the table by id for consistent ordering.
+  await clickTableHeader(/^upid/);
+  await pth.clickMenuItem('Sort: lowest first');
+  await pth.waitForIdleAndScreenshot(`open-table.png`);
+
+  // Sort the table by dur in descending order. Note that we must explicitly exclude
+  // the "thread_dur" column, as it also contains "dur" in its name.
+  await clickTableHeader(/^name/);
+  await pth.clickMenuItem('Sort: highest first');
+  await pth.waitForIdleAndScreenshot(`sorted.png`);
+
+  // Go to the first process.
+  await getTableCells().nth(0).click();
+  await pth.clickMenuItem('Show process details');
+  await pth.waitForIdleAndScreenshot(`go-to.png`);
+});
+
+test('Go to thread', async () => {
+  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
+
+  // Show the slice table via command.
+  await pth.runCommand('perfetto.ShowTable.thread');
+  // Sort the table by id for consistent ordering.
+  await clickTableHeader(/^utid/);
+  await pth.clickMenuItem('Sort: lowest first');
+  await pth.waitForIdleAndScreenshot(`open-table.png`);
+
+  // Sort the table by dur in descending order. Note that we must explicitly exclude
+  // the "thread_dur" column, as it also contains "dur" in its name.
+  await clickTableHeader(/^name/);
+  await pth.clickMenuItem('Sort: highest first');
+  await pth.waitForIdleAndScreenshot(`sorted.png`);
+
+  // Go to the first thread.
+  await getTableCells().nth(0).click();
+  await pth.clickMenuItem('Show thread details');
+  await pth.waitForIdleAndScreenshot(`go-to.png`);
 });
