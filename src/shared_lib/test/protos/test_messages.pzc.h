@@ -56,6 +56,11 @@ PERFETTO_PB_ENUM(protozero_test_protos_BigEnum){
     PERFETTO_PB_ENUM_ENTRY(protozero_test_protos_END) = 100500,
 };
 
+PERFETTO_PB_ENUM(protozero_test_protos_VeryNegativeEnum){
+    PERFETTO_PB_ENUM_ENTRY(protozero_test_protos_DEF) = 0,
+    PERFETTO_PB_ENUM_ENTRY(protozero_test_protos_VAL) = -2147483647 - 1,
+};
+
 PERFETTO_PB_ENUM_IN_MSG(protozero_test_protos_TestVersioning_V2, Enumz_V2){
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(protozero_test_protos_TestVersioning_V2,
                                   ONE) = 1,
@@ -477,6 +482,11 @@ PERFETTO_PB_FIELD(protozero_test_protos_EveryField,
                   enum protozero_test_protos_BigEnum,
                   big_enum,
                   53);
+PERFETTO_PB_FIELD(protozero_test_protos_EveryField,
+                  VARINT,
+                  enum protozero_test_protos_VeryNegativeEnum,
+                  very_negative_enum,
+                  54);
 PERFETTO_PB_FIELD(protozero_test_protos_EveryField,
                   STRING,
                   const char*,
