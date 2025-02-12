@@ -112,10 +112,6 @@ export interface TableColumnParams {
   startsHidden?: boolean;
 }
 
-export interface AggregationConfig {
-  dataType?: 'nominal' | 'quantitative';
-}
-
 // Class which represents a column in a table, which can be displayed to the user.
 // It is based on the primary SQL column, but also contains additional information needed for displaying it as a part of a table.
 export abstract class LegacyTableColumn {
@@ -157,11 +153,6 @@ export abstract class LegacyTableColumn {
     tableManager: LegacyTableManager,
     dependentColumns: {[key: string]: SqlValue},
   ): m.Children;
-
-  // Specifies how this column should be aggregated. If not set, then all
-  // numeric columns will be treated as quantitative, and all other columns as
-  // nominal.
-  aggregation?(): AggregationConfig;
 }
 
 export class FromSimpleColumn extends LegacyTableColumn {
