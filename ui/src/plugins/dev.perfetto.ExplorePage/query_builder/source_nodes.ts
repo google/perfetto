@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {TableAndColumnImpl} from '../../dev.perfetto.SqlModules/sql_modules_impl';
 import {SqlTable, SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode, NodeType} from '../query_state';
@@ -20,8 +21,8 @@ import {
   columnControllerRowFromName,
   columnControllerRowFromSqlColumn,
 } from './column_controller';
-
 import protos from '../../../protos';
+import {TextParagraph} from '../../../widgets/text_paragraph';
 
 export class StdlibTableState implements QueryNode {
   readonly type: NodeType = NodeType.kStdlibTable;
@@ -40,6 +41,14 @@ export class StdlibTableState implements QueryNode {
       columnControllerRowFromSqlColumn(c, true),
     );
     this.sqlTable = sqlTable;
+  }
+
+  getDetails(): m.Child {
+    return m(TextParagraph, {
+      text: `
+    Table '${this.sqlTable.name}' from module 
+    '${this.sqlTable.includeKey ?? 'prelude'}'.`,
+    });
   }
 
   validate(): boolean {
@@ -190,6 +199,23 @@ export class SimpleSlicesState implements QueryNode {
     ];
     this.columns = cols.map((c) => columnControllerRowFromSqlColumn(c, true));
   }
+
+  getDetails(): m.Child {
+    const s: string[] = [];
+    if (this.attrs.slice_name) {
+      s.push(`slice name GLOB ${this.attrs.slice_name}`);
+    }
+    if (this.attrs.thread_name) {
+      s.push(`thread name GLOB ${this.attrs.thread_name}`);
+    }
+    if (this.attrs.process_name) {
+      s.push(`process name GLOB ${this.attrs.process_name}`);
+    }
+    if (this.attrs.track_name) {
+      s.push(`track name GLOB ${this.attrs.track_name}`);
+    }
+    return m(TextParagraph, {text: `Slices where ${s.join(' and ')}`});
+  }
 }
 
 export interface SqlSourceAttrs {
@@ -209,6 +235,12 @@ export class SqlSourceState implements QueryNode {
 
   attrs: SqlSourceAttrs;
 
+  constructor(attrs: SqlSourceAttrs) {
+    this.attrs = attrs;
+    this.columns =
+      attrs.columns?.map((c) => columnControllerRowFromName(c)) ?? [];
+  }
+
   validate(): boolean {
     return (
       this.attrs.sql !== undefined &&
@@ -217,9 +249,11 @@ export class SqlSourceState implements QueryNode {
       this.columns.length > 0
     );
   }
+
   getTitle(): string {
     return `Sql source`;
   }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
@@ -246,9 +280,12 @@ export class SqlSourceState implements QueryNode {
     return sq;
   }
 
-  constructor(attrs: SqlSourceAttrs) {
-    this.attrs = attrs;
-    this.columns =
-      attrs.columns?.map((c) => columnControllerRowFromName(c)) ?? [];
+  getDetails(): m.Child {
+    return m(TextParagraph, {
+      text: `
+      Running custom SQL returning columns ${this.attrs.columns?.join(', ')}.\n
+      Preamble: \n${this.attrs.preamble ?? `NONE`}\n
+      SQL: \n${this.attrs.sql ?? `NONE`}`,
+    });
   }
 }
