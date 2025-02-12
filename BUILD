@@ -704,6 +704,7 @@ perfetto_cc_library(
             ":src_traced_probes_ps_ps",
             ":src_traced_probes_statsd_client_statsd_client",
             ":src_traced_probes_sys_stats_sys_stats",
+            ":src_traced_probes_system_info_cpu_info_features_allowlist",
             ":src_traced_probes_system_info_system_info",
             ":src_tracing_ipc_producer_producer",
         ],
@@ -4160,6 +4161,14 @@ perfetto_filegroup(
     srcs = [
         "src/traced/probes/sys_stats/sys_stats_data_source.cc",
         "src/traced/probes/sys_stats/sys_stats_data_source.h",
+    ],
+)
+
+# GN target: //src/traced/probes/system_info:cpu_info_features_allowlist
+perfetto_filegroup(
+    name = "src_traced_probes_system_info_cpu_info_features_allowlist",
+    srcs = [
+        "src/traced/probes/system_info/cpu_info_features_allowlist.h",
     ],
 )
 

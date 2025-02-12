@@ -608,6 +608,7 @@ cc_library_shared {
         ":perfetto_src_traced_probes_ps_ps",
         ":perfetto_src_traced_probes_statsd_client_statsd_client",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
+        ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_service_builtin_producer",
         ":perfetto_src_traced_service_service",
@@ -1613,6 +1614,7 @@ cc_library_static {
         ":perfetto_src_traced_probes_ps_ps",
         ":perfetto_src_traced_probes_statsd_client_statsd_client",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
+        ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
@@ -1925,6 +1927,7 @@ cc_library_static {
         ":perfetto_src_traced_probes_ps_ps",
         ":perfetto_src_traced_probes_statsd_client_statsd_client",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
+        ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
@@ -2610,6 +2613,7 @@ cc_test {
         ":perfetto_src_traced_probes_ps_ps",
         ":perfetto_src_traced_probes_statsd_client_statsd_client",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
+        ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_relay_integrationtests",
         ":perfetto_src_traced_relay_lib",
@@ -15083,6 +15087,11 @@ filegroup {
     ],
 }
 
+// GN: //src/traced/probes/system_info:cpu_info_features_allowlist
+filegroup {
+    name: "perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
+}
+
 // GN: //src/traced/probes/system_info:system_info
 filegroup {
     name: "perfetto_src_traced_probes_system_info_system_info",
@@ -16190,6 +16199,7 @@ cc_test {
         ":perfetto_src_traced_probes_statsd_client_unittests",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
         ":perfetto_src_traced_probes_sys_stats_unittests",
+        ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_probes_system_info_unittests",
         ":perfetto_src_traced_probes_unittests",
@@ -16549,6 +16559,7 @@ cc_library_static {
         ":perfetto_src_traced_probes_ps_ps",
         ":perfetto_src_traced_probes_statsd_client_statsd_client",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
+        ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
