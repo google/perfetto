@@ -126,6 +126,7 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
       m(
         Section,
         {title: lastNode.getTitle()},
+        lastNode.getDetails(),
         renderButtons(),
         this.showDataSourceInfoPanel === 0 &&
           m(TextParagraph, {

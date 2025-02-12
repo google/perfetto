@@ -60,6 +60,11 @@ export class JoinState implements QueryNode {
     this.prevNode = prevNode;
     this.cte = false;
   }
+
+  getDetails(): m.Child {
+    throw new Error('Method not implemented.');
+  }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     throw new Error('Method not implemented.');
   }
