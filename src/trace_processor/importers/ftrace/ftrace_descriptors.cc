@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 549> descriptors{{
+std::array<FtraceMessageDescriptor, 550> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6072,6 +6072,16 @@ std::array<FtraceMessageDescriptor, 549> descriptors{{
             {"change_ns", ProtoSchemaType::kUint64},
             {"from_state", ProtoSchemaType::kInt32},
             {"to_state", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "dpu_disp_dpu_underrun",
+        3,
+        {
+            {},
+            {"id", ProtoSchemaType::kInt32},
+            {"frames_pending", ProtoSchemaType::kInt32},
+            {"vsync_count", ProtoSchemaType::kInt32},
         },
     },
 }};
