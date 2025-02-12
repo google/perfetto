@@ -43,7 +43,6 @@ import {
 import {ThreadStateRef} from '../../components/widgets/thread_state';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {
-  AggregationConfig,
   SourceTable,
   SqlColumn,
   sqlColumnId,
@@ -70,9 +69,7 @@ export type ColumnParams = {
   title?: string;
 };
 
-export type StandardColumnParams = ColumnParams & {
-  aggregationType?: 'nominal' | 'quantitative';
-};
+export type StandardColumnParams = ColumnParams;
 
 export interface IdColumnParams {
   // Whether the column is guaranteed not to have null values.
@@ -95,10 +92,6 @@ export class StandardColumn extends LegacyTableColumn {
 
   primaryColumn(): SqlColumn {
     return this.column;
-  }
-
-  aggregation(): AggregationConfig {
-    return {dataType: this.params?.aggregationType};
   }
 
   getTitle() {
@@ -442,12 +435,6 @@ export class ThreadColumn extends LegacyTableColumn {
       ),
     );
   }
-
-  aggregation(): AggregationConfig {
-    return {
-      dataType: 'nominal',
-    };
-  }
 }
 
 // ThreadIdColumn is a column type for displaying primary key of the `thread` table.
@@ -487,10 +474,6 @@ export class ThreadIdColumn extends LegacyTableColumn {
       showThreadDetailsMenuItem(asUtid(Number(utid))),
       getStandardContextMenuItems(utid, this.utid, manager),
     );
-  }
-
-  aggregation(): AggregationConfig {
-    return {dataType: 'nominal'};
   }
 }
 
@@ -534,7 +517,7 @@ export class ThreadColumnSet extends LegacyTableColumnSet {
       },
       {
         key: 'tid',
-        column: new StandardColumn(column('tid'), {aggregationType: 'nominal'}),
+        column: new StandardColumn(column('tid')),
       },
       {
         key: 'name',
@@ -554,9 +537,7 @@ export class ThreadColumnSet extends LegacyTableColumnSet {
       },
       {
         key: 'is_main_thread',
-        column: new StandardColumn(column('is_main_thread'), {
-          aggregationType: 'nominal',
-        }),
+        column: new StandardColumn(column('is_main_thread'), {}),
       },
     ];
   }
@@ -674,12 +655,6 @@ export class ProcessColumn extends LegacyTableColumn {
       ),
     );
   }
-
-  aggregation(): AggregationConfig {
-    return {
-      dataType: 'nominal',
-    };
-  }
 }
 
 // ProcessIdColumn is a column type for displaying primary key of the `process` table.
@@ -719,10 +694,6 @@ export class ProcessIdColumn extends LegacyTableColumn {
       showProcessDetailsMenuItem(asUpid(Number(upid))),
       getStandardContextMenuItems(upid, this.upid, manager),
     );
-  }
-
-  aggregation(): AggregationConfig {
-    return {dataType: 'nominal'};
   }
 }
 
@@ -766,7 +737,7 @@ export class ProcessColumnSet extends LegacyTableColumnSet {
       },
       {
         key: 'pid',
-        column: new StandardColumn(column('pid'), {aggregationType: 'nominal'}),
+        column: new StandardColumn(column('pid')),
       },
       {
         key: 'name',
@@ -788,13 +759,11 @@ export class ProcessColumnSet extends LegacyTableColumnSet {
       },
       {
         key: 'uid',
-        column: new StandardColumn(column('uid'), {aggregationType: 'nominal'}),
+        column: new StandardColumn(column('uid')),
       },
       {
         key: 'android_appid',
-        column: new StandardColumn(column('android_appid'), {
-          aggregationType: 'nominal',
-        }),
+        column: new StandardColumn(column('android_appid')),
       },
       {
         key: 'cmdline',
