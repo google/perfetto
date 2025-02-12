@@ -118,16 +118,8 @@ export class SqlTableState {
       this.columns.push(...args.initialColumns);
     } else {
       for (const column of this.config.columns) {
-        if (column instanceof LegacyTableColumn) {
-          if (column.startsHidden !== true) {
-            this.columns.push(column);
-          }
-        } else {
-          const cols = column.initialColumns?.();
-          for (const col of cols ?? []) {
-            this.columns.push(col);
-          }
-        }
+        const columns = column.initialColumns?.() ?? [column];
+        this.columns.push(...columns);
       }
       if (args?.additionalColumns !== undefined) {
         this.columns.push(...args.additionalColumns);

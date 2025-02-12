@@ -15,39 +15,36 @@
 import m from 'mithril';
 import {raf} from '../../../../core/raf_scheduler';
 import {Spinner} from '../../../../widgets/spinner';
-import {
-  LegacyTableColumn,
-  tableColumnId,
-  LegacyTableColumnSet,
-  LegacyTableManager,
-} from './column';
+import {LegacyTableColumn, tableColumnId, LegacyTableManager} from './column';
 import {TextInput} from '../../../../widgets/text_input';
 import {hasModKey, modKey} from '../../../../base/hotkeys';
-import {MenuItem} from '../../../../widgets/menu';
+import {MenuDivider, MenuItem} from '../../../../widgets/menu';
 import {uuidv4} from '../../../../base/uuid';
 
 const MAX_ARGS_TO_DISPLAY = 15;
 
 interface ArgumentSelectorAttrs {
+  title: string;
   tableManager: LegacyTableManager;
-  columnSet: LegacyTableColumnSet;
+  column: LegacyTableColumn;
   alreadySelectedColumnIds: Set<string>;
   onArgumentSelected: (column: LegacyTableColumn) => void;
 }
 
-// This class is responsible for rendering a menu which allows user to select which column out of ColumnSet to add.
+// This class is responsible for rendering a menu which allows user to select which column out of the child columns to add.
 export class ArgumentSelector
   implements m.ClassComponent<ArgumentSelectorAttrs>
 {
   searchText = '';
-  columns?: {key: string; column: LegacyTableColumn | LegacyTableColumnSet}[];
+  columns?: Map<string, LegacyTableColumn>;
 
   constructor({attrs}: m.Vnode<ArgumentSelectorAttrs>) {
     this.load(attrs);
   }
 
   private async load(attrs: ArgumentSelectorAttrs) {
-    this.columns = await attrs.columnSet.discover(attrs.tableManager);
+    const getColumns = attrs.column.listDerivedColumns?.(attrs.tableManager);
+    this.columns = getColumns === undefined ? new Map() : await getColumns();
     raf.scheduleFullRedraw();
   }
 
@@ -56,11 +53,13 @@ export class ArgumentSelector
     if (columns === undefined) return m(Spinner);
 
     // Candidates are the columns which have not been selected yet.
-    const candidates = columns.filter(
-      ({column}) =>
-        column instanceof LegacyTableColumnSet ||
-        !attrs.alreadySelectedColumnIds.has(tableColumnId(column)),
-    );
+    const candidates = [...columns]
+      .map(([key, column]) => ({key, column}))
+      .filter(
+        ({column}) =>
+          !attrs.alreadySelectedColumnIds.has(tableColumnId(column)) ||
+          column.listDerivedColumns?.(attrs.tableManager) !== undefined,
+      );
 
     // Filter the candidates based on the search text.
     const filtered = candidates.filter(({key}) => {
@@ -74,6 +73,22 @@ export class ArgumentSelector
     const firstButtonUuid = uuidv4();
 
     return [
+      m(MenuItem, {
+        label: attrs.title,
+        disabled: attrs.alreadySelectedColumnIds.has(
+          tableColumnId(attrs.column),
+        ),
+        onclick: (event) => {
+          attrs.onArgumentSelected(attrs.column);
+          // For Control-Click, we don't want to close the menu to allow the user
+          // to select multiple items in one go.
+          if (hasModKey(event)) {
+            event.stopPropagation();
+          }
+          // Otherwise this popup will be closed.
+        },
+      }),
+      m(MenuDivider),
       m(
         '.pf-search-bar',
         m(TextInput, {
@@ -110,7 +125,7 @@ export class ArgumentSelector
             id: index === 0 ? firstButtonUuid : undefined,
             label: key,
             onclick: (event) => {
-              if (column instanceof LegacyTableColumnSet) return;
+              if (column.listDerivedColumns !== undefined) return;
               attrs.onArgumentSelected(column);
               // For Control-Click, we don't want to close the menu to allow the user
               // to select multiple items in one go.
@@ -120,9 +135,10 @@ export class ArgumentSelector
               // Otherwise this popup will be closed.
             },
           },
-          column instanceof LegacyTableColumnSet &&
+          column.listDerivedColumns !== undefined &&
             m(ArgumentSelector, {
-              columnSet: column,
+              title: key,
+              column,
               alreadySelectedColumnIds: attrs.alreadySelectedColumnIds,
               onArgumentSelected: attrs.onArgumentSelected,
               tableManager: attrs.tableManager,

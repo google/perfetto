@@ -31,7 +31,6 @@ import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/tab
 import {
   FromSimpleColumn,
   LegacyTableColumn,
-  LegacyTableColumnSet,
 } from '../../components/widgets/sql/legacy_table/column';
 
 export class SqlModulesImpl implements SqlModules {
@@ -293,7 +292,7 @@ class SqlTableImpl implements SqlTable {
       .filter((tAndC) => tAndC !== undefined) as TableAndColumn[];
   }
 
-  getTableColumns(): (LegacyTableColumn | LegacyTableColumnSet)[] {
+  getTableColumns(): LegacyTableColumn[] {
     return this.columns.map(
       (col) => new FromSimpleColumn(SqlColumnAsSimpleColumn(col, this.name)),
     );

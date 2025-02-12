@@ -269,7 +269,9 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
     const result = [];
     for (const column of this.table.columns) {
-      if (column instanceof LegacyTableColumn) {
+      if (
+        column.listDerivedColumns?.(getTableManager(this.state)) === undefined
+      ) {
         if (existingColumnIds.has(tableColumnId(column))) continue;
         result.push(
           m(MenuItem, {
@@ -282,12 +284,13 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           m(
             MenuItem,
             {
-              label: column.getTitle(),
+              label: columnTitle(column),
             },
             m(ArgumentSelector, {
+              title: columnTitle(column),
+              column,
               alreadySelectedColumnIds: existingColumnIds,
               tableManager: getTableManager(this.state),
-              columnSet: column,
               onArgumentSelected: (column: LegacyTableColumn) => {
                 addColumn(column);
               },

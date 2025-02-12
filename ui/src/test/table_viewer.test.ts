@@ -98,7 +98,7 @@ test('Table interactions', async () => {
   await pth.waitForIdleAndScreenshot(`slices-table-filter3.png`);
 
   // Add argument.
-  await clickTableHeader('name');
+  await clickTableHeader(/^name/);
   await pth.clickMenuItem('Add column');
   await pth.clickMenuItem('arg_set_id');
   await pth.clickMenuItem('chrome_latency_info.trace_id');
