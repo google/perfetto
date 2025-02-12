@@ -7909,6 +7909,11 @@ message DpuDsiTxFtraceEvent {
   optional uint32 last = 3;
   optional uint32 delay_ms = 4;
 }
+message DpuDispDpuUnderrunFtraceEvent {
+  optional int32 id = 1;
+  optional int32 frames_pending = 2;
+  optional int32 vsync_count = 3;
+}
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
 
@@ -11670,6 +11675,7 @@ message FtraceEvent {
     BlockIoStartFtraceEvent block_io_start = 546;
     BlockIoDoneFtraceEvent block_io_done = 547;
     MaliGpuPowerStateFtraceEvent mali_gpu_power_state = 548;
+    DpuDispDpuUnderrunFtraceEvent dpu_disp_dpu_underrun = 549;
   }
 }
 
