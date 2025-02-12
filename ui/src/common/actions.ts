@@ -1559,11 +1559,6 @@ export const StateActions = {
       state.pinnedGroupCollapsed = !state.pinnedGroupCollapsed;
   },
 
-  setPinnedPanelHeight(
-    state: StateDraft,
-    args: {newHeight: number}) {
-      state.pinnedPanelHeight = args.newHeight;
-  },
   clearTrackAndGroupSelection(
     state: StateDraft,
     _: {},

@@ -254,6 +254,17 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               }
               globals.dispatch(
                   Actions.toggleTrackPinned({trackId: attrs.trackState.id}));
+                  // Scroll the pinned track into view after the redraw
+                  if (
+                    isPinned(attrs.trackState.id) &&
+                    e.currentTarget &&
+                    e.currentTarget instanceof HTMLElement) {
+                      const panZoom = e.currentTarget.closest('.pan-and-zoom-content');
+                      setTimeout(() => {
+                        const pinnedTrack = panZoom?.querySelector(`.scrolling-panel-container.pinned-group #track_${attrs.trackState.id}`);
+                        pinnedTrack?.scrollIntoView();
+                      }, 0);
+                  }
             },
             i: PIN,
             filledIcon: isPinned(attrs.trackState.id),

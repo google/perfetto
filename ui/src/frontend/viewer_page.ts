@@ -233,57 +233,6 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
     window.removeEventListener('resize', this.onResize);
     if (this.zoomContent) this.zoomContent.shutdown();
   }
-  pinnedTrackResize = (e: MouseEvent)=>{
-    e.stopPropagation();
-    e.preventDefault();
-    if (e.currentTarget instanceof HTMLElement) {
-      const timelineElement = e.currentTarget.closest('div.pan-and-zoom-content');
-      if (timelineElement && timelineElement instanceof HTMLDivElement) {
-        let mouseY = e.clientY;
-        const mouseMoveEvent = (evMove: MouseEvent): void => {
-          evMove.preventDefault();
-          const movementY = evMove.clientY-mouseY;
-          globals.dispatch(
-            Actions.setPinnedPanelHeight(
-              {newHeight: globals.state.pinnedPanelHeight + movementY}));
-          mouseY = evMove.clientY;
-
-          globals.rafScheduler.scheduleFullRedraw();
-        };
-        const mouseReturnEvent = () : void => {
-          timelineElement.addEventListener('mousemove', mouseMoveEvent);
-          timelineElement.removeEventListener('mouseenter', mouseReturnEvent);
-        };
-        const mouseLeaveEvent = () : void => {
-          timelineElement.removeEventListener('mousemove', mouseMoveEvent);
-          timelineElement.addEventListener('mouseenter', mouseReturnEvent);
-        };
-        const mouseUpEvent = (): void => {
-          timelineElement.removeEventListener('mousemove', mouseMoveEvent);
-          document.removeEventListener('mouseup', mouseUpEvent);
-          timelineElement.removeEventListener('mouseenter', mouseReturnEvent);
-          timelineElement.removeEventListener('mouseleave', mouseLeaveEvent);
-        };
-        timelineElement.addEventListener('mousemove', mouseMoveEvent);
-        timelineElement.addEventListener('mouseleave', mouseLeaveEvent);
-        document.addEventListener('mouseup', mouseUpEvent);
-      }
-    }
-  };
-  checkPinnedResize = (e: MouseEvent) =>{
-    if (e.currentTarget instanceof HTMLElement &&
-      e.type !== 'mouseleave'
-      ) {
-      const timelineElement: HTMLDivElement | null = e.currentTarget.closest('div.pan-and-zoom-content');
-      timelineElement?.addEventListener('mousedown', this.pinnedTrackResize);
-      e.currentTarget.style.cursor = 'row-resize';
-      return;
-    } else if (e.currentTarget instanceof HTMLElement) {
-      const timelineElement: HTMLDivElement | null = e.currentTarget.closest('div.pan-and-zoom-content');
-      timelineElement?.removeEventListener('mousedown', this.pinnedTrackResize);
-      e.currentTarget.style.cursor = 'unset';
-    }
-  };
   view() {
     const rootNode: AnyAttrsVnode[] = [];
     const renderGroup = (group: TrackGroupState, panels: AnyAttrsVnode[]) => {
@@ -385,10 +334,7 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
                 panels: overviewPanels,
                 kind: 'OVERVIEW',
               })),
-            m('.scrolling-panel-container pinned-group', {style: {
-              minHeight: !globals.state.pinnedGroupCollapsed?globals.state.pinnedPanelHeight+ 'px': '18px',
-              height: !globals.state.pinnedGroupCollapsed?globals.state.pinnedPanelHeight+ 'px': '18px',
-            }}, m(PanelContainer, {
+            m('.scrolling-panel-container pinned-group', m(PanelContainer, {
               doesScroll: true,
               panels: pinnedPanels,
               kind: 'TRACKS',
@@ -397,10 +343,7 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
               style: {
                 width: '100%',
                 margin: '0',
-                cursor: 'row-resize',
               },
-              onmousemove: this.checkPinnedResize,
-              onmouseleave: this.checkPinnedResize,
             }),
             m('.scrolling-panel-container', m(PanelContainer, {
                 doesScroll: true,
