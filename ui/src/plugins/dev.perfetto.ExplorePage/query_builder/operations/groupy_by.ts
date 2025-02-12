@@ -26,12 +26,11 @@ import {Section} from '../../../../widgets/section';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {assertExists} from '../../../../base/logging';
-
-type AggregateOp = protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op;
+import {TextParagraph} from '../../../../widgets/text_paragraph';
 
 export interface GroupByAggregationAttrs {
   column: ColumnControllerRow;
-  aggregationOp?: AggregateOp;
+  aggregationOp?: string;
   newColumnName?: string;
 }
 
@@ -52,6 +51,35 @@ export class GroupByNode implements QueryNode {
 
   groupByColumns: ColumnControllerRow[];
   aggregations: GroupByAggregationAttrs[];
+
+  getTitle(): string {
+    const cols = this.groupByColumns
+      .filter((c) => c.checked)
+      .map((c) => c.alias ?? c.id)
+      .join(', ');
+    return `Group by ${cols}`;
+  }
+
+  getDetails(): m.Child {
+    const cols = this.groupByColumns
+      .filter((c) => c.checked)
+      .map((c) => `'${c.alias ?? c.id}'`)
+      .join(', ');
+    const gbColsStr = cols && `Group by columns: ${cols}`;
+
+    const aggDetails: string[] = [];
+    for (const agg of this.aggregations) {
+      aggDetails.push(
+        `\n- Created '${agg.newColumnName}' by aggregating `,
+        `'${agg.column.alias ?? agg.column.id}' with `,
+        `${agg.aggregationOp?.toString()}.`,
+      );
+    }
+
+    return m(TextParagraph, {
+      text: gbColsStr + aggDetails.join(''),
+    });
+  }
 
   constructor(attrs: GroupByAttrs) {
     this.prevNode = attrs.prevNode;
@@ -111,10 +139,6 @@ export class GroupByNode implements QueryNode {
     }
     sq.selectColumns = selectedColumns;
     return sq;
-  }
-
-  getTitle(): string {
-    return `Group by`;
   }
 }
 
@@ -182,7 +206,7 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
       if (agg === undefined) {
         agg = {
           column: col,
-          aggregationOp: StringToAggregateOp(this.defaultOp),
+          aggregationOp: this.defaultOp,
         };
         attrs.aggregations.push(agg);
       }
@@ -208,9 +232,7 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
               id: `col.${col.id}`,
               oninput: (e: Event) => {
                 if (!e.target || agg === undefined) return;
-                agg.aggregationOp = StringToAggregateOp(
-                  (e.target as HTMLSelectElement).value,
-                );
+                agg.aggregationOp = (e.target as HTMLSelectElement).value;
               },
             },
             optionNames.map((name) =>
@@ -284,7 +306,7 @@ function StringToAggregateOp(s: string) {
       return protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op
         .DURATION_WEIGHTED_MEAN;
     default:
-      throw new Error('Invalid AggregateOp');
+      throw new Error(`Invalid AggregateOp '${s}'`);
   }
 }
 
@@ -295,7 +317,7 @@ function GroupByAggregationAttrsToProto(
 
   const newAgg = new protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate();
   newAgg.columnName = agg.column.column.name;
-  newAgg.op = assertExists(agg.aggregationOp);
+  newAgg.op = StringToAggregateOp(assertExists(agg.aggregationOp));
   newAgg.resultColumnName = assertExists(agg.newColumnName);
   return newAgg;
 }
