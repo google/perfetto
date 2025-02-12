@@ -129,4 +129,10 @@ export class PerfettoTestHelper {
       .locator('.pf-popup-content .pf-menu-item', {hasText: text})
       .click();
   }
+
+  async switchToTab(text: string | RegExp) {
+    await this.page
+      .locator('.pf-tab-handle .pf-tab-handle__tab', {hasText: text})
+      .click();
+  }
 }
