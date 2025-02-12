@@ -174,35 +174,11 @@ export class DurationColumn extends LegacyTableColumn {
 }
 
 export class SliceIdColumn extends LegacyTableColumn {
-  private columns: {ts: SqlColumn; dur: SqlColumn; trackId: SqlColumn};
-
   constructor(
     private id: SqlColumn,
     private params?: ColumnParams & IdColumnParams,
   ) {
     super(params);
-
-    const sliceTable: SourceTable = {
-      table: 'slice',
-      joinOn: {id: this.id},
-      // If the column is guaranteed not to have null values, we can use an INNER JOIN.
-      innerJoin: this.params?.notNull === true,
-    };
-
-    this.columns = {
-      ts: {
-        column: 'ts',
-        source: sliceTable,
-      },
-      dur: {
-        column: 'dur',
-        source: sliceTable,
-      },
-      trackId: {
-        column: 'track_id',
-        source: sliceTable,
-      },
-    };
   }
 
   primaryColumn(): SqlColumn {
@@ -213,35 +189,11 @@ export class SliceIdColumn extends LegacyTableColumn {
     return this.params?.title;
   }
 
-  dependentColumns() {
-    return this.columns;
-  }
-
-  renderCell(
-    value: SqlValue,
-    manager: LegacyTableManager,
-    data: {[key: string]: SqlValue},
-  ): m.Children {
+  renderCell(value: SqlValue, manager: LegacyTableManager): m.Children {
     const id = value;
-    const ts = data['ts'];
-    const dur = data['dur'] === null ? -1n : data['dur'];
-    const trackId = data['trackId'];
 
     if (id === null) {
       return renderStandardCell(id, this.id, manager);
-    }
-    if (ts === null || trackId === null) {
-      return renderError(`Slice with id ${id} not found`);
-    }
-    if (typeof id !== 'bigint') return wrongTypeError('id', this.id, id);
-    if (typeof ts !== 'bigint') {
-      return wrongTypeError('timestamp', this.columns.ts, ts);
-    }
-    if (typeof dur !== 'bigint') {
-      return wrongTypeError('duration', this.columns.dur, dur);
-    }
-    if (typeof trackId !== 'bigint') {
-      return wrongTypeError('track id', this.columns.trackId, trackId);
     }
 
     return m(SliceRef, {
@@ -312,35 +264,11 @@ export class SliceColumnSet extends LegacyTableColumnSet {
 }
 
 export class SchedIdColumn extends LegacyTableColumn {
-  private columns: {ts: SqlColumn; dur: SqlColumn; cpu: SqlColumn};
-
   constructor(
     private id: SqlColumn,
     private params?: ColumnParams & IdColumnParams,
   ) {
     super(params);
-
-    const schedTable: SourceTable = {
-      table: 'sched',
-      joinOn: {id: this.id},
-      // If the column is guaranteed not to have null values, we can use an INNER JOIN.
-      innerJoin: this.params?.notNull === true,
-    };
-
-    this.columns = {
-      ts: {
-        column: 'ts',
-        source: schedTable,
-      },
-      dur: {
-        column: 'dur',
-        source: schedTable,
-      },
-      cpu: {
-        column: 'cpu',
-        source: schedTable,
-      },
-    };
   }
 
   primaryColumn(): SqlColumn {
@@ -351,40 +279,13 @@ export class SchedIdColumn extends LegacyTableColumn {
     return this.params?.title;
   }
 
-  dependentColumns() {
-    return {
-      ts: this.columns.ts,
-      dur: this.columns.dur,
-      cpu: this.columns.cpu,
-    };
-  }
-
-  renderCell(
-    value: SqlValue,
-    manager: LegacyTableManager,
-    data: {[key: string]: SqlValue},
-  ): m.Children {
+  renderCell(value: SqlValue, manager: LegacyTableManager): m.Children {
     const id = value;
-    const ts = data['ts'];
-    const dur = data['dur'] === null ? -1n : data['dur'];
-    const cpu = data['cpu'];
 
     if (id === null) {
       return renderStandardCell(id, this.id, manager);
     }
-    if (ts === null || cpu === null) {
-      return renderError(`Sched with id ${id} not found`);
-    }
     if (typeof id !== 'bigint') return wrongTypeError('id', this.id, id);
-    if (typeof ts !== 'bigint') {
-      return wrongTypeError('timestamp', this.columns.ts, ts);
-    }
-    if (typeof dur !== 'bigint') {
-      return wrongTypeError('duration', this.columns.dur, dur);
-    }
-    if (typeof cpu !== 'bigint') {
-      return wrongTypeError('track id', this.columns.cpu, cpu);
-    }
 
     return m(SchedRef, {
       id: asSchedSqlId(Number(id)),
@@ -395,35 +296,11 @@ export class SchedIdColumn extends LegacyTableColumn {
 }
 
 export class ThreadStateIdColumn extends LegacyTableColumn {
-  private columns: {ts: SqlColumn; dur: SqlColumn; utid: SqlColumn};
-
   constructor(
     private id: SqlColumn,
     private params?: ColumnParams & IdColumnParams,
   ) {
     super(params);
-
-    const threadStateTable: SourceTable = {
-      table: 'thread_state',
-      joinOn: {id: this.id},
-      // If the column is guaranteed not to have null values, we can use an INNER JOIN.
-      innerJoin: this.params?.notNull === true,
-    };
-
-    this.columns = {
-      ts: {
-        column: 'ts',
-        source: threadStateTable,
-      },
-      dur: {
-        column: 'dur',
-        source: threadStateTable,
-      },
-      utid: {
-        column: 'utid',
-        source: threadStateTable,
-      },
-    };
   }
 
   primaryColumn(): SqlColumn {
@@ -434,40 +311,13 @@ export class ThreadStateIdColumn extends LegacyTableColumn {
     return this.params?.title;
   }
 
-  dependentColumns() {
-    return {
-      ts: this.columns.ts,
-      dur: this.columns.dur,
-      utid: this.columns.utid,
-    };
-  }
-
-  renderCell(
-    value: SqlValue,
-    manager: LegacyTableManager,
-    data: {[key: string]: SqlValue},
-  ): m.Children {
+  renderCell(value: SqlValue, manager: LegacyTableManager): m.Children {
     const id = value;
-    const ts = data['ts'];
-    const dur = data['dur'] === null ? -1n : data['dur'];
-    const utid = data['utid'];
 
     if (id === null) {
       return renderStandardCell(id, this.id, manager);
     }
-    if (ts === null || utid === null) {
-      return renderError(`Thread state with id ${id} not found`);
-    }
     if (typeof id !== 'bigint') return wrongTypeError('id', this.id, id);
-    if (typeof ts !== 'bigint') {
-      return wrongTypeError('timestamp', this.columns.ts, ts);
-    }
-    if (typeof dur !== 'bigint') {
-      return wrongTypeError('duration', this.columns.dur, dur);
-    }
-    if (typeof utid !== 'bigint') {
-      return wrongTypeError('track id', this.columns.utid, utid);
-    }
 
     return m(ThreadStateRef, {
       id: asThreadStateSqlId(Number(id)),
@@ -603,23 +453,8 @@ export class ThreadColumn extends LegacyTableColumn {
 // ThreadIdColumn is a column type for displaying primary key of the `thread` table.
 // All other references (foreign keys) should use `ThreadColumn` instead.
 export class ThreadIdColumn extends LegacyTableColumn {
-  private columns: {tid: SqlColumn};
-
   constructor(private utid: SqlColumn) {
     super({});
-
-    const threadTable: SourceTable = {
-      table: 'thread',
-      joinOn: {id: this.utid},
-      innerJoin: true,
-    };
-
-    this.columns = {
-      tid: {
-        column: 'tid',
-        source: threadTable,
-      },
-    };
   }
 
   primaryColumn(): SqlColumn {
@@ -630,19 +465,8 @@ export class ThreadIdColumn extends LegacyTableColumn {
     return 'utid';
   }
 
-  dependentColumns() {
-    return {
-      tid: this.columns.tid,
-    };
-  }
-
-  renderCell(
-    value: SqlValue,
-    manager: LegacyTableManager,
-    data: {[key: string]: SqlValue},
-  ): m.Children {
+  renderCell(value: SqlValue, manager: LegacyTableManager): m.Children {
     const utid = value;
-    const rawTid = data['tid'];
 
     if (utid === null) {
       return renderStandardCell(utid, this.utid, manager);
@@ -660,10 +484,7 @@ export class ThreadIdColumn extends LegacyTableColumn {
         trigger: m(Anchor, `${utid}`),
       },
 
-      showThreadDetailsMenuItem(
-        asUtid(Number(utid)),
-        rawTid === null ? undefined : Number(rawTid),
-      ),
+      showThreadDetailsMenuItem(asUtid(Number(utid))),
       getStandardContextMenuItems(utid, this.utid, manager),
     );
   }
@@ -864,23 +685,8 @@ export class ProcessColumn extends LegacyTableColumn {
 // ProcessIdColumn is a column type for displaying primary key of the `process` table.
 // All other references (foreign keys) should use `ProcessColumn` instead.
 export class ProcessIdColumn extends LegacyTableColumn {
-  private columns: {pid: SqlColumn};
-
   constructor(private upid: SqlColumn) {
     super({});
-
-    const processTable: SourceTable = {
-      table: 'process',
-      joinOn: {id: this.upid},
-      innerJoin: true,
-    };
-
-    this.columns = {
-      pid: {
-        column: 'pid',
-        source: processTable,
-      },
-    };
   }
 
   primaryColumn(): SqlColumn {
@@ -891,19 +697,8 @@ export class ProcessIdColumn extends LegacyTableColumn {
     return 'upid';
   }
 
-  dependentColumns() {
-    return {
-      pid: this.columns.pid,
-    };
-  }
-
-  renderCell(
-    value: SqlValue,
-    manager: LegacyTableManager,
-    data: {[key: string]: SqlValue},
-  ): m.Children {
+  renderCell(value: SqlValue, manager: LegacyTableManager): m.Children {
     const upid = value;
-    const rawPid = data['pid'];
 
     if (upid === null) {
       return renderStandardCell(upid, this.upid, manager);
@@ -921,10 +716,7 @@ export class ProcessIdColumn extends LegacyTableColumn {
         trigger: m(Anchor, `${upid}`),
       },
 
-      showProcessDetailsMenuItem(
-        asUpid(Number(upid)),
-        rawPid === null ? undefined : Number(rawPid),
-      ),
+      showProcessDetailsMenuItem(asUpid(Number(upid))),
       getStandardContextMenuItems(upid, this.upid, manager),
     );
   }
