@@ -239,7 +239,7 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
               m('option', {
                 value: name.toUpperCase().replace(' ', '_'),
                 label: name,
-                selected: name === this.defaultOp,
+                selected: name === agg.aggregationOp ? true : undefined,
               }),
             ),
           ),
