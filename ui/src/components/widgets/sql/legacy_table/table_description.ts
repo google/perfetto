@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LegacyTableColumn} from './column';
+import {LegacyTableColumn} from './table_column';
 
 export interface SqlTableDescription {
   readonly imports?: string[];

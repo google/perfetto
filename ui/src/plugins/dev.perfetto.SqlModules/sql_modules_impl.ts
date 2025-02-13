@@ -31,7 +31,7 @@ import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/tab
 import {
   FromSimpleColumn,
   LegacyTableColumn,
-} from '../../components/widgets/sql/legacy_table/column';
+} from '../../components/widgets/sql/legacy_table/table_column';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];

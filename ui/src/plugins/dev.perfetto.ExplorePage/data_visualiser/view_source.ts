@@ -29,10 +29,8 @@ import {SqlColumnAsSimpleColumn} from '../../dev.perfetto.SqlModules/sql_modules
 import {analyzeNode, Query} from '../query_builder/data_source_viewer';
 import {Item, SignalValue} from 'vega';
 import {getTableManager} from '../../../components/widgets/sql/legacy_table/table';
-import {
-  Filter,
-  FromSimpleColumn,
-} from '../../../components/widgets/sql/legacy_table/column';
+import {FromSimpleColumn} from '../../../components/widgets/sql/legacy_table/table_column';
+import {Filter} from '../../../components/widgets/sql/legacy_table/filters';
 
 export interface VisViewAttrs {
   charts: Set<ChartAttrs>;

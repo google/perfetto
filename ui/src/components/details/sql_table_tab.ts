@@ -20,7 +20,6 @@ import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
-import {Filter} from '../widgets/sql/legacy_table/column';
 import {SqlTableState} from '../widgets/sql/legacy_table/state';
 import {SqlTable} from '../widgets/sql/legacy_table/table';
 import {SqlTableDescription} from '../widgets/sql/legacy_table/table_description';
@@ -31,6 +30,7 @@ import {Tab} from '../../public/tab';
 import {addChartTab} from '../widgets/charts/chart_tab';
 import {ChartType} from '../widgets/charts/chart';
 import {AddChartMenuItem} from '../widgets/charts/add_chart_menu';
+import {Filter} from '../widgets/sql/legacy_table/filters';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;

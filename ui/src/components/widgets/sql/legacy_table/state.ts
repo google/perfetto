@@ -13,16 +13,7 @@
 // limitations under the License.
 
 import {NUM, Row} from '../../../../trace_processor/query_result';
-import {
-  tableColumnAlias,
-  ColumnOrderClause,
-  Filter,
-  isSqlColumnEqual,
-  SqlColumn,
-  sqlColumnId,
-  LegacyTableColumn,
-  tableColumnId,
-} from './column';
+import {ColumnOrderClause, SqlColumn, sqlColumnId} from './sql_column';
 import {buildSqlQuery} from './query_builder';
 import {raf} from '../../../../core/raf_scheduler';
 import {SortDirection} from '../../../../base/comparison_utils';
@@ -31,6 +22,12 @@ import {SqlTableDescription} from './table_description';
 import {Trace} from '../../../../public/trace';
 import {runQuery} from '../../../query_table/queries';
 import {AsyncLimiter} from '../../../../base/async_limiter';
+import {areFiltersEqual, Filter, isFilterEqual} from './filters';
+import {
+  LegacyTableColumn,
+  tableColumnAlias,
+  tableColumnId,
+} from './table_column';
 
 const ROW_LIMIT = 100;
 
@@ -58,19 +55,6 @@ interface RowCount {
   // We need to recompute the totalRowCount only when filters change and not
   // when the set of columns / order by changes.
   filters: Filter[];
-}
-
-function isFilterEqual(a: Filter, b: Filter) {
-  return (
-    a.op === b.op &&
-    a.columns.length === b.columns.length &&
-    a.columns.every((c, i) => isSqlColumnEqual(c, b.columns[i]))
-  );
-}
-
-function areFiltersEqual(a: Filter[], b: Filter[]) {
-  if (a.length !== b.length) return false;
-  return a.every((f, i) => isFilterEqual(f, b[i]));
 }
 
 export class SqlTableState {

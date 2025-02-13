@@ -13,14 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  filterTitle,
-  SqlColumn,
-  sqlColumnId,
-  LegacyTableColumn,
-  tableColumnId,
-  LegacyTableManager,
-} from './column';
 import {Button} from '../../../../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
@@ -45,6 +37,13 @@ import {SqlTableDescription} from './table_description';
 import {Intent} from '../../../../widgets/common';
 import {Form} from '../../../../widgets/form';
 import {TextInput} from '../../../../widgets/text_input';
+import {
+  LegacyTableColumn,
+  LegacyTableManager,
+  tableColumnId,
+} from './table_column';
+import {SqlColumn, sqlColumnId} from './sql_column';
+import {filterTitle} from './filters';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;

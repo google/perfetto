@@ -14,87 +14,12 @@
 
 import m from 'mithril';
 import {SqlValue} from '../../../../trace_processor/query_result';
-import {SortDirection} from '../../../../base/comparison_utils';
-import {arrayEquals} from '../../../../base/array_utils';
 import {Trace} from '../../../../public/trace';
 import {SimpleColumn} from '../table/table';
+import {SqlColumn, sqlColumnId, sqlColumnName} from './sql_column';
+import {Filter} from './filters';
 
-// We are dealing with two types of columns here:
-// - Column, which is shown to a user in table (high-level, ColumnTable).
-// - Column in the underlying SQL data (low-level, SqlColumn).
-// They are related, but somewhat separate due to the fact that some table columns need to work with multiple SQL values to display it properly.
-// For example, a "time range" column would need both timestamp and duration to display interactive experience (e.g. highlight the time range on hover).
-// Each TableColumn has a primary SqlColumn, as well as optional dependent columns.
-
-// A source table for a SQL column, representing the joined table and the join constraints.
-export type SourceTable = {
-  table: string;
-  joinOn: {[key: string]: SqlColumn};
-  // Whether more performant 'INNER JOIN' can be used instead of 'LEFT JOIN'.
-  // Special care should be taken to ensure that a) all rows exist in a target table, and b) the source is not null, otherwise the rows will be filtered out.
-  // false by default.
-  innerJoin?: boolean;
-};
-
-// A column in the SQL query. It can be either a column from a base table or a "lookup" column from a joined table.
-export type SqlColumn =
-  | string
-  | {
-      column: string;
-      source: SourceTable;
-    };
-
-// List of columns of args, corresponding to arg values, which cause a short-form of the ID to be generated.
-// (e.g. arg_set_id[foo].int instead of args[arg_set_id,key=foo].int_value).
-const ARG_COLUMN_TO_SUFFIX: {[key: string]: string} = {
-  display_value: '',
-  int_value: '.int',
-  string_value: '.str',
-  real_value: '.real',
-};
-
-// A unique identifier for the SQL column.
-export function sqlColumnId(column: SqlColumn): string {
-  if (typeof column === 'string') {
-    return column;
-  }
-  // Special case: If the join is performed on a single column `id`, we can use a simpler representation (i.e. `table[id].column`).
-  if (arrayEquals(Object.keys(column.source.joinOn), ['id'])) {
-    return `${column.source.table}[${sqlColumnId(Object.values(column.source.joinOn)[0])}].${column.column}`;
-  }
-  // Special case: args lookup. For it, we can use a simpler representation (i.e. `arg_set_id[key]`).
-  if (
-    column.column in ARG_COLUMN_TO_SUFFIX &&
-    column.source.table === 'args' &&
-    arrayEquals(Object.keys(column.source.joinOn).sort(), ['arg_set_id', 'key'])
-  ) {
-    const key = column.source.joinOn['key'];
-    const argSetId = column.source.joinOn['arg_set_id'];
-    return `${sqlColumnId(argSetId)}[${sqlColumnId(key)}]${ARG_COLUMN_TO_SUFFIX[column.column]}`;
-  }
-  // Otherwise, we need to list all the join constraints.
-  const lookup = Object.entries(column.source.joinOn)
-    .map(([key, value]): string => {
-      const valueStr = sqlColumnId(value);
-      if (key === valueStr) return key;
-      return `${key}=${sqlColumnId(value)}`;
-    })
-    .join(', ');
-  return `${column.source.table}[${lookup}].${column.column}`;
-}
-
-export function isSqlColumnEqual(a: SqlColumn, b: SqlColumn): boolean {
-  return sqlColumnId(a) === sqlColumnId(b);
-}
-
-function sqlColumnName(column: SqlColumn): string {
-  if (typeof column === 'string') {
-    return column;
-  }
-  return column.column;
-}
-
-// Interface which allows TableColumn and TableColumnSet to interact with the table (e.g. add filters, or run the query).
+// Interface which allows TableColumn to interact with the table (e.g. add filters, or run the query).
 export interface LegacyTableManager {
   addFilter(filter: Filter): void;
   removeFilter(filter: Filter): void;
@@ -195,34 +120,4 @@ export function tableColumnId(column: LegacyTableColumn): string {
 
 export function tableColumnAlias(column: LegacyTableColumn): string {
   return column.alias ?? sqlColumnName(column.primaryColumn());
-}
-
-// A filter which can be applied to the table.
-export interface Filter {
-  // Operation: it takes a list of column names and should return a valid SQL expression for this filter.
-  op: (cols: string[]) => string;
-  // Columns that the `op` should reference. The number of columns should match the number of interpolations in `op`.
-  columns: SqlColumn[];
-  // Returns a human-readable title for the filter. If not set, `op` will be used.
-  // TODO(altimin): This probably should return m.Children, but currently Button expects its label to be string.
-  getTitle?(): string;
-}
-
-// Returns a default string representation of the filter.
-export function formatFilter(filter: Filter): string {
-  return filter.op(filter.columns.map((c) => sqlColumnId(c)));
-}
-
-// Returns a human-readable title for the filter.
-export function filterTitle(filter: Filter): string {
-  if (filter.getTitle !== undefined) {
-    return filter.getTitle();
-  }
-  return formatFilter(filter);
-}
-
-// A column order clause, which specifies the column and the direction in which it should be sorted.
-export interface ColumnOrderClause {
-  column: SqlColumn;
-  direction: SortDirection;
 }

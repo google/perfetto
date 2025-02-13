@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LegacyTableColumn} from '../../components/widgets/sql/legacy_table/column';
+import {LegacyTableColumn} from '../../components/widgets/sql/legacy_table/table_column';
 import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
 import {
   createDurationColumn,
