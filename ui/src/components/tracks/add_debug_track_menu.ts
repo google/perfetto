@@ -14,17 +14,13 @@
 
 import m from 'mithril';
 import {findRef} from '../../base/dom_utils';
+import {assertUnreachable} from '../../base/logging';
+import {Trace} from '../../public/trace';
 import {Form, FormLabel} from '../../widgets/form';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
-import {
-  addDebugCounterTrack,
-  addDebugSliceTrack,
-  addPivotedTracks,
-} from './debug_tracks';
-import {Trace} from '../../public/trace';
-import {SliceColumnMapping, SqlDataSource} from './query_slice_track';
-import {CounterColumnMapping} from './query_counter_track';
+import {addDebugCounterTrack, addDebugSliceTrack} from './debug_tracks';
+import {SqlDataSource} from './query_slice_track';
 
 interface AddDebugTrackMenuAttrs {
   dataSource: Required<SqlDataSource>;
@@ -172,70 +168,7 @@ export class AddDebugTrackMenu
     return m(
       Form,
       {
-        onSubmit: () => {
-          switch (this.trackType) {
-            case 'slice':
-              const sliceColumns: SliceColumnMapping = {
-                ts: this.renderParams.ts,
-                dur: this.renderParams.dur,
-                name: this.renderParams.name,
-              };
-              if (this.renderParams.pivot) {
-                addPivotedTracks(
-                  vnode.attrs.trace,
-                  vnode.attrs.dataSource,
-                  this.name,
-                  this.renderParams.pivot,
-                  async (ctx, data, trackName) =>
-                    addDebugSliceTrack({
-                      trace: ctx,
-                      data,
-                      title: trackName,
-                      columns: sliceColumns,
-                      argColumns: this.columns,
-                    }),
-                );
-              } else {
-                addDebugSliceTrack({
-                  trace: vnode.attrs.trace,
-                  data: vnode.attrs.dataSource,
-                  title: this.name,
-                  columns: sliceColumns,
-                  argColumns: this.columns,
-                });
-              }
-              break;
-            case 'counter':
-              const counterColumns: CounterColumnMapping = {
-                ts: this.renderParams.ts,
-                value: this.renderParams.value,
-              };
-
-              if (this.renderParams.pivot) {
-                addPivotedTracks(
-                  vnode.attrs.trace,
-                  vnode.attrs.dataSource,
-                  this.name,
-                  this.renderParams.pivot,
-                  async (ctx, data, trackName) =>
-                    addDebugCounterTrack({
-                      trace: ctx,
-                      data,
-                      title: trackName,
-                      columns: counterColumns,
-                    }),
-                );
-              } else {
-                addDebugCounterTrack({
-                  trace: vnode.attrs.trace,
-                  data: vnode.attrs.dataSource,
-                  title: this.name,
-                  columns: counterColumns,
-                });
-              }
-              break;
-          }
-        },
+        onSubmit: () => this.createDebugTracks(vnode.attrs),
         submitLabel: 'Show',
       },
       m(FormLabel, {for: 'track_name'}, 'Track name'),
@@ -259,5 +192,38 @@ export class AddDebugTrackMenu
       this.trackType === 'counter' && renderSelect('value'),
       renderSelect('pivot'),
     );
+  }
+
+  private createDebugTracks(attrs: AddDebugTrackMenuAttrs) {
+    switch (this.trackType) {
+      case 'slice':
+        addDebugSliceTrack({
+          trace: attrs.trace,
+          data: attrs.dataSource,
+          title: this.name,
+          columns: {
+            ts: this.renderParams.ts,
+            dur: this.renderParams.dur,
+            name: this.renderParams.name,
+          },
+          argColumns: this.columns,
+          pivotOn: this.renderParams.pivot,
+        });
+        break;
+      case 'counter':
+        addDebugCounterTrack({
+          trace: attrs.trace,
+          data: attrs.dataSource,
+          title: this.name,
+          columns: {
+            ts: this.renderParams.ts,
+            value: this.renderParams.value,
+          },
+          pivotOn: this.renderParams.pivot,
+        });
+        break;
+      default:
+        assertUnreachable(this.trackType);
+    }
   }
 }
