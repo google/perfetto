@@ -15,6 +15,7 @@
 import {assertUnreachable} from '../base/logging';
 import {getOrCreate} from '../base/utils';
 import {ColumnType, SqlValue} from './query_result';
+import {sqlValueToSqliteString} from './sql_utils';
 
 /**
  * A dataset defines a set of rows in TraceProcessor and a schema of the
@@ -181,9 +182,9 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
     if (!this.filter) return undefined;
 
     if ('eq' in this.filter) {
-      return `${this.filter.col} = ${this.filter.eq}`;
+      return `${this.filter.col} = ${sqlValueToSqliteString(this.filter.eq)}`;
     } else if ('in' in this.filter) {
-      return `${this.filter.col} in (${this.filter.in.join(',')})`;
+      return `${this.filter.col} in (${sqlValueToSqliteString(this.filter.in)})`;
     } else {
       assertUnreachable(this.filter);
     }

@@ -67,7 +67,7 @@ function renderTreeContents(dict: {[key: string]: m.Child}): m.Child[] {
   return children;
 }
 
-export class SqlTableSliceTrackDetailsPanel implements TrackEventDetailsPanel {
+export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
   private data?: {
     name: string;
     ts: time;

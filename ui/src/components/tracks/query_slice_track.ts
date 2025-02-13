@@ -15,8 +15,8 @@
 import {DatasetSliceTrack} from './dataset_slice_track';
 import {
   ARG_PREFIX,
-  SqlTableSliceTrackDetailsPanel,
-} from './sql_table_slice_track_details_tab';
+  DebugSliceTrackDetailsPanel,
+} from './debug_slice_track_details_panel';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {Trace} from '../../public/trace';
 import {sqlNameSafe} from '../../base/string_utils';
@@ -100,7 +100,7 @@ export async function createQuerySliceTrack(args: QuerySliceTrackArgs) {
       src: tableName,
     }),
     detailsPanel: (row) => {
-      return new SqlTableSliceTrackDetailsPanel(args.trace, tableName, row.id);
+      return new DebugSliceTrackDetailsPanel(args.trace, tableName, row.id);
     },
   });
 }
