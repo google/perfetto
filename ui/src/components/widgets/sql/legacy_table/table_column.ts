@@ -16,7 +16,7 @@ import m from 'mithril';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {Trace} from '../../../../public/trace';
 import {SimpleColumn} from '../table/table';
-import {SqlColumn, sqlColumnId, sqlColumnName} from './sql_column';
+import {SqlColumn, sqlColumnId} from './sql_column';
 import {Filters} from './filters';
 
 // Interface which allows TableColumn to interact with the table (e.g. add filters, or run the query).
@@ -37,7 +37,9 @@ export interface TableColumnParams {
 
 // Class which represents a column in a table, which can be displayed to the user.
 // It is based on the primary SQL column, but also contains additional information needed for displaying it as a part of a table.
-export abstract class LegacyTableColumn {
+export abstract class LegacyTableColumn<
+  SupportingColumns extends {[key: string]: SqlColumn} = {},
+> {
   constructor(params?: TableColumnParams) {
     this.tag = params?.tag;
     this.alias = params?.alias;
@@ -60,17 +62,16 @@ export abstract class LegacyTableColumn {
   // The SQL column this data corresponds to. Will be also used for sorting and aggregation purposes.
   abstract primaryColumn(): SqlColumn;
 
-  // Sometimes to display an interactive cell more than a single value is needed (e.g. "time range" corresponds to (ts, dur) pair. While we want to show the duration, we would want to highlight the interval on hover, for which both timestamp and duration are needed.
-  dependentColumns?(): {[key: string]: SqlColumn};
-
-  // The set of underlying sql columns that should be sorted when this column is sorted.
-  sortColumns?(): SqlColumn[];
+  // In some cases to render a value in a table, we need information from additional columns.
+  // For example, args have three related columns: int_value, string_value and real_value. From the user perspective, we want to coalesce them into a single "value" column,
+  // but to do this correctly we need to fetch the `type` column.
+  supportingColumns?(): SupportingColumns;
 
   // Render a table cell. `value` corresponds to the fetched SQL value for the primary column, `dependentColumns` are the fetched values for the dependent columns.
   abstract renderCell(
     value: SqlValue,
     tableManager: LegacyTableManager,
-    dependentColumns: {[key: string]: SqlValue},
+    supportingValues: {[key in keyof SupportingColumns]: SqlValue},
   ): m.Children;
 
   // A set of columns to be added when opening this table.
@@ -109,13 +110,12 @@ export class FromSimpleColumn extends LegacyTableColumn {
 
 // Returns a unique identifier for the table column.
 export function tableColumnId(column: LegacyTableColumn): string {
-  const primaryColumnName = sqlColumnId(column.primaryColumn());
-  if (column.tag) {
-    return `${primaryColumnName}#${column.tag}`;
-  }
-  return primaryColumnName;
+  return sqlColumnId(column.primaryColumn());
 }
 
 export function tableColumnAlias(column: LegacyTableColumn): string {
-  return column.alias ?? sqlColumnName(column.primaryColumn());
+  return (
+    column.alias ??
+    sqlColumnId(column.primaryColumn()).replace(/[^a-zA-Z0-9_]/g, '__')
+  );
 }

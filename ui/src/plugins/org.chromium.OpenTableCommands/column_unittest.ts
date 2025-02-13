@@ -13,20 +13,18 @@
 // limitations under the License.
 
 import {sqlColumnId} from '../../components/widgets/sql/legacy_table/sql_column';
-import {argSqlColumn} from './well_known_columns';
+import {argTableColumn} from './well_known_columns';
 
-test('sql_column_id.arg_set_id', () => {
-  // Special case: arg_set_id.
-  expect(sqlColumnId(argSqlColumn('arg_set_id', 'arg1'))).toBe(
-    "arg_set_id['arg1']",
-  );
+test('arg_set_column.id', () => {
+  expect(
+    sqlColumnId(argTableColumn('arg_set_id', 'arg1').primaryColumn()),
+  ).toBe('arg_set_id[arg1]');
 });
 
-test('sql_column_id.arg_set_id_with_join', () => {
-  // Special case: arg_set_id.
+test('arg_set_column.id_with_join', () => {
   expect(
     sqlColumnId(
-      argSqlColumn(
+      argTableColumn(
         {
           column: 'arg_set_id',
           source: {
@@ -37,7 +35,7 @@ test('sql_column_id.arg_set_id_with_join', () => {
           },
         },
         'arg1',
-      ),
+      ).primaryColumn(),
     ),
-  ).toBe("foo[x=y].arg_set_id['arg1']");
+  ).toBe('foo[x=y].arg_set_id[arg1]');
 });
