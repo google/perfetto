@@ -13,14 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  filterTitle,
-  SqlColumn,
-  sqlColumnId,
-  LegacyTableColumn,
-  tableColumnId,
-  LegacyTableManager,
-} from './column';
 import {Button} from '../../../../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
@@ -45,6 +37,13 @@ import {SqlTableDescription} from './table_description';
 import {Intent} from '../../../../widgets/common';
 import {Form} from '../../../../widgets/form';
 import {TextInput} from '../../../../widgets/text_input';
+import {
+  LegacyTableColumn,
+  LegacyTableManager,
+  tableColumnId,
+} from './table_column';
+import {SqlColumn, sqlColumnId} from './sql_column';
+import {filterTitle} from './filters';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -152,7 +151,7 @@ class ColumnFilter implements m.ClassComponent<ColumnFilterAttrs> {
         // (ex: IS NULL or IS NOT NULL)
         onclick: !requiresParam
           ? () => {
-              state.addFilter({
+              state.filters.addFilter({
                 op: (cols) => `${cols[0]} ${op}`,
                 columns,
               });
@@ -191,7 +190,7 @@ class ColumnFilter implements m.ClassComponent<ColumnFilterAttrs> {
                 filterValue = BigInt(this.inputValue);
               }
 
-              state.addFilter({
+              state.filters.addFilter({
                 op: (cols) => `${cols[0]} ${op} ${filterValue}`,
                 columns,
               });
@@ -234,7 +233,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     extraRemoveFilterActions?: (filterSqlStr: string) => void,
   ): m.Children {
     const filters: m.Child[] = [];
-    for (const filter of this.state.getFilters()) {
+    for (const filter of this.state.filters.get()) {
       const label = filterTitle(filter);
       filters.push(
         m(Button, {
@@ -242,7 +241,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           icon: 'close',
           intent: Intent.Primary,
           onclick: () => {
-            this.state.removeFilter(filter);
+            this.state.filters.removeFilter(filter);
 
             if (extraRemoveFilterActions) {
               extraRemoveFilterActions(label);
@@ -462,18 +461,13 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
 export function getTableManager(state: SqlTableState): LegacyTableManager {
   return {
-    addFilter: (filter) => {
-      state.addFilter(filter);
-    },
-    removeFilter: (filter) => {
-      state.removeFilter(filter);
-    },
+    filters: state.filters,
     trace: state.trace,
     getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
       buildSqlQuery({
         table: state.config.name,
         columns,
-        filters: state.getFilters(),
+        filters: state.filters.get(),
         orderBy: state.getOrderedBy(),
       }),
   };

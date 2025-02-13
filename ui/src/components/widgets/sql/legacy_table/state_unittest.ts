@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {createFakeTraceImpl} from '../../../../core/fake_trace_impl';
-import {FromSimpleColumn, tableColumnId} from './column';
+import {FromSimpleColumn, tableColumnId} from './table_column';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
 import {createStandardColumn, createTimestampColumn} from '../table/table';
