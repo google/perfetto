@@ -34,17 +34,19 @@ import {showThreadDetailsMenuItem} from '../../components/widgets/thread';
 import {ThreadStateRef} from '../../components/widgets/thread_state';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {
-  SourceTable,
-  SqlColumn,
-  sqlColumnId,
   LegacyTableColumn,
   LegacyTableManager,
-} from '../../components/widgets/sql/legacy_table/column';
+} from '../../components/widgets/sql/legacy_table/table_column';
 import {
   displayValue,
   getStandardContextMenuItems,
   renderStandardCell,
 } from '../../components/widgets/sql/legacy_table/render_cell_utils';
+import {
+  SourceTable,
+  SqlColumn,
+  sqlColumnId,
+} from '../../components/widgets/sql/legacy_table/sql_column';
 
 function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
   return renderError(
