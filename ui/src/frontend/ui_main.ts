@@ -44,7 +44,15 @@ import {NotesListEditor} from './notes_list_editor';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {Workspace} from '../public/workspace';
+import {
+  deserializeAppStatePhase1,
+  deserializeAppStatePhase2,
+  JsonSerialize,
+  parseAppState,
+  serializeAppState,
+} from '../core/state_serialization';
 
+const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 const OMNIBOX_INPUT_REF = 'omnibox';
 
 // This wrapper creates a new instance of UiMainPerTrace for each new trace
@@ -451,6 +459,35 @@ export class UiMainPerTrace implements m.ClassComponent {
             workspace.addChildLast(newNode);
           }
           trace.workspaces.switchWorkspace(workspace);
+        },
+      },
+      {
+        id: 'perfetto.Quicksave',
+        name: 'Quicksave UI state to localStorage',
+        callback: () => {
+          const state = serializeAppState(trace);
+          const json = JsonSerialize(state);
+          localStorage.setItem(QUICKSAVE_LOCALSTORAGE_KEY, json);
+        },
+      },
+      {
+        id: 'perfetto.Quickload',
+        name: 'Quickload UI state from the localStorage',
+        callback: () => {
+          const json = localStorage.getItem(QUICKSAVE_LOCALSTORAGE_KEY);
+          if (json === null) {
+            showModal({
+              title: 'Nothing saved in the quicksave slot',
+              buttons: [{text: 'Dismiss'}],
+            });
+            return;
+          }
+          const parsed = JSON.parse(json);
+          const state = parseAppState(parsed);
+          if (state.success) {
+            deserializeAppStatePhase1(state.data, trace);
+            deserializeAppStatePhase2(state.data, trace);
+          }
         },
       },
     ];
