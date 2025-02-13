@@ -211,10 +211,10 @@ message DisplayContentProto {
   optional IdentifierProto resumed_activity = 24;
   repeated TaskProto tasks = 25 [deprecated = true];
   optional bool display_ready = 26;
-  optional WindowStateProto input_method_target = 27;
-  optional WindowStateProto input_method_input_target = 28;
-  optional WindowStateProto input_method_control_target = 29;
-  optional WindowStateProto current_focus = 30;
+  optional WindowStateProto input_method_target = 27 [deprecated = true];
+  optional WindowStateProto input_method_input_target = 28 [deprecated = true];
+  optional WindowStateProto input_method_control_target = 29 [deprecated = true];
+  optional WindowStateProto current_focus = 30 [deprecated = true];
   optional ImeInsetsSourceProviderProto ime_insets_source_provider = 31;
   optional bool can_show_ime = 32 [deprecated = true];
 
@@ -226,6 +226,10 @@ message DisplayContentProto {
   repeated string sleep_tokens = 37;
   repeated RectProto keep_clear_areas = 38;
   optional int32 min_size_of_resizeable_task_dp = 39;
+  optional IdentifierProto input_method_layering_target_identifier = 40;
+  optional IdentifierProto input_method_input_target_identifier = 41;
+  optional IdentifierProto input_method_control_target_identifier = 42;
+  optional IdentifierProto current_focus_identifier = 43;
 }
 
 // represents DisplayArea object
@@ -562,9 +566,9 @@ message InsetsSourceProviderProto {
   optional RectProto frame = 2;
   optional InsetsSourceControlProto fake_control = 3;
   optional InsetsSourceControlProto control = 4;
-  optional WindowStateProto control_target = 5;
-  optional WindowStateProto pending_control_target = 6;
-  optional WindowStateProto fake_control_target = 7;
+  optional WindowStateProto control_target = 5 [deprecated = true];
+  optional WindowStateProto pending_control_target = 6 [deprecated = true];
+  optional WindowStateProto fake_control_target = 7 [deprecated = true];
   optional SurfaceControlProto captured_leash = 8;
   optional RectProto ime_overridden_frame = 9 [deprecated = true];
   optional bool is_leash_ready_for_dispatching = 10;
@@ -573,13 +577,19 @@ message InsetsSourceProviderProto {
   optional bool seamless_rotating = 13;
   optional int64 finish_seamless_rotate_frame_number = 14;
   optional bool controllable = 15;
-  optional WindowStateProto source_window_state = 16;
+  optional WindowStateProto source_window_state = 16 [deprecated = true];
+
+  optional IdentifierProto control_target_identifier = 17;
+  optional IdentifierProto pending_control_target_identifier = 18;
+  optional IdentifierProto fake_control_target_identifier = 19;
+  optional IdentifierProto source_window_state_identifier = 20;
 }
 
 message ImeInsetsSourceProviderProto {
   optional InsetsSourceProviderProto insets_source_provider = 1;
-  optional WindowStateProto ime_target_from_ime = 2;
+  optional WindowStateProto ime_target_from_ime = 2 [deprecated = true];
   optional bool is_ime_layout_drawn = 3 [deprecated = true];
+  optional IdentifierProto ime_target_from_ime_identifier = 4;
 }
 
 message BackNavigationProto {
