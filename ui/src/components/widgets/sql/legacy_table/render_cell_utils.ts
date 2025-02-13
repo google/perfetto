@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {LegacyTableManager, SqlColumn} from './column';
+import {SqlColumn} from './sql_column';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {isString} from '../../../../base/object_utils';
@@ -22,6 +22,7 @@ import {Icons} from '../../../../base/semantic_icons';
 import {copyToClipboard} from '../../../../base/clipboard';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
 import {Anchor} from '../../../../widgets/anchor';
+import {LegacyTableManager} from './table_column';
 
 export interface LegacySqlTableFilterOp {
   op: string; // string representation of the operation (to be injected to SQL)
@@ -95,7 +96,7 @@ function filterOptionMenuItem(
   return m(MenuItem, {
     label,
     onclick: () => {
-      tableManager.addFilter({op: filterOp, columns: [column]});
+      tableManager.filters.addFilter({op: filterOp, columns: [column]});
     },
   });
 }

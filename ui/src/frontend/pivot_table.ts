@@ -38,13 +38,14 @@ import {AttributeModalHolder} from './tables/attribute_modal_holder';
 import {DurationWidget} from '../components/widgets/duration';
 import {getSqlTableDescription} from '../components/widgets/sql/legacy_table/sql_table_registry';
 import {assertExists, assertFalse} from '../base/logging';
-import {Filter, SqlColumn} from '../components/widgets/sql/legacy_table/column';
 import {TraceImpl} from '../core/trace_impl';
 import {PivotTableManager} from '../core/pivot_table_manager';
 import {extensions} from '../components/extensions';
 import {MenuItem, PopupMenu} from '../widgets/menu';
 import {Button} from '../widgets/button';
 import {popupMenuIcon} from '../widgets/table';
+import {SqlColumn} from '../components/widgets/sql/legacy_table/sql_column';
+import {Filter} from '../components/widgets/sql/legacy_table/filters';
 
 interface PathItem {
   tree: PivotTree;

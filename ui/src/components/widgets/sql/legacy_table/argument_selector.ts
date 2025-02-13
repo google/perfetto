@@ -15,7 +15,11 @@
 import m from 'mithril';
 import {raf} from '../../../../core/raf_scheduler';
 import {Spinner} from '../../../../widgets/spinner';
-import {LegacyTableColumn, tableColumnId, LegacyTableManager} from './column';
+import {
+  LegacyTableColumn,
+  tableColumnId,
+  LegacyTableManager,
+} from './table_column';
 import {TextInput} from '../../../../widgets/text_input';
 import {hasModKey, modKey} from '../../../../base/hotkeys';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
