@@ -25,6 +25,48 @@ export interface Filter {
   getTitle?(): string;
 }
 
+// A class representing a set of filters. As it's common for multiple components to share the same set of filters (e.g.
+// table viewer and associated charts), this class allows sharing the same set of filters between multiple components
+// and them being notified when the filters change.
+export class Filters {
+  private filters: Filter[] = [];
+  // Use WeakRef to allow observers to be reclaimed.
+  private observers: (() => void)[] = [];
+
+  constructor(filters: Filter[] = []) {
+    this.filters = [...filters];
+  }
+
+  addFilter(filter: Filter) {
+    this.filters.push(filter);
+    this.notify();
+  }
+
+  removeFilter(filter: Filter) {
+    const idx = this.filters.findIndex((f) => isFilterEqual(f, filter));
+    if (idx === -1) throw new Error('Filter not found');
+    this.filters.splice(idx, 1);
+    this.notify();
+  }
+
+  get(): Filter[] {
+    return this.filters;
+  }
+
+  clear() {
+    this.filters = [];
+    this.notify();
+  }
+
+  addObserver(observer: () => void) {
+    this.observers.push(observer);
+  }
+
+  private notify() {
+    this.observers.forEach((observer) => observer());
+  }
+}
+
 // Returns a default string representation of the filter.
 export function formatFilter(filter: Filter): string {
   return filter.op(filter.columns.map((c) => sqlColumnId(c)));

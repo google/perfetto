@@ -22,7 +22,7 @@ import {SqlTableDescription} from './table_description';
 import {Trace} from '../../../../public/trace';
 import {runQuery} from '../../../query_table/queries';
 import {AsyncLimiter} from '../../../../base/async_limiter';
-import {areFiltersEqual, Filter, isFilterEqual} from './filters';
+import {areFiltersEqual, Filter, Filters} from './filters';
 import {
   LegacyTableColumn,
   tableColumnAlias,
@@ -58,12 +58,13 @@ interface RowCount {
 }
 
 export class SqlTableState {
+  public readonly filters: Filters;
+
   private readonly additionalImports: string[];
   private readonly asyncLimiter = new AsyncLimiter();
 
   // Columns currently displayed to the user. All potential columns can be found `this.table.columns`.
   private columns: LegacyTableColumn[];
-  private filters: Filter[];
   private orderBy: {
     column: LegacyTableColumn;
     direction: SortDirection;
@@ -82,7 +83,7 @@ export class SqlTableState {
       initialColumns?: LegacyTableColumn[];
       additionalColumns?: LegacyTableColumn[];
       imports?: string[];
-      filters?: Filter[];
+      filters?: Filters;
       orderBy?: {
         column: LegacyTableColumn;
         direction: SortDirection;
@@ -91,7 +92,8 @@ export class SqlTableState {
   ) {
     this.additionalImports = args?.imports || [];
 
-    this.filters = args?.filters || [];
+    this.filters = args?.filters || new Filters();
+    this.filters.addObserver(() => this.reload());
     this.columns = [];
 
     if (args?.initialColumns !== undefined) {
@@ -128,7 +130,7 @@ export class SqlTableState {
     return new SqlTableState(this.trace, this.config, {
       initialColumns: this.columns,
       imports: this.args?.imports,
-      filters: this.filters,
+      filters: new Filters(this.filters.get()),
       orderBy: this.orderBy,
     });
   }
@@ -154,7 +156,7 @@ export class SqlTableState {
       table: this.config.name,
       columns,
       prefix: this.config.prefix,
-      filters: this.filters,
+      filters: this.filters.get(),
       orderBy: this.getOrderedBy(),
     });
   }
@@ -271,7 +273,7 @@ export class SqlTableState {
   }
 
   private async loadRowCount(): Promise<RowCount | undefined> {
-    const filters = Array.from(this.filters);
+    const filters = Array.from(this.filters.get());
     const res = await this.trace.engine.query(this.getCountRowsSQLQuery());
     if (res.error() !== undefined) return undefined;
     return {
@@ -316,7 +318,7 @@ export class SqlTableState {
 
     const newFilters = this.rowCount?.filters;
     const filtersMatch =
-      newFilters && areFiltersEqual(newFilters, this.filters);
+      newFilters && areFiltersEqual(newFilters, this.filters.get());
     this.data = undefined;
     const request = this.buildRequest();
     this.request = request;
@@ -381,20 +383,6 @@ export class SqlTableState {
 
   isLoading() {
     return this.data === undefined;
-  }
-
-  addFilter(filter: Filter) {
-    this.filters.push(filter);
-    this.reload();
-  }
-
-  removeFilter(filter: Filter) {
-    this.filters = this.filters.filter((f) => !isFilterEqual(f, filter));
-    this.reload();
-  }
-
-  getFilters(): Filter[] {
-    return this.filters;
   }
 
   sortBy(clause: {column: LegacyTableColumn; direction: SortDirection}) {

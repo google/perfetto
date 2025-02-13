@@ -212,7 +212,7 @@ export class VisViewSource {
 
     // remove existing filters
     const tableManager = getTableManager(sqlTableState);
-    sqlTableState.getFilters().forEach((f) => tableManager.removeFilter(f));
+    sqlTableState.filters.clear();
 
     Array.from(this._filters.values()).forEach((f) => {
       const sqlTableFilter: Filter = {
@@ -225,7 +225,7 @@ export class VisViewSource {
         },
         columns: [f.columnName],
       };
-      tableManager.addFilter(sqlTableFilter);
+      tableManager.filters.addFilter(sqlTableFilter);
     });
 
     const newVisViews: VisViewAttrs = {

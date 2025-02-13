@@ -17,13 +17,11 @@ import {SqlValue} from '../../../../trace_processor/query_result';
 import {Trace} from '../../../../public/trace';
 import {SimpleColumn} from '../table/table';
 import {SqlColumn, sqlColumnId, sqlColumnName} from './sql_column';
-import {Filter} from './filters';
+import {Filters} from './filters';
 
 // Interface which allows TableColumn to interact with the table (e.g. add filters, or run the query).
 export interface LegacyTableManager {
-  addFilter(filter: Filter): void;
-  removeFilter(filter: Filter): void;
-
+  filters: Filters;
   trace: Trace;
   getSqlQuery(data: {[key: string]: SqlColumn}): string;
 }

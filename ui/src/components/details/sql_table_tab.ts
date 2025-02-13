@@ -30,7 +30,7 @@ import {Tab} from '../../public/tab';
 import {addChartTab} from '../widgets/charts/chart_tab';
 import {ChartType} from '../widgets/charts/chart';
 import {AddChartMenuItem} from '../widgets/charts/add_chart_menu';
-import {Filter} from '../widgets/sql/legacy_table/filters';
+import {Filter, Filters} from '../widgets/sql/legacy_table/filters';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -44,7 +44,7 @@ export function addLegacyTableTab(
 ): void {
   addSqlTableTabWithState(
     new SqlTableState(trace, config.table, {
-      filters: config.filters,
+      filters: new Filters(config.filters),
       imports: config.imports,
     }),
   );

@@ -96,7 +96,7 @@ function filterOptionMenuItem(
   return m(MenuItem, {
     label,
     onclick: () => {
-      tableManager.addFilter({op: filterOp, columns: [column]});
+      tableManager.filters.addFilter({op: filterOp, columns: [column]});
     },
   });
 }
