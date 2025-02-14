@@ -72,8 +72,9 @@ function renderCell(
   const sqlValue = row[columns[sqlColumnId(column.primaryColumn())]];
 
   const additionalValues: {[key: string]: SqlValue} = {};
-  const dependentColumns = column.dependentColumns?.() ?? {};
-  for (const [key, col] of Object.entries(dependentColumns)) {
+  const supportingColumns: {[key: string]: SqlColumn} =
+    column.supportingColumns?.() ?? {};
+  for (const [key, col] of Object.entries(supportingColumns)) {
     additionalValues[key] = row[columns[sqlColumnId(col)]];
   }
 

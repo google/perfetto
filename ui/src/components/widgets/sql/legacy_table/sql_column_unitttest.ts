@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqlColumnId} from './sql_column';
+import {sqlColumnId, SqlExpression} from './sql_column';
 
 test('sql_column_id.basic', () => {
   // Straightforward case: just a column selection.
@@ -107,4 +107,20 @@ test('sql_column_id.simplied_join', () => {
       },
     }),
   ).toBe('foo[x=y, z].name');
+});
+
+test('sql_column_id.expression_without_id', () => {
+  expect(
+    sqlColumnId(
+      new SqlExpression((cols) => `(${cols.join('&')})`, ['a', 'b', 'c']),
+    ),
+  ).toBe('a&b&c');
+});
+
+test('sql_column_id.expression_with_id', () => {
+  expect(
+    sqlColumnId(
+      new SqlExpression((cols) => `(${cols.join('&')})`, ['a', 'b', 'c'], 'id'),
+    ),
+  ).toBe('id');
 });
