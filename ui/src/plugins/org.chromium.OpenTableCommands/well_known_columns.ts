@@ -38,14 +38,13 @@ import {
   LegacyTableManager,
 } from '../../components/widgets/sql/legacy_table/table_column';
 import {
-  displayValue,
   getStandardContextMenuItems,
   renderStandardCell,
 } from '../../components/widgets/sql/legacy_table/render_cell_utils';
 import {
-  SourceTable,
   SqlColumn,
   sqlColumnId,
+  SqlExpression,
 } from '../../components/widgets/sql/legacy_table/sql_column';
 
 function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
@@ -424,106 +423,82 @@ export class ProcessIdColumn extends LegacyTableColumn {
   }
 }
 
-class ArgColumn extends LegacyTableColumn {
-  private displayValue: SqlColumn;
-  private stringValue: SqlColumn;
-  private intValue: SqlColumn;
-  private realValue: SqlColumn;
+class ArgColumn extends LegacyTableColumn<{type: SqlColumn}> {
+  private column: SqlColumn;
+  private id: string;
 
   constructor(
     private argSetId: SqlColumn,
     private key: string,
   ) {
     super();
-
-    const argTable: SourceTable = {
-      table: 'args',
-      joinOn: {
-        arg_set_id: argSetId,
-        key: sqliteString(key),
-      },
-    };
-
-    this.displayValue = {
-      column: 'display_value',
-      source: argTable,
-    };
-    this.stringValue = {
-      column: 'string_value',
-      source: argTable,
-    };
-    this.intValue = {
-      column: 'int_value',
-      source: argTable,
-    };
-    this.realValue = {
-      column: 'real_value',
-      source: argTable,
-    };
+    this.id = `${sqlColumnId(this.argSetId)}[${this.key}]`;
+    this.column = new SqlExpression(
+      (cols: string[]) => `COALESCE(${cols[0]}, ${cols[1]}, ${cols[2]})`,
+      [
+        this.getRawColumn('string_value'),
+        this.getRawColumn('int_value'),
+        this.getRawColumn('real_value'),
+      ],
+      this.id,
+    );
   }
 
   override primaryColumn(): SqlColumn {
-    return this.displayValue;
+    return this.column;
   }
 
-  override sortColumns(): SqlColumn[] {
-    return [this.stringValue, this.intValue, this.realValue];
+  override supportingColumns() {
+    return {type: this.getRawColumn('type')};
   }
 
-  override dependentColumns() {
+  private getRawColumn(
+    type: 'string_value' | 'int_value' | 'real_value' | 'id' | 'type',
+  ): SqlColumn {
     return {
-      stringValue: this.stringValue,
-      intValue: this.intValue,
-      realValue: this.realValue,
+      column: type,
+      source: {
+        table: 'args',
+        joinOn: {
+          arg_set_id: this.argSetId,
+          key: `${sqliteString(this.key)}`,
+        },
+      },
+      id: `${this.id}.${type.replace(/_value$/g, '')}`,
     };
-  }
-
-  getTitle() {
-    return `${sqlColumnId(this.argSetId)}[${this.key}]`;
   }
 
   renderCell(
     value: SqlValue,
     tableManager: LegacyTableManager,
-    dependentColumns: {[key: string]: SqlValue},
+    values: {type: SqlValue},
   ): m.Children {
-    const strValue = dependentColumns['stringValue'];
-    const intValue = dependentColumns['intValue'];
-    const realValue = dependentColumns['realValue'];
-
-    let contextMenuItems: m.Child[] = [];
-    if (strValue !== null) {
-      contextMenuItems = getStandardContextMenuItems(
-        strValue,
-        this.stringValue,
-        tableManager,
-      );
-    } else if (intValue !== null) {
-      contextMenuItems = getStandardContextMenuItems(
-        intValue,
-        this.intValue,
-        tableManager,
-      );
-    } else if (realValue !== null) {
-      contextMenuItems = getStandardContextMenuItems(
-        realValue,
-        this.realValue,
-        tableManager,
-      );
-    } else {
-      contextMenuItems = getStandardContextMenuItems(
+    // If the value is NULL, then filters can check for id column for better performance.
+    if (value === null) {
+      return renderStandardCell(value, this.getRawColumn('type'), tableManager);
+    }
+    if (values.type === 'int') {
+      return renderStandardCell(
         value,
-        this.displayValue,
+        this.getRawColumn('int_value'),
         tableManager,
       );
     }
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Anchor, displayValue(value)),
-      },
-      ...contextMenuItems,
-    );
+    if (values.type === 'string') {
+      return renderStandardCell(
+        value,
+        this.getRawColumn('string_value'),
+        tableManager,
+      );
+    }
+    if (values.type === 'real') {
+      return renderStandardCell(
+        value,
+        this.getRawColumn('real_value'),
+        tableManager,
+      );
+    }
+    return renderStandardCell(value, this.column, tableManager);
   }
 }
 
@@ -570,19 +545,6 @@ export class ArgSetIdColumn extends LegacyTableColumn {
   override initialColumns() {
     return [];
   }
-}
-
-export function argSqlColumn(argSetId: SqlColumn, key: string): SqlColumn {
-  return {
-    column: 'display_value',
-    source: {
-      table: 'args',
-      joinOn: {
-        arg_set_id: argSetId,
-        key: sqliteString(key),
-      },
-    },
-  };
 }
 
 export function argTableColumn(
