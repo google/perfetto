@@ -51,6 +51,7 @@ import {
   parseAppState,
   serializeAppState,
 } from '../core/state_serialization';
+import {featureFlags} from '../core/feature_flags';
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 const OMNIBOX_INPUT_REF = 'omnibox';
@@ -488,6 +489,14 @@ export class UiMainPerTrace implements m.ClassComponent {
             deserializeAppStatePhase1(state.data, trace);
             deserializeAppStatePhase2(state.data, trace);
           }
+        },
+      },
+      {
+        id: `${app.pluginId}#RestoreDefaults`,
+        name: 'Reset all flags back to default values',
+        callback: () => {
+          featureFlags.resetAll();
+          window.location.reload();
         },
       },
     ];
