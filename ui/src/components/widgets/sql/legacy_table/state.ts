@@ -203,22 +203,6 @@ export class SqlTableState {
       sqlColumnIds.add(sqlColumnId(sqlColumn));
     }
 
-    // We are going to be less fancy for the dependendent columns can just always suffix them with a unique integer.
-    let dependentColumnCount = 0;
-    for (const column of tableColumns) {
-      const dependentColumns =
-        column.column.dependentColumns !== undefined
-          ? column.column.dependentColumns()
-          : {};
-      for (const col of Object.values(dependentColumns)) {
-        if (sqlColumnIds.has(sqlColumnId(col))) continue;
-        const name = typeof col === 'string' ? col : col.column;
-        const alias = `__${name}_${dependentColumnCount++}`;
-        columns[alias] = col;
-        sqlColumnIds.add(sqlColumnId(col));
-      }
-    }
-
     return {
       selectStatement: this.getSqlQuery(columns),
       columns: Object.fromEntries(
@@ -412,12 +396,10 @@ export class SqlTableState {
   getOrderedBy(): ColumnOrderClause[] {
     const result: ColumnOrderClause[] = [];
     for (const orderBy of this.orderBy) {
-      const sortColumns = orderBy.column.sortColumns?.() ?? [
-        orderBy.column.primaryColumn(),
-      ];
-      for (const column of sortColumns) {
-        result.push({column, direction: orderBy.direction});
-      }
+      result.push({
+        column: orderBy.column.primaryColumn(),
+        direction: orderBy.direction,
+      });
     }
     return result;
   }
