@@ -207,7 +207,7 @@ function statsdAtoms(): RecordProbe {
       const rawPullIds = splitLinesNonEmpty(settings.rawPullIds.text).map((l) =>
         parseInt(l.trim()),
       );
-      const hasPull = pullIds.length > 0 && rawPullIds.length > 0;
+      const hasPull = pullIds.length > 0 || rawPullIds.length > 0;
       tc.addDataSource('android.statsd').statsdTracingConfig = {
         pushAtomId: settings.pushAtoms.selectedValues(),
         rawPushAtomId: splitLinesNonEmpty(settings.rawPushIds.text).map((l) =>
