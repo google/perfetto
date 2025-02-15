@@ -312,9 +312,16 @@ export class SearchManagerImpl {
     // after the start of this visible window.
     const visibleWindow = this._timeline?.visibleWindow.toTimeSpan();
     if (visibleWindow) {
-      this._resultIndex = this._results.tses.findIndex(
-        (ts) => ts > visibleWindow.start,
+      const foundIndex = this._results.tses.findIndex(
+        (ts) => ts >= visibleWindow.start,
       );
+      if (foundIndex === -1) {
+        this._resultIndex = -1;
+      } else {
+        // Store the value before the found one, so that when the user presses
+        // enter we navigate to the correct one.
+        this._resultIndex = foundIndex - 1;
+      }
     } else {
       this._resultIndex = -1;
     }
