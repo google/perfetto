@@ -27,3 +27,8 @@ export class Cpu {
     return `${this.cpu}${this.maybeMachineLabel()}`;
   }
 }
+
+export function maybeMachineLabel(machine?: number): string {
+  const m = machine ?? 0;
+  return m > 0 ? ` (machine ${m})` : '';
+}
