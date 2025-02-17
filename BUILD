@@ -1102,6 +1102,7 @@ perfetto_filegroup(
         "include/perfetto/public/te_category_macros.h",
         "include/perfetto/public/te_macros.h",
         "include/perfetto/public/thread_utils.h",
+        "include/perfetto/public/tracing_session.h",
         "include/perfetto/public/track_event.h",
     ],
 )
