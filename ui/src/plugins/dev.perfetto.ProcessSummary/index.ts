@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
+import {maybeMachineLabel} from '../../base/multi_machine_trace';
 import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
 import {getThreadOrProcUri} from '../../public/utils';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
+import ThreadPlugin from '../dev.perfetto.Thread';
+import {createPerfettoIndex} from '../../trace_processor/sql_utils';
+import {uuidv4Sql} from '../../base/uuid';
 import {
   Config as ProcessSchedulingTrackConfig,
   PROCESS_SCHEDULING_TRACK_KIND,
@@ -26,9 +30,6 @@ import {
   PROCESS_SUMMARY_TRACK,
   ProcessSummaryTrack,
 } from './process_summary_track';
-import ThreadPlugin from '../dev.perfetto.Thread';
-import {createPerfettoIndex} from '../../trace_processor/sql_utils';
-import {uuidv4Sql} from '../../base/uuid';
 
 // This plugin is responsible for adding summary tracks for process and thread
 // groups.
@@ -141,6 +142,7 @@ export default class implements PerfettoPlugin {
 
       const chips: string[] = [];
       isDebuggable && chips.push('debuggable');
+      const machineLabel = maybeMachineLabel(machine);
 
       if (hasSched) {
         const config: ProcessSchedulingTrackConfig = {
@@ -152,7 +154,7 @@ export default class implements PerfettoPlugin {
         const cpuCount = cpuCountByMachine[machine] ?? 0;
         ctx.tracks.registerTrack({
           uri,
-          title: `${upid === null ? tid : pid} schedule`,
+          title: `${upid === null ? tid : pid}${machineLabel} schedule`,
           tags: {
             kind: PROCESS_SCHEDULING_TRACK_KIND,
           },
@@ -169,7 +171,7 @@ export default class implements PerfettoPlugin {
 
         ctx.tracks.registerTrack({
           uri,
-          title: `${upid === null ? tid : pid} summary`,
+          title: `${upid === null ? tid : pid}${machineLabel} summary`,
           tags: {
             kind: PROCESS_SUMMARY_TRACK,
           },
