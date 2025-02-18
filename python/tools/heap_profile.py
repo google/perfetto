@@ -198,7 +198,7 @@ def main(argv):
       default=0)
   parser.add_argument(
       "--heaps",
-      help="Comma-separated list of heaps to collect, e.g: malloc,art. "
+      help="Comma-separated list of heaps to collect, e.g: libc.malloc,com.android.art. "
       "Requires Android 12.",
       metavar="HEAPS")
   parser.add_argument(
