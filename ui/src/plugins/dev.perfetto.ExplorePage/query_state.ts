@@ -25,6 +25,7 @@ export enum NodeType {
   // Operations
   kJoinOperator,
   kGroupByOperator,
+  kFilterOperator,
 }
 
 export interface QueryNode {
