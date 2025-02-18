@@ -30,7 +30,7 @@ class Startups(TestSuite):
         """,
         out=Csv("""
         "startup_id","ts","ts_end","dur","package","startup_type"
-        0,186969441973689,186969489302704,47329015,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
+        0,186969441973689,186969489302704,47329015,"androidx.benchmark.integration.macrobenchmark.target","hot"
         """))
 
   def test_warm_startups(self):
@@ -42,7 +42,7 @@ class Startups(TestSuite):
         """,
         out=Csv("""
         "startup_id","ts","ts_end","dur","package","startup_type"
-        0,186982050780778,186982115528805,64748027,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
+        0,186982050780778,186982115528805,64748027,"androidx.benchmark.integration.macrobenchmark.target","warm"
         """))
 
   def test_cold_startups(self):
@@ -54,7 +54,7 @@ class Startups(TestSuite):
         """,
         out=Csv("""
         "startup_id","ts","ts_end","dur","package","startup_type"
-        0,186974938196632,186975083989042,145792410,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
+        0,186974938196632,186975083989042,145792410,"androidx.benchmark.integration.macrobenchmark.target","cold"
         """))
 
   def test_hot_startups_maxsdk28(self):
