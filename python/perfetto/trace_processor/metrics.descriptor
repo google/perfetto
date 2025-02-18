@@ -160,8 +160,8 @@ gc_int_dur (RgcIntDur
 AndroidBootUnaggv
  android_app_process_start_metric (2..perfetto.protos.AndroidAppProcessStartsMetricRandroidAppProcessStartMetricr
 android_post_boot_gc_metric (24.perfetto.protos.AndroidGarbageCollectionUnaggMetricRandroidPostBootGcMetric
-…
-Fprotos/perfetto/metrics/android/android_garbage_collection_stats.protoperfetto.protos"Ì
+°
+Fprotos/perfetto/metrics/android/android_garbage_collection_stats.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ç
 AndroidGarbageCollectionStats
 ts (Rts
 dur (Rdur"
@@ -180,7 +180,25 @@ heapSizeMb*
 gc_during_android_startup_dur (RgcDuringAndroidStartupDur9
 total_android_startup_dur (RtotalAndroidStartupDurB
 gc_during_android_startup_rate (RgcDuringAndroidStartupRateN
-$gc_during_android_startup_efficiency (R gcDuringAndroidStartupEfficiency
+$gc_during_android_startup_efficiency (R gcDuringAndroidStartupEfficiencyY
+	processes (2;.perfetto.protos.AndroidGarbageCollectionStats.ProcessStatsR	processes¬
+ProcessStatsA
+process (2'.perfetto.protos.AndroidProcessMetadataRprocess"
+heap_size_mbs (RheapSizeMbs 
+heap_size_mb (R
+heapSizeMb*
+heap_allocated_mb (RheapAllocatedMb0
+heap_allocation_rate (RheapAllocationRate"
+heap_live_mbs (RheapLiveMbs$
+heap_total_mbs (RheapTotalMbs)
+heap_utilization (RheapUtilization$
+gc_running_dur	 (RgcRunningDur&
+gc_running_rate
+ (RgcRunningRate2
+gc_running_efficiency (RgcRunningEfficiency@
+gc_during_android_startup_dur (RgcDuringAndroidStartupDurB
+gc_during_android_startup_rate (RgcDuringAndroidStartupRateN
+$gc_during_android_startup_efficiency (R gcDuringAndroidStartupEfficiency
 ≥
 1protos/perfetto/metrics/android/auto_metric.protoperfetto.protos"Ï
 AndroidAutoMultiuserMetricV
