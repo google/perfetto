@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+SELECT RUN_METRIC('android/process_metadata.sql');
+
 INCLUDE PERFETTO MODULE android.garbage_collection;
 
 DROP VIEW IF EXISTS android_garbage_collection_stats_output;
@@ -34,5 +36,27 @@ SELECT AndroidGarbageCollectionStats(
   'gc_during_android_startup_dur', gc_during_android_startup_dur,
   'total_android_startup_dur', total_android_startup_dur,
   'gc_during_android_startup_rate', gc_during_android_startup_rate,
-  'gc_during_android_startup_efficiency', gc_during_android_startup_efficiency)
+  'gc_during_android_startup_efficiency', gc_during_android_startup_efficiency,
+  'processes', (
+    SELECT RepeatedField(
+      AndroidGarbageCollectionStats_ProcessStats(
+        'process', metadata,
+        'heap_size_mbs', heap_size_mbs,
+        'heap_size_mb', heap_size_mb,
+        'heap_allocated_mb', heap_allocated_mb,
+        'heap_allocation_rate', heap_allocation_rate,
+        'heap_live_mbs', heap_live_mbs,
+        'heap_total_mbs', heap_total_mbs,
+        'heap_utilization', heap_utilization,
+        'gc_running_dur', gc_running_dur,
+        'gc_running_rate', gc_running_rate,
+        'gc_running_efficiency', gc_running_efficiency,
+        'gc_during_android_startup_dur', gc_during_android_startup_dur,
+        'gc_during_android_startup_rate', gc_during_android_startup_rate,
+        'gc_during_android_startup_efficiency', gc_during_android_startup_efficiency
+      )
+    )
+    FROM _android_garbage_collection_process_stats
+    LEFT JOIN process_metadata using (upid)
+  ))
 FROM _android_garbage_collection_stats;
