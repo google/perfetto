@@ -200,7 +200,7 @@ $bottom-tab-padding: 10px;
       font-size: 16px;
     }
 
-    has-left-border {
+    &.has-left-border {
       border-left: 1px solid rgba(60, 76, 92, 0.4);
     }
   }

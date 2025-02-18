@@ -92,7 +92,7 @@ test('sqlTableState: sortedColumns', () => {
   expect(state.isSortedBy(nameColumn)).toBe('DESC');
 
   // Remove the sorting and verify that we are no sorted by.
-  state.unsort();
+  state.sortBy({column: nameColumn, direction: undefined});
   expect(state.isSortedBy(nameColumn)).toBe(undefined);
 });
 
