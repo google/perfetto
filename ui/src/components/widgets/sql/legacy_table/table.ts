@@ -27,7 +27,6 @@ import {Anchor} from '../../../../widgets/anchor';
 import {BasicTable, ReorderableColumns} from '../../../../widgets/basic_table';
 import {Spinner} from '../../../../widgets/spinner';
 
-import {ArgumentSelector} from './argument_selector';
 import {
   LegacySqlTableFilterOptions,
   LegacySqlTableFilterLabel,
@@ -44,6 +43,7 @@ import {
 } from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {filterTitle} from './filters';
+import {SelectColumnMenu} from './select_column_menu';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -253,40 +253,15 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       existingColumnIds.add(tableColumnId(column));
     }
 
-    const result = [];
-    for (const column of this.table.columns) {
-      if (
-        column.listDerivedColumns?.(getTableManager(this.state)) === undefined
-      ) {
-        if (existingColumnIds.has(tableColumnId(column))) continue;
-        result.push(
-          m(MenuItem, {
-            label: columnTitle(column),
-            onclick: () => addColumn(column),
-          }),
-        );
-      } else {
-        result.push(
-          m(
-            MenuItem,
-            {
-              label: columnTitle(column),
-            },
-            m(ArgumentSelector, {
-              title: columnTitle(column),
-              column,
-              alreadySelectedColumnIds: existingColumnIds,
-              tableManager: getTableManager(this.state),
-              onArgumentSelected: (column: LegacyTableColumn) => {
-                addColumn(column);
-              },
-            }),
-          ),
-        );
-        continue;
-      }
-    }
-    return result;
+    return m(SelectColumnMenu, {
+      columns: this.table.columns.map((column) => ({
+        key: columnTitle(column),
+        column,
+      })),
+      manager: getTableManager(this.state),
+      existingColumnIds,
+      onColumnSelected: addColumn,
+    });
   }
 
   renderColumnFilterOptions(
