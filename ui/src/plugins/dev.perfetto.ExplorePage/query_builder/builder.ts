@@ -40,6 +40,7 @@ import {
   GroupByNode,
   GroupByOperation,
 } from './operations/groupy_by';
+import {FilterAttrs, FilterNode, FilterOperation} from './operations/filter';
 
 export interface QueryBuilderTable {
   name: string;
@@ -165,6 +166,20 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             });
           },
         }),
+        m(MenuItem, {
+          label: 'FILTER',
+          onclick: () => {
+            if (attrs.rootNode === undefined) return;
+
+            const curNode = getLastFinishedNode(attrs.rootNode);
+            if (curNode === undefined) return;
+
+            const newFilterAttrs: FilterAttrs = {prevNode: curNode};
+            filterModal(newFilterAttrs, () => {
+              curNode.nextNode = new FilterNode(newFilterAttrs);
+            });
+          },
+        }),
       );
     }
 
@@ -181,6 +196,29 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
 
       showModal({
         title: `GROUP BY`,
+        buttons: [
+          {
+            text: 'Add node',
+            action: f,
+          },
+        ],
+        content,
+      });
+    }
+
+    function filterModal(attrs: FilterAttrs, f: () => void) {
+      function Operations() {
+        return {
+          view: () => {
+            return m(FilterOperation, attrs);
+          },
+        };
+      }
+
+      const content = () => m(Operations);
+
+      showModal({
+        title: `FILTER`,
         buttons: [
           {
             text: 'Add node',
