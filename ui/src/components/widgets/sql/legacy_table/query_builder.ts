@@ -191,6 +191,8 @@ export function buildSqlQuery(args: {
   columns: {[key: string]: SqlColumn};
   prefix?: string;
   filters?: Filter[];
+  // List of columns to group by. Should be a subset of the keys of the `columns` object.
+  groupBy?: SqlColumn[];
   orderBy?: ColumnOrderClause[];
 }): string {
   const builder = new QueryBuilder(args.table);
@@ -209,6 +211,9 @@ export function buildSqlQuery(args: {
     order: orderBy.direction,
     column: builder.normalise(orderBy.column),
   }));
+  const normalisedGroupBy = (args.groupBy || []).map((column) =>
+    builder.normalise(column),
+  );
 
   const formatFilter = (filter: {
     op: (cols: string[]) => string;
@@ -226,10 +231,16 @@ export function buildSqlQuery(args: {
   const joinClause = builder.tables
     .map((_, index) => builder.printJoin(index))
     .join('\n');
+  const groupBys = normalisedGroupBy.map((column) =>
+    builder.printReference(column),
+  );
+  const groupByClause =
+    args.groupBy === undefined ? '' : `GROUP BY\n  ${groupBys.join(', ')}`;
+  const orderBys = normalisedOrderBy.map(
+    (orderBy) => `${builder.printReference(orderBy.column)} ${orderBy.order}`,
+  );
   const orderByClause =
-    normalisedOrderBy.length === 0
-      ? ''
-      : `ORDER BY\n  ${normalisedOrderBy.map((orderBy) => `${builder.printReference(orderBy.column)} ${orderBy.order}`).join(',  ')}`;
+    normalisedOrderBy.length === 0 ? '' : `ORDER BY\n  ${orderBys.join(',  ')}`;
 
   return `
     ${args.prefix === undefined ? '' : args.prefix}
@@ -240,6 +251,7 @@ export function buildSqlQuery(args: {
     FROM ${args.table} AS ${builder.tableAlias}
     ${joinClause}
     ${filterClause}
+    ${groupByClause}
     ${orderByClause}
   `;
 }

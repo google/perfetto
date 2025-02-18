@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button} from '../../../../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
@@ -33,7 +32,6 @@ import {
 } from './render_cell_utils';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
-import {Intent} from '../../../../widgets/common';
 import {Form} from '../../../../widgets/form';
 import {TextInput} from '../../../../widgets/text_input';
 import {
@@ -42,8 +40,8 @@ import {
   tableColumnId,
 } from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
-import {filterTitle} from './filters';
 import {SelectColumnMenu} from './select_column_menu';
+import {renderColumnIcon, renderSortMenuItems} from './table_header';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -216,30 +214,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     this.table = this.state.config;
   }
 
-  renderFilters(
-    extraRemoveFilterActions?: (filterSqlStr: string) => void,
-  ): m.Children {
-    const filters: m.Child[] = [];
-    for (const filter of this.state.filters.get()) {
-      const label = filterTitle(filter);
-      filters.push(
-        m(Button, {
-          label,
-          icon: 'close',
-          intent: Intent.Primary,
-          onclick: () => {
-            this.state.filters.removeFilter(filter);
-
-            if (extraRemoveFilterActions) {
-              extraRemoveFilterActions(label);
-            }
-          },
-        }),
-      );
-    }
-    return filters;
-  }
-
   renderAddColumnOptions(
     addColumn: (column: LegacyTableColumn) => void,
   ): m.Children {
@@ -282,46 +256,19 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     additionalColumnHeaderMenuItems?: m.Children,
   ) {
     const sorted = this.state.isSortedBy(column);
-    const icon =
-      sorted === 'ASC'
-        ? Icons.SortedAsc
-        : sorted === 'DESC'
-          ? Icons.SortedDesc
-          : Icons.ContextMenu;
 
     return m(
       PopupMenu,
       {
-        trigger: m(Anchor, {icon}, columnTitle(column)),
+        trigger: m(
+          Anchor,
+          {icon: renderColumnIcon(sorted)},
+          columnTitle(column),
+        ),
       },
-      sorted !== 'DESC' &&
-        m(MenuItem, {
-          label: 'Sort: highest first',
-          icon: Icons.SortedDesc,
-          onclick: () => {
-            this.state.sortBy({
-              column: column,
-              direction: 'DESC',
-            });
-          },
-        }),
-      sorted !== 'ASC' &&
-        m(MenuItem, {
-          label: 'Sort: lowest first',
-          icon: Icons.SortedAsc,
-          onclick: () => {
-            this.state.sortBy({
-              column: column,
-              direction: 'ASC',
-            });
-          },
-        }),
-      sorted !== undefined &&
-        m(MenuItem, {
-          label: 'Unsort',
-          icon: Icons.Close,
-          onclick: () => this.state.unsort(),
-        }),
+      renderSortMenuItems(sorted, (direction) =>
+        this.state.sortBy({column, direction}),
+      ),
       this.state.getSelectedColumns().length > 1 &&
         m(MenuItem, {
           label: 'Hide',
@@ -389,7 +336,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     });
 
     return [
-      m('div', this.renderFilters(attrs.extraRemoveFilterActions)),
       m(
         BasicTable<Row>,
         {
