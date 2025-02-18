@@ -271,6 +271,29 @@ SELECT slice_id, slice_name, slice_ts, slice_dur, thread_name, tid, arg_set_id
 FROM android_thread_slices_for_all_startups
 WHERE startup_id = $startup_id AND slice_name GLOB $slice_name;
 
+-- A Perfetto view that lists matching slices for class loading during app startup.
+CREATE PERFETTO VIEW android_class_loading_for_startup(
+  -- Id of the slice.
+  slice_id JOINID(slice.id),
+  -- Startup id.
+  startup_id LONG,
+  -- Name of the slice.
+  slice_name STRING,
+  -- Timestamp of start of the slice.
+  slice_ts TIMESTAMP,
+  -- Duration of the slice.
+  slice_dur DURATION,
+  -- Name of the thread with the slice.
+  thread_name STRING,
+  -- Tid of the thread with the slice.
+  tid  LONG,
+  -- Arg set id.
+  arg_set_id ARGSETID
+) AS
+SELECT slice_id, startup_id, slice_name, slice_ts, slice_dur, thread_name, tid, arg_set_id
+FROM android_thread_slices_for_all_startups
+WHERE slice_name GLOB "L*;";
+
 -- Returns binder transaction slices for a given startup id with duration over threshold.
 CREATE PERFETTO FUNCTION android_binder_transaction_slices_for_startup(
   -- Startup id.
