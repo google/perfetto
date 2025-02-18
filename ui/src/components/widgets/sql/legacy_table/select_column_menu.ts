@@ -25,23 +25,50 @@ import {hasModKey, modKey} from '../../../../base/hotkeys';
 import {TextInput} from '../../../../widgets/text_input';
 import {Spinner} from '../../../../widgets/spinner';
 
-export interface SelectColumnMenuAttrs {
+export type SelectColumnMenuAttrs = {
   columns:
     | {key: string; column: LegacyTableColumn}[]
     | (() => Promise<{key: string; column: LegacyTableColumn}[]>);
   primaryColumn?: {key: string; column: LegacyTableColumn};
   filterable?: 'on' | 'off';
   manager: LegacyTableManager;
-  existingColumnIds: Set<string>;
-  onColumnSelected: (column: LegacyTableColumn) => void;
-}
+  existingColumnIds?: Set<string>;
+  // Possible actions when a column is selected.
+  // - Run a callback.
+  onColumnSelected?: (column: LegacyTableColumn) => void;
+  // - Show a nested menu.
+  columnMenu?: (column: LegacyTableColumn) => {
+    rightIcon?: string;
+    children: m.Children;
+  };
+};
 
-interface SelectColumnMenuImplAttrs {
+type SelectColumnMenuImplAttrs = {
   columns: {key: string; column: LegacyTableColumn}[];
   manager: LegacyTableManager;
-  existingColumnIds: Set<string>;
-  onColumnSelected: (column: LegacyTableColumn) => void;
+  existingColumnIds?: Set<string>;
   firstButtonUuid: string;
+  onColumnSelected?: (column: LegacyTableColumn) => void;
+  columnMenu?: (column: LegacyTableColumn) => {
+    rightIcon?: string;
+    children: m.Children;
+  };
+};
+
+function onColumnSelectedClickHandler(
+  column: LegacyTableColumn,
+  onColumnSelected?: (column: LegacyTableColumn) => void,
+): undefined | ((event: PointerEvent) => void) {
+  if (onColumnSelected === undefined) return undefined;
+  return (event: PointerEvent) => {
+    onColumnSelected(column);
+    // For Control-Click, we don't want to close the menu to allow the user
+    // to select multiple items in one go.
+    if (hasModKey(event)) {
+      event.stopPropagation();
+    }
+    // Otherwise this popup will be closed.
+  };
 }
 
 // Core implementation of the selectable column list.
@@ -71,27 +98,25 @@ class SelectColumnMenuImpl
       },
       attrs.columns.map(({key, column}, index) => {
         const derivedColumns = column.listDerivedColumns?.(attrs.manager);
+        const columnMenu =
+          derivedColumns === undefined ? attrs.columnMenu?.(column) : undefined;
         return m(
           MenuItem,
           {
             id: index === 0 ? attrs.firstButtonUuid : undefined,
             label: key,
-            onclick: (event) => {
-              if (derivedColumns !== undefined) return;
-              attrs.onColumnSelected(column);
-              // For Control-Click, we don't want to close the menu to allow the user
-              // to select multiple items in one go.
-              if (hasModKey(event)) {
-                event.stopPropagation();
-              }
-              // Otherwise this popup will be closed.
-            },
+            rightIcon: columnMenu?.rightIcon,
+            onclick:
+              derivedColumns === undefined
+                ? onColumnSelectedClickHandler(column, attrs.onColumnSelected)
+                : undefined,
           },
-          derivedColumns &&
+          derivedColumns !== undefined &&
             m(SelectColumnMenu, {
               primaryColumn: {key, column},
               existingColumnIds: attrs.existingColumnIds,
               onColumnSelected: attrs.onColumnSelected,
+              columnMenu: attrs.columnMenu,
               manager: attrs.manager,
               columns: async () => {
                 const cols = await derivedColumns();
@@ -101,6 +126,7 @@ class SelectColumnMenuImpl
                 }));
               },
             }),
+          columnMenu?.children,
         );
       }),
     );
@@ -131,7 +157,7 @@ export class SelectColumnMenu
     // Candidates are the columns which have not been selected yet.
     const candidates = [...columns].filter(
       ({column}) =>
-        !attrs.existingColumnIds.has(tableColumnId(column)) ||
+        !attrs.existingColumnIds?.has(tableColumnId(column)) ||
         column.listDerivedColumns?.(attrs.manager) !== undefined,
     );
 
@@ -145,25 +171,29 @@ export class SelectColumnMenu
     });
 
     const primaryColumn = attrs.primaryColumn;
+    const primaryColumnMenu =
+      primaryColumn === undefined
+        ? undefined
+        : attrs.columnMenu?.(primaryColumn?.column);
     const firstButtonUuid = uuidv4();
 
     return [
       primaryColumn &&
-        m(MenuItem, {
-          label: primaryColumn.key,
-          disabled: attrs.existingColumnIds.has(
-            tableColumnId(primaryColumn.column),
-          ),
-          onclick: (event) => {
-            attrs.onColumnSelected(primaryColumn.column);
-            // For Control-Click, we don't want to close the menu to allow the user
-            // to select multiple items in one go.
-            if (hasModKey(event)) {
-              event.stopPropagation();
-            }
-            // Otherwise this popup will be closed.
+        m(
+          MenuItem,
+          {
+            label: primaryColumn.key,
+            disabled: attrs.existingColumnIds?.has(
+              tableColumnId(primaryColumn.column),
+            ),
+            onclick: onColumnSelectedClickHandler(
+              primaryColumn.column,
+              attrs.onColumnSelected,
+            ),
+            rightIcon: primaryColumnMenu?.rightIcon,
           },
-        }),
+          primaryColumnMenu?.children,
+        ),
       primaryColumn && m(MenuDivider),
       filterable &&
         m(TextInput, {
@@ -200,6 +230,7 @@ export class SelectColumnMenu
           manager: attrs.manager,
           existingColumnIds: attrs.existingColumnIds,
           onColumnSelected: attrs.onColumnSelected,
+          columnMenu: attrs.columnMenu,
           firstButtonUuid,
         }),
     ];

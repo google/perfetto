@@ -119,3 +119,11 @@ export function tableColumnAlias(column: LegacyTableColumn): string {
     sqlColumnId(column.primaryColumn()).replace(/[^a-zA-Z0-9_]/g, '__')
   );
 }
+
+export function columnTitle(column: LegacyTableColumn): string {
+  if (column.getTitle !== undefined) {
+    const title = column.getTitle();
+    if (title !== undefined) return title;
+  }
+  return sqlColumnId(column.primaryColumn());
+}

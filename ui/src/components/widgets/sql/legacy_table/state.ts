@@ -28,6 +28,7 @@ import {
   tableColumnAlias,
   tableColumnId,
 } from './table_column';
+import {moveArrayItem} from '../../../../base/array_utils';
 
 const ROW_LIMIT = 100;
 
@@ -369,19 +370,18 @@ export class SqlTableState {
     return this.data === undefined;
   }
 
-  sortBy(clause: {column: LegacyTableColumn; direction: SortDirection}) {
+  sortBy(clause: {
+    column: LegacyTableColumn;
+    direction: SortDirection | undefined;
+  }) {
     // Remove previous sort by the same column.
     this.orderBy = this.orderBy.filter(
       (c) => tableColumnId(c.column) != tableColumnId(clause.column),
     );
+    if (clause.direction === undefined) return;
     // Add the new sort clause to the front, so we effectively stable-sort the
     // data currently displayed to the user.
-    this.orderBy.unshift(clause);
-    this.reload();
-  }
-
-  unsort() {
-    this.orderBy = [];
+    this.orderBy.unshift({column: clause.column, direction: clause.direction});
     this.reload();
   }
 
@@ -422,14 +422,7 @@ export class SqlTableState {
   }
 
   moveColumn(fromIndex: number, toIndex: number) {
-    if (fromIndex === toIndex) return;
-    const column = this.columns[fromIndex];
-    this.columns.splice(fromIndex, 1);
-    if (fromIndex < toIndex) {
-      // We have deleted a column, therefore we need to adjust the target index.
-      --toIndex;
-    }
-    this.columns.splice(toIndex, 0, column);
+    moveArrayItem(this.columns, fromIndex, toIndex);
   }
 
   getSelectedColumns(): LegacyTableColumn[] {

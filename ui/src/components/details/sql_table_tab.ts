@@ -30,7 +30,12 @@ import {Tab} from '../../public/tab';
 import {addChartTab} from '../widgets/charts/chart_tab';
 import {ChartType} from '../widgets/charts/chart';
 import {AddChartMenuItem} from '../widgets/charts/add_chart_menu';
-import {Filter, Filters} from '../widgets/sql/legacy_table/filters';
+import {
+  Filter,
+  Filters,
+  renderFilters,
+} from '../widgets/sql/legacy_table/filters';
+import {LegacyTableColumn} from '../widgets/sql/legacy_table/table_column';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -57,7 +62,7 @@ function addSqlTableTabWithState(state: SqlTableState) {
 class LegacySqlTableTab implements Tab {
   constructor(private readonly state: SqlTableState) {}
 
-  render() {
+  private getTableButtons() {
     const range = this.state.getDisplayedRange();
     const rowCount = this.state.getTotalRowCount();
     const navigation = [
@@ -93,58 +98,65 @@ class LegacySqlTableTab implements Tab {
         },
       }),
     );
+    return [
+      ...navigation,
+      addDebugTrack,
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            icon: Icons.Menu,
+          }),
+        },
+        m(MenuItem, {
+          label: 'Duplicate',
+          icon: 'tab_duplicate',
+          onclick: () => addSqlTableTabWithState(this.state.clone()),
+        }),
+        m(MenuItem, {
+          label: 'Copy SQL query',
+          icon: Icons.Copy,
+          onclick: () => copyToClipboard(this.state.getNonPaginatedSQLQuery()),
+        }),
+      ),
+    ];
+  }
 
+  private tableMenuItems(_: LegacyTableColumn, alias: string) {
+    const chartAttrs = {
+      data: this.state.nonPaginatedData?.rows,
+      columns: [alias],
+    };
+
+    return [
+      m(AddChartMenuItem, {
+        chartOptions: [
+          {
+            chartType: ChartType.BAR_CHART,
+            ...chartAttrs,
+          },
+          {
+            chartType: ChartType.HISTOGRAM,
+            ...chartAttrs,
+          },
+        ],
+        addChart: (chart) => addChartTab(chart),
+      }),
+    ];
+  }
+
+  render() {
     return m(
       DetailsShell,
       {
         title: 'Table',
         description: this.getDisplayName(),
-        buttons: [
-          ...navigation,
-          addDebugTrack,
-          m(
-            PopupMenu,
-            {
-              trigger: m(Button, {
-                icon: Icons.Menu,
-              }),
-            },
-            m(MenuItem, {
-              label: 'Duplicate',
-              icon: 'tab_duplicate',
-              onclick: () => addSqlTableTabWithState(this.state.clone()),
-            }),
-            m(MenuItem, {
-              label: 'Copy SQL query',
-              icon: Icons.Copy,
-              onclick: () =>
-                copyToClipboard(this.state.getNonPaginatedSQLQuery()),
-            }),
-          ),
-        ],
+        buttons: this.getTableButtons(),
       },
+      m('div', renderFilters(this.state.filters)),
       m(SqlTable, {
         state: this.state,
-        addColumnMenuItems: (_, columnAlias) => {
-          const chartAttrs = {
-            data: this.state.nonPaginatedData?.rows,
-            columns: [columnAlias],
-          };
-
-          return m(AddChartMenuItem, {
-            chartOptions: [
-              {
-                chartType: ChartType.BAR_CHART,
-                ...chartAttrs,
-              },
-              {
-                chartType: ChartType.HISTOGRAM,
-                ...chartAttrs,
-              },
-            ],
-            addChart: (chart) => addChartTab(chart),
-          });
-        },
+        addColumnMenuItems: this.tableMenuItems.bind(this),
       }),
     );
   }

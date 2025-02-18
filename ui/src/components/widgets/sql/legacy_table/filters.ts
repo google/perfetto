@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+import {Button, ButtonBar} from '../../../../widgets/button';
+import {Intent} from '../../../../widgets/common';
 import {isSqlColumnEqual, SqlColumn, sqlColumnId} from './sql_column';
 
 // A filter which can be applied to the table.
@@ -91,4 +94,18 @@ export function isFilterEqual(a: Filter, b: Filter): boolean {
 export function areFiltersEqual(a: Filter[], b: Filter[]) {
   if (a.length !== b.length) return false;
   return a.every((f, i) => isFilterEqual(f, b[i]));
+}
+
+export function renderFilters(filters: Filters): m.Children {
+  return m(
+    ButtonBar,
+    filters.get().map((filter) =>
+      m(Button, {
+        label: filterTitle(filter),
+        icon: 'close',
+        intent: Intent.Primary,
+        onclick: () => filters.removeFilter(filter),
+      }),
+    ),
+  );
 }
