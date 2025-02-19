@@ -16,7 +16,7 @@ import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
 import {exists} from '../../base/utils';
-import {Button} from '../../widgets/button';
+import {Button, ButtonBar} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
@@ -35,7 +35,10 @@ import {
   Filters,
   renderFilters,
 } from '../widgets/sql/legacy_table/filters';
+import {PivotTableState} from '../widgets/sql/pivot_table/pivot_table_state';
 import {LegacyTableColumn} from '../widgets/sql/legacy_table/table_column';
+import {PivotTable} from '../widgets/sql/pivot_table/pivot_table';
+import {pivotId} from '../widgets/sql/pivot_table/ids';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -60,7 +63,13 @@ function addSqlTableTabWithState(state: SqlTableState) {
 }
 
 class LegacySqlTableTab implements Tab {
-  constructor(private readonly state: SqlTableState) {}
+  constructor(private readonly state: SqlTableState) {
+    this.selected = state;
+  }
+
+  private selected: SqlTableState | PivotTableState;
+
+  private pivots: PivotTableState[] = [];
 
   private getTableButtons() {
     const range = this.state.getDisplayedRange();
@@ -122,7 +131,7 @@ class LegacySqlTableTab implements Tab {
     ];
   }
 
-  private tableMenuItems(_: LegacyTableColumn, alias: string) {
+  private tableMenuItems(column: LegacyTableColumn, alias: string) {
     const chartAttrs = {
       data: this.state.nonPaginatedData?.rows,
       columns: [alias],
@@ -142,6 +151,19 @@ class LegacySqlTableTab implements Tab {
         ],
         addChart: (chart) => addChartTab(chart),
       }),
+      m(MenuItem, {
+        label: 'Pivot',
+        onclick: () => {
+          const state = new PivotTableState({
+            pivots: [column],
+            table: this.state.config,
+            trace: this.state.trace,
+            filters: this.state.filters,
+          });
+          this.selected = state;
+          this.pivots.push(state);
+        },
+      }),
     ];
   }
 
@@ -154,10 +176,33 @@ class LegacySqlTableTab implements Tab {
         buttons: this.getTableButtons(),
       },
       m('div', renderFilters(this.state.filters)),
-      m(SqlTable, {
-        state: this.state,
-        addColumnMenuItems: this.tableMenuItems.bind(this),
-      }),
+      this.pivots.length > 0 &&
+        m(
+          ButtonBar,
+          m(Button, {
+            label: 'Table',
+            active: this.selected === this.state,
+            onclick: () => {
+              this.selected = this.state;
+            },
+          }),
+          this.pivots.map((pivot) =>
+            m(Button, {
+              label: `Pivot: ${pivot.getPivots().map(pivotId).join(', ')}`,
+              active: this.selected === pivot,
+              onclick: () => {
+                this.selected = pivot;
+              },
+            }),
+          ),
+        ),
+      this.selected === this.state &&
+        m(SqlTable, {
+          state: this.state,
+          addColumnMenuItems: this.tableMenuItems.bind(this),
+        }),
+      this.selected instanceof PivotTableState &&
+        m(PivotTable, {state: this.selected}),
     );
   }
 
