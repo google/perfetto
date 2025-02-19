@@ -145,7 +145,7 @@ async function classLoadingTrack(
       WHERE startup_id = ${startup.id}
   `;
   const uri = `/android_startups/${startup.id}/classloading`;
-  const title = `Classloading for (${startup.package})`;
+  const title = `Unoptimized Class Loading in (${startup.package})`;
   const track = await createQuerySliceTrack({
     trace: trace,
     uri: uri,
