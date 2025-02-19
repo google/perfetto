@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {NodeType, QueryNode} from '../../query_state';
+import {NodeType, QueryNode} from '../../query_node';
 import {
   ColumnControllerRow,
   newColumnControllerRows,

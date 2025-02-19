@@ -21,7 +21,7 @@ import {runQuery} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
-import {QueryNode, getLastFinishedNode} from '../query_state';
+import {QueryNode, getLastFinishedNode} from '../query_node';
 import {ColumnController, ColumnControllerDiff} from './column_controller';
 import {Section} from '../../../widgets/section';
 import {Engine} from '../../../trace_processor/engine';

@@ -19,7 +19,7 @@ import {
   SqlTable,
   TableAndColumn,
 } from '../../../dev.perfetto.SqlModules/sql_modules';
-import {NodeType, QueryNode} from '../../query_state';
+import {NodeType, QueryNode} from '../../query_node';
 import {
   ColumnController,
   ColumnControllerDiff,
