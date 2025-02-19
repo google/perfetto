@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {TableAndColumnImpl} from '../../dev.perfetto.SqlModules/sql_modules_impl';
 import {SqlTable, SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode, NodeType} from '../query_state';
+import {QueryNode, NodeType} from '../query_node';
 import {
   ColumnControllerRow,
   columnControllerRowFromName,
