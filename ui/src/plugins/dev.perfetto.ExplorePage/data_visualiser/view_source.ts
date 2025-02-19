@@ -17,7 +17,7 @@ import {runQuery} from '../../../components/query_table/queries';
 import {ChartAttrs} from '../../../components/widgets/charts/chart';
 import {Trace} from '../../../public/trace';
 import {Row} from '../../../trace_processor/query_result';
-import {QueryNode} from '../query_state';
+import {QueryNode} from '../query_node';
 import {SqlTableState} from '../../../components/widgets/sql/legacy_table/state';
 import {SqlColumnAsSimpleColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 import {analyzeNode, Query} from '../query_builder/data_source_viewer';

@@ -24,7 +24,7 @@ import {
   SplitPanel,
   SplitPanelDrawerVisibility,
 } from '../../../widgets/split_panel';
-import {QueryNode} from '../query_state';
+import {QueryNode} from '../query_node';
 import {VisViewSource} from './view_source';
 import {AddChartMenuItem} from '../../../components/widgets/charts/add_chart_menu';
 import {exists} from '../../../base/utils';
