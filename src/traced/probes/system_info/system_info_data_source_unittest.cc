@@ -16,6 +16,7 @@
 
 #include "src/traced/probes/system_info/system_info_data_source.h"
 #include "src/traced/probes/common/cpu_freq_info_for_testing.h"
+#include "src/traced/probes/system_info/cpu_info_features_allowlist.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
@@ -43,7 +44,7 @@ CPU revision	: 12
 
 processor	: 1
 BogoMIPS	: 38.00
-Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp
+Features	: fp mte mte3
 CPU implementer	: 0x51
 CPU architecture: 8
 CPU variant	: 0x7
@@ -183,6 +184,10 @@ TEST_F(SystemInfoDataSourceTest, CpuInfoAndroid) {
   ASSERT_EQ(id.variant(), 0x7U);
   ASSERT_EQ(id.part(), 0x803U);
   ASSERT_EQ(id.revision(), 12U);
+  ASSERT_TRUE(cpu.features() & (1u << 0));
+  ASSERT_STREQ(kCpuInfoFeatures[0], "mte");
+  ASSERT_TRUE(cpu.features() & (1u << 1));
+  ASSERT_STREQ(kCpuInfoFeatures[1], "mte3");
 
   cpu = cpu_info.cpus()[7];
   ASSERT_EQ(cpu.capacity(), static_cast<uint32_t>(1024));
@@ -193,6 +198,7 @@ TEST_F(SystemInfoDataSourceTest, CpuInfoAndroid) {
   ASSERT_EQ(id.variant(), 0x6U);
   ASSERT_EQ(id.part(), 0x802U);
   ASSERT_EQ(id.revision(), 13U);
+  ASSERT_EQ(cpu.features(), 0U);
 }
 
 }  // namespace

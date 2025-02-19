@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import protos from '../../protos';
-
+import m from 'mithril';
 import {ColumnControllerRow} from './query_builder/column_controller';
 
 export enum NodeType {
@@ -25,6 +25,7 @@ export enum NodeType {
   // Operations
   kJoinOperator,
   kGroupByOperator,
+  kFilterOperator,
 }
 
 export interface QueryNode {
@@ -37,6 +38,7 @@ export interface QueryNode {
 
   validate(): boolean;
   getTitle(): string;
+  getDetails(): m.Child;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
 }
 

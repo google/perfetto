@@ -30,6 +30,7 @@ export class ReorderableColumns<T> {
 export interface TableAttrs<T> {
   readonly data: ReadonlyArray<T>;
   readonly columns: ReadonlyArray<ColumnDescriptor<T> | ReorderableColumns<T>>;
+  readonly className?: string;
 }
 
 export class BasicTable<T> implements m.ClassComponent<TableAttrs<T>> {
@@ -64,8 +65,9 @@ export class BasicTable<T> implements m.ClassComponent<TableAttrs<T>> {
     }
 
     return m(
-      'table.generic-table',
+      `table.generic-table`,
       {
+        className: attrs.className,
         // TODO(altimin, stevegolton): this should be the default for
         // generic-table, but currently it is overriden by
         // .pf-details-shell .pf-content table, so specify this here for now.

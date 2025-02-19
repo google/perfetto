@@ -33,13 +33,17 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidPowerConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSdkSyspropGuardConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSystemPropertyConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumHistogramSamplesConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumSystemMetricsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuCounterConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_GpuRenderStagesConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_HeapprofdConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InodeFileConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InterceptorConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_JavaHprofConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_KernelWakelocksConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_NetworkPacketTraceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PackagesListConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PerfEventConfig);
@@ -55,6 +59,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_TestConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEventConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_V8Config);
 PERFETTO_PB_MSG_DECL(perfetto_protos_VulkanMemoryConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_WindowManagerConfig);
 
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_DataSourceConfig, SessionInitiator){
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_DataSourceConfig,
@@ -249,6 +254,31 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_PixelModemConfig,
                   pixel_modem_config,
                   129);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_WindowManagerConfig,
+                  windowmanager_config,
+                  130);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_ChromiumSystemMetricsConfig,
+                  chromium_system_metrics,
+                  131);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_KernelWakelocksConfig,
+                  kernel_wakelocks_config,
+                  132);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_GpuRenderStagesConfig,
+                  gpu_renderstages_config,
+                  133);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_ChromiumHistogramSamplesConfig,
+                  chromium_histogram_samples,
+                  134);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   STRING,
                   const char*,

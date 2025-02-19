@@ -17,22 +17,13 @@ import {runQuery} from '../../../components/query_table/queries';
 import {ChartAttrs} from '../../../components/widgets/charts/chart';
 import {Trace} from '../../../public/trace';
 import {Row} from '../../../trace_processor/query_result';
-import {QueryNode} from '../query_state';
-import {
-  buildFilterSqlClause,
-  VisFilter,
-  VisFilterOp,
-  filterToSql,
-} from './filters';
+import {QueryNode} from '../query_node';
 import {SqlTableState} from '../../../components/widgets/sql/legacy_table/state';
 import {SqlColumnAsSimpleColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 import {analyzeNode, Query} from '../query_builder/data_source_viewer';
-import {Item, SignalValue} from 'vega';
-import {getTableManager} from '../../../components/widgets/sql/legacy_table/table';
-import {
-  Filter,
-  FromSimpleColumn,
-} from '../../../components/widgets/sql/legacy_table/column';
+import {FromSimpleColumn} from '../../../components/widgets/sql/legacy_table/table_column';
+import {Filters} from '../../../components/widgets/sql/legacy_table/filters';
+import {buildSqlQuery} from '../../../components/widgets/sql/legacy_table/query_builder';
 
 export interface VisViewAttrs {
   charts: Set<ChartAttrs>;
@@ -42,6 +33,7 @@ export interface VisViewAttrs {
 export class VisViewSource {
   readonly trace: Trace;
   readonly queryNode: QueryNode;
+  readonly filters: Filters = new Filters();
 
   private asyncLimiter = new AsyncLimiter();
   private sqlAsyncLimiter = new AsyncLimiter();
@@ -51,22 +43,14 @@ export class VisViewSource {
 
   private _data?: Row[];
   private _visViews?: VisViewAttrs;
-  private _filters: Set<VisFilter> = new Set();
   private _columns?: string[];
 
-  constructor(trace: Trace, queryNode: QueryNode, filters?: Set<VisFilter>) {
+  constructor(trace: Trace, queryNode: QueryNode) {
     this.trace = trace;
     this.queryNode = queryNode;
-
-    if (filters) {
-      this.filters = filters;
-    }
+    this.filters.addObserver(() => this.loadData());
 
     this.loadBaseQuery();
-  }
-
-  set filters(filters: Set<VisFilter>) {
-    this._filters = filters;
   }
 
   get visViews() {
@@ -89,58 +73,23 @@ export class VisViewSource {
     this._visViews?.charts.delete(vis);
   }
 
-  addFilterFromChart(
-    filterOption: VisFilterOp,
-    fieldName: string,
-    filterVal: Item | SignalValue,
-  ) {
-    this.addFilter({
-      columnName: fieldName,
-      value: filterVal,
-      filterOption, // Change filter option types to be a record instead
-    });
-  }
-
-  addFilter(filter: VisFilter) {
-    const match = this.matchingFilter(filter);
-
-    if (match !== undefined) return;
-
-    this._filters.add(filter);
-    this.loadData();
-  }
-
-  removeFilter(filter: VisFilter | string) {
-    const match = this.matchingFilter(filter);
-
-    if (match === undefined) return;
-
-    this._filters.delete(match);
-    this.loadData();
-  }
-
-  private matchingFilter(f: VisFilter | string) {
-    let match;
-
-    Array.from(this._filters.values()).forEach((visFilter) => {
-      const filterStr = typeof f === 'string' ? f : filterToSql(f);
-
-      if (filterStr === filterToSql(visFilter)) {
-        match = visFilter;
-      }
-    });
-
-    return match;
-  }
-
   private async loadData() {
-    let query = this._baseQuery?.sql;
+    const baseSql = this._baseQuery?.sql;
+    if (baseSql === undefined) return;
 
-    if (query === undefined) return;
+    const columns = Object.fromEntries(
+      this.queryNode.columns?.map((col) => [
+        col.column.name,
+        col.column.name,
+      ]) || [],
+    );
 
-    if (this._filters.size > 0) {
-      query += `\n WHERE ${buildFilterSqlClause(Array.from(this._filters.values()))}`;
-    }
+    const query = buildSqlQuery({
+      prefix: `WITH __data AS (${baseSql})`,
+      table: '__data',
+      columns: columns,
+      filters: this.filters.get(),
+    });
 
     if (query === this._fullQuery) return;
 
@@ -200,35 +149,23 @@ export class VisViewSource {
     let sqlTableState = this.visViews?.sqlTableState;
 
     if (sqlTableState === undefined) {
-      sqlTableState = new SqlTableState(this.trace, {
-        imports: this._baseQuery.modules,
-        prefix: `WITH vis_view_source_table AS (${this._baseQuery.sql})`,
-        name: 'vis_view_source_table',
-        columns: queryNodeColumns.map(
-          (col) =>
-            // TODO: Figure out how to not require table name here.
-            new FromSimpleColumn(SqlColumnAsSimpleColumn(col.column, '')),
-        ),
-      });
-    }
-
-    // remove existing filters
-    const tableManager = getTableManager(sqlTableState);
-    sqlTableState.getFilters().forEach((f) => tableManager.removeFilter(f));
-
-    Array.from(this._filters.values()).forEach((f) => {
-      const sqlTableFilter: Filter = {
-        op: (cols) => {
-          const newFilter = {
-            ...f,
-          };
-          newFilter.columnName = cols[0];
-          return filterToSql(newFilter);
+      sqlTableState = new SqlTableState(
+        this.trace,
+        {
+          imports: this._baseQuery.modules,
+          prefix: `WITH __data AS (${this._baseQuery.sql})`,
+          name: '__data',
+          columns: queryNodeColumns.map(
+            (col) =>
+              // TODO: Figure out how to not require table name here.
+              new FromSimpleColumn(SqlColumnAsSimpleColumn(col.column, '')),
+          ),
         },
-        columns: [f.columnName],
-      };
-      tableManager.addFilter(sqlTableFilter);
-    });
+        {
+          filters: this.filters,
+        },
+      );
+    }
 
     const newVisViews: VisViewAttrs = {
       charts: new Set<ChartAttrs>(newChartAttrs),

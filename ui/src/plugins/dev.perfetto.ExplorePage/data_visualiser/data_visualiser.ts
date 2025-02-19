@@ -24,14 +24,15 @@ import {
   SplitPanel,
   SplitPanelDrawerVisibility,
 } from '../../../widgets/split_panel';
-import {QueryNode} from '../query_state';
+import {QueryNode} from '../query_node';
 import {VisViewSource} from './view_source';
 import {AddChartMenuItem} from '../../../components/widgets/charts/add_chart_menu';
 import {exists} from '../../../base/utils';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {SqlTable} from '../../../components/widgets/sql/legacy_table/table';
-import {VisFilterOptions} from './filters';
 import {SqlTableState} from '../../../components/widgets/sql/legacy_table/state';
+import {sqlValueToSqliteString} from '../../../trace_processor/sql_utils';
+import {renderFilters} from '../../../components/widgets/sql/legacy_table/filters';
 
 export interface DataVisualiserState {
   queryNode?: QueryNode;
@@ -84,6 +85,7 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
         buttons: navigation,
         fillParent: false,
       },
+      m('div', renderFilters(sqlTableViewState.filters)),
       m(SqlTable, {
         state: sqlTableViewState,
         addColumnMenuItems: (_, columnAlias) => {
@@ -98,54 +100,44 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
                 chartType: ChartType.BAR_CHART,
                 ...chartAttrs,
                 onIntervalSelection: (value) => {
-                  this.viewSource?.addFilterFromChart(
-                    VisFilterOptions['in'],
-                    columnAlias,
-                    value[columnAlias],
-                  );
+                  const range = `(${value[columnAlias].map(sqlValueToSqliteString).join(', ')})`;
+                  this.viewSource?.filters.addFilter({
+                    op: (cols) => `${cols[0]} IN ${range}`,
+                    columns: [columnAlias],
+                  });
                 },
                 onPointSelection: (item) => {
-                  this.viewSource?.addFilterFromChart(
-                    VisFilterOptions['equals to'],
-                    columnAlias,
-                    item.datum[columnAlias],
-                  );
+                  const value = sqlValueToSqliteString(item.datum[columnAlias]);
+                  this.viewSource?.filters.addFilter({
+                    op: (cols) => `${cols[0]} = ${value}`,
+                    columns: [columnAlias],
+                  });
                 },
               },
               {
                 chartType: ChartType.HISTOGRAM,
                 ...chartAttrs,
                 onIntervalSelection: (value) => {
-                  this.viewSource?.addFilterFromChart(
-                    VisFilterOptions['between'],
-                    columnAlias,
-                    value[columnAlias],
-                  );
+                  const range = `${value[columnAlias][0]} AND ${value[columnAlias][1]}`;
+                  this.viewSource?.filters.addFilter({
+                    op: (cols) => `${cols[0]} BETWEEN ${range}`,
+                    columns: [columnAlias],
+                  });
                 },
                 onPointSelection: (item) => {
-                  this.viewSource?.addFilterFromChart(
-                    VisFilterOptions['between'],
-                    columnAlias,
-                    [
-                      item.datum[`bin_maxbins_10_${columnAlias}`],
-                      item.datum[`bin_maxbins_10_${columnAlias}_end`],
-                    ],
-                  );
+                  const minValue = item.datum[`bin_maxbins_10_${columnAlias}`];
+                  const maxValue =
+                    item.datum[`bin_maxbins_10_${columnAlias}_end`];
+                  this.viewSource?.filters.addFilter({
+                    op: (cols) =>
+                      `${cols[0]} BETWEEN ${minValue} AND ${maxValue}`,
+                    columns: [columnAlias],
+                  });
                 },
               },
             ],
             addChart: (chart) => this.viewSource?.addChart(chart),
           });
-        },
-        extraAddFilterActions: (op, column, value) => {
-          this.viewSource?.addFilter({
-            filterOption: VisFilterOptions[op],
-            columnName: column,
-            value,
-          });
-        },
-        extraRemoveFilterActions: (filterSqlStr) => {
-          this.viewSource?.removeFilter(filterSqlStr);
         },
       }),
     );

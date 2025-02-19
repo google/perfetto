@@ -32,7 +32,7 @@ test('load trace', async () => {
 
 test('expand browser', async () => {
   const grp = pth.locateTrack('Browser 12685');
-  grp.scrollIntoViewIfNeeded();
+  await grp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(grp);
   await pth.waitForIdleAndScreenshot('browser_expanded.png');
   await pth.toggleTrackGroup(grp);

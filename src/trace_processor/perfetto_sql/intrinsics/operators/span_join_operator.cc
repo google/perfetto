@@ -602,8 +602,8 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
                                    sqlite3_vtab** vtab,
                                    char** pzErr) {
   // argv[0] - argv[2] are SQLite populated fields which are always present.
-  if (argc < 5) {
-    *pzErr = sqlite3_mprintf("SPAN_JOIN: expected at least 2 args");
+  if (argc != 5) {
+    *pzErr = sqlite3_mprintf("SPAN_JOIN: expected exactly two arguments");
     return SQLITE_ERROR;
   }
 

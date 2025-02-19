@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnOrderClause, Filter, SqlColumn} from './column';
+import {Filter} from './filters';
+import {ColumnOrderClause, SqlColumn, SqlExpression} from './sql_column';
 
 // The goal of this module is to generate a query statement from the list of columns, filters and order by clauses.
 // The main challenge is that the column definitions are independent, and the columns themselves can reference the same join multiple times:
@@ -26,11 +27,19 @@ import {ColumnOrderClause, Filter, SqlColumn} from './column';
 // LEFT JOIN slice AS parent ON slice.parent_id = parent.id
 
 // Normalised sql column, where the source table is resolved to a unique index.
-type NormalisedSqlColumn = {
-  column: string;
-  // If |joinId| is undefined, then the columnName comes from the primary table.
-  sourceTableId?: number;
-};
+type NormalisedSqlColumn =
+  | {
+      kind: 'table_column';
+      column: string;
+      // If |sourceTableId| is undefined, then the columnName comes from the primary table.
+      sourceTableId?: number;
+    }
+  | {
+      kind: 'expression';
+      index: number;
+      op: (cols: string[]) => string;
+      columns: NormalisedSqlColumn[];
+    };
 
 // Normalised source table, where the join constraints are resolved to a normalised columns.
 type NormalisedSourceTable = {
@@ -39,7 +48,30 @@ type NormalisedSourceTable = {
   innerJoin: boolean;
 };
 
-// Checks whether two join constraints are equal.
+// Checks whether two normalised columns are equivalent.
+function normalisedSqlColumnsEqual(
+  a: NormalisedSqlColumn | undefined,
+  b: NormalisedSqlColumn | undefined,
+): boolean {
+  if (a === undefined) return false;
+  if (b === undefined) return false;
+  if (a.kind === 'table_column') {
+    if (b.kind !== 'table_column') return false;
+    return a.column === b.column && a.sourceTableId === b.sourceTableId;
+  } else {
+    if (b.kind !== 'expression') return false;
+    // For expressions, first check that the underlying columns are equal.
+    if (a.columns.length !== b.columns.length) return false;
+    for (let i = 0; i < a.columns.length; ++i) {
+      if (!normalisedSqlColumnsEqual(a.columns[i], b.columns[i])) return false;
+    }
+    // Subsitute the columns with dummy values to check if the expressions are equal.
+    const cols = Array.from({length: a.columns.length}, (_, i) => `__$${i}`);
+    return a.op(cols) === b.op(cols);
+  }
+}
+
+// Checks whether two join constraints are equal to allow deduplication of joins.
 function areJoinConstraintsEqual(
   a: {[key: string]: NormalisedSqlColumn},
   b: {[key: string]: NormalisedSqlColumn},
@@ -49,20 +81,9 @@ function areJoinConstraintsEqual(
   }
 
   for (const key of Object.keys(a)) {
-    if (typeof a[key] !== typeof b[key]) {
-      return false;
-    }
-    if (typeof a[key] === 'string') {
-      return a[key] === b[key];
-    }
-    const aValue = a[key] as NormalisedSqlColumn;
-    const bValue = b[key] as NormalisedSqlColumn;
-    if (
-      aValue.column !== bValue.column ||
-      aValue.sourceTableId !== bValue.sourceTableId
-    ) {
-      return false;
-    }
+    const aValue = a[key];
+    const bValue = b[key];
+    if (!normalisedSqlColumnsEqual(aValue, bValue)) return false;
   }
   return true;
 }
@@ -71,6 +92,7 @@ function areJoinConstraintsEqual(
 class QueryBuilder {
   tables: NormalisedSourceTable[] = [];
   tableAlias: string;
+  expressionIndex: number = 0;
 
   constructor(tableName: string) {
     this.tableAlias = `${tableName}_0`;
@@ -78,11 +100,23 @@ class QueryBuilder {
 
   // Normalises a column, including adding if necessary the joins to the list of tables.
   normalise(column: SqlColumn): NormalisedSqlColumn {
+    // Simple columns do not require any normalisation.
     if (typeof column === 'string') {
       return {
+        kind: 'table_column',
         column: column,
       };
     }
+    // Expressions require normalisation of the underlying columns.
+    if (column instanceof SqlExpression) {
+      return {
+        kind: 'expression',
+        index: this.expressionIndex++,
+        op: column.op,
+        columns: column.columns.map((column) => this.normalise(column)),
+      };
+    }
+    // Otherwise, normalise join constraints.
     const normalisedJoinOn: {[key: string]: NormalisedSqlColumn} =
       Object.fromEntries(
         Object.entries(column.source.joinOn).map(([key, value]) => [
@@ -100,6 +134,7 @@ class QueryBuilder {
         areJoinConstraintsEqual(table.joinOn, normalisedJoinOn)
       ) {
         return {
+          kind: 'table_column',
           column: column.column,
           sourceTableId: i,
         };
@@ -113,13 +148,19 @@ class QueryBuilder {
       innerJoin: column.source.innerJoin ?? false,
     });
     return {
+      kind: 'table_column',
       column: column.column,
       sourceTableId: this.tables.length - 1,
     };
   }
 
   // Prints a reference to a column, including properly disambiguated table alias.
-  printColumn(column: NormalisedSqlColumn): string {
+  printReference(column: NormalisedSqlColumn): string {
+    if (column.kind === 'expression') {
+      return column.op(
+        column.columns.map((column) => this.printReference(column)),
+      );
+    }
     if (column.sourceTableId === undefined) {
       if (!/^[A-Za-z0-9_]*$/.test(column.column)) {
         // If this is an expression, don't prefix it with the table name.
@@ -136,7 +177,7 @@ class QueryBuilder {
     const join = this.tables[joinIndex];
     const alias = `${join.table}_${joinIndex + 1}`;
     const clauses = Object.entries(join.joinOn).map(
-      ([key, value]) => `${alias}.${key} = ${this.printColumn(value)}`,
+      ([key, value]) => `${alias}.${key} = ${this.printReference(value)}`,
     );
     // Join IDs are 0-indexed, but we want to display them as 1-indexed to reserve 0 for the primary table.
     return `${join.innerJoin ? '' : 'LEFT '}JOIN ${join.table} AS ${alias} ON ${clauses.join(' AND ')}`;
@@ -150,6 +191,8 @@ export function buildSqlQuery(args: {
   columns: {[key: string]: SqlColumn};
   prefix?: string;
   filters?: Filter[];
+  // List of columns to group by. Should be a subset of the keys of the `columns` object.
+  groupBy?: SqlColumn[];
   orderBy?: ColumnOrderClause[];
 }): string {
   const builder = new QueryBuilder(args.table);
@@ -168,13 +211,16 @@ export function buildSqlQuery(args: {
     order: orderBy.direction,
     column: builder.normalise(orderBy.column),
   }));
+  const normalisedGroupBy = (args.groupBy || []).map((column) =>
+    builder.normalise(column),
+  );
 
   const formatFilter = (filter: {
     op: (cols: string[]) => string;
     columns: NormalisedSqlColumn[];
   }) => {
     return filter.op(
-      filter.columns.map((column) => builder.printColumn(column)),
+      filter.columns.map((column) => builder.printReference(column)),
     );
   };
 
@@ -185,20 +231,27 @@ export function buildSqlQuery(args: {
   const joinClause = builder.tables
     .map((_, index) => builder.printJoin(index))
     .join('\n');
+  const groupBys = normalisedGroupBy.map((column) =>
+    builder.printReference(column),
+  );
+  const groupByClause =
+    args.groupBy === undefined ? '' : `GROUP BY\n  ${groupBys.join(', ')}`;
+  const orderBys = normalisedOrderBy.map(
+    (orderBy) => `${builder.printReference(orderBy.column)} ${orderBy.order}`,
+  );
   const orderByClause =
-    normalisedOrderBy.length === 0
-      ? ''
-      : `ORDER BY\n  ${normalisedOrderBy.map((orderBy) => `${builder.printColumn(orderBy.column)} ${orderBy.order}`).join(',  ')}`;
+    normalisedOrderBy.length === 0 ? '' : `ORDER BY\n  ${orderBys.join(',  ')}`;
 
   return `
     ${args.prefix === undefined ? '' : args.prefix}
     SELECT
       ${Object.entries(normalisedColumns)
-        .map(([key, value]) => `${builder.printColumn(value)} AS ${key}`)
+        .map(([key, value]) => `${builder.printReference(value)} AS ${key}`)
         .join(',\n  ')}
     FROM ${args.table} AS ${builder.tableAlias}
     ${joinClause}
     ${filterClause}
+    ${groupByClause}
     ${orderByClause}
   `;
 }

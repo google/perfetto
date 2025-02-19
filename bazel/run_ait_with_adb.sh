@@ -52,25 +52,56 @@ function call_adb() {
 apk_package=$("${appt2_tool_path}" dump packagename "${apk_path}")
 test_apk_package=$("${appt2_tool_path}" dump packagename "${test_apk_path}")
 
+function filter_adb_output() {
+  # Version of adb used in tests may differ from the system one, so we filter
+  # out lines related to the version mismatch and successfully daemon restarts.
+  # The output can as follows, we want to keep only the last line:
+  # adb server version (41) doesn't match this client (39); killing...
+  # * daemon started successfully *
+  # adb server version (41) doesn't match this client (39); killing...
+  # * daemon started successfully *
+  # Failure [DELETE_FAILED_INTERNAL_ERROR]
+  echo -n "$1" | grep -v "^adb server version (" | grep -v "^* daemon started successfully"
+}
 
 function call_adb_uninstall() {
   local NO_PACKAGE_INSTALLED="Failure [DELETE_FAILED_INTERNAL_ERROR]"
   readonly NO_PACKAGE_INSTALLED
   local apk_pkg="$1"
+
+  local OUTPUT
   # adb uninstall exits with error if there is no package 'apk_pkg' installed,
   # this is fine for us: we try to delete a package first even if it is not
   # installed.
   set +e
+  OUTPUT=$(call_adb uninstall "${apk_pkg}" 2>&1)
+  set -e
 
-  local res
-  res=$(call_adb uninstall "${apk_pkg}" 2>&1)
-  if [[ "$res" != "$NO_PACKAGE_INSTALLED" ]] && [[ "$res" != "Success" ]]; then
-    echo "adb uninstall error: '${res}'"
+  local FILTERED_OUTPUT
+  FILTERED_OUTPUT=$(filter_adb_output "$OUTPUT")
+  if [[ "$FILTERED_OUTPUT" != "$NO_PACKAGE_INSTALLED" ]] && [[ "$FILTERED_OUTPUT" != "Success" ]]; then
+    # Print the whole output
+    echo "adb uninstall error: '${OUTPUT}'"
     exit 1
   fi
-
-  set -e
 }
+
+function check_connected_devices() {
+  local DEVICES_OUTPUT
+  local FILTERED_DEVICES_OUTPUT
+  DEVICES_OUTPUT=$(call_adb devices)
+  FILTERED_DEVICES_OUTPUT=$(filter_adb_output "$DEVICES_OUTPUT")
+  # Expected filtered output:
+  # List of devices attached
+  # emulator-5554   device
+  if [[ "$FILTERED_DEVICES_OUTPUT" == "List of devices attached" ]]; then
+    # If output contains only header line then there is no connected devices
+    echo "Test Error: No connected devices"
+    exit 1
+  fi
+}
+
+check_connected_devices
 
 call_adb_uninstall "${apk_package}"
 
@@ -82,6 +113,7 @@ call_adb install "${test_apk_path}"
 
 TEST_OUTPUT=$(call_adb shell am instrument -w "${test_apk_package}/${TEST_RUNNER_CLASS}")
 
+echo "'adb shell am instrument' output:"
 echo "${TEST_OUTPUT}"
 
 if [[ "${TEST_OUTPUT}" =~ "FAILURES!!!" ]]; then

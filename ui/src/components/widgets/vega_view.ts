@@ -306,27 +306,6 @@ class VegaWrapper {
           }
         });
       }
-      // Attaching event listeners for Vega-Lite
-      // selection interactions only (interval and point selection)
-      // Both will trigger a pointerup event
-      if (isVegaLite(this._spec)) {
-        this.view.addEventListener('pointerup', (_, item) => {
-          if (item) {
-            if (
-              this.view?.signal(VegaLiteSelectionTypes.INTERVAL) !==
-                undefined &&
-              Object.values(this.view?.signal(VegaLiteSelectionTypes.INTERVAL))
-                .length > 0
-            ) {
-              this._onIntervalSelection?.(
-                this.view?.signal(VegaLiteSelectionTypes.INTERVAL),
-              );
-            } else {
-              this._onPointSelection?.(item);
-            }
-          }
-        });
-      }
 
       const pending = this.view.runAsync();
       pending
@@ -382,8 +361,6 @@ export class VegaView implements m.ClassComponent<VegaViewAttrs> {
     wrapper.engine = attrs.engine;
 
     // Chart interactivity handlers
-    wrapper.onPointSelection = attrs.onPointSelection;
-    wrapper.onIntervalSelection = attrs.onIntervalSelection;
     wrapper.onPointSelection = attrs.onPointSelection;
     wrapper.onIntervalSelection = attrs.onIntervalSelection;
 

@@ -915,6 +915,10 @@ message ChromiumHistogramSamplesConfig {
   // List of histograms to record. If no histogram is specified, all histograms
   // are recorded.
   repeated HistogramSample histograms = 1;
+
+  // Default: false (i.e. histogram names are NOT filtered out by default)
+  // When true, histogram_name will be filtered out.
+  optional bool filter_histogram_names = 2;
 }
 
 // End of protos/perfetto/config/chrome/histogram_samples.proto
@@ -7909,6 +7913,11 @@ message DpuDsiTxFtraceEvent {
   optional uint32 last = 3;
   optional uint32 delay_ms = 4;
 }
+message DpuDispDpuUnderrunFtraceEvent {
+  optional int32 id = 1;
+  optional int32 frames_pending = 2;
+  optional int32 vsync_count = 3;
+}
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
 
@@ -9949,6 +9958,11 @@ message MaliMaliPMMCURESETWAITFtraceEvent {
   optional uint32 kctx_id = 2;
   optional uint64 info_val = 3;
 }
+message MaliGpuPowerStateFtraceEvent {
+  optional uint64 change_ns = 1;
+  optional int32 from_state = 2;
+  optional int32 to_state = 3;
+}
 
 // End of protos/perfetto/trace/ftrace/mali.proto
 
@@ -11664,6 +11678,8 @@ message FtraceEvent {
     OpenExecFtraceEvent open_exec = 545;
     BlockIoStartFtraceEvent block_io_start = 546;
     BlockIoDoneFtraceEvent block_io_done = 547;
+    MaliGpuPowerStateFtraceEvent mali_gpu_power_state = 548;
+    DpuDispDpuUnderrunFtraceEvent dpu_disp_dpu_underrun = 549;
   }
 }
 
@@ -15225,6 +15241,11 @@ message CpuInfo {
     oneof identifier {
       ArmCpuIdentifier arm_identifier = 4;
     }
+
+    // Features is a bitmap containing a bit set for each feature defined in
+    // kCpuInfoFlags (cpu_info_flags_allowlist.h) for the corresponding array
+    // index.
+    optional uint64 features = 5;
   }
 
   // Describes available CPUs, one entry per CPU.

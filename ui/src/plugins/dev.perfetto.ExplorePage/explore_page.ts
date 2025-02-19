@@ -21,7 +21,7 @@ import {DataVisualiser} from './data_visualiser/data_visualiser';
 import {QueryBuilder} from './query_builder/builder';
 import {Button} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
-import {getLastFinishedNode, QueryNode} from './query_state';
+import {getLastFinishedNode, QueryNode} from './query_node';
 
 export interface ExploreTableState {
   queryNode?: QueryNode;

@@ -20,9 +20,22 @@ import public "protos/perfetto/trace/track_event/track_event.proto";
 
 package perfetto.protos;
 
+// Information about sending and receiving messages on threads with
+// Looper and MessageQueue.
+message AndroidMessageQueue {
+  // Thread name sending a message on the MessageQueue.
+  optional string sending_thread_name = 1;
+  // Thread name receiving a message on the MessageQueue.
+  optional string receiving_thread_name = 2;
+  // User-defined message code for messages in the MessageQueue.
+  optional int32 message_code = 3;
+  // Intended delay in millis before a message on the MessageQueue is executed.
+  optional uint64 message_delay_ms = 4;
+}
+
 message AndroidTrackEvent {
   // Usable range: [2001, 2999]
-  // Next id: 2004
+  // Next id: 2005
   extend TrackEvent {
     // The name of a binder service.
     optional string binder_service_name = 2001;
@@ -30,5 +43,8 @@ message AndroidTrackEvent {
     optional string binder_interface_name = 2002;
     // The name of an apex.
     optional string apex_name = 2003;
+
+    // MessageQueue messages.
+    optional AndroidMessageQueue message_queue = 2004;
   }
 }

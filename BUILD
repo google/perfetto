@@ -704,6 +704,7 @@ perfetto_cc_library(
             ":src_traced_probes_ps_ps",
             ":src_traced_probes_statsd_client_statsd_client",
             ":src_traced_probes_sys_stats_sys_stats",
+            ":src_traced_probes_system_info_cpu_info_features_allowlist",
             ":src_traced_probes_system_info_system_info",
             ":src_tracing_ipc_producer_producer",
         ],
@@ -1101,6 +1102,7 @@ perfetto_filegroup(
         "include/perfetto/public/te_category_macros.h",
         "include/perfetto/public/te_macros.h",
         "include/perfetto/public/thread_utils.h",
+        "include/perfetto/public/tracing_session.h",
         "include/perfetto/public/track_event.h",
     ],
 )
@@ -4163,6 +4165,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/traced/probes/system_info:cpu_info_features_allowlist
+perfetto_filegroup(
+    name = "src_traced_probes_system_info_cpu_info_features_allowlist",
+    srcs = [
+        "src/traced/probes/system_info/cpu_info_features_allowlist.h",
+    ],
+)
+
 # GN target: //src/traced/probes/system_info:system_info
 perfetto_filegroup(
     name = "src_traced_probes_system_info_system_info",
@@ -4428,6 +4438,9 @@ perfetto_android_library(
     deps = [
         ":src_java_sdk_main_cpp_perfetto_example_jni_lib",
     ],
+    tags = [
+        "notap",
+    ],
 )
 
 # GN target: //src/java_sdk/test:perfetto_java_sdk_instrumentation_test
@@ -4456,6 +4469,9 @@ perfetto_android_library(
     deps = [
         ":src_java_sdk_main_perfetto_lib",
     ] + PERFETTO_CONFIG.deps.android_test_common,
+    tags = [
+        "notap",
+    ],
 )
 
 # ##############################################################################

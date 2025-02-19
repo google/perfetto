@@ -35,7 +35,7 @@ import {
   FromSimpleColumn,
   LegacyTableColumn,
   LegacyTableManager,
-} from '../../components/widgets/sql/legacy_table/column';
+} from '../../components/widgets/sql/legacy_table/table_column';
 import {
   createDurationColumn,
   createStandardColumn,

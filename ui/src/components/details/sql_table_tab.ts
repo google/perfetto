@@ -16,11 +16,10 @@ import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
 import {exists} from '../../base/utils';
-import {Button} from '../../widgets/button';
+import {Button, ButtonBar} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
-import {Filter} from '../widgets/sql/legacy_table/column';
 import {SqlTableState} from '../widgets/sql/legacy_table/state';
 import {SqlTable} from '../widgets/sql/legacy_table/table';
 import {SqlTableDescription} from '../widgets/sql/legacy_table/table_description';
@@ -31,6 +30,15 @@ import {Tab} from '../../public/tab';
 import {addChartTab} from '../widgets/charts/chart_tab';
 import {ChartType} from '../widgets/charts/chart';
 import {AddChartMenuItem} from '../widgets/charts/add_chart_menu';
+import {
+  Filter,
+  Filters,
+  renderFilters,
+} from '../widgets/sql/legacy_table/filters';
+import {PivotTableState} from '../widgets/sql/pivot_table/pivot_table_state';
+import {LegacyTableColumn} from '../widgets/sql/legacy_table/table_column';
+import {PivotTable} from '../widgets/sql/pivot_table/pivot_table';
+import {pivotId} from '../widgets/sql/pivot_table/ids';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -44,7 +52,7 @@ export function addLegacyTableTab(
 ): void {
   addSqlTableTabWithState(
     new SqlTableState(trace, config.table, {
-      filters: config.filters,
+      filters: new Filters(config.filters),
       imports: config.imports,
     }),
   );
@@ -55,9 +63,15 @@ function addSqlTableTabWithState(state: SqlTableState) {
 }
 
 class LegacySqlTableTab implements Tab {
-  constructor(private readonly state: SqlTableState) {}
+  constructor(private readonly state: SqlTableState) {
+    this.selected = state;
+  }
 
-  render() {
+  private selected: SqlTableState | PivotTableState;
+
+  private pivots: PivotTableState[] = [];
+
+  private getTableButtons() {
     const range = this.state.getDisplayedRange();
     const rowCount = this.state.getTotalRowCount();
     const navigation = [
@@ -93,59 +107,102 @@ class LegacySqlTableTab implements Tab {
         },
       }),
     );
+    return [
+      ...navigation,
+      addDebugTrack,
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            icon: Icons.Menu,
+          }),
+        },
+        m(MenuItem, {
+          label: 'Duplicate',
+          icon: 'tab_duplicate',
+          onclick: () => addSqlTableTabWithState(this.state.clone()),
+        }),
+        m(MenuItem, {
+          label: 'Copy SQL query',
+          icon: Icons.Copy,
+          onclick: () => copyToClipboard(this.state.getNonPaginatedSQLQuery()),
+        }),
+      ),
+    ];
+  }
 
+  private tableMenuItems(column: LegacyTableColumn, alias: string) {
+    const chartAttrs = {
+      data: this.state.nonPaginatedData?.rows,
+      columns: [alias],
+    };
+
+    return [
+      m(AddChartMenuItem, {
+        chartOptions: [
+          {
+            chartType: ChartType.BAR_CHART,
+            ...chartAttrs,
+          },
+          {
+            chartType: ChartType.HISTOGRAM,
+            ...chartAttrs,
+          },
+        ],
+        addChart: (chart) => addChartTab(chart),
+      }),
+      m(MenuItem, {
+        label: 'Pivot',
+        onclick: () => {
+          const state = new PivotTableState({
+            pivots: [column],
+            table: this.state.config,
+            trace: this.state.trace,
+            filters: this.state.filters,
+          });
+          this.selected = state;
+          this.pivots.push(state);
+        },
+      }),
+    ];
+  }
+
+  render() {
     return m(
       DetailsShell,
       {
         title: 'Table',
         description: this.getDisplayName(),
-        buttons: [
-          ...navigation,
-          addDebugTrack,
-          m(
-            PopupMenu,
-            {
-              trigger: m(Button, {
-                icon: Icons.Menu,
-              }),
+        buttons: this.getTableButtons(),
+      },
+      m('div', renderFilters(this.state.filters)),
+      this.pivots.length > 0 &&
+        m(
+          ButtonBar,
+          m(Button, {
+            label: 'Table',
+            active: this.selected === this.state,
+            onclick: () => {
+              this.selected = this.state;
             },
-            m(MenuItem, {
-              label: 'Duplicate',
-              icon: 'tab_duplicate',
-              onclick: () => addSqlTableTabWithState(this.state.clone()),
-            }),
-            m(MenuItem, {
-              label: 'Copy SQL query',
-              icon: Icons.Copy,
-              onclick: () =>
-                copyToClipboard(this.state.getNonPaginatedSQLQuery()),
+          }),
+          this.pivots.map((pivot) =>
+            m(Button, {
+              label: `Pivot: ${pivot.getPivots().map(pivotId).join(', ')}`,
+              active: this.selected === pivot,
+              onclick: () => {
+                this.selected = pivot;
+              },
             }),
           ),
-        ],
-      },
-      m(SqlTable, {
-        state: this.state,
-        addColumnMenuItems: (_, columnAlias) => {
-          const chartAttrs = {
-            data: this.state.nonPaginatedData?.rows,
-            columns: [columnAlias],
-          };
-
-          return m(AddChartMenuItem, {
-            chartOptions: [
-              {
-                chartType: ChartType.BAR_CHART,
-                ...chartAttrs,
-              },
-              {
-                chartType: ChartType.HISTOGRAM,
-                ...chartAttrs,
-              },
-            ],
-            addChart: (chart) => addChartTab(chart),
-          });
-        },
-      }),
+        ),
+      this.selected === this.state &&
+        m(SqlTable, {
+          state: this.state,
+          addColumnMenuItems: this.tableMenuItems.bind(this),
+        }),
+      this.selected instanceof PivotTableState &&
+        m(PivotTable, {state: this.selected}),
     );
   }
 

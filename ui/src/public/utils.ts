@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {exists} from '../base/utils';
-import {Trace} from './trace';
 import {TimeSpan} from '../base/time';
+import {exists} from '../base/utils';
+import {maybeMachineLabel} from '../base/multi_machine_trace';
+import {Trace} from './trace';
 
 export function getTrackName(
   args: Partial<{
@@ -30,6 +31,7 @@ export function getTrackName(
     kind: string;
     threadTrack: boolean;
     uidTrack: boolean;
+    machine: number | null;
   }>,
 ) {
   const {
@@ -45,6 +47,7 @@ export function getTrackName(
     kind,
     threadTrack,
     uidTrack,
+    machine,
   } = args;
 
   const hasName = name !== undefined && name !== null && name !== '[NULL]';
@@ -64,6 +67,7 @@ export function getTrackName(
   // upid/utid) we show the track kind to help with tracking
   // down where this is coming from.
   const kindSuffix = hasKind ? ` (${kind})` : '';
+  const machineLabel = maybeMachineLabel(machine ?? undefined);
 
   if (isThreadTrack && hasName && hasTid) {
     return `${name} (${tid})`;
@@ -78,9 +82,9 @@ export function getTrackName(
   } else if (hasTid) {
     return `Thread ${tid}`;
   } else if (hasUpid && hasPid && hasProcessName) {
-    return `${processName} ${pid}`;
+    return `${processName} ${pid}${machineLabel}`;
   } else if (hasUpid && hasPid) {
-    return `Process ${pid}`;
+    return `Process ${pid}${machineLabel}`;
   } else if (hasUpid) {
     return `upid: ${upid}${kindSuffix}`;
   } else if (hasUtid) {
