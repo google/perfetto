@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
+#include <string>
 #include <unordered_set>
 
 #include "perfetto/base/status.h"
@@ -478,17 +479,19 @@ base::Status ProtoToArgsParser::AddEnum(const FieldDescriptor& descriptor,
   auto opt_enum_descriptor_idx =
       pool_.FindDescriptorIdx(descriptor.resolved_type_name());
   if (!opt_enum_descriptor_idx) {
-    delegate.AddInteger(key_prefix_, value);
-    return base::OkStatus();
-  }
-  auto opt_enum_string =
-      pool_.descriptors()[*opt_enum_descriptor_idx].FindEnumString(value);
-  if (!opt_enum_string) {
     // Fall back to the integer representation of the field.
     // We add the string representation of the int value here in order that
     // EXTRACT_ARG() should return consistent types under error conditions and
     // that CREATE PERFETTO TABLE AS EXTRACT_ARG(...) should be generally safe
     // to use.
+    delegate.AddString(key_prefix_, std::to_string(value));
+    return base::OkStatus();
+  }
+  auto opt_enum_string =
+      pool_.descriptors()[*opt_enum_descriptor_idx].FindEnumString(value);
+  if (!opt_enum_string) {
+    // Fall back to the integer representation of the field. See above for
+    // motivation.
     delegate.AddString(key_prefix_, std::to_string(value));
     return base::OkStatus();
   }
