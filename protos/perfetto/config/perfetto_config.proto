@@ -915,6 +915,10 @@ message ChromiumHistogramSamplesConfig {
   // List of histograms to record. If no histogram is specified, all histograms
   // are recorded.
   repeated HistogramSample histograms = 1;
+
+  // Default: false (i.e. histogram names are NOT filtered out by default)
+  // When true, histogram_name will be filtered out.
+  optional bool filter_histogram_names = 2;
 }
 
 // End of protos/perfetto/config/chrome/histogram_samples.proto
