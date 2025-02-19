@@ -59,13 +59,13 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
 
     function createModal(
       title: string,
-      content: m.Children,
+      content: () => m.Children,
       onAdd: () => void,
     ) {
       showModal({
         title,
         buttons: [{text: 'Add node', action: onAdd}],
-        content: () => content,
+        content,
       });
     }
 
@@ -96,7 +96,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         m(MenuItem, {
           label: 'Slices',
           onclick: () =>
-            createModal('Slices source', m(SimpleSlicesModalContent), () => {
+            createModal('Slices source', () => m(SimpleSlicesModalContent), () => {
               const newSlices = new SimpleSlicesState(simpleSlicesAttrs);
               if (newSlices.validate()) {
                 onRootNodeCreated(newSlices);
@@ -106,7 +106,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         m(MenuItem, {
           label: 'SQL',
           onclick: () =>
-            createModal('SQL source', m(SqlSourceModalContent), () => {
+            createModal('SQL source', () => m(SqlSourceModalContent), () => {
               const newSqlSource = new SqlSourceState(sqlSourceAttrs);
               if (newSqlSource.validate()) {
                 onRootNodeCreated(newSqlSource);
@@ -133,7 +133,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             const newGroupByAttrs: GroupByAttrs = {prevNode: curNode};
             createModal(
               'GROUP BY',
-              m(GroupByOperation, newGroupByAttrs),
+              () => m(GroupByOperation, newGroupByAttrs),
               () => {
                 curNode.nextNode = new GroupByNode(newGroupByAttrs);
               },
@@ -147,7 +147,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             const curNode = getLastFinishedNode(rootNode);
             if (!curNode) return;
             const newFilterAttrs: FilterAttrs = {prevNode: curNode};
-            createModal('FILTER', m(FilterOperation, newFilterAttrs), () => {
+            createModal('FILTER', () => m(FilterOperation, newFilterAttrs), () => {
               curNode.nextNode = new FilterNode(newFilterAttrs);
             });
           },
@@ -163,7 +163,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             const newJoinState = new JoinState(curNode);
             createModal(
               'JOIN',
-              m(QueryBuilderJoin, {sqlModules, joinState: newJoinState}),
+              () => m(QueryBuilderJoin, {sqlModules, joinState: newJoinState}),
               () => {
                 newJoinState.validate();
                 curNode.nextNode = newJoinState;
