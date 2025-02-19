@@ -219,6 +219,7 @@ message TraceMetricV2Spec {
 //   ...(contents of spec)
 // }
 // ```
+// Note: if value of a row is NULL, the row will not be emitted.
 message TraceMetricV2 {
   // A single metric row corresponding to a value associated with a (unique) set
   // of dimensions
