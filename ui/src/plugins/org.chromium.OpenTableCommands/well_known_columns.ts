@@ -449,11 +449,11 @@ class ArgColumn extends LegacyTableColumn<{type: SqlColumn}> {
   }
 
   override supportingColumns() {
-    return {type: this.getRawColumn('type')};
+    return {type: this.getRawColumn('value_type')};
   }
 
   private getRawColumn(
-    type: 'string_value' | 'int_value' | 'real_value' | 'id' | 'type',
+    type: 'string_value' | 'int_value' | 'real_value' | 'id' | 'value_type',
   ): SqlColumn {
     return {
       column: type,
@@ -475,7 +475,11 @@ class ArgColumn extends LegacyTableColumn<{type: SqlColumn}> {
   ): m.Children {
     // If the value is NULL, then filters can check for id column for better performance.
     if (value === null) {
-      return renderStandardCell(value, this.getRawColumn('type'), tableManager);
+      return renderStandardCell(
+        value,
+        this.getRawColumn('value_type'),
+        tableManager,
+      );
     }
     if (values.type === 'int') {
       return renderStandardCell(
