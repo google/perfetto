@@ -85,7 +85,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           }),
         },
         m(MenuItem, {
-          label: 'Table',
+          label: 'From standard library table',
           onclick: async () => {
             const tableName = await trace.omnibox.prompt(
               'Choose a table...',
@@ -105,22 +105,30 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           label: 'From custom slices',
           onclick: () => {
             const newSimpleSlicesAttrs: SlicesSourceAttrs = {};
-            createModal('Slices', () => m(SlicesSource, newSimpleSlicesAttrs), () => {
-              const newNode = new SlicesSourceNode(newSimpleSlicesAttrs);
-              onRootNodeCreated(newNode);
-              this.selectNode(newNode);
-            });
+            createModal(
+              'Slices',
+              () => m(SlicesSource, newSimpleSlicesAttrs),
+              () => {
+                const newNode = new SlicesSourceNode(newSimpleSlicesAttrs);
+                onRootNodeCreated(newNode);
+                this.selectNode(newNode);
+              },
+            );
           },
         }),
         m(MenuItem, {
           label: 'From custom SQL',
           onclick: () => {
             const newSqlSourceAttrs: SqlSourceAttrs = {};
-            createModal('SQL', () => m(SqlSource, newSqlSourceAttrs), () => {
-              const newNode = new SqlSourceNode(newSqlSourceAttrs);
-              onRootNodeCreated(newNode);
-              this.selectNode(newNode);
-            });
+            createModal(
+              'SQL',
+              () => m(SqlSource, newSqlSourceAttrs),
+              () => {
+                const newNode = new SqlSourceNode(newSqlSourceAttrs);
+                onRootNodeCreated(newNode);
+                this.selectNode(newNode);
+              },
+            );
           },
         }),
       );
@@ -156,11 +164,15 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             const curNode = getLastFinishedNode(rootNode);
             if (!curNode) return;
             const newFilterAttrs: FilterAttrs = {prevNode: curNode};
-            createModal('FILTER', () => m(FilterOperation, newFilterAttrs), () => {
-              const newNode = new FilterNode(newFilterAttrs);
-              curNode.nextNode = newNode;
-              this.selectNode(newNode);
-            });
+            createModal(
+              'FILTER',
+              () => m(FilterOperation, newFilterAttrs),
+              () => {
+                const newNode = new FilterNode(newFilterAttrs);
+                curNode.nextNode = newNode;
+                this.selectNode(newNode);
+              },
+            );
           },
         }),
         m(MenuItem, {

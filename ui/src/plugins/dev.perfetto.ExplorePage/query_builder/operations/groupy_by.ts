@@ -26,30 +26,48 @@ import {Section} from '../../../../widgets/section';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {TextParagraph} from '../../../../widgets/text_paragraph';
+import {Button} from '../../../../widgets/button';
 
 export interface GroupByAggregationAttrs {
-  column: ColumnControllerRow;
+  column?: ColumnControllerRow;
   aggregationOp: string;
   newColumnName?: string;
 }
 
 export interface GroupByAttrs {
   prevNode: QueryNode;
-
   groupByColumns?: ColumnControllerRow[];
   aggregations?: GroupByAggregationAttrs[];
 }
 
 export class GroupByNode implements QueryNode {
-  type: NodeType = NodeType.kGroupByOperator;
+  readonly type: NodeType = NodeType.kGroupByOperator;
   prevNode: QueryNode;
   nextNode?: QueryNode;
-
-  dataName = undefined;
-  columns: ColumnControllerRow[];
+  readonly dataName = undefined;
 
   groupByColumns: ColumnControllerRow[];
   aggregations: GroupByAggregationAttrs[];
+
+  constructor(attrs: GroupByAttrs) {
+    this.prevNode = attrs.prevNode;
+    this.aggregations = attrs.aggregations ?? [];
+    this.groupByColumns = attrs.groupByColumns ?? [];
+  }
+
+  get columns(): ColumnControllerRow[] {
+    const cols = this.groupByColumns.filter((c) => c.checked);
+    for (const agg of this.aggregations) {
+      if (!agg.column) continue;
+      cols.push(
+        columnControllerRowFromName(
+          agg.newColumnName ?? placeholderNewColumnName(agg),
+          true,
+        ),
+      );
+    }
+    return cols;
+  }
 
   getTitle(): string {
     const cols = this.groupByColumns
@@ -64,66 +82,68 @@ export class GroupByNode implements QueryNode {
       .filter((c) => c.checked)
       .map((c) => `'${c.alias ?? c.id}'`)
       .join(', ');
-    const gbColsStr = cols && `Group by columns: ${cols}`;
+    const gbColsStr = cols ? `Group by columns: ${cols}` : '';
 
-    const aggDetails: string[] = [];
-    for (const agg of this.aggregations) {
-      aggDetails.push(
-        `\n- Created '${agg.newColumnName}' by aggregating `,
-        `'${agg.column.alias ?? agg.column.id}' with `,
-        `${agg.aggregationOp?.toString()}.`,
-      );
-    }
+    const aggDetails: string[] = this.aggregations.map((agg) => {
+      const columnName = agg.column
+        ? `'${agg.column.alias ?? agg.column.id}'`
+        : '[No column selected]';
+      return `\n- Created '${agg.newColumnName ?? placeholderNewColumnName(agg)}' by aggregating ${columnName} with ${agg.aggregationOp}.`;
+    });
 
     return m(TextParagraph, {
-      text: gbColsStr + aggDetails.join(''),
+      text: [gbColsStr, ...aggDetails].filter(Boolean).join(''),
     });
   }
 
-  constructor(attrs: GroupByAttrs) {
-    this.prevNode = attrs.prevNode;
-    this.aggregations = attrs.aggregations ?? [];
-    this.groupByColumns = attrs.groupByColumns ?? [];
-
-    // Columns consists of all columns used for group by and all new columns.
-    this.columns = this.groupByColumns.filter((c) => c.checked);
-    for (const agg of this.aggregations) {
-      this.columns.push(
-        columnControllerRowFromName(
-          agg.newColumnName ?? placeholderNewColumnName(agg),
-          true,
-        ),
-      );
-    }
-  }
-
   validate(): boolean {
+    if (!this.groupByColumns.some((c) => c.checked)) {
+      return false;
+    }
+
+    const newColumnNames = new Set<string>();
+    for (const agg of this.aggregations) {
+      const name = agg.newColumnName ?? placeholderNewColumnName(agg);
+      if (newColumnNames.has(name)) {
+        return false;
+      }
+      newColumnNames.add(name);
+    }
+
+    for (const agg of this.aggregations) {
+      if (!agg.column) {
+        return false;
+      }
+    }
+
     return true;
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (!this.validate()) return;
+    if (!this.validate()) return undefined;
+
     const prevNodeSq = this.prevNode.getStructuredQuery();
-    if (prevNodeSq === undefined) {
-      return;
-    }
+    if (!prevNodeSq) return undefined;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = `group_by`;
     sq.innerQuery = prevNodeSq;
+
     const groupByProto = new protos.PerfettoSqlStructuredQuery.GroupBy();
     groupByProto.columnNames = this.groupByColumns
       .filter((c) => c.checked)
       .map((c) => c.column.name);
-    groupByProto.aggregates = this.aggregations.map((agg) =>
-      GroupByAggregationAttrsToProto(agg),
-    );
+
+    groupByProto.aggregates = this.aggregations
+      .filter((agg) => agg.column)
+      .map(GroupByAggregationAttrsToProto);
+
     sq.groupBy = groupByProto;
 
     const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] =
       [];
     for (const c of this.columns) {
-      if (c.checked === false) continue;
+      if (!c.checked) continue;
       const newC = new protos.PerfettoSqlStructuredQuery.SelectColumn();
       newC.columnName = c.column.name;
       if (c.alias) {
@@ -131,190 +151,186 @@ export class GroupByNode implements QueryNode {
       }
       selectedColumns.push(newC);
     }
+
     sq.selectColumns = selectedColumns;
     return sq;
   }
 }
 
+const AGGREGATION_OPS = [
+  'COUNT',
+  'SUM',
+  'MIN',
+  'MAX',
+  'MEAN',
+  'DURATION_WEIGHTED_MEAN',
+] as const;
+
 export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
-  private selectForAggregationColumns?: ColumnControllerRow[];
-  private defaultOp: string = 'COUNT';
-
   view({attrs}: m.CVnode<GroupByAttrs>) {
+    if (!attrs.groupByColumns) {
+      attrs.groupByColumns = newColumnControllerRows(
+        attrs.prevNode.columns?.filter((c) => c.checked) ?? [],
+      );
+    }
+
     const selectGroupByColumns = (): m.Child => {
-      if (attrs.groupByColumns === undefined) {
-        attrs.groupByColumns = newColumnControllerRows(
-          attrs.prevNode.columns?.filter((c) => c.checked) ?? [],
-        );
-      }
-      if (this.selectForAggregationColumns === undefined) {
-        this.selectForAggregationColumns = newColumnControllerRows(
-          attrs.groupByColumns,
-        );
-      }
-
       return m(ColumnController, {
-        options: attrs.groupByColumns,
+        options: attrs.groupByColumns!,
         allowAlias: false,
         onChange: (diffs: ColumnControllerDiff[]) => {
-          if (attrs.groupByColumns === undefined) return;
-
-          if (this.selectForAggregationColumns === undefined) {
-            this.selectForAggregationColumns = newColumnControllerRows(
-              attrs.groupByColumns,
-            );
-          }
           for (const diff of diffs) {
-            const column = attrs.groupByColumns?.find((c) => c.id === diff.id);
-            if (column) column.checked = diff.checked;
+            const column = attrs.groupByColumns!.find((c) => c.id === diff.id);
+            if (column) {
+              column.checked = diff.checked;
+              if (!diff.checked) {
+                attrs.aggregations = attrs.aggregations?.filter(
+                  (agg) => agg.column?.id !== diff.id,
+                );
+              }
+            }
           }
         },
       });
     };
 
-    const selectAggregationColumns = (): m.Child => {
-      if (this.selectForAggregationColumns === undefined) return;
+    const selectAggregationForColumn = (
+      agg: GroupByAggregationAttrs,
+      index: number,
+    ): m.Child => {
+      const columnOptions = (attrs.prevNode.columns ?? [])
+        .filter((c) => c.checked)
+        .map((col) =>
+          m(
+            'option',
+            {
+              value: col.id,
+              selected: agg.column?.id === col.id,
+            },
+            col.id,
+          ),
+        );
 
-      return m(ColumnController, {
-        options: this.selectForAggregationColumns,
-        allowAlias: false,
-        onChange: (diffs: ColumnControllerDiff[]) => {
-          if (this.selectForAggregationColumns === undefined) {
-            return;
-          }
-          for (const diff of diffs) {
-            const column = this.selectForAggregationColumns.find(
-              (c) => c.id === diff.id,
-            );
-            if (column) column.checked = diff.checked;
-          }
-        },
-      });
-    };
-
-    const selectAggregationForColumn = (col: ColumnControllerRow): m.Child => {
-      if (attrs.aggregations === undefined) {
-        attrs.aggregations = [];
-      }
-      let agg = attrs.aggregations.find((agg) => agg.column.id === col.id);
-      if (agg === undefined) {
-        agg = {
-          column: col,
-          aggregationOp: this.defaultOp,
-        };
-        attrs.aggregations.push(agg);
-      }
-      // TODO(mayzner):
-      // Add `median` operation after we start to suport it in the backend.
-      const optionNames = [
-        'Count',
-        'Sum',
-        'Min',
-        'Max',
-        'Mean',
-        'Duration weighted mean',
-      ];
       return m(
         Section,
-        {title: `Column: ${col.id}`},
+        {
+          title: `Aggregation ${index + 1}`,
+          key: index,
+        },
+        m(Button, {
+          label: 'X',
+          onclick: () => {
+            attrs.aggregations?.splice(index, 1);
+          },
+        }),
         m(
-          ``,
+          'Column:',
           m(
             Select,
             {
-              title: 'Aggregation type: ',
-              id: `col.${col.id}`,
-              oninput: (e: Event) => {
-                if (!e.target || agg === undefined) return;
-                agg.aggregationOp = (e.target as HTMLSelectElement).value;
+              onchange: (e: Event) => {
+                const target = e.target as HTMLSelectElement;
+                const selectedColumn = attrs.prevNode.columns?.find(
+                  (c) => c.id === target.value,
+                );
+                agg.column = selectedColumn;
               },
             },
-            optionNames.map((name) =>
-              m('option', {
-                value: name.toUpperCase().replace(' ', '_'),
-                label: name,
-                selected: name === agg.aggregationOp ? true : undefined,
-              }),
+            m(
+              'option',
+              {disabled: true, selected: !agg.column},
+              'Select a column',
             ),
-          ),
-          m(
-            '',
-            m(TextInput, {
-              title: 'New column name',
-              id: `newColName.${col.id}`,
-              placeholder: placeholderNewColumnName(agg),
-              oninput: (e: KeyboardEvent) => {
-                if (!e.target || agg === undefined) return;
-                agg.newColumnName = (e.target as HTMLInputElement).value.trim();
-              },
-            }),
+            columnOptions,
           ),
         ),
+        m(
+          Select,
+          {
+            title: 'Aggregation type: ',
+            onchange: (e: Event) => {
+              agg.aggregationOp = (e.target as HTMLSelectElement).value;
+            },
+          },
+          AGGREGATION_OPS.map((op) =>
+            m(
+              'option',
+              {
+                value: op,
+                selected: op === agg.aggregationOp,
+              },
+              op,
+            ),
+          ),
+        ),
+        m(TextInput, {
+          title: 'New column name',
+          placeholder: agg.column
+            ? placeholderNewColumnName(agg)
+            : 'Enter column name',
+          onchange: (e: Event) => {
+            agg.newColumnName = (e.target as HTMLInputElement).value.trim();
+          },
+          value: agg.newColumnName,
+        }),
       );
     };
 
+    const onAddAggregation = () => {
+      if (!attrs.aggregations) {
+        attrs.aggregations = [];
+      }
+      attrs.aggregations.push({
+        aggregationOp: AGGREGATION_OPS[0],
+        column: undefined,
+        newColumnName: undefined,
+      });
+    };
+
     const selectAggregations = (): m.Child => {
-      if (this.selectForAggregationColumns === undefined) return;
       return m(
         '',
-        this.selectForAggregationColumns
-          .filter((c) => c.checked)
-          .map((c) => selectAggregationForColumn(c)),
+        (attrs.aggregations || []).map((agg, index) =>
+          selectAggregationForColumn(agg, index),
+        ),
+        m(Button, {
+          label: 'Add Aggregation',
+          onclick: onAddAggregation,
+        }),
       );
     };
 
     return m(
       '',
-      m(
-        '.explore-page__rowish',
-        m(Section, {title: 'Columns for group by'}, selectGroupByColumns()),
-        m(
-          Section,
-          {title: 'Columns for aggregation'},
-          selectAggregationColumns(),
-        ),
-      ),
-      m(
-        Section,
-        {title: 'Select aggregation type and new column name'},
-        selectAggregations(),
-      ),
+      m(Section, {title: 'Columns for group by'}, selectGroupByColumns()),
+      m(Section, {title: 'Aggregations'}, selectAggregations()),
     );
   }
 }
 
-function StringToAggregateOp(s: string) {
-  switch (s) {
-    case 'COUNT':
-      return protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op.COUNT;
-    case 'SUM':
-      return protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op.SUM;
-    case 'MIN':
-      return protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op.MIN;
-    case 'MAX':
-      return protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op.MAX;
-    case 'MEAN':
-      return protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op.MEAN;
-    case 'MEDIAN':
-      return protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op.MEDIAN;
-    case 'DURATION_WEIGHTED_MEAN':
-      return protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op
-        .DURATION_WEIGHTED_MEAN;
-    default:
-      throw new Error(`Invalid AggregateOp '${s}'`);
+function stringToAggregateOp(
+  s: string,
+): protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op {
+  if (AGGREGATION_OPS.includes(s as (typeof AGGREGATION_OPS)[number])) {
+    return protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op[
+      s as keyof typeof protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op
+    ];
   }
+  throw new Error(`Invalid AggregateOp '${s}'`);
 }
 
 function GroupByAggregationAttrsToProto(
   agg: GroupByAggregationAttrs,
 ): protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate {
   const newAgg = new protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate();
-  newAgg.columnName = agg.column.column.name;
-  newAgg.op = StringToAggregateOp(agg.aggregationOp);
+  newAgg.columnName = agg.column!.column.name;
+  newAgg.op = stringToAggregateOp(agg.aggregationOp);
   newAgg.resultColumnName = agg.newColumnName ?? placeholderNewColumnName(agg);
   return newAgg;
 }
 
 function placeholderNewColumnName(agg: GroupByAggregationAttrs) {
-  return `${agg.column.id}_${agg.aggregationOp}`;
+  return agg.column
+    ? `${agg.column.id}_${agg.aggregationOp}`
+    : `agg_${agg.aggregationOp}`;
 }
