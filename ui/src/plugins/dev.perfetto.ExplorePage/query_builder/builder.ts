@@ -49,19 +49,16 @@ export interface QueryBuilderTable {
 export interface QueryBuilderAttrs extends PageWithTraceAttrs {
   readonly sqlModules: SqlModules;
   readonly rootNode?: QueryNode;
+  readonly selectedNode?: QueryNode;
+
   readonly onRootNodeCreated: (node: QueryNode) => void;
+  readonly onNodeSelected: (node: QueryNode) => void;
 }
 
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
-  selectedNode?: QueryNode;
-
-  // Method to update the selected node and trigger a redraw.
-  selectNode(node: QueryNode) {
-    this.selectedNode = node;
-  }
-
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
-    const {trace, sqlModules, rootNode, onRootNodeCreated} = attrs;
+    const {trace, sqlModules, rootNode, onRootNodeCreated, onNodeSelected} =
+      attrs;
 
     const createModal = (
       title: string,
@@ -98,7 +95,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
 
             const newNode = new StdlibTableNode(sqlTable);
             onRootNodeCreated(newNode);
-            this.selectNode(newNode);
+            onNodeSelected(newNode);
           },
         }),
         m(MenuItem, {
@@ -111,7 +108,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
               () => {
                 const newNode = new SlicesSourceNode(newSimpleSlicesAttrs);
                 onRootNodeCreated(newNode);
-                this.selectNode(newNode);
+                onNodeSelected(newNode);
               },
             );
           },
@@ -126,7 +123,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
               () => {
                 const newNode = new SqlSourceNode(newSqlSourceAttrs);
                 onRootNodeCreated(newNode);
-                this.selectNode(newNode);
+                onNodeSelected(newNode);
               },
             );
           },
@@ -152,7 +149,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
               () => {
                 const newNode = new GroupByNode(newGroupByAttrs);
                 curNode.nextNode = newNode;
-                this.selectNode(newNode);
+                onNodeSelected(newNode);
               },
             );
           },
@@ -163,14 +160,16 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             if (!rootNode) return;
             const curNode = getLastFinishedNode(rootNode);
             if (!curNode) return;
-            const newFilterAttrs: FilterAttrs = {prevNode: curNode};
+            const newFilterAttrs: FilterAttrs = {
+              prevNode: curNode,
+            };
             createModal(
               'FILTER',
               () => m(FilterOperation, newFilterAttrs),
               () => {
                 const newNode = new FilterNode(newFilterAttrs);
                 curNode.nextNode = newNode;
-                this.selectNode(newNode);
+                onNodeSelected(newNode);
               },
             );
           },
@@ -190,7 +189,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
               () => {
                 newJoinState.validate();
                 curNode.nextNode = newJoinState;
-                this.selectNode(newJoinState);
+                onNodeSelected(newJoinState);
               },
             );
           },
@@ -217,7 +216,13 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
               m(Button, {
                 label: localCurNode.getTitle(),
                 intent: Intent.Primary,
-                onclick: () => this.selectNode(localCurNode),
+                style: {
+                  border:
+                    attrs.selectedNode === localCurNode
+                      ? '2px solid yellow'
+                      : '',
+                },
+                onclick: () => onNodeSelected(localCurNode),
               }),
             ),
           );
@@ -249,8 +254,8 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
     };
 
     const renderDataSourceViewer = () => {
-      if (!this.selectedNode) return;
-      return m(DataSourceViewer, {trace, queryNode: this.selectedNode});
+      if (!attrs.selectedNode) return;
+      return m(DataSourceViewer, {trace, queryNode: attrs.selectedNode});
     };
 
     return m(
