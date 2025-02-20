@@ -62,13 +62,6 @@ export class TabManagerImpl implements TabManager, Disposable {
     };
   }
 
-  registerDetailsPanel(section: DetailsPanel): Disposable {
-    this._detailsPanelRegistry.add(section);
-    return {
-      [Symbol.dispose]: () => this._detailsPanelRegistry.delete(section),
-    };
-  }
-
   resolveTab(uri: string): TabDescriptor | undefined {
     return this._registry.get(uri);
   }

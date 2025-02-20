@@ -80,6 +80,7 @@ export const defaultPlugins = [
   'org.kernel.Wattson',
   'perfetto.CoreCommands',
   'perfetto.ExampleTraces',
+  'perfetto.FlowEvents',
   'perfetto.GlobalGroups',
   'perfetto.TrackUtils',
 ];

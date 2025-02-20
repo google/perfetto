@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqliteString} from '../base/string_utils';
+import {sqliteString} from '../../base/string_utils';
 import {
   PivotTableQuery,
   PivotTableState,
   Aggregation,
   TableColumn,
 } from './pivot_table_types';
-import {AreaSelection} from '../public/selection';
-import {SLICE_TRACK_KIND} from '../public/track_kinds';
+import {AreaSelection} from '../../public/selection';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 
 interface Table {
   name: string;

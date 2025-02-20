@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {showModal} from '../../widgets/modal';
-import {ArgumentPopup} from '../pivot_table_argument_popup';
+import {showModal} from '../widgets/modal';
+import {ArgumentPopup} from './pivot_table/pivot_table_argument_popup';
 
 export class AttributeModalHolder {
   typedArgument = '';
