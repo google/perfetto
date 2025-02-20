@@ -28,7 +28,7 @@ import {timestampFormat} from '../../core/timestamp_format';
 import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {LONG, NUM} from '../../trace_processor/query_result';
-import {VirtualOverlayCanvas} from '../../components/widgets/virtual_overlay_canvas';
+import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {OVERVIEW_TIMELINE_NON_VISIBLE_COLOR} from '../css_constants';
 import {
   generateTicks,
@@ -65,7 +65,9 @@ export class OverviewTimeline
     return m(
       VirtualOverlayCanvas,
       {
-        raf: attrs.trace.raf,
+        onMount: (redrawCanvas) =>
+          attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
+        disableCanvasRedrawOnMithrilUpdates: true,
         className: attrs.className,
         onCanvasRedraw: ({ctx, virtualCanvasSize}) => {
           this.renderCanvas(attrs.trace, ctx, virtualCanvasSize);
