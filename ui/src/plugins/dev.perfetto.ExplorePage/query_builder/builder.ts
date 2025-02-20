@@ -25,20 +25,19 @@ import {showModal} from '../../../widgets/modal';
 import {DataSourceViewer} from './data_source_viewer';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {getLastFinishedNode} from '../query_node';
-import {TextInput} from '../../../widgets/text_input';
-import {
-  StdlibTableState,
-  SimpleSlicesAttrs,
-  SimpleSlicesState,
-  SqlSourceAttrs,
-  SqlSourceState,
-} from './source_nodes';
+import {StdlibTableNode} from './sources/stdlib_table';
 import {
   GroupByAttrs,
   GroupByNode,
   GroupByOperation,
 } from './operations/groupy_by';
 import {FilterAttrs, FilterNode, FilterOperation} from './operations/filter';
+import {SqlSource, SqlSourceAttrs, SqlSourceNode} from './sources/sql_source';
+import {
+  SlicesSourceAttrs,
+  SlicesSourceNode,
+  SlicesSource,
+} from './sources/slices';
 
 export interface QueryBuilderTable {
   name: string;
@@ -97,34 +96,33 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             const sqlTable = sqlModules.getTable(tableName);
             if (!sqlTable) return;
 
-            const newNode = new StdlibTableState(sqlTable);
+            const newNode = new StdlibTableNode(sqlTable);
             onRootNodeCreated(newNode);
             this.selectNode(newNode);
           },
         }),
         m(MenuItem, {
-          label: 'Slices',
-          onclick: () =>
-            createModal('Slices source', () => m(SimpleSlicesModalContent), () => {
-              const newSlices = new SimpleSlicesState(simpleSlicesAttrs);
-              if (newSlices.validate()) {
-                onRootNodeCreated(newSlices);
-                this.selectNode(newSlices);
-              }
-            }),
+          label: 'From custom slices',
+          onclick: () => {
+            const newSimpleSlicesAttrs: SlicesSourceAttrs = {};
+            createModal('Slices', () => m(SlicesSource, newSimpleSlicesAttrs), () => {
+              const newNode = new SlicesSourceNode(newSimpleSlicesAttrs);
+              onRootNodeCreated(newNode);
+              this.selectNode(newNode);
+            });
+          },
         }),
         m(MenuItem, {
-          label: 'SQL',
-          onclick: () =>
-            createModal('SQL source', () => m(SqlSourceModalContent), () => {
-              const newSqlSource = new SqlSourceState(sqlSourceAttrs);
-              if (newSqlSource.validate()) {
-                onRootNodeCreated(newSqlSource);
-                this.selectNode(newSqlSource);
-              }
-            }),
+          label: 'From custom SQL',
+          onclick: () => {
+            const newSqlSourceAttrs: SqlSourceAttrs = {};
+            createModal('SQL', () => m(SqlSource, newSqlSourceAttrs), () => {
+              const newNode = new SqlSourceNode(newSqlSourceAttrs);
+              onRootNodeCreated(newNode);
+              this.selectNode(newNode);
+            });
+          },
         }),
-        m(MenuItem, {label: 'Interval intersect', disabled: true}),
       );
     };
 
@@ -236,124 +234,6 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         },
         nodes,
       );
-    };
-
-    const simpleSlicesAttrs: SimpleSlicesAttrs = {};
-    const SimpleSlicesModalContent = {
-      view: () => {
-        return m(
-          '',
-          m(
-            '',
-            'Slice name glob ',
-            m(TextInput, {
-              id: 'slice_name_glob',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                simpleSlicesAttrs.slice_name = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-          m(
-            '',
-            'Thread name glob ',
-            m(TextInput, {
-              id: 'thread_name_glob',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                simpleSlicesAttrs.thread_name = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-          m(
-            '',
-            'Process name glob ',
-            m(TextInput, {
-              id: 'process_name_glob',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                simpleSlicesAttrs.process_name = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-          m(
-            '',
-            'Track name glob ',
-            m(TextInput, {
-              id: 'track_name_glob',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                simpleSlicesAttrs.track_name = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-        );
-      },
-    };
-
-    const sqlSourceAttrs: SqlSourceAttrs = {};
-    const SqlSourceModalContent = {
-      view: () => {
-        return m(
-          '',
-          m(
-            '',
-            'Preamble',
-            m(TextInput, {
-              id: 'preamble',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                sqlSourceAttrs.preamble = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-          m(
-            '',
-            'Sql ',
-            m(TextInput, {
-              id: 'sql_source',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                sqlSourceAttrs.sql = (e.target as HTMLInputElement).value
-                  .trim()
-                  .split(';')[0];
-              },
-            }),
-          ),
-          m(
-            '',
-            'Column names (comma separated strings) ',
-            m(TextInput, {
-              id: 'columns',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                const colsStr = (e.target as HTMLInputElement).value.trim();
-                sqlSourceAttrs.columns = colsStr
-                  .split(',')
-                  .map((col) => col.trim())
-                  .filter(Boolean);
-              },
-            }),
-          ),
-        );
-      },
     };
 
     const renderDataSourceViewer = () => {
