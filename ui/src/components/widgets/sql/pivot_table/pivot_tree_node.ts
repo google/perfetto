@@ -12,12 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {range} from '../../../../base/array_utils';
 import {assertExists, assertTrue} from '../../../../base/logging';
 import {Row} from '../../../../trace_processor/query_result';
 import {SqlValue} from '../../../../trace_processor/sql_utils';
 import {LegacyTableColumn} from '../legacy_table/table_column';
-import {Aggregation, basicAggregations} from './aggregations';
+import {
+  Aggregation,
+  BasicAggregation,
+  basicAggregations,
+  expandAggregations,
+  getAggregationValue as getAggregationValueImpl,
+} from './aggregations';
 import {aggregationId, pivotId} from './ids';
 import type {SortOrder} from './pivot_table_state';
 
@@ -30,6 +35,7 @@ function assertNotUndefined<T>(value: T | undefined): T {
 interface Config {
   readonly pivots: ReadonlyArray<LegacyTableColumn>;
   readonly aggregations: ReadonlyArray<Aggregation>;
+  readonly basicAggregations: ReadonlyArray<BasicAggregation>;
 }
 
 // A node in the pivot tree.
@@ -45,17 +51,21 @@ export class PivotTreeNode {
   private readonly depth: number;
 
   private readonly children: Map<SqlValue, PivotTreeNode>;
-  // The aggregated values for the node itself.
-  readonly aggregationValues: SqlValue[];
+  // The aggregated values for the node itself. Keys are the aggregation ids of
+  // config.basicAggregations.
+  //
+  // Note: storing these values in a dict instead of an array is suboptimal, consider
+  // switching it to an array if performance becomes an issue. This would
+  // require additional complexity in mapping complex aggregations (e.g. average)
+  // to basic ones.
+  readonly aggregationValuesSelf: {[key: string]: SqlValue};
   // The aggregated values for the node and all its descendants.
-  private aggregations: SqlValue[];
+  // Keys are the aggregation ids of config.basicAggregations.
+  private aggregationValues: {[key: string]: SqlValue};
   collapsed: boolean;
 
   constructor(args: {
-    config: {
-      pivots: ReadonlyArray<LegacyTableColumn>;
-      aggregations: ReadonlyArray<Aggregation>;
-    };
+    config: Config;
     parent?: PivotTreeNode;
     pivotValue?: SqlValue;
   }) {
@@ -65,10 +75,12 @@ export class PivotTreeNode {
     this.pivotValue = args.pivotValue;
     this.depth = this.parent === undefined ? 0 : this.parent.depth + 1;
 
-    this.aggregationValues = range(this.config.aggregations.length).map(
-      () => null,
+    this.aggregationValuesSelf = Object.fromEntries(
+      this.config.basicAggregations.map((agg) => [aggregationId(agg), null]),
     );
-    this.aggregations = [...this.aggregationValues];
+    this.aggregationValues = Object.fromEntries(
+      this.config.basicAggregations.map((agg) => [aggregationId(agg), null]),
+    );
     this.children = new Map();
     this.collapsed = this.depth > 0;
   }
@@ -98,6 +110,7 @@ export class PivotTreeNode {
       config: {
         pivots: [...config.pivots],
         aggregations: [...config.aggregations],
+        basicAggregations: expandAggregations(config.aggregations),
       },
     });
     for (const row of rows) {
@@ -105,13 +118,16 @@ export class PivotTreeNode {
       for (const pivot of config.pivots) {
         node = node.getOrCreateChild(row[pivotId(pivot)]);
       }
-      for (const [index, agg] of config.aggregations.entries()) {
-        node.aggregationValues[index] = basicAggregations[agg.op](
-          node.aggregationValues[index],
+      // Update the raw values for the node.
+      for (const agg of root.config.basicAggregations) {
+        const id = aggregationId(agg);
+        node.aggregationValuesSelf[id] = basicAggregations[agg.op](
+          node.aggregationValuesSelf[id],
           row[aggregationId(agg)],
         );
       }
     }
+    // Update the aggregated values for the whole tree.
     root.update();
     return root;
   }
@@ -169,7 +185,10 @@ export class PivotTreeNode {
 
   // Get the value of the aggregation at the given index.
   getAggregationValue(index: number): SqlValue {
-    return this.aggregations[index];
+    return getAggregationValueImpl(
+      this.config.aggregations[index],
+      this.aggregationValues,
+    );
   }
 
   // List all of the descendants of this node, respecting `collapsed` state.
@@ -232,13 +251,14 @@ export class PivotTreeNode {
   }
 
   private update() {
-    this.aggregations = [...this.aggregationValues];
+    this.aggregationValues = {...this.aggregationValuesSelf};
     for (const child of this.children.values()) {
       child.update();
-      for (const [index, agg] of this.config.aggregations.entries()) {
-        this.aggregations[index] = basicAggregations[agg.op](
-          this.aggregations[index],
-          child.aggregations[index],
+      for (const agg of this.config.basicAggregations) {
+        const id = aggregationId(agg);
+        this.aggregationValues[id] = basicAggregations[agg.op](
+          this.aggregationValues[id] ?? null,
+          child.aggregationValues[id],
         );
       }
     }
@@ -277,8 +297,8 @@ export class PivotTreeNode {
         // hiding a column.
         assertTrue(index !== -1);
         const cmp = compareSqlValues(
-          lhs.aggregations[index],
-          rhs.aggregations[index],
+          lhs.getAggregationValue(index),
+          rhs.getAggregationValue(index),
         );
         if (cmp !== 0) return direction === 'ASC' ? cmp : -cmp;
       } else {
