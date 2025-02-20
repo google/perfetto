@@ -67,6 +67,24 @@ TraceSorter::~TraceSorter() {
   }
 }
 
+bool TraceSorter::SetSortingMode(SortingMode sorting_mode) {
+  // Early out if the new sorting mode matches the old.
+  if (sorting_mode == sorting_mode_) {
+    return true;
+  }
+  // We cannot transition back to a more relaxed mode after having left that
+  // mode.
+  if (sorting_mode_ != SortingMode::kDefault) {
+    return false;
+  }
+  // We cannot change sorting mode after having extracted one or more events.
+  if (latest_pushed_event_ts_ != std::numeric_limits<int64_t>::min()) {
+    return false;
+  }
+  sorting_mode_ = sorting_mode;
+  return true;
+}
+
 void TraceSorter::Queue::Sort(TraceTokenBuffer& buffer, bool use_slow_sorting) {
   PERFETTO_DCHECK(needs_sorting());
   PERFETTO_DCHECK(sort_start_idx_ < events_.size());
