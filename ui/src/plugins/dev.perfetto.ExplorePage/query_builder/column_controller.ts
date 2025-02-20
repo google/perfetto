@@ -69,8 +69,11 @@ export function newColumnControllerRow(
   };
 }
 
-export function newColumnControllerRows(oldCols: ColumnControllerRow[]) {
-  return oldCols.map((col) => newColumnControllerRow(col));
+export function newColumnControllerRows(
+  oldCols: ColumnControllerRow[],
+  checked: boolean = false,
+) {
+  return oldCols.map((col) => newColumnControllerRow(col, checked));
 }
 
 export interface ColumnControllerDiff {
