@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {sqlColumnId} from '../legacy_table/sql_column';
-import {LegacyTableColumn} from '../legacy_table/table_column';
-import {Aggregation} from './aggregations';
+import type {LegacyTableColumn} from '../legacy_table/table_column';
+import type {Aggregation} from './aggregations';
 
 // Unique identifier for a pivot column.
 export function pivotId(p: LegacyTableColumn): string {
