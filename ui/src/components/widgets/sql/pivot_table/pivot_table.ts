@@ -50,29 +50,34 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
 
   view() {
     const data = this.state.getData();
-    if (data === undefined) {
-      return m(Spinner);
-    }
     const pivotColumns: ColumnDescriptor<PivotTreeNode>[] = this.state
       .getPivots()
       .map((pivot, index) => ({
         title: this.renderPivotColumnHeader(pivot, index),
-        render: (node) => [
-          // Do not show the expand/collapse button for the last pivot.
-          node.getPivotIndex() === index &&
-            index + 1 !== this.state.getPivots().length &&
-            m(Button, {
-              icon: node.collapsed ? Icons.ExpandDown : Icons.ExpandUp,
-              onclick: () => (node.collapsed = !node.collapsed),
-            }),
-          // Indent the expanded values to align them with the parent value
-          // even though they do not have the "expand/collapse" button.
-          index < node.getPivotIndex() && m('span.indent'),
-          sqlValueToReadableString(node.getPivotValue(index)),
-          // Show ellipsis for the last pivot if the node is collapsed to
-          // make it clear to the user that there are some values.
-          index > node.getPivotIndex() && node.collapsed && '...',
-        ],
+        render: (node) => {
+          const status = node.getPivotDisplayStatus(index);
+          return [
+            (status === 'collapsed' || status === 'expanded') &&
+              m(Button, {
+                icon:
+                  status === 'collapsed' ? Icons.ExpandDown : Icons.ExpandUp,
+                onclick: () => (node.collapsed = !node.collapsed),
+              }),
+            // Show a non-clickable indicator that the value is auto-expanded.
+            status === 'auto_expanded' &&
+              m(Button, {
+                icon: 'chevron_right',
+                disabled: true,
+              }),
+            // Indent the expanded values to align them with the parent value
+            // even though they do not have the "expand/collapse" button.
+            status === 'pivoted_value' && m('span.indent'),
+            sqlValueToReadableString(node.getPivotValue(index)),
+            // Show ellipsis for the last pivot if the node is collapsed to
+            // make it clear to the user that there are some values.
+            status === 'hidden_behind_collapsed' && '...',
+          ];
+        },
       }));
 
     const aggregationColumns: ColumnDescriptor<PivotTreeNode>[] = this.state
@@ -84,20 +89,23 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       }));
 
     // Expand the tree to a list of rows to show.
-    const nodes: PivotTreeNode[] = [...data.listDescendants()];
+    const nodes: PivotTreeNode[] = data ? [...data.listDescendants()] : [];
 
-    return m(BasicTable<PivotTreeNode>, {
-      className: 'pivot-table',
-      data: nodes,
-      columns: [
-        new ReorderableColumns(pivotColumns, (from, to) =>
-          this.state.movePivot(from, to),
-        ),
-        new ReorderableColumns(aggregationColumns, (from, to) =>
-          this.state.moveAggregation(from, to),
-        ),
-      ],
-    });
+    return [
+      m(BasicTable<PivotTreeNode>, {
+        className: 'pivot-table',
+        data: nodes,
+        columns: [
+          new ReorderableColumns(pivotColumns, (from, to) =>
+            this.state.movePivot(from, to),
+          ),
+          new ReorderableColumns(aggregationColumns, (from, to) =>
+            this.state.moveAggregation(from, to),
+          ),
+        ],
+      }),
+      data === undefined && m(Spinner),
+    ];
   }
 
   renderPivotColumnHeader(pivot: LegacyTableColumn, index: number) {
