@@ -16,9 +16,10 @@ import {range} from '../../../../base/array_utils';
 import {assertExists, assertTrue} from '../../../../base/logging';
 import {Row} from '../../../../trace_processor/query_result';
 import {SqlValue} from '../../../../trace_processor/sql_utils';
-import {basicAggregations} from './aggregations';
+import {LegacyTableColumn} from '../legacy_table/table_column';
+import {Aggregation, basicAggregations} from './aggregations';
 import {aggregationId, pivotId} from './ids';
-import type {PivotTableState, SortOrder} from './pivot_table_state';
+import type {SortOrder} from './pivot_table_state';
 
 // assertExists trips over NULLs, but NULL is a valid SQL value we have to work with.
 function assertNotUndefined<T>(value: T | undefined): T {
@@ -26,10 +27,15 @@ function assertNotUndefined<T>(value: T | undefined): T {
   return value;
 }
 
+interface Config {
+  readonly pivots: ReadonlyArray<LegacyTableColumn>;
+  readonly aggregations: ReadonlyArray<Aggregation>;
+}
+
 // A node in the pivot tree.
 // Each node represents a partially aggregated values for the first `depth` pivots.
 export class PivotTreeNode {
-  private readonly state: PivotTableState;
+  private readonly config: Config;
 
   private readonly parent?: PivotTreeNode;
   // undefined only for the root node.
@@ -46,17 +52,20 @@ export class PivotTreeNode {
   collapsed: boolean;
 
   constructor(args: {
-    state: PivotTableState;
+    config: {
+      pivots: ReadonlyArray<LegacyTableColumn>;
+      aggregations: ReadonlyArray<Aggregation>;
+    };
     parent?: PivotTreeNode;
     pivotValue?: SqlValue;
   }) {
-    this.state = args.state;
+    this.config = args.config;
 
     this.parent = args.parent;
     this.pivotValue = args.pivotValue;
     this.depth = this.parent === undefined ? 0 : this.parent.depth + 1;
 
-    this.aggregationValues = range(this.state.getAggregations().length).map(
+    this.aggregationValues = range(this.config.aggregations.length).map(
       () => null,
     );
     this.aggregations = [...this.aggregationValues];
@@ -69,17 +78,38 @@ export class PivotTreeNode {
     return this.depth - 1;
   }
 
+  // Return the id of the pivot which was used to create this node.
+  private getPivotId(): string | undefined {
+    const index = this.getPivotIndex();
+    if (index === -1) return undefined;
+    return pivotId(this.config.pivots[index]);
+  }
+
   // Construct the tree from the given rows.
   // The rows should be indexed by `pivotId` and `aggregationId`.
-  static buildTree(rows: Row[], state: PivotTableState): PivotTreeNode {
-    const root = new PivotTreeNode({state});
+  static buildTree(
+    rows: Row[],
+    config: {
+      pivots: ReadonlyArray<LegacyTableColumn>;
+      aggregations: ReadonlyArray<Aggregation>;
+    },
+  ): PivotTreeNode {
+    const root = new PivotTreeNode({
+      config: {
+        pivots: [...config.pivots],
+        aggregations: [...config.aggregations],
+      },
+    });
     for (const row of rows) {
       let node = root;
-      for (const pivot of state.getPivots()) {
+      for (const pivot of config.pivots) {
         node = node.getOrCreateChild(row[pivotId(pivot)]);
       }
-      for (const [index, agg] of state.getAggregations().entries()) {
-        node.aggregationValues[index] = row[aggregationId(agg)];
+      for (const [index, agg] of config.aggregations.entries()) {
+        node.aggregationValues[index] = basicAggregations[agg.op](
+          node.aggregationValues[index],
+          row[aggregationId(agg)],
+        );
       }
     }
     root.update();
@@ -88,12 +118,53 @@ export class PivotTreeNode {
 
   // Get the value of the pivot at the given index.
   getPivotValue(index: number): SqlValue | undefined {
-    // depth of 0 is the root node, so the actual values start
-    // with depth 1.
-    const targetDepth = index + 1;
-    if (targetDepth > this.depth) return undefined;
-    if (targetDepth === this.depth) return this.pivotValue;
+    if (index > this.getPivotIndex()) return undefined;
+    if (index === this.getPivotIndex()) return this.pivotValue;
     return assertExists(this.parent).getPivotValue(index);
+  }
+
+  /**
+   * Return how the value at `pivotIndex` should be rendered for the row corresponding to this node.
+   * @param pivotIndex Index of the pivot cell.
+   * @returns how the value at `pivotIndex` should be rendered for the row corresponding to this node:
+   * - 'expanded': 'pivotIndex' corresponds to this node's depth and the node is expanded.
+   * - 'collapsed': 'pivotIndex' corresponds to this node's depth and the node is collapsed.
+   * - 'last_pivot': 'pivotIndex' corresponds to this node's depth and as the last pivot can't be
+   *                 neither collapsed nor expanded.
+   * - 'auto_expanded': this is one of the parent pivots of this node that has been
+   *   auto-expanded due to having only one child.
+   * - 'pivoted_value': this is one of the parent pivots of this node and the pivoted value should be displayed.
+   * - 'hidden_behind_collapsed': this is one of the child pivots of this node and the parent pivot is collapsed,
+   *   so just an indication that there are some values should be displayed.
+   * - 'empty': this is one of the child pivots of the expanded node and should be left empty.
+   */
+  getPivotDisplayStatus(
+    pivotIndex: number,
+  ):
+    | 'expanded'
+    | 'collapsed'
+    | 'last_pivot'
+    | 'pivoted_value'
+    | 'auto_expanded'
+    | 'hidden_behind_collapsed'
+    | 'empty' {
+    if (pivotIndex === this.getPivotIndex()) {
+      if (pivotIndex + 1 === this.config.pivots.length) {
+        return 'last_pivot';
+      }
+      return this.collapsed ? 'collapsed' : 'expanded';
+    }
+    if (pivotIndex > this.getPivotIndex()) {
+      return this.collapsed ? 'hidden_behind_collapsed' : 'empty';
+    }
+    // Find the node responsible for the value at `pivotIndex`.
+    let valueNode: PivotTreeNode = this;
+    let autoExpanded = true;
+    for (let i = pivotIndex; i < this.getPivotIndex(); i++) {
+      valueNode = assertExists(valueNode.parent);
+      autoExpanded = autoExpanded && valueNode.children.size === 1;
+    }
+    return autoExpanded ? 'auto_expanded' : 'pivoted_value';
   }
 
   // Get the value of the aggregation at the given index.
@@ -103,8 +174,12 @@ export class PivotTreeNode {
 
   // List all of the descendants of this node, respecting `collapsed` state.
   *listDescendants(): Generator<PivotTreeNode> {
-    yield this;
-    if (this.collapsed) return;
+    if (this.children.size !== 1) {
+      // Skip the nodes with only one child.
+      yield this;
+      // Skip collapsed nodes, but ignore this for nodes with only one child, which should be auto-expanded.
+      if (this.collapsed) return;
+    }
     for (const child of this.children.values()) {
       yield* child.listDescendants();
     }
@@ -126,12 +201,28 @@ export class PivotTreeNode {
     }
   }
 
+  // Recursively copy the expanded state from the old pivot tree, trying to preserve
+  // the user expanded nodes as much as possible.
+  // We copy the status from the nodes which have the same pivot prefix (values
+  // and pivots themselves).
+  copyExpandedState(oldNode?: PivotTreeNode) {
+    if (oldNode === undefined) return;
+    // We should only try to copy the state of nodes with the same pivot index.
+    assertTrue(this.getPivotIndex() === oldNode.getPivotIndex());
+    if (this.getPivotId() !== oldNode.getPivotId()) return;
+
+    this.collapsed = oldNode.collapsed;
+    for (const [value, child] of this.children) {
+      child.copyExpandedState(oldNode.children.get(value));
+    }
+  }
+
   private getOrCreateChild(value: SqlValue): PivotTreeNode {
     if (!this.children.has(value)) {
       this.children.set(
         value,
         new PivotTreeNode({
-          state: this.state,
+          config: this.config,
           parent: this,
           pivotValue: value,
         }),
@@ -144,7 +235,7 @@ export class PivotTreeNode {
     this.aggregations = [...this.aggregationValues];
     for (const child of this.children.values()) {
       child.update();
-      for (const [index, agg] of this.state.getAggregations().entries()) {
+      for (const [index, agg] of this.config.aggregations.entries()) {
         this.aggregations[index] = basicAggregations[agg.op](
           this.aggregations[index],
           child.aggregations[index],
@@ -164,7 +255,7 @@ export class PivotTreeNode {
 
     // We should only compare siblings.
     assertTrue(
-      lhs.state === rhs.state &&
+      lhs.config === rhs.config &&
         lhs.depth === rhs.depth &&
         lhs.parent === rhs.parent,
     );
@@ -178,9 +269,9 @@ export class PivotTreeNode {
     };
     for (const {type, id, direction} of order) {
       if (type === 'aggregation') {
-        const index = lhs.state
-          .getAggregations()
-          .findIndex((a) => aggregationId(a) === id);
+        const index = lhs.config.aggregations.findIndex(
+          (a) => aggregationId(a) === id,
+        );
         // Aggregation with this index should always exist.
         // If this is not the case, we probably failed to remove sorting after
         // hiding a column.
@@ -191,7 +282,7 @@ export class PivotTreeNode {
         );
         if (cmp !== 0) return direction === 'ASC' ? cmp : -cmp;
       } else {
-        const index = lhs.state.getPivots().findIndex((p) => pivotId(p) === id);
+        const index = lhs.config.pivots.findIndex((p) => pivotId(p) === id);
         // Pivot with this index should always exist.
         // If this is not the case, we probably failed to remove sorting after
         // hiding a column.
