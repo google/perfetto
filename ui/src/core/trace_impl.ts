@@ -33,7 +33,6 @@ import {SidebarMenuItem} from '../public/sidebar';
 import {ScrollHelper} from './scroll_helper';
 import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
-import {PivotTableManager} from './pivot_table_manager';
 import {FlowManager} from './flow_manager';
 import {AppContext, AppImpl} from './app_impl';
 import {PluginManagerImpl} from './plugin_manager';
@@ -78,7 +77,6 @@ export class TraceContext implements Disposable {
   readonly flowMgr: FlowManager;
   readonly pluginSerializableState = createStore<{[key: string]: {}}>({});
   readonly scrollHelper: ScrollHelper;
-  readonly pivotTableMgr;
   readonly trash = new DisposableStack();
   readonly onTraceReady = new EvtSource<void>();
 
@@ -118,10 +116,6 @@ export class TraceContext implements Disposable {
       }
     };
 
-    this.pivotTableMgr = new PivotTableManager(
-      engine.getProxy('PivotTableManager'),
-    );
-
     this.flowMgr = new FlowManager(
       engine.getProxy('FlowManager'),
       this.trackMgr,
@@ -146,10 +140,6 @@ export class TraceContext implements Disposable {
     }
     if (switchToCurrentSelectionTab && selection.kind !== 'empty') {
       this.tabMgr.showCurrentSelectionTab();
-    }
-
-    if (selection.kind === 'area') {
-      this.pivotTableMgr.setSelectionArea(selection);
     }
 
     this.flowMgr.updateFlows(selection);
@@ -362,10 +352,6 @@ export class TraceImpl implements Trace {
 
   get notes() {
     return this.traceCtx.noteMgr;
-  }
-
-  get pivotTable() {
-    return this.traceCtx.pivotTableMgr;
   }
 
   get flows() {

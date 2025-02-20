@@ -12,28 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  PivotTableQuery,
-  PivotTableQueryMetadata,
-  PivotTableResult,
-  PivotTableState,
-  COUNT_AGGREGATION,
-  TableColumn,
-  toggleEnabled,
-  tableColumnEquals,
-  AggregationFunction,
-} from './pivot_table_types';
-import {AreaSelection} from '../public/selection';
+import {SortDirection} from '../../base/comparison_utils';
+import {assertTrue} from '../../base/logging';
+import {featureFlags} from '../../core/feature_flags';
+import {AreaSelection} from '../../public/selection';
+import {Engine} from '../../trace_processor/engine';
+import {ColumnType} from '../../trace_processor/query_result';
 import {
   aggregationIndex,
   generateQueryFromState,
 } from './pivot_table_query_generator';
-import {Aggregation, PivotTree} from './pivot_table_types';
-import {Engine} from '../trace_processor/engine';
-import {ColumnType} from '../trace_processor/query_result';
-import {SortDirection} from '../base/comparison_utils';
-import {assertTrue} from '../base/logging';
-import {featureFlags} from './feature_flags';
+import {
+  Aggregation,
+  AggregationFunction,
+  COUNT_AGGREGATION,
+  PivotTableQuery,
+  PivotTableQueryMetadata,
+  PivotTableResult,
+  PivotTableState,
+  PivotTree,
+  TableColumn,
+  tableColumnEquals,
+  toggleEnabled,
+} from './pivot_table_types';
 
 export const PIVOT_TABLE_REDUX_FLAG = featureFlags.register({
   id: 'pivotTable',

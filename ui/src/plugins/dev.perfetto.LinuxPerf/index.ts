@@ -13,7 +13,12 @@
 // limitations under the License.
 
 import {assertExists} from '../../base/logging';
+import {
+  metricsFromTableOrSubquery,
+  QueryFlamegraph,
+} from '../../components/query_flamegraph';
 import {PerfettoPlugin} from '../../public/plugin';
+import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {
   COUNTER_TRACK_KIND,
@@ -22,6 +27,7 @@ import {
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
+import {Flamegraph} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
@@ -190,6 +196,8 @@ export default class implements PerfettoPlugin {
         .getOrCreateStandardGroup(trace.workspace, 'HARDWARE');
       hardwareGroup.addChildInOrder(perfCountersGroup);
     }
+
+    trace.selection.registerAreaSelectionTab(createAreaSelectionTab(trace));
   }
 }
 
@@ -211,5 +219,97 @@ async function selectPerfSample(trace: Trace) {
     start: trace.traceInfo.start,
     end: trace.traceInfo.end,
     trackUris: [makeUriForProc(upid)],
+  });
+}
+
+function createAreaSelectionTab(trace: Trace) {
+  let previousSelection: undefined | AreaSelection;
+  let flamegraph: undefined | QueryFlamegraph;
+
+  return {
+    id: 'perf_sample_flamegraph',
+    name: 'Perf Sample Flamegraph',
+    render(selection: AreaSelection) {
+      const changed =
+        previousSelection === undefined ||
+        !areaSelectionsEqual(previousSelection, selection);
+
+      if (changed) {
+        flamegraph = computePerfSampleFlamegraph(trace, selection);
+        previousSelection = selection;
+      }
+
+      if (flamegraph === undefined) {
+        return undefined;
+      }
+
+      return {isLoading: false, content: flamegraph.render()};
+    },
+  };
+}
+
+function getUpidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
+  const upids = [];
+  for (const trackInfo of currentSelection.tracks) {
+    if (
+      trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
+      trackInfo.tags?.utid === undefined
+    ) {
+      upids.push(assertExists(trackInfo.tags?.upid));
+    }
+  }
+  return upids;
+}
+
+function getUtidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
+  const utids = [];
+  for (const trackInfo of currentSelection.tracks) {
+    if (
+      trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
+      trackInfo.tags?.utid !== undefined
+    ) {
+      utids.push(trackInfo.tags?.utid);
+    }
+  }
+  return utids;
+}
+
+function computePerfSampleFlamegraph(
+  trace: Trace,
+  currentSelection: AreaSelection,
+) {
+  const upids = getUpidsFromPerfSampleAreaSelection(currentSelection);
+  const utids = getUtidsFromPerfSampleAreaSelection(currentSelection);
+  if (utids.length === 0 && upids.length === 0) {
+    return undefined;
+  }
+  const metrics = metricsFromTableOrSubquery(
+    `
+      (
+        select id, parent_id as parentId, name, self_count
+        from _callstacks_for_callsites!((
+          select p.callsite_id
+          from perf_sample p
+          join thread t using (utid)
+          where p.ts >= ${currentSelection.start}
+            and p.ts <= ${currentSelection.end}
+            and (
+              p.utid in (${utids.join(',')})
+              or t.upid in (${upids.join(',')})
+            )
+        ))
+      )
+    `,
+    [
+      {
+        name: 'Perf Samples',
+        unit: '',
+        columnName: 'self_count',
+      },
+    ],
+    'include perfetto module linux.perf.samples',
+  );
+  return new QueryFlamegraph(trace, metrics, {
+    state: Flamegraph.createDefaultState(metrics),
   });
 }

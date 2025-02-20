@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SortDirection} from '../base/comparison_utils';
-import {sqliteString} from '../base/string_utils';
-import {DropDirection} from '../core/pivot_table_manager';
+import {SortDirection} from '../../base/comparison_utils';
+import {sqliteString} from '../../base/string_utils';
+import {DropDirection} from './pivot_table_manager';
 import {
   PivotTableResult,
   Aggregation,
@@ -24,28 +24,28 @@ import {
   PivotTree,
   TableColumn,
   COUNT_AGGREGATION,
-} from '../core/pivot_table_types';
-import {AreaSelection} from '../public/selection';
-import {ColumnType} from '../trace_processor/query_result';
+} from './pivot_table_types';
+import {AreaSelection} from '../../public/selection';
+import {ColumnType} from '../../trace_processor/query_result';
 import {
   aggregationIndex,
   areaFilters,
   sliceAggregationColumns,
   tables,
-} from '../core/pivot_table_query_generator';
+} from './pivot_table_query_generator';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
-import {AttributeModalHolder} from './tables/attribute_modal_holder';
-import {DurationWidget} from '../components/widgets/duration';
-import {getSqlTableDescription} from '../components/widgets/sql/legacy_table/sql_table_registry';
-import {assertExists, assertFalse} from '../base/logging';
-import {TraceImpl} from '../core/trace_impl';
-import {PivotTableManager} from '../core/pivot_table_manager';
-import {extensions} from '../components/extensions';
-import {MenuItem, PopupMenu} from '../widgets/menu';
-import {Button} from '../widgets/button';
-import {popupMenuIcon} from '../widgets/table';
-import {SqlColumn} from '../components/widgets/sql/legacy_table/sql_column';
-import {Filter} from '../components/widgets/sql/legacy_table/filters';
+import {AttributeModalHolder} from '../attribute_modal_holder';
+import {DurationWidget} from '../widgets/duration';
+import {getSqlTableDescription} from '../widgets/sql/legacy_table/sql_table_registry';
+import {assertExists, assertFalse} from '../../base/logging';
+import {PivotTableManager} from './pivot_table_manager';
+import {extensions} from '../extensions';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
+import {Button} from '../../widgets/button';
+import {popupMenuIcon} from '../../widgets/table';
+import {SqlColumn} from '../widgets/sql/legacy_table/sql_column';
+import {Filter} from '../widgets/sql/legacy_table/filters';
+import {Trace} from '../../public/trace';
 
 interface PathItem {
   tree: PivotTree;
@@ -53,8 +53,9 @@ interface PathItem {
 }
 
 interface PivotTableAttrs {
-  trace: TraceImpl;
-  selectionArea: AreaSelection;
+  readonly trace: Trace;
+  readonly selectionArea: AreaSelection;
+  readonly pivotMgr: PivotTableManager;
 }
 
 interface DrillFilter {
@@ -117,7 +118,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
   private pivotMgr: PivotTableManager;
 
   constructor({attrs}: m.CVnode<PivotTableAttrs>) {
-    this.pivotMgr = attrs.trace.pivotTable;
+    this.pivotMgr = attrs.pivotMgr;
     this.attributeModalHolder = new AttributeModalHolder((arg) =>
       this.pivotMgr.setPivotSelected({
         column: {kind: 'argument', argument: arg},

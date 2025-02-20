@@ -18,9 +18,19 @@ import {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
+import {LONG, NUM} from '../../trace_processor/query_result';
 
 export class CounterSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'counter_aggregation';
+
+  // This just describes which counters we match, we don't actually use the
+  // resulting datasets, but it's a useful too to show what we actually match.
+  readonly trackKind = COUNTER_TRACK_KIND;
+  readonly schema = {
+    id: NUM,
+    ts: LONG,
+    value: NUM,
+  };
 
   async createAggregateView(engine: Engine, area: AreaSelection) {
     const trackIds: (string | number)[] = [];

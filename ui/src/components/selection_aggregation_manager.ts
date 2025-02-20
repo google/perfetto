@@ -20,35 +20,29 @@ import {TrackDescriptor} from '../public/track';
 import {Dataset, UnionDataset} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {NUM} from '../trace_processor/query_result';
-import {raf} from './raf_scheduler';
 
 export class SelectionAggregationManager {
-  private engine: Engine;
   private readonly limiter = new AsyncLimiter();
-  private _aggregators = new Array<AreaSelectionAggregator>();
-  private _aggregatedData = new Map<string, AggregateData>();
-  private _sorting = new Map<string, Sorting>();
+  private _sorting?: Sorting;
   private _currentArea: AreaSelection | undefined = undefined;
+  private _aggregatedData?: AggregateData;
 
-  constructor(engine: Engine) {
-    this.engine = engine;
-  }
+  constructor(
+    private readonly engine: Engine,
+    private readonly aggregator: AreaSelectionAggregator,
+  ) {}
 
-  registerAggregator(aggr: AreaSelectionAggregator) {
-    this._aggregators.push(aggr);
+  get aggregatedData(): AggregateData | undefined {
+    return this._aggregatedData;
   }
 
   aggregateArea(area: AreaSelection) {
     this.limiter.schedule(async () => {
       this._currentArea = area;
-      this._aggregatedData.clear();
-      for (const aggr of this._aggregators) {
-        const data = await this.runAggregator(aggr, area);
-        if (data !== undefined) {
-          this._aggregatedData.set(aggr.id, data);
-        }
-      }
-      raf.scheduleFullRedraw();
+      this._aggregatedData = undefined;
+
+      const data = await this.runAggregator(area);
+      this._aggregatedData = data;
     });
   }
 
@@ -58,34 +52,32 @@ export class SelectionAggregationManager {
     // with the aggregation being displayed anyways once the promise completes.
     this.limiter.schedule(async () => {
       this._currentArea = undefined;
-      this._aggregatedData.clear();
-      this._sorting.clear();
-      raf.scheduleFullRedraw();
+      this._aggregatedData = undefined;
+      this._sorting = undefined;
     });
   }
 
-  getSortingPrefs(aggregatorId: string): Sorting | undefined {
-    return this._sorting.get(aggregatorId);
+  getSortingPrefs(): Sorting | undefined {
+    return this._sorting;
   }
 
-  toggleSortingColumn(aggregatorId: string, column: string) {
-    const sorting = this._sorting.get(aggregatorId);
-
+  toggleSortingColumn(column: string) {
+    const sorting = this._sorting;
     if (sorting === undefined || sorting.column !== column) {
       // No sorting set for current column.
-      this._sorting.set(aggregatorId, {
+      this._sorting = {
         column,
         direction: 'DESC',
-      });
+      };
     } else if (sorting.direction === 'DESC') {
       // Toggle the direction if the column is currently sorted.
-      this._sorting.set(aggregatorId, {
+      this._sorting = {
         column,
         direction: 'ASC',
-      });
+      };
     } else {
       // If direction is currently 'ASC' toggle to no sorting.
-      this._sorting.delete(aggregatorId);
+      this._sorting = undefined;
     }
 
     // Re-run the aggregation.
@@ -94,18 +86,10 @@ export class SelectionAggregationManager {
     }
   }
 
-  get aggregators(): ReadonlyArray<AreaSelectionAggregator> {
-    return this._aggregators;
-  }
-
-  getAggregatedData(aggregatorId: string): AggregateData | undefined {
-    return this._aggregatedData.get(aggregatorId);
-  }
-
   private async runAggregator(
-    aggr: AreaSelectionAggregator,
     area: AreaSelection,
   ): Promise<AggregateData | undefined> {
+    const aggr = this.aggregator;
     const dataset = this.createDatasetForAggregator(aggr, area.tracks);
     const viewExists = await aggr.createAggregateView(
       this.engine,
@@ -119,7 +103,7 @@ export class SelectionAggregationManager {
 
     const defs = aggr.getColumnDefinitions();
     const colIds = defs.map((col) => col.columnId);
-    const sorting = this._sorting.get(aggr.id);
+    const sorting = this._sorting;
     let sortClause = `${aggr.getDefaultSorting().column} ${
       aggr.getDefaultSorting().direction
     }`;
