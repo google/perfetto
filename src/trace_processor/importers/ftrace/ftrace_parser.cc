@@ -1027,6 +1027,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseDpuTracingMarkWrite(ts, pid, fld_bytes);
         break;
       }
+      case FtraceEvent::kDpuDispDpuUnderrunFieldNumber: {
+        ParseDpuDispDpuUnderrun(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kMaliTracingMarkWriteFieldNumber: {
         ParseMaliTracingMarkWrite(ts, pid, fld_bytes);
         break;
@@ -1817,6 +1821,35 @@ void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
   SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.name(), tgid, evt.value());
+}
+
+void FtraceParser::ParseDpuDispDpuUnderrun(int64_t timestamp,
+                                       ConstBytes blob) {
+  protos::pbzero::DpuDispDpuUnderrunFtraceEvent::Decoder ex(blob);
+  static constexpr auto kBluePrint = tracks::SliceBlueprint(
+    "disp_dpu_underrun",
+    tracks::DimensionBlueprints(
+      tracks::UintDimensionBlueprint("display_id")
+    ),
+    tracks::FnNameBlueprint([](uint32_t display_id) {
+      return base::StackString<256>("underrun[%u]", display_id);
+    }));
+
+  TrackId track_id =
+      context_->track_tracker->InternTrack(kBluePrint, tracks::Dimensions(ex.id()));
+  StringId slice_name_id =
+      context_->storage->InternString(base::StringView("disp_dpu_underrun"));
+
+  context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId,
+                                  slice_name_id, 0,
+        [&](ArgsTracker::BoundInserter* inserter) {
+          inserter->AddArg(
+            context_->storage->InternString(base::StringView("vsync_count")),
+            Variadic::Integer(ex.vsync_count()));
+          inserter->AddArg(
+            context_->storage->InternString(base::StringView("pending_frame")),
+            Variadic::Integer(ex.frames_pending()));
+        });
 }
 
 void FtraceParser::ParseG2dTracingMarkWrite(int64_t timestamp,
