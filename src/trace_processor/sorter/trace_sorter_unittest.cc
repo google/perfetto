@@ -422,5 +422,59 @@ TEST_F(TraceSorterTest, MultiMachineSorting) {
   EXPECT_TRUE(expectations.empty());
 }
 
+TEST_F(TraceSorterTest, SetSortingMode) {
+  CreateSorter(false);
+
+  auto state = PacketSequenceStateGeneration::CreateFirst(&context_);
+
+  TraceBlobView view_1 = test_buffer_.slice_off(0, 1);
+  TraceBlobView view_2 = test_buffer_.slice_off(0, 2);
+
+  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1000, view_1.data(), 1));
+  context_.sorter->PushTracePacket(1000, state, std::move(view_1));
+
+  // Changing to full sorting mode should succeed as no events have been
+  // extracted yet.
+  EXPECT_TRUE(
+      context_.sorter->SetSortingMode(TraceSorter::SortingMode::kFullSort));
+
+  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(2000, view_2.data(), 2));
+  context_.sorter->PushTracePacket(2000, state, std::move(view_2));
+
+  // Changing back to default sorting mode is not allowed.
+  EXPECT_FALSE(
+      context_.sorter->SetSortingMode(TraceSorter::SortingMode::kDefault));
+
+  // Setting sorting mode to the current mode should succeed.
+  EXPECT_TRUE(
+      context_.sorter->SetSortingMode(TraceSorter::SortingMode::kFullSort));
+
+  context_.sorter->ExtractEventsForced();
+
+  // Setting sorting mode to the current mode should still succeed.
+  EXPECT_TRUE(
+      context_.sorter->SetSortingMode(TraceSorter::SortingMode::kFullSort));
+}
+
+TEST_F(TraceSorterTest, SetSortingModeAfterExtraction) {
+  CreateSorter(false);
+
+  auto state = PacketSequenceStateGeneration::CreateFirst(&context_);
+
+  TraceBlobView view_1 = test_buffer_.slice_off(0, 1);
+  TraceBlobView view_2 = test_buffer_.slice_off(0, 2);
+
+  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1000, view_1.data(), 1));
+  context_.sorter->PushTracePacket(1000, state, std::move(view_1));
+  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(2000, view_2.data(), 2));
+  context_.sorter->PushTracePacket(2000, state, std::move(view_2));
+  context_.sorter->ExtractEventsForced();
+
+  // Changing to full sorting mode should fail as some events have already been
+  // extracted.
+  EXPECT_FALSE(
+      context_.sorter->SetSortingMode(TraceSorter::SortingMode::kFullSort));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor
