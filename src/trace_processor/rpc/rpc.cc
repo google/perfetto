@@ -504,11 +504,19 @@ void Rpc::Query(const uint8_t* args,
 
   QueryResultSerializer serializer(std::move(it));
 
-  std::vector<uint8_t> res;
+  protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
+                                                                kSliceSize);
   for (bool has_more = true; has_more;) {
-    has_more = serializer.Serialize(&res);
-    result_callback(res.data(), res.size(), has_more);
-    res.clear();
+    has_more = serializer.Serialize(buffered.get());
+    const auto& res = buffered.GetSlices();
+    for (uint32_t i = 0; i < res.size(); ++i) {
+      auto used = res[i].GetUsedRange();
+      result_callback(used.begin, used.size(), has_more || i < res.size() - 1);
+    }
+    if (res.size() == 0 && !has_more) {
+      result_callback(nullptr, 0, false);
+    }
+    buffered.Reset();
   }
 }
 
