@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import itertools
-from perfetto.common.exceptions import PerfettoException
 from typing import List, Sized, Union
+
+from perfetto.common.exceptions import PerfettoException
 
 try:
   import pandas as pd
@@ -36,6 +37,7 @@ QUERY_CELL_VARINT_FIELD_ID = 2
 QUERY_CELL_FLOAT64_FIELD_ID = 3
 QUERY_CELL_STRING_FIELD_ID = 4
 QUERY_CELL_BLOB_FIELD_ID = 5
+QUERY_CELL_TYPE_COUNT = 6
 
 
 def _extract_strings(x: Union[str, bytes]):
@@ -78,57 +80,62 @@ class QueryResultIterator(Sized):
     if batches and not batches[-1].is_last_batch:
       raise PerfettoException('Last batch did not have is_last_batch flag set')
 
-    cell_count = sum(len(b.cells) for b in batches)
+    self.cell_count = sum(len(b.cells) for b in batches)
     for b in batches:
       if self.column_count > 0 and len(b.cells) % self.column_count != 0:
         raise PerfettoException(
-            f"Result has {cell_count} cells, not divisible by {self.column_count} columns"
+            f"Result has {self.cell_count} cells, not divisible by {self.column_count} columns"
         )
 
-    self.row_count = cell_count // self.column_count if self.column_count > 0 else 0
+    self.row_count = self.cell_count // self.column_count if self.column_count > 0 else 0
+    self.cell_index = 0
+
     if HAS_NUMPY:
-      self.columns = [
-          np.empty((self.row_count), dtype='object')
-          for _ in range(self.column_count)
-      ]
+      self.cells = np.empty(self.cell_count, dtype='object')
+      cell_count = 0
+      for b in batches:
+        all_cells = np.array(b.cells)
+        all_cells_count = len(all_cells)
+        cut = self.cells[cell_count:cell_count + all_cells_count]
+        cut[all_cells == QUERY_CELL_NULL_FIELD_ID] = None
+        cut[all_cells == QUERY_CELL_VARINT_FIELD_ID] = b.varint_cells
+        cut[all_cells == QUERY_CELL_FLOAT64_FIELD_ID] = b.float64_cells
+        cut[all_cells == QUERY_CELL_STRING_FIELD_ID] = _extract_strings(
+            b.string_cells)
+        cut[all_cells == QUERY_CELL_BLOB_FIELD_ID] = b.blob_cells
+        cell_count += all_cells_count
     else:
-      self.columns = [[None] * self.row_count for _ in range(self.column_count)]
-
-    cells = [
-        [],
-        [],
-        list(itertools.chain.from_iterable(b.varint_cells for b in batches)),
-        list(itertools.chain.from_iterable(b.float64_cells for b in batches)),
-        list(
-            itertools.chain.from_iterable(
-                _extract_strings(b.string_cells) for b in batches)),
-        list(itertools.chain.from_iterable(b.blob_cells for b in batches)),
-    ]
-    cell_offsets = [0] * (QUERY_CELL_BLOB_FIELD_ID + 1)
-    for i, ct in enumerate(
-        itertools.chain.from_iterable(b.cells for b in batches)):
-      row = i // self.column_count
-      column = i % self.column_count
-      self.columns[column][row] = cells[ct][
-          cell_offsets[ct]] if ct != QUERY_CELL_NULL_FIELD_ID else None
-      cell_offsets[ct] += 1
-
-    self.index = 0
+      self.cells = [None] * self.cell_count
+      cells = [
+          [],
+          [],
+          list(itertools.chain.from_iterable(b.varint_cells for b in batches)),
+          list(itertools.chain.from_iterable(b.float64_cells for b in batches)),
+          list(
+              itertools.chain.from_iterable(
+                  _extract_strings(b.string_cells) for b in batches)),
+          list(itertools.chain.from_iterable(b.blob_cells for b in batches)),
+      ]
+      cell_offsets = [0] * (QUERY_CELL_BLOB_FIELD_ID + 1)
+      for i, ct in enumerate(
+          itertools.chain.from_iterable(b.cells for b in batches)):
+        self.cells[i] = cells[ct][
+            cell_offsets[ct]] if ct != QUERY_CELL_NULL_FIELD_ID else None
+        cell_offsets[ct] += 1
 
   # To use the query result as a populated Pandas dataframe, this
   # function must be called directly after calling query inside
   # TraceProcessor / Bigtrace.
   def as_pandas_dataframe(self):
-    if HAS_PANDAS:
-      if not self.column_names:
-        return pd.DataFrame(columns=self.column_names)
-      series = [
-          pd.Series(x, name=n) for x, n in zip(self.columns, self.column_names)
-      ]
-      return pd.concat(series, axis=1)
+    if HAS_PANDAS and HAS_NUMPY:
+      assert isinstance(self.cells, np.ndarray)
+      return pd.DataFrame(
+          self.cells.reshape((self.row_count, self.column_count)),
+          columns=self.column_names)
     else:
       raise PerfettoException(
-          'Pandas Python dependency missing. Please run `pip3 install pandas`')
+          'pandas/numpy dependency missing. Please run `pip3 install pandas numpy`'
+      )
 
   def __len__(self):
     return self.row_count
@@ -137,10 +144,10 @@ class QueryResultIterator(Sized):
     return self
 
   def __next__(self):
-    if self.index == self.row_count:
+    if self.cell_index == self.cell_count:
       raise StopIteration
     result = QueryResultIterator.Row()
-    for column_name, c in zip(self.column_names, self.columns):
-      setattr(result, column_name, c[self.index])
-    self.index += 1
+    for i, column_name in enumerate(self.column_names):
+      setattr(result, column_name, self.cells[self.cell_index + i])
+    self.cell_index += self.column_count
     return result
