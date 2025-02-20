@@ -54,22 +54,29 @@ export interface QueryBuilderAttrs extends PageWithTraceAttrs {
 }
 
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
+  selectedNode?: QueryNode;
+
+  // Method to update the selected node and trigger a redraw.
+  selectNode(node: QueryNode) {
+    this.selectedNode = node;
+  }
+
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
     const {trace, sqlModules, rootNode, onRootNodeCreated} = attrs;
 
-    function createModal(
+    const createModal = (
       title: string,
       content: () => m.Children,
       onAdd: () => void,
-    ) {
+    ) => {
       showModal({
         title,
         buttons: [{text: 'Add node', action: onAdd}],
         content,
       });
-    }
+    };
 
-    function chooseSourceButton(): m.Child {
+    const chooseSourceButton = (): m.Child => {
       return m(
         PopupMenu,
         {
@@ -90,7 +97,9 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             const sqlTable = sqlModules.getTable(tableName);
             if (!sqlTable) return;
 
-            onRootNodeCreated(new StdlibTableState(sqlTable));
+            const newNode = new StdlibTableState(sqlTable);
+            onRootNodeCreated(newNode);
+            this.selectNode(newNode);
           },
         }),
         m(MenuItem, {
@@ -100,6 +109,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
               const newSlices = new SimpleSlicesState(simpleSlicesAttrs);
               if (newSlices.validate()) {
                 onRootNodeCreated(newSlices);
+                this.selectNode(newSlices);
               }
             }),
         }),
@@ -110,19 +120,18 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
               const newSqlSource = new SqlSourceState(sqlSourceAttrs);
               if (newSqlSource.validate()) {
                 onRootNodeCreated(newSqlSource);
+                this.selectNode(newSqlSource);
               }
             }),
         }),
         m(MenuItem, {label: 'Interval intersect', disabled: true}),
       );
-    }
+    };
 
-    function chooseOperationButton(): m.Child {
+    const chooseOperationButton = (): m.Child => {
       return m(
         PopupMenu,
-        {
-          trigger: m(Button, {label: '+', intent: Intent.Primary}),
-        },
+        {trigger: m(Button, {label: '+', intent: Intent.Primary})},
         m(MenuItem, {
           label: 'GROUP BY',
           onclick: () => {
@@ -135,7 +144,9 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
               'GROUP BY',
               () => m(GroupByOperation, newGroupByAttrs),
               () => {
-                curNode.nextNode = new GroupByNode(newGroupByAttrs);
+                const newNode = new GroupByNode(newGroupByAttrs);
+                curNode.nextNode = newNode;
+                this.selectNode(newNode);
               },
             );
           },
@@ -148,7 +159,9 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             if (!curNode) return;
             const newFilterAttrs: FilterAttrs = {prevNode: curNode};
             createModal('FILTER', () => m(FilterOperation, newFilterAttrs), () => {
-              curNode.nextNode = new FilterNode(newFilterAttrs);
+              const newNode = new FilterNode(newFilterAttrs);
+              curNode.nextNode = newNode;
+              this.selectNode(newNode);
             });
           },
         }),
@@ -167,14 +180,15 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
               () => {
                 newJoinState.validate();
                 curNode.nextNode = newJoinState;
+                this.selectNode(newJoinState);
               },
             );
           },
         }),
       );
-    }
+    };
 
-    function renderNodesPanel(): m.Children {
+    const renderNodesPanel = (): m.Children => {
       const nodes: m.Child[] = [];
       let row = 1;
 
@@ -185,15 +199,15 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       } else {
         let curNode: QueryNode | undefined = rootNode;
         while (curNode) {
+          const localCurNode = curNode;
           nodes.push(
             m(
               '',
               {style: {gridColumn: 3, gridRow: row}},
               m(Button, {
-                label: curNode.getTitle(),
+                label: localCurNode.getTitle(),
                 intent: Intent.Primary,
-                // TODO(mayzner): Add logic for button.
-                onclick: async () => {},
+                onclick: () => this.selectNode(localCurNode),
               }),
             ),
           );
@@ -222,7 +236,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         },
         nodes,
       );
-    }
+    };
 
     const simpleSlicesAttrs: SimpleSlicesAttrs = {};
     const SimpleSlicesModalContent = {
@@ -342,6 +356,11 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       },
     };
 
+    const renderDataSourceViewer = () => {
+      if (!this.selectedNode) return;
+      return m(DataSourceViewer, {trace, queryNode: this.selectedNode});
+    };
+
     return m(
       '',
       {
@@ -353,11 +372,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         },
       },
       m('', {style: {gridColumn: 1}}, renderNodesPanel()),
-      m(
-        '',
-        {style: {gridColumn: 2}},
-        rootNode && [m(DataSourceViewer, {trace, queryNode: rootNode})],
-      ),
+      m('', {style: {gridColumn: 2}}, renderDataSourceViewer()),
     );
   }
 }

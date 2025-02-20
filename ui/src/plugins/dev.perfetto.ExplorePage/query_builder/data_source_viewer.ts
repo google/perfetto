@@ -21,7 +21,7 @@ import {runQuery} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
-import {QueryNode, getLastFinishedNode} from '../query_node';
+import {QueryNode} from '../query_node';
 import {ColumnController, ColumnControllerDiff} from './column_controller';
 import {Section} from '../../../widgets/section';
 import {Engine} from '../../../trace_processor/engine';
@@ -98,17 +98,17 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
       });
     };
 
-    const lastNode = getLastFinishedNode(attrs.queryNode);
-    if (lastNode === undefined) return;
-
-    const sq = lastNode.getStructuredQuery();
+    const sq = attrs.queryNode.getStructuredQuery();
     if (sq === undefined) return;
 
     this.curSqString = JSON.stringify(sq.toJSON(), null, 2);
 
     if (this.curSqString !== this.prevSqString) {
       this.tableAsyncLimiter.schedule(async () => {
-        this.currentSql = await analyzeNode(lastNode, attrs.trace.engine);
+        this.currentSql = await analyzeNode(
+          attrs.queryNode,
+          attrs.trace.engine,
+        );
         if (this.currentSql === undefined) {
           return;
         }
@@ -125,15 +125,16 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
     return [
       m(
         Section,
-        {title: lastNode.getTitle()},
-        lastNode.getDetails(),
+        {title: attrs.queryNode.getTitle()},
+        attrs.queryNode.getDetails(),
         renderButtons(),
         this.showDataSourceInfoPanel === 0 &&
           m(TextParagraph, {
             text: queryToRun(this.currentSql),
             compressSpace: false,
           }),
-        this.showDataSourceInfoPanel === 1 && renderPickColumns(lastNode),
+        this.showDataSourceInfoPanel === 1 &&
+          renderPickColumns(attrs.queryNode),
         this.showDataSourceInfoPanel === 2 &&
           this.curSqString &&
           m(TextParagraph, {
