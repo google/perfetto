@@ -28,7 +28,7 @@ import {SqlTableDescription} from '../legacy_table/table_description';
 import {moveArrayItem} from '../../../../base/array_utils';
 import {assertExists} from '../../../../base/logging';
 import {SortDirection} from '../../../../base/comparison_utils';
-import {Aggregation} from './aggregations';
+import {Aggregation, expandAggregations} from './aggregations';
 import {PivotTreeNode} from './pivot_tree_node';
 import {aggregationId, pivotId} from './ids';
 
@@ -284,7 +284,9 @@ export class PivotTableState {
       groupBy.push(pivot.primaryColumn());
     }
 
-    for (const agg of this.aggregations) {
+    // Expand non-assocative aggregations (average) into basic associative aggregations which
+    // can be pushed down to SQL.
+    for (const agg of expandAggregations(this.aggregations)) {
       const alias = aggregationSqliteAlias(agg);
       columns[alias] = new SqlExpression(
         (cols) => `${agg.op}(${cols[0]})`,
