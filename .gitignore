@@ -15,6 +15,7 @@
 .project
 .recipe_deps/
 .settings/
+.venv
 .vscode
 *.code-workspace
 *.iml
