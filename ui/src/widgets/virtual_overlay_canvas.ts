@@ -30,12 +30,11 @@
  */
 
 import m from 'mithril';
-import {DisposableStack} from '../../base/disposable_stack';
-import {findRef, toHTMLElement} from '../../base/dom_utils';
-import {Rect2D, Size2D} from '../../base/geom';
-import {assertExists} from '../../base/logging';
-import {VirtualCanvas} from '../../base/virtual_canvas';
-import {Raf} from '../../public/raf';
+import {DisposableStack} from '../base/disposable_stack';
+import {findRef, toHTMLElement} from '../base/dom_utils';
+import {Rect2D, Size2D} from '../base/geom';
+import {assertExists} from '../base/logging';
+import {VirtualCanvas} from '../base/virtual_canvas';
 
 const CANVAS_CONTAINER_REF = 'canvas-container';
 const CANVAS_OVERDRAW_PX = 300;
@@ -64,15 +63,20 @@ export interface VirtualOverlayCanvasAttrs {
   // Overflow rules for the vertical axis.
   readonly overflowY?: Overflow;
 
-  // Access to the raf. If not supplied, the canvas won't be redrawn when
-  // redraws are scheduled using the raf, only when the floating canvas moves
-  // around or is resized. Thus, this might be OK for static canvas content, but
-  // for dynamic content, you really should pass a raf.
-  readonly raf?: Raf;
-
   // Called when the canvas needs to be repainted due to a layout shift or
   // or resize.
   onCanvasRedraw?(ctx: VirtualOverlayCanvasDrawContext): void;
+
+  // When true the canvas will not be redrawn on mithril update cycles. Disable
+  // this if you want to manage the canvas redraw cycle yourself (i.e. possibly
+  // using raf.addCanvasRedrawCallback()) and want to avoid double redraws.
+  // Default: false.
+  readonly disableCanvasRedrawOnMithrilUpdates?: boolean;
+
+  // Called when the canvas is mounted. The passed redrawCanvas() function can
+  // be called to redraw the canvas synchronously at any time. Any returned
+  // disposable will be disposed of when the component is removed.
+  onMount?(redrawCanvas: () => void): Disposable | void;
 }
 
 function getScrollAxesFromOverflow(x: Overflow, y: Overflow) {
@@ -161,18 +165,21 @@ export class VirtualOverlayCanvas
       this.redrawCanvas();
     });
 
-    if (this.attrs?.raf) {
-      this.trash.use(
-        this.attrs.raf.addCanvasRedrawCallback(() => this.redrawCanvas()),
-      );
-    }
+    const disposable = attrs.onMount?.(this.redrawCanvas.bind(this));
+    disposable && this.trash.use(disposable);
+
+    !attrs.disableCanvasRedrawOnMithrilUpdates && this.redrawCanvas();
+  }
+
+  onupdate({attrs}: m.CVnodeDOM<VirtualOverlayCanvasAttrs>) {
+    !attrs.disableCanvasRedrawOnMithrilUpdates && this.redrawCanvas();
   }
 
   onremove() {
     this.trash.dispose();
   }
 
-  redrawCanvas() {
+  private redrawCanvas() {
     const ctx = assertExists(this.ctx);
     const virtualCanvas = assertExists(this.virtualCanvas);
 

@@ -46,7 +46,7 @@ import {
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {TraceImpl} from '../../core/trace_impl';
 import {TrackNode} from '../../public/workspace';
-import {VirtualOverlayCanvas} from '../../components/widgets/virtual_overlay_canvas';
+import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {
   SELECTION_STROKE_COLOR,
   TRACK_BORDER_COLOR,
@@ -238,7 +238,9 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     return m(
       VirtualOverlayCanvas,
       {
-        raf: attrs.trace.raf,
+        onMount: (redrawCanvas) =>
+          attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
+        disableCanvasRedrawOnMithrilUpdates: true,
         className: classNames(className, 'pf-track-tree'),
         overflowY: 'auto',
         overflowX: 'hidden',
