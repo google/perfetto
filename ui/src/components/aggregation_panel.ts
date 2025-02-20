@@ -16,53 +16,35 @@ import m from 'mithril';
 import {
   AggregateData,
   Column,
+  Sorting,
   ThreadStateExtra,
-  isEmptyData,
 } from '../public/aggregation';
-import {colorForState} from '../components/colorizer';
-import {DurationWidget} from '../components/widgets/duration';
-import {EmptyState} from '../widgets/empty_state';
-import {Anchor} from '../widgets/anchor';
-import {Icons} from '../base/semantic_icons';
-import {translateState} from '../components/sql_utils/thread_state';
-import {TraceImpl} from '../core/trace_impl';
+import {colorForState} from './colorizer';
+import {DurationWidget} from './widgets/duration';
+import {translateState} from './sql_utils/thread_state';
+import {Trace} from '../public/trace';
 
 export interface AggregationPanelAttrs {
-  data?: AggregateData;
-  aggregatorId: string;
-  trace: TraceImpl;
+  readonly trace: Trace;
+  readonly data: AggregateData;
+  readonly model: AggState;
+}
+
+export interface AggState {
+  getSortingPrefs(): Sorting | undefined;
+  toggleSortingColumn(column: string): void;
 }
 
 export class AggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
 {
-  private trace: TraceImpl;
+  private trace: Trace;
 
   constructor({attrs}: m.CVnode<AggregationPanelAttrs>) {
     this.trace = attrs.trace;
   }
 
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
-    if (!attrs.data || isEmptyData(attrs.data)) {
-      return m(
-        EmptyState,
-        {
-          className: 'pf-noselection',
-          title: 'No relevant tracks in selection',
-        },
-        m(
-          Anchor,
-          {
-            icon: Icons.ChangeTab,
-            onclick: () => {
-              this.trace.tabs.showCurrentSelectionTab();
-            },
-          },
-          'Go to current selection tab',
-        ),
-      );
-    }
-
     return m(
       '.details-panel',
       m(
@@ -77,7 +59,7 @@ export class AggregationPanel
           m(
             'tr',
             attrs.data.columns.map((col) =>
-              this.formatColumnHeading(attrs.trace, col, attrs.aggregatorId),
+              this.formatColumnHeading(col, attrs.model),
             ),
           ),
           m(
@@ -93,8 +75,8 @@ export class AggregationPanel
     );
   }
 
-  formatColumnHeading(trace: TraceImpl, col: Column, aggregatorId: string) {
-    const pref = trace.selection.aggregation.getSortingPrefs(aggregatorId);
+  formatColumnHeading(col: Column, model: AggState) {
+    const pref = model.getSortingPrefs();
     let sortIcon = '';
     if (pref && pref.column === col.columnId) {
       sortIcon =
@@ -104,10 +86,7 @@ export class AggregationPanel
       'th',
       {
         onclick: () => {
-          trace.selection.aggregation.toggleSortingColumn(
-            aggregatorId,
-            col.columnId,
-          );
+          model.toggleSortingColumn(col.columnId);
         },
       },
       col.title,
