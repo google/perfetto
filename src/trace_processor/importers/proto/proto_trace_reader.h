@@ -85,6 +85,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   using ConstBytes = protozero::ConstBytes;
   base::Status ParsePacket(TraceBlobView);
+  base::Status TimestampTokenizeAndPushToSorter(TraceBlobView);
   base::Status ParseServiceEvent(int64_t ts, ConstBytes);
   base::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);
   base::Status ParseRemoteClockSync(ConstBytes blob);
@@ -123,6 +124,9 @@ class ProtoTraceReader : public ChunkedTraceReader {
   base::FlatHashMap<uint32_t, SequenceScopedState> sequence_state_;
   StringId skipped_packet_key_id_;
   StringId invalid_incremental_state_key_id_;
+
+  std::vector<TraceBlobView> eof_deferred_packets_;
+  bool received_eof_ = false;
 };
 
 }  // namespace trace_processor
