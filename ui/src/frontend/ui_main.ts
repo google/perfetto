@@ -33,13 +33,11 @@ import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_share_utils';
-import {AggregationsTabs} from './aggregation_tab';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {DisposableStack} from '../base/disposable_stack';
 import {Spinner} from '../widgets/spinner';
 import {TraceImpl} from '../core/trace_impl';
 import {AppImpl} from '../core/app_impl';
-import {NotesEditorTab} from './notes_editor_tab';
 import {NotesListEditor} from './notes_list_editor';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
@@ -108,12 +106,6 @@ export class UiMainPerTrace implements m.ClassComponent {
     if (trace === undefined) return;
     document.title = `${trace.traceInfo.traceTitle || 'Trace'} - Perfetto UI`;
     this.maybeShowJsonWarning();
-
-    // Register the aggregation tabs.
-    this.trash.use(new AggregationsTabs(trace));
-
-    // Register the notes manager+editor.
-    this.trash.use(trace.tabs.registerDetailsPanel(new NotesEditorTab(trace)));
 
     this.trash.use(
       trace.tabs.registerTab({

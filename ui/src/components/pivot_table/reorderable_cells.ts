@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DropDirection} from '../core/pivot_table_manager';
+import {DropDirection} from './pivot_table_manager';
 
 export interface ReorderableCell {
   content: m.Children;

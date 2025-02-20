@@ -17,9 +17,8 @@ import {assertUnreachable} from '../base/logging';
 import {Icons} from '../base/semantic_icons';
 import {Timestamp} from '../components/widgets/timestamp';
 import {TraceImpl} from '../core/trace_impl';
-import {DetailsPanel} from '../public/details_panel';
 import {Note, SpanNote} from '../public/note';
-import {Selection} from '../public/selection';
+import {NoteSelection} from '../public/selection';
 import {Button} from '../widgets/button';
 
 function getStartTimestamp(note: Note | SpanNote) {
@@ -34,17 +33,16 @@ function getStartTimestamp(note: Note | SpanNote) {
   }
 }
 
-export class NotesEditorTab implements DetailsPanel {
-  constructor(private trace: TraceImpl) {}
+interface NodeDetailsPanelAttrs {
+  readonly trace: TraceImpl;
+  readonly selection: NoteSelection;
+}
 
-  render(selection: Selection) {
-    if (selection.kind !== 'note') {
-      return undefined;
-    }
-
+export class NoteEditor implements m.ClassComponent<NodeDetailsPanelAttrs> {
+  view(vnode: m.CVnode<NodeDetailsPanelAttrs>) {
+    const {selection, trace} = vnode.attrs;
     const id = selection.id;
-
-    const note = this.trace.notes.getNote(id);
+    const note = trace.notes.getNote(id);
     if (note === undefined) {
       return m('.', `No Note with id ${id}`);
     }
@@ -72,7 +70,7 @@ export class NotesEditorTab implements DetailsPanel {
           },
           onchange: (e: InputEvent) => {
             const newText = (e.target as HTMLInputElement).value;
-            this.trace.notes.changeNote(id, {text: newText});
+            trace.notes.changeNote(id, {text: newText});
           },
         }),
         m(
@@ -82,14 +80,14 @@ export class NotesEditorTab implements DetailsPanel {
             value: note.color,
             onchange: (e: Event) => {
               const newColor = (e.target as HTMLInputElement).value;
-              this.trace.notes.changeNote(id, {color: newColor});
+              trace.notes.changeNote(id, {color: newColor});
             },
           }),
         ),
         m(Button, {
           label: 'Remove',
           icon: Icons.Delete,
-          onclick: () => this.trace.notes.removeNote(id),
+          onclick: () => trace.notes.removeNote(id),
         }),
       ),
     );

@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SortDirection} from '../base/comparison_utils';
-import {AreaSelection} from '../public/selection';
-import {ColumnType} from '../trace_processor/query_result';
+import {SortDirection} from '../../base/comparison_utils';
+import {AreaSelection} from '../../public/selection';
+import {ColumnType} from '../../trace_processor/query_result';
 
 // Auxiliary metadata needed to parse the query result, as well as to render it
 // correctly. Generated together with the text of query and passed without the

@@ -13,24 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Icons} from '../base/semantic_icons';
-import {Flow} from '../core/flow_types';
-import {TraceImpl} from '../core/trace_impl';
-
-export const ALL_CATEGORIES = '_all_';
-
-export function getFlowCategories(flow: Flow): string[] {
-  const categories: string[] = [];
-  // v1 flows have their own categories
-  if (flow.category) {
-    categories.push(...flow.category.split(','));
-    return categories;
-  }
-  const beginCats = flow.begin.sliceCategory.split(',');
-  const endCats = flow.end.sliceCategory.split(',');
-  categories.push(...new Set([...beginCats, ...endCats]));
-  return categories;
-}
+import {Icons} from '../../base/semantic_icons';
+import {TraceImpl} from '../../core/trace_impl';
+import {ALL_CATEGORIES, getFlowCategories} from '../../core/flow_types';
 
 export interface FlowEventsAreaSelectedPanelAttrs {
   trace: TraceImpl;
