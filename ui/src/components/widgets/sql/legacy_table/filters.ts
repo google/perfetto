@@ -91,7 +91,10 @@ export function isFilterEqual(a: Filter, b: Filter): boolean {
   );
 }
 
-export function areFiltersEqual(a: Filter[], b: Filter[]) {
+export function areFiltersEqual(
+  a: ReadonlyArray<Filter>,
+  b: ReadonlyArray<Filter>,
+) {
   if (a.length !== b.length) return false;
   return a.every((f, i) => isFilterEqual(f, b[i]));
 }

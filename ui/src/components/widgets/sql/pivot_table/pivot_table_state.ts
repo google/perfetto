@@ -15,7 +15,7 @@
 import {AsyncLimiter} from '../../../../base/async_limiter';
 import {Trace} from '../../../../public/trace';
 import {Row} from '../../../../trace_processor/query_result';
-import {Filters} from '../legacy_table/filters';
+import {areFiltersEqual, Filter, Filters} from '../legacy_table/filters';
 import {buildSqlQuery} from '../legacy_table/query_builder';
 import {SimpleColumn} from '../legacy_table/simple_column';
 import {
@@ -44,7 +44,8 @@ function aggregationSqliteAlias(a: Aggregation): string {
 }
 
 interface RequestedData {
-  columns: Set<string>;
+  columnIds: Set<string>;
+  filters: Filter[];
   query: string;
   result?: {
     rows: Row[];
@@ -83,6 +84,8 @@ export class PivotTableState {
   private limiter: AsyncLimiter = new AsyncLimiter();
 
   private data: RequestedData;
+  // Used to keep track of the tree before a reload, so we can keep the same nodes expanded.
+  private oldTree?: PivotTreeNode;
 
   constructor(private readonly args: PivotTableStateArgs) {
     this.table = args.table;
@@ -105,7 +108,8 @@ export class PivotTableState {
     this.filters.addObserver(() => this.reload());
 
     this.data = {
-      columns: new Set(),
+      columnIds: new Set(),
+      filters: [],
       query: '',
     };
     this.reload();
@@ -213,21 +217,44 @@ export class PivotTableState {
   }
 
   private async reload() {
-    this.data.result = undefined;
-    this.data.error = undefined;
+    this.oldTree = this.data.result?.tree ?? this.oldTree;
 
     this.limiter.schedule(async () => {
-      const {query, aliasToIds} = this.buildQuery();
+      const {query, columnIds, aliasToIds} = this.buildQuery();
 
-      // TODO(b:395565690): Consider not refetching the data if we already have it.
+      // Check if we already have all of the columns (and the filters are the same): in that case
+      // we don't need to reload.
+      // Note that comparing the queries directly is too sensitive for us: e.g. we don't care about
+      // the column ordering, as well as having extra aggregations.
+      const needsReload =
+        this.data.error !== undefined ||
+        !areFiltersEqual(this.filters.get(), this.data.filters) ||
+        ![...columnIds].every((id) => this.data.columnIds.has(id));
+      // If we don't need to reload, we can keep the old rows.
+      let rows = needsReload ? undefined : this.data.result?.rows;
+
       this.data = {
-        columns: new Set(aliasToIds.values()),
+        columnIds: new Set(aliasToIds.values()),
+        filters: [...this.filters.get()],
         query,
       };
-      const {rows, error} = await this.loadData(query, aliasToIds);
-      this.data.error = error;
-      if (error === undefined) {
-        const tree = PivotTreeNode.buildTree(rows, this);
+      // If we need to reload, fetch the data from the trace processor.
+      if (rows === undefined) {
+        const queryResult = await this.loadData(query, aliasToIds);
+        this.data.error = queryResult.error;
+        rows = queryResult.rows;
+      }
+      if (this.data.error === undefined) {
+        // Build the pivot tree from the rows.
+        const tree = PivotTreeNode.buildTree(rows, {
+          pivots: this.getPivots(),
+          aggregations: this.getAggregations(),
+        });
+
+        // If we have an old tree, copy the expanded state from it.
+        tree.copyExpandedState(this.oldTree);
+        this.oldTree = undefined;
+
         tree.sort(this.orderBy);
         this.data.result = {
           rows,
@@ -240,13 +267,19 @@ export class PivotTableState {
   // Generate SQL query to fetch the necessary data.
   // We group by all pivots and apply all aggregations.
   // As ids are not valid sqlite identifiers, we also remember the mapping from alias to id.
-  private buildQuery(): {query: string; aliasToIds: Map<string, string>} {
+  private buildQuery(): {
+    query: string;
+    columnIds: Set<string>;
+    aliasToIds: Map<string, string>;
+  } {
     const columns: {[key: string]: SqlColumn} = {};
+    const columnIds = new Set<string>();
     const aliasToIds = new Map<string, string>();
     const groupBy: SqlColumn[] = [];
     for (const pivot of this.pivots) {
       const alias = pivotSqliteAlias(pivot);
       columns[alias] = pivot.primaryColumn();
+      columnIds.add(pivotId(pivot));
       aliasToIds.set(alias, pivotId(pivot));
       groupBy.push(pivot.primaryColumn());
     }
@@ -257,6 +290,7 @@ export class PivotTableState {
         (cols) => `${agg.op}(${cols[0]})`,
         [agg.column.primaryColumn()],
       );
+      columnIds.add(aggregationId(agg));
       aliasToIds.set(alias, aggregationId(agg));
     }
     const query = buildSqlQuery({
@@ -267,6 +301,7 @@ export class PivotTableState {
     });
     return {
       query,
+      columnIds,
       aliasToIds,
     };
   }
