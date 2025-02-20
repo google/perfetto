@@ -21,10 +21,11 @@ import {DataVisualiser} from './data_visualiser/data_visualiser';
 import {QueryBuilder} from './query_builder/builder';
 import {Button} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
-import {getLastFinishedNode, QueryNode} from './query_node';
+import {QueryNode} from './query_node';
 
 export interface ExploreTableState {
-  queryNode?: QueryNode;
+  rootNode?: QueryNode;
+  selectedNode?: QueryNode;
 }
 
 interface ExplorePageAttrs extends PageWithTraceAttrs {
@@ -46,9 +47,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private selectedMode = ExplorePageModes.QUERY_BUILDER;
 
   view({attrs}: m.CVnode<ExplorePageAttrs>) {
-    const {trace, state} = attrs;
-
-    const queryNode = state.queryNode;
+    const {trace} = attrs;
 
     return m(
       '.page.explore-page',
@@ -68,7 +67,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           label: 'Reset',
           intent: Intent.Primary,
           onclick: () => {
-            attrs.state.queryNode = undefined;
+            attrs.state.rootNode = undefined;
+            attrs.state.selectedNode = undefined;
           },
         }),
       ),
@@ -78,16 +78,21 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           trace: attrs.trace,
           sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
           onRootNodeCreated(arg) {
-            attrs.state.queryNode = arg;
+            attrs.state.rootNode = arg;
+            attrs.state.selectedNode = arg;
           },
-          rootNode: attrs.state.queryNode,
+          onNodeSelected(arg) {
+            attrs.state.selectedNode = arg;
+          },
+          rootNode: attrs.state.rootNode,
+          selectedNode: attrs.state.selectedNode,
         }),
       this.selectedMode === ExplorePageModes.DATA_VISUALISER &&
-        queryNode !== undefined &&
+        attrs.state.rootNode &&
         m(DataVisualiser, {
           trace,
           state: {
-            queryNode: getLastFinishedNode(queryNode),
+            queryNode: attrs.state.selectedNode ?? attrs.state.rootNode,
           },
         }),
     );
