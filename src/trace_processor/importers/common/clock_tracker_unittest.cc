@@ -62,6 +62,7 @@ constexpr auto MONOTONIC_COARSE =
 constexpr auto MONOTONIC_RAW = protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW;
 
 TEST_F(ClockTrackerTest, ClockDomainConversions) {
+  EXPECT_FALSE(ct_.HasPathToTraceTime(REALTIME));
   EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).ok());
 
   ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
@@ -69,6 +70,7 @@ TEST_F(ClockTrackerTest, ClockDomainConversions) {
   ct_.AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
+  EXPECT_TRUE(ct_.HasPathToTraceTime(REALTIME));
   EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 0), 10000);
   EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 1), 10001);
   EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 9), 10009);
