@@ -78,7 +78,8 @@ export class FilterNode implements QueryNode {
 
     // Columns consists of all columns from previous node.
     this.columns = newColumnControllerRows(
-      this.prevNode.columns?.filter((c) => c.checked, true) ?? [],
+      this.prevNode.columns?.filter((c) => c.checked) ?? [],
+      true,
     );
   }
 
