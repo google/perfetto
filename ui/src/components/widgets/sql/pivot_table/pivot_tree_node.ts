@@ -85,6 +85,10 @@ export class PivotTreeNode {
     this.collapsed = this.depth > 0;
   }
 
+  isRoot(): boolean {
+    return this.parent === undefined;
+  }
+
   // The index of the last pivot value in the pivot list.
   getPivotIndex(): number {
     return this.depth - 1;
