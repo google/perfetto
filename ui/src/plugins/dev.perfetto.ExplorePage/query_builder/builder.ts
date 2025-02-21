@@ -55,10 +55,42 @@ export interface QueryBuilderAttrs extends PageWithTraceAttrs {
   readonly onNodeSelected: (node: QueryNode) => void;
 }
 
+interface NodeAttrs {
+  node: QueryNode;
+  isSelected: boolean;
+  onNodeSelected: (node: QueryNode) => void;
+}
+
+class NodeBox implements m.ClassComponent<NodeAttrs> {
+  view({attrs}: m.CVnode<NodeAttrs>) {
+    const {node, isSelected, onNodeSelected} = attrs;
+    return m(
+      '.node-box',
+      {
+        style: {
+          border: isSelected ? '2px solid yellow' : '2px solid blue',
+          borderRadius: '5px',
+          padding: '10px',
+          cursor: 'pointer',
+          backgroundColor: 'lightblue',
+        },
+        onclick: () => onNodeSelected(node),
+      },
+      node.getTitle(),
+    );
+  }
+}
+
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
-    const {trace, sqlModules, rootNode, onRootNodeCreated, onNodeSelected} =
-      attrs;
+    const {
+      trace,
+      sqlModules,
+      rootNode,
+      onRootNodeCreated,
+      onNodeSelected,
+      selectedNode,
+    } = attrs;
 
     const createModal = (
       title: string,
@@ -213,16 +245,10 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             m(
               '',
               {style: {gridColumn: 3, gridRow: row}},
-              m(Button, {
-                label: localCurNode.getTitle(),
-                intent: Intent.Primary,
-                style: {
-                  border:
-                    attrs.selectedNode === localCurNode
-                      ? '2px solid yellow'
-                      : '',
-                },
-                onclick: () => onNodeSelected(localCurNode),
+              m(NodeBox, {
+                node: localCurNode,
+                isSelected: selectedNode === localCurNode,
+                onNodeSelected,
               }),
             ),
           );
