@@ -47,6 +47,7 @@
   * [PerfettoSQL](#)
     * [Standard Library](analysis/stdlib-docs.autogen)
     * [Syntax](analysis/perfetto-sql-syntax.md)
+    * [Style Guide](analysis/style-guide.md)
     * [Prelude tables](analysis/sql-tables.autogen)
     * [Built-ins](analysis/builtin.md)
     * [Backwards Compatibility](analysis/perfetto-sql-backcompat.md)
