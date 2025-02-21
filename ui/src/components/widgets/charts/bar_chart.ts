@@ -13,20 +13,22 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ChartAttrs, VegaLiteChartSpec} from './chart';
+import {ChartAttrs} from './chart';
 import {VegaLiteSelectionTypes, VegaView} from '../vega_view';
 import {Spinner} from '../../../widgets/spinner';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {Row} from '../../../trace_processor/query_result';
+import {TopLevelSpec} from 'vega-lite';
+import {assertExists} from '../../../base/logging';
 
 export class BarChart implements m.ClassComponent<ChartAttrs> {
-  getVegaSpec(attrs: ChartAttrs): VegaLiteChartSpec {
+  getVegaSpec(attrs: ChartAttrs): TopLevelSpec {
     return {
       $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
       width: 'container',
       mark: 'bar',
       data: {
-        values: attrs.data,
+        values: assertExists(attrs.data),
       },
       params: [
         {
@@ -58,6 +60,15 @@ export class BarChart implements m.ClassComponent<ChartAttrs> {
         x: {
           aggregate: 'count',
           title: 'Count',
+        },
+      },
+      config: {
+        axisY: {
+          titleLineHeight: 15,
+          titleBaseline: 'line-bottom',
+          titleAngle: 0,
+          titleAnchor: 'start',
+          titleAlign: 'left',
         },
       },
     };
