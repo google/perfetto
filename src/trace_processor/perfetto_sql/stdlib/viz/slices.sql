@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- sqlformat file off
+-- This file is case-sensitive.
+
 INCLUDE PERFETTO MODULE graphs.scan;
 
 CREATE PERFETTO MACRO _viz_slice_ancestor_agg(

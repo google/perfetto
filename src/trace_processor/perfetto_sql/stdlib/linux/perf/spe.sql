@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Contains ARM Statistical Profiling Extension records
-CREATE PERFETTO VIEW linux_perf_spe_record(
+CREATE PERFETTO VIEW linux_perf_spe_record (
   -- Timestap when the operation was sampled
   ts TIMESTAMP,
   -- Thread the operation executed in
@@ -102,24 +102,104 @@ SELECT
   issue_latency,
   translation_latency,
   data_source,
-  (events_bitmask & (1 << 0)) <> 0 AS exception_gen,
-  (events_bitmask & (1 << 1)) <> 0 AS retired,
-  (events_bitmask & (1 << 2)) <> 0 AS l1d_access,
-  (events_bitmask & (1 << 3)) <> 0 AS l1d_refill,
-  (events_bitmask & (1 << 4)) <> 0 AS tlb_access,
-  (events_bitmask & (1 << 5)) <> 0 AS tlb_refill,
-  (events_bitmask & (1 << 6)) <> 0 AS not_taken,
-  (events_bitmask & (1 << 7)) <> 0 AS mispred,
-  (events_bitmask & (1 << 8)) <> 0 AS llc_access,
-  (events_bitmask & (1 << 9)) <> 0 AS llc_refill,
-  (events_bitmask & (1 << 10)) <> 0 AS remote_access,
-  (events_bitmask & (1 << 11)) <> 0 AS alignment,
-  (events_bitmask & (1 << 17)) <> 0 AS tme_transaction,
-  (events_bitmask & (1 << 17)) <> 0 AS sve_partial_pred,
-  (events_bitmask & (1 << 18)) <> 0 AS sve_empty_pred,
-  (events_bitmask & (1 << 19)) <> 0 AS l2d_access,
-  (events_bitmask & (1 << 20)) <> 0 AS l2d_hit,
-  (events_bitmask & (1 << 21)) <> 0 AS cache_data_modified,
-  (events_bitmask & (1 << 22)) <> 0 AS recenty_fetched,
-  (events_bitmask & (1 << 23)) <> 0 AS data_snooped
+  (
+    events_bitmask & (
+      1 << 0
+    )
+  ) != 0 AS exception_gen,
+  (
+    events_bitmask & (
+      1 << 1
+    )
+  ) != 0 AS retired,
+  (
+    events_bitmask & (
+      1 << 2
+    )
+  ) != 0 AS l1d_access,
+  (
+    events_bitmask & (
+      1 << 3
+    )
+  ) != 0 AS l1d_refill,
+  (
+    events_bitmask & (
+      1 << 4
+    )
+  ) != 0 AS tlb_access,
+  (
+    events_bitmask & (
+      1 << 5
+    )
+  ) != 0 AS tlb_refill,
+  (
+    events_bitmask & (
+      1 << 6
+    )
+  ) != 0 AS not_taken,
+  (
+    events_bitmask & (
+      1 << 7
+    )
+  ) != 0 AS mispred,
+  (
+    events_bitmask & (
+      1 << 8
+    )
+  ) != 0 AS llc_access,
+  (
+    events_bitmask & (
+      1 << 9
+    )
+  ) != 0 AS llc_refill,
+  (
+    events_bitmask & (
+      1 << 10
+    )
+  ) != 0 AS remote_access,
+  (
+    events_bitmask & (
+      1 << 11
+    )
+  ) != 0 AS alignment,
+  (
+    events_bitmask & (
+      1 << 17
+    )
+  ) != 0 AS tme_transaction,
+  (
+    events_bitmask & (
+      1 << 17
+    )
+  ) != 0 AS sve_partial_pred,
+  (
+    events_bitmask & (
+      1 << 18
+    )
+  ) != 0 AS sve_empty_pred,
+  (
+    events_bitmask & (
+      1 << 19
+    )
+  ) != 0 AS l2d_access,
+  (
+    events_bitmask & (
+      1 << 20
+    )
+  ) != 0 AS l2d_hit,
+  (
+    events_bitmask & (
+      1 << 21
+    )
+  ) != 0 AS cache_data_modified,
+  (
+    events_bitmask & (
+      1 << 22
+    )
+  ) != 0 AS recenty_fetched,
+  (
+    events_bitmask & (
+      1 << 23
+    )
+  ) != 0 AS data_snooped
 FROM __intrinsic_spe_record;

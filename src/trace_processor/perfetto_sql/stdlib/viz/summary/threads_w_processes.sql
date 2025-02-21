@@ -22,10 +22,11 @@ SELECT
   thread.upid,
   thread.tid,
   process.pid,
-  thread.name as thread_name,
-  process.name as process_name
+  thread.name AS thread_name,
+  process.name AS process_name
 FROM thread
-LEFT JOIN process USING (upid);
+LEFT JOIN process
+  USING (upid);
 
 -- Add thread_state info to thread/process/package
 CREATE PERFETTO TABLE _state_w_thread_process_summary AS
@@ -40,8 +41,9 @@ SELECT
   m.pid,
   m.thread_name,
   m.process_name
-FROM _thread_process_summary as m
-JOIN thread_state USING (utid);
+FROM _thread_process_summary AS m
+JOIN thread_state
+  USING (utid);
 
 -- Add scheduling slices info to thread/process/package
 CREATE PERFETTO TABLE _sched_w_thread_process_package_summary AS
@@ -57,7 +59,10 @@ SELECT
   m.thread_name,
   m.process_name,
   package.package_name
-FROM _thread_process_summary as m
-JOIN sched USING (utid)
-LEFT JOIN android_process_metadata as package USING(upid)
-WHERE dur > 0;
+FROM _thread_process_summary AS m
+JOIN sched
+  USING (utid)
+LEFT JOIN android_process_metadata AS package
+  USING (upid)
+WHERE
+  dur > 0;

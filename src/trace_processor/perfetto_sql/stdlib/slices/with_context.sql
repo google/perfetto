@@ -15,7 +15,7 @@
 
 -- All thread slices with data about thread, thread track and process.
 -- Where possible, use available view functions which filter this view.
-CREATE PERFETTO VIEW thread_slice(
+CREATE PERFETTO VIEW thread_slice (
   -- Slice
   id ID(slice.id),
   -- Alias for `slice.ts`.
@@ -76,13 +76,16 @@ SELECT
   slice.thread_ts,
   slice.thread_dur
 FROM slice
-JOIN thread_track ON slice.track_id = thread_track.id
-JOIN thread USING (utid)
-LEFT JOIN process USING (upid);
+JOIN thread_track
+  ON slice.track_id = thread_track.id
+JOIN thread
+  USING (utid)
+LEFT JOIN process
+  USING (upid);
 
 -- All process slices with data about process track and process.
 -- Where possible, use available view functions which filter this view.
-CREATE PERFETTO VIEW process_slice(
+CREATE PERFETTO VIEW process_slice (
   -- Slice
   id ID(slice.id),
   -- Alias for `slice.ts`.
@@ -131,5 +134,7 @@ SELECT
   slice.thread_ts,
   slice.thread_dur
 FROM slice
-JOIN process_track ON slice.track_id = process_track.id
-JOIN process USING (upid);
+JOIN process_track
+  ON slice.track_id = process_track.id
+JOIN process
+  USING (upid);

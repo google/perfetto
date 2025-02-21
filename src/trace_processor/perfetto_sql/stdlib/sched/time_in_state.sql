@@ -16,7 +16,7 @@
 INCLUDE PERFETTO MODULE intervals.intersect;
 
 -- The time a thread spent in each scheduling state during it's lifetime.
-CREATE PERFETTO TABLE sched_time_in_state_for_thread(
+CREATE PERFETTO TABLE sched_time_in_state_for_thread (
   -- Utid of the thread.
   utid JOINID(thread.id),
   -- Total runtime of thread.
@@ -28,36 +28,49 @@ CREATE PERFETTO TABLE sched_time_in_state_for_thread(
   -- Percentage of time thread spent in scheduling state in [0-100] range.
   percentage_in_state LONG
 ) AS
-WITH total_dur AS (
-  SELECT
-    utid,
-    sum(dur) AS sum_dur
-  FROM thread_state
-  GROUP BY 1
-),
-summed AS (
-  SELECT
-    utid,
-    state,
-    sum(dur) AS time_in_state
-  FROM thread_state group by 1, 2
-)
+WITH
+  total_dur AS (
+    SELECT
+      utid,
+      sum(dur) AS sum_dur
+    FROM thread_state
+    GROUP BY
+      1
+  ),
+  summed AS (
+    SELECT
+      utid,
+      state,
+      sum(dur) AS time_in_state
+    FROM thread_state
+    GROUP BY
+      1,
+      2
+  )
 SELECT
   utid,
   sum_dur AS total_runtime,
   state,
   time_in_state,
-  (time_in_state*100)/(sum_dur) AS percentage_in_state
-FROM summed JOIN total_dur USING (utid);
+  (
+    time_in_state * 100
+  ) / (
+    sum_dur
+  ) AS percentage_in_state
+FROM summed
+JOIN total_dur
+  USING (utid);
 
-CREATE PERFETTO MACRO _case_for_state(state Expr)
+CREATE PERFETTO MACRO _case_for_state(
+    state Expr
+)
 RETURNS Expr AS
-MAX(CASE WHEN state = $state THEN percentage_in_state END);
+max(CASE WHEN state = $state THEN percentage_in_state END);
 
 -- Summary of time spent by thread in each scheduling state, in percentage ([0, 100]
 -- ranges). Sum of all states might be smaller than 100, as those values
 -- are rounded down.
-CREATE PERFETTO TABLE sched_percentage_of_time_in_state(
+CREATE PERFETTO TABLE sched_percentage_of_time_in_state (
   -- Utid of the thread.
   utid JOINID(thread.id),
   -- Percentage of time thread spent in running ('Running') state in [0, 100]
@@ -85,12 +98,15 @@ SELECT
   _case_for_state!('R+') AS runnable_preempted,
   _case_for_state!('S') AS sleeping,
   _case_for_state!('D') AS uninterruptible_sleep,
-  SUM(
-    CASE WHEN state IN ('T', 't', 'X', 'Z', 'x', 'I', 'K', 'W', 'P', 'N')
-    THEN time_in_state END
-  ) * 100/total_runtime AS other
+  sum(
+    CASE
+      WHEN state IN ('T', 't', 'X', 'Z', 'x', 'I', 'K', 'W', 'P', 'N')
+      THEN time_in_state
+    END
+  ) * 100 / total_runtime AS other
 FROM sched_time_in_state_for_thread
-GROUP BY utid;
+GROUP BY
+  utid;
 
 -- Time the thread spent each state in a given interval.
 --
@@ -101,14 +117,14 @@ GROUP BY utid;
 -- `thread_slice_time_in_state` in the `slices.time_in_state` module for this
 -- purpose instead.
 CREATE PERFETTO FUNCTION sched_time_in_state_for_thread_in_interval(
-  -- The start of the interval.
-  ts TIMESTAMP,
-  -- The duration of the interval.
-  dur DURATION,
-  -- The utid of the thread.
-  utid JOINID(thread.id)
+    -- The start of the interval.
+    ts TIMESTAMP,
+    -- The duration of the interval.
+    dur DURATION,
+    -- The utid of the thread.
+    utid JOINID(thread.id)
 )
-RETURNS TABLE(
+RETURNS TABLE (
   -- The scheduling state (from the `thread_state` table).
   --
   -- Use the `sched_state_to_human_readable_string` function in the `sched`
@@ -132,10 +148,11 @@ SELECT
   state,
   io_wait,
   blocked_function,
-  sum(ii.dur) as dur
+  sum(ii.dur) AS dur
 FROM thread_state
 JOIN (
-  SELECT *
+  SELECT
+    *
   FROM _interval_intersect_single!(
     $ts, $dur,
     (
@@ -144,19 +161,25 @@ JOIN (
       WHERE utid = $utid AND dur > 0
     )
   )
-) ii USING (id)
-GROUP BY 1, 2, 3
-ORDER BY 4 DESC;
+) AS ii
+  USING (id)
+GROUP BY
+  1,
+  2,
+  3
+ORDER BY
+  4 DESC;
 
 -- Time the thread spent each state and cpu in a given interval.
 CREATE PERFETTO FUNCTION sched_time_in_state_and_cpu_for_thread_in_interval(
-  -- The start of the interval.
-  ts TIMESTAMP,
-  -- The duration of the interval.
-  dur DURATION,
-  -- The utid of the thread.
-  utid JOINID(thread.id))
-RETURNS TABLE(
+    -- The start of the interval.
+    ts TIMESTAMP,
+    -- The duration of the interval.
+    dur DURATION,
+    -- The utid of the thread.
+    utid JOINID(thread.id)
+)
+RETURNS TABLE (
   -- Thread state (from the `thread_state` table).
   -- Use `sched_state_to_human_readable_string` function to get full name.
   state STRING,
@@ -168,22 +191,32 @@ RETURNS TABLE(
   -- Some states can specify the blocked function. Usually NULL.
   blocked_function LONG,
   -- Total time spent with this state, cpu and blocked function.
-  dur DURATION) AS
+  dur DURATION
+) AS
 SELECT
   state,
   io_wait,
   cpu,
   blocked_function,
-  sum(ii.dur) as dur
+  sum(ii.dur) AS dur
 FROM thread_state
-JOIN
-  (SELECT * FROM _interval_intersect_single!(
+JOIN (
+  SELECT
+    *
+  FROM _interval_intersect_single!(
     $ts, $dur,
     (SELECT id, ts, dur
     FROM thread_state
-    WHERE utid = $utid AND dur > 0))) ii USING (id)
-GROUP BY 1, 2, 3, 4
-ORDER BY 5 DESC;
+    WHERE utid = $utid AND dur > 0))
+) AS ii
+  USING (id)
+GROUP BY
+  1,
+  2,
+  3,
+  4
+ORDER BY
+  5 DESC;
 
 -- Time spent by CPU in each scheduling state in a provided interval.
 CREATE PERFETTO FUNCTION sched_time_in_state_for_cpu_in_interval(
@@ -193,24 +226,28 @@ CREATE PERFETTO FUNCTION sched_time_in_state_for_cpu_in_interval(
     ts TIMESTAMP,
     -- Interval duration.
     dur LONG
-) RETURNS TABLE (
-    -- End state. From `sched.end_state`.
-    end_state STRING,
-    -- Duration in state.
-    dur LONG
-) AS
-WITH sched_for_cpu AS (
-  SELECT id, ts, dur
-  FROM sched
-  WHERE cpu = $cpu AND dur != -1
 )
+RETURNS TABLE (
+  -- End state. From `sched.end_state`.
+  end_state STRING,
+  -- Duration in state.
+  dur LONG
+) AS
+WITH
+  sched_for_cpu AS (
+    SELECT
+      id,
+      ts,
+      dur
+    FROM sched
+    WHERE
+      cpu = $cpu AND dur != -1
+  )
 SELECT
-    end_state,
-    sum(ii.dur) AS dur
+  end_state,
+  sum(ii.dur) AS dur
 FROM sched
-JOIN _interval_intersect_single!($ts, $dur, sched_for_cpu) ii
-USING (id)
-GROUP BY end_state;
-
-
-
+JOIN _interval_intersect_single!($ts, $dur, sched_for_cpu) AS ii
+  USING (id)
+GROUP BY
+  end_state;

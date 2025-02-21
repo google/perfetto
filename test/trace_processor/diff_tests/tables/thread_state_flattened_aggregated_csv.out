@@ -1,4 +1,4 @@
-"slice_id","slice_name","Uninterruptible_Sleep_nonIO","Uninterruptible_Sleep_IO","Runnable","Sleeping","Stopped","Traced","Exit_Dead","Exit_Zombie","Task_Dead","Wake_Kill","Waking","Parked","No_Load","Runnable_Preempted","Running","Idle","dur","depth"
+"slice_id","slice_name","uninterruptible_sleep_nonio","uninterruptible_sleep_io","runnable","sleeping","stopped","traced","exit_dead","exit_zombie","task_dead","wake_kill","waking","parked","no_load","runnable_preempted","running","idle","dur","depth"
 11155,"android.view.Choreographer$FrameHandler: android.view.Choreographer$FrameDisplayEventReceiver","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",15728,"[NULL]",15728,0
 11156,"Choreographer#doFrame 10831","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",31280,"[NULL]",31280,1
 11158,"animation","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",74845,"[NULL]",74845,2

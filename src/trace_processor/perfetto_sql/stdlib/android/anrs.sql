@@ -15,7 +15,7 @@
 --
 
 -- List of all ANRs that occurred in the trace (one row per ANR).
-CREATE PERFETTO VIEW android_anrs(
+CREATE PERFETTO VIEW android_anrs (
   -- Name of the process that triggered the ANR.
   process_name STRING,
   -- PID of the process that triggered the ANR.
@@ -30,41 +30,54 @@ CREATE PERFETTO VIEW android_anrs(
   subject STRING
 ) AS
 -- Process and PID that ANRed.
-WITH anr AS (
-  SELECT
-    -- Counter formats:
-    -- v1: "ErrorId:<process_name>#<UUID>"
-    -- v2: "ErrorId:<process_name> <pid>#<UUID>"
-    STR_SPLIT(SUBSTR(STR_SPLIT(process_counter_track.name, '#', 0), 9), ' ', 0) AS process_name,
-    cast_int!(STR_SPLIT(SUBSTR(STR_SPLIT(process_counter_track.name, '#', 0), 9), ' ', 1)) AS pid,
-    STR_SPLIT(process_counter_track.name, '#', 1) AS error_id,
-    counter.ts
-  FROM process_counter_track
-  JOIN process USING (upid)
-  JOIN counter ON (counter.track_id = process_counter_track.id)
-  WHERE process_counter_track.name GLOB 'ErrorId:*'
-    AND process.name = 'system_server'
-),
--- ANR subject line.
-subject AS (
-  --- Counter format:
-  --- "Subject(for ErrorId <UUID>):<subject>"
-  SELECT
-    SUBSTR(STR_SPLIT(process_counter_track.name, ')', 0), 21) AS error_id,
-    SUBSTR(process_counter_track.name, length(STR_SPLIT(process_counter_track.name, ')', 0)) + 3) AS subject
-  FROM process_counter_track
-  JOIN process
-  USING (upid)
-  WHERE process_counter_track.name GLOB 'Subject(for ErrorId *'
-  AND process.name = 'system_server'
-)
+WITH
+  anr AS (
+    SELECT
+      -- Counter formats:
+      -- v1: "ErrorId:<process_name>#<UUID>"
+      -- v2: "ErrorId:<process_name> <pid>#<UUID>"
+      str_split(substr(str_split(process_counter_track.name, '#', 0), 9), ' ', 0) AS process_name,
+      cast_int!(STR_SPLIT(SUBSTR(STR_SPLIT(process_counter_track.name, '#', 0), 9), ' ', 1)) AS pid,
+      str_split(process_counter_track.name, '#', 1) AS error_id,
+      counter.ts
+    FROM process_counter_track
+    JOIN process
+      USING (upid)
+    JOIN counter
+      ON (
+        counter.track_id = process_counter_track.id
+      )
+    WHERE
+      process_counter_track.name GLOB 'ErrorId:*' AND process.name = 'system_server'
+  ),
+  -- ANR subject line.
+  subject AS (
+    --- Counter format:
+    --- "Subject(for ErrorId <UUID>):<subject>"
+    SELECT
+      substr(str_split(process_counter_track.name, ')', 0), 21) AS error_id,
+      substr(
+        process_counter_track.name,
+        length(str_split(process_counter_track.name, ')', 0)) + 3
+      ) AS subject
+    FROM process_counter_track
+    JOIN process
+      USING (upid)
+    WHERE
+      process_counter_track.name GLOB 'Subject(for ErrorId *'
+      AND process.name = 'system_server'
+  )
 SELECT
-    anr.process_name,
-    anr.pid,
-    process.upid,
-    anr.error_id,
-    anr.ts,
-    subject
+  anr.process_name,
+  anr.pid,
+  process.upid,
+  anr.error_id,
+  anr.ts,
+  subject
 FROM anr
-LEFT JOIN subject USING (error_id)
-LEFT JOIN process ON (process.pid = anr.pid);
+LEFT JOIN subject
+  USING (error_id)
+LEFT JOIN process
+  ON (
+    process.pid = anr.pid
+  );

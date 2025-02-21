@@ -59,9 +59,9 @@ def main():
       call('gen_android_bp', *check_only)
     call('gen_merged_protos', *check_only)
     call('gen_amalgamated_python_tools', *check_only)
-    # TODO(lalitm): add format stdlib here.
     call('ninja', '-C', out, 'protoc')
     call('gen_binary_descriptors', '--protoc', protoc_path(out), *check_only)
+    call('format_stdlib', *check_only)
 
     if IS_WIN:
       print('WARNING: Cannot generate BUILD / Android.bp from Windows. ' +
