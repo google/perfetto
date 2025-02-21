@@ -30,6 +30,7 @@ import {
 import {Registry} from './registry';
 import {Selection} from './state';
 import {CustomButton, CustomButtonArgs, customButtonRegistry} from '../frontend/button_registry';
+import {AggregateControllerArgs, aggregateControllerRegistry} from '../frontend/aggregation_registry';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -73,6 +74,13 @@ export class PluginContextImpl implements PluginContext {
       onTrackSelectionChange:
         (trackIds: string[], trackGroupIds: string[]) => void) {
     this.onTrackSelectionChange = onTrackSelectionChange;
+  }
+
+  registerAggregationController(
+    aggControlArgs: AggregateControllerArgs,
+  ) {
+    aggregateControllerRegistry
+      .register(aggControlArgs);
   }
 
   registerCustomButton(button: CustomButtonArgs): void {

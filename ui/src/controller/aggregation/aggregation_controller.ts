@@ -59,6 +59,8 @@ export abstract class AggregationController extends Controller<'main'> {
   run() {
     const selection = globals.state.currentSelection;
     if (selection === null || selection.kind !== 'AREA') {
+      // Update Area Handler to be cleared
+      this.areaSelectionHandler.getAreaChange();
       publishAggregateData({
         data: {
           tabName: this.getTabName(),

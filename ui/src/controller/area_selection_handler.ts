@@ -21,6 +21,7 @@ export class AreaSelectionHandler {
   getAreaChange(): [boolean, AreaById|undefined] {
     const currentSelection = globals.state.currentSelection;
     if (currentSelection === null || currentSelection.kind !== 'AREA') {
+      this.previousArea = undefined;
       return [false, undefined];
     }
 
