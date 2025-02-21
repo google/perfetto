@@ -1817,10 +1817,20 @@ void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
     return;
   }
 
+  // b/395779936: there are drivers emitting events that pretend that the
+  // emitting thread is part of a different process, while using B/E/I/C events.
+  // We cannot trust those tid<->tgid associations, so override the tgid to 0 to
+  // rely on the existing swapper workarounds. Counter event parsing has
+  // existing workarounds for this scenario, so keep their tgid for backwards
+  // compatibility with existing queries.
+  char evt_type = static_cast<char>(evt.type());
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  if (evt_type != 'C')
+    tgid = 0;
+
   SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
-      timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
-      evt.name(), tgid, evt.value());
+      timestamp, pid, evt_type, false /*trace_begin*/, evt.name(), tgid,
+      evt.value());
 }
 
 void FtraceParser::ParseDpuDispDpuUnderrun(int64_t timestamp,
