@@ -2,6 +2,10 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- sqlformat file off
+-- There's a lot of subtle formatting in this file which the auto-formatter
+-- does not yet cope well with. Reenable when that's fixed.
+
 -- Checks if slice has an ancestor with provided name.
 CREATE PERFETTO FUNCTION _has_parent_slice_with_name(
   -- Id of the slice to check parents of.
