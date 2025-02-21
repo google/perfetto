@@ -1,4 +1,3 @@
-
 --
 -- Copyright 2024 The Android Open Source Project
 --
@@ -17,14 +16,16 @@
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
 CREATE PERFETTO TABLE _android_heap_profile_raw_callstacks AS
-WITH metrics AS MATERIALIZED (
-  SELECT
-    callsite_id,
-    SUM(size) AS self_size,
-    SUM(MAX(size, 0)) AS self_alloc_size
-  FROM heap_profile_allocation
-  GROUP BY callsite_id
-)
+WITH
+  metrics AS MATERIALIZED (
+    SELECT
+      callsite_id,
+      sum(size) AS self_size,
+      sum(max(size, 0)) AS self_alloc_size
+    FROM heap_profile_allocation
+    GROUP BY
+      callsite_id
+  )
 SELECT
   c.id,
   c.parent_id,
@@ -32,13 +33,15 @@ SELECT
   c.mapping_name,
   c.source_file,
   c.line_number,
-  IFNULL(m.self_size, 0) AS self_size,
-  IFNULL(m.self_alloc_size, 0) AS self_alloc_size
-FROM _callstacks_for_stack_profile_samples!(metrics) c
-LEFT JOIN metrics m USING (callsite_id);
+  coalesce(m.self_size, 0) AS self_size,
+  coalesce(m.self_alloc_size, 0) AS self_alloc_size
+FROM _callstacks_for_stack_profile_samples!(metrics) AS c
+LEFT JOIN metrics AS m
+  USING (callsite_id);
 
 CREATE PERFETTO TABLE _android_heap_profile_cumulatives AS
-SELECT a.*
+SELECT
+  a.*
 FROM _graph_aggregating_scan!(
   (
     SELECT id AS source_node_id, parent_id AS dest_node_id
@@ -71,7 +74,7 @@ FROM _graph_aggregating_scan!(
     FROM agg a
     JOIN _android_heap_profile_raw_callstacks r USING (id)
   )
-) a;
+) AS a;
 
 -- Table summarising the amount of memory allocated by each
 -- callstack as seen by Android native heap profiling (i.e.
@@ -79,7 +82,7 @@ FROM _graph_aggregating_scan!(
 --
 -- Note: this table collapses data from all processes together
 -- into a single table.
-CREATE PERFETTO TABLE android_heap_profile_summary_tree(
+CREATE PERFETTO TABLE android_heap_profile_summary_tree (
   -- The id of the callstack. A callstack in this context
   -- is a unique set of frames up to the root.
   id LONG,
@@ -119,5 +122,6 @@ SELECT
   cumulative_size,
   self_alloc_size,
   cumulative_alloc_size
-FROM _android_heap_profile_raw_callstacks r
-JOIN _android_heap_profile_cumulatives a USING (id);
+FROM _android_heap_profile_raw_callstacks AS r
+JOIN _android_heap_profile_cumulatives AS a
+  USING (id);

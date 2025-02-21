@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE wattson.cpu_split;
 
 -- The final system state for the CPU subsystem, which has all the information
 -- needed by Wattson to estimate energy for the CPU subsystem.
-CREATE PERFETTO TABLE _wattson_system_states(
+CREATE PERFETTO TABLE _wattson_system_states (
   -- Starting timestamp of the current counter where system state is constant.
   ts TIMESTAMP,
   -- Duration of the current counter where system state is constant.
@@ -60,13 +60,12 @@ CREATE PERFETTO TABLE _wattson_system_states(
   idle_7 LONG,
   -- Flag indicating if current system state is suspended.
   suspended BOOL
-)
-AS
+) AS
 SELECT
   s.ts,
   s.dur,
-  cast_int!(round(l3_hit_rate * s.dur, 0)) as l3_hit_count,
-  cast_int!(round(l3_miss_rate * s.dur, 0)) as l3_miss_count,
+  cast_int!(round(l3_hit_rate * s.dur, 0)) AS l3_hit_count,
+  cast_int!(round(l3_miss_rate * s.dur, 0)) AS l3_miss_count,
   freq_0,
   idle_0,
   freq_1,
@@ -83,15 +82,24 @@ SELECT
   idle_6,
   freq_7,
   idle_7,
-  IFNULL(suspended, FALSE) as suspended
-FROM _idle_freq_l3_hit_l3_miss_slice s
-JOIN _stats_cpu0 ON _stats_cpu0._auto_id = s.cpu0_id
-JOIN _stats_cpu1 ON _stats_cpu1._auto_id = s.cpu1_id
-JOIN _stats_cpu2 ON _stats_cpu2._auto_id = s.cpu2_id
-JOIN _stats_cpu3 ON _stats_cpu3._auto_id = s.cpu3_id
-LEFT JOIN _stats_cpu4 ON _stats_cpu4._auto_id = s.cpu4_id
-LEFT JOIN _stats_cpu5 ON _stats_cpu5._auto_id = s.cpu5_id
-LEFT JOIN _stats_cpu6 ON _stats_cpu6._auto_id = s.cpu6_id
-LEFT JOIN _stats_cpu7 ON _stats_cpu7._auto_id = s.cpu7_id
+  coalesce(suspended, FALSE) AS suspended
+FROM _idle_freq_l3_hit_l3_miss_slice AS s
+JOIN _stats_cpu0
+  ON _stats_cpu0._auto_id = s.cpu0_id
+JOIN _stats_cpu1
+  ON _stats_cpu1._auto_id = s.cpu1_id
+JOIN _stats_cpu2
+  ON _stats_cpu2._auto_id = s.cpu2_id
+JOIN _stats_cpu3
+  ON _stats_cpu3._auto_id = s.cpu3_id
+LEFT JOIN _stats_cpu4
+  ON _stats_cpu4._auto_id = s.cpu4_id
+LEFT JOIN _stats_cpu5
+  ON _stats_cpu5._auto_id = s.cpu5_id
+LEFT JOIN _stats_cpu6
+  ON _stats_cpu6._auto_id = s.cpu6_id
+LEFT JOIN _stats_cpu7
+  ON _stats_cpu7._auto_id = s.cpu7_id
 -- Needs to be at least 1us to reduce inconsequential rows.
-WHERE s.dur > time_from_us(1);
+WHERE
+  s.dur > time_from_us(1);

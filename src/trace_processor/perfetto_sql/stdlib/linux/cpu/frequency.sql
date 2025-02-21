@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 
 -- Counter information for each frequency change for each CPU. Finds each time
 -- region where a CPU frequency is constant.
-CREATE PERFETTO TABLE cpu_frequency_counters(
+CREATE PERFETTO TABLE cpu_frequency_counters (
   -- Counter id.
   id LONG,
   -- Joinable with 'counter_track.id'.
@@ -39,7 +39,7 @@ SELECT
   count_w_dur.track_id,
   count_w_dur.ts,
   count_w_dur.dur,
-  cast_int!(count_w_dur.value) as freq,
+  cast_int!(count_w_dur.value) AS freq,
   cpu.ucpu,
   cct.cpu
 FROM counter_leading_intervals!((
@@ -47,7 +47,8 @@ FROM counter_leading_intervals!((
   FROM counter c
   JOIN cpu_counter_track cct
   ON cct.id = c.track_id AND cct.name = 'cpufreq'
-)) count_w_dur
-JOIN cpu_counter_track cct ON track_id = cct.id
-JOIN cpu ON cct.machine_id IS cpu.machine_id
-  AND cct.cpu = cpu.cpu;
+)) AS count_w_dur
+JOIN cpu_counter_track AS cct
+  ON track_id = cct.id
+JOIN cpu
+  ON cct.machine_id IS cpu.machine_id AND cct.cpu = cpu.cpu;

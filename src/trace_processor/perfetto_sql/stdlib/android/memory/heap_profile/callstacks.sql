@@ -16,21 +16,22 @@
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
 CREATE PERFETTO MACRO _android_heap_profile_callstacks_for_allocations(
-  allocations TableOrSubquery
+    allocations TableOrSubquery
 )
-RETURNS TableOrSubquery
-AS
+RETURNS TableOrSubquery AS
 (
-  WITH metrics AS MATERIALIZED (
-    SELECT
-    callsite_id,
-    SUM(size) AS self_size,
-    SUM(count) AS self_count,
-    SUM(alloc_size) AS self_alloc_size,
-    SUM(alloc_count) AS self_alloc_count
-    FROM $allocations
-    GROUP BY callsite_id
-  )
+  WITH
+    metrics AS MATERIALIZED (
+      SELECT
+        callsite_id,
+        sum(size) AS self_size,
+        sum(count) AS self_count,
+        sum(alloc_size) AS self_alloc_size,
+        sum(alloc_count) AS self_alloc_count
+      FROM $allocations
+      GROUP BY
+        callsite_id
+    )
   SELECT
     c.id,
     c.parent_id,
@@ -38,10 +39,11 @@ AS
     c.mapping_name,
     c.source_file,
     c.line_number,
-    IFNULL(m.self_size, 0) AS self_size,
-    IFNULL(m.self_count, 0) AS self_count,
-    IFNULL(m.self_alloc_size, 0) AS self_alloc_size,
-    IFNULL(m.self_alloc_count, 0) AS self_alloc_count
-  FROM _callstacks_for_stack_profile_samples!(metrics) c
-  LEFT JOIN metrics m USING (callsite_id)
+    coalesce(m.self_size, 0) AS self_size,
+    coalesce(m.self_count, 0) AS self_count,
+    coalesce(m.self_alloc_size, 0) AS self_alloc_size,
+    coalesce(m.self_alloc_count, 0) AS self_alloc_count
+  FROM _callstacks_for_stack_profile_samples!(metrics) AS c
+  LEFT JOIN metrics AS m
+    USING (callsite_id)
 );

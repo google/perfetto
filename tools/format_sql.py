@@ -13,12 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import sys
 from pathlib import Path
 import argparse
 import re
-from typing import List, Union
+from typing import Dict, List, Tuple, Union
 import typing as t
 
 # Add sqlglot from buildtools to the Python path
@@ -200,6 +199,20 @@ class Perfetto(SQLite):
 
     def return_property(self, expression: exp.ReturnsProperty) -> str:
       return f"RETURNS {self.sql(expression, 'this')}"
+
+    # https://www.sqlite.org/lang_aggfunc.html#group_concat
+    def groupconcat_sql(self, expression: exp.GroupConcat) -> str:
+      this = expression.this
+      distinct = expression.find(exp.Distinct)
+
+      if distinct:
+        this = distinct.expressions[0]
+        distinct_sql = "DISTINCT "
+      else:
+        distinct_sql = ""
+
+      separator = expression.args.get("separator")
+      return f"GROUP_CONCAT({distinct_sql}{self.format_args(this, separator)})"
 
   class Parser(SQLite.Parser):
     STATEMENT_PARSERS = {
@@ -414,7 +427,7 @@ class Perfetto(SQLite):
       return self.expression(exp.Not, this=this) if negate else this
 
 
-def preprocess_macros(sql: str) -> tuple[str, list[tuple[str, str]]]:
+def preprocess_macros(sql: str) -> Tuple[str, List[Tuple[str, str]]]:
   """Convert macro calls to placeholders for sqlglot parsing.
 
   Args:
@@ -446,7 +459,7 @@ def preprocess_macros(sql: str) -> tuple[str, list[tuple[str, str]]]:
   return result, macros
 
 
-def postprocess_macros(sql: str, macros: list[tuple[str, str]]) -> str:
+def postprocess_macros(sql: str, macros: List[Tuple[str, str]]) -> str:
   """Restore macro calls from their placeholders.
 
   Args:
@@ -462,7 +475,7 @@ def postprocess_macros(sql: str, macros: list[tuple[str, str]]) -> str:
   return result
 
 
-def extract_comment_blocks(sql: str) -> tuple[str, dict[str, str]]:
+def extract_comment_blocks(sql: str) -> Tuple[str, Dict[str, str]]:
   """Extract comment blocks from SQL and replace with placeholders.
 
   A comment block is defined as one or more comment lines (starting with --)
@@ -507,7 +520,7 @@ def extract_comment_blocks(sql: str) -> tuple[str, dict[str, str]]:
   return '\n'.join(result).strip(), blocks
 
 
-def restore_comment_blocks(sql: str, blocks: dict[str, str]) -> str:
+def restore_comment_blocks(sql: str, blocks: Dict[str, str]) -> str:
   """Restore comment blocks from their placeholders.
 
   Args:

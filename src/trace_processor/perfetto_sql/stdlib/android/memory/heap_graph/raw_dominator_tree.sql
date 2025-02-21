@@ -14,6 +14,7 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.excluded_refs;
+
 INCLUDE PERFETTO MODULE graphs.dominator_tree;
 
 -- The assigned id of the "super root".
@@ -23,19 +24,17 @@ INCLUDE PERFETTO MODULE graphs.dominator_tree;
 CREATE PERFETTO FUNCTION _heap_graph_super_root_fn()
 -- The assigned id of the "super root".
 RETURNS LONG AS
-SELECT id + 1
+SELECT
+  id + 1
 FROM heap_graph_object
-ORDER BY id DESC
+ORDER BY
+  id DESC
 LIMIT 1;
 
 CREATE PERFETTO TABLE _raw_heap_graph_dominator_tree AS
 SELECT
   node_id AS id,
-  iif(
-    dominator_node_id = _heap_graph_super_root_fn(),
-    null,
-    dominator_node_id
-  ) as idom_id
+  iif(dominator_node_id = _heap_graph_super_root_fn(), NULL, dominator_node_id) AS idom_id
 FROM graph_dominator_tree!(
   (
     SELECT
@@ -56,5 +55,7 @@ FROM graph_dominator_tree!(
   (SELECT _heap_graph_super_root_fn())
 )
 -- Excluding the imaginary root.
-WHERE dominator_node_id IS NOT NULL
-ORDER BY id;
+WHERE
+  dominator_node_id IS NOT NULL
+ORDER BY
+  id;

@@ -14,5 +14,6 @@
 -- limitations under the License.
 
 CREATE PERFETTO TABLE _counter_track_summary AS
-SELECT DISTINCT track_id as id
+SELECT DISTINCT
+  track_id AS id
 FROM counter;

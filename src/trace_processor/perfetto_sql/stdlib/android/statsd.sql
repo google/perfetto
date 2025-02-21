@@ -17,7 +17,7 @@
 -- Statsd atoms.
 --
 -- A subset of the slice table containing statsd atom instant events.
-CREATE PERFETTO VIEW android_statsd_atoms(
+CREATE PERFETTO VIEW android_statsd_atoms (
   -- Unique identifier for this slice.
   id LONG,
   -- The timestamp at the start of the slice.
@@ -66,7 +66,8 @@ SELECT
   slice.thread_ts AS thread_ts,
   slice.thread_dur AS thread_dur
 FROM slice
-JOIN track ON slice.track_id = track.id
+JOIN track
+  ON slice.track_id = track.id
 WHERE
   track.name = 'Statsd Atoms';
 
@@ -75,15 +76,15 @@ WHERE
 --
 -- This requires the `android.statsd` data-source to be enabled and the
 -- `ATOM_PERFETTO_TRIGGER` push atom to be configured.
-CREATE PERFETTO TABLE _android_statsd_perfetto_triggers(
+CREATE PERFETTO TABLE _android_statsd_perfetto_triggers (
   -- Timestamp of the trigger.
   ts TIMESTAMP,
   -- The name of the trigger.
   trigger_name STRING
-)
-AS
+) AS
 SELECT
   ts,
   extract_arg(arg_set_id, 'perfetto_trigger.trigger_name') AS trigger_name
 FROM android_statsd_atoms
-WHERE name = 'perfetto_trigger';
+WHERE
+  name = 'perfetto_trigger';
