@@ -90,7 +90,7 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
         state: sqlTableViewState,
         addColumnMenuItems: (_, columnAlias) => {
           const chartAttrs = {
-            data: sqlTableViewState.nonPaginatedData?.rows,
+            data: this.viewSource?.data,
             columns: [columnAlias],
           };
 

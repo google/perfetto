@@ -15,49 +15,8 @@ import m from 'mithril';
 import {Row} from '../../../trace_processor/query_result';
 import {Histogram} from './histogram';
 import {Item, SignalValue} from 'vega';
-import {
-  VegaEventType,
-  VegaLiteAggregationOps,
-  VegaLiteFieldType,
-  VegaLiteSelectionTypes,
-} from '../vega_view';
+import {VegaLiteAggregationOps, VegaLiteFieldType} from '../vega_view';
 import {BarChart} from './bar_chart';
-
-export interface VegaLiteChartSpec {
-  $schema: string;
-  width: string | number;
-  mark:
-    | 'area'
-    | 'bar'
-    | 'circle'
-    | 'line'
-    | 'point'
-    | 'rect'
-    | 'rule'
-    | 'square'
-    | 'text'
-    | 'tick'
-    | 'geoshape'
-    | 'boxplot'
-    | 'errorband'
-    | 'errorbar';
-  data: {values?: string | Row[]};
-  encoding: {
-    x: {[key: string]: unknown};
-    y: {[key: string]: unknown};
-  };
-  params?: {
-    name: VegaLiteSelectionTypes;
-    select: {
-      type: VegaLiteSelectionTypes;
-      encodings?: [string];
-      fields?: [string];
-      on?: VegaEventType;
-      clear?: VegaEventType | boolean;
-      resolve?: string;
-    };
-  }[];
-}
 
 export interface ChartAttrs {
   readonly chartType: ChartType;
