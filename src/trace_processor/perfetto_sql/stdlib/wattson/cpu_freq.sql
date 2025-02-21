@@ -14,37 +14,44 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE linux.cpu.frequency;
+
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
 CREATE PERFETTO TABLE _adjusted_cpu_freq AS
-  WITH _cpu_freq AS (
+WITH
+  _cpu_freq AS (
     SELECT
       ts,
       dur,
       freq,
-      cf.ucpu as cpu,
+      cf.ucpu AS cpu,
       d_map.policy
-    FROM cpu_frequency_counters as cf
-    JOIN _dev_cpu_policy_map as d_map
-    ON cf.ucpu = d_map.cpu
+    FROM cpu_frequency_counters AS cf
+    JOIN _dev_cpu_policy_map AS d_map
+      ON cf.ucpu = d_map.cpu
   ),
   -- Get first freq transition per CPU
   first_cpu_freq_slices AS (
-    SELECT MIN(ts) as ts, cpu
+    SELECT
+      min(ts) AS ts,
+      cpu
     FROM _cpu_freq
-    GROUP BY cpu
+    GROUP BY
+      cpu
   )
 -- Prepend NULL slices up to first freq events on a per CPU basis
 SELECT
   -- Construct slices from first cpu ts up to first freq event for each cpu
-  trace_start() as ts,
-  first_slices.ts - trace_start() as dur,
-  NULL as freq,
+  trace_start() AS ts,
+  first_slices.ts - trace_start() AS dur,
+  NULL AS freq,
   first_slices.cpu,
   d_map.policy
-FROM first_cpu_freq_slices as first_slices
-JOIN _dev_cpu_policy_map as d_map ON first_slices.cpu = d_map.cpu
-WHERE dur > 0
+FROM first_cpu_freq_slices AS first_slices
+JOIN _dev_cpu_policy_map AS d_map
+  ON first_slices.cpu = d_map.cpu
+WHERE
+  dur > 0
 UNION ALL
 SELECT
   ts,
@@ -58,10 +65,15 @@ UNION ALL
 -- have a single freq event register. The time region needs to be defined so
 -- that interval_intersect doesn't remove the undefined time region.
 SELECT
-  trace_start() as ts,
-  trace_dur() as dur,
-  NULL as freq,
+  trace_start() AS ts,
+  trace_dur() AS dur,
+  NULL AS freq,
   cpu,
-  NULL as policy
+  NULL AS policy
 FROM _dev_cpu_policy_map
-WHERE cpu NOT IN (SELECT cpu FROM first_cpu_freq_slices);
+WHERE
+  NOT cpu IN (
+    SELECT
+      cpu
+    FROM first_cpu_freq_slices
+  );

@@ -17,7 +17,7 @@
 -- `thread_slice` and `process_slice`, this view contains all slices,
 -- with thread- and process-related columns set to NULL if the slice
 -- is not associated with a thread or a process.
-CREATE PERFETTO VIEW _slice_with_thread_and_process_info(
+CREATE PERFETTO VIEW _slice_with_thread_and_process_info (
   -- Slice
   id JOINID(slice.id),
   -- Alias for `slice.ts`.
@@ -66,18 +66,24 @@ SELECT
   thread.name AS thread_name,
   thread.utid,
   thread.tid,
-  COALESCE(process1.name, process2.name) AS process_name,
-  COALESCE(process1.upid, process2.upid) AS upid,
-  COALESCE(process1.pid, process2.pid) AS pid,
+  coalesce(process1.name, process2.name) AS process_name,
+  coalesce(process1.upid, process2.upid) AS upid,
+  coalesce(process1.pid, process2.pid) AS pid,
   slice.depth,
   slice.parent_id,
   slice.arg_set_id,
   slice.thread_ts,
   slice.thread_dur
 FROM slice
-JOIN track ON slice.track_id = track.id
-LEFT JOIN thread_track ON slice.track_id = thread_track.id
-LEFT JOIN thread USING (utid)
-LEFT JOIN process process1 ON thread.upid = process1.upid
-LEFT JOIN process_track ON slice.track_id = process_track.id
-LEFT JOIN process process2 ON process_track.upid = process2.upid;
+JOIN track
+  ON slice.track_id = track.id
+LEFT JOIN thread_track
+  ON slice.track_id = thread_track.id
+LEFT JOIN thread
+  USING (utid)
+LEFT JOIN process AS process1
+  ON thread.upid = process1.upid
+LEFT JOIN process_track
+  ON slice.track_id = process_track.id
+LEFT JOIN process AS process2
+  ON process_track.upid = process2.upid;

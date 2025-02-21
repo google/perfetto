@@ -44,18 +44,17 @@ CREATE PERFETTO TABLE android_job_scheduler_events (
   ts TIMESTAMP,
   -- Duration of the scheduled job.
   dur DURATION
-  ) AS
+) AS
 SELECT
   cast_int!(STR_SPLIT(slice.name, '#', 1)) AS job_id,
   cast_int!(STR_SPLIT(STR_SPLIT(slice.name, '<', 1), '>', 0)) AS uid,
-  STR_SPLIT(STR_SPLIT(slice.name, '>', 1), '/', 0) AS package_name,
-  STR_SPLIT(STR_SPLIT(slice.name, '/', 1), '#', 0) AS job_service_name,
+  str_split(str_split(slice.name, '>', 1), '/', 0) AS package_name,
+  str_split(str_split(slice.name, '/', 1), '#', 0) AS job_service_name,
   track_id,
   slice.id,
   slice.ts,
-  IIF(slice.dur = -1, trace_end() - slice.ts, slice.dur) AS dur
-FROM
-  slice
+  iif(slice.dur = -1, trace_end() - slice.ts, slice.dur) AS dur
+FROM slice
 JOIN process_track
   ON slice.track_id = process_track.id
 JOIN process

@@ -19,72 +19,84 @@ INCLUDE PERFETTO MODULE slices.with_context;
 -- "Choreographer#doFrame" and "DrawFrame". Tries to guess the `ts` and `dur`
 -- of the frame by first guessing which "DrawFrame" slices are related to which
 -- "Choreographer#doSlice".
-CREATE PERFETTO TABLE _frames_maxsdk_28(
-    -- Frame id. Created manually starting from 0.
-    frame_id LONG,
-    -- Timestamp of the frame. Start of "Choreographer#doFrame" slice.
-    ts TIMESTAMP,
-    -- Duration of the frame, defined as the duration until the last
-    -- "DrawFrame" of this frame finishes.
-    dur DURATION,
-    -- Slice with name "Choreographer#doFrame" corresponding to this frame.
-    do_frame_id JOINID(slice.id),
-    -- Slice with name "DrawFrame" corresponding to this frame. Fetched as one
-    -- of the "DrawFrame" slices that happen for the same process as
-    -- "Choreographer#doFrame" slice and start after it started and before the
-    -- next "doFrame" started.
-    draw_frame_id JOINID(slice.id),
-    -- `utid` of the render thread.
-    render_thread_utid JOINID(thread.id),
-    -- `utid` of the UI thread.
-    ui_thread_utid JOINID(thread.id),
-    -- "maxsdk28"
-    sdk STRING,
-    -- process id.
-    upid JOINID(process.id),
-    -- process name.
-    process_name STRING
+CREATE PERFETTO TABLE _frames_maxsdk_28 (
+  -- Frame id. Created manually starting from 0.
+  frame_id LONG,
+  -- Timestamp of the frame. Start of "Choreographer#doFrame" slice.
+  ts TIMESTAMP,
+  -- Duration of the frame, defined as the duration until the last
+  -- "DrawFrame" of this frame finishes.
+  dur DURATION,
+  -- Slice with name "Choreographer#doFrame" corresponding to this frame.
+  do_frame_id JOINID(slice.id),
+  -- Slice with name "DrawFrame" corresponding to this frame. Fetched as one
+  -- of the "DrawFrame" slices that happen for the same process as
+  -- "Choreographer#doFrame" slice and start after it started and before the
+  -- next "doFrame" started.
+  draw_frame_id JOINID(slice.id),
+  -- `utid` of the render thread.
+  render_thread_utid JOINID(thread.id),
+  -- `utid` of the UI thread.
+  ui_thread_utid JOINID(thread.id),
+  -- "maxsdk28"
+  sdk STRING,
+  -- process id.
+  upid JOINID(process.id),
+  -- process name.
+  process_name STRING
 ) AS
-WITH choreographer AS (
-  SELECT id
-  FROM slice
-  WHERE name = 'Choreographer#doFrame'
-),
-do_frames AS (
+WITH
+  choreographer AS (
     SELECT
-        id,
-        ts,
-        LEAD(ts, 1, TRACE_END()) OVER (PARTITION BY upid ORDER BY ts) AS next_do_frame,
-        utid,
-        upid
+      id
+    FROM slice
+    WHERE
+      name = 'Choreographer#doFrame'
+  ),
+  do_frames AS (
+    SELECT
+      id,
+      ts,
+      lead(ts, 1, trace_end()) OVER (PARTITION BY upid ORDER BY ts) AS next_do_frame,
+      utid,
+      upid
     FROM choreographer
-    JOIN thread_slice USING (id)
-    WHERE is_main_thread = 1
-    ORDER BY ts
-),
-draw_frames AS (
+    JOIN thread_slice
+      USING (id)
+    WHERE
+      is_main_thread = 1
+    ORDER BY
+      ts
+  ),
+  draw_frames AS (
     SELECT
-        id,
-        ts,
-        dur,
-        ts + dur AS ts_end,
-        utid,
-        upid
+      id,
+      ts,
+      dur,
+      ts + dur AS ts_end,
+      utid,
+      upid
     FROM thread_slice
-    WHERE name = 'DrawFrame'
-)
+    WHERE
+      name = 'DrawFrame'
+  )
 SELECT
-  ROW_NUMBER() OVER () AS frame_id,
+  row_number() OVER () AS frame_id,
   do.ts,
-  MAX(draw.ts_end) OVER (PARTITION BY do.id) - do.ts AS dur,
+  max(draw.ts_end) OVER (PARTITION BY do.id) - do.ts AS dur,
   do.id AS do_frame_id,
   draw.id AS draw_frame_id,
   draw.utid AS render_thread_utid,
   do.utid AS ui_thread_utid,
-  do.upid as upid,
-  process.name as process_name,
+  do.upid AS upid,
+  process.name AS process_name,
   "maxsdk28" AS sdk
-FROM do_frames do
-JOIN draw_frames draw ON (do.upid = draw.upid AND draw.ts >= do.ts AND draw.ts < next_do_frame)
-JOIN process USING(upid)
-ORDER BY do.ts;
+FROM do_frames AS do
+JOIN draw_frames AS draw
+  ON (
+    do.upid = draw.upid AND draw.ts >= do.ts AND draw.ts < next_do_frame
+  )
+JOIN process
+  USING (upid)
+ORDER BY
+  do.ts;

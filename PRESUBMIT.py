@@ -88,6 +88,7 @@ def CheckChange(input, output):
   results += RunAndReportIfLong(CheckAmalgamatedPythonTools, input, output)
   results += RunAndReportIfLong(CheckChromeStdlib, input, output)
   results += RunAndReportIfLong(CheckAbsolutePathsInGn, input, output)
+  results += RunAndReportIfLong(CheckStdlibFormatting, input, output)
   return results
 
 
@@ -492,3 +493,22 @@ def CheckAbsolutePathsInGn(input_api, output_api):
           'Use relative paths in GN rather than absolute:\n' +
           '\n'.join(error_lines))
   ]
+
+
+def CheckStdlibFormatting(input_api, output_api):
+  tool = 'tools/format_stdlib'
+
+  # If no GN files were modified, bail out.
+  def build_file_filter(x):
+    return input_api.FilterSourceFile(
+        x, files_to_check=('src/trace_processor/perfetto_sql/stdlib/.*$', tool))
+
+  if not input_api.AffectedSourceFiles(build_file_filter):
+    return []
+  if subprocess.call([tool, '--check-only']):
+    return [
+        output_api.PresubmitError(
+            'PerfettoSQL stdlib is not formatted correctly. ' + 'Run ' + tool +
+            ' to format it.')
+    ]
+  return []

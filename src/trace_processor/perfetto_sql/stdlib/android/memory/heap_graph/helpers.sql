@@ -21,10 +21,15 @@ INCLUDE PERFETTO MODULE graphs.scan;
 --
 -- This allows an SQL aggregation of all nodes which have the same hash to
 -- build a "class-tree" instead of the object tree.
-CREATE PERFETTO MACRO _heap_graph_type_path_hash(tab TableOrSubquery)
-RETURNS TableOrSubquery
-AS (
-  SELECT id, path_hash, parent_path_hash
+CREATE PERFETTO MACRO _heap_graph_type_path_hash(
+    tab TableOrSubquery
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT
+    id,
+    path_hash,
+    parent_path_hash
   FROM _graph_scan!(
     (
       SELECT parent_id AS source_node_id, id AS dest_node_id
@@ -66,47 +71,56 @@ AS (
       JOIN heap_graph_object o USING (id)
     )
   )
-  ORDER BY id
+  ORDER BY
+    id
 );
 
 -- Given a table containing heap graph tree-table with path hashes computed
 -- (see _heap_graph_type_path_hash macro), aggregates together all nodes
 -- with the same hash and also splits out "native size" as a separate node under
 -- the nodes which contain the native size.
-CREATE PERFETTO MACRO _heap_graph_path_hash_aggregate(tab TableOrSubquery)
-RETURNS TableOrSubquery
-AS (
-  with x AS (
-    SELECT
-      o.graph_sample_ts,
-      o.upid,
-      path_hash,
-      parent_path_hash,
-      COALESCE(c.deobfuscated_name, c.name) AS name,
-      o.root_type,
-      o.heap_type,
-      COUNT() AS self_count,
-      SUM(o.self_size) AS self_size,
-      SUM(o.native_size > 0) AS self_native_count,
-      SUM(o.native_size) AS self_native_size
-    FROM $tab
-    JOIN heap_graph_object o USING (id)
-    JOIN heap_graph_class c ON o.type_id = c.id
-    GROUP BY path_hash
-  )
+CREATE PERFETTO MACRO _heap_graph_path_hash_aggregate(
+    tab TableOrSubquery
+)
+RETURNS TableOrSubquery AS
+(
+  WITH
+    x AS (
+      SELECT
+        o.graph_sample_ts,
+        o.upid,
+        path_hash,
+        parent_path_hash,
+        coalesce(c.deobfuscated_name, c.name) AS name,
+        o.root_type,
+        o.heap_type,
+        count() AS self_count,
+        sum(o.self_size) AS self_size,
+        sum(o.native_size > 0) AS self_native_count,
+        sum(o.native_size) AS self_native_size
+      FROM $tab
+      JOIN heap_graph_object AS o
+        USING (id)
+      JOIN heap_graph_class AS c
+        ON o.type_id = c.id
+      GROUP BY
+        path_hash
+    )
   SELECT
     graph_sample_ts,
     upid,
-    HASH(path_hash, 'native', '') AS path_hash,
+    hash(path_hash, 'native', '') AS path_hash,
     path_hash AS parent_path_hash,
     '[native] ' || x.name AS name,
     root_type,
     'native' AS heap_type,
-    SUM(x.self_native_count) AS self_count,
-    SUM(x.self_native_size) AS self_size
+    sum(x.self_native_count) AS self_count,
+    sum(x.self_native_size) AS self_size
   FROM x
-  WHERE x.self_native_size > 0
-  GROUP BY path_hash
+  WHERE
+    x.self_native_size > 0
+  GROUP BY
+    path_hash
   UNION ALL
   SELECT
     graph_sample_ts,
@@ -119,7 +133,8 @@ AS (
     self_count,
     self_size
   FROM x
-  ORDER BY path_hash
+  ORDER BY
+    path_hash
 );
 
 -- Given a table containing heap graph tree-table aggregated by path hashes
@@ -128,23 +143,28 @@ AS (
 --
 -- Note that |tab| *must* be a Perfetto (e.g. not a subquery) for this macro
 -- to work.
-CREATE PERFETTO MACRO _heap_graph_path_hashes_to_class_tree(tab TableOrSubquery)
-RETURNS TableOrSubquery
-AS (
+CREATE PERFETTO MACRO _heap_graph_path_hashes_to_class_tree(
+    tab TableOrSubquery
+)
+RETURNS TableOrSubquery AS
+(
   SELECT
     graph_sample_ts,
     upid,
     _auto_id AS id,
     (
-      SELECT p._auto_id
-      FROM $tab p
-      WHERE c.parent_path_hash = p.path_hash
+      SELECT
+        p._auto_id
+      FROM $tab AS p
+      WHERE
+        c.parent_path_hash = p.path_hash
     ) AS parent_id,
     name,
     root_type,
     heap_type,
     self_count,
     self_size
-  FROM $tab c
-  ORDER BY id
+  FROM $tab AS c
+  ORDER BY
+    id
 );

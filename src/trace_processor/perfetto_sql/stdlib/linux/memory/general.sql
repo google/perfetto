@@ -16,15 +16,23 @@
 CREATE PERFETTO VIEW _all_counters_per_process AS
 SELECT
   ts,
-  LEAD(
-    ts, 1,
-    (SELECT COALESCE(end_ts, trace_end())
-    FROM process p WHERE p.upid = t.upid) + 1)
-    OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
+  lead(
+    ts,
+    1,
+    (
+      SELECT
+        coalesce(end_ts, trace_end())
+      FROM process AS p
+      WHERE
+        p.upid = t.upid
+    ) + 1
+  ) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
   upid,
   value,
   track_id,
   name
-FROM counter c JOIN process_counter_track t
-ON t.id = c.track_id
-WHERE upid IS NOT NULL;
+FROM counter AS c
+JOIN process_counter_track AS t
+  ON t.id = c.track_id
+WHERE
+  upid IS NOT NULL;

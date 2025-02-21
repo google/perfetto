@@ -22,15 +22,16 @@ INCLUDE PERFETTO MODULE graphs.search;
 -- are not rebuilt when the new data is loaded), so the interested parties should remember to import
 -- this module.
 CREATE PERFETTO INDEX flow_in ON flow(slice_in);
+
 CREATE PERFETTO INDEX flow_out ON flow(slice_out);
 
 -- Computes the "reachable" set of slices from the |flows| table, starting from slice ids
 -- specified in |source_table|. This provides a more efficient result than with the in-built
 -- following_flow operator.
 CREATE PERFETTO MACRO _slice_following_flow(
-  -- A table/view/subquery corresponding to the nodes to start the reachability search.
-  -- This table must have a uint32 "id" column.
-  source_table TableOrSubquery
+    -- A table/view/subquery corresponding to the nodes to start the reachability search.
+    -- This table must have a uint32 "id" column.
+    source_table TableOrSubquery
 )
 -- The returned table has the schema (root_node_id, node_id LONG, parent_node_id LONG).
 -- |root_node_id| is the id of the starting node under which this edge was encountered.
@@ -39,9 +40,9 @@ CREATE PERFETTO MACRO _slice_following_flow(
 -- search of the graph.
 RETURNS TableOrSubquery AS
 (
-SELECT *
-FROM
-  graph_reachable_weight_bounded_dfs
+  SELECT
+    *
+  FROM graph_reachable_weight_bounded_dfs
     !((SELECT slice_out AS source_node_id, slice_in AS dest_node_id, 0 AS edge_weight FROM flow),
       (
         SELECT slice_out AS root_node_id, 1 AS root_target_weight

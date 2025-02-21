@@ -14,20 +14,23 @@
 -- limitations under the License.
 
 CREATE PERFETTO TABLE _ref_type_ids AS
-SELECT id AS type_id
+SELECT
+  id AS type_id
 FROM heap_graph_class
-WHERE kind IN (
-  'KIND_FINALIZER_REFERENCE',
-  'KIND_PHANTOM_REFERENCE',
-  'KIND_SOFT_REFERENCE',
-  'KIND_WEAK_REFERENCE'
-)
-ORDER BY type_id;
+WHERE
+  kind IN ('KIND_FINALIZER_REFERENCE', 'KIND_PHANTOM_REFERENCE', 'KIND_SOFT_REFERENCE', 'KIND_WEAK_REFERENCE')
+ORDER BY
+  type_id;
 
 CREATE PERFETTO TABLE _excluded_refs AS
-SELECT ref.id
-FROM heap_graph_reference ref
-CROSS JOIN heap_graph_object robj USING (reference_set_id)
-CROSS JOIN _ref_type_ids USING (type_id)
-WHERE ref.field_name = 'java.lang.ref.Reference.referent'
-ORDER BY ref.id;
+SELECT
+  ref.id
+FROM heap_graph_reference AS ref
+CROSS JOIN heap_graph_object AS robj
+  USING (reference_set_id)
+CROSS JOIN _ref_type_ids
+  USING (type_id)
+WHERE
+  ref.field_name = 'java.lang.ref.Reference.referent'
+ORDER BY
+  ref.id;

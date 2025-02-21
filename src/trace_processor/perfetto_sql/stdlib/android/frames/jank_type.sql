@@ -15,24 +15,26 @@
 
 -- Categorizes whether the jank was caused by Surface Flinger
 CREATE PERFETTO FUNCTION android_is_sf_jank_type(
-  -- the jank type
-  -- from args.display_value with key = "Jank type"
-  jank_type STRING)
+    -- the jank type
+    -- from args.display_value with key = "Jank type"
+    jank_type STRING
+)
 -- True when the jank type represents sf jank
 RETURNS BOOL AS
 SELECT
-       $jank_type GLOB '*SurfaceFlinger CPU Deadline Missed*'
-    OR $jank_type GLOB '*SurfaceFlinger GPU Deadline Missed*'
-    OR $jank_type GLOB '*SurfaceFlinger Scheduling*'
-    OR $jank_type GLOB '*Prediction Error*'
-    OR $jank_type GLOB '*Display HAL*';
-
+  $jank_type GLOB '*SurfaceFlinger CPU Deadline Missed*'
+  OR $jank_type GLOB '*SurfaceFlinger GPU Deadline Missed*'
+  OR $jank_type GLOB '*SurfaceFlinger Scheduling*'
+  OR $jank_type GLOB '*Prediction Error*'
+  OR $jank_type GLOB '*Display HAL*';
 
 -- Categorizes whether the jank was caused by the app
 CREATE PERFETTO FUNCTION android_is_app_jank_type(
-  -- the jank type
-  -- from args.display_value with key = "Jank type"
-  jank_type STRING)
+    -- the jank type
+    -- from args.display_value with key = "Jank type"
+    jank_type STRING
+)
 -- True when the jank type represents app jank
 RETURNS BOOL AS
-SELECT $jank_type GLOB '*App Deadline Missed*';
+SELECT
+  $jank_type GLOB '*App Deadline Missed*';

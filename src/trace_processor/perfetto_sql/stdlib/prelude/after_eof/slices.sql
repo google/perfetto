@@ -17,18 +17,19 @@ INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Given two slice ids, returns whether the first is an ancestor of the second.
 CREATE PERFETTO FUNCTION slice_is_ancestor(
-  -- Id of the potential ancestor slice.
-  ancestor_id LONG,
-  -- Id of the potential descendant slice.
-  descendant_id LONG
+    -- Id of the potential ancestor slice.
+    ancestor_id LONG,
+    -- Id of the potential descendant slice.
+    descendant_id LONG
 )
 -- Whether `ancestor_id` slice is an ancestor of `descendant_id`.
 RETURNS BOOL AS
 SELECT
-  ancestor.track_id = descendant.track_id AND
-  ancestor.ts <= descendant.ts AND
-  (ancestor.dur == -1 OR ancestor.ts + ancestor.dur >= descendant.ts + descendant.dur)
-FROM slice ancestor
-JOIN slice descendant
-WHERE ancestor.id = $ancestor_id
-  AND descendant.id = $descendant_id;
+  ancestor.track_id = descendant.track_id
+  AND ancestor.ts <= descendant.ts
+  AND (
+    ancestor.dur = -1 OR ancestor.ts + ancestor.dur >= descendant.ts + descendant.dur
+  )
+FROM slice AS ancestor, slice AS descendant
+WHERE
+  ancestor.id = $ancestor_id AND descendant.id = $descendant_id;
