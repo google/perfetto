@@ -22,11 +22,15 @@ try:
   HAS_PANDAS = True
 except ModuleNotFoundError:
   HAS_PANDAS = False
+except ImportError:
+  HAS_PANDAS = False
 
 try:
   import numpy as np
   HAS_NUMPY = True
 except ModuleNotFoundError:
+  HAS_NUMPY = False
+except ImportError:
   HAS_NUMPY = False
 
 # Values of these constants correspond to the QueryResponse message at
