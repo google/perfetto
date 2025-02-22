@@ -116,11 +116,13 @@ class SqliteTokenizer {
   void Reset(SqlSource source) {
     source_ = std::move(source);
     offset_ = 0;
+    last_non_space_token_ = 0;
   }
 
  private:
   SqlSource source_;
   uint32_t offset_ = 0;
+  int last_non_space_token_ = 0;
 };
 
 }  // namespace perfetto::trace_processor

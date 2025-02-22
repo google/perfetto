@@ -16,9 +16,10 @@
 
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 
-#include <algorithm>
 #include <cctype>
-#include <functional>
+#include <cstdio>
+#include <cstdlib>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,665 +30,376 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
+#include "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar_interface.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
+
 namespace {
 
 using Token = SqliteTokenizer::Token;
 using Statement = PerfettoSqlParser::Statement;
 
-enum class State {
-  kDrop,
-  kDropPerfetto,
-  kCreate,
-  kCreateOr,
-  kCreateOrReplace,
-  kCreateOrReplacePerfetto,
-  kCreatePerfetto,
-  kInclude,
-  kIncludePerfetto,
-  kPassthrough,
-  kStmtStart,
-};
-
-bool IsValidModuleWord(const std::string& word) {
-  for (const char& c : word) {
-    if (!std::isalnum(c) && (c != '_') && !std::islower(c)) {
-      return false;
-    }
-  }
-  return true;
+PerfettoSqlToken TokenToPerfettoSqlToken(const Token& token) {
+  return PerfettoSqlToken{token.str.data(), token.str.size()};
 }
 
-bool ValidateModuleName(const std::string& name) {
-  if (name.empty()) {
-    return false;
-  }
-
-  std::vector<std::string> packages = base::SplitString(name, ".");
-
-  // The last part of the path can be a wildcard.
-  if (!packages.empty() && packages.back() == "*") {
-    packages.pop_back();
-  }
-
-  // The rest of the path must be valid words.
-  return std::find_if(packages.begin(), packages.end(),
-                      std::not_fn(IsValidModuleWord)) == packages.end();
+Token PerfettoSqlTokenToToken(const PerfettoSqlToken& token) {
+  return Token{std::string_view(token.ptr, token.n), 0};
 }
 
 }  // namespace
+
+// Grammar interface implementation
+extern "C" {
+
+struct PerfettoSqlParserState {
+  explicit PerfettoSqlParserState(
+      SqlSource source,
+      const base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro>&
+          macros)
+      : tokenizer{SqlSource::FromTraceProcessorImplementation("")},
+        preprocessor(std::move(source), macros) {}
+
+  void ErrorAtToken(const char* msg, const PerfettoSqlToken& token) {
+    status = base::ErrStatus(
+        "%s%s", tokenizer.AsTraceback(PerfettoSqlTokenToToken(token)).c_str(),
+        msg);
+  }
+
+  // Current statement being built
+  std::optional<PerfettoSqlParser::Statement> current_statement;
+
+  // Tokenizer for the current statement
+  SqliteTokenizer tokenizer;
+
+  // Preprocessor for handling SQL statements
+  PerfettoSqlPreprocessor preprocessor;
+
+  // Error handling
+  base::Status status;
+};
+
+struct PerfettoSqlArgumentList {
+  std::vector<sql_argument::ArgumentDefinition> inner;
+};
+
+struct PerfettoSqlIndexedColumnList {
+  std::vector<std::string> cols;
+};
+
+struct PerfettoSqlMacroArgumentList {
+  std::vector<std::pair<SqlSource, SqlSource>> args;
+};
+
+struct PerfettoSqlFnReturnType {
+  bool is_table;
+  sql_argument::Type scalar_type;
+  std::vector<sql_argument::ArgumentDefinition> table_columns;
+};
+
+struct PerfettoSqlTableSchema {
+  std::vector<sql_argument::ArgumentDefinition> columns;
+  std::string description;
+};
+
+PerfettoSqlArgumentList* OnPerfettoSqlCreateOrAppendArgument(
+    PerfettoSqlParserState* state,
+    PerfettoSqlArgumentList* list,
+    PerfettoSqlToken* name,
+    PerfettoSqlToken* type) {
+  std::unique_ptr<PerfettoSqlArgumentList> owned_list(list);
+  if (!owned_list) {
+    owned_list = std::make_unique<PerfettoSqlArgumentList>();
+  }
+  auto parsed = sql_argument::ParseType(base::StringView(type->ptr, type->n));
+  if (!parsed) {
+    state->ErrorAtToken("Failed to parse type", *type);
+    return nullptr;
+  }
+  owned_list->inner.emplace_back("$" + std::string(name->ptr, name->n),
+                                 *parsed);
+  return owned_list.release();
+}
+
+void OnPerfettoSqlFreeArgumentList(PerfettoSqlArgumentList* args) {
+  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
+}
+
+PerfettoSqlIndexedColumnList* OnPerfettoSqlCreateOrAppendIndexedColumn(
+    PerfettoSqlIndexedColumnList* list,
+    PerfettoSqlToken* col) {
+  std::unique_ptr<PerfettoSqlIndexedColumnList> owned_list(list);
+  if (!owned_list) {
+    owned_list = std::make_unique<PerfettoSqlIndexedColumnList>();
+  }
+  owned_list->cols.emplace_back(col->ptr, col->n);
+  return owned_list.release();
+}
+
+void OnPerfettoSqlFreeIndexedColumnList(PerfettoSqlIndexedColumnList* cols) {
+  std::unique_ptr<PerfettoSqlIndexedColumnList> cols_deleter(cols);
+}
+
+PerfettoSqlMacroArgumentList* OnPerfettoSqlCreateOrAppendMacroArgument(
+    PerfettoSqlParserState* state,
+    PerfettoSqlMacroArgumentList* list,
+    PerfettoSqlToken* name,
+    PerfettoSqlToken* type) {
+  std::unique_ptr<PerfettoSqlMacroArgumentList> owned_list(list);
+  if (!owned_list) {
+    owned_list = std::make_unique<PerfettoSqlMacroArgumentList>();
+  }
+  owned_list->args.emplace_back(
+      state->tokenizer.SubstrToken(PerfettoSqlTokenToToken(*name)),
+      state->tokenizer.SubstrToken(PerfettoSqlTokenToToken(*type)));
+  return owned_list.release();
+}
+
+void OnPerfettoSqlFreeMacroArgumentList(PerfettoSqlMacroArgumentList* list) {
+  std::unique_ptr<PerfettoSqlMacroArgumentList> list_deleter(list);
+}
+
+void OnPerfettoSqlSyntaxError(PerfettoSqlParserState* state,
+                              PerfettoSqlToken* token) {
+  if (token->n == 0) {
+    state->ErrorAtToken("incomplete input", *token);
+  } else {
+    state->ErrorAtToken("syntax error", *token);
+  }
+}
+
+PerfettoSqlFnReturnType* OnPerfettoSqlCreateScalarReturnType(
+    PerfettoSqlToken* type) {
+  auto res = std::make_unique<PerfettoSqlFnReturnType>();
+  res->is_table = false;
+  auto parsed = sql_argument::ParseType(base::StringView(type->ptr, type->n));
+  if (!parsed) {
+    return nullptr;
+  }
+  res->scalar_type = *parsed;
+  return res.release();
+}
+
+PerfettoSqlFnReturnType* OnPerfettoSqlCreateTableReturnType(
+    PerfettoSqlArgumentList* args) {
+  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
+  auto res = std::make_unique<PerfettoSqlFnReturnType>();
+  res->is_table = true;
+  res->table_columns = std::move(args->inner);
+  return res.release();
+}
+
+void OnPerfettoSqlFnFreeReturnType(PerfettoSqlFnReturnType* type) {
+  std::unique_ptr<PerfettoSqlFnReturnType> type_deleter(type);
+}
+
+void OnPerfettoSqlCreateFunction(PerfettoSqlParserState* state,
+                                 int replace,
+                                 PerfettoSqlToken* name,
+                                 PerfettoSqlArgumentList* args,
+                                 PerfettoSqlFnReturnType* returns,
+                                 PerfettoSqlToken* body_start,
+                                 PerfettoSqlToken* body_end) {
+  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
+  std::unique_ptr<PerfettoSqlFnReturnType> returns_deleter(returns);
+
+  // Convert the return type
+  PerfettoSqlParser::CreateFunction::Returns returns_res;
+  returns_res.is_table = returns->is_table;
+  if (returns->is_table) {
+    returns_res.table_columns = std::move(returns->table_columns);
+  } else {
+    returns_res.scalar_type = returns->scalar_type;
+  }
+
+  // Create a new CreateFunction statement
+  state->current_statement = PerfettoSqlParser::CreateFunction{
+      replace != 0,
+      FunctionPrototype{
+          std::string(name->ptr, name->n),
+          args ? std::move(args->inner)
+               : std::vector<sql_argument::ArgumentDefinition>{},
+      },
+      std::move(returns_res),
+      state->tokenizer.Substr(PerfettoSqlTokenToToken(*body_start),
+                              PerfettoSqlTokenToToken(*body_end),
+                              SqliteTokenizer::EndToken::kInclusive),
+      "",
+  };
+}
+
+void OnPerfettoSqlCreateTable(PerfettoSqlParserState* state,
+                              int replace,
+                              PerfettoSqlToken* name,
+                              PerfettoSqlArgumentList* args,
+                              PerfettoSqlToken* body_start,
+                              PerfettoSqlToken* body_end) {
+  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
+  state->current_statement = PerfettoSqlParser::CreateTable{
+      replace != 0,
+      std::string(name->ptr, name->n),
+      args ? std::move(args->inner)
+           : std::vector<sql_argument::ArgumentDefinition>{},
+      state->tokenizer.Substr(PerfettoSqlTokenToToken(*body_start),
+                              PerfettoSqlTokenToToken(*body_end)),
+  };
+}
+
+void OnPerfettoSqlCreateView(PerfettoSqlParserState* state,
+                             int replace,
+                             PerfettoSqlToken* create_token,
+                             PerfettoSqlToken* name,
+                             PerfettoSqlArgumentList* args,
+                             PerfettoSqlToken* body_start,
+                             PerfettoSqlToken* body_end) {
+  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
+
+  SqlSource header = SqlSource::FromTraceProcessorImplementation(
+      "CREATE VIEW " + std::string(name->ptr, name->n) + " AS ");
+  SqlSource::Rewriter rewriter(state->preprocessor.statement());
+  state->tokenizer.Rewrite(rewriter, PerfettoSqlTokenToToken(*create_token),
+                           PerfettoSqlTokenToToken(*body_start), header);
+
+  state->current_statement = PerfettoSqlParser::CreateView{
+      replace != 0,
+      std::string(name->ptr, name->n),
+      args ? std::move(args->inner)
+           : std::vector<sql_argument::ArgumentDefinition>(),
+      state->tokenizer.Substr(PerfettoSqlTokenToToken(*body_start),
+                              PerfettoSqlTokenToToken(*body_end)),
+      std::move(rewriter).Build(),
+  };
+}
+
+void OnPerfettoSqlCreateIndex(PerfettoSqlParserState* state,
+                              int replace,
+                              PerfettoSqlToken* create_token,
+                              PerfettoSqlToken* name,
+                              PerfettoSqlToken* table_name,
+                              PerfettoSqlIndexedColumnList* cols) {
+  std::unique_ptr<PerfettoSqlIndexedColumnList> cols_deleter(cols);
+
+  SqlSource header = SqlSource::FromTraceProcessorImplementation(
+      "CREATE INDEX " + std::string(name->ptr, name->n));
+  SqlSource::Rewriter rewriter(state->preprocessor.statement());
+  state->tokenizer.Rewrite(rewriter, PerfettoSqlTokenToToken(*create_token),
+                           PerfettoSqlTokenToToken(*create_token), header,
+                           SqliteTokenizer::EndToken::kExclusive);
+
+  state->current_statement = PerfettoSqlParser::CreateIndex{
+      replace != 0,
+      std::string(name->ptr, name->n),
+      std::string(table_name->ptr, table_name->n),
+      std::move(cols->cols),
+  };
+}
+
+void OnPerfettoSqlDropIndex(PerfettoSqlParserState* state,
+                            PerfettoSqlToken* name,
+                            PerfettoSqlToken* table_name) {
+  state->current_statement = PerfettoSqlParser::DropIndex{
+      std::string(name->ptr, name->n),
+      std::string(table_name->ptr, table_name->n),
+  };
+}
+
+void OnPerfettoSqlCreateMacro(PerfettoSqlParserState* state,
+                              int replace,
+                              PerfettoSqlToken* name,
+                              PerfettoSqlMacroArgumentList* args,
+                              PerfettoSqlToken* returns,
+                              PerfettoSqlToken* body_start,
+                              PerfettoSqlToken* body_end) {
+  std::unique_ptr<PerfettoSqlMacroArgumentList> args_deleter(args);
+
+  state->current_statement = PerfettoSqlParser::CreateMacro{
+      replace != 0,
+      state->tokenizer.SubstrToken(PerfettoSqlTokenToToken(*name)),
+      args ? std::move(args->args)
+           : std::vector<std::pair<SqlSource, SqlSource>>{},
+
+      state->tokenizer.SubstrToken(PerfettoSqlTokenToToken(*returns)),
+      state->tokenizer.Substr(PerfettoSqlTokenToToken(*body_start),
+                              PerfettoSqlTokenToToken(*body_end)),
+  };
+}
+
+void OnPerfettoSqlInclude(PerfettoSqlParserState* state,
+                          PerfettoSqlToken* module_name) {
+  state->current_statement =
+      PerfettoSqlParser::Include{std::string(module_name->ptr, module_name->n)};
+}
+
+}  // extern "C"
 
 PerfettoSqlParser::PerfettoSqlParser(
     SqlSource source,
     const base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro>&
         macros)
-    : preprocessor_(std::move(source), macros),
-      tokenizer_(SqlSource::FromTraceProcessorImplementation("")) {}
+    : parser_state_(std::make_unique<PerfettoSqlParserState>(std::move(source),
+                                                             macros)) {}
+
+PerfettoSqlParser::~PerfettoSqlParser() = default;
 
 bool PerfettoSqlParser::Next() {
-  PERFETTO_CHECK(status_.ok());
+  PERFETTO_DCHECK(parser_state_->status.ok());
 
-  if (!preprocessor_.NextStatement()) {
-    status_ = preprocessor_.status();
+  parser_state_->current_statement = std::nullopt;
+  statement_sql_ = std::nullopt;
+
+  if (!parser_state_->preprocessor.NextStatement()) {
+    parser_state_->status = parser_state_->preprocessor.status();
     return false;
   }
-  tokenizer_.Reset(preprocessor_.statement());
+  parser_state_->tokenizer.Reset(parser_state_->preprocessor.statement());
 
-  State state = State::kStmtStart;
-  std::optional<Token> first_non_space_token;
-  for (Token token = tokenizer_.Next();; token = tokenizer_.Next()) {
-    // Space should always be completely ignored by any logic below as it will
-    // never change the current state in the state machine.
+  auto* parser = PerfettoSqlParseAlloc(malloc, parser_state_.get());
+  auto guard = base::OnScopeExit([&]() { PerfettoSqlParseFree(parser, free); });
+
+  enum { kEof, kSemicolon, kNone } eof = kNone;
+  for (Token token = parser_state_->tokenizer.Next();;
+       token = parser_state_->tokenizer.Next()) {
+    if (!parser_state_->status.ok()) {
+      return false;
+    }
+    if (token.IsTerminal()) {
+      if (eof == kNone) {
+        PerfettoSqlParse(parser, TK_SEMI, TokenToPerfettoSqlToken(token));
+        eof = kSemicolon;
+        continue;
+      }
+      if (eof == kSemicolon) {
+        PerfettoSqlParse(parser, 0, TokenToPerfettoSqlToken(token));
+        eof = kEof;
+        continue;
+      }
+      if (!parser_state_->current_statement) {
+        parser_state_->current_statement = SqliteSql{};
+      }
+      statement_sql_ = parser_state_->preprocessor.statement();
+      return true;
+    }
     if (token.token_type == TK_SPACE) {
       continue;
     }
-
-    if (token.IsTerminal()) {
-      // If we have a non-space character we've seen, just return all the stuff
-      // after that point.
-      if (first_non_space_token) {
-        statement_ = SqliteSql{};
-        statement_sql_ = tokenizer_.Substr(*first_non_space_token, token);
-        return true;
-      }
-      // This means we've seen a semi-colon without any non-space content. Just
-      // try and find the next statement as this "statement" is a noop.
-      if (token.token_type == TK_SEMI) {
-        continue;
-      }
-      // This means we've reached the end of the SQL.
-      PERFETTO_DCHECK(token.str.empty());
-      return false;
-    }
-
-    // If we've not seen a space character, keep track of the current position.
-    if (!first_non_space_token) {
-      first_non_space_token = token;
-    }
-
-    switch (state) {
-      case State::kPassthrough:
-        statement_ = SqliteSql{};
-        statement_sql_ = preprocessor_.statement();
-        return true;
-      case State::kStmtStart:
-        if (token.token_type == TK_CREATE) {
-          state = State::kCreate;
-        } else if (token.token_type == TK_INCLUDE) {
-          state = State::kInclude;
-        } else if (token.token_type == TK_DROP) {
-          state = State::kDrop;
-        } else {
-          state = State::kPassthrough;
-        }
-        break;
-      case State::kInclude:
-        if (token.token_type == TK_PERFETTO) {
-          state = State::kIncludePerfetto;
-        } else {
-          return ErrorAtToken(token,
-                              "Use 'INCLUDE PERFETTO MODULE {include_key}'.");
-        }
-        break;
-      case State::kIncludePerfetto:
-        if (token.token_type == TK_MODULE) {
-          return ParseIncludePerfettoModule(*first_non_space_token);
-        } else {
-          return ErrorAtToken(token,
-                              "Use 'INCLUDE PERFETTO MODULE {include_key}'.");
-        }
-      case State::kDrop:
-        if (token.token_type == TK_PERFETTO) {
-          state = State::kDropPerfetto;
-        } else {
-          state = State::kPassthrough;
-        }
-        break;
-      case State::kDropPerfetto:
-        if (token.token_type == TK_INDEX) {
-          return ParseDropPerfettoIndex(*first_non_space_token);
-        } else {
-          return ErrorAtToken(token, "Only Perfetto index can be dropped");
-        }
-      case State::kCreate:
-        if (token.token_type == TK_TRIGGER) {
-          // TODO(lalitm): add this to the "errors" documentation page
-          // explaining why this is the case.
-          return ErrorAtToken(
-              token, "Creating triggers is not supported in PerfettoSQL.");
-        }
-        if (token.token_type == TK_PERFETTO) {
-          state = State::kCreatePerfetto;
-        } else if (token.token_type == TK_OR) {
-          state = State::kCreateOr;
-        } else {
-          state = State::kPassthrough;
-        }
-        break;
-      case State::kCreateOr:
-        state = token.token_type == TK_REPLACE ? State::kCreateOrReplace
-                                               : State::kPassthrough;
-        break;
-      case State::kCreateOrReplace:
-        state = token.token_type == TK_PERFETTO
-                    ? State::kCreateOrReplacePerfetto
-                    : State::kPassthrough;
-        break;
-      case State::kCreateOrReplacePerfetto:
-      case State::kCreatePerfetto:
-        bool replace = state == State::kCreateOrReplacePerfetto;
-        if (token.token_type == TK_FUNCTION) {
-          return ParseCreatePerfettoFunction(replace, *first_non_space_token);
-        }
-        if (token.token_type == TK_TABLE) {
-          return ParseCreatePerfettoTableOrView(replace, *first_non_space_token,
-                                                TableOrView::kTable);
-        }
-        if (token.token_type == TK_VIEW) {
-          return ParseCreatePerfettoTableOrView(replace, *first_non_space_token,
-                                                TableOrView::kView);
-        }
-        if (token.token_type == TK_MACRO) {
-          return ParseCreatePerfettoMacro(replace);
-        }
-        if (token.token_type == TK_INDEX) {
-          return ParseCreatePerfettoIndex(replace, *first_non_space_token);
-        }
-        base::StackString<1024> err(
-            "Expected 'FUNCTION', 'TABLE', 'MACRO' OR 'INDEX' after 'CREATE "
-            "PERFETTO', received '%*s'.",
-            static_cast<int>(token.str.size()), token.str.data());
-        return ErrorAtToken(token, err.c_str());
-    }
+    PerfettoSqlParse(parser, token.token_type, TokenToPerfettoSqlToken(token));
   }
 }
 
-bool PerfettoSqlParser::ParseIncludePerfettoModule(
-    Token first_non_space_token) {
-  auto tok = tokenizer_.NextNonWhitespace();
-  auto terminal = tokenizer_.NextTerminal();
-  std::string key = tokenizer_.Substr(tok, terminal).sql();
-
-  if (!ValidateModuleName(key)) {
-    base::StackString<1024> err(
-        "Include key should be a dot-separated list of module names, with the "
-        "last name optionally being a wildcard: '%s'",
-        key.c_str());
-    return ErrorAtToken(tok, err.c_str());
-  }
-
-  statement_ = Include{key};
-  statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
-  return true;
+const Statement& PerfettoSqlParser::statement() const {
+  PERFETTO_DCHECK(parser_state_->current_statement.has_value());
+  return *parser_state_->current_statement;
 }
 
-bool PerfettoSqlParser::ParseCreatePerfettoTableOrView(
-    bool replace,
-    Token first_non_space_token,
-    TableOrView table_or_view) {
-  Token table_name = tokenizer_.NextNonWhitespace();
-  if (table_name.token_type != TK_ID) {
-    base::StackString<1024> err("Invalid table name %.*s",
-                                static_cast<int>(table_name.str.size()),
-                                table_name.str.data());
-    return ErrorAtToken(table_name, err.c_str());
-  }
-  std::string name(table_name.str);
-  std::vector<sql_argument::ArgumentDefinition> schema;
-
-  auto token = tokenizer_.NextNonWhitespace();
-
-  // If the next token is a left parenthesis, then the table or view have a
-  // schema.
-  if (token.token_type == TK_LP) {
-    if (!ParseArguments(schema)) {
-      return false;
-    }
-    token = tokenizer_.NextNonWhitespace();
-  }
-
-  if (token.token_type != TK_AS) {
-    base::StackString<1024> err(
-        "Expected 'AS' after table_name, received "
-        "%*s.",
-        static_cast<int>(token.str.size()), token.str.data());
-    return ErrorAtToken(token, err.c_str());
-  }
-
-  Token first = tokenizer_.NextNonWhitespace();
-  Token terminal = tokenizer_.NextTerminal();
-  switch (table_or_view) {
-    case TableOrView::kTable:
-      statement_ = CreateTable{replace, std::move(name),
-                               tokenizer_.Substr(first, terminal), schema};
-      break;
-    case TableOrView::kView:
-      SqlSource original_statement =
-          tokenizer_.Substr(first_non_space_token, terminal);
-      SqlSource header = SqlSource::FromTraceProcessorImplementation(
-          "CREATE VIEW " + name + " AS ");
-      SqlSource::Rewriter rewriter(original_statement);
-      tokenizer_.Rewrite(rewriter, first_non_space_token, first, header,
-                         SqliteTokenizer::EndToken::kExclusive);
-      statement_ = CreateView{replace, std::move(name),
-                              tokenizer_.Substr(first, terminal),
-                              std::move(rewriter).Build(), schema};
-      break;
-  }
-  statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
-  return true;
+const base::Status& PerfettoSqlParser::status() const {
+  return parser_state_->status;
 }
 
-bool PerfettoSqlParser::ParseCreatePerfettoIndex(bool replace,
-                                                 Token first_non_space_token) {
-  Token index_name_tok = tokenizer_.NextNonWhitespace();
-  if (index_name_tok.token_type != TK_ID) {
-    base::StackString<1024> err("Invalid index name %.*s",
-                                static_cast<int>(index_name_tok.str.size()),
-                                index_name_tok.str.data());
-    return ErrorAtToken(index_name_tok, err.c_str());
-  }
-  std::string index_name(index_name_tok.str);
-
-  auto token = tokenizer_.NextNonWhitespace();
-  if (token.token_type != TK_ON) {
-    base::StackString<1024> err("Expected 'ON' after index name, received %*s.",
-                                static_cast<int>(token.str.size()),
-                                token.str.data());
-    return ErrorAtToken(token, err.c_str());
-  }
-
-  Token table_name_tok = tokenizer_.NextNonWhitespace();
-  if (table_name_tok.token_type != TK_ID) {
-    base::StackString<1024> err("Invalid table name %.*s",
-                                static_cast<int>(table_name_tok.str.size()),
-                                table_name_tok.str.data());
-    return ErrorAtToken(table_name_tok, err.c_str());
-  }
-  std::string table_name(table_name_tok.str);
-
-  token = tokenizer_.NextNonWhitespace();
-  if (token.token_type != TK_LP) {
-    base::StackString<1024> err(
-        "Expected parenthesis after table name, received '%*s'.",
-        static_cast<int>(token.str.size()), token.str.data());
-    return ErrorAtToken(token, err.c_str());
-  }
-
-  std::vector<std::string> cols;
-
-  do {
-    Token col_name_tok = tokenizer_.NextNonWhitespace();
-    cols.push_back(std::string(col_name_tok.str));
-    token = tokenizer_.NextNonWhitespace();
-  } while (token.token_type == TK_COMMA);
-
-  if (token.token_type != TK_RP) {
-    base::StackString<1024> err("Expected closed parenthesis, received '%*s'.",
-                                static_cast<int>(token.str.size()),
-                                token.str.data());
-    return ErrorAtToken(token, err.c_str());
-  }
-
-  token = tokenizer_.NextNonWhitespace();
-  if (!token.IsTerminal()) {
-    return ErrorAtToken(
-        token,
-        "Expected semicolon after columns list in CREATE PERFETTO INDEX.");
-  }
-
-  statement_sql_ = tokenizer_.Substr(first_non_space_token, token);
-  statement_ = CreateIndex{replace, index_name, table_name, cols};
-  return true;
-}
-
-bool PerfettoSqlParser::ParseDropPerfettoIndex(
-    SqliteTokenizer::Token first_non_space_token) {
-  Token index_name_tok = tokenizer_.NextNonWhitespace();
-  if (index_name_tok.token_type != TK_ID) {
-    base::StackString<1024> err("Invalid index name %.*s",
-                                static_cast<int>(index_name_tok.str.size()),
-                                index_name_tok.str.data());
-    return ErrorAtToken(index_name_tok, err.c_str());
-  }
-  std::string index_name(index_name_tok.str);
-
-  auto token = tokenizer_.NextNonWhitespace();
-  if (token.token_type != TK_ON) {
-    base::StackString<1024> err("Expected 'ON' after index name, received %*s.",
-                                static_cast<int>(token.str.size()),
-                                token.str.data());
-    return ErrorAtToken(token, err.c_str());
-  }
-
-  Token table_name_tok = tokenizer_.NextNonWhitespace();
-  if (table_name_tok.token_type != TK_ID) {
-    base::StackString<1024> err("Invalid table name %.*s",
-                                static_cast<int>(table_name_tok.str.size()),
-                                table_name_tok.str.data());
-    return ErrorAtToken(table_name_tok, err.c_str());
-  }
-  std::string table_name(table_name_tok.str);
-
-  token = tokenizer_.NextNonWhitespace();
-  if (!token.IsTerminal()) {
-    return ErrorAtToken(
-        token, "Nothing is allowed after table name in DROP PERFETTO INDEX");
-  }
-  statement_sql_ = tokenizer_.Substr(first_non_space_token, token);
-  statement_ = DropIndex{index_name, table_name};
-  return true;
-}
-
-bool PerfettoSqlParser::ParseCreatePerfettoFunction(
-    bool replace,
-    Token first_non_space_token) {
-  Token function_name = tokenizer_.NextNonWhitespace();
-  if (function_name.token_type != TK_ID) {
-    // TODO(lalitm): add a link to create function documentation.
-    base::StackString<1024> err("Invalid function name %.*s",
-                                static_cast<int>(function_name.str.size()),
-                                function_name.str.data());
-    return ErrorAtToken(function_name, err.c_str());
-  }
-
-  // TK_LP == '(' (i.e. left parenthesis).
-  if (Token lp = tokenizer_.NextNonWhitespace(); lp.token_type != TK_LP) {
-    // TODO(lalitm): add a link to create function documentation.
-    return ErrorAtToken(lp, "Malformed function prototype: '(' expected");
-  }
-
-  std::vector<sql_argument::ArgumentDefinition> args;
-  if (!ParseArguments(args)) {
-    return false;
-  }
-
-  if (Token returns = tokenizer_.NextNonWhitespace();
-      returns.token_type != TK_RETURNS) {
-    // TODO(lalitm): add a link to create function documentation.
-    return ErrorAtToken(returns, "Expected keyword 'returns'");
-  }
-
-  Token ret_token = tokenizer_.NextNonWhitespace();
-  std::string ret;
-  bool table_return = ret_token.token_type == TK_TABLE;
-  if (table_return) {
-    if (Token lp = tokenizer_.NextNonWhitespace(); lp.token_type != TK_LP) {
-      // TODO(lalitm): add a link to create function documentation.
-      return ErrorAtToken(lp, "Malformed table return: '(' expected");
-    }
-    // Table function return.
-    std::vector<sql_argument::ArgumentDefinition> ret_args;
-    if (!ParseArguments(ret_args)) {
-      return false;
-    }
-    ret = sql_argument::SerializeArguments(ret_args);
-  } else if (ret_token.token_type != TK_ID) {
-    // TODO(lalitm): add a link to create function documentation.
-    return ErrorAtToken(ret_token, "Invalid return type");
-  } else {
-    // Scalar function return.
-    ret = ret_token.str;
-  }
-
-  if (Token as_token = tokenizer_.NextNonWhitespace();
-      as_token.token_type != TK_AS) {
-    // TODO(lalitm): add a link to create function documentation.
-    return ErrorAtToken(as_token, "Expected keyword 'as'");
-  }
-
-  Token first = tokenizer_.NextNonWhitespace();
-  Token terminal = tokenizer_.NextTerminal();
-  statement_ = CreateFunction{
-      replace,
-      FunctionPrototype{std::string(function_name.str), std::move(args)},
-      std::move(ret), tokenizer_.Substr(first, terminal), table_return};
-  statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
-  return true;
-}
-
-bool PerfettoSqlParser::ParseCreatePerfettoMacro(bool replace) {
-  Token name = tokenizer_.NextNonWhitespace();
-  if (name.token_type != TK_ID) {
-    // TODO(lalitm): add a link to create macro documentation.
-    base::StackString<1024> err("Invalid macro name %.*s",
-                                static_cast<int>(name.str.size()),
-                                name.str.data());
-    return ErrorAtToken(name, err.c_str());
-  }
-
-  // TK_LP == '(' (i.e. left parenthesis).
-  if (Token lp = tokenizer_.NextNonWhitespace(); lp.token_type != TK_LP) {
-    // TODO(lalitm): add a link to create macro documentation.
-    return ErrorAtToken(lp, "Malformed macro prototype: '(' expected");
-  }
-
-  std::vector<RawArgument> raw_args;
-  std::vector<std::pair<SqlSource, SqlSource>> args;
-  if (!ParseRawArguments(raw_args)) {
-    return false;
-  }
-  for (const auto& arg : raw_args) {
-    args.emplace_back(tokenizer_.SubstrToken(arg.name),
-                      tokenizer_.SubstrToken(arg.type));
-  }
-
-  if (Token returns = tokenizer_.NextNonWhitespace();
-      returns.token_type != TK_RETURNS) {
-    // TODO(lalitm): add a link to create macro documentation.
-    return ErrorAtToken(returns, "Expected keyword 'returns'");
-  }
-
-  Token returns_value = tokenizer_.NextNonWhitespace();
-  if (returns_value.token_type != TK_ID) {
-    // TODO(lalitm): add a link to create function documentation.
-    return ErrorAtToken(returns_value, "Expected return type");
-  }
-
-  if (Token as_token = tokenizer_.NextNonWhitespace();
-      as_token.token_type != TK_AS) {
-    // TODO(lalitm): add a link to create macro documentation.
-    return ErrorAtToken(as_token, "Expected keyword 'as'");
-  }
-
-  Token first = tokenizer_.NextNonWhitespace();
-  Token tok = tokenizer_.NextTerminal();
-  statement_ = CreateMacro{
-      replace, tokenizer_.SubstrToken(name), std::move(args),
-      tokenizer_.SubstrToken(returns_value), tokenizer_.Substr(first, tok)};
-  return true;
-}
-
-bool PerfettoSqlParser::ParseComplexArgumentType(
-    std::pair<SqliteTokenizer::Token, SqliteTokenizer::Token>& table_and_col) {
-  enum TokenType { kRp, kDot, kTableName, kColumnName };
-  TokenType expected = kTableName;
-  for (Token tok = tokenizer_.NextNonWhitespace();;
-       tok = tokenizer_.NextNonWhitespace()) {
-    switch (expected) {
-      case kTableName: {
-        if (tok.token_type != TK_ID) {
-          return ErrorAtToken(tok, "Expected table name");
-        }
-        table_and_col.first = tok;
-        expected = kDot;
-        continue;
-      }
-      case kDot: {
-        if (tok.token_type != TK_DOT) {
-          return ErrorAtToken(tok,
-                              "Expected dot between table and column names");
-        }
-        expected = kColumnName;
-        continue;
-      }
-      case kColumnName: {
-        if (tok.token_type != TK_ID) {
-          return ErrorAtToken(tok, "Expected column name");
-        }
-        table_and_col.second = tok;
-        expected = kRp;
-        continue;
-      }
-      case kRp:
-        if (tok.token_type == TK_RP) {
-          return true;
-        }
-        return ErrorAtToken(tok, "Expected closing parenthesis");
-    }
-  }
-}
-
-bool PerfettoSqlParser::ParseRawArguments(std::vector<RawArgument>& args) {
-  Token tok = tokenizer_.NextNonWhitespace();
-  // Fast path for no args
-  if (tok.token_type == TK_RP)
-    return true;
-
-  enum TokenType {
-    kArgName,
-    kArgType,
-    kCommaOrLpOrRp,
-  };
-
-  std::optional<Token> id = std::nullopt;
-  TokenType expected = kArgName;
-  std::optional<RawArgument> maybe_arg;
-  for (;; tok = tokenizer_.NextNonWhitespace()) {
-    switch (expected) {
-      case kArgName: {
-        if (tok.token_type != TK_ID && tok.token_type != TK_KEY &&
-            tok.token_type != TK_FUNCTION) {
-          // TODO(lalitm): add a link to documentation.
-          base::StackString<1024> err("'%.*s' is not a valid argument name",
-                                      static_cast<int>(tok.str.size()),
-                                      tok.str.data());
-          return ErrorAtToken(tok, err.c_str());
-        }
-        id = tok;
-        expected = kArgType;
-        break;
-      }
-
-      case kArgType: {
-        if (tok.token_type != TK_ID) {
-          // TODO(lalitm): add a link to documentation.
-          base::StackString<1024> err("'%.*s' is not a valid argument type",
-                                      static_cast<int>(tok.str.size()),
-                                      tok.str.data());
-          return ErrorAtToken(tok, err.c_str());
-        }
-        PERFETTO_CHECK(id);
-        RawArgument arg;
-        arg.name = *id;
-        arg.type = tok;
-        maybe_arg = arg;
-        id = std::nullopt;
-        expected = kCommaOrLpOrRp;
-        break;
-      }
-
-      case kCommaOrLpOrRp: {
-        if (tok.token_type == TK_RP) {
-          if (maybe_arg)
-            args.push_back(*maybe_arg);
-          return true;
-        }
-
-        // Next argument
-        if (tok.token_type == TK_COMMA) {
-          PERFETTO_CHECK(maybe_arg);
-          args.push_back(*maybe_arg);
-          maybe_arg = std::nullopt;
-          expected = kArgName;
-          continue;
-        }
-
-        // Start of complex argument.
-        if (tok.token_type == TK_LP) {
-          PERFETTO_CHECK(maybe_arg);
-          std::pair<SqliteTokenizer::Token, SqliteTokenizer::Token>
-              table_and_col;
-          if (!ParseComplexArgumentType(table_and_col))
-            return false;
-          maybe_arg->complex_arg_table_and_column = table_and_col;
-        }
-      }
-    }
-  }
-}
-
-bool PerfettoSqlParser::ParseArguments(
-    std::vector<sql_argument::ArgumentDefinition>& args) {
-  std::vector<RawArgument> raw_args;
-  if (!ParseRawArguments(raw_args)) {
-    return false;
-  }
-  for (const auto& raw_arg : raw_args) {
-    std::optional<sql_argument::ArgumentDefinition> arg =
-        ResolveRawArgument(raw_arg);
-    if (!arg) {
-      return false;
-    }
-    args.emplace_back(std::move(*arg));
-  }
-  return true;
-}
-
-std::optional<sql_argument::ArgumentDefinition>
-PerfettoSqlParser::ResolveRawArgument(RawArgument arg) {
-  std::string arg_name = tokenizer_.SubstrToken(arg.name).sql();
-  std::string arg_type = tokenizer_.SubstrToken(arg.type).sql();
-  if (!sql_argument::IsValidName(base::StringView(arg_name))) {
-    base::StackString<1024> err("Name %s is not alphanumeric",
-                                arg_name.c_str());
-    ErrorAtToken(arg.name, err.c_str());
-    return std::nullopt;
-  }
-  std::optional<sql_argument::Type> parsed_arg_type =
-      sql_argument::ParseType(base::StringView(arg_type));
-  if (!parsed_arg_type) {
-    base::StackString<1024> err("Invalid type %s", arg_type.c_str());
-    ErrorAtToken(arg.type, err.c_str());
-    return std::nullopt;
-  }
-  return sql_argument::ArgumentDefinition("$" + arg_name, *parsed_arg_type);
-}
-
-bool PerfettoSqlParser::ErrorAtToken(const SqliteTokenizer::Token& token,
-                                     const char* error,
-                                     ...) {
-  std::string traceback = tokenizer_.AsTraceback(token);
-  status_ = base::ErrStatus("%s%s", traceback.c_str(), error);
-  return false;
-}
-
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

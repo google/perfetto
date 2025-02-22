@@ -2791,6 +2791,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.c",
         "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.h",
+        "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar_interface.h",
         "src/trace_processor/perfetto_sql/grammar/perfettosql_keywordhash.h",
         "src/trace_processor/perfetto_sql/grammar/perfettosql_keywordhash_helper.h",
     ],
