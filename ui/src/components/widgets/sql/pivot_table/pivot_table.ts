@@ -44,24 +44,19 @@ export interface PivotTableAttrs {
 }
 
 export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
-  private readonly state: PivotTableState;
-
-  constructor(vnode: m.CVnode<PivotTableAttrs>) {
-    this.state = vnode.attrs.state;
-  }
-
   view({attrs}: m.CVnode<PivotTableAttrs>) {
-    const data = this.state.getData();
-    const pivotColumns: ColumnDescriptor<PivotTreeNode>[] = this.state
+    const state = attrs.state;
+    const data = state.getData();
+    const pivotColumns: ColumnDescriptor<PivotTreeNode>[] = state
       .getPivots()
       .map((pivot, index) => ({
-        title: this.renderPivotColumnHeader(pivot, index),
+        title: this.renderPivotColumnHeader(attrs, pivot, index),
         render: (node) => {
           if (node.isRoot()) {
             return {
               cell: 'Total values:',
               className: 'total-values',
-              colspan: this.state.getPivots().length,
+              colspan: state.getPivots().length,
             };
           }
           const status = node.getPivotDisplayStatus(index);
@@ -83,8 +78,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
               // Indent the expanded values to align them with the parent value
               // even though they do not have the "expand/collapse" button.
               status === 'pivoted_value' && m('span.indent'),
-              value !== undefined &&
-                this.state.getPivots()[index].renderCell(value),
+              value !== undefined && state.getPivots()[index].renderCell(value),
               // Show ellipsis for the last pivot if the node is collapsed to
               // make it clear to the user that there are some values.
               status === 'hidden_behind_collapsed' && '...',
@@ -93,10 +87,10 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
         },
       }));
 
-    const aggregationColumns: ColumnDescriptor<PivotTreeNode>[] = this.state
+    const aggregationColumns: ColumnDescriptor<PivotTreeNode>[] = state
       .getAggregations()
       .map((agg, index) => ({
-        title: this.renderAggregationColumnHeader(agg, index),
+        title: this.renderAggregationColumnHeader(attrs, agg, index),
         render: (node) => ({
           cell: agg.column.renderCell(node.getAggregationValue(index)),
         }),
@@ -127,11 +121,11 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
         columns: [
           {
             columns: pivotColumns,
-            reorder: (from, to) => this.state.movePivot(from, to),
+            reorder: (from, to) => state.movePivot(from, to),
           },
           {
             columns: aggregationColumns,
-            reorder: (from, to) => this.state.moveAggregation(from, to),
+            reorder: (from, to) => state.moveAggregation(from, to),
           },
           extraButtonColumn,
         ],
@@ -140,8 +134,13 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     ];
   }
 
-  renderPivotColumnHeader(pivot: LegacyTableColumn, index: number) {
-    const sorted = this.state.isSortedByPivot(pivot);
+  renderPivotColumnHeader(
+    attrs: PivotTableAttrs,
+    pivot: LegacyTableColumn,
+    index: number,
+  ) {
+    const state = attrs.state;
+    const sorted = state.isSortedByPivot(pivot);
     return m(
       PopupMenu,
       {
@@ -150,15 +149,15 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       [
         // Sort by pivot.
         renderSortMenuItems(sorted, (direction) =>
-          this.state.sortByPivot(pivot, direction),
+          state.sortByPivot(pivot, direction),
         ),
         // Remove pivot: show only if there is more than one pivot (to avoid
         // removing the last pivot).
-        this.state.getPivots().length > 1 &&
+        state.getPivots().length > 1 &&
           m(MenuItem, {
             label: 'Remove',
             icon: Icons.Delete,
-            onclick: () => this.state.removePivot(index),
+            onclick: () => state.removePivot(index),
           }),
 
         // End of "per-pivot" menu items. The following menu items are table-level
@@ -172,30 +171,35 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             icon: Icons.AddColumn,
           },
           m(SelectColumnMenu, {
-            columns: this.state.table.columns.map((column) => ({
+            columns: state.table.columns.map((column) => ({
               key: tableColumnId(column),
               column,
             })),
             manager: {
-              filters: this.state.filters,
-              trace: this.state.trace,
+              filters: state.filters,
+              trace: state.trace,
               getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
                 buildSqlQuery({
-                  table: this.state.table.name,
+                  table: state.table.name,
                   columns,
-                  filters: this.state.filters.get(),
+                  filters: state.filters.get(),
                 }),
             },
-            existingColumnIds: new Set(this.state.getPivots().map(pivotId)),
-            onColumnSelected: (column) => this.state.addPivot(column, index),
+            existingColumnIds: new Set(state.getPivots().map(pivotId)),
+            onColumnSelected: (column) => state.addPivot(column, index),
           }),
         ),
       ],
     );
   }
 
-  renderAggregationColumnHeader(agg: Aggregation, index: number) {
-    const sorted = this.state.isSortedByAggregation(agg);
+  renderAggregationColumnHeader(
+    attrs: PivotTableAttrs,
+    agg: Aggregation,
+    index: number,
+  ) {
+    const state = attrs.state;
+    const sorted = state.isSortedByAggregation(agg);
     return m(
       PopupMenu,
       {
@@ -208,7 +212,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       [
         // Sort by aggregation.
         renderSortMenuItems(sorted, (direction) =>
-          this.state.sortByAggregation(agg, direction),
+          state.sortByAggregation(agg, direction),
         ),
         // Remove aggregation.
         // Do not remove count aggregation to ensure that there is always at least one aggregation.
@@ -216,7 +220,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           m(MenuItem, {
             label: 'Remove',
             icon: Icons.Delete,
-            onclick: () => this.state.removeAggregation(index),
+            onclick: () => state.removeAggregation(index),
           }),
         // Change aggregation operation.
         // Do not change aggregation for count (as it's the only one which doesn't require a column).
@@ -231,7 +235,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
               m(MenuItem, {
                 label: a,
                 onclick: () =>
-                  this.state.replaceAggregation(index, {
+                  state.replaceAggregation(index, {
                     op: a,
                     column: agg.column,
                   }),
@@ -244,7 +248,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
         m(MenuItem, {
           label: 'Duplicate',
           icon: Icons.Copy,
-          onclick: () => this.state.addAggregation(agg, index + 1),
+          onclick: () => state.addAggregation(agg, index + 1),
         }),
 
         // End of "per-pivot" menu items. The following menu items are table-level
@@ -258,18 +262,18 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             icon: Icons.AddColumn,
           },
           m(SelectColumnMenu, {
-            columns: this.state.table.columns.map((column) => ({
+            columns: state.table.columns.map((column) => ({
               key: tableColumnId(column),
               column,
             })),
             manager: {
-              filters: this.state.filters,
-              trace: this.state.trace,
+              filters: state.filters,
+              trace: state.trace,
               getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
                 buildSqlQuery({
-                  table: this.state.table.name,
+                  table: state.table.name,
                   columns,
-                  filters: this.state.filters.get(),
+                  filters: state.filters.get(),
                 }),
             },
             columnMenu: (column) => ({
@@ -277,8 +281,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
               children: AGGREGATIONS.map((agg) =>
                 m(MenuItem, {
                   label: agg,
-                  onclick: () =>
-                    this.state.addAggregation({op: agg, column}, index),
+                  onclick: () => state.addAggregation({op: agg, column}, index),
                 }),
               ),
             }),
