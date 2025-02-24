@@ -33,6 +33,7 @@ import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {escapeQuery} from '../../trace_processor/query_utils';
+import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
@@ -339,6 +340,7 @@ export default class implements PerfettoPlugin {
               JOIN slice USING (slice_id)
             `,
           }),
+          detailsPanel: () => new ThreadSliceDetailsPanel(ctx),
         });
         ctx.tracks.registerTrack({uri, title: step.name, track});
         group.addChildInOrder(new TrackNode({uri, title: step.name}));
