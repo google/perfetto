@@ -38,6 +38,9 @@ import {
 
 export interface PivotTableAttrs {
   readonly state: PivotTableState;
+  // Additional button to render at the end of each row. Typically used
+  // for adding new filters.
+  extraRowButton?(node: PivotTreeNode): m.Children;
 }
 
 export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
@@ -47,7 +50,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     this.state = vnode.attrs.state;
   }
 
-  view() {
+  view({attrs}: m.CVnode<PivotTableAttrs>) {
     const data = this.state.getData();
     const pivotColumns: ColumnDescriptor<PivotTreeNode>[] = this.state
       .getPivots()
@@ -99,6 +102,21 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
         }),
       }));
 
+    const extraRowButton = attrs.extraRowButton;
+    const extraButtonColumn: ReorderableColumns<PivotTreeNode> | undefined =
+      extraRowButton && {
+        columns: [
+          {
+            title: undefined,
+            render: (node) => ({
+              cell: extraRowButton(node),
+              className: 'action-button',
+            }),
+          },
+        ],
+        hasLeftBorder: false,
+      };
+
     // Expand the tree to a list of rows to show.
     const nodes: PivotTreeNode[] = data ? [...data.listDescendants()] : [];
 
@@ -107,12 +125,15 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
         className: 'pivot-table',
         data: nodes,
         columns: [
-          new ReorderableColumns(pivotColumns, (from, to) =>
-            this.state.movePivot(from, to),
-          ),
-          new ReorderableColumns(aggregationColumns, (from, to) =>
-            this.state.moveAggregation(from, to),
-          ),
+          {
+            columns: pivotColumns,
+            reorder: (from, to) => this.state.movePivot(from, to),
+          },
+          {
+            columns: aggregationColumns,
+            reorder: (from, to) => this.state.moveAggregation(from, to),
+          },
+          extraButtonColumn,
         ],
       }),
       data === undefined && m(Spinner),

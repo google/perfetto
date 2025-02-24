@@ -202,7 +202,34 @@ class LegacySqlTableTab implements Tab {
           addColumnMenuItems: this.tableMenuItems.bind(this),
         }),
       this.selected instanceof PivotTableState &&
-        m(PivotTable, {state: this.selected}),
+        m(PivotTable, {
+          state: this.selected,
+          extraRowButton: (node) =>
+            // Do not show any buttons for root as it doesn't have any filters anyway.
+            !node.isRoot() &&
+            m(
+              PopupMenu,
+              {
+                trigger: m(Button, {
+                  icon: Icons.GoTo,
+                }),
+              },
+              m(MenuItem, {
+                label: 'Add filters',
+                onclick: () => {
+                  this.state.filters.addFilters(node.getFilters());
+                },
+              }),
+              m(MenuItem, {
+                label: 'Open tab with filters',
+                onclick: () => {
+                  const newState = this.state.clone();
+                  newState.filters.addFilters(node.getFilters());
+                  addSqlTableTabWithState(newState);
+                },
+              }),
+            ),
+        }),
     );
   }
 

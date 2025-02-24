@@ -16,7 +16,7 @@ import m from 'mithril';
 
 export interface ColumnDescriptor<T> {
   readonly title: m.Children;
-  render: (row: T) => {
+  readonly render: (row: T) => {
     colspan?: number;
     className?: string;
     cell: m.Children;
@@ -24,16 +24,17 @@ export interface ColumnDescriptor<T> {
 }
 
 // This is a class to be able to perform runtime checks on `columns` below.
-export class ReorderableColumns<T> {
-  constructor(
-    public columns: ColumnDescriptor<T>[],
-    public reorder?: (from: number, to: number) => void,
-  ) {}
+export interface ReorderableColumns<T> {
+  readonly columns: ColumnDescriptor<T>[];
+  // Enables drag'n'drop reordering of columns.
+  readonly reorder?: (from: number, to: number) => void;
+  // Whether the first column should have a left border. True by default.
+  readonly hasLeftBorder?: boolean;
 }
 
 export interface CustomTableAttrs<T> {
   readonly data: ReadonlyArray<T>;
-  readonly columns: ReadonlyArray<ReorderableColumns<T>>;
+  readonly columns: ReadonlyArray<ReorderableColumns<T> | undefined>;
   readonly className?: string;
 }
 
@@ -41,11 +42,14 @@ export class CustomTable<T> implements m.ClassComponent<CustomTableAttrs<T>> {
   view({attrs}: m.Vnode<CustomTableAttrs<T>>): m.Children {
     const columns: {column: ColumnDescriptor<T>; extraClasses: string}[] = [];
     const headers: m.Children[] = [];
-    for (const [index, columnGroup] of attrs.columns.entries()) {
+    for (const [index, columnGroup] of attrs.columns
+      .filter((c) => c !== undefined)
+      .entries()) {
+      const hasLeftBorder = (columnGroup.hasLeftBorder ?? true) && index !== 0;
       const currentColumns = columnGroup.columns.map((column, columnIndex) => ({
         column,
         extraClasses:
-          columnIndex === 0 && index !== 0 ? '.has-left-border' : '',
+          hasLeftBorder && columnIndex === 0 ? '.has-left-border' : '',
       }));
       if (columnGroup.reorder === undefined) {
         for (const {column, extraClasses} of currentColumns) {
