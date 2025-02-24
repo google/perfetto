@@ -15,11 +15,6 @@
 import m from 'mithril';
 import {PivotTableState} from './pivot_table_state';
 import {Spinner} from '../../../../widgets/spinner';
-import {
-  BasicTable,
-  ColumnDescriptor,
-  ReorderableColumns,
-} from '../../../../widgets/basic_table';
 import {PivotTreeNode} from './pivot_tree_node';
 import {Button} from '../../../../widgets/button';
 import {Icons} from '../../../../base/semantic_icons';
@@ -36,6 +31,11 @@ import {SqlColumn} from '../legacy_table/sql_column';
 import {buildSqlQuery} from '../legacy_table/query_builder';
 import {Aggregation, AGGREGATIONS} from './aggregations';
 import {aggregationId, pivotId} from './ids';
+import {
+  ColumnDescriptor,
+  CustomTable,
+  ReorderableColumns,
+} from '../../../../widgets/custom_table';
 
 export interface PivotTableAttrs {
   readonly state: PivotTableState;
@@ -55,28 +55,37 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       .map((pivot, index) => ({
         title: this.renderPivotColumnHeader(pivot, index),
         render: (node) => {
+          if (node.isRoot()) {
+            return {
+              cell: 'Total values:',
+              className: 'total-values',
+              colspan: this.state.getPivots().length,
+            };
+          }
           const status = node.getPivotDisplayStatus(index);
-          return [
-            (status === 'collapsed' || status === 'expanded') &&
-              m(Button, {
-                icon:
-                  status === 'collapsed' ? Icons.ExpandDown : Icons.ExpandUp,
-                onclick: () => (node.collapsed = !node.collapsed),
-              }),
-            // Show a non-clickable indicator that the value is auto-expanded.
-            status === 'auto_expanded' &&
-              m(Button, {
-                icon: 'chevron_right',
-                disabled: true,
-              }),
-            // Indent the expanded values to align them with the parent value
-            // even though they do not have the "expand/collapse" button.
-            status === 'pivoted_value' && m('span.indent'),
-            sqlValueToReadableString(node.getPivotValue(index)),
-            // Show ellipsis for the last pivot if the node is collapsed to
-            // make it clear to the user that there are some values.
-            status === 'hidden_behind_collapsed' && '...',
-          ];
+          return {
+            cell: [
+              (status === 'collapsed' || status === 'expanded') &&
+                m(Button, {
+                  icon:
+                    status === 'collapsed' ? Icons.ExpandDown : Icons.ExpandUp,
+                  onclick: () => (node.collapsed = !node.collapsed),
+                }),
+              // Show a non-clickable indicator that the value is auto-expanded.
+              status === 'auto_expanded' &&
+                m(Button, {
+                  icon: 'chevron_right',
+                  disabled: true,
+                }),
+              // Indent the expanded values to align them with the parent value
+              // even though they do not have the "expand/collapse" button.
+              status === 'pivoted_value' && m('span.indent'),
+              sqlValueToReadableString(node.getPivotValue(index)),
+              // Show ellipsis for the last pivot if the node is collapsed to
+              // make it clear to the user that there are some values.
+              status === 'hidden_behind_collapsed' && '...',
+            ],
+          };
         },
       }));
 
@@ -84,15 +93,16 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       .getAggregations()
       .map((agg, index) => ({
         title: this.renderAggregationColumnHeader(agg, index),
-        render: (node) =>
-          sqlValueToReadableString(node.getAggregationValue(index)),
+        render: (node) => ({
+          cell: sqlValueToReadableString(node.getAggregationValue(index)),
+        }),
       }));
 
     // Expand the tree to a list of rows to show.
     const nodes: PivotTreeNode[] = data ? [...data.listDescendants()] : [];
 
     return [
-      m(BasicTable<PivotTreeNode>, {
+      m(CustomTable<PivotTreeNode>, {
         className: 'pivot-table',
         data: nodes,
         columns: [
