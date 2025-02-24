@@ -438,8 +438,14 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLines(
     const tables::StackProfileFrameTable::ConstRowReference& frame,
     CallsiteAnnotation annotation,
     uint64_t mapping_id) {
-  std::vector<Line> lines =
-      GetLinesForSymbolSetId(frame.symbol_set_id(), annotation, mapping_id);
+  std::vector<Line> lines;
+
+  lines = GetLinesForJitFrame(frame, annotation, mapping_id);
+  if (!lines.empty()) {
+    return lines;
+  }
+
+  lines = GetLinesForSymbolSetId(frame.symbol_set_id(), annotation, mapping_id);
   if (!lines.empty()) {
     return lines;
   }
@@ -451,6 +457,138 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLines(
   }
 
   return lines;
+}
+
+namespace {
+template <typename Table>
+std::optional<typename Table::ConstRowReference> GetByConstraint(
+    const Table& table,
+    Constraint&& c) {
+  Query q;
+  q.constraints = {c};
+  q.limit = 1;
+  auto row_map = table.QueryToRowMap(q);
+  if (row_map.empty())
+    return {};
+  return table[row_map.Get(0)];
+}
+}  // namespace
+
+std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForJitFrame(
+    const tables::StackProfileFrameTable::ConstRowReference& frame,
+    CallsiteAnnotation annotation,
+    uint64_t mapping_id) {
+  // Execute the equivalent of the SQL logic in callstacks/stack_profile.sql,
+  // namely
+  //
+  // ```
+  // COALESCE(
+  //     'JS: ' || IIF(jsf.name = "", "(anonymous)", jsf.name) || ':' ||
+  //     jsf.line || ':' || jsf.col || ' [' || LOWER(jsc.tier) || ']', 'WASM: '
+  //     || wc.function_name || ' [' || LOWER(wc.tier) || ']', 'REGEXP: ' ||
+  //     rc.pattern, 'V8: ' || v8c.function_name, 'JIT: ' || jc.function_name
+  //   ) AS name,
+  // FROM _callstack_spc_raw_forest c
+  // JOIN stack_profile_frame f ON c.frame_id = f.id
+  // LEFT JOIN _v8_js_code jsc USING(jit_code_id)
+  // LEFT JOIN v8_js_function jsf USING(v8_js_function_id)
+  // LEFT JOIN _v8_internal_code v8c USING(jit_code_id)
+  // LEFT JOIN _v8_wasm_code wc USING(jit_code_id)
+  // LEFT JOIN _v8_regexp_code rc USING(jit_code_id)
+  // LEFT JOIN __intrinsic_jit_code jc ON c.jit_code_id = jc.id
+  // ```
+  //
+  // TODO(leszeks): Unify these manual table lookups with the SQL
+  // implementation, e.g. by calling _callstacks_for_callsites in
+  // GProfileBuilder.
+
+  auto& jit_frames = context_.storage->jit_frame_table();
+  auto maybe_jf =
+      GetByConstraint(jit_frames, jit_frames.frame_id().eq(frame.id().value));
+  if (!maybe_jf) {
+    return {};
+  }
+  auto jf = *maybe_jf;
+
+  auto& v8_js_code = context_.storage->v8_js_code_table();
+  auto maybe_jsc = GetByConstraint(
+      v8_js_code, v8_js_code.jit_code_id().eq(jf.jit_code_id().value));
+  if (maybe_jsc) {
+    auto jsc = *maybe_jsc;
+
+    auto& v8_js_funcs = context_.storage->v8_js_function_table();
+    auto maybe_jsf = v8_js_funcs.FindById(jsc.v8_js_function_id());
+    if (maybe_jsf) {
+      auto jsf = *maybe_jsf;
+      auto jsf_name = context_.storage->string_pool().Get(jsf.name());
+      auto jsf_tier = context_.storage->string_pool().Get(jsc.tier());
+      base::StackString<64> name(
+          "JS: %s:%d:%d [%s]",
+          jsf_name.empty() ? "(anonymous)" : jsf_name.c_str(),
+          jsf.line().value_or(0), jsf.col().value_or(0), jsf_tier.c_str());
+
+      auto& v8_js_scripts = context_.storage->v8_js_script_table();
+      auto maybe_jss = v8_js_scripts.FindById(jsf.v8_js_script_id());
+
+      return {
+          Line{WriteFunctionIfNeeded(
+                   name.string_view(),
+                   maybe_jss.has_value() ? maybe_jss->name() : kNullStringId,
+                   annotation, mapping_id),
+               jsf.line().value_or(0)}};
+    }
+  }
+
+  auto& v8_wasm_code = context_.storage->v8_wasm_code_table();
+  auto maybe_wc = GetByConstraint(
+      v8_wasm_code, v8_wasm_code.jit_code_id().eq(jf.jit_code_id().value));
+  if (maybe_wc) {
+    auto wc = *maybe_wc;
+    std::string name =
+        "WASM: " +
+        context_.storage->GetString(wc.function_name()).ToStdString();
+    return {Line{WriteFunctionIfNeeded(base::StringView(name), kNullStringId,
+                                       annotation, mapping_id),
+                 0}};
+  }
+
+  auto& v8_regexp_code = context_.storage->v8_regexp_code_table();
+  auto maybe_rc = GetByConstraint(
+      v8_regexp_code, v8_regexp_code.jit_code_id().eq(jf.jit_code_id().value));
+  if (maybe_rc) {
+    auto rc = *maybe_rc;
+    std::string name =
+        "REGEXP: " + context_.storage->GetString(rc.pattern()).ToStdString();
+    return {Line{WriteFunctionIfNeeded(base::StringView(name), kNullStringId,
+                                       annotation, mapping_id),
+                 0}};
+  }
+
+  auto& v8_internal_code = context_.storage->v8_internal_code_table();
+  auto maybe_v8c = GetByConstraint(
+      v8_internal_code,
+      v8_internal_code.jit_code_id().eq(jf.jit_code_id().value));
+  if (maybe_v8c) {
+    auto v8c = *maybe_v8c;
+    std::string name =
+        "V8: " + context_.storage->GetString(v8c.function_name()).ToStdString();
+    return {Line{WriteFunctionIfNeeded(base::StringView(name), kNullStringId,
+                                       annotation, mapping_id),
+                 0}};
+  }
+
+  auto& jit_code = context_.storage->jit_code_table();
+  auto maybe_jc = jit_code.FindById(jf.jit_code_id());
+  if (maybe_jc) {
+    auto jc = *maybe_jc;
+    std::string name =
+        "JIT: " + context_.storage->GetString(jc.function_name()).ToStdString();
+    return {Line{WriteFunctionIfNeeded(base::StringView(name), kNullStringId,
+                                       annotation, mapping_id),
+                 0}};
+  }
+
+  return {};
 }
 
 std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForSymbolSetId(
@@ -495,6 +633,32 @@ uint64_t GProfileBuilder::WriteFakeFunctionIfNeeded(int64_t name_id) {
       {Function{name_id, kEmptyStringIndex, kEmptyStringIndex},
        functions_.size() + 1});
   return ins.first->second;
+}
+
+uint64_t GProfileBuilder::WriteFunctionIfNeeded(base::StringView name,
+                                                StringPool::Id filename,
+                                                CallsiteAnnotation annotation,
+                                                uint64_t mapping_id) {
+  int64_t name_id = string_table_.GetAnnotatedString(name, annotation);
+  int64_t filename_id = !filename.is_null()
+                            ? string_table_.InternString(filename)
+                            : kEmptyStringIndex;
+
+  auto ins =
+      functions_.insert({Function{name_id, kEmptyStringIndex, filename_id},
+                         functions_.size() + 1});
+  uint64_t id = ins.first->second;
+
+  if (ins.second) {
+    if (name_id != kEmptyStringIndex) {
+      GetMapping(mapping_id).debug_info.has_functions = true;
+    }
+    if (filename_id != kEmptyStringIndex) {
+      GetMapping(mapping_id).debug_info.has_filenames = true;
+    }
+  }
+
+  return id;
 }
 
 uint64_t GProfileBuilder::WriteFunctionIfNeeded(
