@@ -18,7 +18,6 @@ import {Spinner} from '../../../../widgets/spinner';
 import {PivotTreeNode} from './pivot_tree_node';
 import {Button} from '../../../../widgets/button';
 import {Icons} from '../../../../base/semantic_icons';
-import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
 import {LegacyTableColumn, tableColumnId} from '../legacy_table/table_column';
 import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {Anchor} from '../../../../widgets/anchor';
@@ -63,6 +62,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             };
           }
           const status = node.getPivotDisplayStatus(index);
+          const value = node.getPivotValue(index);
           return {
             cell: [
               (status === 'collapsed' || status === 'expanded') &&
@@ -80,7 +80,8 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
               // Indent the expanded values to align them with the parent value
               // even though they do not have the "expand/collapse" button.
               status === 'pivoted_value' && m('span.indent'),
-              sqlValueToReadableString(node.getPivotValue(index)),
+              value !== undefined &&
+                this.state.getPivots()[index].renderCell(value),
               // Show ellipsis for the last pivot if the node is collapsed to
               // make it clear to the user that there are some values.
               status === 'hidden_behind_collapsed' && '...',
@@ -94,7 +95,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       .map((agg, index) => ({
         title: this.renderAggregationColumnHeader(agg, index),
         render: (node) => ({
-          cell: sqlValueToReadableString(node.getAggregationValue(index)),
+          cell: agg.column.renderCell(node.getAggregationValue(index)),
         }),
       }));
 
