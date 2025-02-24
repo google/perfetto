@@ -463,6 +463,20 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       continue;
     }
 
+    // Boot image profiling sysprops are parsed directly into global metadata.
+    // This greatly simplifies identification of associated traces, which
+    // generally have much different performance characteristics. See also
+    // https://source.android.com/docs/core/runtime/boot-image-profiles.
+    if (name == "debug.tracing.profile_boot_classpath") {
+      context_->metadata_tracker->SetMetadata(
+          metadata::android_profile_boot_classpath, Variadic::Integer(*state));
+      continue;
+    } else if (name == "debug.tracing.profile_system_server") {
+      context_->metadata_tracker->SetMetadata(
+          metadata::android_profile_system_server, Variadic::Integer(*state));
+      continue;
+    }
+
     if (name == "debug.tracing.screen_state") {
       TrackId track = context_->track_tracker->InternTrack(
           tracks::kAndroidScreenStateBlueprint);
