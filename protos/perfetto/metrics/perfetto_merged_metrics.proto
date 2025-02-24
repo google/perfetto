@@ -3207,13 +3207,15 @@ message CloneDuration {
 // Begin of protos/perfetto/metrics/metrics.proto
 
 // Trace processor metadata
-// Next id: 18
+// Next id: 20
 message TraceMetadata {
   reserved 1;
   optional int64 trace_duration_ns = 2;
   optional string trace_uuid = 3;
   optional string android_build_fingerprint = 4;
   optional string android_device_manufacturer = 16;
+  optional int64 android_profile_boot_classpath = 18;
+  optional int64 android_profile_system_server = 19;
   optional int64 statsd_triggering_subscription_id = 5;
   optional int64 trace_size_bytes = 6;
   repeated string trace_trigger = 7;
