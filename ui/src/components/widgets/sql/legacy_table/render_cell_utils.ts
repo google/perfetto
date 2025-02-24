@@ -184,8 +184,11 @@ export function displayValue(value: SqlValue): m.Child {
 export function renderStandardCell(
   value: SqlValue,
   column: SqlColumn,
-  tableManager: LegacyTableManager,
+  tableManager: LegacyTableManager | undefined,
 ): m.Children {
+  if (tableManager === undefined) {
+    return displayValue(value);
+  }
   const contextMenuItems: m.Child[] = getStandardContextMenuItems(
     value,
     column,

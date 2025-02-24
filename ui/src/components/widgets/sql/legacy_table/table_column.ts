@@ -67,11 +67,17 @@ export abstract class LegacyTableColumn<
   // but to do this correctly we need to fetch the `type` column.
   supportingColumns?(): SupportingColumns;
 
-  // Render a table cell. `value` corresponds to the fetched SQL value for the primary column, `dependentColumns` are the fetched values for the dependent columns.
+  /**
+   * Render a table cell. tableManager can be undefined, in which case the cell should provide basic rendering (e.g. for pivot table).
+   *
+   * @param value The value to be rendered.
+   * @param tableManager Optional table manager to allow interaction with the table (e.g. adding filters).
+   * @param supportingValues Optional additional values needed to render the cell.
+   */
   abstract renderCell(
     value: SqlValue,
-    tableManager: LegacyTableManager,
-    supportingValues: {[key in keyof SupportingColumns]: SqlValue},
+    tableManager?: LegacyTableManager,
+    supportingValues?: {[key in keyof SupportingColumns]: SqlValue},
   ): m.Children;
 
   // A set of columns to be added when opening this table.

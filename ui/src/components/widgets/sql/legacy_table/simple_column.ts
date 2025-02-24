@@ -26,7 +26,10 @@ export class SimpleColumn extends LegacyTableColumn {
     return this.column;
   }
 
-  override renderCell(value: SqlValue, tableManager: LegacyTableManager) {
+  override renderCell(
+    value: SqlValue,
+    tableManager: LegacyTableManager | undefined,
+  ) {
     return renderStandardCell(value, this.column, tableManager);
   }
 }

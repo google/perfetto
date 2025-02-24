@@ -86,7 +86,10 @@ export class StandardColumn extends LegacyTableColumn {
     return this.params?.title;
   }
 
-  renderCell(value: SqlValue, tableManager: LegacyTableManager): m.Children {
+  override renderCell(
+    value: SqlValue,
+    tableManager?: LegacyTableManager,
+  ): m.Children {
     return renderStandardCell(value, this.column, tableManager);
   }
 
@@ -111,17 +114,18 @@ export class TimestampColumn extends LegacyTableColumn {
     return this.params?.title;
   }
 
-  renderCell(value: SqlValue, tableManager: LegacyTableManager): m.Children {
+  renderCell(value: SqlValue, tableManager?: LegacyTableManager): m.Children {
+    if (typeof value === 'number') {
+      value = BigInt(Math.round(value));
+    }
     if (typeof value !== 'bigint') {
       return renderStandardCell(value, this.column, tableManager);
     }
     return m(Timestamp, {
       ts: Time.fromRaw(value),
-      extraMenuItems: getStandardContextMenuItems(
-        value,
-        this.column,
-        tableManager,
-      ),
+      extraMenuItems:
+        tableManager &&
+        getStandardContextMenuItems(value, this.column, tableManager),
     });
   }
 }
@@ -142,18 +146,19 @@ export class DurationColumn extends LegacyTableColumn {
     return this.params?.title;
   }
 
-  renderCell(value: SqlValue, tableManager: LegacyTableManager): m.Children {
+  renderCell(value: SqlValue, tableManager?: LegacyTableManager): m.Children {
+    if (typeof value === 'number') {
+      value = BigInt(Math.round(value));
+    }
     if (typeof value !== 'bigint') {
       return renderStandardCell(value, this.column, tableManager);
     }
 
     return m(DurationWidget, {
       dur: Duration.fromRaw(value),
-      extraMenuItems: getStandardContextMenuItems(
-        value,
-        this.column,
-        tableManager,
-      ),
+      extraMenuItems:
+        tableManager &&
+        getStandardContextMenuItems(value, this.column, tableManager),
     });
   }
 }
@@ -174,10 +179,10 @@ export class SliceIdColumn extends LegacyTableColumn {
     return this.params?.title;
   }
 
-  renderCell(value: SqlValue, manager: LegacyTableManager): m.Children {
+  renderCell(value: SqlValue, manager?: LegacyTableManager): m.Children {
     const id = value;
 
-    if (id === null) {
+    if (!manager || id === null) {
       return renderStandardCell(id, this.id, manager);
     }
 
@@ -226,10 +231,10 @@ export class SchedIdColumn extends LegacyTableColumn {
     return this.params?.title;
   }
 
-  renderCell(value: SqlValue, manager: LegacyTableManager): m.Children {
+  renderCell(value: SqlValue, manager?: LegacyTableManager): m.Children {
     const id = value;
 
-    if (id === null) {
+    if (!manager || id === null) {
       return renderStandardCell(id, this.id, manager);
     }
     if (typeof id !== 'bigint') return wrongTypeError('id', this.id, id);
@@ -258,10 +263,10 @@ export class ThreadStateIdColumn extends LegacyTableColumn {
     return this.params?.title;
   }
 
-  renderCell(value: SqlValue, manager: LegacyTableManager): m.Children {
+  renderCell(value: SqlValue, manager?: LegacyTableManager): m.Children {
     const id = value;
 
-    if (id === null) {
+    if (!manager || id === null) {
       return renderStandardCell(id, this.id, manager);
     }
     if (typeof id !== 'bigint') return wrongTypeError('id', this.id, id);
@@ -286,10 +291,10 @@ export class ThreadIdColumn extends LegacyTableColumn {
     return this.utid;
   }
 
-  renderCell(value: SqlValue, manager: LegacyTableManager): m.Children {
+  renderCell(value: SqlValue, manager?: LegacyTableManager): m.Children {
     const utid = value;
 
-    if (utid === null) {
+    if (!manager || utid === null) {
       return renderStandardCell(utid, this.utid, manager);
     }
 
@@ -359,10 +364,10 @@ export class ProcessIdColumn extends LegacyTableColumn {
     return this.upid;
   }
 
-  renderCell(value: SqlValue, manager: LegacyTableManager): m.Children {
+  renderCell(value: SqlValue, manager?: LegacyTableManager): m.Children {
     const upid = value;
 
-    if (upid === null) {
+    if (!manager || upid === null) {
       return renderStandardCell(upid, this.upid, manager);
     }
 
@@ -470,8 +475,8 @@ class ArgColumn extends LegacyTableColumn<{type: SqlColumn}> {
 
   renderCell(
     value: SqlValue,
-    tableManager: LegacyTableManager,
-    values: {type: SqlValue},
+    tableManager?: LegacyTableManager,
+    values?: {type: SqlValue},
   ): m.Children {
     // If the value is NULL, then filters can check for id column for better performance.
     if (value === null) {
@@ -481,21 +486,21 @@ class ArgColumn extends LegacyTableColumn<{type: SqlColumn}> {
         tableManager,
       );
     }
-    if (values.type === 'int') {
+    if (values?.type === 'int') {
       return renderStandardCell(
         value,
         this.getRawColumn('int_value'),
         tableManager,
       );
     }
-    if (values.type === 'string') {
+    if (values?.type === 'string') {
       return renderStandardCell(
         value,
         this.getRawColumn('string_value'),
         tableManager,
       );
     }
-    if (values.type === 'real') {
+    if (values?.type === 'real') {
       return renderStandardCell(
         value,
         this.getRawColumn('real_value'),
