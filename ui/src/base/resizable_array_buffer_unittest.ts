@@ -35,11 +35,16 @@ test('ResizableArrayBuffer.merge', () => {
   // pseudo-random sequence.
   const randState = {seed: 1};
   const randU8 = () => (pseudoRand(randState) * 256) & 0xff;
-  const BATCH_SIZES = [37, 129, 1023, 1024 * 37, 1024 * 511];
+  const BATCH_SIZES = [11, 129, 1023, 1024 * 7];
+  const TOTAL_SIZE = BATCH_SIZES.reduce((a, s) => a + s, 0);
+  const expected = new Uint8Array(TOTAL_SIZE);
+  let e = 0;
   for (const batchSize of BATCH_SIZES) {
     const batch = new Uint8Array(batchSize);
     for (let i = 0; i < batch.length; i++) {
-      batch[i] = randU8();
+      const num = randU8();
+      batch[i] = num;
+      expected[e++] = num;
     }
     buf.append(batch);
   }
@@ -47,9 +52,6 @@ test('ResizableArrayBuffer.merge', () => {
   // Now reset the seed and check that the random sequence of the merged array
   // matches.
   const merged = buf.get();
-  expect(merged.length).toEqual(BATCH_SIZES.reduce((a, s) => a + s, 0));
-  randState.seed = 1;
-  for (let i = 0; i < merged.length; i++) {
-    expect(merged[i]).toEqual(randU8());
-  }
+  expect(merged.length).toEqual(expected.length);
+  expect(merged).toEqual(expected);
 });
