@@ -514,6 +514,11 @@ button.query-ctrl {
     text-align: left;
   }
 
+  td.action-button {
+    min-width: fit-content;
+    width: 1px;
+  }
+
   td {
     // In context menu icon to go on a separate line.
     // In regular pivot table cells, avoids wrapping the icon spacer to go on

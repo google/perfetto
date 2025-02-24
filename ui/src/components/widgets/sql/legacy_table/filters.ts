@@ -16,6 +16,10 @@ import m from 'mithril';
 import {Button, ButtonBar} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
 import {isSqlColumnEqual, SqlColumn, sqlColumnId} from './sql_column';
+import {
+  SqlValue,
+  sqlValueToSqliteString,
+} from '../../../../trace_processor/sql_utils';
 
 // A filter which can be applied to the table.
 export interface Filter {
@@ -42,6 +46,11 @@ export class Filters {
 
   addFilter(filter: Filter) {
     this.filters.push(filter);
+    this.notify();
+  }
+
+  addFilters(filter: ReadonlyArray<Filter>) {
+    this.filters.push(...filter);
     this.notify();
   }
 
@@ -111,4 +120,19 @@ export function renderFilters(filters: Filters): m.Children {
       }),
     ),
   );
+}
+
+export class StandardFilters {
+  static valueEquals(col: SqlColumn, value: SqlValue): Filter {
+    if (value === null) {
+      return {
+        columns: [col],
+        op: (cols) => `${cols[0]} IS NULL`,
+      };
+    }
+    return {
+      columns: [col],
+      op: (cols) => `${cols[0]} = ${sqlValueToSqliteString(value)}`,
+    };
+  }
 }
