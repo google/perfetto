@@ -284,6 +284,11 @@ class GProfileBuilder {
       const CallsiteId& callsite_id,
       bool annotated);
 
+  std::vector<Line> GetLinesForJitFrame(
+      const tables::StackProfileFrameTable::ConstRowReference& frame,
+      CallsiteAnnotation annotation,
+      uint64_t mapping_id);
+
   std::vector<Line> GetLinesForSymbolSetId(
       std::optional<uint32_t> symbol_set_id,
       CallsiteAnnotation annotation,
@@ -304,6 +309,11 @@ class GProfileBuilder {
   uint64_t WriteLocationIfNeeded(FrameId frame_id,
                                  CallsiteAnnotation annotation);
   uint64_t WriteFakeLocationIfNeeded(const std::string& name);
+
+  uint64_t WriteFunctionIfNeeded(base::StringView name,
+                                 StringPool::Id filename,
+                                 CallsiteAnnotation annotation,
+                                 uint64_t mapping_id);
 
   uint64_t WriteFunctionIfNeeded(
       const tables::SymbolTable::ConstRowReference& symbol,
