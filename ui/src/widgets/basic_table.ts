@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {CustomTable, ReorderableColumns} from './custom_table';
+import {CustomTable} from './custom_table';
 
 export interface ColumnDescriptor<T> {
   readonly title: m.Children;
@@ -31,13 +31,13 @@ export class BasicTable<T> implements m.ClassComponent<BasicTableAttrs<T>> {
   view({attrs}: m.Vnode<BasicTableAttrs<T>>): m.Children {
     return m(CustomTable<T>, {
       columns: [
-        new ReorderableColumns<T>(
-          attrs.columns.map((c) => ({
+        {
+          columns: attrs.columns.map((c) => ({
             title: c.title,
-            render: (row) => ({cell: c.render(row)}),
+            render: (row: T) => ({cell: c.render(row)}),
           })),
-          attrs.onreorder,
-        ),
+          reorder: attrs.onreorder,
+        },
       ],
       data: attrs.data,
       className: attrs.className,
