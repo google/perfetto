@@ -38,6 +38,8 @@ namespace metadata {
   F(android_hardware_revision,         KeyType::kSingle,  Variadic::kString), \
   F(android_storage_model,             KeyType::kSingle,  Variadic::kString), \
   F(android_ram_model,                 KeyType::kSingle,  Variadic::kString), \
+  F(android_profile_boot_classpath,    KeyType::kSingle,  Variadic::kInt),    \
+  F(android_profile_system_server,     KeyType::kSingle,  Variadic::kInt),    \
   F(benchmark_description,             KeyType::kSingle,  Variadic::kString), \
   F(benchmark_had_failures,            KeyType::kSingle,  Variadic::kInt),    \
   F(benchmark_label,                   KeyType::kSingle,  Variadic::kString), \
