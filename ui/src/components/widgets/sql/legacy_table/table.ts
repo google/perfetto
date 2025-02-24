@@ -23,7 +23,7 @@ import {
   SqlValue,
 } from '../../../../trace_processor/query_result';
 import {Anchor} from '../../../../widgets/anchor';
-import {BasicTable, ReorderableColumns} from '../../../../widgets/basic_table';
+import {BasicTable} from '../../../../widgets/basic_table';
 import {Spinner} from '../../../../widgets/spinner';
 
 import {
@@ -340,12 +340,9 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         BasicTable<Row>,
         {
           data: rows,
-          columns: [
-            new ReorderableColumns(
-              columnDescriptors,
-              (from: number, to: number) => this.state.moveColumn(from, to),
-            ),
-          ],
+          columns: columnDescriptors,
+          onreorder: (from: number, to: number) =>
+            this.state.moveColumn(from, to),
         },
         this.state.isLoading() && m(Spinner),
         this.state.getQueryError() !== undefined &&
