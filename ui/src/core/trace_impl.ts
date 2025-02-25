@@ -18,7 +18,7 @@ import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
 import {Trace} from '../public/trace';
 import {ScrollToArgs, setScrollToFunction} from '../public/scroll_helper';
-import {TrackDescriptor} from '../public/track';
+import {Track} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
 import {CommandManagerImpl} from './command_manager';
 import {NoteManagerImpl} from './note_manager';
@@ -213,7 +213,7 @@ export class TraceImpl implements Trace {
 
     // Intercept the registerTrack() method to inject the pluginId into tracks.
     this.trackMgrProxy = createProxy(ctx.trackMgr, {
-      registerTrack(trackDesc: TrackDescriptor): Disposable {
+      registerTrack(trackDesc: Track): Disposable {
         return ctx.trackMgr.registerTrack({...trackDesc, pluginId});
       },
     });
