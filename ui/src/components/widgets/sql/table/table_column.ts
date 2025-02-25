@@ -19,7 +19,7 @@ import {SqlColumn, sqlColumnId} from './sql_column';
 import {Filters} from './filters';
 
 // Interface which allows TableColumn to interact with the table (e.g. add filters, or run the query).
-export interface LegacyTableManager {
+export interface TableManager {
   filters: Filters;
   trace: Trace;
   getSqlQuery(data: {[key: string]: SqlColumn}): string;
@@ -36,7 +36,7 @@ export interface TableColumnParams {
 
 // Class which represents a column in a table, which can be displayed to the user.
 // It is based on the primary SQL column, but also contains additional information needed for displaying it as a part of a table.
-export interface LegacyTableColumn<
+export interface TableColumn<
   SupportingColumns extends {[key: string]: SqlColumn} = {},
 > {
   readonly column: SqlColumn;
@@ -61,7 +61,7 @@ export interface LegacyTableColumn<
    */
   renderCell(
     value: SqlValue,
-    tableManager?: LegacyTableManager,
+    tableManager?: TableManager,
     supportingValues?: {[key in keyof SupportingColumns]: SqlValue},
   ): m.Children;
 
@@ -69,25 +69,25 @@ export interface LegacyTableColumn<
   // It has two primary purposes:
   // - Allow some columns to be hidden by default (by returning an empty array).
   // - Expand some columns (e.g. utid and upid are not meaningful by themselves, so the corresponding columns might add a "name" column by default).
-  initialColumns?(): LegacyTableColumn[];
+  initialColumns?(): TableColumn[];
 
   // Some columns / values (arg_set_ids, table ids, etc) are primarily used to reference other data.
   // This method allows showing the user list of additional columns which can be fetched using this column.
   listDerivedColumns?(
-    manager: LegacyTableManager,
-  ): undefined | (() => Promise<Map<string, LegacyTableColumn>>);
+    manager: TableManager,
+  ): undefined | (() => Promise<Map<string, TableColumn>>);
 }
 
 // Returns a unique identifier for the table column.
-export function tableColumnId(column: LegacyTableColumn): string {
+export function tableColumnId(column: TableColumn): string {
   return sqlColumnId(column.column);
 }
 
-export function tableColumnAlias(column: LegacyTableColumn): string {
+export function tableColumnAlias(column: TableColumn): string {
   return tableColumnId(column).replace(/[^a-zA-Z0-9_]/g, '__');
 }
 
-export function columnTitle(column: LegacyTableColumn): string {
+export function columnTitle(column: TableColumn): string {
   if (column.getTitle !== undefined) {
     const title = column.getTitle();
     if (title !== undefined) return title;

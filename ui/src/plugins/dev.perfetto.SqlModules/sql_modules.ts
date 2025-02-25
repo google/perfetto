@@ -21,9 +21,9 @@ import {
   ThreadIdColumn,
   ThreadStateIdColumn,
   TimestampColumn,
-} from '../../components/widgets/sql/legacy_table/columns';
-import {LegacyTableColumn} from '../../components/widgets/sql/legacy_table/table_column';
-import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
+} from '../../components/widgets/sql/table/columns';
+import {TableColumn} from '../../components/widgets/sql/table/table_column';
+import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
 
 // Handles the access to all of the Perfetto SQL modules accessible to Trace
 //  Processor.
@@ -94,7 +94,7 @@ export interface SqlTable {
   readonly joinIdColumns: SqlColumn[];
 
   // Returns all columns as TableColumns.
-  getTableColumns(): LegacyTableColumn[];
+  getTableColumns(): TableColumn[];
 
   getIdColumns(): SqlColumn[];
   getJoinIdColumns(): SqlColumn[];
@@ -159,7 +159,7 @@ export interface SqlType {
 export function createTableColumnFromPerfettoSql(
   col: SqlColumn,
   tableName: string,
-): LegacyTableColumn {
+): TableColumn {
   if (col.type.shortName === 'timestamp') {
     return new TimestampColumn(col.name);
   }

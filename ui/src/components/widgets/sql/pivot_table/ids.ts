@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqlColumnId} from '../legacy_table/sql_column';
-import type {LegacyTableColumn} from '../legacy_table/table_column';
+import {sqlColumnId} from '../table/sql_column';
+import type {TableColumn} from '../table/table_column';
 import type {Aggregation} from './aggregations';
 
 // Unique identifier for a pivot column.
-export function pivotId(p: LegacyTableColumn): string {
+export function pivotId(p: TableColumn): string {
   return sqlColumnId(p.column);
 }
 

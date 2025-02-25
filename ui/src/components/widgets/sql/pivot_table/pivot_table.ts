@@ -18,16 +18,13 @@ import {Spinner} from '../../../../widgets/spinner';
 import {PivotTreeNode} from './pivot_tree_node';
 import {Button} from '../../../../widgets/button';
 import {Icons} from '../../../../base/semantic_icons';
-import {LegacyTableColumn, tableColumnId} from '../legacy_table/table_column';
+import {TableColumn, tableColumnId} from '../table/table_column';
 import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {Anchor} from '../../../../widgets/anchor';
-import {
-  renderColumnIcon,
-  renderSortMenuItems,
-} from '../legacy_table/table_header';
-import {SelectColumnMenu} from '../legacy_table/select_column_menu';
-import {SqlColumn} from '../legacy_table/sql_column';
-import {buildSqlQuery} from '../legacy_table/query_builder';
+import {renderColumnIcon, renderSortMenuItems} from '../table/table_header';
+import {SelectColumnMenu} from '../table/select_column_menu';
+import {SqlColumn} from '../table/sql_column';
+import {buildSqlQuery} from '../table/query_builder';
 import {Aggregation, AGGREGATIONS} from './aggregations';
 import {aggregationId, pivotId} from './ids';
 import {
@@ -136,7 +133,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
 
   renderPivotColumnHeader(
     attrs: PivotTableAttrs,
-    pivot: LegacyTableColumn,
+    pivot: TableColumn,
     index: number,
   ) {
     const state = attrs.state;

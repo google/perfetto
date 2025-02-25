@@ -27,8 +27,8 @@ import {
   TableAndColumn,
   createTableColumnFromPerfettoSql,
 } from './sql_modules';
-import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
-import {LegacyTableColumn} from '../../components/widgets/sql/legacy_table/table_column';
+import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
+import {TableColumn} from '../../components/widgets/sql/table/table_column';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
@@ -289,7 +289,7 @@ class SqlTableImpl implements SqlTable {
       .filter((tAndC) => tAndC !== undefined) as TableAndColumn[];
   }
 
-  getTableColumns(): LegacyTableColumn[] {
+  getTableColumns(): TableColumn[] {
     return this.columns.map((col) =>
       createTableColumnFromPerfettoSql(col, this.name),
     );

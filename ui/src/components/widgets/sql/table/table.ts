@@ -34,11 +34,7 @@ import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
 import {Form} from '../../../../widgets/form';
 import {TextInput} from '../../../../widgets/text_input';
-import {
-  LegacyTableColumn,
-  LegacyTableManager,
-  tableColumnId,
-} from './table_column';
+import {TableColumn, TableManager, tableColumnId} from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {SelectColumnMenu} from './select_column_menu';
 import {renderColumnIcon, renderSortMenuItems} from './table_header';
@@ -47,7 +43,7 @@ export interface SqlTableConfig {
   readonly state: SqlTableState;
   // For additional menu items to add to the column header menus
   readonly addColumnMenuItems?: (
-    column: LegacyTableColumn,
+    column: TableColumn,
     columnAlias: string,
   ) => m.Children;
   // For additional filter actions
@@ -62,7 +58,7 @@ export interface SqlTableConfig {
 type AdditionalColumnMenuItems = Record<string, m.Children>;
 
 function renderCell(
-  column: LegacyTableColumn,
+  column: TableColumn,
   row: Row,
   state: SqlTableState,
 ): m.Children {
@@ -79,7 +75,7 @@ function renderCell(
   return column.renderCell(sqlValue, getTableManager(state), additionalValues);
 }
 
-export function columnTitle(column: LegacyTableColumn): string {
+export function columnTitle(column: TableColumn): string {
   if (column.getTitle !== undefined) {
     const title = column.getTitle();
     if (title !== undefined) return title;
@@ -214,9 +210,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     this.table = this.state.config;
   }
 
-  renderAddColumnOptions(
-    addColumn: (column: LegacyTableColumn) => void,
-  ): m.Children {
+  renderAddColumnOptions(addColumn: (column: TableColumn) => void): m.Children {
     // We do not want to add columns which already exist, so we track the
     // columns which we are already showing here.
     // TODO(altimin): Theoretically a single table can have two different
@@ -239,7 +233,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   }
 
   renderColumnFilterOptions(
-    c: LegacyTableColumn,
+    c: TableColumn,
   ): m.Vnode<ColumnFilterAttrs, unknown>[] {
     return Object.keys(LegacySqlTableFilterOptions).map((label) =>
       m(ColumnFilter, {
@@ -251,7 +245,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   }
 
   renderColumnHeader(
-    column: LegacyTableColumn,
+    column: TableColumn,
     index: number,
     additionalColumnHeaderMenuItems?: m.Children,
   ) {
@@ -290,7 +284,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
   getAdditionalColumnMenuItems(
     addColumnMenuItems?: (
-      column: LegacyTableColumn,
+      column: TableColumn,
       columnAlias: string,
     ) => m.Children,
   ) {
@@ -348,7 +342,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   }
 }
 
-export function getTableManager(state: SqlTableState): LegacyTableManager {
+export function getTableManager(state: SqlTableState): TableManager {
   return {
     filters: state.filters,
     trace: state.trace,

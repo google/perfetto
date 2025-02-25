@@ -32,24 +32,24 @@ import {DurationWidget} from '../../components/widgets/duration';
 import {fromSqlBool, renderSliceRef, renderSqlRef} from './utils';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {
-  LegacyTableColumn,
-  LegacyTableManager,
-} from '../../components/widgets/sql/legacy_table/table_column';
-import {renderStandardCell} from '../../components/widgets/sql/legacy_table/render_cell_utils';
+  TableColumn,
+  TableManager,
+} from '../../components/widgets/sql/table/table_column';
+import {renderStandardCell} from '../../components/widgets/sql/table/render_cell_utils';
 import {ScrollTimelineModel} from './scroll_timeline_model';
 import {
   DurationColumn,
   StandardColumn,
   TimestampColumn,
-} from '../../components/widgets/sql/legacy_table/columns';
+} from '../../components/widgets/sql/table/columns';
 
 function createPluginSliceIdColumn(
   trace: Trace,
   trackUri: string,
   name: string,
-): LegacyTableColumn {
+): TableColumn {
   const col = new StandardColumn(name);
-  col.renderCell = (value: SqlValue, tableManager: LegacyTableManager) => {
+  col.renderCell = (value: SqlValue, tableManager: TableManager) => {
     if (value === null || typeof value !== 'bigint') {
       return renderStandardCell(value, name, tableManager);
     }
@@ -66,7 +66,7 @@ function createPluginSliceIdColumn(
 function createScrollTimelineTableColumns(
   trace: Trace,
   trackUri: string,
-): LegacyTableColumn[] {
+): TableColumn[] {
   return [
     createPluginSliceIdColumn(trace, trackUri, 'id'),
     new StandardColumn('scroll_update_id'),

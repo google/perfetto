@@ -23,11 +23,7 @@ import {Trace} from '../../../../public/trace';
 import {runQuery} from '../../../query_table/queries';
 import {AsyncLimiter} from '../../../../base/async_limiter';
 import {areFiltersEqual, Filter, Filters} from './filters';
-import {
-  LegacyTableColumn,
-  tableColumnAlias,
-  tableColumnId,
-} from './table_column';
+import {TableColumn, tableColumnAlias, tableColumnId} from './table_column';
 import {moveArrayItem} from '../../../../base/array_utils';
 
 const ROW_LIMIT = 100;
@@ -65,9 +61,9 @@ export class SqlTableState {
   private readonly asyncLimiter = new AsyncLimiter();
 
   // Columns currently displayed to the user. All potential columns can be found `this.table.columns`.
-  private columns: LegacyTableColumn[];
+  private columns: TableColumn[];
   private orderBy: {
-    column: LegacyTableColumn;
+    column: TableColumn;
     direction: SortDirection;
   }[];
   private offset = 0;
@@ -81,12 +77,12 @@ export class SqlTableState {
     readonly trace: Trace,
     readonly config: SqlTableDescription,
     private readonly args?: {
-      initialColumns?: LegacyTableColumn[];
-      additionalColumns?: LegacyTableColumn[];
+      initialColumns?: TableColumn[];
+      additionalColumns?: TableColumn[];
       imports?: string[];
       filters?: Filters;
       orderBy?: {
-        column: LegacyTableColumn;
+        column: TableColumn;
         direction: SortDirection;
       }[];
     },
@@ -370,10 +366,7 @@ export class SqlTableState {
     return this.data === undefined;
   }
 
-  sortBy(clause: {
-    column: LegacyTableColumn;
-    direction: SortDirection | undefined;
-  }) {
+  sortBy(clause: {column: TableColumn; direction: SortDirection | undefined}) {
     // Remove previous sort by the same column.
     this.orderBy = this.orderBy.filter(
       (c) => tableColumnId(c.column) != tableColumnId(clause.column),
@@ -385,7 +378,7 @@ export class SqlTableState {
     this.reload();
   }
 
-  isSortedBy(column: LegacyTableColumn): SortDirection | undefined {
+  isSortedBy(column: TableColumn): SortDirection | undefined {
     if (this.orderBy.length === 0) return undefined;
     if (tableColumnId(this.orderBy[0].column) !== tableColumnId(column)) {
       return undefined;
@@ -404,7 +397,7 @@ export class SqlTableState {
     return result;
   }
 
-  addColumn(column: LegacyTableColumn, index: number) {
+  addColumn(column: TableColumn, index: number) {
     this.columns.splice(index + 1, 0, column);
     this.reload({offset: 'keep'});
   }
@@ -425,7 +418,7 @@ export class SqlTableState {
     moveArrayItem(this.columns, fromIndex, toIndex);
   }
 
-  getSelectedColumns(): LegacyTableColumn[] {
+  getSelectedColumns(): TableColumn[] {
     return this.columns;
   }
 }

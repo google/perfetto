@@ -15,16 +15,12 @@
 import {AsyncLimiter} from '../../../../base/async_limiter';
 import {Trace} from '../../../../public/trace';
 import {Row} from '../../../../trace_processor/query_result';
-import {areFiltersEqual, Filter, Filters} from '../legacy_table/filters';
-import {buildSqlQuery} from '../legacy_table/query_builder';
-import {SimpleColumn} from '../legacy_table/simple_column';
-import {
-  SqlColumn,
-  sqlColumnId,
-  SqlExpression,
-} from '../legacy_table/sql_column';
-import {LegacyTableColumn} from '../legacy_table/table_column';
-import {SqlTableDescription} from '../legacy_table/table_description';
+import {areFiltersEqual, Filter, Filters} from '../table/filters';
+import {buildSqlQuery} from '../table/query_builder';
+import {SimpleColumn} from '../table/simple_column';
+import {SqlColumn, sqlColumnId, SqlExpression} from '../table/sql_column';
+import {TableColumn} from '../table/table_column';
+import {SqlTableDescription} from '../table/table_description';
 import {moveArrayItem} from '../../../../base/array_utils';
 import {assertExists} from '../../../../base/logging';
 import {SortDirection} from '../../../../base/comparison_utils';
@@ -35,7 +31,7 @@ import {aggregationId, pivotId} from './ids';
 // Pivot and aggregation ids are human-readable, but are not valid SQLite identifiers,
 // so we need to generate valid aliases for them. We map the values back to be keyed
 // by the ids as soon as we get the data back from the trace processor.
-function pivotSqliteAlias(p: LegacyTableColumn): string {
+function pivotSqliteAlias(p: TableColumn): string {
   return pivotId(p).replace(/[^a-zA-Z0-9_]/g, '__');
 }
 
@@ -57,7 +53,7 @@ interface RequestedData {
 export interface PivotTableStateArgs {
   trace: Trace;
   table: SqlTableDescription;
-  pivots: LegacyTableColumn[];
+  pivots: TableColumn[];
   aggregations?: Aggregation[];
   filters?: Filters;
 }
@@ -77,7 +73,7 @@ export class PivotTableState {
   public readonly trace: Trace;
   public readonly filters: Filters;
 
-  private readonly pivots: LegacyTableColumn[] = [];
+  private readonly pivots: TableColumn[] = [];
   private readonly aggregations: Aggregation[] = [];
   private orderBy: SortOrder;
 
@@ -119,7 +115,7 @@ export class PivotTableState {
     return this.data.result?.tree;
   }
 
-  public getPivots(): ReadonlyArray<LegacyTableColumn> {
+  public getPivots(): ReadonlyArray<TableColumn> {
     return this.pivots;
   }
 
@@ -127,7 +123,7 @@ export class PivotTableState {
     return this.aggregations;
   }
 
-  public addPivot(pivot: LegacyTableColumn, index: number) {
+  public addPivot(pivot: TableColumn, index: number) {
     this.pivots.splice(index + 1, 0, pivot);
     this.reload();
   }
@@ -164,10 +160,7 @@ export class PivotTableState {
     this.reload();
   }
 
-  public sortByPivot(
-    pivot: LegacyTableColumn,
-    direction: SortDirection | undefined,
-  ) {
+  public sortByPivot(pivot: TableColumn, direction: SortDirection | undefined) {
     const id = pivotId(pivot);
     // Remove any existing sort by this pivot.
     this.orderBy = this.orderBy.filter(
@@ -200,7 +193,7 @@ export class PivotTableState {
     this.data.result?.tree.sort(this.orderBy);
   }
 
-  public isSortedByPivot(pivot: LegacyTableColumn): SortDirection | undefined {
+  public isSortedByPivot(pivot: TableColumn): SortDirection | undefined {
     if (this.orderBy.length === 0) return undefined;
     const id = pivotId(pivot);
     const head = this.orderBy[0];

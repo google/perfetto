@@ -15,8 +15,8 @@
 import {assertExists, assertTrue} from '../../../../base/logging';
 import {Row} from '../../../../trace_processor/query_result';
 import {SqlValue} from '../../../../trace_processor/sql_utils';
-import {Filter, StandardFilters} from '../legacy_table/filters';
-import {LegacyTableColumn} from '../legacy_table/table_column';
+import {Filter, StandardFilters} from '../table/filters';
+import {TableColumn} from '../table/table_column';
 import {
   Aggregation,
   BasicAggregation,
@@ -34,7 +34,7 @@ function assertNotUndefined<T>(value: T | undefined): T {
 }
 
 interface Config {
-  readonly pivots: ReadonlyArray<LegacyTableColumn>;
+  readonly pivots: ReadonlyArray<TableColumn>;
   readonly aggregations: ReadonlyArray<Aggregation>;
   readonly basicAggregations: ReadonlyArray<BasicAggregation>;
 }
@@ -100,7 +100,7 @@ export class PivotTreeNode {
   static buildTree(
     rows: Row[],
     config: {
-      pivots: ReadonlyArray<LegacyTableColumn>;
+      pivots: ReadonlyArray<TableColumn>;
       aggregations: ReadonlyArray<Aggregation>;
     },
   ): PivotTreeNode {
