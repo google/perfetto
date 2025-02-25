@@ -2788,8 +2788,11 @@ TEST_F(TracingServiceImplTest, ResynchronizeTraceStreamUsingSyncMarker) {
     writer->NewTracePacket()->set_for_testing()->set_str(payload.c_str());
     if (i % (100 / kNumMarkers) == 0) {
       writer->Flush();
-      // The snapshot will happen every 100ms
-      AdvanceTimeAndRunUntilIdle(100);
+      auto checkpoint_name =
+          "wait_snapshot_" + std::to_string(i / (100 / kNumMarkers));
+      auto timer_expired = task_runner.CreateCheckpoint(checkpoint_name);
+      task_runner.PostDelayedTask([timer_expired] { timer_expired(); }, 200);
+      task_runner.RunUntilCheckpoint(checkpoint_name);
     }
   }
   writer->Flush();
