@@ -15,12 +15,11 @@
 import m from 'mithril';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {Trace} from '../../../../public/trace';
-import {SimpleColumn} from '../table/table';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {Filters} from './filters';
 
 // Interface which allows TableColumn to interact with the table (e.g. add filters, or run the query).
-export interface LegacyTableManager {
+export interface TableManager {
   filters: Filters;
   trace: Trace;
   getSqlQuery(data: {[key: string]: SqlColumn}): string;
@@ -37,30 +36,16 @@ export interface TableColumnParams {
 
 // Class which represents a column in a table, which can be displayed to the user.
 // It is based on the primary SQL column, but also contains additional information needed for displaying it as a part of a table.
-export abstract class LegacyTableColumn<
+export interface TableColumn<
   SupportingColumns extends {[key: string]: SqlColumn} = {},
 > {
-  constructor(params?: TableColumnParams) {
-    this.tag = params?.tag;
-    this.alias = params?.alias;
-  }
+  readonly column: SqlColumn;
 
   // Column title to be displayed.
   // If not set, then `alias` will be used if it's unique.
   // If `alias` is not set as well, then `sqlColumnId(primaryColumn())` will be used.
   // TODO(altimin): This should return m.Children, but a bunch of things, including low-level widgets (Button, MenuItem, Anchor) need to be fixed first.
   getTitle?(): string | undefined;
-
-  // Some SQL columns can map to multiple table columns. For example, a "utid" can be displayed as an integer column, or as a "thread" column, which displays "$thread_name [$tid]".
-  // Each column should have a unique id, so in these cases `tag` is appended to the primary column id to guarantee uniqueness.
-  readonly tag?: string;
-
-  // Preferred alias to be used in the SQL query. If omitted, column name will be used instead, including postfixing it with an integer if necessary.
-  // However, e.g. explicit aliases like `process_name` and `thread_name` are typically preferred to `name_1`, `name_2`, hence the need for explicit aliasing.
-  readonly alias?: string;
-
-  // The SQL column this data corresponds to. Will be also used for sorting and aggregation purposes.
-  abstract primaryColumn(): SqlColumn;
 
   // In some cases to render a value in a table, we need information from additional columns.
   // For example, args have three related columns: int_value, string_value and real_value. From the user perspective, we want to coalesce them into a single "value" column,
@@ -74,9 +59,9 @@ export abstract class LegacyTableColumn<
    * @param tableManager Optional table manager to allow interaction with the table (e.g. adding filters).
    * @param supportingValues Optional additional values needed to render the cell.
    */
-  abstract renderCell(
+  renderCell(
     value: SqlValue,
-    tableManager?: LegacyTableManager,
+    tableManager?: TableManager,
     supportingValues?: {[key in keyof SupportingColumns]: SqlValue},
   ): m.Children;
 
@@ -84,52 +69,28 @@ export abstract class LegacyTableColumn<
   // It has two primary purposes:
   // - Allow some columns to be hidden by default (by returning an empty array).
   // - Expand some columns (e.g. utid and upid are not meaningful by themselves, so the corresponding columns might add a "name" column by default).
-  initialColumns?(): LegacyTableColumn[];
+  initialColumns?(): TableColumn[];
 
   // Some columns / values (arg_set_ids, table ids, etc) are primarily used to reference other data.
   // This method allows showing the user list of additional columns which can be fetched using this column.
   listDerivedColumns?(
-    manager: LegacyTableManager,
-  ): undefined | (() => Promise<Map<string, LegacyTableColumn>>);
-}
-
-export class FromSimpleColumn extends LegacyTableColumn {
-  readonly simpleCol: SimpleColumn;
-
-  primaryColumn(): SqlColumn {
-    return this.simpleCol.name;
-  }
-
-  renderCell(
-    value: SqlValue,
-    tableManager: LegacyTableManager,
-    _dependentColumns: {[key: string]: SqlValue},
-  ): m.Children {
-    return this.simpleCol.renderCell(value, tableManager);
-  }
-
-  constructor(simpleCol: SimpleColumn, params?: TableColumnParams) {
-    super(params);
-    this.simpleCol = simpleCol;
-  }
+    manager: TableManager,
+  ): undefined | (() => Promise<Map<string, TableColumn>>);
 }
 
 // Returns a unique identifier for the table column.
-export function tableColumnId(column: LegacyTableColumn): string {
-  return sqlColumnId(column.primaryColumn());
+export function tableColumnId(column: TableColumn): string {
+  return sqlColumnId(column.column);
 }
 
-export function tableColumnAlias(column: LegacyTableColumn): string {
-  return (
-    column.alias ??
-    sqlColumnId(column.primaryColumn()).replace(/[^a-zA-Z0-9_]/g, '__')
-  );
+export function tableColumnAlias(column: TableColumn): string {
+  return tableColumnId(column).replace(/[^a-zA-Z0-9_]/g, '__');
 }
 
-export function columnTitle(column: LegacyTableColumn): string {
+export function columnTitle(column: TableColumn): string {
   if (column.getTitle !== undefined) {
     const title = column.getTitle();
     if (title !== undefined) return title;
   }
-  return sqlColumnId(column.primaryColumn());
+  return sqlColumnId(column.column);
 }

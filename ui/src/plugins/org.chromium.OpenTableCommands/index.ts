@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqlTableRegistry} from '../../components/widgets/sql/legacy_table/sql_table_registry';
+import {sqlTableRegistry} from '../../components/widgets/sql/table/sql_table_registry';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {

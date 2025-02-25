@@ -18,12 +18,11 @@ import {ChartAttrs} from '../../../components/widgets/charts/chart';
 import {Trace} from '../../../public/trace';
 import {Row} from '../../../trace_processor/query_result';
 import {QueryNode} from '../query_node';
-import {SqlTableState} from '../../../components/widgets/sql/legacy_table/state';
-import {SqlColumnAsSimpleColumn} from '../../dev.perfetto.SqlModules/sql_modules';
+import {SqlTableState} from '../../../components/widgets/sql/table/state';
+import {createTableColumnFromPerfettoSql} from '../../dev.perfetto.SqlModules/sql_modules';
 import {analyzeNode, Query} from '../query_builder/data_source_viewer';
-import {FromSimpleColumn} from '../../../components/widgets/sql/legacy_table/table_column';
-import {Filters} from '../../../components/widgets/sql/legacy_table/filters';
-import {buildSqlQuery} from '../../../components/widgets/sql/legacy_table/query_builder';
+import {Filters} from '../../../components/widgets/sql/table/filters';
+import {buildSqlQuery} from '../../../components/widgets/sql/table/query_builder';
 
 export interface VisViewAttrs {
   charts: Set<ChartAttrs>;
@@ -155,10 +154,9 @@ export class VisViewSource {
           imports: this._baseQuery.modules,
           prefix: `WITH __data AS (${this._baseQuery.sql})`,
           name: '__data',
-          columns: queryNodeColumns.map(
-            (col) =>
-              // TODO: Figure out how to not require table name here.
-              new FromSimpleColumn(SqlColumnAsSimpleColumn(col.column, '')),
+          columns: queryNodeColumns.map((col) =>
+            // TODO: Figure out how to not require table name here.
+            createTableColumnFromPerfettoSql(col.column, ''),
           ),
         },
         {
