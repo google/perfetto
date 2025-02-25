@@ -478,7 +478,7 @@ bool PerfettoSqlPreprocessor::NextStatement() {
 
   SqlSource stmt =
       global_tokenizer_.Substr(tok, global_tokenizer_.NextTerminal(),
-                               SqliteTokenizer::EndToken::kInclusive);
+                               SqliteTokenizer::EndToken::kExclusive);
 
   State s{{}, *macros_, {}};
   s.stack.emplace_back(Frame::Root(), Frame::kIgnore, &s, std::move(stmt));

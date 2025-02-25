@@ -83,6 +83,12 @@ static inline int sqlite3ParserFallback(int token) {
   return 0;
 }
 
+int sqliteTokenizeInternalAnalyzeWindowKeyword(const unsigned char* z);
+int sqliteTokenizeInternalAnalyzeOverKeyword(const unsigned char* z,
+                                             int lastToken);
+int sqliteTokenizeInternalAnalyzeFilterKeyword(const unsigned char* z,
+                                               int lastToken);
+
 #ifdef __cplusplus
 #define deliberate_fall_through [[fallthrough]];
 #else
