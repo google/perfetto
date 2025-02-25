@@ -35,7 +35,7 @@ import {SerializedSelection} from './state_serialization_schema';
 import {showModal} from '../widgets/modal';
 import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
 import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
-import {TrackDescriptor} from '../public/track';
+import {Track} from '../public/track';
 
 interface SelectionDetailsPanel {
   isLoading: boolean;
@@ -99,9 +99,9 @@ export class SelectionManagerImpl implements SelectionManager {
     assertTrue(start <= end);
 
     // In the case of area selection, the caller provides a list of trackUris.
-    // However, all the consumer want to access the resolved TrackDescriptor.
-    // Rather than delegating this to the various consumers, we resolve them
-    // now once and for all and place them in the selection object.
+    // However, all the consumers want to access the resolved Tracks. Rather
+    // than delegating this to the various consumers, we resolve them now once
+    // and for all and place them in the selection object.
     const tracks = [];
     for (const uri of area.trackUris) {
       const trackDescr = this.trackManager.getTrack(uri);
@@ -235,8 +235,8 @@ export class SelectionManagerImpl implements SelectionManager {
     // 4. Run one query per group, reading out the filter column value, and
     //    looking up the originating track in the map.
     // One flaw of this approach is that.
-    const groups = new Map<string, [SourceDataset, TrackDescriptor][]>();
-    const tracksWithNoFilter: [SourceDataset, TrackDescriptor][] = [];
+    const groups = new Map<string, [SourceDataset, Track][]>();
+    const tracksWithNoFilter: [SourceDataset, Track][] = [];
 
     this.trackManager
       .getAllTracks()

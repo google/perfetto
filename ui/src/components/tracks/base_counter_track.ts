@@ -20,7 +20,11 @@ import {uuidv4Sql} from '../../base/uuid';
 import {drawTrackHoverTooltip} from '../../base/canvas_utils';
 import {raf} from '../../core/raf_scheduler';
 import {CacheKey} from './timeline_cache';
-import {Track, TrackMouseEvent, TrackRenderContext} from '../../public/track';
+import {
+  TrackRenderer,
+  TrackMouseEvent,
+  TrackRenderContext,
+} from '../../public/track';
 import {Button} from '../../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {LONG, NUM} from '../../trace_processor/query_result';
@@ -179,7 +183,7 @@ export interface CounterOptions {
   unit?: string;
 }
 
-export abstract class BaseCounterTrack implements Track {
+export abstract class BaseCounterTrack implements TrackRenderer {
   protected trackUuid = uuidv4Sql();
 
   // This is the over-skirted cached bounds:

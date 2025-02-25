@@ -86,11 +86,11 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
     // this track before it.
     const threadSliceTrack = trace.workspace.flatTracks.find((trackNode) => {
       if (!trackNode.uri) return false;
-      const trackDescriptor = trace.tracks.getTrack(trackNode.uri);
+      const track = trace.tracks.getTrack(trackNode.uri);
       return (
-        trackDescriptor &&
-        trackDescriptor.tags?.kind === SLICE_TRACK_KIND &&
-        trackDescriptor.tags?.trackIds?.includes(trackId)
+        track &&
+        track.tags?.kind === SLICE_TRACK_KIND &&
+        track.tags?.trackIds?.includes(trackId)
       );
     });
 
