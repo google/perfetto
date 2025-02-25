@@ -19,7 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 import "protos/perfetto/perfetto_sql/structured_query.proto";
-import "protos/perfetto/summary/v2_metric.proto";
+import "protos/perfetto/trace_summary/v2_metric.proto";
 
 // Wrapper proto containing a bunch of specifications for computing summaries
 // of traces.
