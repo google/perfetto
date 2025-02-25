@@ -17,7 +17,7 @@ import {duration, time, TimeSpan} from '../base/time';
 import {Dataset, DatasetSchema} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {ColumnDef, Sorting, ThreadStateExtra} from './aggregation';
-import {TrackDescriptor} from './track';
+import {Track} from './track';
 import {arrayEquals} from '../base/array_utils';
 
 export interface ContentWithLoadingFlag {
@@ -225,10 +225,9 @@ export interface Area {
 export interface AreaSelection extends Area {
   readonly kind: 'area';
 
-  // This array contains the resolved TrackDescriptor from Area.trackUris.
-  // The resolution is done by SelectionManager whenever a kind='area' selection
-  // is performed.
-  readonly tracks: ReadonlyArray<TrackDescriptor>;
+  // This array contains the resolved Tracks from Area.trackUris. The resolution
+  // is done by SelectionManager whenever a kind='area' selection is performed.
+  readonly tracks: ReadonlyArray<Track>;
 }
 
 export interface NoteSelection {
