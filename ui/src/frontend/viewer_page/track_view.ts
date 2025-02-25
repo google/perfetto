@@ -33,8 +33,8 @@ import {RequiredField} from '../../base/utils';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
-import {TrackRenderer} from '../../core/track_manager';
-import {Track, TrackDescriptor} from '../../public/track';
+import {TrackWithFSM} from '../../core/track_manager';
+import {TrackRenderer, Track} from '../../public/track';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
@@ -50,7 +50,7 @@ import {copyToClipboard} from '../../base/clipboard';
 const TRACK_HEIGHT_MIN_PX = 18;
 const TRACK_HEIGHT_DEFAULT_PX = 30;
 
-function getTrackHeight(node: TrackNode, track?: Track) {
+function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
   // Headless tracks have an effective height of 0.
   if (node.headless) return 0;
 
@@ -90,12 +90,12 @@ export interface TrackViewAttrs {
  */
 export class TrackView {
   readonly node: TrackNode;
-  readonly renderer?: TrackRenderer;
+  readonly renderer?: TrackWithFSM;
   readonly height: number;
   readonly verticalBounds: VerticalBounds;
 
   private readonly trace: TraceImpl;
-  private readonly descriptor?: TrackDescriptor;
+  private readonly descriptor?: Track;
 
   constructor(trace: TraceImpl, node: TrackNode, top: number) {
     this.trace = trace;
@@ -103,7 +103,7 @@ export class TrackView {
 
     if (node.uri) {
       this.descriptor = trace.tracks.getTrack(node.uri);
-      this.renderer = this.trace.tracks.getTrackRenderer(node.uri);
+      this.renderer = this.trace.tracks.getTrackFSM(node.uri);
     }
 
     const heightPx = getTrackHeight(node, this.renderer?.track);
@@ -527,7 +527,7 @@ export class TrackView {
 interface TrackPopupMenuAttrs {
   readonly trace: Trace;
   readonly node: TrackNode;
-  readonly descriptor?: TrackDescriptor;
+  readonly descriptor?: Track;
 }
 
 // This component contains the track menu items which are displayed inside a
@@ -606,7 +606,7 @@ function copyToWorkspace(trace: Trace, node: TrackNode, ws?: Workspace) {
   return ws;
 }
 
-function renderTrackDetailsMenu(node: TrackNode, descriptor?: TrackDescriptor) {
+function renderTrackDetailsMenu(node: TrackNode, descriptor?: Track) {
   let parent = node.parent;
   let fullPath: m.ChildArray = [node.title];
   while (parent && parent instanceof TrackNode) {

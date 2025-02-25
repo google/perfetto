@@ -64,8 +64,8 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
    * The URI of this track, which must match the URI specified in the track
    * descriptor.
    *
-   * TODO(stevegolton): Merge `TrackDescriptor` and `Track` into one entity to
-   * avoid duplication.
+   * TODO(stevegolton): Sort out `Track` and `TrackRenderer` to avoid
+   * duplication.
    */
   readonly uri: string;
 
