@@ -6644,6 +6644,8 @@ message InternedV8WasmScript {
   optional int32 script_id = 2;
 
   optional string url = 3;
+  // Raw transferred wasm native module wire bytes.
+  optional bytes wire_bytes = 4;
 }
 
 message InternedV8JsFunction {
