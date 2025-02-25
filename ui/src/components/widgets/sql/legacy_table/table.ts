@@ -67,7 +67,7 @@ function renderCell(
   state: SqlTableState,
 ): m.Children {
   const {columns} = state.getCurrentRequest();
-  const sqlValue = row[columns[sqlColumnId(column.primaryColumn())]];
+  const sqlValue = row[columns[sqlColumnId(column.column)]];
 
   const additionalValues: {[key: string]: SqlValue} = {};
   const supportingColumns: {[key: string]: SqlColumn} =
@@ -84,7 +84,7 @@ export function columnTitle(column: LegacyTableColumn): string {
     const title = column.getTitle();
     if (title !== undefined) return title;
   }
-  return sqlColumnId(column.primaryColumn());
+  return sqlColumnId(column.column);
 }
 
 interface AddColumnMenuItemAttrs {
@@ -244,7 +244,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     return Object.keys(LegacySqlTableFilterOptions).map((label) =>
       m(ColumnFilter, {
         filterOption: label as LegacySqlTableFilterLabel,
-        columns: [c.primaryColumn()],
+        columns: [c.column],
         state: this.state,
       }),
     );
@@ -299,9 +299,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     const additionalColumnMenuItems: AdditionalColumnMenuItems = {};
     this.state.getSelectedColumns().forEach((column) => {
       const columnAlias =
-        this.state.getCurrentRequest().columns[
-          sqlColumnId(column.primaryColumn())
-        ];
+        this.state.getCurrentRequest().columns[sqlColumnId(column.column)];
 
       additionalColumnMenuItems[columnAlias] = addColumnMenuItems(
         column,
@@ -326,9 +324,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           i,
           additionalColumnMenuItems &&
             additionalColumnMenuItems[
-              this.state.getCurrentRequest().columns[
-                sqlColumnId(column.primaryColumn())
-              ]
+              this.state.getCurrentRequest().columns[sqlColumnId(column.column)]
             ],
         ),
         render: (row: Row) => renderCell(column, row, this.state),

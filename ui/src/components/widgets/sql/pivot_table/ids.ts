@@ -18,12 +18,12 @@ import type {Aggregation} from './aggregations';
 
 // Unique identifier for a pivot column.
 export function pivotId(p: LegacyTableColumn): string {
-  return sqlColumnId(p.primaryColumn());
+  return sqlColumnId(p.column);
 }
 
 // Unique identifier for an aggregation.
 export function aggregationId(a: Aggregation): string {
   // Count doesn't require a column.
   if (a.op === 'count') return 'count';
-  return `${a.op}(${sqlColumnId(a.column.primaryColumn())})`;
+  return `${a.op}(${sqlColumnId(a.column.column)})`;
 }

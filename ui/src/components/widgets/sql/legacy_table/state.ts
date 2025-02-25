@@ -175,7 +175,7 @@ export class SqlTableState {
     const columnNameCount: {[key: string]: number} = {};
 
     const tableColumns: {
-      column: LegacyTableColumn;
+      column: SqlColumn;
       name: string;
       alias: string;
     }[] = [];
@@ -190,11 +190,11 @@ export class SqlTableState {
       // Note: this can break if the user specifies a column which ends with `__<number>`.
       // We intentionally use two underscores to avoid collisions and will fix it down the line if it turns out to be a problem.
       const alias = `${name}__${++columnNameCount[name]}`;
-      tableColumns.push({column, name, alias});
+      tableColumns.push({column: column.column, name, alias});
     }
 
     for (const column of tableColumns) {
-      const sqlColumn = column.column.primaryColumn();
+      const sqlColumn = column.column;
       // If we have only one column with this name, we don't need to disambiguate it.
       if (columnNameCount[column.name] === 1) {
         columns[column.name] = sqlColumn;
@@ -397,7 +397,7 @@ export class SqlTableState {
     const result: ColumnOrderClause[] = [];
     for (const orderBy of this.orderBy) {
       result.push({
-        column: orderBy.column.primaryColumn(),
+        column: orderBy.column.column,
         direction: orderBy.direction,
       });
     }

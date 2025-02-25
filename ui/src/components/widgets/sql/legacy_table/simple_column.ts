@@ -17,19 +17,14 @@ import {renderStandardCell} from './render_cell_utils';
 import {SqlColumn} from './sql_column';
 import {LegacyTableColumn, LegacyTableManager} from './table_column';
 
-export class SimpleColumn extends LegacyTableColumn {
-  constructor(private column: SqlColumn) {
-    super();
-  }
+export class SimpleColumn implements LegacyTableColumn {
+  constructor(public readonly column: SqlColumn) {}
 
-  override primaryColumn(): SqlColumn {
+  primaryColumn(): SqlColumn {
     return this.column;
   }
 
-  override renderCell(
-    value: SqlValue,
-    tableManager: LegacyTableManager | undefined,
-  ) {
+  renderCell(value: SqlValue, tableManager: LegacyTableManager | undefined) {
     return renderStandardCell(value, this.column, tableManager);
   }
 }

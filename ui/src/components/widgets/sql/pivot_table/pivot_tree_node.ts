@@ -247,7 +247,7 @@ export class PivotTreeNode {
 
   private getFilter(): Filter {
     return StandardFilters.valueEquals(
-      this.config.pivots[this.getPivotIndex()].primaryColumn(),
+      this.config.pivots[this.getPivotIndex()].column,
       assertNotUndefined(this.pivotValue),
     );
   }

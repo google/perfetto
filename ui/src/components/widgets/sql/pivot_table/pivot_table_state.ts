@@ -40,7 +40,7 @@ function pivotSqliteAlias(p: LegacyTableColumn): string {
 }
 
 function aggregationSqliteAlias(a: Aggregation): string {
-  return `__${sqlColumnId(a.column.primaryColumn()).replace(/[^a-zA-Z0-9_]/g, '__')}__${a.op}`;
+  return `__${sqlColumnId(a.column.column).replace(/[^a-zA-Z0-9_]/g, '__')}__${a.op}`;
 }
 
 interface RequestedData {
@@ -278,10 +278,10 @@ export class PivotTableState {
     const groupBy: SqlColumn[] = [];
     for (const pivot of this.pivots) {
       const alias = pivotSqliteAlias(pivot);
-      columns[alias] = pivot.primaryColumn();
+      columns[alias] = pivot.column;
       columnIds.add(pivotId(pivot));
       aliasToIds.set(alias, pivotId(pivot));
-      groupBy.push(pivot.primaryColumn());
+      groupBy.push(pivot.column);
     }
 
     // Expand non-assocative aggregations (average) into basic associative aggregations which
@@ -290,7 +290,7 @@ export class PivotTableState {
       const alias = aggregationSqliteAlias(agg);
       columns[alias] = new SqlExpression(
         (cols) => `${agg.op}(${cols[0]})`,
-        [agg.column.primaryColumn()],
+        [agg.column.column],
       );
       columnIds.add(aggregationId(agg));
       aliasToIds.set(alias, aggregationId(agg));

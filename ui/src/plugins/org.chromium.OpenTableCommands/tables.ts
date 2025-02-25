@@ -72,10 +72,10 @@ export function getSliceTable(): SqlTableDescription {
       new StandardColumn('category'),
       new StandardColumn('name'),
       new StandardColumn('track_id', {startsHidden: true}),
-      new ThreadIdColumn('utid', {title: 'utid'}),
-      new ProcessIdColumn('upid', {title: 'upid'}),
+      new ThreadIdColumn('utid'),
+      new ProcessIdColumn('upid'),
       new StandardColumn('depth', {startsHidden: true}),
-      new SliceIdColumn('parent_id', {startsHidden: true}),
+      new SliceIdColumn('parent_id'),
       new ArgSetIdColumn('arg_set_id'),
     ],
   };
@@ -106,7 +106,7 @@ export function getSchedTable(): SqlTableDescription {
   return {
     name: 'sched',
     columns: [
-      new SchedIdColumn('id', {type: 'id'}),
+      new SchedIdColumn('id'),
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
       new StandardColumn('cpu'),
@@ -129,7 +129,7 @@ export function getThreadStateTable(): SqlTableDescription {
   return {
     name: 'thread_state',
     columns: [
-      new ThreadStateIdColumn('id', {notNull: true, type: 'id'}),
+      new ThreadStateIdColumn('id'),
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
       new StandardColumn('state'),
