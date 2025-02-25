@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/summary/summary.h"
+#include "src/trace_processor/trace_summary/summary.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -32,13 +32,13 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
 #include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
-#include "src/trace_processor/summary/summary.descriptor.h"
+#include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/status_macros.h"
 
-#include "protos/perfetto/summary/file.pbzero.h"
-#include "protos/perfetto/summary/v2_metric.pbzero.h"
+#include "protos/perfetto/trace_summary/file.pbzero.h"
+#include "protos/perfetto/trace_summary/v2_metric.pbzero.h"
 
 namespace perfetto::trace_processor::summary {
 
@@ -140,8 +140,8 @@ base::Status CreateSharedQueriesAndComputeMetrics(
       break;
     case TraceSummaryOutputFormat::kTextProto:
       DescriptorPool pool;
-      RETURN_IF_ERROR(pool.AddFromFileDescriptorSet(kSummaryDescriptor.data(),
-                                                    kSummaryDescriptor.size()));
+      RETURN_IF_ERROR(pool.AddFromFileDescriptorSet(
+          kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size()));
       std::vector<uint8_t> proto = summary.SerializeAsArray();
       std::string out = protozero_to_text::ProtozeroToText(
           pool, ".perfetto.protos.TraceSummary",
@@ -175,7 +175,7 @@ base::Status ComputeV2Metrics(TraceProcessor* processor,
         ASSIGN_OR_RETURN(
             textproto_converted_specs[i],
             protozero::TextToProto(
-                kSummaryDescriptor.data(), kSummaryDescriptor.size(),
+                kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size(),
                 ".perfetto.protos.TraceSummarySpec", "-",
                 std::string_view(reinterpret_cast<const char*>(specs[i].ptr),
                                  specs[i].size)));

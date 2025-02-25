@@ -21,6 +21,20 @@ java_library {
 }
 
 java_library_host {
+    name: "trace_summary-full",
+    proto: {
+        type: "full",
+        canonical_path_from_root: false,
+    },
+    static_libs: [
+        "libprotobuf-java-full",
+    ],
+    srcs: [
+        ":perfetto_trace_summary_filegroup_proto",
+    ],
+}
+
+java_library_host {
     name: "perfetto_trace-full",
     proto: {
         type: "full",

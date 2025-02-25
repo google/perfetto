@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SUMMARY_SUMMARY_H_
-#define SRC_TRACE_PROCESSOR_SUMMARY_SUMMARY_H_
+#ifndef SRC_TRACE_PROCESSOR_TRACE_SUMMARY_SUMMARY_H_
+#define SRC_TRACE_PROCESSOR_TRACE_SUMMARY_SUMMARY_H_
 
 #include <cstdint>
 #include <string>
@@ -39,4 +39,4 @@ base::Status ComputeV2Metrics(TraceProcessor* processor,
 
 }  // namespace perfetto::trace_processor::summary
 
-#endif  // SRC_TRACE_PROCESSOR_SUMMARY_SUMMARY_H_
+#endif  // SRC_TRACE_PROCESSOR_TRACE_SUMMARY_SUMMARY_H_
