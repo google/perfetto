@@ -17,17 +17,17 @@ import("../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-source_set("summary") {
+source_set("trace_summary") {
   sources = [
     "summary.cc",
     "summary.h",
   ]
   deps = [
-    ":gen_cc_summary_descriptor",
+    ":gen_cc_trace_summary_descriptor",
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor",
     "../../../include/perfetto/trace_processor:basic_types",
-    "../../../protos/perfetto/summary:zero",
+    "../../../protos/perfetto/trace_summary:zero",
     "../../base",
     "../../protozero",
     "../../protozero/text_to_proto",
@@ -38,7 +38,7 @@ source_set("summary") {
   ]
 }
 
-perfetto_cc_proto_descriptor("gen_cc_summary_descriptor") {
-  descriptor_name = "summary.descriptor"
-  descriptor_target = "../../../protos/perfetto/summary:descriptor"
+perfetto_cc_proto_descriptor("gen_cc_trace_summary_descriptor") {
+  descriptor_name = "trace_summary.descriptor"
+  descriptor_target = "../../../protos/perfetto/trace_summary:descriptor"
 }

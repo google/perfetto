@@ -1,4 +1,4 @@
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2025 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,6 @@ perfetto_proto_library("@TYPE@") {
     "v2_metric.proto",
   ]
   deps = [ "../perfetto_sql:@TYPE@" ]
-  generate_descriptor = "summary.descriptor"
+  generate_descriptor = "trace_summary.descriptor"
   descriptor_root_source = "file.proto"
 }
