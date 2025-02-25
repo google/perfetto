@@ -14,9 +14,8 @@
 
 import m from 'mithril';
 import {ColorScheme} from '../../base/color_scheme';
-import {assertIsInstance, assertTrue} from '../../base/logging';
+import {assertTrue} from '../../base/logging';
 import {Time} from '../../base/time';
-import {TraceImpl} from '../../core/trace_impl';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
@@ -24,7 +23,6 @@ import {Slice} from '../../public/track';
 import {DatasetSchema, SourceDataset} from '../../trace_processor/dataset';
 import {ColumnType, LONG, NUM} from '../../trace_processor/query_result';
 import {getColorForSlice} from '../colorizer';
-import {ThreadSliceDetailsPanel} from '../details/thread_slice_details_tab';
 import {generateSqlWithInternalLayout} from '../sql_utils/layout';
 import {formatDuration} from '../time_utils';
 import {
@@ -323,12 +321,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
       // row's type `T`.
       return this.attrs.detailsPanel(sel as unknown as T);
     } else {
-      // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
-      // TraceImpl (because of flows) but here we must take a Trace interface,
-      // because this class is exposed to plugins (which see only Trace).
-      return new ThreadSliceDetailsPanel(
-        assertIsInstance(this.trace, TraceImpl),
-      );
+      return undefined;
     }
   }
 

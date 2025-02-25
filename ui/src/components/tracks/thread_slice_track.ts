@@ -16,8 +16,6 @@ import {BigintMath as BIMath} from '../../base/bigint_math';
 import {clamp} from '../../base/math_utils';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {ThreadSliceDetailsPanel} from '../details/thread_slice_details_tab';
-import {TraceImpl} from '../../core/trace_impl';
-import {assertIsInstance} from '../../base/logging';
 import {Trace} from '../../public/trace';
 import {DatasetSliceTrack} from './dataset_slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -59,12 +57,7 @@ export function createThreadSliceTrack(
     }),
     initialMaxDepth: maxDepth,
     rootTableName: tableName,
-    detailsPanel: () => {
-      // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
-      // TraceImpl (because of flows) but here we must take a Trace interface,
-      // because this track is exposed to plugins (which see only Trace).
-      return new ThreadSliceDetailsPanel(assertIsInstance(trace, TraceImpl));
-    },
+    detailsPanel: () => new ThreadSliceDetailsPanel(trace),
     fillRatio: (row) => {
       if (row.dur > 0n && row.threadDur !== null) {
         return clamp(BIMath.ratio(row.threadDur, row.dur), 0, 1);
