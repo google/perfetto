@@ -177,7 +177,7 @@ class PerfettoSqlEngine {
   // of |return_type| and is implemented by executing the SQL statement |sql|.
   base::Status RegisterRuntimeFunction(bool replace,
                                        const FunctionPrototype& prototype,
-                                       const std::string& return_type,
+                                       sql_argument::Type return_type,
                                        SqlSource sql);
 
   // Enables memoization for the given SQL function.
@@ -216,7 +216,9 @@ class PerfettoSqlEngine {
         "UNION ALL SELECT * FROM sqlite_temp_master)";
     auto stmt = ExecuteUntilLastStatement(
         SqlSource::FromTraceProcessorImplementation(kAllTablesQuery));
-    PERFETTO_CHECK(stmt.ok());
+    if (!stmt.ok()) {
+      PERFETTO_FATAL("%s", stmt.status().c_message());
+    }
     uint32_t query_count =
         static_cast<uint32_t>(sqlite3_column_int(stmt->stmt.sqlite_stmt(), 0));
     PERFETTO_CHECK(!stmt->stmt.Step());
@@ -278,23 +280,6 @@ class PerfettoSqlEngine {
       int argc,
       std::unique_ptr<typename Function::Context> ctx,
       bool deterministic = true);
-
-  // Get the column names from a statement.
-  // |tag| is used in the error message if the statement is invalid.
-  base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
-      const SqliteEngine::PreparedStatement& stmt,
-      const char* tag) const;
-
-  // Validates that the column names in |column_names| match the |schema|.
-  // Given that PerfettoSQL supports an arbitrary order of columns in the
-  // schema, this function also normalises the schema by reordering the schema
-  // columns to match the order of columns in the query. |tag| is used in the
-  // error message if the statement is invalid.
-  base::StatusOr<std::vector<sql_argument::ArgumentDefinition>>
-  ValidateAndGetEffectiveSchema(
-      const std::vector<std::string>& column_names,
-      const std::vector<sql_argument::ArgumentDefinition>& schema,
-      const char* tag) const;
 
   // Given a package and a key, include the correct file(s) from the package.
   // The key can contain a wildcard to include all files in the module with the
