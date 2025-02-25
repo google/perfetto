@@ -17,11 +17,18 @@ import argparse
 import os
 import sys
 import subprocess
+import fnmatch
 
 UI_DIR = os.path.abspath(os.path.dirname(__file__))
 ROOT_DIR = os.path.dirname(UI_DIR)
 PRETTIER_PATH = os.path.join(ROOT_DIR, 'ui/node_modules/.bin/prettier')
 ESLINT_PATH = os.path.join(ROOT_DIR, 'ui/node_modules/.bin/eslint')
+
+def glob_any(filename, patterns):
+  for pattern in patterns:
+    if fnmatch.fnmatch(filename, pattern):
+      return True
+  return False
 
 
 def main():
@@ -58,10 +65,10 @@ def main():
 
   all_files = set()
   for root, _dirs, files in os.walk('src'):
-    if root in ignorelist:
-      continue
     for file in files:
       file_path = os.path.join(root, file)
+      if glob_any(file_path, ignorelist):
+        continue
       if os.path.splitext(file)[1].lower() in ['.ts', '.js', '.scss']:
         all_files.add(file_path)
 
