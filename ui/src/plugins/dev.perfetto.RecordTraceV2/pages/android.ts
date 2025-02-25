@@ -49,9 +49,16 @@ function atrace(): RecordProbe {
         ]),
       ),
     }),
+    apps: new Textarea({
+      title: 'Process / package names to trace',
+      placeholder: 'e.g. system_server\ncom.android.settings',
+    }),
     allApps: new Toggle({
       title: 'Record events from all Android apps and services',
       cssClass: '.thin',
+      onChange(allAppsEnabled: boolean) {
+        settings.apps.attrs.disabled = allAppsEnabled;
+      },
     }),
   };
   return {
@@ -66,6 +73,10 @@ function atrace(): RecordProbe {
       tc.addAtraceCategories(...settings.categories.selectedValues());
       if (settings.allApps.enabled) {
         tc.addAtraceApps('*');
+      } else {
+        for (const line of splitLinesNonEmpty(settings.apps.text)) {
+          tc.addAtraceApps(line);
+        }
       }
       if (
         settings.categories.selectedKeys().length > 0 ||

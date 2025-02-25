@@ -22,6 +22,7 @@ export interface TextareaAttrs {
   docsLink?: string;
   cssClass?: string;
   default?: string;
+  disabled?: boolean;
   onChange?: (text: string) => void;
 }
 
@@ -64,6 +65,7 @@ export class Textarea implements ProbeSetting {
           this.setText((e.target as HTMLTextAreaElement).value);
           this.attrs.onChange?.(this._text);
         },
+        disabled: this.attrs.disabled,
         placeholder: this.attrs.placeholder,
         value: this._text,
       }),
