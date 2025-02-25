@@ -27,14 +27,18 @@ import {
 import {disposeWebsocket} from '../../websocket/websocket_utils';
 import {AsyncLazy} from '../../../../base/async_lazy';
 
+const WDP_URL = 'https://tools.google.com/dlpage/android_web_device_proxy';
+
 // WDP = Web Device Proxy (go/external-web-device-proxy). This works very
 // similarly to our websocket_bridge, with few differences in the handshake.
 export class WebDeviceProxyTargetProvider implements RecordingTargetProvider {
   readonly id = 'adb_wdp';
   readonly name = 'ADB + WebDeviceProxy';
   readonly description =
-    '(Google employees only) This option uses the adbd server and can co-exist ' +
-    'with other adb-based tools. Requires go/web-device-proxy.';
+    'This option uses the adbd server and can co-exist ' +
+    'with other adb-based tools. Requires ' +
+    WDP_URL +
+    '\nGoogle employees: see go/web-device-proxy';
   readonly icon = 'corporate_fare';
   readonly supportedPlatforms = ['ANDROID'] as const;
   readonly onTargetsChanged = new EvtSource<void>();

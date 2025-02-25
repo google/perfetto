@@ -1438,6 +1438,7 @@ a.inline-chip:visited {
         grid-area: description;
         font-size: 0.75rem;
         margin-bottom: 10px;
+        white-space: pre-line;
       }
     }
     input[type="radio"]:checked + label {
