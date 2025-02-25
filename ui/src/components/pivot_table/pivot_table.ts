@@ -36,15 +36,15 @@ import {
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {AttributeModalHolder} from '../attribute_modal_holder';
 import {DurationWidget} from '../widgets/duration';
-import {getSqlTableDescription} from '../widgets/sql/legacy_table/sql_table_registry';
+import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
 import {assertExists, assertFalse} from '../../base/logging';
 import {PivotTableManager} from './pivot_table_manager';
 import {extensions} from '../extensions';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Button} from '../../widgets/button';
 import {popupMenuIcon} from '../../widgets/table';
-import {SqlColumn} from '../widgets/sql/legacy_table/sql_column';
-import {Filter} from '../widgets/sql/legacy_table/filters';
+import {SqlColumn} from '../widgets/sql/table/sql_column';
+import {Filter} from '../widgets/sql/table/filters';
 import {Trace} from '../../public/trace';
 
 interface PathItem {

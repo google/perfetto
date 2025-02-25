@@ -18,7 +18,7 @@ import {Icons} from '../../base/semantic_icons';
 import {Trace} from '../../public/trace';
 import {QueryResult, Row} from '../../trace_processor/query_result';
 import {SqlRef} from '../../widgets/sql_ref';
-import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
+import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
 import {MenuItem} from '../../widgets/menu';
 import {extensions} from '../../components/extensions';
 
