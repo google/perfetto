@@ -759,6 +759,10 @@
     }
   } // probe
 
+  .textarea-holder {
+    padding-top: var(--record-section-padding);
+  }
+
   .toggle {
     transition: color 0.2s ease;
     padding-top: var(--record-section-padding);
