@@ -23,7 +23,7 @@ import {
   ThreadIdColumn,
   ThreadStateIdColumn,
   TimestampColumn,
-} from './well_known_columns';
+} from '../../components/widgets/sql/legacy_table/columns';
 
 export function getThreadTable(): SqlTableDescription {
   return {

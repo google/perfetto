@@ -25,13 +25,10 @@ import {
   SqlTableFunction,
   SqlType,
   TableAndColumn,
-  SqlColumnAsSimpleColumn,
+  createTableColumnFromPerfettoSql,
 } from './sql_modules';
 import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
-import {
-  FromSimpleColumn,
-  LegacyTableColumn,
-} from '../../components/widgets/sql/legacy_table/table_column';
+import {LegacyTableColumn} from '../../components/widgets/sql/legacy_table/table_column';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
@@ -293,8 +290,8 @@ class SqlTableImpl implements SqlTable {
   }
 
   getTableColumns(): LegacyTableColumn[] {
-    return this.columns.map(
-      (col) => new FromSimpleColumn(SqlColumnAsSimpleColumn(col, this.name)),
+    return this.columns.map((col) =>
+      createTableColumnFromPerfettoSql(col, this.name),
     );
   }
 }

@@ -13,39 +13,32 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {sqliteString} from '../../base/string_utils';
-import {Duration, Time} from '../../base/time';
-import {SqlValue, STR} from '../../trace_processor/query_result';
+import {sqliteString} from '../../../../base/string_utils';
+import {Duration, Time} from '../../../../base/time';
+import {SqlValue, STR} from '../../../../trace_processor/query_result';
 import {
   asSchedSqlId,
   asSliceSqlId,
   asThreadStateSqlId,
   asUpid,
   asUtid,
-} from '../../components/sql_utils/core_types';
-import {Anchor} from '../../widgets/anchor';
-import {renderError} from '../../widgets/error';
-import {PopupMenu} from '../../widgets/menu';
-import {DurationWidget} from '../../components/widgets/duration';
-import {showProcessDetailsMenuItem} from '../../components/widgets/process';
-import {SchedRef} from '../../components/widgets/sched';
-import {SliceRef} from '../../components/widgets/slice';
-import {showThreadDetailsMenuItem} from '../../components/widgets/thread';
-import {ThreadStateRef} from '../../components/widgets/thread_state';
-import {Timestamp} from '../../components/widgets/timestamp';
-import {
-  LegacyTableColumn,
-  LegacyTableManager,
-} from '../../components/widgets/sql/legacy_table/table_column';
+} from '../../../sql_utils/core_types';
+import {Anchor} from '../../../../widgets/anchor';
+import {renderError} from '../../../../widgets/error';
+import {PopupMenu} from '../../../../widgets/menu';
+import {DurationWidget} from '../../duration';
+import {showProcessDetailsMenuItem} from '../../process';
+import {SchedRef} from '../../sched';
+import {SliceRef} from '../../slice';
+import {showThreadDetailsMenuItem} from '../../thread';
+import {ThreadStateRef} from '../../thread_state';
+import {Timestamp} from '../../timestamp';
+import {LegacyTableColumn, LegacyTableManager} from './table_column';
 import {
   getStandardContextMenuItems,
   renderStandardCell,
-} from '../../components/widgets/sql/legacy_table/render_cell_utils';
-import {
-  SqlColumn,
-  sqlColumnId,
-  SqlExpression,
-} from '../../components/widgets/sql/legacy_table/sql_column';
+} from './render_cell_utils';
+import {SqlColumn, sqlColumnId, SqlExpression} from './sql_column';
 
 function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
   return renderError(

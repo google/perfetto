@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {sqlColumnId} from '../../components/widgets/sql/legacy_table/sql_column';
-import {argTableColumn} from './well_known_columns';
+import {argTableColumn} from '../../components/widgets/sql/legacy_table/columns';
 
 test('arg_set_column.id', () => {
   expect(sqlColumnId(argTableColumn('arg_set_id', 'arg1').column)).toBe(

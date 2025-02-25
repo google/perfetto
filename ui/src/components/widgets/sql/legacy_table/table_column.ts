@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {Trace} from '../../../../public/trace';
-import {SimpleColumn} from '../table/table';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {Filters} from './filters';
 
@@ -77,22 +76,6 @@ export interface LegacyTableColumn<
   listDerivedColumns?(
     manager: LegacyTableManager,
   ): undefined | (() => Promise<Map<string, LegacyTableColumn>>);
-}
-
-export class FromSimpleColumn implements LegacyTableColumn {
-  readonly column: SqlColumn;
-
-  renderCell(
-    value: SqlValue,
-    tableManager: LegacyTableManager,
-    _dependentColumns: {[key: string]: SqlValue},
-  ): m.Children {
-    return this.simpleCol.renderCell(value, tableManager);
-  }
-
-  constructor(private simpleCol: SimpleColumn) {
-    this.column = simpleCol.name;
-  }
 }
 
 // Returns a unique identifier for the table column.
