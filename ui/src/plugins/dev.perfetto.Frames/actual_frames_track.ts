@@ -19,6 +19,7 @@ import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -66,6 +67,7 @@ export function createActualFramesTrack(
     },
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
+    detailsPanel: () => new ThreadSliceDetailsPanel(trace),
   });
 }
 
