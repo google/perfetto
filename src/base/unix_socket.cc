@@ -94,11 +94,11 @@ constexpr char kVsockNamePrefix[] = "vsock://";
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-bool IsQNXHypervisor() {
-  static bool is_qnx_hypervisor = [] {
-    return base::GetAndroidProp("ro.traced.hypervisor") == "qnx";
+bool IsVirtualized() {
+  static bool is_virtualized = [] {
+    return base::GetAndroidProp("ro.traced.hypervisor") == "true";
   }();
-  return is_qnx_hypervisor;
+  return is_virtualized;
 }
 #endif
 
@@ -237,8 +237,8 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       addr.svm_cid = *base::StringToUInt32(parts[0]);
       addr.svm_port = *base::StringToUInt32(parts[1]);
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-      if (IsQNXHypervisor()) {
-        // VM-to-VM VSOCK communication in QNX requires messages to be
+      if (IsVirtualized()) {
+        // VM-to-VM VSOCK communication requires messages to be
         // routed through the host.
         addr.svm_flags = VMADDR_FLAG_TO_HOST;
       }
@@ -490,10 +490,11 @@ bool UnixSocketRaw::Connect(const std::string& socket_name) {
   // until it is writable.
   bool is_blocking_call = family_ == SockFamily::kVsock;
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  // VM-to-VM communication in QNX needs to go through the host.
-  // Therefore the connect call should be handled as if it is
-  // hypervisor-to-VM.
-  bool is_blocking_call = family_ == SockFamily::kVsock && IsQNXHypervisor();
+  // For VM-to-VM communication block until the socket is writable.
+  // Not blocking leads to race condition where no error is found
+  // with SO_ERROR socket option but the socket is still not writable
+  // so subsequent socket calls fail.
+  bool is_blocking_call = family_ == SockFamily::kVsock && IsVirtualized();
 #else
   bool is_blocking_call = false;
 #endif
