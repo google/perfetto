@@ -87,3 +87,34 @@ export function bindMithrilAttrs<BaseAttrs, Attrs>(
 }
 
 export type MithrilEvent<T extends Event = Event> = T & {redraw: boolean};
+
+/**
+ * Converts a string input in a <span>, extracts URLs and converts them into
+ * clickable links.
+ * @param text the input string, e.g., "See https://example.org for details".
+ * @returns a Mithril vnode, e.g.
+ *    <span>See <a href="https://example.org">example.org<a> for more details.
+ */
+export function linkify(text: string): m.Children {
+  const urlPattern = /(https?:\/\/[^\s]+)|(go\/[^\s]+)/g;
+  const parts = text.split(urlPattern);
+  return m(
+    'span',
+    parts.map((part) => {
+      if (/^(https?:\/\/[^\s]+)$/.test(part)) {
+        return m('a', {href: part, target: '_blank'}, part);
+      } else if (/^(go\/[^\s]+)$/.test(part)) {
+        return m(
+          'a',
+          {
+            href: `http://${part}`,
+            target: '_blank',
+          },
+          part,
+        );
+      } else {
+        return part;
+      }
+    }),
+  );
+}

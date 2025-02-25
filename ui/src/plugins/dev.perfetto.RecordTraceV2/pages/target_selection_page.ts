@@ -29,6 +29,7 @@ import {downloadData} from '../../../base/download_utils';
 import {RecordSubpage} from '../config/config_interfaces';
 import {RecordPluginSchema} from '../serialization_schema';
 import {Checkbox} from '../../../widgets/checkbox';
+import {linkify} from '../../../base/mithril_utils';
 
 type RecMgrAttrs = {recMgr: RecordingManager};
 
@@ -111,7 +112,7 @@ class TransportSelector implements m.ClassComponent<RecMgrAttrs> {
           `label[for=${id}]`,
           m(Icon, {icon: provider.icon}),
           m('.title', provider.name),
-          m('.description', provider.description),
+          m('.description', linkify(provider.description)),
         ),
       ]);
     }
