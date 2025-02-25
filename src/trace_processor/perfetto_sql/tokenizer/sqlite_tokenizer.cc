@@ -26,8 +26,12 @@
 
 namespace perfetto::trace_processor {
 extern "C" {
-
 int sqlite3GetToken(const unsigned char* z, int* tokenType);
+int sqliteTokenizeInternalAnalyzeWindowKeyword(const unsigned char* z);
+int sqliteTokenizeInternalAnalyzeOverKeyword(const unsigned char* z,
+                                             int lastToken);
+int sqliteTokenizeInternalAnalyzeFilterKeyword(const unsigned char* z,
+                                               int lastToken);
 }
 
 SqliteTokenizer::SqliteTokenizer(SqlSource sql) : source_(std::move(sql)) {}
@@ -37,8 +41,23 @@ SqliteTokenizer::Token SqliteTokenizer::Next() {
   const char* start = source_.sql().data() + offset_;
   int n = sqlite3GetToken(reinterpret_cast<const unsigned char*>(start),
                           &token.token_type);
+  if (token.token_type == TK_WINDOW) {
+    token.token_type = sqliteTokenizeInternalAnalyzeWindowKeyword(
+        reinterpret_cast<const unsigned char*>(start + n));
+  } else if (token.token_type == TK_OVER) {
+    token.token_type = sqliteTokenizeInternalAnalyzeOverKeyword(
+        reinterpret_cast<const unsigned char*>(start + n),
+        last_non_space_token_);
+  } else if (token.token_type == TK_FILTER) {
+    token.token_type = sqliteTokenizeInternalAnalyzeFilterKeyword(
+        reinterpret_cast<const unsigned char*>(start + n),
+        last_non_space_token_);
+  }
   offset_ += static_cast<uint32_t>(n);
   token.str = std::string_view(start, static_cast<uint32_t>(n));
+  if (token.token_type != TK_SPACE) {
+    last_non_space_token_ = token.token_type;
+  }
   return token;
 }
 
