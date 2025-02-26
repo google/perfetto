@@ -301,7 +301,7 @@
     "@@rules_android~//rules/android_sdk_repository:rule.bzl%android_sdk_repository_extension": {
       "general": {
         "bzlTransitiveDigest": "NAy+0M15JNVEBb8Tny6t7j3lKqTnsAMjoBB6LJ+C370=",
-        "usagesDigest": "d3aA9nvFTdq0bMES7zBIjZVzeaR93oOTUUczXe9sQX8=",
+        "usagesDigest": "mdkOvziF1RbosoEBewuXx0z75xetAvWCkSk5BqhVQEg=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -310,8 +310,8 @@
             "bzlFile": "@@rules_android~//rules/android_sdk_repository:rule.bzl",
             "ruleClassName": "_android_sdk_repository",
             "attributes": {
-              "api_level": 0,
-              "build_tools_version": "",
+              "api_level": 35,
+              "build_tools_version": "35.0.1",
               "path": "$WORKSPACE_ROOT/buildtools/android_sdk"
             }
           }
