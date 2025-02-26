@@ -12,24 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
 } from '../../components/query_flamegraph';
-import {PivotTableManager} from '../../components/pivot_table/pivot_table_manager';
-import {PivotTable} from '../../components/pivot_table/pivot_table';
 import {PerfettoPlugin} from '../../public/plugin';
-import {
-  AreaSelection,
-  areaSelectionsEqual,
-  AreaSelectionTab,
-} from '../../public/selection';
+import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Flamegraph} from '../../widgets/flamegraph';
 import {CounterSelectionAggregator} from './counter_selection_aggregator';
+import {PivotTableTab} from './pivot_table_tab';
 import {SliceSelectionAggregator} from './slice_selection_aggregator';
 
 /**
@@ -48,47 +42,9 @@ export default class implements PerfettoPlugin {
       createAggregationToTabAdaptor(ctx, new SliceSelectionAggregator()),
     );
 
-    ctx.selection.registerAreaSelectionTab(createPivotTableTab(ctx));
+    ctx.selection.registerAreaSelectionTab(new PivotTableTab(ctx));
     ctx.selection.registerAreaSelectionTab(createSliceFlameGraphPanel(ctx));
   }
-}
-
-function createPivotTableTab(trace: Trace): AreaSelectionTab {
-  // Add the pivot table and its manager
-  const pivotTableMgr = new PivotTableManager(trace.engine);
-  let previousSelection: undefined | AreaSelection;
-  return {
-    id: 'pivot_table',
-    name: 'Pivot Table',
-    render(selection) {
-      if (
-        previousSelection === undefined ||
-        !areaSelectionsEqual(previousSelection, selection)
-      ) {
-        pivotTableMgr.setSelectionArea(selection);
-        previousSelection = selection;
-      }
-
-      const pivotTableState = pivotTableMgr.state;
-      const tree = pivotTableState.queryResult?.tree;
-
-      if (
-        pivotTableState.selectionArea != undefined &&
-        (tree === undefined || tree.children.size > 0 || tree?.rows.length > 0)
-      ) {
-        return {
-          isLoading: false,
-          content: m(PivotTable, {
-            trace,
-            selectionArea: selection,
-            pivotMgr: pivotTableMgr,
-          }),
-        };
-      } else {
-        return undefined;
-      }
-    },
-  };
 }
 
 function createSliceFlameGraphPanel(trace: Trace) {

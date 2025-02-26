@@ -294,8 +294,11 @@ export class PivotTableState {
       groupBy,
       filters: this.filters.get(),
     });
+    const importStatement = (this.table.imports ?? [])
+      .map((i) => `INCLUDE PERFETTO MODULE ${i};\n`)
+      .join('');
     return {
-      query,
+      query: `${importStatement}${query}`,
       columnIds,
       aliasToIds,
     };
