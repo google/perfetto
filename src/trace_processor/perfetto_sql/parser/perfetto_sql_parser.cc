@@ -128,7 +128,8 @@ PerfettoSqlArgumentList* OnPerfettoSqlCreateOrAppendArgument(
   return owned_list.release();
 }
 
-void OnPerfettoSqlFreeArgumentList(PerfettoSqlArgumentList* args) {
+void OnPerfettoSqlFreeArgumentList(PerfettoSqlParserState*,
+                                   PerfettoSqlArgumentList* args) {
   std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
 }
 
@@ -143,7 +144,8 @@ PerfettoSqlIndexedColumnList* OnPerfettoSqlCreateOrAppendIndexedColumn(
   return owned_list.release();
 }
 
-void OnPerfettoSqlFreeIndexedColumnList(PerfettoSqlIndexedColumnList* cols) {
+void OnPerfettoSqlFreeIndexedColumnList(PerfettoSqlParserState*,
+                                        PerfettoSqlIndexedColumnList* cols) {
   std::unique_ptr<PerfettoSqlIndexedColumnList> cols_deleter(cols);
 }
 
@@ -162,7 +164,8 @@ PerfettoSqlMacroArgumentList* OnPerfettoSqlCreateOrAppendMacroArgument(
   return owned_list.release();
 }
 
-void OnPerfettoSqlFreeMacroArgumentList(PerfettoSqlMacroArgumentList* list) {
+void OnPerfettoSqlFreeMacroArgumentList(PerfettoSqlParserState*,
+                                        PerfettoSqlMacroArgumentList* list) {
   std::unique_ptr<PerfettoSqlMacroArgumentList> list_deleter(list);
 }
 
@@ -196,7 +199,8 @@ PerfettoSqlFnReturnType* OnPerfettoSqlCreateTableReturnType(
   return res.release();
 }
 
-void OnPerfettoSqlFnFreeReturnType(PerfettoSqlFnReturnType* type) {
+void OnPerfettoSqlFnFreeReturnType(PerfettoSqlParserState*,
+                                   PerfettoSqlFnReturnType* type) {
   std::unique_ptr<PerfettoSqlFnReturnType> type_deleter(type);
 }
 
