@@ -13,41 +13,43 @@
 -- limitations under the License.
 --
 
-include perfetto module android.suspend;
+INCLUDE PERFETTO MODULE android.suspend;
 
 CREATE PERFETTO TABLE _android_kernel_wakelocks_base AS
-WITH raw AS (
-  select
-    -- Move back by one period here since our ts represents wakelock counts up
-    -- to that point, but counters project forward from their ts.
-    lag(ts) over (partition by track_id order by ts) as ts,
-    ts as next_ts,
-    name,
-    extract_arg(dimension_arg_set_id, 'wakelock_type') as type,
-    value,
-    lag(value) over (partition by track_id order by ts) as lag_value
-  from track t join counter c on t.id = c.track_id
-  where t.type = 'android_kernel_wakelock'
-)
-select
+WITH
+  raw AS (
+    SELECT
+      -- Move back by one period here since our ts represents wakelock counts up
+      -- to that point, but counters project forward from their ts.
+      lag(ts) OVER (PARTITION BY track_id ORDER BY ts) AS ts,
+      ts AS next_ts,
+      name,
+      extract_arg(dimension_arg_set_id, 'wakelock_type') AS type,
+      value,
+      lag(value) OVER (PARTITION BY track_id ORDER BY ts) AS lag_value
+    FROM track AS t
+    JOIN counter AS c
+      ON t.id = c.track_id
+    WHERE
+      t.type = 'android_kernel_wakelock'
+  )
+SELECT
   ts,
-  ts as original_ts,
-  next_ts - ts as dur,
+  ts AS original_ts,
+  next_ts - ts AS dur,
   name,
-  HASH(name) as name_int,
+  hash(name) AS name_int,
   type,
-  value - lag_value as held_dur
-from raw;
+  value - lag_value AS held_dur
+FROM raw;
 
-CREATE VIRTUAL TABLE _android_kernel_wakelocks_joined
-USING
-  span_join(_android_kernel_wakelocks_base partitioned name_int, android_suspend_state);
+CREATE VIRTUAL TABLE _android_kernel_wakelocks_joined USING span_join (_android_kernel_wakelocks_base partitioned name_int, android_suspend_state);
 
 -- Table of kernel (or native) wakelocks with held duration.
 --
 -- Subtracts suspended time from each period to calculate the
 -- fraction of awake time for which the wakelock was held.
-CREATE PERFETTO TABLE android_kernel_wakelocks(
+CREATE PERFETTO TABLE android_kernel_wakelocks (
   -- Timestamp.
   ts TIMESTAMP,
   -- Duration.
@@ -59,19 +61,26 @@ CREATE PERFETTO TABLE android_kernel_wakelocks(
   -- Time the wakelock was held.
   held_dur DURATION,
   -- Fraction of awake (not suspended) time the wakelock was held.
-  held_ratio DOUBLE) AS
-WITH base AS (
-  SELECT
-    original_ts AS ts,
-    name,
-    type,
-    held_dur,
-    SUM(dur) AS dur,
-    SUM(iif(power_state = 'awake', dur, 0)) AS awake_dur
-  FROM _android_kernel_wakelocks_joined
-  WHERE power_state = 'awake'
-  GROUP BY 1, 2, 3, 4
-)
+  held_ratio DOUBLE
+) AS
+WITH
+  base AS (
+    SELECT
+      original_ts AS ts,
+      name,
+      type,
+      held_dur,
+      sum(dur) AS dur,
+      sum(iif(power_state = 'awake', dur, 0)) AS awake_dur
+    FROM _android_kernel_wakelocks_joined
+    WHERE
+      power_state = 'awake'
+    GROUP BY
+      1,
+      2,
+      3,
+      4
+  )
 SELECT
   ts,
   dur,

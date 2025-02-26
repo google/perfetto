@@ -138,6 +138,9 @@ void SystraceParser::ParseKernelTracingMarkWrite(int64_t ts,
 
 // TODO(rsavitski): try to remove most special casing of tgid 0, as it is valid
 // for kernel systrace points (due to systrace from interrupts).
+// Note: ParseDpuTracingMarkWrite is further relying on tgid 0 hacks by setting
+// that as the tgid for at least instant (I) events, but also overrides the
+// value for B/E events.
 void SystraceParser::ParseSystracePoint(
     int64_t ts,
     uint32_t pid,

@@ -16,23 +16,28 @@
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Lists all metrics built-into trace processor.
-CREATE PERFETTO VIEW trace_metrics(
+CREATE PERFETTO VIEW trace_metrics (
   -- The name of the metric.
   name STRING
 ) AS
-SELECT name FROM _trace_metrics;
+SELECT
+  name
+FROM _trace_metrics;
 
 -- Definition of `trace_bounds` table. The values are being filled by Trace
 -- Processor when parsing the trace.
 -- It is recommended to depend on the `trace_start()` and `trace_end()`
 -- functions rather than directly on `trace_bounds`.
-CREATE PERFETTO VIEW trace_bounds(
+CREATE PERFETTO VIEW trace_bounds (
   -- First ts in the trace.
   start_ts TIMESTAMP,
   -- End of the trace.
   end_ts TIMESTAMP
 ) AS
-SELECT start_ts, end_ts FROM _trace_bounds;
+SELECT
+  start_ts,
+  end_ts
+FROM _trace_bounds;
 
 -- Tracks are a fundamental concept in trace processor and represent a
 -- "timeline" for events of the same type and with the same context. See
@@ -112,8 +117,7 @@ SELECT
   machine_id,
   capacity,
   arg_set_id
-FROM
-  __intrinsic_cpu
+FROM __intrinsic_cpu
 WHERE
   cpu IS NOT NULL;
 
@@ -138,8 +142,7 @@ SELECT
   ucpu AS cpu,
   freq,
   ucpu
-FROM
-  __intrinsic_cpu_freq;
+FROM __intrinsic_cpu_freq;
 
 -- This table holds slices with kernel thread scheduling information. These
 -- slices are collected when the Linux "ftrace" data source is used with the
@@ -183,11 +186,10 @@ SELECT
   end_state,
   priority,
   ucpu
-FROM
-  __intrinsic_sched_slice;
+FROM __intrinsic_sched_slice;
 
 -- Shorter alias for table `sched_slice`.
-CREATE PERFETTO VIEW sched(
+CREATE PERFETTO VIEW sched (
   -- Alias for `sched_slice.id`.
   id ID,
   -- Alias for `sched_slice.ts`.
@@ -207,7 +209,9 @@ CREATE PERFETTO VIEW sched(
   -- Legacy column, should no longer be used.
   ts_end LONG
 ) AS
-SELECT *, ts + dur as ts_end
+SELECT
+  *,
+  ts + dur AS ts_end
 FROM sched_slice;
 
 -- This table contains the scheduling state of every thread on the system during
@@ -215,7 +219,7 @@ FROM sched_slice;
 --
 -- The rows in this table which have |state| = 'Running', will have a
 -- corresponding row in the |sched_slice| table.
-CREATE PERFETTO VIEW thread_state(
+CREATE PERFETTO VIEW thread_state (
   -- Unique identifier for this thread state.
   id ID,
   -- The timestamp at the start of the slice.
@@ -257,9 +261,7 @@ SELECT
   waker_id,
   irq_context,
   ucpu
-FROM
-  __intrinsic_thread_state;
-
+FROM __intrinsic_thread_state;
 
 -- Contains all the ftrace events in the trace. This table exists only for
 -- debugging purposes and should not be relied on in production usecases (i.e.
@@ -295,8 +297,7 @@ SELECT
   arg_set_id,
   common_flags,
   ucpu
-FROM
-  __intrinsic_ftrace_event;
+FROM __intrinsic_ftrace_event;
 
 -- This table is deprecated. Use `ftrace_event` instead which contains the same
 -- rows; this table is simply a (badly named) alias.
@@ -322,7 +323,8 @@ CREATE PERFETTO VIEW raw (
   -- The unique CPU identifier that this event was emitted on.
   ucpu LONG
 ) AS
-SELECT *
+SELECT
+  *
 FROM ftrace_event;
 
 -- Tracks which are associated to a single thread.
@@ -358,9 +360,11 @@ SELECT
   t.source_arg_set_id,
   t.machine_id,
   a.int_value AS utid
-FROM __intrinsic_track t
-JOIN args a ON t.dimension_arg_set_id = a.arg_set_id
-WHERE t.event_type = 'slice' AND a.key = 'utid';
+FROM __intrinsic_track AS t
+JOIN args AS a
+  ON t.dimension_arg_set_id = a.arg_set_id
+WHERE
+  t.event_type = 'slice' AND a.key = 'utid';
 
 -- Tracks which are associated to a single process.
 CREATE PERFETTO TABLE process_track (
@@ -395,9 +399,11 @@ SELECT
   t.source_arg_set_id,
   t.machine_id,
   a.int_value AS upid
-FROM __intrinsic_track t
-JOIN args a ON t.dimension_arg_set_id = a.arg_set_id
-WHERE t.event_type = 'slice' AND a.key = 'upid';
+FROM __intrinsic_track AS t
+JOIN args AS a
+  ON t.dimension_arg_set_id = a.arg_set_id
+WHERE
+  t.event_type = 'slice' AND a.key = 'upid';
 
 -- Tracks which are associated to a single CPU.
 CREATE PERFETTO TABLE cpu_track (
@@ -432,9 +438,11 @@ SELECT
   t.source_arg_set_id,
   t.machine_id,
   a.int_value AS cpu
-FROM __intrinsic_track t
-JOIN args a ON t.dimension_arg_set_id = a.arg_set_id
-WHERE t.event_type = 'slice' AND a.key = 'cpu';
+FROM __intrinsic_track AS t
+JOIN args AS a
+  ON t.dimension_arg_set_id = a.arg_set_id
+WHERE
+  t.event_type = 'slice' AND a.key = 'cpu';
 
 -- Table containing tracks which are loosely tied to a GPU.
 --
@@ -482,20 +490,11 @@ SELECT
   dimension_arg_set_id,
   machine_id,
   type AS scope,
-  EXTRACT_ARG(source_arg_set_id, 'description') AS description,
-  EXTRACT_ARG(dimension_arg_set_id, 'context_id') AS context_id
-FROM
-  __intrinsic_track
-WHERE type IN (
-  'drm_vblank',
-  'drm_sched_ring',
-  'drm_fence',
-  'mali_mcu_state',
-  'gpu_render_stage',
-  'vulkan_events',
-  'gpu_log',
-  'graphics_frame_event'
-);
+  extract_arg(source_arg_set_id, 'description') AS description,
+  extract_arg(dimension_arg_set_id, 'context_id') AS context_id
+FROM __intrinsic_track
+WHERE
+  type IN ('drm_vblank', 'drm_sched_ring', 'drm_fence', 'mali_mcu_state', 'gpu_render_stage', 'vulkan_events', 'gpu_log', 'graphics_frame_event');
 
 -- Tracks containing counter-like events.
 CREATE PERFETTO VIEW counter_track (
@@ -536,9 +535,10 @@ SELECT
   source_arg_set_id,
   machine_id,
   counter_unit AS unit,
-  EXTRACT_ARG(source_arg_set_id, 'description') AS description
+  extract_arg(source_arg_set_id, 'description') AS description
 FROM __intrinsic_track
-WHERE event_type = 'counter';
+WHERE
+  event_type = 'counter';
 
 -- Tracks containing counter-like events associated to a CPU.
 CREATE PERFETTO TABLE cpu_counter_track (
@@ -578,10 +578,12 @@ SELECT
   ct.machine_id,
   ct.unit,
   ct.description,
-  args.int_value as cpu
+  args.int_value AS cpu
 FROM counter_track AS ct
-JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
-WHERE args.key = 'cpu';
+JOIN args
+  ON ct.dimension_arg_set_id = args.arg_set_id
+WHERE
+  args.key = 'cpu';
 
 -- Tracks containing counter-like events associated to a GPU.
 CREATE PERFETTO TABLE gpu_counter_track (
@@ -623,8 +625,10 @@ SELECT
   ct.description,
   args.int_value AS gpu_id
 FROM counter_track AS ct
-JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
-WHERE args.key = 'gpu';
+JOIN args
+  ON ct.dimension_arg_set_id = args.arg_set_id
+WHERE
+  args.key = 'gpu';
 
 -- Tracks containing counter-like events associated to a process.
 CREATE PERFETTO TABLE process_counter_track (
@@ -666,8 +670,10 @@ SELECT
   ct.description,
   args.int_value AS upid
 FROM counter_track AS ct
-JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
-WHERE args.key = 'upid';
+JOIN args
+  ON ct.dimension_arg_set_id = args.arg_set_id
+WHERE
+  args.key = 'upid';
 
 -- Tracks containing counter-like events associated to a thread.
 CREATE PERFETTO TABLE thread_counter_track (
@@ -709,8 +715,10 @@ SELECT
   ct.description,
   args.int_value AS utid
 FROM counter_track AS ct
-JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
-WHERE args.key = 'utid';
+JOIN args
+  ON ct.dimension_arg_set_id = args.arg_set_id
+WHERE
+  args.key = 'utid';
 
 -- Tracks containing counter-like events collected from Linux perf.
 CREATE PERFETTO TABLE perf_counter_track (
@@ -758,10 +766,11 @@ SELECT
   extract_arg(ct.dimension_arg_set_id, 'cpu') AS cpu,
   extract_arg(ct.source_arg_set_id, 'is_timebase') AS is_timebase
 FROM counter_track AS ct
-WHERE ct.type = 'perf_counter';
+WHERE
+  ct.type = 'perf_counter';
 
 -- Alias of the `counter` table.
-CREATE PERFETTO VIEW counters(
+CREATE PERFETTO VIEW counters (
   -- Alias of `counter.id`.
   id ID,
   -- Alias of `counter.ts`.
@@ -777,13 +786,18 @@ CREATE PERFETTO VIEW counters(
   -- Legacy column, should no longer be used.
   unit STRING
 ) AS
-SELECT v.*, t.name, t.unit
-FROM counter v
-JOIN counter_track t ON v.track_id = t.id
-ORDER BY ts;
+SELECT
+  v.*,
+  t.name,
+  t.unit
+FROM counter AS v
+JOIN counter_track AS t
+  ON v.track_id = t.id
+ORDER BY
+  ts;
 
 -- Table containing graphics frame events on Android.
-CREATE PERFETTO VIEW frame_slice(
+CREATE PERFETTO VIEW frame_slice (
   -- Alias of `slice.id`.
   id ID(slice.id),
   -- Alias of `slice.ts`.
@@ -823,17 +837,19 @@ SELECT
   s.depth,
   s.parent_id,
   s.arg_set_id,
-  extract_arg(s.arg_set_id, 'layer_name') as layer_name,
-  extract_arg(s.arg_set_id, 'frame_number') as frame_number,
-  extract_arg(s.arg_set_id, 'queue_to_acquire_time') as queue_to_acquire_time,
-  extract_arg(s.arg_set_id, 'acquire_to_latch_time') as acquire_to_latch_time,
-  extract_arg(s.arg_set_id, 'latch_to_present_time') as latch_to_present_time
-FROM slice s
-JOIN track t ON s.track_id = t.id
-WHERE t.type = 'graphics_frame_event';
+  extract_arg(s.arg_set_id, 'layer_name') AS layer_name,
+  extract_arg(s.arg_set_id, 'frame_number') AS frame_number,
+  extract_arg(s.arg_set_id, 'queue_to_acquire_time') AS queue_to_acquire_time,
+  extract_arg(s.arg_set_id, 'acquire_to_latch_time') AS acquire_to_latch_time,
+  extract_arg(s.arg_set_id, 'latch_to_present_time') AS latch_to_present_time
+FROM slice AS s
+JOIN track AS t
+  ON s.track_id = t.id
+WHERE
+  t.type = 'graphics_frame_event';
 
 -- Table containing graphics frame events on Android.
-CREATE PERFETTO VIEW gpu_slice(
+CREATE PERFETTO VIEW gpu_slice (
   -- Alias of `slice.id`.
   id ID(slice.id),
   -- Alias of `slice.ts`.
@@ -887,25 +903,27 @@ SELECT
   s.depth,
   s.parent_id,
   s.arg_set_id,
-  extract_arg(s.arg_set_id, 'context_id') as context_id,
-  extract_arg(s.arg_set_id, 'render_target') as render_target,
-  extract_arg(s.arg_set_id, 'render_target_name') as render_target_name,
-  extract_arg(s.arg_set_id, 'render_pass') as render_pass,
-  extract_arg(s.arg_set_id, 'render_pass_name') as render_pass_name,
-  extract_arg(s.arg_set_id, 'command_buffer') as command_buffer,
-  extract_arg(s.arg_set_id, 'command_buffer_name') as command_buffer_name,
-  extract_arg(s.arg_set_id, 'frame_id') as frame_id,
-  extract_arg(s.arg_set_id, 'submission_id') as submission_id,
-  extract_arg(s.arg_set_id, 'hw_queue_id') as hw_queue_id,
-  extract_arg(s.arg_set_id, 'upid') as upid,
-  extract_arg(s.arg_set_id, 'render_subpasses') as render_subpasses
-FROM slice s
-JOIN track t ON s.track_id = t.id
-WHERE t.type IN ('gpu_render_stage', 'vulkan_events', 'gpu_log');
+  extract_arg(s.arg_set_id, 'context_id') AS context_id,
+  extract_arg(s.arg_set_id, 'render_target') AS render_target,
+  extract_arg(s.arg_set_id, 'render_target_name') AS render_target_name,
+  extract_arg(s.arg_set_id, 'render_pass') AS render_pass,
+  extract_arg(s.arg_set_id, 'render_pass_name') AS render_pass_name,
+  extract_arg(s.arg_set_id, 'command_buffer') AS command_buffer,
+  extract_arg(s.arg_set_id, 'command_buffer_name') AS command_buffer_name,
+  extract_arg(s.arg_set_id, 'frame_id') AS frame_id,
+  extract_arg(s.arg_set_id, 'submission_id') AS submission_id,
+  extract_arg(s.arg_set_id, 'hw_queue_id') AS hw_queue_id,
+  extract_arg(s.arg_set_id, 'upid') AS upid,
+  extract_arg(s.arg_set_id, 'render_subpasses') AS render_subpasses
+FROM slice AS s
+JOIN track AS t
+  ON s.track_id = t.id
+WHERE
+  t.type IN ('gpu_render_stage', 'vulkan_events', 'gpu_log');
 
 -- This table contains information on the expected timeline of either a display
 -- frame or a surface frame.
-CREATE PERFETTO TABLE expected_frame_timeline_slice(
+CREATE PERFETTO TABLE expected_frame_timeline_slice (
   -- Alias of `slice.id`.
   id ID(slice.id),
   -- Alias of `slice.ts`.
@@ -943,18 +961,20 @@ SELECT
   s.depth,
   s.parent_id,
   s.arg_set_id,
-  extract_arg(s.arg_set_id, 'Display frame token') as display_frame_token,
-  extract_arg(s.arg_set_id, 'Surface frame token') as surface_frame_token,
+  extract_arg(s.arg_set_id, 'Display frame token') AS display_frame_token,
+  extract_arg(s.arg_set_id, 'Surface frame token') AS surface_frame_token,
   t.upid,
-  extract_arg(s.arg_set_id, 'Layer name') as layer_name
-FROM slice s
-JOIN process_track t ON s.track_id = t.id
-WHERE t.type = 'android_expected_frame_timeline';
+  extract_arg(s.arg_set_id, 'Layer name') AS layer_name
+FROM slice AS s
+JOIN process_track AS t
+  ON s.track_id = t.id
+WHERE
+  t.type = 'android_expected_frame_timeline';
 
 -- This table contains information on the actual timeline and additional
 -- analysis related to the performance of either a display frame or a surface
 -- frame.
-CREATE PERFETTO TABLE actual_frame_timeline_slice(
+CREATE PERFETTO TABLE actual_frame_timeline_slice (
   -- Alias of `slice.id`.
   id ID(slice.id),
   -- Alias of `slice.ts`.
@@ -1007,17 +1027,19 @@ SELECT
   s.depth,
   s.parent_id,
   s.arg_set_id,
-  extract_arg(s.arg_set_id, 'Display frame token') as display_frame_token,
-  extract_arg(s.arg_set_id, 'Surface frame token') as surface_frame_token,
+  extract_arg(s.arg_set_id, 'Display frame token') AS display_frame_token,
+  extract_arg(s.arg_set_id, 'Surface frame token') AS surface_frame_token,
   t.upid,
-  extract_arg(s.arg_set_id, 'Layer name') as layer_name,
-  extract_arg(s.arg_set_id, 'Present type') as present_type,
-  extract_arg(s.arg_set_id, 'On time finish') as on_time_finish,
-  extract_arg(s.arg_set_id, 'GPU composition') as gpu_composition,
-  extract_arg(s.arg_set_id, 'Jank type') as jank_type,
-  extract_arg(s.arg_set_id, 'Jank severity type') as jank_severity_type,
-  extract_arg(s.arg_set_id, 'Prediction type') as prediction_type,
-  extract_arg(s.arg_set_id, 'Jank tag') as jank_tag
-FROM slice s
-JOIN process_track t ON s.track_id = t.id
-WHERE t.type = 'android_actual_frame_timeline';
+  extract_arg(s.arg_set_id, 'Layer name') AS layer_name,
+  extract_arg(s.arg_set_id, 'Present type') AS present_type,
+  extract_arg(s.arg_set_id, 'On time finish') AS on_time_finish,
+  extract_arg(s.arg_set_id, 'GPU composition') AS gpu_composition,
+  extract_arg(s.arg_set_id, 'Jank type') AS jank_type,
+  extract_arg(s.arg_set_id, 'Jank severity type') AS jank_severity_type,
+  extract_arg(s.arg_set_id, 'Prediction type') AS prediction_type,
+  extract_arg(s.arg_set_id, 'Jank tag') AS jank_tag
+FROM slice AS s
+JOIN process_track AS t
+  ON s.track_id = t.id
+WHERE
+  t.type = 'android_actual_frame_timeline';

@@ -16,21 +16,27 @@
 
 INCLUDE PERFETTO MODULE android.freezer;
 
-CREATE PERFETTO FUNCTION _extract_broadcast_process_name(name STRING)
-RETURNS LONG
-AS
+CREATE PERFETTO FUNCTION _extract_broadcast_process_name(
+    name STRING
+)
+RETURNS LONG AS
 WITH
   pid_and_name AS (
-    SELECT STR_SPLIT(STR_SPLIT($name, '/', 0), ' ', 1) AS value
+    SELECT
+      str_split(str_split($name, '/', 0), ' ', 1) AS value
   ),
   start AS (
-    SELECT cast_int!(INSTR(value, ':')) + 1 AS value FROM pid_and_name
+    SELECT
+      cast_int!(INSTR(value, ':')) + 1 AS value
+    FROM pid_and_name
   )
-SELECT SUBSTR(pid_and_name.value, start.value) FROM pid_and_name, start;
+SELECT
+  substr(pid_and_name.value, start.value)
+FROM pid_and_name, start;
 
 -- Provides a list of broadcast names and processes they were sent to by the
 -- system_server process on U+ devices.
-CREATE PERFETTO TABLE _android_broadcasts_minsdk_u(
+CREATE PERFETTO TABLE _android_broadcasts_minsdk_u (
   -- Broadcast record id.
   record_id STRING,
   -- Intent action of the broadcast.
@@ -79,7 +85,8 @@ WITH
     FROM slice
     JOIN broadcast_queues
       ON broadcast_queues.id = slice.track_id
-    WHERE slice.name GLOB '* running'
+    WHERE
+      slice.name GLOB '* running'
   ),
   broadcast_intent_action AS (
     SELECT
@@ -91,20 +98,21 @@ WITH
       slice.track_id AS track_id,
       slice.dur AS intent_dur
     FROM slice
-    WHERE slice.name GLOB '* scheduled'
+    WHERE
+      slice.name GLOB '* scheduled'
   )
-  SELECT
-    broadcast_intent_action.record_id,
-    broadcast_intent_action.intent_action,
-    broadcast_process_running.process_name,
-    broadcast_process_running.pid,
-    _pid_to_upid(broadcast_process_running.pid, broadcast_intent_action.intent_ts) AS upid,
-    broadcast_process_running.process_queue_id,
-    broadcast_process_running.queue_id,
-    broadcast_intent_action.intent_id AS id,
-    broadcast_intent_action.intent_ts AS ts,
-    broadcast_intent_action.intent_dur AS dur,
-    broadcast_intent_action.track_id
-  FROM broadcast_intent_action
-  JOIN broadcast_process_running
-    ON parent_id = id;
+SELECT
+  broadcast_intent_action.record_id,
+  broadcast_intent_action.intent_action,
+  broadcast_process_running.process_name,
+  broadcast_process_running.pid,
+  _pid_to_upid(broadcast_process_running.pid, broadcast_intent_action.intent_ts) AS upid,
+  broadcast_process_running.process_queue_id,
+  broadcast_process_running.queue_id,
+  broadcast_intent_action.intent_id AS id,
+  broadcast_intent_action.intent_ts AS ts,
+  broadcast_intent_action.intent_dur AS dur,
+  broadcast_intent_action.track_id
+FROM broadcast_intent_action
+JOIN broadcast_process_running
+  ON parent_id = id;

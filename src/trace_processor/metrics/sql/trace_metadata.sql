@@ -62,6 +62,14 @@ SELECT TraceMetadata(
     SELECT int_value FROM metadata
     WHERE name = 'android_sdk_version'
   ),
+  'android_profile_boot_classpath', (
+    SELECT int_value FROM metadata
+    WHERE name = 'android_profile_boot_classpath'
+  ),
+  'android_profile_system_server', (
+    SELECT int_value FROM metadata
+    WHERE name = 'android_profile_system_server'
+  ),
   'suspend_count', (
     SELECT COUNT() FROM android_suspend_state WHERE power_state = 'suspended'
   ),

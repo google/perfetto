@@ -35,6 +35,8 @@ export default class implements PerfettoPlugin {
     StandardGroupsPlugin,
   ];
 
+  private groups = new Map<string, TrackNode>();
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addCounters(ctx);
     await this.addSlices(ctx);
@@ -144,7 +146,7 @@ export default class implements PerfettoPlugin {
           title,
         ),
       });
-      addTrack(
+      this.addTrack(
         ctx,
         topLevelGroup,
         group,
@@ -259,7 +261,7 @@ export default class implements PerfettoPlugin {
         ]),
         track: createTraceProcessorSliceTrack(ctx, uri, maxDepth, trackIds),
       });
-      addTrack(
+      this.addTrack(
         ctx,
         topLevelGroup,
         group,
@@ -273,71 +275,77 @@ export default class implements PerfettoPlugin {
       );
     }
   }
-}
 
-function addTrack(
-  ctx: Trace,
-  topLevelGroup: TopLevelTrackGroup,
-  group: string | TrackGroupSchema | undefined,
-  upid: number | null,
-  utid: number | null,
-  track: TrackNode,
-) {
-  switch (topLevelGroup) {
-    case 'PROCESS': {
-      const process = assertExists(
-        ctx.plugins
-          .getPlugin(ProcessThreadGroupsPlugin)
-          .getGroupForProcess(assertExists(upid)),
-      );
-      getGroupByName(process, group, upid).addChildInOrder(track);
-      break;
-    }
-    case 'THREAD': {
-      const thread = assertExists(
-        ctx.plugins
-          .getPlugin(ProcessThreadGroupsPlugin)
-          .getGroupForThread(assertExists(utid)),
-      );
-      getGroupByName(thread, group, utid).addChildInOrder(track);
-      break;
-    }
-    case undefined: {
-      getGroupByName(ctx.workspace.tracks, group, upid).addChildInOrder(track);
-      break;
-    }
-    default: {
-      const standardGroup = ctx.plugins
-        .getPlugin(StandardGroupsPlugin)
-        .getOrCreateStandardGroup(ctx.workspace, topLevelGroup);
-      getGroupByName(standardGroup, group, null).addChildInOrder(track);
-      break;
+  private addTrack(
+    ctx: Trace,
+    topLevelGroup: TopLevelTrackGroup,
+    group: string | TrackGroupSchema | undefined,
+    upid: number | null,
+    utid: number | null,
+    track: TrackNode,
+  ) {
+    switch (topLevelGroup) {
+      case 'PROCESS': {
+        const process = assertExists(
+          ctx.plugins
+            .getPlugin(ProcessThreadGroupsPlugin)
+            .getGroupForProcess(assertExists(upid)),
+        );
+        this.getGroupByName(process, group, upid).addChildInOrder(track);
+        break;
+      }
+      case 'THREAD': {
+        const thread = assertExists(
+          ctx.plugins
+            .getPlugin(ProcessThreadGroupsPlugin)
+            .getGroupForThread(assertExists(utid)),
+        );
+        this.getGroupByName(thread, group, utid).addChildInOrder(track);
+        break;
+      }
+      case undefined: {
+        this.getGroupByName(ctx.workspace.tracks, group, upid).addChildInOrder(
+          track,
+        );
+        break;
+      }
+      default: {
+        const standardGroup = ctx.plugins
+          .getPlugin(StandardGroupsPlugin)
+          .getOrCreateStandardGroup(ctx.workspace, topLevelGroup);
+        this.getGroupByName(standardGroup, group, null).addChildInOrder(track);
+        break;
+      }
     }
   }
-}
 
-function getGroupByName(
-  node: TrackNode,
-  group: string | TrackGroupSchema | undefined,
-  scopeId: number | null,
-) {
-  if (group === undefined) {
-    return node;
+  private getGroupByName(
+    node: TrackNode,
+    group: string | TrackGroupSchema | undefined,
+    scopeId: number | null,
+  ) {
+    if (group === undefined) {
+      return node;
+    }
+    // This is potentially dangerous - ids MUST be unique within the entire
+    // workspace - this seems to indicate that we could end up duplicating ids in
+    // different nodes.
+    const name = typeof group === 'string' ? group : group.name;
+    const expanded =
+      typeof group === 'string' ? false : group.expanded ?? false;
+    const groupId = `tp_group_${scopeId}_${name.toLowerCase().replace(' ', '_')}`;
+    const groupNode = this.groups.get(groupId);
+    if (groupNode) {
+      return groupNode;
+    }
+    const newGroup = new TrackNode({
+      uri: `/${group}`,
+      isSummary: true,
+      title: name,
+      collapsed: !expanded,
+    });
+    node.addChildInOrder(newGroup);
+    this.groups.set(groupId, newGroup);
+    return newGroup;
   }
-  const name = typeof group === 'string' ? group : group.name;
-  const expanded = typeof group === 'string' ? false : group.expanded ?? false;
-  const groupId = `tp_group_${scopeId}_${name.toLowerCase().replace(' ', '_')}`;
-  const groupNode = node.getTrackById(groupId);
-  if (groupNode) {
-    return groupNode;
-  }
-  const newGroup = new TrackNode({
-    uri: `/${group}`,
-    id: groupId,
-    isSummary: true,
-    title: name,
-    collapsed: !expanded,
-  });
-  node.addChildInOrder(newGroup);
-  return newGroup;
 }

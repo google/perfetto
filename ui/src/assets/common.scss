@@ -503,6 +503,7 @@ button.query-ctrl {
   .total-values {
     text-align: right;
     padding-right: 10px;
+    font-weight: bolder;
   }
 
   .empty-result {
@@ -511,6 +512,11 @@ button.query-ctrl {
 
   td.menu {
     text-align: left;
+  }
+
+  td.action-button {
+    min-width: fit-content;
+    width: 1px;
   }
 
   td {

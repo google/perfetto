@@ -20,9 +20,9 @@ import {Button, ButtonBar} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
-import {SqlTableState} from '../widgets/sql/legacy_table/state';
-import {SqlTable} from '../widgets/sql/legacy_table/table';
-import {SqlTableDescription} from '../widgets/sql/legacy_table/table_description';
+import {SqlTableState} from '../widgets/sql/table/state';
+import {SqlTable} from '../widgets/sql/table/table';
+import {SqlTableDescription} from '../widgets/sql/table/table_description';
 import {Trace} from '../../public/trace';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {addEphemeralTab} from './add_ephemeral_tab';
@@ -30,13 +30,9 @@ import {Tab} from '../../public/tab';
 import {addChartTab} from '../widgets/charts/chart_tab';
 import {ChartType} from '../widgets/charts/chart';
 import {AddChartMenuItem} from '../widgets/charts/add_chart_menu';
-import {
-  Filter,
-  Filters,
-  renderFilters,
-} from '../widgets/sql/legacy_table/filters';
+import {Filter, Filters, renderFilters} from '../widgets/sql/table/filters';
 import {PivotTableState} from '../widgets/sql/pivot_table/pivot_table_state';
-import {LegacyTableColumn} from '../widgets/sql/legacy_table/table_column';
+import {TableColumn} from '../widgets/sql/table/table_column';
 import {PivotTable} from '../widgets/sql/pivot_table/pivot_table';
 import {pivotId} from '../widgets/sql/pivot_table/ids';
 
@@ -131,7 +127,7 @@ class LegacySqlTableTab implements Tab {
     ];
   }
 
-  private tableMenuItems(column: LegacyTableColumn, alias: string) {
+  private tableMenuItems(column: TableColumn, alias: string) {
     const chartAttrs = {
       data: this.state.nonPaginatedData?.rows,
       columns: [alias],
@@ -202,7 +198,34 @@ class LegacySqlTableTab implements Tab {
           addColumnMenuItems: this.tableMenuItems.bind(this),
         }),
       this.selected instanceof PivotTableState &&
-        m(PivotTable, {state: this.selected}),
+        m(PivotTable, {
+          state: this.selected,
+          extraRowButton: (node) =>
+            // Do not show any buttons for root as it doesn't have any filters anyway.
+            !node.isRoot() &&
+            m(
+              PopupMenu,
+              {
+                trigger: m(Button, {
+                  icon: Icons.GoTo,
+                }),
+              },
+              m(MenuItem, {
+                label: 'Add filters',
+                onclick: () => {
+                  this.state.filters.addFilters(node.getFilters());
+                },
+              }),
+              m(MenuItem, {
+                label: 'Open tab with filters',
+                onclick: () => {
+                  const newState = this.state.clone();
+                  newState.filters.addFilters(node.getFilters());
+                  addSqlTableTabWithState(newState);
+                },
+              }),
+            ),
+        }),
     );
   }
 

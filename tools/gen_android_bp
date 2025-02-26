@@ -152,6 +152,12 @@ proto_groups = {
             '//protos/perfetto/metrics:source_set',
         ]
     },
+    'trace_summary': {
+        'types': ['filegroup'],
+        'targets': [
+            '//protos/perfetto/trace_summary:source_set',
+        ]
+    }
 }
 
 needs_libfts = [

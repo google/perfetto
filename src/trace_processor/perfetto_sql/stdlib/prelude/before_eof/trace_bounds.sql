@@ -16,22 +16,29 @@
 -- The values are being filled by Trace Processor when parsing the trace.
 -- Exposed with `trace_bounds`.
 CREATE TABLE _trace_bounds AS
-SELECT 0 AS start_ts, 0 AS end_ts;
+SELECT
+  0 AS start_ts,
+  0 AS end_ts;
 
 -- Fetch start of the trace.
 CREATE PERFETTO FUNCTION trace_start()
 -- Start of the trace.
 RETURNS TIMESTAMP AS
-SELECT start_ts FROM _trace_bounds;
+SELECT
+  start_ts
+FROM _trace_bounds;
 
 -- Fetch end of the trace.
 CREATE PERFETTO FUNCTION trace_end()
 -- End of the trace.
 RETURNS TIMESTAMP AS
-SELECT end_ts FROM _trace_bounds;
+SELECT
+  end_ts
+FROM _trace_bounds;
 
 -- Fetch duration of the trace.
 CREATE PERFETTO FUNCTION trace_dur()
 -- Duration of the trace.
 RETURNS DURATION AS
-SELECT trace_end() - trace_start();
+SELECT
+  trace_end() - trace_start();

@@ -12,20 +12,57 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
+from typing import List, Sized, Union
+
 from perfetto.common.exceptions import PerfettoException
+
+try:
+  import pandas as pd
+  HAS_PANDAS = True
+except ModuleNotFoundError:
+  HAS_PANDAS = False
+except ImportError:
+  HAS_PANDAS = False
+
+try:
+  import numpy as np
+  HAS_NUMPY = True
+except ModuleNotFoundError:
+  HAS_NUMPY = False
+except ImportError:
+  HAS_NUMPY = False
+
+# Values of these constants correspond to the QueryResponse message at
+# protos/perfetto/trace_processor/trace_processor.proto
+QUERY_CELL_INVALID_FIELD_ID = 0
+QUERY_CELL_NULL_FIELD_ID = 1
+QUERY_CELL_VARINT_FIELD_ID = 2
+QUERY_CELL_FLOAT64_FIELD_ID = 3
+QUERY_CELL_STRING_FIELD_ID = 4
+QUERY_CELL_BLOB_FIELD_ID = 5
+QUERY_CELL_TYPE_COUNT = 6
+
+
+def _extract_strings(x: Union[str, bytes]):
+  # It's possible on some occasions that there are non UTF-8 characters
+  # in the string_cells field. If this is the case, string_cells is
+  # a bytestring which needs to be decoded (but passing ignore so that
+  # we don't fail in decoding).
+  try:
+    input: str = x.decode('utf-8', 'ignore')
+  except AttributeError:
+    # AttributeError can occur when |x| is an str which happens when everything
+    # in it is UTF-8 (protobuf automatically does the conversion if it can).
+    input: str = x
+  res = input.split('\0')
+  if res:
+    res.pop()
+  return res
 
 
 # Provides a Python interface to operate on the contents of QueryResult protos
-class QueryResultIterator:
-  # Values of these constants correspond to the QueryResponse message at
-  # protos/perfetto/trace_processor/trace_processor.proto
-  QUERY_CELL_INVALID_FIELD_ID = 0
-  QUERY_CELL_NULL_FIELD_ID = 1
-  QUERY_CELL_VARINT_FIELD_ID = 2
-  QUERY_CELL_FLOAT64_FIELD_ID = 3
-  QUERY_CELL_STRING_FIELD_ID = 4
-  QUERY_CELL_BLOB_FIELD_ID = 5
-
+class QueryResultIterator(Sized):
   # This is the class returned to the user and contains one row of the
   # resultant query. Each column name is stored as an attribute of this
   # class, with the value corresponding to the column name and row in
@@ -40,122 +77,81 @@ class QueryResultIterator:
     def __repr__(self):
       return self.__dict__
 
-  def __init__(self, column_names, batches):
-    self.__column_names = list(column_names)
-    self.__column_count = 0
-    self.__count = 0
-    self.__cells = []
-    self.__data_lists = [[], [], [], [], [], []]
-    self.__data_lists_index = [0, 0, 0, 0, 0, 0]
-    self.__current_index = 0
+  def __init__(self, column_names: List[str], batches: List):
+    self.column_names = list(column_names)
+    self.column_count = len(column_names)
 
-    # Iterate over all the batches and collect their
-    # contents into lists based on the type of the batch
-    batch_index = 0
-    while True:
-      # It's possible on some occasions that there are non UTF-8 characters
-      # in the string_cells field. If this is the case, string_cells is
-      # a bytestring which needs to be decoded (but passing ignore so that
-      # we don't fail in decoding).
-      strings_batch_str = batches[batch_index].string_cells
-      try:
-        strings_batch_str = strings_batch_str.decode('utf-8', 'ignore')
-      except AttributeError:
-        # AttributeError can occur when |strings_batch_str| is an str which
-        # happens when everything in it is UTF-8 (protobuf automatically
-        # does the conversion if it can).
-        pass
+    if batches and not batches[-1].is_last_batch:
+      raise PerfettoException('Last batch did not have is_last_batch flag set')
 
-      # Null-terminated strings in a batch are concatenated
-      # into a single large byte array, so we split on the
-      # null-terminator to get the individual strings
-      strings_batch = strings_batch_str.split('\0')[:-1]
-      self.__data_lists[QueryResultIterator.QUERY_CELL_STRING_FIELD_ID].extend(
-          strings_batch)
-      self.__data_lists[QueryResultIterator.QUERY_CELL_VARINT_FIELD_ID].extend(
-          batches[batch_index].varint_cells)
-      self.__data_lists[QueryResultIterator.QUERY_CELL_FLOAT64_FIELD_ID].extend(
-          batches[batch_index].float64_cells)
-      self.__data_lists[QueryResultIterator.QUERY_CELL_BLOB_FIELD_ID].extend(
-          batches[batch_index].blob_cells)
-      self.__cells.extend(batches[batch_index].cells)
+    self.cell_count = sum(len(b.cells) for b in batches)
+    for b in batches:
+      if self.column_count > 0 and len(b.cells) % self.column_count != 0:
+        raise PerfettoException(
+            f"Result has {self.cell_count} cells, not divisible by {self.column_count} columns"
+        )
 
-      if batches[batch_index].is_last_batch:
-        break
+    self.row_count = self.cell_count // self.column_count if self.column_count > 0 else 0
+    self.cell_index = 0
 
-      batch_index += 1
-
-    # If there are no rows in the query result, don't bother updating the
-    # counts to avoid dealing with / 0 errors.
-    if len(self.__cells) == 0:
-      return
-
-    # The count we collected so far was a count of all individual columns
-    # in the query result, so we divide by the number of columns in a row
-    # to get the number of rows
-    self.__column_count = len(self.__column_names)
-    self.__count = int(len(self.__cells) / self.__column_count)
-
-    # Data integrity check - see that we have the expected amount of cells
-    # for the number of rows that we need to return
-    if len(self.__cells) % self.__column_count != 0:
-      raise PerfettoException("Cell count " + str(len(self.__cells)) +
-                              " is not a multiple of column count " +
-                              str(len(self.__column_names)))
+    if HAS_NUMPY:
+      self.cells = np.empty(self.cell_count, dtype='object')
+      cell_count = 0
+      for b in batches:
+        all_cells = np.array(b.cells)
+        all_cells_count = len(all_cells)
+        cut = self.cells[cell_count:cell_count + all_cells_count]
+        cut[all_cells == QUERY_CELL_NULL_FIELD_ID] = None
+        cut[all_cells == QUERY_CELL_VARINT_FIELD_ID] = b.varint_cells
+        cut[all_cells == QUERY_CELL_FLOAT64_FIELD_ID] = b.float64_cells
+        cut[all_cells == QUERY_CELL_STRING_FIELD_ID] = _extract_strings(
+            b.string_cells)
+        cut[all_cells == QUERY_CELL_BLOB_FIELD_ID] = b.blob_cells
+        cell_count += all_cells_count
+    else:
+      self.cells = [None] * self.cell_count
+      cells = [
+          [],
+          [],
+          list(itertools.chain.from_iterable(b.varint_cells for b in batches)),
+          list(itertools.chain.from_iterable(b.float64_cells for b in batches)),
+          list(
+              itertools.chain.from_iterable(
+                  _extract_strings(b.string_cells) for b in batches)),
+          list(itertools.chain.from_iterable(b.blob_cells for b in batches)),
+      ]
+      cell_offsets = [0] * (QUERY_CELL_BLOB_FIELD_ID + 1)
+      for i, ct in enumerate(
+          itertools.chain.from_iterable(b.cells for b in batches)):
+        self.cells[i] = cells[ct][
+            cell_offsets[ct]] if ct != QUERY_CELL_NULL_FIELD_ID else None
+        cell_offsets[ct] += 1
 
   # To use the query result as a populated Pandas dataframe, this
   # function must be called directly after calling query inside
   # TraceProcessor / Bigtrace.
   def as_pandas_dataframe(self):
-    try:
-      import pandas as pd
-
-      # Populate the dataframe with the query results
-      rows = []
-      for i in range(0, self.__count):
-        row = []
-        base_cell_index = i * self.__column_count
-        for num in range(len(self.__column_names)):
-          col_type = self.__cells[base_cell_index + num]
-          if col_type == QueryResultIterator.QUERY_CELL_INVALID_FIELD_ID:
-            raise PerfettoException('Invalid cell type')
-
-          if col_type == QueryResultIterator.QUERY_CELL_NULL_FIELD_ID:
-            row.append(None)
-          else:
-            col_index = self.__data_lists_index[col_type]
-            self.__data_lists_index[col_type] += 1
-            row.append(self.__data_lists[col_type][col_index])
-        rows.append(row)
-
-      df = pd.DataFrame(rows, columns=self.__column_names)
-      return df.astype(object).where(df.notnull(), None).reset_index(drop=True)
-
-    except ModuleNotFoundError:
+    if HAS_PANDAS and HAS_NUMPY:
+      assert isinstance(self.cells, np.ndarray)
+      return pd.DataFrame(
+          self.cells.reshape((self.row_count, self.column_count)),
+          columns=self.column_names)
+    else:
       raise PerfettoException(
-          'Python dependencies missing. Please pip3 install pandas numpy')
+          'pandas/numpy dependency missing. Please run `pip3 install pandas numpy`'
+      )
 
   def __len__(self):
-    return self.__count
+    return self.row_count
 
   def __iter__(self):
     return self
 
   def __next__(self):
-    if self.__current_index == self.__count:
+    if self.cell_index == self.cell_count:
       raise StopIteration
     result = QueryResultIterator.Row()
-    base_cell_index = self.__current_index * self.__column_count
-    for num, column_name in enumerate(self.__column_names):
-      col_type = self.__cells[base_cell_index + num]
-      if col_type == QueryResultIterator.QUERY_CELL_INVALID_FIELD_ID:
-        raise PerfettoException('Invalid cell type')
-      if col_type != QueryResultIterator.QUERY_CELL_NULL_FIELD_ID:
-        col_index = self.__data_lists_index[col_type]
-        self.__data_lists_index[col_type] += 1
-        setattr(result, column_name, self.__data_lists[col_type][col_index])
-      else:
-        setattr(result, column_name, None)
-
-    self.__current_index += 1
+    for i, column_name in enumerate(self.column_names):
+      setattr(result, column_name, self.cells[self.cell_index + i])
+    self.cell_index += self.column_count
     return result

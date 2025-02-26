@@ -18,8 +18,8 @@ import {
   Area,
   SelectionOpts,
   SelectionManager,
-  AreaSelectionAggregator,
   TrackEventSelection,
+  AreaSelectionTab,
 } from '../public/selection';
 import {TimeSpan} from '../base/time';
 import {raf} from './raf_scheduler';
@@ -29,14 +29,13 @@ import {Engine} from '../trace_processor/engine';
 import {ScrollHelper} from './scroll_helper';
 import {NoteManagerImpl} from './note_manager';
 import {SearchResult} from '../public/search';
-import {SelectionAggregationManager} from './selection_aggregation_manager';
 import {AsyncLimiter} from '../base/async_limiter';
 import m from 'mithril';
 import {SerializedSelection} from './state_serialization_schema';
 import {showModal} from '../widgets/modal';
 import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
 import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
-import {TrackDescriptor} from '../public/track';
+import {Track} from '../public/track';
 
 interface SelectionDetailsPanel {
   isLoading: boolean;
@@ -55,11 +54,11 @@ interface SelectionDetailsPanel {
 export class SelectionManagerImpl implements SelectionManager {
   private readonly detailsPanelLimiter = new AsyncLimiter();
   private _selection: Selection = {kind: 'empty'};
-  private _aggregationManager: SelectionAggregationManager;
   private readonly detailsPanels = new WeakMap<
     Selection,
     SelectionDetailsPanel
   >();
+  public readonly areaSelectionTabs: AreaSelectionTab[] = [];
 
   constructor(
     private readonly engine: Engine,
@@ -67,15 +66,7 @@ export class SelectionManagerImpl implements SelectionManager {
     private noteManager: NoteManagerImpl,
     private scrollHelper: ScrollHelper,
     private onSelectionChange: (s: Selection, opts: SelectionOpts) => void,
-  ) {
-    this._aggregationManager = new SelectionAggregationManager(
-      engine.getProxy('SelectionAggregationManager'),
-    );
-  }
-
-  registerAreaSelectionAggregator(aggr: AreaSelectionAggregator): void {
-    this._aggregationManager.registerAggregator(aggr);
-  }
+  ) {}
 
   clear(): void {
     this.setSelection({kind: 'empty'});
@@ -108,9 +99,9 @@ export class SelectionManagerImpl implements SelectionManager {
     assertTrue(start <= end);
 
     // In the case of area selection, the caller provides a list of trackUris.
-    // However, all the consumer want to access the resolved TrackDescriptor.
-    // Rather than delegating this to the various consumers, we resolve them
-    // now once and for all and place them in the selection object.
+    // However, all the consumers want to access the resolved Tracks. Rather
+    // than delegating this to the various consumers, we resolve them now once
+    // and for all and place them in the selection object.
     const tracks = [];
     for (const uri of area.trackUris) {
       const trackDescr = this.trackManager.getTrack(uri);
@@ -244,8 +235,8 @@ export class SelectionManagerImpl implements SelectionManager {
     // 4. Run one query per group, reading out the filter column value, and
     //    looking up the originating track in the map.
     // One flaw of this approach is that.
-    const groups = new Map<string, [SourceDataset, TrackDescriptor][]>();
-    const tracksWithNoFilter: [SourceDataset, TrackDescriptor][] = [];
+    const groups = new Map<string, [SourceDataset, Track][]>();
+    const tracksWithNoFilter: [SourceDataset, Track][] = [];
 
     this.trackManager
       .getAllTracks()
@@ -329,12 +320,6 @@ export class SelectionManagerImpl implements SelectionManager {
 
     if (opts?.scrollToSelection) {
       this.scrollToCurrentSelection();
-    }
-
-    if (this._selection.kind === 'area') {
-      this._aggregationManager.aggregateArea(this._selection);
-    } else {
-      this._aggregationManager.clear();
     }
   }
 
@@ -488,7 +473,7 @@ export class SelectionManagerImpl implements SelectionManager {
     return undefined;
   }
 
-  get aggregation() {
-    return this._aggregationManager;
+  registerAreaSelectionTab(tab: AreaSelectionTab): void {
+    this.areaSelectionTabs.push(tab);
   }
 }

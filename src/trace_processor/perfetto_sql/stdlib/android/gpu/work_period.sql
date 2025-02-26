@@ -30,7 +30,8 @@ CREATE PERFETTO TABLE android_gpu_work_period_track (
 SELECT
   id,
   machine_id,
-  extract_arg(dimension_arg_set_id, 'uid') as uid,
-  extract_arg(dimension_arg_set_id, 'gpu') as gpu_id
+  extract_arg(dimension_arg_set_id, 'uid') AS uid,
+  extract_arg(dimension_arg_set_id, 'gpu') AS gpu_id
 FROM track
-WHERE type = 'android_gpu_work_period';
+WHERE
+  type = 'android_gpu_work_period';

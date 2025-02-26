@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import {Registry} from '../base/registry';
-import {Track, TrackDescriptor, TrackManager} from '../public/track';
+import {TrackRenderer, Track, TrackManager} from '../public/track';
 import {AsyncLimiter} from '../base/async_limiter';
 import {TrackRenderContext} from '../public/track';
 
-export interface TrackRenderer {
-  readonly track: Track;
-  desc: TrackDescriptor;
+export interface TrackWithFSM {
+  readonly track: TrackRenderer;
+  desc: Track;
   render(ctx: TrackRenderContext): void;
   getError(): Error | undefined;
 }
@@ -31,24 +31,24 @@ export interface TrackRenderer {
  * Example usage:
  * function render() {
  *   const trackCache = new TrackCache();
- *   const foo = trackCache.getTrackRenderer('foo', 'exampleURI', {});
- *   const bar = trackCache.getTrackRenderer('bar', 'exampleURI', {});
+ *   const foo = trackCache.getTrackFSM('foo', 'exampleURI', {});
+ *   const bar = trackCache.getTrackFSM('bar', 'exampleURI', {});
  *   trackCache.flushOldTracks(); // <-- Destroys any unused cached tracks
  * }
  *
  * Example of how flushing works:
  * First cycle
- *   getTrackRenderer('foo', ...) <-- new track 'foo' created
- *   getTrackRenderer('bar', ...) <-- new track 'bar' created
+ *   getTrackFSM('foo', ...) <-- new track 'foo' created
+ *   getTrackFSM('bar', ...) <-- new track 'bar' created
  *   flushTracks()
  * Second cycle
- *   getTrackRenderer('foo', ...) <-- returns cached 'foo' track
+ *   getTrackFSM('foo', ...) <-- returns cached 'foo' track
  *   flushTracks() <-- 'bar' is destroyed, as it was not resolved this cycle
  * Third cycle
  *   flushTracks() <-- 'foo' is destroyed.
  */
 export class TrackManagerImpl implements TrackManager {
-  private tracks = new Registry<TrackFSM>((x) => x.desc.uri);
+  private tracks = new Registry<TrackFSMImpl>((x) => x.desc.uri);
 
   // This property is written by scroll_helper.ts and read&cleared by the
   // track_panel.ts. This exist for the following use case: the user wants to
@@ -63,31 +63,31 @@ export class TrackManagerImpl implements TrackManager {
   // This track filter applies to tracks on the viewer page (not pinned tracks).
   trackFilterTerm: string = '';
 
-  registerTrack(trackDesc: TrackDescriptor): Disposable {
-    return this.tracks.register(new TrackFSM(trackDesc));
+  registerTrack(trackDesc: Track): Disposable {
+    return this.tracks.register(new TrackFSMImpl(trackDesc));
   }
 
   findTrack(
-    predicate: (desc: TrackDescriptor) => boolean | undefined,
-  ): TrackDescriptor | undefined {
+    predicate: (desc: Track) => boolean | undefined,
+  ): Track | undefined {
     for (const t of this.tracks.values()) {
       if (predicate(t.desc)) return t.desc;
     }
     return undefined;
   }
 
-  getAllTracks(): TrackDescriptor[] {
+  getAllTracks(): Track[] {
     return Array.from(this.tracks.valuesAsArray().map((t) => t.desc));
   }
 
   // Look up track into for a given track's URI.
   // Returns |undefined| if no track can be found.
-  getTrack(uri: string): TrackDescriptor | undefined {
+  getTrack(uri: string): Track | undefined {
     return this.tracks.tryGet(uri)?.desc;
   }
 
   // This is only called by the viewer_page.ts.
-  getTrackRenderer(uri: string): TrackRenderer | undefined {
+  getTrackFSM(uri: string): TrackWithFSM | undefined {
     // Search for a cached version of this track,
     const trackFsm = this.tracks.tryGet(uri);
     trackFsm?.markUsed();
@@ -120,15 +120,15 @@ const DESTROY_IF_NOT_SEEN_FOR_TICK_COUNT = 1;
  *   particularly important because tracks often drop tables/views onDestroy
  *   and they shouldn't try to fetch more data onUpdate past that point.
  */
-class TrackFSM implements TrackRenderer {
-  public readonly desc: TrackDescriptor;
+class TrackFSMImpl implements TrackWithFSM {
+  public readonly desc: Track;
 
   private readonly limiter = new AsyncLimiter();
   private error?: Error;
   private tickSinceLastUsed = 0;
   private created = false;
 
-  constructor(desc: TrackDescriptor) {
+  constructor(desc: Track) {
     this.desc = desc;
   }
 
@@ -183,7 +183,7 @@ class TrackFSM implements TrackRenderer {
     return this.error;
   }
 
-  get track(): Track {
+  get track(): TrackRenderer {
     return this.desc.track;
   }
 }

@@ -35,8 +35,8 @@ import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 import {SliceRef} from '../widgets/slice';
 import {BasicTable} from '../../widgets/basic_table';
-import {getSqlTableDescription} from '../widgets/sql/legacy_table/sql_table_registry';
-import {assertExists} from '../../base/logging';
+import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
+import {assertExists, assertIsInstance} from '../../base/logging';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
@@ -205,8 +205,14 @@ async function getSliceDetails(
 export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
+  private readonly trace: TraceImpl;
 
-  constructor(private readonly trace: TraceImpl) {}
+  constructor(trace: Trace) {
+    // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
+    // TraceImpl (because of flows) but here we must take a Trace interface,
+    // because this track is exposed to plugins (which see only Trace).
+    this.trace = assertIsInstance(trace, TraceImpl);
+  }
 
   async load({eventId}: TrackEventSelection) {
     const {trace} = this;

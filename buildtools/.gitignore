@@ -37,6 +37,7 @@
 /open_csd/
 /pigweed/
 /protobuf/
+/sqlglot/
 /sqlite_src/
 /sqlite/
 /test_data/

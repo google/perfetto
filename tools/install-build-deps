@@ -328,6 +328,12 @@ BUILD_DEPS_HOST = [
     Dependency('buildtools/open_csd',
             'https://android.googlesource.com/platform/external/OpenCSD.git',
             '0ce01e934f95efb6a216a6efa35af1245151c779', 'all', 'all'),
+
+    # sqlglot for SQL formatting.
+    Dependency(
+        'buildtools/sqlglot',
+        'https://github.com/tobymao/sqlglot.git',
+        'dd1cdb0b91ac597a9cb1f1f517a616c264f5b654', 'all', 'all'),
 ]
 
 # Dependencies required to build code on the host using Bazel build system.

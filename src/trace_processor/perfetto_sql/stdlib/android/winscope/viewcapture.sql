@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Android viewcapture (from android.viewcapture data source).
-CREATE PERFETTO VIEW android_viewcapture(
+CREATE PERFETTO VIEW android_viewcapture (
   -- Snapshot id
   id LONG,
   -- Timestamp when the snapshot was triggered

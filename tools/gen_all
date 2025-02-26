@@ -61,6 +61,7 @@ def main():
     call('gen_amalgamated_python_tools', *check_only)
     call('ninja', '-C', out, 'protoc')
     call('gen_binary_descriptors', '--protoc', protoc_path(out), *check_only)
+    call('format_stdlib', *check_only)
 
     if IS_WIN:
       print('WARNING: Cannot generate BUILD / Android.bp from Windows. ' +

@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqlColumnId} from '../legacy_table/sql_column';
-import {LegacyTableColumn} from '../legacy_table/table_column';
-import {Aggregation} from './aggregations';
+import {sqlColumnId} from '../table/sql_column';
+import type {TableColumn} from '../table/table_column';
+import type {Aggregation} from './aggregations';
 
 // Unique identifier for a pivot column.
-export function pivotId(p: LegacyTableColumn): string {
-  return sqlColumnId(p.primaryColumn());
+export function pivotId(p: TableColumn): string {
+  return sqlColumnId(p.column);
 }
 
 // Unique identifier for an aggregation.
 export function aggregationId(a: Aggregation): string {
   // Count doesn't require a column.
   if (a.op === 'count') return 'count';
-  return `${a.op}(${sqlColumnId(a.column.primaryColumn())})`;
+  return `${a.op}(${sqlColumnId(a.column.column)})`;
 }

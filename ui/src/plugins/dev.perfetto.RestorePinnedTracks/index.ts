@@ -15,7 +15,7 @@
 import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {TrackDescriptor} from '../../public/track';
+import {Track} from '../../public/track';
 import {z} from 'zod';
 import {assertExists, assertIsInstance} from '../../base/logging';
 
@@ -297,18 +297,18 @@ export default class implements PerfettoPlugin {
     return inputString?.replace(/\d+/g, '');
   }
 
-  private toSavedTrack(track: TrackNode): SavedPinnedTrack {
-    let trackDescriptor: TrackDescriptor | undefined = undefined;
-    if (track.uri != undefined) {
-      trackDescriptor = this.ctx.tracks.getTrack(track.uri);
+  private toSavedTrack(trackNode: TrackNode): SavedPinnedTrack {
+    let track: Track | undefined = undefined;
+    if (trackNode.uri != undefined) {
+      track = this.ctx.tracks.getTrack(trackNode.uri);
     }
 
     return {
-      groupName: groupName(track),
-      trackName: track.title,
-      pluginId: trackDescriptor?.pluginId,
-      kind: trackDescriptor?.tags?.kind,
-      isMainThread: trackDescriptor?.chips?.includes('main thread') || false,
+      groupName: groupName(trackNode),
+      trackName: trackNode.title,
+      pluginId: track?.pluginId,
+      kind: track?.tags?.kind,
+      isMainThread: track?.chips?.includes('main thread') || false,
     };
   }
 }

@@ -322,6 +322,8 @@ tables::V8WasmScriptTable::Id V8Tracker::InternWasmScript(
   row.v8_isolate_id = isolate_id;
   row.internal_script_id = script.script_id();
   row.url = context_->storage->InternString(script.url());
+  row.wire_bytes_base64 = context_->storage->InternString(base::StringView(
+      base::Base64Encode(script.wire_bytes().data, script.wire_bytes().size)));
 
   tables::V8WasmScriptTable::Id script_id =
       context_->storage->mutable_v8_wasm_script_table()->Insert(row).id;

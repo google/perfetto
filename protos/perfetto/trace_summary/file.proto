@@ -1,0 +1,57 @@
+/*
+ * Copyright (C) 2025 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+import "protos/perfetto/perfetto_sql/structured_query.proto";
+import "protos/perfetto/trace_summary/v2_metric.proto";
+
+// Wrapper proto containing a bunch of specifications for computing summaries
+// of traces.
+//
+// This proto is largely a single wrapper around a bunch of different
+// concepts to make it easy to have self-contained config files for summarising
+// the contents of traces. See the comments on individual fields for usage of
+// this proto.
+//
+// NOTE FOR MODIFIERS: all fields of this proto *must* be non-packed, repeated
+// fields. There is an expectation that instances of this proto can be
+// concatenated together trivially without any loss of information.
+message TraceSummarySpec {
+  // The specification of a v2 trace metric.
+  //
+  // See documentation for TraceMetricV2Config for usage of this field.
+  repeated TraceMetricV2Spec metric_spec = 1;
+
+  // Instances of structured queries whose ids can be referenced by the
+  // `inner_query_id` field of any `metric_spec.query`. Useful for sharing
+  // a single query across many different metrics.
+  repeated PerfettoSqlStructuredQuery shared_query = 2;
+}
+
+// Wrapper proto containing a bunch of outputs protos produced when computing
+// summaries of traces.
+//
+// See comments on `TraceSummarySpec` and on individual fields for usage of this
+// proto.
+message TraceSummary {
+  // The result of computing a v2 trace metric.
+  //
+  // See documentation for TraceMetric for usage of this field.
+  repeated TraceMetricV2 metric = 1;
+}

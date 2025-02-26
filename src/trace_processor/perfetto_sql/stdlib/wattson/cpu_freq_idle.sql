@@ -14,61 +14,110 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE intervals.intersect;
+
 INCLUDE PERFETTO MODULE wattson.cpu_freq;
+
 INCLUDE PERFETTO MODULE wattson.cpu_hotplug;
+
 INCLUDE PERFETTO MODULE wattson.cpu_idle;
+
 INCLUDE PERFETTO MODULE wattson.curves.utils;
+
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
 -- Helper macro for using Perfetto table with interval intersect
-CREATE PERFETTO MACRO _ii_subquery(tab TableOrSubquery)
-RETURNS TableOrSubquery AS (SELECT _auto_id AS id, * FROM $tab);
+CREATE PERFETTO MACRO _ii_subquery(
+    tab TableOrSubquery
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT
+    _auto_id AS id,
+    *
+  FROM $tab
+);
 
 -- Wattson estimation is valid from when first CPU0 frequency appears
-CREATE PERFETTO TABLE _valid_window
-AS
-WITH window_start AS (
-  SELECT ts as start_ts
-  FROM _adjusted_cpu_freq
-  WHERE cpu = 0 AND freq IS NOT NULL
-  ORDER BY ts ASC
-  LIMIT 1
-),
-window AS (
-  SELECT start_ts as ts, trace_end() - start_ts as dur
-  FROM window_start
-)
-SELECT *, 0 as cpu FROM window
+CREATE PERFETTO TABLE _valid_window AS
+WITH
+  window_start AS (
+    SELECT
+      ts AS start_ts
+    FROM _adjusted_cpu_freq
+    WHERE
+      cpu = 0 AND freq IS NOT NULL
+    ORDER BY
+      ts ASC
+    LIMIT 1
+  ),
+  window AS (
+    SELECT
+      start_ts AS ts,
+      trace_end() - start_ts AS dur
+    FROM window_start
+  )
+SELECT
+  *,
+  0 AS cpu
+FROM window
 UNION ALL
-SELECT *, 1 as cpu FROM window
+SELECT
+  *,
+  1 AS cpu
+FROM window
 UNION ALL
-SELECT *, 2 as cpu FROM window
+SELECT
+  *,
+  2 AS cpu
+FROM window
 UNION ALL
-SELECT *, 3 as cpu FROM window
+SELECT
+  *,
+  3 AS cpu
+FROM window
 UNION ALL
-SELECT *, 4 as cpu FROM window
+SELECT
+  *,
+  4 AS cpu
+FROM window
 UNION ALL
-SELECT *, 5 as cpu FROM window
+SELECT
+  *,
+  5 AS cpu
+FROM window
 UNION ALL
-SELECT *, 6 as cpu FROM window
+SELECT
+  *,
+  6 AS cpu
+FROM window
 UNION ALL
-SELECT *, 7 as cpu FROM window;
+SELECT
+  *,
+  7 AS cpu
+FROM window;
 
 -- Start matching CPUs with 1D curves based on combination of freq and idle
-CREATE PERFETTO TABLE _idle_freq_materialized
-AS
+CREATE PERFETTO TABLE _idle_freq_materialized AS
 SELECT
-  ii.ts, ii.dur, ii.cpu, freq.policy, freq.freq,
+  ii.ts,
+  ii.dur,
+  ii.cpu,
+  freq.policy,
+  freq.freq,
   -- Set idle since subsequent calculations are based on number of idle/active
   -- CPUs. If offline/suspended, set the CPU to the device specific deepest idle
   -- state.
-  IIF(
+  iif(
     suspend.suspended OR hotplug.offline,
-    (SELECT idle FROM _deepest_idle),
+    (
+      SELECT
+        idle
+      FROM _deepest_idle
+    ),
     idle.idle
-  ) as idle,
+  ) AS idle,
   -- If CPU is suspended or offline, set power estimate to 0
-  IIF(suspend.suspended OR hotplug.offline, 0, lut.curve_value) as curve_value
+  iif(suspend.suspended OR hotplug.offline, 0, lut.curve_value) AS curve_value
 FROM _interval_intersect!(
   (
     _ii_subquery!(_valid_window),
@@ -78,14 +127,15 @@ FROM _interval_intersect!(
     _ii_subquery!(_gapless_suspend_slices)
   ),
   (cpu)
-) ii
-JOIN _adjusted_cpu_freq AS freq ON freq._auto_id = id_1
-JOIN _adjusted_deep_idle AS idle ON idle._auto_id = id_2
-JOIN _gapless_hotplug_slices AS hotplug ON hotplug._auto_id = id_3
-JOIN _gapless_suspend_slices AS suspend ON suspend._auto_id = id_4
+) AS ii
+JOIN _adjusted_cpu_freq AS freq
+  ON freq._auto_id = id_1
+JOIN _adjusted_deep_idle AS idle
+  ON idle._auto_id = id_2
+JOIN _gapless_hotplug_slices AS hotplug
+  ON hotplug._auto_id = id_3
+JOIN _gapless_suspend_slices AS suspend
+  ON suspend._auto_id = id_4
 -- Left join since some CPUs may only match the 2D LUT
-LEFT JOIN _filtered_curves_1d lut ON
-  freq.policy = lut.policy AND
-  freq.freq = lut.freq_khz AND
-  idle.idle = lut.idle;
-
+LEFT JOIN _filtered_curves_1d AS lut
+  ON freq.policy = lut.policy AND freq.freq = lut.freq_khz AND idle.idle = lut.idle;

@@ -1,3 +1,4 @@
+.aider*
 .android_config
 .cache
 .ccls
@@ -15,6 +16,7 @@
 .project
 .recipe_deps/
 .settings/
+.venv
 .vscode
 *.code-workspace
 *.iml

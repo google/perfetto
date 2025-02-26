@@ -25,20 +25,19 @@ import {showModal} from '../../../widgets/modal';
 import {DataSourceViewer} from './data_source_viewer';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {getLastFinishedNode} from '../query_node';
-import {TextInput} from '../../../widgets/text_input';
-import {
-  StdlibTableState,
-  SimpleSlicesAttrs,
-  SimpleSlicesState,
-  SqlSourceAttrs,
-  SqlSourceState,
-} from './source_nodes';
+import {StdlibTableNode} from './sources/stdlib_table';
 import {
   GroupByAttrs,
   GroupByNode,
   GroupByOperation,
 } from './operations/groupy_by';
 import {FilterAttrs, FilterNode, FilterOperation} from './operations/filter';
+import {SqlSource, SqlSourceAttrs, SqlSourceNode} from './sources/sql_source';
+import {
+  SlicesSourceAttrs,
+  SlicesSourceNode,
+  SlicesSource,
+} from './sources/slices';
 
 export interface QueryBuilderTable {
   name: string;
@@ -50,26 +49,62 @@ export interface QueryBuilderTable {
 export interface QueryBuilderAttrs extends PageWithTraceAttrs {
   readonly sqlModules: SqlModules;
   readonly rootNode?: QueryNode;
+  readonly selectedNode?: QueryNode;
+
   readonly onRootNodeCreated: (node: QueryNode) => void;
+  readonly onNodeSelected: (node: QueryNode) => void;
+}
+
+interface NodeAttrs {
+  node: QueryNode;
+  isSelected: boolean;
+  onNodeSelected: (node: QueryNode) => void;
+}
+
+class NodeBox implements m.ClassComponent<NodeAttrs> {
+  view({attrs}: m.CVnode<NodeAttrs>) {
+    const {node, isSelected, onNodeSelected} = attrs;
+    return m(
+      '.node-box',
+      {
+        style: {
+          border: isSelected ? '2px solid yellow' : '2px solid blue',
+          borderRadius: '5px',
+          padding: '10px',
+          cursor: 'pointer',
+          backgroundColor: 'lightblue',
+        },
+        onclick: () => onNodeSelected(node),
+      },
+      node.getTitle(),
+    );
+  }
 }
 
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
-    const {trace, sqlModules, rootNode, onRootNodeCreated} = attrs;
+    const {
+      trace,
+      sqlModules,
+      rootNode,
+      onRootNodeCreated,
+      onNodeSelected,
+      selectedNode,
+    } = attrs;
 
-    function createModal(
+    const createModal = (
       title: string,
-      content: m.Children,
+      content: () => m.Children,
       onAdd: () => void,
-    ) {
+    ) => {
       showModal({
         title,
         buttons: [{text: 'Add node', action: onAdd}],
-        content: () => content,
+        content,
       });
-    }
+    };
 
-    function chooseSourceButton(): m.Child {
+    const chooseSourceButton = (): m.Child => {
       return m(
         PopupMenu,
         {
@@ -79,7 +114,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           }),
         },
         m(MenuItem, {
-          label: 'Table',
+          label: 'From standard library table',
           onclick: async () => {
             const tableName = await trace.omnibox.prompt(
               'Choose a table...',
@@ -90,39 +125,48 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             const sqlTable = sqlModules.getTable(tableName);
             if (!sqlTable) return;
 
-            onRootNodeCreated(new StdlibTableState(sqlTable));
+            const newNode = new StdlibTableNode(sqlTable);
+            onRootNodeCreated(newNode);
+            onNodeSelected(newNode);
           },
         }),
         m(MenuItem, {
-          label: 'Slices',
-          onclick: () =>
-            createModal('Slices source', m(SimpleSlicesModalContent), () => {
-              const newSlices = new SimpleSlicesState(simpleSlicesAttrs);
-              if (newSlices.validate()) {
-                onRootNodeCreated(newSlices);
-              }
-            }),
+          label: 'From custom slices',
+          onclick: () => {
+            const newSimpleSlicesAttrs: SlicesSourceAttrs = {};
+            createModal(
+              'Slices',
+              () => m(SlicesSource, newSimpleSlicesAttrs),
+              () => {
+                const newNode = new SlicesSourceNode(newSimpleSlicesAttrs);
+                onRootNodeCreated(newNode);
+                onNodeSelected(newNode);
+              },
+            );
+          },
         }),
         m(MenuItem, {
-          label: 'SQL',
-          onclick: () =>
-            createModal('SQL source', m(SqlSourceModalContent), () => {
-              const newSqlSource = new SqlSourceState(sqlSourceAttrs);
-              if (newSqlSource.validate()) {
-                onRootNodeCreated(newSqlSource);
-              }
-            }),
+          label: 'From custom SQL',
+          onclick: () => {
+            const newSqlSourceAttrs: SqlSourceAttrs = {};
+            createModal(
+              'SQL',
+              () => m(SqlSource, newSqlSourceAttrs),
+              () => {
+                const newNode = new SqlSourceNode(newSqlSourceAttrs);
+                onRootNodeCreated(newNode);
+                onNodeSelected(newNode);
+              },
+            );
+          },
         }),
-        m(MenuItem, {label: 'Interval intersect', disabled: true}),
       );
-    }
+    };
 
-    function chooseOperationButton(): m.Child {
+    const chooseOperationButton = (): m.Child => {
       return m(
         PopupMenu,
-        {
-          trigger: m(Button, {label: '+', intent: Intent.Primary}),
-        },
+        {trigger: m(Button, {label: '+', intent: Intent.Primary})},
         m(MenuItem, {
           label: 'GROUP BY',
           onclick: () => {
@@ -133,9 +177,11 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             const newGroupByAttrs: GroupByAttrs = {prevNode: curNode};
             createModal(
               'GROUP BY',
-              m(GroupByOperation, newGroupByAttrs),
+              () => m(GroupByOperation, newGroupByAttrs),
               () => {
-                curNode.nextNode = new GroupByNode(newGroupByAttrs);
+                const newNode = new GroupByNode(newGroupByAttrs);
+                curNode.nextNode = newNode;
+                onNodeSelected(newNode);
               },
             );
           },
@@ -146,10 +192,18 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             if (!rootNode) return;
             const curNode = getLastFinishedNode(rootNode);
             if (!curNode) return;
-            const newFilterAttrs: FilterAttrs = {prevNode: curNode};
-            createModal('FILTER', m(FilterOperation, newFilterAttrs), () => {
-              curNode.nextNode = new FilterNode(newFilterAttrs);
-            });
+            const newFilterAttrs: FilterAttrs = {
+              prevNode: curNode,
+            };
+            createModal(
+              'FILTER',
+              () => m(FilterOperation, newFilterAttrs),
+              () => {
+                const newNode = new FilterNode(newFilterAttrs);
+                curNode.nextNode = newNode;
+                onNodeSelected(newNode);
+              },
+            );
           },
         }),
         m(MenuItem, {
@@ -163,18 +217,19 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             const newJoinState = new JoinState(curNode);
             createModal(
               'JOIN',
-              m(QueryBuilderJoin, {sqlModules, joinState: newJoinState}),
+              () => m(QueryBuilderJoin, {sqlModules, joinState: newJoinState}),
               () => {
                 newJoinState.validate();
                 curNode.nextNode = newJoinState;
+                onNodeSelected(newJoinState);
               },
             );
           },
         }),
       );
-    }
+    };
 
-    function renderNodesPanel(): m.Children {
+    const renderNodesPanel = (): m.Children => {
       const nodes: m.Child[] = [];
       let row = 1;
 
@@ -185,15 +240,15 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       } else {
         let curNode: QueryNode | undefined = rootNode;
         while (curNode) {
+          const localCurNode = curNode;
           nodes.push(
             m(
               '',
               {style: {gridColumn: 3, gridRow: row}},
-              m(Button, {
-                label: curNode.getTitle(),
-                intent: Intent.Primary,
-                // TODO(mayzner): Add logic for button.
-                onclick: async () => {},
+              m(NodeBox, {
+                node: localCurNode,
+                isSelected: selectedNode === localCurNode,
+                onNodeSelected,
               }),
             ),
           );
@@ -222,124 +277,11 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         },
         nodes,
       );
-    }
-
-    const simpleSlicesAttrs: SimpleSlicesAttrs = {};
-    const SimpleSlicesModalContent = {
-      view: () => {
-        return m(
-          '',
-          m(
-            '',
-            'Slice name glob ',
-            m(TextInput, {
-              id: 'slice_name_glob',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                simpleSlicesAttrs.slice_name = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-          m(
-            '',
-            'Thread name glob ',
-            m(TextInput, {
-              id: 'thread_name_glob',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                simpleSlicesAttrs.thread_name = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-          m(
-            '',
-            'Process name glob ',
-            m(TextInput, {
-              id: 'process_name_glob',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                simpleSlicesAttrs.process_name = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-          m(
-            '',
-            'Track name glob ',
-            m(TextInput, {
-              id: 'track_name_glob',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                simpleSlicesAttrs.track_name = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-        );
-      },
     };
 
-    const sqlSourceAttrs: SqlSourceAttrs = {};
-    const SqlSourceModalContent = {
-      view: () => {
-        return m(
-          '',
-          m(
-            '',
-            'Preamble',
-            m(TextInput, {
-              id: 'preamble',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                sqlSourceAttrs.preamble = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-          m(
-            '',
-            'Sql ',
-            m(TextInput, {
-              id: 'sql_source',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                sqlSourceAttrs.sql = (e.target as HTMLInputElement).value
-                  .trim()
-                  .split(';')[0];
-              },
-            }),
-          ),
-          m(
-            '',
-            'Column names (comma separated strings) ',
-            m(TextInput, {
-              id: 'columns',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                const colsStr = (e.target as HTMLInputElement).value.trim();
-                sqlSourceAttrs.columns = colsStr
-                  .split(',')
-                  .map((col) => col.trim())
-                  .filter(Boolean);
-              },
-            }),
-          ),
-        );
-      },
+    const renderDataSourceViewer = () => {
+      if (!attrs.selectedNode) return;
+      return m(DataSourceViewer, {trace, queryNode: attrs.selectedNode});
     };
 
     return m(
@@ -353,11 +295,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         },
       },
       m('', {style: {gridColumn: 1}}, renderNodesPanel()),
-      m(
-        '',
-        {style: {gridColumn: 2}},
-        rootNode && [m(DataSourceViewer, {trace, queryNode: rootNode})],
-      ),
+      m('', {style: {gridColumn: 2}}, renderDataSourceViewer()),
     );
   }
 }

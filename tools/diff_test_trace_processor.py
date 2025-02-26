@@ -73,8 +73,9 @@ def main():
     args.winscope_extensions = os.path.join(protos_path, 'perfetto', 'trace',
                                             'android', 'winscope.descriptor')
   if args.summary_descriptor is None:
-    args.summary_descriptor = os.path.join(protos_path, 'perfetto', 'summary',
-                                           'summary.descriptor')
+    args.summary_descriptor = os.path.join(protos_path, 'perfetto',
+                                           'trace_summary',
+                                           'trace_summary.descriptor')
 
   test_runner = DiffTestsRunner(
       args.name_filter,

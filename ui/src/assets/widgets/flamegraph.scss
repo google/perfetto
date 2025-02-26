@@ -54,6 +54,10 @@
     position: relative;
     overflow-y: auto;
   }
+
+  .virtual-canvas {
+    height: 100%;
+  }
 }
 
 .pf-flamegraph-filter-bar-popup-content {

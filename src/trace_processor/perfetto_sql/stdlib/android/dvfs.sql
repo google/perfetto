@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Dvfs counter with duration.
-CREATE PERFETTO VIEW android_dvfs_counters(
+CREATE PERFETTO VIEW android_dvfs_counters (
   -- Counter name.
   name STRING,
   -- Timestamp when counter value changed.
@@ -28,43 +28,17 @@ SELECT
   counter_track.name,
   counter.ts,
   counter.value,
-  LEAD(counter.ts, 1, trace_end()) OVER (PARTITION BY counter_track.id ORDER BY counter.ts) - counter.ts AS dur
+  lead(counter.ts, 1, trace_end()) OVER (PARTITION BY counter_track.id ORDER BY counter.ts) - counter.ts AS dur
 FROM counter
 JOIN counter_track
   ON counter.track_id = counter_track.id
 WHERE
-  counter_track.name IN (
-    'domain@0 Frequency',
-    'domain@1 Frequency',
-    'domain@2 Frequency',
-    '17000010.devfreq_mif Frequency',
-    '17000020.devfreq_int Frequency',
-    '17000090.devfreq_dsu Frequency',
-    '170000a0.devfreq_bci Frequency',
-    'dsu_throughput Frequency',
-    'bus_throughput Frequency',
-    'cpu0dsu Frequency',
-    'cpu1dsu Frequency',
-    'cpu2dsu Frequency',
-    'cpu3dsu Frequency',
-    'cpu4dsu Frequency',
-    'cpu5dsu Frequency',
-    'cpu6dsu Frequency',
-    'cpu7dsu Frequency',
-    'cpu8dsu Frequency',
-    'gs_memlat_devfreq:devfreq_mif_cpu0_memlat@17000010 Frequency',
-    'gs_memlat_devfreq:devfreq_mif_cpu1_memlat@17000010 Frequency',
-    'gs_memlat_devfreq:devfreq_mif_cpu2_memlat@17000010 Frequency',
-    'gs_memlat_devfreq:devfreq_mif_cpu3_memlat@17000010 Frequency',
-    'gs_memlat_devfreq:devfreq_mif_cpu4_memlat@17000010 Frequency',
-    'gs_memlat_devfreq:devfreq_mif_cpu5_memlat@17000010 Frequency',
-    'gs_memlat_devfreq:devfreq_mif_cpu6_memlat@17000010 Frequency',
-    'gs_memlat_devfreq:devfreq_mif_cpu7_memlat@17000010 Frequency',
-    'gs_memlat_devfreq:devfreq_mif_cpu8_memlat@17000010 Frequency')
-ORDER BY ts;
+  counter_track.name IN ('domain@0 Frequency', 'domain@1 Frequency', 'domain@2 Frequency', '17000010.devfreq_mif Frequency', '17000020.devfreq_int Frequency', '17000090.devfreq_dsu Frequency', '170000a0.devfreq_bci Frequency', 'dsu_throughput Frequency', 'bus_throughput Frequency', 'cpu0dsu Frequency', 'cpu1dsu Frequency', 'cpu2dsu Frequency', 'cpu3dsu Frequency', 'cpu4dsu Frequency', 'cpu5dsu Frequency', 'cpu6dsu Frequency', 'cpu7dsu Frequency', 'cpu8dsu Frequency', 'gs_memlat_devfreq:devfreq_mif_cpu0_memlat@17000010 Frequency', 'gs_memlat_devfreq:devfreq_mif_cpu1_memlat@17000010 Frequency', 'gs_memlat_devfreq:devfreq_mif_cpu2_memlat@17000010 Frequency', 'gs_memlat_devfreq:devfreq_mif_cpu3_memlat@17000010 Frequency', 'gs_memlat_devfreq:devfreq_mif_cpu4_memlat@17000010 Frequency', 'gs_memlat_devfreq:devfreq_mif_cpu5_memlat@17000010 Frequency', 'gs_memlat_devfreq:devfreq_mif_cpu6_memlat@17000010 Frequency', 'gs_memlat_devfreq:devfreq_mif_cpu7_memlat@17000010 Frequency', 'gs_memlat_devfreq:devfreq_mif_cpu8_memlat@17000010 Frequency')
+ORDER BY
+  ts;
 
 -- Aggregates dvfs counter slice for statistic.
-CREATE PERFETTO TABLE android_dvfs_counter_stats(
+CREATE PERFETTO TABLE android_dvfs_counter_stats (
   -- Counter name on which all the other values are aggregated on.
   name STRING,
   -- Max of all counter values for the counter name.
@@ -78,17 +52,22 @@ CREATE PERFETTO TABLE android_dvfs_counter_stats(
 ) AS
 SELECT
   name,
-  MAX(value) AS max,
-  MIN(value) AS min,
-  (MAX(ts) - MIN(ts)) AS dur,
-  (SUM(dur * value) / SUM(dur)) AS wgt_avg
+  max(value) AS max,
+  min(value) AS min,
+  (
+    max(ts) - min(ts)
+  ) AS dur,
+  (
+    sum(dur * value) / sum(dur)
+  ) AS wgt_avg
 FROM android_dvfs_counters
-WHERE android_dvfs_counters.dur > 0
-GROUP BY name;
-
+WHERE
+  android_dvfs_counters.dur > 0
+GROUP BY
+  name;
 
 -- Aggregates dvfs counter slice for residency
-CREATE PERFETTO VIEW android_dvfs_counter_residency(
+CREATE PERFETTO VIEW android_dvfs_counter_residency (
   -- Counter name.
   name STRING,
   -- Counter value.
@@ -99,21 +78,28 @@ CREATE PERFETTO VIEW android_dvfs_counter_residency(
   pct DOUBLE
 ) AS
 WITH
-total AS (
-  SELECT
-    name,
-    SUM(dur) AS dur
-  FROM android_dvfs_counters
-  WHERE dur > 0
-  GROUP BY name
-)
+  total AS (
+    SELECT
+      name,
+      sum(dur) AS dur
+    FROM android_dvfs_counters
+    WHERE
+      dur > 0
+    GROUP BY
+      name
+  )
 SELECT
   android_dvfs_counters.name,
   android_dvfs_counters.value,
-  SUM(android_dvfs_counters.dur) AS dur,
-  (SUM(android_dvfs_counters.dur) * 100.0 / total.dur) AS pct
+  sum(android_dvfs_counters.dur) AS dur,
+  (
+    sum(android_dvfs_counters.dur) * 100.0 / total.dur
+  ) AS pct
 FROM android_dvfs_counters
 JOIN total
   USING (name)
-WHERE android_dvfs_counters.dur > 0
-GROUP BY 1, 2;
+WHERE
+  android_dvfs_counters.dur > 0
+GROUP BY
+  1,
+  2;

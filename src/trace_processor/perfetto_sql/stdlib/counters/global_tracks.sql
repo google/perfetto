@@ -14,12 +14,18 @@
 -- limitations under the License.
 --
 
-CREATE PERFETTO FUNCTION _counter_track_is_only_name_dimension(track_id LONG)
+CREATE PERFETTO FUNCTION _counter_track_is_only_name_dimension(
+    track_id LONG
+)
 RETURNS BOOL AS
-SELECT NOT EXISTS (
-  SELECT 1
-  FROM counter_track
-  JOIN args ON counter_track.dimension_arg_set_id = args.arg_set_id
-  WHERE counter_track.id = $track_id AND args.key != 'name'
-  LIMIT 1
-);
+SELECT
+  NOT EXISTS(
+    SELECT
+      1
+    FROM counter_track
+    JOIN args
+      ON counter_track.dimension_arg_set_id = args.arg_set_id
+    WHERE
+      counter_track.id = $track_id AND args.key != 'name'
+    LIMIT 1
+  );

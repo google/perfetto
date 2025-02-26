@@ -29,10 +29,10 @@ import {VisViewSource} from './view_source';
 import {AddChartMenuItem} from '../../../components/widgets/charts/add_chart_menu';
 import {exists} from '../../../base/utils';
 import {DetailsShell} from '../../../widgets/details_shell';
-import {SqlTable} from '../../../components/widgets/sql/legacy_table/table';
-import {SqlTableState} from '../../../components/widgets/sql/legacy_table/state';
+import {SqlTable} from '../../../components/widgets/sql/table/table';
+import {SqlTableState} from '../../../components/widgets/sql/table/state';
 import {sqlValueToSqliteString} from '../../../trace_processor/sql_utils';
-import {renderFilters} from '../../../components/widgets/sql/legacy_table/filters';
+import {renderFilters} from '../../../components/widgets/sql/table/filters';
 
 export interface DataVisualiserState {
   queryNode?: QueryNode;
@@ -90,7 +90,7 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
         state: sqlTableViewState,
         addColumnMenuItems: (_, columnAlias) => {
           const chartAttrs = {
-            data: sqlTableViewState.nonPaginatedData?.rows,
+            data: this.viewSource?.data,
             columns: [columnAlias],
           };
 
