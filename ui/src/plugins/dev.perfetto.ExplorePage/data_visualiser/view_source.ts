@@ -65,11 +65,11 @@ export class VisViewSource {
   }
 
   addChart(vis: ChartAttrs) {
-    this._visViews?.charts.add(vis);
+    return this._visViews?.charts.add(vis);
   }
 
   removeChart(vis: ChartAttrs) {
-    this._visViews?.charts.delete(vis);
+    return this._visViews?.charts.delete(vis);
   }
 
   private async loadData() {

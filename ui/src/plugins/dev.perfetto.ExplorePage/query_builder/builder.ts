@@ -38,6 +38,7 @@ import {
   SlicesSourceNode,
   SlicesSource,
 } from './sources/slices';
+import {Icons} from '../../../base/semantic_icons';
 
 export interface QueryBuilderTable {
   name: string;
@@ -53,6 +54,7 @@ export interface QueryBuilderAttrs extends PageWithTraceAttrs {
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node: QueryNode) => void;
+  readonly visualiseDataMenuItems: (node: QueryNode) => m.Children;
 }
 
 interface NodeAttrs {
@@ -229,6 +231,19 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       );
     };
 
+    const renderNodeActions = (curNode: QueryNode) => {
+      return m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            iconFilled: true,
+            icon: Icons.MoreVert,
+          }),
+        },
+        attrs.visualiseDataMenuItems(curNode),
+      );
+    };
+
     const renderNodesPanel = (): m.Children => {
       const nodes: m.Child[] = [];
       let row = 1;
@@ -244,12 +259,13 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           nodes.push(
             m(
               '',
-              {style: {gridColumn: 3, gridRow: row}},
+              {style: {display: 'flex', gridColumn: 3, gridRow: row}},
               m(NodeBox, {
                 node: localCurNode,
                 isSelected: selectedNode === localCurNode,
                 onNodeSelected,
               }),
+              renderNodeActions(curNode),
             ),
           );
           row++;
