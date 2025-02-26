@@ -61,13 +61,17 @@ export class Filters {
     this.notify();
   }
 
-  get(): Filter[] {
-    return this.filters;
+  setFilters(filters: ReadonlyArray<Filter>) {
+    this.filters = [...filters];
+    this.notify();
   }
 
   clear() {
-    this.filters = [];
-    this.notify();
+    this.setFilters([]);
+  }
+
+  get(): Filter[] {
+    return this.filters;
   }
 
   addObserver(observer: () => void) {
