@@ -2198,23 +2198,23 @@ static void yy_destructor(
     case 177: /* sql_argument_list_nonempty */
     case 179: /* table_schema */
 {
- OnPerfettoSqlFreeArgumentList((yypminor->yy208)); 
+ OnPerfettoSqlFreeArgumentList(state, (yypminor->yy208)); 
 }
       break;
     case 182: /* return_type */
 {
- OnPerfettoSqlFnFreeReturnType((yypminor->yy355)); 
+ OnPerfettoSqlFnFreeReturnType(state, (yypminor->yy355)); 
 }
       break;
     case 184: /* indexed_column_list */
 {
- OnPerfettoSqlFreeIndexedColumnList((yypminor->yy368)); 
+ OnPerfettoSqlFreeIndexedColumnList(state, (yypminor->yy368)); 
 }
       break;
     case 185: /* macro_argument_list */
     case 187: /* macro_argument_list_nonempty */
 {
- OnPerfettoSqlFreeMacroArgumentList((yypminor->yy526)); 
+ OnPerfettoSqlFreeMacroArgumentList(state, (yypminor->yy526)); 
 }
       break;
 /********* End destructor definitions *****************************************/
