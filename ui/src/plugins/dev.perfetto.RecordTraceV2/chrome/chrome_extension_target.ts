@@ -24,7 +24,7 @@ import {TargetPlatformId} from '../interfaces/target_platform';
 import {ChromeExtensionTracingSession} from './chrome_extension_tracing_session';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
-const EXTENSION_URL = `g.co/chrome/tracing-extension`;
+const EXTENSION_URL = `https://g.co/chrome/tracing-extension`;
 
 export class ChromeExtensionTarget implements RecordingTarget {
   readonly id = 'chrome_extension';
@@ -43,16 +43,14 @@ export class ChromeExtensionTarget implements RecordingTarget {
     yield {
       name: 'Tracing Extension',
       status: await (async (): Promise<Result<string>> => {
+        const err = errResult(`Not found. Please install ${EXTENSION_URL}`);
         if (!exists(window.chrome) || !exists(window.chrome.runtime)) {
-          return errResult(
-            'window.chrome.runtime not Available. ' +
-              'The extension is supported only in the Chrome browser',
-          );
+          return err;
         }
         await this.connectIfNeeded();
         return this._connected
           ? okResult(`Connected (version: ${this._extensionVersion})`)
-          : errResult(`Not found. Please install ${EXTENSION_URL}`);
+          : err;
       })(),
     };
 
