@@ -338,6 +338,41 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_ANALYZE_STRUCTURED_QUERY: {
+      Response resp(tx_seq_id_++, req_type);
+      protozero::ConstBytes args = req.analyze_structured_query_args();
+      protos::pbzero::AnalyzeStructuredQueryArgs::Decoder decoder(args.data,
+                                                                  args.size);
+      std::vector<StructuredQueryBytes> queries;
+      for (auto it = decoder.queries(); it; ++it) {
+        StructuredQueryBytes n;
+        n.format = StructuredQueryBytes::Format::kBinaryProto;
+        n.ptr = it->data();
+        n.size = it->size();
+        queries.push_back(n);
+      }
+
+      std::vector<AnalyzedStructuredQuery> analyzed_queries;
+      base::Status status = trace_processor_->AnalyzeStructuredQueries(
+          queries, &analyzed_queries);
+      auto* analyze_result = resp->set_analyze_structured_query_result();
+      if (!status.ok()) {
+        analyze_result->set_error(status.message());
+      }
+
+      for (const auto& r : analyzed_queries) {
+        auto* query_res = analyze_result->add_results();
+        query_res->set_sql(r.sql);
+        for (const std::string& m : r.modules) {
+          query_res->add_modules(m);
+        }
+        for (const std::string& p : r.preambles) {
+          query_res->add_preambles(p);
+        }
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     default: {
       // This can legitimately happen if the client is newer. We reply with a
       // generic "unkown request" response, so the client can do feature

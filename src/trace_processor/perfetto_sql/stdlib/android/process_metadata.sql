@@ -44,9 +44,8 @@ WITH min_distance AS (
     (
       $uid = uid
       AND (
-        -- unique match
+        -- Either a unique match or process name is a prefix the package name
         $uid_count = 1
-        -- or process name is a prefix the package name
         OR $process_name GLOB package_name || '*'
       )
     )
@@ -73,6 +72,8 @@ CREATE PERFETTO TABLE android_process_metadata(
   uid LONG,
   -- Whether the UID is shared by multiple packages.
   shared_uid BOOL,
+  -- Android user id for multi-user devices
+  user_id LONG,
   -- Name of the packages running in this process.
   package_name STRING,
   -- Package version code.
@@ -95,6 +96,7 @@ SELECT
     ELSE process.name
   END AS process_name,
   process.android_appid AS uid,
+  process.android_user_id AS user_id,
   CASE WHEN _uid_package_count.cnt > 1 THEN TRUE ELSE NULL END AS shared_uid,
   plist.package_name,
   plist.version_code,

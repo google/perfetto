@@ -42,9 +42,25 @@ export interface TraceProcessorConfig {
   ftraceDropUntilAllCpusValid: boolean;
 }
 
+const QUERY_LOG_BUFFER_SIZE = 100;
+
+interface QueryLog {
+  readonly tag?: string;
+  readonly query: string;
+  readonly startTime: number;
+  readonly endTime?: number;
+  readonly success?: boolean;
+}
+
 export interface Engine {
   readonly mode: EngineMode;
   readonly engineId: string;
+
+  /**
+   * A list of the most recent queries along with their start times, end times
+   * and success status (if completed).
+   */
+  readonly queryLog: ReadonlyArray<QueryLog>;
 
   /**
    * Execute a query against the database, returning a promise that resolves
@@ -87,6 +103,10 @@ export interface Engine {
   enableMetatrace(categories?: protos.MetatraceCategories): void;
   stopAndGetMetatrace(): Promise<protos.DisableAndReadMetatraceResult>;
 
+  analyzeStructuredQuery(
+    structuredQueries: protos.PerfettoSqlStructuredQuery[],
+  ): Promise<protos.AnalyzeStructuredQueryResult>;
+
   getProxy(tag: string): EngineProxy;
   readonly numRequestsPending: number;
   readonly failed: string | undefined;
@@ -117,9 +137,15 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<protos.DisableAndReadMetatraceResult>;
   private pendingRegisterSqlPackage?: Deferred<void>;
+  private pendingAnalyzeStructuredQueries?: Deferred<protos.AnalyzeStructuredQueryResult>;
   private _isMetatracingEnabled = false;
   private _numRequestsPending = 0;
   private _failed: string | undefined = undefined;
+  private _queryLog: Array<QueryLog> = [];
+
+  get queryLog(): ReadonlyArray<QueryLog> {
+    return this._queryLog;
+  }
 
   // TraceController sets this to raf.scheduleFullRedraw().
   onResponseReceived?: () => void;
@@ -273,6 +299,14 @@ export abstract class EngineBase implements Engine, Disposable {
           res.resolve();
         }
         break;
+      case TPM.TPM_ANALYZE_STRUCTURED_QUERY:
+        const analyzeRes = assertExists(
+          rpc.analyzeStructuredQueryResult,
+        ) as {} as protos.AnalyzeStructuredQueryResult;
+        const x = assertExists(this.pendingAnalyzeStructuredQueries);
+        x.resolve(analyzeRes);
+        this.pendingAnalyzeStructuredQueries = undefined;
+        break;
       default:
         console.log(
           'Unexpected TraceProcessor response received: ',
@@ -414,13 +448,32 @@ export abstract class EngineBase implements Engine, Disposable {
     return result;
   }
 
+  private logQueryStart(
+    query: string,
+    tag?: string,
+  ): {
+    endTime?: number;
+    success?: boolean;
+  } {
+    const startTime = performance.now();
+    const queryLog: QueryLog = {query, tag, startTime};
+    this._queryLog.push(queryLog);
+    if (this._queryLog.length > QUERY_LOG_BUFFER_SIZE) {
+      this._queryLog.shift();
+    }
+    return queryLog;
+  }
+
   // Wraps .streamingQuery(), captures errors and re-throws with current stack.
   //
   // Note: This function is less flexible than .execute() as it only returns a
   // promise which must be unwrapped before the QueryResult may be accessed.
   async query(sqlQuery: string, tag?: string): Promise<QueryResult> {
+    const queryLog = this.logQueryStart(sqlQuery);
     try {
-      return await this.streamingQuery(sqlQuery, tag);
+      const result = await this.streamingQuery(sqlQuery, tag);
+      queryLog.success = true;
+      return result;
     } catch (e) {
       // Replace the error's stack trace with the one from here
       // Note: It seems only V8 can trace the stack up the promise chain, so its
@@ -428,7 +481,10 @@ export abstract class EngineBase implements Engine, Disposable {
       // See
       // https://docs.google.com/document/d/13Sy_kBIJGP0XT34V1CV3nkWya4TwYx9L3Yv45LdGB6Q
       captureStackTrace(e);
+      queryLog.success = false;
       throw e;
+    } finally {
+      queryLog.endTime = performance.now();
     }
   }
 
@@ -481,7 +537,7 @@ export abstract class EngineBase implements Engine, Disposable {
     modules: {name: string; sql: string}[];
   }): Promise<void> {
     if (this.pendingRegisterSqlPackage) {
-      return Promise.reject(new Error('Already finalising a metatrace'));
+      return Promise.reject(new Error('Already registering SQL package'));
     }
 
     const result = defer<void>();
@@ -494,6 +550,23 @@ export abstract class EngineBase implements Engine, Disposable {
     args.modules = pkg.modules;
     args.allowOverride = true;
     this.pendingRegisterSqlPackage = result;
+    this.rpcSendRequest(rpc);
+    return result;
+  }
+
+  analyzeStructuredQuery(
+    structuredQueries: protos.PerfettoSqlStructuredQuery[],
+  ): Promise<protos.AnalyzeStructuredQueryResult> {
+    if (this.pendingAnalyzeStructuredQueries) {
+      return Promise.reject(new Error('Already analyzing structured queries'));
+    }
+    const result = defer<protos.AnalyzeStructuredQueryResult>();
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_ANALYZE_STRUCTURED_QUERY;
+    const args = (rpc.analyzeStructuredQueryArgs =
+      new protos.AnalyzeStructuredQueryArgs());
+    args.queries = structuredQueries;
+    this.pendingAnalyzeStructuredQueries = result;
     this.rpcSendRequest(rpc);
     return result;
   }
@@ -541,6 +614,10 @@ export class EngineProxy implements Engine, Disposable {
   private tag: string;
   private disposed = false;
 
+  get queryLog() {
+    return this.engine.queryLog;
+  }
+
   constructor(engine: EngineBase, tag: string) {
     this.engine = engine;
     this.tag = tag;
@@ -579,6 +656,12 @@ export class EngineProxy implements Engine, Disposable {
 
   stopAndGetMetatrace(): Promise<protos.DisableAndReadMetatraceResult> {
     return this.engine.stopAndGetMetatrace();
+  }
+
+  analyzeStructuredQuery(
+    structuredQueries: protos.PerfettoSqlStructuredQuery[],
+  ): Promise<protos.AnalyzeStructuredQueryResult> {
+    return this.engine.analyzeStructuredQuery(structuredQueries);
   }
 
   get engineId(): string {

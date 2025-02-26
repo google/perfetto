@@ -80,6 +80,13 @@ base::Status CreateSharedQueriesAndComputeMetrics(
     uint32_t col_count = it.ColumnCount();
     while (it.Next()) {
       PERFETTO_CHECK(col_count > 0);
+      const auto& value = it.Get(col_count - 1);
+
+      // Skip null rows.
+      if (value.is_null()) {
+        continue;
+      }
+
       auto* row = metric->add_row();
       for (uint32_t i = 0; i < col_count - 1; ++i) {
         const auto& dim = it.Get(i);
@@ -94,10 +101,8 @@ base::Status CreateSharedQueriesAndComputeMetrics(
             row->add_dimension()->set_string_value(dim.AsString());
             break;
           case SqlValue::kNull:
-            return base::ErrStatus(
-                "Received null for dimension in metric %s: this is not "
-                "supported",
-                m.key().c_str());
+            row->add_dimension()->set_null_value();
+            break;
           case SqlValue::kBytes:
             return base::ErrStatus(
                 "Received bytes for dimension in metric %s: this is not "
@@ -105,7 +110,7 @@ base::Status CreateSharedQueriesAndComputeMetrics(
                 m.key().c_str());
         }
       }
-      const auto& value = it.Get(col_count - 1);
+
       switch (value.type) {
         case SqlValue::kLong:
           row->set_value(static_cast<double>(value.AsLong()));
@@ -114,10 +119,7 @@ base::Status CreateSharedQueriesAndComputeMetrics(
           row->set_value(value.AsDouble());
           break;
         case SqlValue::kNull:
-          return base::ErrStatus(
-              "Received null for metric value in metric %s: this is not "
-              "supported",
-              m.key().c_str());
+          PERFETTO_FATAL("Null value should have been skipped");
         case SqlValue::kString:
           return base::ErrStatus(
               "Received string for metric value in metric %s: this is not "

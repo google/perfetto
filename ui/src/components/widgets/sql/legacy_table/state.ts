@@ -13,22 +13,22 @@
 // limitations under the License.
 
 import {NUM, Row} from '../../../../trace_processor/query_result';
-import {
-  tableColumnAlias,
-  ColumnOrderClause,
-  Filter,
-  isSqlColumnEqual,
-  SqlColumn,
-  sqlColumnId,
-  LegacyTableColumn,
-  tableColumnId,
-} from './column';
+import {ColumnOrderClause, SqlColumn, sqlColumnId} from './sql_column';
 import {buildSqlQuery} from './query_builder';
 import {raf} from '../../../../core/raf_scheduler';
 import {SortDirection} from '../../../../base/comparison_utils';
 import {assertTrue} from '../../../../base/logging';
 import {SqlTableDescription} from './table_description';
 import {Trace} from '../../../../public/trace';
+import {runQuery} from '../../../query_table/queries';
+import {AsyncLimiter} from '../../../../base/async_limiter';
+import {areFiltersEqual, Filter, Filters} from './filters';
+import {
+  LegacyTableColumn,
+  tableColumnAlias,
+  tableColumnId,
+} from './table_column';
+import {moveArrayItem} from '../../../../base/array_utils';
 
 const ROW_LIMIT = 100;
 
@@ -58,25 +58,14 @@ interface RowCount {
   filters: Filter[];
 }
 
-function isFilterEqual(a: Filter, b: Filter) {
-  return (
-    a.op === b.op &&
-    a.columns.length === b.columns.length &&
-    a.columns.every((c, i) => isSqlColumnEqual(c, b.columns[i]))
-  );
-}
-
-function areFiltersEqual(a: Filter[], b: Filter[]) {
-  if (a.length !== b.length) return false;
-  return a.every((f, i) => isFilterEqual(f, b[i]));
-}
-
 export class SqlTableState {
+  public readonly filters: Filters;
+
   private readonly additionalImports: string[];
+  private readonly asyncLimiter = new AsyncLimiter();
 
   // Columns currently displayed to the user. All potential columns can be found `this.table.columns`.
   private columns: LegacyTableColumn[];
-  private filters: Filter[];
   private orderBy: {
     column: LegacyTableColumn;
     direction: SortDirection;
@@ -86,6 +75,8 @@ export class SqlTableState {
   private data?: Data;
   private rowCount?: RowCount;
 
+  private _nonPaginatedData?: Data;
+
   constructor(
     readonly trace: Trace,
     readonly config: SqlTableDescription,
@@ -93,7 +84,7 @@ export class SqlTableState {
       initialColumns?: LegacyTableColumn[];
       additionalColumns?: LegacyTableColumn[];
       imports?: string[];
-      filters?: Filter[];
+      filters?: Filters;
       orderBy?: {
         column: LegacyTableColumn;
         direction: SortDirection;
@@ -102,7 +93,8 @@ export class SqlTableState {
   ) {
     this.additionalImports = args?.imports || [];
 
-    this.filters = args?.filters || [];
+    this.filters = args?.filters || new Filters();
+    this.filters.addObserver(() => this.reload());
     this.columns = [];
 
     if (args?.initialColumns !== undefined) {
@@ -113,16 +105,8 @@ export class SqlTableState {
       this.columns.push(...args.initialColumns);
     } else {
       for (const column of this.config.columns) {
-        if (column instanceof LegacyTableColumn) {
-          if (column.startsHidden !== true) {
-            this.columns.push(column);
-          }
-        } else {
-          const cols = column.initialColumns?.();
-          for (const col of cols ?? []) {
-            this.columns.push(col);
-          }
-        }
+        const columns = column.initialColumns?.() ?? [column];
+        this.columns.push(...columns);
       }
       if (args?.additionalColumns !== undefined) {
         this.columns.push(...args.additionalColumns);
@@ -135,11 +119,19 @@ export class SqlTableState {
     this.reload();
   }
 
+  get nonPaginatedData() {
+    if (this._nonPaginatedData === undefined) {
+      this.getNonPaginatedData();
+    }
+
+    return this._nonPaginatedData;
+  }
+
   clone(): SqlTableState {
     return new SqlTableState(this.trace, this.config, {
       initialColumns: this.columns,
       imports: this.args?.imports,
-      filters: this.filters,
+      filters: new Filters(this.filters.get()),
       orderBy: this.orderBy,
     });
   }
@@ -164,7 +156,8 @@ export class SqlTableState {
     return buildSqlQuery({
       table: this.config.name,
       columns,
-      filters: this.filters,
+      prefix: this.config.prefix,
+      filters: this.filters.get(),
       orderBy: this.getOrderedBy(),
     });
   }
@@ -209,22 +202,6 @@ export class SqlTableState {
         columns[column.alias] = sqlColumn;
       }
       sqlColumnIds.add(sqlColumnId(sqlColumn));
-    }
-
-    // We are going to be less fancy for the dependendent columns can just always suffix them with a unique integer.
-    let dependentColumnCount = 0;
-    for (const column of tableColumns) {
-      const dependentColumns =
-        column.column.dependentColumns !== undefined
-          ? column.column.dependentColumns()
-          : {};
-      for (const col of Object.values(dependentColumns)) {
-        if (sqlColumnIds.has(sqlColumnId(col))) continue;
-        const name = typeof col === 'string' ? col : col.column;
-        const alias = `__${name}_${dependentColumnCount++}`;
-        columns[alias] = col;
-        sqlColumnIds.add(sqlColumnId(col));
-      }
     }
 
     return {
@@ -281,7 +258,7 @@ export class SqlTableState {
   }
 
   private async loadRowCount(): Promise<RowCount | undefined> {
-    const filters = Array.from(this.filters);
+    const filters = Array.from(this.filters.get());
     const res = await this.trace.engine.query(this.getCountRowsSQLQuery());
     if (res.error() !== undefined) return undefined;
     return {
@@ -326,7 +303,7 @@ export class SqlTableState {
 
     const newFilters = this.rowCount?.filters;
     const filtersMatch =
-      newFilters && areFiltersEqual(newFilters, this.filters);
+      newFilters && areFiltersEqual(newFilters, this.filters.get());
     this.data = undefined;
     const request = this.buildRequest();
     this.request = request;
@@ -357,6 +334,22 @@ export class SqlTableState {
     raf.scheduleFullRedraw();
   }
 
+  private async getNonPaginatedData() {
+    this.asyncLimiter.schedule(async () => {
+      const queryRes = await runQuery(
+        this.getNonPaginatedSQLQuery(),
+        this.trace.engine,
+      );
+
+      this._nonPaginatedData = {
+        rows: queryRes.rows,
+        error: queryRes.error,
+      };
+
+      raf.scheduleFullRedraw();
+    });
+  }
+
   getTotalRowCount(): number | undefined {
     return this.rowCount?.count;
   }
@@ -377,33 +370,18 @@ export class SqlTableState {
     return this.data === undefined;
   }
 
-  addFilter(filter: Filter) {
-    this.filters.push(filter);
-    this.reload();
-  }
-
-  removeFilter(filter: Filter) {
-    this.filters = this.filters.filter((f) => !isFilterEqual(f, filter));
-    this.reload();
-  }
-
-  getFilters(): Filter[] {
-    return this.filters;
-  }
-
-  sortBy(clause: {column: LegacyTableColumn; direction: SortDirection}) {
+  sortBy(clause: {
+    column: LegacyTableColumn;
+    direction: SortDirection | undefined;
+  }) {
     // Remove previous sort by the same column.
     this.orderBy = this.orderBy.filter(
       (c) => tableColumnId(c.column) != tableColumnId(clause.column),
     );
+    if (clause.direction === undefined) return;
     // Add the new sort clause to the front, so we effectively stable-sort the
     // data currently displayed to the user.
-    this.orderBy.unshift(clause);
-    this.reload();
-  }
-
-  unsort() {
-    this.orderBy = [];
+    this.orderBy.unshift({column: clause.column, direction: clause.direction});
     this.reload();
   }
 
@@ -418,12 +396,10 @@ export class SqlTableState {
   getOrderedBy(): ColumnOrderClause[] {
     const result: ColumnOrderClause[] = [];
     for (const orderBy of this.orderBy) {
-      const sortColumns = orderBy.column.sortColumns?.() ?? [
-        orderBy.column.primaryColumn(),
-      ];
-      for (const column of sortColumns) {
-        result.push({column, direction: orderBy.direction});
-      }
+      result.push({
+        column: orderBy.column.primaryColumn(),
+        direction: orderBy.direction,
+      });
     }
     return result;
   }
@@ -446,14 +422,7 @@ export class SqlTableState {
   }
 
   moveColumn(fromIndex: number, toIndex: number) {
-    if (fromIndex === toIndex) return;
-    const column = this.columns[fromIndex];
-    this.columns.splice(fromIndex, 1);
-    if (fromIndex < toIndex) {
-      // We have deleted a column, therefore we need to adjust the target index.
-      --toIndex;
-    }
-    this.columns.splice(toIndex, 0, column);
+    moveArrayItem(this.columns, fromIndex, toIndex);
   }
 
   getSelectedColumns(): LegacyTableColumn[] {

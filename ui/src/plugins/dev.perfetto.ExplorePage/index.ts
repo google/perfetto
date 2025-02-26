@@ -17,7 +17,6 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {ExplorePage, ExploreTableState} from './explore_page';
-import {Chart} from '../../components/widgets/charts/chart';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
@@ -27,7 +26,6 @@ export default class implements PerfettoPlugin {
   // state/charts for the lifecycle of a single
   // trace.
   private readonly state: ExploreTableState = {};
-  private charts: Set<Chart> = new Set();
 
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.pages.registerPage({
@@ -37,7 +35,6 @@ export default class implements PerfettoPlugin {
           m(ExplorePage, {
             ...attrs,
             state: this.state,
-            charts: this.charts,
             sqlModulesPlugin: attrs.trace.plugins.getPlugin(SqlModulesPlugin),
           }),
       },

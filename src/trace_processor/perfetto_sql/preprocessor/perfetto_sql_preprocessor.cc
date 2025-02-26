@@ -232,8 +232,6 @@ void ExecuteStringify(State* state,
         Frame::kIgnore, state,
         SqlSource::FromTraceProcessorImplementation(macro.name + "!(" +
                                                     macro.args[0].sql() + ")"));
-    auto& expand_frame = state->stack.back();
-    expand_frame.substituitions = frame.substituitions;
     return;
   }
   auto res = SqlSource::FromTraceProcessorImplementation(
@@ -547,7 +545,7 @@ extern "C" PreprocessorGrammarApplyList* OnPreprocessorAppendApplyList(
 extern "C" void OnPreprocessorFreeApplyList(
     PreprocessorGrammarState*,
     PreprocessorGrammarApplyList* list) {
-  delete list;
+  std::unique_ptr<PreprocessorGrammarApplyList> l(list);
 }
 
 }  // namespace perfetto::trace_processor

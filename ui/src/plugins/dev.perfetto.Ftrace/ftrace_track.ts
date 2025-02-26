@@ -24,7 +24,7 @@ import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {FtraceFilter} from './common';
 import {Monitor} from '../../base/monitor';
 import {TrackRenderContext} from '../../public/track';
-import {SourceDataset, Dataset} from '../../trace_processor/dataset';
+import {SourceDataset} from '../../trace_processor/dataset';
 
 const MARGIN = 2;
 const RECT_HEIGHT = 18;
@@ -45,24 +45,24 @@ export interface Config {
 export class FtraceRawTrack implements Track {
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private engine: Engine;
-  private cpu: number;
+  private ucpu: number;
   private store: Store<FtraceFilter>;
   private readonly monitor: Monitor;
 
-  constructor(engine: Engine, cpu: number, store: Store<FtraceFilter>) {
+  constructor(engine: Engine, ucpu: number, store: Store<FtraceFilter>) {
     this.engine = engine;
-    this.cpu = cpu;
+    this.ucpu = ucpu;
     this.store = store;
 
     this.monitor = new Monitor([() => store.state]);
   }
 
-  getDataset(): Dataset {
+  getDataset() {
     return new SourceDataset({
       // 'ftrace_event' doesn't have a dur column, but injecting dur=0 (all
       // ftrace events are effectively 'instant') allows us to participate in
       // generic slice aggregations
-      src: 'select id, ts, 0 as dur, name, cpu from ftrace_event',
+      src: 'select id, ts, 0 as dur, name, ucpu from ftrace_event',
       schema: {
         id: NUM,
         name: STR,
@@ -70,8 +70,8 @@ export class FtraceRawTrack implements Track {
         dur: LONG,
       },
       filter: {
-        col: 'cpu',
-        eq: this.cpu,
+        col: 'ucpu',
+        eq: this.ucpu,
       },
     });
   }
@@ -101,7 +101,7 @@ export class FtraceRawTrack implements Track {
   ): Promise<Data> {
     const excludeList = Array.from(this.store.state.excludeList);
     const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
-    const cpuFilter = this.cpu === undefined ? '' : `and cpu = ${this.cpu}`;
+    const cpuFilter = this.ucpu === undefined ? '' : `and ucpu = ${this.ucpu}`;
 
     const queryRes = await this.engine.query(`
       select

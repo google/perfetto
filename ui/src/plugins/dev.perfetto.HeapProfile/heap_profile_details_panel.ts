@@ -26,7 +26,6 @@ import {
   TrackEventDetailsPanel,
   TrackEventDetailsPanelSerializeArgs,
 } from '../../public/details_panel';
-import {ProfileType, TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
 import {Button} from '../../widgets/button';
@@ -40,6 +39,29 @@ import {
   FLAMEGRAPH_STATE_SCHEMA,
   FlamegraphState,
 } from '../../widgets/flamegraph';
+
+export enum ProfileType {
+  HEAP_PROFILE = 'heap_profile',
+  MIXED_HEAP_PROFILE = 'heap_profile:com.android.art,libc.malloc',
+  NATIVE_HEAP_PROFILE = 'heap_profile:libc.malloc',
+  JAVA_HEAP_SAMPLES = 'heap_profile:com.android.art',
+  JAVA_HEAP_GRAPH = 'graph',
+  PERF_SAMPLE = 'perf',
+  INSTRUMENTS_SAMPLE = 'instruments',
+}
+
+export function profileType(s: string): ProfileType {
+  if (s === 'heap_profile:libc.malloc,com.android.art') {
+    s = 'heap_profile:com.android.art,libc.malloc';
+  }
+  if (Object.values(ProfileType).includes(s as ProfileType)) {
+    return s as ProfileType;
+  }
+  if (s.startsWith('heap_profile')) {
+    return ProfileType.HEAP_PROFILE;
+  }
+  throw new Error('Unknown type ${s}');
+}
 
 interface Props {
   ts: time;
@@ -59,16 +81,16 @@ export class HeapProfileFlamegraphDetailsPanel
     private trace: Trace,
     private heapGraphIncomplete: boolean,
     private upid: number,
-    sel: TrackEventSelection,
+    profileType: ProfileType,
+    ts: time,
   ) {
-    const {profileType, ts} = sel;
-    const metrics = flamegraphMetrics(assertExists(profileType), ts, upid);
+    const metrics = flamegraphMetrics(profileType, ts, upid);
     this.serialization = {
       schema: FLAMEGRAPH_STATE_SCHEMA,
       state: Flamegraph.createDefaultState(metrics),
     };
     this.flamegraph = new QueryFlamegraph(trace, metrics, this.serialization);
-    this.props = {ts, type: assertExists(profileType)};
+    this.props = {ts, type: profileType};
   }
 
   render() {
@@ -241,6 +263,7 @@ function flamegraphMetrics(
               parent_id as parentId,
               ifnull(name, '[Unknown]') as name,
               root_type,
+              heap_type,
               self_size as value,
               self_count
             from _heap_graph_class_tree
@@ -248,6 +271,7 @@ function flamegraphMetrics(
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
+            {name: 'heap_type', displayName: 'Heap Type'},
           ],
           aggregatableProperties: [
             {
@@ -268,6 +292,7 @@ function flamegraphMetrics(
               parent_id as parentId,
               ifnull(name, '[Unknown]') as name,
               root_type,
+              heap_type,
               self_size,
               self_count as value
             from _heap_graph_class_tree
@@ -275,6 +300,7 @@ function flamegraphMetrics(
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
+            {name: 'heap_type', displayName: 'Heap Type'},
           ],
         },
         {
@@ -288,6 +314,7 @@ function flamegraphMetrics(
               parent_id as parentId,
               ifnull(name, '[Unknown]') as name,
               root_type,
+              heap_type,
               self_size as value,
               self_count
             from _heap_graph_dominator_class_tree
@@ -295,6 +322,7 @@ function flamegraphMetrics(
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
+            {name: 'heap_type', displayName: 'Heap Type'},
           ],
           aggregatableProperties: [
             {
@@ -315,13 +343,15 @@ function flamegraphMetrics(
               parent_id as parentId,
               ifnull(name, '[Unknown]') as name,
               root_type,
+              heap_type,
               self_size,
               self_count as value
-            from _heap_graph_class_tree
+            from _heap_graph_dominator_class_tree
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
+            {name: 'heap_type', displayName: 'Heap Type'},
           ],
         },
       ];

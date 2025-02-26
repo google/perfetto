@@ -608,6 +608,7 @@ cc_library_shared {
         ":perfetto_src_traced_probes_ps_ps",
         ":perfetto_src_traced_probes_statsd_client_statsd_client",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
+        ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_service_builtin_producer",
         ":perfetto_src_traced_service_service",
@@ -1154,6 +1155,26 @@ cc_library_static {
     min_sdk_version: "30",
 }
 
+// GN: //src/java_sdk/main/cpp:perfetto_example_jni_lib
+cc_library_shared {
+    name: "libperfetto_jni_wrapper_lib",
+    srcs: [
+        "src/java_sdk/main/cpp/com_google_perfetto_sdk_PerfettoExampleWrapper.cc",
+        "src/java_sdk/main/cpp/example.cc",
+        "src/java_sdk/main/cpp/utils.cc",
+    ],
+    shared_libs: [
+        "liblog",
+        "libperfetto_c",
+    ],
+    defaults: [
+        "perfetto_defaults",
+    ],
+    header_libs: [
+        "jni_headers",
+    ],
+}
+
 // GN: //src/perfetto_cmd:perfetto
 cc_binary {
     name: "perfetto",
@@ -1361,6 +1382,7 @@ filegroup {
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
         "protos/perfetto/config/android/windowmanager_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/histogram_samples.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
@@ -1425,6 +1447,7 @@ java_library {
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
         "protos/perfetto/config/android/windowmanager_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/histogram_samples.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
@@ -1591,6 +1614,7 @@ cc_library_static {
         ":perfetto_src_traced_probes_ps_ps",
         ":perfetto_src_traced_probes_statsd_client_statsd_client",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
+        ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
@@ -1903,6 +1927,7 @@ cc_library_static {
         ":perfetto_src_traced_probes_ps_ps",
         ":perfetto_src_traced_probes_statsd_client_statsd_client",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
+        ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
@@ -2588,6 +2613,7 @@ cc_test {
         ":perfetto_src_traced_probes_ps_ps",
         ":perfetto_src_traced_probes_statsd_client_statsd_client",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
+        ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_relay_integrationtests",
         ":perfetto_src_traced_relay_lib",
@@ -2782,6 +2808,26 @@ cc_test {
         "general-tests",
     ],
     test_config: "PerfettoIntegrationTests.xml",
+}
+
+// GN: //src/java_sdk/main:perfetto_java_sdk_app
+android_app {
+    name: "perfetto_java_sdk_app",
+    srcs: [
+        "src/java_sdk/main/java/com/google/perfetto/sdk/MainActivity.java",
+    ],
+    resource_dirs: [
+        "src/java_sdk/main/res",
+    ],
+    manifest: "src/java_sdk/main/AndroidManifest.xml",
+    static_libs: [
+        "perfetto_src_java_sdk_main_perfetto_lib",
+    ],
+    sdk_version: "30",
+    jni_libs: [
+        "libperfetto_jni_wrapper_lib",
+    ],
+    jni_uses_platform_apis: true,
 }
 
 // GN: [//protos/perfetto/metrics:source_set]
@@ -3393,6 +3439,7 @@ filegroup {
     name: "perfetto_protos_perfetto_config_cpp",
     srcs: [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/histogram_samples.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
@@ -3431,6 +3478,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_cpp)",
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.gen.cc",
+        "external/perfetto/protos/perfetto/config/chrome/histogram_samples.gen.cc",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.gen.cc",
         "external/perfetto/protos/perfetto/config/chrome/system_metrics.gen.cc",
         "external/perfetto/protos/perfetto/config/chrome/v8_config.gen.cc",
@@ -3469,6 +3517,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_cpp)",
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.gen.h",
+        "external/perfetto/protos/perfetto/config/chrome/histogram_samples.gen.h",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.gen.h",
         "external/perfetto/protos/perfetto/config/chrome/system_metrics.gen.h",
         "external/perfetto/protos/perfetto/config/chrome/v8_config.gen.h",
@@ -3521,6 +3570,7 @@ genrule {
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
         "protos/perfetto/config/android/windowmanager_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/histogram_samples.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
@@ -4105,6 +4155,7 @@ filegroup {
     name: "perfetto_protos_perfetto_config_lite",
     srcs: [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/histogram_samples.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
@@ -4142,6 +4193,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_lite)",
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pb.cc",
+        "external/perfetto/protos/perfetto/config/chrome/histogram_samples.pb.cc",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.pb.cc",
         "external/perfetto/protos/perfetto/config/chrome/system_metrics.pb.cc",
         "external/perfetto/protos/perfetto/config/chrome/v8_config.pb.cc",
@@ -4179,6 +4231,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_lite)",
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pb.h",
+        "external/perfetto/protos/perfetto/config/chrome/histogram_samples.pb.h",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.pb.h",
         "external/perfetto/protos/perfetto/config/chrome/system_metrics.pb.h",
         "external/perfetto/protos/perfetto/config/chrome/v8_config.pb.h",
@@ -5155,6 +5208,7 @@ filegroup {
     name: "perfetto_protos_perfetto_config_zero",
     srcs: [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/histogram_samples.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
@@ -5193,6 +5247,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_zero)",
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.cc",
+        "external/perfetto/protos/perfetto/config/chrome/histogram_samples.pbzero.cc",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/chrome/system_metrics.pbzero.cc",
         "external/perfetto/protos/perfetto/config/chrome/v8_config.pbzero.cc",
@@ -5231,6 +5286,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_zero)",
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.h",
+        "external/perfetto/protos/perfetto/config/chrome/histogram_samples.pbzero.h",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/chrome/system_metrics.pbzero.h",
         "external/perfetto/protos/perfetto/config/chrome/v8_config.pbzero.h",
@@ -6958,6 +7014,7 @@ genrule {
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
         "protos/perfetto/config/android/windowmanager_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/histogram_samples.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
@@ -9618,6 +9675,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_processor_zero_gen",
     srcs: [
         ":perfetto_protos_perfetto_common_zero",
+        ":perfetto_protos_perfetto_perfetto_sql_zero",
         ":perfetto_protos_perfetto_trace_processor_zero",
     ],
     tools: [
@@ -9638,6 +9696,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
     srcs: [
         ":perfetto_protos_perfetto_common_zero",
+        ":perfetto_protos_perfetto_perfetto_sql_zero",
         ":perfetto_protos_perfetto_trace_processor_zero",
     ],
     tools: [
@@ -11425,6 +11484,16 @@ filegroup {
         "src/ipc/host_impl_unittest.cc",
         "src/ipc/test/ipc_integrationtest.cc",
     ],
+}
+
+// GN: //src/java_sdk/main:perfetto_lib
+android_library {
+    name: "perfetto_src_java_sdk_main_perfetto_lib",
+    srcs: [
+        "src/java_sdk/main/java/com/google/perfetto/sdk/PerfettoExampleWrapper.java",
+    ],
+    manifest: "src/java_sdk/main/LibraryAndroidManifest.xml",
+    sdk_version: "30",
 }
 
 // GN: //src/kallsyms:kallsyms
@@ -13486,6 +13555,7 @@ genrule {
         "src/trace_processor/metrics/sql/android/sysui_update_notif_on_ui_mode_changed_metric.sql",
         "src/trace_processor/metrics/sql/android/unsymbolized_frames.sql",
         "src/trace_processor/metrics/sql/android/wattson_app_startup_rails.sql",
+        "src/trace_processor/metrics/sql/android/wattson_app_startup_threads.sql",
         "src/trace_processor/metrics/sql/android/wattson_atrace_apps_rails.sql",
         "src/trace_processor/metrics/sql/android/wattson_markers_rails.sql",
         "src/trace_processor/metrics/sql/android/wattson_markers_threads.sql",
@@ -13493,55 +13563,20 @@ genrule {
         "src/trace_processor/metrics/sql/android/wattson_tasks_attribution.sql",
         "src/trace_processor/metrics/sql/android/wattson_trace_rails.sql",
         "src/trace_processor/metrics/sql/android/wattson_trace_threads.sql",
-        "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
-        "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_args_class_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_summaries.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals_base.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals_template.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_long_tasks.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_long_tasks_delaying_input_processing.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_performance_mark_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_reliable_range.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_scroll_inputs_per_frame.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_caused_by_scheduling.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_v3.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_slice_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_stack_samples_for_task.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_study_hashes.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks_delaying_input_processing.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks_delaying_input_processing_base.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks_delaying_input_processing_template.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_thread_slice.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_unsymbolized_args.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_user_event_hashes.sql",
-        "src/trace_processor/metrics/sql/chrome/cpu_time_by_category.sql",
-        "src/trace_processor/metrics/sql/chrome/cpu_time_by_rail_mode.sql",
-        "src/trace_processor/metrics/sql/chrome/estimated_power_by_category.sql",
-        "src/trace_processor/metrics/sql/chrome/estimated_power_by_rail_mode.sql",
-        "src/trace_processor/metrics/sql/chrome/experimental_reliable_chrome_tasks_delaying_input_processing.sql",
-        "src/trace_processor/metrics/sql/chrome/gesture_flow_event.sql",
-        "src/trace_processor/metrics/sql/chrome/gesture_flow_event_queuing_delay.sql",
-        "src/trace_processor/metrics/sql/chrome/gesture_jank.sql",
-        "src/trace_processor/metrics/sql/chrome/rail_modes.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_flow_event.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_flow_event_queuing_delay.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_blocking_task.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_blocking_touch_move.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_get_bitmap.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/sufficient_chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/test_chrome_metric.sql",
-        "src/trace_processor/metrics/sql/chrome/touch_flow_event.sql",
-        "src/trace_processor/metrics/sql/chrome/touch_flow_event_queuing_delay.sql",
-        "src/trace_processor/metrics/sql/chrome/touch_jank.sql",
         "src/trace_processor/metrics/sql/common/clone_duration.sql",
         "src/trace_processor/metrics/sql/common/parent_slice.sql",
         "src/trace_processor/metrics/sql/experimental/chrome_dropped_frames.sql",
@@ -13964,6 +13999,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_level_parallelism.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_state_flattened.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/time_in_state.sql",
+        "src/trace_processor/perfetto_sql/stdlib/sched/with_context.sql",
         "src/trace_processor/perfetto_sql/stdlib/slices/cpu_time.sql",
         "src/trace_processor/perfetto_sql/stdlib/slices/flat_slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/slices/flow.sql",
@@ -15051,6 +15087,11 @@ filegroup {
     ],
 }
 
+// GN: //src/traced/probes/system_info:cpu_info_features_allowlist
+filegroup {
+    name: "perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
+}
+
 // GN: //src/traced/probes/system_info:system_info
 filegroup {
     name: "perfetto_src_traced_probes_system_info_system_info",
@@ -15434,6 +15475,7 @@ java_library {
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
         "protos/perfetto/config/android/windowmanager_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/histogram_samples.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
@@ -16157,6 +16199,7 @@ cc_test {
         ":perfetto_src_traced_probes_statsd_client_unittests",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
         ":perfetto_src_traced_probes_sys_stats_unittests",
+        ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_probes_system_info_unittests",
         ":perfetto_src_traced_probes_unittests",
@@ -16516,6 +16559,7 @@ cc_library_static {
         ":perfetto_src_traced_probes_ps_ps",
         ":perfetto_src_traced_probes_statsd_client_statsd_client",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
+        ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
@@ -16754,6 +16798,7 @@ filegroup {
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
         "protos/perfetto/config/android/windowmanager_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/histogram_samples.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
@@ -17333,6 +17378,7 @@ cc_binary {
         ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
+        ":perfetto_protos_perfetto_perfetto_sql_zero_gen",
         ":perfetto_protos_perfetto_trace_android_winscope_common_zero_gen",
         ":perfetto_protos_perfetto_trace_android_winscope_regular_zero_gen",
         ":perfetto_protos_perfetto_trace_android_zero_gen",
@@ -17422,6 +17468,7 @@ cc_binary {
         "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
+        "perfetto_protos_perfetto_perfetto_sql_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_winscope_common_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_winscope_regular_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_zero_gen_headers",
@@ -18514,4 +18561,16 @@ filegroup {
     srcs: [
         "tools/heap_profile",
     ],
+}
+
+aconfig_declarations {
+    name: "perfetto_flags-aconfig",
+    package: "perfetto.flags",
+    container: "system",
+    srcs: ["perfetto_flags.aconfig"],
+}
+
+cc_aconfig_library {
+    name: "perfetto_flags_c_lib",
+    aconfig_declarations: "perfetto_flags-aconfig",
 }

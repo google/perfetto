@@ -86,14 +86,18 @@ std::vector<std::vector<SymbolizedFrame>> BreakpadSymbolizer::Symbolize(
   for (uint64_t addr : address) {
     SymbolizedFrame frame;
     std::optional<std::string> opt_func_name = parser.GetSymbol(addr);
+    if (opt_func_name == std::nullopt) {
+      opt_func_name = parser.GetPublicSymbol(addr);
+    }
+
     if (opt_func_name) {
       frame.function_name = *opt_func_name;
       num_symbolized_frames++;
     }
     result.push_back({std::move(frame)});
   }
-  PERFETTO_PLOG("Symbolized %zu of %zu frames.", num_symbolized_frames,
-                address.size());
+  PERFETTO_PLOG("Symbolized %zu of %zu frames on symbol file %s.",
+                num_symbolized_frames, address.size(), file_path.c_str());
   return result;
 }
 

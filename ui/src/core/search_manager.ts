@@ -13,10 +13,8 @@
 // limitations under the License.
 
 import {AsyncLimiter} from '../base/async_limiter';
-import {searchSegment} from '../base/binary_search';
-import {assertExists, assertTrue} from '../base/logging';
 import {sqliteString} from '../base/string_utils';
-import {Time, TimeSpan} from '../base/time';
+import {Time} from '../base/time';
 import {exists} from '../base/utils';
 import {ResultStepEventHandler} from '../public/search';
 import {
@@ -44,7 +42,6 @@ export interface SearchResults {
 export class SearchManagerImpl {
   private _searchGeneration = 0;
   private _searchText = '';
-  private _searchWindow?: TimeSpan;
   private _results?: SearchResults;
   private _resultIndex = -1;
   private _searchInProgress = false;
@@ -83,7 +80,6 @@ export class SearchManagerImpl {
     this._searchInProgress = false;
     if (text !== '') {
       this._searchInProgress = true;
-      this._searchWindow = this._timeline?.visibleWindow.toTimeSpan();
       this._limiter.schedule(async () => {
         await this.executeSearch();
         this._searchInProgress = false;
@@ -105,12 +101,7 @@ export class SearchManagerImpl {
   }
 
   private stepInternal(reverse = false) {
-    if (this._searchWindow === undefined) return;
     if (this._results === undefined) return;
-
-    const index = this._resultIndex;
-    const {start: startNs, end: endNs} = this._searchWindow;
-    const currentTs = this._results.tses[index];
 
     // If the value of |this._results.totalResults| is 0,
     // it means that the query is in progress or no results are found.
@@ -118,52 +109,23 @@ export class SearchManagerImpl {
       return;
     }
 
-    // If this is a new search or the currentTs is not in the viewport,
-    // select the first/last item in the viewport.
-    if (
-      index === -1 ||
-      (currentTs !== -1n && (currentTs < startNs || currentTs > endNs))
-    ) {
-      if (reverse) {
-        const [smaller] = searchSegment(this._results.tses, endNs);
-        // If there is no item in the viewport just go to the previous.
-        if (smaller === -1) {
-          this.setResultIndexWithSaturation(index - 1);
-        } else {
-          this._resultIndex = smaller;
-        }
-      } else {
-        const [, larger] = searchSegment(this._results.tses, startNs);
-        // If there is no item in the viewport just go to the next.
-        if (larger === -1) {
-          this.setResultIndexWithSaturation(index + 1);
-        } else {
-          this._resultIndex = larger;
-        }
+    if (reverse) {
+      --this._resultIndex;
+      if (this._resultIndex < 0) {
+        this._resultIndex = this._results.totalResults - 1;
       }
     } else {
-      // If the currentTs is in the viewport, increment the index.
-      if (reverse) {
-        this.setResultIndexWithSaturation(index - 1);
-      } else {
-        this.setResultIndexWithSaturation(index + 1);
+      ++this._resultIndex;
+      if (this._resultIndex > this._results.totalResults - 1) {
+        this._resultIndex = 0;
       }
     }
-    if (this._onResultStep) {
-      this._onResultStep({
-        eventId: this._results.eventIds[this._resultIndex],
-        ts: Time.fromRaw(this._results.tses[this._resultIndex]),
-        trackUri: this._results.trackUris[this._resultIndex],
-        source: this._results.sources[this._resultIndex],
-      });
-    }
-  }
-
-  private setResultIndexWithSaturation(nextIndex: number) {
-    const tot = assertExists(this._results).totalResults;
-    assertTrue(tot !== 0); // The early out in step() guarantees this.
-    // This is a modulo operation that works also for negative numbers.
-    this._resultIndex = ((nextIndex % tot) + tot) % tot;
+    this._onResultStep?.({
+      eventId: this._results.eventIds[this._resultIndex],
+      ts: Time.fromRaw(this._results.tses[this._resultIndex]),
+      trackUri: this._results.trackUris[this._resultIndex],
+      source: this._results.sources[this._resultIndex],
+    });
   }
 
   get hasResults() {
@@ -192,14 +154,13 @@ export class SearchManagerImpl {
 
   private async executeSearch() {
     const search = this._searchText;
-    const window = this._searchWindow;
     const searchLiteral = escapeSearchQuery(this._searchText);
     const generation = this._searchGeneration;
 
     const engine = this._engine;
     const trackManager = this._trackManager;
     const workspace = this._workspace;
-    if (!engine || !trackManager || !workspace || !window) {
+    if (!engine || !trackManager || !workspace) {
       return;
     }
 
@@ -346,6 +307,23 @@ export class SearchManagerImpl {
       return;
     }
     this._results = searchResults;
-    this._resultIndex = -1;
+
+    // We have changed the search results - try and find the first result that's
+    // after the start of this visible window.
+    const visibleWindow = this._timeline?.visibleWindow.toTimeSpan();
+    if (visibleWindow) {
+      const foundIndex = this._results.tses.findIndex(
+        (ts) => ts >= visibleWindow.start,
+      );
+      if (foundIndex === -1) {
+        this._resultIndex = -1;
+      } else {
+        // Store the value before the found one, so that when the user presses
+        // enter we navigate to the correct one.
+        this._resultIndex = foundIndex - 1;
+      }
+    } else {
+      this._resultIndex = -1;
+    }
   }
 }

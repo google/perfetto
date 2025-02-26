@@ -16,8 +16,8 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR} from '../../trace_processor/query_result';
-import {ActualFramesTrack} from './actual_frames_track';
-import {ExpectedFramesTrack} from './expected_frames_track';
+import {createActualFramesTrack} from './actual_frames_track';
+import {createExpectedFramesTrack} from './expected_frames_track';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   FrameSelectionAggregator,
@@ -39,44 +39,6 @@ export default class implements PerfettoPlugin {
     ctx.selection.registerAreaSelectionAggregator(
       new FrameSelectionAggregator(),
     );
-
-    ctx.selection.registerSqlSelectionResolver({
-      sqlTableName: 'slice',
-      callback: async (id: number) => {
-        const result = await ctx.engine.query(`
-          select
-            process_track.type as trackType,
-            process_track.upid as upid
-          from slice
-          join process_track on slice.track_id = process_track.id
-          where
-            slice.id = ${id}
-            and process_track.type in (
-              'android_expected_frame_timeline',
-              'android_actual_frame_timeline'
-            )
-        `);
-
-        if (result.numRows() === 0) {
-          return undefined;
-        }
-
-        const {trackType, upid} = result.firstRow({
-          trackType: STR,
-          upid: NUM,
-        });
-
-        const suffix =
-          trackType === 'expected_frame_timeline'
-            ? 'expected_frames'
-            : 'actual_frames';
-
-        return {
-          trackUri: makeUri(upid, suffix),
-          eventId: id,
-        };
-      },
-    });
   }
 
   async addExpectedFrames(ctx: Trace): Promise<void> {
@@ -116,7 +78,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
-        track: new ExpectedFramesTrack(ctx, maxDepth, uri, trackIds),
+        track: createExpectedFramesTrack(ctx, uri, maxDepth, trackIds),
         tags: {
           trackIds,
           upid,
@@ -166,7 +128,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
-        track: new ActualFramesTrack(ctx, maxDepth, uri, trackIds),
+        track: createActualFramesTrack(ctx, uri, maxDepth, trackIds),
         tags: {
           upid,
           trackIds,

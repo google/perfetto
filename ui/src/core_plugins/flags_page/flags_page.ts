@@ -142,7 +142,20 @@ export class FlagsPage implements m.ClassComponent<PageAttrs> {
           'Reset all below',
         ),
 
-        featureFlags.allFlags().map((flag) => m(FlagWidget, {flag})),
+        featureFlags
+          .allFlags()
+          .filter((p) => !p.id.startsWith('plugin_'))
+          .map((flag) => m(FlagWidget, {flag})),
+
+        m(
+          '.flags-page__footer',
+          m(
+            'span',
+            'Are you looking for plugins? These have moved to the ',
+            m('a', {href: '#!/plugins'}, 'plugins'),
+            ' page.',
+          ),
+        ),
       ),
     );
   }

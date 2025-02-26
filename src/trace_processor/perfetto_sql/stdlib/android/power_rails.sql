@@ -64,7 +64,7 @@ SELECT
     EXTRACT_ARG(source_arg_set_id, 'raw_name') AS raw_power_rail_name,
     c.value AS energy_since_boot,
     c.next_value AS energy_since_boot_at_end,
-    1e3*(c.delta_value/(time_to_s(c.dur))) AS average_power,
+    1e6*(c.delta_value/c.dur) AS average_power,
     c.delta_value AS energy_delta,
     c.track_id,
     c.value

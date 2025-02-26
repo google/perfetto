@@ -136,6 +136,11 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
         tc.addDataSource('org.chromium.system_metrics').chromeConfig =
           chromeConfig;
       }
+      if (cats.has('disabled-by-default-histogram_samples')) {
+        const histogram = tc.addDataSource('org.chromium.histogram_samples');
+        const histogramCfg = (histogram.chromiumHistogramSamples ??= {});
+        histogramCfg.filterHistogramNames = privacyFilteringEnabled;
+      }
     },
   };
 }

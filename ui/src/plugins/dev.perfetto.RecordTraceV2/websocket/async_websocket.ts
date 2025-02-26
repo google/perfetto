@@ -15,7 +15,9 @@
 import {defer, Deferred} from '../../../base/deferred';
 import {assertExists, assertTrue} from '../../../base/logging';
 import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
-import {utf8Decode} from '../../../base/string_utils';
+import {utf8Decode, utf8Encode} from '../../../base/string_utils';
+
+const ANY_SIZE = -1;
 
 /**
  * A wrapper around WebSocket with async methods.
@@ -83,7 +85,7 @@ export class AsyncWebsocket {
     assertExists(this.sock).send(data);
   }
 
-  waitForData(numBytes: number): Promise<Uint8Array> {
+  waitForData(numBytes: number = ANY_SIZE): Promise<Uint8Array> {
     if (this.rxPromise !== undefined) {
       throw new Error('Another unresolved waitForData() is pending already');
     }
@@ -110,30 +112,42 @@ export class AsyncWebsocket {
     this.close();
   }
 
-  async waitForString(numBytes: number): Promise<string> {
+  async waitForString(numBytes: number = ANY_SIZE): Promise<string> {
     const data = await this.waitForData(numBytes);
-    assertTrue(data.length === numBytes);
+    assertTrue(data.length === numBytes || numBytes === ANY_SIZE);
     return utf8Decode(data);
   }
 
   private async onSocketMessage(e: MessageEvent) {
-    assertTrue(e.data instanceof ArrayBuffer);
-    const buf = new Uint8Array(e.data as ArrayBuffer);
+    let buf: Uint8Array;
+    if (typeof e.data === 'string') {
+      buf = utf8Encode(e.data);
+    } else {
+      assertTrue(e.data instanceof ArrayBuffer);
+      buf = new Uint8Array(e.data as ArrayBuffer);
+    }
     this.rxBuf.append(buf);
     this.resolveRxPromiseIfEnoughDataAvail();
   }
 
   private resolveRxPromiseIfEnoughDataAvail() {
     if (this.rxPromise === undefined) return; // Nobody is waiting any data.
-    assertTrue(this.rxPromiseBytes > 0);
     const bytesWanted = this.rxPromiseBytes;
     const bytesAvail = this.rxBuf.size - this.rxBufRead;
-    if (bytesWanted > bytesAvail) return; // Not enough data.
-    const buf = this.rxBuf
-      .get()
-      .slice(this.rxBufRead, this.rxBufRead + this.rxPromiseBytes);
-    assertTrue(buf.length === bytesWanted);
-    this.rxBufRead += bytesWanted;
+
+    let buf: Uint8Array;
+    if (bytesWanted === ANY_SIZE && bytesAvail > 0) {
+      buf = this.rxBuf.get().slice();
+      this.rxBuf.clear();
+    } else if (bytesWanted > bytesAvail || bytesWanted === ANY_SIZE) {
+      return; // Not enough data.
+    } else {
+      buf = this.rxBuf
+        .get()
+        .slice(this.rxBufRead, this.rxBufRead + this.rxPromiseBytes);
+      assertTrue(buf.length === bytesWanted);
+      this.rxBufRead += bytesWanted;
+    }
 
     const rxPromise = this.rxPromise;
     this.rxPromise = undefined;

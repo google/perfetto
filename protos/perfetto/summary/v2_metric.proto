@@ -219,6 +219,7 @@ message TraceMetricV2Spec {
 //   ...(contents of spec)
 // }
 // ```
+// Note: if value of a row is NULL, the row will not be emitted.
 message TraceMetricV2 {
   // A single metric row corresponding to a value associated with a (unique) set
   // of dimensions
@@ -230,10 +231,12 @@ message TraceMetricV2 {
     // dimensions matches precisely the order of dimension names given by the
     // `spec`.
     message Dimension {
+      message Null {}
       oneof value_oneof {
         string string_value = 1;
         int64 int64_value = 2;
         double double_value = 3;
+        Null null_value = 4;
       }
     }
     repeated Dimension dimension = 2;

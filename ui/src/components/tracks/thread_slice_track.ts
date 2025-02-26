@@ -14,78 +14,63 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {clamp} from '../../base/math_utils';
-import {NAMED_ROW, NamedSliceTrack} from './named_slice_track';
-import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from './slice_layout';
-import {LONG_NULL} from '../../trace_processor/query_result';
-import {Slice} from '../../public/track';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {ThreadSliceDetailsPanel} from '../details/thread_slice_details_tab';
 import {TraceImpl} from '../../core/trace_impl';
 import {assertIsInstance} from '../../base/logging';
 import {Trace} from '../../public/trace';
+import {DatasetSliceTrack} from './dataset_slice_track';
+import {SourceDataset} from '../../trace_processor/dataset';
 
-export const THREAD_SLICE_ROW = {
-  // Base columns (tsq, ts, dur, id, depth).
-  ...NAMED_ROW,
-
-  // Thread-specific columns.
-  threadDur: LONG_NULL,
-};
-export type ThreadSliceRow = typeof THREAD_SLICE_ROW;
-
-export class ThreadSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
-  readonly rootTableName: string;
-
-  constructor(
-    trace: Trace,
-    uri: string,
-    private readonly trackId: number,
-    maxDepth: number,
-    private readonly tableName: string = 'slice',
-  ) {
-    super(trace, uri, THREAD_SLICE_ROW);
-    this.sliceLayout = {
-      ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
-      depthGuess: maxDepth,
-    };
-    this.rootTableName = tableName;
-  }
-
-  getSqlSource(): string {
-    return `
-      select
-        ts,
-        dur,
-        id,
-        depth,
-        ifnull(name, '') as name,
-        thread_dur as threadDur
-      from ${this.tableName}
-      where track_id = ${this.trackId}
-    `;
-  }
-
-  // Converts a SQL result row to an "Impl" Slice.
-  rowToSlice(row: ThreadSliceRow): Slice {
-    const namedSlice = this.rowToSliceBase(row);
-
-    if (row.dur > 0n && row.threadDur !== null) {
-      const fillRatio = clamp(BIMath.ratio(row.threadDur, row.dur), 0, 1);
-      return {...namedSlice, fillRatio};
-    } else {
-      return namedSlice;
-    }
-  }
-
-  onUpdatedSlices(slices: Slice[]) {
-    for (const slice of slices) {
-      slice.isHighlighted = slice === this.hoveredSlice;
-    }
-  }
-
-  override detailsPanel() {
-    // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
-    // TraceImpl (because of flows) but here we must take a Trace interface,
-    // because this class is exposed to plugins (which see only Trace).
-    return new ThreadSliceDetailsPanel(assertIsInstance(this.trace, TraceImpl));
-  }
+export function createThreadSliceTrack(
+  trace: Trace,
+  uri: string,
+  trackId: number,
+  maxDepth: number,
+  tableName: string = 'slice',
+) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        depth: NUM,
+        name: STR,
+        threadDur: LONG_NULL,
+      },
+      src: `
+        SELECT
+          id,
+          ts,
+          dur,
+          depth,
+          ifnull(name, '') as name,
+          thread_dur as threadDur,
+          track_id
+        FROM ${tableName}
+      `,
+      filter: {
+        col: 'track_id',
+        eq: trackId,
+      },
+    }),
+    initialMaxDepth: maxDepth,
+    rootTableName: tableName,
+    detailsPanel: () => {
+      // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
+      // TraceImpl (because of flows) but here we must take a Trace interface,
+      // because this track is exposed to plugins (which see only Trace).
+      return new ThreadSliceDetailsPanel(assertIsInstance(trace, TraceImpl));
+    },
+    fillRatio: (row) => {
+      if (row.dur > 0n && row.threadDur !== null) {
+        return clamp(BIMath.ratio(row.threadDur, row.dur), 0, 1);
+      } else {
+        return 1;
+      }
+    },
+  });
 }

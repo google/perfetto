@@ -118,26 +118,31 @@ base::StatusOr<std::vector<BuilderColType>> GetPartitionsSqlType(
   return types;
 }
 
+// Pushes partition into the result table. Returns the number of rows pushed.
+// All operations in this function are done on sets of intervals from each
+// table that correspond to the same partition.
 static base::StatusOr<uint32_t> PushPartition(
     RuntimeTable::Builder& builder,
-    const std::vector<Partition*>& partitions) {
-  size_t tables_count = partitions.size();
+    const std::vector<Partition*>& intervals_in_table) {
+  size_t tables_count = intervals_in_table.size();
 
   // Sort `tables_order` from the smallest to the biggest.
   std::vector<uint32_t> tables_order(tables_count);
   std::iota(tables_order.begin(), tables_order.end(), 0);
   std::sort(tables_order.begin(), tables_order.end(),
-            [partitions](const uint32_t idx_a, const uint32_t idx_b) {
-              return partitions[idx_a]->intervals.size() <
-                     partitions[idx_b]->intervals.size();
+            [intervals_in_table](const uint32_t idx_a, const uint32_t idx_b) {
+              return intervals_in_table[idx_a]->intervals.size() <
+                     intervals_in_table[idx_b]->intervals.size();
             });
   uint32_t idx_of_smallest_part = tables_order.front();
-  PERFETTO_DCHECK(!partitions[idx_of_smallest_part]->intervals.empty());
+  PERFETTO_DCHECK(!intervals_in_table[idx_of_smallest_part]->intervals.empty());
 
-  // Trivially translate intervals from smallest table to `MultiIndexIntervals`.
+  // Trivially translate intervals table with the smallest partition to
+  // `MultiIndexIntervals`.
   std::vector<MultiIndexInterval> last_results;
-  last_results.reserve(partitions.back()->intervals.size());
-  for (const auto& interval : partitions[idx_of_smallest_part]->intervals) {
+  last_results.reserve(intervals_in_table.back()->intervals.size());
+  for (const auto& interval :
+       intervals_in_table[idx_of_smallest_part]->intervals) {
     MultiIndexInterval m_int;
     m_int.start = interval.start;
     m_int.end = interval.end;
@@ -148,21 +153,20 @@ static base::StatusOr<uint32_t> PushPartition(
 
   // Create an interval tree on all tables except the smallest - the first one.
   std::vector<MultiIndexInterval> overlaps_with_this_table;
-  overlaps_with_this_table.reserve(partitions.back()->intervals.size());
+  overlaps_with_this_table.reserve(intervals_in_table.back()->intervals.size());
   for (uint32_t i = 1; i < tables_count && !last_results.empty(); i++) {
     overlaps_with_this_table.clear();
     uint32_t table_idx = tables_order[i];
 
-    IntervalIntersector::Mode intersection_mode =
-        IntervalIntersector::DecideMode(
-            partitions[table_idx]->is_nonoverlapping,
-            static_cast<uint32_t>(last_results.size()));
-    IntervalIntersector cur_int_operator(partitions[table_idx]->intervals,
-                                         intersection_mode);
+    IntervalIntersector::Mode mode = IntervalIntersector::DecideMode(
+        intervals_in_table[table_idx]->is_nonoverlapping,
+        static_cast<uint32_t>(last_results.size()));
+    IntervalIntersector cur_intersector(
+        intervals_in_table[table_idx]->intervals, mode);
     for (const auto& prev_result : last_results) {
       Intervals new_overlaps;
-      cur_int_operator.FindOverlaps(prev_result.start, prev_result.end,
-                                    new_overlaps);
+      cur_intersector.FindOverlaps(prev_result.start, prev_result.end,
+                                   new_overlaps);
       for (const auto& overlap : new_overlaps) {
         MultiIndexInterval m_int;
         m_int.idx_in_table = std::move(prev_result.idx_in_table);
@@ -200,8 +204,8 @@ static base::StatusOr<uint32_t> PushPartition(
     builder.AddNonNullIntegersUnchecked(i + kArgCols, ids[i]);
   }
 
-  for (uint32_t i = 0; i < partitions[0]->sql_values.size(); i++) {
-    const SqlValue& part_val = partitions[0]->sql_values[i];
+  for (uint32_t i = 0; i < intervals_in_table[0]->sql_values.size(); i++) {
+    const SqlValue& part_val = intervals_in_table[0]->sql_values[i];
     switch (part_val.type) {
       case SqlValue::kLong:
         RETURN_IF_ERROR(builder.AddIntegers(i + kPartitionColsOffset,

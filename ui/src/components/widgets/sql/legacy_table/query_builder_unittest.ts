@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {sqliteString} from '../../../../base/string_utils';
-import {SourceTable} from './column';
+import {SourceTable} from './sql_column';
 import {buildSqlQuery} from './query_builder';
 
 function normalise(str: string): string {

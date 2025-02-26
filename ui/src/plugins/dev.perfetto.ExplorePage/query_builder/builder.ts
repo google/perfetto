@@ -17,33 +17,58 @@ import m from 'mithril';
 import {PageWithTraceAttrs} from '../../../public/page';
 import {Button} from '../../../widgets/button';
 import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
-import {ColumnControllerRows} from './column_controller';
-import {QueryNode, StdlibTableState} from '../query_state';
+import {ColumnControllerRow} from './column_controller';
+import {QueryNode} from '../query_node';
 import {JoinState, QueryBuilderJoin} from './operations/join';
 import {Intent} from '../../../widgets/common';
 import {showModal} from '../../../widgets/modal';
 import {DataSourceViewer} from './data_source_viewer';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {getLastFinishedNode} from '../query_state';
+import {getLastFinishedNode} from '../query_node';
+import {TextInput} from '../../../widgets/text_input';
+import {
+  StdlibTableState,
+  SimpleSlicesAttrs,
+  SimpleSlicesState,
+  SqlSourceAttrs,
+  SqlSourceState,
+} from './source_nodes';
+import {
+  GroupByAttrs,
+  GroupByNode,
+  GroupByOperation,
+} from './operations/groupy_by';
+import {FilterAttrs, FilterNode, FilterOperation} from './operations/filter';
 
 export interface QueryBuilderTable {
   name: string;
   asSqlTable: SqlTable;
-  columnOptions: ColumnControllerRows[];
+  columnOptions: ColumnControllerRow[];
   sql: string;
 }
 
 export interface QueryBuilderAttrs extends PageWithTraceAttrs {
   readonly sqlModules: SqlModules;
   readonly rootNode?: QueryNode;
-  readonly onQueryNodeCreated: (node: QueryNode) => void;
+  readonly onRootNodeCreated: (node: QueryNode) => void;
 }
 
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
-    const trace = attrs.trace;
+    const {trace, sqlModules, rootNode, onRootNodeCreated} = attrs;
 
-    // Create starting node.
+    function createModal(
+      title: string,
+      content: m.Children,
+      onAdd: () => void,
+    ) {
+      showModal({
+        title,
+        buttons: [{text: 'Add node', action: onAdd}],
+        content: () => content,
+      });
+    }
+
     function chooseSourceButton(): m.Child {
       return m(
         PopupMenu,
@@ -58,112 +83,116 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           onclick: async () => {
             const tableName = await trace.omnibox.prompt(
               'Choose a table...',
-              attrs.sqlModules.listTablesNames(),
+              sqlModules.listTablesNames(),
             );
-            if (tableName === undefined) {
-              return;
-            }
-            const sqlTable = attrs.sqlModules.getTable(tableName);
-            if (sqlTable === undefined) {
-              return;
-            }
-            attrs.onQueryNodeCreated(new StdlibTableState(sqlTable));
+            if (!tableName) return;
+
+            const sqlTable = sqlModules.getTable(tableName);
+            if (!sqlTable) return;
+
+            onRootNodeCreated(new StdlibTableState(sqlTable));
           },
         }),
-        m(MenuItem, {label: 'Slices', disabled: true}),
-        m(MenuItem, {label: 'SQL', disabled: true}),
+        m(MenuItem, {
+          label: 'Slices',
+          onclick: () =>
+            createModal('Slices source', m(SimpleSlicesModalContent), () => {
+              const newSlices = new SimpleSlicesState(simpleSlicesAttrs);
+              if (newSlices.validate()) {
+                onRootNodeCreated(newSlices);
+              }
+            }),
+        }),
+        m(MenuItem, {
+          label: 'SQL',
+          onclick: () =>
+            createModal('SQL source', m(SqlSourceModalContent), () => {
+              const newSqlSource = new SqlSourceState(sqlSourceAttrs);
+              if (newSqlSource.validate()) {
+                onRootNodeCreated(newSqlSource);
+              }
+            }),
+        }),
         m(MenuItem, {label: 'Interval intersect', disabled: true}),
       );
     }
 
-    // Followup node
-    function chooseOperationButton() {
+    function chooseOperationButton(): m.Child {
       return m(
         PopupMenu,
         {
-          trigger: m(Button, {
-            label: '+',
-            intent: Intent.Primary,
-          }),
+          trigger: m(Button, {label: '+', intent: Intent.Primary}),
         },
         m(MenuItem, {
-          label: 'JOIN',
+          label: 'GROUP BY',
           onclick: () => {
-            if (attrs.rootNode === undefined) {
-              return;
-            }
-            const curNode = getLastFinishedNode(attrs.rootNode);
-            if (curNode === undefined) {
-              return;
-            }
-            const newJoinState = new JoinState(curNode);
-            joinModal(newJoinState, () => {
-              newJoinState.validate();
-              curNode.nextNode = newJoinState;
+            if (!rootNode) return;
+            const curNode = getLastFinishedNode(rootNode);
+            if (!curNode) return;
+
+            const newGroupByAttrs: GroupByAttrs = {prevNode: curNode};
+            createModal(
+              'GROUP BY',
+              m(GroupByOperation, newGroupByAttrs),
+              () => {
+                curNode.nextNode = new GroupByNode(newGroupByAttrs);
+              },
+            );
+          },
+        }),
+        m(MenuItem, {
+          label: 'FILTER',
+          onclick: () => {
+            if (!rootNode) return;
+            const curNode = getLastFinishedNode(rootNode);
+            if (!curNode) return;
+            const newFilterAttrs: FilterAttrs = {prevNode: curNode};
+            createModal('FILTER', m(FilterOperation, newFilterAttrs), () => {
+              curNode.nextNode = new FilterNode(newFilterAttrs);
             });
           },
         }),
-        m(MenuItem, {label: 'INTERSECT', disabled: true}),
+        m(MenuItem, {
+          label: 'JOIN',
+          disabled: true,
+          onclick: () => {
+            if (!rootNode) return;
+            const curNode = getLastFinishedNode(rootNode);
+            if (!curNode) return;
+
+            const newJoinState = new JoinState(curNode);
+            createModal(
+              'JOIN',
+              m(QueryBuilderJoin, {sqlModules, joinState: newJoinState}),
+              () => {
+                newJoinState.validate();
+                curNode.nextNode = newJoinState;
+              },
+            );
+          },
+        }),
       );
     }
 
-    function joinModal(joinState: JoinState, f: () => void) {
-      function Operations() {
-        return {
-          view: () => {
-            return m(QueryBuilderJoin, {
-              sqlModules: attrs.sqlModules,
-              joinState: joinState,
-            });
-          },
-        };
-      }
-
-      const content = () => m(Operations);
-
-      showModal({
-        title: `JOIN`,
-        buttons: [
-          {
-            text: 'Add node',
-            action: f,
-          },
-        ],
-        content,
-      });
-    }
-
     function renderNodesPanel(): m.Children {
-      function renderNodes() {
-        let row = 1;
-        if (attrs.rootNode === undefined) {
-          return m(
-            '',
-            {
-              style: {
-                gridColumn: 3,
-                gridRow: row,
-              },
-            },
-            chooseSourceButton(),
-          );
-        }
+      const nodes: m.Child[] = [];
+      let row = 1;
 
-        let curNode: QueryNode | undefined = attrs.rootNode;
-        const nodes: m.Child[] = [];
-        while (curNode && curNode.finished) {
+      if (!rootNode) {
+        nodes.push(
+          m('', {style: {gridColumn: 3, gridRow: row}}, chooseSourceButton()),
+        );
+      } else {
+        let curNode: QueryNode | undefined = rootNode;
+        while (curNode) {
           nodes.push(
             m(
               '',
-              {
-                style: {
-                  gridColumn: 3,
-                  gridRow: row,
-                },
-              },
+              {style: {gridColumn: 3, gridRow: row}},
               m(Button, {
                 label: curNode.getTitle(),
                 intent: Intent.Primary,
+                // TODO(mayzner): Add logic for button.
                 onclick: async () => {},
               }),
             ),
@@ -175,17 +204,12 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         nodes.push(
           m(
             '',
-            {
-              style: {
-                gridColumn: 3,
-                gridRow: row,
-              },
-            },
+            {style: {gridColumn: 3, gridRow: row}},
             chooseOperationButton(),
           ),
         );
-        return nodes;
       }
+
       return m(
         '',
         {
@@ -196,9 +220,127 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             gap: '10px',
           },
         },
-        renderNodes(),
+        nodes,
       );
     }
+
+    const simpleSlicesAttrs: SimpleSlicesAttrs = {};
+    const SimpleSlicesModalContent = {
+      view: () => {
+        return m(
+          '',
+          m(
+            '',
+            'Slice name glob ',
+            m(TextInput, {
+              id: 'slice_name_glob',
+              type: 'string',
+              oninput: (e: Event) => {
+                if (!e.target) return;
+                simpleSlicesAttrs.slice_name = (
+                  e.target as HTMLInputElement
+                ).value.trim();
+              },
+            }),
+          ),
+          m(
+            '',
+            'Thread name glob ',
+            m(TextInput, {
+              id: 'thread_name_glob',
+              type: 'string',
+              oninput: (e: Event) => {
+                if (!e.target) return;
+                simpleSlicesAttrs.thread_name = (
+                  e.target as HTMLInputElement
+                ).value.trim();
+              },
+            }),
+          ),
+          m(
+            '',
+            'Process name glob ',
+            m(TextInput, {
+              id: 'process_name_glob',
+              type: 'string',
+              oninput: (e: Event) => {
+                if (!e.target) return;
+                simpleSlicesAttrs.process_name = (
+                  e.target as HTMLInputElement
+                ).value.trim();
+              },
+            }),
+          ),
+          m(
+            '',
+            'Track name glob ',
+            m(TextInput, {
+              id: 'track_name_glob',
+              type: 'string',
+              oninput: (e: Event) => {
+                if (!e.target) return;
+                simpleSlicesAttrs.track_name = (
+                  e.target as HTMLInputElement
+                ).value.trim();
+              },
+            }),
+          ),
+        );
+      },
+    };
+
+    const sqlSourceAttrs: SqlSourceAttrs = {};
+    const SqlSourceModalContent = {
+      view: () => {
+        return m(
+          '',
+          m(
+            '',
+            'Preamble',
+            m(TextInput, {
+              id: 'preamble',
+              type: 'string',
+              oninput: (e: Event) => {
+                if (!e.target) return;
+                sqlSourceAttrs.preamble = (
+                  e.target as HTMLInputElement
+                ).value.trim();
+              },
+            }),
+          ),
+          m(
+            '',
+            'Sql ',
+            m(TextInput, {
+              id: 'sql_source',
+              type: 'string',
+              oninput: (e: Event) => {
+                if (!e.target) return;
+                sqlSourceAttrs.sql = (e.target as HTMLInputElement).value
+                  .trim()
+                  .split(';')[0];
+              },
+            }),
+          ),
+          m(
+            '',
+            'Column names (comma separated strings) ',
+            m(TextInput, {
+              id: 'columns',
+              type: 'string',
+              oninput: (e: Event) => {
+                if (!e.target) return;
+                const colsStr = (e.target as HTMLInputElement).value.trim();
+                sqlSourceAttrs.columns = colsStr
+                  .split(',')
+                  .map((col) => col.trim())
+                  .filter(Boolean);
+              },
+            }),
+          ),
+        );
+      },
+    };
 
     return m(
       '',
@@ -210,28 +352,11 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           gap: '10px',
         },
       },
+      m('', {style: {gridColumn: 1}}, renderNodesPanel()),
       m(
         '',
-        {
-          style: {
-            gridColumn: 1,
-          },
-        },
-        renderNodesPanel(),
-      ),
-      m(
-        '',
-        {
-          style: {
-            gridColumn: 2,
-          },
-        },
-        attrs.rootNode?.finished && [
-          m(DataSourceViewer, {
-            trace: attrs.trace,
-            queryNode: attrs.rootNode,
-          }),
-        ],
+        {style: {gridColumn: 2}},
+        rootNode && [m(DataSourceViewer, {trace, queryNode: rootNode})],
       ),
     );
   }

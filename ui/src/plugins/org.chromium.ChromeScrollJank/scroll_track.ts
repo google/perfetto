@@ -25,17 +25,25 @@ export function createTopLevelScrollTrack(trace: Trace, uri: string) {
     dataset: new SourceDataset({
       schema: {
         id: NUM,
+        rawId: LONG,
         ts: LONG,
         dur: LONG,
         name: STR,
       },
       src: `
         SELECT
+          ROW_NUMBER() OVER (ORDER BY ts) as id,
+          id as rawId,
           printf("Scroll %s", CAST(id AS STRING)) AS name,
-          *
+          ts,
+          dur
         FROM chrome_scrolls
+        -- If the scroll has started before the trace started, we won't have
+        -- an id for it, so skip it to ensure that we can show the remaining
+        -- traces.
+        WHERE id IS NOT NULL
       `,
     }),
-    detailsPanel: (row) => new ScrollDetailsPanel(trace, row.id),
+    detailsPanel: (row) => new ScrollDetailsPanel(trace, row.rawId),
   });
 }

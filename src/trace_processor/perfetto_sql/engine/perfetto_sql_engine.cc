@@ -147,11 +147,9 @@ SqlSource RewriteToDummySql(const SqlSource& source) {
       SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
 }
 
-constexpr std::array<const char*, 8> kTokensAllowedInMacro({
-    "_ArgumentList",
+constexpr std::array<const char*, 6> kTokensAllowedInMacro({
     "_ColumnNameList",
-    "_Macro",
-    "_SqlFragment",
+    "_ProjectionFragment",
     "_TableNameList",
     "ColumnName",
     "Expr",
@@ -742,7 +740,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
     if (!opt_col) {
       return base::ErrStatus(
           "CREATE PERFETTO INDEX: Column '%s' not found in table '%s'",
-          index.col_names.front().c_str(), index.table_name.c_str());
+          col_name.c_str(), index.table_name.c_str());
     }
     col_idxs.push_back(*opt_col);
   }

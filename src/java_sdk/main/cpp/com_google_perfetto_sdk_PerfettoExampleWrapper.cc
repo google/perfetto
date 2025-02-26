@@ -25,7 +25,7 @@
 JNIEXPORT jint JNICALL
 Java_com_google_perfetto_sdk_PerfettoExampleWrapper_runPerfettoMain(
     JNIEnv* env,
-    jobject thiz,
+    jobject /*thiz*/,
     jstring outputFilePath) {
   const char* cstr = env->GetStringUTFChars(outputFilePath, NULL);
   std::string file_path = std::string(cstr);

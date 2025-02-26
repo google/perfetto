@@ -85,9 +85,13 @@ export interface TrackTreeViewAttrs {
   // Additional class names to add to the root level element.
   readonly className?: string;
 
-  // Whether tracks in this stack can be reordered amongst themselves.
+  // Allow nodes to be reordered by dragging and dropping.
   // Default: false
-  readonly reorderable?: boolean;
+  readonly canReorderNodes?: boolean;
+
+  // Adds a little remove button to each node.
+  // Default: false
+  readonly canRemoveNodes?: boolean;
 
   // Scroll to scroll to new tracks as they are added.
   // Default: false
@@ -123,7 +127,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const {
       trace,
       scrollToNewTracks,
-      reorderable,
+      canReorderNodes,
+      canRemoveNodes,
       className,
       rootNode,
       useTrackFilter,
@@ -190,7 +195,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           {
             lite: !Boolean(isTrackOnScreen()),
             scrollToOnCreate: scrollToNewTracks,
-            reorderable,
+            reorderable: canReorderNodes,
+            removable: canRemoveNodes,
             stickyTop,
             depth,
             collapsible: !Boolean(trackFilterTerm),

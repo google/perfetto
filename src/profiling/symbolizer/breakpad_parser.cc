@@ -101,7 +101,13 @@ bool BreakpadParser::ParseFromString(const std::string& file_contents) {
 
   // Parse each line.
   while (lines.Next()) {
-    parse_record_status = ParseIfFuncRecord(lines.cur_token());
+    parse_record_status = ParseIfRecord(lines.cur_token(), RecordType::FUNC);
+    if (!parse_record_status.ok()) {
+      PERFETTO_ELOG("%s", parse_record_status.message().c_str());
+      return false;
+    }
+
+    parse_record_status = ParseIfRecord(lines.cur_token(), RecordType::PUBLIC);
     if (!parse_record_status.ok()) {
       PERFETTO_ELOG("%s", parse_record_status.message().c_str());
       return false;
@@ -133,33 +139,65 @@ std::optional<std::string> BreakpadParser::GetSymbol(uint64_t address) const {
   return std::nullopt;
 }
 
-base::Status BreakpadParser::ParseIfFuncRecord(base::StringView current_line) {
-  // Parses a FUNC record from a file. Structure of a FUNC record:
-  // FUNC [m] address size parameter_size name
-  // m: The m field is optional. If present it indicates that multiple symbols
-  //   reference this function's instructions. (In which case, only one symbol
-  //   name is mentioned within the breakpad file.)
-  // address: The start address of the function relative to the module's load
-  // address.
-  // size: The length in bytes of function's instructions.
-  // parameter_size: A hexadecimal number indicating the size, in bytes, of the
-  // arguments pushed on the stack for this function.
-  // name: The function name. This field may contain spaces.
-  // More info at
-  // https://chromium.googlesource.com/breakpad/breakpad/+/HEAD/docs/symbol_files.md
+std::optional<std::string> BreakpadParser::GetPublicSymbol(
+    uint64_t address) const {
+  // Returns an iterator pointing to the first element where the symbol's start
+  // address is greater than |address|.
+  auto it = std::upper_bound(public_symbols_.begin(), public_symbols_.end(),
+                             address, &SymbolComparator);
+  // If the first symbol's address is greater than |address| then |address| is
+  // too low to appear in |public_symbols_|.
+  if (it == public_symbols_.begin() || it == public_symbols_.end()) {
+    return std::nullopt;
+  }
+  it--;
+  // Check to see if the address is in the function's range, since the PUBLIC
+  // record only store the parameter size, but not the function size. we use
+  // 0xffff to do the sanity check.
+  if (address >= it->start_address && address < it->start_address + 0xFFFF) {
+    return it->symbol_name;
+  }
+  return std::nullopt;
+}
 
-  const char kFuncLabel[] = "FUNC";
+std::string BreakpadParser::GetRecordLabel(RecordType type) const {
+  switch (type) {
+    case RecordType::FUNC:
+      return "FUNC";
+    case RecordType::PUBLIC:
+      return "PUBLIC";
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+void BreakpadParser::StoreSymbol(Symbol& symbol, RecordType type) {
+  switch (type) {
+    case RecordType::FUNC:
+      symbols_.emplace_back(std::move(symbol));
+      break;
+    case RecordType::PUBLIC:
+      public_symbols_.emplace_back(std::move(symbol));
+      break;
+  }
+}
+
+base::Status BreakpadParser::ParseIfRecord(base::StringView current_line,
+                                           const RecordType type) {
+  // The parser currently supports FUNC and PUBLIC records.
+  // FUNC   [m] address size parameter_size name
+  // PUBLIC [m] address      parameter_size name
+  const std::string typeLabel = GetRecordLabel(type);
   base::StringSplitter words(current_line.ToStdString(), ' ');
-  // Check to see if the first word indicates a FUNC record. If it is, create a
-  // Symbol struct and add tokens from words. If it isn't the function can just
-  // return true and resume parsing file.
-  if (!words.Next() || strcmp(words.cur_token(), kFuncLabel) != 0) {
+
+  // Check to see if the first word indicates a {RecordType} record. If it is,
+  // create a Symbol struct and add tokens from words. If it isn't the function
+  // can just return true and resume parsing file.
+  if (!words.Next() || strcmp(words.cur_token(), typeLabel.c_str()) != 0) {
     return base::OkStatus();
   }
 
   Symbol new_symbol;
-  // There can be either 4 or 5 FUNC record tokens. The second token, 'm' is
-  // optional.
+  // The second token, 'm' is optional.
   const char kOptionalArg[] = "m";
   // Get the first argument on the line.
   words.Next();
@@ -177,14 +215,18 @@ base::Status BreakpadParser::ParseIfFuncRecord(base::StringView current_line) {
   }
   new_symbol.start_address = *optional_address;
 
-  // Get the function size.
-  words.Next();
-  std::optional<size_t> optional_func_size =
-      base::CStringToUInt32(words.cur_token(), 16);
-  if (!optional_func_size) {
-    return base::Status("Function size should be hexadecimal.");
+  // The function size is only stored in the FUNC record, so only parse it if
+  // the record type is FUNC.
+  if (type == RecordType::FUNC) {
+    // Get the function size.
+    words.Next();
+    std::optional<size_t> optional_func_size =
+        base::CStringToUInt32(words.cur_token(), 16);
+    if (!optional_func_size) {
+      return base::Status("Function size should be hexadecimal.");
+    }
+    new_symbol.function_size = *optional_func_size;
   }
-  new_symbol.function_size = *optional_func_size;
 
   // Skip the parameter size.
   words.Next();
@@ -206,7 +248,7 @@ base::Status BreakpadParser::ParseIfFuncRecord(base::StringView current_line) {
 
   new_symbol.symbol_name = func_name_writer.GetStringView().ToStdString();
 
-  symbols_.push_back(std::move(new_symbol));
+  StoreSymbol(new_symbol, type);
 
   return base::OkStatus();
 }

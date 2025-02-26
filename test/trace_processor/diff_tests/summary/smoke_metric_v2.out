@@ -1,22 +1,3 @@
-spec: {
-  id: "memory_per_process"
-  dimensions: "process_name"
-  value: "avg_rss_and_swap"
-  query: {
-    table: {
-      table_name: "memory_rss_and_swap_per_process"
-      module_name: "linux.memory.process"
-    }
-    group_by: {
-      column_names: "process_name"
-      aggregates: {
-        column_name: "rss_and_swap"
-        op: DURATION_WEIGHTED_MEAN
-        result_column_name: "avg_rss_and_swap"
-      }
-    }
-  }
-}
 row: {
   value: 113012736.0
   dimension: {
@@ -24,7 +5,7 @@ row: {
   }
 }
 row: {
-  value: 11852175.0
+  value: 11852175.945019681
   dimension: {
     string_value: "/apex/com.android.adbd/bin/adbd"
   }
@@ -36,7 +17,7 @@ row: {
   }
 }
 row: {
-  value: 14008170.0
+  value: 14008170.191819213
   dimension: {
     string_value: "/apex/com.android.os.statsd/bin/statsd"
   }
@@ -72,13 +53,13 @@ row: {
   }
 }
 row: {
-  value: 8568248.0
+  value: 8568248.97626863
   dimension: {
     string_value: "/system/bin/apexd"
   }
 }
 row: {
-  value: 30362068.0
+  value: 30362068.184725884
   dimension: {
     string_value: "/system/bin/audioserver"
   }
@@ -126,7 +107,7 @@ row: {
   }
 }
 row: {
-  value: 12291467.0
+  value: 12291467.840539945
   dimension: {
     string_value: "/system/bin/init"
   }
@@ -150,7 +131,7 @@ row: {
   }
 }
 row: {
-  value: 13512896.0
+  value: 13512896.936731752
   dimension: {
     string_value: "/system/bin/keystore2"
   }
@@ -162,7 +143,7 @@ row: {
   }
 }
 row: {
-  value: 7340415.0
+  value: 7340415.835375342
   dimension: {
     string_value: "/system/bin/logd"
   }
@@ -174,7 +155,7 @@ row: {
   }
 }
 row: {
-  value: 11836424.0
+  value: 11836424.090334903
   dimension: {
     string_value: "/system/bin/netd"
   }
@@ -186,19 +167,19 @@ row: {
   }
 }
 row: {
-  value: 5894575.0
+  value: 5894575.151083791
   dimension: {
     string_value: "/system/bin/servicemanager"
   }
 }
 row: {
-  value: 7446465.0
+  value: 7446465.518512878
   dimension: {
     string_value: "/system/bin/storaged"
   }
 }
 row: {
-  value: 104745285.0
+  value: 104745285.26249185
   dimension: {
     string_value: "/system/bin/surfaceflinger"
   }
@@ -210,13 +191,13 @@ row: {
   }
 }
 row: {
-  value: 13501493.0
+  value: 13501493.912013592
   dimension: {
     string_value: "/system/bin/traced"
   }
 }
 row: {
-  value: 9183345.0
+  value: 9183345.909270825
   dimension: {
     string_value: "/system/bin/traced_probes"
   }
@@ -240,7 +221,7 @@ row: {
   }
 }
 row: {
-  value: 9514519.0
+  value: 9514519.349475052
   dimension: {
     string_value: "/system/bin/vold"
   }
@@ -348,7 +329,7 @@ row: {
   }
 }
 row: {
-  value: 20366491.0
+  value: 20366491.23091697
   dimension: {
     string_value: "/vendor/bin/hw/android.hardware.composer.hwc3-service.pixel"
   }
@@ -396,7 +377,7 @@ row: {
   }
 }
 row: {
-  value: 9130213.0
+  value: 9130213.758128721
   dimension: {
     string_value: "/vendor/bin/hw/android.hardware.graphics.allocator-V2-service"
   }
@@ -438,7 +419,7 @@ row: {
   }
 }
 row: {
-  value: 6308410.0
+  value: 6308410.904908914
   dimension: {
     string_value: "/vendor/bin/hw/android.hardware.nfc-service.st"
   }
@@ -564,7 +545,7 @@ row: {
   }
 }
 row: {
-  value: 28449840.0
+  value: 28449840.895026725
   dimension: {
     string_value: "/vendor/bin/hw/samsung.hardware.media.c2@1.0-service"
   }
@@ -666,7 +647,7 @@ row: {
   }
 }
 row: {
-  value: 13722827.0
+  value: 13722827.85442414
   dimension: {
     string_value: "/vendor/bin/twoshay"
   }
@@ -684,19 +665,19 @@ row: {
   }
 }
 row: {
-  value: 77574867.0
+  value: 77574867.29363601
   dimension: {
     string_value: "<pre-initialized>"
   }
 }
 row: {
-  value: 119901923.0
+  value: 119901923.07804145
   dimension: {
     string_value: "android.process.acore"
   }
 }
 row: {
-  value: 135321584.0
+  value: 135321584.60826433
   dimension: {
     string_value: "com.amazon.mp3"
   }
@@ -708,43 +689,43 @@ row: {
   }
 }
 row: {
-  value: 84585746.0
+  value: 84585746.53216511
   dimension: {
     string_value: "com.android.keychain"
   }
 }
 row: {
-  value: 130279227.0
+  value: 130279227.75502045
   dimension: {
     string_value: "com.android.networkstack.process"
   }
 }
 row: {
-  value: 126076558.0
+  value: 126076558.19797729
   dimension: {
     string_value: "com.android.nfc"
   }
 }
 row: {
-  value: 165445922.0
+  value: 165445922.11769405
   dimension: {
     string_value: "com.android.phone"
   }
 }
 row: {
-  value: 105727768.0
+  value: 105727768.47018088
   dimension: {
     string_value: "com.android.pixellogger"
   }
 }
 row: {
-  value: 92268916.0
+  value: 92268916.03742339
   dimension: {
     string_value: "com.android.printspooler"
   }
 }
 row: {
-  value: 100278091.0
+  value: 100278091.29145253
   dimension: {
     string_value: "com.android.providers.calendar"
   }
@@ -756,43 +737,43 @@ row: {
   }
 }
 row: {
-  value: 108517343.0
+  value: 108517343.88877721
   dimension: {
     string_value: "com.android.se"
   }
 }
 row: {
-  value: 170906692.0
+  value: 170906692.3330943
   dimension: {
     string_value: "com.android.settings"
   }
 }
 row: {
-  value: 331252345.0
+  value: 331252345.2092829
   dimension: {
     string_value: "com.android.systemui"
   }
 }
 row: {
-  value: 127333374.0
+  value: 127333374.21053497
   dimension: {
     string_value: "com.apple.android.music"
   }
 }
 row: {
-  value: 131994629.0
+  value: 131994629.73064403
   dimension: {
     string_value: "com.blinkslabs.blinkist.android"
   }
 }
 row: {
-  value: 99124425.0
+  value: 99124425.81118406
   dimension: {
     string_value: "com.google.SSRestartDetector"
   }
 }
 row: {
-  value: 115765005.0
+  value: 115765005.31563856
   dimension: {
     string_value: "com.google.android.apps.books"
   }
@@ -804,85 +785,85 @@ row: {
   }
 }
 row: {
-  value: 112467832.0
+  value: 112467832.35257435
   dimension: {
     string_value: "com.google.android.apps.dreamliner"
   }
 }
 row: {
-  value: 73342862.0
+  value: 73342862.13835329
   dimension: {
     string_value: "com.google.android.apps.messaging"
   }
 }
 row: {
-  value: 149553232.0
+  value: 149553232.26201677
   dimension: {
     string_value: "com.google.android.apps.messaging:rcs"
   }
 }
 row: {
-  value: 205078687.0
+  value: 205078687.04026902
   dimension: {
     string_value: "com.google.android.apps.nexuslauncher"
   }
 }
 row: {
-  value: 131632627.0
+  value: 131632627.93570869
   dimension: {
     string_value: "com.google.android.apps.scone"
   }
 }
 row: {
-  value: 91929734.0
+  value: 91929734.68803188
   dimension: {
     string_value: "com.google.android.apps.wallpaper"
   }
 }
 row: {
-  value: 143188154.0
+  value: 143188154.99330282
   dimension: {
     string_value: "com.google.android.apps.wellbeing"
   }
 }
 row: {
-  value: 151185261.0
+  value: 151185261.37761384
   dimension: {
     string_value: "com.google.android.apps.work.clouddpc"
   }
 }
 row: {
-  value: 135083844.0
+  value: 135083844.18794808
   dimension: {
     string_value: "com.google.android.apps.youtube.music"
   }
 }
 row: {
-  value: 140071034.0
+  value: 140071034.52435604
   dimension: {
     string_value: "com.google.android.as"
   }
 }
 row: {
-  value: 107899445.0
+  value: 107899445.67196637
   dimension: {
     string_value: "com.google.android.as.oss"
   }
 }
 row: {
-  value: 139295065.0
+  value: 139295065.81265295
   dimension: {
     string_value: "com.google.android.bluetooth"
   }
 }
 row: {
-  value: 127004948.0
+  value: 127004948.4009137
   dimension: {
     string_value: "com.google.android.calendar"
   }
 }
 row: {
-  value: 113388507.0
+  value: 113388507.0774323
   dimension: {
     string_value: "com.google.android.carrier"
   }
@@ -894,31 +875,31 @@ row: {
   }
 }
 row: {
-  value: 111776308.0
+  value: 111776308.14758231
   dimension: {
     string_value: "com.google.android.connectivitythermalpowermanager"
   }
 }
 row: {
-  value: 152290061.0
+  value: 152290061.3412011
   dimension: {
     string_value: "com.google.android.deskclock"
   }
 }
 row: {
-  value: 112916020.0
+  value: 112916020.47075118
   dimension: {
     string_value: "com.google.android.devicelockcontroller"
   }
 }
 row: {
-  value: 159732493.0
+  value: 159732493.62819943
   dimension: {
     string_value: "com.google.android.dialer"
   }
 }
 row: {
-  value: 125062420.0
+  value: 125062420.87162027
   dimension: {
     string_value: "com.google.android.euicc"
   }
@@ -930,55 +911,55 @@ row: {
   }
 }
 row: {
-  value: 109680011.0
+  value: 109680011.17867869
   dimension: {
     string_value: "com.google.android.flipendo"
   }
 }
 row: {
-  value: 202160954.0
+  value: 202160954.38982838
   dimension: {
     string_value: "com.google.android.gms"
   }
 }
 row: {
-  value: 221737256.0
+  value: 221737256.8410084
   dimension: {
     string_value: "com.google.android.gms.persistent"
   }
 }
 row: {
-  value: 184128156.0
+  value: 184128156.4260782
   dimension: {
     string_value: "com.google.android.googlequicksearchbox:interactor"
   }
 }
 row: {
-  value: 214279072.0
+  value: 214279072.42379332
   dimension: {
     string_value: "com.google.android.googlequicksearchbox:search"
   }
 }
 row: {
-  value: 104032638.0
+  value: 104032638.15231209
   dimension: {
     string_value: "com.google.android.grilservice"
   }
 }
 row: {
-  value: 117683562.0
+  value: 117683562.10621835
   dimension: {
     string_value: "com.google.android.ims"
   }
 }
 row: {
-  value: 106495122.0
+  value: 106495122.61137347
   dimension: {
     string_value: "com.google.android.iwlan"
   }
 }
 row: {
-  value: 100281127.0
+  value: 100281127.54310323
   dimension: {
     string_value: "com.google.android.keep"
   }
@@ -990,37 +971,37 @@ row: {
   }
 }
 row: {
-  value: 102866659.0
+  value: 102866659.35768764
   dimension: {
     string_value: "com.google.android.pixelsystemservice"
   }
 }
 row: {
-  value: 123640436.0
+  value: 123640436.04555914
   dimension: {
     string_value: "com.google.android.providers.media.module"
   }
 }
 row: {
-  value: 107329677.0
+  value: 107329677.28226179
   dimension: {
     string_value: "com.google.android.repairmode"
   }
 }
 row: {
-  value: 153962539.0
+  value: 153962539.1654484
   dimension: {
     string_value: "com.google.android.youtube"
   }
 }
 row: {
-  value: 123172162.0
+  value: 123172162.28469536
   dimension: {
     string_value: "com.google.ar.core"
   }
 }
 row: {
-  value: 108286251.0
+  value: 108286251.33829463
   dimension: {
     string_value: "com.google.euiccpixel"
   }
@@ -1032,13 +1013,13 @@ row: {
   }
 }
 row: {
-  value: 98515946.0
+  value: 98515946.76050714
   dimension: {
     string_value: "com.overdrive.mobile.android.libby"
   }
 }
 row: {
-  value: 111826186.0
+  value: 111826186.7314072
   dimension: {
     string_value: "com.patreon.android"
   }
@@ -1050,13 +1031,13 @@ row: {
   }
 }
 row: {
-  value: 106664991.0
+  value: 106664991.93757431
   dimension: {
     string_value: "com.samsung.slsi.telephony.oemril"
   }
 }
 row: {
-  value: 127314912.0
+  value: 127314912.40864347
   dimension: {
     string_value: "com.shannon.imsservice"
   }
@@ -1074,13 +1055,13 @@ row: {
   }
 }
 row: {
-  value: 103703184.0
+  value: 103703184.29208773
   dimension: {
     string_value: "com.spotify.music"
   }
 }
 row: {
-  value: 3069727.0
+  value: 3069727.9616463576
   dimension: {
     string_value: "getprop"
   }
@@ -1092,7 +1073,7 @@ row: {
   }
 }
 row: {
-  value: 29422549.0
+  value: 29422549.912183467
   dimension: {
     string_value: "media.extractor"
   }
@@ -1104,19 +1085,19 @@ row: {
   }
 }
 row: {
-  value: 25278875.0
+  value: 25278875.69385074
   dimension: {
     string_value: "media.swcodec"
   }
 }
 row: {
-  value: 125091331.0
+  value: 125091331.94821103
   dimension: {
     string_value: "org.thoughtcrime.securesms"
   }
 }
 row: {
-  value: 98893926.0
+  value: 98893926.77114624
   dimension: {
     string_value: "org.videolan.vlc"
   }
@@ -1128,25 +1109,25 @@ row: {
   }
 }
 row: {
-  value: 3434367.0
+  value: 3434367.3689263687
   dimension: {
     string_value: "sh"
   }
 }
 row: {
-  value: 956328088.0
+  value: 956328088.2450107
   dimension: {
     string_value: "system_server"
   }
 }
 row: {
-  value: 4034394.0
+  value: 4034394.3193060732
   dimension: {
     string_value: "vold_prepare_su"
   }
 }
 row: {
-  value: 89782548.0
+  value: 89782548.02415742
   dimension: {
     string_value: "webview_zygote"
   }
@@ -1155,5 +1136,24 @@ row: {
   value: 198025216.0
   dimension: {
     string_value: "zygote64"
+  }
+}
+spec: {
+  id: "memory_per_process"
+  dimensions: "process_name"
+  value: "avg_rss_and_swap"
+  query: {
+    table: {
+      table_name: "memory_rss_and_swap_per_process"
+      module_name: "linux.memory.process"
+    }
+    group_by: {
+      column_names: "process_name"
+      aggregates: {
+        column_name: "rss_and_swap"
+        op: DURATION_WEIGHTED_MEAN
+        result_column_name: "avg_rss_and_swap"
+      }
+    }
   }
 }

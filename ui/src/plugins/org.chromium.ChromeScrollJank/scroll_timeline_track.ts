@@ -12,24 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  NAMED_ROW,
-  NamedSliceTrack,
-} from '../../components/tracks/named_slice_track';
-import {Slice} from '../../public/track';
 import {Trace} from '../../public/trace';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {TrackEventSelection} from '../../public/selection';
-import {NUM} from '../../trace_processor/query_result';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {ColorScheme} from '../../base/color_scheme';
 import {JANK_COLOR} from './jank_colors';
-import {makeColorScheme} from '../../components/colorizer';
+import {getColorForSlice, makeColorScheme} from '../../components/colorizer';
 import {HSLColor} from '../../base/color';
 import {ScrollTimelineDetailsPanel} from './scroll_timeline_details_panel';
 import {
   ScrollTimelineModel,
   ScrollUpdateClassification,
 } from './scroll_timeline_model';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SourceDataset} from '../../trace_processor/dataset';
 
 const INDIGO = makeColorScheme(new HSLColor([231, 48, 48]));
 const GRAY = makeColorScheme(new HSLColor([0, 0, 62]));
@@ -55,44 +50,29 @@ function toColorScheme(
   }
 }
 
-const SCROLL_TIMELINE_TRACK_ROW = {
-  ...NAMED_ROW,
-  classification: NUM,
-};
-type ScrollTimelineTrackRow = typeof SCROLL_TIMELINE_TRACK_ROW;
-
-export class ScrollTimelineTrack extends NamedSliceTrack<
-  Slice,
-  ScrollTimelineTrackRow
-> {
-  /**
-   * Constructs a scroll timeline track for a given `trace`.
-   *
-   * @param trace - The trace whose data the track will display
-   * @param model - A model of the scroll timeline.
-   */
-  constructor(
-    trace: Trace,
-    private readonly model: ScrollTimelineModel,
-  ) {
-    super(trace, model.trackUri, SCROLL_TIMELINE_TRACK_ROW);
-  }
-
-  override getSqlSource(): string {
-    return `SELECT * FROM ${this.model.tableName}`;
-  }
-
-  override rowToSlice(row: ScrollTimelineTrackRow): Slice {
-    const baseSlice = super.rowToSliceBase(row);
-    const colorScheme = toColorScheme(row.classification);
-    if (colorScheme === undefined) {
-      return baseSlice;
-    } else {
-      return {...baseSlice, colorScheme};
-    }
-  }
-
-  override detailsPanel(sel: TrackEventSelection): TrackEventDetailsPanel {
-    return new ScrollTimelineDetailsPanel(this.trace, this.model, sel.eventId);
-  }
+export function createScrollTimelineTrack(
+  trace: Trace,
+  model: ScrollTimelineModel,
+) {
+  return new DatasetSliceTrack({
+    trace,
+    uri: model.trackUri,
+    dataset: new SourceDataset({
+      src: model.tableName,
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        name: STR,
+        classification: NUM,
+        depth: NUM,
+      },
+    }),
+    colorizer: (row) => {
+      return toColorScheme(row.classification) ?? getColorForSlice(row.name);
+    },
+    detailsPanel: (row) => {
+      return new ScrollTimelineDetailsPanel(trace, model, row.id);
+    },
+  });
 }

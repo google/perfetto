@@ -38,6 +38,10 @@ load(
     "perfetto_py_library",
     "perfetto_py_proto_library",
     "perfetto_jspb_proto_library",
+    "perfetto_android_binary",
+    "perfetto_android_jni_library",
+    "perfetto_android_library",
+    "perfetto_android_instrumentation_test",
 )
 
 package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])
@@ -700,6 +704,7 @@ perfetto_cc_library(
             ":src_traced_probes_ps_ps",
             ":src_traced_probes_statsd_client_statsd_client",
             ":src_traced_probes_sys_stats_sys_stats",
+            ":src_traced_probes_system_info_cpu_info_features_allowlist",
             ":src_traced_probes_system_info_system_info",
             ":src_tracing_ipc_producer_producer",
         ],
@@ -1097,6 +1102,7 @@ perfetto_filegroup(
         "include/perfetto/public/te_category_macros.h",
         "include/perfetto/public/te_macros.h",
         "include/perfetto/public/thread_utils.h",
+        "include/perfetto/public/tracing_session.h",
         "include/perfetto/public/track_event.h",
     ],
 )
@@ -1641,6 +1647,7 @@ perfetto_cc_library(
     ],
     deps = [
         ":protos_perfetto_common_zero",
+        ":protos_perfetto_perfetto_sql_zero",
         ":protos_perfetto_trace_processor_zero",
         ":src_base_base",
     ],
@@ -2624,6 +2631,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/android/sysui_update_notif_on_ui_mode_changed_metric.sql",
         "src/trace_processor/metrics/sql/android/unsymbolized_frames.sql",
         "src/trace_processor/metrics/sql/android/wattson_app_startup_rails.sql",
+        "src/trace_processor/metrics/sql/android/wattson_app_startup_threads.sql",
         "src/trace_processor/metrics/sql/android/wattson_atrace_apps_rails.sql",
         "src/trace_processor/metrics/sql/android/wattson_markers_rails.sql",
         "src/trace_processor/metrics/sql/android/wattson_markers_threads.sql",
@@ -2638,55 +2646,20 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_metrics_sql_chrome_chrome_sql",
     srcs = [
-        "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
-        "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_args_class_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_summaries.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals_base.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals_template.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_long_tasks.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_long_tasks_delaying_input_processing.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_performance_mark_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_reliable_range.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_scroll_inputs_per_frame.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_caused_by_scheduling.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_v3.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_slice_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_stack_samples_for_task.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_study_hashes.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks_delaying_input_processing.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks_delaying_input_processing_base.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks_delaying_input_processing_template.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_thread_slice.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_unsymbolized_args.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_user_event_hashes.sql",
-        "src/trace_processor/metrics/sql/chrome/cpu_time_by_category.sql",
-        "src/trace_processor/metrics/sql/chrome/cpu_time_by_rail_mode.sql",
-        "src/trace_processor/metrics/sql/chrome/estimated_power_by_category.sql",
-        "src/trace_processor/metrics/sql/chrome/estimated_power_by_rail_mode.sql",
-        "src/trace_processor/metrics/sql/chrome/experimental_reliable_chrome_tasks_delaying_input_processing.sql",
-        "src/trace_processor/metrics/sql/chrome/gesture_flow_event.sql",
-        "src/trace_processor/metrics/sql/chrome/gesture_flow_event_queuing_delay.sql",
-        "src/trace_processor/metrics/sql/chrome/gesture_jank.sql",
-        "src/trace_processor/metrics/sql/chrome/rail_modes.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_flow_event.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_flow_event_queuing_delay.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_blocking_task.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_blocking_touch_move.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_get_bitmap.sql",
-        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/sufficient_chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/test_chrome_metric.sql",
-        "src/trace_processor/metrics/sql/chrome/touch_flow_event.sql",
-        "src/trace_processor/metrics/sql/chrome/touch_flow_event_queuing_delay.sql",
-        "src/trace_processor/metrics/sql/chrome/touch_jank.sql",
     ],
 )
 
@@ -3329,6 +3302,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_level_parallelism.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_state_flattened.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/time_in_state.sql",
+        "src/trace_processor/perfetto_sql/stdlib/sched/with_context.sql",
     ],
 )
 
@@ -4191,6 +4165,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/traced/probes/system_info:cpu_info_features_allowlist
+perfetto_filegroup(
+    name = "src_traced_probes_system_info_cpu_info_features_allowlist",
+    srcs = [
+        "src/traced/probes/system_info/cpu_info_features_allowlist.h",
+    ],
+)
+
 # GN target: //src/traced/probes/system_info:system_info
 perfetto_filegroup(
     name = "src_traced_probes_system_info_system_info",
@@ -4403,6 +4385,92 @@ perfetto_filegroup(
     name = "src_tracing_system_backend",
     srcs = [
         "src/tracing/internal/system_tracing_backend.cc",
+    ],
+)
+
+# ##############################################################################
+# Android Java SDK targets
+# ##############################################################################
+
+# GN target: //src/java_sdk/main/cpp:perfetto_example_jni_lib
+perfetto_android_jni_library(
+    name = "src_java_sdk_main_cpp_perfetto_example_jni_lib",
+    srcs = [
+        "src/java_sdk/main/cpp/com_google_perfetto_sdk_PerfettoExampleWrapper.cc",
+        "src/java_sdk/main/cpp/com_google_perfetto_sdk_PerfettoExampleWrapper.h",
+        "src/java_sdk/main/cpp/example.cc",
+        "src/java_sdk/main/cpp/example.h",
+        "src/java_sdk/main/cpp/utils.cc",
+        "src/java_sdk/main/cpp/utils.h",
+    ],
+    binary_name = "libperfetto_jni_wrapper_lib.so",
+    linkopts = [
+        "-llog",
+    ],
+    deps = [
+        ":libperfetto_c",
+    ],
+    tags = [
+        "notap",
+    ],
+)
+
+# GN target: //src/java_sdk/main:perfetto_java_sdk_app
+perfetto_android_binary(
+    name = "src_java_sdk_main_perfetto_java_sdk_app",
+    srcs = [
+        "src/java_sdk/main/java/com/google/perfetto/sdk/MainActivity.java",
+    ],
+    manifest = "src/java_sdk/main/AndroidManifest.xml",
+    resource_files = glob(["src/java_sdk/main/res/**/*"]),
+    deps = [
+        ":src_java_sdk_main_perfetto_lib",
+    ],
+)
+
+# GN target: //src/java_sdk/main:perfetto_lib
+perfetto_android_library(
+    name = "src_java_sdk_main_perfetto_lib",
+    srcs = [
+        "src/java_sdk/main/java/com/google/perfetto/sdk/PerfettoExampleWrapper.java",
+    ],
+    manifest = "src/java_sdk/main/LibraryAndroidManifest.xml",
+    deps = [
+        ":src_java_sdk_main_cpp_perfetto_example_jni_lib",
+    ],
+    tags = [
+        "notap",
+    ],
+)
+
+# GN target: //src/java_sdk/test:perfetto_java_sdk_instrumentation_test
+perfetto_android_instrumentation_test(
+    name = "src_java_sdk_test_perfetto_java_sdk_instrumentation_test",
+    app = "src_java_sdk_main_perfetto_java_sdk_app",
+    test_app = "src_java_sdk_test_perfetto_java_sdk_test_app",
+)
+
+# GN target: //src/java_sdk/test:perfetto_java_sdk_test_app
+perfetto_android_binary(
+    name = "src_java_sdk_test_perfetto_java_sdk_test_app",
+    manifest = "src/java_sdk/test/AndroidTestManifest.xml",
+    instruments = ":src_java_sdk_main_perfetto_java_sdk_app",
+    deps = [
+        ":src_java_sdk_test_perfetto_test_lib",
+    ],
+)
+
+# GN target: //src/java_sdk/test:perfetto_test_lib
+perfetto_android_library(
+    name = "src_java_sdk_test_perfetto_test_lib",
+    srcs = [
+        "src/java_sdk/test/java/com/google/perfetto/sdk/test/SimpleInstrumentationTest.java",
+    ],
+    deps = [
+        ":src_java_sdk_main_perfetto_lib",
+    ] + PERFETTO_CONFIG.deps.android_test_common,
+    tags = [
+        "notap",
     ],
 )
 
@@ -4713,6 +4781,7 @@ perfetto_proto_library(
     name = "trace_processor_proto",
     deps = [
         ":protos_perfetto_common_protos",
+        ":protos_perfetto_perfetto_sql_protos",
         ":protos_perfetto_trace_processor_protos",
     ],
 )
@@ -5077,6 +5146,7 @@ perfetto_proto_library(
     name = "protos_perfetto_config_protos",
     srcs = [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/histogram_samples.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
@@ -6265,6 +6335,7 @@ perfetto_proto_library(
     ],
     deps = [
         ":protos_perfetto_common_protos",
+        ":protos_perfetto_perfetto_sql_protos",
     ],
 )
 
@@ -6273,6 +6344,7 @@ perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_processor_zero",
     deps = [
         ":protos_perfetto_common_zero",
+        ":protos_perfetto_perfetto_sql_zero",
         ":protos_perfetto_trace_processor_protos",
     ],
 )
@@ -7581,62 +7653,4 @@ perfetto_py_binary(
 exports_files(
     ["ui/src/assets/favicon.png"],
     visibility = PERFETTO_CONFIG.public_visibility,
-)
-
-# Android Java SDK targets.
-
-load(
-    "@perfetto//bazel:rules.bzl",
-    "perfetto_android_binary",
-    "perfetto_android_jni_library",
-    "perfetto_android_library",
-)
-
-perfetto_cc_library(
-    name = "java_sdk_perfetto_example_lib",
-    srcs = [
-        "src/java_sdk/main/cpp/example.cc",
-        "src/java_sdk/main/cpp/example.h",
-    ],
-    hdrs = ["src/java_sdk/main/cpp/example.h"],
-    deps = [
-        ":libperfetto_client_experimental",
-        ":protos_perfetto_trace_track_event_cpp",
-    ],
-)
-
-perfetto_android_jni_library(
-    name = "java_sdk_perfetto_example_jni_wrapper_lib",
-    srcs = [
-        "src/java_sdk/main/cpp/com_google_perfetto_sdk_PerfettoExampleWrapper.cc",
-        "src/java_sdk/main/cpp/com_google_perfetto_sdk_PerfettoExampleWrapper.h",
-    ],
-    binary_name = "libperfetto_jni_wrapper_lib.so",
-    linkopts = select({
-        "@platforms//os:android": ["-llog"],
-        "//conditions:default": [],
-    }),
-    deps = [
-        ":java_sdk_perfetto_example_lib",
-    ],
-)
-
-perfetto_android_library(
-    name = "java_sdk_perfetto_lib",
-    srcs = [
-        "src/java_sdk/main/java/com/google/perfetto/sdk/PerfettoExampleWrapper.java"
-    ],
-    manifest = "src/java_sdk/main/LibraryAndroidManifest.xml",
-    visibility = PERFETTO_CONFIG.public_visibility,
-    deps = [":java_sdk_perfetto_example_jni_wrapper_lib"],
-)
-
-perfetto_android_binary(
-    name = "java_sdk_app",
-    srcs = [
-        "src/java_sdk/main/java/com/google/perfetto/sdk/MainActivity.java",
-    ],
-    manifest = "src/java_sdk/main/AndroidManifest.xml",
-    resource_files = glob(["src/java_sdk/main/res/**/*"]),
-    deps = [":java_sdk_perfetto_lib"],
 )

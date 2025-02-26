@@ -107,11 +107,6 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: 'CPU Frequency Throttling',
   },
   {
-    type: 'cpu_idle_state',
-    topLevelGroup: 'CPU',
-    group: 'CPU Idle State',
-  },
-  {
     type: 'cpu_max_frequency_limit',
     topLevelGroup: 'CPU',
     group: 'CPU Max Frequency',
@@ -289,11 +284,6 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     type: 'oom_score_adj',
     topLevelGroup: 'PROCESS',
     group: undefined,
-  },
-  {
-    type: 'perf_counter',
-    topLevelGroup: 'HARDWARE',
-    group: 'perf counters',
   },
   {
     type: 'pixel_cpm_counters',

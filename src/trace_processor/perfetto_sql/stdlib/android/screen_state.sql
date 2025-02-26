@@ -46,34 +46,63 @@ SELECT
   dur,
   -- Should be kept in sync with the enums in Display.java
   CASE value
-    WHEN 1 THEN 'off'   -- Display.STATE_OFF
-    WHEN 2 THEN 'on'    -- Display.STATE_ON
-    WHEN 3 THEN 'doze'  -- Display.STATE_DOZE
-    WHEN 4 THEN 'doze'  -- Display.STATE_DOZE_SUSPEND
-    WHEN 5 THEN 'on'    -- Display.STATE_VR
-    WHEN 6 THEN 'on'    -- Display.STATE_ON_SUSPEND
+  -- Display.STATE_OFF
+    WHEN 1 THEN 'off'
+    -- Display.STATE_ON
+    WHEN 2 THEN 'on'
+    -- Display.STATE_DOZE
+    WHEN 3 THEN 'doze'
+    -- Display.STATE_DOZE_SUSPEND
+    WHEN 4 THEN 'doze'
+    -- Display.STATE_VR
+    WHEN 5 THEN 'on'
+    -- Display.STATE_ON_SUSPEND
+    WHEN 6 THEN 'on'
     ELSE 'unknown'
     END AS simple_screen_state,
   CASE value
-    WHEN 1 THEN 'off'           -- Display.STATE_OFF
-    WHEN 2 THEN 'on'            -- Display.STATE_ON
-    WHEN 3 THEN 'doze'          -- Display.STATE_DOZE
-    WHEN 4 THEN 'doze-suspend'  -- Display.STATE_DOZE_SUSPEND
-    WHEN 5 THEN 'on-vr'         -- Display.STATE_VR
-    WHEN 6 THEN 'on-suspend'    -- Display.STATE_ON_SUSPEND
+  -- Display.STATE_OFF
+    WHEN 1 THEN 'off'
+    -- Display.STATE_ON
+    WHEN 2 THEN 'on'
+    -- Display.STATE_DOZE
+    WHEN 3 THEN 'doze'
+    -- Display.STATE_DOZE_SUSPEND
+    WHEN 4 THEN 'doze-suspend'
+    -- Display.STATE_VR
+    WHEN 5 THEN 'on-vr'
+    -- Display.STATE_ON_SUSPEND
+    WHEN 6 THEN 'on-suspend'
     ELSE 'unknown'
     END AS short_screen_state,
   CASE value
-    WHEN 1 THEN 'Screen off'                        -- Display.STATE_OFF
-    WHEN 2 THEN 'Screen on'                         -- Display.STATE_ON
-    WHEN 3 THEN 'Always-on display (doze)'          -- Display.STATE_DOZE
-    WHEN 4 THEN 'Always-on display (doze-suspend)'  -- Display.STATE_DOZE_SUSPEND
-    WHEN 5 THEN 'Screen on (VR)'                    -- Display.STATE_VR
-    WHEN 6 THEN 'Screen on (suspend)'               -- Display.STATE_ON_SUSPEND
+    -- Display.STATE_OFF
+    WHEN 1 THEN 'Screen off'
+    -- Display.STATE_ON
+    WHEN 2 THEN 'Screen on'
+    -- Display.STATE_DOZE
+    WHEN 3 THEN 'Always-on display (doze)'
+    -- Display.STATE_DOZE_SUSPEND
+    WHEN 4 THEN 'Always-on display (doze-suspend)'
+    -- Display.STATE_VR
+    WHEN 5 THEN 'Screen on (VR)'
+    -- Display.STATE_ON_SUSPEND
+    WHEN 6 THEN 'Screen on (suspend)'
     ELSE 'Unknown'
     END AS screen_state
   FROM screen_state_span
 WHERE dur > 0
+UNION
+-- Unknown period until the first counter.
+SELECT
+  1,
+  TRACE_START() as ts,
+  (SELECT min(ts) FROM screen_state_span) - TRACE_START() AS dur,
+  'unknown' as simple_screen_state,
+  'unknown' as short_screen_state,
+  'Unknown' as screen_state
+WHERE TRACE_START() < (SELECT min(ts) FROM screen_state_span)
+  AND EXISTS (SELECT * FROM screen_state_span)
 UNION
 -- Case when we do not have data.
 SELECT

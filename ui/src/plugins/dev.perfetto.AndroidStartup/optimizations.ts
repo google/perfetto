@@ -49,6 +49,7 @@ export async function optimizationsTrack(
   trace: Trace,
 ): Promise<TrackNode | undefined> {
   const startups: Array<Startup> = [];
+  const classLoadingTracks: Array<Promise<TrackNode>> = [];
 
   // Find app startups
   let result = await trace.engine.query(
@@ -95,6 +96,8 @@ export async function optimizationsTrack(
         }
       }
     }
+    const childTrack = classLoadingTrack(trace, startup);
+    classLoadingTracks.push(childTrack);
   }
 
   // Create the optimizations track and also avoid re-querying for the data we already have.
@@ -119,6 +122,37 @@ export async function optimizationsTrack(
       columns: ['ts', 'dur', 'name', 'details'],
     },
     argColumns: ['details'],
+  });
+  trace.tracks.registerTrack({
+    uri,
+    title,
+    track,
+  });
+  const trackNode = new TrackNode({title, uri});
+  for await (const classLoadingTrack of classLoadingTracks) {
+    trackNode.addChildLast(classLoadingTrack);
+  }
+  return trackNode;
+}
+
+async function classLoadingTrack(
+  trace: Trace,
+  startup: Startup,
+): Promise<TrackNode> {
+  const sqlSource = `
+    SELECT slice_ts as ts, slice_dur as dur, slice_name AS name FROM
+      android_class_loading_for_startup
+      WHERE startup_id = ${startup.id}
+  `;
+  const uri = `/android_startups/${startup.id}/classloading`;
+  const title = `Classloading for (${startup.package})`;
+  const track = await createQuerySliceTrack({
+    trace: trace,
+    uri: uri,
+    data: {
+      sqlSource: sqlSource,
+      columns: ['ts', 'dur', 'name'],
+    },
   });
   trace.tracks.registerTrack({
     uri,

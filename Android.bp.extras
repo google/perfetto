@@ -260,3 +260,15 @@ filegroup {
         "tools/heap_profile",
     ],
 }
+
+aconfig_declarations {
+    name: "perfetto_flags-aconfig",
+    package: "perfetto.flags",
+    container: "system",
+    srcs: ["perfetto_flags.aconfig"],
+}
+
+cc_aconfig_library {
+    name: "perfetto_flags_c_lib",
+    aconfig_declarations: "perfetto_flags-aconfig",
+}

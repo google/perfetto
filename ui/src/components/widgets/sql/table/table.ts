@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {LegacyTableManager} from '../legacy_table/column';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {Timestamp} from '../../timestamp';
 import {Duration, Time} from '../../../../base/time';
@@ -36,6 +35,7 @@ import {PopupMenu} from '../../../../widgets/menu';
 import {Anchor} from '../../../../widgets/anchor';
 import {showThreadDetailsMenuItem} from '../../thread';
 import {showProcessDetailsMenuItem} from '../../process';
+import {LegacyTableManager} from '../legacy_table/table_column';
 
 export interface SimpleColumn {
   name: string;

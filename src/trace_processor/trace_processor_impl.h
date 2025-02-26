@@ -128,6 +128,14 @@ class TraceProcessorImpl : public TraceProcessor,
 
   std::vector<uint8_t> GetMetricDescriptors() override;
 
+  // ===================
+  // |  Experimental   |
+  // ===================
+
+  base::Status AnalyzeStructuredQueries(
+      const std::vector<StructuredQueryBytes>&,
+      std::vector<AnalyzedStructuredQuery>*) override;
+
  private:
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;

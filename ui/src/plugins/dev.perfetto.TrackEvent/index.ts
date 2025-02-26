@@ -20,7 +20,7 @@ import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
 import {assertExists, assertTrue} from '../../base/logging';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {TraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
+import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {getTrackName} from '../../public/utils';
 
@@ -30,8 +30,6 @@ export default class implements PerfettoPlugin {
     ProcessThreadGroupsPlugin,
     TraceProcessorTrackPlugin,
   ];
-
-  private readonly trackIdToUri = new Map<number, string>();
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const res = await ctx.engine.query(`
@@ -124,7 +122,6 @@ export default class implements PerfettoPlugin {
         }
         assertTrue(trackIds.length === 1);
         const trackId = trackIds[0];
-        this.trackIdToUri.set(trackId, uri);
         ctx.tracks.registerTrack({
           uri,
           title,
@@ -145,9 +142,6 @@ export default class implements PerfettoPlugin {
           ),
         });
       } else if (hasData) {
-        for (const trackId of trackIds) {
-          this.trackIdToUri.set(trackId, uri);
-        }
         ctx.tracks.registerTrack({
           uri,
           title,
@@ -157,7 +151,7 @@ export default class implements PerfettoPlugin {
             upid: upid ?? undefined,
             utid: utid ?? undefined,
           },
-          track: new TraceProcessorSliceTrack(ctx, uri, undefined, trackIds),
+          track: createTraceProcessorSliceTrack(ctx, uri, undefined, trackIds),
         });
       }
       const parent = findParentTrackNode(
@@ -178,26 +172,6 @@ export default class implements PerfettoPlugin {
       parent.addChildInOrder(node);
       trackIdToTrackNode.set(trackIds[0], node);
     }
-
-    ctx.selection.registerSqlSelectionResolver({
-      sqlTableName: 'slice',
-      callback: async (eventId: number) => {
-        const res = await ctx.engine.query(`
-          select
-            track_id as trackId
-          from slice
-          where slice.id = ${eventId}
-        `);
-        const firstRow = res.maybeFirstRow({
-          trackId: NUM,
-        });
-        if (!firstRow) return undefined;
-        const trackId = firstRow.trackId;
-        const trackUri = this.trackIdToUri.get(trackId);
-        if (!trackUri) return undefined;
-        return {trackUri, eventId};
-      },
-    });
   }
 }
 

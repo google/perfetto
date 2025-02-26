@@ -23,14 +23,15 @@ import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
 class BlockingCallMetricHandler implements MetricHandler {
   /**
-   * Match metric key & return parsed data if successful.
+   * Matches metric key for blocking call and per-frame blocking call metrics & return parsed data
+   * if successful.
    *
    * @param {string} metricKey The metric key to match.
    * @returns {BlockingCallMetricData | undefined} Parsed data or undefined if no match.
    */
   public match(metricKey: string): BlockingCallMetricData | undefined {
     const matcher =
-      /perfetto_android_blocking_call-cuj-name-(?<process>.*)-name-(?<cujName>.*)-blocking_calls-name-(?<blockingCallName>([^\-]*))-(?<aggregation>.*)/;
+      /perfetto_android_blocking_call(?:_per_frame)?-cuj-name-(?<process>.*)-name-(?<cujName>.*)-blocking_calls-name-(?<blockingCallName>([^\-]*))-(?<aggregation>.*)/;
     const match = matcher.exec(metricKey);
     if (!match?.groups) {
       return undefined;

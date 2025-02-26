@@ -13,14 +13,16 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE PERFETTO MACRO _ii_df_agg(x Expr, y Expr)
-RETURNS Expr AS __intrinsic_stringify!($x), input.$y;
+-- sqlformat file off
+
+CREATE PERFETTO MACRO _ii_df_agg(x ColumnName, y ColumnName)
+RETURNS _ProjectionFragment AS __intrinsic_stringify!($x), input.$y;
 
 CREATE PERFETTO MACRO _ii_df_bind(x Expr, y Expr)
 RETURNS Expr AS __intrinsic_table_ptr_bind($x, __intrinsic_stringify!($y));
 
-CREATE PERFETTO MACRO _ii_df_select(x Expr, y Expr)
-RETURNS Expr AS $x AS $y;
+CREATE PERFETTO MACRO _ii_df_select(x ColumnName, y Expr)
+RETURNS _ProjectionFragment AS $x AS $y;
 
 CREATE PERFETTO MACRO __first_arg(x Expr, y Expr)
 RETURNS Expr AS $x;

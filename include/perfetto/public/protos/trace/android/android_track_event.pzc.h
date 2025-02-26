@@ -26,6 +26,28 @@
 #include "perfetto/public/pb_macros.h"
 #include "perfetto/public/protos/trace/track_event/track_event.pzc.h"
 
+PERFETTO_PB_MSG(perfetto_protos_AndroidMessageQueue);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidMessageQueue,
+                  STRING,
+                  const char*,
+                  sending_thread_name,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidMessageQueue,
+                  STRING,
+                  const char*,
+                  receiving_thread_name,
+                  2);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidMessageQueue,
+                  VARINT,
+                  int32_t,
+                  message_code,
+                  3);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidMessageQueue,
+                  VARINT,
+                  uint64_t,
+                  message_delay_ms,
+                  4);
+
 PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
                             perfetto_protos_TrackEvent,
                             STRING,
@@ -44,4 +66,10 @@ PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
                             const char*,
                             apex_name,
                             2003);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidMessageQueue,
+                            message_queue,
+                            2004);
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_ANDROID_ANDROID_TRACK_EVENT_PZC_H_

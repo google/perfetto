@@ -41,6 +41,43 @@ export enum VegaLiteSelectionTypes {
   POINT = 'point',
 }
 
+// Vega-Lite Field Types
+// These are for axis field (data) types
+// https://vega.github.io/vega-lite/docs/type.html
+export type VegaLiteFieldType =
+  | 'quantitative'
+  | 'temporal'
+  | 'ordinal'
+  | 'nominal'
+  | 'geojson';
+
+// Vega-Lite supported aggregation operations
+// https://vega.github.io/vega-lite/docs/aggregate.html#ops
+export type VegaLiteAggregationOps =
+  | 'count'
+  | 'valid'
+  | 'values'
+  | 'missing'
+  | 'distinct'
+  | 'sum'
+  | 'product'
+  | 'mean'
+  | 'average'
+  | 'variance'
+  | 'variancep'
+  | 'stdev'
+  | 'stdevp'
+  | 'stderr'
+  | 'median'
+  | 'q1'
+  | 'q3'
+  | 'ci0'
+  | 'ci1'
+  | 'min'
+  | 'max'
+  | 'argmin'
+  | 'argmax';
+
 export type VegaEventType =
   | 'click'
   | 'dblclick'

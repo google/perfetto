@@ -71,7 +71,7 @@ message PerfettoSqlStructuredQuery {
   // to be very commonly used by users.
   //
   // Produces a source with the schema
-  // (slice_name, thread_name, process_name, track_name).
+  // (id, ts, dur, slice_name, thread_name, process_name, track_name).
   message SimpleSlices {
     // Glob for the name of the slices. Optional.
     optional string slice_name_glob = 1;
@@ -98,6 +98,10 @@ message PerfettoSqlStructuredQuery {
 
     // The name of columns which will be returned by the SQL. Required.
     repeated string column_names = 2;
+
+    // SQL string that has to be run before running the SQL. Supports multi
+    // statement queries. Optional.
+    optional string preamble = 3;
   }
 
   // Performs a "time-based" intersection of data from `base` with multiple
@@ -211,15 +215,18 @@ message PerfettoSqlStructuredQuery {
       LESS_THAN_EQUAL = 4;
       GREATER_THAN = 5;
       GREATER_THAN_EQUAL = 6;
+      IS_NULL = 8;
+      IS_NOT_NULL = 9;
 
       // Unix GLOB. Only makes sense for string columns.
       GLOB = 7;
     }
     optional Operator op = 2;
 
-    // The RHS for filtering. All values specfied here will be ORed together
-    // allowing easy IN and GLOB IN filtering. At least one of these fields
-    // must be non-empty. Only the first non-empty field will be considered.
+    // The RHS for filtering. All values specified here will be ORed together
+    // allowing easy IN and GLOB IN filtering. If operation is different than
+    // IS_NULL or IS_NOT_NULL, at least one of these fields must be non-empty.
+    // Only the first non-empty field will be considered.
     repeated string string_rhs = 3;
     repeated double double_rhs = 4;
     repeated int64 int64_rhs = 5;
@@ -268,7 +275,8 @@ message PerfettoSqlStructuredQuery {
     // The existing name of the column from the source. Required.
     optional string column_name = 1;
 
-    // The new name of the column. Required.
+    // The new name of the column. If not set, the name of the column is
+    // `column_name`. Optional.
     optional string alias = 2;
   }
   repeated SelectColumn select_columns = 10;

@@ -22,7 +22,7 @@ import {Checkbox} from '../../../widgets/checkbox';
 import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 import {TextInput} from '../../../widgets/text_input';
 
-export class ColumnControllerRows {
+export interface ColumnControllerRow {
   // The ID is used to indentify this option, and is used in callbacks.
   id: string;
   // Whether this column is selected or not.
@@ -33,13 +33,44 @@ export class ColumnControllerRows {
   source?: string;
   // Word column was renamed to.
   alias?: string;
+}
 
-  constructor(column: SqlColumn) {
-    this.id = column.name;
-    this.checked = true;
+export function columnControllerRowFromSqlColumn(
+  column: SqlColumn,
+  checked: boolean = false,
+): ColumnControllerRow {
+  return {
+    id: column.name,
+    checked,
+    column: column,
+  };
+}
 
-    this.column = column;
-  }
+export function columnControllerRowFromName(
+  name: string,
+  checked: boolean = false,
+): ColumnControllerRow {
+  return {
+    id: name,
+    checked,
+    column: {name: name, type: {name: 'NA', shortName: 'NA'}},
+  };
+}
+
+export function newColumnControllerRow(
+  oldCol: ColumnControllerRow,
+  checked: boolean = false,
+) {
+  return {
+    id: oldCol.alias ?? oldCol.column.name,
+    column: oldCol.column,
+    alias: undefined,
+    checked,
+  };
+}
+
+export function newColumnControllerRows(oldCols: ColumnControllerRow[]) {
+  return oldCols.map((col) => newColumnControllerRow(col));
 }
 
 export interface ColumnControllerDiff {
@@ -49,17 +80,17 @@ export interface ColumnControllerDiff {
 }
 
 export interface ColumnControllerAttrs {
-  options: ColumnControllerRows[];
+  options: ColumnControllerRow[];
   onChange?: (diffs: ColumnControllerDiff[]) => void;
   fixedSize?: boolean;
-  hasValidColumns: boolean;
+  allowAlias?: boolean;
 }
 
 export class ColumnController
   implements m.ClassComponent<ColumnControllerAttrs>
 {
   view({attrs}: m.CVnode<ColumnControllerAttrs>) {
-    const {options, fixedSize = true} = attrs;
+    const {options, fixedSize = true, allowAlias = true} = attrs;
 
     const filteredItems = options;
 
@@ -67,13 +98,14 @@ export class ColumnController
       fixedSize
         ? '.pf-column-controller-panel.pf-column-controller-fixed-size'
         : '.pf-column-controller-panel',
-      this.renderListOfItems(attrs, filteredItems),
+      this.renderListOfItems(attrs, filteredItems, allowAlias),
     );
   }
 
   private renderListOfItems(
     attrs: ColumnControllerAttrs,
-    options: ColumnControllerRows[],
+    options: ColumnControllerRow[],
+    allowAlias: boolean,
   ) {
     const {onChange = () => {}} = attrs;
     const allChecked = options.every(({checked}) => checked);
@@ -117,7 +149,7 @@ export class ColumnController
                 disabled: !anyChecked,
               }),
             ),
-            this.renderColumnRows(attrs, options),
+            this.renderColumnRows(attrs, options, allowAlias),
           ),
         ),
       ];
@@ -126,7 +158,8 @@ export class ColumnController
 
   private renderColumnRows(
     attrs: ColumnControllerAttrs,
-    options: ColumnControllerRows[],
+    options: ColumnControllerRow[],
+    allowAlias: boolean,
   ): m.Children {
     const {onChange = () => {}} = attrs;
 
@@ -143,21 +176,23 @@ export class ColumnController
             onChange([{id, alias, checked: !checked}]);
           },
         }),
-        ' as ',
-        m(TextInput, {
-          placeholder: item.alias ? item.alias : column.name,
-          type: 'string',
-          oninput: (e: KeyboardEvent) => {
-            if (!e.target) return;
-            onChange([
-              {id, checked, alias: (e.target as HTMLInputElement).value.trim()},
-            ]);
-          },
-        }),
-        m(Popup, {
-          className: 'pf-visible-on-hover',
-          trigger: m(Button, {icon: 'info'}),
-        }),
+        allowAlias && [
+          ' as ',
+          m(TextInput, {
+            placeholder: item.alias ? item.alias : column.name,
+            type: 'string',
+            oninput: (e: KeyboardEvent) => {
+              if (!e.target) return;
+              onChange([
+                {
+                  id,
+                  checked,
+                  alias: (e.target as HTMLInputElement).value.trim(),
+                },
+              ]);
+            },
+          }),
+        ],
       );
     });
   }
@@ -201,7 +236,7 @@ export class PopupColumnController
 }
 
 export function hasDuplicateColumnsSelected(
-  cols: ColumnControllerRows[],
+  cols: ColumnControllerRow[],
 ): string[] {
   const seenNames: {[key: string]: boolean} = {};
   const duplicates: string[] = [];

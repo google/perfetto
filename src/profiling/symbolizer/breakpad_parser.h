@@ -48,6 +48,13 @@ class BreakpadParser {
     std::string symbol_name;
   };
 
+  // Supported record types for the Breakpad symbol file format.
+  // https://chromium.googlesource.com/breakpad/breakpad/+/HEAD/docs/symbol_files.md
+  enum class RecordType {
+    FUNC,   // FUNC [m] address size parameter_size name
+    PUBLIC  // PUBLIC [m] address parameter_size name
+  };
+
   explicit BreakpadParser(const std::string& file_path);
 
   BreakpadParser(const BreakpadParser& other) = delete;
@@ -66,16 +73,26 @@ class BreakpadParser {
   // relative offset from the start of the binary.
   std::optional<std::string> GetSymbol(uint64_t address) const;
 
+  // As same as GetSymbol, but retrieve from the PUBLIC records.
+  std::optional<std::string> GetPublicSymbol(uint64_t address) const;
+
   const std::vector<Symbol>& symbols_for_testing() const { return symbols_; }
+  const std::vector<Symbol>& public_symbols_for_testing() const {
+    return public_symbols_;
+  }
 
  private:
-  // Parses the given string and creates a new Symbol object if it is a FUNC
-  // record. Returns an ok status if it was successfully able to add to the
-  // |symbols_| or if the string is not a FUNC record. Return a fail status on
-  // parsing errors on FUNC record.
-  base::Status ParseIfFuncRecord(base::StringView current_line);
+  // Parses the given string and creates a new Symbol object if it is a
+  // {RecordType} record. Returns an ok status if it was successfully able to
+  // add to the |symbols_ or public_symbols_| or if the string is not a FUNC
+  // record. Return a fail status on parsing errors on FUNC record.
+  base::Status ParseIfRecord(base::StringView current_line, RecordType type);
+
+  std::string GetRecordLabel(RecordType type) const;
+  void StoreSymbol(Symbol& symbol, RecordType type);
 
   std::vector<Symbol> symbols_;
+  std::vector<Symbol> public_symbols_;
   const std::string file_path_;
 };
 
