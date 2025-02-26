@@ -20,6 +20,7 @@ import {
 } from '../interfaces/connection_check';
 import {Spinner} from '../../../widgets/spinner';
 import {Icon} from '../../../widgets/icon';
+import {linkify} from '../../../base/mithril_utils';
 
 type PreflightCheckWithResult = PreflightCheck & {
   result?: PreflightCheckResult;
@@ -71,8 +72,8 @@ export class PreflightCheckRenderer {
             res.result === undefined
               ? m(Spinner)
               : res.result.ok
-                ? m('span.ok', res.result.value)
-                : m('span.error', res.result.error),
+                ? m('span.ok', linkify(res.result.value))
+                : m('span.error', linkify(res.result.error)),
             res.remediation && m('div', m(res.remediation)),
           ),
         ),

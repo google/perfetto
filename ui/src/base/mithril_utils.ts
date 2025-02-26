@@ -102,7 +102,7 @@ export function linkify(text: string): m.Children {
     'span',
     parts.map((part) => {
       if (/^(https?:\/\/[^\s]+)$/.test(part)) {
-        return m('a', {href: part, target: '_blank'}, part);
+        return m('a', {href: part, target: '_blank'}, part.split('://')[1]);
       } else if (/^(go\/[^\s]+)$/.test(part)) {
         return m(
           'a',
