@@ -44,4 +44,5 @@ export class Icons {
   static readonly Change = 'change_circle';
   static readonly GoTo = 'arrow_forward';
   static readonly MoreVert = 'more_vert';
+  static readonly Warning = 'warning';
 }
