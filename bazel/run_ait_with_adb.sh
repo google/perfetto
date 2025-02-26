@@ -116,6 +116,9 @@ TEST_OUTPUT=$(call_adb shell am instrument -w "${test_apk_package}/${TEST_RUNNER
 echo "'adb shell am instrument' output:"
 echo "${TEST_OUTPUT}"
 
-if [[ "${TEST_OUTPUT}" =~ "FAILURES!!!" ]]; then
+# TODO(ktimofeev): Run 'am instrument' with '-r' flag and parse output.
+if [[ "${TEST_OUTPUT}" =~ "FAILURES!!!" ]] ||
+   [[ "${TEST_OUTPUT}" =~ "INSTRUMENTATION_RESULT: shortMsg=Process crashed" ]] ||
+   [[ "${TEST_OUTPUT}" =~ "INSTRUMENTATION_FAILED" ]]; then
   exit 1
 fi
