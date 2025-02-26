@@ -30,6 +30,8 @@ import {exists} from '../../../base/utils';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {SqlTable} from '../../../components/widgets/sql/table/table';
 import {sqlValueToSqliteString} from '../../../trace_processor/sql_utils';
+import {MAX_DISPLAY_ROWS} from '../../../components/query_table/queries';
+import {Icon} from '../../../widgets/icon';
 import {renderFilters} from '../../../components/widgets/sql/table/filters';
 import {ExplorePageState} from '../explore_page';
 
@@ -156,6 +158,17 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
     );
   }
 
+  private renderDataWarning() {
+    return m(
+      'span',
+      {style: {display: 'flex', alignItems: 'center'}},
+      m(Icon, {
+        icon: Icons.Warning,
+      }),
+      m('em', `Warning: Chart data is truncated to ${MAX_DISPLAY_ROWS} rows`),
+    );
+  }
+
   view({attrs}: m.Vnode<DataVisualiserAttrs>) {
     const {state} = attrs;
 
@@ -166,11 +179,16 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
         onVisibilityChange: (visibility) => {
           this.visibility = visibility;
         },
-        drawerContent:
+        drawerContent: m(
+          '.pf-chart-container',
+          state.activeViewSource?.data &&
+            state.activeViewSource?.data.length >= MAX_DISPLAY_ROWS &&
+            this.renderDataWarning(),
           state.activeViewSource?.visViews !== undefined &&
-          Array.from(state.activeViewSource?.visViews.charts.values()).map(
-            (chart) => this.renderRemovableChart(chart, state),
-          ),
+            Array.from(state.activeViewSource?.visViews.charts.values()).map(
+              (chart) => this.renderRemovableChart(chart, state),
+            ),
+        ),
       },
       m('.pf-chart-card', this.renderSqlTable(state)),
     );
