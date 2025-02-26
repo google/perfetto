@@ -15,7 +15,7 @@
 import {Engine} from '../../trace_processor/engine';
 import {Row} from '../../trace_processor/query_result';
 
-const MAX_DISPLAY_ROWS = 10000;
+export const MAX_DISPLAY_ROWS = 30000;
 
 export interface QueryResponse {
   query: string;
