@@ -16,8 +16,6 @@
 
 package com.google.perfetto.sdk;
 
-import dalvik.annotation.optimization.CriticalNative;
-
 public class PerfettoExampleWrapper {
 
     static {
@@ -29,7 +27,4 @@ public class PerfettoExampleWrapper {
     }
 
     private native int runPerfettoMain(String outputFilePath);
-
-    @CriticalNative
-    public static native int incrementIntCritical(int value);
 }
