@@ -86,13 +86,15 @@ export class CpuSliceTrack implements TrackRenderer {
           iif(dur = -1, lead(ts, 1, trace_end()) over (order by ts) - ts, dur),
           0 as depth
         from sched
-        where ucpu = ${this.cpu.ucpu} and utid != 0
+        where ucpu = ${this.cpu.ucpu} and
+          not utid in (select utid from thread where is_idle)
       ));
     `);
     const it = await this.trace.engine.query(`
       select coalesce(max(id), -1) as lastRowId
       from sched
-      where ucpu = ${this.cpu.ucpu} and utid != 0
+      where ucpu = ${this.cpu.ucpu} and
+        not utid in (select utid from thread where is_idle)
     `);
     this.lastRowId = it.firstRow({lastRowId: NUM}).lastRowId;
   }
@@ -102,7 +104,9 @@ export class CpuSliceTrack implements TrackRenderer {
       // TODO(stevegolton): Once we allow datasets to have more than one filter,
       // move this where clause to a dataset filter and change this src to
       // 'sched'.
-      src: 'select id, ts, dur, ucpu, utid from sched where utid != 0',
+      src: `select id, ts, dur, ucpu, utid
+            from sched
+            where not utid in (select utid from thread where is_idle)`,
       schema: {
         id: NUM,
         ts: LONG,
