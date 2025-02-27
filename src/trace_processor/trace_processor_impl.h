@@ -78,11 +78,10 @@ class TraceProcessorImpl : public TraceProcessor,
   // |  Trace-based metrics (v2) related functionality starts here   |
   // =================================================================
 
-  base::Status ComputeV2Metrics(
-      const std::vector<TraceSummarySpecBytes>& specs,
-      std::vector<uint8_t>* output,
-      TraceSummaryOutputFormat output_format,
-      const std::vector<std::string>& metric_ids) override;
+  base::Status Summarize(const TraceSummaryComputationSpec& computation,
+                         const std::vector<TraceSummarySpecBytes>& specs,
+                         std::vector<uint8_t>* output,
+                         const TraceSummaryOutputSpec& output_spec) override;
 
   // =================================================================
   // |        Metatracing related functionality starts here          |
