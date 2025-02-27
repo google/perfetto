@@ -380,20 +380,20 @@ BUILD_DEPS_ANDROID = [
         'linux', 'x64'),
     # Android Java SDK.
     Dependency(
-        'buildtools/android_sdk/platforms/android-33.zip',
-        'https://dl.google.com/android/repository/platform-33-ext5_r01.zip',
-        '3d6189a18d0cebd4e518b8728de0e6b940d95c96b57316769dd56ee2d1708d10',
+        'buildtools/android_sdk/platforms/android-35.zip',
+        'https://dl.google.com/android/repository/platform-35_r02.zip',
+        '0988cacad01b38a18a47bac14a0695f246bc76c1b06c0eeb8eb0dc825ab0c8e0',
         'all', 'all'),
     # Android build tools.
     Dependency(
-        'buildtools/android_sdk/build-tools/33.0.3.zip',
-        'https://dl.google.com/android/repository/build-tools_r33.0.3-linux.zip',
-        '533329cc3450850d83433c5103006fc8b9b48f2798bbcc41c78ef3223171d4b1',
+        'buildtools/android_sdk/build-tools/35.0.1.zip',
+        'https://dl.google.com/android/repository/build-tools_r35.0.1_linux.zip',
+        '5993499f3229a021b89f87088c57242aeefaa62316bf3d69da7de40bfd5350f1',
         'linux', 'all'),
     Dependency(
-        'buildtools/android_sdk/build-tools/33.0.3.zip',
-        'https://dl.google.com/android/repository/build-tools_r33.0.3-macosx.zip',
-        '5a6c7380cb34ef8f7300f77d56edb2bb42a8c1ab575b99ca599632408e3550d1',
+        'buildtools/android_sdk/build-tools/35.0.1.zip',
+        'https://dl.google.com/android/repository/build-tools_r35.0.1_macosx.zip',
+        'c01e4b763da96ae5ef67e8bdf2abc94fb6cb3e73a42209581feb6a7019a51b9c',
         'darwin', 'all'),
 ]
 
