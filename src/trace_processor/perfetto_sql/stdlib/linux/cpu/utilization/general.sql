@@ -133,7 +133,13 @@ SELECT
   ucpu
 FROM sched
 WHERE
-  utid != 0 AND dur != -1;
+  NOT utid IN (
+    SELECT
+      utid
+    FROM thread
+    WHERE
+      is_idle
+  ) AND dur != -1;
 
 CREATE VIRTUAL TABLE _cpu_freq_per_thread_span_join USING SPAN_LEFT_JOIN (
     _sched_without_id PARTITIONED ucpu,

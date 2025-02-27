@@ -145,6 +145,7 @@ THREAD_TABLE = Table(
         C('end_ts', CppOptional(CppInt64())),
         C('upid', CppOptional(CppTableId(PROCESS_TABLE))),
         C('is_main_thread', CppOptional(CppUint32())),
+        C('is_idle', CppUint32()),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='thread',),
@@ -191,6 +192,12 @@ THREAD_TABLE = Table(
                 '''
                   Boolean indicating if this thread is the main thread
                   in the process.
+                ''',
+            'is_idle':
+                '''
+                  Boolean indicating if this thread is an kernel idle task (
+                  pid = 0 on Linux).
+
                 ''',
             'machine_id':
                 '''

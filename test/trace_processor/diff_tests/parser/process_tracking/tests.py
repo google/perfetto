@@ -395,3 +395,59 @@ class ProcessTracking(TestSuite):
         68,10000000,"ksoftirqd/7"
         9301,"[NULL]","no_age_field"
         """))
+
+  # Check that column 'is_idle' is equivalent to pid = 0 for a single-machine
+  # trace.
+  def test_idle_thread_single_machine(self):
+    return DiffTestBlueprint(
+        trace=DataPath("compact_sched.pb"),
+        query="""
+        with idle_thread_comparison as
+        (
+          select
+            (
+              case
+                when pid = 0 then 1
+                else 0
+              end
+            ) as is_idle_1,
+            is_idle as is_idle_2,
+            utid
+          from thread join process using (upid)
+        )
+        select count(utid)
+        from idle_thread_comparison
+        where is_idle_1 != is_idle_2
+      """,
+        out=Csv("""
+        "count(utid)"
+        0
+      """))
+
+  # Check that column 'is_idle' is equivalent to pid = 0 for a multi-machine
+  # trace.
+  def test_idle_thread_multi_machine(self):
+    return DiffTestBlueprint(
+        trace=DataPath("arcvm_trace.pb.gz"),
+        query="""
+        with idle_thread_comparison as
+        (
+          select
+            (
+              case
+                when pid = 0 then 1
+                else 0
+              end
+            ) as is_idle_1,
+            is_idle as is_idle_2,
+            utid
+          from thread join process using (upid)
+        )
+        select count(utid)
+        from idle_thread_comparison
+        where is_idle_1 != is_idle_2
+      """,
+        out=Csv("""
+        "count(utid)"
+        0
+      """))
