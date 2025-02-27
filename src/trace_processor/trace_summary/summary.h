@@ -18,12 +18,12 @@
 #define SRC_TRACE_PROCESSOR_TRACE_SUMMARY_SUMMARY_H_
 
 #include <cstdint>
-#include <string>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor::summary {
 
@@ -31,11 +31,12 @@ namespace perfetto::trace_processor::summary {
 //
 // See the documentation on TraceProcessor: this is just a 1:1 implementation of
 // that API.
-base::Status ComputeV2Metrics(TraceProcessor* processor,
-                              const std::vector<TraceSummarySpecBytes>& specs,
-                              std::vector<uint8_t>* output,
-                              TraceSummaryOutputFormat,
-                              const std::vector<std::string>& metric_ids);
+base::Status Summarize(TraceProcessor* processor,
+                       const DescriptorPool& pool,
+                       const TraceSummaryComputationSpec& computation,
+                       const std::vector<TraceSummarySpecBytes>& specs,
+                       std::vector<uint8_t>* output,
+                       const TraceSummaryOutputSpec& output_spec);
 
 }  // namespace perfetto::trace_processor::summary
 
