@@ -35,13 +35,14 @@ import "protos/perfetto/trace_summary/v2_metric.proto";
 message TraceSummarySpec {
   // The specification of a v2 trace metric.
   //
-  // See documentation for TraceMetricV2Config for usage of this field.
+  // See documentation for TraceMetricV2Spec for usage of this field.
   repeated TraceMetricV2Spec metric_spec = 1;
 
-  // Instances of structured queries whose ids can be referenced by the
-  // `inner_query_id` field of any `metric_spec.query`. Useful for sharing
-  // a single query across many different metrics.
-  repeated PerfettoSqlStructuredQuery shared_query = 2;
+  // Instances of structured queries whose ids can be referenced by:
+  // 1) `inner_query_id` field of any `metric_spec.query` which is useful for
+  //    sharing a single query across many different metrics.
+  // 2) computation of trace-wide metadata.
+  repeated PerfettoSqlStructuredQuery query = 2;
 }
 
 // Wrapper proto containing a bunch of outputs protos produced when computing
@@ -54,4 +55,14 @@ message TraceSummary {
   //
   // See documentation for TraceMetric for usage of this field.
   repeated TraceMetricV2 metric = 1;
+
+  // Metadata about the whole trace file as key value pairs. This is intended
+  // to put metadata about the trace (e.g. the device trace was collected on,
+  // the OS version) which gives context to other parts of the summary (e.g. the
+  // metrics).
+  message Metadata {
+    optional string key = 1;
+    optional string value = 2;
+  }
+  repeated Metadata metadata = 2;
 }
