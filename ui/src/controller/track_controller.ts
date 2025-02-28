@@ -362,6 +362,17 @@ export abstract class TrackController<
                 this.publish(data);
               }
             })
+            .catch((error) => {
+              if (!globals.state.tracks[this.trackId]) {
+                // The host application filtered this track out, so assume that
+                // the error was an assertion failure in asynchronous
+                // on-bounds-change processing that interleaved with the
+                // removal of the track from global state
+                this.queuedRequest = false;
+                return;
+              }
+              throw error;
+            })
             .finally(() => {
               this.requestingData = false;
               if (this.queuedRequest) {
