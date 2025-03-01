@@ -4819,6 +4819,62 @@ perfetto_py_proto_library(
     ],
 )
 
+# GN target: [//protos/perfetto/trace_summary:source_set]
+perfetto_proto_library(
+    name = "trace_summary_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":protos_perfetto_perfetto_sql_protos",
+        ":protos_perfetto_trace_summary_protos",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace_summary:source_set]
+perfetto_cc_proto_library(
+    name = "trace_summary_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":trace_summary_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace_summary:source_set]
+perfetto_java_proto_library(
+    name = "trace_summary_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":trace_summary_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace_summary:source_set]
+perfetto_java_lite_proto_library(
+    name = "trace_summary_java_proto_lite",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":trace_summary_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace_summary:source_set]
+perfetto_py_proto_library(
+    name = "trace_summary_py_pb2",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":trace_summary_proto",
+    ],
+)
+
 # GN target: //protos/perfetto/common:cpp
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_common_cpp",
