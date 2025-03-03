@@ -201,6 +201,8 @@ class TrackDecider {
     children: [],
   };
 
+  private hasCpuUsage = true;
+
   // Set of |upid| from the |process| table recording
   // processes that are idle (< 0.1% CPU)
   private idleUpids = new Set<number>();
@@ -1736,7 +1738,10 @@ class TrackDecider {
     // Don't need the Idle Threads group in a process that is idle
     // because all of its threads would redundantly be in that group.
     // And don't create a group for just one idle thread.
-    const idle = upid === null ? undefined : this.idleUtids.get(upid);
+    // And finally, idle has no meaning without CPU usage information
+    const idle = !this.hasCpuUsage || upid === null ?
+      undefined :
+      this.idleUtids.get(upid);
     const isIdleProcess = upid !== null && this.idleUpids.has(upid);
     return idle !== undefined && !isIdleProcess &&
         (idle.has(utid) && idle.size > 1) ?
@@ -1862,8 +1867,11 @@ class TrackDecider {
     // Map of process upid to its track group descriptor
     const processTrackGroups = new Map<string, AddTrackGroupArgs>();
 
-    // Map of idle process upid to its track group for descriptor
-    const idleProcessTrackGroups = new Map<string, AddTrackGroupArgs>();
+    // Map of idle process upid to its track group for descriptor. But if we
+    // didn't capture CPU information then this concept has no meaning
+    const idleProcessTrackGroups = this.hasCpuUsage ?
+      new Map<string, AddTrackGroupArgs>() :
+      undefined;
 
     // We want to create groups of tracks in a specific order.
     // The tracks should be grouped:
@@ -2003,10 +2011,12 @@ class TrackDecider {
       chromeProcessLabels: STR,
     });
 
-   const idleProcessesGroupId = this.lazyTrackGroup('Idle Processes (< 0.1%)',
-      {collapsed: true,
-        description: 'CPU usage of an idle process accounts for less than 0.1% of the total trace duration.',
-        lazyParentGroup: this.processesGroup});
+   const idleProcessesGroupId = idleProcessTrackGroups ?
+      this.lazyTrackGroup('Idle Processes (< 0.1%)',
+        {collapsed: true,
+          description: 'CPU usage of an idle process accounts for less than 0.1% of the total trace duration.',
+          lazyParentGroup: this.processesGroup}) :
+      undefined;
 
     // An "idle process" is measured against the duration of the trace.
     // The threshold is 0.1%, or one one-thousandth, of the trace time.
@@ -2092,13 +2102,13 @@ class TrackDecider {
           // many expanded process tracks for some perf traces, leading to
           // jankyness.
           collapsed: !hasHeapProfiles,
-          parentGroup: !idleProcess ?
+          parentGroup: !idleProcess || !idleProcessesGroupId ?
             this.processesGroup() :
             idleProcessesGroupId(),
         };
         this.trackGroupsToAdd.push(trackGroup);
         processTrackGroups.set(pUuid, trackGroup);
-        if (idleProcess) {
+        if (idleProcess && idleProcessTrackGroups) {
           idleProcessTrackGroups.set(pUuid, trackGroup);
         }
       }
@@ -2122,7 +2132,7 @@ class TrackDecider {
 
     const totalProcessCount = threadsPerProcess.numRows();
     const shownProcessCount = processTrackGroups.size;
-    const idleProcessCount = idleProcessTrackGroups.size;
+    const idleProcessCount = idleProcessTrackGroups?.size ?? 0;
     const nullProcessCount = totalProcessCount - shownProcessCount;
 
     if (shownProcessCount > 0) {
@@ -2139,7 +2149,7 @@ class TrackDecider {
         }
       }
     }
-    if (idleProcessCount > 0) {
+    if (idleProcessCount > 0 && idleProcessesGroupId) {
       // There are idle processes actually showing tracks
       const idleProcessesGroup = this.getTrackGroup(idleProcessesGroupId());
       if (idleProcessesGroup) {
@@ -2510,6 +2520,9 @@ class TrackDecider {
 
   async decideTracks(filterTracks = false): Promise<DeferredAction[]> {
     await this.defineMaxLayoutDepthSqlFunction();
+
+    const cpus = await this.engine.getCpus();
+    this.hasCpuUsage = cpus.length > 0;
 
     // Add first the global tracks that don't require per-process track groups.
     await this.addCpuSchedulingTracks();
