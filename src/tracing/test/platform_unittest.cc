@@ -17,10 +17,17 @@
 #include "perfetto/tracing/platform.h"
 
 #include <atomic>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <utility>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/waitable_event.h"
+#include "perfetto/protozero/message_handle.h"
 #include "perfetto/tracing/internal/tracing_tls.h"
+#include "perfetto/tracing/trace_writer_base.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -44,6 +51,7 @@ class FakeTraceWriter : public TraceWriterBase {
   void FinishTracePacket() override { PERFETTO_CHECK(false); }
   void Flush(std::function<void()>) override {}
   uint64_t written() const override { return 0; }
+  uint64_t drop_count() const override { return 0; }
 };
 
 // This test mainly checks that the thread at-exit logic works properly and
