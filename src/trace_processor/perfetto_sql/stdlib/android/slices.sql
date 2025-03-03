@@ -22,6 +22,34 @@ RETURNS STRING AS
 SELECT
   substr($name, 0, instr($name, "$")) AS end;
 
+CREATE PERFETTO FUNCTION _standardize_wakelock_slice_name(
+    -- Raw slice name
+    name STRING
+)
+-- E.g.: Wakelock(epolld280:system_serve
+-- To: Wakelock(epolld<...>:system_serve
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN $name GLOB "Wakelock(epolld*" OR $name GLOB "Wakelock(epollm*"
+    THEN CASE
+      WHEN instr($name, ":") > 0
+      THEN substr(
+        $name,
+        1,
+        CASE
+          WHEN $name GLOB "Wakelock(epolld*"
+          THEN instr($name, "epolld") + length("epolld") - 1
+          WHEN $name GLOB "Wakelock(epollm*"
+          THEN instr($name, "epollm") + length("epollm") - 1
+          ELSE 0
+        END
+      ) || "<...>" || substr($name, instr($name, ":"), length($name))
+      ELSE $name
+    END
+    ELSE $name
+  END;
+
 CREATE PERFETTO FUNCTION _standardize_vsync_slice_name(
     -- Raw slice name containing a reference of "*vsync*"
     name STRING
@@ -158,6 +186,84 @@ SELECT
     THEN "prepareDispatchCycleLocked <...>"
     WHEN $name GLOB "enqueueDispatchEntryAndStartDispatchCycleLocked*"
     THEN "enqueueDispatchEntryAndStartDispatchCycleLocked <...>"
+    WHEN $name GLOB "Layers: *"
+    THEN "Layers: <...>"
+    WHEN $name GLOB "* SurfaceView*(BLAST)#*"
+    THEN substr($name, instr($name, 'SurfaceView'), instr($name, '#') - instr($name, 'SurfaceView'))
+    WHEN $name GLOB "uid=*"
+    THEN "uid = <...>"
+    WHEN $name GLOB "wakeupap=*"
+    THEN "wakeupap = <...>"
+    WHEN $name GLOB "launchingActivity#*"
+    THEN "launchingActivity#<...>"
+    WHEN $name GLOB "updateUidStateUL*"
+    THEN "updateUidStateUL <...>"
+    WHEN $name GLOB "Wakelock(epolld*" OR $name GLOB "Wakelock(epollm*"
+    THEN _standardize_wakelock_slice_name($name)
+    WHEN $name GLOB "cpuhp*"
+    THEN "cpuhp<...>"
+    WHEN $name GLOB "atc*"
+    THEN "atc<...>"
+    WHEN $name GLOB "[0-9]* Alarm:*"
+    THEN "Alarm: <...>"
+    WHEN $name GLOB "[0-9]* Wifi:*"
+    THEN "Wifi: <...>"
+    WHEN $name GLOB "[0-9]* Sensor:*"
+    THEN "Sensor: <...>"
+    WHEN $name GLOB "*Cellular_data*"
+    THEN "Cellular_data <...>"
+    WHEN $name GLOB "*GET_ACTIVITY_INFO ModemActivityInfo*"
+    THEN "<...>GET_ACTIVITY_INFO ModemActivityInfo <...>"
+    WHEN $name GLOB "UNSOL_SIGNAL_STRENGTH*"
+    THEN "UNSOL_SIGNAL_STRENGTH <...>"
+    WHEN $name GLOB "*GET_CELL_INFO_LIST*"
+    THEN "<...> GET_CELL_INFO_LIST <...>"
+    -- E.g [0612]< SET_SIGNAL_STRENGTH_REPORTING_CRITERIA
+    -- <...>< SET_SIGNAL_STRENGTH_REPORTING_CRITERIA
+    WHEN $name GLOB "?[0-9]*?< *"
+    THEN "<...>" || substr($name, instr($name, "<") + 1)
+    -- E.g. +job=1234:"com.google.android.apps.internal.betterbug"
+    -- To +job=<...>:"com.google.android.apps.internal.betterbug"
+    WHEN $name GLOB "[+-a-z]*=[0-9]*:*" OR $name GLOB "[a-z]*=[0-9]*:*"
+    THEN substr($name, 1, instr($name, "=")) || "=<...>:" || substr($name, instr($name, ":") + 1)
+    -- E.g. InputConsumer processing on ea6145 NotificationShade (0xb000000000000000)
+    -- To InputConsumer processing on <...> NotificationShade (<...>)
+    -- E.g. InputConsumer processing on [Gesture Monitor] swipe-up (0xb000000000000000)
+    -- To InputConsumer processing on [Gesture Monitor] swipe-up (<...>)
+    -- E.g. InputConsumer processing on PointerEventDispatcher0 (0xb000000000000000)
+    -- To InputConsumer processing on PointerEventDispatcher0 (<...>)
+    -- E.g. InputConsumer processing on ClientState{e1d234a mUid=1234 mPid=1234 mSelfReportedDisplayId=0} (0xb000000000000000)
+    -- To InputConsumer processing on ClientState{<...>} (<...>)
+    WHEN $name GLOB "InputConsumer processing on *"
+    THEN CASE
+      WHEN $name GLOB "InputConsumer processing on [0-9a-z]* [a-zA-Z]* (*)"
+      THEN "InputConsumer processing on <..>" || substr(
+        substr($name, instr($name, " on ") + 4, instr($name, "(") - instr($name, " on ") - 4),
+        instr(
+          substr($name, instr($name, " on ") + 4, instr($name, "(") - instr($name, " on ") - 4),
+          " "
+        )
+      ) || " (<..>)"
+      WHEN $name GLOB "InputConsumer processing on *Gesture Monitor* * (*)"
+      THEN substr($name, 1, instr($name, "(")) || "<...>)"
+      WHEN $name GLOB "InputConsumer processing on ClientState{*} (*)"
+      THEN "InputConsumer processing on ClientState{<...>} (<...>)"
+      WHEN $name GLOB "InputConsumer processing on * (*)"
+      THEN substr($name, 1, instr($name, "(")) || "<...>)"
+      ELSE "InputConsumer processing on <...>"
+    END
+    -- E.g. Transaction (ptz-fgd-1-LOCAL_MEDIA_REMOVE_DELETED_ITEMS_SYNC, 11910)
+    -- To: Transaction (ptz-fgd-1-LOCAL_MEDIA_REMOVE_DELETED_ITEMS_SYNC, <...>)
+    WHEN $name GLOB "Transaction (*, *)"
+    THEN CASE
+      WHEN $name GLOB "Transaction (Thread-*, *)"
+      THEN substr($name, 1, instr($name, "(")) || "Thread-<...>," || substr($name, instr($name, ","), length($name))
+      ELSE substr($name, 1, instr($name, ",") + 1) || " <...>)"
+    END
+    -- E.g. FrameBuffer-201#invokeListeners-non-direct
+    -- To: FrameBuffer-<...>#invokeListeners-non-direct
+    WHEN $name GLOB "FrameBuffer-*#*"
+    THEN substr($name, 1, instr($name, "-")) || "<...>" || substr($name, instr($name, "#"), length($name))
     -- E.g. Lock contention on thread list lock (owner tid: 1665)
     -- To: Lock contention on thread list lock <...>
     WHEN $name GLOB "Lock contention on* (*"
