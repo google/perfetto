@@ -15,11 +15,20 @@
  */
 
 #include "src/tracing/core/trace_writer_for_testing.h"
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/utils.h"
-#include "perfetto/protozero/message.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/protozero/proto_utils.h"
+#include "perfetto/protozero/root_message.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
@@ -109,6 +118,10 @@ WriterID TraceWriterForTesting::writer_id() const {
 }
 
 uint64_t TraceWriterForTesting::written() const {
+  return 0;
+}
+
+uint64_t TraceWriterForTesting::drop_count() const {
   return 0;
 }
 
