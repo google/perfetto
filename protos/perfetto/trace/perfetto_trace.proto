@@ -4940,7 +4940,6 @@ enum BluetoothTracePacketType {
 
 // Trace event for bluetooth
 message BluetoothTraceEvent {
-
   // Packet type and direction
   optional BluetoothTracePacketType packet_type = 1;
 
@@ -4951,8 +4950,8 @@ message BluetoothTraceEvent {
   // interval
   optional uint32 length = 3;
 
-  // The collection interval in ms. This is the duration between the first and
-  // last packets collected.
+  // The collection interval in nanoseconds. This is the duration between the
+  // first and last packets collected.
   optional uint32 duration = 4;
 
   // In case of CMD type, further breakdown of the type of command
@@ -4968,6 +4967,7 @@ message BluetoothTraceEvent {
   // Associated handle for the bluetooth packet
   optional uint32 connection_handle = 8;
 }
+
 // End of protos/perfetto/trace/android/bluetooth_trace.proto
 
 // Begin of protos/perfetto/trace/android/camera_event.proto
