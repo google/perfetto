@@ -8,7 +8,10 @@ Unreleased:
   UI:
     *
   SDK:
-    *
+    * Added `TraceWriter::drop_count` function for determining the number of
+      of times the writer started dropping data due to exhaustion of the shared
+      memory buffer. This can be used by SDK users to diff this value and
+      reemit interned data if necessary.
 
 
 v49.0 - 2025-01-06:
