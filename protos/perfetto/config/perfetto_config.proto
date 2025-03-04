@@ -628,6 +628,30 @@ message AndroidSystemPropertyConfig {
 
 // End of protos/perfetto/config/android/android_system_property_config.proto
 
+// Begin of protos/perfetto/config/android/app_wakelock_config.proto
+
+// Configuration for the android.app_wakelocks data source.
+message AppWakelocksConfig {
+  // Specifies the delay (in milliseconds) after which the data source will
+  // attempt to write events. Writing less frequently reduces the trace size by
+  // making better use of the packed arrays and reducing the total number of
+  // TracePackets needed (which each have dozens of bytes of overhead). The
+  // suggested delay is 5000ms.
+  optional int32 write_delay_ms = 1;
+
+  // When set, wakelocks held for less than this amount of time are filtered
+  // from the resulting trace. Note: duration is computed by matching wakelocks
+  // with identical attributes, not by tracking the underlying objects. The
+  // threshold should be < the trace's flush_period_ms.
+  optional int32 filter_duration_below_ms = 2;
+
+  // When true, the owner_pid is dropped from the resulting output, reducing the
+  // size of the interning tables.
+  optional bool drop_owner_pid = 3;
+}
+
+// End of protos/perfetto/config/android/app_wakelock_config.proto
+
 // Begin of protos/perfetto/config/android/kernel_wakelocks_config.proto
 
 // Data source that records kernel (and native) wakelock data.
@@ -3739,7 +3763,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 135
+// Next id: 136
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3906,6 +3930,9 @@ message DataSourceConfig {
   // Data source name: org.chromium.histogram_samples
   optional ChromiumHistogramSamplesConfig chromium_histogram_samples = 134
       [lazy = true];
+
+  // Data source name: android.app_wakelocks
+  optional AppWakelocksConfig app_wakelocks_config = 135 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
