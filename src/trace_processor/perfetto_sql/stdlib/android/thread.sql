@@ -13,12 +13,36 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE PERFETTO FUNCTION _thread_prefix(
+-- Standardizes an Android thread name by extracting its core identifier to make it
+-- possible to aggregate by name.
+--
+-- Removes extra parts of a thread name, like identifiers, leaving only the main prefix.
+-- Splits the name at ('-', '[', ':' , ' ').
+--
+-- Some Examples:
+--   Given thread_name = "RenderThread-1[123]",
+--   returns "RenderThread".
+--
+--   Given thread_name = "binder:5543_E"
+--   returns "binder".
+--
+--   Given thread_name = "pool-3-thread-5",
+--   returns "pool".
+--
+--   Given thread_name = "MainThread",
+--   returns "MainThread".
+CREATE PERFETTO FUNCTION android_standardize_thread_name(
+    -- The full android thread name to be processed.
     thread_name STRING
 )
+-- Simplified name
 RETURNS STRING AS
 SELECT
-  str_split(str_split(str_split(str_split($thread_name, "-", 0), "[", 0), ":", 0), " ", 0);
+  CASE
+    WHEN $thread_name GLOB 'kworker/*'
+    THEN 'kworker'
+    ELSE str_split(str_split(str_split(str_split($thread_name, "-", 0), "[", 0), ":", 0), " ", 0)
+  END;
 
 -- Per process stats of threads created in a process
 CREATE PERFETTO FUNCTION _android_thread_creation_spam(
@@ -44,7 +68,7 @@ WITH
     SELECT
       pid,
       upid,
-      _thread_prefix(thread.name) AS thread_name_prefix,
+      android_standardize_thread_name(thread.name) AS thread_name_prefix,
       process.name AS process_name,
       count(thread.start_ts) OVER (PARTITION BY upid, thread.name ORDER BY thread.start_ts RANGE BETWEEN CURRENT ROW AND cast_int!($sliding_window_dur) FOLLOWING) AS count
     FROM thread
