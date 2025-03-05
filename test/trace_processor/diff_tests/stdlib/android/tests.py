@@ -1426,27 +1426,27 @@ class AndroidStdlib(TestSuite):
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
         INCLUDE PERFETTO MODULE android.binder_breakdown;
-        SELECT reason, SUM(dur) as dur
+        SELECT reason, reason_type, SUM(dur) as dur
         FROM android_binder_client_server_breakdown
-        GROUP BY reason
+        GROUP BY reason, reason_type
         ORDER BY dur
         """,
         out=Csv("""
-        "reason","dur"
-        "D (client)",10027
-        "D (server)",538747
-        "io (server)",705773
-        "art_lock_contention (server)",9500403
-        "Running (client)",16251671
-        "R+ (client)",35969495
-        "R (server)",73026825
-        "monitor_contention (server)",76505897
-        "R+ (server)",96093319
-        "S (client)",97692288
-        "R (client)",125510991
-        "Running (server)",584323718
-        "binder (server)",2106016239
-        "S (server)",2122622385
+        "reason","reason_type","dur"
+        "D","client",10027
+        "D","server",538747
+        "io","server",705773
+        "art_lock_contention","server",9500403
+        "Running","client",16251671
+        "R+","client",35969495
+        "R","server",73026825
+        "monitor_contention","server",76505897
+        "R+","server",96093319
+        "S","client",97692288
+        "R","client",125510991
+        "Running","server",584323718
+        "binder","server",2106016239
+        "S","server",2122622385
         """))
 
   def test_android_charging_states_output(self):
