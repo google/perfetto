@@ -192,6 +192,13 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
 }
 
 /**
+ * Maximum number of sub-queries to include in a single union statement
+ * to avoid hitting SQLite limits.
+ * See: https://www.sqlite.org/limits.html#max_compound_select
+ */
+const MAX_SUBQUERIES_PER_UNION = 500;
+
+/**
  * A dataset that represents the union of multiple datasets.
  */
 export class UnionDataset implements Dataset {
@@ -221,9 +228,40 @@ export class UnionDataset implements Dataset {
 
   query(schema?: DatasetSchema): string {
     schema = schema ?? this.schema;
-    return this.union
-      .map((dataset) => dataset.query(schema))
-      .join(' union all ');
+    const subQueries = this.union.map((dataset) => dataset.query(schema));
+
+    // If we have a small number of sub-queries, just use a single union all.
+    if (subQueries.length <= MAX_SUBQUERIES_PER_UNION) {
+      return subQueries.join('\nunion all\n');
+    }
+
+    // Handle large number of sub-queries by batching into multiple CTEs.
+    let sql = 'with\n';
+    const cteNames: string[] = [];
+
+    // Create CTEs for batches of sub-queries
+    for (let i = 0; i < subQueries.length; i += MAX_SUBQUERIES_PER_UNION) {
+      const batch = subQueries.slice(i, i + MAX_SUBQUERIES_PER_UNION);
+      const cteName = `union_batch_${Math.floor(i / MAX_SUBQUERIES_PER_UNION)}`;
+      cteNames.push(cteName);
+
+      sql += `${cteName} as (\n${batch.join('\nunion all\n')}\n)`;
+
+      // Add comma unless this is the last CTE.
+      if (i + MAX_SUBQUERIES_PER_UNION < subQueries.length) {
+        sql += ',\n';
+      }
+    }
+
+    const cols = Object.keys(schema);
+
+    // Union all the CTEs together in the final query.
+    sql += '\n';
+    sql += cteNames
+      .map((name) => `select ${cols.join(',')} from ${name}`)
+      .join('\nunion all\n');
+
+    return sql;
   }
 
   optimize(): Dataset {

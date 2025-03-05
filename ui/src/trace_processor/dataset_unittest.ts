@@ -73,8 +73,38 @@ test('get query for union dataset', () => {
   ]);
 
   expect(dataset.query()).toEqual(
-    'select id from (slice) where id = 123 union all select id from (slice) where id = 456',
+    'select id from (slice) where id = 123\nunion all\nselect id from (slice) where id = 456',
   );
+});
+
+test('union dataset batches large numbers of unions', () => {
+  const datasets = [];
+  for (let i = 0; i < 800; i++) {
+    datasets.push(
+      new SourceDataset({
+        src: 'foo',
+        schema: {bar: NUM},
+        filter: {
+          col: 'some_id',
+          eq: i,
+        },
+      }),
+    );
+  }
+
+  const query = new UnionDataset(datasets).query();
+
+  // Verify query structure with CTE batching.
+  expect(query).toContain('with');
+
+  // Should have at least 2 CTE batches.
+  expect(query).toContain('union_batch_0 as');
+  expect(query).toContain('union_batch_1 as');
+
+  // 798 union alls within batches (for 800 datasets) + 1 union alls between the
+  // 2 CTEs.
+  const batchMatches = query.match(/union all/g);
+  expect(batchMatches?.length).toBe(799);
 });
 
 test('doesImplement', () => {
