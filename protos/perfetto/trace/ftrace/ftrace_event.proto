@@ -690,5 +690,6 @@ message FtraceEvent {
     BlockIoDoneFtraceEvent block_io_done = 547;
     MaliGpuPowerStateFtraceEvent mali_gpu_power_state = 548;
     DpuDispDpuUnderrunFtraceEvent dpu_disp_dpu_underrun = 549;
+    DpuDispVblankIrqEnableFtraceEvent dpu_disp_vblank_irq_enable = 550;
   }
 }

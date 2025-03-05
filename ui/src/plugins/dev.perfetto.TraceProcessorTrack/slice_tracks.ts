@@ -72,6 +72,11 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: 'Display',
   },
   {
+    type: 'disp_vblank_irq_enable',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
     type: 'drm_sched_ring',
     topLevelGroup: 'HARDWARE',
     group: 'DRM Sched Ring',
