@@ -22,13 +22,23 @@ import {
   CPU_SLICE_TRACK_KIND,
 } from '../public/track_kinds';
 import {Workspace} from '../public/workspace';
+import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM, STR} from '../trace_processor/query_result';
 import {escapeSearchQuery} from '../trace_processor/query_utils';
+import {featureFlags} from './feature_flags';
 import {raf} from './raf_scheduler';
 import {SearchSource} from './search_data';
 import {TimelineImpl} from './timeline';
 import {TrackManagerImpl} from './track_manager';
+
+const DATASET_SEARCH = featureFlags.register({
+  id: 'datasetSearch',
+  name: 'Use dataset search',
+  description:
+    '[Experimental] use dataset for search, which allows searching all tracks with a matching dataset. Might be slower than normal search.',
+  defaultValue: false,
+});
 
 export interface SearchResults {
   eventIds: Float64Array;
@@ -81,7 +91,11 @@ export class SearchManagerImpl {
     if (text !== '') {
       this._searchInProgress = true;
       this._limiter.schedule(async () => {
-        await this.executeSearch();
+        if (DATASET_SEARCH.get()) {
+          await this.executeDatasetSearch();
+        } else {
+          await this.executeSearch();
+        }
         this._searchInProgress = false;
         raf.scheduleFullRedraw();
       });
@@ -299,6 +313,92 @@ export class SearchManagerImpl {
       searchResults.eventIds[i] = it.sliceId;
       searchResults.tses[i] = it.ts;
       searchResults.utids[i] = it.utid;
+    }
+
+    if (generation !== this._searchGeneration) {
+      // We arrived too late. By the time we computed results the user issued
+      // another search.
+      return;
+    }
+    this._results = searchResults;
+
+    // We have changed the search results - try and find the first result that's
+    // after the start of this visible window.
+    const visibleWindow = this._timeline?.visibleWindow.toTimeSpan();
+    if (visibleWindow) {
+      const foundIndex = this._results.tses.findIndex(
+        (ts) => ts >= visibleWindow.start,
+      );
+      if (foundIndex === -1) {
+        this._resultIndex = -1;
+      } else {
+        // Store the value before the found one, so that when the user presses
+        // enter we navigate to the correct one.
+        this._resultIndex = foundIndex - 1;
+      }
+    } else {
+      this._resultIndex = -1;
+    }
+  }
+
+  private async executeDatasetSearch() {
+    const trackManager = this._trackManager;
+    const engine = this._engine;
+    if (!engine || !trackManager) {
+      return;
+    }
+
+    const generation = this._searchGeneration;
+    const searchLiteral = escapeSearchQuery(this._searchText);
+
+    const datasets = trackManager
+      .getAllTracks()
+      .map((t) => {
+        const dataset = t.track.getDataset?.();
+        if (dataset) {
+          return [dataset, t.uri] as const;
+        } else {
+          return undefined;
+        }
+      })
+      .filter(exists)
+      .filter(([dataset]) => dataset.implements({id: NUM, ts: LONG, name: STR}))
+      .map(
+        ([dataset, uri]) =>
+          new SourceDataset({
+            src: `select id, ts, name, '${uri}' as uri from (${dataset.query()})`,
+            schema: {id: NUM, ts: LONG, name: STR, uri: STR},
+          }),
+      );
+
+    const union = new UnionDataset(datasets);
+    const result = await engine.query(
+      `select id, uri, ts from (${union.query()}) where name glob ${searchLiteral}`,
+    );
+
+    const numRows = result.numRows();
+
+    const searchResults: SearchResults = {
+      eventIds: new Float64Array(numRows),
+      tses: new BigInt64Array(numRows),
+      utids: new Float64Array(numRows),
+      sources: [],
+      trackUris: [],
+      totalResults: numRows,
+    };
+
+    let i = 0;
+    for (
+      const iter = result.iter({id: NUM, ts: LONG, uri: STR});
+      iter.valid();
+      iter.next()
+    ) {
+      searchResults.eventIds[i] = iter.id;
+      searchResults.tses[i] = iter.ts;
+      searchResults.utids[i] = -1; // We don't know anything about utids.
+      searchResults.sources.push('event');
+      searchResults.trackUris.push(iter.uri);
+      ++i;
     }
 
     if (generation !== this._searchGeneration) {
