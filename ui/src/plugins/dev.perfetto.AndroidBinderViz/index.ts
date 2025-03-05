@@ -47,8 +47,8 @@ export default class implements PerfettoPlugin {
         durCol: 'client_dur',
       },
       pivots: {
-        columns: [`(aidl_name || ' blocked on ' || reason)`],
-        tableName: 'android_binder_txns',
+        columns: ['reason_type', 'reason'],
+        tableName: 'android_binder_client_server_breakdown',
         tsCol: 'ts',
         durCol: 'dur',
         joins: [
