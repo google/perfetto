@@ -33,7 +33,6 @@ enum BluetoothTracePacketType {
 
 // Trace event for bluetooth
 message BluetoothTraceEvent {
-
   // Packet type and direction
   optional BluetoothTracePacketType packet_type = 1;
 
@@ -44,8 +43,8 @@ message BluetoothTraceEvent {
   // interval
   optional uint32 length = 3;
 
-  // The collection interval in ms. This is the duration between the first and
-  // last packets collected.
+  // The collection interval in nanoseconds. This is the duration between the
+  // first and last packets collected.
   optional uint32 duration = 4;
 
   // In case of CMD type, further breakdown of the type of command
