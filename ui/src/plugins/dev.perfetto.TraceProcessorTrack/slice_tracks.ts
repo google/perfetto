@@ -32,6 +32,11 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: 'Battery Stats',
   },
   {
+    type: 'bluetooth_trace_event',
+    topLevelGroup: 'SYSTEM',
+    group: 'Bluetooth',
+  },
+  {
     type: 'legacy_async_process_slice',
     topLevelGroup: 'PROCESS',
     group: undefined,
