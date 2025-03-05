@@ -309,13 +309,12 @@ CREATE PERFETTO TABLE android_binder_client_server_breakdown (
   -- The client side component of this interval's binder latency reason.
   client_reason STRING,
   -- Combined reason indicating whether latency came from client or server side.
-  reason STRING
+  reason STRING,
+  -- Whether the latency is due to the client or server.
+  reason_type STRING
 ) AS
 SELECT
   *,
-  iif(
-    server_reason IS NOT NULL,
-    server_reason || ' (server)',
-    client_reason || ' (client)'
-  ) AS reason
+  iif(server_reason IS NOT NULL, server_reason, client_reason) AS reason,
+  iif(server_reason IS NOT NULL, 'server', 'client') AS reason_type
 FROM _binder_client_server_breakdown_sp;
