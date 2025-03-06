@@ -225,7 +225,7 @@ SELECT
     -- E.g. +job=1234:"com.google.android.apps.internal.betterbug"
     -- To +job=<...>:"com.google.android.apps.internal.betterbug"
     WHEN $name GLOB "[+-a-z]*=[0-9]*:*" OR $name GLOB "[a-z]*=[0-9]*:*"
-    THEN substr($name, 1, instr($name, "=")) || "=<...>:" || substr($name, instr($name, ":") + 1)
+    THEN substr($name, 1, instr($name, "=")) || "<...>:" || substr($name, instr($name, ":") + 1)
     -- E.g. InputConsumer processing on ea6145 NotificationShade (0xb000000000000000)
     -- To InputConsumer processing on <...> NotificationShade (<...>)
     -- E.g. InputConsumer processing on [Gesture Monitor] swipe-up (0xb000000000000000)
@@ -258,7 +258,7 @@ SELECT
     THEN CASE
       WHEN $name GLOB "Transaction (Thread-*, *)"
       THEN substr($name, 1, instr($name, "(")) || "Thread-<...>," || substr($name, instr($name, ","), length($name))
-      ELSE substr($name, 1, instr($name, ",") + 1) || " <...>)"
+      ELSE substr($name, 1, instr($name, ",") + 1) || "<...>)"
     END
     -- E.g. FrameBuffer-201#invokeListeners-non-direct
     -- To: FrameBuffer-<...>#invokeListeners-non-direct
@@ -281,5 +281,7 @@ SELECT
     -- To: Handler: android.os.AsyncTask
     WHEN $name GLOB "*.*$*: #*"
     THEN "Handler: " || _remove_lambda_name($name)
-    ELSE $name
+    WHEN $name GLOB "deliverInputEvent*"
+    THEN "deliverInputEvent <...>"
+    ELSE __instrinsic_strip_hex($name, 3)
   END;

@@ -249,6 +249,16 @@ class AndroidStdlib(TestSuite):
         "Handler: com.android.systemui.broadcast.ActionReceiver"
         "Handler: com.android.keyguard.KeyguardUpdateMonitor"
         "Handler: com.android.systemui.qs.TileServiceManager"
+        "FrameBuffer-<...>#invokeListeners-non-direct"
+        "Transaction (ptz-fgd-1-LOCAL_MEDIA_REMOVE_DELETED_ITEMS_SYNC, <...>)"
+        "InputConsumer processing on ClientState{<...>} (<...>)"
+        "InputConsumer processing on [Gesture Monitor] swipe-up (<...>)"
+        "+job=<...>:"com.google.android.apps.internal.betterbug""
+        "Looper.dispatch: android.app.ActivityThread$H(runnable@<num>(android.app.ActivityThread@<num>,40))"
+        "Not changed at ALL 01"
+        "Three digits to replace <num> <num>"
+        "kworker/<num>"
+        "ImageDecoder#decodeDrawable"
         """))
 
   def test_monitor_contention_extraction(self):
