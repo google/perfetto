@@ -366,18 +366,28 @@ export class SearchManagerImpl {
       .map(
         ([dataset, uri]) =>
           new SourceDataset({
-            src: `select id, ts, name, '${uri}' as uri from (${dataset.query()})`,
+            src: `
+              select
+                id,
+                ts,
+                name,
+                '${uri}' as uri
+              from (${dataset.query()})`,
             schema: {id: NUM, ts: LONG, name: STR, uri: STR},
           }),
       );
 
     const union = new UnionDataset(datasets);
-    const result = await engine.query(
-      `select id, uri, ts from (${union.query()}) where name glob ${searchLiteral}`,
-    );
+    const result = await engine.query(`
+      select
+        id,
+        uri,
+        ts
+      from (${union.query()})
+      where name glob ${searchLiteral}
+    `);
 
     const numRows = result.numRows();
-
     const searchResults: SearchResults = {
       eventIds: new Float64Array(numRows),
       tses: new BigInt64Array(numRows),
