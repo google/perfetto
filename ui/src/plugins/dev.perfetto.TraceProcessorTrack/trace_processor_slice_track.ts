@@ -21,13 +21,21 @@ import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 
-export function createTraceProcessorSliceTrack(
-  trace: Trace,
-  uri: string,
-  maxDepth: number | undefined,
-  trackIds: ReadonlyArray<number>,
-  detailsPanel?: (row: {id: number}) => TrackEventDetailsPanel,
-) {
+export interface TraceProcessorSliceTrackAttrs {
+  readonly trace: Trace;
+  readonly uri: string;
+  readonly maxDepth?: number;
+  readonly trackIds: ReadonlyArray<number>;
+  readonly detailsPanel?: (row: {id: number}) => TrackEventDetailsPanel;
+}
+
+export function createTraceProcessorSliceTrack({
+  trace,
+  uri,
+  maxDepth,
+  trackIds,
+  detailsPanel,
+}: TraceProcessorSliceTrackAttrs) {
   return new DatasetSliceTrack({
     trace,
     uri,
