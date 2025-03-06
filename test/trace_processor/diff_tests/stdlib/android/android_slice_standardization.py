@@ -36,10 +36,8 @@ slices_to_standardize = [
     "LoadApkAssetsFd({ParcelFileDescriptor: java.io.FileDescriptor@340019d})",
     "relayoutWindow#first=false/resize=false/vis=true/params=true/force=false",
     "android.os.Handler: kotlinx.coroutines.CancellableContinuationImpl",
-    "Choreographer#doFrame 122932914",
-    "DrawFrames 122921845",
-    "/data/app/.../base.apk",
-    "OpenDexFilesFromOat(/data/app/.../base.apk)",
+    "Choreographer#doFrame 122932914", "DrawFrames 122921845",
+    "/data/app/.../base.apk", "OpenDexFilesFromOat(/data/app/.../base.apk)",
     "Open oat file /data/misc/apexdata/com.android.art/dalvik-cache/boot.oat",
     "android.os.Handler: kotlinx.coroutines.internal.DispatchedContinuation",
     "GC: Wait For Completion Alloc",
@@ -48,6 +46,17 @@ slices_to_standardize = [
     'android.os.Handler: com.android.systemui.broadcast.ActionReceiver$1$1',
     'com.android.keyguard.KeyguardUpdateMonitor$13: #302',
     'android.os.Handler: com.android.systemui.qs.TileServiceManager$1',
+    'FrameBuffer-201#invokeListeners-non-direct',
+    'Transaction (ptz-fgd-1-LOCAL_MEDIA_REMOVE_DELETED_ITEMS_SYNC, 11910)',
+    'InputConsumer processing on ClientState{e1d234a mUid=1234 mPid=1234 '
+    'mSelfReportedDisplayId=0} (0xb000000000000000)',
+    'InputConsumer processing on [Gesture Monitor] swipe-up '
+    '(0xb000000000000000)',
+    '+job=1234:"com.google.android.apps.internal.betterbug"',
+    'Looper.dispatch: android.app.ActivityThread$H(runnable@a9f7a84'
+    '(android.app.ActivityThread@1d57743,40))', 'Not changed at ALL 01',
+    'Three digits to replace 123 1234', 'kworker/1d57743',
+    'ImageDecoder#decodeDrawable'
 ]
 
 for name in slices_to_standardize:
