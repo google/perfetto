@@ -66,7 +66,11 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
-        track: createTraceProcessorSliceTrack(ctx, uri, 0, [trackId]),
+        track: createTraceProcessorSliceTrack({
+          trace: ctx,
+          uri,
+          trackIds: [trackId],
+        }),
         tags: {
           kind: SLICE_TRACK_KIND,
           trackIds: [trackId],
