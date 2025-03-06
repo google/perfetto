@@ -70,13 +70,13 @@ export default class implements PerfettoPlugin {
         trackIds,
         kind: SLICE_TRACK_KIND,
       },
-      track: createTraceProcessorSliceTrack(
-        ctx,
+      track: createTraceProcessorSliceTrack({
+        trace: ctx,
         uri,
         maxDepth,
         trackIds,
-        () => new SuspendResumeDetailsPanel(ctx, threads),
-      ),
+        detailsPanel: () => new SuspendResumeDetailsPanel(ctx, threads),
+      }),
     });
 
     // Display the track in the UI.
