@@ -25,6 +25,7 @@ import {SegmentedButtons} from './segmented_buttons';
 import {z} from 'zod';
 import {Rect2D, Size2D} from '../base/geom';
 import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
+import {MenuItem, PopupMenu} from './menu';
 
 const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
@@ -79,6 +80,16 @@ interface ZoomRegion {
   readonly type: 'ABOVE_ROOT' | 'BELOW_ROOT' | 'ROOT';
 }
 
+export interface FlamegraphOptionalAction {
+  readonly name: string;
+  execute: (kv: ReadonlyMap<string, string>) => void;
+}
+
+export type FlamegraphPropertyDefinition = {
+  displayName: string;
+  value: string;
+};
+
 export interface FlamegraphQueryData {
   readonly nodes: ReadonlyArray<{
     readonly id: number;
@@ -88,7 +99,7 @@ export interface FlamegraphQueryData {
     readonly selfValue: number;
     readonly cumulativeValue: number;
     readonly parentCumulativeValue?: number;
-    readonly properties: ReadonlyMap<string, string>;
+    readonly properties: ReadonlyMap<string, FlamegraphPropertyDefinition>;
     readonly xStart: number;
     readonly xEnd: number;
   }>;
@@ -96,6 +107,7 @@ export interface FlamegraphQueryData {
   readonly allRootsCumulativeValue: number;
   readonly minDepth: number;
   readonly maxDepth: number;
+  readonly actions: ReadonlyArray<FlamegraphOptionalAction>;
 }
 
 const FLAMEGRAPH_FILTER_SCHEMA = z
@@ -106,6 +118,7 @@ const FLAMEGRAPH_FILTER_SCHEMA = z
         z.literal('HIDE_STACK').readonly(),
         z.literal('SHOW_FROM_FRAME').readonly(),
         z.literal('HIDE_FRAME').readonly(),
+        z.literal('OPTIONS').readonly(),
       ])
       .readonly(),
     filter: z.string().readonly(),
@@ -562,7 +575,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         m('.tooltip-text', 'Nodes too small to show, please use filters'),
       );
     }
-    const {nodes, allRootsCumulativeValue, unfilteredCumulativeValue} =
+    const {nodes, allRootsCumulativeValue, unfilteredCumulativeValue, actions} =
       assertExists(this.attrs.data);
     const {unit} = assertExists(this.selectedMetric);
     if (source.kind === 'ROOT') {
@@ -633,11 +646,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           `${displaySize(selfValue, unit)} (${selfPercentText})`,
         ),
       ),
-      Array.from(properties, ([key, value]) => {
+      Array.from(properties, ([_, value]) => {
         return m(
           '.tooltip-text-line',
-          m('.tooltip-bold-text', key + ':'),
-          m('.tooltip-text', value),
+          m('.tooltip-bold-text', value.displayName + ':'),
+          m('.tooltip-text', value.value),
         );
       }),
       m(
@@ -702,6 +715,31 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             });
           },
         }),
+        // Only render the PopupMenu if there are actions available
+        actions !== undefined && actions.length > 0
+          ? m(
+              PopupMenu,
+              {
+                trigger: m(Button, {
+                  icon: 'menu',
+                  compact: true,
+                }),
+                position: PopupPosition.Bottom,
+              },
+              actions.map((action) =>
+                m(MenuItem, {
+                  label: `${action.name}`,
+                  onclick: () => {
+                    const reducedProperties: ReadonlyMap<string, string> =
+                      new Map(
+                        [...properties].map(([key, {value}]) => [key, value]),
+                      );
+                    action.execute(reducedProperties);
+                  },
+                }),
+              ),
+            )
+          : null,
       ),
     );
   }
@@ -951,6 +989,8 @@ function toTags(state: FlamegraphState): ReadonlyArray<string> {
         return 'Show From Frame: ' + x.filter;
       case 'SHOW_STACK':
         return 'Show Stack: ' + x.filter;
+      case 'OPTIONS':
+        return 'Options';
     }
   };
   const filters = state.filters.map((x) => toString(x));
