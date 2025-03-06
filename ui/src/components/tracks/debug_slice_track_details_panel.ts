@@ -38,6 +38,7 @@ import {getProcessName} from '../sql_utils/process';
 import {sliceRef} from '../widgets/slice';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
+import {SqlRef} from '../../widgets/sql_ref';
 
 export const ARG_PREFIX = 'arg_';
 
@@ -230,7 +231,7 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
       'Name': this.data['name'] as string,
       'Start time': m(Timestamp, {ts: timeFromSql(this.data['ts'])}),
       'Duration': m(DurationWidget, {dur: durationFromSql(this.data['dur'])}),
-      'Slice id': `${this.tableName}[${this.eventId}]`,
+      'SQL ID': m(SqlRef, {table: this.tableName, id: this.eventId}),
     });
     details.push(this.renderThreadStateInfo());
     details.push(this.renderSliceInfo());
