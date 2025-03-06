@@ -26,7 +26,7 @@ import {
 } from '../../public/track_kinds';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
-import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Flamegraph} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
@@ -140,9 +140,8 @@ export default class implements PerfettoPlugin {
 
     const result = await trace.engine.query(`
       select
-        type,
-        name,
         id,
+        name,
         unit,
         extract_arg(dimension_arg_set_id, 'cpu') as cpu
       from counter_track
@@ -152,15 +151,13 @@ export default class implements PerfettoPlugin {
 
     const it = result.iter({
       id: NUM,
-      type: STR,
       name: STR_NULL,
       unit: STR_NULL,
       cpu: NUM, // Perf counters always have a cpu dimension
     });
 
     for (; it.valid(); it.next()) {
-      const {type, id: trackId, name, unit, cpu} = it;
-      console.log(type, trackId, name, unit, cpu);
+      const {id: trackId, name, unit, cpu} = it;
       const uri = `/counter_${trackId}`;
       const title = `Cpu ${cpu} ${name}`;
 
