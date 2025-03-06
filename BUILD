@@ -2826,6 +2826,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/math.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.cc",

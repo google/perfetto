@@ -44,6 +44,8 @@ source_set("functions") {
     "math.h",
     "pprof_functions.cc",
     "pprof_functions.h",
+    "replace_numbers_function.cc",
+    "replace_numbers_function.h",
     "sqlite3_str_split.cc",
     "sqlite3_str_split.h",
     "stack_functions.cc",
