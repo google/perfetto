@@ -31,8 +31,8 @@ export default class implements PerfettoPlugin {
       aggregation: {
         columns: [
           'server_process',
-          'interface',
-          'aidl_name',
+          '(IFNULL(interface, "unknown"))',
+          '(IFNULL(method_name, "unknown"))',
           '(client_process || ":" || client_upid)',
           '(client_thread || ":" ||  client_utid)',
         ],
@@ -41,7 +41,7 @@ export default class implements PerfettoPlugin {
         tableName: 'android_binder_txns',
       },
       slice: {
-        columns: ['(client_process || ":" || client_upid)'],
+        columns: ['(IFNULL(aidl_name, "unknown"))'],
         tableName: 'android_binder_txns',
         tsCol: 'client_ts',
         durCol: 'client_dur',
