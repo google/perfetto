@@ -96,6 +96,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/structural_tree_partition.h"
@@ -981,6 +982,12 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   }
   {
     base::Status status = RegisterStackFunctions(engine_.get(), &context_);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status =
+        RegisterReplaceNumbersFunction(engine_.get(), &context_);
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
