@@ -19,7 +19,12 @@ import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 
 export interface TraceProcessorSliceTrackAttrs {
   readonly trace: Trace;
@@ -44,21 +49,17 @@ export function createTraceProcessorSliceTrack({
         id: NUM,
         ts: LONG,
         dur: LONG,
-        name: STR,
+        name: STR_NULL,
         depth: NUM,
         thread_dur: LONG_NULL,
       },
-      src: `
-        select
-          ifnull(name, '[null]') as name,
-          *
-        from slice
-      `,
+      src: 'slice',
       filter: {
         col: 'track_id',
         in: trackIds,
       },
     }),
+    sliceName: (row) => (row.name === null ? '[null]' : row.name),
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
     queryGenerator: getDepthProvider(trackIds),
@@ -89,7 +90,7 @@ function getDepthProvider(trackIds: ReadonlyArray<number>) {
         ts,
         dur,
         layout_depth as depth,
-        ifnull(name, '[null]') as name,
+        name,
         thread_dur
       from experimental_slice_layout
       where filter_track_ids = '${trackIds.join(',')}'
