@@ -55,7 +55,9 @@ slices_to_standardize = [
     '+job=1234:"com.google.android.apps.internal.betterbug"',
     'Looper.dispatch: android.app.ActivityThread$H(runnable@a9f7a84'
     '(android.app.ActivityThread@1d57743,40))', 'Not changed at ALL 01',
-    'Three digits to replace 123 1234', 'kworker/1d57743',
+    'Three digits to replace 123 1234', 'kworker/1d57743', '1234',
+    '1019b5c SurfaceView[com.google.android.apps.maps/com.google.android.maps.'
+    'MapsActivity]#1(BLAST Consumer)1', '1 2 3 4', '0x1019b5c',
     'ImageDecoder#decodeDrawable'
 ]
 
