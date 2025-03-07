@@ -23,7 +23,6 @@ import {Slice} from '../../public/track';
 import {DatasetSchema, SourceDataset} from '../../trace_processor/dataset';
 import {ColumnType, LONG, NUM} from '../../trace_processor/query_result';
 import {getColorForSlice} from '../colorizer';
-import {generateSqlWithInternalLayout} from '../sql_utils/layout';
 import {formatDuration} from '../time_utils';
 import {
   BASE_ROW,
@@ -35,6 +34,7 @@ import {
 } from './base_slice_track';
 import {Point2D, Size2D} from '../../base/geom';
 import {exists} from '../../base/utils';
+import {removeFalsyValues} from '../../base/array_utils';
 
 export interface InstantStyle {
   /**
@@ -92,6 +92,12 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
    *   width corresponds to the duration of the slice.
    * - `depth` (NUM): Depth of each event, used for vertical arrangement. Higher
    *   depth values are rendered lower down on the track.
+   * - `layer` (NUM): This layer value influences the mipmap function. Slices in
+   *   different layers will be mipmapped independency of each other, and the
+   *   buckets of higher layers will be rendered on top of lower layers.
+   *   Warning: While using layers, depth values must be kept under 16 (see
+   *   LAYER_MULTIPLIER in base_slice_track.ts), otherwise we could run into
+   *   issues.
    */
   readonly dataset: SourceDataset<T>;
 
@@ -245,26 +251,34 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
 
   // Generate a query to use for generating slices to be rendered
   private generateRenderQuery(dataset: SourceDataset<T>) {
-    if (dataset.implements({dur: LONG, depth: NUM})) {
-      // Both depth and dur provided, we can use the dataset as-is.
+    const hasLayer = dataset.implements({layer: NUM});
+    const hasDepth = dataset.implements({depth: NUM});
+    const hasDur = dataset.implements({dur: LONG});
+
+    const cols = removeFalsyValues([
+      // If we have no layer, assume flat layering.
+      !hasLayer && '0 as layer',
+
+      // If we have dur but no depth, automatically calculate layout.
+      !hasDepth &&
+        hasDur &&
+        `
+          internal_layout(ts, dur) OVER (
+            ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+          ) AS depth
+        `,
+
+      // If we have no dur or depth, use a flat layout.
+      !hasDepth && !hasDur && '0 as depth',
+
+      // If no dur, assume instant slices.
+      !hasDur && '0 as dur',
+    ]);
+
+    if (cols.length === 0) {
       return dataset.query();
-    } else if (dataset.implements({depth: NUM})) {
-      // Depth provided but no dur, assume each event is an instant event by
-      // hard coding dur to 0.
-      return `select 0 as dur, * from (${dataset.query()})`;
-    } else if (dataset.implements({dur: LONG})) {
-      // Dur provided but no depth, automatically calculate the depth using
-      // internal_layout().
-      return generateSqlWithInternalLayout({
-        columns: ['*'],
-        source: dataset.query(),
-        ts: 'ts',
-        dur: 'dur',
-        orderByClause: 'ts',
-      });
     } else {
-      // No depth nor dur provided, use 0 for both.
-      return `select 0 as dur, 0 as depth, * from (${dataset.query()})`;
+      return `select ${cols.join(', ')}, * from (${dataset.query()})`;
     }
   }
 
