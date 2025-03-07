@@ -41,7 +41,7 @@ export default class implements PerfettoPlugin {
         tableName: 'android_binder_txns',
       },
       slice: {
-        columns: ['(IFNULL(aidl_name, "unknown"))'],
+        columns: ['aidl_name'],
         tableName: 'android_binder_txns',
         tsCol: 'client_ts',
         durCol: 'client_dur',
