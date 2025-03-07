@@ -127,10 +127,10 @@ intent_dur (R	intentDur
 
 debuggable (R
 debuggableJJJJJ	
-è
-Mprotos/perfetto/metrics/android/android_garbage_collection_unagg_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ù
+™
+Mprotos/perfetto/metrics/android/android_garbage_collection_unagg_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"è
 #AndroidGarbageCollectionUnaggMetrich
-	gc_events (2K.perfetto.protos.AndroidGarbageCollectionUnaggMetric.GarbageCollectionEventRgcEvents‚
+	gc_events (2K.perfetto.protos.AndroidGarbageCollectionUnaggMetric.GarbageCollectionEventRgcEvents˝
 GarbageCollectionEvent
 thread_name (	R
 threadName!
@@ -154,7 +154,8 @@ gc_int_dur (RgcIntDur
 pid (Rpid
 tid (Rtid(
 gc_monotonic_dur (RgcMonotonicDurA
-process (2'.perfetto.protos.AndroidProcessMetadataRprocess
+process (2'.perfetto.protos.AndroidProcessMetadataRprocess
+gc_count (RgcCount
 ‹
 8protos/perfetto/metrics/android/android_boot_unagg.protoperfetto.protos?protos/perfetto/metrics/android/app_process_starts_metric.protoMprotos/perfetto/metrics/android/android_garbage_collection_unagg_metric.proto"˛
 AndroidBootUnaggv
