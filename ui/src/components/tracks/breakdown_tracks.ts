@@ -491,16 +491,23 @@ function buildFilterSqlClause(filters: Filter[]) {
 function filterToSql(filter: Filter) {
   const {columnName, value} = filter;
 
-  let filterValue: ColumnType | undefined;
-  if (value !== undefined) {
-    if (Number.isNaN(Number.parseFloat(value))) {
-      filterValue = sqliteString(value);
-    } else if (!Number.isInteger(Number.parseFloat(value))) {
-      filterValue = Number(value);
-    } else {
-      filterValue = BigInt(value);
-    }
+  const filterValue: ColumnType | undefined = toSqlValue(value);
+  return `${columnName} = ${filterValue === undefined ? '' : filterValue}`;
+}
+
+function toSqlValue(input: string | undefined): string | number | bigint {
+  if (input === undefined || !input.trim()) {
+    return '';
   }
 
-  return `${columnName} = ${filterValue === undefined ? '' : filterValue}`;
+  const num = Number(input);
+  if (!isNaN(num) && String(num) == input.trim()) {
+    return num;
+  }
+
+  try {
+    return BigInt(input);
+  } catch {
+    return sqliteString(input);
+  }
 }
