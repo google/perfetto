@@ -36,12 +36,14 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-// __instrinsic_strip_hex(name STRING, min_repeated_digits LONG)
+// __intrinsic_strip_hex(name STRING, min_repeated_digits LONG)
 //
 //   Replaces hexadecimal sequences (with at least one digit) in a string with
 //   "<num>" based on specified criteria.
 struct StripHexFunction : public SqlFunction {
-  static constexpr char kFunctionName[] = "__instrinsic_strip_hex";
+  static constexpr char kFunctionName[] = "__intrinsic_strip_hex";
+  static constexpr std::array<std::string_view, 2> kSpecialPrefixes = {"0x",
+                                                                       "0X"};
 
   using Context = void;
 
@@ -55,6 +57,55 @@ struct StripHexFunction : public SqlFunction {
       return base::ErrStatus("%s: %s", kFunctionName, status.message().c_str());
     }
     return status;
+  }
+
+  static const std::string_view MatchesSpecialPrefix(
+      base::StringView input_view,
+      size_t pos) {
+    for (const auto& special_prefix : kSpecialPrefixes) {
+      if (input_view.substr(pos, special_prefix.size()) ==
+          special_prefix.data()) {
+        return special_prefix;
+      }
+    }
+    return "";
+  }
+
+  static std::string StripHex(std::string input, int64_t min_repeated_digits) {
+    base::StringView input_view = base::StringView(input);
+    std::string result;
+    result.reserve(input.length());
+    for (size_t i = 0; i < input.length();) {
+      const std::string_view special_prefix =
+          MatchesSpecialPrefix(input_view, i);
+      if (!special_prefix.empty()) {
+        // Case 1: Special prefixes for hex sequence found
+        result += input.substr(i, special_prefix.size());
+        i += special_prefix.size();
+      } else if (!isalnum(input[i])) {
+        // Case 2: Non alpha numeric prefix for hex sequence found
+        result += input[i++];
+      } else if (i == 0 && isxdigit(input[i])) {
+        // Case 3: Start of input is hex digit, continue to check hex sequence
+      } else {
+        // Case 4: No potential prefix for hex digits found
+        result += input[i++];
+        continue;
+      }
+
+      size_t hex_start = i;
+      bool digit_found = false;
+      for (; i < input.length() && isxdigit(input[i]); i++) {
+        if (isdigit(input[i])) {
+          digit_found = true;
+        }
+      }
+      result += digit_found && (i - hex_start >=
+                                static_cast<size_t>(min_repeated_digits))
+                    ? "<num>"
+                    : input.substr(hex_start, i - hex_start);
+    }
+    return result;
   }
 
   static base::Status RunImpl(void*,
@@ -90,42 +141,7 @@ struct StripHexFunction : public SqlFunction {
           kFunctionName);
     }
 
-    base::StringView inputView = base::StringView(input);
-    constexpr std::array<const char*, 2> special_prefixes = {"0x", "0X"};
-    std::string result;
-    result.reserve(input.length());
-    for (size_t i = 0; i < input.length();) {
-      size_t prefix_len = 0;
-      for (const auto& special_prefix : special_prefixes) {
-        if (inputView.substr(i, strlen(special_prefix)) == special_prefix) {
-          prefix_len = strlen(special_prefix);
-          break;
-        }
-      }
-      if (prefix_len == 0 && !isalnum(input[i])) {
-        // Treat the current character as a prefix if no defined prefix was
-        // found and the character is non-alphanumeric.
-        prefix_len = 1;
-      }
-      if (prefix_len == 0) {
-        result += input[i++];
-        continue;
-      }
-      result += input.substr(i, prefix_len);
-
-      i += prefix_len;
-      size_t hex_start = i;
-      bool digit_found = false;
-      for (; i < input.length() && isxdigit(input[i]); i++) {
-        if (isdigit(input[i])) {
-          digit_found = true;
-        }
-      }
-      result += digit_found && (i - hex_start >=
-                                static_cast<size_t>(min_repeated_digits))
-                    ? "<num>"
-                    : input.substr(hex_start, i - hex_start);
-    }
+    std::string result = StripHex(input, min_repeated_digits);
     char* result_cstr = static_cast<char*>(malloc(result.length() + 1));
     memcpy(result_cstr, result.c_str(), result.length() + 1);
     out = SqlValue::String(result_cstr);
@@ -136,10 +152,14 @@ struct StripHexFunction : public SqlFunction {
 
 }  // namespace
 
-base::Status RegisterReplaceNumbersFunction(PerfettoSqlEngine* engine,
-                                            TraceProcessorContext* context) {
+base::Status RegisterStripHexFunction(PerfettoSqlEngine* engine,
+                                      TraceProcessorContext* context) {
   return engine->RegisterStaticFunction<StripHexFunction>(
       StripHexFunction::kFunctionName, 2, context->storage.get());
+}
+
+std::string SqlStripHex(std::string input, int64_t min_repeated_digits) {
+  return StripHexFunction::StripHex(input, min_repeated_digits);
 }
 
 }  // namespace trace_processor

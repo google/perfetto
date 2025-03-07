@@ -258,6 +258,10 @@ class AndroidStdlib(TestSuite):
         "Not changed at ALL 01"
         "Three digits to replace <num> <num>"
         "kworker/<num>"
+        "<num>"
+        "<num> SurfaceView[com.google.android.apps.maps/com.google.android.maps.MapsActivity]#1(BLAST Consumer)1"
+        "1 2 3 4"
+        "0x<num>"
         "ImageDecoder#decodeDrawable"
         """))
 
