@@ -230,25 +230,6 @@ export abstract class BaseSliceTrack<
   // `select id, ts, dur, 0 as depth from foo where bar = 'baz'`
   abstract getSqlSource(): string;
 
-  // This should return a fast sql select statement or table name with slightly
-  // relaxed constraints compared to getSqlSource(). It's the query used to join
-  // the results of the mipmap table in order to fetch the real `ts` and `dur`
-  // from the quantized slices.
-  //
-  // This query only needs to provide `ts`, `dur` and `id` columns (no depth
-  // required), and it doesn't even need to be filtered (because it's just used
-  // in the join), it just needs to be fast! This means that most of the time
-  // this can just be the root table of wherever this track comes from (e.g. the
-  // slice table).
-  //
-  // If in doubt, this can just return the same query as getSqlSource(), which
-  // is perfectly valid, however you may be leaving some performance on the
-  // table.
-  //
-  // TODO(stevegolton): If we merge BST with DST, this abstraction can be
-  // avoided.
-  abstract getJoinSqlSource(): string;
-
   // Override me if you want to define what is rendered on the tooltip. Called
   // every DOM render cycle. The raw slice data is passed to this function
   protected renderTooltipForSlice(_: SliceT): m.Children {
@@ -708,7 +689,7 @@ export abstract class BaseSliceTrack<
         ${slicesKey.end},
         ${resolution}
       ) z
-      CROSS JOIN (${this.getJoinSqlSource()}) s using (id)
+      CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
 
     const it = queryRes.iter(this.rowSpec);
