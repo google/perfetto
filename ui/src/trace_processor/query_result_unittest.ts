@@ -14,12 +14,19 @@
 
 import protos from '../protos';
 import {
+  BLOB,
+  BLOB_NULL,
+  checkExtends,
   createQueryResult,
   decodeInt64Varint,
+  LONG,
+  LONG_NULL,
   NUM,
   NUM_NULL,
   STR,
   STR_NULL,
+  unionTypes,
+  UNKNOWN,
 } from './query_result';
 
 const T = protos.QueryResult.CellsBatch.CellType;
@@ -428,5 +435,90 @@ describe('decodeInt64Varint', () => {
     testData.forEach((input) => {
       expect(() => decodeInt64Varint(input, 0)).toThrow('Index out of range');
     });
+  });
+});
+
+describe('unionTypes', () => {
+  it('should return the same type when types are identical', () => {
+    expect(unionTypes(NUM, NUM)).toEqual(NUM);
+    expect(unionTypes(STR, STR)).toEqual(STR);
+    expect(unionTypes(UNKNOWN, UNKNOWN)).toEqual(UNKNOWN);
+  });
+
+  it('should return the parent type when one type directly inherits from the other', () => {
+    expect(unionTypes(NUM, NUM_NULL)).toEqual(NUM_NULL);
+    expect(unionTypes(NUM_NULL, NUM)).toEqual(NUM_NULL);
+    expect(unionTypes(STR, STR_NULL)).toEqual(STR_NULL);
+  });
+
+  it('should return the nearest common ancestor for types with shared ancestry', () => {
+    // NUM and LONG both extend to UNKNOWN via their NULL variants
+    expect(unionTypes(NUM, LONG)).toEqual(UNKNOWN);
+    expect(unionTypes(STR, BLOB)).toEqual(UNKNOWN);
+    expect(unionTypes(NUM_NULL, LONG_NULL)).toEqual(UNKNOWN);
+  });
+
+  it('should handle transitive inheritance relationships', () => {
+    // NUM extends NUM_NULL extends UNKNOWN
+    expect(unionTypes(NUM, UNKNOWN)).toEqual(UNKNOWN);
+    expect(unionTypes(UNKNOWN, NUM)).toEqual(UNKNOWN);
+  });
+
+  it('should find common ancestors for sibling types', () => {
+    // NUM_NULL and STR_NULL both extend UNKNOWN
+    expect(unionTypes(NUM_NULL, STR_NULL)).toEqual(UNKNOWN);
+    expect(unionTypes(LONG_NULL, BLOB_NULL)).toEqual(UNKNOWN);
+  });
+});
+
+describe('checkExtends', () => {
+  it('should return true when types are identical', () => {
+    expect(checkExtends(NUM, NUM)).toBe(true);
+    expect(checkExtends(STR, STR)).toBe(true);
+    expect(checkExtends(UNKNOWN, UNKNOWN)).toBe(true);
+  });
+
+  it('should return true when actual directly extends required', () => {
+    expect(checkExtends(NUM_NULL, NUM)).toBe(true);
+    expect(checkExtends(STR_NULL, STR)).toBe(true);
+    expect(checkExtends(LONG_NULL, LONG)).toBe(true);
+    expect(checkExtends(BLOB_NULL, BLOB)).toBe(true);
+  });
+
+  it('should return true for transitive inheritance relationships', () => {
+    expect(checkExtends(UNKNOWN, NUM)).toBe(true);
+    expect(checkExtends(UNKNOWN, STR)).toBe(true);
+    expect(checkExtends(UNKNOWN, LONG)).toBe(true);
+    expect(checkExtends(UNKNOWN, BLOB)).toBe(true);
+  });
+
+  it('should return false when actual does not extend required', () => {
+    expect(checkExtends(NUM, NUM_NULL)).toBe(false);
+    expect(checkExtends(STR, UNKNOWN)).toBe(false);
+    expect(checkExtends(NUM, STR)).toBe(false);
+    expect(checkExtends(BLOB, LONG)).toBe(false);
+  });
+
+  it('should return false for sibling types', () => {
+    expect(checkExtends(NUM, STR)).toBe(false);
+    expect(checkExtends(LONG, BLOB)).toBe(false);
+    expect(checkExtends(NUM_NULL, STR_NULL)).toBe(false);
+  });
+
+  it('should handle complex type relationships correctly', () => {
+    // NUM extends NUM_NULL extends UNKNOWN
+    expect(checkExtends(UNKNOWN, NUM)).toBe(true);
+    // But reverse is not true
+    expect(checkExtends(NUM, UNKNOWN)).toBe(false);
+    // Testing across different type families
+    expect(checkExtends(UNKNOWN, STR)).toBe(true);
+    expect(checkExtends(NUM_NULL, STR)).toBe(false);
+  });
+
+  it('should handle non-existent types gracefully', () => {
+    const CUSTOM = 'CUSTOM';
+    // Type doesn't exist in the colTypes map
+    expect(() => checkExtends(CUSTOM, NUM)).not.toThrow();
+    expect(checkExtends(CUSTOM, NUM)).toBe(false);
   });
 });
