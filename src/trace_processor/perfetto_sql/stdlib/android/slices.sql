@@ -283,5 +283,5 @@ SELECT
     THEN "Handler: " || _remove_lambda_name($name)
     WHEN $name GLOB "deliverInputEvent*"
     THEN "deliverInputEvent <...>"
-    ELSE __instrinsic_strip_hex($name, 3)
+    ELSE __intrinsic_strip_hex($name, 3)
   END;

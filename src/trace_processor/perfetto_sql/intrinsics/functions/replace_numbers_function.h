@@ -29,7 +29,7 @@ class TraceProcessorContext;
 
 // Registers the following functions:
 //
-// __instrinsic_strip_hex(name STRING, min_repeated_digits LONG)
+// __intrinsic_strip_hex(name STRING, min_repeated_digits LONG)
 //
 // Description:
 //   Replaces hexadecimal sequences (with at least one digit) in a string with
@@ -43,16 +43,19 @@ class TraceProcessorContext;
 // Replacement Criteria:
 //   - Replaces hex/num sequences [0-9a-fA-F] with at least one occurrence of a
 //     digit preceded by:
+//      - Start of the string
 //      - Defined prefix ("0x", "0X")
 //      - Non-alphanumeric character
-//      - Whitespace character
-//   -  Replaces only sequences with length >= 'min_repeated_digits'.
+//   -  Replaces only sequences with length >= 'min_repeated_digits'
 //
 // Return Value:
 //   The string with replaced hex sequences.
-base::Status RegisterReplaceNumbersFunction(PerfettoSqlEngine* engine,
-                                            TraceProcessorContext* context);
+base::Status RegisterStripHexFunction(PerfettoSqlEngine* engine,
+                                      TraceProcessorContext* context);
 
+// Implementation of __intrinsic_strip_hex function
+// Visible for testing
+std::string SqlStripHex(std::string input, int64_t min_repeated_digits);
 }  // namespace trace_processor
 }  // namespace perfetto
 

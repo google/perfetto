@@ -986,8 +986,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       PERFETTO_FATAL("%s", status.c_message());
   }
   {
-    base::Status status =
-        RegisterReplaceNumbersFunction(engine_.get(), &context_);
+    base::Status status = RegisterStripHexFunction(engine_.get(), &context_);
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }

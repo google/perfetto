@@ -13729,6 +13729,7 @@ python_binary_host {
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_unittests",
     srcs: [
+        "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function_unittest.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split_unittest.cc",
     ],
 }
