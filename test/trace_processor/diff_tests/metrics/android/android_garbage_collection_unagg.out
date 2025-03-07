@@ -25,6 +25,7 @@ android_garbage_collection_unagg {
       pid: 3162
       android_user_id: 0
     }
+    gc_count: 1
   }
   gc_events {
     thread_name: "HeapTaskDaemon"
@@ -52,6 +53,7 @@ android_garbage_collection_unagg {
       pid: 2523
       android_user_id: 0
     }
+    gc_count: 1
   }
   gc_events {
     thread_name: "HeapTaskDaemon"
@@ -74,6 +76,7 @@ android_garbage_collection_unagg {
       pid: 2909
       android_user_id: 0
     }
+    gc_count: 1
   }
   gc_events {
     thread_name: "HeapTaskDaemon"
@@ -96,5 +99,6 @@ android_garbage_collection_unagg {
       pid: 2855
       android_user_id: 0
     }
+    gc_count: 1
   }
 }
