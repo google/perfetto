@@ -14,18 +14,7 @@
 
 import {assertUnreachable} from '../base/logging';
 import {getOrCreate} from '../base/utils';
-import {
-  BLOB,
-  BLOB_NULL,
-  ColumnType,
-  LONG,
-  LONG_NULL,
-  NUM,
-  NUM_NULL,
-  SqlValue,
-  STR,
-  STR_NULL,
-} from './query_result';
+import {checkExtends, ColumnType, SqlValue, unionTypes} from './query_result';
 import {sqlValueToSqliteString} from './sql_utils';
 
 /**
@@ -183,10 +172,7 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
 
   implements(required: DatasetSchema) {
     return Object.entries(required).every(([name, required]) => {
-      return (
-        name in this.schema &&
-        checkTypeIsCompatible(required, this.schema[name])
-      );
+      return name in this.schema && checkExtends(required, this.schema[name]);
     });
   }
 
@@ -221,23 +207,26 @@ export class UnionDataset implements Dataset {
   get schema(): DatasetSchema {
     // Find the minimal set of columns that are supported by all datasets of
     // the union
-    let sch: Record<string, ColumnType> | undefined = undefined;
+    let unionSchema: Record<string, ColumnType> | undefined = undefined;
     this.union.forEach((ds) => {
       const dsSchema = ds.schema;
-      if (sch === undefined) {
+      if (unionSchema === undefined) {
         // First time just use this one
-        sch = dsSchema;
+        unionSchema = dsSchema;
       } else {
         const newSch: Record<string, ColumnType> = {};
-        for (const [key, kind] of Object.entries(sch)) {
-          if (key in dsSchema && dsSchema[key] === kind) {
-            newSch[key] = kind;
+        for (const [key, value] of Object.entries(unionSchema)) {
+          if (key in dsSchema) {
+            const commonType = unionTypes(value, dsSchema[key]);
+            if (commonType !== undefined) {
+              newSch[key] = commonType;
+            }
           }
         }
-        sch = newSch;
+        unionSchema = newSch;
       }
     });
-    return sch ?? {};
+    return unionSchema ?? {};
   }
 
   query(schema?: DatasetSchema): string {
@@ -336,10 +325,7 @@ export class UnionDataset implements Dataset {
 
   implements(required: DatasetSchema) {
     return Object.entries(required).every(([name, required]) => {
-      return (
-        name in this.schema &&
-        checkTypeIsCompatible(required, this.schema[name])
-      );
+      return name in this.schema && checkExtends(required, this.schema[name]);
     });
   }
 }
@@ -349,26 +335,4 @@ function mergeFilters(filters: InFilter[]): InFilter | undefined {
   const col = filters[0].col;
   const values = new Set(filters.flatMap((filter) => filter.in));
   return {col, in: Array.from(values)};
-}
-
-function checkTypeIsCompatible(
-  required: ColumnType,
-  actual: ColumnType,
-): boolean {
-  // Return early if we have an exact match
-  if (required === actual) return true;
-
-  // If required type is null also match the
-  switch (required) {
-    case STR_NULL:
-      return actual === STR;
-    case NUM_NULL:
-      return actual === NUM;
-    case LONG_NULL:
-      return actual === LONG;
-    case BLOB_NULL:
-      return actual === BLOB;
-    default:
-      return false;
-  }
 }

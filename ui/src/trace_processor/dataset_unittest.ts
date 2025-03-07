@@ -22,6 +22,7 @@ import {
   NUM_NULL,
   STR,
   STR_NULL,
+  UNKNOWN,
 } from './query_result';
 
 test('get query for simple dataset', () => {
@@ -301,5 +302,24 @@ test('optimize a union dataset with different schemas', () => {
       foo: NUM,
       bar: NUM,
     },
+  });
+});
+
+test('union type widening', () => {
+  const dataset = new UnionDataset([
+    new SourceDataset({
+      src: 'slice',
+      schema: {foo: NUM, bar: STR_NULL, baz: BLOB, missing: UNKNOWN},
+    }),
+    new SourceDataset({
+      src: 'slice',
+      schema: {foo: NUM_NULL, bar: STR, baz: LONG},
+    }),
+  ]);
+
+  expect(dataset.schema).toEqual({
+    foo: NUM_NULL,
+    bar: STR_NULL,
+    baz: UNKNOWN,
   });
 });
