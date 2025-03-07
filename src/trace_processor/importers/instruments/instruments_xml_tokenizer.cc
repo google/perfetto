@@ -146,11 +146,38 @@ class InstrumentsXmlTokenizer::Impl {
   ~Impl() { XML_ParserFree(parser_); }
 
   base::Status Parse(TraceBlobView view) {
-    if (!XML_Parse(parser_, reinterpret_cast<const char*>(view.data()),
-                   static_cast<int>(view.length()), false)) {
-      return base::ErrStatus("XML parse error at line %lu: %s\n",
-                             XML_GetCurrentLineNumber(parser_),
-                             XML_ErrorString(XML_GetErrorCode(parser_)));
+    const char* data = reinterpret_cast<const char*>(view.data());
+    size_t length = view.length();
+    while (length > 0) {
+      // Handle the data in chunks of at most 32MB. Don't use std::min, to
+      // be robust against length > 2GB.
+      static constexpr int kMaxChunkSize = 32 * 1024 * 1024;
+      int chunk_size = kMaxChunkSize;
+      if (length < kMaxChunkSize) {
+        chunk_size = static_cast<int>(length);
+      }
+      void* buffer;
+      // Allocate an XML parser buffer -- libexpat insists on reading
+      // from a buffer it owns, rather than a user provided one.
+      while (!(buffer = XML_GetBuffer(parser_, chunk_size))) {
+        // Be robust against XML_GetBuffer failing to allocate the chunk size,
+        // and retry with smaller chunk sizes.
+        chunk_size /= 2;
+        if (chunk_size < 1024) {
+          return base::ErrStatus(
+              "XML parse error at line %lu: failed to allocate buffer\n",
+              XML_GetCurrentLineNumber(parser_));
+        }
+      }
+      // Copy the data into libexpat's buffer, and parse it.
+      memcpy(buffer, data, static_cast<size_t>(chunk_size));
+      length -= static_cast<size_t>(chunk_size);
+      data += chunk_size;
+      if (!XML_ParseBuffer(parser_, chunk_size, false)) {
+        return base::ErrStatus("XML parse error at line %lu: %s\n",
+                               XML_GetCurrentLineNumber(parser_),
+                               XML_ErrorString(XML_GetErrorCode(parser_)));
+      }
     }
     return base::OkStatus();
   }
