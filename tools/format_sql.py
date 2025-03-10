@@ -580,7 +580,7 @@ def format_sql(file: Path,
     with_macros = postprocess_macros(formatted, macros)
     return restore_comment_blocks(with_macros, comment_blocks).rstrip() + '\n'
   except Exception as e:
-    print(f"Failed to format SQL: {e}", file=sys.stderr)
+    print(f"Failed to format SQL: file {file}, {e}", file=sys.stderr)
     raise e
 
 
