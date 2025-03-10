@@ -27,8 +27,8 @@ import {Section} from '../../../widgets/section';
 import {Engine} from '../../../trace_processor/engine';
 import protos from '../../../protos';
 import {copyToClipboard} from '../../../base/clipboard';
-import { Button } from '../../../widgets/button';
-import { Icons } from '../../../base/semantic_icons';
+import {Button} from '../../../widgets/button';
+import {Icons} from '../../../base/semantic_icons';
 
 export interface DataSourceAttrs extends PageWithTraceAttrs {
   readonly queryNode: QueryNode;
@@ -147,15 +147,11 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
         this.showDataSourceInfoPanel === SelectedView.PROTO &&
           m(
             '.code-snippet',
-            m(
-              Button,
-              {
-                title: 'Copy to clipboard',
-                onclick: () =>
-                  copyToClipboard(this.currentSql?.textproto ?? ''),
-                icon:  Icons.Copy,
-              },
-            ),
+            m(Button, {
+              title: 'Copy to clipboard',
+              onclick: () => copyToClipboard(this.currentSql?.textproto ?? ''),
+              icon: Icons.Copy,
+            }),
             m('code', this.currentSql.textproto),
           ),
       ),

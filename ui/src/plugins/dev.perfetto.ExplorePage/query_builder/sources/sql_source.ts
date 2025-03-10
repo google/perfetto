@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {NodeType, QueryNode} from '../../query_node';
+import {createSelectColumnsProto, NodeType, QueryNode} from '../../query_node';
 import {
   ColumnControllerRow,
   columnControllerRowFromName,
@@ -68,19 +68,10 @@ export class SqlSourceNode implements QueryNode {
     if (this.attrs.sql) sqlProto.sql = this.attrs.sql;
     if (this.attrs.columns) sqlProto.columnNames = this.attrs.columns;
     if (this.attrs.preamble) sqlProto.preamble = this.attrs.preamble;
-
-    const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] =
-      [];
-    for (const c of this.columns.filter((c) => c.checked)) {
-      const newC = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      newC.columnName = c.column.name;
-      if (c.alias) {
-        newC.alias = c.alias;
-      }
-      selectedColumns.push(newC);
-    }
     sq.sql = sqlProto;
-    sq.selectColumns = selectedColumns;
+
+    const selectedColumns = createSelectColumnsProto(this);
+    if (selectedColumns) sq.selectColumns = selectedColumns;
     return sq;
   }
 
