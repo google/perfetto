@@ -125,9 +125,15 @@ export class GroupByNode implements QueryNode {
     const prevNodeSq = this.prevNode.getStructuredQuery();
     if (!prevNodeSq) return undefined;
 
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = `group_by`;
-    sq.innerQuery = prevNodeSq;
+    const sq = prevNodeSq.groupBy
+      ? new protos.PerfettoSqlStructuredQuery()
+      : prevNodeSq;
+    if (prevNodeSq.groupBy) {
+      sq.id = `group_by`;
+      sq.innerQuery = prevNodeSq;
+    } else {
+      sq.id = `group_by_${prevNodeSq.id}`;
+    }
 
     const groupByProto = new protos.PerfettoSqlStructuredQuery.GroupBy();
     groupByProto.columnNames = this.groupByColumns
