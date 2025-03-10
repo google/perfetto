@@ -55,3 +55,22 @@ export function getFirstNode(node: QueryNode): QueryNode | undefined {
   }
   return node;
 }
+
+export function createSelectColumnsProto(
+  node: QueryNode,
+): protos.PerfettoSqlStructuredQuery.SelectColumn[] | undefined {
+  // If all columns are checked there is no need to select columns.
+  if (node.columns?.every((c) => c.checked)) return;
+  const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
+
+  for (const c of node.columns ?? []) {
+    if (c.checked === false) continue;
+    const newC = new protos.PerfettoSqlStructuredQuery.SelectColumn();
+    newC.columnName = c.column.name;
+    if (c.alias) {
+      newC.alias = c.alias;
+    }
+    selectedColumns.push(newC);
+  }
+  return selectedColumns;
+}
