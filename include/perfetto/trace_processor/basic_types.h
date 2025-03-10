@@ -379,6 +379,8 @@ struct StructuredQueryBytes {
 // used.
 struct AnalyzedStructuredQuery {
   std::string sql;
+  std::string textproto;
+
   // Modules referenced by sql
   std::vector<std::string> modules;
   // Preambles referenced by sql
