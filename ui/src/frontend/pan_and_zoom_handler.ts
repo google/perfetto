@@ -144,7 +144,7 @@ export class PanAndZoomHandler {
     this.editSelection = editSelection;
     this.onSelection = onSelection;
     this.endSelection = endSelection;
-    
+
     this.page = page;
     // Make it focusable and also tabbable for keyboard accessibility
     page?.setAttribute('tabindex', '0');
@@ -216,7 +216,16 @@ export class PanAndZoomHandler {
   }
 
   private onZoomAnimationStep(msSinceStartOfAnimation: number) {
-    if (this.mousePositionX === null) return;
+    if (this.mousePositionX === null) {
+      // We can start W and S key handling by default from the centre of the panel
+      const [panelBounds, pageOffset] = this.getPageBoundsAndOffset();
+      if (panelBounds.width > 0) {
+        this.mousePositionX = pageOffset + panelBounds.width / 2;
+      } else {
+        return;
+      }
+    }
+
     const step = (this.targetZoomRatio - this.zoomRatio) * SNAP_FACTOR;
     if (this.zooming !== Zoom.None) {
       const velocity = 1 + msSinceStartOfAnimation * ACCELERATION_PER_MS;
@@ -233,13 +242,18 @@ export class PanAndZoomHandler {
     }
   }
 
-  private onMouseMove(e: MouseEvent) {
+  private getPageBoundsAndOffset(): [DOMRect, number] {
     let pageOffset = globals.state.sidebarVisible && !globals.hideSidebar ?
         this.contentOffsetX :
         0;
-    
+
     const panelBounds = this.element.getBoundingClientRect();
     pageOffset += panelBounds.x;
+    return [panelBounds, pageOffset];
+  }
+
+  private onMouseMove(e: MouseEvent) {
+    const [, pageOffset] = this.getPageBoundsAndOffset();
 
     // We can't use layerX here because there are many layers in this element.
     this.mousePositionX = e.clientX - pageOffset;
