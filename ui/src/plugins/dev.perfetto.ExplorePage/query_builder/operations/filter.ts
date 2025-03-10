@@ -94,9 +94,15 @@ export class FilterNode implements QueryNode {
       return;
     }
 
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = `filter`;
-    sq.innerQuery = prevNodeSq;
+    const sq =
+      prevNodeSq.filters.length !== 0
+        ? new protos.PerfettoSqlStructuredQuery()
+        : prevNodeSq;
+    sq.id = `filter_on_${prevNodeSq.id}`;
+    if (prevNodeSq.filters.length !== 0) {
+      sq.innerQuery = prevNodeSq;
+    }
+
     sq.filters = this.filters.map((f) => FilterToProto(f));
 
     const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] =
