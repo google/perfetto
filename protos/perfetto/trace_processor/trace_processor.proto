@@ -377,6 +377,7 @@ message AnalyzeStructuredQueryArgs {
 message AnalyzeStructuredQueryResult {
   message StructuredQueryResult {
     optional string sql = 1;
+    optional string textproto = 4;
     repeated string modules = 2;
     repeated string preambles = 3;
   }
