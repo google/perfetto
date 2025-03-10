@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {SqlTable} from '../../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode, NodeType} from '../../query_node';
+import {QueryNode, NodeType, createSelectColumnsProto} from '../../query_node';
 import {
   ColumnControllerRow,
   columnControllerRowFromSqlColumn,
@@ -69,17 +69,8 @@ export class StdlibTableNode implements QueryNode {
       .filter((c) => c.checked)
       .map((c) => c.column.name);
 
-    const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] =
-      [];
-    for (const c of this.columns.filter((c) => c.checked)) {
-      const newC = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      newC.columnName = c.column.name;
-      if (c.alias) {
-        newC.alias = c.alias;
-      }
-      selectedColumns.push(newC);
-    }
-    sq.selectColumns = selectedColumns;
+    const selectedColumns = createSelectColumnsProto(this);
+    if (selectedColumns) sq.selectColumns = selectedColumns;
     return sq;
   }
 }

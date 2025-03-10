@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {NodeType, QueryNode} from '../../query_node';
+import {createSelectColumnsProto, NodeType, QueryNode} from '../../query_node';
 import {
   ColumnControllerRow,
   columnControllerRowFromSqlColumn,
@@ -68,18 +68,8 @@ export class SlicesSourceNode implements QueryNode {
     if (this.attrs.track_name) ss.trackNameGlob = this.attrs.track_name;
 
     sq.simpleSlices = ss;
-
-    const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] =
-      [];
-    for (const c of this.columns.filter((c) => c.checked)) {
-      const newC = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      newC.columnName = c.column.name;
-      if (c.alias) {
-        newC.alias = c.alias;
-      }
-      selectedColumns.push(newC);
-    }
-    sq.selectColumns = selectedColumns;
+    const selectedColumns = createSelectColumnsProto(this);
+    if (selectedColumns) sq.selectColumns = selectedColumns;
     return sq;
   }
 
