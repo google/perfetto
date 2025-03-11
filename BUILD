@@ -4469,6 +4469,7 @@ perfetto_android_library(
     srcs = [
         "src/java_sdk/test/java/com/google/perfetto/sdk/test/SimpleInstrumentationTest.java",
     ],
+    manifest = "src/java_sdk/test/TestLibraryAndroidManifest.xml",
     deps = [
         ":src_java_sdk_main_perfetto_lib",
     ] + PERFETTO_CONFIG.deps.android_test_common,
