@@ -13,18 +13,83 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {createSelectColumnsProto, NodeType, QueryNode} from '../../query_node';
+import {
+  createFinalColumns,
+  createSelectColumnsProto,
+  NodeType,
+  QueryNode,
+  QueryNodeState,
+} from '../../query_node';
 import {
   ColumnControllerRow,
   columnControllerRowFromSqlColumn,
+  newColumnControllerRows,
 } from '../column_controller';
 import protos from '../../../../protos';
 import {TextParagraph} from '../../../../widgets/text_paragraph';
 import {TextInput} from '../../../../widgets/text_input';
 import {SqlColumn} from '../../../dev.perfetto.SqlModules/sql_modules';
-import {TableAndColumnImpl} from '../../..//dev.perfetto.SqlModules/sql_modules_impl';
+import {TableAndColumnImpl} from '../../../dev.perfetto.SqlModules/sql_modules_impl';
+import {
+  createFiltersProto,
+  createGroupByProto,
+  Operator,
+} from '../operations/operation_component';
 
-export interface SlicesSourceAttrs {
+const slicesCols: ColumnControllerRow[] = [
+  {
+    name: 'id',
+    type: {
+      name: 'ID(slice.id)',
+      shortName: 'id',
+      tableAndColumn: new TableAndColumnImpl('string', 'id'),
+    },
+  },
+  {
+    name: 'ts',
+    type: {
+      name: 'TIMESTAMP',
+      shortName: 'TIMESTAMP',
+    },
+  },
+  {
+    name: 'dur',
+    type: {
+      name: 'DURATION',
+      shortName: 'DURATION',
+    },
+  },
+  {
+    name: 'slice_name',
+    type: {
+      name: 'STRING',
+      shortName: 'STRING',
+    },
+  },
+  {
+    name: 'thread_name',
+    type: {
+      name: 'STRING',
+      shortName: 'STRING',
+    },
+  },
+  {
+    name: 'process_name',
+    type: {
+      name: 'STRING',
+      shortName: 'STRING',
+    },
+  },
+  {
+    name: 'track_name',
+    type: {
+      name: 'STRING',
+      shortName: 'STRING',
+    },
+  },
+].map((c) => columnControllerRowFromSqlColumn(c, true));
+
+export interface SlicesSourceAttrs extends QueryNodeState {
   slice_name?: string;
   thread_name?: string;
   process_name?: string;
@@ -35,46 +100,17 @@ export class SlicesSourceNode implements QueryNode {
   type: NodeType = NodeType.kSimpleSlices;
   prevNode = undefined;
   nextNode?: QueryNode;
-  finished: boolean = true;
+  readonly finished: boolean = true;
 
-  dataName: string = 'Simple slices';
-  columns: ColumnControllerRow[];
+  readonly dataName: string = 'Simple slices';
+  readonly sourceCols: ColumnControllerRow[];
+  readonly finalCols: ColumnControllerRow[];
 
-  attrs: SlicesSourceAttrs;
-
-  validate(): boolean {
-    return (
-      this.attrs.slice_name !== undefined ||
-      this.attrs.process_name !== undefined ||
-      this.attrs.thread_name !== undefined ||
-      this.attrs.track_name !== undefined
-    );
-  }
-
-  getTitle(): string {
-    return `Simple slices`;
-  }
-
-  getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (!this.validate()) return;
-
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = `simple_slices_source`;
-    const ss = new protos.PerfettoSqlStructuredQuery.SimpleSlices();
-
-    if (this.attrs.slice_name) ss.sliceNameGlob = this.attrs.slice_name;
-    if (this.attrs.thread_name) ss.threadNameGlob = this.attrs.thread_name;
-    if (this.attrs.process_name) ss.processNameGlob = this.attrs.process_name;
-    if (this.attrs.track_name) ss.trackNameGlob = this.attrs.track_name;
-
-    sq.simpleSlices = ss;
-    const selectedColumns = createSelectColumnsProto(this);
-    if (selectedColumns) sq.selectColumns = selectedColumns;
-    return sq;
-  }
+  readonly attrs: SlicesSourceAttrs;
 
   constructor(attrs: SlicesSourceAttrs) {
     this.attrs = attrs;
+
     const cols: SqlColumn[] = [
       {
         name: 'id',
@@ -127,7 +163,56 @@ export class SlicesSourceNode implements QueryNode {
         },
       },
     ];
-    this.columns = cols.map((c) => columnControllerRowFromSqlColumn(c, true));
+    this.sourceCols = cols.map((c) =>
+      columnControllerRowFromSqlColumn(c, true),
+    );
+
+    this.finalCols = createFinalColumns(this);
+  }
+
+  getAttrs(): QueryNodeState {
+    return this.attrs;
+  }
+
+  validate(): boolean {
+    return (
+      this.attrs.slice_name !== undefined ||
+      this.attrs.process_name !== undefined ||
+      this.attrs.thread_name !== undefined ||
+      this.attrs.track_name !== undefined
+    );
+  }
+
+  getTitle(): string {
+    return `Simple slices`;
+  }
+
+  getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
+    if (!this.validate()) return;
+
+    const sq = new protos.PerfettoSqlStructuredQuery();
+    sq.id = `simple_slices_source`;
+    const ss = new protos.PerfettoSqlStructuredQuery.SimpleSlices();
+
+    if (this.attrs.slice_name) ss.sliceNameGlob = this.attrs.slice_name;
+    if (this.attrs.thread_name) ss.threadNameGlob = this.attrs.thread_name;
+    if (this.attrs.process_name) ss.processNameGlob = this.attrs.process_name;
+    if (this.attrs.track_name) ss.trackNameGlob = this.attrs.track_name;
+
+    sq.simpleSlices = ss;
+
+    const filtersProto = createFiltersProto(this.attrs.filters);
+    if (filtersProto) sq.filters = filtersProto;
+    const groupByProto = createGroupByProto(
+      this.attrs.groupByColumns,
+      this.attrs.aggregations,
+    );
+    if (groupByProto) sq.groupBy = groupByProto;
+
+    const selectedColumns = createSelectColumnsProto(this);
+    if (selectedColumns) sq.selectColumns = selectedColumns;
+
+    return sq;
   }
 
   getDetails(): m.Child {
@@ -150,6 +235,10 @@ export class SlicesSourceNode implements QueryNode {
 
 export class SlicesSource implements m.ClassComponent<SlicesSourceAttrs> {
   view({attrs}: m.CVnode<SlicesSourceAttrs>) {
+    if (attrs.sourceCols.length === 0) {
+      attrs.sourceCols = slicesCols;
+      attrs.groupByColumns = newColumnControllerRows(slicesCols, false);
+    }
     return m(
       '',
       m(
@@ -200,6 +289,13 @@ export class SlicesSource implements m.ClassComponent<SlicesSourceAttrs> {
           },
         }),
       ),
+      m(Operator, {
+        filter: {sourceCols: attrs.sourceCols, filters: attrs.filters},
+        groupby: {
+          groupByColumns: attrs.groupByColumns,
+          aggregations: attrs.aggregations,
+        },
+      }),
     );
   }
 }

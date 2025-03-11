@@ -53,25 +53,22 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
 
   view({attrs}: m.CVnode<DataSourceAttrs>) {
     function renderPickColumns(node: QueryNode): m.Child {
-      return (
-        node.columns &&
-        m(ColumnController, {
-          options: node.columns,
-          onChange: (diffs: ColumnControllerDiff[]) => {
-            diffs.forEach(({id, checked, alias}) => {
-              if (node.columns === undefined) {
-                return;
+      return m(ColumnController, {
+        options: node.finalCols,
+        onChange: (diffs: ColumnControllerDiff[]) => {
+          diffs.forEach(({id, checked, alias}) => {
+            if (node.finalCols === undefined) {
+              return;
+            }
+            for (const option of node.finalCols) {
+              if (option.id === id) {
+                option.checked = checked;
+                option.alias = alias;
               }
-              for (const option of node.columns) {
-                if (option.id === id) {
-                  option.checked = checked;
-                  option.alias = alias;
-                }
-              }
-            });
-          },
-        })
-      );
+            }
+          });
+        },
+      });
     }
 
     const renderTable = () => {
@@ -163,7 +160,7 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
 function getStructuredQueries(
   finalNode: QueryNode,
 ): protos.PerfettoSqlStructuredQuery[] | undefined {
-  if (finalNode.columns === undefined) {
+  if (finalNode.finalCols === undefined) {
     return;
   }
   const revStructuredQueries: protos.PerfettoSqlStructuredQuery[] = [];
