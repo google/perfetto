@@ -165,7 +165,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           MenuItem,
           {
             label: 'Add pivot',
-            icon: Icons.AddColumn,
+            icon: Icons.Add,
           },
           m(SelectColumnMenu, {
             columns: state.table.columns.map((column) => ({
@@ -256,7 +256,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           MenuItem,
           {
             label: 'Add aggregation',
-            icon: Icons.AddColumn,
+            icon: Icons.Add,
           },
           m(SelectColumnMenu, {
             columns: state.table.columns.map((column) => ({

@@ -107,7 +107,7 @@ class AddColumnMenuItem implements m.ClassComponent<AddColumnMenuItemAttrs> {
   view({attrs}: m.Vnode<AddColumnMenuItemAttrs>) {
     return m(
       MenuItem,
-      {label: 'Add column', icon: Icons.AddColumn},
+      {label: 'Add column', icon: Icons.Add},
       attrs.table.renderAddColumnOptions((column) => {
         attrs.state.addColumn(column, this.index++);
       }),

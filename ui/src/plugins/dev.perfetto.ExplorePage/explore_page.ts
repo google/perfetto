@@ -66,7 +66,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       '.page.explore-page',
       m(
         '.explore-page__header',
-        m('h1', `Explore Page: ${ExplorePageModeToLabel[state.mode]}`),
+        m('h1', `${ExplorePageModeToLabel[state.mode]}`),
         m('span', {style: {flexGrow: 1}}),
         state.mode === ExplorePageModes.QUERY_BUILDER
           ? m(Button, {
