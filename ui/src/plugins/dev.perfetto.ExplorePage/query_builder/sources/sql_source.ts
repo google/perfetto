@@ -44,30 +44,28 @@ export class SqlSourceNode implements QueryNode {
   readonly type: NodeType = NodeType.kSqlSource;
   readonly prevNode = undefined;
   nextNode?: QueryNode;
-  readonly finished = true;
 
-  readonly dataName = 'Sql source';
   readonly sourceCols: ColumnControllerRow[];
   readonly finalCols: ColumnControllerRow[];
 
-  readonly attrs: SqlSourceAttrs;
+  readonly state: SqlSourceAttrs;
 
   constructor(attrs: SqlSourceAttrs) {
-    this.attrs = attrs;
+    this.state = attrs;
     this.sourceCols =
       attrs.sqlColumns?.map((c) => columnControllerRowFromName(c)) ?? [];
     this.finalCols = createFinalColumns(this);
   }
 
   getAttrs(): QueryNodeState {
-    return this.attrs;
+    return this.state;
   }
 
   validate(): boolean {
     return (
-      this.attrs.sql !== undefined &&
-      this.attrs.sqlColumns !== undefined &&
-      this.attrs.preamble !== undefined &&
+      this.state.sql !== undefined &&
+      this.state.sqlColumns !== undefined &&
+      this.state.preamble !== undefined &&
       this.sourceCols.length > 0
     );
   }
@@ -83,16 +81,16 @@ export class SqlSourceNode implements QueryNode {
     sq.id = `sql_source`;
     const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
 
-    if (this.attrs.sql) sqlProto.sql = this.attrs.sql;
-    if (this.attrs.sqlColumns) sqlProto.columnNames = this.attrs.sqlColumns;
-    if (this.attrs.preamble) sqlProto.preamble = this.attrs.preamble;
+    if (this.state.sql) sqlProto.sql = this.state.sql;
+    if (this.state.sqlColumns) sqlProto.columnNames = this.state.sqlColumns;
+    if (this.state.preamble) sqlProto.preamble = this.state.preamble;
     sq.sql = sqlProto;
 
-    const filtersProto = createFiltersProto(this.attrs.filters);
+    const filtersProto = createFiltersProto(this.state.filters);
     if (filtersProto) sq.filters = filtersProto;
     const groupByProto = createGroupByProto(
-      this.attrs.groupByColumns,
-      this.attrs.aggregations,
+      this.state.groupByColumns,
+      this.state.aggregations,
     );
     if (groupByProto) sq.groupBy = groupByProto;
 
@@ -104,9 +102,9 @@ export class SqlSourceNode implements QueryNode {
   getDetails(): m.Child {
     return m(TextParagraph, {
       text: `
-        Running custom SQL returning columns ${this.attrs.sqlColumns?.join(', ')}.\n
-        Preamble: \n${this.attrs.preamble ?? `NONE`}\n
-        SQL: \n${this.attrs.sql ?? `NONE`}`,
+        Running custom SQL returning columns ${this.state.sqlColumns?.join(', ')}.\n
+        Preamble: \n${this.state.preamble ?? `NONE`}\n
+        SQL: \n${this.state.sql ?? `NONE`}`,
     });
   }
 }

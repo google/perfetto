@@ -102,14 +102,13 @@ export class SlicesSourceNode implements QueryNode {
   nextNode?: QueryNode;
   readonly finished: boolean = true;
 
-  readonly dataName: string = 'Simple slices';
   readonly sourceCols: ColumnControllerRow[];
   readonly finalCols: ColumnControllerRow[];
 
-  readonly attrs: SlicesSourceAttrs;
+  readonly state: SlicesSourceAttrs;
 
   constructor(attrs: SlicesSourceAttrs) {
-    this.attrs = attrs;
+    this.state = attrs;
 
     const cols: SqlColumn[] = [
       {
@@ -171,15 +170,15 @@ export class SlicesSourceNode implements QueryNode {
   }
 
   getAttrs(): QueryNodeState {
-    return this.attrs;
+    return this.state;
   }
 
   validate(): boolean {
     return (
-      this.attrs.slice_name !== undefined ||
-      this.attrs.process_name !== undefined ||
-      this.attrs.thread_name !== undefined ||
-      this.attrs.track_name !== undefined
+      this.state.slice_name !== undefined ||
+      this.state.process_name !== undefined ||
+      this.state.thread_name !== undefined ||
+      this.state.track_name !== undefined
     );
   }
 
@@ -194,18 +193,18 @@ export class SlicesSourceNode implements QueryNode {
     sq.id = `simple_slices_source`;
     const ss = new protos.PerfettoSqlStructuredQuery.SimpleSlices();
 
-    if (this.attrs.slice_name) ss.sliceNameGlob = this.attrs.slice_name;
-    if (this.attrs.thread_name) ss.threadNameGlob = this.attrs.thread_name;
-    if (this.attrs.process_name) ss.processNameGlob = this.attrs.process_name;
-    if (this.attrs.track_name) ss.trackNameGlob = this.attrs.track_name;
+    if (this.state.slice_name) ss.sliceNameGlob = this.state.slice_name;
+    if (this.state.thread_name) ss.threadNameGlob = this.state.thread_name;
+    if (this.state.process_name) ss.processNameGlob = this.state.process_name;
+    if (this.state.track_name) ss.trackNameGlob = this.state.track_name;
 
     sq.simpleSlices = ss;
 
-    const filtersProto = createFiltersProto(this.attrs.filters);
+    const filtersProto = createFiltersProto(this.state.filters);
     if (filtersProto) sq.filters = filtersProto;
     const groupByProto = createGroupByProto(
-      this.attrs.groupByColumns,
-      this.attrs.aggregations,
+      this.state.groupByColumns,
+      this.state.aggregations,
     );
     if (groupByProto) sq.groupBy = groupByProto;
 
@@ -217,17 +216,17 @@ export class SlicesSourceNode implements QueryNode {
 
   getDetails(): m.Child {
     const s: string[] = [];
-    if (this.attrs.slice_name) {
-      s.push(`slice name GLOB ${this.attrs.slice_name}`);
+    if (this.state.slice_name) {
+      s.push(`slice name GLOB ${this.state.slice_name}`);
     }
-    if (this.attrs.thread_name) {
-      s.push(`thread name GLOB ${this.attrs.thread_name}`);
+    if (this.state.thread_name) {
+      s.push(`thread name GLOB ${this.state.thread_name}`);
     }
-    if (this.attrs.process_name) {
-      s.push(`process name GLOB ${this.attrs.process_name}`);
+    if (this.state.process_name) {
+      s.push(`process name GLOB ${this.state.process_name}`);
     }
-    if (this.attrs.track_name) {
-      s.push(`track name GLOB ${this.attrs.track_name}`);
+    if (this.state.track_name) {
+      s.push(`track name GLOB ${this.state.track_name}`);
     }
     return m(TextParagraph, {text: `Slices where ${s.join(' and ')}`});
   }
