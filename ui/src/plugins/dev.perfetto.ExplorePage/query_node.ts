@@ -30,11 +30,6 @@ export enum NodeType {
   kStdlibTable,
   kSimpleSlices,
   kSqlSource,
-
-  // Operations
-  kJoinOperator,
-  kGroupByOperator,
-  kFilterOperator,
 }
 
 // All information required to create a new node.
@@ -50,13 +45,17 @@ export interface QueryNodeState {
 export interface QueryNode {
   readonly type: NodeType;
   readonly prevNode?: QueryNode;
-  nextNode?: QueryNode;
+  readonly nextNode?: QueryNode;
 
-  readonly dataName: string;
+  // Columns that are available in the source data.
   readonly sourceCols: ColumnControllerRow[];
+
+  // Columns that are available after applying all operations.
   readonly finalCols: ColumnControllerRow[];
 
-  readonly attrs: QueryNodeState;
+  // State of the node. This is used to store the user's input and can be used
+  // to fully recover the node.
+  readonly state: QueryNodeState;
 
   validate(): boolean;
   getTitle(): string;
@@ -65,27 +64,13 @@ export interface QueryNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
 }
 
-export function getLastFinishedNode(node: QueryNode): QueryNode | undefined {
-  while (node.nextNode) {
-    node = node.nextNode;
-  }
-  return node;
-}
-
-export function getFirstNode(node: QueryNode): QueryNode | undefined {
-  while (node.prevNode) {
-    node = node.prevNode;
-  }
-  return node;
-}
-
 export function createSelectColumnsProto(
   node: QueryNode,
 ): protos.PerfettoSqlStructuredQuery.SelectColumn[] | undefined {
-  if (node.finalCols?.every((c) => c.checked)) return;
+  if (node.finalCols.every((c) => c.checked)) return;
   const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
 
-  for (const c of node.finalCols ?? []) {
+  for (const c of node.finalCols) {
     if (c.checked === false) continue;
     const newC = new protos.PerfettoSqlStructuredQuery.SelectColumn();
     newC.columnName = c.column.name;
@@ -98,9 +83,9 @@ export function createSelectColumnsProto(
 }
 
 export function createFinalColumns(node: QueryNode) {
-  if (node.attrs.groupByColumns.find((c) => c.checked)) {
-    const selected = node.attrs.groupByColumns.filter((c) => c.checked);
-    for (const agg of node.attrs.aggregations) {
+  if (node.state.groupByColumns.find((c) => c.checked)) {
+    const selected = node.state.groupByColumns.filter((c) => c.checked);
+    for (const agg of node.state.aggregations) {
       selected.push(
         columnControllerRowFromName(
           agg.newColumnName ?? placeholderNewColumnName(agg),
