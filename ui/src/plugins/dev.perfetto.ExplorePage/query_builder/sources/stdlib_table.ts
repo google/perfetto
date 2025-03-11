@@ -52,20 +52,17 @@ export class StdlibTableNode implements QueryNode {
   readonly type: NodeType = NodeType.kStdlibTable;
   readonly prevNode = undefined;
   nextNode?: QueryNode;
-  finished: boolean = true;
 
-  readonly dataName: string;
   readonly sourceCols: ColumnControllerRow[];
   readonly finalCols: ColumnControllerRow[];
-  readonly attrs: StdlibTableAttrs;
+  readonly state: StdlibTableAttrs;
 
   readonly sqlTable: SqlTable;
 
   constructor(attrs: StdlibTableAttrs) {
-    this.attrs = attrs;
+    this.state = attrs;
     if (!attrs.sqlTable) throw new Error('No sqlTable provided');
 
-    this.dataName = attrs.sqlTable.name;
     this.sourceCols = attrs.sqlTable.columns.map((c) =>
       columnControllerRowFromSqlColumn(c, true),
     );
@@ -75,7 +72,7 @@ export class StdlibTableNode implements QueryNode {
   }
 
   getAttrs(): QueryNodeState {
-    return this.attrs;
+    return this.state;
   }
 
   getDetails(): m.Child {
@@ -108,11 +105,11 @@ export class StdlibTableNode implements QueryNode {
       .filter((c) => c.checked)
       .map((c) => c.column.name);
 
-    const filtersProto = createFiltersProto(this.attrs.filters);
+    const filtersProto = createFiltersProto(this.state.filters);
     if (filtersProto) sq.filters = filtersProto;
     const groupByProto = createGroupByProto(
-      this.attrs.groupByColumns,
-      this.attrs.aggregations,
+      this.state.groupByColumns,
+      this.state.aggregations,
     );
     if (groupByProto) sq.groupBy = groupByProto;
 
