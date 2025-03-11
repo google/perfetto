@@ -122,15 +122,11 @@
     position: sticky;
     top: 0;
     font-size: 1em;
-    background-color: white;
     z-index: 1;
     font-size: 0.75em;
-    border-bottom: solid 1px $pf-minimal-foreground;
     padding-bottom: 2px;
     min-width: max-content;
-    & > span {
-      margin-right: auto;
-    }
+    margin-right: auto;
   }
   .pf-column-controller-container {
     position: relative;

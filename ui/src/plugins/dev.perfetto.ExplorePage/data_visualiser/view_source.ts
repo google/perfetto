@@ -77,10 +77,10 @@ export class VisViewSource {
     if (baseSql === undefined) return;
 
     const columns = Object.fromEntries(
-      this.queryNode.columns?.map((col) => [
+      this.queryNode.sourceCols.map((col) => [
         col.column.name,
         col.column.name,
-      ]) || [],
+      ]),
     );
 
     const query = buildSqlQuery({
@@ -119,7 +119,7 @@ export class VisViewSource {
   }
 
   private updateViews(data?: Row[], columns?: string[]) {
-    const queryNodeColumns = this.queryNode.columns;
+    const queryNodeColumns = this.queryNode.sourceCols;
 
     if (
       data === undefined ||
