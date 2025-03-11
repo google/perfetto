@@ -30,6 +30,11 @@ TEST(ReplaceNumbersFunctionTest, TestReplaceWithPrefix) {
   ASSERT_STREQ(result.c_str(), "0x<num>");
 }
 
+TEST(ReplaceNumbersFunctionTest, TestReplaceNonDigitHexAfter0x) {
+  std::string result = SqlStripHex("0xabcd", 3);
+  ASSERT_STREQ(result.c_str(), "0x<num>");
+}
+
 TEST(ReplaceNumbersFunctionTest, TestReplaceAtTheStart) {
   std::string result = SqlStripHex("12a34", 3);
   ASSERT_STREQ(result.c_str(), "<num>");
@@ -53,8 +58,18 @@ TEST(ReplaceNumbersFunctionTest, TestReplaceOnlyGreaterThanRepeated) {
 TEST(ReplaceNumbersFunctionTest, TestReplaceDoingNothing) {
   std::string result = SqlStripHex("aaaaaa", 1);
   ASSERT_STREQ(result.c_str(), "aaaaaa");
+
+  result = SqlStripHex("ImageDecoder#decodeDrawable", 1);
+  ASSERT_STREQ(result.c_str(), "ImageDecoder#decodeDrawable");
 }
 
+TEST(ReplaceNumbersFunctionTest,
+     TestReplaceSpecialPrefixAfterNonAlphaNumericChar) {
+  std::string result = SqlStripHex(
+      "=0x1234 InputConsumer on 0x1234 Controller (0x75dfea9cc0)", 3);
+  ASSERT_STREQ(result.c_str(),
+               "=0x<num> InputConsumer on 0x<num> Controller (0x<num>)");
+}
 }  // namespace
 }  // namespace test
 }  // namespace trace_processor

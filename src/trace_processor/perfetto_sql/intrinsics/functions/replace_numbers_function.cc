@@ -42,9 +42,6 @@ namespace {
 //   "<num>" based on specified criteria.
 struct StripHexFunction : public SqlFunction {
   static constexpr char kFunctionName[] = "__intrinsic_strip_hex";
-  static constexpr std::array<std::string_view, 2> kSpecialPrefixes = {"0x",
-                                                                       "0X"};
-
   using Context = void;
 
   static base::Status Run(void* cxt,
@@ -59,29 +56,18 @@ struct StripHexFunction : public SqlFunction {
     return status;
   }
 
-  static const std::string_view MatchesSpecialPrefix(
-      base::StringView input_view,
-      size_t pos) {
-    for (const auto& special_prefix : kSpecialPrefixes) {
-      if (input_view.substr(pos, special_prefix.size()) ==
-          special_prefix.data()) {
-        return special_prefix;
-      }
-    }
-    return "";
-  }
-
   static std::string StripHex(std::string input, int64_t min_repeated_digits) {
-    base::StringView input_view = base::StringView(input);
     std::string result;
     result.reserve(input.length());
+    bool replace_hex = false;
     for (size_t i = 0; i < input.length();) {
-      const std::string_view special_prefix =
-          MatchesSpecialPrefix(input_view, i);
-      if (!special_prefix.empty()) {
-        // Case 1: Special prefixes for hex sequence found
-        result += input.substr(i, special_prefix.size());
-        i += special_prefix.size();
+      if ((input[i] == 'x' || input[i] == 'X') && i >= 1 &&
+          input[i - 1] == '0') {
+        // Case 1: Special prefixes (0x, 0X) for hex sequence found
+        result += input[i++];
+        // Always try to replace hex after 0x, regardless if they contain digits
+        // or not
+        replace_hex = true;
       } else if (!isalnum(input[i])) {
         // Case 2: Non alpha numeric prefix for hex sequence found
         result += input[i++];
@@ -94,13 +80,12 @@ struct StripHexFunction : public SqlFunction {
       }
 
       size_t hex_start = i;
-      bool digit_found = false;
       for (; i < input.length() && isxdigit(input[i]); i++) {
         if (isdigit(input[i])) {
-          digit_found = true;
+          replace_hex = true;
         }
       }
-      result += digit_found && (i - hex_start >=
+      result += replace_hex && (i - hex_start >=
                                 static_cast<size_t>(min_repeated_digits))
                     ? "<num>"
                     : input.substr(hex_start, i - hex_start);
