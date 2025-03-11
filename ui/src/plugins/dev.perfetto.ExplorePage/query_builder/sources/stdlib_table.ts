@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//    http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,38 +13,75 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SqlTable} from '../../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode, NodeType, createSelectColumnsProto} from '../../query_node';
+import {
+  SqlTable,
+  SqlModules,
+} from '../../../dev.perfetto.SqlModules/sql_modules';
+import {
+  QueryNode,
+  NodeType,
+  createSelectColumnsProto,
+  QueryNodeState,
+  createFinalColumns,
+} from '../../query_node';
 import {
   ColumnControllerRow,
   columnControllerRowFromSqlColumn,
+  newColumnControllerRows,
 } from '../column_controller';
 import protos from '../../../../protos';
 import {TextParagraph} from '../../../../widgets/text_paragraph';
+import {Trace} from '../../../../public/trace';
+import {Button} from '../../../../widgets/button';
+import {closeModal} from '../../../../widgets/modal';
+import {
+  createFiltersProto,
+  createGroupByProto,
+  Operator,
+} from '../operations/operation_component';
+
+export interface StdlibTableAttrs extends QueryNodeState {
+  readonly trace: Trace;
+  readonly sqlModules: SqlModules;
+  readonly modal: () => void;
+
+  sqlTable?: SqlTable;
+}
 
 export class StdlibTableNode implements QueryNode {
   readonly type: NodeType = NodeType.kStdlibTable;
-  prevNode = undefined;
+  readonly prevNode = undefined;
   nextNode?: QueryNode;
   finished: boolean = true;
 
-  dataName: string;
-  columns: ColumnControllerRow[];
+  readonly dataName: string;
+  readonly sourceCols: ColumnControllerRow[];
+  readonly finalCols: ColumnControllerRow[];
+  readonly attrs: StdlibTableAttrs;
 
-  sqlTable: SqlTable;
+  readonly sqlTable: SqlTable;
 
-  constructor(sqlTable: SqlTable) {
-    this.dataName = sqlTable.name;
-    this.columns = sqlTable.columns.map((c) =>
+  constructor(attrs: StdlibTableAttrs) {
+    this.attrs = attrs;
+    if (!attrs.sqlTable) throw new Error('No sqlTable provided');
+
+    this.dataName = attrs.sqlTable.name;
+    this.sourceCols = attrs.sqlTable.columns.map((c) =>
       columnControllerRowFromSqlColumn(c, true),
     );
-    this.sqlTable = sqlTable;
+    this.finalCols = createFinalColumns(this);
+
+    this.sqlTable = attrs.sqlTable;
+  }
+
+  getAttrs(): QueryNodeState {
+    return this.attrs;
   }
 
   getDetails(): m.Child {
     return m(TextParagraph, {
       text: `
-    Table '${this.sqlTable.name}' from module 
+    Table '${this.sqlTable.name}' from module
     '${this.sqlTable.includeKey ?? 'prelude'}'.`,
     });
   }
@@ -52,9 +89,11 @@ export class StdlibTableNode implements QueryNode {
   validate(): boolean {
     return true;
   }
+
   getTitle(): string {
     return `Table ${this.sqlTable.name}`;
   }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
@@ -65,12 +104,67 @@ export class StdlibTableNode implements QueryNode {
     sq.table.moduleName = this.sqlTable.includeKey
       ? this.sqlTable.includeKey
       : undefined;
-    sq.table.columnNames = this.columns
+    sq.table.columnNames = this.sourceCols
       .filter((c) => c.checked)
       .map((c) => c.column.name);
+
+    const filtersProto = createFiltersProto(this.attrs.filters);
+    if (filtersProto) sq.filters = filtersProto;
+    const groupByProto = createGroupByProto(
+      this.attrs.groupByColumns,
+      this.attrs.aggregations,
+    );
+    if (groupByProto) sq.groupBy = groupByProto;
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
     return sq;
+  }
+}
+
+export class StdlibTableSource implements m.ClassComponent<StdlibTableAttrs> {
+  async onTableSelect(attrs: StdlibTableAttrs) {
+    closeModal();
+    const tableName = await attrs.trace.omnibox.prompt(
+      'Choose a table...',
+      attrs.sqlModules.listTablesNames(),
+    );
+
+    if (!tableName) return;
+    const sqlTable = attrs.sqlModules.getTable(tableName);
+
+    if (!sqlTable) return;
+    attrs.sqlTable = sqlTable;
+    attrs.sourceCols = sqlTable.columns.map((c) =>
+      columnControllerRowFromSqlColumn(c, true),
+    );
+    attrs.modal();
+    attrs.filters = [];
+    attrs.groupByColumns = newColumnControllerRows(attrs.sourceCols, false);
+  }
+
+  view({attrs}: m.CVnode<StdlibTableAttrs>) {
+    const tableInfoStr = attrs.sqlTable
+      ? `Selected table: ${attrs.sqlTable.name}`
+      : 'No table selected';
+    const tableInfo = m(TextParagraph, {text: tableInfoStr});
+
+    return m(
+      '',
+      m(Button, {
+        label: attrs.sqlTable ? 'Change table' : 'Select table',
+        onclick: async () => {
+          this.onTableSelect(attrs);
+        },
+      }),
+      tableInfo,
+      m(Operator, {
+        filter: {sourceCols: attrs.sourceCols, filters: attrs.filters},
+        groupby: {
+          groupByColumns: attrs.groupByColumns,
+          aggregations: attrs.aggregations,
+        },
+      }),
+    );
   }
 }
