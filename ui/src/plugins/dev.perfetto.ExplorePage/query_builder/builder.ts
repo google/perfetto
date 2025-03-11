@@ -19,7 +19,6 @@ import {Button} from '../../../widgets/button';
 import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
 import {ColumnControllerRow} from './column_controller';
 import {QueryNode} from '../query_node';
-import {Intent} from '../../../widgets/common';
 import {showModal} from '../../../widgets/modal';
 import {DataSourceViewer} from './data_source_viewer';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
@@ -35,6 +34,7 @@ import {
   SlicesSourceAttrs,
   SlicesSourceNode,
 } from './sources/slices_source';
+import {Intent} from '../../../widgets/common';
 
 export interface QueryBuilderTable {
   name: string;
@@ -95,12 +95,20 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         PopupMenu,
         {
           trigger: m(Button, {
-            label: 'Choose a source',
+            icon: Icons.Add,
             intent: Intent.Primary,
+            style: {
+              height: '100px',
+              width: '100px',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              fontSize: '48px',
+            },
           }),
         },
         m(MenuItem, {
-          label: 'From standard library table',
+          label: 'Standard library table',
           onclick: async () => {
             const attrs: StdlibTableAttrs = {
               filters: [],
@@ -129,7 +137,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           },
         }),
         m(MenuItem, {
-          label: 'From custom slices',
+          label: 'Custom slices',
           onclick: () => {
             const newSimpleSlicesAttrs: SlicesSourceAttrs = {
               sourceCols: [],
@@ -149,7 +157,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           },
         }),
         m(MenuItem, {
-          label: 'From custom SQL',
+          label: 'Custom SQL',
           onclick: () => {
             const newSqlSourceAttrs: SqlSourceAttrs = {
               sourceCols: [],
@@ -190,7 +198,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
 
       if (!rootNode) {
         nodes.push(
-          m('', {style: {gridColumn: 3, gridRow: row}}, chooseSourceButton()),
+          m('', {style: {gridColumn: 3, gridRow: 2}}, chooseSourceButton()),
         );
       } else {
         let curNode: QueryNode | undefined = rootNode;
