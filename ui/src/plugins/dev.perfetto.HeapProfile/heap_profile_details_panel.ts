@@ -13,7 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
+
 import {assertExists, assertFalse} from '../../base/logging';
+import {extensions} from '../../components/extensions';
 import {time} from '../../base/time';
 import {
   QueryFlamegraph,
@@ -38,7 +40,10 @@ import {
   Flamegraph,
   FLAMEGRAPH_STATE_SCHEMA,
   FlamegraphState,
+  FlamegraphOptionalAction,
 } from '../../widgets/flamegraph';
+import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
+import {StandardColumn} from '../../components/widgets/sql/table/columns';
 
 export enum ProfileType {
   HEAP_PROFILE = 'heap_profile',
@@ -84,7 +89,7 @@ export class HeapProfileFlamegraphDetailsPanel
     profileType: ProfileType,
     ts: time,
   ) {
-    const metrics = flamegraphMetrics(profileType, ts, upid);
+    const metrics = flamegraphMetrics(trace, profileType, ts, upid);
     this.serialization = {
       schema: FLAMEGRAPH_STATE_SCHEMA,
       state: Flamegraph.createDefaultState(metrics),
@@ -173,6 +178,7 @@ export class HeapProfileFlamegraphDetailsPanel
 }
 
 function flamegraphMetrics(
+  trace: Trace,
   type: ProfileType,
   ts: time,
   upid: number,
@@ -265,7 +271,8 @@ function flamegraphMetrics(
               root_type,
               heap_type,
               self_size as value,
-              self_count
+              self_count,
+              path_hash_stable AS path_hash_stable
             from _heap_graph_class_tree
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
@@ -279,7 +286,13 @@ function flamegraphMetrics(
               displayName: 'Self Count',
               mergeAggregation: 'SUM',
             },
+            {
+              name: 'path_hash_stable',
+              displayName: 'Path Hash',
+              mergeAggregation: 'CONCAT_WITH_COMMA',
+            },
           ],
+          optionalActions: getHeapGraphOptionalActions(trace),
         },
         {
           name: 'Object Count',
@@ -294,7 +307,8 @@ function flamegraphMetrics(
               root_type,
               heap_type,
               self_size,
-              self_count as value
+              self_count as value,
+              path_hash_stable AS path_hash_stable
             from _heap_graph_class_tree
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
@@ -302,6 +316,14 @@ function flamegraphMetrics(
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
           ],
+          aggregatableProperties: [
+            {
+              name: 'path_hash_stable',
+              displayName: 'Path Hash',
+              mergeAggregation: 'CONCAT_WITH_COMMA',
+            },
+          ],
+          optionalActions: getHeapGraphOptionalActions(trace),
         },
         {
           name: 'Dominated Object Size',
@@ -444,4 +466,113 @@ async function downloadPprof(trace: Trace, upid: number, ts: time) {
   }
   const blob = await trace.getTraceFile();
   convertTraceToPprofAndDownload(blob, pid.firstRow({pid: NUM}).pid, ts);
+}
+
+function getHeapGraphObjectReferencesView(): SqlTableDescription {
+  return {
+    name: `_heap_graph_object_references`,
+    columns: [
+      new StandardColumn('path_hash'),
+      new StandardColumn('outgoing_reference_count'),
+      new StandardColumn('incoming_reference_count'),
+      new StandardColumn('class_name'),
+      new StandardColumn('self_size'),
+      new StandardColumn('native_size'),
+      new StandardColumn('heap_type'),
+      new StandardColumn('root_type'),
+      new StandardColumn('reachable'),
+    ],
+  };
+}
+
+function getHeapGraphIncomingReferencesView(): SqlTableDescription {
+  return {
+    name: `_heap_graph_incoming_references`,
+    columns: [
+      new StandardColumn('path_hash'),
+      new StandardColumn('class_name'),
+      new StandardColumn('field_name'),
+      new StandardColumn('field_type_name'),
+      new StandardColumn('self_size'),
+      new StandardColumn('native_size'),
+      new StandardColumn('heap_type'),
+      new StandardColumn('root_type'),
+      new StandardColumn('reachable'),
+    ],
+  };
+}
+
+function getHeapGraphOutgoingReferencesView(): SqlTableDescription {
+  return {
+    name: `_heap_graph_outgoing_references`,
+    columns: [
+      new StandardColumn('path_hash'),
+      new StandardColumn('class_name'),
+      new StandardColumn('field_name'),
+      new StandardColumn('field_type_name'),
+      new StandardColumn('self_size'),
+      new StandardColumn('native_size'),
+      new StandardColumn('heap_type'),
+      new StandardColumn('root_type'),
+      new StandardColumn('reachable'),
+    ],
+  };
+}
+
+function getHeapGraphOptionalActions(
+  trace: Trace,
+): ReadonlyArray<FlamegraphOptionalAction> {
+  return [
+    {
+      name: 'Open tab with objects',
+      execute: (kv: ReadonlyMap<string, string>) => {
+        const value = kv.get('path_hash_stable');
+        if (value !== undefined) {
+          extensions.addLegacySqlTableTab(trace, {
+            table: getHeapGraphObjectReferencesView(),
+            filters: [
+              {
+                op: (cols) => `${cols[0]} IN (${value})`,
+                columns: ['path_hash'],
+              },
+            ],
+          });
+        }
+      },
+    },
+    {
+      name: 'Incoming references',
+      execute: (kv: ReadonlyMap<string, string>) => {
+        const value = kv.get('path_hash_stable');
+        if (value !== undefined) {
+          extensions.addLegacySqlTableTab(trace, {
+            table: getHeapGraphIncomingReferencesView(),
+            filters: [
+              {
+                op: (cols) => `${cols[0]} IN (${value})`,
+                columns: ['path_hash'],
+              },
+            ],
+          });
+        }
+      },
+    },
+    {
+      name: 'Outgoing references',
+      execute: (kv: ReadonlyMap<string, string>) => {
+        const value = kv.get('path_hash_stable');
+        if (value !== undefined) {
+          extensions.addLegacySqlTableTab(trace, {
+            table: getHeapGraphOutgoingReferencesView(),
+            filters: [
+              {
+                op: (cols) => `${cols[0]} IN (${value})`,
+                columns: ['path_hash'],
+              },
+            ],
+          });
+        }
+      },
+    },
+  ];
 }
