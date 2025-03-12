@@ -21,7 +21,7 @@ import {runQuery} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
-import {QueryNode} from '../query_node';
+import {NodeType, QueryNode} from '../query_node';
 import {ColumnController, ColumnControllerDiff} from './column_controller';
 import {Section} from '../../../widgets/section';
 import {Engine} from '../../../trace_processor/engine';
@@ -119,7 +119,9 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
           return;
         }
         this.queryResult = await runQuery(
-          limitQuery(queryToRun(this.currentSql)),
+          attrs.queryNode.type === NodeType.kSqlSource
+            ? queryToRun(this.currentSql)
+            : `${queryToRun(this.currentSql)} LIMIT 50`,
           attrs.trace.engine,
         );
         this.prevSqString = this.curSqString;
@@ -189,10 +191,6 @@ export interface Query {
 export function queryToRun(sql: Query): string {
   const includes = sql.modules.map((c) => `INCLUDE PERFETTO MODULE ${c};\n`);
   return includes + sql.sql;
-}
-
-function limitQuery(query: string): string {
-  return `WITH query AS (${query}) SELECT * FROM query LIMIT 50`;
 }
 
 export async function analyzeNode(
