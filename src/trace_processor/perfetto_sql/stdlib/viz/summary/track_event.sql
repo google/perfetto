@@ -103,7 +103,7 @@ LEFT JOIN _track_event_has_children c USING (id)
 LEFT JOIN _min_ts_per_track m USING (id)
 GROUP BY
   -- Merge by parent id if it exists or, if not, then by upid/utid scope.
-  coalesce(track.parent_id, upid, utid),
+  coalesce('Tp' || track.parent_id, 'Pr' || upid, 'Th' || utid),
   is_counter,
   track.name,
   -- Don't merge tracks by name which have children or are counters.
