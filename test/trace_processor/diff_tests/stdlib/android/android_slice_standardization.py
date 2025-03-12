@@ -58,7 +58,11 @@ slices_to_standardize = [
     'Three digits to replace 123 1234', 'kworker/1d57743', '1234',
     '1019b5c SurfaceView[com.google.android.apps.maps/com.google.android.maps.'
     'MapsActivity]#1(BLAST Consumer)1', '1 2 3 4', '0x1019b5c',
-    'ImageDecoder#decodeDrawable'
+    'ImageDecoder#decodeDrawable', '+state=10152:"sensor:0x101002e"',
+    '[0612]< SET_SIGNAL_STRENGTH_REPORTING_CRITERIA',
+    'sendMessage(inputChannel=6f38b3e PopupWindow:bb19a78, seq=0x123, '
+    'type=FOCUS)', 'Over the RR duration: timestamp:12345,signalTime:12345'
+    ',VSyncPeriod:12345,desiredVsyncPeriod:12345,transientDuration:1'
 ]
 
 for name in slices_to_standardize:
