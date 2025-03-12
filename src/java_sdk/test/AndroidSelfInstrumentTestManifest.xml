@@ -19,9 +19,11 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.google.perfetto.sdk.test">
 
+    <!-- Self-instrument test. -->
     <instrumentation
         android:name="androidx.test.runner.AndroidJUnitRunner"
-        android:targetPackage="com.google.perfetto.sdk" />
+        android:targetPackage="com.google.perfetto.sdk.test" />
 
     <uses-sdk android:minSdkVersion="31" />
+
 </manifest>

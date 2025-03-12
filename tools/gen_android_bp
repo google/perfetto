@@ -32,6 +32,7 @@ import re
 import sys
 from typing import Dict
 from typing import List
+from typing import Sequence
 from typing import Optional
 
 import gn_utils
@@ -75,6 +76,7 @@ default_targets = [
     '//src/trace_processor:trace_processor_shell',
     '//src/trace_redaction:trace_redactor',
     '//src/java_sdk/main:perfetto_java_sdk_app',
+    '//src/java_sdk/test:perfetto_java_sdk_instrumentation_test',
     '//test/cts:perfetto_cts_deps',
     '//test/cts:perfetto_cts_jni_deps',
     '//test:perfetto_gtest_logcat_printer',
@@ -422,6 +424,10 @@ def enable_bionic_libc_platform_headers_on_android(module):
   module.header_libs.add('bionic_libc_platform_headers')
 
 
+def enable_android_test_common(module):
+  module.static_libs.add("junit")
+  module.static_libs.add("androidx.test.runner")
+
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
 builtin_deps = {
@@ -455,6 +461,8 @@ builtin_deps = {
         enable_uapi_headers,
     '//src/profiling/memory:bionic_libc_platform_headers_on_android':
         enable_bionic_libc_platform_headers_on_android,
+    '//gn:android_test_common':
+      enable_android_test_common,
 }
 
 # ----------------------------------------------------------------------------
@@ -1077,28 +1085,22 @@ class AndroidJavaSDKModulesGenerator:
     self.blueprint = blueprint
     self.gn = gn
 
+  _SDK_VERSION = 30
+
   def create_android_app_module(self, target: GnParser.Target,
       bp_module_name: str):
     module = Module('android_app', bp_module_name, target.name)
     module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
 
-    non_jni_lib_deps = self.generate_deps_modules_and_return_non_jni_lib_deps(
-        target)
-    module.static_libs = [self._bp_module_name_from_gn_target(dep)
-                          for dep in non_jni_lib_deps]
+    self._generate_deps_modules_and_add_non_jni_lib_deps(module, target)
 
-    maybe_jni_lib_targets = set()
-    self._collect_all_transitive_deps(target, maybe_jni_lib_targets)
-    jni_lib_targets = [target for target in maybe_jni_lib_targets
-                       if is_target_android_jni_lib(target)]
-    module.jni_libs = [android_jni_lib_custom_target_name(target)
-                       for target in jni_lib_targets]
+    module.jni_libs = self._collect_jni_lib_deps([target])
 
     module.manifest = gn_utils.label_to_path(target.manifest)
     module.resource_dirs = [
         gn_utils.label_to_path(target.resource_files.rstrip('/**/*'))]
     module.jni_uses_platform_apis = True
-    module.sdk_version = 30
+    module.sdk_version = self._SDK_VERSION
     self.blueprint.add_module(module)
     return module
 
@@ -1108,29 +1110,65 @@ class AndroidJavaSDKModulesGenerator:
     module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
 
     # All JNI libs will be added to the 'jni_libs' argument of the 'android_app'
-    # rule that depends on this 'android_library' rule.
-    non_jni_lib_deps = self.generate_deps_modules_and_return_non_jni_lib_deps(
-      target)
-    module.static_libs = [self._bp_module_name_from_gn_target(dep)
-                          for dep in non_jni_lib_deps]
+    # or 'android_test' rule that depends on this 'android_library' rule.
+    self._generate_deps_modules_and_add_non_jni_lib_deps(module, target)
 
     module.manifest = gn_utils.label_to_path(target.manifest)
-    module.sdk_version = 30
+
+    module.sdk_version = self._SDK_VERSION
     self.blueprint.add_module(module)
     return module
 
-  def generate_deps_modules_and_return_non_jni_lib_deps(self,
+  def create_android_test_module(self, target: GnParser.Target,
+      bp_module_name: str):
+    module = Module('android_test', bp_module_name, target.name)
+
+    android_libs = self.gn.get_target(
+      target.a_i_t_app).non_proto_or_source_set_deps()
+    test_android_libs = self.gn.get_target(
+      target.a_i_t_test_app).non_proto_or_source_set_deps()
+    android_test_deps = android_libs.union(test_android_libs)
+    for dep in android_test_deps:
+      assert (dep.custom_action_type == 'perfetto_android_library')
+      create_modules_from_target(self.blueprint, self.gn, dep.name)
+      module.static_libs.add(self._bp_module_name_from_gn_target(dep))
+
+    module.jni_libs = self._collect_jni_lib_deps(android_test_deps)
+
+    module.test_suites = {"general-tests"}
+    module.test_config = gn_utils.label_to_path(
+      target.a_i_t_android_bp_test_config)
+    module.manifest = gn_utils.label_to_path(
+      target.a_i_t_android_bp_test_manifest)
+
+    module.jni_uses_platform_apis = True
+    module.sdk_version = self._SDK_VERSION
+    self.blueprint.add_module(module)
+    return module
+
+  def _generate_deps_modules_and_add_non_jni_lib_deps(self, module: Module,
       target: GnParser.Target):
-    non_jni_lib_deps = []
     for dep in target.non_proto_or_source_set_deps():
+      if gn_utils.label_without_toolchain(dep.name) in builtin_deps:
+        builtin_deps[gn_utils.label_without_toolchain(dep.name)](module)
+        continue
       create_modules_from_target(self.blueprint, self.gn, dep.name)
       if not is_target_android_jni_lib(dep):
-        non_jni_lib_deps.append(dep)
-    return non_jni_lib_deps
+        module.static_libs.add(self._bp_module_name_from_gn_target(dep))
 
   def _bp_module_name_from_gn_target(self, target: GnParser.Target):
     module = create_modules_from_target(self.blueprint, self.gn, target.name)
     return module.name if module else None
+
+  def _collect_jni_lib_deps(self, root_targets: Sequence[GnParser.Target]):
+    maybe_jni_lib_targets = set()
+    for target in root_targets:
+      self._collect_all_transitive_deps(target, maybe_jni_lib_targets)
+
+    jni_libs = [android_jni_lib_custom_target_name(target) for target in
+               maybe_jni_lib_targets
+               if is_target_android_jni_lib(target)]
+    return jni_libs
 
   def _collect_all_transitive_deps(self, target: GnParser.Target, visited):
     if target in visited:
@@ -1201,6 +1239,10 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     if target.custom_action_type == 'perfetto_android_app':
       return AndroidJavaSDKModulesGenerator(blueprint,
                                             gn).create_android_app_module(
+        target, bp_module_name)
+    if target.custom_action_type == 'perfetto_android_instrumentation_test':
+      return AndroidJavaSDKModulesGenerator(blueprint,
+                                            gn).create_android_test_module(
         target, bp_module_name)
 
     if target.custom_action_type == 'cc_proto_descriptor':
