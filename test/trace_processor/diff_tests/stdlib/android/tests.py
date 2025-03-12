@@ -249,11 +249,11 @@ class AndroidStdlib(TestSuite):
         "Handler: com.android.systemui.broadcast.ActionReceiver"
         "Handler: com.android.keyguard.KeyguardUpdateMonitor"
         "Handler: com.android.systemui.qs.TileServiceManager"
-        "FrameBuffer-<...>#invokeListeners-non-direct"
+        "FrameBuffer-<num>#invokeListeners-non-direct"
         "Transaction (ptz-fgd-1-LOCAL_MEDIA_REMOVE_DELETED_ITEMS_SYNC, <...>)"
-        "InputConsumer processing on ClientState{<...>} (<...>)"
-        "InputConsumer processing on [Gesture Monitor] swipe-up (<...>)"
-        "+job=<...>:"com.google.android.apps.internal.betterbug""
+        "InputConsumer processing on ClientState<...>"
+        "InputConsumer processing on [Gesture Monitor] swipe-up (0x<num>)"
+        "+job=<num>:"com.google.android.apps.internal.betterbug""
         "Looper.dispatch: android.app.ActivityThread$H(runnable@<num>(android.app.ActivityThread@<num>,40))"
         "Not changed at ALL 01"
         "Three digits to replace <num> <num>"
@@ -263,6 +263,10 @@ class AndroidStdlib(TestSuite):
         "1 2 3 4"
         "0x<num>"
         "ImageDecoder#decodeDrawable"
+        "+state=<num>:"sensor:0x<num>""
+        "[<num>]< SET_SIGNAL_STRENGTH_REPORTING_CRITERIA"
+        "sendMessage(inputChannel=<num> PopupWindow:<num>, seq=0x<num>, type=FOCUS)"
+        "Over the RR duration: timestamp:<num>,signalTime:<num>,VSyncPeriod:<num>,desiredVsyncPeriod:<num>,transientDuration:1"
         """))
 
   def test_monitor_contention_extraction(self):
