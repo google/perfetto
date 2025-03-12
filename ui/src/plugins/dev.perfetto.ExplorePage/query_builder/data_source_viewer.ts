@@ -119,7 +119,7 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
           return;
         }
         this.queryResult = await runQuery(
-          queryToRun(this.currentSql),
+          limitQuery(queryToRun(this.currentSql)),
           attrs.trace.engine,
         );
         this.prevSqString = this.curSqString;
@@ -152,7 +152,7 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
             m('code', this.currentSql.textproto),
           ),
       ),
-      renderTable(),
+      m(Section, {title: 'Sample data'}, renderTable()),
     ];
   }
 }
@@ -189,6 +189,10 @@ export interface Query {
 export function queryToRun(sql: Query): string {
   const includes = sql.modules.map((c) => `INCLUDE PERFETTO MODULE ${c};\n`);
   return includes + sql.sql;
+}
+
+function limitQuery(query: string): string {
+  return `WITH query AS (${query}) SELECT * FROM query LIMIT 50`;
 }
 
 export async function analyzeNode(

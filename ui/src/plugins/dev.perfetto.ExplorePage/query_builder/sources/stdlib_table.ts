@@ -39,6 +39,7 @@ import {
   createGroupByProto,
   Operator,
 } from '../operations/operation_component';
+import {Intent} from '../../../../widgets/common';
 
 export interface StdlibTableAttrs extends QueryNodeState {
   readonly trace: Trace;
@@ -150,18 +151,21 @@ export class StdlibTableSource implements m.ClassComponent<StdlibTableAttrs> {
       '',
       m(Button, {
         label: attrs.sqlTable ? 'Change table' : 'Select table',
+        intent: Intent.Primary,
         onclick: async () => {
           this.onTableSelect(attrs);
         },
       }),
-      tableInfo,
-      m(Operator, {
-        filter: {sourceCols: attrs.sourceCols, filters: attrs.filters},
-        groupby: {
-          groupByColumns: attrs.groupByColumns,
-          aggregations: attrs.aggregations,
-        },
-      }),
+      attrs.sqlTable && [
+        tableInfo,
+        m(Operator, {
+          filter: {sourceCols: attrs.sourceCols, filters: attrs.filters},
+          groupby: {
+            groupByColumns: attrs.groupByColumns,
+            aggregations: attrs.aggregations,
+          },
+        }),
+      ],
     );
   }
 }
