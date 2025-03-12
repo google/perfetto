@@ -647,6 +647,10 @@ def check_sql_formatting(paths: List[Union[str, Path]],
 
 def main() -> None:
   """Main entry point."""
+  if not SQLGLOT_DIR.exists():
+    print(f"{SQLGLOT_DIR} does not exist. Run tools/install-build-deps first.")
+    sys.exit(1)
+
   parser = argparse.ArgumentParser(
       description='Format SQL queries with consistent style')
   parser.add_argument(
