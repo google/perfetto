@@ -355,6 +355,8 @@ class GnParser(object):
       # custom_action_type == 'perfetto_android_instrumentation_test'
       self.a_i_t_app: Optional[str] = None
       self.a_i_t_test_app: Optional[str] = None
+      self.a_i_t_android_bp_test_manifest: Optional[str] = None
+      self.a_i_t_android_bp_test_config: Optional[str] = None
 
       # These variables are propagated up when encountering a dependency
       # on a source_set target.
@@ -513,6 +515,14 @@ class GnParser(object):
       target.a_i_t_app = a_i_t_app[0] if a_i_t_app else None
       a_i_t_test_app = target.metadata.get('perfetto_android_a_i_t_test_app')
       target.a_i_t_test_app = a_i_t_test_app[0] if a_i_t_test_app else None
+      a_i_t_android_bp_test_manifest = target.metadata.get(
+          'perfetto_android_a_i_t_android_bp_test_manifest')
+      target.a_i_t_android_bp_test_manifest = a_i_t_android_bp_test_manifest[
+          0] if a_i_t_android_bp_test_manifest else None
+      a_i_t_android_bp_test_config = target.metadata.get(
+          'perfetto_android_a_i_t_android_bp_test_config')
+      target.a_i_t_android_bp_test_config = a_i_t_android_bp_test_config[
+          0] if a_i_t_android_bp_test_config else None
 
     # Default for 'public' is //* - all headers in 'sources' are public.
     # TODO(primiano): if a 'public' section is specified (even if empty), then
