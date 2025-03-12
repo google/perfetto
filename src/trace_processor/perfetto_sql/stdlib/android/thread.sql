@@ -41,7 +41,10 @@ SELECT
   CASE
     WHEN $thread_name GLOB 'kworker/*'
     THEN 'kworker'
-    ELSE str_split(str_split(str_split(str_split($thread_name, "-", 0), "[", 0), ":", 0), " ", 0)
+    ELSE __intrinsic_strip_hex(
+      str_split(str_split(str_split(str_split($thread_name, "-", 0), "[", 0), ":", 0), " ", 0),
+      1
+    )
   END;
 
 -- Per process stats of threads created in a process
