@@ -148,7 +148,6 @@ void GraphicsFrameEventParser::CreateBufferEvent(
     default:
       context_->storage->IncrementStats(
           stats::graphics_frame_event_parser_errors);
-      PERFETTO_ELOG("GraphicsFrameEvent with unknown type %d.", event.type());
       break;
   }
   bool prev_is_dequeue = it->is_most_recent_dequeue_;
