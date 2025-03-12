@@ -45,9 +45,9 @@ SELECT
           ELSE 0
         END
       ) || "<...>" || substr($name, instr($name, ":"), length($name))
-      ELSE $name
+      ELSE __intrinsic_strip_hex($name, 3)
     END
-    ELSE $name
+    ELSE __intrinsic_strip_hex($name, 3)
   END;
 
 CREATE PERFETTO FUNCTION _standardize_vsync_slice_name(
@@ -116,7 +116,7 @@ SELECT
     THEN "lastVsyncDelta=<...>"
     WHEN $name GLOB "mLastCommittedVsync in*"
     THEN "mLastCommittedVsync in <...>"
-    ELSE $name
+    ELSE __intrinsic_strip_hex($name, 3)
   END;
 
 -- Some slice names have params in them. This functions removes them to make it
@@ -148,8 +148,6 @@ SELECT
     THEN "Choreographer#doFrame"
     WHEN $name GLOB "DrawFrames*"
     THEN "DrawFrames"
-    WHEN lower($name) GLOB lower("*vsync*")
-    THEN _standardize_vsync_slice_name($name)
     WHEN $name GLOB "AssetManager::OpenNonAsset*"
     THEN "AssetManager::OpenNonAsset <...>"
     WHEN $name GLOB "AssetManager::OpenXmlAsset*"
@@ -168,8 +166,6 @@ SELECT
     THEN "JIT compiling"
     WHEN $name GLOB "requested config :*"
     THEN "requested config : <...>"
-    WHEN $name GLOB "Over the RR duration:*"
-    THEN "Over the RR duration: <...>"
     WHEN $name GLOB "/data/app*.apk"
     THEN "APK load"
     WHEN $name GLOB "OpenDexFilesFromOat*"
@@ -218,40 +214,14 @@ SELECT
     THEN "UNSOL_SIGNAL_STRENGTH <...>"
     WHEN $name GLOB "*GET_CELL_INFO_LIST*"
     THEN "<...> GET_CELL_INFO_LIST <...>"
-    -- E.g [0612]< SET_SIGNAL_STRENGTH_REPORTING_CRITERIA
-    -- <...>< SET_SIGNAL_STRENGTH_REPORTING_CRITERIA
-    WHEN $name GLOB "?[0-9]*?< *"
-    THEN "<...>" || substr($name, instr($name, "<") + 1)
-    -- E.g. +job=1234:"com.google.android.apps.internal.betterbug"
-    -- To +job=<...>:"com.google.android.apps.internal.betterbug"
-    WHEN $name GLOB "[+-a-z]*=[0-9]*:*" OR $name GLOB "[a-z]*=[0-9]*:*"
-    THEN substr($name, 1, instr($name, "=")) || "<...>:" || substr($name, instr($name, ":") + 1)
-    -- E.g. InputConsumer processing on ea6145 NotificationShade (0xb000000000000000)
-    -- To InputConsumer processing on <...> NotificationShade (<...>)
-    -- E.g. InputConsumer processing on [Gesture Monitor] swipe-up (0xb000000000000000)
-    -- To InputConsumer processing on [Gesture Monitor] swipe-up (<...>)
-    -- E.g. InputConsumer processing on PointerEventDispatcher0 (0xb000000000000000)
-    -- To InputConsumer processing on PointerEventDispatcher0 (<...>)
+    WHEN $name GLOB "*VOICE_REGISTRATION_STATE*"
+    THEN "<...> VOICE_REGISTRATION_STATE <...>"
+    WHEN $name GLOB "*DATA_REGISTRATION_STATE*"
+    THEN "<...> DATA_REGISTRATION_STATE <...>"
     -- E.g. InputConsumer processing on ClientState{e1d234a mUid=1234 mPid=1234 mSelfReportedDisplayId=0} (0xb000000000000000)
     -- To InputConsumer processing on ClientState{<...>} (<...>)
-    WHEN $name GLOB "InputConsumer processing on *"
-    THEN CASE
-      WHEN $name GLOB "InputConsumer processing on [0-9a-z]* [a-zA-Z]* (*)"
-      THEN "InputConsumer processing on <..>" || substr(
-        substr($name, instr($name, " on ") + 4, instr($name, "(") - instr($name, " on ") - 4),
-        instr(
-          substr($name, instr($name, " on ") + 4, instr($name, "(") - instr($name, " on ") - 4),
-          " "
-        )
-      ) || " (<..>)"
-      WHEN $name GLOB "InputConsumer processing on *Gesture Monitor* * (*)"
-      THEN substr($name, 1, instr($name, "(")) || "<...>)"
-      WHEN $name GLOB "InputConsumer processing on ClientState{*} (*)"
-      THEN "InputConsumer processing on ClientState{<...>} (<...>)"
-      WHEN $name GLOB "InputConsumer processing on * (*)"
-      THEN substr($name, 1, instr($name, "(")) || "<...>)"
-      ELSE "InputConsumer processing on <...>"
-    END
+    WHEN $name GLOB "InputConsumer processing on ClientState*"
+    THEN "InputConsumer processing on ClientState<...>"
     -- E.g. Transaction (ptz-fgd-1-LOCAL_MEDIA_REMOVE_DELETED_ITEMS_SYNC, 11910)
     -- To: Transaction (ptz-fgd-1-LOCAL_MEDIA_REMOVE_DELETED_ITEMS_SYNC, <...>)
     WHEN $name GLOB "Transaction (*, *)"
@@ -260,10 +230,6 @@ SELECT
       THEN substr($name, 1, instr($name, "(")) || "Thread-<...>," || substr($name, instr($name, ","), length($name))
       ELSE substr($name, 1, instr($name, ",") + 1) || "<...>)"
     END
-    -- E.g. FrameBuffer-201#invokeListeners-non-direct
-    -- To: FrameBuffer-<...>#invokeListeners-non-direct
-    WHEN $name GLOB "FrameBuffer-*#*"
-    THEN substr($name, 1, instr($name, "-")) || "<...>" || substr($name, instr($name, "#"), length($name))
     -- E.g. Lock contention on thread list lock (owner tid: 1665)
     -- To: Lock contention on thread list lock <...>
     WHEN $name GLOB "Lock contention on* (*"
@@ -283,5 +249,7 @@ SELECT
     THEN "Handler: " || _remove_lambda_name($name)
     WHEN $name GLOB "deliverInputEvent*"
     THEN "deliverInputEvent <...>"
+    WHEN lower($name) GLOB "*vsync*"
+    THEN _standardize_vsync_slice_name($name)
     ELSE __intrinsic_strip_hex($name, 3)
   END;
