@@ -359,10 +359,8 @@ void ProducerIPCClientImpl::OnServiceRequest(
       PERFETTO_CHECK(!ipc_shared_memory);
       // Need to create an emulated shmem buffer when the transport deosn't
       // support it.
-      // TODO(chinglinyu): Let the tracing service decide on the shmem size and
-      // propagate the size in InitializeConnectionResponse.
       ipc_shared_memory = InProcessSharedMemory::Create(
-          /*size=*/InProcessSharedMemory::kDefaultSize);
+          /*size=*/InProcessSharedMemory::kShmemEmulationSize);
     }
     if (ipc_shared_memory) {
       auto shmem_mode = use_shmem_emulation_
