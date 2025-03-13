@@ -44,18 +44,6 @@ CREATE TABLE android_cujs AS
     JOIN android_jank_cuj cuj USING (cuj_id)
     JOIN android_jank_cuj_main_thread t USING (cuj_id);
 
-DROP TABLE IF EXISTS _android_frames_layers_with_end_ts;
-CREATE PERFETTO TABLE _android_frames_layers_with_end_ts AS
-    SELECT
-        ts,
-        dur,
-        frame_id,
-        layer_id,
-        upid,
-        ui_thread_utid,
-        (ts + dur) AS ts_end
-    FROM android_frames_layers;
-
 -- While calculating the metric, there are two possibilities for a blocking call:
 -- 1. Blocking call is completely within a frame boundary.
 -- 2. Blocking call crosses the frame boundary into the next frame.
@@ -77,7 +65,7 @@ SELECT
     frame.frame_id,
     frame.layer_id
 FROM _android_critical_blocking_calls bc
-JOIN _android_frames_layers_with_end_ts frame
+JOIN android_frames_layers frame
 ON bc.utid = frame.ui_thread_utid
    -- The following condition to accommodate blocking call crossing frame boundary. The blocking
    -- call starts in a frame and ends in a frame. It can either be the same frame or a different
@@ -102,7 +90,7 @@ SELECT
         cuj.ts_end - frame.ts,
         frame.ts_end - cuj.ts
     ) AS dur
-FROM _android_frames_layers_with_end_ts frame
+FROM android_frames_layers frame
 JOIN android_cujs cuj
 ON frame.upid = cuj.upid
    AND frame.layer_id = cuj.layer_id
