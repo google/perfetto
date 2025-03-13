@@ -21,11 +21,10 @@ import {Probe} from './probe_renderer';
 import {Button} from '../../../widgets/button';
 import {classNames} from '../../../base/classnames';
 import {showModal} from '../../../widgets/modal';
-import {CopyableLink} from '../../../widgets/copyable_link';
-import {assertExists} from '../../../base/logging';
 import {BUCKET_NAME} from '../../../base/gcs_uploader';
 import {RecordingTarget} from '../interfaces/recording_target';
 import {exists} from '../../../base/utils';
+import {SHARE_SUBPAGE, shareRecordConfig} from '../config/config_sharing';
 
 export type RecordPageAttrs = PageAttrs & {
   getRecordingManager: () => RecordingManager;
@@ -33,7 +32,6 @@ export type RecordPageAttrs = PageAttrs & {
 
 const DEFAULT_SUBPAGE = 'target';
 const PERSIST_EVERY_MS = 1000;
-const SHARE_SUBPAGE = 'share';
 
 // By design this interface overlaps with RecordConfigSection so we can use the
 // same for custom subpages (record, config) and the probe settings.
@@ -125,7 +123,7 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
         m(Button, {
           icon: 'share',
           title: 'Share current config',
-          onclick: () => this.share(),
+          onclick: () => shareRecordConfig(this.recMgr.serializeSession()),
         }),
       ),
       m(
@@ -186,21 +184,6 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
         m('.sub', rc.subtitle),
       ),
     );
-  }
-
-  private async share() {
-    const msg =
-      'This will generate a publicly-readable link to the ' +
-      'current config which cannot be deleted. Continue?';
-    if (!confirm(msg)) return;
-    const url = await this.recMgr.share();
-    const hash = assertExists(url.split('/').pop());
-    showModal({
-      title: 'Permalink',
-      content: m(CopyableLink, {
-        url: `${self.location.origin}/#!/record/${SHARE_SUBPAGE}/${hash}`,
-      }),
-    });
   }
 
   private async loadShared(hash: string) {

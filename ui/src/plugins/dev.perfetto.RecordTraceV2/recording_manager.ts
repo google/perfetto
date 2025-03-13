@@ -28,7 +28,6 @@ import {
 } from './serialization_schema';
 import {TargetPlatformId} from './interfaces/target_platform';
 import {TracingSession} from './interfaces/tracing_session';
-import {GcsUploader} from '../../base/gcs_uploader';
 import {uuidv4} from '../../base/uuid';
 import {Time, Timecode} from '../../base/time';
 
@@ -136,14 +135,6 @@ export class RecordingManager {
     const wrappedSession = new CurrentTracingSession(this, traceCfg);
     this._tracingSession = wrappedSession;
     return wrappedSession;
-  }
-
-  async share(): Promise<string> {
-    const config = this.serializeSession();
-    const json = JSON.stringify(config);
-    const uploader = new GcsUploader(json, {mimeType: 'application/json'});
-    await uploader.waitForCompletion();
-    return uploader.uploadedUrl;
   }
 
   serializeSession(): RecordSessionSchema {
