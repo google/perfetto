@@ -2,6 +2,7 @@ Unreleased:
   Tracing service and probes:
     * Added a dummy feature that does nothing really just to check the
       github workflow (3).
+    * Add a second feature
   SQL Standard library:
     *
   Trace Processor:
