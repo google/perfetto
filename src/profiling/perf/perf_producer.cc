@@ -775,7 +775,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       PERFETTO_DLOG("Skipping sample for pid [%d]: kFdsTimedOut",
                     static_cast<int>(pid));
       EmitSkippedSample(ds_id, std::move(sample.value()),
-                        SampleSkipReason::kReadStage);
+                        SampleSkipReason::kReadFdTimeout);
       continue;
     }
 
@@ -783,6 +783,8 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
     if (process_state == ProcessTrackingStatus::kRejected) {
       PERFETTO_DLOG("Skipping sample for pid [%d]: kRejected",
                     static_cast<int>(pid));
+      EmitSkippedSample(ds_id, std::move(sample.value()),
+                        SampleSkipReason::kRejected);
       continue;
     }
 
@@ -806,6 +808,8 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       bool is_kthread = !sample->regs;  // no userspace regs
       if (is_kthread && !event_config.kernel_frames()) {
         process_state = ProcessTrackingStatus::kRejected;
+        EmitSkippedSample(ds_id, std::move(sample.value()),
+                        SampleSkipReason::kRejected);
         continue;
       }
 
@@ -818,6 +822,8 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
                 return glob_aware::ReadProcCmdlineForPID(pid, cmdline);
               })) {
         process_state = ProcessTrackingStatus::kRejected;
+        EmitSkippedSample(ds_id, std::move(sample.value()),
+                        SampleSkipReason::kRejected);
         continue;
       }
 
@@ -846,6 +852,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
     if (!event_config.user_frames() &&
         sample->common.cpu_mode == PERF_RECORD_MISC_USER) {
       PERFETTO_DLOG("Skipping usermode sample for kernel-only config");
+      EmitCounterOnlySample(ds, sample->common, /*has_process_context=*/true);
       continue;
     }
 
@@ -1125,7 +1132,7 @@ void PerfProducer::EmitSkippedSample(DataSourceInstanceID ds_id,
 
   using PerfSample = protos::pbzero::PerfSample;
   switch (reason) {
-    case SampleSkipReason::kReadStage:
+    case SampleSkipReason::kReadFdTimeout:
       perf_sample->set_sample_skipped_reason(
           PerfSample::PROFILER_SKIP_READ_STAGE);
       break;
@@ -1136,6 +1143,10 @@ void PerfProducer::EmitSkippedSample(DataSourceInstanceID ds_id,
     case SampleSkipReason::kUnwindStage:
       perf_sample->set_sample_skipped_reason(
           PerfSample::PROFILER_SKIP_UNWIND_STAGE);
+      break;
+    case SampleSkipReason::kRejected:
+      perf_sample->set_sample_skipped_reason(
+          PerfSample::PROFILER_SKIP_NOT_IN_SCOPE);
       break;
   }
 }

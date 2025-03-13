@@ -168,9 +168,10 @@ class PerfProducer : public Producer,
 
   // For |EmitSkippedSample|.
   enum class SampleSkipReason {
-    kReadStage = 0,  // discarded at read stage
-    kUnwindEnqueue,  // discarded due to unwinder queue being full
-    kUnwindStage,    // discarded at unwind stage
+    kReadFdTimeout = 0,  // discarded since fd lookup previously timed out
+    kUnwindEnqueue,      // discarded due to unwinder queue being full
+    kUnwindStage,        // discarded at unwind stage (any reason)
+    kRejected,           // doesn't match target scope from the config
   };
 
   void ConnectService();
