@@ -19,16 +19,17 @@
 #include <linux/perf_event.h>
 #include <time.h>
 
-#include <unwindstack/Regs.h>
+#include <cinttypes>
 #include <optional>
 #include <vector>
 
+#include <unwindstack/Regs.h>
+
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/profiling/perf/regs_parsing.h"
-
 #include "protos/perfetto/common/perf_events.gen.h"
 #include "protos/perfetto/config/profiling/perf_event_config.gen.h"
+#include "src/profiling/perf/regs_parsing.h"
 
 namespace perfetto {
 namespace profiling {
@@ -58,7 +59,7 @@ std::pair<std::string, std::string> SplitTracepointString(
 // If set, the returned id is guaranteed to be non-zero.
 std::optional<uint32_t> ParseTracepointAndResolveId(
     const protos::gen::PerfEvents::Tracepoint& tracepoint,
-    EventConfig::tracepoint_id_fn_t tracepoint_id_lookup) {
+    const EventConfig::tracepoint_id_fn_t& tracepoint_id_lookup) {
   std::string full_name = tracepoint.name();
   std::string tp_group;
   std::string tp_name;
@@ -246,14 +247,14 @@ int32_t ToClockId(protos::gen::PerfEvents::PerfClock pb_enum) {
 // polymorphic parameter event_desc.
 template <typename T>
 std::optional<PerfCounter> MakePerfCounter(
-    EventConfig::tracepoint_id_fn_t& tracepoint_id_lookup,
+    const EventConfig::tracepoint_id_fn_t& tracepoint_id_lookup,
     const std::string& name,
     const T& event_desc) {
   if (event_desc.has_counter()) {
     auto maybe_counter = ToPerfCounter(name, event_desc.counter());
     if (!maybe_counter)
       return std::nullopt;
-    return *maybe_counter;
+    return maybe_counter;
   } else if (event_desc.has_tracepoint()) {
     const auto& tracepoint_pb = event_desc.tracepoint();
     std::optional<uint32_t> maybe_id =
@@ -344,7 +345,111 @@ std::optional<EventConfig> EventConfig::Create(
     const protos::gen::PerfEventConfig& pb_config,
     const DataSourceConfig& raw_ds_config,
     std::optional<ProcessSharding> process_sharding,
-    tracepoint_id_fn_t tracepoint_id_lookup) {
+    const tracepoint_id_fn_t& tracepoint_id_lookup) {
+  // Timebase (leader) event. Default: CPU timer.
+  PerfCounter timebase_event;
+  std::string timebase_name = pb_config.timebase().name();
+  auto maybe_perf_counter = MakePerfCounter(tracepoint_id_lookup, timebase_name,
+                                            pb_config.timebase());
+  if (!maybe_perf_counter) {
+    return std::nullopt;
+  }
+  timebase_event = std::move(*maybe_perf_counter);
+
+  // Follower events.
+  std::vector<PerfCounter> followers;
+  for (const auto& event : pb_config.followers()) {
+    auto maybe_follower_counter =
+        MakePerfCounter(tracepoint_id_lookup, event.name(), event);
+    if (!maybe_follower_counter) {
+      return std::nullopt;
+    }
+    followers.push_back(std::move(*maybe_follower_counter));
+  }
+
+  // The usual mode is sampling into a ring buffer, but we also support periodic
+  // polling from userspace as some PMUs do not support sampling.
+  if (pb_config.timebase().poll_period_ms()) {
+    return CreatePolling(std::move(timebase_event), std::move(followers),
+                         pb_config, raw_ds_config);
+  }
+  return CreateSampling(std::move(timebase_event), std::move(followers),
+                        process_sharding, pb_config, raw_ds_config);
+}
+
+// Builds a config that is analogous to:
+//  perf stat -e '{timebase, followers...}' -I ...
+// static
+std::optional<EventConfig> EventConfig::CreatePolling(
+    PerfCounter timebase_event,
+    std::vector<PerfCounter> followers,
+    const protos::gen::PerfEventConfig& pb_config,
+    const DataSourceConfig& raw_ds_config) {
+  uint32_t poll_period_ms = pb_config.timebase().poll_period_ms();
+
+  // Build the underlying syscall config struct.
+  perf_event_attr pe = {};
+  pe.size = sizeof(perf_event_attr);
+  pe.disabled = 1;  // will be activated via ioctl
+
+  // Timebase (leader) counter.
+  pe.type = timebase_event.attr_type;
+  pe.config = timebase_event.attr_config;
+  pe.config1 = timebase_event.attr_config1;
+  pe.config2 = timebase_event.attr_config2;
+
+  // Include all counters in the group when reading the timebase. Always set
+  // this option as it changes the layout of the data returned by the read
+  // syscall, and it's simpler to use that even for a single counter.
+  pe.read_format = PERF_FORMAT_GROUP;
+
+  // Additional counters, included when reading the timebase.
+  std::vector<perf_event_attr> pe_followers;
+  if (!followers.empty()) {
+    pe_followers.reserve(followers.size());
+  }
+  for (const auto& e : followers) {
+    perf_event_attr pe_follower = {};
+    pe_follower.size = sizeof(perf_event_attr);
+    pe_follower.disabled = 0;  // activated when the timebase is activated
+    pe_follower.type = e.attr_type;
+    pe_follower.config = e.attr_config;
+    pe_follower.config1 = e.attr_config1;
+    pe_follower.config2 = e.attr_config2;
+    pe_follower.sample_type = pe.sample_type;
+
+    pe_followers.push_back(pe_follower);
+  }
+
+  // Double-check that the config isn't trying to set options that are known to
+  // be incompatible with polling.
+  if (pb_config.has_callstack_sampling() ||
+      pb_config.ring_buffer_read_period_ms() || pb_config.all_cpus()) {
+    PERFETTO_ELOG(
+        "Config requesting options incompatible with polled counters");
+    return std::nullopt;
+  }
+
+  // Significant parts of EventConfig are not applicable since it is written
+  // primarily for ring buffer sampling.
+  return EventConfig(
+      raw_ds_config, pe, std::move(pe_followers), std::move(timebase_event),
+      std::move(followers), RecordingMode::kPolling,
+      /*kernel_frames=*/false,
+      /*unwind_mode=*/protos::gen::PerfEventConfig::UNWIND_SKIP,
+      /*target_filter=*/{}, /*ring_buffer_pages=*/0, poll_period_ms,
+      /*samples_per_tick_limit=*/1, /*remote_descriptor_timeout_ms=*/0,
+      /*unwind_state_clear_period_ms=*/0, /*max_enqueued_footprint_bytes=*/0,
+      /*target_installed_by=*/{});
+}
+
+// static
+std::optional<EventConfig> EventConfig::CreateSampling(
+    PerfCounter timebase_event,
+    std::vector<PerfCounter> followers,
+    std::optional<ProcessSharding> process_sharding,
+    const protos::gen::PerfEventConfig& pb_config,
+    const DataSourceConfig& raw_ds_config) {
   // Timebase: sampling interval.
   uint64_t sampling_frequency = 0;
   uint64_t sampling_period = 0;
@@ -359,30 +464,6 @@ std::optional<EventConfig> EventConfig::Create(
   }
   PERFETTO_DCHECK(sampling_period && !sampling_frequency ||
                   !sampling_period && sampling_frequency);
-
-  // Leader event. Default: CPU timer.
-  PerfCounter timebase_event;
-  std::string timebase_name = pb_config.timebase().name();
-
-  // Build timebase.
-  auto maybe_perf_counter = MakePerfCounter(tracepoint_id_lookup, timebase_name,
-                                            pb_config.timebase());
-  if (!maybe_perf_counter) {
-    return std::nullopt;
-  }
-  timebase_event = std::move(*maybe_perf_counter);
-
-  // Build the followers.
-  std::vector<PerfCounter> followers;
-  for (const auto& event : pb_config.followers()) {
-    const auto& name = event.name();
-    auto maybe_follower_counter =
-        MakePerfCounter(tracepoint_id_lookup, name, event);
-    if (!maybe_follower_counter) {
-      return std::nullopt;
-    }
-    followers.push_back(std::move(*maybe_follower_counter));
-  }
 
   // Callstack sampling.
   bool kernel_frames = false;
@@ -499,10 +580,8 @@ std::optional<EventConfig> EventConfig::Create(
     pe.exclude_callchain_user = true;
   }
 
-  // Build the events associated with the timebase event (pe).
-  // The timebase event drives the capture with its frequency or period
-  // parameter. When linux captures the timebase event it also reads and report
-  // the values of associated events.
+  // Additional counters to include whenever the timebase is sampled, each
+  // configured as a separate call to perf_event_open.
   std::vector<perf_event_attr> pe_followers;
   if (!followers.empty()) {
     pe.read_format = PERF_FORMAT_GROUP;
@@ -517,27 +596,26 @@ std::optional<EventConfig> EventConfig::Create(
     pe_follower.config = e.attr_config;
     pe_follower.config1 = e.attr_config1;
     pe_follower.config2 = e.attr_config2;
-    pe_follower.sample_type =
-        PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_READ;
-    pe_follower.freq = 0;
-    pe_follower.sample_period = 0;
-    pe_follower.clockid = ToClockId(pb_config.timebase().timestamp_clock());
-    pe_follower.use_clockid = true;
+    // Some arguments must match the timebase:
+    pe_follower.sample_type = pe.sample_type;
+    pe_follower.clockid = pe.clockid;
+    pe_follower.use_clockid = pe.use_clockid;
 
     pe_followers.push_back(pe_follower);
   }
 
   return EventConfig(
-      raw_ds_config, pe, std::move(pe_followers), timebase_event, followers,
-      kernel_frames, unwind_mode, std::move(target_filter),
-      ring_buffer_pages.value(), read_tick_period_ms, samples_per_tick_limit,
-      remote_descriptor_timeout_ms, pb_config.unwind_state_clear_period_ms(),
-      max_enqueued_footprint_bytes, pb_config.target_installed_by());
+      raw_ds_config, pe, std::move(pe_followers), std::move(timebase_event),
+      std::move(followers), RecordingMode::kSampling, kernel_frames,
+      unwind_mode, std::move(target_filter), ring_buffer_pages.value(),
+      read_tick_period_ms, samples_per_tick_limit, remote_descriptor_timeout_ms,
+      pb_config.unwind_state_clear_period_ms(), max_enqueued_footprint_bytes,
+      pb_config.target_installed_by());
 }
 
 // static
 bool EventConfig::IsUserFramesEnabled(
-    const protos::gen::PerfEventConfig::UnwindMode unwind_mode) {
+    const protos::gen::PerfEventConfig::UnwindMode& unwind_mode) {
   using protos::gen::PerfEventConfig;
   switch (unwind_mode) {
     case PerfEventConfig::UNWIND_UNKNOWN:
@@ -554,8 +632,9 @@ bool EventConfig::IsUserFramesEnabled(
 EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
                          const perf_event_attr& pe_timebase,
                          std::vector<perf_event_attr> pe_followers,
-                         const PerfCounter& timebase_event,
+                         PerfCounter timebase_event,
                          std::vector<PerfCounter> follower_events,
+                         RecordingMode recording_mode,
                          bool kernel_frames,
                          protos::gen::PerfEventConfig::UnwindMode unwind_mode,
                          TargetFilter target_filter,
@@ -568,8 +647,9 @@ EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
                          std::vector<std::string> target_installed_by)
     : perf_event_attr_(pe_timebase),
       perf_event_followers_(std::move(pe_followers)),
-      timebase_event_(timebase_event),
+      timebase_event_(std::move(timebase_event)),
       follower_events_(std::move(follower_events)),
+      recording_mode_(recording_mode),
       kernel_frames_(kernel_frames),
       unwind_mode_(unwind_mode),
       target_filter_(std::move(target_filter)),

@@ -18,14 +18,24 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Next id: 12
 message PerfEvents {
-  // What event to sample on, and how often. Commented from the perspective of
-  // its use in |PerfEventConfig|.
+  // The primary event to count. If recording multiple events, this
+  // counter is the "group leader".
+  // Commented from the perspective of its use in |PerfEventConfig|.
+  // Next id: 12
   message Timebase {
-    // How often the per-cpu sampling will occur. Not guaranteed to be honored
-    // as the kernel can throttle the sampling rate if it's too high.
-    // If unset, an implementation-defined default is used.
+    // How often to snapshot the counter, along with any follower events and
+    // any additional sampled data such as callstacks.
+    //
+    // This choice also controls how the readings are taken:
+    // * With |frequency| or |period|, samples are taken by the kernel
+    //   into a ring buffer. Analogous to `perf record`.
+    // * With |poll_period_ms|, the userspace periodically snapshots
+    //   the counters using the read syscall. Analogous to `perf stat -I`.
+    // Prefer the sampling options unless you're recording PMUs whose
+    // perf drivers only support the reading mode.
+    //
+    // If unset, an implementation-defined sampling default is used.
     oneof interval {
       // Per-cpu sampling frequency in Hz, as requested from the kernel. Not the
       // same as 1/period.
@@ -33,18 +43,28 @@ message PerfEvents {
       // kernel will dynamically adjust it based on the observed event rate, to
       // approximate this frequency. Works best with steady-rate events like
       // timers.
+      // Not guaranteed to be honored as the kernel can throttle the sampling
+      // rate if it's too high.
       uint64 frequency = 2;
 
       // Per-cpu sampling will occur every |period| counts of |event|.
       // Prefer |frequency| by default, as it's easier to oversample with a
       // fixed period.
+      // Not guaranteed to be honored as the kernel can throttle the sampling
+      // rate if it's too high.
       uint64 period = 1;
+
+      // Per-cpu values are read by the userspace every interval. If using this
+      // mode, only follower events are supported. Options such as
+      // |PerfEventConfig.CallstackSampling| are incompatible.
+      // The period can't be guaranteed to be exact since the readings are taken
+      // by userspace.
+      uint32 poll_period_ms = 6;
     }
 
-    // Counting event to use as a timebase for the sampling.
+    // Counting event to use as the timebase.
     // If unset, implies the CPU timer (SW_CPU_CLOCK) as the event,
     // which is what you usually want.
-    // See common/perf_events.proto for the definitions.
     oneof event {
       Counter counter = 4;
       Tracepoint tracepoint = 3;

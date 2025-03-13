@@ -25,8 +25,7 @@
 
 #include <unwindstack/Error.h>
 #include <unwindstack/Regs.h>
-
-#include "src/profiling/common/unwind_support.h"
+#include <unwindstack/Unwinder.h>  // for FrameData
 
 namespace perfetto {
 namespace profiling {

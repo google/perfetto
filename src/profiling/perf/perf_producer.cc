@@ -34,21 +34,20 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "src/profiling/common/callstack_trie.h"
 #include "src/profiling/common/proc_cmdline.h"
 #include "src/profiling/common/producer_support.h"
 #include "src/profiling/common/profiler_guardrails.h"
-#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/common_types.h"
+#include "src/profiling/perf/event_config.h"
 #include "src/profiling/perf/event_reader.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "protos/perfetto/common/perf_events.gen.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
 #include "protos/perfetto/config/profiling/perf_event_config.gen.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
@@ -150,14 +149,24 @@ void WritePerfEventDefaultsPacket(const EventConfig& event_config,
   // default packet timestamp clock for the samples:
   perf_event_attr* perf_attr = event_config.perf_attr();
   auto* defaults = packet->set_trace_packet_defaults();
-  int32_t builtin_clock = ToBuiltinClock(perf_attr->clockid);
-  defaults->set_timestamp_clock_id(static_cast<uint32_t>(builtin_clock));
+
+  bool polling_mode = event_config.recording_mode() == RecordingMode::kPolling;
+  if (polling_mode) {
+    // In polling mode, we snapshot the counters ourselves, always using
+    // BOOTTIME as that's the typical default for perfetto tracing.
+    defaults->set_timestamp_clock_id(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
+  } else {
+    int32_t builtin_clock = ToBuiltinClock(perf_attr->clockid);
+    defaults->set_timestamp_clock_id(static_cast<uint32_t>(builtin_clock));
+  }
 
   auto* perf_defaults = defaults->set_perf_sample_defaults();
   auto* timebase_pb = perf_defaults->set_timebase();
 
-  // frequency/period:
-  if (perf_attr->freq) {
+  // Polling period, or actual sampling frequency/period passed to the kernel:
+  if (polling_mode) {
+    timebase_pb->set_poll_period_ms(event_config.read_tick_period_ms());
+  } else if (perf_attr->freq) {
     timebase_pb->set_frequency(perf_attr->sample_freq);
   } else {
     timebase_pb->set_period(perf_attr->sample_period);
@@ -494,6 +503,23 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
 
   WritePerfEventDefaultsPacket(ds.event_config, ds.trace_writer.get());
 
+  // Enqueue the periodic read task.
+  auto tick_period_ms = ds.event_config.read_tick_period_ms();
+  auto weak_this = weak_factory_.GetWeakPtr();
+  task_runner_->PostDelayedTask(
+      [weak_this, ds_id] {
+        if (weak_this)
+          weak_this->TickDataSourceRead(ds_id);
+      },
+      TimeToNextReadTickMs(ds_id, tick_period_ms));
+
+  // Polled counters: done with setup.
+  if (event_config->recording_mode() == RecordingMode::kPolling) {
+    return;
+  }
+
+  // Additional setup for sampling mode.
+
   InterningOutputTracker::WriteFixedInterningsPacket(
       ds_it->second.trace_writer.get(),
       protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
@@ -510,16 +536,6 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
     unwinding_worker_->PostClearCachedStatePeriodic(
         ds_id, ds.event_config.unwind_state_clear_period_ms());
   }
-
-  // Kick off periodic read task.
-  auto tick_period_ms = ds.event_config.read_tick_period_ms();
-  auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostDelayedTask(
-      [weak_this, ds_id] {
-        if (weak_this)
-          weak_this->TickDataSourceRead(ds_id);
-      },
-      TimeToNextReadTickMs(ds_id, tick_period_ms));
 
   // Optionally kick off periodic memory footprint limit check.
   uint32_t max_daemon_memory_kb = event_config_pb.max_daemon_memory_kb();
@@ -579,11 +595,17 @@ void PerfProducer::StopDataSource(DataSourceInstanceID ds_id) {
     endpoint_->NotifyDataSourceStopped(ds_id);
     return;
   }
-
-  // Start shutting down the reading frontend, which will propagate the stop
-  // further as the intermediate buffers are cleared.
   DataSourceState& ds = ds_it->second;
-  InitiateReaderStop(&ds);
+
+  if (ds.event_config.recording_mode() == RecordingMode::kPolling) {
+    // Polling mode: emit a final reading and ack the stop.
+    ReadCounters(ds);
+    endpoint_->NotifyDataSourceStopped(ds_id);
+  } else {
+    // Sampling mode: start shutting down the reading frontend, which will
+    // propagate the stop further as the intermediate buffers are cleared.
+    InitiateReaderStop(&ds);
+  }
 }
 
 // The perf data sources ignore flush requests, as flushing would be
@@ -658,23 +680,14 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
 
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_READ_TICK);
 
-  // Make a pass over all per-cpu readers.
-  uint64_t max_samples = ds.event_config.samples_per_tick_limit();
-  bool more_records_available = false;
-  for (EventReader& reader : ds.per_cpu_readers) {
-    if (ReadAndParsePerCpuBuffer(&reader, max_samples, ds_id, &ds)) {
-      more_records_available = true;
-    }
+  bool repost_tick = true;
+  if (ds.event_config.recording_mode() == RecordingMode::kPolling) {
+    ReadCounters(ds);
+  } else {
+    repost_tick = ReadRingBuffers(ds_id, ds);
   }
 
-  // Wake up the unwinder as we've (likely) pushed samples into its queue.
-  unwinding_worker_->PostProcessQueue();
-
-  if (PERFETTO_UNLIKELY(ds.status == DataSourceState::Status::kShuttingDown) &&
-      !more_records_available) {
-    unwinding_worker_->PostInitiateDataSourceStop(ds_id);
-  } else {
-    // otherwise, keep reading
+  if (repost_tick) {
     auto tick_period_ms = it->second.event_config.read_tick_period_ms();
     auto weak_this = weak_factory_.GetWeakPtr();
     task_runner_->PostDelayedTask(
@@ -686,10 +699,41 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
   }
 }
 
+void PerfProducer::ReadCounters(DataSourceState& ds) {
+  for (EventReader& reader : ds.per_cpu_readers) {
+    std::optional<CommonSampleData> v = reader.ReadCounters();
+    if (PERFETTO_LIKELY(v.has_value())) {
+      EmitCounterOnlySample(ds, *v, /*has_process_context=*/false);
+    }
+  }
+}
+
+bool PerfProducer::ReadRingBuffers(DataSourceInstanceID ds_id,
+                                   DataSourceState& ds) {
+  // Make a pass over all per-cpu readers.
+  uint64_t max_samples = ds.event_config.samples_per_tick_limit();
+  bool more_records_available = false;
+  for (EventReader& reader : ds.per_cpu_readers) {
+    if (ReadAndParsePerCpuBuffer(&reader, max_samples, ds_id, ds)) {
+      more_records_available = true;
+    }
+  }
+
+  // Wake up the unwinder as we've (likely) pushed samples into its queue.
+  unwinding_worker_->PostProcessQueue();
+
+  if (PERFETTO_UNLIKELY(ds.status == DataSourceState::Status::kShuttingDown) &&
+      !more_records_available) {
+    unwinding_worker_->PostInitiateDataSourceStop(ds_id);
+    return false;  // stop reposting the read callback
+  }
+  return true;  // continue reading
+}
+
 bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
                                             uint64_t max_samples,
                                             DataSourceInstanceID ds_id,
-                                            DataSourceState* ds) {
+                                            DataSourceState& ds) {
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_READ_CPU);
 
   // If the kernel ring buffer dropped data, record it in the trace.
@@ -711,17 +755,15 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
 
     // Counter-only mode: skip the unwinding stage, serialise the sample
     // immediately.
-    const EventConfig& event_config = ds->event_config;
+    const EventConfig& event_config = ds.event_config;
     if (!event_config.sample_callstacks()) {
-      CompletedSample output;
-      output.common = sample->common;
-      EmitSample(ds_id, std::move(output));
+      EmitCounterOnlySample(ds, sample->common, /*has_process_context=*/true);
       continue;
     }
 
     // Sampling either or both of userspace and kernel callstacks.
     pid_t pid = sample->common.pid;
-    auto& process_state = ds->process_states[pid];  // insert if new
+    auto& process_state = ds.process_states[pid];  // insert if new
 
     // Asynchronous proc-fd lookup timed out.
     if (process_state == ProcessTrackingStatus::kFdsTimedOut) {
@@ -766,7 +808,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       // the target filtering. Kernel threads don't have a cmdline, but we
       // still check against pid inclusion/exclusion.
       if (ShouldRejectDueToFilter(
-              pid, event_config.filter(), is_kthread, &ds->additional_cmdlines,
+              pid, event_config.filter(), is_kthread, &ds.additional_cmdlines,
               [pid](std::string* cmdline) {
                 return glob_aware::ReadProcCmdlineForPID(pid, cmdline);
               })) {
@@ -936,6 +978,26 @@ void PerfProducer::EvaluateDescriptorLookupTimeout(DataSourceInstanceID ds_id,
   }
 }
 
+void PerfProducer::EmitCounterOnlySample(DataSourceState& ds,
+                                         const CommonSampleData& sample,
+                                         bool has_process_context) {
+  auto packet = StartTracePacket(ds.trace_writer.get());
+  packet->set_timestamp(sample.timestamp);
+
+  auto* perf_sample = packet->set_perf_sample();
+  perf_sample->set_cpu(sample.cpu);
+  perf_sample->set_timebase_count(sample.timebase_count);
+  for (uint64_t follower_count : sample.follower_counts) {
+    perf_sample->add_follower_counts(follower_count);
+  }
+
+  if (has_process_context) {
+    perf_sample->set_pid(static_cast<uint32_t>(sample.pid));
+    perf_sample->set_tid(static_cast<uint32_t>(sample.tid));
+    perf_sample->set_cpu_mode(ToCpuModeEnum(sample.cpu_mode));
+  }
+}
+
 void PerfProducer::PostEmitSample(DataSourceInstanceID ds_id,
                                   CompletedSample sample) {
   // hack: c++11 lambdas can't be moved into, so stash the sample on the heap.
@@ -979,9 +1041,8 @@ void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
   perf_sample->set_tid(static_cast<uint32_t>(sample.common.tid));
   perf_sample->set_cpu_mode(ToCpuModeEnum(sample.common.cpu_mode));
   perf_sample->set_timebase_count(sample.common.timebase_count);
-
-  for (size_t i = 0; i < sample.common.follower_counts.size(); ++i) {
-    perf_sample->add_follower_counts(sample.common.follower_counts[i]);
+  for (uint64_t follower_count : sample.common.follower_counts) {
+    perf_sample->add_follower_counts(follower_count);
   }
 
   perf_sample->set_callstack_iid(callstack_iid);
