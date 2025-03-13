@@ -36,7 +36,7 @@ package perfetto.protos;
 //     }
 //   }
 //
-// Next id: 20
+// Next id: 21
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
@@ -49,6 +49,15 @@ message PerfEventConfig {
   // interval specified by the |timebase|.
   // If unset, the profiler will record only the event counts.
   optional CallstackSampling callstack_sampling = 16;
+
+  // List of cpu indices for counting. If empty, the default is all cpus.
+  //
+  // Note: this is not inside |callstack_sampling.scope| as it also applies to
+  // counter-only traces. A future change will likely reorganise the options,
+  // but this field will continue to be supported.
+  //
+  // Available since: perfetto v50.
+  repeated uint32 target_cpu = 20;
 
   //
   // Kernel <-> userspace ring buffer options:

@@ -79,37 +79,42 @@ constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 constexpr char kProducerName[] = "perfetto.traced_perf";
 constexpr char kDataSourceName[] = "linux.perf";
 
-size_t NumberOfCpus() {
-  return static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
+uint32_t NumberOfCpus() {
+  return static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF));
 }
 
-std::vector<uint32_t> GetOnlineCpus() {
-  size_t cpu_count = NumberOfCpus();
-  if (cpu_count == 0) {
-    return {};
+bool IsCpuOnline(uint32_t cpu) {
+  base::StackString<128> path("/sys/devices/system/cpu/cpu%" PRIu32 "/online",
+                              cpu);
+  std::string res;
+  if (!base::ReadFile(path.c_str(), &res)) {
+    return false;
   }
+  return base::StartsWith(res, "1");
+}
 
-  static constexpr char kOnlineValue[] = "1\n";
-  std::vector<uint32_t> online_cpus;
-  online_cpus.reserve(cpu_count);
-  for (uint32_t cpu = 0; cpu < cpu_count; ++cpu) {
-    std::string res;
-    base::StackString<1024> path("/sys/devices/system/cpu/cpu%u/online", cpu);
-    if (!base::ReadFile(path.c_str(), &res)) {
-      // Always consider CPU 0 to be online if the "online" file does not exist
-      // for it. There seem to be several assumptions in the kernel which make
-      // CPU 0 special so this is a pretty safe bet.
-      if (cpu != 0) {
-        return {};
-      }
-      res = kOnlineValue;
-    }
-    if (res != kOnlineValue) {
+// TODO(rsavitski): one thing that perf tool does is consult the cpumask
+// from the sysfs pmu description (/sys/bus/event_source/.../cpumask) to
+// automatically downscope events to the cpus that they're present on (matters
+// for heterogeneous cores and ppmu/uncore events).
+// This lets users use "perf record -a" without worrying about cpu scopes.
+std::vector<uint32_t> CreateCpuMask(const protos::gen::PerfEventConfig& cfg) {
+  const auto& target_cpus_raw = cfg.target_cpu();
+  std::set<uint32_t> target_cpus(target_cpus_raw.begin(),
+                                 target_cpus_raw.end());
+
+  std::vector<uint32_t> ret;
+  uint32_t num_cpus = NumberOfCpus();
+  for (uint32_t cpu = 0; cpu < num_cpus; cpu++) {
+    // check explicit mask from cfg, or allow all by default
+    if (!target_cpus.empty() && target_cpus.count(cpu) == 0)
       continue;
-    }
-    online_cpus.push_back(cpu);
+    // consider cpu0 to always be online
+    if (cpu > 0 && !IsCpuOnline(cpu))
+      continue;
+    ret.push_back(cpu);
   }
-  return online_cpus;
+  return ret;
 }
 
 int32_t ToBuiltinClock(int32_t clockid) {
@@ -464,14 +469,14 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
     return;
   }
 
-  std::vector<uint32_t> online_cpus = GetOnlineCpus();
-  if (online_cpus.empty()) {
-    PERFETTO_ELOG("No online CPUs found.");
+  std::vector<uint32_t> target_cpus = CreateCpuMask(event_config_pb);
+  if (target_cpus.empty()) {
+    PERFETTO_ELOG("No valid cpus.");
     return;
   }
 
   std::vector<EventReader> per_cpu_readers;
-  for (uint32_t cpu : online_cpus) {
+  for (uint32_t cpu : target_cpus) {
     std::optional<EventReader> event_reader =
         EventReader::ConfigureEvents(cpu, event_config.value());
     if (!event_reader.has_value()) {
