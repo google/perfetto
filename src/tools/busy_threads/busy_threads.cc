@@ -63,12 +63,12 @@ void PrintUsage(const char* bin_name) {
 #endif
 }
 
-__attribute__((noreturn)) void BusyWait(int64_t tstart,
+__attribute__((noreturn)) void BusyWait(int64_t tstart_ns,
                                         int64_t period_us,
                                         int64_t busy_us,
                                         uint32_t thread_name_count) {
-  int64_t tbusy = tstart;
-  int64_t tnext = tstart;
+  int64_t tbusy = tstart_ns;
+  int64_t tnext = tstart_ns;
   for (;;) {
     if (thread_name_count)
       SetRandomThreadName(thread_name_count);
