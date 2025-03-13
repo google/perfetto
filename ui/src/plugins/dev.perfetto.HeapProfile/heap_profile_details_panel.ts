@@ -16,6 +16,7 @@ import m from 'mithril';
 
 import {assertExists, assertFalse} from '../../base/logging';
 import {extensions} from '../../components/extensions';
+import {runQuery} from '../../components/query_table/queries';
 import {time} from '../../base/time';
 import {
   QueryFlamegraph,
@@ -519,6 +520,36 @@ function getHeapGraphOutgoingReferencesView(): SqlTableDescription {
   };
 }
 
+function getHeapGraphRetainingObjectCountsView(): SqlTableDescription {
+  return {
+    name: `_heap_graph_retaining_object_counts`,
+    columns: [
+      new StandardColumn('class_name'),
+      new StandardColumn('count'),
+      new StandardColumn('total_size'),
+      new StandardColumn('total_native_size'),
+      new StandardColumn('heap_type'),
+      new StandardColumn('root_type'),
+      new StandardColumn('reachable'),
+    ],
+  };
+}
+
+function getHeapGraphRetainedObjectCountsView(): SqlTableDescription {
+  return {
+    name: `_heap_graph_retained_object_counts`,
+    columns: [
+      new StandardColumn('class_name'),
+      new StandardColumn('count'),
+      new StandardColumn('total_size'),
+      new StandardColumn('total_native_size'),
+      new StandardColumn('heap_type'),
+      new StandardColumn('root_type'),
+      new StandardColumn('reachable'),
+    ],
+  };
+}
+
 function getHeapGraphOptionalActions(
   trace: Trace,
 ): ReadonlyArray<FlamegraphOptionalAction> {
@@ -570,6 +601,42 @@ function getHeapGraphOptionalActions(
                 columns: ['path_hash'],
               },
             ],
+          });
+        }
+      },
+    },
+    {
+      name: 'Retained objects',
+      execute: async (kv: ReadonlyMap<string, string>) => {
+        const value = kv.get('path_hash_stable');
+        if (value !== undefined) {
+          const statement = `
+              CREATE OR REPLACE PERFETTO VIEW _heap_graph_retained_object_counts AS
+              SELECT * FROM _heap_graph_retained_object_count_agg!(${value});
+          `;
+
+          // Create view to be returned
+          await runQuery(statement, trace.engine);
+          extensions.addLegacySqlTableTab(trace, {
+            table: getHeapGraphRetainedObjectCountsView(),
+          });
+        }
+      },
+    },
+    {
+      name: 'Retaining objects',
+      execute: async (kv: ReadonlyMap<string, string>) => {
+        const value = kv.get('path_hash_stable');
+        if (value !== undefined) {
+          const statement = `
+              CREATE OR REPLACE PERFETTO VIEW _heap_graph_retaining_object_counts AS
+              SELECT * FROM _heap_graph_retaining_object_count_agg!(${value});
+          `;
+
+          // Create view to be returned
+          await runQuery(statement, trace.engine);
+          extensions.addLegacySqlTableTab(trace, {
+            table: getHeapGraphRetainingObjectCountsView(),
           });
         }
       },
