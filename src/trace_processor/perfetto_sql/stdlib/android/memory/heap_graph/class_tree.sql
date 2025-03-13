@@ -112,3 +112,92 @@ JOIN heap_graph_object AS dst
   ON dst.id = r.owned_id
 JOIN heap_graph_class AS c
   ON dst.type_id = c.id;
+
+CREATE PERFETTO MACRO _heap_graph_retained_object_count_agg(
+    path_hash_value Expr
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT
+    c.name AS class_name,
+    o.heap_type,
+    o.root_type,
+    o.reachable,
+    sum(o.self_size) AS total_size,
+    sum(o.native_size) AS total_native_size,
+    count() AS count
+  FROM graph_reachable_bfs
+    !(
+      (
+        SELECT
+          IFNULL(parent_id, id) AS source_node_id,
+          IFNULL(id, parent_id) AS dest_node_id
+        FROM _heap_graph_object_min_depth_tree
+      ),
+      (
+        SELECT o.id AS node_id
+        FROM _heap_graph_path_hashes h
+        JOIN heap_graph_object o
+          ON h.id = o.id
+        JOIN heap_graph_class c
+          ON o.type_id = c.id
+        WHERE path_hash IN ($path_hash_value)
+      )) AS b
+  JOIN heap_graph_object AS o
+    ON b.node_id = o.id
+  JOIN heap_graph_class AS c
+    ON o.type_id = c.id
+  GROUP BY
+    class_name,
+    heap_type,
+    root_type,
+    reachable
+  ORDER BY
+    count DESC
+);
+
+CREATE PERFETTO MACRO _heap_graph_retaining_object_count_agg(
+    path_hash_value Expr
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT
+    c.name AS class_name,
+    o.heap_type,
+    o.root_type,
+    o.reachable,
+    sum(o.self_size) AS total_size,
+    sum(o.native_size) AS total_native_size,
+    count() AS count
+  FROM graph_reachable_bfs
+    !(
+      (
+        SELECT
+          IFNULL(id, parent_id) AS source_node_id,
+          IFNULL(parent_id, id) AS dest_node_id
+        FROM _heap_graph_object_min_depth_tree
+      ),
+      (
+        SELECT o.id AS node_id
+        FROM _heap_graph_path_hashes h
+        JOIN heap_graph_object o
+          ON h.id = o.id
+        JOIN heap_graph_class c
+          ON o.type_id = c.id
+        WHERE path_hash IN ($path_hash_value)
+      )) AS b
+  JOIN _heap_graph_path_hashes AS h
+    ON h.id = o.id
+  JOIN heap_graph_object AS o
+    ON b.node_id = o.id
+  JOIN heap_graph_class AS c
+    ON o.type_id = c.id
+  GROUP BY
+    path_hash,
+    class_name,
+    heap_type,
+    root_type,
+    reachable
+  ORDER BY
+    count DESC
+);
