@@ -25,6 +25,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 98.270241
       estimated_mw: 25.051556
+      idle_transitions_mws: 0.000000
       thread_name: "swapper"
       thread_id: 0
       process_id: 0
@@ -563,6 +564,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.956713
       estimated_mw: 0.243890
+      idle_transitions_mws: 0.000000
       thread_name: "rcuop/3"
       process_name: "rcuop/3"
       thread_id: 44
@@ -679,6 +681,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.615420
       estimated_mw: 0.156886
+      idle_transitions_mws: 0.000000
       thread_name: "android.hardwar"
       process_name: "/vendor/bin/hw/android.hardware.power.stats-service.pixel"
       thread_id: 908
@@ -786,6 +789,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.384741
       estimated_mw: 0.098080
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.google.android.permissioncontroller"
       thread_id: 2820
@@ -803,6 +807,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.346232
       estimated_mw: 0.088263
+      idle_transitions_mws: 0.000000
       thread_name: "rcuop/2"
       process_name: "rcuop/2"
       thread_id: 37
@@ -811,6 +816,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.332790
       estimated_mw: 0.084837
+      idle_transitions_mws: 0.000000
       thread_name: "android.hardwar"
       process_name: "/vendor/bin/hw/android.hardware.power-service.pixel-libperfmgr"
       thread_id: 683
@@ -855,6 +861,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.267024
       estimated_mw: 0.068071
+      idle_transitions_mws: 0.000000
       thread_name: "statsd.writer"
       process_name: "/apex/com.android.os.statsd/bin/statsd"
       thread_id: 868
@@ -926,6 +933,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.200634
       estimated_mw: 0.051147
+      idle_transitions_mws: 0.000000
       thread_name: "init"
       process_name: "/system/bin/init"
       thread_id: 428
@@ -934,6 +942,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.199431
       estimated_mw: 0.050840
+      idle_transitions_mws: 0.000000
       thread_name: "ssioncontroller"
       process_name: "com.google.android.permissioncontroller"
       thread_id: 2755
@@ -951,6 +960,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.169546
       estimated_mw: 0.043221
+      idle_transitions_mws: 0.000000
       thread_name: "android.hardwar"
       process_name: "/vendor/bin/hw/android.hardware.health-service.gs101"
       thread_id: 898
@@ -977,6 +987,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.157367
       estimated_mw: 0.040117
+      idle_transitions_mws: 0.000000
       thread_name: "migration/5"
       process_name: "migration/5"
       thread_id: 55
@@ -985,6 +996,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.152011
       estimated_mw: 0.038751
+      idle_transitions_mws: 0.000000
       thread_name: "binder:2755_7"
       process_name: "com.google.android.permissioncontroller"
       thread_id: 7983
@@ -1146,6 +1158,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.084793
       estimated_mw: 0.021616
+      idle_transitions_mws: 0.000000
       thread_name: "RxSchedulerPurg"
       process_name: "com.google.android.apps.docs"
       thread_id: 6005
@@ -1154,6 +1167,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.084755
       estimated_mw: 0.021606
+      idle_transitions_mws: 0.000000
       thread_name: "binder:6274_2"
       process_name: "com.google.android.googlequicksearchbox:search"
       thread_id: 6284
@@ -1216,6 +1230,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.071735
       estimated_mw: 0.018287
+      idle_transitions_mws: 0.000000
       thread_name: "binder:2857_1"
       process_name: "com.google.android.tts"
       thread_id: 2872
@@ -1242,6 +1257,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.067514
       estimated_mw: 0.017211
+      idle_transitions_mws: 0.000000
       thread_name: "binder:6749_10"
       process_name: "com.google.android.calendar"
       thread_id: 11332
@@ -1250,6 +1266,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.067256
       estimated_mw: 0.017145
+      idle_transitions_mws: 0.000000
       thread_name: "ndroid.calendar"
       process_name: "com.google.android.calendar"
       thread_id: 6749
@@ -1258,6 +1275,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.064859
       estimated_mw: 0.016534
+      idle_transitions_mws: 0.000000
       thread_name: "binder:2619_10"
       process_name: "com.google.android.factoryota"
       thread_id: 11897
@@ -1275,6 +1293,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.059517
       estimated_mw: 0.015172
+      idle_transitions_mws: 0.000000
       thread_name: "binder:6048_10"
       process_name: "com.google.android.apps.maps"
       thread_id: 11617
@@ -1310,6 +1329,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.056072
       estimated_mw: 0.014294
+      idle_transitions_mws: 0.000000
       thread_name: "binder:3635_1"
       process_name: "com.google.android.contacts"
       thread_id: 3670
@@ -1354,6 +1374,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.053385
       estimated_mw: 0.013609
+      idle_transitions_mws: 0.000000
       thread_name: "binder:2729_C"
       process_name: "com.google.android.pixel.setupwizard"
       thread_id: 10205
@@ -1371,6 +1392,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.050623
       estimated_mw: 0.012905
+      idle_transitions_mws: 0.000000
       thread_name: "binder:7270_3"
       process_name: "com.google.android.apps.photos"
       thread_id: 7284
@@ -1379,6 +1401,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.048496
       estimated_mw: 0.012363
+      idle_transitions_mws: 0.000000
       thread_name: "binder:7503_10"
       process_name: "com.google.android.documentsui"
       thread_id: 11896
@@ -1396,6 +1419,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.047314
       estimated_mw: 0.012062
+      idle_transitions_mws: 0.000000
       thread_name: "rild_exynos"
       process_name: "/vendor/bin/hw/rild_exynos"
       thread_id: 1320
@@ -1404,6 +1428,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.046395
       estimated_mw: 0.011827
+      idle_transitions_mws: 0.000000
       thread_name: "binder:2387_1"
       process_name: "com.google.android.setupwizard"
       thread_id: 2425
@@ -1412,6 +1437,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.044923
       estimated_mw: 0.011452
+      idle_transitions_mws: 0.000000
       thread_name: "shortcut"
       process_name: "system_server"
       thread_id: 1980
@@ -1474,6 +1500,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.038659
       estimated_mw: 0.009855
+      idle_transitions_mws: 0.000000
       thread_name: "RxSchedulerPurg"
       process_name: "com.android.settings"
       thread_id: 5255
@@ -1482,6 +1509,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.037910
       estimated_mw: 0.009664
+      idle_transitions_mws: 0.000000
       thread_name: "FinalizerWatchd"
       process_name: "com.android.systemui"
       thread_id: 15876
@@ -1490,6 +1518,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.036905
       estimated_mw: 0.009408
+      idle_transitions_mws: 0.000000
       thread_name: "adbd"
       process_name: "/apex/com.android.adbd/bin/adbd"
       thread_id: 1788
@@ -1498,6 +1527,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.036214
       estimated_mw: 0.009232
+      idle_transitions_mws: 0.000000
       thread_name: "RemoveFBsThread"
       process_name: "/vendor/bin/hw/android.hardware.graphics.composer@2.4-service"
       thread_id: 617
@@ -1533,6 +1563,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.030959
       estimated_mw: 0.007892
+      idle_transitions_mws: 0.000000
       thread_name: "adbd"
       process_name: "/apex/com.android.adbd/bin/adbd"
       thread_id: 1789
@@ -1541,6 +1572,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.030717
       estimated_mw: 0.007831
+      idle_transitions_mws: 0.000000
       thread_name: "FinalizerWatchd"
       process_name: "com.google.android.inputmethod.latin"
       thread_id: 6326
@@ -1549,6 +1581,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.030581
       estimated_mw: 0.007796
+      idle_transitions_mws: 0.000000
       thread_name: "migration/2"
       process_name: "migration/2"
       thread_id: 33
@@ -1557,6 +1590,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.030195
       estimated_mw: 0.007697
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/4:1H"
       process_name: "kworker/4:1H"
       thread_id: 333
@@ -1565,6 +1599,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.028423
       estimated_mw: 0.007246
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/u16:0"
       process_name: "kworker/u16:0"
       thread_id: 8
@@ -1618,6 +1653,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.023282
       estimated_mw: 0.005935
+      idle_transitions_mws: 0.000000
       thread_name: "lhd"
       process_name: "/vendor/bin/hw/lhd"
       thread_id: 1144
@@ -1653,6 +1689,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.019641
       estimated_mw: 0.005007
+      idle_transitions_mws: 0.000000
       thread_name: "heapprofd"
       process_name: "/system/bin/heapprofd"
       thread_id: 8282
@@ -1697,6 +1734,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.014990
       estimated_mw: 0.003821
+      idle_transitions_mws: 0.000000
       thread_name: "binder:568_8"
       process_name: "/system/bin/hw/android.system.suspend-service"
       thread_id: 2545
@@ -1705,6 +1743,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.014987
       estimated_mw: 0.003821
+      idle_transitions_mws: 0.000000
       thread_name: "aiai-min-shared"
       process_name: "com.google.android.as"
       thread_id: 3661
@@ -1713,6 +1752,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.014632
       estimated_mw: 0.003730
+      idle_transitions_mws: 0.000000
       thread_name: "ksoftirqd/2"
       process_name: "ksoftirqd/2"
       thread_id: 34
@@ -1757,6 +1797,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.010560
       estimated_mw: 0.002692
+      idle_transitions_mws: 0.000000
       thread_name: "rcuop/0"
       process_name: "rcuop/0"
       thread_id: 16
@@ -1774,6 +1815,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.008739
       estimated_mw: 0.002228
+      idle_transitions_mws: 0.000000
       thread_name: "binder:15865_6"
       process_name: "com.android.systemui"
       thread_id: 15963
@@ -1782,6 +1824,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.008457
       estimated_mw: 0.002156
+      idle_transitions_mws: 0.000000
       thread_name: "UsfHalWorker"
       process_name: "/vendor/bin/hw/android.hardware.sensors-service.multihal"
       thread_id: 983
@@ -1790,6 +1833,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.007635
       estimated_mw: 0.001946
+      idle_transitions_mws: 0.000000
       thread_name: "IdleTimer"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 660
@@ -1807,6 +1851,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.006824
       estimated_mw: 0.001740
+      idle_transitions_mws: 0.000000
       thread_name: "binder:15865_4"
       process_name: "com.android.systemui"
       thread_id: 15922
@@ -1815,6 +1860,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.006397
       estimated_mw: 0.001631
+      idle_transitions_mws: 0.000000
       thread_name: "binder:7503_F"
       process_name: "com.google.android.documentsui"
       thread_id: 11618
@@ -1823,6 +1869,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.006389
       estimated_mw: 0.001629
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/6:0"
       process_name: "kworker/6:0"
       thread_id: 13921
@@ -1831,6 +1878,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.005616
       estimated_mw: 0.001432
+      idle_transitions_mws: 0.000000
       thread_name: "ksoftirqd/0"
       process_name: "ksoftirqd/0"
       thread_id: 13
@@ -1839,6 +1887,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.005558
       estimated_mw: 0.001417
+      idle_transitions_mws: 0.000000
       thread_name: "migration/7"
       process_name: "migration/7"
       thread_id: 69
@@ -1847,6 +1896,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.005013
       estimated_mw: 0.001278
+      idle_transitions_mws: 0.000000
       thread_name: "migration/6"
       process_name: "migration/6"
       thread_id: 62
@@ -1864,6 +1914,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.000808
       estimated_mw: 0.000206
+      idle_transitions_mws: 0.000000
       thread_name: "ksoftirqd/4"
       process_name: "ksoftirqd/4"
       thread_id: 48
@@ -1894,6 +1945,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 99.220078
       estimated_mw: 25.293694
+      idle_transitions_mws: 0.000000
       thread_name: "swapper"
       thread_id: 0
       process_id: 0
@@ -1928,6 +1980,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 13.093807
       estimated_mw: 3.337941
+      idle_transitions_mws: 0.000000
       thread_name: "binder:581_2"
       process_name: "/vendor/bin/hw/android.hardware.graphics.composer@2.4-service"
       thread_id: 581
@@ -2224,6 +2277,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 1.693529
       estimated_mw: 0.431723
+      idle_transitions_mws: 0.000000
       thread_name: "android.hardwar"
       process_name: "/vendor/bin/hw/android.hardware.power.stats-service.pixel"
       thread_id: 908
@@ -2529,6 +2583,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.318815
       estimated_mw: 0.081274
+      idle_transitions_mws: 0.000000
       thread_name: "logcat"
       process_name: "logcat"
       thread_id: 1395
@@ -2609,6 +2664,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.189910
       estimated_mw: 0.048413
+      idle_transitions_mws: 0.000000
       thread_name: "NodeLooperThrea"
       process_name: "/vendor/bin/hw/android.hardware.power-service.pixel-libperfmgr"
       thread_id: 2978
@@ -2644,6 +2700,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.159240
       estimated_mw: 0.040594
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/3:3H"
       process_name: "kworker/3:3H"
       thread_id: 4205
@@ -2688,6 +2745,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.114687
       estimated_mw: 0.029237
+      idle_transitions_mws: 0.000000
       thread_name: "migration/3"
       process_name: "migration/3"
       thread_id: 40
@@ -2696,6 +2754,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.111031
       estimated_mw: 0.028305
+      idle_transitions_mws: 0.000000
       thread_name: "heapprofd"
       process_name: "/system/bin/heapprofd"
       thread_id: 8280
@@ -2713,6 +2772,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.102656
       estimated_mw: 0.026170
+      idle_transitions_mws: 0.000000
       thread_name: "migration/0"
       process_name: "migration/0"
       thread_id: 20
@@ -2764,6 +2824,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.077161
       estimated_mw: 0.019670
+      idle_transitions_mws: 0.000000
       thread_name: "-Executor] idle"
       thread_id: 15991
     }
@@ -2788,6 +2849,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.061241
       estimated_mw: 0.015612
+      idle_transitions_mws: 0.000000
       thread_name: "TouchTimer"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 658
@@ -2821,6 +2883,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.056811
       estimated_mw: 0.014483
+      idle_transitions_mws: 0.000000
       thread_name: "migration/1"
       process_name: "migration/1"
       thread_id: 26
@@ -2863,6 +2926,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.049289
       estimated_mw: 0.012565
+      idle_transitions_mws: 0.000000
       thread_name: "migration/2"
       process_name: "migration/2"
       thread_id: 33
@@ -2921,6 +2985,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.033181
       estimated_mw: 0.008459
+      idle_transitions_mws: 0.000000
       thread_name: "RxSchedulerPurg"
       process_name: "com.android.settings"
       thread_id: 5255
@@ -2979,6 +3044,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.020308
       estimated_mw: 0.005177
+      idle_transitions_mws: 0.000000
       thread_name: "android.hardwar"
       process_name: "/vendor/bin/hw/android.hardware.edgetpu.logging@service-edgetpu-logging"
       thread_id: 1214
@@ -2987,6 +3053,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.019427
       estimated_mw: 0.004952
+      idle_transitions_mws: 0.000000
       thread_name: "GoogleApiHandle"
       process_name: "com.google.android.gms.persistent"
       thread_id: 6076
@@ -2995,6 +3062,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.019117
       estimated_mw: 0.004873
+      idle_transitions_mws: 0.000000
       thread_name: "migration/5"
       process_name: "migration/5"
       thread_id: 55
@@ -3028,6 +3096,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.017385
       estimated_mw: 0.004432
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/6:7H"
       process_name: "kworker/6:7H"
       thread_id: 927
@@ -3054,6 +3123,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.014807
       estimated_mw: 0.003775
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.android.settings"
       thread_id: 3030
@@ -3062,6 +3132,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.014612
       estimated_mw: 0.003725
+      idle_transitions_mws: 0.000000
       thread_name: "lhd"
       process_name: "/vendor/bin/hw/lhd"
       thread_id: 1144
@@ -3079,6 +3150,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.013689
       estimated_mw: 0.003490
+      idle_transitions_mws: 0.000000
       thread_name: "RxSchedulerPurg"
       process_name: "com.google.android.apps.docs"
       thread_id: 6005
@@ -3094,6 +3166,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.013125
       estimated_mw: 0.003346
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.google.android.setupwizard"
       thread_id: 2863
@@ -3102,6 +3175,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.012955
       estimated_mw: 0.003303
+      idle_transitions_mws: 0.000000
       thread_name: "migration/4"
       process_name: "migration/4"
       thread_id: 47
@@ -3110,6 +3184,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.012324
       estimated_mw: 0.003142
+      idle_transitions_mws: 0.000000
       thread_name: "RxCachedWorkerP"
       process_name: "com.google.android.apps.docs"
       thread_id: 6006
@@ -3118,6 +3193,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.012290
       estimated_mw: 0.003133
+      idle_transitions_mws: 0.000000
       thread_name: "-Executor] idle"
       process_name: "com.google.android.gms"
       thread_id: 15986
@@ -3135,6 +3211,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.011101
       estimated_mw: 0.002830
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.google.android.setupwizard"
       thread_id: 2862
@@ -3143,6 +3220,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.010968
       estimated_mw: 0.002796
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.google.android.apps.work.clouddpc"
       thread_id: 5125
@@ -3160,6 +3238,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.008952
       estimated_mw: 0.002282
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.android.settings"
       thread_id: 3029
@@ -3177,6 +3256,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.008158
       estimated_mw: 0.002080
+      idle_transitions_mws: 0.000000
       thread_name: "IdleTimer"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 660
@@ -3212,6 +3292,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.005897
       estimated_mw: 0.001503
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/1:1H"
       process_name: "kworker/1:1H"
       thread_id: 432
@@ -3220,6 +3301,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.004904
       estimated_mw: 0.001250
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.google.android.apps.work.clouddpc"
       thread_id: 5124
@@ -3237,6 +3319,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.004727
       estimated_mw: 0.001205
+      idle_transitions_mws: 0.000000
       thread_name: "f2fs_discard-25"
       process_name: "f2fs_discard-254:53"
       thread_id: 639
@@ -3263,6 +3346,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.004244
       estimated_mw: 0.001082
+      idle_transitions_mws: 0.000000
       thread_name: "ksoftirqd/0"
       process_name: "ksoftirqd/0"
       thread_id: 13
@@ -3271,6 +3355,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.004175
       estimated_mw: 0.001064
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/4:3"
       process_name: "kworker/4:3"
       thread_id: 286
@@ -3279,6 +3364,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.003366
       estimated_mw: 0.000858
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.google.android.contacts"
       thread_id: 4079
@@ -3305,6 +3391,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.003029
       estimated_mw: 0.000772
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/4:1H"
       process_name: "kworker/4:1H"
       thread_id: 333
@@ -3344,6 +3431,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 99.233765
       estimated_mw: 25.297182
+      idle_transitions_mws: 0.000000
       thread_name: "swapper"
       thread_id: 0
       process_id: 0
@@ -3378,6 +3466,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 13.093807
       estimated_mw: 3.337941
+      idle_transitions_mws: 0.000000
       thread_name: "binder:581_2"
       process_name: "/vendor/bin/hw/android.hardware.graphics.composer@2.4-service"
       thread_id: 581
@@ -3674,6 +3763,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 1.693529
       estimated_mw: 0.431723
+      idle_transitions_mws: 0.000000
       thread_name: "android.hardwar"
       process_name: "/vendor/bin/hw/android.hardware.power.stats-service.pixel"
       thread_id: 908
@@ -3979,6 +4069,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.318815
       estimated_mw: 0.081274
+      idle_transitions_mws: 0.000000
       thread_name: "logcat"
       process_name: "logcat"
       thread_id: 1395
@@ -4059,6 +4150,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.189910
       estimated_mw: 0.048413
+      idle_transitions_mws: 0.000000
       thread_name: "NodeLooperThrea"
       process_name: "/vendor/bin/hw/android.hardware.power-service.pixel-libperfmgr"
       thread_id: 2978
@@ -4094,6 +4186,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.159240
       estimated_mw: 0.040594
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/3:3H"
       process_name: "kworker/3:3H"
       thread_id: 4205
@@ -4138,6 +4231,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.114687
       estimated_mw: 0.029237
+      idle_transitions_mws: 0.000000
       thread_name: "migration/3"
       process_name: "migration/3"
       thread_id: 40
@@ -4146,6 +4240,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.111031
       estimated_mw: 0.028305
+      idle_transitions_mws: 0.000000
       thread_name: "heapprofd"
       process_name: "/system/bin/heapprofd"
       thread_id: 8280
@@ -4163,6 +4258,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.102656
       estimated_mw: 0.026170
+      idle_transitions_mws: 0.000000
       thread_name: "migration/0"
       process_name: "migration/0"
       thread_id: 20
@@ -4214,6 +4310,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.077161
       estimated_mw: 0.019670
+      idle_transitions_mws: 0.000000
       thread_name: "-Executor] idle"
       thread_id: 15991
     }
@@ -4238,6 +4335,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.061241
       estimated_mw: 0.015612
+      idle_transitions_mws: 0.000000
       thread_name: "TouchTimer"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 658
@@ -4271,6 +4369,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.056811
       estimated_mw: 0.014483
+      idle_transitions_mws: 0.000000
       thread_name: "migration/1"
       process_name: "migration/1"
       thread_id: 26
@@ -4313,6 +4412,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.049289
       estimated_mw: 0.012565
+      idle_transitions_mws: 0.000000
       thread_name: "migration/2"
       process_name: "migration/2"
       thread_id: 33
@@ -4371,6 +4471,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.033181
       estimated_mw: 0.008459
+      idle_transitions_mws: 0.000000
       thread_name: "RxSchedulerPurg"
       process_name: "com.android.settings"
       thread_id: 5255
@@ -4429,6 +4530,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.020308
       estimated_mw: 0.005177
+      idle_transitions_mws: 0.000000
       thread_name: "android.hardwar"
       process_name: "/vendor/bin/hw/android.hardware.edgetpu.logging@service-edgetpu-logging"
       thread_id: 1214
@@ -4437,6 +4539,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.019427
       estimated_mw: 0.004952
+      idle_transitions_mws: 0.000000
       thread_name: "GoogleApiHandle"
       process_name: "com.google.android.gms.persistent"
       thread_id: 6076
@@ -4445,6 +4548,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.019117
       estimated_mw: 0.004873
+      idle_transitions_mws: 0.000000
       thread_name: "migration/5"
       process_name: "migration/5"
       thread_id: 55
@@ -4478,6 +4582,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.017385
       estimated_mw: 0.004432
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/6:7H"
       process_name: "kworker/6:7H"
       thread_id: 927
@@ -4504,6 +4609,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.014807
       estimated_mw: 0.003775
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.android.settings"
       thread_id: 3030
@@ -4512,6 +4618,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.014612
       estimated_mw: 0.003725
+      idle_transitions_mws: 0.000000
       thread_name: "lhd"
       process_name: "/vendor/bin/hw/lhd"
       thread_id: 1144
@@ -4529,6 +4636,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.013689
       estimated_mw: 0.003490
+      idle_transitions_mws: 0.000000
       thread_name: "RxSchedulerPurg"
       process_name: "com.google.android.apps.docs"
       thread_id: 6005
@@ -4544,6 +4652,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.013125
       estimated_mw: 0.003346
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.google.android.setupwizard"
       thread_id: 2863
@@ -4552,6 +4661,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.012955
       estimated_mw: 0.003303
+      idle_transitions_mws: 0.000000
       thread_name: "migration/4"
       process_name: "migration/4"
       thread_id: 47
@@ -4560,6 +4670,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.012324
       estimated_mw: 0.003142
+      idle_transitions_mws: 0.000000
       thread_name: "RxCachedWorkerP"
       process_name: "com.google.android.apps.docs"
       thread_id: 6006
@@ -4568,6 +4679,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.012290
       estimated_mw: 0.003133
+      idle_transitions_mws: 0.000000
       thread_name: "-Executor] idle"
       process_name: "com.google.android.gms"
       thread_id: 15986
@@ -4585,6 +4697,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.011101
       estimated_mw: 0.002830
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.google.android.setupwizard"
       thread_id: 2862
@@ -4593,6 +4706,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.010968
       estimated_mw: 0.002796
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.google.android.apps.work.clouddpc"
       thread_id: 5125
@@ -4610,6 +4724,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.008952
       estimated_mw: 0.002282
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.android.settings"
       thread_id: 3029
@@ -4627,6 +4742,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.008158
       estimated_mw: 0.002080
+      idle_transitions_mws: 0.000000
       thread_name: "IdleTimer"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 660
@@ -4662,6 +4778,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.005897
       estimated_mw: 0.001503
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/1:1H"
       process_name: "kworker/1:1H"
       thread_id: 432
@@ -4670,6 +4787,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.004904
       estimated_mw: 0.001250
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.google.android.apps.work.clouddpc"
       thread_id: 5124
@@ -4687,6 +4805,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.004727
       estimated_mw: 0.001205
+      idle_transitions_mws: 0.000000
       thread_name: "f2fs_discard-25"
       process_name: "f2fs_discard-254:53"
       thread_id: 639
@@ -4713,6 +4832,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.004244
       estimated_mw: 0.001082
+      idle_transitions_mws: 0.000000
       thread_name: "ksoftirqd/0"
       process_name: "ksoftirqd/0"
       thread_id: 13
@@ -4721,6 +4841,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.004175
       estimated_mw: 0.001064
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/4:3"
       process_name: "kworker/4:3"
       thread_id: 286
@@ -4729,6 +4850,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.003366
       estimated_mw: 0.000858
+      idle_transitions_mws: 0.000000
       thread_name: "DefaultDispatch"
       process_name: "com.google.android.contacts"
       thread_id: 4079
@@ -4755,6 +4877,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.003029
       estimated_mw: 0.000772
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/4:1H"
       process_name: "kworker/4:1H"
       thread_id: 333
@@ -4794,6 +4917,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 105.466507
       estimated_mw: 26.886065
+      idle_transitions_mws: 0.000000
       thread_name: "swapper"
       thread_id: 0
       process_id: 0
@@ -5026,6 +5150,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 1.829627
       estimated_mw: 0.466418
+      idle_transitions_mws: 0.000000
       thread_name: "traced"
       process_name: "/system/bin/traced"
       thread_id: 1097
@@ -5340,6 +5465,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.207460
       estimated_mw: 0.052887
+      idle_transitions_mws: 0.000000
       thread_name: "android.hardwar"
       process_name: "/vendor/bin/hw/android.hardware.power.stats-service.pixel"
       thread_id: 908
@@ -5411,6 +5537,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.160484
       estimated_mw: 0.040911
+      idle_transitions_mws: 0.000000
       thread_name: "logcat"
       process_name: "logcat"
       thread_id: 1395
@@ -5527,6 +5654,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.100824
       estimated_mw: 0.025703
+      idle_transitions_mws: 0.000000
       thread_name: "binder:5825_C"
       process_name: "com.google.android.gms"
       thread_id: 6639
@@ -5562,6 +5690,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.084972
       estimated_mw: 0.021661
+      idle_transitions_mws: 0.000000
       thread_name: "rcuop/0"
       process_name: "rcuop/0"
       thread_id: 16
@@ -5624,6 +5753,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.062769
       estimated_mw: 0.016001
+      idle_transitions_mws: 0.000000
       thread_name: "RxSchedulerPurg"
       process_name: "com.google.android.apps.docs"
       thread_id: 6005
@@ -5641,6 +5771,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.053773
       estimated_mw: 0.013708
+      idle_transitions_mws: 0.000000
       thread_name: "rcuop/2"
       process_name: "rcuop/2"
       thread_id: 37
@@ -5658,6 +5789,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.052824
       estimated_mw: 0.013466
+      idle_transitions_mws: 0.000000
       thread_name: "migration/4"
       process_name: "migration/4"
       thread_id: 47
@@ -5702,6 +5834,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.042764
       estimated_mw: 0.010902
+      idle_transitions_mws: 0.000000
       thread_name: "migration/0"
       process_name: "migration/0"
       thread_id: 20
@@ -5719,6 +5852,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.035010
       estimated_mw: 0.008925
+      idle_transitions_mws: 0.000000
       thread_name: "BG Thread #1"
       process_name: "com.google.android.googlequicksearchbox:interactor"
       thread_id: 3669
@@ -5736,6 +5870,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.033040
       estimated_mw: 0.008423
+      idle_transitions_mws: 0.000000
       thread_name: "kworker/0:2"
       process_name: "kworker/0:2"
       thread_id: 138
@@ -5753,6 +5888,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.028948
       estimated_mw: 0.007380
+      idle_transitions_mws: 0.000000
       thread_name: "migration/1"
       process_name: "migration/1"
       thread_id: 26
@@ -5761,6 +5897,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.027667
       estimated_mw: 0.007053
+      idle_transitions_mws: 0.000000
       thread_name: "BG Thread #2"
       process_name: "com.google.android.googlequicksearchbox:interactor"
       thread_id: 3929
@@ -5814,6 +5951,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.013324
       estimated_mw: 0.003397
+      idle_transitions_mws: 0.000000
       thread_name: "gle.android.gms"
       process_name: "com.google.android.gms"
       thread_id: 5825
@@ -5858,6 +5996,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.008152
       estimated_mw: 0.002078
+      idle_transitions_mws: 0.000000
       thread_name: "migration/6"
       process_name: "migration/6"
       thread_id: 62
@@ -5902,6 +6041,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 0.001513
       estimated_mw: 0.000386
+      idle_transitions_mws: 0.000000
       thread_name: "BG Thread #3"
       process_name: "com.google.android.googlequicksearchbox:interactor"
       thread_id: 3930

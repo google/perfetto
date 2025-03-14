@@ -130,7 +130,8 @@ SELECT
   (
     SUM(estimated_mw * dur) / (SELECT SUM(dur) from _windowed_wattson)
   ) as estimated_mw,
-  idle_cost_mws,
+  -- Output zero idle cost for threads that don't cause wakeup
+  COALESCE(idle_cost_mws, 0) as idle_cost_mws,
   thread_name,
   process_name,
   tid,
