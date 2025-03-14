@@ -18,7 +18,7 @@ import {PageWithTraceAttrs} from '../../../public/page';
 import {Button} from '../../../widgets/button';
 import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
 import {ColumnControllerRow} from './column_controller';
-import {QueryNode} from '../query_node';
+import {NodeType, QueryNode} from '../query_node';
 import {showModal} from '../../../widgets/modal';
 import {DataSourceViewer} from './data_source_viewer';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
@@ -189,6 +189,54 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           }),
         },
         attrs.visualiseDataMenuItems(curNode),
+        m(MenuItem, {
+          label: 'Edit',
+          onclick: async () => {
+            const attrsCopy = curNode.getState();
+            switch (curNode.type) {
+              case NodeType.kStdlibTable:
+                createModal(
+                  'Standard library table',
+                  () => m(StdlibTableSource, attrsCopy as StdlibTableAttrs),
+                  () => {
+                    curNode = new StdlibTableNode(
+                      attrsCopy as StdlibTableAttrs,
+                    );
+                    onNodeSelected(curNode);
+                    // TODO: remove this hack after handling multiple roots
+                    onRootNodeCreated(curNode);
+                  },
+                );
+                curNode = new StdlibTableNode(attrsCopy as StdlibTableAttrs);
+                break;
+              case NodeType.kSimpleSlices:
+                createModal(
+                  'Slices',
+                  () => m(SlicesSource, attrsCopy as SlicesSourceAttrs),
+                  () => {
+                    curNode = new SlicesSourceNode(
+                      attrsCopy as SlicesSourceAttrs,
+                    );
+                    onNodeSelected(curNode);
+                    // TODO: remove this hack after handling multiple roots
+                    onRootNodeCreated(curNode);
+                  },
+                );
+                break;
+              case NodeType.kSqlSource:
+                createModal(
+                  'SQL',
+                  () => m(SqlSource, attrsCopy as SqlSourceAttrs),
+                  () => {
+                    curNode = new SqlSourceNode(attrsCopy as SqlSourceAttrs);
+                    onNodeSelected(curNode);
+                    // TODO: remove this hack after handling multiple roots
+                    onRootNodeCreated(curNode);
+                  },
+                );
+            }
+          },
+        }),
       );
     };
 

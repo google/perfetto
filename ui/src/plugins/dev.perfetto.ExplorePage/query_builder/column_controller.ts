@@ -59,19 +59,19 @@ export function columnControllerRowFromName(
 
 export function newColumnControllerRow(
   oldCol: ColumnControllerRow,
-  checked: boolean = false,
+  checked?: boolean | undefined,
 ) {
   return {
     id: oldCol.alias ?? oldCol.column.name,
     column: oldCol.column,
     alias: undefined,
-    checked,
+    checked: checked ?? oldCol.checked,
   };
 }
 
 export function newColumnControllerRows(
   oldCols: ColumnControllerRow[],
-  checked: boolean = false,
+  checked?: boolean | undefined,
 ) {
   return oldCols.map((col) => newColumnControllerRow(col, checked));
 }
