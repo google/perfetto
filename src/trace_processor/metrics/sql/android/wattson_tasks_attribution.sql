@@ -107,17 +107,11 @@ JOIN _sched_w_thread_process_package_summary AS s ON s._auto_id = id_1;
 DROP VIEW IF EXISTS _per_thread_idle_attribution;
 CREATE PERFETTO VIEW _per_thread_idle_attribution AS
 SELECT
-  SUM(cost.estimated_mw * cost.dur) / 1e9 as idle_cost_mws,
+  SUM(cost.idle_cost_mws) as idle_cost_mws,
   cost.utid,
-  ii.id_1 as period_id
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_idle_transition_cost),
-    (SELECT ts, dur, period_id as id FROM {{window_table}})
-  ),
-  ()
-) ii
-JOIN _idle_transition_cost as cost ON cost._auto_id = id_0
+  period_window.period_id
+FROM {{window_table}} AS period_window
+CROSS JOIN _filter_idle_attribution(period_window.ts, period_window.dur) AS cost
 GROUP BY utid, period_id;
 
 -- Group by unique thread ID and disregard CPUs, summing of power over all CPUs
