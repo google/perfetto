@@ -117,7 +117,11 @@ WHERE
 UNION
 -- Unknown period until the first counter.
 SELECT
-  1,
+  (
+    SELECT
+      max(id) + 1
+    FROM screen_state_span
+  ) AS id,
   trace_start() AS ts,
   (
     SELECT
