@@ -57,8 +57,17 @@ export class SqlSourceNode implements QueryNode {
     this.finalCols = createFinalColumns(this);
   }
 
-  getAttrs(): QueryNodeState {
-    return this.state;
+  getState(): QueryNodeState {
+    const newState: SqlSourceAttrs = {
+      sql: this.state.sql,
+      sqlColumns: this.state.sqlColumns,
+      preamble: this.state.preamble,
+      sourceCols: newColumnControllerRows(this.sourceCols),
+      groupByColumns: newColumnControllerRows(this.state.groupByColumns),
+      filters: this.state.filters.map((f) => ({...f})),
+      aggregations: this.state.aggregations.map((a) => ({...a})),
+    };
+    return newState;
   }
 
   validate(): boolean {
