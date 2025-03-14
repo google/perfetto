@@ -1085,7 +1085,7 @@ class AndroidJavaSDKModulesGenerator:
     self.blueprint = blueprint
     self.gn = gn
 
-  _SDK_VERSION = 30
+  _SDK_VERSION = 35
 
   def create_android_app_module(self, target: GnParser.Target,
       bp_module_name: str):
