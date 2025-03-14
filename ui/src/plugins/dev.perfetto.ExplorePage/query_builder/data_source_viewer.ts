@@ -129,7 +129,7 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
     }
 
     if (this.currentSql === undefined) return;
-
+    const sql = queryToRun(this.currentSql);
     return [
       m(
         Section,
@@ -137,10 +137,15 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
         attrs.queryNode.getDetails(),
         renderButtons(),
         this.showDataSourceInfoPanel === SelectedView.SQL &&
-          m(TextParagraph, {
-            text: queryToRun(this.currentSql),
-            compressSpace: false,
-          }),
+          m(
+            '.code-snippet',
+            m(Button, {
+              title: 'Copy to clipboard',
+              onclick: () => copyToClipboard(sql ?? ''),
+              icon: Icons.Copy,
+            }),
+            m('code', sql),
+          ),
         this.showDataSourceInfoPanel === SelectedView.COLUMNS &&
           renderPickColumns(attrs.queryNode),
         this.showDataSourceInfoPanel === SelectedView.PROTO &&
