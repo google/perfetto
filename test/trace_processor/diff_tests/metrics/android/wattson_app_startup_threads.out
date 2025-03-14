@@ -33,7 +33,7 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 76.218712
       estimated_mw: 198.049255
-      idle_transitions_mws: 0.000000
+      idle_transitions_mws: -26.858458
       thread_name: "swapper"
       process_name: ""
       thread_id: 0

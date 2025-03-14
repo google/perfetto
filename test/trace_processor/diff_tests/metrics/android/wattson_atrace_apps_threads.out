@@ -25,7 +25,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 98.270241
       estimated_mw: 25.051556
-      idle_transitions_mws: 0.000000
+      idle_transitions_mws: -24.609318
       thread_name: "swapper"
       process_name: ""
       thread_id: 0
@@ -1946,7 +1946,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 99.220078
       estimated_mw: 25.293694
-      idle_transitions_mws: 0.000000
+      idle_transitions_mws: -27.744040
       thread_name: "swapper"
       process_name: ""
       thread_id: 0
@@ -3443,7 +3443,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 99.233765
       estimated_mw: 25.297182
-      idle_transitions_mws: 0.000000
+      idle_transitions_mws: -27.745781
       thread_name: "swapper"
       process_name: ""
       thread_id: 0
@@ -4940,7 +4940,7 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 105.466507
       estimated_mw: 26.886065
-      idle_transitions_mws: 0.000000
+      idle_transitions_mws: -26.366659
       thread_name: "swapper"
       process_name: ""
       thread_id: 0

@@ -6,7 +6,7 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 34.416729
       estimated_mw: 3.979098
-      idle_transitions_mws: 0.000000
+      idle_transitions_mws: -20.192698
       thread_name: "swapper"
       process_name: ""
       thread_id: 0

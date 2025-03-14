@@ -6,7 +6,7 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 15.333553
       estimated_mw: 7.546518
-      idle_transitions_mws: 0.000000
+      idle_transitions_mws: -7.870787
       thread_name: "swapper"
       process_name: ""
       thread_id: 0
