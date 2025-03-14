@@ -63,30 +63,30 @@ void PrintUsage(const char* bin_name) {
 #endif
 }
 
-__attribute__((noreturn)) void BusyWait(int64_t tstart,
+__attribute__((noreturn)) void BusyWait(int64_t tstart_ns,
                                         int64_t period_us,
                                         int64_t busy_us,
                                         uint32_t thread_name_count) {
-  int64_t tbusy = tstart;
-  int64_t tnext = tstart;
+  int64_t tbusy_ns = tstart_ns;  // comment added in PS3
+  int64_t tnext_ns = tstart_ns;  // comment added in PS3
   for (;;) {
     if (thread_name_count)
       SetRandomThreadName(thread_name_count);
 
-    tbusy = tnext + busy_us * 1000;
-    tnext += period_us * 1000;
+    tbusy_ns = tnext_ns + busy_us * 1000;
+    tnext_ns += period_us * 1000;
     while (base::GetWallTimeNs().count() < tbusy) {
       for (int i = 0; i < 10000; i++) {
         asm volatile("" ::: "memory");
       }
     }
     auto tnow = base::GetWallTimeNs().count();
-    if (tnow >= tnext) {
+    if (tnow >= tnext_ns) {
       std::this_thread::yield();
       continue;
     }
 
-    while (tnow < tnext) {
+    while (tnow < tnext_ns) {
       // +1 to prevent sleeping twice when there is truncation.
       base::SleepMicroseconds(static_cast<uint32_t>((tnext - tnow) / 1000) + 1);
       tnow = base::GetWallTimeNs().count();
