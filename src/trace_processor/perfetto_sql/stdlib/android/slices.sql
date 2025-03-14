@@ -20,7 +20,7 @@ CREATE PERFETTO FUNCTION _remove_lambda_name(
 -- Removes everything after the first "$"
 RETURNS STRING AS
 SELECT
-  substr($name, 0, instr($name, "$")) AS end;
+  __intrinsic_strip_hex(substr($name, 0, instr($name, "$")), 2) AS end;
 
 CREATE PERFETTO FUNCTION _standardize_wakelock_slice_name(
     -- Raw slice name
@@ -45,9 +45,9 @@ SELECT
           ELSE 0
         END
       ) || "<...>" || substr($name, instr($name, ":"), length($name))
-      ELSE __intrinsic_strip_hex($name, 3)
+      ELSE __intrinsic_strip_hex($name, 2)
     END
-    ELSE __intrinsic_strip_hex($name, 3)
+    ELSE __intrinsic_strip_hex($name, 2)
   END;
 
 CREATE PERFETTO FUNCTION _standardize_vsync_slice_name(
@@ -116,7 +116,7 @@ SELECT
     THEN "lastVsyncDelta=<...>"
     WHEN $name GLOB "mLastCommittedVsync in*"
     THEN "mLastCommittedVsync in <...>"
-    ELSE __intrinsic_strip_hex($name, 3)
+    ELSE __intrinsic_strip_hex($name, 2)
   END;
 
 -- Some slice names have params in them. This functions removes them to make it
@@ -251,5 +251,5 @@ SELECT
     THEN "deliverInputEvent <...>"
     WHEN lower($name) GLOB "*vsync*"
     THEN _standardize_vsync_slice_name($name)
-    ELSE __intrinsic_strip_hex($name, 3)
+    ELSE __intrinsic_strip_hex($name, 2)
   END;

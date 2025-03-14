@@ -59,8 +59,8 @@ struct StripHexFunction : public SqlFunction {
   static std::string StripHex(std::string input, int64_t min_repeated_digits) {
     std::string result;
     result.reserve(input.length());
-    bool replace_hex = false;
     for (size_t i = 0; i < input.length();) {
+      bool replace_hex = false;
       if ((input[i] == 'x' || input[i] == 'X') && i >= 1 &&
           input[i - 1] == '0') {
         // Case 1: Special prefixes (0x, 0X) for hex sequence found
@@ -73,8 +73,10 @@ struct StripHexFunction : public SqlFunction {
         result += input[i++];
       } else if (i == 0 && isxdigit(input[i])) {
         // Case 3: Start of input is hex digit, continue to check hex sequence
+      } else if (isdigit(input[i])) {
+        // Case 4: A digit is found, consider replacing the sequence
       } else {
-        // Case 4: No potential prefix for hex digits found
+        // Case 5: No potential prefix for hex digits found
         result += input[i++];
         continue;
       }
