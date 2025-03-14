@@ -234,12 +234,12 @@ function flamegraphMetrics(
     case ProfileType.JAVA_HEAP_SAMPLES:
       return flamegraphMetricsForHeapProfile(ts, upid, [
         {
-          name: 'Unreleased Allocation Size',
+          name: 'Total Allocation Size',
           unit: 'B',
           columnName: 'self_size',
         },
         {
-          name: 'Unreleased Allocation Count',
+          name: 'Total Allocation Count',
           unit: '',
           columnName: 'self_count',
         },
@@ -247,12 +247,12 @@ function flamegraphMetrics(
     case ProfileType.MIXED_HEAP_PROFILE:
       return flamegraphMetricsForHeapProfile(ts, upid, [
         {
-          name: 'Unreleased Allocation Size (malloc + java)',
+          name: 'Allocation Size (malloc + java)',
           unit: 'B',
           columnName: 'self_size',
         },
         {
-          name: 'Unreleased Allocation Count (malloc + java)',
+          name: 'Allocation Count (malloc + java)',
           unit: '',
           columnName: 'self_count',
         },
