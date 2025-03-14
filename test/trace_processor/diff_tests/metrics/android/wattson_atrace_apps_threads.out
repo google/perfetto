@@ -27,6 +27,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 25.051556
       idle_transitions_mws: 0.000000
       thread_name: "swapper"
+      process_name: ""
       thread_id: 0
       process_id: 0
     }
@@ -1947,6 +1948,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 25.293694
       idle_transitions_mws: 0.000000
       thread_name: "swapper"
+      process_name: ""
       thread_id: 0
       process_id: 0
     }
@@ -2819,6 +2821,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.021464
       idle_transitions_mws: 0.008253
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15992
     }
     task_info {
@@ -2826,6 +2829,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.019670
       idle_transitions_mws: 0.000000
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15991
     }
     task_info {
@@ -2878,6 +2882,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.014740
       idle_transitions_mws: 0.002076
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15994
     }
     task_info {
@@ -2921,6 +2926,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.012986
       idle_transitions_mws: 0.004026
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15993
     }
     task_info {
@@ -2946,6 +2952,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.011029
       idle_transitions_mws: 0.004228
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15988
     }
     task_info {
@@ -2962,6 +2969,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.009453
       idle_transitions_mws: 0.014265
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15990
     }
     task_info {
@@ -3023,6 +3031,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.005895
       idle_transitions_mws: 0.003350
       thread_name: "otp-aiai-notifi"
+      process_name: ""
       thread_id: 8965
     }
     task_info {
@@ -3039,6 +3048,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.005706
       idle_transitions_mws: 0.003920
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15984
     }
     task_info {
@@ -3073,6 +3083,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.004861
       idle_transitions_mws: 0.003087
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15987
     }
     task_info {
@@ -3161,6 +3172,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.003352
       idle_transitions_mws: 0.003143
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15989
     }
     task_info {
@@ -3433,6 +3445,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 25.297182
       idle_transitions_mws: 0.000000
       thread_name: "swapper"
+      process_name: ""
       thread_id: 0
       process_id: 0
     }
@@ -4305,6 +4318,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.021464
       idle_transitions_mws: 0.008253
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15992
     }
     task_info {
@@ -4312,6 +4326,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.019670
       idle_transitions_mws: 0.000000
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15991
     }
     task_info {
@@ -4364,6 +4379,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.014740
       idle_transitions_mws: 0.002076
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15994
     }
     task_info {
@@ -4407,6 +4423,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.012986
       idle_transitions_mws: 0.004026
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15993
     }
     task_info {
@@ -4432,6 +4449,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.011029
       idle_transitions_mws: 0.004228
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15988
     }
     task_info {
@@ -4448,6 +4466,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.009453
       idle_transitions_mws: 0.014265
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15990
     }
     task_info {
@@ -4509,6 +4528,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.005895
       idle_transitions_mws: 0.003350
       thread_name: "otp-aiai-notifi"
+      process_name: ""
       thread_id: 8965
     }
     task_info {
@@ -4525,6 +4545,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.005706
       idle_transitions_mws: 0.003920
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15984
     }
     task_info {
@@ -4559,6 +4580,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.004861
       idle_transitions_mws: 0.003087
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15987
     }
     task_info {
@@ -4647,6 +4669,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 0.003352
       idle_transitions_mws: 0.003143
       thread_name: "-Executor] idle"
+      process_name: ""
       thread_id: 15989
     }
     task_info {
@@ -4919,6 +4942,7 @@ wattson_atrace_apps_threads {
       estimated_mw: 26.886065
       idle_transitions_mws: 0.000000
       thread_name: "swapper"
+      process_name: ""
       thread_id: 0
       process_id: 0
     }

@@ -133,7 +133,8 @@ SELECT
   -- Output zero idle cost for threads that don't cause wakeup
   COALESCE(idle_cost_mws, 0) as idle_cost_mws,
   thread_name,
-  process_name,
+  -- Ensure that all threads have the process field
+  COALESCE(process_name, '') as process_name,
   tid,
   pid,
   period_id

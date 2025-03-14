@@ -8,6 +8,7 @@ wattson_trace_threads {
       estimated_mw: 3.979098
       idle_transitions_mws: 0.000000
       thread_name: "swapper"
+      process_name: ""
       thread_id: 0
       process_id: 0
     }
@@ -1600,6 +1601,7 @@ wattson_trace_threads {
       estimated_mw: 0.013814
       idle_transitions_mws: 0.000930
       thread_name: "RenderThread"
+      process_name: ""
       thread_id: 5599
     }
     task_info {
@@ -1652,6 +1654,7 @@ wattson_trace_threads {
       estimated_mw: 0.012422
       idle_transitions_mws: 0.003843
       thread_name: "RenderThread"
+      process_name: ""
       thread_id: 5584
     }
     task_info {
@@ -1695,6 +1698,7 @@ wattson_trace_threads {
       estimated_mw: 0.011812
       idle_transitions_mws: 0.003890
       thread_name: "RenderThread"
+      process_name: ""
       thread_id: 5604
     }
     task_info {
@@ -1882,6 +1886,7 @@ wattson_trace_threads {
       estimated_mw: 0.009173
       idle_transitions_mws: 0.000000
       thread_name: "RenderThread"
+      process_name: ""
       thread_id: 5619
     }
     task_info {
@@ -1943,6 +1948,7 @@ wattson_trace_threads {
       estimated_mw: 0.008105
       idle_transitions_mws: 0.000000
       thread_name: "servicemanager"
+      process_name: ""
       thread_id: 5598
     }
     task_info {
@@ -2112,6 +2118,7 @@ wattson_trace_threads {
       estimated_mw: 0.006433
       idle_transitions_mws: 0.000000
       thread_name: "system_server"
+      process_name: ""
       thread_id: 5590
     }
     task_info {
@@ -2164,6 +2171,7 @@ wattson_trace_threads {
       estimated_mw: 0.006039
       idle_transitions_mws: 0.000000
       thread_name: "vndservicemanag"
+      process_name: ""
       thread_id: 5597
     }
     task_info {
@@ -2378,6 +2386,7 @@ wattson_trace_threads {
       estimated_mw: 0.004645
       idle_transitions_mws: 0.000000
       thread_name: "servicemanager"
+      process_name: ""
       thread_id: 5595
     }
     task_info {
@@ -2394,6 +2403,7 @@ wattson_trace_threads {
       estimated_mw: 0.004532
       idle_transitions_mws: 0.000000
       thread_name: "vndservicemanag"
+      process_name: ""
       thread_id: 5618
     }
     task_info {
@@ -2401,6 +2411,7 @@ wattson_trace_threads {
       estimated_mw: 0.004521
       idle_transitions_mws: 0.001158
       thread_name: "vndservicemanag"
+      process_name: ""
       thread_id: 5605
     }
     task_info {
@@ -2489,6 +2500,7 @@ wattson_trace_threads {
       estimated_mw: 0.004066
       idle_transitions_mws: 0.012569
       thread_name: "servicemanager"
+      process_name: ""
       thread_id: 5606
     }
     task_info {
@@ -2505,6 +2517,7 @@ wattson_trace_threads {
       estimated_mw: 0.004050
       idle_transitions_mws: 0.000000
       thread_name: "vndservicemanag"
+      process_name: ""
       thread_id: 5611
     }
     task_info {
@@ -2512,6 +2525,7 @@ wattson_trace_threads {
       estimated_mw: 0.003966
       idle_transitions_mws: 0.000000
       thread_name: "vndservicemanag"
+      process_name: ""
       thread_id: 5593
     }
     task_info {
@@ -2519,6 +2533,7 @@ wattson_trace_threads {
       estimated_mw: 0.003934
       idle_transitions_mws: 0.000000
       thread_name: "servicemanager"
+      process_name: ""
       thread_id: 5621
     }
     task_info {
@@ -2526,6 +2541,7 @@ wattson_trace_threads {
       estimated_mw: 0.003773
       idle_transitions_mws: 0.000000
       thread_name: "binder:685_3"
+      process_name: ""
       thread_id: 5586
     }
     task_info {
@@ -2740,6 +2756,7 @@ wattson_trace_threads {
       estimated_mw: 0.002705
       idle_transitions_mws: 0.000000
       thread_name: "servicemanager"
+      process_name: ""
       thread_id: 5608
     }
     task_info {
@@ -2765,6 +2782,7 @@ wattson_trace_threads {
       estimated_mw: 0.002626
       idle_transitions_mws: 0.000000
       thread_name: "binder:685_3"
+      process_name: ""
       thread_id: 5594
     }
     task_info {
@@ -2781,6 +2799,7 @@ wattson_trace_threads {
       estimated_mw: 0.002615
       idle_transitions_mws: 0.000000
       thread_name: "vndservicemanag"
+      process_name: ""
       thread_id: 5607
     }
     task_info {
@@ -2815,6 +2834,7 @@ wattson_trace_threads {
       estimated_mw: 0.002358
       idle_transitions_mws: 0.000000
       thread_name: "vndservicemanag"
+      process_name: ""
       thread_id: 5582
     }
     task_info {
@@ -2840,6 +2860,7 @@ wattson_trace_threads {
       estimated_mw: 0.002280
       idle_transitions_mws: 0.000000
       thread_name: "servicemanager"
+      process_name: ""
       thread_id: 5610
     }
     task_info {
@@ -2964,6 +2985,7 @@ wattson_trace_threads {
       estimated_mw: 0.001858
       idle_transitions_mws: 0.005041
       thread_name: "servicemanager"
+      process_name: ""
       thread_id: 5583
     }
     task_info {
@@ -3007,6 +3029,7 @@ wattson_trace_threads {
       estimated_mw: 0.001738
       idle_transitions_mws: 0.000000
       thread_name: "vndservicemanag"
+      process_name: ""
       thread_id: 5609
     }
     task_info {
@@ -3095,6 +3118,7 @@ wattson_trace_threads {
       estimated_mw: 0.001487
       idle_transitions_mws: 0.000000
       thread_name: "servicemanager"
+      process_name: ""
       thread_id: 5612
     }
     task_info {
@@ -3147,6 +3171,7 @@ wattson_trace_threads {
       estimated_mw: 0.001379
       idle_transitions_mws: 0.000000
       thread_name: "RenderThread"
+      process_name: ""
       thread_id: 5616
     }
     task_info {
@@ -3181,6 +3206,7 @@ wattson_trace_threads {
       estimated_mw: 0.001343
       idle_transitions_mws: 0.000000
       thread_name: "servicemanager"
+      process_name: ""
       thread_id: 5615
     }
     task_info {
@@ -3206,6 +3232,7 @@ wattson_trace_threads {
       estimated_mw: 0.001303
       idle_transitions_mws: 0.000000
       thread_name: "vndservicemanag"
+      process_name: ""
       thread_id: 5614
     }
     task_info {

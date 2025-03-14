@@ -8,6 +8,7 @@ wattson_markers_threads {
       estimated_mw: 7.546518
       idle_transitions_mws: 0.000000
       thread_name: "swapper"
+      process_name: ""
       thread_id: 0
       process_id: 0
     }
