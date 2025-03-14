@@ -148,6 +148,7 @@ SELECT
         'estimated_mws', ROUND(estimated_mws, 6),
         'estimated_mw', ROUND(estimated_mw, 6),
         'idle_transitions_mws', ROUND(idle_cost_mws, 6),
+        'total_mws', ROUND(estimated_mws + idle_cost_mws, 6),
         'thread_name', thread_name,
         'process_name', process_name,
         'thread_id', tid,
