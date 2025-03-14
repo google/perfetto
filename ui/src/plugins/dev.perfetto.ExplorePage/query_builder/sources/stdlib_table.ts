@@ -72,8 +72,18 @@ export class StdlibTableNode implements QueryNode {
     this.sqlTable = attrs.sqlTable;
   }
 
-  getAttrs(): QueryNodeState {
-    return this.state;
+  getState(): QueryNodeState {
+    const newState: StdlibTableAttrs = {
+      trace: this.state.trace,
+      sqlModules: this.state.sqlModules,
+      modal: this.state.modal,
+      sqlTable: this.sqlTable,
+      sourceCols: newColumnControllerRows(this.sourceCols),
+      groupByColumns: newColumnControllerRows(this.state.groupByColumns),
+      filters: this.state.filters.map((f) => ({...f})),
+      aggregations: this.state.aggregations.map((a) => ({...a})),
+    };
+    return newState;
   }
 
   getDetails(): m.Child {

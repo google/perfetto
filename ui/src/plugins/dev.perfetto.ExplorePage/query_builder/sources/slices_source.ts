@@ -169,8 +169,18 @@ export class SlicesSourceNode implements QueryNode {
     this.finalCols = createFinalColumns(this);
   }
 
-  getAttrs(): QueryNodeState {
-    return this.state;
+  getState(): QueryNodeState {
+    const newState: SlicesSourceAttrs = {
+      slice_name: this.state.slice_name?.slice(),
+      thread_name: this.state.thread_name?.slice(),
+      process_name: this.state.process_name?.slice(),
+      track_name: this.state.track_name?.slice(),
+      sourceCols: newColumnControllerRows(this.sourceCols),
+      groupByColumns: newColumnControllerRows(this.state.groupByColumns),
+      filters: this.state.filters.map((f) => ({...f})),
+      aggregations: this.state.aggregations.map((a) => ({...a})),
+    };
+    return newState;
   }
 
   validate(): boolean {
