@@ -2823,7 +2823,7 @@ android_app {
     static_libs: [
         "perfetto_src_java_sdk_main_perfetto_lib",
     ],
-    sdk_version: "30",
+    sdk_version: "35",
     jni_libs: [
         "libperfetto_jni_wrapper_lib",
     ],
@@ -2838,7 +2838,7 @@ android_test {
         "perfetto_src_java_sdk_main_perfetto_lib",
         "perfetto_src_java_sdk_test_perfetto_test_lib",
     ],
-    sdk_version: "30",
+    sdk_version: "35",
     test_suites: [
         "general-tests",
     ],
@@ -11512,7 +11512,7 @@ android_library {
         "src/java_sdk/main/java/com/google/perfetto/sdk/PerfettoExampleWrapper.java",
     ],
     manifest: "src/java_sdk/main/LibraryAndroidManifest.xml",
-    sdk_version: "30",
+    sdk_version: "35",
 }
 
 // GN: //src/java_sdk/test:perfetto_test_lib
@@ -11527,7 +11527,7 @@ android_library {
         "junit",
         "perfetto_src_java_sdk_main_perfetto_lib",
     ],
-    sdk_version: "30",
+    sdk_version: "35",
 }
 
 // GN: //src/kallsyms:kallsyms
