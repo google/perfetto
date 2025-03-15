@@ -1043,3 +1043,108 @@ JOIN process_track AS t
   ON s.track_id = t.id
 WHERE
   t.type = 'android_actual_frame_timeline';
+
+-- Stores class information within ART heap graphs. It represents Java/Kotlin
+-- classes that exist in the heap, including their names, inheritance
+-- relationships, and loading context.
+CREATE PERFETTO VIEW heap_graph_class (
+  -- Unique identifier for this heap graph class.
+  id ID,
+  -- (potentially obfuscated) name of the class.
+  name STRING,
+  -- If class name was obfuscated and deobfuscation map for it provided, the
+  -- deobfuscated name.
+  deobfuscated_name STRING,
+  -- the APK / Dex / JAR file the class is contained in.
+  location STRING,
+  -- The superclass of this class.
+  superclass_id JOINID(heap_graph_class.id),
+  -- The classloader that loaded this class.
+  classloader_id LONG,
+  -- The kind of class.
+  kind STRING
+) AS
+SELECT
+  id,
+  name,
+  deobfuscated_name,
+  location,
+  superclass_id,
+  classloader_id,
+  kind
+FROM __intrinsic_heap_graph_class;
+
+-- The objects on the Dalvik heap.
+--
+-- All rows with the same (upid, graph_sample_ts) are one dump.
+CREATE PERFETTO VIEW heap_graph_object (
+  -- Unique identifier for this heap graph object.
+  id ID,
+  -- Unique PID of the target.
+  upid JOINID(process.id),
+  -- Timestamp this dump was taken at.
+  graph_sample_ts TIMESTAMP,
+  -- Size this object uses on the Java Heap.
+  self_size LONG,
+  -- Approximate amount of native memory used by this object, as reported by
+  -- libcore.util.NativeAllocationRegistry.size.
+  native_size LONG,
+  -- Join key with heap_graph_reference containing all objects referred in this
+  -- object's fields.
+  reference_set_id JOINID(heap_graph_reference.id),
+  -- Bool whether this object is reachable from a GC root. If false, this object
+  -- is uncollected garbage.
+  reachable BOOL,
+  -- The type of ART heap this object is stored on (app, zygote, boot image)
+  heap_type STRING,
+  -- Class this object is an instance of.
+  type_id JOINID(heap_graph_class.id),
+  -- If not NULL, this object is a GC root.
+  root_type STRING,
+  -- Distance from the root object.
+  root_distance LONG
+) AS
+SELECT
+  id,
+  upid,
+  graph_sample_ts,
+  self_size,
+  native_size,
+  reference_set_id,
+  reachable,
+  heap_type,
+  type_id,
+  root_type,
+  root_distance
+FROM __intrinsic_heap_graph_object;
+
+-- Many-to-many mapping between heap_graph_object.
+--
+-- This associates the object with given reference_set_id with the objects
+-- that are referred to by its fields.
+CREATE PERFETTO VIEW heap_graph_reference (
+  -- Unique identifier for this heap graph reference.
+  id ID,
+  -- Join key to heap_graph_object.
+  reference_set_id JOINID(heap_graph_object.id),
+  -- Id of object that has this reference_set_id.
+  owner_id JOINID(heap_graph_object.id),
+  -- Id of object that is referred to.
+  owned_id JOINID(heap_graph_object.id),
+  -- The field that refers to the object. E.g. Foo.name.
+  field_name STRING,
+  -- The static type of the field. E.g. java.lang.String.
+  field_type_name STRING,
+  -- The deobfuscated name, if field_name was obfuscated and a deobfuscation
+  -- mapping was provided for it.
+  deobfuscated_field_name STRING
+) AS
+SELECT
+  id,
+  reference_set_id,
+  owner_id,
+  owned_id,
+  field_name,
+  field_type_name,
+  deobfuscated_field_name
+FROM __intrinsic_heap_graph_reference;
