@@ -56,24 +56,12 @@ export class WattsonThreadSelectionAggregator
       -- Only get idle attribution in user defined window and filter by selected
       -- CPUs and GROUP BY thread
       CREATE OR REPLACE PERFETTO TABLE _per_thread_idle_cost AS
-      WITH base AS (
-        SELECT
-          SUM(idle_cost_mws) as idle_cost_mws,
-          utid
-        FROM _filter_idle_attribution(${area.start}, ${duration})
-        WHERE cpu in ${cpusCsv}
-        GROUP BY utid
-      )
       SELECT
-        idle_cost_mws,
+        SUM(idle_cost_mws) as idle_cost_mws,
         utid
-      FROM base
-      -- Give the negative sum of idle costs to the swapper thread, which by
-      -- definition has a utid = 0 and by definition will not already be defined
-      UNION ALL
-      SELECT
-        (SELECT -1 * SUM(idle_cost_mws) FROM base) AS idle_cost_mws,
-        0 AS utid
+      FROM _filter_idle_attribution(${area.start}, ${duration})
+      WHERE cpu in ${cpusCsv}
+      GROUP BY utid
       ;
     `);
     this.runEstimateThreadsQuery(engine, selectedCpus, duration);
