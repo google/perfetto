@@ -293,7 +293,7 @@ function flamegraphMetrics(
               mergeAggregation: 'CONCAT_WITH_COMMA',
             },
           ],
-          optionalActions: getHeapGraphOptionalActions(trace),
+          optionalActions: getHeapGraphOptionalActions(trace, false),
         },
         {
           name: 'Object Count',
@@ -324,7 +324,7 @@ function flamegraphMetrics(
               mergeAggregation: 'CONCAT_WITH_COMMA',
             },
           ],
-          optionalActions: getHeapGraphOptionalActions(trace),
+          optionalActions: getHeapGraphOptionalActions(trace, false),
         },
         {
           name: 'Dominated Object Size',
@@ -360,7 +360,7 @@ function flamegraphMetrics(
               mergeAggregation: 'CONCAT_WITH_COMMA',
             },
           ],
-          optionalActions: getHeapGraphOptionalActions(trace),
+          optionalActions: getHeapGraphOptionalActions(trace, true),
         },
         {
           name: 'Dominated Object Count',
@@ -391,7 +391,7 @@ function flamegraphMetrics(
               mergeAggregation: 'CONCAT_WITH_COMMA',
             },
           ],
-          optionalActions: getHeapGraphOptionalActions(trace),
+          optionalActions: getHeapGraphOptionalActions(trace, true),
         },
       ];
     case ProfileType.PERF_SAMPLE:
@@ -486,7 +486,7 @@ async function downloadPprof(trace: Trace, upid: number, ts: time) {
 }
 
 function getHeapGraphObjectReferencesView(
-  isDominator: boolean = false,
+  isDominator: boolean,
 ): SqlTableDescription {
   return {
     name: `_heap_graph${tableModifier(isDominator)}object_references`,
@@ -505,7 +505,7 @@ function getHeapGraphObjectReferencesView(
 }
 
 function getHeapGraphIncomingReferencesView(
-  isDominator: boolean = false,
+  isDominator: boolean,
 ): SqlTableDescription {
   return {
     name: `_heap_graph${tableModifier(isDominator)}incoming_references`,
@@ -524,7 +524,7 @@ function getHeapGraphIncomingReferencesView(
 }
 
 function getHeapGraphOutgoingReferencesView(
-  isDominator: boolean = false,
+  isDominator: boolean,
 ): SqlTableDescription {
   return {
     name: `_heap_graph${tableModifier(isDominator)}outgoing_references`,
@@ -543,7 +543,7 @@ function getHeapGraphOutgoingReferencesView(
 }
 
 function getHeapGraphRetainingObjectCountsView(
-  isDominator: boolean = false,
+  isDominator: boolean,
 ): SqlTableDescription {
   return {
     name: `_heap_graph${tableModifier(isDominator)}retaining_object_counts`,
@@ -560,7 +560,7 @@ function getHeapGraphRetainingObjectCountsView(
 }
 
 function getHeapGraphRetainedObjectCountsView(
-  isDominator: boolean = false,
+  isDominator: boolean,
 ): SqlTableDescription {
   return {
     name: `_heap_graph${tableModifier(isDominator)}retained_object_counts`,
@@ -578,7 +578,7 @@ function getHeapGraphRetainedObjectCountsView(
 
 function getHeapGraphOptionalActions(
   trace: Trace,
-  isDominator: boolean = false,
+  isDominator: boolean,
 ): ReadonlyArray<FlamegraphOptionalAction> {
   return [
     {
