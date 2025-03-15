@@ -461,7 +461,7 @@ EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
 HEAP_GRAPH_CLASS_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphClassTable',
-    sql_name='heap_graph_class',
+    sql_name='__intrinsic_heap_graph_class',
     columns=[
         C('name', CppString()),
         C('deobfuscated_name', CppOptional(CppString())),
@@ -496,7 +496,7 @@ HEAP_GRAPH_CLASS_TABLE = Table(
 HEAP_GRAPH_OBJECT_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphObjectTable',
-    sql_name='heap_graph_object',
+    sql_name='__intrinsic_heap_graph_object',
     columns=[
         C('upid', CppUint32()),
         C('graph_sample_ts', CppInt64()),
@@ -546,7 +546,7 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
 HEAP_GRAPH_REFERENCE_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphReferenceTable',
-    sql_name='heap_graph_reference',
+    sql_name='__intrinsic_heap_graph_reference',
     columns=[
         C('reference_set_id',
           CppUint32(),
