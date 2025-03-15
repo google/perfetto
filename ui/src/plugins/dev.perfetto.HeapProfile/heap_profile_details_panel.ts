@@ -588,7 +588,7 @@ function getHeapGraphOptionalActions(
         if (value !== undefined) {
           const viewName = `_heap_graph${tableModifier(isDominator)}object_references`;
           const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes`;
-          const macroExpr = `_heap_graph${tableModifier(isDominator)}object_references_agg!(${macroArgs})`;
+          const macroExpr = `_heap_graph_object_references_agg!(${macroArgs})`;
           const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
           // Create view to be returned
@@ -612,7 +612,7 @@ function getHeapGraphOptionalActions(
         if (value !== undefined) {
           const viewName = `_heap_graph${tableModifier(isDominator)}incoming_references`;
           const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes`;
-          const macroExpr = `_heap_graph${tableModifier(isDominator)}incoming_references_agg!(${macroArgs})`;
+          const macroExpr = `_heap_graph_incoming_references_agg!(${macroArgs})`;
           const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
           // Create view to be returned
@@ -636,7 +636,7 @@ function getHeapGraphOptionalActions(
         if (value !== undefined) {
           const viewName = `_heap_graph${tableModifier(isDominator)}outgoing_references`;
           const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes`;
-          const macroExpr = `_heap_graph${tableModifier(isDominator)}outgoing_references_agg!(${macroArgs})`;
+          const macroExpr = `_heap_graph_outgoing_references_agg!(${macroArgs})`;
           const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
           // Create view to be returned
@@ -660,7 +660,7 @@ function getHeapGraphOptionalActions(
         if (value !== undefined) {
           const viewName = `_heap_graph${tableModifier(isDominator)}retained_object_counts`;
           const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${value}`;
-          const macroExpr = `_heap_graph${tableModifier(isDominator)}retained_object_count_agg!(${macroArgs})`;
+          const macroExpr = `_heap_graph_retained_object_count_agg!(${macroArgs})`;
           const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
           // Create view to be returned
@@ -678,7 +678,7 @@ function getHeapGraphOptionalActions(
         if (value !== undefined) {
           const viewName = `_heap_graph${tableModifier(isDominator)}retaining_object_counts`;
           const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${value}`;
-          const macroExpr = `_heap_graph${tableModifier(isDominator)}retaining_object_count_agg!(${macroArgs})`;
+          const macroExpr = `_heap_graph_retaining_object_count_agg!(${macroArgs})`;
           const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
           // Create view to be returned
