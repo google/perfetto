@@ -33,6 +33,7 @@ class AndroidLogEventParser;
 class ArgsTracker;
 class ArgsTranslationTable;
 class ArtMethodParser;
+class ArtHprofParser;
 class TrackCompressor;
 class ChunkedTraceReader;
 class ClockConverter;
@@ -184,6 +185,7 @@ class TraceProcessorContext {
   std::unique_ptr<AndroidLogEventParser> android_log_event_parser;
   std::unique_ptr<GeckoTraceParser> gecko_trace_parser;
   std::unique_ptr<ArtMethodParser> art_method_parser;
+  std::unique_ptr<ArtHprofParser> art_hprof_parser;
   std::unique_ptr<PerfTextTraceParser> perf_text_parser;
 
   // This field contains the list of proto descriptors that can be used by

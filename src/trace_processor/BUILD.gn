@@ -169,6 +169,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/android_bugreport",
       "importers/archive",
       "importers/art_method",
+      "importers/art_hprof",
       "importers/common",
       "importers/etw:full",
       "importers/ftrace:full",

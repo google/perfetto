@@ -33,6 +33,9 @@ struct GeckoEvent;
 namespace art_method {
 struct ArtMethodEvent;
 }
+namespace art_hprof {
+struct ArtHprofEvent;
+}
 namespace perf_text_importer {
 struct PerfTextEvent;
 }
@@ -114,6 +117,12 @@ class ArtMethodParser {
  public:
   virtual ~ArtMethodParser();
   virtual void ParseArtMethodEvent(int64_t, art_method::ArtMethodEvent) = 0;
+};
+
+class ArtHprofParser {
+ public:
+  virtual ~ArtHprofParser();
+  virtual void ParseArtHprofEvent(int64_t, art_hprof::ArtHprofEvent) = 0;
 };
 
 class PerfTextTraceParser {

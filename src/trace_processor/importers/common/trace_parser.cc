@@ -28,6 +28,7 @@ ProtoTraceParser::~ProtoTraceParser() = default;
 SpeRecordParser::~SpeRecordParser() = default;
 GeckoTraceParser::~GeckoTraceParser() = default;
 ArtMethodParser::~ArtMethodParser() = default;
+ArtHprofParser::~ArtHprofParser() = default;
 PerfTextTraceParser::~PerfTextTraceParser() = default;
 
 }  // namespace perfetto::trace_processor

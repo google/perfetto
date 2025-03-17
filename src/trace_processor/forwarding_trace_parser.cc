@@ -73,6 +73,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kGeckoTraceType:
     case kArtMethodTraceType:
     case kPerfTextTraceType:
+    case kArtHprofTraceType:
       return TraceSorter::SortingMode::kFullSort;
 
     case kProtoTraceType:

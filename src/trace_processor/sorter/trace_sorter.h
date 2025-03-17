@@ -39,6 +39,7 @@
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
+#include "src/trace_processor/importers/art_hprof/art_hprof_event.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
@@ -242,6 +243,12 @@ class TraceSorter {
                          event);
   }
 
+  void PushArtHprofEvent(int64_t timestamp,
+                          const art_hprof::ArtHprofEvent& event) {
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kArtHprofEvent,
+                         event);
+  }
+
   void PushPerfTextEvent(int64_t timestamp,
                          const perf_text_importer::PerfTextEvent& event) {
     AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kPerfTextEvent,
@@ -366,6 +373,7 @@ class TraceSorter {
       kTrackEvent,
       kGeckoEvent,
       kArtMethodEvent,
+      kArtHprofEvent,
       kPerfTextEvent,
       kMax = kPerfTextEvent,
     };
