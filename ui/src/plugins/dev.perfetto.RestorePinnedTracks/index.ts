@@ -168,17 +168,28 @@ export default class implements PerfettoPlugin {
       savedTrack: this.toSavedTrack(track),
       track: track,
     }));
-    tracks.forEach((trackToRestore) => {
-      const foundTrack = this.findMatchingTrack(localTracks, trackToRestore);
-      if (foundTrack) {
-        foundTrack.pin();
-      } else {
-        console.warn(
-          '[RestorePinnedTracks] No track found that matches',
-          trackToRestore,
-        );
-      }
-    });
+    const unrestoredTracks = tracks
+      .map((trackToRestore) => {
+        const foundTrack = this.findMatchingTrack(localTracks, trackToRestore);
+        if (foundTrack) {
+          foundTrack.pin();
+          return {restored: true, track: trackToRestore};
+        } else {
+          console.warn(
+            '[RestorePinnedTracks] No track found that matches',
+            trackToRestore,
+          );
+          return {restored: false, track: trackToRestore};
+        }
+      })
+      .filter(({restored}) => !restored)
+      .map(({track}) => track.trackName);
+
+    if (unrestoredTracks.length > 0) {
+      alert(
+        `[RestorePinnedTracks]\nUnable to restore the following tracks:\n${unrestoredTracks.join('\n')}`,
+      );
+    }
   }
 
   private getCurrentPinnedTracks() {
