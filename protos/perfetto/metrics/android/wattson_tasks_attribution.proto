@@ -32,7 +32,8 @@ message AndroidWattsonTasksAttributionMetric {
 // Groups of power per task for each period
 message AndroidWattsonTaskPeriodInfo {
   optional int32 period_id = 1;
-  repeated AndroidWattsonTaskInfo task_info = 2;
+  optional string period_name = 2;
+  repeated AndroidWattsonTaskInfo task_info = 3;
 }
 
 message AndroidWattsonTaskInfo {
