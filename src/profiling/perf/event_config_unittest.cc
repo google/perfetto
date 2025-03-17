@@ -40,7 +40,7 @@ bool IsPowerOfTwo(size_t v) {
 
 std::optional<EventConfig> CreateEventConfig(
     const protos::gen::PerfEventConfig& perf_cfg,
-    EventConfig::tracepoint_id_fn_t tracepoint_id_lookup =
+    const EventConfig::tracepoint_id_fn_t& tracepoint_id_lookup =
         [](const std::string&, const std::string&) { return 0; }) {
   protos::gen::DataSourceConfig ds_cfg;
   ds_cfg.set_perf_event_config_raw(perf_cfg.SerializeAsString());
@@ -263,6 +263,53 @@ TEST(EventConfigTest, CounterOnlyModeDetection) {
     EXPECT_EQ(event_config->perf_attr()->sample_type &
                   (PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER),
               0u);
+  }
+}
+
+// Tests the polled (periodic read syscall) configuration.
+TEST(EventConfigTest, CounterPolling) {
+  {  // single counter:
+    protos::gen::PerfEventConfig cfg;
+    auto* mutable_timebase = cfg.mutable_timebase();
+    mutable_timebase->set_poll_period_ms(200);
+    mutable_timebase->set_counter(protos::gen::PerfEvents::HW_CPU_CYCLES);
+
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_EQ(event_config->perf_attr()->type, PERF_TYPE_HARDWARE);
+    EXPECT_EQ(event_config->perf_attr()->config, PERF_COUNT_HW_CPU_CYCLES);
+    EXPECT_EQ(event_config->perf_attr()->read_format, PERF_FORMAT_GROUP);
+    EXPECT_EQ(event_config->perf_attr()->sample_type, 0u);
+
+    EXPECT_EQ(event_config->recording_mode(), RecordingMode::kPolling);
+  }
+  {  // multiple counters:
+    protos::gen::PerfEventConfig cfg;
+    auto* mutable_timebase = cfg.mutable_timebase();
+    mutable_timebase->set_poll_period_ms(200);
+    mutable_timebase->set_counter(protos::gen::PerfEvents::SW_PAGE_FAULTS);
+
+    auto* counter_follower = cfg.add_followers();
+    counter_follower->set_counter(
+        protos::gen::PerfEvents::HW_BRANCH_INSTRUCTIONS);
+
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_EQ(event_config->perf_attr()->type, PERF_TYPE_SOFTWARE);
+    EXPECT_EQ(event_config->perf_attr()->config, PERF_COUNT_SW_PAGE_FAULTS);
+    EXPECT_EQ(event_config->perf_attr()->read_format, PERF_FORMAT_GROUP);
+    EXPECT_EQ(event_config->perf_attr()->sample_type, 0u);
+
+    ASSERT_EQ(event_config->follower_events().size(), 1u);
+    ASSERT_EQ(event_config->perf_attr_followers().size(), 1u);
+
+    const auto& follower = event_config->perf_attr_followers().at(0);
+    EXPECT_EQ(follower.type, PERF_TYPE_HARDWARE);
+    EXPECT_EQ(follower.config, PERF_COUNT_HW_BRANCH_INSTRUCTIONS);
+
+    EXPECT_EQ(event_config->recording_mode(), RecordingMode::kPolling);
   }
 }
 

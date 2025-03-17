@@ -283,6 +283,8 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
           static_cast<int>(pid));
 
       PERFETTO_CHECK(sampled_stack_bytes == 0);
+      delegate_->PostEmitUnwinderSkippedSample(entry.data_source_id,
+                                               std::move(entry.sample));
       entry = UnwindEntry::Invalid();
       continue;
     }
