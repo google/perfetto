@@ -11173,6 +11173,27 @@ filegroup {
     ],
 }
 
+// GN: //src/android_sdk/perfetto_sdk_for_jni:perfetto_sdk_for_jni
+filegroup {
+    name: "perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
+    srcs: [
+        "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.cc",
+    ],
+}
+
+// GN: //src/android_sdk/perfetto_sdk_for_jni:perfetto_sdk_for_jni_public
+filegroup {
+    name: "perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
+}
+
+// GN: //src/android_sdk/perfetto_sdk_for_jni:unittests
+filegroup {
+    name: "perfetto_src_android_sdk_perfetto_sdk_for_jni_unittests",
+    srcs: [
+        "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk_unittest.cc",
+    ],
+}
+
 // GN: //src/android_stats:android_stats
 filegroup {
     name: "perfetto_src_android_stats_android_stats",
@@ -16005,6 +16026,9 @@ cc_test {
         ":perfetto_protos_third_party_statsd_config_zero_gen",
         ":perfetto_src_android_internal_headers",
         ":perfetto_src_android_internal_lazy_library_loader",
+        ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
+        ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
+        ":perfetto_src_android_sdk_perfetto_sdk_for_jni_unittests",
         ":perfetto_src_android_stats_android_stats",
         ":perfetto_src_android_stats_perfetto_atoms",
         ":perfetto_src_base_base",
@@ -16080,6 +16104,8 @@ cc_test {
         ":perfetto_src_protozero_text_to_proto_text_to_proto",
         ":perfetto_src_protozero_unittests",
         ":perfetto_src_shared_lib_intern_map",
+        ":perfetto_src_shared_lib_shared_lib",
+        ":perfetto_src_shared_lib_test_utils",
         ":perfetto_src_shared_lib_unittests",
         ":perfetto_src_trace_config_utils_pb_to_txt",
         ":perfetto_src_trace_config_utils_txt_to_pb",
@@ -16258,15 +16284,18 @@ cc_test {
         ":perfetto_src_tracing_core_core",
         ":perfetto_src_tracing_core_test_support",
         ":perfetto_src_tracing_core_unittests",
+        ":perfetto_src_tracing_in_process_backend",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_producer_relay",
+        ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_ipc_unittests",
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_unittests",
         ":perfetto_src_tracing_service_zlib_compressor",
+        ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_test_test_support",
         ":perfetto_src_tracing_unittests",
         ":perfetto_test_sanitizers_unittests",
