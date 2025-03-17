@@ -2633,6 +2633,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/android/wattson_app_startup_rails.sql",
         "src/trace_processor/metrics/sql/android/wattson_app_startup_threads.sql",
         "src/trace_processor/metrics/sql/android/wattson_atrace_apps_rails.sql",
+        "src/trace_processor/metrics/sql/android/wattson_atrace_apps_threads.sql",
         "src/trace_processor/metrics/sql/android/wattson_markers_rails.sql",
         "src/trace_processor/metrics/sql/android/wattson_markers_threads.sql",
         "src/trace_processor/metrics/sql/android/wattson_rail_relations.sql",
