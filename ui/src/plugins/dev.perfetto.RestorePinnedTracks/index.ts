@@ -17,7 +17,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Track} from '../../public/track';
 import {z} from 'zod';
-import {assertExists, assertIsInstance} from '../../base/logging';
+import {assertIsInstance} from '../../base/logging';
 
 const PLUGIN_ID = 'dev.perfetto.RestorePinnedTrack';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
@@ -184,8 +184,7 @@ export default class implements PerfettoPlugin {
   private getCurrentPinnedTracks() {
     const res = [];
     for (const track of this.ctx.workspace.pinnedTracks) {
-      const actual = this.ctx.workspace.getTrackByUri(assertExists(track.uri));
-      res.push(this.toSavedTrack(assertExists(actual)));
+      res.push(this.toSavedTrack(track));
     }
     return res;
   }
