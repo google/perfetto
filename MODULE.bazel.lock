@@ -255,7 +255,7 @@
     "@@rules_android_ndk~//:extension.bzl%android_ndk_repository_extension": {
       "general": {
         "bzlTransitiveDigest": "oV/TPZWCXAAcpJG/DBV/lNiWCISUTk5ba0KRjUb7adg=",
-        "usagesDigest": "h3Ett4kogrI/zkcaIMQBGeRneNTNz/MrRIoUQsTpU4I=",
+        "usagesDigest": "vdNo3K7hS50Uk9x8OnyAvbuxet9yh/x+s8FqFbzywCE=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -264,8 +264,8 @@
             "bzlFile": "@@rules_android_ndk~//:rules.bzl",
             "ruleClassName": "android_ndk_repository",
             "attributes": {
-              "api_level": 0,
-              "path": "$WORKSPACE_ROOT/buildtools/ndk"
+              "api_level": 26,
+              "path": ""
             }
           }
         },
@@ -301,7 +301,7 @@
     "@@rules_android~//rules/android_sdk_repository:rule.bzl%android_sdk_repository_extension": {
       "general": {
         "bzlTransitiveDigest": "NAy+0M15JNVEBb8Tny6t7j3lKqTnsAMjoBB6LJ+C370=",
-        "usagesDigest": "mdkOvziF1RbosoEBewuXx0z75xetAvWCkSk5BqhVQEg=",
+        "usagesDigest": "7pEVyOMSuonyQip1hK1dYg+DiOQuU7wFl0PWl479cqM=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -312,7 +312,7 @@
             "attributes": {
               "api_level": 35,
               "build_tools_version": "35.0.1",
-              "path": "$WORKSPACE_ROOT/buildtools/android_sdk"
+              "path": ""
             }
           }
         },
