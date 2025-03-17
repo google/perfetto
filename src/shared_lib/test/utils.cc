@@ -41,7 +41,7 @@ std::string ToHexChars(uint8_t val) {
 
 }  // namespace
 
-TracingSession TracingSession::Builder::Build() {
+std::vector<uint8_t> TracingSession::Builder::BuildProtoConfig() {
   struct PerfettoPbMsgWriter writer;
   struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
 
@@ -90,14 +90,19 @@ TracingSession TracingSession::Builder::Build() {
     perfetto_protos_TraceConfig_end_data_sources(&cfg, &data_sources);
   }
   size_t cfg_size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
-  std::unique_ptr<uint8_t[]> ser(new uint8_t[cfg_size]);
-  PerfettoHeapBufferCopyInto(hb, &writer.writer, ser.get(), cfg_size);
+  std::vector<uint8_t> cfg_buf(cfg_size);
+  PerfettoHeapBufferCopyInto(hb, &writer.writer, cfg_buf.data(), cfg_size);
   PerfettoHeapBufferDestroy(hb, &writer.writer);
+  return cfg_buf;
+}
+
+TracingSession TracingSession::Builder::Build() {
+  std::vector<uint8_t> config = BuildProtoConfig();
 
   struct PerfettoTracingSessionImpl* ts =
       PerfettoTracingSessionCreate(PERFETTO_BACKEND_IN_PROCESS);
 
-  PerfettoTracingSessionSetup(ts, ser.get(), cfg_size);
+  PerfettoTracingSessionSetup(ts, config.data(), config.size());
 
   PerfettoTracingSessionStartBlocking(ts);
 
