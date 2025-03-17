@@ -29,7 +29,6 @@ new_local_repository(
 # 'rules_android'. So we need to set it here as well.
 android_sdk_repository(
     name = "androidsdk",
-    path = "buildtools/android_sdk",
     api_level = 35,
     build_tools_version = "35.0.1",
 )
