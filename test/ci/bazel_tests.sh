@@ -22,8 +22,22 @@ echo "skipping build + test runs"
 exit 0
 fi
 
-tools/bazel build //:all --verbose_failures
-tools/bazel build //python:all --verbose_failures
+BAZEL_DISK_CACHE_FOLDER="/ci/cache/bazel-disk-cache-$(hostname)"
+readonly BAZEL_DISK_CACHE_FOLDER
+# Cleanup the cache if any of the two conditions are true.
+BAZEL_DISK_CACHE_GC_OPTIONS="--experimental_disk_cache_gc_max_age=7d --experimental_disk_cache_gc_max_size=10G"
+# We don't run a bazel daemon in background, so we do a GC during the build,
+# that's why we specify _idle_delay=0.
+BAZEL_DISK_CACHE_GC_OPTIONS+=" --experimental_disk_cache_gc_idle_delay=0"
+readonly BAZEL_DISK_CACHE_GC_OPTIONS
+
+BAZEL_DISK_CACHE_FLAGS="--disk_cache=${BAZEL_DISK_CACHE_FOLDER} ${BAZEL_DISK_CACHE_GC_OPTIONS}"
+readonly BAZEL_DISK_CACHE_FLAGS
+
+# shellcheck disable=SC2086
+tools/bazel build //:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
+# shellcheck disable=SC2086
+tools/bazel build //python:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
 
 # Smoke test that processes run without crashing.
 ./bazel-bin/traced &
@@ -37,3 +51,6 @@ kill $(jobs -p)
 # Check the amalgamated build here to avoid slowing down all the Linux bots.
 echo -e "\n\n***** Testing amalgamated build *****\n"
 tools/test_gen_amalgamated.py
+
+# Print the size of the bazel cache to make sure it won't grow infinitely.
+du -sh "${BAZEL_DISK_CACHE_FOLDER}"
