@@ -128,7 +128,7 @@ export class WattsonThreadSelectionAggregator
       ;
 
       -- Grouped again by UTID, but this time to make it CPU agnostic
-      CREATE VIEW ${this.id} AS
+      CREATE PERFETTO VIEW ${this.id} AS
       WITH base AS (
         SELECT
           ROUND(SUM(total_pws) / ${duration}, 3) as active_mw,

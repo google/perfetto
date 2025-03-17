@@ -49,7 +49,7 @@ export class WattsonPackageSelectionAggregator
     // which is run prior to execution of this module
     engine.query(`
       -- Grouped by UID and made CPU agnostic
-      CREATE VIEW ${this.id} AS
+      CREATE PERFETTO VIEW ${this.id} AS
       SELECT
         ROUND(SUM(total_pws) / ${duration}, 3) as active_mw,
         ROUND(SUM(total_pws) / 1000000000, 3) as active_mws,

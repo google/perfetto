@@ -62,7 +62,7 @@ export class WattsonEstimateSelectionAggregator
       USING
         SPAN_JOIN(_ui_selection_window, _system_state_mw);
 
-      CREATE VIEW ${this.id} AS
+      CREATE PERFETTO VIEW ${this.id} AS
     `;
 
     // Convert average power track to total energy in UI window, then divide by

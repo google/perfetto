@@ -54,7 +54,7 @@ export class WattsonProcessSelectionAggregator
       GROUP BY upid;
 
       -- Grouped by UPID and made CPU agnostic
-      CREATE VIEW ${this.id} AS
+      CREATE PERFETTO VIEW ${this.id} AS
       WITH base AS (
         SELECT
           ROUND(SUM(total_pws) / ${duration}, 3) as active_mw,
