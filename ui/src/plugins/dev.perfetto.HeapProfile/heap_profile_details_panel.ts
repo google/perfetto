@@ -16,7 +16,6 @@ import m from 'mithril';
 
 import {assertExists, assertFalse} from '../../base/logging';
 import {extensions} from '../../components/extensions';
-import {runQuery} from '../../components/query_table/queries';
 import {time} from '../../base/time';
 import {
   QueryFlamegraph,
@@ -592,7 +591,7 @@ function getHeapGraphOptionalActions(
           const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
           // Create view to be returned
-          await runQuery(statement, trace.engine);
+          await trace.engine.query(statement);
           extensions.addLegacySqlTableTab(trace, {
             table: getHeapGraphObjectReferencesView(isDominator),
             filters: [
@@ -622,7 +621,7 @@ function getHeapGraphOptionalActions(
               const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
               // Create view to be returned
-              await runQuery(statement, trace.engine);
+              await trace.engine.query(statement);
               extensions.addLegacySqlTableTab(trace, {
                 table: getHeapGraphIncomingReferencesView(isDominator),
                 filters: [
@@ -646,7 +645,7 @@ function getHeapGraphOptionalActions(
               const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
               // Create view to be returned
-              await runQuery(statement, trace.engine);
+              await trace.engine.query(statement);
               extensions.addLegacySqlTableTab(trace, {
                 table: getHeapGraphOutgoingReferencesView(isDominator),
                 filters: [
@@ -678,7 +677,7 @@ function getHeapGraphOptionalActions(
               const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
               // Create view to be returned
-              await runQuery(statement, trace.engine);
+              await trace.engine.query(statement);
               extensions.addLegacySqlTableTab(trace, {
                 table: getHeapGraphRetainedObjectCountsView(isDominator),
               });
@@ -696,7 +695,7 @@ function getHeapGraphOptionalActions(
               const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
               // Create view to be returned
-              await runQuery(statement, trace.engine);
+              await trace.engine.query(statement);
               extensions.addLegacySqlTableTab(trace, {
                 table: getHeapGraphRetainingObjectCountsView(isDominator),
               });
