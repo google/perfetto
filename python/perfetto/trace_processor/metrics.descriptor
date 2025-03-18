@@ -1585,7 +1585,7 @@ period_dur (R	periodDurX
 Unit
 UNIT_UNSPECIFIED 
 COUNT_PER_SECOND
-ÿ
+œ
 ?protos/perfetto/metrics/android/wattson_tasks_attribution.protoperfetto.protos"Í
 $AndroidWattsonTasksAttributionMetric%
 metric_version (RmetricVersion.
@@ -1596,18 +1596,19 @@ periodInfo"¢
 	period_id (RperiodId
 period_name (	R
 periodNameD
-	task_info (2'.perfetto.protos.AndroidWattsonTaskInfoRtaskInfo"µ
+	task_info (2'.perfetto.protos.AndroidWattsonTaskInfoRtaskInfo"Ò
 AndroidWattsonTaskInfo!
 estimated_mw (RestimatedMw#
 estimated_mws (RestimatedMws0
-idle_transitions_mws (RidleTransitionsMws
-thread_name (	R
+idle_transitions_mws (RidleTransitionsMws
+	total_mws (RtotalMws
+thread_name (	R
 threadName!
-process_name (	RprocessName!
-package_name (	RpackageName
-	thread_id (RthreadId
+process_name (	RprocessName!
+package_name (	RpackageName
+	thread_id (RthreadId
 
-process_id (R	processId
+process_id	 (R	processId
 ã
 3protos/perfetto/metrics/common/clone_duration.protoperfetto.protos"š
 CloneDurationD
