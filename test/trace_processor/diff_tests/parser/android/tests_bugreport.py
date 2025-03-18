@@ -152,3 +152,26 @@ class AndroidBugreport(TestSuite):
         "unknown",2452,626115
         "zip",1,6220586
         """))
+
+  def test_android_bugreport_trace_types(self):
+    return DiffTestBlueprint(
+        trace=DataPath('bugreport-crosshatch-SPB5.zip'),
+        query="""
+        INCLUDE PERFETTO MODULE android.dumpsys.show_map;
+        SELECT * FROM android_dumpsys_show_map
+        ORDER BY rss_kb DESC
+        LIMIT 10;
+        """,
+        out=Csv("""
+                "process_name","pid","vss_kb","rss_kb","pss_kb","shared_clean_kb","shared_dirty_kb","private_clean_kb","private_dirty_kb","swap_kb","swap_pss_kb","anon_huge_pages_kb","shmem_pmd_mapped_kb","file_pmd_mapped_kb","shared_huge_tlb_kb","private_hugetlb_kb","locked_kb","mapping_count","mapped_object"
+                "(system_server)",1835,1048576,28068,28068,0,0,0,28068,0,0,0,0,0,0,0,1,0,"space"
+    "(com.android.systemui)",2281,524288,8836,8836,0,0,0,8836,0,0,0,0,0,0,0,1,0,"space"
+    "(system_server)",1835,7180,7180,1469,0,5832,0,1348,0,0,0,0,0,0,0,1,0,"space]"
+    "(com.android.bluetooth)",2261,7180,7180,677,0,6644,0,536,0,0,0,0,0,0,0,1,0,"space]"
+    "(com.android.systemui)",2281,7180,7180,1133,0,6176,0,1004,0,0,0,0,0,0,0,1,0,"space]"
+    "(com.breel.wallpapers18)",2385,7180,7180,564,0,6760,0,420,0,0,0,0,0,0,0,1,0,"space]"
+    "(com.android.networkstack.process)",2407,7180,7180,762,0,6556,0,624,0,0,0,0,0,0,0,1,0,"space]"
+    "(.dataservices)",2436,7180,7180,614,0,6708,0,472,0,0,0,0,0,0,0,1,0,"space]"
+    "(com.qualcomm.qti.telephonyservice)",2502,7180,7180,553,0,6772,0,408,0,0,0,0,0,0,0,1,0,"space]"
+    "(com.google.android.grilservice)",2503,7180,7180,553,0,6772,0,408,0,0,0,0,0,0,0,1,0,"space]"
+        """))
