@@ -247,27 +247,28 @@ base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
   return column_names;
 }
 
-constexpr std::array<const char*, 8> kTokensAllowedInMacro({
+constexpr std::array<std::string_view, 6> kTokensAllowedInMacro{
     "_ColumnNameList",
     "_ProjectionFragment",
     "_TableNameList",
     "ColumnName",
     "Expr",
     "TableOrSubquery",
-});
+};
 
-bool IsTokenAllowedInMacro(const std::string& view) {
-  std::string lower = base::ToLower(view);
+bool IsTokenAllowedInMacro(const std::string& str) {
+  base::StringView view = base::StringView{str};
   return std::any_of(kTokensAllowedInMacro.begin(), kTokensAllowedInMacro.end(),
-                     [&lower](const std::string& allowed_token) {
-                       return lower == base::ToLower(allowed_token);
+                     [&view](const auto& allowed_token) {
+                       return view.CaseInsensitiveEq(base::StringView{
+                           allowed_token.data(), allowed_token.size()});
                      });
 }
 
 std::string GetTokenNamesAllowedInMacro() {
   std::vector<std::string> result;
   result.reserve(kTokensAllowedInMacro.size());
-  for (const char* token : kTokensAllowedInMacro) {
+  for (auto token : kTokensAllowedInMacro) {
     result.emplace_back(token);
   }
   return base::Join(result, ", ");
@@ -666,7 +667,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
   base::StatusOr<std::vector<std::string>> maybe_column_names =
       GetColumnNamesFromSelectStatement(stmt, "CREATE PERFETTO TABLE");
   RETURN_IF_ERROR(maybe_column_names.status());
-  std::vector<std::string> column_names = *maybe_column_names;
+  const std::vector<std::string>& column_names = *maybe_column_names;
 
   base::StatusOr<std::vector<sql_argument::ArgumentDefinition>>
       effective_schema = ValidateAndGetEffectiveSchema(
@@ -744,7 +745,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateView(
     base::StatusOr<std::vector<std::string>> maybe_column_names =
         GetColumnNamesFromSelectStatement(stmt, "CREATE PERFETTO VIEW");
     RETURN_IF_ERROR(maybe_column_names.status());
-    std::vector<std::string> column_names = *maybe_column_names;
+    const std::vector<std::string>& column_names = *maybe_column_names;
 
     base::StatusOr<std::vector<sql_argument::ArgumentDefinition>>
         effective_schema = ValidateAndGetEffectiveSchema(
