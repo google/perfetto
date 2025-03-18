@@ -1,6 +1,6 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Removed mm_events support as it is no longer maintained.
   SQL Standard library:
     *
   Trace Processor:
