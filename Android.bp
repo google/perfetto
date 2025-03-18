@@ -15093,7 +15093,6 @@ filegroup {
 filegroup {
     name: "perfetto_src_traced_probes_probes_src",
     srcs: [
-        "src/traced/probes/kmem_activity_trigger.cc",
         "src/traced/probes/probes_producer.cc",
     ],
 }
@@ -18499,11 +18498,6 @@ genrule {
     ],
 }
 
-sh_binary {
-    name: "mm_events",
-    src: "tools/mm_events",
-}
-
 package {
     default_applicable_licenses: ["external_perfetto_license"],
 }
@@ -18644,7 +18638,6 @@ phony {
     name: "perfetto-extras",
     required: [
         "libperfetto_android_internal",
-        "mm_events",
         "traced_perf",
         "trigger_perfetto",
     ],
