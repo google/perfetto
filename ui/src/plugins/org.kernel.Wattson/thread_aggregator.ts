@@ -22,7 +22,7 @@ import {AreaSelectionAggregator} from '../../public/selection';
 export class WattsonThreadSelectionAggregator
   implements AreaSelectionAggregator
 {
-  readonly id = 'wattson_thread_aggregation';
+  readonly id = 'wattson_plugin_thread_aggregation';
 
   async createAggregateView(engine: Engine, area: AreaSelection) {
     await engine.query(`drop view if exists ${this.id};`);
@@ -42,38 +42,28 @@ export class WattsonThreadSelectionAggregator
       INCLUDE PERFETTO MODULE wattson.curves.idle_attribution;
       INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
-      CREATE OR REPLACE PERFETTO TABLE _ui_selection_window AS
+      CREATE OR REPLACE PERFETTO TABLE wattson_plugin_ui_selection_window AS
       SELECT
         ${area.start} as ts,
         ${duration} as dur;
 
       -- Processes filtered by CPU within the UI defined time window
-      DROP TABLE IF EXISTS _windowed_summary;
-      CREATE VIRTUAL TABLE _windowed_summary
-      USING
-        SPAN_JOIN(_ui_selection_window, _sched_w_thread_process_package_summary);
+      DROP TABLE IF EXISTS wattson_plugin_windowed_summary;
+      CREATE VIRTUAL TABLE wattson_plugin_windowed_summary
+      USING SPAN_JOIN(
+        wattson_plugin_ui_selection_window,
+        _sched_w_thread_process_package_summary
+      );
 
       -- Only get idle attribution in user defined window and filter by selected
       -- CPUs and GROUP BY thread
-      CREATE OR REPLACE PERFETTO TABLE _per_thread_idle_cost AS
-      WITH base AS (
-        SELECT
-          SUM(idle_cost_mws) as idle_cost_mws,
-          utid
-        FROM _filter_idle_attribution(${area.start}, ${duration})
-        WHERE cpu in ${cpusCsv}
-        GROUP BY utid
-      )
+      CREATE OR REPLACE PERFETTO TABLE wattson_plugin_per_thread_idle_cost AS
       SELECT
-        idle_cost_mws,
+        SUM(idle_cost_mws) as idle_cost_mws,
         utid
-      FROM base
-      -- Give the negative sum of idle costs to the swapper thread, which by
-      -- definition has a utid = 0 and by definition will not already be defined
-      UNION ALL
-      SELECT
-        (SELECT -1 * SUM(idle_cost_mws) FROM base) AS idle_cost_mws,
-        0 AS utid
+      FROM _filter_idle_attribution(${area.start}, ${duration})
+      WHERE cpu in ${cpusCsv}
+      GROUP BY utid
       ;
     `);
     this.runEstimateThreadsQuery(engine, selectedCpus, duration);
@@ -97,23 +87,26 @@ export class WattsonThreadSelectionAggregator
     selectedCpu.forEach((cpu) => {
       engine.query(`
         -- Packages filtered by CPU
-        CREATE OR REPLACE PERFETTO VIEW _windowed_summary_per_cpu${cpu} AS
+        CREATE OR REPLACE PERFETTO VIEW
+        wattson_plugin_windowed_summary_per_cpu${cpu} AS
         SELECT *
-        FROM _windowed_summary WHERE cpu = ${cpu};
+        FROM wattson_plugin_windowed_summary WHERE cpu = ${cpu};
 
         -- CPU specific track with slices for curves
-        CREATE OR REPLACE PERFETTO VIEW _per_cpu${cpu}_curve AS
+        CREATE OR REPLACE PERFETTO VIEW wattson_plugin_per_cpu${cpu}_curve AS
         SELECT ts, dur, cpu${cpu}_curve
         FROM _system_state_curves;
 
         -- Filter out track when threads are available
-        DROP TABLE IF EXISTS _windowed_thread_curve${cpu};
-        CREATE VIRTUAL TABLE _windowed_thread_curve${cpu}
-        USING
-          SPAN_JOIN(_per_cpu${cpu}_curve, _windowed_summary_per_cpu${cpu});
+        DROP TABLE IF EXISTS wattson_plugin_windowed_thread_curve${cpu};
+        CREATE VIRTUAL TABLE wattson_plugin_windowed_thread_curve${cpu}
+        USING SPAN_JOIN(
+          wattson_plugin_per_cpu${cpu}_curve,
+          wattson_plugin_windowed_summary_per_cpu${cpu}
+        );
 
         -- Total estimate per UTID per CPU
-        CREATE OR REPLACE PERFETTO VIEW _total_per_cpu${cpu} AS
+        CREATE OR REPLACE PERFETTO VIEW wattson_plugin_total_per_cpu${cpu} AS
         SELECT
           SUM(cpu${cpu}_curve * dur) as total_pws,
           SUM(dur) as dur,
@@ -125,22 +118,24 @@ export class WattsonThreadSelectionAggregator
           thread_name,
           process_name,
           package_name
-        FROM _windowed_thread_curve${cpu}
+        FROM wattson_plugin_windowed_thread_curve${cpu}
         GROUP BY utid;
       `);
     });
 
     // Estimate and total per UTID, removing CPU dimension
-    let query = `CREATE OR REPLACE PERFETTO TABLE _unioned_per_cpu_total AS `;
+    let query = `
+      CREATE OR REPLACE PERFETTO TABLE wattson_plugin_unioned_per_cpu_total AS
+    `;
     selectedCpu.forEach((cpu, i) => {
       query += i != 0 ? `UNION ALL\n` : ``;
-      query += `SELECT * from _total_per_cpu${cpu}\n`;
+      query += `SELECT * from wattson_plugin_total_per_cpu${cpu}\n`;
     });
     query += `
       ;
 
       -- Grouped again by UTID, but this time to make it CPU agnostic
-      CREATE VIEW ${this.id} AS
+      CREATE PERFETTO VIEW ${this.id} AS
       WITH base AS (
         SELECT
           ROUND(SUM(total_pws) / ${duration}, 3) as active_mw,
@@ -154,8 +149,8 @@ export class WattsonThreadSelectionAggregator
           utid,
           tid,
           pid
-        FROM _unioned_per_cpu_total
-        LEFT JOIN _per_thread_idle_cost USING (utid)
+        FROM wattson_plugin_unioned_per_cpu_total
+        LEFT JOIN wattson_plugin_per_thread_idle_cost USING (utid)
         GROUP BY utid
       ),
       secondary AS (
