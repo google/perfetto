@@ -26,6 +26,16 @@ import {AppImpl} from '../../core/app_impl';
 import {Trace} from '../../public/trace';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Icons} from '../../base/semantic_icons';
+import {VirtualQueryTable} from '../virtual_query_table/virtual_query_table';
+import {featureFlags} from '../../core/feature_flags';
+
+const virtualTableFlag = featureFlags.register({
+  id: 'virtualQueryResults',
+  name: 'Use virtual scrolling in the query results table',
+  description: `[Experimental] Use virtually scrolled query results table. This
+can speed up rendering when 10,000+ rows are returned.`,
+  defaultValue: false,
+});
 
 interface QueryTableRowAttrs {
   trace: Trace;
@@ -169,15 +179,7 @@ class QueryTableContent implements m.ClassComponent<QueryTableContentAttrs> {
       m(QueryTableRow, {trace: vnode.attrs.trace, row, columns: resp.columns}),
     );
 
-    if (resp.error) {
-      return m('.query-error', `SQL error: ${resp.error}`);
-    } else {
-      return m(
-        'table.pf-query-table',
-        m('thead', tableHeader),
-        m('tbody', rows),
-      );
-    }
+    return m('table.pf-query-table', m('thead', tableHeader), m('tbody', rows));
   }
 }
 
@@ -207,7 +209,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
         buttons: this.renderButtons(query, contextButtons, resp),
         fillParent,
       },
-      resp && this.renderTableContent(resp),
+      resp && this.renderTableContent(resp, fillParent),
     );
   }
 
@@ -257,7 +259,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     ];
   }
 
-  renderTableContent(resp: QueryResponse) {
+  renderTableContent(resp: QueryResponse, fillParent: boolean) {
     return m(
       '.pf-query-panel',
       resp.statementWithOutputCount > 1 &&
@@ -271,8 +273,27 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
             'Only the results for the last statement are displayed.',
           ),
         ),
-      m(QueryTableContent, {trace: this.trace, resp}),
+      this.renderContent(resp, fillParent),
     );
+  }
+
+  private renderContent(resp: QueryResponse, fillParent: boolean) {
+    if (resp.error) {
+      return m('.query-error', `SQL error: ${resp.error}`);
+    }
+
+    if (virtualTableFlag.get()) {
+      return m(VirtualQueryTable, {
+        columns: resp.columns.map((c) => ({name: c})),
+        rows: resp.rows.map((row) => resp.columns.map((key) => row[key])),
+        style: {
+          height: fillParent ? '100%' : undefined,
+          maxHeight: fillParent ? undefined : '400px',
+        },
+      });
+    } else {
+      return m(QueryTableContent, {trace: this.trace, resp});
+    }
   }
 }
 
