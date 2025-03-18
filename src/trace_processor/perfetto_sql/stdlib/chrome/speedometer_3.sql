@@ -152,7 +152,9 @@ SELECT
   s.measure_type
 FROM measure_slice AS s
 JOIN _chrome_speedometer_3_iteration_slice AS i
-  ON s.ts >= i.ts AND s.ts < i.ts + i.dur
+  ON (
+    s.ts >= i.ts AND s.ts < i.ts + i.dur
+  )
 ORDER BY
   s.ts ASC;
 
