@@ -16,22 +16,26 @@
 
 #include "src/trace_processor/util/protozero_to_json.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <optional>
+#include <string>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "protos/perfetto/common/descriptor.pbzero.h"
 #include "src/trace_processor/util/descriptors.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace protozero_to_json {
+#include "protos/perfetto/common/descriptor.pbzero.h"
+
+namespace perfetto::trace_processor::protozero_to_json {
 
 namespace {
 
@@ -898,6 +902,4 @@ std::string ProtozeroToJson(const DescriptorPool& pool,
       flags);
 }
 
-}  // namespace protozero_to_json
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::protozero_to_json

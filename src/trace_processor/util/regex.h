@@ -18,17 +18,18 @@
 #define SRC_TRACE_PROCESSOR_UTIL_REGEX_H_
 
 #include <optional>
-#include "perfetto/base/compiler.h"
-#include "perfetto/ext/base/scoped_file.h"
+#include <utility>
+
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <regex.h>
 #endif
 
-namespace perfetto {
-namespace trace_processor {
-namespace regex {
+namespace perfetto::trace_processor::regex {
 
 constexpr bool IsRegexSupported() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -50,7 +51,7 @@ class Regex {
   }
   Regex(const Regex&) = delete;
   Regex(Regex&& other) {
-    regex_ = std::move(other.regex_);
+    regex_ = other.regex_;
     other.regex_ = std::nullopt;
   }
   Regex& operator=(Regex&& other) {
@@ -68,7 +69,7 @@ class Regex {
     if (regcomp(&regex, pattern, 0)) {
       return base::ErrStatus("Regex pattern '%s' is malformed.", pattern);
     }
-    return Regex(std::move(regex));
+    return Regex(regex);
 #else
     base::ignore_result(pattern);
     PERFETTO_FATAL("Windows regex is not supported.");
@@ -88,14 +89,11 @@ class Regex {
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
  private:
-  explicit Regex(regex_t regex) : regex_(std::move(regex)) {}
+  explicit Regex(regex_t regex) : regex_(regex) {}
 
   std::optional<regex_t> regex_;
 #endif
 };
-}  // namespace regex
-
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::regex
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_REGEX_H_

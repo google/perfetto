@@ -14,19 +14,21 @@
  * limitations under the License.
  */
 
-#include "test/gtest_and_gmock.h"
+#include "src/trace_processor/util/descriptors.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/trace.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace/track_event/chrome_mojo_event_info.pbzero.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
 #include "src/trace_processor/test_messages.descriptor.h"
 #include "src/trace_processor/util/proto_profiler.h"
+#include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+namespace perfetto::trace_processor::util {
 namespace {
 
 using ::testing::UnorderedElementsAreArray;
@@ -75,6 +77,4 @@ TEST(ProtoProfiler, TestMessage) {
 }
 
 }  // namespace
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util

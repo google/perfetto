@@ -17,12 +17,15 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_DEBUG_ANNOTATION_PARSER_H_
 #define SRC_TRACE_PROCESSOR_UTIL_DEBUG_ANNOTATION_PARSER_H_
 
-#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
+#include <string>
+
+#include "perfetto/base/status.h"
+#include "perfetto/protozero/field.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
+
+namespace perfetto::trace_processor::util {
 
 // |DebugAnnotationParser| is responsible for parsing DebugAnnotation protos
 // and turning it into key-value arg pairs.
@@ -44,7 +47,7 @@ class DebugAnnotationParser {
     bool added_entry;
   };
 
-  base::Status ParseDebugAnnotationName(
+  static base::Status ParseDebugAnnotationName(
       protos::pbzero::DebugAnnotation::Decoder& annotation,
       ProtoToArgsParser::Delegate& delegate,
       std::string& result);
@@ -59,8 +62,6 @@ class DebugAnnotationParser {
   ProtoToArgsParser& proto_to_args_parser_;
 };
 
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_DEBUG_ANNOTATION_PARSER_H_

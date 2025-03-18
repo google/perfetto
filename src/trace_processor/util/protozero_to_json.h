@@ -17,12 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_PROTOZERO_TO_JSON_H_
 #define SRC_TRACE_PROCESSOR_UTIL_PROTOZERO_TO_JSON_H_
 
+#include <cstdint>
 #include <string>
+#include <vector>
 
 #include "perfetto/protozero/field.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class DescriptorPool;
 
@@ -71,7 +72,6 @@ std::string ProtozeroToJson(const DescriptorPool& pool,
                             int flags);
 
 }  // namespace protozero_to_json
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_PROTOZERO_TO_JSON_H_

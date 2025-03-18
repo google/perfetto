@@ -18,13 +18,15 @@
 #define SRC_TRACE_PROCESSOR_UTIL_ANNOTATED_CALLSITES_H_
 
 #include <optional>
-
 #include <unordered_map>
+#include <utility>
+
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -78,7 +80,7 @@ class AnnotatedCallsites {
       const tables::StackProfileCallsiteTable::ConstRowReference& callsite);
 
   MapType GetMapType(MappingId id);
-  MapType ClassifyMap(NullTermStringView map);
+  static MapType ClassifyMap(NullTermStringView map);
 
   const TraceProcessorContext& context_;
   const std::optional<StringPool::Id> art_jni_trampoline_;
@@ -87,7 +89,6 @@ class AnnotatedCallsites {
   std::unordered_map<CallsiteId, State> states_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_ANNOTATED_CALLSITES_H_
