@@ -2282,6 +2282,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/android_camera_event_module.h",
         "src/trace_processor/importers/proto/android_kernel_wakelocks_module.cc",
         "src/trace_processor/importers/proto/android_kernel_wakelocks_module.h",
+        "src/trace_processor/importers/proto/android_kernel_wakelocks_state.cc",
+        "src/trace_processor/importers/proto/android_kernel_wakelocks_state.h",
         "src/trace_processor/importers/proto/android_probes_module.cc",
         "src/trace_processor/importers/proto/android_probes_module.h",
         "src/trace_processor/importers/proto/android_probes_parser.cc",
