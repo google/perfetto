@@ -8,6 +8,7 @@ source_set("perfetto_sdk_for_jni") {
   sources = [ "tracing_sdk.cc" ]
   deps = [
     "../../../gn:default_deps",
+    "../../../src/base:base",
     "../../shared_lib:shared_lib",
   ]
   public_deps = [
