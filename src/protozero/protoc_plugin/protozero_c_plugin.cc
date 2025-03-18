@@ -79,7 +79,7 @@ struct EnumDescriptorComp {
 };
 
 inline std::string ProtoStubName(const FileDescriptor* proto) {
-  return StripSuffix(proto->name(), ".proto") + ".pzc";
+  return StripSuffix(std::string(proto->name()), ".proto") + ".pzc";
 }
 
 std::string IntLiteralString(int number) {
