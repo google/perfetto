@@ -18,14 +18,14 @@
 
 #include <cctype>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 uint8_t HexToBinary(char c) {
   switch (c) {
@@ -75,7 +75,7 @@ uint8_t HexToBinary(char c) {
 std::string HexToBinary(base::StringView hex) {
   std::string res;
   res.reserve((hex.size() + 1) / 2);
-  auto it = hex.begin();
+  const auto* it = hex.begin();
 
   if (hex.size() % 2 != 0) {
     res.push_back(static_cast<char>(HexToBinary(*it)));
@@ -119,5 +119,4 @@ std::string BuildId::ToHex() const {
   return base::ToHex(raw_.data(), raw_.size());
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

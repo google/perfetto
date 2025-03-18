@@ -18,22 +18,23 @@
 #define SRC_TRACE_PROCESSOR_UTIL_DESCRIPTORS_H_
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "protos/perfetto/common/descriptor.pbzero.h"
 
 namespace protozero {
 struct ConstBytes;
 }
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class FieldDescriptor {
  public:
@@ -178,7 +179,7 @@ class DescriptorPool {
 
   std::optional<uint32_t> FindDescriptorIdx(const std::string& full_name) const;
 
-  std::vector<uint8_t> SerializeAsDescriptorSet();
+  std::vector<uint8_t> SerializeAsDescriptorSet() const;
 
   void AddProtoDescriptorForTesting(ProtoDescriptor descriptor) {
     AddProtoDescriptor(std::move(descriptor));
@@ -223,7 +224,6 @@ class DescriptorPool {
   std::set<std::string> processed_files_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_DESCRIPTORS_H_

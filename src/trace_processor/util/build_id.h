@@ -17,14 +17,16 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_BUILD_ID_H_
 #define SRC_TRACE_PROCESSOR_UTIL_BUILD_ID_H_
 
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <string>
 #include <utility>
 
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Represents the unique identifier of an executable, shared library, or module.
 // For example for ELF files this is the id stored in the .note.gnu.build-id
@@ -70,8 +72,7 @@ class BuildId {
   std::string raw_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 template <>
 struct std::hash<perfetto::trace_processor::BuildId> {

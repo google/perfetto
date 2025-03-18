@@ -16,17 +16,21 @@
 
 #include "src/trace_processor/util/proto_profiler.h"
 
-#include <utility>
+#include <cstddef>
+#include <cstdint>
+#include <optional>
+#include <string>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/protozero/packed_repeated_fields.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "src/trace_processor/util/descriptors.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+#include "protos/perfetto/common/descriptor.pbzero.h"
+
+namespace perfetto::trace_processor::util {
 
 namespace {
 using ::perfetto::protos::pbzero::FieldDescriptorProto;
@@ -87,7 +91,7 @@ void SizeProfileComputer::Reset(const uint8_t* ptr, size_t size) {
   field_path_.clear();
   protozero::ProtoDecoder decoder(ptr, size);
   const ProtoDescriptor* descriptor = &pool_->descriptors()[root_message_idx_];
-  state_stack_.push_back(State{descriptor, std::move(decoder), size, 0});
+  state_stack_.push_back(State{descriptor, decoder, size, 0});
   field_path_.emplace_back(0, nullptr, root_message_idx_, descriptor);
 }
 
@@ -142,15 +146,13 @@ std::optional<size_t> SizeProfileComputer::GetNext() {
       const ProtoDescriptor* descriptor = &pool_->descriptors()[*message_idx];
       field_path_.emplace_back(field.id(), field_descriptor, *message_idx,
                                descriptor);
-      state_stack_.push_back(
-          State{descriptor, std::move(decoder), field.size(), 0U});
+      state_stack_.push_back(State{descriptor, decoder, field.size(), 0U});
       return GetNext();
-    } else {
-      field_path_.emplace_back(field.id(), field_descriptor,
-                               field_descriptor->type(), nullptr);
-      result.emplace(field_size);
-      return result;
     }
+    field_path_.emplace_back(field.id(), field_descriptor,
+                             field_descriptor->type(), nullptr);
+    result.emplace(field_size);
+    return result;
   }
   if (state.unknown) {
     field_path_.emplace_back(uint32_t(-1), nullptr, 0U, nullptr);
@@ -180,6 +182,4 @@ size_t SizeProfileComputer::GetFieldSize(const protozero::Field& f) {
   PERFETTO_FATAL("unexpected field type");  // for gcc
 }
 
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util

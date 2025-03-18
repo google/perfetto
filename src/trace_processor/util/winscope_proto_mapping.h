@@ -17,14 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_WINSCOPE_PROTO_MAPPING_H_
 #define SRC_TRACE_PROCESSOR_UTIL_WINSCOPE_PROTO_MAPPING_H_
 
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 
-namespace perfetto::trace_processor {
-namespace util {
-namespace winscope_proto_mapping {
+namespace perfetto::trace_processor::util::winscope_proto_mapping {
+
 inline base::StatusOr<const char* const> GetProtoName(
     const std::string& table_name) {
   if (table_name == tables::SurfaceFlingerLayerTable::Name()) {
@@ -98,8 +104,7 @@ inline std::optional<const Table*> GetInternedDataTable(
   }
   return std::nullopt;
 }
-}  // namespace winscope_proto_mapping
-}  // namespace util
-}  // namespace perfetto::trace_processor
+
+}  // namespace perfetto::trace_processor::util::winscope_proto_mapping
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_WINSCOPE_PROTO_MAPPING_H_

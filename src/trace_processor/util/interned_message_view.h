@@ -17,11 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_INTERNED_MESSAGE_VIEW_H_
 #define SRC_TRACE_PROCESSOR_UTIL_INTERNED_MESSAGE_VIEW_H_
 
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <utility>
+
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 #if PERFETTO_DCHECK_IS_ON()
 // When called from GetOrCreateDecoder(), should include the stringified name of
@@ -97,8 +103,7 @@ class InternedMessageView {
     if (!field.data)
       return nullptr;
     TraceBlobView submessage = message_.slice(field.data, field.size);
-    InternedMessageView* submessage_view =
-        new InternedMessageView(std::move(submessage));
+    auto* submessage_view = new InternedMessageView(std::move(submessage));
     it_and_ins.first->reset(submessage_view);
     return submessage_view;
   }
@@ -132,7 +137,6 @@ class InternedMessageView {
   SubMessageViewMap submessages_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_INTERNED_MESSAGE_VIEW_H_

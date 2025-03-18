@@ -16,7 +16,17 @@
 
 #include "src/trace_processor/util/sql_argument.h"
 
+#include <algorithm>
+#include <cctype>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/basic_types.h"
 
 namespace perfetto::trace_processor::sql_argument {
 
