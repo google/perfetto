@@ -4459,6 +4459,7 @@ perfetto_android_instrumentation_test(
 # GN target: //src/java_sdk/test:perfetto_java_sdk_test_app
 perfetto_android_binary(
     name = "src_java_sdk_test_perfetto_java_sdk_test_app",
+    testonly = True,
     manifest = "src/java_sdk/test/AndroidTestManifest.xml",
     instruments = ":src_java_sdk_main_perfetto_java_sdk_app",
     deps = [
@@ -4469,6 +4470,7 @@ perfetto_android_binary(
 # GN target: //src/java_sdk/test:perfetto_test_lib
 perfetto_android_library(
     name = "src_java_sdk_test_perfetto_test_lib",
+    testonly = True,
     srcs = [
         "src/java_sdk/test/java/com/google/perfetto/sdk/test/SimpleInstrumentationTest.java",
     ],

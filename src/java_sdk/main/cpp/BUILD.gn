@@ -26,7 +26,6 @@ perfetto_android_jni_library("perfetto_example_jni_lib") {
     "utils.cc",
     "utils.h",
   ]
-  testonly = true
   deps = [
     "../../../../gn:default_deps",
     "../../../shared_lib:libperfetto_c",
