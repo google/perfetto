@@ -108,7 +108,8 @@ export interface FlamegraphQueryData {
   readonly allRootsCumulativeValue: number;
   readonly minDepth: number;
   readonly maxDepth: number;
-  readonly actions: ReadonlyArray<FlamegraphOptionalAction>;
+  readonly nodeActions: ReadonlyArray<FlamegraphOptionalAction>;
+  readonly rootActions: ReadonlyArray<FlamegraphOptionalAction>;
 }
 
 const FLAMEGRAPH_FILTER_SCHEMA = z
@@ -576,8 +577,13 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         m('.tooltip-text', 'Nodes too small to show, please use filters'),
       );
     }
-    const {nodes, allRootsCumulativeValue, unfilteredCumulativeValue, actions} =
-      assertExists(this.attrs.data);
+    const {
+      nodes,
+      allRootsCumulativeValue,
+      unfilteredCumulativeValue,
+      nodeActions,
+      rootActions,
+    } = assertExists(this.attrs.data);
     const {unit} = assertExists(this.selectedMetric);
     if (source.kind === 'ROOT') {
       const val = displaySize(allRootsCumulativeValue, unit);
@@ -592,6 +598,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           '.tooltip-text-line',
           m('.tooltip-bold-text', 'Cumulative:'),
           m('.tooltip-text', `${val}, ${percent}`),
+          this.renderActionsMenu(rootActions, new Map()),
         ),
       );
     }
@@ -716,7 +723,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             });
           },
         }),
-        this.renderActionsMenu(actions, properties),
+        this.renderActionsMenu(nodeActions, properties),
       ),
     );
   }
