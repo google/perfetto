@@ -26,7 +26,7 @@ import {Icons} from '../../base/semantic_icons';
 import {VisViewSource} from './data_visualiser/view_source';
 
 export interface ExplorePageState {
-  rootNode?: QueryNode; // Root Query Node
+  rootNodes: QueryNode[];
   selectedNode?: QueryNode; // Selected Query Node on which to perform actions
   activeViewSource?: VisViewSource; // View Source of activeQueryNode
   mode: ExplorePageModes;
@@ -73,7 +73,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
               label: 'Clear All Query Nodes',
               intent: Intent.Primary,
               onclick: () => {
-                state.rootNode = undefined;
+                state.rootNodes = [];
                 state.selectedNode = undefined;
               },
             })
@@ -91,7 +91,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           trace,
           sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
           onRootNodeCreated(arg) {
-            state.rootNode = arg;
+            state.rootNodes.push(arg);
             state.selectedNode = arg;
           },
           onNodeSelected(arg) {
@@ -99,11 +99,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           },
           visualiseDataMenuItems: (node: QueryNode) =>
             this.renderVisualiseDataMenuItems(node, state),
-          rootNode: state.rootNode,
+          rootNodes: state.rootNodes,
           selectedNode: state.selectedNode,
         }),
       state.mode === ExplorePageModes.DATA_VISUALISER &&
-        state.rootNode &&
+        state.rootNodes.length !== 0 &&
         m(DataVisualiser, {
           trace,
           state,

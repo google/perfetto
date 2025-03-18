@@ -45,7 +45,7 @@ export interface QueryBuilderTable {
 
 export interface QueryBuilderAttrs extends PageWithTraceAttrs {
   readonly sqlModules: SqlModules;
-  readonly rootNode?: QueryNode;
+  readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
@@ -84,7 +84,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
     const {
       trace,
       sqlModules,
-      rootNode,
+      rootNodes,
       onRootNodeCreated,
       onNodeSelected,
       selectedNode,
@@ -199,12 +199,11 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
                   'Standard library table',
                   () => m(StdlibTableSource, attrsCopy as StdlibTableAttrs),
                   () => {
-                    curNode = new StdlibTableNode(
+                    // TODO: Support editing non root nodes.
+                    rootNodes[rootNodes.indexOf(curNode)] = new StdlibTableNode(
                       attrsCopy as StdlibTableAttrs,
                     );
                     onNodeSelected(curNode);
-                    // TODO: remove this hack after handling multiple roots
-                    onRootNodeCreated(curNode);
                   },
                 );
                 curNode = new StdlibTableNode(attrsCopy as StdlibTableAttrs);
@@ -214,12 +213,10 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
                   'Slices',
                   () => m(SlicesSource, attrsCopy as SlicesSourceAttrs),
                   () => {
-                    curNode = new SlicesSourceNode(
-                      attrsCopy as SlicesSourceAttrs,
-                    );
+                    // TODO: Support editing non root nodes.
+                    rootNodes[rootNodes.indexOf(curNode)] =
+                      new SlicesSourceNode(attrsCopy as SlicesSourceAttrs);
                     onNodeSelected(curNode);
-                    // TODO: remove this hack after handling multiple roots
-                    onRootNodeCreated(curNode);
                   },
                 );
                 break;
@@ -228,12 +225,28 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
                   'SQL',
                   () => m(SqlSource, attrsCopy as SqlSourceAttrs),
                   () => {
-                    curNode = new SqlSourceNode(attrsCopy as SqlSourceAttrs);
+                    // TODO: Support editing non root nodes.
+                    rootNodes[rootNodes.indexOf(curNode)] = new SqlSourceNode(
+                      attrsCopy as SqlSourceAttrs,
+                    );
                     onNodeSelected(curNode);
-                    // TODO: remove this hack after handling multiple roots
-                    onRootNodeCreated(curNode);
                   },
                 );
+            }
+          },
+        }),
+        m(MenuItem, {
+          label: 'Duplicate',
+          onclick: async () => {
+            attrs.rootNodes.push(cloneQueryNode(curNode));
+          },
+        }),
+        m(MenuItem, {
+          label: 'Delete',
+          onclick: async () => {
+            const idx = attrs.rootNodes.indexOf(curNode);
+            if (idx !== -1) {
+              attrs.rootNodes.splice(idx, 1);
             }
           },
         }),
@@ -242,31 +255,36 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
 
     const renderNodesPanel = (): m.Children => {
       const nodes: m.Child[] = [];
-      let row = 1;
+      const numRoots = rootNodes.length;
 
-      if (!rootNode) {
+      if (numRoots === 0) {
         nodes.push(
           m('', {style: {gridColumn: 3, gridRow: 2}}, chooseSourceButton()),
         );
       } else {
-        let curNode: QueryNode | undefined = rootNode;
-        while (curNode) {
-          const localCurNode = curNode;
-          nodes.push(
-            m(
-              '',
-              {style: {display: 'flex', gridColumn: 3, gridRow: row}},
-              m(NodeBox, {
-                node: localCurNode,
-                isSelected: selectedNode === localCurNode,
-                onNodeSelected,
-              }),
-              renderNodeActions(curNode),
-            ),
-          );
-          row++;
-          curNode = curNode.nextNode;
-        }
+        let col = 1;
+        rootNodes.forEach((rootNode) => {
+          let row = 1;
+          let curNode: QueryNode | undefined = rootNode;
+          while (curNode) {
+            const localCurNode = curNode;
+            nodes.push(
+              m(
+                '',
+                {style: {display: 'flex', gridColumn: col, gridRow: row}},
+                m(NodeBox, {
+                  node: localCurNode,
+                  isSelected: selectedNode === localCurNode,
+                  onNodeSelected,
+                }),
+                renderNodeActions(curNode),
+              ),
+            );
+            row++;
+            curNode = curNode.nextNode;
+          }
+          col += 1;
+        });
       }
 
       return m(
@@ -274,7 +292,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         {
           style: {
             display: 'grid',
-            gridTemplateColumns: 'repeat(5, 1fr)',
+            gridTemplateColumns: `repeat(${numRoots} - 1, 1fr)`,
             gridTemplateRows: 'repeat(3, 1fr)',
             gap: '10px',
           },
@@ -316,3 +334,15 @@ export const createModal = (
     content,
   });
 };
+
+function cloneQueryNode(node: QueryNode): QueryNode {
+  const attrsCopy = node.getState();
+  switch (node.type) {
+    case NodeType.kStdlibTable:
+      return new StdlibTableNode(attrsCopy as StdlibTableAttrs);
+    case NodeType.kSimpleSlices:
+      return new SlicesSourceNode(attrsCopy as SlicesSourceAttrs);
+    case NodeType.kSqlSource:
+      return new SqlSourceNode(attrsCopy as SqlSourceAttrs);
+  }
+}
