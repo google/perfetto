@@ -407,6 +407,7 @@ class BazelLabel(object):
     self.instruments: Optional[str] = None
     self.app: Optional[str] = None
     self.test_app: Optional[str] = None
+    self.testonly: Optional[bool] = None
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
@@ -422,9 +423,10 @@ class BazelLabel(object):
     res += '%s(\n' % self.type
     any_deps = len(self.deps) + len(self.external_deps) > 0
     ORD = [
-        'name', 'srcs', 'binary_name', 'linkopts', 'manifest', 'resource_files',
-        'instruments', 'hdrs', 'defines', 'visibility', 'data', 'deps', 'outs',
-        'cmd', 'tools', 'exports', 'main', 'python_version'
+        'name', 'testonly', 'srcs', 'binary_name', 'linkopts', 'manifest',
+        'resource_files', 'instruments', 'hdrs', 'defines', 'visibility',
+        'data', 'deps', 'outs', 'cmd', 'tools', 'exports', 'main',
+        'python_version'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
@@ -713,6 +715,8 @@ def gen_perfetto_android_library(target: GnParser.Target):
   if target.manifest:
     label.manifest = gn_utils.label_to_path(target.manifest)
   label.tags += ['notap'] # This tag is needed to build in google3.
+  if target.testonly:
+    label.testonly = True
   return [label]
 
 def gen_perfetto_android_binary(target: GnParser.Target):
@@ -728,6 +732,8 @@ def gen_perfetto_android_binary(target: GnParser.Target):
       target.resource_files)
   if target.instruments:
     label.instruments = ':' + get_bazel_label_name(target.instruments)
+  if target.testonly:
+    label.testonly = True
   return [label]
 
 def gen_perfetto_android_instrumentation_test(target: GnParser.Target):
