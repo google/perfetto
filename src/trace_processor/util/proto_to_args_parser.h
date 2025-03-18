@@ -17,15 +17,24 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_ARGS_PARSER_H_
 #define SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_ARGS_PARSER_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <optional>
+#include <string>
+#include <type_traits>
+#include <unordered_map>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
-#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/interned_message_view.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+
+namespace perfetto::trace_processor {
 
 // TODO(altimin): Move InternedMessageView into trace_processor/util.
 class InternedMessageView;
@@ -300,7 +309,6 @@ class ProtoToArgsParser {
 };
 
 }  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_ARGS_PARSER_H_

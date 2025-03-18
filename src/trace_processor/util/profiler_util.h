@@ -25,8 +25,7 @@
 
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 std::string FullyQualifiedDeobfuscatedName(
     protos::pbzero::ObfuscatedClass::Decoder& cls,
@@ -35,7 +34,6 @@ std::string FullyQualifiedDeobfuscatedName(
 std::optional<std::string> PackageFromLocation(TraceStorage* storage,
                                                base::StringView location);
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_PROFILER_UTIL_H_

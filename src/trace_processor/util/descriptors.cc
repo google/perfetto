@@ -16,10 +16,14 @@
 
 #include "src/trace_processor/util/descriptors.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -31,8 +35,7 @@
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 FieldDescriptor CreateFieldFromDecoder(
     const protos::pbzero::FieldDescriptorProto::Decoder& f_decoder,
@@ -52,19 +55,24 @@ FieldDescriptor CreateFieldFromDecoder(
   if (f_decoder.has_default_value()) {
     default_value = f_decoder.default_value().ToStdString();
   }
-  return FieldDescriptor(
+  return {
       base::StringView(f_decoder.name()).ToStdString(),
-      static_cast<uint32_t>(f_decoder.number()), type, std::move(type_name),
+      static_cast<uint32_t>(f_decoder.number()),
+      type,
+      std::move(type_name),
       std::vector<uint8_t>(f_decoder.options().data,
                            f_decoder.options().data + f_decoder.options().size),
-      default_value, f_decoder.label() == FieldDescriptorProto::LABEL_REPEATED,
-      opt.packed(), is_extension);
+      default_value,
+      f_decoder.label() == FieldDescriptorProto::LABEL_REPEATED,
+      opt.packed(),
+      is_extension,
+  };
 }
 
 base::Status CheckExtensionField(const ProtoDescriptor& proto_descriptor,
                                  const FieldDescriptor& field) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
-  auto existing_field = proto_descriptor.FindFieldByTag(field.number());
+  const auto* existing_field = proto_descriptor.FindFieldByTag(field.number());
   if (existing_field) {
     if (field.type() != existing_field->type()) {
       return base::ErrStatus("Field %s is re-introduced with different type",
@@ -343,7 +351,7 @@ base::Status DescriptorPool::ResolveUninterpretedOption(
           field_desc.name().c_str(), proto_desc.full_name().c_str());
     }
     protos::pbzero::UninterpretedOption::NamePart::Decoder name_part(*it);
-    auto option_field_desc =
+    const auto* option_field_desc =
         field_options_desc.FindFieldByName(name_part.name_part().ToStdString());
 
     // It's not immediately clear how options with multiple names should
@@ -398,14 +406,14 @@ std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
   return it->second;
 }
 
-std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() {
+std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() const {
   protozero::HeapBuffered<protos::pbzero::DescriptorSet> descs;
-  for (auto& desc : descriptors()) {
+  for (const auto& desc : descriptors()) {
     protos::pbzero::DescriptorProto* proto_descriptor =
         descs->add_descriptors();
     proto_descriptor->set_name(desc.full_name());
-    for (auto& entry : desc.fields()) {
-      auto& field = entry.second;
+    for (const auto& entry : desc.fields()) {
+      const auto& field = entry.second;
       protos::pbzero::FieldDescriptorProto* field_descriptor =
           proto_descriptor->add_field();
       field_descriptor->set_name(field.name());
@@ -461,5 +469,4 @@ FieldDescriptor::FieldDescriptor(std::string name,
       is_packed_(is_packed),
       is_extension_(is_extension) {}
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
