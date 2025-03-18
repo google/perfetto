@@ -13165,6 +13165,7 @@ filegroup {
         "src/trace_processor/importers/proto/additional_modules.cc",
         "src/trace_processor/importers/proto/android_camera_event_module.cc",
         "src/trace_processor/importers/proto/android_kernel_wakelocks_module.cc",
+        "src/trace_processor/importers/proto/android_kernel_wakelocks_state.cc",
         "src/trace_processor/importers/proto/android_probes_module.cc",
         "src/trace_processor/importers/proto/android_probes_parser.cc",
         "src/trace_processor/importers/proto/android_probes_tracker.cc",
