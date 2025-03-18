@@ -25,7 +25,7 @@ import {SegmentedButtons} from './segmented_buttons';
 import {z} from 'zod';
 import {Rect2D, Size2D} from '../base/geom';
 import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
-import {MenuItem, PopupMenu} from './menu';
+import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
 
 const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
@@ -82,7 +82,8 @@ interface ZoomRegion {
 
 export interface FlamegraphOptionalAction {
   readonly name: string;
-  execute: (kv: ReadonlyMap<string, string>) => void;
+  execute?: (kv: ReadonlyMap<string, string>) => void;
+  readonly subActions?: FlamegraphOptionalAction[];
 }
 
 export type FlamegraphPropertyDefinition = {
@@ -715,31 +716,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             });
           },
         }),
-        // Only render the PopupMenu if there are actions available
-        actions !== undefined && actions.length > 0
-          ? m(
-              PopupMenu,
-              {
-                trigger: m(Button, {
-                  icon: 'menu',
-                  compact: true,
-                }),
-                position: PopupPosition.Bottom,
-              },
-              actions.map((action) =>
-                m(MenuItem, {
-                  label: `${action.name}`,
-                  onclick: () => {
-                    const reducedProperties: ReadonlyMap<string, string> =
-                      new Map(
-                        [...properties].map(([key, {value}]) => [key, value]),
-                      );
-                    action.execute(reducedProperties);
-                  },
-                }),
-              ),
-            )
-          : null,
+        this.renderActionsMenu(actions, properties),
       ),
     );
   }
@@ -748,6 +725,85 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     return this.attrs.metrics.find(
       (x) => x.name === this.attrs.state.selectedMetricName,
     );
+  }
+
+  private renderActionsMenu(
+    actions: ReadonlyArray<FlamegraphOptionalAction>,
+    properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+  ) {
+    if (actions.length === 0) {
+      return null;
+    }
+
+    return m(
+      PopupMenu,
+      {
+        trigger: m(Button, {
+          icon: 'menu',
+          compact: true,
+        }),
+        position: PopupPosition.Bottom,
+      },
+      actions.map((action) => this.renderMenuItem(action, properties)),
+    );
+  }
+
+  private renderMenuItem(
+    action: FlamegraphOptionalAction,
+    properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+  ): m.Vnode<MenuItemAttrs> {
+    if (action.subActions !== undefined && action.subActions.length > 0) {
+      return this.renderParentMenuItem(action, action.subActions, properties);
+    } else if (action.execute) {
+      return this.renderExecutableMenuItem(action, properties);
+    } else {
+      return this.renderDisabledMenuItem(action);
+    }
+  }
+
+  private renderParentMenuItem(
+    action: FlamegraphOptionalAction,
+    subActions: FlamegraphOptionalAction[],
+    properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+  ): m.Vnode<MenuItemAttrs> {
+    return m(
+      MenuItem,
+      {
+        label: action.name,
+        // No onclick handler for parent menu items
+      },
+      // Directly render sub-actions as children of the MenuItem
+      subActions.map((subAction) => this.renderMenuItem(subAction, properties)),
+    );
+  }
+
+  private renderExecutableMenuItem(
+    action: FlamegraphOptionalAction,
+    properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+  ): m.Vnode<MenuItemAttrs> {
+    return m(MenuItem, {
+      label: action.name,
+      onclick: () => {
+        const reducedProperties = this.createReducedProperties(properties);
+        action.execute!(reducedProperties);
+        this.tooltipPos = undefined; // Close tooltip after action
+      },
+    });
+  }
+
+  private renderDisabledMenuItem(
+    action: FlamegraphOptionalAction,
+  ): m.Vnode<MenuItemAttrs> {
+    return m(MenuItem, {
+      label: action.name,
+      disabled: true,
+    });
+  }
+
+  private createReducedProperties(
+    properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+  ): ReadonlyMap<string, string> {
+    return new Map([...properties].map(([key, {value}]) => [key, value]));
   }
 }
 
