@@ -16,12 +16,15 @@
 
 #include "src/trace_processor/util/streaming_line_reader.h"
 
-#include "perfetto/base/logging.h"
-#include "perfetto/ext/base/utils.h"
+#include <sys/types.h>
+#include <cstddef>
+#include <utility>
+#include <vector>
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_view.h"
+
+namespace perfetto::trace_processor::util {
 
 StreamingLineReader::StreamingLineReader(LinesCallback cb)
     : lines_callback_(std::move(cb)) {}
@@ -67,6 +70,4 @@ size_t StreamingLineReader::Tokenize(base::StringView input) {
   return chars_consumed;
 }
 
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util

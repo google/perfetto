@@ -16,15 +16,17 @@
 
 #include "src/trace_processor/util/bump_allocator.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <optional>
+#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 // TODO(b/266983484): consider using base::PagedMemory unless a) we are on a
@@ -149,5 +151,4 @@ std::optional<BumpAllocator::AllocId> BumpAllocator::TryAllocInLastChunk(
   return AllocId{LastChunkIndex(), alloc_offset};
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

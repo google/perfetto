@@ -16,9 +16,15 @@
 
 #ifndef SRC_TRACE_PROCESSOR_UTIL_SQL_ARGUMENT_H_
 #define SRC_TRACE_PROCESSOR_UTIL_SQL_ARGUMENT_H_
-#include <optional>
 
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 

@@ -18,9 +18,7 @@
 
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+namespace perfetto::trace_processor::util {
 namespace {
 
 TEST(GlobUnittest, EmptyPattern) {
@@ -271,6 +269,4 @@ TEST(GlobUnittest, Complex) {
 }
 
 }  // namespace
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util
