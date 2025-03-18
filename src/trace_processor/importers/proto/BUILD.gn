@@ -117,6 +117,8 @@ source_set("full") {
     "android_camera_event_module.h",
     "android_kernel_wakelocks_module.cc",
     "android_kernel_wakelocks_module.h",
+    "android_kernel_wakelocks_state.cc",
+    "android_kernel_wakelocks_state.h",
     "android_probes_module.cc",
     "android_probes_module.h",
     "android_probes_parser.cc",

@@ -15,15 +15,22 @@
  */
 
 #include "src/trace_processor/importers/proto/android_kernel_wakelocks_module.h"
+#include <cstdint>
 
-#include "perfetto/ext/base/string_utils.h"
+#include <string>
+#include <unordered_set>
+
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/proto/android_kernel_wakelocks_state.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/v8_module.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/trace/android/kernel_wakelock_data.pbzero.h"
@@ -32,16 +39,6 @@
 namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
-
-struct KernelWakelockMetadata {
-  std::string name;
-  protos::pbzero::KernelWakelockData_Wakelock_Type type;
-};
-
-struct KernelWakelockLastValue {
-  uint64_t value;
-  protos::pbzero::KernelWakelockData_Wakelock_Type type;
-};
 
 AndroidKernelWakelocksModule::AndroidKernelWakelocksModule(
     TraceProcessorContext* context)
@@ -54,16 +51,10 @@ AndroidKernelWakelocksModule::AndroidKernelWakelocksModule(
 
 AndroidKernelWakelocksModule::~AndroidKernelWakelocksModule() = default;
 
-void AndroidKernelWakelocksModule::OnIncrementalStateCleared(
-    uint32_t /* packet_sequence_id */) {
-  wakelocks_.Clear();
-  wakelock_last_values_.Clear();
-}
-
 void AndroidKernelWakelocksModule::ParseTracePacketData(
     const TracePacket::Decoder& decoder,
     int64_t ts,
-    const TracePacketData&,
+    const TracePacketData& packet,
     uint32_t field_id) {
   if (field_id != TracePacket::kKernelWakelockDataFieldNumber) {
     return;
@@ -71,27 +62,30 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
 
   std::unordered_set<std::string> names_with_value_this_packet;
 
+  auto* state =
+      packet.sequence_state->GetCustomState<AndroidKernelWakelockState>();
   protos::pbzero::KernelWakelockData::Decoder evt(
       decoder.kernel_wakelock_data());
   for (auto it = evt.wakelock(); it; ++it) {
-    protos::pbzero::KernelWakelockData_Wakelock::Decoder wakelock(*it);
+    protos::pbzero::KernelWakelockData::Wakelock::Decoder wakelock(*it);
     std::string name = wakelock.wakelock_name().ToStdString();
-    auto [info, inserted] =
-        wakelocks_.Insert(wakelock.wakelock_id(), KernelWakelockMetadata{});
+    auto [info, inserted] = state->wakelocks.Insert(
+        wakelock.wakelock_id(), AndroidKernelWakelockState::Metadata{});
     if (!inserted) {
       context_->storage->IncrementStats(stats::kernel_wakelock_reused_id);
       continue;
     }
     info->name = name;
-    info->type = static_cast<protos::pbzero::KernelWakelockData_Wakelock_Type>(
-        wakelock.wakelock_type());
+    info->type =
+        static_cast<protos::pbzero::KernelWakelockData::Wakelock::Type>(
+            wakelock.wakelock_type());
   }
 
   bool parse_error = false;
   auto time_it = evt.time_held_millis(&parse_error);
   for (auto it = evt.wakelock_id(&parse_error); it && time_it;
        ++it, ++time_it) {
-    auto* data = wakelocks_.Find(*it);
+    auto* data = state->wakelocks.Find(*it);
     if (!data) {
       context_->storage->IncrementStats(stats::kernel_wakelock_unknown_id);
       continue;
@@ -101,8 +95,8 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
     names_with_value_this_packet.insert(name);
 
     uint64_t delta = *time_it;
-    auto [last_value, inserted] =
-        wakelock_last_values_.Insert(name, KernelWakelockLastValue{});
+    auto [last_value, inserted] = state->wakelock_last_values.Insert(
+        name, AndroidKernelWakelockState::LastValue{});
     last_value->value += delta;
     last_value->type = data->type;
     UpdateCounter(ts, name, data->type, last_value->value);
@@ -110,7 +104,7 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
 
   // Anything we knew about but didn't see in this packet must not have
   // incremented.
-  for (auto it = wakelock_last_values_.GetIterator(); it; ++it) {
+  for (auto it = state->wakelock_last_values.GetIterator(); it; ++it) {
     if (names_with_value_this_packet.count(it.key())) {
       continue;
     }

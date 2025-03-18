@@ -17,9 +17,16 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PACKET_SEQUENCE_STATE_GENERATION_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PACKET_SEQUENCE_STATE_GENERATION_H_
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <optional>
+#include <tuple>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
 
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/proto/track_event_sequence_state.h"
@@ -29,8 +36,7 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using InternedMessageMap =
     std::unordered_map<uint64_t /*iid*/, InternedMessageView>;
@@ -42,10 +48,12 @@ class TraceProcessorContext;
 class StackProfileSequenceState;
 class ProfilePacketSequenceState;
 class V8SequenceState;
+struct AndroidKernelWakelockState;
 
 using CustomStateClasses = std::tuple<StackProfileSequenceState,
                                       ProfilePacketSequenceState,
-                                      V8SequenceState>;
+                                      V8SequenceState,
+                                      AndroidKernelWakelockState>;
 
 // This is the public API exposed to packet tokenizers and parsers to access
 // state attached to a packet sequence. This state evolves as packets are
@@ -290,7 +298,6 @@ std::remove_cv_t<T>* PacketSequenceStateGeneration::GetCustomState() {
   return static_cast<std::remove_cv_t<T>*>(ptr.get());
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PACKET_SEQUENCE_STATE_GENERATION_H_
