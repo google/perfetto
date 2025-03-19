@@ -215,3 +215,25 @@ RETURNS TableOrSubquery AS
   ORDER BY
     count DESC
 );
+
+CREATE PERFETTO MACRO _heap_graph_duplicate_objects_agg(
+    path_hashes TableOrSubquery
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT
+    count(DISTINCT path_hash) AS path_count,
+    count() AS object_count,
+    sum(o.self_size) AS total_size,
+    sum(o.native_size) AS total_native_size,
+    c.name AS class_name
+  FROM $path_hashes AS h
+  JOIN heap_graph_object AS o
+    ON h.id = o.id
+  JOIN heap_graph_class AS c
+    ON o.type_id = c.id
+  GROUP BY
+    class_name
+  ORDER BY
+    path_count DESC
+);

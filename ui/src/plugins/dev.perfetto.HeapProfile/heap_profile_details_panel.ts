@@ -292,7 +292,8 @@ function flamegraphMetrics(
               mergeAggregation: 'CONCAT_WITH_COMMA',
             },
           ],
-          optionalActions: getHeapGraphOptionalActions(trace, false),
+          optionalNodeActions: getHeapGraphNodeOptionalActions(trace, false),
+          optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
         },
         {
           name: 'Object Count',
@@ -323,7 +324,8 @@ function flamegraphMetrics(
               mergeAggregation: 'CONCAT_WITH_COMMA',
             },
           ],
-          optionalActions: getHeapGraphOptionalActions(trace, false),
+          optionalNodeActions: getHeapGraphNodeOptionalActions(trace, false),
+          optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
         },
         {
           name: 'Dominated Object Size',
@@ -359,7 +361,8 @@ function flamegraphMetrics(
               mergeAggregation: 'CONCAT_WITH_COMMA',
             },
           ],
-          optionalActions: getHeapGraphOptionalActions(trace, true),
+          optionalNodeActions: getHeapGraphNodeOptionalActions(trace, true),
+          optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
         },
         {
           name: 'Dominated Object Count',
@@ -390,7 +393,8 @@ function flamegraphMetrics(
               mergeAggregation: 'CONCAT_WITH_COMMA',
             },
           ],
-          optionalActions: getHeapGraphOptionalActions(trace, true),
+          optionalNodeActions: getHeapGraphNodeOptionalActions(trace, true),
+          optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
         },
       ];
     case ProfileType.PERF_SAMPLE:
@@ -575,7 +579,22 @@ function getHeapGraphRetainedObjectCountsView(
   };
 }
 
-function getHeapGraphOptionalActions(
+function getHeapGraphDuplicateObjectsView(
+  isDominator: boolean,
+): SqlTableDescription {
+  return {
+    name: `_heap_graph${tableModifier(isDominator)}duplicate_objects`,
+    columns: [
+      new StandardColumn('class_name'),
+      new StandardColumn('path_count'),
+      new StandardColumn('object_count'),
+      new StandardColumn('total_size'),
+      new StandardColumn('total_native_size'),
+    ],
+  };
+}
+
+function getHeapGraphNodeOptionalActions(
   trace: Trace,
   isDominator: boolean,
 ): ReadonlyArray<FlamegraphOptionalAction> {
@@ -703,6 +722,29 @@ function getHeapGraphOptionalActions(
           },
         },
       ],
+    },
+  ];
+}
+
+function getHeapGraphRootOptionalActions(
+  trace: Trace,
+  isDominator: boolean,
+): ReadonlyArray<FlamegraphOptionalAction> {
+  return [
+    {
+      name: 'Reference paths by class',
+      execute: async (_kv: ReadonlyMap<string, string>) => {
+        const viewName = `_heap_graph${tableModifier(isDominator)}duplicate_objects`;
+        const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes`;
+        const macroExpr = `_heap_graph_duplicate_objects_agg!(${macroArgs})`;
+        const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
+
+        // Create view to be returned
+        await trace.engine.query(statement);
+        extensions.addLegacySqlTableTab(trace, {
+          table: getHeapGraphDuplicateObjectsView(isDominator),
+        });
+      },
     },
   ];
 }
