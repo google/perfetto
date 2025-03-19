@@ -26,21 +26,14 @@ import {AppImpl} from '../../core/app_impl';
 import {Trace} from '../../public/trace';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Icons} from '../../base/semantic_icons';
-import {VirtualQueryTable} from '../virtual_query_table/virtual_query_table';
-import {featureFlags} from '../../core/feature_flags';
 
-const virtualTableFlag = featureFlags.register({
-  id: 'virtualQueryResults',
-  name: 'Use virtual scrolling in the query results table',
-  description: `[Experimental] Use virtually scrolled query results table. This
-can speed up rendering when 10,000+ rows are returned.`,
-  defaultValue: false,
-});
+// Controls how many rows we see per page when showing paginated results.
+const ROWS_PER_PAGE = 50;
 
 interface QueryTableRowAttrs {
-  trace: Trace;
-  row: Row;
-  columns: string[];
+  readonly trace: Trace;
+  readonly row: Row;
+  readonly columns: ReadonlyArray<string>;
 }
 
 type Numeric = bigint | number;
@@ -155,28 +148,21 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
 }
 
 interface QueryTableContentAttrs {
-  trace: Trace;
-  resp: QueryResponse;
+  readonly trace: Trace;
+  readonly columns: ReadonlyArray<string>;
+  readonly rows: ReadonlyArray<Row>;
 }
 
 class QueryTableContent implements m.ClassComponent<QueryTableContentAttrs> {
-  private previousResponse?: QueryResponse;
-
-  onbeforeupdate(vnode: m.CVnode<QueryTableContentAttrs>) {
-    return vnode.attrs.resp !== this.previousResponse;
-  }
-
-  view(vnode: m.CVnode<QueryTableContentAttrs>) {
-    const resp = vnode.attrs.resp;
-    this.previousResponse = resp;
+  view({attrs}: m.CVnode<QueryTableContentAttrs>) {
     const cols = [];
-    for (const col of resp.columns) {
+    for (const col of attrs.columns) {
       cols.push(m('td', col));
     }
     const tableHeader = m('tr', cols);
 
-    const rows = resp.rows.map((row) =>
-      m(QueryTableRow, {trace: vnode.attrs.trace, row, columns: resp.columns}),
+    const rows = attrs.rows.map((row) =>
+      m(QueryTableRow, {trace: attrs.trace, row, columns: attrs.columns}),
     );
 
     return m('table.pf-query-table', m('thead', tableHeader), m('tbody', rows));
@@ -193,6 +179,7 @@ interface QueryTableAttrs {
 
 export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   private readonly trace: Trace;
+  private pageNumber = 0;
 
   constructor({attrs}: m.CVnode<QueryTableAttrs>) {
     this.trace = attrs.trace;
@@ -200,6 +187,17 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
 
   view({attrs}: m.CVnode<QueryTableAttrs>) {
     const {resp, query, contextButtons = [], fillParent} = attrs;
+
+    // Clamp the page number to ensure the page count doesn't exceed the number
+    // of rows in the results.
+    if (resp) {
+      const pageCount = this.getPageCount(resp.rows.length);
+      if (this.pageNumber >= pageCount) {
+        this.pageNumber = pageCount - 1;
+      }
+    } else {
+      this.pageNumber = 0;
+    }
 
     return m(
       DetailsShell,
@@ -209,11 +207,25 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
         buttons: this.renderButtons(query, contextButtons, resp),
         fillParent,
       },
-      resp && this.renderTableContent(resp, fillParent),
+      resp && this.renderTableContent(resp),
     );
   }
 
-  renderTitle(resp?: QueryResponse) {
+  private getPageCount(rowCount: number) {
+    return Math.floor((rowCount - 1) / ROWS_PER_PAGE) + 1;
+  }
+
+  private getFirstRowInPage() {
+    return this.pageNumber * ROWS_PER_PAGE;
+  }
+
+  private getCountOfRowsInPage(totalRows: number) {
+    const firstRow = this.getFirstRowInPage();
+    const endStop = Math.min(firstRow + ROWS_PER_PAGE, totalRows);
+    return endStop - firstRow;
+  }
+
+  private renderTitle(resp?: QueryResponse) {
     if (!resp) {
       return 'Query - running';
     }
@@ -225,12 +237,13 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     return `Query result (${result}) - ${resp.durationMs.toLocaleString()}ms`;
   }
 
-  renderButtons(
+  private renderButtons(
     query: string,
     contextButtons: m.Child[],
     resp?: QueryResponse,
   ) {
     return [
+      resp && this.renderPrevNextButtons(resp),
       contextButtons,
       m(
         PopupMenu,
@@ -259,7 +272,35 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     ];
   }
 
-  renderTableContent(resp: QueryResponse, fillParent: boolean) {
+  private renderPrevNextButtons(resp: QueryResponse) {
+    const from = this.getFirstRowInPage();
+    const to = Math.min(from + this.getCountOfRowsInPage(resp.rows.length)) - 1;
+    const pageCount = this.getPageCount(resp.rows.length);
+
+    return [
+      `Showing rows ${from + 1} to ${to + 1} of ${resp.rows.length}`,
+      m(Button, {
+        label: 'Prev',
+        icon: 'skip_previous',
+        title: 'Go to previous page of results',
+        disabled: this.pageNumber === 0,
+        onclick: () => {
+          this.pageNumber = Math.max(0, this.pageNumber - 1);
+        },
+      }),
+      m(Button, {
+        label: 'Next',
+        icon: 'skip_next',
+        title: 'Go to next page of results',
+        disabled: this.pageNumber >= pageCount - 1,
+        onclick: () => {
+          this.pageNumber = Math.min(pageCount - 1, this.pageNumber + 1);
+        },
+      }),
+    ];
+  }
+
+  private renderTableContent(resp: QueryResponse) {
     return m(
       '.pf-query-panel',
       resp.statementWithOutputCount > 1 &&
@@ -273,27 +314,32 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
             'Only the results for the last statement are displayed.',
           ),
         ),
-      this.renderContent(resp, fillParent),
+      this.renderContent(resp),
     );
   }
 
-  private renderContent(resp: QueryResponse, fillParent: boolean) {
+  private renderContent(resp: QueryResponse) {
     if (resp.error) {
       return m('.query-error', `SQL error: ${resp.error}`);
     }
 
-    if (virtualTableFlag.get()) {
-      return m(VirtualQueryTable, {
-        columns: resp.columns.map((c) => ({name: c})),
-        rows: resp.rows.map((row) => resp.columns.map((key) => row[key])),
-        style: {
-          height: fillParent ? '100%' : undefined,
-          maxHeight: fillParent ? undefined : '400px',
-        },
-      });
-    } else {
-      return m(QueryTableContent, {trace: this.trace, resp});
+    // Pick out only the rows in this page.
+    const rowOffset = this.getFirstRowInPage();
+    const totalRows = this.getCountOfRowsInPage(resp.rows.length);
+    const rowsInPage: Row[] = [];
+    for (
+      let rowIndex = rowOffset;
+      rowIndex < rowOffset + totalRows;
+      ++rowIndex
+    ) {
+      rowsInPage.push(resp.rows[rowIndex]);
     }
+
+    return m(QueryTableContent, {
+      trace: this.trace,
+      columns: resp.columns,
+      rows: rowsInPage,
+    });
   }
 }
 
