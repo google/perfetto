@@ -39,7 +39,7 @@ import {Intent} from '../../../widgets/common';
 export interface QueryBuilderTable {
   name: string;
   asSqlTable: SqlTable;
-  columnOptions: ColumnControllerRow[];
+  columnOptions: ColumnControllerRow;
   sql: string;
 }
 
@@ -49,8 +49,9 @@ export interface QueryBuilderAttrs extends PageWithTraceAttrs {
   readonly selectedNode?: QueryNode;
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
-  readonly onNodeSelected: (node: QueryNode) => void;
+  readonly onNodeSelected: (node?: QueryNode) => void;
   readonly visualiseDataMenuItems: (node: QueryNode) => m.Children;
+  readonly addSourcePopupMenu: () => m.Children;
 }
 
 interface NodeAttrs {
@@ -81,103 +82,7 @@ class NodeBox implements m.ClassComponent<NodeAttrs> {
 
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
-    const {
-      trace,
-      sqlModules,
-      rootNodes,
-      onRootNodeCreated,
-      onNodeSelected,
-      selectedNode,
-    } = attrs;
-
-    const chooseSourceButton = (): m.Child => {
-      return m(
-        PopupMenu,
-        {
-          trigger: m(Button, {
-            icon: Icons.Add,
-            intent: Intent.Primary,
-            style: {
-              height: '100px',
-              width: '100px',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              fontSize: '48px',
-            },
-          }),
-        },
-        m(MenuItem, {
-          label: 'Standard library table',
-          onclick: async () => {
-            const attrs: StdlibTableAttrs = {
-              filters: [],
-              sourceCols: [],
-              groupByColumns: [],
-              aggregations: [],
-              trace,
-              sqlModules,
-              modal: () =>
-                createModal(
-                  'Standard library table',
-                  () => m(StdlibTableSource, attrs),
-                  () => {
-                    const newNode = new StdlibTableNode(attrs);
-                    onRootNodeCreated(newNode);
-                    onNodeSelected(newNode);
-                  },
-                ),
-            };
-            // Adding trivial modal to open the table selection.
-            createModal(
-              'Standard library table',
-              () => m(StdlibTableSource, attrs),
-              () => {},
-            );
-          },
-        }),
-        m(MenuItem, {
-          label: 'Custom slices',
-          onclick: () => {
-            const newSimpleSlicesAttrs: SlicesSourceAttrs = {
-              sourceCols: [],
-              filters: [],
-              groupByColumns: [],
-              aggregations: [],
-            };
-            createModal(
-              'Slices',
-              () => m(SlicesSource, newSimpleSlicesAttrs),
-              () => {
-                const newNode = new SlicesSourceNode(newSimpleSlicesAttrs);
-                onRootNodeCreated(newNode);
-                onNodeSelected(newNode);
-              },
-            );
-          },
-        }),
-        m(MenuItem, {
-          label: 'Custom SQL',
-          onclick: () => {
-            const newSqlSourceAttrs: SqlSourceAttrs = {
-              sourceCols: [],
-              filters: [],
-              groupByColumns: [],
-              aggregations: [],
-            };
-            createModal(
-              'SQL',
-              () => m(SqlSource, newSqlSourceAttrs),
-              () => {
-                const newNode = new SqlSourceNode(newSqlSourceAttrs);
-                onRootNodeCreated(newNode);
-                onNodeSelected(newNode);
-              },
-            );
-          },
-        }),
-      );
-    };
+    const {trace, rootNodes, onNodeSelected, selectedNode} = attrs;
 
     const renderNodeActions = (curNode: QueryNode) => {
       return m(
@@ -247,6 +152,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             const idx = attrs.rootNodes.indexOf(curNode);
             if (idx !== -1) {
               attrs.rootNodes.splice(idx, 1);
+              onNodeSelected(undefined);
             }
           },
         }),
@@ -259,7 +165,28 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
 
       if (numRoots === 0) {
         nodes.push(
-          m('', {style: {gridColumn: 3, gridRow: 2}}, chooseSourceButton()),
+          m(
+            '',
+            {style: {gridColumn: 3, gridRow: 2}},
+            m(
+              PopupMenu,
+              {
+                trigger: m(Button, {
+                  icon: Icons.Add,
+                  intent: Intent.Primary,
+                  style: {
+                    height: '100px',
+                    width: '100px',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    fontSize: '48px',
+                  },
+                }),
+              },
+              attrs.addSourcePopupMenu(),
+            ),
+          ),
         );
       } else {
         let col = 1;
