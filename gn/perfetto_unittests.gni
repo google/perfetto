@@ -26,7 +26,6 @@ perfetto_unittests_targets = [
   "src/tracing:unittests",
   "src/profiling:unittests",
   "src/profiling/symbolizer:unittests",
-  "src/android_sdk/perfetto_sdk_for_jni:unittests",
 ]
 
 if ((is_linux || is_android) && !perfetto_build_with_embedder) {
@@ -85,6 +84,11 @@ if (enable_perfetto_trace_processor) {
 
 if (enable_perfetto_traced_relay) {
   perfetto_unittests_targets += [ "src/traced_relay:unittests" ]
+}
+
+if (enable_perfetto_android_java_sdk) {
+  perfetto_unittests_targets +=
+      [ "src/android_sdk/perfetto_sdk_for_jni:unittests" ]
 }
 
 perfetto_unittests_targets += [ "src/trace_redaction:unittests" ]

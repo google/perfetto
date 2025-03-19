@@ -1,4 +1,7 @@
+import("../../../gn/perfetto.gni")
 import("../../../gn/test.gni")
+
+assert(enable_perfetto_android_java_sdk)
 
 source_set("perfetto_sdk_for_jni_public") {
   sources = [ "tracing_sdk.h" ]
