@@ -1,3 +1,6 @@
 Flask>=2.2.2
 requests
 gunicorn
+google-auth
+PyJWT
+cryptography

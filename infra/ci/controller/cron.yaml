@@ -12,27 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 cron:
-- description: "Gerrit poller"
+- description: "Autoscaler metrics"
   target: controller
   url: /controller/tick
   schedule: every 1 minutes
-
-- description: "Run postsubmits"
-  target: controller
-  url: /controller/queue_postsubmit_jobs
-  schedule: every 1 hours
-
-- description: "Delete stale workers"
-  target: controller
-  url: /controller/delete_stale_workers
-  schedule: every 1 hours
-
-- description: "Delete stale jobs from the running queue"
-  target: controller
-  url: /controller/delete_stale_jobs
-  schedule: every 15 minutes
-
-- description: "Logs cleanup"
-  target: controller
-  url: /controller/delete_expired_logs
-  schedule: every 15 minutes

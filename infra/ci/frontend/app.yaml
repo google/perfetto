@@ -26,3 +26,6 @@ handlers:
 - url: /gerrit/.*
   script: auto
   secure: always
+- url: /gh/.*
+  script: auto
+  secure: always

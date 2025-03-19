@@ -13,15 +13,19 @@
 # limitations under the License.
 
 import flask
+import json
 import logging
 import os
 import re
 import requests
 import time
-import urllib.parse
 
 from collections import namedtuple
-from config import GERRIT_HOST, GERRIT_PROJECT
+from config import GERRIT_HOST, GERRIT_PROJECT, GITHUB_REPO
+from common_utils import get_github_installation_token, SCOPES
+
+SCOPES.append('https://www.googleapis.com/auth/cloud-platform')
+
 ''' Makes anonymous GET-only requests to Gerrit.
 
 Solves the lack of CORS headers from AOSP gerrit.
@@ -63,36 +67,20 @@ def req_cached(url):
   return contents, 200
 
 
-@app.route('/gerrit/commits/<string:sha1>', methods=['GET', 'POST'])
-def commits(sha1):
-  if not HASH_RE.match(sha1):
-    return 'Malformed input', 500
-  project = urllib.parse.quote(GERRIT_PROJECT, '')
-  url = 'https://%s/projects/%s/commits/%s' % (GERRIT_HOST, project, sha1)
-  content, status = req_cached(url)
-  return content[4:], status  # 4: -> Strip Gerrit XSSI chars.
-
-
-@app.route(
-    '/gerrit/log/<string:first>..<string:second>', methods=['GET', 'POST'])
-def gerrit_log(first, second):
-  if not HASH_RE.match(first) or not HASH_RE.match(second):
-    return 'Malformed input', 500
-  url = 'https://%s/%s/+log/%s..%s?format=json' % (GERRIT_HOST.replace(
-      '-review', ''), GERRIT_PROJECT, first, second)
-  content, status = req_cached(url)
-  return content[4:], status  # 4: -> Strip Gerrit XSSI chars.
-
-
-@app.route('/gerrit/changes/', methods=['GET', 'POST'])
+@app.route('/gh/', methods=['GET', 'POST'])
 def gerrit_changes():
-  url = 'https://%s/changes/?q=project:%s+' % (GERRIT_HOST, GERRIT_PROJECT)
-  url += flask.request.query_string.decode('utf-8')
-  resp = requests.get(url)
+  url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runs'
+  params = {'per_page': 1000}
+  headers = {
+      'Authorization': f'token {get_github_installation_token()}',
+      'Accept': 'application/vnd.github+json'
+  }
+  resp = requests.get(url, headers=headers, params=params)
+  respj = json.loads(resp.content.decode('utf-8'))
+  num_pending = 0
+  for w in respj.get('workflow_runs', []):
+    if w['status'] in ('queued', 'in_progress'):
+      num_pending += 1
   hdr = {'Content-Type': 'text/plain'}
   status = resp.status_code
-  if status == 200:
-    resp = resp.content.decode('utf-8')[4:]  # 4: -> Strip Gerrit XSSI chars.
-  else:
-    resp = 'HTTP error %s' % status
-  return resp, status, hdr
+  return str(num_pending), status, hdr
