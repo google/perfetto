@@ -4218,8 +4218,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_traced_probes_probes_src",
     srcs = [
-        "src/traced/probes/kmem_activity_trigger.cc",
-        "src/traced/probes/kmem_activity_trigger.h",
         "src/traced/probes/probes_producer.cc",
         "src/traced/probes/probes_producer.h",
     ],

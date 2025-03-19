@@ -29,7 +29,6 @@
 #include "perfetto/tracing/default_socket.h"
 
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
-#include "src/traced/probes/kmem_activity_trigger.h"
 #include "src/traced/probes/probes_producer.h"
 
 namespace perfetto {
@@ -130,11 +129,6 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
     });
   }
   producer.ConnectWithRetries(GetProducerSocket(), &task_runner);
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  // Start the thread that polls mm_event instance and triggers
-  KmemActivityTrigger kmem_activity_trigger;
-#endif
 
   task_runner.Run();
   return 0;
