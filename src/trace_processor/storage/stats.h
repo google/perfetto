@@ -103,6 +103,10 @@ namespace perfetto::trace_processor::stats {
        "Duplicated interning ID seen. Should never happen."),                  \
   F(kernel_wakelock_unknown_id,           kSingle,  kError,    kAnalysis,      \
        "Interning ID not found. Should never happen."),                        \
+  F(app_wakelock_parse_error,             kSingle,  kError,    kAnalysis,      \
+       "Parsing packed repeated field. Should never happen."),                 \
+  F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis,      \
+       "Interning ID not found. Should never happen."),                        \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, ""), \
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, ""), \
