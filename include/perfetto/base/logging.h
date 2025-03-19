@@ -25,8 +25,18 @@
 #include "perfetto/base/export.h"
 
 #if defined(__GNUC__) || defined(__clang__)
+#if defined(__clang__)
+#pragma clang diagnostic push
+// Fix 'error: #pragma system_header ignored in main file' for clang in Google3.
+#pragma clang diagnostic ignored "-Wpragma-system-header-outside-header"
+#endif
+
 // Ignore GCC warning about a missing argument for a variadic macro parameter.
 #pragma GCC system_header
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_FORCE_DCHECK_ON)
