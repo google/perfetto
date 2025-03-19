@@ -89,12 +89,19 @@ export interface QueryFlamegraphMetric {
   // Examples include the source file and line number.
   readonly aggregatableProperties?: ReadonlyArray<AggQueryFlamegraphColumn>;
 
-  // Optional actions to be taken on the flamegraph. Accessible from the
+  // Optional actions to be taken on the flamegraph nodes. Accessible from the
   // flamegraph tooltip.
   //
   // Examples include showing a table of objects from a class reference
   // hierarchy.
-  readonly optionalActions?: ReadonlyArray<FlamegraphOptionalAction>;
+  readonly optionalNodeActions?: ReadonlyArray<FlamegraphOptionalAction>;
+
+  // Optional actions to be taken on the flamegraph root. Accessible from the
+  // flamegraph tooltip.
+  //
+  // Examples include showing a table of objects from a class reference
+  // hierarchy.
+  readonly optionalRootActions?: ReadonlyArray<FlamegraphOptionalAction>;
 }
 
 export interface QueryFlamegraphState {
@@ -180,7 +187,8 @@ async function computeFlamegraphTree(
     statement,
     unaggregatableProperties,
     aggregatableProperties,
-    optionalActions,
+    optionalNodeActions,
+    optionalRootActions,
   }: QueryFlamegraphMetric,
   {filters, view}: FlamegraphState,
 ): Promise<FlamegraphQueryData> {
@@ -245,7 +253,8 @@ async function computeFlamegraphTree(
   const agg = aggregatableProperties ?? [];
   const aggCols = agg.map((x) => x.name);
 
-  const actions = optionalActions ?? [];
+  const nodeActions = optionalNodeActions ?? [];
+  const rootActions = optionalRootActions ?? [];
 
   const groupingColumns = `(${(unaggCols.length === 0 ? ['groupingColumn'] : unaggCols).join()})`;
   const groupedColumns = `(${(aggCols.length === 0 ? ['groupedColumn'] : aggCols).join()})`;
@@ -460,7 +469,8 @@ async function computeFlamegraphTree(
     unfilteredCumulativeValue,
     minDepth,
     maxDepth,
-    actions,
+    nodeActions,
+    rootActions,
   };
 }
 
