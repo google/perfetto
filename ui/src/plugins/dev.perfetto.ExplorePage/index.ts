@@ -27,6 +27,7 @@ export default class implements PerfettoPlugin {
   // trace.
   private readonly state: ExplorePageState = {
     mode: ExplorePageModes.QUERY_BUILDER,
+    rootNodes: [],
   };
 
   async onTraceLoad(trace: Trace): Promise<void> {
