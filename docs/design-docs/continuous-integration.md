@@ -265,14 +265,14 @@ docker run worker-N ...
 - Sets up Docker and `iptables` (for the sandboxed network).
 - Starts `N` worker containers in Docker.
 
-### [worker.py](/infra/ci/worker/worker.py)
+### worker.py
 
 - It polls the DB to retrieve a job.
 - When a job is retrieved starts a sandbox container.
 - It streams the container stdout/stderr to the DB.
 - It upload the build artifacts to GCS.
 
-### [testrunner.sh](/infra/ci/sandbox/testrunner.sh)
+### testrunner.sh
 
 - It is pinned in the container image. Does NOT depend on the particular
   revision being tested.

@@ -1,0 +1,148 @@
+name: Perfetto CI
+on:
+  # 1. continuous
+  schedule:
+    # Run every 6 hours
+    - cron: "0 */6 * * *"
+
+  # 2. postsubmit
+  push:
+    branches:
+      - main
+      - test
+
+  # 3. presubmits
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+      - test
+
+
+jobs:
+  test:
+    runs-on: self-hosted
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        config:
+          # - name: linux-clang-x86_64-debug
+          #   PERFETTO_TEST_GN_ARGS: 'is_debug=true is_hermetic_clang=false non_hermetic_clang_stdlib="libc++" enable_perfetto_merged_protos_check=true'
+          #   PERFETTO_TEST_SCRIPT: 'test/ci/linux_tests.sh'
+          #   PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
+          # - name: linux-clang-x86_64-tsan
+          #   PERFETTO_TEST_GN_ARGS: 'is_debug=false is_tsan=true'
+          #   PERFETTO_TEST_SCRIPT: 'test/ci/linux_tests.sh'
+          #   PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
+          # - name: linux-clang-x86_64-msan
+          #   PERFETTO_TEST_GN_ARGS: 'is_debug=false is_msan=true'
+          #   PERFETTO_TEST_SCRIPT: 'test/ci/linux_tests.sh'
+          #   PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
+          # - name: linux-clang-x86_64-asan_lsan
+          #   PERFETTO_TEST_GN_ARGS: 'is_debug=false is_asan=true is_lsan=true'
+          #   PERFETTO_TEST_SCRIPT: 'test/ci/linux_tests.sh'
+          #   PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
+          # - name: linux-clang-x86-release
+          #   PERFETTO_TEST_GN_ARGS: 'is_debug=false target_cpu="x86"'
+          #   PERFETTO_TEST_SCRIPT: 'test/ci/linux_tests.sh'
+          #   PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
+          # - name: linux-gcc8-x86_64-release
+          #   PERFETTO_TEST_GN_ARGS: 'is_debug=false is_clang=false enable_perfetto_grpc=true cc="gcc-8" cxx="g++-8"'
+          #   PERFETTO_TEST_SCRIPT: 'test/ci/linux_tests.sh'
+          #   PERFETTO_INSTALL_BUILD_DEPS_ARGS: '--grpc'
+          # - name: android-clang-arm-release
+          #   PERFETTO_TEST_GN_ARGS: 'is_debug=false target_os="android" target_cpu="arm"'
+          #   PERFETTO_TEST_SCRIPT: 'test/ci/android_tests.sh'
+          #   PERFETTO_INSTALL_BUILD_DEPS_ARGS: '--android'
+          # - name: linux-clang-x86_64-libfuzzer
+          #   PERFETTO_TEST_GN_ARGS: 'is_debug=false is_fuzzer=true is_asan=true'
+          #   PERFETTO_TEST_SCRIPT: 'test/ci/fuzzer_tests.sh'
+          #   PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
+          - name: linux-clang-x86_64-bazel
+            PERFETTO_TEST_GN_ARGS: ''
+            PERFETTO_TEST_SCRIPT: 'test/ci/bazel_tests.sh'
+            PERFETTO_INSTALL_BUILD_DEPS_ARGS: '--bazel'
+          - name: ui-clang-x86_64-release
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false'
+            PERFETTO_TEST_SCRIPT: 'test/ci/ui_tests.sh'
+            PERFETTO_INSTALL_BUILD_DEPS_ARGS: '--ui'
+
+    env:
+      # /tmp/cache contains {ccache, bazelcache} and generally any other cache
+      # that should be persisted across jobs, but only updated from the main
+      # branch. This is populated by the "actions/cache/restore" step below.
+      # TODO here check this between docker and this. DNS
+      PERFETTO_CACHE_DIR: /tmp/cache
+      PERFETTO_TEST_GN_ARGS: ${{ matrix.config.PERFETTO_TEST_GN_ARGS }}
+      PERFETTO_TEST_SCRIPT: ${{ matrix.config.PERFETTO_TEST_SCRIPT }}
+      PERFETTO_INSTALL_BUILD_DEPS_ARGS: ${{ matrix.config.PERFETTO_INSTALL_BUILD_DEPS_ARGS }}
+      PERFETTO_TEST_JOB: gh-${{ github.run_id }}-${{ matrix.config.name }}
+      PERFETTO_TEST_NINJA_ARGS:  # Deliberately empty, set in some other env
+    steps:
+      - name: Set up artifacts
+        run: |
+          mkdir -p ${{ env.PERFETTO_CACHE_DIR }}
+          PERFETTO_ARTIFACTS_DIR=/tmp/artifacts/$PERFETTO_TEST_JOB
+          echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
+          mkdir -p $PERFETTO_ARTIFACTS_DIR
+
+      # Check out code.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up cache
+        # By default ccache uses the mtime of the compiler. This doesn't work
+        # because our compilers are hermetic and their mtime is the time when we
+        # run install-build-deps. Given that the toolchain is rolled via
+        # install-build-deps we use that file as an identity function for the
+        # compiler check.
+        run: |
+          CCACHE_DIR=${{ env.PERFETTO_CACHE_DIR }}/ccache
+          mkdir -p $CCACHE_DIR
+          DEPS_SHA=$(shasum "tools/install-build-deps" | awk '{print $1}')
+          echo "DEPS_SHA=$DEPS_SHA" >> $GITHUB_ENV
+          echo "CCACHE_COMPILERCHECK=string:$DEPS_SHA" >> $GITHUB_ENV
+          echo "CCACHE_BASEDIR=${{ github.workspace }}" >> $GITHUB_ENV
+          echo "CCACHE_DIR=$CCACHE_DIR" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=8G" >> $GITHUB_ENV
+          echo "CCACHE_SLOPPINESS=include_file_ctime,include_file_mtime" >> $GITHUB_ENV
+          echo "CCACHE_NOCOMPRESS=1" >> $GITHUB_ENV
+          echo "CCACHE_COMPILERCHECK=string:$(shasum tools/install-build-deps)" >> $GITHUB_ENV
+          echo "CCACHE_UMASK=000" >> $GITHUB_ENV
+          echo "CCACHE_DEPEND=1" >> $GITHUB_ENV
+
+      # TODO remove this
+      - name: Print env vars
+        run: env;
+
+      - name: Restore cache and buildtools from GitHub cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ env.PERFETTO_CACHE_DIR }}
+            buildtools
+          key: cache-${{ matrix.config.name }}-${{ env.DEPS_SHA }}
+
+      - name: ls cache
+        run: ls -laR ${{ env.PERFETTO_CACHE_DIR }}
+
+      - name: Build and test
+        run: ${{ env.PERFETTO_TEST_SCRIPT }}
+        shell: bash
+
+      - name: ccache stats
+        run: ccache --show-stats
+
+      - name: Upload artifacts to GCS
+        if: ${{ always() }}
+        run: /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_DIR }}
+
+      - name: Update cache (if on main)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ env.PERFETTO_CACHE_DIR }}
+            buildtools
+          key: cache-${{ matrix.config.name }}-${{ env.DEPS_SHA }}

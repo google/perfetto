@@ -42,10 +42,10 @@ if [ ! -f ${HOST_OUT_PATH}/trace_processor_shell ]; then
   HOST_OUT_PATH=${OUT_PATH}
 fi
 
-mkdir -p /ci/artifacts/perf
+mkdir -p "$PERFETTO_ARTIFACTS_DIR/perf"
 
 tools/diff_test_trace_processor.py \
-  --perf-file=/ci/artifacts/perf/tp-perf-all.json \
+  --perf-file=$PERFETTO_ARTIFACTS_DIR/perf/tp-perf-all.json \
   ${HOST_OUT_PATH}/trace_processor_shell
 
 python/run_tests.py ${HOST_OUT_PATH}

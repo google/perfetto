@@ -22,7 +22,7 @@ echo "skipping build + test runs"
 exit 0
 fi
 
-BAZEL_DISK_CACHE_FOLDER="/ci/cache/bazel-disk-cache-$(hostname)"
+BAZEL_DISK_CACHE_FOLDER="$PERFETTO_CACHE_DIR/bazel-disk-cache-$(hostname)"
 readonly BAZEL_DISK_CACHE_FOLDER
 # Cleanup the cache if any of the two conditions are true.
 BAZEL_DISK_CACHE_GC_OPTIONS="--experimental_disk_cache_gc_max_age=7d --experimental_disk_cache_gc_max_size=10G"
@@ -43,7 +43,7 @@ tools/bazel build //python:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
 ./bazel-bin/traced &
 ./bazel-bin/traced_probes &
 sleep 5
-TRACE=/ci/artifacts/bazel.trace
+TRACE="$PERFETTO_ARTIFACTS_DIR/bazel.trace"
 ./bazel-bin/perfetto -c :test -o $TRACE
 kill $(jobs -p)
 ./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE

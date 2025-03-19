@@ -20,6 +20,12 @@ OUT_PATH="out/dist"
 
 export PYTHONUNBUFFERED=1
 
+export PERFETTO_CACHE_DIR="${PERFETTO_CACHE_DIR:-/tmp/cache}"
+mkdir -p "$PERFETTO_CACHE_DIR"
+
+export PERFETTO_ARTIFACTS_DIR="${PERFETTO_ARTIFACTS_DIR:-/tmp/artifacts}"
+mkdir -p "$PERFETTO_ARTIFACTS_DIR"
+
 tools/install-build-deps $PERFETTO_INSTALL_BUILD_DEPS_ARGS
 
 # Assumes Linux. Windows should use /win/clang instead.

@@ -21,7 +21,7 @@ infra/perfetto.dev/build
 
 ui/build --out ${OUT_PATH}
 
-cp -a ${OUT_PATH}/ui/dist/ /ci/artifacts/ui
+cp -a ${OUT_PATH}/ui/dist/ "$PERFETTO_ARTIFACTS_DIR/ui"
 
 ui/run-unittests --out ${OUT_PATH} --no-build
 
@@ -29,8 +29,8 @@ set +e
 
 # Install chrome
 (
-  mkdir /ci/ramdisk/chrome
-  cd /ci/ramdisk/chrome
+  mkdir /tmp/chrome
+  cd /tmp/chrome
   CHROME_VERSION=134.0.6998.35
   curl -Ls -o chrome.deb https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${CHROME_VERSION}-1_amd64.deb
   dpkg-deb -x chrome.deb  .
@@ -42,7 +42,7 @@ set +x
 
 # Copy the output of screenshots diff testing.
 if [ -d ${OUT_PATH}/ui-test-artifacts ]; then
-  cp -a ${OUT_PATH}/ui-test-artifacts /ci/artifacts/ui-test-artifacts
+  cp -a ${OUT_PATH}/ui-test-artifacts "$PERFETTO_ARTIFACTS_DIR/ui-test-artifacts"
   echo "UI integration test report with screnshots:"
   echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_TEST_JOB/ui-test-artifacts/index.html"
   echo ""

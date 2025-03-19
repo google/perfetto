@@ -30,16 +30,12 @@ RUN set -ex; \
                        openjdk-11-jdk; \
     apt-get -y install libc++-8-dev libc++abi-8-dev clang-8; \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1; \
+    pip3 install protobuf pandas grpcio; \
     gcc-8 --version; \
     g++-8 --version; \
     clang-8 --version; \
     clang++-8 --version; \
-    java --version; \
-    pip3 install protobuf pandas grpcio; \
-    groupadd -g 1337 perfetto; \
-    useradd -d /ci/ramdisk -u 1337 -g perfetto perfetto; \
-    apt-get -y autoremove; \
-    rm -rf /var/lib/apt/lists/* /usr/share/man/* /usr/share/doc/*;
+    java --version;
 
 # Chrome/puppeteer deps.
 RUN set -ex; \
@@ -55,16 +51,41 @@ RUN set -ex; \
                xdg-utils fonts-liberation fonts-ipafont-gothic fonts-wqy-zenhei \
                fonts-thai-tlwg fonts-kacst fonts-freefont-ttf
 
-# Cleanup to reduce image size
-RUN     apt-get -y autoremove; \
-        rm -rf /var/lib/apt/lists/* /usr/share/man/* /usr/share/doc/*; \
-        rm -rf /root/.cache/;
+RUN set -ex; \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get -y install \
+        procps jq python3-jwt python3-requests python3 python3-oauth2client \
+        python3-httplib2 python3-google-auth \
+        python3-googleapi
 
-COPY testrunner.sh /ci/testrunner.sh
-COPY init.sh /ci/init.sh
-RUN chmod -R a+rx /ci/
 
-VOLUME [ "/ci/cache", "/ci/ramdisk", "/ci/artifacts" ]
+RUN set -ex; \
+    groupadd -g 1986 perfetto; \
+    useradd -m -d /opt/ci -u 1986 -g perfetto perfetto; \
+    apt-get -y autoremove; \
+    rm -rf /root/.cache/ /usr/share/man/* /usr/share/doc/*;
+
+WORKDIR /opt/ci
+
+COPY sandbox_entrypoint.sh ./
+COPY artifacts_uploader.py ./
+COPY tmp/config.py ./
+
+# Download GitHub Actions runner.
+# We should upkeep GHAR_VER with the latest version in
+# https://api.github.com/repos/actions/runner/releases/latest
+# Failing to do so will slow down every sandbox execution, as the script
+# self-updates if it detects it's too old.
+RUN set -ex; \
+    chmod 755 *; \
+    mkdir github-action-runner; \
+    cd github-action-runner; \
+    GHAR_VER=2.323.0; \
+    GHAR_URL=https://github.com/actions/runner/releases/download/v${GHAR_VER}/actions-runner-linux-x64-${GHAR_VER}.tar.gz; \
+    curl -L $GHAR_URL | tar -xz; \
+    chown -R perfetto:perfetto .;
+
+
+USER perfetto
 ENTRYPOINT [ "tini", "-g", "--" ]
-CMD [ "bash", "/ci/init.sh" ]
-
+CMD [ "bash", "sandbox_entrypoint.sh" ]

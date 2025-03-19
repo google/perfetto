@@ -58,7 +58,10 @@ clean:
 	touch $@
 
 .deps/${BUILDER}-sandbox: sandbox/* ${COMMON_DEPS}
+	mkdir -p sandbox/tmp
+	cp -a config.py common_utils.py sandbox/tmp/
 	${BUILDER} build --rm --force-rm -t ${SANDBOX_IMG} sandbox
+	rm -rf sandbox/tmp/
 	touch $@
 
 .deps/upload-startup-script: ${GCE_LOCAL_STARTUP_SCRIPT} ${COMMON_DEPS}
@@ -77,11 +80,10 @@ clean:
 		--maintenance-policy=MIGRATE \
 		--service-account=gce-ci-worker@${PROJECT}.iam.gserviceaccount.com \
 		--scopes=${GCE_SCOPES} \
-		--image=cos-85-13310-1209-10 \
-		--image-project=cos-cloud \
+		--image=projects/cos-cloud/global/images/cos-117-18613-164-81 \
 		--boot-disk-size=100GB \
 		--boot-disk-type=pd-ssd \
-		--boot-disk-device-name=ci-worker-template \
+		--boot-disk-device-name=${GCE_TEMPLATE} \
 		--local-ssd=interface=NVME \
 		--local-ssd=interface=NVME
 	touch $@
@@ -102,7 +104,7 @@ gcloud compute --project=${PROJECT} \
 	instance-groups managed create ${GCE_GROUP_NAME}-$1 \
 	--region=$1 \
 	--base-instance-name=ci-$1 \
-	--template=ci-worker-template \
+	--template=${GCE_TEMPLATE} \
 	--size=1
 gcloud compute --quiet --project=$(PROJECT) \
 	instance-groups managed set-autoscaling ${GCE_GROUP_NAME}-$1 \
@@ -137,14 +139,14 @@ stop-worker-for-testing:
 	gcloud compute --quiet \
 		--project ${PROJECT} \
 		instances delete ${GCE_VM_NAME} \
-		--zone us-central1-f
+		--zone us-west1-c
 
 .PHONY: start-worker-for-testing
 start-worker-for-testing: .deps/gce-template
 	gcloud compute --quiet \
 		--project ${PROJECT} \
 		instances create ${GCE_VM_NAME} \
-		--zone us-central1-f \
+		--zone us-west1-c \
 		--source-instance-template=${GCE_TEMPLATE}
 
 # Debugging client to make OAuth2 authenticated requests manually.
