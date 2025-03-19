@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../../base/logging';
 import {sqliteString} from '../../base/string_utils';
 import {uuidv4} from '../../base/uuid';
-import {runQuery} from '../../components/query_table/queries';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {
   createQueryCounterTrack,
@@ -24,7 +22,7 @@ import {
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {ColumnType} from '../../trace_processor/query_result';
+import {ColumnType, NUM} from '../../trace_processor/query_result';
 
 /**
  * Aggregation types for the BreakdownTracks.
@@ -233,22 +231,22 @@ export class BreakdownTracks {
 
   async createTracks() {
     if (this.modulesClause !== '') {
-      this.props.trace.engine.query(this.modulesClause);
+      await this.props.trace.engine.query(this.modulesClause);
     }
 
     if (this.props.aggregationType !== BreakdownTrackAggType.COUNT) {
-      this.props.trace.engine.query(`
-          CREATE OR REPLACE PERFETTO FUNCTION _ui_dev_perfetto_breakdown_tracks_is_spans_overlapping(
-            ts1 LONG,
-            ts_end1 LONG,
-            ts2 LONG,
-            ts_end2 LONG)
-          RETURNS BOOL
-          AS
-          SELECT (IIF($ts1 < $ts2, $ts2, $ts1) < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2));
+      await this.props.trace.engine.query(`
+        CREATE OR REPLACE PERFETTO FUNCTION _ui_dev_perfetto_breakdown_tracks_is_spans_overlapping(
+          ts1 LONG,
+          ts_end1 LONG,
+          ts2 LONG,
+          ts_end2 LONG)
+        RETURNS BOOL
+        AS
+        SELECT (IIF($ts1 < $ts2, $ts2, $ts1) < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2));
 
-          ${this.getIntervals()}
-        `);
+        ${this.getIntervals()}
+      `);
     }
 
     const rootTrackNode = await this.createCounterTrackNode(
@@ -283,29 +281,28 @@ export class BreakdownTracks {
     const joinClause = this.getTrackSpecificJoinClause(trackType);
 
     const query = `
-    ${this.modulesClause}
+      ${this.modulesClause}
 
-    SELECT DISTINCT ${currColName}
-    FROM ${this.props.aggregation.tableName}
-    ${joinClause !== undefined ? joinClause : ''}
-    ${filters.length > 0 ? `WHERE ${buildFilterSqlClause(filters)}` : ''}`;
+      SELECT DISTINCT ${currColName}
+      FROM ${this.props.aggregation.tableName}
+      ${joinClause !== undefined ? joinClause : ''}
+      ${filters.length > 0 ? `WHERE ${buildFilterSqlClause(filters)}` : ''}
+    `;
 
-    const res = await runQuery(query, this.props.trace.engine);
+    const res = await this.props.trace.engine.query(query);
 
-    if (res.error) {
-      throw Error(`Track hierarchy query error: ${res.error}`);
-    }
+    for (const iter = res.iter({}); iter.valid(); iter.next()) {
+      const colRaw = iter.get(currColName);
+      const colValue = colRaw === null ? 'NULL' : colRaw.toString();
+      const title = colValue;
 
-    res.rows.forEach(async (row) => {
       const newFilters = [
         ...filters,
         {
           columnName: currColName,
-          value: row[currColName]?.toString(),
+          value: colValue,
         },
       ];
-
-      const title = `${row[currColName]?.toString()}`;
 
       let currNode;
       let nextTrackType = trackType;
@@ -353,7 +350,7 @@ export class BreakdownTracks {
         nextColIndex,
         nextTrackType,
       );
-    });
+    }
   }
 
   private getTrackSpecificJoinClause(trackType: BreakdownTrackType) {
@@ -406,19 +403,11 @@ export class BreakdownTracks {
   }
 
   private async getCounterTrackSortOrder(filtersClause: string) {
-    const counts = await runQuery(
-      `
-                SELECT MAX(value) as max_value FROM
-                (
-                  ${this.getAggregationQuery(filtersClause)}
-                )
-              `,
-      this.props.trace.engine,
-    );
-
-    return Number.parseInt(
-      assertExists(counts.rows[0]['max_value']).toString(),
-    );
+    const aggregationQuery = this.getAggregationQuery(filtersClause);
+    const result = await this.props.trace.engine.query(`
+      SELECT MAX(value) as max_value FROM (${aggregationQuery})
+    `);
+    return result.firstRow({max_value: NUM}).max_value;
   }
 
   private async createCounterTrackNode(title: string, newFilters: Filter[]) {
