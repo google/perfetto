@@ -496,7 +496,6 @@ function getHeapGraphObjectReferencesView(
     columns: [
       new StandardColumn('path_hash'),
       new StandardColumn('outgoing_reference_count'),
-      new StandardColumn('incoming_reference_count'),
       new StandardColumn('class_name'),
       new StandardColumn('self_size'),
       new StandardColumn('native_size'),
@@ -605,7 +604,7 @@ function getHeapGraphNodeOptionalActions(
         const value = kv.get('path_hash_stable');
         if (value !== undefined) {
           const viewName = `_heap_graph${tableModifier(isDominator)}object_references`;
-          const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes`;
+          const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${value}`;
           const macroExpr = `_heap_graph_object_references_agg!(${macroArgs})`;
           const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
@@ -613,12 +612,6 @@ function getHeapGraphNodeOptionalActions(
           await trace.engine.query(statement);
           extensions.addLegacySqlTableTab(trace, {
             table: getHeapGraphObjectReferencesView(isDominator),
-            filters: [
-              {
-                op: (cols) => `${cols[0]} IN (${value})`,
-                columns: ['path_hash'],
-              },
-            ],
           });
         }
       },
@@ -635,7 +628,7 @@ function getHeapGraphNodeOptionalActions(
             const value = kv.get('path_hash_stable');
             if (value !== undefined) {
               const viewName = `_heap_graph${tableModifier(isDominator)}incoming_references`;
-              const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes`;
+              const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${value}`;
               const macroExpr = `_heap_graph_incoming_references_agg!(${macroArgs})`;
               const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
@@ -643,12 +636,6 @@ function getHeapGraphNodeOptionalActions(
               await trace.engine.query(statement);
               extensions.addLegacySqlTableTab(trace, {
                 table: getHeapGraphIncomingReferencesView(isDominator),
-                filters: [
-                  {
-                    op: (cols) => `${cols[0]} IN (${value})`,
-                    columns: ['path_hash'],
-                  },
-                ],
               });
             }
           },
@@ -659,7 +646,7 @@ function getHeapGraphNodeOptionalActions(
             const value = kv.get('path_hash_stable');
             if (value !== undefined) {
               const viewName = `_heap_graph${tableModifier(isDominator)}outgoing_references`;
-              const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes`;
+              const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${value}`;
               const macroExpr = `_heap_graph_outgoing_references_agg!(${macroArgs})`;
               const statement = `CREATE OR REPLACE PERFETTO VIEW ${viewName} AS SELECT * FROM ${macroExpr};`;
 
@@ -667,12 +654,6 @@ function getHeapGraphNodeOptionalActions(
               await trace.engine.query(statement);
               extensions.addLegacySqlTableTab(trace, {
                 table: getHeapGraphOutgoingReferencesView(isDominator),
-                filters: [
-                  {
-                    op: (cols) => `${cols[0]} IN (${value})`,
-                    columns: ['path_hash'],
-                  },
-                ],
               });
             }
           },
