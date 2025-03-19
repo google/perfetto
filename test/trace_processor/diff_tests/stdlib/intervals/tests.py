@@ -227,3 +227,38 @@ class StdlibIntervals(TestSuite):
         out=Csv("""
         "ts","dur","id","root_id"
         """))
+
+
+  def test_remove_overlap(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH
+          data(ts, dur) AS (
+            VALUES
+              -- partial overlap
+              (1, 4),
+              (2, 4),
+              -- end within epsilon of start
+              (10, 3),
+              (14, 2),
+              -- end not within epsilon of start
+              (20, 3),
+              (26, 2),
+              -- nested
+              (30, 4),
+              (31, 2)
+          )
+        SELECT *
+        FROM remove_overlap!(data, ts, dur, 1);
+        """,
+        out=Csv("""
+        "ts","dur"
+        1,5
+        10,6
+        20,3
+        26,2
+        30,4
+        """))
