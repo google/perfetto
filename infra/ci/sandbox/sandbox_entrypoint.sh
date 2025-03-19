@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2025 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Performs initialization that requires root, then runs the test as non-root.
+set -eu
 
-set -eux
-chmod 777 /ci/cache /ci/artifacts
-chown perfetto.perfetto /ci/ramdisk
-cd /ci/ramdisk
-ls -A1 | xargs rm -rf
-exec sudo -u perfetto -g perfetto -EH bash /ci/testrunner.sh
+cd github-action-runner
+GH_DIR=$(pwd)
+
+GITHUB_TOKEN=$(cat $GITHUB_TOKEN_PATH)
+
+cd /tmp
+
+$GH_DIR/config.sh --unattended --ephemeral --replace \
+    --url "https://github.com/$GITHUB_REPO" \
+    --token "$GITHUB_TOKEN"
+
+trap cleanup SIGTERM
+
+cleanup() {
+  echo "Received SIGTERM. Removing Action runner..."
+  kill $pid
+  wait $pid
+  $GH_DIR/config.sh remove --token "$GITHUB_TOKEN"
+}
+
+# Run the GitHub Action Runner
+GITHUB_TOKEN="" $GH_DIR/run.sh &
+pid=$!
+
+wait $pid
