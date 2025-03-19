@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/util/streaming_line_reader.h"
 
-#include <sys/types.h>
 #include <cstddef>
 #include <utility>
 #include <vector>
@@ -48,7 +47,7 @@ void StreamingLineReader::EndWrite(size_t size_written) {
   // Unless we got very lucky, the last line in the chunk just written will be
   // incomplete. Move it to the beginning of the buffer so it gets glued
   // together on the next {Begin,End}Write() call.
-  buf_.erase(buf_.begin(), buf_.begin() + static_cast<ssize_t>(consumed));
+  buf_.erase(buf_.begin(), buf_.begin() + static_cast<int64_t>(consumed));
 }
 
 size_t StreamingLineReader::Tokenize(base::StringView input) {
