@@ -68,14 +68,8 @@ export class CounterSelectionAggregator implements AreaSelectionAggregator {
               (MIN(ts + dur, ${area.end}) - MAX(ts,${area.start}))*value)/${duration},
               2
             ) AS avg_value,
-            (SELECT value FROM counter WHERE track_id = ${trackIds[0]}
-              AND ts + dur >= ${area.start}
-              AND ts <= ${area.end} ORDER BY ts DESC LIMIT 1)
-              AS last_value,
-            (SELECT value FROM counter WHERE track_id = ${trackIds[0]}
-              AND ts + dur >= ${area.start}
-              AND ts <= ${area.end} ORDER BY ts ASC LIMIT 1)
-              AS first_value,
+            value_at_max_ts(ts, value) AS last_value,
+            value_at_max_ts(-ts, value) AS first_value,
             MIN(value) AS min_value,
             MAX(value) AS max_value
           FROM res
