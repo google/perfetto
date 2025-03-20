@@ -17,7 +17,7 @@ import m from 'mithril';
 import {PageWithTraceAttrs} from '../../../public/page';
 import {TextParagraph} from '../../../widgets/text_paragraph';
 import {QueryTable} from '../../../components/query_table/query_table';
-import {runQuery} from '../../../components/query_table/queries';
+import {runQueryForQueryTable} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
@@ -118,7 +118,7 @@ export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
         if (this.currentSql === undefined) {
           return;
         }
-        this.queryResult = await runQuery(
+        this.queryResult = await runQueryForQueryTable(
           attrs.queryNode.type === NodeType.kSqlSource
             ? queryToRun(this.currentSql)
             : `${queryToRun(this.currentSql)} LIMIT 50`,

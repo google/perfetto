@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {runQuery} from '../../../components/query_table/queries';
+import {runQueryForQueryTable} from '../../../components/query_table/queries';
 import {ChartAttrs} from '../../../components/widgets/charts/chart';
 import {Trace} from '../../../public/trace';
 import {Row} from '../../../trace_processor/query_result';
@@ -98,7 +98,10 @@ export class VisViewSource {
       if (this._fullQuery === undefined) {
         return;
       }
-      const queryRes = await runQuery(this._fullQuery, this.trace.engine);
+      const queryRes = await runQueryForQueryTable(
+        this._fullQuery,
+        this.trace.engine,
+      );
 
       this._data = queryRes.rows;
       this._columns = queryRes.columns;
