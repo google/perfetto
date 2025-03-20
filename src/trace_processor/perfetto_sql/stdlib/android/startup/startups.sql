@@ -171,9 +171,9 @@ WITH
       JOIN android_process_metadata AS p
         ON (
           l.package = p.package_name
-          -- If the package list data source was not enabled in the trace, nothing 
-          -- will match the above constraint so also match any process whose name 
-          -- is a prefix of the package name. 
+          -- If the package list data source was not enabled in the trace, nothing
+          -- will match the above constraint so also match any process whose name
+          -- is a prefix of the package name.
           OR (
             (
               SELECT
