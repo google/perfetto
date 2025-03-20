@@ -22,7 +22,7 @@ import {
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {ColumnType, NUM} from '../../trace_processor/query_result';
+import {ColumnType, NUM_NULL} from '../../trace_processor/query_result';
 
 /**
  * Aggregation types for the BreakdownTracks.
@@ -407,7 +407,8 @@ export class BreakdownTracks {
     const result = await this.props.trace.engine.query(`
       SELECT MAX(value) as max_value FROM (${aggregationQuery})
     `);
-    return result.firstRow({max_value: NUM}).max_value;
+    const maxValue = result.firstRow({max_value: NUM_NULL}).max_value;
+    return maxValue === null ? 0 : maxValue;
   }
 
   private async createCounterTrackNode(title: string, newFilters: Filter[]) {
