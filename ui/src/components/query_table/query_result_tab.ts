@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 import {assertExists} from '../../base/logging';
-import {QueryResponse, runQuery} from './queries';
+import {QueryResponse, runQueryForQueryTable} from './queries';
 import {QueryError} from '../../trace_processor/query_result';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
 import {Button} from '../../widgets/button';
@@ -67,7 +67,10 @@ export class QueryResultTab implements Tab {
     if (this.args.prefetchedResponse !== undefined) {
       this.queryResponse = this.args.prefetchedResponse;
     } else {
-      const result = await runQuery(this.args.query, this.trace.engine);
+      const result = await runQueryForQueryTable(
+        this.args.query,
+        this.trace.engine,
+      );
       this.queryResponse = result;
       if (result.error !== undefined) {
         return;
