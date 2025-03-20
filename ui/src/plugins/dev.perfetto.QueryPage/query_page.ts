@@ -15,7 +15,10 @@
 import m from 'mithril';
 import {SimpleResizeObserver} from '../../base/resize_observer';
 import {undoCommonChatAppReplacements} from '../../base/string_utils';
-import {QueryResponse, runQuery} from '../../components/query_table/queries';
+import {
+  QueryResponse,
+  runQueryForQueryTable,
+} from '../../components/query_table/queries';
 import {Callout} from '../../widgets/callout';
 import {Editor} from '../../widgets/editor';
 import {PageWithTraceAttrs} from '../../public/page';
@@ -41,25 +44,26 @@ const state: QueryPageState = {
 function runManualQuery(trace: Trace, query: string) {
   state.executedQuery = query;
   state.queryResult = undefined;
-  runQuery(undoCommonChatAppReplacements(query), trace.engine).then(
-    (resp: QueryResponse) => {
-      addQueryResultsTab(
-        trace,
-        {
-          query: query,
-          title: 'Standalone Query',
-          prefetchedResponse: resp,
-        },
-        'analyze_page_query',
-      );
-      // We might have started to execute another query. Ignore it in that
-      // case.
-      if (state.executedQuery !== query) {
-        return;
-      }
-      state.queryResult = resp;
-    },
-  );
+  runQueryForQueryTable(
+    undoCommonChatAppReplacements(query),
+    trace.engine,
+  ).then((resp: QueryResponse) => {
+    addQueryResultsTab(
+      trace,
+      {
+        query: query,
+        title: 'Standalone Query',
+        prefetchedResponse: resp,
+      },
+      'analyze_page_query',
+    );
+    // We might have started to execute another query. Ignore it in that
+    // case.
+    if (state.executedQuery !== query) {
+      return;
+    }
+    state.queryResult = resp;
+  });
 }
 
 export type QueryInputAttrs = TraceAttrs;

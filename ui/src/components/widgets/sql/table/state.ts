@@ -20,7 +20,7 @@ import {SortDirection} from '../../../../base/comparison_utils';
 import {assertTrue} from '../../../../base/logging';
 import {SqlTableDescription} from './table_description';
 import {Trace} from '../../../../public/trace';
-import {runQuery} from '../../../query_table/queries';
+import {runQueryForQueryTable} from '../../../query_table/queries';
 import {AsyncLimiter} from '../../../../base/async_limiter';
 import {areFiltersEqual, Filter, Filters} from './filters';
 import {TableColumn, tableColumnAlias, tableColumnId} from './table_column';
@@ -332,7 +332,7 @@ export class SqlTableState {
 
   private async getNonPaginatedData() {
     this.asyncLimiter.schedule(async () => {
-      const queryRes = await runQuery(
+      const queryRes = await runQueryForQueryTable(
         this.getNonPaginatedSQLQuery(),
         this.trace.engine,
       );
