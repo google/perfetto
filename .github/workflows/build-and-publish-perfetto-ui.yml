@@ -6,8 +6,6 @@ permissions:
 on:
   workflow_dispatch:
   push:
-    paths:
-      - 'ui/**'
     branches:
       - reuse_timeline
 
