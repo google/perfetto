@@ -20,7 +20,7 @@ import {DataVisualiser} from './data_visualiser/data_visualiser';
 import {QueryBuilder} from './query_builder/builder';
 import {Button} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
-import {QueryNode} from './query_node';
+import {NodeType, QueryNode} from './query_node';
 import {MenuItem} from '../../widgets/menu';
 import {Icons} from '../../base/semantic_icons';
 import {VisViewSource} from './data_visualiser/view_source';
@@ -65,88 +65,76 @@ interface ExplorePageAttrs extends PageWithTraceAttrs {
 }
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
-  renderVisualiseDataMenuItems(node: QueryNode, state: ExplorePageState) {
-    return m(MenuItem, {
-      label: 'Visualise Data',
-      icon: Icons.Chart,
-      onclick: () => {
-        state.selectedNode = node;
-        state.mode = ExplorePageModes.DATA_VISUALISER;
-      },
-    });
-  }
-
-  addSourcePopupMenu(attrs: ExplorePageAttrs): m.Children {
-    const {trace, state} = attrs;
-    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+  renderNodeActionsMenuItems(node: QueryNode, state: ExplorePageState) {
+    // TODO: Split into operations on graph (like delete or duplicate) and
+    // operations on node (like edit).
     return [
       m(MenuItem, {
-        label: 'Standard library table',
+        label: 'Visualise Data',
+        icon: Icons.Chart,
+        onclick: () => {
+          state.selectedNode = node;
+          state.mode = ExplorePageModes.DATA_VISUALISER;
+        },
+      }),
+      m(MenuItem, {
+        label: 'Edit',
         onclick: async () => {
-          const stdlibTableAttrs: StdlibTableAttrs = {
-            filters: [],
-            sourceCols: [],
-            groupByColumns: [],
-            aggregations: [],
-            trace,
-            sqlModules,
-            modal: () =>
+          const attrsCopy = node.getState();
+          switch (node.type) {
+            case NodeType.kStdlibTable:
               createModal(
                 'Standard library table',
-                () => m(StdlibTableSource, stdlibTableAttrs),
+                () => m(StdlibTableSource, attrsCopy as StdlibTableAttrs),
                 () => {
-                  const newNode = new StdlibTableNode(stdlibTableAttrs);
-                  state.rootNodes.push(newNode);
-                  state.selectedNode = newNode;
+                  // TODO: Support editing non root nodes.
+                  state.rootNodes[state.rootNodes.indexOf(node)] =
+                    new StdlibTableNode(attrsCopy as StdlibTableAttrs);
+                  state.selectedNode = node;
                 },
-              ),
-          };
-          // Adding trivial modal to open the table selection.
-          createModal(
-            'Standard library table',
-            () => m(StdlibTableSource, stdlibTableAttrs),
-            () => {},
-          );
+              );
+              node = new StdlibTableNode(attrsCopy as StdlibTableAttrs);
+              break;
+            case NodeType.kSimpleSlices:
+              createModal(
+                'Slices',
+                () => m(SlicesSource, attrsCopy as SlicesSourceAttrs),
+                () => {
+                  // TODO: Support editing non root nodes.
+                  state.rootNodes[state.rootNodes.indexOf(node)] =
+                    new SlicesSourceNode(attrsCopy as SlicesSourceAttrs);
+                  state.selectedNode = node;
+                },
+              );
+              break;
+            case NodeType.kSqlSource:
+              createModal(
+                'SQL',
+                () => m(SqlSource, attrsCopy as SqlSourceAttrs),
+                () => {
+                  // TODO: Support editing non root nodes.
+                  state.rootNodes[state.rootNodes.indexOf(node)] =
+                    new SqlSourceNode(attrsCopy as SqlSourceAttrs);
+                  state.selectedNode = node;
+                },
+              );
+          }
         },
       }),
       m(MenuItem, {
-        label: 'Custom slices',
-        onclick: () => {
-          const newSimpleSlicesAttrs: SlicesSourceAttrs = {
-            sourceCols: [],
-            filters: [],
-            groupByColumns: [],
-            aggregations: [],
-          };
-          createModal(
-            'Slices',
-            () => m(SlicesSource, newSimpleSlicesAttrs),
-            () => {
-              const newNode = new SlicesSourceNode(newSimpleSlicesAttrs);
-              state.rootNodes.push(newNode);
-              state.selectedNode = newNode;
-            },
-          );
+        label: 'Duplicate',
+        onclick: async () => {
+          state.rootNodes.push(cloneQueryNode(node));
         },
       }),
       m(MenuItem, {
-        label: 'Custom SQL',
-        onclick: () => {
-          const newSqlSourceAttrs: SqlSourceAttrs = {
-            sourceCols: [],
-            filters: [],
-            groupByColumns: [],
-            aggregations: [],
-          };
-          createModal(
-            'SQL',
-            () => m(SqlSource, newSqlSourceAttrs),
-            () => {
-              const newNode = new SqlSourceNode(newSqlSourceAttrs);
-              state.rootNodes.push(newNode);
-              state.selectedNode = newNode;
-            },
-          );
+        label: 'Delete',
+        onclick: async () => {
+          const idx = state.rootNodes.indexOf(node);
+          if (idx !== -1) {
+            state.rootNodes.splice(idx, 1);
+            state.selectedNode = node;
+          }
         },
       }),
     ];
@@ -173,7 +161,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
                     intent: Intent.Primary,
                   }),
                 },
-                this.addSourcePopupMenu(attrs),
+                addSourcePopupMenu(attrs),
               ),
               m(Button, {
                 label: 'Clear All Query Nodes',
@@ -205,11 +193,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           onNodeSelected(arg) {
             state.selectedNode = arg;
           },
-          visualiseDataMenuItems: (node: QueryNode) =>
-            this.renderVisualiseDataMenuItems(node, state),
+          renderNodeActionsMenuItems: (node: QueryNode) =>
+            this.renderNodeActionsMenuItems(node, state),
           rootNodes: state.rootNodes,
           selectedNode: state.selectedNode,
-          addSourcePopupMenu: () => this.addSourcePopupMenu(attrs),
+          addSourcePopupMenu: () => addSourcePopupMenu(attrs),
         }),
       state.mode === ExplorePageModes.DATA_VISUALISER &&
         state.rootNodes.length !== 0 &&
@@ -218,5 +206,93 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           state,
         }),
     );
+  }
+}
+
+function addSourcePopupMenu(attrs: ExplorePageAttrs): m.Children {
+  const {trace, state} = attrs;
+  const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+  return [
+    m(MenuItem, {
+      label: 'Standard library table',
+      onclick: async () => {
+        const stdlibTableAttrs: StdlibTableAttrs = {
+          filters: [],
+          sourceCols: [],
+          groupByColumns: [],
+          aggregations: [],
+          trace,
+          sqlModules,
+          modal: () =>
+            createModal(
+              'Standard library table',
+              () => m(StdlibTableSource, stdlibTableAttrs),
+              () => {
+                const newNode = new StdlibTableNode(stdlibTableAttrs);
+                state.rootNodes.push(newNode);
+                state.selectedNode = newNode;
+              },
+            ),
+        };
+        // Adding trivial modal to open the table selection.
+        createModal(
+          'Standard library table',
+          () => m(StdlibTableSource, stdlibTableAttrs),
+          () => {},
+        );
+      },
+    }),
+    m(MenuItem, {
+      label: 'Custom slices',
+      onclick: () => {
+        const newSimpleSlicesAttrs: SlicesSourceAttrs = {
+          sourceCols: [],
+          filters: [],
+          groupByColumns: [],
+          aggregations: [],
+        };
+        createModal(
+          'Slices',
+          () => m(SlicesSource, newSimpleSlicesAttrs),
+          () => {
+            const newNode = new SlicesSourceNode(newSimpleSlicesAttrs);
+            state.rootNodes.push(newNode);
+            state.selectedNode = newNode;
+          },
+        );
+      },
+    }),
+    m(MenuItem, {
+      label: 'Custom SQL',
+      onclick: () => {
+        const newSqlSourceAttrs: SqlSourceAttrs = {
+          sourceCols: [],
+          filters: [],
+          groupByColumns: [],
+          aggregations: [],
+        };
+        createModal(
+          'SQL',
+          () => m(SqlSource, newSqlSourceAttrs),
+          () => {
+            const newNode = new SqlSourceNode(newSqlSourceAttrs);
+            state.rootNodes.push(newNode);
+            state.selectedNode = newNode;
+          },
+        );
+      },
+    }),
+  ];
+}
+
+function cloneQueryNode(node: QueryNode): QueryNode {
+  const attrsCopy = node.getState();
+  switch (node.type) {
+    case NodeType.kStdlibTable:
+      return new StdlibTableNode(attrsCopy as StdlibTableAttrs);
+    case NodeType.kSimpleSlices:
+      return new SlicesSourceNode(attrsCopy as SlicesSourceAttrs);
+    case NodeType.kSqlSource:
+      return new SqlSourceNode(attrsCopy as SqlSourceAttrs);
   }
 }
