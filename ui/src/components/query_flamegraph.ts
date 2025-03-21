@@ -46,6 +46,9 @@ export interface QueryFlamegraphColumn {
 
   // The human readable name describing the contents of the column.
   readonly displayName: string;
+
+  // Whether the name should be displayed in the UI.
+  readonly isVisible?: boolean;
 }
 
 export interface AggQueryFlamegraphColumn extends QueryFlamegraphColumn {
@@ -435,6 +438,7 @@ async function computeFlamegraphTree(
         properties.set(a.name, {
           displayName: a.displayName,
           value: r as string,
+          isVisible: a.isVisible ?? true,
         });
       }
     }

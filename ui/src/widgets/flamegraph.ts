@@ -89,6 +89,7 @@ export interface FlamegraphOptionalAction {
 export type FlamegraphPropertyDefinition = {
   displayName: string;
   value: string;
+  isVisible: boolean;
 };
 
 export interface FlamegraphQueryData {
@@ -655,11 +656,14 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         ),
       ),
       Array.from(properties, ([_, value]) => {
-        return m(
-          '.tooltip-text-line',
-          m('.tooltip-bold-text', value.displayName + ':'),
-          m('.tooltip-text', value.value),
-        );
+        if (value.isVisible) {
+          return m(
+            '.tooltip-text-line',
+            m('.tooltip-bold-text', value.displayName + ':'),
+            m('.tooltip-text', value.value),
+          );
+        }
+        return null;
       }),
       m(
         ButtonBar,
