@@ -18,22 +18,11 @@ import {PageWithTraceAttrs} from '../../../public/page';
 import {Button} from '../../../widgets/button';
 import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
 import {ColumnControllerRow} from './column_controller';
-import {NodeType, QueryNode} from '../query_node';
+import {QueryNode} from '../query_node';
 import {showModal} from '../../../widgets/modal';
 import {DataSourceViewer} from './data_source_viewer';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {
-  StdlibTableAttrs,
-  StdlibTableNode,
-  StdlibTableSource,
-} from './sources/stdlib_table';
-import {SqlSource, SqlSourceAttrs, SqlSourceNode} from './sources/sql_source';
+import {PopupMenu} from '../../../widgets/menu';
 import {Icons} from '../../../base/semantic_icons';
-import {
-  SlicesSource,
-  SlicesSourceAttrs,
-  SlicesSourceNode,
-} from './sources/slices_source';
 import {Intent} from '../../../widgets/common';
 
 export interface QueryBuilderTable {
@@ -50,14 +39,15 @@ export interface QueryBuilderAttrs extends PageWithTraceAttrs {
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
-  readonly visualiseDataMenuItems: (node: QueryNode) => m.Children;
+  readonly renderNodeActionsMenuItems: (node: QueryNode) => m.Children;
   readonly addSourcePopupMenu: () => m.Children;
 }
 
 interface NodeAttrs {
-  node: QueryNode;
+  readonly node: QueryNode;
   isSelected: boolean;
-  onNodeSelected: (node: QueryNode) => void;
+  readonly onNodeSelected: (node: QueryNode) => void;
+  readonly renderNodeActionsMenuItems: (node: QueryNode) => m.Children;
 }
 
 class NodeBox implements m.ClassComponent<NodeAttrs> {
@@ -76,16 +66,7 @@ class NodeBox implements m.ClassComponent<NodeAttrs> {
         onclick: () => onNodeSelected(node),
       },
       node.getTitle(),
-    );
-  }
-}
-
-export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
-  view({attrs}: m.CVnode<QueryBuilderAttrs>) {
-    const {trace, rootNodes, onNodeSelected, selectedNode} = attrs;
-
-    const renderNodeActions = (curNode: QueryNode) => {
-      return m(
+      m(
         PopupMenu,
         {
           trigger: m(Button, {
@@ -93,71 +74,21 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             icon: Icons.MoreVert,
           }),
         },
-        attrs.visualiseDataMenuItems(curNode),
-        m(MenuItem, {
-          label: 'Edit',
-          onclick: async () => {
-            const attrsCopy = curNode.getState();
-            switch (curNode.type) {
-              case NodeType.kStdlibTable:
-                createModal(
-                  'Standard library table',
-                  () => m(StdlibTableSource, attrsCopy as StdlibTableAttrs),
-                  () => {
-                    // TODO: Support editing non root nodes.
-                    rootNodes[rootNodes.indexOf(curNode)] = new StdlibTableNode(
-                      attrsCopy as StdlibTableAttrs,
-                    );
-                    onNodeSelected(curNode);
-                  },
-                );
-                curNode = new StdlibTableNode(attrsCopy as StdlibTableAttrs);
-                break;
-              case NodeType.kSimpleSlices:
-                createModal(
-                  'Slices',
-                  () => m(SlicesSource, attrsCopy as SlicesSourceAttrs),
-                  () => {
-                    // TODO: Support editing non root nodes.
-                    rootNodes[rootNodes.indexOf(curNode)] =
-                      new SlicesSourceNode(attrsCopy as SlicesSourceAttrs);
-                    onNodeSelected(curNode);
-                  },
-                );
-                break;
-              case NodeType.kSqlSource:
-                createModal(
-                  'SQL',
-                  () => m(SqlSource, attrsCopy as SqlSourceAttrs),
-                  () => {
-                    // TODO: Support editing non root nodes.
-                    rootNodes[rootNodes.indexOf(curNode)] = new SqlSourceNode(
-                      attrsCopy as SqlSourceAttrs,
-                    );
-                    onNodeSelected(curNode);
-                  },
-                );
-            }
-          },
-        }),
-        m(MenuItem, {
-          label: 'Duplicate',
-          onclick: async () => {
-            attrs.rootNodes.push(cloneQueryNode(curNode));
-          },
-        }),
-        m(MenuItem, {
-          label: 'Delete',
-          onclick: async () => {
-            const idx = attrs.rootNodes.indexOf(curNode);
-            if (idx !== -1) {
-              attrs.rootNodes.splice(idx, 1);
-              onNodeSelected(undefined);
-            }
-          },
-        }),
-      );
-    };
+        attrs.renderNodeActionsMenuItems(node),
+      ),
+    );
+  }
+}
+
+export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
+  view({attrs}: m.CVnode<QueryBuilderAttrs>) {
+    const {
+      trace,
+      rootNodes,
+      onNodeSelected,
+      selectedNode,
+      renderNodeActionsMenuItems,
+    } = attrs;
 
     const renderNodesPanel = (): m.Children => {
       const nodes: m.Child[] = [];
@@ -203,8 +134,8 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
                   node: localCurNode,
                   isSelected: selectedNode === localCurNode,
                   onNodeSelected,
+                  renderNodeActionsMenuItems,
                 }),
-                renderNodeActions(curNode),
               ),
             );
             row++;
@@ -261,15 +192,3 @@ export const createModal = (
     content,
   });
 };
-
-function cloneQueryNode(node: QueryNode): QueryNode {
-  const attrsCopy = node.getState();
-  switch (node.type) {
-    case NodeType.kStdlibTable:
-      return new StdlibTableNode(attrsCopy as StdlibTableAttrs);
-    case NodeType.kSimpleSlices:
-      return new SlicesSourceNode(attrsCopy as SlicesSourceAttrs);
-    case NodeType.kSqlSource:
-      return new SqlSourceNode(attrsCopy as SqlSourceAttrs);
-  }
-}
