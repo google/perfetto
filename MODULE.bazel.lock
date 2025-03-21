@@ -255,7 +255,7 @@
     "@@rules_android_ndk~//:extension.bzl%android_ndk_repository_extension": {
       "general": {
         "bzlTransitiveDigest": "oV/TPZWCXAAcpJG/DBV/lNiWCISUTk5ba0KRjUb7adg=",
-        "usagesDigest": "vdNo3K7hS50Uk9x8OnyAvbuxet9yh/x+s8FqFbzywCE=",
+        "usagesDigest": "7+glQGkFe1WCraddw71dfTX1Dl+o2CTyGayI1vHHu3U=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
