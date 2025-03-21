@@ -45,8 +45,8 @@ FROM (
   FROM slice
   WHERE
     dur = 0
-    -- Originally completed was unqualified, but at some point we introduced 
-    -- the startup type as well 
+    -- Originally completed was unqualified, but at some point we introduced
+    -- the startup type as well
     AND name GLOB 'launchingActivity#*:completed*:*'
     AND NOT name GLOB '*:completed-same-process:*'
 )

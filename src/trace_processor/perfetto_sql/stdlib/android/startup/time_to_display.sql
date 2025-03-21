@@ -142,13 +142,13 @@ WITH
     JOIN android_frames AS f
       ON (
         s.utid = f.ui_thread_utid
-        -- We are looking for the first DrawFrame that was started by the first 
-        -- "Choreographer#DoFrame" on UI thread after or containing 
-        -- reportFullyDrawn. In Android UIs, it's common to have UI code happen 
-        -- either before a frame, or during it, and generally non-trivial amounts 
-        -- of "update UI model" code doesn't try to differentiate these. We account 
-        -- for both of these by looking for the first UI slice that ends after the 
-        -- "reportFullyDrawnSlice" begins. 
+        -- We are looking for the first DrawFrame that was started by the first
+        -- "Choreographer#DoFrame" on UI thread after or containing
+        -- reportFullyDrawn. In Android UIs, it's common to have UI code happen
+        -- either before a frame, or during it, and generally non-trivial amounts
+        -- of "update UI model" code doesn't try to differentiate these. We account
+        -- for both of these by looking for the first UI slice that ends after the
+        -- "reportFullyDrawnSlice" begins.
         AND report_fully_drawn_ts < (
           f.ts + f.dur
         )

@@ -80,7 +80,7 @@ class Perfetto(SQLite):
       if not comments or isinstance(expression, exp.Connector):
         return sql
 
-      comments_sql = "\n".join(f"--{comment}" for comment in comments)
+      comments_sql = "\n".join(f"--{comment.rstrip()}" for comment in comments)
       if not comments_sql:
         return sql
       sep = ('\n' if sql and sql[0].isspace() else '') + comments_sql
@@ -164,7 +164,7 @@ class Perfetto(SQLite):
             comments = []
             for comment in expression.comments:
               if comment:
-                comments.append(f"--{self.pad_comment(comment)}")
+                comments.append(f"--{self.pad_comment(comment).rstrip()}")
             op = "\n".join(comments) + "\n" + op
           stack.extend((expression.right, op, expression.left))
         return op
