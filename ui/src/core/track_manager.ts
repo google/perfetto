@@ -13,15 +13,38 @@
 // limitations under the License.
 
 import {Registry} from '../base/registry';
-import {TrackRenderer, Track, TrackManager} from '../public/track';
+import {
+  TrackRenderer,
+  Track,
+  TrackManager,
+  TrackFilterCriteria,
+} from '../public/track';
 import {AsyncLimiter} from '../base/async_limiter';
 import {TrackRenderContext} from '../public/track';
+import {TrackNode} from '../public/workspace';
+import {TraceImpl} from './trace_impl';
 
 export interface TrackWithFSM {
   readonly track: TrackRenderer;
   desc: Track;
   render(ctx: TrackRenderContext): void;
   getError(): Error | undefined;
+}
+
+export class TrackFilterState {
+  public nameFilter: string = '';
+  public criteriaFilters = new Map<string, string[]>();
+
+  // Clear all filters.
+  clearAll() {
+    this.nameFilter = '';
+    this.criteriaFilters.clear();
+  }
+
+  // Returns true if any filters are set.
+  areFiltersSet() {
+    return this.nameFilter !== '' || this.criteriaFilters.size > 0;
+  }
 }
 
 /**
@@ -60,8 +83,11 @@ export class TrackManagerImpl implements TrackManager {
   // uri, as this allows us to scroll to tracks that have no uri.
   scrollToTrackNodeId?: string;
 
-  // This track filter applies to tracks on the viewer page (not pinned tracks).
-  trackFilterTerm: string = '';
+  // List of registered filter criteria.
+  readonly filterCriteria: TrackFilterCriteria[] = [];
+
+  // Current state of the track filters.
+  readonly filters = new TrackFilterState();
 
   registerTrack(trackDesc: Track): Disposable {
     return this.tracks.register(new TrackFSMImpl(trackDesc));
@@ -99,6 +125,14 @@ export class TrackManagerImpl implements TrackManager {
     for (const trackFsm of this.tracks.values()) {
       trackFsm.tick();
     }
+  }
+
+  registerTrackFilterCriteria(filter: TrackFilterCriteria): void {
+    this.filterCriteria.push(filter);
+  }
+
+  get trackFilterCriteria(): ReadonlyArray<TrackFilterCriteria> {
+    return this.filterCriteria;
   }
 }
 
@@ -186,4 +220,49 @@ class TrackFSMImpl implements TrackWithFSM {
   get track(): TrackRenderer {
     return this.desc.track;
   }
+}
+
+// Returns true if a track matches the configured track filters.
+export function trackMatchesFilter(
+  trace: TraceImpl,
+  track: TrackNode,
+): boolean {
+  const filters = trace.tracks.filters;
+
+  // Check the name filter.
+  if (filters.nameFilter !== '') {
+    // Split terms on commas and remove the whitespace.
+    const nameFilters = filters.nameFilter
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s !== '');
+
+    // At least one of the name filter terms must match.
+    const trackTitleLower = track.title.toLowerCase();
+    if (
+      !nameFilters.some((nameFilter) =>
+        trackTitleLower.includes(nameFilter.toLowerCase()),
+      )
+    ) {
+      return false;
+    }
+  }
+
+  // Check all the criteria filters.
+  for (const [criteriaName, values] of filters.criteriaFilters) {
+    const criteriaFilter = trace.tracks.trackFilterCriteria.find(
+      (c) => c.name === criteriaName,
+    );
+
+    if (!criteriaFilter) {
+      continue;
+    }
+
+    // At least one of the criteria filters must match.
+    if (!values.some((value) => criteriaFilter.predicate(track, value))) {
+      return false;
+    }
+  }
+
+  return true;
 }

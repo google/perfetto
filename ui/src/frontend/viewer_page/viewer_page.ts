@@ -26,6 +26,7 @@ import {TabPanel} from './tab_panel';
 import {TimelineHeader} from './timeline_header';
 import {TrackTreeView} from './track_tree_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
+import {trackMatchesFilter} from '../../core/track_manager';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -76,7 +77,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
             rootNode: trace.workspace.tracks,
             canReorderNodes: trace.workspace.userEditable,
             canRemoveNodes: trace.workspace.userEditable,
-            useTrackFilter: true,
+            trackFilter: (track) => trackMatchesFilter(trace, track),
           }),
         ],
       ),
