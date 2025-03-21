@@ -161,9 +161,13 @@ class QueryTableContent implements m.ClassComponent<QueryTableContentAttrs> {
     }
     const tableHeader = m('tr', cols);
 
-    const rows = attrs.rows.map((row) =>
-      m(QueryTableRow, {trace: attrs.trace, row, columns: attrs.columns}),
-    );
+    const rows = attrs.rows.map((row) => {
+      return m(QueryTableRow, {
+        trace: attrs.trace,
+        row,
+        columns: attrs.columns,
+      });
+    });
 
     return m('table.pf-query-table', m('thead', tableHeader), m('tbody', rows));
   }
@@ -193,7 +197,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     if (resp) {
       const pageCount = this.getPageCount(resp.rows.length);
       if (this.pageNumber >= pageCount) {
-        this.pageNumber = pageCount - 1;
+        this.pageNumber = Math.max(0, pageCount - 1);
       }
     } else {
       this.pageNumber = 0;
