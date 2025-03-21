@@ -21,6 +21,18 @@ import {ColorScheme} from '../base/color_scheme';
 import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails, TrackEventSelection} from './selection';
 import {SourceDataset} from '../trace_processor/dataset';
+import {TrackNode} from './workspace';
+
+export interface TrackFilterCriteria {
+  readonly name: string;
+
+  // Run on each node to work out whether it satisfies the selected filter
+  // option.
+  readonly predicate: (track: TrackNode, filterOption: string) => boolean;
+
+  // The list of possible filter options.
+  readonly options: ReadonlyArray<{key: string; label: string}>;
+}
 
 export interface TrackManager {
   /**
@@ -37,6 +49,13 @@ export interface TrackManager {
   getAllTracks(): Track[];
 
   getTrack(uri: string): Track | undefined;
+
+  /**
+   * Register a track filter criteria, which can be used by end users to control
+   * the list of tracks they see in workspaces. These criteria can provide more
+   * power to the user compared to e.g. purely filtering by name.
+   */
+  registerTrackFilterCriteria(filter: TrackFilterCriteria): void;
 }
 
 export interface TrackContext {
