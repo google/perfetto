@@ -59,7 +59,7 @@ FROM _heap_graph_path_hashes_to_class_tree!(_heap_graph_path_hashes_aggregated);
 
 CREATE PERFETTO MACRO _heap_graph_object_references_agg(
     path_hashes TableOrSubquery,
-    path_hash_value Expr
+    path_hash_values TableOrSubquery
 )
 RETURNS TableOrSubquery AS
 (
@@ -68,8 +68,8 @@ RETURNS TableOrSubquery AS
       SELECT
         *
       FROM $path_hashes
-      WHERE
-        path_hash IN ($path_hash_value)
+      JOIN $path_hash_values
+        USING (path_hash)
     )
   SELECT
     path_hash,
@@ -91,7 +91,7 @@ RETURNS TableOrSubquery AS
 
 CREATE PERFETTO MACRO _heap_graph_incoming_references_agg(
     path_hashes TableOrSubquery,
-    path_hash_value Expr
+    path_hash_values TableOrSubquery
 )
 RETURNS TableOrSubquery AS
 (
@@ -100,8 +100,8 @@ RETURNS TableOrSubquery AS
       SELECT
         *
       FROM $path_hashes
-      WHERE
-        path_hash IN ($path_hash_value)
+      JOIN $path_hash_values
+        USING (path_hash)
     )
   SELECT
     path_hash,
@@ -124,7 +124,7 @@ RETURNS TableOrSubquery AS
 
 CREATE PERFETTO MACRO _heap_graph_outgoing_references_agg(
     path_hashes TableOrSubquery,
-    path_hash_value Expr
+    path_hash_values TableOrSubquery
 )
 RETURNS TableOrSubquery AS
 (
@@ -133,8 +133,8 @@ RETURNS TableOrSubquery AS
       SELECT
         *
       FROM $path_hashes
-      WHERE
-        path_hash IN ($path_hash_value)
+      JOIN $path_hash_values
+        USING (path_hash)
     )
   SELECT
     path_hash,
@@ -157,7 +157,7 @@ RETURNS TableOrSubquery AS
 
 CREATE PERFETTO MACRO _heap_graph_retained_object_count_agg(
     path_hashes TableOrSubquery,
-    path_hash_value Expr
+    path_hash_values TableOrSubquery
 )
 RETURNS TableOrSubquery AS
 (
@@ -184,7 +184,7 @@ RETURNS TableOrSubquery AS
           ON h.id = o.id
         JOIN heap_graph_class c
           ON o.type_id = c.id
-        WHERE path_hash IN ($path_hash_value)
+        JOIN $path_hash_values USING(path_hash)
       )) AS b
   JOIN heap_graph_object AS o
     ON b.node_id = o.id
@@ -201,7 +201,7 @@ RETURNS TableOrSubquery AS
 
 CREATE PERFETTO MACRO _heap_graph_retaining_object_count_agg(
     path_hashes TableOrSubquery,
-    path_hash_value Expr
+    path_hash_values TableOrSubquery
 )
 RETURNS TableOrSubquery AS
 (
@@ -228,7 +228,7 @@ RETURNS TableOrSubquery AS
           ON h.id = o.id
         JOIN heap_graph_class c
           ON o.type_id = c.id
-        WHERE path_hash IN ($path_hash_value)
+        JOIN $path_hash_values USING(path_hash)
       )) AS b
   JOIN heap_graph_object AS o
     ON b.node_id = o.id
