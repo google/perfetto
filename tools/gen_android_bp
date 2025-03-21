@@ -77,6 +77,8 @@ default_targets = [
     '//src/trace_redaction:trace_redactor',
     '//src/java_sdk/main:perfetto_java_sdk_app',
     '//src/java_sdk/test:perfetto_java_sdk_instrumentation_test',
+    '//src/android_sdk/java/main:perfetto_trace_lib',
+    '//src/android_sdk/java/test:perfetto_trace_instrumentation_test',
     '//test/cts:perfetto_cts_deps',
     '//test/cts:perfetto_cts_jni_deps',
     '//test:perfetto_gtest_logcat_printer',
@@ -320,6 +322,9 @@ additional_args = {
             'com.android.profiling'
         }),
     ],
+    # TODO(ktimofeev): rename android.bp target
+    'perfetto_src_android_sdk_java_test_perfetto_trace_test_lib': [
+        ('static_libs', {'perfetto_trace_java_protos'})],
 }
 
 
@@ -425,8 +430,10 @@ def enable_bionic_libc_platform_headers_on_android(module):
 
 
 def enable_android_test_common(module):
-  module.static_libs.add("junit")
-  module.static_libs.add("androidx.test.runner")
+  module.static_libs.add('junit')
+  module.static_libs.add('truth')
+  module.static_libs.add('androidx.test.runner')
+  module.static_libs.add('androidx.test.ext.junit')
 
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
@@ -1116,6 +1123,9 @@ class AndroidJavaSDKModulesGenerator:
     module.manifest = gn_utils.label_to_path(target.manifest)
 
     module.sdk_version = self._SDK_VERSION
+
+    _add_additional_args(module)
+
     self.blueprint.add_module(module)
     return module
 
@@ -1184,6 +1194,24 @@ def _get_cflags(target: GnParser.Target):
                 if re.match(define_allowlist, define))
   return cflags
 
+
+# Merge in additional hardcoded arguments.
+def _add_additional_args(module: Module):
+  for key, add_val in additional_args.get(module.name, []):
+    curr = getattr(module, key)
+    if add_val and isinstance(add_val, set) and isinstance(curr, set):
+      curr.update(add_val)
+    elif isinstance(add_val, str) and (not curr or isinstance(curr, str)):
+      setattr(module, key, add_val)
+    elif isinstance(add_val, bool) and (not curr or isinstance(curr, bool)):
+      setattr(module, key, add_val)
+    elif isinstance(add_val, dict) and isinstance(curr, dict):
+      curr.update(add_val)
+    elif isinstance(add_val, dict) and isinstance(curr, Target):
+      curr.__dict__.update(add_val)
+    else:
+      raise Error('Unimplemented type %r of additional_args: %r' %
+                  (type(add_val), key))
 
 def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
                                gn_target_name: str) -> Optional[Module]:
@@ -1296,22 +1324,7 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
   if is_target_android_jni_lib(target):
     module.header_libs.add('jni_headers')
 
-  # Merge in additional hardcoded arguments.
-  for key, add_val in additional_args.get(module.name, []):
-    curr = getattr(module, key)
-    if add_val and isinstance(add_val, set) and isinstance(curr, set):
-      curr.update(add_val)
-    elif isinstance(add_val, str) and (not curr or isinstance(curr, str)):
-      setattr(module, key, add_val)
-    elif isinstance(add_val, bool) and (not curr or isinstance(curr, bool)):
-      setattr(module, key, add_val)
-    elif isinstance(add_val, dict) and isinstance(curr, dict):
-      curr.update(add_val)
-    elif isinstance(add_val, dict) and isinstance(curr, Target):
-      curr.__dict__.update(add_val)
-    else:
-      raise Error('Unimplemented type %r of additional_args: %r' %
-                  (type(add_val), key))
+  _add_additional_args(module)
 
   # dep_name is an unmangled GN target name (e.g. //foo:bar(toolchain)).
   all_deps = target.non_proto_or_source_set_deps()
