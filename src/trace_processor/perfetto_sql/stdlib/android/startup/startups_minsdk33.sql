@@ -22,7 +22,7 @@ SELECT
   cast_int!(SUBSTR(name, 19) ) AS startup_id
 FROM slice
 WHERE
-  name GLOB 'launchingActivity#*' AND dur != 0 AND instr(name, ':') = 0;
+  name GLOB 'launchingActivity#*' AND dur > 0 AND instr(name, ':') = 0;
 
 CREATE PERFETTO VIEW _startup_complete_events AS
 SELECT
