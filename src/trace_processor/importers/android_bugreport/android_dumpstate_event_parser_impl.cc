@@ -328,6 +328,8 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryState(
           item.ts, static_cast<double>((item.prefix == "+") ? 2.0 : 1.0),
           track);
     }
+
+    return true;
   } else if (item.prefix.empty() && !item.value.empty()) {
     int64_t counter_value;
     base::StatusOr<std::string> possible_history_state_item =
@@ -340,11 +342,13 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryState(
               std::string("battery_stats.").append(item_name))));
       context_->event_tracker->PushCounter(
           item.ts, static_cast<double>(counter_value), counter_track);
+      return true;
+    } else {
+      return false;
     }
   } else {
     return false;
   }
-  return true;
 }
 
 base::StatusOr<bool>
