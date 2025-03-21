@@ -47,6 +47,7 @@
     }
 
     .pf-header-buttons {
+      white-space: nowrap;
       display: flex;
       min-width: min-content;
       gap: 4px;
