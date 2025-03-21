@@ -1,0 +1,18 @@
+import("../../../../gn/perfetto.gni")
+import("../../../../gn/perfetto_android_sdk.gni")
+
+assert(enable_perfetto_android_java_sdk)
+
+perfetto_android_library("perfetto_trace_lib") {
+  sources = [
+    "dev/perfetto/sdk/PerfettoTrace.java",
+    "dev/perfetto/sdk/PerfettoTrackEventExtra.java",
+  ]
+  deps = [ "../../jni:libperfetto_jni" ]
+  manifest = "AndroidManifest.xml"
+}
+
+perfetto_android_app("perfetto_trace_app") {
+  deps = [ ":perfetto_trace_lib" ]
+  manifest = "AndroidManifest.xml"
+}
