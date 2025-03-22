@@ -22,12 +22,15 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/time.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/version.h"
 #include "perfetto/ext/ipc/client.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/ipc/wire_protocol.gen.h"
@@ -79,6 +82,88 @@ std::string GenerateSetPeerIdentityRequest(int32_t pid,
   set_peer_identity->set_machine_id_hint(machine_id_hint);
 
   return ipc::BufferedFrameDeserializer::Serialize(ipc_frame);
+}
+
+void SetSystemInfo(protos::gen::InitRelayRequest* request) {
+  auto* info = request->mutable_system_info();
+  info->set_tracing_service_version(base::GetVersionString());
+
+  std::optional<int32_t> tzoff = base::GetTimezoneOffsetMins();
+  if (tzoff.has_value())
+    info->set_timezone_off_mins(*tzoff);
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+  struct utsname uname_info;
+  if (uname(&uname_info) == 0) {
+    auto* utsname_info = info->mutable_utsname();
+    utsname_info->set_sysname(uname_info.sysname);
+    utsname_info->set_version(uname_info.version);
+    utsname_info->set_machine(uname_info.machine);
+    utsname_info->set_release(uname_info.release);
+  }
+  info->set_page_size(static_cast<uint32_t>(sysconf(_SC_PAGESIZE)));
+  info->set_num_cpus(static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF)));
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  std::string fingerprint_value = base::GetAndroidProp("ro.build.fingerprint");
+  if (!fingerprint_value.empty()) {
+    info->set_android_build_fingerprint(fingerprint_value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.build.fingerprint");
+  }
+
+  std::string device_manufacturer_value =
+      base::GetAndroidProp("ro.product.manufacturer");
+  if (!device_manufacturer_value.empty()) {
+    info->set_android_device_manufacturer(device_manufacturer_value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.product.manufacturer");
+  }
+
+  std::string sdk_str_value = base::GetAndroidProp("ro.build.version.sdk");
+  std::optional<uint64_t> sdk_value = base::StringToUInt64(sdk_str_value);
+  if (sdk_value.has_value()) {
+    info->set_android_sdk_version(*sdk_value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.build.version.sdk");
+  }
+
+  std::string soc_model_value = base::GetAndroidProp("ro.soc.model");
+  if (!soc_model_value.empty()) {
+    info->set_android_soc_model(soc_model_value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.soc.model");
+  }
+
+  // guest_soc model is not always present
+  std::string guest_soc_model_value =
+      base::GetAndroidProp("ro.boot.guest_soc.model");
+  if (!guest_soc_model_value.empty()) {
+    info->set_android_guest_soc_model(guest_soc_model_value);
+  }
+
+  std::string hw_rev_value = base::GetAndroidProp("ro.boot.hardware.revision");
+  if (!hw_rev_value.empty()) {
+    info->set_android_hardware_revision(hw_rev_value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.boot.hardware.revision");
+  }
+
+  std::string hw_ufs_value = base::GetAndroidProp("ro.boot.hardware.ufs");
+  if (!hw_ufs_value.empty()) {
+    info->set_android_storage_model(hw_ufs_value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.boot.hardware.ufs");
+  }
+
+  std::string hw_ddr_value = base::GetAndroidProp("ro.boot.hardware.ddr");
+  if (!hw_ddr_value.empty()) {
+    info->set_android_ram_model(hw_ddr_value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.boot.hardware.ddr");
+  }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 }
 
 }  // Anonymous namespace.
@@ -133,12 +218,21 @@ void RelayClient::OnConnect(base::UnixSocket* self, bool connected) {
 }
 
 void RelayClient::OnServiceConnected() {
+  InitRelayRequest();
   phase_ = Phase::PING;
   SendSyncClockRequest();
 }
 
 void RelayClient::OnServiceDisconnected() {
   NotifyError();
+}
+
+void RelayClient::InitRelayRequest() {
+  protos::gen::InitRelayRequest request;
+
+  SetSystemInfo(&request);
+
+  relay_ipc_client_->InitRelay(request);
 }
 
 void RelayClient::SendSyncClockRequest() {
