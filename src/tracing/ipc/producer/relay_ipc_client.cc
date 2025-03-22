@@ -54,6 +54,27 @@ void RelayIPCClient::OnDisconnect() {
     listener_->OnServiceDisconnected();
 }
 
+void RelayIPCClient::InitRelay(const InitRelayRequest& init_relay_request) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!connected_) {
+    return task_runner_->PostTask([listener = listener_]() {
+      if (listener)
+        listener->OnServiceDisconnected();
+    });
+  }
+
+  ipc::Deferred<protos::gen::InitRelayResponse> async_resp;
+  async_resp.Bind(
+      [listener = listener_](ipc::AsyncResult<InitRelayResponse> resp) {
+        if (!listener)
+          return;
+        if (!resp)
+          return listener->OnServiceDisconnected();
+        // We do nothing once response is received.
+      });
+  relay_proxy_->InitRelay(init_relay_request, std::move(async_resp), -1);
+}
+
 void RelayIPCClient::SyncClock(const SyncClockRequest& sync_clock_request) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!connected_) {

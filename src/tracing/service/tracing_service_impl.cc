@@ -126,6 +126,8 @@ constexpr uint32_t kGuardrailsMaxTracingDurationMillis = 24 * kMillisPerHour;
 
 constexpr size_t kMaxLifecycleEventsListedDataSources = 32;
 
+constexpr uint32_t kTracePacketSystemInfoFieldId = 45;
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
 struct iovec {
   void* iov_base;  // Address
@@ -2468,8 +2470,11 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
   if (!tracing_session->did_emit_initial_packets) {
     EmitUuid(tracing_session, &packets);
-    if (!tracing_session->config.builtin_data_sources().disable_system_info())
+    if (!tracing_session->config.builtin_data_sources().disable_system_info()) {
       EmitSystemInfo(&packets);
+      if (!relay_clients_.empty())
+        MaybeEmitRemoteSystemInfo(&packets);
+    }
   }
   tracing_session->did_emit_initial_packets = true;
 
@@ -3808,6 +3813,37 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
+void TracingServiceImpl::MaybeEmitRemoteSystemInfo(
+    std::vector<TracePacket>* packets) {
+  std::unordered_set<MachineID> did_emit_machines;
+  for (const auto& id_and_relay_client : relay_clients_) {
+    const auto& relay_client = id_and_relay_client.second;
+    auto machine_id = relay_client->machine_id();
+    if (did_emit_machines.find(machine_id) != did_emit_machines.end())
+      continue;  // Already emitted for the machine (e.g. multiple clients).
+
+    if (relay_client->serialized_system_info().empty()) {
+      PERFETTO_DLOG("System info not provided for machine ID = %" PRIu32,
+                    machine_id);
+      continue;
+    }
+
+    // Don't emit twice for the same machine.
+    did_emit_machines.insert(machine_id);
+
+    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+    auto& system_info = relay_client->serialized_system_info();
+
+    packet->AppendBytes(kTracePacketSystemInfoFieldId, system_info.data(),
+                        system_info.size());
+
+    packet->set_machine_id(machine_id);
+    packet->set_trusted_uid(static_cast<int32_t>(uid_));
+    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+  }
+}
+
 void TracingServiceImpl::EmitLifecycleEvents(
     TracingSession* tracing_session,
     std::vector<TracePacket>* packets) {
@@ -5112,7 +5148,9 @@ TracingServiceImpl::TracingSession::TracingSession(
 TracingServiceImpl::RelayEndpointImpl::RelayEndpointImpl(
     RelayClientID relay_client_id,
     TracingServiceImpl* service)
-    : relay_client_id_(relay_client_id), service_(service) {}
+    : relay_client_id_(relay_client_id),
+      service_(service),
+      serialized_system_info_({}) {}
 TracingServiceImpl::RelayEndpointImpl::~RelayEndpointImpl() = default;
 
 void TracingServiceImpl::RelayEndpointImpl::SyncClocks(
