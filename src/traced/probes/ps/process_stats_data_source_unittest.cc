@@ -59,6 +59,27 @@ std::string ToProcStatString(uint64_t utime_ticks,
       .ToStdString();
 }
 
+static constexpr char kKthreadStatus[] = R"(
+Name:	kthreadd
+Umask:	0000
+State:	S (sleeping)
+Tgid:	2
+Ngid:	0
+Pid:	2
+PPid:	0
+TracerPid:	0
+Uid:	0	0	0	0
+Gid:	0	0	0	0
+FDSize:	64
+Groups:	 
+NStgid:	2
+NSpid:	2
+NSpgid:	0
+NSsid:	0
+Kthread:	1
+Threads:	1
+)";  // rest of the fields truncated
+
 uint64_t NsPerClockTick() {
   int64_t tickrate = sysconf(_SC_CLK_TCK);
   PERFETTO_CHECK(tickrate > 0);
@@ -111,11 +132,16 @@ TEST_F(ProcessStatsDataSourceTest, WriteOnceProcess) {
   ASSERT_EQ(trace.size(), 1u);
   auto ps_tree = trace[0].process_tree();
   ASSERT_EQ(ps_tree.processes_size(), 1);
-  auto first_process = ps_tree.processes()[0];
-  ASSERT_EQ(first_process.pid(), 42);
-  ASSERT_EQ(first_process.ppid(), 17);
-  ASSERT_EQ(first_process.uid(), 43);
-  ASSERT_THAT(first_process.cmdline(), ElementsAreArray({"foo", "bar", "baz"}));
+  auto process = ps_tree.processes()[0];
+
+  ASSERT_EQ(process.pid(), 42);
+  ASSERT_EQ(process.ppid(), 17);
+  ASSERT_EQ(process.uid(), 43);
+  ASSERT_THAT(process.cmdline(), ElementsAreArray({"foo", "bar", "baz"}));
+
+  // Added in perfetto v50:
+  EXPECT_FALSE(process.is_kthread());
+  EXPECT_FALSE(process.cmdline_is_comm());
 }
 
 // Regression test for b/147438623.
@@ -679,6 +705,28 @@ TEST_F(ProcessStatsDataSourceTest, WriteProcessStartFromBoot) {
   ASSERT_EQ(first_process.pid(), 42);
 
   EXPECT_EQ(first_process.process_start_from_boot(), 15842 * NsPerClockTick());
+}
+
+TEST_F(ProcessStatsDataSourceTest, WriteKthread) {
+  auto data_source = GetProcessStatsDataSource(DataSourceConfig());
+
+  EXPECT_CALL(*data_source, ReadProcPidFile(2, "status"))
+      .WillOnce(Return(kKthreadStatus));
+  EXPECT_CALL(*data_source, ReadProcPidFile(2, "cmdline"))  // fmt hint
+      .WillOnce(Return(""));
+
+  data_source->OnPids({2});
+
+  auto trace = writer_raw_->GetAllTracePackets();
+  ASSERT_EQ(trace.size(), 1u);
+  auto ps_tree = trace[0].process_tree();
+  ASSERT_EQ(ps_tree.processes_size(), 1);
+  auto process = ps_tree.processes()[0];
+
+  ASSERT_EQ(process.pid(), 2);
+  ASSERT_THAT(process.cmdline(), ElementsAreArray({"kthreadd"}));
+  EXPECT_TRUE(process.is_kthread());
+  EXPECT_TRUE(process.cmdline_is_comm());
 }
 
 }  // namespace
