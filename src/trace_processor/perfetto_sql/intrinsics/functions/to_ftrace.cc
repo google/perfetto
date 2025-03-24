@@ -375,7 +375,7 @@ void ArgsSerializer::SerializeArgs() {
   } else if (event_name_ == "sched_blocked_reason") {
     using SBR = protos::pbzero::SchedBlockedReasonFtraceEvent;
     WriteArgForField(SBR::kPidFieldNumber, DVW());
-    WriteArgForField(SBR::kIoWaitFieldNumber, DVW());
+    WriteArgForField(SBR::kIoWaitFieldNumber, "iowait", DVW());
     WriteArgForField(SBR::kCallerFieldNumber,
                      Wrap(&ArgsSerializer::WriteKernelFnValue));
     return;
