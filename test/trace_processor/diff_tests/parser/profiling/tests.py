@@ -118,6 +118,7 @@ class Profiling(TestSuite):
               uid: 1000
               pid: 2
               android_user_id: 0
+              is_kernel_task: false
             }
             mappings {
               path: "[anon: libc_malloc]"

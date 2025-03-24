@@ -246,7 +246,7 @@ def add_cuj_with_named_binder_transaction(pid, rx_pid):
 
 def add_process(trace, package_name, uid, pid):
   trace.add_package_list(ts=0, name=package_name, uid=uid, version_code=1)
-  trace.add_process(pid=pid, ppid=0, cmdline=package_name, uid=uid)
+  trace.add_process(pid=pid, ppid=pid, cmdline=package_name, uid=uid)
   trace.add_thread(tid=pid, tgid=pid, cmdline="MainThread", name="MainThread")
 
 

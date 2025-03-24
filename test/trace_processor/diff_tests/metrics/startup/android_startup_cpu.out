@@ -91,6 +91,7 @@ android_cpu {
     process {
       name: "Process1"
       pid: 1
+      is_kernel_task: false
     }
   }
   process_info {
@@ -235,6 +236,7 @@ android_cpu {
     process {
       name: "Process2"
       pid: 2
+      is_kernel_task: false
     }
   }
   process_info {
@@ -339,6 +341,7 @@ android_cpu {
     process {
       name: "Process3"
       pid: 3
+      is_kernel_task: false
     }
   }
 }
