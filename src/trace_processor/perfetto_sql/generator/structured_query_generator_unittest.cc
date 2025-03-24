@@ -295,7 +295,7 @@ TEST(StructuredQueryGeneratorTest, IntervalIntersectSource) {
                       thread_name,
                       process_name,
                       track_name
-                    FROM _slice_with_thread_and_process_info
+                    FROM thread_or_process_slice
                     WHERE slice_name GLOB 'baz'
                       AND process_name GLOB 'system_server'
                   )
@@ -318,9 +318,10 @@ TEST(StructuredQueryGeneratorTest, IntervalIntersectSource) {
                 )
                 SELECT * FROM sq_0
               )"));
-  ASSERT_THAT(gen.ComputeReferencedModules(),
-              UnorderedElementsAre("intervals.intersect",
-                                   "linux.memory.process", "slices.slices"));
+  ASSERT_THAT(
+      gen.ComputeReferencedModules(),
+      UnorderedElementsAre("intervals.intersect", "linux.memory.process",
+                           "slices.with_context"));
 }
 
 TEST(StructuredQueryGeneratorTest, ColumnSelection) {

@@ -251,11 +251,11 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
 
 base::StatusOr<std::string> GeneratorImpl::SimpleSlices(
     const StructuredQuery::SimpleSlices::Decoder& slices) {
-  referenced_modules_.Insert("slices.slices", nullptr);
+  referenced_modules_.Insert("slices.with_context", nullptr);
 
   std::string sql =
       "SELECT id, ts, dur, name AS slice_name, thread_name, process_name, "
-      "track_name FROM _slice_with_thread_and_process_info";
+      "track_name FROM thread_or_process_slice";
 
   std::vector<std::string> conditions;
   if (slices.has_slice_name_glob()) {

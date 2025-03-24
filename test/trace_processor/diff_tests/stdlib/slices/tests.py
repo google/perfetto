@@ -51,18 +51,18 @@ class Slices(TestSuite):
         "ProcessSlice",3,4,0,"Process",3
       """))
 
-  def test_slice_with_process_and_thread_info(self):
+  def test_thread_or_process_slice(self):
     return DiffTestBlueprint(
         trace=Path('trace.py'),
         query="""
-        INCLUDE PERFETTO MODULE slices.slices;
+        INCLUDE PERFETTO MODULE slices.with_context;
 
         SELECT name, ts, dur, depth, thread_name, tid, process_name, pid
-        FROM _slice_with_thread_and_process_info;
+        FROM thread_or_process_slice
+        ORDER BY ts;
       """,
         out=Csv("""
         "name","ts","dur","depth","thread_name","tid","process_name","pid"
-        "AsyncSlice",1,2,0,"[NULL]","[NULL]","[NULL]","[NULL]"
         "ProcessSlice",3,4,0,"[NULL]","[NULL]","Process",3
         "ThreadSlice",5,8,0,"Thread",5,"Process",3
         "NestedThreadSlice",6,1,1,"Thread",5,"Process",3
