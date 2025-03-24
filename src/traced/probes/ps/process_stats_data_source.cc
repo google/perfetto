@@ -385,7 +385,9 @@ bool ProcessStatsDataSource::WriteProcess(int32_t pid,
     }
   } else {
     // Nothing in cmdline so use the thread name instead (which is == "comm").
+    // This comes up at least for zombies and kthreads.
     proc->add_cmdline(ProcStatusEntry(proc_status, "Name:"));
+    proc->set_cmdline_is_comm(true);
   }
 
   if (record_process_age_ && !proc_stat.empty()) {
@@ -393,6 +395,13 @@ bool ProcessStatsDataSource::WriteProcess(int32_t pid,
     if (times.has_value()) {
       proc->set_process_start_from_boot(times->starttime);
     }
+  }
+
+  // Linux v6.4 and onwards has an explicit field for whether this is a kthread.
+  std::optional<int32_t> kthread =
+      base::StringToInt32(ProcStatusEntry(proc_status, "Kthread:"));
+  if (kthread.has_value() && (*kthread == 0 || *kthread == 1)) {
+    proc->set_is_kthread(*kthread);
   }
 
   seen_pids_.insert({pid, pid});
