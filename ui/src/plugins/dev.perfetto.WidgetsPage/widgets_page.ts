@@ -61,6 +61,7 @@ import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {SplitPanel} from '../../widgets/split_panel';
 import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
 import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
+import {Multiselect2} from '../../widgets/multiselect2';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -1536,8 +1537,43 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           showCloseButtons: true,
         },
       }),
+      m(WidgetShowcase, {
+        label: 'Multiselect2',
+        description: `Tag input with options`,
+        renderWidget: () => {
+          return m(Multiselect2Demo);
+        },
+      }),
     );
   }
+}
+
+function Multiselect2Demo() {
+  const options = [
+    'foo',
+    'bar',
+    'baz',
+    'qux',
+    'quux',
+    'corge',
+    'grault',
+    'garply',
+    'waldo',
+    'fred',
+  ];
+  let selectedOptions: string[] = [];
+  return {
+    view() {
+      return m(Multiselect2, {
+        options: options.map((o) => ({key: o, label: o})),
+        selectedOptions,
+        onOptionAdd: (key) => selectedOptions.push(key),
+        onOptionRemove: (key) => {
+          selectedOptions = selectedOptions.filter((x) => x !== key);
+        },
+      });
+    },
+  };
 }
 
 class ModalShowcase implements m.ClassComponent {

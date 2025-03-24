@@ -13,26 +13,26 @@
 // limitations under the License.
 
 import m from 'mithril';
-import { canvasClip } from '../../base/canvas_utils';
-import { currentTargetOffset, findRef } from '../../base/dom_utils';
-import { Size2D } from '../../base/geom';
-import { assertUnreachable } from '../../base/logging';
-import { Icons } from '../../base/semantic_icons';
-import { TimeScale } from '../../base/time_scale';
-import { randomColor } from '../../components/colorizer';
-import { raf } from '../../core/raf_scheduler';
-import { TraceImpl } from '../../core/trace_impl';
-import { Note, SpanNote } from '../../public/note';
-import { Button, ButtonBar } from '../../widgets/button';
-import { MenuDivider, MenuItem, PopupMenu } from '../../widgets/menu';
-import { Select } from '../../widgets/select';
-import { TRACK_SHELL_WIDTH } from '../css_constants';
-import { generateTicks, getMaxMajorTicks, TickType } from './gridline_helper';
-import { TextInput } from '../../widgets/text_input';
-import { Popup } from '../../widgets/popup';
-import { TrackNode, Workspace } from '../../public/workspace';
-import { AreaSelection, Selection } from '../../public/selection';
-import { MultiSelectOption, PopupMultiSelect } from '../../widgets/multiselect';
+import {canvasClip} from '../../base/canvas_utils';
+import {currentTargetOffset, findRef} from '../../base/dom_utils';
+import {Size2D} from '../../base/geom';
+import {assertUnreachable} from '../../base/logging';
+import {Icons} from '../../base/semantic_icons';
+import {TimeScale} from '../../base/time_scale';
+import {randomColor} from '../../components/colorizer';
+import {raf} from '../../core/raf_scheduler';
+import {TraceImpl} from '../../core/trace_impl';
+import {Note, SpanNote} from '../../public/note';
+import {Button, ButtonBar} from '../../widgets/button';
+import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
+import {Select} from '../../widgets/select';
+import {TRACK_SHELL_WIDTH} from '../css_constants';
+import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
+import {TextInput} from '../../widgets/text_input';
+import {Popup} from '../../widgets/popup';
+import {TrackNode, Workspace} from '../../public/workspace';
+import {AreaSelection, Selection} from '../../public/selection';
+import {Multiselect2} from '../../widgets/multiselect2';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -255,54 +255,40 @@ export class NotesPanel {
           }),
         ),
         this.trace.tracks.trackFilterCriteria.map((filter) => {
+          const options = filter.options.filter((f) => f.label !== '');
+          const selectedKeys =
+            trackFilters.criteriaFilters.get(filter.name) ?? [];
+
           return m(
             '.pf-track-filter__row',
             m('label', 'Filter by ', filter.name),
-            m(PopupMultiSelect, {
-              label: filter.name,
-              showNumSelected: true,
-              // It usually doesn't make sense to select all filters - if users
-              // want to pass all they should just remove the filters instead.
-              showSelectAllButton: false,
-              onChange: (diff) => {
-                for (const {id, checked} of diff) {
-                  if (checked) {
-                    // Add the filter option to the criteria.
-                    const criteriaFilters = trackFilters.criteriaFilters.get(
-                      filter.name,
-                    );
-                    if (criteriaFilters) {
-                      criteriaFilters.push(id);
-                    } else {
-                      trackFilters.criteriaFilters.set(filter.name, [id]);
-                    }
+            m(Multiselect2, {
+              options: options,
+              selectedOptions: selectedKeys,
+              onOptionAdd: (o) => {
+                const criteriaFilters = trackFilters.criteriaFilters.get(
+                  filter.name,
+                );
+                if (criteriaFilters) {
+                  criteriaFilters.push(o);
+                } else {
+                  trackFilters.criteriaFilters.set(filter.name, [o]);
+                }
+              },
+              onOptionRemove: (o) => {
+                // Remove the filter option from the criteria.
+                const criteriaFilters = trackFilters.criteriaFilters.get(
+                  filter.name,
+                );
+                if (criteriaFilters) {
+                  const newOptions = criteriaFilters.filter((f) => f !== o);
+                  if (newOptions.length === 0) {
+                    trackFilters.criteriaFilters.delete(filter.name);
                   } else {
-                    // Remove the filter option from the criteria.
-                    const filterOptions = trackFilters.criteriaFilters.get(
-                      filter.name,
-                    );
-
-                    if (!filterOptions) continue;
-                    const newOptions = filterOptions.filter((f) => f !== id);
-                    if (newOptions.length === 0) {
-                      trackFilters.criteriaFilters.delete(filter.name);
-                    } else {
-                      trackFilters.criteriaFilters.set(filter.name, newOptions);
-                    }
+                    trackFilters.criteriaFilters.set(filter.name, newOptions);
                   }
                 }
               },
-              options: filter.options
-                .map((o): MultiSelectOption => {
-                  const filterOptions = trackFilters.criteriaFilters.get(
-                    filter.name,
-                  );
-                  const checked = Boolean(
-                    filterOptions && filterOptions.includes(o.key),
-                  );
-                  return {id: o.key, name: o.label, checked};
-                })
-                .filter((f) => f.name !== ''),
             }),
           );
         }),
