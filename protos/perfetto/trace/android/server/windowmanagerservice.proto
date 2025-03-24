@@ -459,6 +459,8 @@ message WindowStateProto {
   repeated InsetsSourceProto mergedLocalInsetsSources = 47;
   optional int32 requested_visible_types = 48;
   optional RectProto dim_bounds = 49;
+  optional int32 prepare_sync_seq_id = 50;
+  optional int32 sync_seq_id = 51;
 }
 
 message IdentifierProto {
