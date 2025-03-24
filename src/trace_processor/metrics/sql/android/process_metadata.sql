@@ -30,6 +30,7 @@ SELECT NULL_IF_EMPTY(AndroidProcessMetadata(
     'uid', uid,
     'android_user_id', user_id,
     'pid', pid,
+    'is_kernel_task', is_kernel_task,
     'package', NULL_IF_EMPTY(AndroidProcessMetadata_Package(
       'package_name', package_name,
       'apk_version_code', version_code,
