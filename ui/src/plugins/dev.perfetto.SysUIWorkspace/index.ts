@@ -181,8 +181,8 @@ class ProcessWorkspaceFactory {
 
   private async pinUiThreads() {
     const result = await this.trace.engine.query(`
-      INCLUDE PERFETTO MODULE slices.slices;
-      SELECT DISTINCT utid FROM _slice_with_thread_and_process_info
+      INCLUDE PERFETTO MODULE slices.with_context;
+      SELECT DISTINCT utid FROM thread_or_process_slice
       WHERE upid = ${this.process.upid}
        AND upid != utid -- main thread excluded
        AND name GLOB "Choreographer#doFrame*"

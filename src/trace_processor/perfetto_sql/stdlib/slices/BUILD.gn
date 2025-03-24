@@ -20,7 +20,6 @@ perfetto_sql_source_set("slices") {
     "flat_slices.sql",
     "flow.sql",
     "hierarchy.sql",
-    "slices.sql",
     "time_in_state.sql",
     "with_context.sql",
   ]

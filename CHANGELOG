@@ -4,7 +4,11 @@ Unreleased:
   SQL Standard library:
     *
   Trace Processor:
-    *
+    * Added `thread_or_process_slice` to the `slices.with_context` module for
+      a unified table which contains all thread and process slices in the trace.
+      This is often useful for ad-hoc queries on Android or Linux traces.
+    * Removed `slices.slices` module and `_slice_with_thread_and_process_info`
+      view. This is replaced by `thread_or_process_slice` (see above).
   UI:
     *
   SDK:
