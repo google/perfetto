@@ -328,6 +328,7 @@ perfetto_cc_library(
         ":src_kernel_utils_syscall_table",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
+        ":src_trace_processor_dataframe_dataframe",
         ":src_trace_processor_db_column_column",
         ":src_trace_processor_db_compare",
         ":src_trace_processor_db_db",
@@ -1652,6 +1653,14 @@ perfetto_cc_library(
         ":src_base_base",
     ],
     linkstatic = True,
+)
+
+# GN target: //src/trace_processor/dataframe:dataframe
+perfetto_filegroup(
+    name = "src_trace_processor_dataframe_dataframe",
+    srcs = [
+        "src/trace_processor/dataframe/type_set.h",
+    ],
 )
 
 # GN target: //src/trace_processor/db/column:column
@@ -7201,6 +7210,7 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_syscall_table",
         ":src_protozero_text_to_proto_text_to_proto",
+        ":src_trace_processor_dataframe_dataframe",
         ":src_trace_processor_db_column_column",
         ":src_trace_processor_db_compare",
         ":src_trace_processor_db_db",
@@ -7424,6 +7434,7 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
+        ":src_trace_processor_dataframe_dataframe",
         ":src_trace_processor_db_column_column",
         ":src_trace_processor_db_compare",
         ":src_trace_processor_db_db",
@@ -7636,6 +7647,7 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
+        ":src_trace_processor_dataframe_dataframe",
         ":src_trace_processor_db_column_column",
         ":src_trace_processor_db_compare",
         ":src_trace_processor_db_db",
