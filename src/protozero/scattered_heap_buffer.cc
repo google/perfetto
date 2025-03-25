@@ -90,6 +90,24 @@ std::vector<uint8_t> ScatteredHeapBuffer::StitchSlices() {
   return buffer;
 }
 
+std::pair<std::unique_ptr<uint8_t[]>, size_t>
+ScatteredHeapBuffer::StitchAsUniquePtr() {
+  size_t stitched_size = 0u;
+  const auto& slices = GetSlices();
+  for (const auto& slice : slices)
+    stitched_size += slice.size() - slice.unused_bytes();
+
+  std::unique_ptr<uint8_t[]> buffer(new uint8_t[stitched_size]);
+  uint8_t* ptr = buffer.get();
+  for (const auto& slice : slices) {
+    auto used_range = slice.GetUsedRange();
+    memcpy(ptr, used_range.begin, used_range.size());
+    ptr += used_range.size();
+  }
+
+  return std::make_pair(std::move(buffer), stitched_size);
+}
+
 std::vector<protozero::ContiguousMemoryRange> ScatteredHeapBuffer::GetRanges() {
   std::vector<protozero::ContiguousMemoryRange> ranges;
   for (const auto& slice : GetSlices())
