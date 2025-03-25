@@ -100,6 +100,20 @@ def add_blocking_calls_per_frame_multiple_cuj_instance(trace, cuj_name):
   add_async_trace(trace, ts=25_000_000, ts_end=77_000_000, buf=cuj_name, pid=SYSUI_PID, tid=SYSUI_UI_TID)
   add_async_trace(trace, ts=83_000_000, ts_end=102_000_000, buf=cuj_name, pid=SYSUI_PID, tid=SYSUI_UI_TID)
 
+  add_instant_event_in_thread(
+          trace,
+          ts=25_000_001,
+          buf=cuj_name + "#UIThread",
+          pid=SYSUI_PID,
+          tid=SYSUI_UI_TID)
+
+  add_instant_event_in_thread(
+            trace,
+            ts=83_000_001,
+            buf=cuj_name + "#UIThread",
+            pid=SYSUI_PID,
+            tid=SYSUI_UI_TID)
+
   trace.add_atrace_instant_for_track(ts=25_000_001,
                                                buf="FT#beginVsync#20",
                                                pid=SYSUI_PID,
@@ -308,6 +322,62 @@ def add_blocking_call_crossing_frame_boundary(trace, cuj_name):
   add_expected_surface_frame_events(ts=138_000_000, dur=16_000_000, token=82, pid=LAUNCHER_PID)
   add_actual_surface_frame_events(ts=138_000_000, dur=6_000_000, token=82, layer=LAYER_2, pid=LAUNCHER_PID)
 
+def add_ignored_latency_cujs(trace):
+  cuj_1 = "L<IGNORED_CUJ_1>"
+  cuj_2 = "L<IGNORED_CUJ_2>"
+  add_async_trace(trace, ts=150_000_000, ts_end=155_000_000, buf=cuj_1, pid=SYSUI_PID, tid=SYSUI_UI_TID)
+  add_async_trace(trace, ts=156_000_000, ts_end=160_000_000, buf=cuj_2, pid=SYSUI_PID, tid=SYSUI_UI_TID)
+
+  add_instant_event_in_thread(
+            trace,
+            ts=150_000_001,
+            buf=cuj_1 + "#UIThread",
+            pid=SYSUI_PID,
+            tid=SYSUI_UI_TID)
+
+  add_instant_event_in_thread(
+            trace,
+            ts=156_000_001,
+            buf=cuj_2 + "#UIThread",
+            pid=SYSUI_PID,
+            tid=SYSUI_UI_TID)
+
+  trace.add_atrace_instant_for_track(ts=150_000_002,
+                                                   buf="FT#beginVsync#90",
+                                                   pid=SYSUI_PID,
+                                                   tid=SYSUI_UI_TID,
+                                                   track_name=cuj_1)
+
+  trace.add_atrace_instant_for_track(ts=150_000_010,
+                                                 buf="FT#layerId#0",
+                                                 pid=SYSUI_PID,
+                                                 tid=SYSUI_UI_TID,
+                                                 track_name=cuj_1)
+
+  trace.add_atrace_instant_for_track(ts=154_000_001,
+                                                 buf="FT#endVsync#92",
+                                                 pid=SYSUI_PID,
+                                                 tid=SYSUI_UI_TID,
+                                                 track_name=cuj_1)
+
+  trace.add_atrace_instant_for_track(ts=156_000_002,
+                                                 buf="FT#beginVsync#94",
+                                                 pid=SYSUI_PID,
+                                                 tid=SYSUI_UI_TID,
+                                                 track_name=cuj_2)
+
+  trace.add_atrace_instant_for_track(ts=156_000_010,
+                                                 buf="FT#layerId#0",
+                                                 pid=SYSUI_PID,
+                                                 tid=SYSUI_UI_TID,
+                                                 track_name=cuj_2)
+
+  trace.add_atrace_instant_for_track(ts=156_000_001,
+                                                 buf="FT#endVsync#96",
+                                                 pid=SYSUI_PID,
+                                                 tid=SYSUI_UI_TID,
+                                                 track_name=cuj_2)
+
 def add_process(trace, package_name, uid, pid):
   trace.add_package_list(ts=0, name=package_name, uid=uid, version_code=1)
   trace.add_process(pid=pid, ppid=pid, cmdline=package_name, uid=uid)
@@ -337,4 +407,6 @@ trace = setup_trace()
 add_blocking_calls_per_frame_multiple_cuj_instance(trace, FIRST_CUJ)
 trace.add_ftrace_packet(cpu=0)
 add_blocking_call_crossing_frame_boundary(trace, SECOND_CUJ)
+trace.add_ftrace_packet(cpu=0)
+add_ignored_latency_cujs(trace)
 sys.stdout.buffer.write(trace.trace.SerializeToString())
