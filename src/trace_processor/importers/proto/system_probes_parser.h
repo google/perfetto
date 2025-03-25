@@ -50,6 +50,7 @@ class SystemProbesParser {
   TraceProcessorContext* const context_;
 
   const StringId utid_name_id_;
+  const StringId is_kthread_id_;
 
   // Arm CPU identifier string IDs
   const StringId arm_cpu_implementer;
