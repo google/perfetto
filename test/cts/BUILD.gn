@@ -35,9 +35,10 @@ static_library("perfetto_cts_deps") {
     "../../test:test_helper",
   ]
   sources = [
+    "art_module/heapprofd_java_test_cts.cc",
     "device_feature_test_cts.cc",
-    "heapprofd_java_test_cts.cc",
     "heapprofd_test_cts.cc",
+    "heapprofd_test_helper.cc",
     "producer_to_consumer_integrationtest_cts.cc",
     "traced_perf_test_cts.cc",
   ]
