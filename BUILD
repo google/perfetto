@@ -2398,6 +2398,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/proto/active_chrome_processes_tracker.cc",
         "src/trace_processor/importers/proto/active_chrome_processes_tracker.h",
+        "src/trace_processor/importers/proto/app_wakelock_module.cc",
+        "src/trace_processor/importers/proto/app_wakelock_module.h",
         "src/trace_processor/importers/proto/args_parser.cc",
         "src/trace_processor/importers/proto/args_parser.h",
         "src/trace_processor/importers/proto/chrome_string_lookup.cc",
