@@ -26,6 +26,24 @@
 #include "perfetto/public/pb_macros.h"
 #include "perfetto/public/protos/trace/track_event/track_event.pzc.h"
 
+PERFETTO_PB_MSG(perfetto_protos_AndroidBitmap);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBitmap, VARINT, int64_t, size, 1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBitmap, VARINT, int32_t, width, 2);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBitmap, VARINT, int32_t, height, 3);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBitmap, VARINT, int32_t, density, 4);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBitmap, VARINT, int32_t, config, 5);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBitmap,
+                  VARINT,
+                  int32_t,
+                  mutable_pixels,
+                  6);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBitmap,
+                  VARINT,
+                  int32_t,
+                  pixel_storage_type,
+                  7);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBitmap, VARINT, int64_t, id, 8);
+
 PERFETTO_PB_MSG(perfetto_protos_AndroidMessageQueue);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidMessageQueue,
                   STRING,
@@ -72,4 +90,10 @@ PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
                             perfetto_protos_AndroidMessageQueue,
                             message_queue,
                             2004);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidBitmap,
+                            bitmap,
+                            2005);
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_ANDROID_ANDROID_TRACK_EVENT_PZC_H_

@@ -31,6 +31,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidEnergyEstimationBreakdown);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSystemProperty);
+PERFETTO_PB_MSG_DECL(perfetto_protos_AppWakelockBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BatteryCounters);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BluetoothTraceEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeBenchmarkMetadata);
@@ -71,7 +72,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessTree);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProfilePacket);
-PERFETTO_PB_MSG_DECL(perfetto_protos_ProfiledFrameSymbols);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogMessage);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogViewerConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_RemoteClockSync);
@@ -370,11 +370,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   91);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
-                  perfetto_protos_ProfiledFrameSymbols,
-                  profiled_frame_symbols,
-                  55);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
                   perfetto_protos_ModuleSymbols,
                   module_symbols,
                   61);
@@ -528,6 +523,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_KernelWakelockData,
                   kernel_wakelock_data,
                   115);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_AppWakelockBundle,
+                  app_wakelock_bundle,
+                  116);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TestEvent,
