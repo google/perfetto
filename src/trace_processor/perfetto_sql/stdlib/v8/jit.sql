@@ -106,7 +106,9 @@ CREATE PERFETTO VIEW v8_wasm_script (
   internal_script_id LONG,
   -- URL of the source.
   url STRING,
-  -- Actual contents of the script.
+  -- Raw wire bytes of the script.
+  wire_bytes BYTES,
+  -- Actual source code of the script.
   source STRING
 ) AS
 SELECT
@@ -114,6 +116,7 @@ SELECT
   v8_isolate_id,
   internal_script_id,
   url,
+  base64_decode(wire_bytes_base64) AS wire_bytes,
   source
 FROM __intrinsic_v8_wasm_script;
 
