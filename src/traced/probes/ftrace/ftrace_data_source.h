@@ -42,7 +42,6 @@ struct FtraceDataSourceConfig;
 
 namespace protos {
 namespace pbzero {
-class FtraceEventBundle;
 enum FtraceParseStatus : int32_t;
 }  // namespace pbzero
 }  // namespace protos
@@ -58,7 +57,7 @@ class FtraceDataSource : public ProbesDataSource {
 
   FtraceDataSource(base::WeakPtr<FtraceController>,
                    TracingSessionID,
-                   const FtraceConfig&,
+                   FtraceConfig,
                    std::unique_ptr<TraceWriter>);
   ~FtraceDataSource() override;
 
