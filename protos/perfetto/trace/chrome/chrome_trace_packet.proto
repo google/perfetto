@@ -52,7 +52,6 @@ message ChromeTracePacket {
   ProcessDescriptor process_descriptor = 43;
   ThreadDescriptor thread_descriptor = 44;
   StreamingProfilePacket streaming_profile_packet = 54;
-  ProfiledFrameSymbols profiled_frame_symbols = 55;
   ChromeTrigger chrome_trigger = 109;
 
   // The original trace config.
@@ -65,4 +64,7 @@ message ChromeTracePacket {
 
   bool incremental_state_cleared = 41;
   bool previous_packet_dropped = 42;
+
+  // removed ProfiledFrameSymbols profiled_frame_symbols
+  reserved 55;
 }

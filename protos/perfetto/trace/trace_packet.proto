@@ -180,7 +180,6 @@ message TracePacket {
     EntityStateResidency entity_state_residency = 91;
 
     // Only used in profile packets.
-    ProfiledFrameSymbols profiled_frame_symbols = 55;
     ModuleSymbols module_symbols = 61;
     DeobfuscationMapping deobfuscation_mapping = 64;
 
@@ -266,6 +265,9 @@ message TracePacket {
 
   // AndroidInputEvent android_input_event (moved to winscope_extensions)
   reserved 106;
+
+  // removed ProfiledFrameSymbols profiled_frame_symbols
+  reserved 55;
 
   // Trusted user id of the producer which generated this packet. Keep in sync
   // with TrustedPacket.trusted_uid.
