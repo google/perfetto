@@ -25,6 +25,7 @@
 
 #include "perfetto/public/pb_macros.h"
 
+PERFETTO_PB_MSG_DECL(perfetto_protos_AppWakelockInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Callstack);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DebugAnnotationName);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DebugAnnotationValueTypeName);
@@ -43,7 +44,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_InternedV8WasmScript);
 PERFETTO_PB_MSG_DECL(perfetto_protos_LogMessageBody);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Mapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_NetworkPacketContext);
-PERFETTO_PB_MSG_DECL(perfetto_protos_ProfiledFrameSymbols);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SourceLocation);
 PERFETTO_PB_MSG_DECL(perfetto_protos_UnsymbolizedSourceLocation);
 
@@ -108,11 +108,6 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   perfetto_protos_InternedString,
                   function_names,
                   5);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_ProfiledFrameSymbols,
-                  profiled_frame_symbols,
-                  21);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
                   perfetto_protos_Mapping,
@@ -213,5 +208,10 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   perfetto_protos_InternedString,
                   viewcapture_class_name,
                   41);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_AppWakelockInfo,
+                  app_wakelock_info,
+                  42);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_INTERNED_DATA_INTERNED_DATA_PZC_H_
