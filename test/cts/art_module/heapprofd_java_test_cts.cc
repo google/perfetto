@@ -23,8 +23,10 @@
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
+
 #include "src/base/test/test_task_runner.h"
 #include "test/android_test_utils.h"
+#include "test/cts/heapprofd_test_helper.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
@@ -35,6 +37,12 @@
 
 namespace perfetto {
 namespace {
+
+constexpr uint64_t kTestSamplingInterval = 4096;
+
+// Activity that runs a java thread that repeatedly constructs small java
+// objects.
+static char kJavaAllocActivity[] = "JavaAllocActivity";
 
 // Even though ART is a mainline module, there are dependencies on perfetto for
 // OOM heap dumps to work correctly.
@@ -52,19 +60,9 @@ bool SupportsOomHeapDump() {
   return false;
 }
 
-std::string RandomSessionName() {
-  std::random_device rd;
-  std::default_random_engine generator(rd());
-  std::uniform_int_distribution<> distribution('a', 'z');
-
-  constexpr size_t kSessionNameLen = 20;
-  std::string result(kSessionNameLen, '\0');
-  for (size_t i = 0; i < kSessionNameLen; ++i)
-    result[i] = static_cast<char>(distribution(generator));
-  return result;
-}
-
-std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
+// TODO(rsavitski): deduplicate with heapprofd_test_helper.cc:ProfileRuntime.
+std::vector<protos::gen::TracePacket> ProfileHeapGraphRuntime(
+    std::string app_name) {
   base::TestTaskRunner task_runner;
 
   // (re)start the target app's main activity
@@ -187,21 +185,47 @@ void AssertNoProfileContents(std::vector<protos::gen::TracePacket> packets) {
   }
 }
 
+//
+// Tests for the NDK custom allocator API, as used by ART's java heap sampler.
+//
+
+TEST(HeapprofdJavaCtsTest, ArtHeapCustomAllocatorRuntime) {
+  std::string app_name = "android.perfetto.cts.app.debuggable";
+  const auto& packets =
+      ProfileRuntime(app_name, kJavaAllocActivity, kTestSamplingInterval,
+                     /*heap_names=*/{"com.android.art"});
+  AssertHasSampledAllocs(packets);
+  StopApp(app_name);
+}
+
+TEST(HeapprofdJavaCtsTest, ArtHeapCustomAllocatorStartup) {
+  std::string app_name = "android.perfetto.cts.app.debuggable";
+  const auto& packets =
+      ProfileStartup(app_name, kJavaAllocActivity, kTestSamplingInterval,
+                     /*heap_names=*/{"com.android.art"});
+  AssertHasSampledAllocs(packets);
+  StopApp(app_name);
+}
+
+//
+// Tests for the java heap graph plugin in ART.
+//
+
 TEST(HeapprofdJavaCtsTest, DebuggableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
-  const auto& packets = ProfileRuntime(app_name);
+  const auto& packets = ProfileHeapGraphRuntime(app_name);
   AssertGraphPresent(packets);
 }
 
 TEST(HeapprofdJavaCtsTest, ProfileableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.profileable";
-  const auto& packets = ProfileRuntime(app_name);
+  const auto& packets = ProfileHeapGraphRuntime(app_name);
   AssertGraphPresent(packets);
 }
 
 TEST(HeapprofdJavaCtsTest, ReleaseAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.release";
-  const auto& packets = ProfileRuntime(app_name);
+  const auto& packets = ProfileHeapGraphRuntime(app_name);
 
   if (!IsUserBuild())
     AssertGraphPresent(packets);
