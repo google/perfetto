@@ -67,6 +67,7 @@ export default defineConfig({
             '--disable-font-subpixel-positioning',
             '--disable-gpu',
             '--disable-lcd-text',
+            '--disable-spell-checking',
             '--font-render-hinting=none',
             '--force-device-scale-factor=1',
             '--hide-scrollbars',
