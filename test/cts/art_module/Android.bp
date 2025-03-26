@@ -8,14 +8,10 @@ package {
 }
 
 cc_test {
-    name: "CtsPerfettoTestCases",
+    name: "CtsHeapprofdJavaCtsTest",
     team: "trendy_team_perfetto",
     srcs: [
-        "device_feature_test_cts.cc",
-        "heapprofd_test_cts.cc",
-        "producer_to_consumer_integrationtest_cts.cc",
-        "traced_perf_test_cts.cc",
-        ":perfetto_end_to_end_integrationtests",
+        "heapprofd_java_test_cts.cc",
         ":perfetto_protos_perfetto_config_cpp_gen",
         ":perfetto_protos_perfetto_common_cpp_gen",
     ],
@@ -25,8 +21,6 @@ cc_test {
     ],
     static_libs: [
         "libgmock",
-        "libprotobuf-cpp-lite",
-        "libperfetto_client_experimental",
         "perfetto_cts_deps",
         "perfetto_trace_protos",
     ],
@@ -39,8 +33,9 @@ cc_test {
     ],
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
+        "mts-art",
+        "mcts-art",
     ],
     compile_multilib: "both",
     multilib: {
@@ -63,16 +58,8 @@ cc_test {
     stl: "libc++_static",
     // This test is also run via Mainline Testing against the ART Mainline
     // Module, which is updatable since Android 12 (API level 31).
-    // TODO(rsavitski): is this still necessary with the MTS tests split off into
-    // their own target?
     min_sdk_version: "31",
     defaults: [
         "perfetto_defaults",
     ],
-}
-
-filegroup {
-    name: "perfetto_device_preparer_sh",
-    srcs: ["perfetto_device_preparer.sh"],
-    path: ".",
 }
