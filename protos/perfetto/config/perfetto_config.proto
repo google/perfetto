@@ -1231,6 +1231,10 @@ message FtraceConfig {
   // Introduced in: perfetto v43.
   optional bool buffer_size_lower_bound = 27;
 
+  // For perfetto developer use. If true and on a debuggable android build,
+  // serialise raw tracing pages that the implementation cannot parse.
+  optional bool debug_ftrace_abi = 31;
+
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;
 }
