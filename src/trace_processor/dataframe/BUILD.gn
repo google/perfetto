@@ -15,7 +15,26 @@
 import("../../../gn/test.gni")
 
 source_set("dataframe") {
-  sources = [ "type_set.h" ]
+  sources = [
+    "dataframe.cc",
+    "dataframe.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+    "../containers",
+    "../util:glob",
+    "../util:regex",
+    "impl",
+  ]
+  public_deps = [ ":specs" ]
+}
+
+source_set("specs") {
+  sources = [
+    "specs.h",
+    "type_set.h",
+  ]
   deps = [
     "../../../gn:default_deps",
     "../../base",
@@ -24,10 +43,17 @@ source_set("dataframe") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "type_set_unittest.cc" ]
+  sources = [
+    "dataframe_unittest.cc",
+    "type_set_unittest.cc",
+  ]
   deps = [
     ":dataframe",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../base",
+    "../../base:test_support",
+    "../containers",
+    "impl",
   ]
 }

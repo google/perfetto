@@ -5,6 +5,7 @@
 .ccls-cache
 .clangd
 .cproject
+.cursor*
 .deps_sha1
 .DS_Store
 .env

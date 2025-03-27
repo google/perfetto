@@ -99,7 +99,7 @@ PERFETTO_NO_INLINE inline base::StackString<32> ArgToString(uint32_t value) {
 
 PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
     const reg::HandleBase& value) {
-  return base::StackString<64>("reg::HandleBase(%u)", value.index);
+  return base::StackString<64>("Register(%u)", value.index);
 }
 
 PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(Op value) {
@@ -108,7 +108,7 @@ PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(Op value) {
 
 PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
     FilterValueHandle value) {
-  return base::StackString<64>("FilterValueHandle(%u)", value.index);
+  return base::StackString<64>("FilterValue(%u)", value.index);
 }
 
 PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
