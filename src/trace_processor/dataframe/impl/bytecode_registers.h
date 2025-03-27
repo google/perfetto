@@ -26,6 +26,8 @@
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode::reg {
 
+static constexpr uint32_t kMaxRegisters = 64;
+
 // Register system for the bytecode interpreter.
 // Provides typed handles for accessing virtual registers with appropriate
 // read/write permissions.

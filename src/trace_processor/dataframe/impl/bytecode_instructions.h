@@ -125,12 +125,6 @@ struct StrideExpandedCopy : Bytecode {
                                      stride);
 };
 
-// Clears a register (sets to Empty).
-struct ClearRegister : Bytecode {
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_1(reg::WriteHandle<reg::Empty>,
-                                     dest_register);
-};
-
 // List of all bytecode instruction types for variant definition.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X) \
   X(InitRange)                              \
@@ -139,8 +133,7 @@ struct ClearRegister : Bytecode {
   X(CastFilterValue<Id>)                    \
   X(SortedFilter<Id, EqualRange>)           \
   X(NonStringFilter<Id, Eq>)                \
-  X(StrideExpandedCopy)                     \
-  X(ClearRegister)
+  X(StrideExpandedCopy)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 
