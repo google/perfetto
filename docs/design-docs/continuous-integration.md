@@ -114,7 +114,7 @@ debugging.
 Each sandbox does the following:
 
 - Checkout the code at the revision specified in the job config.
-- Run one of the [test/ci/](/test/ci/) scripts which will build and run tests.
+- Run one of the /test/ci/ scripts which will build and run tests.
 - Return either a success (0) or fail (!= 0) exit code.
 
 A sandbox container is almost completely stateless with the only exception of

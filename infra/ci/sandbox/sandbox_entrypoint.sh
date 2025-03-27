@@ -15,14 +15,14 @@
 
 set -eu
 
-cd github-action-runner
-GH_DIR=$(pwd)
+# Move to tmpfs, as GitHub Action runner checks out the repo under
+# a _work subdirectory
+cp -a github-action-runner /tmp
+cd /tmp/github-action-runner/
 
 GITHUB_TOKEN=$(cat $GITHUB_TOKEN_PATH)
 
-cd /tmp
-
-$GH_DIR/config.sh --unattended --ephemeral --replace \
+./config.sh --unattended --ephemeral --replace \
     --url "https://github.com/$GITHUB_REPO" \
     --token "$GITHUB_TOKEN"
 
@@ -32,11 +32,11 @@ cleanup() {
   echo "Received SIGTERM. Removing Action runner..."
   kill $pid
   wait $pid
-  $GH_DIR/config.sh remove --token "$GITHUB_TOKEN"
+  ./config.sh remove --token "$GITHUB_TOKEN"
 }
 
 # Run the GitHub Action Runner
-GITHUB_TOKEN="" $GH_DIR/run.sh &
+GITHUB_TOKEN="" ./run.sh &
 pid=$!
 
 wait $pid
