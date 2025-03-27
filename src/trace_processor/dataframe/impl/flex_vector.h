@@ -84,8 +84,10 @@ class FlexVector {
       // Grow by doubling, at least to capacity 64
       size_t new_capacity = std::max<size_t>(capacity() * 2, 64);
       Slab<T, kAlignment> new_slab = Slab<T, kAlignment>::Alloc(new_capacity);
-      // Copy from the original slab data
-      memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));
+      if (slab_.size() > 0) {
+        // Copy from the original slab data
+        memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));
+      }
       slab_ = std::move(new_slab);
     }
     slab_[size_++] = value;
