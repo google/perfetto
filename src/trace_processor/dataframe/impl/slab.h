@@ -45,9 +45,11 @@ static constexpr bool IsPowerOfTwo(size_t n) {
 //   for (size_t i = 0; i < slab.size(); ++i) {
 //     slab[i] = static_cast<float>(i);
 //   }
-template <typename T, size_t kAlignment = std::max<size_t>(alignof(T), 64)>
+template <typename T, size_t kAlignmentIn = std::max<size_t>(alignof(T), 64)>
 class Slab {
  public:
+  static constexpr size_t kAlignment = kAlignmentIn;
+
   static_assert(std::is_trivially_constructible_v<T>,
                 "Slab elements must be trivially constructible");
   static_assert(std::is_trivially_destructible_v<T>,
