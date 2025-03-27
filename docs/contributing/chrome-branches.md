@@ -7,14 +7,14 @@ to the new perfetto branch's head.
 
 ## Creating the perfetto branch {#branch}
 
-1.  Determine the branch name: **`chromium/XXXX`**, where `XXXX` is the branch
+1.  Determine the branch name: `chromium/XXXX`, where `XXXX` is the branch
     number of the milestone (see
     [Chromium Dash](https://chromiumdash.appspot.com/branches)). Example for
     M87: `chromium/4280`.
 
 1.  Check if the branch already exists: if yes, skip to
     [cherry-picking](#all-tables). To check, you can search for it in
-    [Gerrit's branch page](https://android-review.googlesource.com/admin/repos/platform/external/perfetto,branches).
+    https://github.com/google/perfetto/branches.
 
 1.  Look up the appropriate base revision for the branch. You should use the
     revision that Chromium's `DEPS` of the milestone branch points to (search
@@ -26,33 +26,25 @@ to the new perfetto branch's head.
     [`DEPS`](https://chromium.googlesource.com/chromium/src.git/+/refs/branch-heads/4280/DEPS)
     (at time of writing) points to `f4cf78e052c9427d8b6c49faf39ddf2a2e236069`.
 
-1.  Create the branch - the easiest way to do this is via
-    [Gerrit's branch page](https://android-review.googlesource.com/admin/repos/platform/external/perfetto,branches).
-    The `NEW BRANCH` button on the top right opens a wizard - fill in the branch
-    name and base revision determined above. If this fails with a permission
-    issue, contact the [Discord chat](https://discord.gg/35ShE3A) or
-    [perfetto-dev](https://groups.google.com/forum/#!forum/perfetto-dev) mailing
-    list.
+1.  Create the branch:
+    Ask a member of [perfetto-team](https://github.com/orgs/google/teams/perfetto-team/)
+    to create a chromium/XXXX branch via `git push origin 4cf78e05:chromium/4280`
 
 ## Cherry-picking the change(s) {#cherry-pick}
 
-1.  If there are no merge conflicts, cherry-picking via Gerrit will be easiest.
-    To attempt this, open your change in Gerrit and use the `Cherry pick` entry
-    in the overflow menu on the top right, providing the `chromium/XXXX` branch
-    name (see [above](#branch)).
-
-1.  Otherwise, merge the patch locally into a branch tracking
-    `origin/chromium/XXXX` and upload a Gerrit change as usual:
+1.  Cherry-pick the commit locally and send a pull-request against the branch 
+    as usual.
 
     ```
     $ git fetch origin
     $ git checkout -tb cpick origin/chromium/XXXX
     $ git cherry-pick -x <commit hash>    # Resolve conflicts manually.
     $ tools/gen_all out/xxx               # If necessary.
-    $ git cl upload    # Remove "Change-Id:" lines from commit message.
+    $ gh pr create
     ```
 
-1.  Send the patch for review and land it. Note the commit's revision hash.
+1.  Send the pull request for review and land it.
+    Note the commit's revision hash.
 
 ## Updating the DEPS file in Chromium
 
