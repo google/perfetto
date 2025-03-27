@@ -2,7 +2,7 @@ Unreleased:
   Tracing service and probes:
     * Removed mm_events support as it is no longer maintained.
   SQL Standard library:
-    * test
+    *
   Trace Processor:
     * Added `thread_or_process_slice` to the `slices.with_context` module for
       a unified table which contains all thread and process slices in the trace.
