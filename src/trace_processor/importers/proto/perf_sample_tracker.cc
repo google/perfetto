@@ -119,8 +119,10 @@ StringId InternCounterName(
     // This doesn't follow any pre-existing naming scheme, but aims to be a
     // short-enough default that is distinguishable.
     base::StackString<128> name(
-        "raw.0x%" PRIx32 ".0x%" PRIx64 ".0x%" PRIx64 ".0x%" PRIx64, raw.type(),
-        raw.config(), raw.config1(), raw.config2());
+        "raw.0x%" PRIx32 ".0x%" PRIx64 ".0x%" PRIx64 ".0x%" PRIx64 "%s%s%s",
+        raw.type(), raw.config(), raw.config1(), raw.config2(),
+        raw.exclude_user() ? ":!u" : "", raw.exclude_kernel() ? ":!k" : "",
+        raw.exclude_hv() ? ":!h" : "");
     return context->storage->InternString(name.string_view());
   }
 

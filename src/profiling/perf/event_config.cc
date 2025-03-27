@@ -267,7 +267,8 @@ std::optional<PerfCounter> MakePerfCounter(
   } else if (event_desc.has_raw_event()) {
     const auto& raw = event_desc.raw_event();
     return PerfCounter::RawEvent(name, raw.type(), raw.config(), raw.config1(),
-                                 raw.config2());
+                                 raw.config2(), raw.exclude_user(),
+                                 raw.exclude_kernel(), raw.exclude_hv());
   } else {
     return PerfCounter::BuiltinCounter(
         name, protos::gen::PerfEvents::PerfEvents::SW_CPU_CLOCK,
@@ -329,7 +330,10 @@ PerfCounter PerfCounter::RawEvent(std::string name,
                                   uint32_t type,
                                   uint64_t config,
                                   uint64_t config1,
-                                  uint64_t config2) {
+                                  uint64_t config2,
+                                  bool exclude_user,
+                                  bool exclude_kernel,
+                                  bool exclude_hv) {
   PerfCounter ret;
   ret.type = PerfCounter::Type::kRawEvent;
   ret.name = std::move(name);
@@ -338,6 +342,9 @@ PerfCounter PerfCounter::RawEvent(std::string name,
   ret.attr_config = config;
   ret.attr_config1 = config1;
   ret.attr_config2 = config2;
+  ret.attr_exclude_user = exclude_user;
+  ret.attr_exclude_kernel = exclude_kernel;
+  ret.attr_exclude_hv = exclude_hv;
   return ret;
 }
 
@@ -398,6 +405,9 @@ std::optional<EventConfig> EventConfig::CreatePolling(
   pe.config = timebase_event.attr_config;
   pe.config1 = timebase_event.attr_config1;
   pe.config2 = timebase_event.attr_config2;
+  pe.exclude_user = timebase_event.attr_exclude_user;
+  pe.exclude_kernel = timebase_event.attr_exclude_kernel;
+  pe.exclude_hv = timebase_event.attr_exclude_hv;
 
   // Include all counters in the group when reading the timebase. Always set
   // this option as it changes the layout of the data returned by the read
@@ -417,6 +427,9 @@ std::optional<EventConfig> EventConfig::CreatePolling(
     pe_follower.config = e.attr_config;
     pe_follower.config1 = e.attr_config1;
     pe_follower.config2 = e.attr_config2;
+    pe_follower.exclude_user = e.attr_exclude_user;
+    pe_follower.exclude_kernel = e.attr_exclude_kernel;
+    pe_follower.exclude_hv = e.attr_exclude_hv;
     pe_follower.sample_type = pe.sample_type;
 
     pe_followers.push_back(pe_follower);
@@ -556,6 +569,9 @@ std::optional<EventConfig> EventConfig::CreateSampling(
   pe.config = timebase_event.attr_config;
   pe.config1 = timebase_event.attr_config1;
   pe.config2 = timebase_event.attr_config2;
+  pe.exclude_user = timebase_event.attr_exclude_user;
+  pe.exclude_kernel = timebase_event.attr_exclude_kernel;
+  pe.exclude_hv = timebase_event.attr_exclude_hv;
   if (sampling_frequency) {
     pe.freq = true;
     pe.sample_freq = sampling_frequency;
@@ -602,6 +618,9 @@ std::optional<EventConfig> EventConfig::CreateSampling(
     pe_follower.config = e.attr_config;
     pe_follower.config1 = e.attr_config1;
     pe_follower.config2 = e.attr_config2;
+    pe_follower.exclude_user = e.attr_exclude_user;
+    pe_follower.exclude_kernel = e.attr_exclude_kernel;
+    pe_follower.exclude_hv = e.attr_exclude_hv;
     // Some arguments must match the timebase:
     pe_follower.sample_type = pe.sample_type;
     pe_follower.clockid = pe.clockid;
