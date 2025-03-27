@@ -23,14 +23,12 @@ on:
   push:
     branches:
       - main
-      - test
 
   # 3. presubmit
   pull_request:
     types: [opened, synchronize]
     branches:
       - main
-      - test
 
 # If a new commit is pushed, cancel previous jobs for the same PR / branch.
 concurrency:
