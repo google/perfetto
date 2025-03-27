@@ -62,6 +62,11 @@ import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
 import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
 import {MultiselectInput} from '../../widgets/multiselect_input';
+import {DataGrid} from '../../components/widgets/data_grid/data_grid';
+import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
+import {SQLDataSource} from '../../components/widgets/data_grid/sql_data_source';
+import {Engine} from '../../trace_processor/engine';
+import {App} from '../../public/app';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -667,8 +672,8 @@ function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
   };
 }
 
-export class WidgetsPage implements m.ClassComponent {
-  view() {
+export class WidgetsPage implements m.ClassComponent<{app: App}> {
+  view({attrs}: m.Vnode<{app: App}>) {
     return m(
       '.widgets-page',
       m('h1', 'Widgets'),
@@ -1572,6 +1577,25 @@ export class WidgetsPage implements m.ClassComponent {
           showCloseButtons: true,
         },
       }),
+
+      m(WidgetShowcase, {
+        label: 'DataGrid (memory backed)',
+        description: `An interactive data explorer and viewer.`,
+        renderWidget: () => m(DataGridShowcase),
+      }),
+
+      m(WidgetShowcase, {
+        label: 'DataGrid (query backed)',
+        description: `An interactive data explorer and viewer - fetched from SQL.`,
+        renderWidget: () => {
+          const trace = attrs.app.trace;
+          if (trace) {
+            return m(DataGridSqlShowcase, {engine: trace.engine});
+          } else {
+            return 'Load a trace to start';
+          }
+        },
+      }),
     );
   }
 }
@@ -1625,6 +1649,68 @@ function MultiselectInputDemo() {
         onOptionRemove: (key) => {
           selectedOptions = selectedOptions.filter((x) => x !== key);
         },
+      });
+    },
+  };
+}
+
+function DataGridShowcase() {
+  const dataSource = new InMemoryDataSource([
+    {
+      id: 1,
+      name: 'foo',
+      ts: 123n,
+      dur: 16n,
+      data: new Uint8Array(),
+      maybe_null: null,
+    },
+    {
+      id: 2,
+      name: 'bar',
+      ts: 185n,
+      dur: 4n,
+      data: new Uint8Array(),
+      maybe_null: 'not null!',
+    },
+    {
+      id: 3,
+      name: 'baz',
+      ts: 575n,
+      dur: 12n,
+      data: new Uint8Array(),
+      maybe_null: null,
+    },
+  ]);
+
+  return {
+    view() {
+      return m(DataGrid, {
+        columns: [
+          {name: 'id'},
+          {name: 'ts'},
+          {name: 'dur'},
+          {name: 'name'},
+          {name: 'data'},
+          {name: 'maybe_null'},
+        ],
+        dataSource,
+      });
+    },
+  };
+}
+
+function DataGridSqlShowcase(vnode: m.Vnode<{engine: Engine}>) {
+  const dataSource = new SQLDataSource(
+    vnode.attrs.engine,
+    'SELECT * FROM slice',
+  );
+
+  return {
+    view() {
+      return m(DataGrid, {
+        columns: [{name: 'id'}, {name: 'ts'}, {name: 'dur'}],
+        dataSource,
+        maxRowsPerPage: 10,
       });
     },
   };

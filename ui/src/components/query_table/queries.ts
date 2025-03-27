@@ -65,7 +65,7 @@ export async function runQueryForQueryTable(
       const row: Row = {};
       for (const colName of columns) {
         const value = iter.get(colName);
-        row[colName] = value === null ? 'NULL' : value;
+        row[colName] = value;
       }
       rows.push(row);
     }
