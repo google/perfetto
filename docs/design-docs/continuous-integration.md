@@ -114,7 +114,7 @@ debugging.
 Each sandbox does the following:
 
 - Checkout the code at the revision specified in the job config.
-- Run one of the [test/ci/](/test/ci/) scripts which will build and run tests.
+- Run one of the /test/ci/ scripts which will build and run tests.
 - Return either a success (0) or fail (!= 0) exit code.
 
 A sandbox container is almost completely stateless with the only exception of
@@ -265,14 +265,14 @@ docker run worker-N ...
 - Sets up Docker and `iptables` (for the sandboxed network).
 - Starts `N` worker containers in Docker.
 
-### [worker.py](/infra/ci/worker/worker.py)
+### worker.py
 
 - It polls the DB to retrieve a job.
 - When a job is retrieved starts a sandbox container.
 - It streams the container stdout/stderr to the DB.
 - It upload the build artifacts to GCS.
 
-### [testrunner.sh](/infra/ci/sandbox/testrunner.sh)
+### testrunner.sh
 
 - It is pinned in the container image. Does NOT depend on the particular
   revision being tested.
@@ -282,7 +282,7 @@ docker run worker-N ...
 - Deals with caching of buildtools/.
 - Runs the test script specified in the job config from the checkout.
 
-### [{android,fuzzer,linux,ui}_tests.sh](/test/ci/linux_tests.sh)
+### {android,fuzzer,linux,ui}_tests.sh
 
 - Are NOT pinned in the container and are ran from the checked out revision.
 - Finally build and run the test.
