@@ -1,4 +1,4 @@
-# Copyright (C) 2017 The Android Open Source Project
+# Copyright (C) 2025 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@ import subprocess
 import sys
 import time
 from typing import List, Callable, Optional, Tuple, Iterable
+
+REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
 def RunAndReportIfLong(func, *args, **kargs):
@@ -63,19 +65,6 @@ def run_command(args: List[str],
   except subprocess.CalledProcessError as e:
     # Reraise for caller to handle, or handle more specifically if needed
     raise e
-
-
-def get_git_repo_root() -> str:
-  """Finds the root directory of the git repository."""
-  try:
-    result = run_command(['git', 'rev-parse', '--show-toplevel'])
-    return result.stdout.strip()
-  except (subprocess.CalledProcessError, FileNotFoundError) as e:
-    print(f"Error finding git repo root: {e}", file=sys.stderr)
-    sys.exit(1)
-
-
-REPO_ROOT = get_git_repo_root()
 
 
 def get_merge_base() -> Optional[str]:
@@ -1023,6 +1012,5 @@ def main():
 
 if __name__ == '__main__':
   # Ensure we run from repo root for consistent paths
-  repo_root_path = get_git_repo_root()
-  os.chdir(repo_root_path)
+  os.chdir(REPO_ROOT)
   main()
