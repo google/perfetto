@@ -83,7 +83,11 @@ struct WriteHandle : HandleBase {
 struct Empty {};
 
 // Values that can be stored in a register.
-using Value = std::variant<Empty, Range, Slab<uint32_t>, CastFilterValueResult>;
+using Value = std::variant<Empty,
+                           Range,
+                           Slab<uint32_t>,
+                           Span<uint32_t>,
+                           CastFilterValueResult>;
 
 }  // namespace perfetto::trace_processor::dataframe::impl::bytecode::reg
 

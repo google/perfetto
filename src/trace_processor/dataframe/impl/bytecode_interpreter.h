@@ -25,7 +25,6 @@
 #include <functional>
 #include <limits>
 #include <numeric>
-#include <optional>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -37,7 +36,6 @@
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
-#include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -250,10 +248,8 @@ class Interpreter {
   }
 
   // Copies values from source to update with a specified stride.
-  // Used for expanding data when needed for certain operations.
-  PERFETTO_ALWAYS_INLINE void StrideExpandedCopy(
-      const bytecode::StrideExpandedCopy& tr) {
-    using B = bytecode::StrideExpandedCopy;
+  PERFETTO_ALWAYS_INLINE void StrideCopy(const bytecode::StrideCopy& tr) {
+    using B = bytecode::StrideCopy;
     const auto& source = Reg(tr.arg<B::source_register>());
     auto& update = Reg(tr.arg<B::update_register>());
     uint32_t stride = tr.arg<B::stride>();

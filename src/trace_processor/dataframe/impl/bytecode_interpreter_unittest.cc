@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/dataframe/impl/bytecode_interpreter.h"
+#include <sys/types.h>
 
 #include <algorithm>
 #include <array>
@@ -29,7 +30,6 @@
 #include <utility>
 #include <vector>
 
-#include "gtest/gtest-param-test.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -44,7 +44,9 @@
 namespace perfetto::trace_processor::dataframe::impl::bytecode {
 namespace {
 using testing::AllOf;
+using testing::ElementsAre;
 using testing::Ge;
+using testing::IsEmpty;
 using testing::Le;
 
 std::string FilterValueToString(const FilterSpec::Value& value) {
@@ -224,20 +226,20 @@ TEST(BytecodeInterpreterTest, Iota) {
   bytecode.emplace_back(ParseBytecode(
       "Iota: [source_register=Register(0), update_register=Register(1)]"));
 
-  auto slab = Slab<uint32_t>::Alloc(132u);
+  std::vector<uint32_t> res(132u);
   Interpreter interpreter(std::move(bytecode), {}, nullptr, nullptr);
   interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(0),
                                          Range{5, 10});
   interpreter.SetRegisterValueForTesting(
       reg::WriteHandle<Span<uint32_t>>(1),
-      Span<uint32_t>{slab.begin(), slab.end()});
+      Span<uint32_t>{res.data(), res.data() + res.size()});
   interpreter.Execute();
 
   const auto* update =
       interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(1));
   ASSERT_TRUE(update);
-  ASSERT_THAT(update->b, AllOf(Ge(slab.begin()), Le(slab.end())));
-  ASSERT_THAT(update->e, AllOf(Ge(slab.begin()), Le(slab.end())));
+  ASSERT_THAT(update->b, AllOf(Ge(res.data()), Le(res.data() + res.size())));
+  ASSERT_THAT(update->e, AllOf(Ge(res.data()), Le(res.data() + res.size())));
   EXPECT_THAT(std::vector<uint32_t>(update->b, update->e),
               testing::ElementsAreArray({5, 6, 7, 8, 9}));
 }
@@ -345,10 +347,10 @@ TEST(BytecodeInterpreterTest, SortedFilterId) {
   EXPECT_EQ(result->b, 5u);
   EXPECT_EQ(result->e, 6u);
 
-  // Test case 2: Value doesn't exist in range
+  // Test case 2: Value above range
   interpreter.SetRegisterValueForTesting(
       reg::WriteHandle<CastFilterValueResult>(0),
-      CastFilterValueResult::Valid(CastFilterValueResult::Id{15}));
+      CastFilterValueResult::Valid(CastFilterValueResult::Id{10}));
   interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
                                          Range{0, 10});
   interpreter.Execute();
@@ -357,7 +359,19 @@ TEST(BytecodeInterpreterTest, SortedFilterId) {
   ASSERT_TRUE(result);
   EXPECT_EQ(result->size(), 0u);
 
-  // Test case 3: Invalid cast result (NoneMatch)
+  // Test case 3: Value below range
+  interpreter.SetRegisterValueForTesting(
+      reg::WriteHandle<CastFilterValueResult>(0),
+      CastFilterValueResult::Valid(CastFilterValueResult::Id{2}));
+  interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
+                                         Range{3, 10});
+  interpreter.Execute();
+
+  result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
+  ASSERT_TRUE(result);
+  EXPECT_EQ(result->size(), 0u);
+
+  // Test case 4: Invalid cast result (NoneMatch)
   interpreter.SetRegisterValueForTesting(
       reg::WriteHandle<CastFilterValueResult>(0),
       CastFilterValueResult::NoneMatch());
@@ -368,6 +382,99 @@ TEST(BytecodeInterpreterTest, SortedFilterId) {
   result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
   ASSERT_TRUE(result);
   EXPECT_EQ(result->size(), 0u);
+}
+
+TEST(BytecodeInterpreterTest, FilterId) {
+  BytecodeVector bytecode;
+  bytecode.emplace_back(ParseBytecode(
+      "NonStringFilter<Id, Eq>: [col=0, val_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]"));
+
+  Interpreter interpreter(std::move(bytecode), nullptr, nullptr, nullptr);
+
+  std::vector<uint32_t> indices_spec = {12, 44, 10, 4, 5, 2, 3};
+  {
+    // Test case 1: Value exists in range
+    std::vector<uint32_t> indices = indices_spec;
+    interpreter.SetRegisterValueForTesting(
+        reg::WriteHandle<CastFilterValueResult>(0),
+        CastFilterValueResult::Valid(CastFilterValueResult::Id{5}));
+    interpreter.SetRegisterValueForTesting(
+        reg::WriteHandle<Span<uint32_t>>(1),
+        Span<uint32_t>{indices.data(), indices.data() + indices.size()});
+    interpreter.SetRegisterValueForTesting(
+        reg::WriteHandle<Span<uint32_t>>(2),
+        Span<uint32_t>{indices.data(), indices.data() + indices.size()});
+    interpreter.Execute();
+
+    const auto* result =
+        interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(2));
+    ASSERT_TRUE(result);
+    EXPECT_THAT(std::vector<uint32_t>(result->b, result->e), ElementsAre(5));
+  }
+  {
+    // Test case 2: Value above range
+    std::vector<uint32_t> indices = indices_spec;
+    interpreter.SetRegisterValueForTesting(
+        reg::WriteHandle<CastFilterValueResult>(0),
+        CastFilterValueResult::Valid(CastFilterValueResult::Id{11}));
+    interpreter.SetRegisterValueForTesting(
+        reg::WriteHandle<Span<uint32_t>>(1),
+        Span<uint32_t>{indices.data(), indices.data() + indices.size()});
+    interpreter.SetRegisterValueForTesting(
+        reg::WriteHandle<Span<uint32_t>>(2),
+        Span<uint32_t>{indices.data(), indices.data() + indices.size()});
+    interpreter.Execute();
+
+    const auto* result =
+        interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(2));
+    ASSERT_TRUE(result);
+    EXPECT_THAT(std::vector<uint32_t>(result->b, result->e), IsEmpty());
+  }
+  {
+    // Test case 3: Invalid cast result (NoneMatch)
+    std::vector<uint32_t> indices = indices_spec;
+    interpreter.SetRegisterValueForTesting(
+        reg::WriteHandle<CastFilterValueResult>(0),
+        CastFilterValueResult::NoneMatch());
+    interpreter.SetRegisterValueForTesting(
+        reg::WriteHandle<Span<uint32_t>>(1),
+        Span<uint32_t>{indices.data(), indices.data() + indices.size()});
+    interpreter.SetRegisterValueForTesting(
+        reg::WriteHandle<Span<uint32_t>>(2),
+        Span<uint32_t>{indices.data(), indices.data() + indices.size()});
+    interpreter.Execute();
+
+    const auto* result =
+        interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(2));
+    ASSERT_TRUE(result);
+    EXPECT_THAT(std::vector<uint32_t>(result->b, result->e), IsEmpty());
+  }
+}
+
+TEST(BytecodeInterpreterTest, StrideCopy) {
+  BytecodeVector bytecode;
+  bytecode.emplace_back(
+      ParseBytecode("StrideCopy: [source_register=Register(0), "
+                    "update_register=Register(1), stride=3]"));
+
+  Interpreter interpreter(std::move(bytecode), nullptr, nullptr, nullptr);
+  std::vector<uint32_t> source = {10, 3, 12, 4};
+  std::vector<uint32_t> dest(source.size() * 3);
+
+  interpreter.SetRegisterValueForTesting(
+      reg::WriteHandle<Span<uint32_t>>(0),
+      Span<uint32_t>{source.data(), source.data() + source.size()});
+  interpreter.SetRegisterValueForTesting(
+      reg::WriteHandle<Span<uint32_t>>(1),
+      Span<uint32_t>{dest.data(), dest.data() + dest.size()});
+  interpreter.Execute();
+
+  const auto* result =
+      interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(1));
+  ASSERT_TRUE(result);
+  EXPECT_THAT(std::vector<uint32_t>(result->b, result->e),
+              ElementsAre(10, 0, 0, 3, 0, 0, 12, 0, 0, 4, 0, 0));
 }
 
 }  // namespace
