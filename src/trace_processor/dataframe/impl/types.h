@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <variant>
+
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
