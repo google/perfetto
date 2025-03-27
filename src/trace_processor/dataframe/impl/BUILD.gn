@@ -17,6 +17,9 @@ import("../../../../gn/test.gni")
 source_set("impl") {
   sources = [
     "bit_vector.h",
+    "bytecode_core.h",
+    "bytecode_instructions.h",
+    "bytecode_registers.h",
     "flex_vector.h",
     "slab.h",
   ]
