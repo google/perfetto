@@ -46,6 +46,9 @@ class ProbesDataSource {
   ProbesDataSource(TracingSessionID, const Descriptor*);
   virtual ~ProbesDataSource();
 
+  ProbesDataSource(const ProbesDataSource&) = delete;
+  ProbesDataSource& operator=(const ProbesDataSource&) = delete;
+
   virtual void Start() = 0;
   virtual void Flush(FlushRequestID, std::function<void()> callback) = 0;
 
@@ -60,10 +63,6 @@ class ProbesDataSource {
   const TracingSessionID tracing_session_id;
   const Descriptor* const descriptor;
   bool started = false;  // Set by probes_producer.cc.
-
- private:
-  ProbesDataSource(const ProbesDataSource&) = delete;
-  ProbesDataSource& operator=(const ProbesDataSource&) = delete;
 };
 
 }  // namespace perfetto

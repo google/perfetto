@@ -20,11 +20,11 @@
 #include <stddef.h>
 
 #if defined(__GNUC__) || defined(__clang__)
-#define PERFETTO_LIKELY(_x) __builtin_expect(!!(_x), 1)
-#define PERFETTO_UNLIKELY(_x) __builtin_expect(!!(_x), 0)
+#define PERFETTO_LIKELY(...) __builtin_expect(!!(__VA_ARGS__), 1)
+#define PERFETTO_UNLIKELY(...) __builtin_expect(!!(__VA_ARGS__), 0)
 #else
-#define PERFETTO_LIKELY(_x) (_x)
-#define PERFETTO_UNLIKELY(_x) (_x)
+#define PERFETTO_LIKELY(...) (__VA_ARGS__)
+#define PERFETTO_UNLIKELY(...) (__VA_ARGS__)
 #endif
 
 // PERFETTO_STATIC_CAST(TYPE, VAL): avoids the -Wold-style-cast warning when

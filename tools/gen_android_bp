@@ -137,7 +137,7 @@ proto_groups = {
             '//protos/perfetto/trace:minimal_source_set',
         ]
     },
-    'winscope': {
+    'javastream': {
         'types': ['filegroup'],
         'targets': [
             '//protos/perfetto/trace:non_minimal_source_set',

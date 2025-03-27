@@ -8,66 +8,71 @@ package {
 }
 
 cc_test {
-  name: "CtsPerfettoTestCases",
-  team: "trendy_team_perfetto",
-  srcs: [
-    "device_feature_test_cts.cc",
-    "heapprofd_java_test_cts.cc",
-    "heapprofd_test_cts.cc",
-    "producer_to_consumer_integrationtest_cts.cc",
-    "traced_perf_test_cts.cc",
-    ":perfetto_end_to_end_integrationtests",
-    ":perfetto_protos_perfetto_config_cpp_gen",
-    ":perfetto_protos_perfetto_common_cpp_gen"
-  ],
-  generated_headers: [
-    "perfetto_protos_perfetto_config_cpp_gen_headers",
-    "perfetto_protos_perfetto_common_cpp_gen_headers",
-  ],
-  static_libs: [
-    "libgmock",
-    "libprotobuf-cpp-lite",
-    "libperfetto_client_experimental",
-    "perfetto_cts_deps",
-    "perfetto_trace_protos",
-  ],
-  whole_static_libs: [
-    "perfetto_gtest_logcat_printer",
-  ],
-  shared_libs: [
-    "libandroid",
-    "liblog",
-  ],
-  test_suites: [
-    "cts",
-    "mts-art",
-    "vts10",
-    "general-tests",
-    "mcts-art",
-  ],
-  compile_multilib: "both",
-  multilib: {
-    lib32: {
-        suffix: "32",
+    name: "CtsPerfettoTestCases",
+    team: "trendy_team_perfetto",
+    srcs: [
+        "device_feature_test_cts.cc",
+        "heapprofd_test_cts.cc",
+        "producer_to_consumer_integrationtest_cts.cc",
+        "traced_perf_test_cts.cc",
+        ":perfetto_end_to_end_integrationtests",
+        ":perfetto_protos_perfetto_config_cpp_gen",
+        ":perfetto_protos_perfetto_common_cpp_gen",
+    ],
+    generated_headers: [
+        "perfetto_protos_perfetto_config_cpp_gen_headers",
+        "perfetto_protos_perfetto_common_cpp_gen_headers",
+    ],
+    static_libs: [
+        "libgmock",
+        "libprotobuf-cpp-lite",
+        "libperfetto_client_experimental",
+        "perfetto_cts_deps",
+        "perfetto_trace_protos",
+    ],
+    whole_static_libs: [
+        "perfetto_gtest_logcat_printer",
+    ],
+    shared_libs: [
+        "libandroid",
+        "liblog",
+    ],
+    test_suites: [
+        "cts",
+        "vts10",
+        "general-tests",
+    ],
+    compile_multilib: "both",
+    multilib: {
+        lib32: {
+            suffix: "32",
+        },
+        lib64: {
+            suffix: "64",
+        },
     },
-    lib64: {
-        suffix: "64",
-    },
-  },
-  per_testcase_directory: true,
-  data: [
+    per_testcase_directory: true,
+    data: [
         ":CtsPerfettoNonProfileableApp",
         ":CtsPerfettoProfileableApp",
         ":CtsPerfettoProducerApp",
         ":CtsPerfettoReleaseApp",
         ":CtsPerfettoDebuggableApp",
-        "perfetto_device_preparer.sh",
-  ],
-  stl: "libc++_static",
-  // This test is also run via Mainline Testing against the ART Mainline
-  // Module, which is updatable since Android 12 (API level 31).
-  min_sdk_version: "31",
-  defaults: [
-    "perfetto_defaults",
-  ],
+        ":perfetto_device_preparer_sh",
+    ],
+    stl: "libc++_static",
+    // This test is also run via Mainline Testing against the ART Mainline
+    // Module, which is updatable since Android 12 (API level 31).
+    // TODO(rsavitski): is this still necessary with the MTS tests split off into
+    // their own target?
+    min_sdk_version: "31",
+    defaults: [
+        "perfetto_defaults",
+    ],
+}
+
+filegroup {
+    name: "perfetto_device_preparer_sh",
+    srcs: ["perfetto_device_preparer.sh"],
+    path: ".",
 }
