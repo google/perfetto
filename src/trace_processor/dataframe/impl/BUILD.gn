@@ -45,6 +45,8 @@ perfetto_unittest_source_set("unittests") {
   ]
   deps = [
     ":impl",
+    "..:specs",
+    "../../../base",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
   ]
