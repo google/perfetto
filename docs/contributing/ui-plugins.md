@@ -12,7 +12,7 @@ MacOS or Linux machine. Follow the steps below or see the [Getting
 Started](./getting-started) guide for more detail.
 
 ```sh
-git clone https://android.googlesource.com/platform/external/perfetto/
+git clone https://github.com/google/perfetto.git
 cd perfetto
 ./tools/install-build-deps --ui
 ```
