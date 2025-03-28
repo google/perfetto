@@ -1231,6 +1231,10 @@ message FtraceConfig {
   // Introduced in: perfetto v43.
   optional bool buffer_size_lower_bound = 27;
 
+  // For perfetto developer use. If true and on a debuggable android build,
+  // serialise raw tracing pages that the implementation cannot parse.
+  optional bool debug_ftrace_abi = 31;
+
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;
 }
@@ -12047,6 +12051,11 @@ message FtraceEventBundle {
   // oldest bundles can skew the first valid timestamp per cpu significantly.
   // Added in: perfetto v47.
   optional uint64 previous_bundle_end_timestamp = 10;
+
+  // Written only on debuggable android builds if the config sets
+  // |debug_ftrace_abi|. Contains the raw ring buffer tracing page that the
+  // implementation could not parse.
+  optional bytes broken_abi_trace_page = 512;
 }
 
 enum FtraceClock {
