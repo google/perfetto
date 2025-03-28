@@ -3923,6 +3923,9 @@ void TracingServiceImpl::MaybeEmitRemoteClockSync(
 void TracingServiceImpl::MaybeEmitCloneTrigger(
     TracingSession* tracing_session,
     std::vector<TracePacket>* packets) {
+  if (tracing_session->did_emit_initial_packets)
+    return;
+
   if (tracing_session->clone_trigger.has_value()) {
     protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
     auto* trigger = packet->set_clone_snapshot_trigger();
