@@ -22,11 +22,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
@@ -87,25 +89,29 @@ std::string CastResultToString(const CastFilterValueResult& res) {
 }
 
 Bytecode ParseBytecode(const std::string& bytecode_str) {
-#define PERFETTO_DATAFRAME_BYTECODE_AS_STRING(...) #__VA_ARGS__,
+  static constexpr uint32_t kNumBytecodeCount =
+      std::variant_size_v<BytecodeVariant>;
 
-  std::vector<const char*> bytecode_names{
+#define PERFETTO_DATAFRAME_BYTECODE_AS_STRING(...) #__VA_ARGS__,
+  static constexpr std::array<const char*, kNumBytecodeCount> bytecode_names{
       PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_AS_STRING)};
 
 #define PERFETTO_DATAFRAME_BYTECODE_OFFSETS(...) __VA_ARGS__::kOffsets,
-  std::vector<std::array<uint32_t, 6>> offsets{
-      PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_OFFSETS)};
+  static constexpr std::array<std::array<uint32_t, 6>, kNumBytecodeCount>
+      offsets{PERFETTO_DATAFRAME_BYTECODE_LIST(
+          PERFETTO_DATAFRAME_BYTECODE_OFFSETS)};
 
 #define PERFETTO_DATAFRAME_BYTECODE_NAMES(...) __VA_ARGS__::kNames,
-  std::vector<std::array<const char*, 5>> names{
-      PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_NAMES)};
+  static constexpr std::array<std::array<const char*, 5>, kNumBytecodeCount>
+      names{
+          PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_NAMES)};
 
   Bytecode bc;
   size_t colon_pos = bytecode_str.find(": ");
   PERFETTO_CHECK(colon_pos != std::string::npos);
   {
-    auto it = std::find(bytecode_names.begin(), bytecode_names.end(),
-                        bytecode_str.substr(0, colon_pos));
+    const auto* it = std::find(bytecode_names.begin(), bytecode_names.end(),
+                               bytecode_str.substr(0, colon_pos));
     PERFETTO_CHECK(it != bytecode_names.end());
     bc.option = it - bytecode_names.begin();
   }
@@ -134,7 +140,7 @@ Bytecode ParseBytecode(const std::string& bytecode_str) {
     auto* it =
         std::find(names[bc.option].begin(), names[bc.option].end(), res[0]);
     PERFETTO_CHECK(it != names[bc.option].end());
-    uint32_t arg_idx = it - names[bc.option].begin();
+    uint32_t arg_idx = static_cast<uint32_t>(it - names[bc.option].begin());
 
     uint32_t size = cur_offset[arg_idx + 1] - cur_offset[arg_idx];
     if (size == 4) {
