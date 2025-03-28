@@ -48,6 +48,11 @@ export interface App {
   readonly initialRouteArgs: RouteArgs;
 
   /**
+   * Args in the URL bar that start with this plugin's id.
+   */
+  readonly initialPluginRouteArgs: {[key: string]: number | boolean | string};
+
+  /**
    * Returns the current trace object, if any. The instance being returned is
    * bound to the same plugin of App.pluginId.
    */
