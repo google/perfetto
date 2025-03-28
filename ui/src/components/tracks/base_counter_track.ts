@@ -560,7 +560,11 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
     const hover = this.hover;
     if (hover !== undefined) {
-      let text = `${hover.lastDisplayValue.toLocaleString()}`;
+      const value =
+        this.options?.yDisplay === 'log'
+          ? Math.exp(hover.lastDisplayValue)
+          : hover.lastDisplayValue;
+      let text = `${value.toLocaleString()}`;
 
       const unit = this.unit;
       switch (options.yMode) {
