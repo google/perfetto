@@ -27,6 +27,15 @@ BASE_TRACE = r"""
           }
         }"""
 
+CLONE_TRIGGERED = r"""
+        packet {
+          timestamp: 500000
+          clone_snapshot_trigger {
+            trigger_name: "trigger_name"
+          }
+        }
+        """
+
 CLONE_STARTED = r"""
         packet {
           timestamp: 1000000
@@ -92,6 +101,45 @@ class TraceStats(TestSuite):
         INCLUDE PERFETTO MODULE trace.stats;
 
         SELECT * FROM clone_flush_latency;
+        """,
+        out=Csv("""
+        "buffer_id","duration_ns"
+        """))
+
+  def test_trigger_clone_flush_latency(self):
+    return DiffTestBlueprint(
+        trace=TextProto(BASE_TRACE + CLONE_TRIGGERED + CLONE_DONE),
+        query=r"""
+        INCLUDE PERFETTO MODULE trace.stats;
+
+        SELECT * FROM trigger_clone_flush_latency;
+        """,
+        out=Csv("""
+        "buffer_id","duration_ns"
+        0,3500000
+        1,1500000
+        2,2500000
+        """))
+
+  def test_trigger_clone_flush_latency_missing_clone_started(self):
+    return DiffTestBlueprint(
+        trace=TextProto(BASE_TRACE + CLONE_DONE),
+        query=r"""
+        INCLUDE PERFETTO MODULE trace.stats;
+
+        SELECT * FROM trigger_clone_flush_latency;
+        """,
+        out=Csv("""
+        "buffer_id","duration_ns"
+        """))
+
+  def test_trigger_clone_flush_latency_missing_buffer_cloned(self):
+    return DiffTestBlueprint(
+        trace=TextProto(BASE_TRACE + CLONE_TRIGGERED),
+        query=r"""
+        INCLUDE PERFETTO MODULE trace.stats;
+
+        SELECT * FROM trigger_clone_flush_latency;
         """,
         out=Csv("""
         "buffer_id","duration_ns"

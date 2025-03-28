@@ -49,3 +49,39 @@ WHERE
   ) != 0
 ORDER BY
   idx;
+
+-- Reports the delay in finalizing the trace from the trigger that causes the
+-- clone operation.
+CREATE PERFETTO TABLE trigger_clone_flush_latency (
+  -- Id of the buffer.
+  buffer_id LONG,
+  -- Interval from the trigger that caused the clone operation to the end of
+  -- the flush for this buffer.
+  duration_ns LONG
+) AS
+WITH
+  clone_trigger_fired_ns AS (
+    SELECT
+      value
+    FROM stats
+    WHERE
+      name = 'traced_clone_trigger_timestamp_ns'
+    LIMIT 1
+  )
+SELECT
+  idx AS buffer_id,
+  value - (
+    SELECT
+      value
+    FROM clone_trigger_fired_ns
+  ) AS duration_ns
+FROM stats
+WHERE
+  name = 'traced_buf_clone_done_timestamp_ns'
+  AND (
+    SELECT
+      value
+    FROM clone_trigger_fired_ns
+  ) != 0
+ORDER BY
+  idx;
