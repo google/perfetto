@@ -54,7 +54,7 @@ impl::Overlay MakeOverlay(const ColumnSpec& c) {
 }  // namespace
 
 Dataframe::Dataframe(const std::vector<ColumnSpec>& column_specs,
-                     const StringPool* string_pool)
+                     StringPool* string_pool)
     : string_pool_(string_pool) {
   // Create storage for each column based on its specification
   for (const auto& c : column_specs) {

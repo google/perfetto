@@ -147,7 +147,7 @@ class Dataframe {
   //
   // StringPool is passed here to allow for implicit lookup of the value of
   // string columns.
-  Dataframe(const std::vector<ColumnSpec>&, const StringPool* string_pool);
+  Dataframe(const std::vector<ColumnSpec>&, StringPool* string_pool);
 
   // Non-copyable
   Dataframe(const Dataframe&) = delete;
@@ -168,7 +168,9 @@ class Dataframe {
   base::StatusOr<QueryPlan> PlanQuery(std::vector<FilterSpec>& specs,
                                       uint64_t cols_used_bitmap);
 
-  void SetupCursor(QueryPlan plan, Cursor* cursor);
+  void SetupCursor(QueryPlan plan, Cursor* cursor) {
+    new (cursor) Cursor(std::move(plan.plan_), columns_.data(), string_pool_);
+  }
 
  private:
   // Internal storage for columns
@@ -178,7 +180,7 @@ class Dataframe {
   uint32_t row_count_ = 0;
 
   // String pool for efficient string storage
-  const StringPool* string_pool_;
+  StringPool* string_pool_;
 };
 
 }  // namespace perfetto::trace_processor::dataframe
