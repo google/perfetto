@@ -161,7 +161,7 @@ void WriteAndSetParseError(CpuReader::Bundler* bundler,
 void SerialiseOffendingPage([[maybe_unused]] CpuReader::Bundler* bundler,
                             [[maybe_unused]] const uint8_t* page,
                             [[maybe_unused]] size_t size) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_USERDEBUG_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   bundler->GetOrCreateBundle()->set_broken_abi_trace_page(page, size);
 #endif
 }
