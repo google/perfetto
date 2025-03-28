@@ -108,8 +108,8 @@ TEST_F(DataframeBytecodeTest, NoFilters) {
   std::vector<FilterSpec> filters;
   RunBytecodeTest(col_specs, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
-    AllocateIndices: [size=0, dest_register=Register(1)]
-    Iota: [source_register=Register(0), update_register=Register(1)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
   )");
 }
 
@@ -124,8 +124,8 @@ TEST_F(DataframeBytecodeTest, SingleFilter) {
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=Op(0)]
     SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
-    AllocateIndices: [size=0, dest_register=Register(2)]
-    Iota: [source_register=Register(0), update_register=Register(2)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
   )");
 }
 
@@ -147,8 +147,8 @@ TEST_F(DataframeBytecodeTest, MultipleFilters) {
     SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(1), write_register=Register(2), op=Op(0)]
     SortedFilter<Id, EqualRange>: [col=1, val_register=Register(2), update_register=Register(0), write_result_to=BoundModifier(0)]
-    AllocateIndices: [size=0, dest_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+    Iota: [source_register=Register(0), update_register=Register(4)]
   )");
 }
 
