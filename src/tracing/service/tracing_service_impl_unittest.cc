@@ -5709,6 +5709,13 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
   EXPECT_EQ(trigger.producer_name(), kCloneTriggerProducerName);
   EXPECT_EQ(trigger.trusted_producer_uid(),
             static_cast<int32_t>(kCloneTriggerProducerUid));
+
+  // A second ReadBuffers() should not reemit the clone_snapshot_trigger.
+  cloned_packets = consumer2->ReadBuffers();
+  EXPECT_THAT(
+      cloned_packets,
+      Not(Contains(Property(
+          &protos::gen::TracePacket::has_clone_snapshot_trigger, Eq(true)))));
 }
 
 TEST_F(TracingServiceImplTest, InvalidBufferSizes) {

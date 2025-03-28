@@ -875,7 +875,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
           std::move(ftrace_print_filter), std::move(apps),
           std::move(categories), std::move(categories_sdk_optout),
           request.symbolize_ksyms(), request.drain_buffer_percent(),
-          GetSyscallsReturningFds(syscalls_)));
+          GetSyscallsReturningFds(syscalls_), request.debug_ftrace_abi()));
   if (inserted) {
     it->second.kprobes = std::move(kprobes);
   }
