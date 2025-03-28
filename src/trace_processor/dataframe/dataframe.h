@@ -17,14 +17,21 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_DATAFRAME_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_DATAFRAME_H_
 
+#include <cstddef>
 #include <cstdint>
+#include <limits>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/impl/bytecode_interpreter.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -66,6 +73,76 @@ class Dataframe {
     impl::QueryPlan plan_;
   };
 
+  class Cursor {
+   public:
+    struct Visitor {
+      void Column(int64_t);
+      void Column(double);
+      void Column(NullTermStringView);
+      void Column(nullptr_t);
+      void Column(uint32_t value);
+      void Column(int32_t value);
+    };
+
+    PERFETTO_ALWAYS_INLINE void Execute() {
+      using S = impl::Span<uint32_t>;
+      interpeter_.Execute();
+
+      const auto& span =
+          *interpeter_.GetRegisterValue<S>(params_.output_register);
+      pos_ = span.b;
+      end_ = span.e;
+    }
+
+    PERFETTO_ALWAYS_INLINE void Next() { pos_ += params_.output_per_row; }
+
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return pos_ == end_; }
+
+    template <typename V>
+    PERFETTO_ALWAYS_INLINE void Column(V& visitor, uint32_t col) {
+      const impl::Column& c = columns_[col];
+      uint32_t idx = pos_[params_.col_to_output_offset[col]];
+      if (idx == std::numeric_limits<uint32_t>::max()) {
+        visitor.Column(nullptr);
+        return;
+      }
+      using C = Content;
+      switch (c.spec.content.index()) {
+        case C::GetTypeIndex<Id>():
+          visitor.Column(idx);
+          break;
+        default:
+          PERFETTO_FATAL("Invalid storage spec");
+      }
+    }
+
+    PERFETTO_ALWAYS_INLINE FilterSpec::Value* filter_values() {
+      return values_.get();
+    }
+    PERFETTO_ALWAYS_INLINE size_t filter_value_size() const {
+      return params_.filter_value_count;
+    }
+
+   private:
+    friend class Dataframe;
+
+    explicit Cursor(impl::QueryPlan plan,
+                    impl::Column* columns,
+                    StringPool* pool)
+        : values_(std::make_unique<FilterSpec::Value[]>(
+              plan.params.filter_value_count)),
+          interpeter_(std::move(plan.bytecode), values_.get(), columns, pool),
+          params_(plan.params),
+          columns_(columns) {}
+
+    std::unique_ptr<FilterSpec::Value[]> values_;
+    impl::bytecode::Interpreter interpeter_;
+    impl::QueryPlan::ExecutionParams params_;
+    const impl::Column* columns_;
+    uint32_t* pos_;
+    uint32_t* end_;
+  };
+
   // Creates a dataframe.
   //
   // StringPool is passed here to allow for implicit lookup of the value of
@@ -90,6 +167,8 @@ class Dataframe {
   //                     fetched.
   base::StatusOr<QueryPlan> PlanQuery(std::vector<FilterSpec>& specs,
                                       uint64_t cols_used_bitmap);
+
+  void SetupCursor(QueryPlan plan, Cursor* cursor);
 
  private:
   // Internal storage for columns
