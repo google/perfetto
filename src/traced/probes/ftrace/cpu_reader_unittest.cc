@@ -76,17 +76,22 @@ namespace {
 
 using FtraceParseStatus = protos::pbzero::FtraceParseStatus;
 
+FtraceDataSourceConfig ConfigForTesting(CompactSchedConfig compact_cfg) {
+  return FtraceDataSourceConfig{/*event_filter=*/EventFilter{},
+                                /*syscall_filter=*/EventFilter{},
+                                compact_cfg,
+                                /*print_filter=*/std::nullopt,
+                                /*atrace_apps=*/{},
+                                /*atrace_categories=*/{},
+                                /*atrace_categories_sdk_optout=*/{},
+                                /*symbolize_ksyms=*/false,
+                                /*buffer_percent=*/50u,
+                                /*syscalls_returning_fd=*/{},
+                                /*debug_ftrace_abi=*/false};
+}
+
 FtraceDataSourceConfig EmptyConfig() {
-  return FtraceDataSourceConfig{EventFilter{},
-                                EventFilter{},
-                                DisabledCompactSchedConfigForTesting(),
-                                std::nullopt,
-                                {},
-                                {},
-                                {},
-                                false /*symbolize_ksyms*/,
-                                50u,
-                                {}};
+  return ConfigForTesting(DisabledCompactSchedConfigForTesting());
 }
 
 constexpr uint64_t kNanoInSecond = 1000 * 1000 * 1000;
@@ -1046,16 +1051,8 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSixSchedSwitchCompactFormat) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   EventFilter{},
-                                   EnabledCompactSchedConfigForTesting(),
-                                   std::nullopt,
-                                   {},
-                                   {},
-                                   {},
-                                   false /* symbolize_ksyms*/,
-                                   false /*preserve_ftrace_buffer*/,
-                                   {}};
+  FtraceDataSourceConfig ds_config =
+      ConfigForTesting(EnabledCompactSchedConfigForTesting());
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
@@ -1162,16 +1159,8 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseCompactSchedSwitchAndWaking) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   EventFilter{},
-                                   EnabledCompactSchedConfigForTesting(),
-                                   std::nullopt,
-                                   {},
-                                   {},
-                                   {},
-                                   false /* symbolize_ksyms*/,
-                                   false /*preserve_ftrace_buffer*/,
-                                   {}};
+  FtraceDataSourceConfig ds_config =
+      ConfigForTesting(EnabledCompactSchedConfigForTesting());
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
   ds_config.event_filter.AddEnabledEvent(
