@@ -30,14 +30,20 @@ REPO_URL = 'https://android.googlesource.com/' + GERRIT_PROJECT
 GERRIT_VOTING_ENABLED = True
 LOGLEVEL = 'info'
 
+
+# IDs for the Perfetto CI GitHub app.
+GITHUB_REPO = 'google/perfetto'
+GITHUB_APP_ID = 1184402
+GITHUB_APP_INSTALLATION_ID = 62928975
+
 # Cloud config (GCE = Google Compute Engine, GAE = Google App Engine)
 PROJECT = 'perfetto-ci'
 
 GAE_VERSION = 'prod'
 DB_ROOT = 'https://%s.firebaseio.com' % PROJECT
 DB = DB_ROOT + '/ci'
-SANDBOX_IMG = 'us-docker.pkg.dev/%s/containers/sandbox' % PROJECT
-WORKER_IMG = 'us-docker.pkg.dev/%s/containers/worker' % PROJECT
+SANDBOX_IMG = 'us-docker.pkg.dev/%s/containers/gh-sandbox' % PROJECT
+WORKER_IMG = 'us-docker.pkg.dev/%s/containers/gh-worker' % PROJECT
 CI_SITE = 'https://ci.perfetto.dev'
 GCS_ARTIFACTS = 'perfetto-ci-artifacts'
 
@@ -47,12 +53,14 @@ LOGS_TTL_DAYS = 15
 TRUSTED_EMAILS = '^.*@google.com$'
 
 GCE_REGIONS = 'us-west1'
-GCE_VM_NAME = 'ci-worker'
+GCE_VM_NAME = 'gh-worker'
 GCE_VM_TYPE = 'c2d-standard-32'
-GCE_TEMPLATE = 'ci-worker-template'
-GCE_GROUP_NAME = 'ci'
+GCE_TEMPLATE = 'gh-worker-template'
+GCE_GROUP_NAME = 'gh'
 MAX_VMS_PER_REGION = 8
 NUM_WORKERS_PER_VM = 4
+AUTOSCALER_MIN = 3  # TODO(primiano) put back to 0 once autoscaler is sorted
+
 
 GCE_SCOPES = [
     'https://www.googleapis.com/auth/cloud-platform',
@@ -64,66 +72,10 @@ GCE_SCOPES = [
     'https://www.googleapis.com/auth/userinfo.email',
 ]
 
-# Only variables starting with PERFETTO_ are propagated into the sandbox.
-JOB_CONFIGS = {
-    'linux-clang-x86_64-debug': {
-        'PERFETTO_TEST_GN_ARGS': 'is_debug=true is_hermetic_clang=false '
-                                 'non_hermetic_clang_stdlib="libc++" '
-                                 'enable_perfetto_merged_protos_check=true',
-        'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
-        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
-    },
-    'linux-clang-x86_64-tsan': {
-        'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_tsan=true',
-        'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
-        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
-    },
-    'linux-clang-x86_64-msan': {
-        'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_msan=true',
-        'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
-        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
-    },
-    'linux-clang-x86_64-asan_lsan': {
-        'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_asan=true is_lsan=true',
-        'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
-        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
-    },
-    'linux-clang-x86-release': {
-        'PERFETTO_TEST_GN_ARGS': 'is_debug=false target_cpu="x86"',
-        'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
-        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
-    },
-    'linux-gcc8-x86_64-release': {
-        'PERFETTO_TEST_GN_ARGS':
-            'is_debug=false is_clang=false enable_perfetto_grpc=true '
-            'cc="gcc-8" cxx="g++-8"',
-        'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
-        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '--grpc',
-    },
-    'android-clang-arm-release': {
-        'PERFETTO_TEST_GN_ARGS':
-            'is_debug=false target_os="android" target_cpu="arm"',
-        'PERFETTO_TEST_SCRIPT':
-            'test/ci/android_tests.sh',
-        'PERFETTO_INSTALL_BUILD_DEPS_ARGS':
-            '--android',
-    },
-    'linux-clang-x86_64-libfuzzer': {
-        'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_fuzzer=true is_asan=true',
-        'PERFETTO_TEST_SCRIPT': 'test/ci/fuzzer_tests.sh',
-        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
-    },
-    'linux-clang-x86_64-bazel': {
-        'PERFETTO_TEST_GN_ARGS': '',
-        'PERFETTO_TEST_SCRIPT': 'test/ci/bazel_tests.sh',
-        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '--bazel',
-    },
-    'ui-clang-x86_64-release': {
-        'PERFETTO_TEST_GN_ARGS': 'is_debug=false',
-        'PERFETTO_TEST_SCRIPT': 'test/ci/ui_tests.sh',
-        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '--ui',
-    },
-}
+SANDBOX_SVC_ACCOUNT = 'gce-ci-sandbox@perfetto-ci.iam.gserviceaccount.com'
+
+# TODO(primiano) remove this after dismantling old ci.
+JOB_CONFIGS = {}
 
 if __name__ == '__main__':
   import os

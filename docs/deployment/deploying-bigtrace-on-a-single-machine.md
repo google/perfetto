@@ -56,5 +56,5 @@ This will build and start the Workers (default of 3) and Orchestrator as specifi
 ## minikube
 A minikube cluster can be used to emulate the Kubernetes cluster setup on a local machine. This can be created with the script `tools/setup_minikube_cluster.sh`.
 
-This starts a minikube cluster, builds the Orchestrator and Worker images and deploys them on the cluster. This can then be interacted with using the `minikube ip`:5051 as the Orchestrator service address through a client such as the Python API.
+This starts a minikube cluster, builds the Orchestrator and Worker images and deploys them on the cluster. This can then be interacted with using the `minikube ip:5051` as the Orchestrator service address through a client such as the Python API.
 

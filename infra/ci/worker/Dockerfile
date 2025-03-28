@@ -12,36 +12,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# docker:stable is an Alpine-based distro.
-FROM docker:stable
+FROM debian:bookworm
 
-RUN apk update && apk add python3 py-pip sudo tini
-RUN pip3 install oauth2client httplib2 google-auth google-cloud requests;
+RUN set -ex; \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update; \
+    apt-get -y install \
+            ca-certificates curl gnupg lsb-release supervisor sudo tini \
+            python3 python3-jwt python3-requests python3-oauth2client \
+            python3-httplib2 python3-google-auth python3-google-auth-oauthlib \
+            python3-googleapi iptables
 
+# Install docker (client only)
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | \
+    gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg; \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
+    https://download.docker.com/linux/debian $(lsb_release -cs) stable" | \
+    tee /etc/apt/sources.list.d/docker.list > /dev/null; \
+    apt-get update && apt-get install -y docker-ce-cli
+
+
+# Install gcloud
+RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
+    gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg; \
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
+    | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list; \
+    apt-get update && apt-get install -y google-cloud-cli
 
 # Unfortunately Docker doesn't allow to copy a file from ../. So we copy instead
 # the config files into tmp/ from the Makefile that runs docker build.
-COPY tmp/config.py /home/perfetto/config.py
-COPY tmp/common_utils.py /home/perfetto/common_utils.py
-COPY artifacts_uploader.py /home/perfetto/
-COPY perf_metrics_uploader.py /home/perfetto/
-COPY run_job.py /home/perfetto/
-COPY worker.py /home/perfetto/
 
-# Allow the worker to spawn new docker containers (for the jobs' sandboxes).
-# This makes the worker container highly priviledged (effectiveely can run  any
-# commands on the GCE vm). The worker container is trusted and must never run
-# code from a tryjob (which instead is run into the sandbox containers).
-RUN set -e; \
-    echo 'root ALL=(ALL) ALL' /etc/sudoers; \
-    echo 'perfetto ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers; \
-    addgroup -S --gid 1337 perfetto; \
-    adduser -S --uid 1337 -h /home/perfetto perfetto perfetto; \
-    chown perfetto.perfetto -R /home/perfetto; \
-    chmod -R 755 /home/perfetto;
+WORKDIR /opt/ci
+COPY worker_entrypoint.sh ./
+COPY tmp/config.py ./
+COPY tmp/common_utils.py ./
+COPY sandbox_runner.py ./
 
-USER perfetto:perfetto
-WORKDIR /home/perfetto
 
 ENTRYPOINT [ "tini", "--" ]
-CMD [ "python3", "/home/perfetto/worker.py" ]
+CMD [ "/bin/bash", "worker_entrypoint.sh" ]
