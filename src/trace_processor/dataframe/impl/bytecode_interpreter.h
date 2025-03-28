@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_BYTECODE_INTERPRETER_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_BYTECODE_INTERPRETER_H_
 
-#include <alloca.h>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -28,10 +27,10 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
-
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
@@ -441,13 +440,6 @@ class Interpreter {
     return CastFilterValueResult::kNoneMatch;
   }
 
-  // Writes a value to the specified register, handling type safety through the
-  // handle.
-  template <typename T>
-  PERFETTO_ALWAYS_INLINE void WriteReg(reg::WriteHandle<T> reg, T value) {
-    registers_[reg.index] = std::move(value);
-  }
-
   // Access a register for reading/writing with type safety through the handle.
   template <typename T>
   PERFETTO_ALWAYS_INLINE T& Reg(reg::RwHandle<T> reg) {
@@ -460,20 +452,21 @@ class Interpreter {
     return base::unchecked_get<T>(registers_[reg.index]);
   }
 
-  // Alternative overload for accessing a read/write register as read-only.
-  template <typename T>
-  PERFETTO_ALWAYS_INLINE const T& Reg(reg::RwHandle<T> reg) const {
-    return base::unchecked_get<T>(registers_[reg.index]);
-  }
-
   // Conditionally access a register if it contains the expected type.
   // Returns nullptr if the register holds a different type.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE T* MaybeReg(const reg::WriteHandle<T>& reg) {
+  PERFETTO_ALWAYS_INLINE T* MaybeReg(reg::WriteHandle<T> reg) {
     if (std::holds_alternative<T>(registers_[reg.index])) {
       return &base::unchecked_get<T>(registers_[reg.index]);
     }
     return nullptr;
+  }
+
+  // Writes a value to the specified register, handling type safety through the
+  // handle.
+  template <typename T>
+  PERFETTO_ALWAYS_INLINE void WriteReg(reg::WriteHandle<T> reg, T value) {
+    registers_[reg.index] = std::move(value);
   }
 
   // The sequence of bytecode instructions to execute
