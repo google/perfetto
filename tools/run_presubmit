@@ -22,7 +22,7 @@ import sys
 import time
 from typing import List, Callable, Optional, Tuple, Iterable
 
-REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def RunAndReportIfLong(func, *args, **kargs):
