@@ -18,6 +18,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Time, TimeSpan} from '../../base/time';
 import {redrawModal, showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/logging';
+import {TimelineSyncEnabledDialog} from '../../components/TimelineSyncEnabledDialog';
 
 const PLUGIN_ID = 'dev.perfetto.TimelineSync';
 const DEFAULT_BROADCAST_CHANNEL = `${PLUGIN_ID}#broadcastChannel`;
@@ -54,6 +55,7 @@ export default class implements PerfettoPlugin {
   // Used when the url passes ?dev.perfetto.TimelineSync:enable to auto-enable
   // timeline sync on trace load.
   private _sessionidFromUrl: SessionId = 0;
+  private _isDialogVisible: boolean = false;
 
   // Contains the Viewport bounds of this window when it received the first sync
   // message from another one. This is used to re-scale timestamps, so that we
@@ -217,6 +219,7 @@ export default class implements PerfettoPlugin {
   private enableTimelineSync(sessionId: SessionId) {
     if (sessionId === this._sessionId) return; // Already in this session id.
     this._sessionId = sessionId;
+    this._isDialogVisible = true; // Show the dialog when sync is enabled
     this._initialBoundsForSibling.clear();
     this.scheduleViewportUpdateMessage();
   }
@@ -234,6 +237,7 @@ export default class implements PerfettoPlugin {
       } as SyncMessage);
     }
     this._sessionId = 0;
+    this._isDialogVisible = false; // Hide the dialog when sync is disabled
     this._initialBoundsForSibling.clear();
   }
 
@@ -406,8 +410,20 @@ export default class implements PerfettoPlugin {
   private get active() {
     return this._sessionId !== 0;
   }
-}
 
+  private renderDialog() {
+    if (this._isDialogVisible) {
+      return m(TimelineSyncEnabledDialog, {
+        onDisable: () => this.disableTimelineSync(this._sessionId),
+      });
+    }
+    return null;
+  }
+
+  render(ctx: Trace) {
+    return this.renderDialog();
+  }
+}
 type ViewportBounds = TimeSpan;
 
 interface ViewportBoundsSnapshot {
