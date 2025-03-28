@@ -49,7 +49,7 @@ auto NumericComparator() {
   if constexpr (std::is_same_v<Op, Eq>) {
     return std::equal_to<T>();
   } else {
-    static_assert(false);
+    static_assert(std::is_same_v<Op, Eq>, "Unsupported op");
   }
 }
 
@@ -189,7 +189,7 @@ class Interpreter {
       validity = CastFilterValueToInteger(value, f.arg<B::op>(), val);
       out = CastFilterValueResult::Id{val};
     } else {
-      static_assert(false, "Unsupported type");
+      static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
     CastFilterValueResult result;
     result.validity = validity;
@@ -220,10 +220,10 @@ class Interpreter {
         update.b = inner_val;
         update.e = inner_val + in_bounds;
       } else {
-        static_assert(false, "Unsupported op");
+        static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
       }
     } else {
-      static_assert(false, "Unsupported type");
+      static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
   }
 
@@ -313,7 +313,7 @@ class Interpreter {
       return CastFilterValueToInteger<T>(value, op, out);
     } else if constexpr (std::is_same_v<T, uint32_t>) {
     } else {
-      static_assert(false);
+      static_assert(std::is_same_v<T, double>, "Unsupported type");
     }
   }
 

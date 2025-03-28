@@ -15,7 +15,6 @@
  */
 
 #include "src/trace_processor/dataframe/impl/bytecode_interpreter.h"
-#include <sys/types.h>
 
 #include <algorithm>
 #include <array>
@@ -284,7 +283,7 @@ INSTANTIATE_TEST_SUITE_P(
     BytecodeInterpreterCastTest,
     testing::Values(
         CastTestCase{
-            FilterValue{1024},
+            FilterValue{1024l},
             CastResult::Valid(CastResult::Id{1024}),
         },
         CastTestCase{
