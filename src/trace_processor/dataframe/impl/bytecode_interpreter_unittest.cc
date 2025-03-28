@@ -110,10 +110,11 @@ Bytecode ParseBytecode(const std::string& bytecode_str) {
   size_t colon_pos = bytecode_str.find(": ");
   PERFETTO_CHECK(colon_pos != std::string::npos);
   {
-    const auto* it = std::find(bytecode_names.begin(), bytecode_names.end(),
+    const auto* it = std::find(bytecode_names.data(),
+                               bytecode_names.data() + bytecode_names.size(),
                                bytecode_str.substr(0, colon_pos));
-    PERFETTO_CHECK(it != bytecode_names.end());
-    bc.option = it - bytecode_names.begin();
+    PERFETTO_CHECK(it != bytecode_names.data() + bytecode_names.size());
+    bc.option = static_cast<uint32_t>(it - bytecode_names.data());
   }
 
   // Trim away the [ and ] from the bytecode string.
@@ -137,10 +138,11 @@ Bytecode ParseBytecode(const std::string& bytecode_str) {
       arg_val = res[1];
     }
 
-    auto* it =
-        std::find(names[bc.option].begin(), names[bc.option].end(), res[0]);
-    PERFETTO_CHECK(it != names[bc.option].end());
-    uint32_t arg_idx = static_cast<uint32_t>(it - names[bc.option].begin());
+    const auto* it =
+        std::find(names[bc.option].data(),
+                  names[bc.option].data() + names[bc.option].size(), res[0]);
+    PERFETTO_CHECK(it != names[bc.option].data() + names[bc.option].size());
+    uint32_t arg_idx = static_cast<uint32_t>(it - names[bc.option].data());
 
     uint32_t size = cur_offset[arg_idx + 1] - cur_offset[arg_idx];
     if (size == 4) {
