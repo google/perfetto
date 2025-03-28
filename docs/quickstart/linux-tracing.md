@@ -10,7 +10,7 @@ on Linux you need to build it from source.
 
 1. Check out the code:
 ```bash
-git clone https://android.googlesource.com/platform/external/perfetto/ && cd perfetto
+git clone https://github.com/google/perfetto.git && cd perfetto
 ```
 
 2. Download and extract build dependencies:
