@@ -113,10 +113,10 @@ void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
       using B = bytecode::CastFilterValueBase;
       auto& bc =
           AddOpcode<B>(bytecode::Index<bytecode::CastFilterValue>(content));
-      bc.arg<B::fval_handle>() = {plan_.interpreter_spec.filter_value_count};
+      bc.arg<B::fval_handle>() = {plan_.params.filter_value_count};
       bc.arg<B::write_register>() = value_reg;
       bc.arg<B::op>() = *non_null_op;
-      c.value_index = plan_.interpreter_spec.filter_value_count++;
+      c.value_index = plan_.params.filter_value_count++;
     }
 
     // Try specialized optimizations first
@@ -146,7 +146,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
   };
 
   base::SmallVector<ColAndOffset, 64> null_cols;
-  plan_.interpreter_spec.output_per_row = 1;
+  plan_.params.output_per_row = 1;
 
   // Process each column that will be used in the output
   for (uint32_t i = 0; i < 64; ++i, cols_used >>= 1) {
@@ -158,7 +158,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
     switch (col.spec.nullability.index()) {
       case Nullability::GetTypeIndex<NonNull>():
         // For non-null columns, we can directly use the indices
-        plan_.interpreter_spec.col_to_output_offset[i] = 0;
+        plan_.params.col_to_output_offset[i] = 0;
         break;
       default:
         PERFETTO_FATAL("Unreachable");
@@ -170,15 +170,14 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
   bytecode::reg::ReadHandle<Span<uint32_t>> storage_indices_register;
 
   // Handle multi-column output if needed
-  if (plan_.interpreter_spec.output_per_row > 1) {
+  if (plan_.params.output_per_row > 1) {
     // Allocate storage for expanded indices
     bytecode::reg::RwHandle<Slab<uint32_t>> slab_register{register_count_++};
     bytecode::reg::RwHandle<Span<uint32_t>> span_register{register_count_++};
     {
       using B = bytecode::AllocateIndices;
       auto& bc = AddOpcode<B>();
-      bc.arg<B::size>() =
-          max_row_count_ * plan_.interpreter_spec.output_per_row;
+      bc.arg<B::size>() = max_row_count_ * plan_.params.output_per_row;
       bc.arg<B::dest_slab_register>() = slab_register;
       bc.arg<B::dest_span_register>() = span_register;
     }
@@ -189,7 +188,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
       auto& bc = AddOpcode<B>();
       bc.arg<B::source_register>() = in_memory_indices;
       bc.arg<B::update_register>() = span_register;
-      bc.arg<B::stride>() = plan_.interpreter_spec.output_per_row;
+      bc.arg<B::stride>() = plan_.params.output_per_row;
       storage_indices_register = span_register;
     }
 
@@ -209,7 +208,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
   }
 
   // Set the output register
-  plan_.interpreter_spec.output_register = storage_indices_register;
+  plan_.params.output_register = storage_indices_register;
 }
 
 QueryPlan QueryPlanBuilder::Build() && {
