@@ -38,6 +38,7 @@
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/value_fetcher.h"
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode {
 
@@ -74,16 +75,15 @@ PERFETTO_ALWAYS_INLINE bool HandleInvalidCastFilterValueResult(
 // filter and transformation operations to data columns. The interpreter is
 // designed for high-performance data filtering and manipulation, with
 // specialized handling for different data types and comparison operations.
+template <typename FVF>
 class Interpreter {
  public:
+  static_assert(std::is_base_of_v<ValueFetcher, FVF>);
+
   Interpreter(BytecodeVector bytecode,
-              const FilterSpec::Value* filter_values,
               const Column* columns,
               const StringPool* spool)
-      : bytecode_(std::move(bytecode)),
-        filter_values_(filter_values),
-        columns_(columns),
-        spool_(spool) {
+      : bytecode_(std::move(bytecode)), columns_(columns), spool_(spool) {
     base::ignore_result(spool_);
   }
 
@@ -102,7 +102,8 @@ class Interpreter {
   // Executes the bytecode sequence and returns the result stored in the
   // specified output register. Processes each bytecode instruction in sequence,
   // dispatching to the appropriate handler.
-  void Execute() {
+  PERFETTO_ALWAYS_INLINE void Execute(FVF& fvf) {
+    fvf_ = &fvf;
     for (const auto& bytecode : bytecode_) {
       switch (bytecode.option) {
         PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_CASE_FN)
@@ -110,12 +111,13 @@ class Interpreter {
           PERFETTO_ASSUME(false);
       }
     }
+    fvf_ = nullptr;
   }
 
   // Returns the value of the specified register if it contains the expected
   // type. Returns nullptr if the register holds a different type or is empty.
   template <typename T>
-  const T* GetRegisterValue(reg::ReadHandle<T> reg) {
+  PERFETTO_ALWAYS_INLINE const T* GetRegisterValue(reg::ReadHandle<T> reg) {
     if (std::holds_alternative<T>(registers_[reg.index])) {
       return &base::unchecked_get<T>(registers_[reg.index]);
     }
@@ -177,15 +179,17 @@ class Interpreter {
   PERFETTO_ALWAYS_INLINE void CastFilterValue(
       const bytecode::CastFilterValueBase& f) {
     using B = bytecode::CastFilterValueBase;
-    const auto& value = filter_values_[f.arg<B::fval_handle>().index];
+    FilterValueHandle h = f.arg<B::fval_handle>();
+    auto filter_value_type = fvf_->ValueType(h.index);
 
-    using M = std::variant_alternative_t<Content::GetTypeIndex<T>(),
+    using M = std::variant_alternative_t<ColumnType::GetTypeIndex<T>(),
                                          CastFilterValueResult::Value>;
     CastFilterValueResult::Validity validity;
     M out;
     if constexpr (std::is_same_v<T, Id>) {
       uint32_t val;
-      validity = CastFilterValueToInteger(value, f.arg<B::op>(), val);
+      validity = CastFilterValueToInteger(h, filter_value_type, fvf_,
+                                          f.arg<B::op>(), val);
       out = CastFilterValueResult::Id{val};
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
@@ -210,7 +214,7 @@ class Interpreter {
     if (!HandleInvalidCastFilterValueResult(value, update)) {
       return;
     }
-    using M = Content::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+    using M = ColumnType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
     M val = base::unchecked_get<M>(value.value);
     if constexpr (std::is_same_v<T, Id>) {
       uint32_t inner_val = val.value;
@@ -238,7 +242,7 @@ class Interpreter {
       return;
     }
     const auto& source = Reg(nf.arg<B::source_register>());
-    using M = Content::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+    using M = ColumnType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
     if constexpr (std::is_same_v<T, Id>) {
       update.e = IdentityFilter(source.b, source.e, update.b,
                                 base::unchecked_get<M>(value.value).value,
@@ -303,13 +307,11 @@ class Interpreter {
   // appropriate type-specific conversion function.
   template <typename T>
   [[nodiscard]] PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
-  CastFilterValueToNumeric(const FilterSpec::Value& value,
-                           NonNullOp op,
-                           T& out) {
+  CastFilterValueToNumeric(FilterValueHandle handle, NonNullOp op, T& out) {
     if constexpr (std::is_same_v<T, double>) {
-      return CastFilterValueToDouble(value, op, out);
+      return CastFilterValueToDouble(handle, op, out);
     } else if constexpr (std::is_integral_v<T>) {
-      return CastFilterValueToInteger<T>(value, op, out);
+      return CastFilterValueToInteger<T>(handle, op, out);
     } else if constexpr (std::is_same_v<T, uint32_t>) {
     } else {
       static_assert(std::is_same_v<T, double>, "Unsupported type");
@@ -320,13 +322,15 @@ class Interpreter {
   // cases such as out-of-range values and non-integer inputs.
   template <typename T>
   [[nodiscard]] PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
-  CastFilterValueToInteger(const FilterSpec::Value& value,
-                           NonNullOp op,
+  CastFilterValueToInteger(FilterValueHandle handle,
+                           typename FVF::Type filter_value_type,
+                           FVF* fvf,
+                           NonStringOp op,
                            T& out) {
     using Op = NonNullOp;
     static_assert(std::is_integral_v<T>);
-    if (PERFETTO_LIKELY(std::holds_alternative<int64_t>(value))) {
-      int64_t res = base::unchecked_get<int64_t>(value);
+    if (PERFETTO_LIKELY(filter_value_type == FVF::kInt64)) {
+      int64_t res = fvf->Int64Value(handle.index);
       bool is_small = res < std::numeric_limits<T>::min();
       bool is_big = res > std::numeric_limits<T>::max();
       if (PERFETTO_UNLIKELY(is_small || is_big)) {
@@ -341,8 +345,8 @@ class Interpreter {
       out = static_cast<T>(res);
       return CastFilterValueResult::kValid;
     }
-    if (PERFETTO_LIKELY(std::holds_alternative<double>(value))) {
-      double d = base::unchecked_get<double>(value);
+    if (PERFETTO_LIKELY(filter_value_type == FVF::kDouble)) {
+      double d = fvf->DoubleValue(handle.index);
       // We use the constants directly instead of using numeric_limits for
       // int64_t as the casts introduces rounding in the doubles as a double
       // cannot exactly represent int64::max().
@@ -373,24 +377,26 @@ class Interpreter {
           PERFETTO_FATAL("Invalid numeric filter op");
       }
     }
-    return NumericConvertNonNumericValue(value, op);
+    return NumericConvertNonNumericValue(filter_value_type, op);
   }
 
   // Attempts to cast a filter value to a double, handling integer inputs and
   // various edge cases.
   [[nodiscard]] PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
-  CastFilterValueToDouble(const FilterSpec::Value& value,
-                          NonNullOp op,
+  CastFilterValueToDouble(FilterValueHandle handle,
+                          typename FVF::Type filter_value_type,
+                          FVF* fetcher,
+                          NonStringOp op,
                           double& out) {
     using Op = NonStringOp;
-    if (PERFETTO_LIKELY(std::holds_alternative<double>(value))) {
-      out = base::unchecked_get<double>(value);
+    if (PERFETTO_LIKELY(filter_value_type == FVF::kDouble)) {
+      out = fetcher->DoubleValue(handle.index);
       return CastFilterValueResult::kValid;
     }
-    if (PERFETTO_LIKELY(std::holds_alternative<int64_t>(value))) {
-      int64_t i = base::unchecked_get<int64_t>(value);
+    if (PERFETTO_LIKELY(filter_value_type == FVF::kInt64)) {
+      int64_t i = fetcher->Int64Value(handle.index);
       auto iad = static_cast<double>(i);
-      int64_t iad_int = static_cast<int64_t>(iad);
+      auto iad_int = static_cast<int64_t>(iad);
       if (i == iad_int) {
         out = iad;
         return CastFilterValueResult::kValid;
@@ -402,7 +408,7 @@ class Interpreter {
           PERFETTO_FATAL("Invalid numeric filter op");
       }
     }
-    return NumericConvertNonNumericValue(value, op);
+    return NumericConvertNonNumericValue(filter_value_type, op);
   }
 
   // Converts a double to an integer type using the specified function (e.g.,
@@ -423,8 +429,9 @@ class Interpreter {
   // Handles conversion of non-numeric values (strings, nulls) to numeric types
   // for comparison operations.
   PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
-  NumericConvertNonNumericValue(const FilterSpec::Value& value, NonNullOp op) {
-    if (std::holds_alternative<const char*>(value)) {
+  NumericConvertNonNumericValue(typename FVF::Type filter_value_type,
+                                NonStringOp op) {
+    if (filter_value_type == FVF::kString) {
       using Op = NonStringOp;
       if (op.index() == Op::GetTypeIndex<Eq>()) {
         return CastFilterValueResult::kNoneMatch;
@@ -433,7 +440,7 @@ class Interpreter {
       return CastFilterValueResult::kAllMatch;
     }
 
-    PERFETTO_DCHECK(std::holds_alternative<nullptr_t>(value));
+    PERFETTO_DCHECK(filter_value_type == FVF::kNull);
 
     // Nulls always compare false to any value (including other nulls),
     // regardless of the operator.
@@ -474,8 +481,8 @@ class Interpreter {
   // Register file holding intermediate values
   std::array<reg::Value, reg::kMaxRegisters> registers_;
 
-  // Pointer to the filter values for comparison operations
-  const FilterSpec::Value* filter_values_;
+  // Pointer to the source for filter values.
+  FVF* fvf_;
   // Pointer to the data columns being processed
   const Column* columns_;
   // Pointer to the string pool (for string operations)

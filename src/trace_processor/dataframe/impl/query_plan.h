@@ -36,7 +36,6 @@
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
-#include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 
@@ -164,7 +163,7 @@ class QueryPlanBuilder {
   // Processes non-string filter constraints.
   void NonStringConstraint(
       const FilterSpec& c,
-      const NonStringContent& type,
+      const NonStringType& type,
       const NonStringOp& op,
       const bytecode::reg::ReadHandle<CastFilterValueResult>& result);
 
@@ -172,7 +171,7 @@ class QueryPlanBuilder {
   // Returns true if the optimization was applied.
   bool TrySortedConstraint(
       const FilterSpec& fs,
-      const Content& type,
+      const ColumnType& ct,
       const NonNullOp& op,
       const bytecode::reg::RwHandle<CastFilterValueResult>& result);
 

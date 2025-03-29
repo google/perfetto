@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -125,7 +124,7 @@ int DataframeModule::Close(sqlite3_vtab_cursor* cursor) {
 int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
                             int,
                             const char* idxStr,
-                            int argc,
+                            int,
                             sqlite3_value** argv) {
   auto* v = GetVtab(cur->pVtab);
   auto* c = GetCursor(cur);
@@ -134,28 +133,8 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
     v->dataframe.SetupCursor(plan, c->df_cursor());
     c->last_idx_str = idxStr;
   }
-  auto* it = c->df_cursor()->filter_values();
-  PERFETTO_DCHECK(c->df_cursor()->filter_value_size() ==
-                  static_cast<size_t>(argc));
-  for (int i = 0; i < argc; ++i) {
-    switch (sqlite3_value_type(argv[i])) {
-      case SQLITE_INTEGER:
-        *it++ = static_cast<int64_t>(sqlite3_value_int64(argv[i]));
-        break;
-      case SQLITE_FLOAT:
-        *it++ = sqlite3_value_double(argv[i]);
-        break;
-      case SQLITE_NULL:
-        *it++ = nullptr;
-        break;
-      case SQLITE_TEXT:
-        *it++ = reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
-        break;
-      default:
-        PERFETTO_FATAL("Unimplemented");
-    }
-  }
-  c->df_cursor()->Execute();
+  SqliteValueFetcher fetcher{{}, argv};
+  c->df_cursor()->Execute(fetcher);
   return SQLITE_OK;
 }
 
@@ -171,20 +150,8 @@ int DataframeModule::Eof(sqlite3_vtab_cursor* cur) {
 int DataframeModule::Column(sqlite3_vtab_cursor* cur,
                             sqlite3_context* ctx,
                             int raw_n) {
-  struct Visitor : public dataframe::Dataframe::Cursor::Visitor {
-    void Column(int64_t v) const { sqlite3_result_int64(ctx, v); }
-    void Column(double v) const { sqlite3_result_double(ctx, v); }
-    void Column(nullptr_t) const { sqlite3_result_null(ctx); }
-    void Column(uint32_t v) const { sqlite3_result_int64(ctx, v); }
-    void Column(int32_t v) const { sqlite3_result_int64(ctx, v); }
-    void Column(NullTermStringView v) const {
-      // TODO(lalitm): investigate performance of passing size properly.
-      sqlite3_result_text(ctx, v.data(), -1, nullptr);
-    }
-    sqlite3_context* ctx;
-  };
-  Visitor visitor{{}, ctx};
-  GetCursor(cur)->df_cursor()->Column(visitor, static_cast<uint32_t>(raw_n));
+  SqliteResultCallback visitor{{}, ctx};
+  GetCursor(cur)->df_cursor()->Cell(static_cast<uint32_t>(raw_n), visitor);
   return SQLITE_OK;
 }
 

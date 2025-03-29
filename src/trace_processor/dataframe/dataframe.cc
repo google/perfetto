@@ -33,8 +33,8 @@ namespace {
 
 // Creates appropriate storage for a column based on its specification
 impl::Storage MakeStorage(const ColumnSpec& c) {
-  switch (c.content.index()) {
-    case Content::GetTypeIndex<Id>():
+  switch (c.column_type.index()) {
+    case ColumnType::GetTypeIndex<Id>():
       return impl::Storage{impl::Storage::Id{}};
     default:
       PERFETTO_FATAL("Unreachable");

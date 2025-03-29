@@ -19,19 +19,14 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <limits>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/public/compiler.h"
-#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/impl/bytecode_interpreter.h"
+#include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -53,6 +48,7 @@ class Dataframe {
   // metadata needed to execute a query.
   class QueryPlan {
    public:
+    // Default constructor for an empty query plan.
     QueryPlan() = default;
 
     // Serializes the query plan to a string.
@@ -69,84 +65,16 @@ class Dataframe {
 
    private:
     friend class Dataframe;
+    // Constructs a QueryPlan from its implementation.
     explicit QueryPlan(impl::QueryPlan plan) : plan_(std::move(plan)) {}
+    // The underlying query plan implementation.
     impl::QueryPlan plan_;
   };
 
-  class Cursor {
-   public:
-    struct Visitor {
-      void Column(int64_t);
-      void Column(double);
-      void Column(NullTermStringView);
-      void Column(nullptr_t);
-      void Column(uint32_t value);
-      void Column(int32_t value);
-    };
-
-    PERFETTO_ALWAYS_INLINE void Execute() {
-      using S = impl::Span<uint32_t>;
-      interpeter_.Execute();
-
-      const auto& span =
-          *interpeter_.GetRegisterValue<S>(params_.output_register);
-      pos_ = span.b;
-      end_ = span.e;
-    }
-
-    PERFETTO_ALWAYS_INLINE void Next() { pos_ += params_.output_per_row; }
-
-    PERFETTO_ALWAYS_INLINE bool Eof() const { return pos_ == end_; }
-
-    template <typename V>
-    PERFETTO_ALWAYS_INLINE void Column(V& visitor, uint32_t col) {
-      const impl::Column& c = columns_[col];
-      uint32_t idx = pos_[params_.col_to_output_offset[col]];
-      if (idx == std::numeric_limits<uint32_t>::max()) {
-        visitor.Column(nullptr);
-        return;
-      }
-      using C = Content;
-      switch (c.spec.content.index()) {
-        case C::GetTypeIndex<Id>():
-          visitor.Column(idx);
-          break;
-        default:
-          PERFETTO_FATAL("Invalid storage spec");
-      }
-    }
-
-    PERFETTO_ALWAYS_INLINE FilterSpec::Value* filter_values() {
-      return values_.get();
-    }
-    PERFETTO_ALWAYS_INLINE size_t filter_value_size() const {
-      return params_.filter_value_count;
-    }
-
-   private:
-    friend class Dataframe;
-
-    explicit Cursor(impl::QueryPlan plan,
-                    impl::Column* columns,
-                    StringPool* pool)
-        : values_(std::make_unique<FilterSpec::Value[]>(
-              plan.params.filter_value_count)),
-          interpeter_(std::move(plan.bytecode), values_.get(), columns, pool),
-          params_(plan.params),
-          columns_(columns) {}
-
-    std::unique_ptr<FilterSpec::Value[]> values_;
-    impl::bytecode::Interpreter interpeter_;
-    impl::QueryPlan::ExecutionParams params_;
-    const impl::Column* columns_;
-    uint32_t* pos_;
-    uint32_t* end_;
-  };
-
-  // Creates a dataframe.
+  // Creates a dataframe with the specified column specifications.
   //
-  // StringPool is passed here to allow for implicit lookup of the value of
-  // string columns.
+  // StringPool is passed here to allow for efficient storage and lookup
+  // of string column values.
   Dataframe(const std::vector<ColumnSpec>&, StringPool* string_pool);
 
   // Non-copyable
@@ -165,21 +93,27 @@ class Dataframe {
   //   cols_used_bitmap: Bitmap where each bit corresponds to a column that may
   //                     be requested. Only columns with set bits can be
   //                     fetched.
+  // Returns:
+  //   A StatusOr containing the QueryPlan or an error status.
   base::StatusOr<QueryPlan> PlanQuery(std::vector<FilterSpec>& specs,
                                       uint64_t cols_used_bitmap);
 
-  void SetupCursor(QueryPlan plan, Cursor* cursor) {
-    new (cursor) Cursor(std::move(plan.plan_), columns_.data(), string_pool_);
+  // Initializes a cursor with the given query plan.
+  // This prepares the cursor for executing the query and iterating results.
+  template <typename FVS>
+  void SetupCursor(QueryPlan plan, Cursor<FVS>* cursor) {
+    new (cursor)
+        Cursor<FVS>(std::move(plan.plan_), columns_.data(), string_pool_);
   }
 
  private:
-  // Internal storage for columns
+  // Internal storage for columns in the dataframe.
   std::vector<impl::Column> columns_;
 
-  // Number of rows in the dataframe
+  // Number of rows in the dataframe.
   uint32_t row_count_ = 0;
 
-  // String pool for efficient string storage
+  // String pool for efficient string storage and interning.
   StringPool* string_pool_;
 };
 

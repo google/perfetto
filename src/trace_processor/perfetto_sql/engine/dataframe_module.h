@@ -14,27 +14,66 @@
  * limitations under the License.
  */
 
-#ifndef THIRD_PARTY_PERFETTO_SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
-#define THIRD_PARTY_PERFETTO_SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
 
+#include <cstddef>
+#include <cstdint>
+
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/value_fetcher.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 
 namespace perfetto::trace_processor {
 
 struct DataframeModule : sqlite::Module<DataframeModule> {
   using Context = void;
+  struct SqliteValueFetcher : dataframe::ValueFetcher {
+    using Type = sqlite::Type;
+    static const Type kInt64 = sqlite::Type::kInteger;
+    static const Type kDouble = sqlite::Type::kFloat;
+    static const Type kString = sqlite::Type::kText;
+    static const Type kNull = sqlite::Type::kNull;
+
+    int64_t Int64Value(uint32_t idx) const {
+      return sqlite::value::Int64(sqlite_value[idx]);
+    }
+    double DoubleValue(uint32_t idx) const {
+      return sqlite::value::Double(sqlite_value[idx]);
+    }
+    const char* StringValue(uint32_t idx) const {
+      return sqlite::value::Text(sqlite_value[idx]);
+    }
+    Type ValueType(uint32_t idx) const {
+      return sqlite::value::Type(sqlite_value[idx]);
+    }
+    sqlite3_value** sqlite_value;
+  };
+  struct SqliteResultCallback : dataframe::CellCallback {
+    void OnCell(int64_t v) const { sqlite::result::Long(ctx, v); }
+    void OnCell(double v) const { sqlite::result::Double(ctx, v); }
+    void OnCell(NullTermStringView v) const {
+      sqlite::result::StaticString(ctx, v.data());
+    }
+    void OnCell(nullptr_t) const { sqlite::result::Null(ctx); }
+    void OnCell(uint32_t v) const { sqlite::result::Long(ctx, v); }
+    void OnCell(int32_t v) const { sqlite::result::Long(ctx, v); }
+    sqlite3_context* ctx;
+  };
   struct Vtab : sqlite::Module<DataframeModule>::Vtab {
     StringPool* string_pool;
     dataframe::Dataframe dataframe;
   };
+  using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
-    dataframe::Dataframe::Cursor* df_cursor() {
-      return reinterpret_cast<dataframe::Dataframe::Cursor*>(cursor);
-    }
-    alignas(dataframe::Dataframe::Cursor) char cursor[sizeof(
-        dataframe::Dataframe::Cursor)];
+    DfCursor* df_cursor() { return reinterpret_cast<DfCursor*>(cursor); }
+    alignas(DfCursor) char cursor[sizeof(DfCursor)];
     const char* last_idx_str = nullptr;
   };
 
@@ -75,6 +114,6 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   static constexpr sqlite3_module kModule = CreateModule();
 };
 
-}  // namespace perfetto::trace_processor::perfetto_sql
+}  // namespace perfetto::trace_processor
 
-#endif  // THIRD_PARTY_PERFETTO_SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_

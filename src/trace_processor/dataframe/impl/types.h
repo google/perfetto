@@ -33,10 +33,10 @@ namespace perfetto::trace_processor::dataframe::impl {
 // These define which operations can be applied to which content types.
 
 // Set of content types that aren't string-based.
-using NonStringContent = TypeSet<Id>;
+using NonStringType = TypeSet<Id>;
 
 // Set of content types that are numeric in nature.
-using NumericContent = TypeSet<Id>;
+using NumericType = TypeSet<Id>;
 
 // Set of operations applicable to non-null values.
 using NonNullOp = TypeSet<Eq>;
@@ -69,13 +69,13 @@ class Storage {
   // Type-safe access to storage with unchecked variant access.
   template <typename T>
   auto& unchecked_get() {
-    using U = Content::VariantTypeAtIndex<T, Variant>;
+    using U = ColumnType::VariantTypeAtIndex<T, Variant>;
     return base::unchecked_get<U>(data_);
   }
 
   template <typename T>
   const auto& unchecked_get() const {
-    using U = Content::VariantTypeAtIndex<T, Variant>;
+    using U = ColumnType::VariantTypeAtIndex<T, Variant>;
     return base::unchecked_get<U>(data_);
   }
 
