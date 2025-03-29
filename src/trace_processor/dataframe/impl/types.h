@@ -108,7 +108,7 @@ class Overlay {
   // No overlay data (for columns with default properties).
   struct NoOverlay {};
 
-  Overlay(NoOverlay n) : data_(n) {}
+  explicit Overlay(NoOverlay n) : data_(n) {}
 
   // Type-safe unchecked access to variant data.
   template <typename T>

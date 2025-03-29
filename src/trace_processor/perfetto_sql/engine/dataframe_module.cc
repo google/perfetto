@@ -28,8 +28,9 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/value_fetcher.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/util/status_macros.h"  // IWYU pragma: keep
 
 namespace perfetto::trace_processor {
 
@@ -43,6 +44,9 @@ dataframe::Op SqliteOpToDataframeOp(int op) {
       PERFETTO_FATAL("Unimplemented");
   }
 }
+
+// TODO(lalitm): take this from the sqlite context instead.
+struct ConstantValueFetcher : dataframe::ValueFetcher {};
 
 }  // namespace
 
@@ -63,14 +67,16 @@ int DataframeModule::Connect(sqlite3* db,
   }
   StringPool pool;
   using CS = dataframe::ColumnSpec;
+
   // TODO(lalitm): take this from the engine rather than hardcoding it here.
-  std::unique_ptr<Vtab> res = std::make_unique<Vtab>(Vtab{
-      {},
-      &pool,
-      dataframe::Dataframe({CS{"id", dataframe::Id(), dataframe::IdSorted(),
-                               dataframe::NonNull()}},
-                           &pool),
-  });
+  auto df = dataframe::Dataframe(
+      {CS{"id", dataframe::Id(), dataframe::IdSorted(), dataframe::NonNull()}},
+      &pool);
+  for (int i = 0; i < 10000; ++i) {
+    df.InsertRow<ConstantValueFetcher>();
+  }
+  std::unique_ptr<Vtab> res =
+      std::make_unique<Vtab>(Vtab{{}, &pool, std::move(df)});
   *vtab = res.release();
   return SQLITE_OK;
 }
@@ -130,7 +136,7 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
   auto* c = GetCursor(cur);
   if (idxStr != c->last_idx_str) {
     auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idxStr);
-    v->dataframe.SetupCursor(plan, c->df_cursor());
+    v->dataframe.PrepareCursor(plan, c->df_cursor());
     c->last_idx_str = idxStr;
   }
   SqliteValueFetcher fetcher{{}, argv};
@@ -159,12 +165,5 @@ int DataframeModule::Rowid(sqlite3_vtab_cursor*, sqlite_int64*) {
   return SQLITE_ERROR;
 }
 
-int DataframeModule::FindFunction(sqlite3_vtab*,
-                                  int,
-                                  const char*,
-                                  FindFunctionFn**,
-                                  void**) {
-  return SQLITE_OK;
-}
 
 }  // namespace perfetto::trace_processor

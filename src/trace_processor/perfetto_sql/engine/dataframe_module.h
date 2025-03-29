@@ -34,6 +34,10 @@ namespace perfetto::trace_processor {
 
 struct DataframeModule : sqlite::Module<DataframeModule> {
   using Context = void;
+  static constexpr auto kType = kEponymousOnly;
+  static constexpr bool kSupportsWrites = false;
+  static constexpr bool kDoesOverloadFunctions = false;
+
   struct SqliteValueFetcher : dataframe::ValueFetcher {
     using Type = sqlite::Type;
     static const Type kInt64 = sqlite::Type::kInteger;
@@ -77,9 +81,6 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     const char* last_idx_str = nullptr;
   };
 
-  static constexpr auto kType = kEponymousOnly;
-  static constexpr bool kSupportsWrites = false;
-
   static int Connect(sqlite3*,
                      void*,
                      int,
@@ -102,12 +103,6 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   static int Eof(sqlite3_vtab_cursor*);
   static int Column(sqlite3_vtab_cursor*, sqlite3_context*, int);
   static int Rowid(sqlite3_vtab_cursor*, sqlite_int64*);
-
-  static int FindFunction(sqlite3_vtab*,
-                          int,
-                          const char*,
-                          FindFunctionFn**,
-                          void**);
 
   // This needs to happen at the end as it depends on the functions
   // defined above.

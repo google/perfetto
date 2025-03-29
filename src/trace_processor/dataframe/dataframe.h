@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
@@ -37,7 +38,7 @@ namespace perfetto::trace_processor::dataframe {
 // of tabular data. It provides:
 //
 // - Type-specialized storage and filtering optimized for common trace data
-// patterns
+//   patterns
 // - Efficient query execution with optimized bytecode generation
 // - Support for serializable query plans that separate planning from execution
 // - Memory-efficient storage with support for specialized column types
@@ -98,12 +99,36 @@ class Dataframe {
   base::StatusOr<QueryPlan> PlanQuery(std::vector<FilterSpec>& specs,
                                       uint64_t cols_used_bitmap);
 
-  // Initializes a cursor with the given query plan.
-  // This prepares the cursor for executing the query and iterating results.
-  template <typename FVS>
-  void SetupCursor(QueryPlan plan, Cursor<FVS>* cursor) {
-    new (cursor)
-        Cursor<FVS>(std::move(plan.plan_), columns_.data(), string_pool_);
+  // Prepares a cursor for executing the query plan. The template parameter
+  // `FVF` is a subclass of `ValueFetcher` that defines the logic for fetching
+  // filter values for each filter specs specified when calling `PlanQuery`.
+  //
+  // Parameters:
+  //   plan: The query plan to execute.
+  //   c:    A pointer to the storage for the cursor. The cursor will be
+  //         constructed in-place at the location pointed to by `c`.
+  template <typename FVF>
+  void PrepareCursor(QueryPlan plan, Cursor<FVF>* c) {
+    new (c) Cursor<FVF>(std::move(plan.plan_), columns_.data(), string_pool_);
+  }
+
+  // Inserts a row into the dataframe.
+  //
+  // TODO(lalitm): this is a temporary function to allow for easy insertion of
+  // rows into the dataframe. We should remove this function once we have a
+  // a builder pattern for dataframe construction.
+  template <typename VF>
+  void InsertRow() {
+    for (auto& column : columns_) {
+      switch (column.spec.column_type.index()) {
+        case ColumnType::GetTypeIndex<Id>():
+          column.storage.unchecked_get<Id>().size++;
+          break;
+        default:
+          PERFETTO_FATAL("Invalid column type");
+      }
+    }
+    row_count_++;
   }
 
  private:

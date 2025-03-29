@@ -45,7 +45,7 @@ impl::Storage MakeStorage(const ColumnSpec& c) {
 impl::Overlay MakeOverlay(const ColumnSpec& c) {
   switch (c.nullability.index()) {
     case Nullability::GetTypeIndex<NonNull>():
-      return impl::Overlay::NoOverlay{};
+      return impl::Overlay{impl::Overlay::NoOverlay{}};
     default:
       PERFETTO_FATAL("Unreachable");
   }

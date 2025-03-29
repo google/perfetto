@@ -30,7 +30,6 @@
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/dataframe/value_fetcher.h"
 
 namespace perfetto::trace_processor::dataframe {
 
@@ -51,6 +50,10 @@ class Cursor {
  public:
   // Executes the query and prepares the cursor for iteration.
   // This initializes the cursor's position to the first row of results.
+  //
+  // Parameters:
+  //   fvf: A subclass of `ValueFetcher` that defines the logic for fetching
+  //        filter values for each filter spec.
   PERFETTO_ALWAYS_INLINE void Execute(FVF& fvf) {
     using S = impl::Span<uint32_t>;
     interpeter_.Execute(fvf);
@@ -69,6 +72,12 @@ class Cursor {
 
   // Returns the value of the column at the current cursor position.
   // The visitor pattern allows type-safe access to heterogeneous column types.
+  //
+  // Parameters:
+  //   col:    The index of the column to access.
+  //   callback: A subclass of `CellCallback` that defines the logic for
+  //             processing the value of the column at the current cursor
+  //             position.
   template <typename CC>
   PERFETTO_ALWAYS_INLINE void Cell(uint32_t col, CC& callback) {
     const impl::Column& c = columns_[col];
