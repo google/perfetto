@@ -18,6 +18,7 @@ import {Registry} from '../base/registry';
 import {PageAttrs, PageHandler, PageWithTraceAttrs} from '../public/page';
 import {Router} from './router';
 import {TraceImpl} from './trace_impl';
+import {Gate} from '../base/mithril_utils';
 
 export interface PageWithTraceImplAttrs extends PageAttrs {
   trace: TraceImpl;
@@ -32,6 +33,10 @@ type PageHandlerInternal = PageHandler<
 
 export class PageManagerImpl {
   private readonly registry = new Registry<PageHandlerInternal>((x) => x.route);
+  private readonly previousPages = new Map<
+    string,
+    {page: string; subpage: string}
+  >();
 
   registerPage(pageHandler: PageHandlerInternal): Disposable {
     assertTrue(/^\/\w*$/.exec(pageHandler.route) !== null);
@@ -42,17 +47,31 @@ export class PageManagerImpl {
   }
 
   // Called by index.ts upon the main frame redraw callback.
-  renderPageForCurrentRoute(
-    trace: TraceImpl | undefined,
-  ): m.Vnode<PageAttrs> | m.Vnode<PageWithTraceImplAttrs> {
+  renderPageForCurrentRoute(trace: TraceImpl | undefined): m.Children {
     const route = Router.parseFragment(location.hash);
-    const res = this.renderPageForRoute(trace, route.page, route.subpage);
-    if (res !== undefined) {
-      return res;
-    }
-    // If either the route doesn't exist or requires a trace but the trace is
-    // not loaded, fall back on the default route /.
-    return assertExists(this.renderPageForRoute(trace, '/', ''));
+    this.previousPages.set(route.page, {
+      page: route.page,
+      subpage: route.subpage,
+    });
+
+    // Render all pages, but display all inactive pages with display: none and
+    // avoid calling their view functions. This makes sure DOM state such as
+    // scrolling position is retained between page flips, which can be handy
+    // when quickly switching between pages that have long scrolling content
+    // such as the viewer page.
+    return Array.from(this.previousPages.entries())
+      .map(([key, {page, subpage}]) => {
+        const maybeRenderedPage = this.renderPageForRoute(trace, page, subpage);
+        // If either the route doesn't exist or requires a trace but the trace
+        // is not loaded, fall back on the default route.
+        const renderedPage =
+          maybeRenderedPage ??
+          assertExists(this.renderPageForRoute(trace, '/', ''));
+        return [key, renderedPage];
+      })
+      .map(([key, page]) => {
+        return m(Gate, {open: key === route.page}, page);
+      });
   }
 
   // Will return undefined if either: (1) the route does not exist; (2) the
