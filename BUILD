@@ -3067,6 +3067,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/android/cujs:cujs
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_android_cujs_cujs",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cujs.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/android/frames:frames
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_frames_frames",
@@ -3457,6 +3465,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_android_auto_auto",
         ":src_trace_processor_perfetto_sql_stdlib_android_battery_battery",
         ":src_trace_processor_perfetto_sql_stdlib_android_cpu_cpu",
+        ":src_trace_processor_perfetto_sql_stdlib_android_cujs_cujs",
         ":src_trace_processor_perfetto_sql_stdlib_android_dumpsys_dumpsys",
         ":src_trace_processor_perfetto_sql_stdlib_android_frames_frames",
         ":src_trace_processor_perfetto_sql_stdlib_android_gpu_gpu",

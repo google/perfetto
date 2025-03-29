@@ -100,6 +100,20 @@ def add_blocking_calls_per_frame_multiple_cuj_instance(trace, cuj_name):
   add_async_trace(trace, ts=25_000_000, ts_end=77_000_000, buf=cuj_name, pid=SYSUI_PID, tid=SYSUI_UI_TID)
   add_async_trace(trace, ts=83_000_000, ts_end=102_000_000, buf=cuj_name, pid=SYSUI_PID, tid=SYSUI_UI_TID)
 
+  add_instant_event_in_thread(
+          trace,
+          ts=25_000_001,
+          buf=cuj_name + "#UIThread",
+          pid=SYSUI_PID,
+          tid=SYSUI_UI_TID)
+
+  add_instant_event_in_thread(
+            trace,
+            ts=83_000_001,
+            buf=cuj_name + "#UIThread",
+            pid=SYSUI_PID,
+            tid=SYSUI_UI_TID)
+
   trace.add_atrace_instant_for_track(ts=25_000_001,
                                                buf="FT#beginVsync#20",
                                                pid=SYSUI_PID,
