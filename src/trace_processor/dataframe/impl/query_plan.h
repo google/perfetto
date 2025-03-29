@@ -54,7 +54,7 @@ struct QueryPlan {
     uint32_t filter_value_count = 0;
 
     // Register holding the final filtered indices.
-    bytecode::reg::ReadHandle<Slab<uint32_t>> output_register;
+    bytecode::reg::ReadHandle<Span<uint32_t>> output_register;
 
     // Maps column indices to output offsets.
     std::array<uint32_t, kMaxFilters> col_to_output_offset;
@@ -145,7 +145,7 @@ class QueryPlanBuilder {
  private:
   // Represents register types for holding indices.
   using IndicesReg = std::variant<bytecode::reg::RwHandle<Range>,
-                                  bytecode::reg::RwHandle<Slab<uint32_t>>>;
+                                  bytecode::reg::RwHandle<Span<uint32_t>>>;
 
   // State information for a column during query planning.
   struct ColumnState {};
@@ -182,11 +182,11 @@ class QueryPlanBuilder {
 
   // Adds overlay translation for handling special column properties like
   // nullability.
-  bytecode::reg::RwHandle<Slab<uint32_t>> MaybeAddOverlayTranslation(
+  bytecode::reg::RwHandle<Span<uint32_t>> MaybeAddOverlayTranslation(
       const FilterSpec& c);
 
   // Ensures indices are stored in a Slab, converting from Range if necessary.
-  PERFETTO_NO_INLINE bytecode::reg::RwHandle<Slab<uint32_t>>
+  PERFETTO_NO_INLINE bytecode::reg::RwHandle<Span<uint32_t>>
   EnsureIndicesAreInSlab();
 
   // Adds a new bytecode instruction of type T to the plan.

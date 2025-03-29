@@ -45,17 +45,19 @@ struct InitRange : Bytecode {
 
 // Allocates a slab of indices.
 struct AllocateIndices : Bytecode {
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
                                      size,
                                      reg::WriteHandle<Slab<uint32_t>>,
-                                     dest_register);
+                                     dest_slab_register,
+                                     reg::WriteHandle<Span<uint32_t>>,
+                                     dest_span_register);
 };
 
 // Fills a memory region with sequential integers (0...n-1).
 struct Iota : Bytecode {
   PERFETTO_DATAFRAME_BYTECODE_IMPL_2(reg::ReadHandle<Range>,
                                      source_register,
-                                     reg::RwHandle<Slab<uint32_t>>,
+                                     reg::RwHandle<Span<uint32_t>>,
                                      update_register);
 };
 
@@ -102,9 +104,9 @@ struct NonStringFilterBase : TemplatedBytecode2<NonStringContent, NonStringOp> {
                                      col,
                                      reg::ReadHandle<CastFilterValueResult>,
                                      val_register,
-                                     reg::ReadHandle<Slab<uint32_t>>,
+                                     reg::ReadHandle<Span<uint32_t>>,
                                      source_register,
-                                     reg::RwHandle<Slab<uint32_t>>,
+                                     reg::RwHandle<Span<uint32_t>>,
                                      update_register);
 };
 
@@ -115,20 +117,14 @@ struct NonStringFilter : NonStringFilterBase {
   static_assert(TS2::Contains<NonStringOp>());
 };
 
-// Copies data with stride expansion (for joining multiple columns).
-struct StrideExpandedCopy : Bytecode {
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(reg::ReadHandle<Slab<uint32_t>>,
+// Copies data with a given stride.
+struct StrideCopy : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(reg::ReadHandle<Span<uint32_t>>,
                                      source_register,
-                                     reg::RwHandle<Slab<uint32_t>>,
+                                     reg::RwHandle<Span<uint32_t>>,
                                      update_register,
                                      uint32_t,
                                      stride);
-};
-
-// Clears a register (sets to Empty).
-struct ClearRegister : Bytecode {
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_1(reg::WriteHandle<reg::Empty>,
-                                     dest_register);
 };
 
 // List of all bytecode instruction types for variant definition.
@@ -139,8 +135,7 @@ struct ClearRegister : Bytecode {
   X(CastFilterValue<Id>)                    \
   X(SortedFilter<Id, EqualRange>)           \
   X(NonStringFilter<Id, Eq>)                \
-  X(StrideExpandedCopy)                     \
-  X(ClearRegister)
+  X(StrideCopy)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 

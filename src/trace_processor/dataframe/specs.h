@@ -7,6 +7,8 @@
 #include <string>
 #include <variant>
 
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
 namespace perfetto::trace_processor::dataframe {
