@@ -465,9 +465,9 @@ class Interpreter {
         case Op::GetTypeIndex<Le>():
           return DoubleToInt<T, std::floor>(is_small, is_big, d, out);
         case Op::GetTypeIndex<Gt>():
-          return DoubleToInt<T, std::ceil>(is_big, is_small, d, out);
-        case Op::GetTypeIndex<Ge>():
           return DoubleToInt<T, std::floor>(is_big, is_small, d, out);
+        case Op::GetTypeIndex<Ge>():
+          return DoubleToInt<T, std::ceil>(is_big, is_small, d, out);
         case Op::GetTypeIndex<Eq>():
           return CastFilterValueResult::kNoneMatch;
         case Op::GetTypeIndex<Ne>():
@@ -514,15 +514,15 @@ class Interpreter {
                                      -std::numeric_limits<double>::infinity());
           return CastFilterValueResult::kValid;
         case Op::GetTypeIndex<Gt>():
-          out = iad_int > i ? iad
-                            : std::nextafter(
-                                  iad, std::numeric_limits<double>::infinity());
-          return CastFilterValueResult::kValid;
-        case Op::GetTypeIndex<Ge>():
           out = iad_int < i
                     ? iad
                     : std::nextafter(iad,
                                      -std::numeric_limits<double>::infinity());
+          return CastFilterValueResult::kValid;
+        case Op::GetTypeIndex<Ge>():
+          out = iad_int > i ? iad
+                            : std::nextafter(
+                                  iad, std::numeric_limits<double>::infinity());
           return CastFilterValueResult::kValid;
         case Op::GetTypeIndex<Eq>():
           return CastFilterValueResult::kNoneMatch;
