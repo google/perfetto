@@ -268,9 +268,11 @@ class Interpreter {
                                 base::unchecked_get<M>(value.value).value,
                                 NumericComparator<uint32_t, Op>());
     } else if constexpr (NumericType::Contains<T>()) {
-      update.e = NumericFilter(source.b, source.e, update.b,
-                               base::unchecked_get<M>(value.value).value,
-                               NumericComparator<T, Op>());
+      const auto* data =
+          columns_[nf.arg<B::col>()].storage.template unchecked_data<T>();
+      update.e = Filter(data, source.b, source.e, update.b,
+                        base::unchecked_get<M>(value.value),
+                        NumericComparator<M, Op>());
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }

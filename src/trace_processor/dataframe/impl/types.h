@@ -19,8 +19,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
@@ -196,10 +198,18 @@ struct Range {
 // Basically a very simple backport of std::span to C++17.
 template <typename T>
 struct Span {
+  using value_type = T;
+  using const_iterator = T*;
+
   T* b;
   T* e;
 
+  Span(T* b, T* e) : b(b), e(e) {}
+
+  T* begin() const { return b; }
+  T* end() const { return e; }
   size_t size() const { return static_cast<size_t>(e - b); }
+  bool empty() const { return b == e; }
 };
 
 }  // namespace perfetto::trace_processor::dataframe::impl
