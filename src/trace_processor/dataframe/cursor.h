@@ -118,6 +118,7 @@ class Cursor {
   impl::QueryPlan::ExecutionParams params_;
   // Pointer to the dataframe columns.
   const impl::Column* columns_;
+
   // Current position in the result set.
   uint32_t* pos_;
   // End position in the result set.
