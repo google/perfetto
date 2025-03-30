@@ -356,6 +356,27 @@ TEST_P(BytecodeInterpreterCastTest, Cast) {
 }
 
 INSTANTIATE_TEST_SUITE_P(
+    ToDouble,
+    BytecodeInterpreterCastTest,
+    testing::Values(
+        CastTestCase{
+            "Double",
+            FilterValue{1024.0},
+            CastResult::Valid(1024.0),
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{1024l},
+            CastResult::Valid(1024.0),
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{int64_t(std::numeric_limits<int64_t>::max()) - 1},
+            CastResult::NoneMatch(),
+        }),
+    &CastTestCase::ToString);
+
+INSTANTIATE_TEST_SUITE_P(
     IntegerToInteger,
     BytecodeInterpreterCastTest,
     testing::Values(
@@ -383,31 +404,6 @@ INSTANTIATE_TEST_SUITE_P(
             "Int64",
             FilterValue{std::numeric_limits<int64_t>::max()},
             CastResult::Valid(std::numeric_limits<int64_t>::max()),
-        }),
-    &CastTestCase::ToString);
-
-INSTANTIATE_TEST_SUITE_P(DoubleToDouble,
-                         BytecodeInterpreterCastTest,
-                         testing::Values(CastTestCase{
-                             "Double",
-                             FilterValue{1024.0},
-                             CastResult::Valid(1024.0),
-                         }),
-                         &CastTestCase::ToString);
-
-INSTANTIATE_TEST_SUITE_P(
-    IntegerToDouble,
-    BytecodeInterpreterCastTest,
-    testing::Values(
-        CastTestCase{
-            "Double",
-            FilterValue{1024l},
-            CastResult::Valid(1024.0),
-        },
-        CastTestCase{
-            "Double",
-            FilterValue{int64_t(std::numeric_limits<int64_t>::max()) - 1},
-            CastResult::NoneMatch(),
         }),
     &CastTestCase::ToString);
 
