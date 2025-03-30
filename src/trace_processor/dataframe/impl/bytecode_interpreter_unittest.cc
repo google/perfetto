@@ -114,7 +114,7 @@ struct Fetcher : ValueFetcher {
   // Fetches the type of the value at the given index.
   Type ValueType(uint32_t idx) const { return values[idx].index(); }
 
-  FilterValue* values;
+  const FilterValue* values;
 };
 
 Bytecode ParseBytecode(const std::string& bytecode_str) {
@@ -310,7 +310,7 @@ TEST_P(BytecodeInterpreterCastTest, Cast) {
                         .ToStdString()));
 
   Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
-  Fetcher fetcher{{}, nullptr};
+  Fetcher fetcher{{}, &input};
   interpreter.Execute(fetcher);
 
   const auto* result =
