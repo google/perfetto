@@ -43,15 +43,22 @@
 #include "src/trace_processor/dataframe/value_fetcher.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::trace_processor::dataframe::impl::bytecode {
 namespace {
+
 using testing::AllOf;
 using testing::ElementsAre;
-using testing::Ge;
 using testing::IsEmpty;
-using testing::Le;
+
+}  // namespace
+
+namespace perfetto::trace_processor::dataframe::impl::bytecode {
+namespace {
 
 using FilterValue = std::variant<int64_t, double, const char*, nullptr_t>;
+
+std::string FixNegativeAndDecimal(const std::string& str) {
+  return base::ReplaceAll(base::ReplaceAll(str, ".", "_"), "-", "neg_");
+}
 
 std::string FilterValueToString(const FilterValue& value) {
   switch (value.index()) {
@@ -59,12 +66,11 @@ std::string FilterValueToString(const FilterValue& value) {
       return "nullptr";
     case base::variant_index<FilterValue, int64_t>(): {
       auto res = base::unchecked_get<int64_t>(value);
-      return res < 0 ? "neg_" + std::to_string(-res) : std::to_string(res);
+      return FixNegativeAndDecimal(std::to_string(res));
     }
     case base::variant_index<FilterValue, double>(): {
-      std::string no_dot = base::ReplaceAll(
-          std::to_string(base::unchecked_get<double>(value)), ".", "_");
-      return base::ReplaceAll(no_dot, "-", "neg_");
+      auto res = base::unchecked_get<double>(value);
+      return FixNegativeAndDecimal(std::to_string(res));
     }
     case base::variant_index<FilterValue, const char*>():
       return {base::unchecked_get<const char*>(value)};
@@ -80,7 +86,23 @@ std::string CastResultToString(const CastFilterValueResult& res) {
                                CastFilterValueResult::Id>(): {
         const auto& id =
             base::unchecked_get<CastFilterValueResult::Id>(res.value);
-        return "Id_" + std::to_string(id.value);
+        return "Id_" + FixNegativeAndDecimal(std::to_string(id.value));
+      }
+      case base::variant_index<CastFilterValueResult::Value, uint32_t>(): {
+        const auto& uint32 = base::unchecked_get<uint32_t>(res.value);
+        return "Uint32_" + FixNegativeAndDecimal(std::to_string(uint32));
+      }
+      case base::variant_index<CastFilterValueResult::Value, int32_t>(): {
+        const auto& int32 = base::unchecked_get<int32_t>(res.value);
+        return "Int32_" + FixNegativeAndDecimal(std::to_string(int32));
+      }
+      case base::variant_index<CastFilterValueResult::Value, int64_t>(): {
+        const auto& int64 = base::unchecked_get<int64_t>(res.value);
+        return "Int64_" + FixNegativeAndDecimal(std::to_string(int64));
+      }
+      case base::variant_index<CastFilterValueResult::Value, double>(): {
+        const auto& d = base::unchecked_get<double>(res.value);
+        return "Double_" + FixNegativeAndDecimal(std::to_string(d));
       }
       default:
         PERFETTO_FATAL("Unknown filter value type");
@@ -280,8 +302,10 @@ TEST(BytecodeInterpreterTest, Iota) {
   const auto* update =
       interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(1));
   ASSERT_TRUE(update);
-  ASSERT_THAT(update->b, AllOf(Ge(res.data()), Le(res.data() + res.size())));
-  ASSERT_THAT(update->e, AllOf(Ge(res.data()), Le(res.data() + res.size())));
+  ASSERT_THAT(update->b, AllOf(testing::Ge(res.data()),
+                               testing::Le(res.data() + res.size())));
+  ASSERT_THAT(update->e, AllOf(testing::Ge(res.data()),
+                               testing::Le(res.data() + res.size())));
   EXPECT_THAT(std::vector<uint32_t>(update->b, update->e),
               testing::ElementsAreArray({5, 6, 7, 8, 9}));
 }
@@ -292,7 +316,7 @@ struct CastTestCase {
   std::string input_type;
   FilterValue input;
   CastResult expected;
-  Op op = Eq{};
+  Op op = dataframe::Eq{};
 };
 
 class BytecodeInterpreterCastTest
@@ -316,9 +340,9 @@ TEST_P(BytecodeInterpreterCastTest, Cast) {
   const auto* result =
       interpreter.GetRegisterValue(reg::ReadHandle<CastFilterValueResult>(0));
   ASSERT_TRUE(result);
-  EXPECT_EQ(result->validity, expected.validity);
+  EXPECT_THAT(result->validity, testing::Eq(expected.validity));
   if (result->validity == CastResult::Validity::kValid) {
-    EXPECT_EQ(result->value, expected.value);
+    EXPECT_THAT(result->value, testing::Eq(expected.value));
   }
 }
 
@@ -340,6 +364,16 @@ INSTANTIATE_TEST_SUITE_P(
             "Id",
             FilterValue{int64_t(std::numeric_limits<uint32_t>::min()) - 1},
             CastResult::NoneMatch(),
+        },
+        CastTestCase{
+            "Uint32",
+            FilterValue{1024l},
+            CastResult::Valid(uint32_t(1024)),
+        },
+        CastTestCase{
+            "Int64",
+            FilterValue{std::numeric_limits<int64_t>::max()},
+            CastResult::Valid(std::numeric_limits<int64_t>::max()),
         }),
     [](const testing::TestParamInfo<BytecodeInterpreterCastTest::ParamType>&
            info) {
@@ -368,6 +402,21 @@ INSTANTIATE_TEST_SUITE_P(
             "Id",
             FilterValue{double(std::numeric_limits<uint32_t>::min()) - 1},
             CastResult::NoneMatch(),
+        },
+        CastTestCase{
+            "Uint32",
+            FilterValue{1024.0},
+            CastResult::Valid(uint32_t(1024)),
+        },
+        CastTestCase{
+            "Int64",
+            FilterValue{-9223372036854775808.0},
+            CastResult::Valid(int64_t(-9223372036854775807ll - 1)),
+        },
+        CastTestCase{
+            "Int64",
+            FilterValue{9223372036854775808.0},
+            CastResult::NoneMatch(),
         }),
     [](const testing::TestParamInfo<BytecodeInterpreterCastTest::ParamType>&
            info) {
@@ -383,56 +432,51 @@ TEST(BytecodeInterpreterTest, SortedFilterId) {
 
   Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
 
-  // Test case 1: Value exists in range
-  interpreter.SetRegisterValueForTesting(
-      reg::WriteHandle<CastFilterValueResult>(0),
-      CastFilterValueResult::Valid(CastFilterValueResult::Id{5}));
-  interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
-                                         Range{0, 10});
-
   Fetcher fetcher{{}, nullptr};
-  interpreter.Execute(fetcher);
+  {
+    // Test case 1: Value exists in range
+    interpreter.SetRegisterValueForTesting(
+        reg::WriteHandle<CastFilterValueResult>(0),
+        CastFilterValueResult::Valid(CastFilterValueResult::Id{5}));
+    interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
+                                           Range{0, 10});
 
-  const auto* result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
-  ASSERT_TRUE(result);
-  EXPECT_EQ(result->b, 5u);
-  EXPECT_EQ(result->e, 6u);
+    interpreter.Execute(fetcher);
 
-  // Test case 2: Value above range
-  interpreter.SetRegisterValueForTesting(
-      reg::WriteHandle<CastFilterValueResult>(0),
-      CastFilterValueResult::Valid(CastFilterValueResult::Id{10}));
-  interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
-                                         Range{0, 10});
-  interpreter.Execute(fetcher);
+    const auto* result =
+        interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->b, 5u);
+    EXPECT_EQ(result->e, 6u);
+  }
+  {
+    // Test case 2: Value below range
+    interpreter.SetRegisterValueForTesting(
+        reg::WriteHandle<CastFilterValueResult>(0),
+        CastFilterValueResult::Valid(CastFilterValueResult::Id{2}));
+    interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
+                                           Range{3, 10});
+    interpreter.Execute(fetcher);
 
-  result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
-  ASSERT_TRUE(result);
-  EXPECT_EQ(result->size(), 0u);
+    const auto* result =
+        interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->size(), 0u);
+  }
+  {
+    // Test case 3: Invalid cast result (NoneMatch)
+    interpreter.SetRegisterValueForTesting(
+        reg::WriteHandle<CastFilterValueResult>(0),
+        CastFilterValueResult::NoneMatch());
+    interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
+                                           Range{0, 10});
+    interpreter.Execute(fetcher);
 
-  // Test case 3: Value below range
-  interpreter.SetRegisterValueForTesting(
-      reg::WriteHandle<CastFilterValueResult>(0),
-      CastFilterValueResult::Valid(CastFilterValueResult::Id{2}));
-  interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
-                                         Range{3, 10});
-  interpreter.Execute(fetcher);
-
-  result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
-  ASSERT_TRUE(result);
-  EXPECT_EQ(result->size(), 0u);
-
-  // Test case 4: Invalid cast result (NoneMatch)
-  interpreter.SetRegisterValueForTesting(
-      reg::WriteHandle<CastFilterValueResult>(0),
-      CastFilterValueResult::NoneMatch());
-  interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
-                                         Range{0, 10});
-  interpreter.Execute(fetcher);
-
-  result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
-  ASSERT_TRUE(result);
-  EXPECT_EQ(result->size(), 0u);
+    const auto* result =
+        interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->size(), 0u);
+  }
 }
 
 TEST(BytecodeInterpreterTest, FilterId) {

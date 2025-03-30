@@ -234,14 +234,14 @@ class Interpreter {
       const auto& storage =
           columns_[col_idx].storage.template unchecked_get<T>();
       if constexpr (std::is_same_v<RangeOp, EqualRange>) {
-        auto it = std::lower_bound(storage.begin() + update.b,
-                                   storage.begin() + update.e, val);
-        for (; it != storage.end(); ++it) {
+        const M* begin = storage.data();
+        auto it = std::lower_bound(begin + update.b, begin + update.e, val);
+        for (; it != begin + update.e; ++it) {
           if (*it != val) {
             break;
           }
         }
-        update.e = it - storage.begin();
+        update.e = it - begin;
       } else {
         static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
       }
@@ -267,6 +267,12 @@ class Interpreter {
       update.e = IdentityFilter(source.b, source.e, update.b,
                                 base::unchecked_get<M>(value.value).value,
                                 NumericComparator<uint32_t, Op>());
+    } else if constexpr (NumericType::Contains<T>()) {
+      update.e = NumericFilter(source.b, source.e, update.b,
+                               base::unchecked_get<M>(value.value).value,
+                               NumericComparator<T, Op>());
+    } else {
+      static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
   }
 
@@ -352,8 +358,9 @@ class Interpreter {
                            FVF* fvf,
                            NonStringOp op,
                            T& out) {
+    static_assert(std::is_integral_v<T>, "Unsupported type");
+
     using Op = NonNullOp;
-    static_assert(std::is_integral_v<T>);
     if (PERFETTO_LIKELY(filter_value_type == FVF::kInt64)) {
       int64_t res = fvf->Int64Value(handle.index);
       bool is_small = res < std::numeric_limits<T>::min();
@@ -372,6 +379,7 @@ class Interpreter {
     }
     if (PERFETTO_LIKELY(filter_value_type == FVF::kDouble)) {
       double d = fvf->DoubleValue(handle.index);
+
       // We use the constants directly instead of using numeric_limits for
       // int64_t as the casts introduces rounding in the doubles as a double
       // cannot exactly represent int64::max().
@@ -388,8 +396,12 @@ class Interpreter {
         return CastFilterValueResult::kNoneMatch;
       }
 
+      // The greater than or equal is intentional to account for the fact that
+      // twos-complement integers are not symmetric around zero (i.e.
+      // -9223372036854775808 can be represented but 9223372036854775808
+      // cannot).
+      bool is_big = d >= kMax;
       bool is_small = d < kMin;
-      bool is_big = d > kMax;
       if (PERFETTO_LIKELY(d == trunc(d) && !is_small && !is_big)) {
         out = static_cast<T>(d);
         return CastFilterValueResult::kValid;
