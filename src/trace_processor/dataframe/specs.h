@@ -20,8 +20,20 @@ namespace perfetto::trace_processor::dataframe {
 // optimized.
 struct Id {};
 
+// Represents values where the value is a 32-bit unsigned integer.
+struct Uint32 {};
+
+// Represents values where the value is a 32-bit signed integer.
+struct Int32 {};
+
+// Represents values where the value is a 64-bit signed integer.
+struct Int64 {};
+
+// Represents values where the value is a double.
+struct Double {};
+
 // TypeSet of all possible column value types.
-using ColumnType = TypeSet<Id>;
+using ColumnType = TypeSet<Id, Uint32, Int32, Int64, Double>;
 
 // -----------------------------------------------------------------------------
 // Operation Types
@@ -42,8 +54,14 @@ using Op = TypeSet<Eq>;
 // the natural ordering where indices equal values.
 struct IdSorted {};
 
+// Represents a column which is sorted in ascending order by its value.
+struct Sorted {};
+
+// Represents a column which is not sorted.
+struct Unsorted {};
+
 // TypeSet of all possible column sort states.
-using SortState = TypeSet<IdSorted>;
+using SortState = TypeSet<IdSorted, Sorted, Unsorted>;
 
 // -----------------------------------------------------------------------------
 // Nullability Types

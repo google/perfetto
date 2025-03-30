@@ -95,7 +95,8 @@ struct Fetcher : ValueFetcher {
   using Type = size_t;
   static constexpr Type kInt64 = base::variant_index<FilterValue, int64_t>();
   static constexpr Type kDouble = base::variant_index<FilterValue, double>();
-  static constexpr Type kString = base::variant_index<FilterValue, const char*>();
+  static constexpr Type kString =
+      base::variant_index<FilterValue, const char*>();
   static constexpr Type kNull = base::variant_index<FilterValue, nullptr_t>();
 
   // Fetches an int64_t value at the given index.
@@ -288,6 +289,7 @@ TEST(BytecodeInterpreterTest, Iota) {
 using CastResult = CastFilterValueResult;
 
 struct CastTestCase {
+  std::string input_type;
   FilterValue input;
   CastResult expected;
   Op op = Eq{};
@@ -297,14 +299,14 @@ class BytecodeInterpreterCastTest
     : public testing::TestWithParam<CastTestCase> {};
 
 TEST_P(BytecodeInterpreterCastTest, Cast) {
-  const auto& [input, expected, op] = GetParam();
+  const auto& [input_type, input, expected, op] = GetParam();
 
   BytecodeVector bytecode;
   bytecode.emplace_back(
       ParseBytecode(base::StackString<1024>(
-                        "CastFilterValue<Id>: [fval_handle=FilterValue(0), "
+                        "CastFilterValue<%s>: [fval_handle=FilterValue(0), "
                         "write_register=Register(0), op=Op(%u)]",
-                        op.index())
+                        input_type.c_str(), op.index())
                         .ToStdString()));
 
   Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
@@ -325,14 +327,17 @@ INSTANTIATE_TEST_SUITE_P(
     BytecodeInterpreterCastTest,
     testing::Values(
         CastTestCase{
+            "Id",
             FilterValue{1024l},
             CastResult::Valid(CastResult::Id{1024}),
         },
         CastTestCase{
+            "Id",
             FilterValue{int64_t(std::numeric_limits<uint32_t>::max()) + 1},
             CastResult::NoneMatch(),
         },
         CastTestCase{
+            "Id",
             FilterValue{int64_t(std::numeric_limits<uint32_t>::min()) - 1},
             CastResult::NoneMatch(),
         }),
@@ -347,17 +352,20 @@ INSTANTIATE_TEST_SUITE_P(
     BytecodeInterpreterCastTest,
     testing::Values(
         CastTestCase{
+            "Id",
             FilterValue{1024.0},
             CastResult::Valid(CastResult::Id{1024}),
         },
-        CastTestCase{FilterValue{1024.1}, CastResult::NoneMatch()},
-        CastTestCase{FilterValue{1024.9}, CastResult::NoneMatch()},
-        CastTestCase{FilterValue{NAN}, CastResult::NoneMatch()},
+        CastTestCase{"Id", FilterValue{1024.1}, CastResult::NoneMatch()},
+        CastTestCase{"Id", FilterValue{1024.9}, CastResult::NoneMatch()},
+        CastTestCase{"Id", FilterValue{NAN}, CastResult::NoneMatch()},
         CastTestCase{
+            "Id",
             FilterValue{double(std::numeric_limits<uint32_t>::max()) + 1},
             CastResult::NoneMatch(),
         },
         CastTestCase{
+            "Id",
             FilterValue{double(std::numeric_limits<uint32_t>::min()) - 1},
             CastResult::NoneMatch(),
         }),

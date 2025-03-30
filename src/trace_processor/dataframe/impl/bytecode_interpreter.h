@@ -192,6 +192,9 @@ class Interpreter {
       validity = CastFilterValueToInteger(h, filter_value_type, fvf_,
                                           f.arg<B::op>(), val);
       out = CastFilterValueResult::Id{val};
+    } else if constexpr (NumericType::Contains<T>()) {
+      validity = CastFilterValueToNumeric(h, filter_value_type, fvf_,
+                                          f.arg<B::op>(), out);
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
@@ -223,6 +226,22 @@ class Interpreter {
         bool in_bounds = inner_val >= update.b && inner_val < update.e;
         update.b = inner_val;
         update.e = inner_val + in_bounds;
+      } else {
+        static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
+      }
+    } else if constexpr (NumericType::Contains<T>()) {
+      uint32_t col_idx = f.arg<B::col>();
+      const auto& storage =
+          columns_[col_idx].storage.template unchecked_get<T>();
+      if constexpr (std::is_same_v<RangeOp, EqualRange>) {
+        auto it = std::lower_bound(storage.begin() + update.b,
+                                   storage.begin() + update.e, val);
+        for (; it != storage.end(); ++it) {
+          if (*it != val) {
+            break;
+          }
+        }
+        update.e = it - storage.begin();
       } else {
         static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
       }
@@ -308,12 +327,17 @@ class Interpreter {
   // appropriate type-specific conversion function.
   template <typename T>
   [[nodiscard]] PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
-  CastFilterValueToNumeric(FilterValueHandle handle, NonNullOp op, T& out) {
+  CastFilterValueToNumeric(FilterValueHandle handle,
+                           typename FVF::Type filter_value_type,
+                           FVF* fetcher,
+                           NonNullOp op,
+                           T& out) {
     if constexpr (std::is_same_v<T, double>) {
-      return CastFilterValueToDouble(handle, op, out);
+      return CastFilterValueToDouble(handle, filter_value_type, fetcher, op,
+                                     out);
     } else if constexpr (std::is_integral_v<T>) {
-      return CastFilterValueToInteger<T>(handle, op, out);
-    } else if constexpr (std::is_same_v<T, uint32_t>) {
+      return CastFilterValueToInteger<T>(handle, filter_value_type, fetcher, op,
+                                         out);
     } else {
       static_assert(std::is_same_v<T, double>, "Unsupported type");
     }
