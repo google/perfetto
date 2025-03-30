@@ -251,35 +251,36 @@ class Interpreter {
     } else if constexpr (NumericType::Contains<T>()) {
       BoundModifier b = f.arg<B::write_result_to>();
       auto* d = columns_[f.arg<B::col>()].storage.template unchecked_data<T>();
-      SortedNumericFilter<RangeOp>(d + update.b, d + update.e, val, b, update);
+      SortedNumericFilter<RangeOp>(d, val, b, update);
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
   }
 
   template <typename RangeOp, typename M>
-  PERFETTO_ALWAYS_INLINE void SortedNumericFilter(const M* begin,
-                                                  const M* end,
+  PERFETTO_ALWAYS_INLINE void SortedNumericFilter(const M* data,
                                                   M val,
                                                   BoundModifier bound,
                                                   Range& update) {
+    auto* begin = data + update.b;
+    auto* end = data + update.e;
     if constexpr (std::is_same_v<RangeOp, EqualRange>) {
       PERFETTO_DCHECK(bound.Is<BothBounds>());
       const M* eq_start = std::lower_bound(begin, end, val);
       for (auto* it = eq_start; it != end; ++it) {
         if (*it != val) {
-          update.b = eq_start - begin;
-          update.e = it - begin;
+          update.b = eq_start - data;
+          update.e = it - data;
           return;
         }
       }
       update.e = update.b;
     } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
       auto& res = bound.Is<BeginBound>() ? update.b : update.e;
-      res = std::lower_bound(begin, end, val) - begin;
+      res = std::lower_bound(begin, end, val) - data;
     } else if constexpr (std::is_same_v<RangeOp, UpperBound>) {
       auto& res = bound.Is<BeginBound>() ? update.b : update.e;
-      res = std::upper_bound(begin, end, val) - begin;
+      res = std::upper_bound(begin, end, val) - data;
     } else {
       static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
     }

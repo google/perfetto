@@ -76,9 +76,9 @@ std::pair<BoundModifier, EqualRangeLowerBoundUpperBound> GetSortedFilterArgs(
     case RangeOp::GetTypeIndex<Eq>():
       return std::make_pair(BothBounds{}, EqualRange{});
     case RangeOp::GetTypeIndex<Lt>():
-      return std::make_pair(EndBound{}, UpperBound{});
-    case RangeOp::GetTypeIndex<Le>():
       return std::make_pair(EndBound{}, LowerBound{});
+    case RangeOp::GetTypeIndex<Le>():
+      return std::make_pair(EndBound{}, UpperBound{});
     case RangeOp::GetTypeIndex<Gt>():
       return std::make_pair(BeginBound{}, UpperBound{});
     case RangeOp::GetTypeIndex<Ge>():
