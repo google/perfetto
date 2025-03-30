@@ -185,23 +185,23 @@ class Interpreter {
 
     using M = std::variant_alternative_t<ColumnType::GetTypeIndex<T>(),
                                          CastFilterValueResult::Value>;
-    CastFilterValueResult::Validity validity;
-    M out;
+    CastFilterValueResult result;
     if constexpr (std::is_same_v<T, Id>) {
       uint32_t val;
-      validity = CastFilterValueToInteger(h, filter_value_type, fvf_,
-                                          f.arg<B::op>(), val);
-      out = CastFilterValueResult::Id{val};
+      result.validity = CastFilterValueToInteger(h, filter_value_type, fvf_,
+                                                 f.arg<B::op>(), val);
+      if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+        result.value = CastFilterValueResult::Id{val};
+      }
     } else if constexpr (NumericType::Contains<T>()) {
-      validity = CastFilterValueToNumeric(h, filter_value_type, fvf_,
-                                          f.arg<B::op>(), out);
+      M out;
+      result.validity = CastFilterValueToNumeric(h, filter_value_type, fvf_,
+                                                 f.arg<B::op>(), out);
+      if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+        result.value = out;
+      }
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
-    }
-    CastFilterValueResult result;
-    result.validity = validity;
-    if (validity == CastFilterValueResult::kValid) {
-      result.value = out;
     }
     WriteReg(f.arg<B::write_register>(), result);
   }

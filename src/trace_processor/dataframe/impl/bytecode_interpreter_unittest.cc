@@ -93,12 +93,7 @@ std::string FixNegativeAndDecimal(const std::string& str) {
   return base::ReplaceAll(base::ReplaceAll(str, ".", "_"), "-", "neg_");
 }
 
-template <typename T>
-Span<T> GetSpan(std::vector<T>& vec) {
-  return Span<T>{vec.data(), vec.data() + vec.size()};
-}
-
-std::string FilterValueToString(const FilterValue& value) {
+std::string ValToString(const FilterValue& value) {
   switch (value.index()) {
     case base::variant_index<FilterValue, nullptr_t>():
       return "nullptr";
@@ -117,7 +112,7 @@ std::string FilterValueToString(const FilterValue& value) {
   }
 }
 
-std::string CastResultToString(const CastFilterValueResult& res) {
+std::string ResultToString(const CastFilterValueResult& res) {
   if (res.validity == CastFilterValueResult::Validity::kValid) {
     switch (res.value.index()) {
       case base::variant_index<CastFilterValueResult::Value,
@@ -149,6 +144,11 @@ std::string CastResultToString(const CastFilterValueResult& res) {
   return res.validity == CastFilterValueResult::Validity::kNoneMatch
              ? "NoneMatch"
              : "AllMatch";
+}
+
+template <typename T>
+Span<T> GetSpan(std::vector<T>& vec) {
+  return Span<T>{vec.data(), vec.data() + vec.size()};
 }
 
 Bytecode ParseBytecode(const std::string& bytecode_str) {
@@ -328,6 +328,9 @@ struct CastTestCase {
   FilterValue input;
   CastResult expected;
   Op op = dataframe::Eq{};
+  static std::string ToString(const testing::TestParamInfo<CastTestCase>& i) {
+    return ValToString(i.param.input) + "_" + ResultToString(i.param.expected);
+  }
 };
 
 class BytecodeInterpreterCastTest
@@ -381,11 +384,32 @@ INSTANTIATE_TEST_SUITE_P(
             FilterValue{std::numeric_limits<int64_t>::max()},
             CastResult::Valid(std::numeric_limits<int64_t>::max()),
         }),
-    [](const testing::TestParamInfo<BytecodeInterpreterCastTest::ParamType>&
-           info) {
-      return FilterValueToString(info.param.input) + "_" +
-             CastResultToString(info.param.expected);
-    });
+    &CastTestCase::ToString);
+
+INSTANTIATE_TEST_SUITE_P(DoubleToDouble,
+                         BytecodeInterpreterCastTest,
+                         testing::Values(CastTestCase{
+                             "Double",
+                             FilterValue{1024.0},
+                             CastResult::Valid(1024.0),
+                         }),
+                         &CastTestCase::ToString);
+
+INSTANTIATE_TEST_SUITE_P(
+    IntegerToDouble,
+    BytecodeInterpreterCastTest,
+    testing::Values(
+        CastTestCase{
+            "Double",
+            FilterValue{1024l},
+            CastResult::Valid(1024.0),
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{int64_t(std::numeric_limits<int64_t>::max()) - 1},
+            CastResult::NoneMatch(),
+        }),
+    &CastTestCase::ToString);
 
 INSTANTIATE_TEST_SUITE_P(
     DoubleToInteger,
@@ -424,11 +448,7 @@ INSTANTIATE_TEST_SUITE_P(
             FilterValue{9223372036854775808.0},
             CastResult::NoneMatch(),
         }),
-    [](const testing::TestParamInfo<BytecodeInterpreterCastTest::ParamType>&
-           info) {
-      return FilterValueToString(info.param.input) + "_" +
-             CastResultToString(info.param.expected);
-    });
+    &CastTestCase::ToString);
 
 TEST_F(BytecodeInterpreterTest, SortedFilterId) {
   std::string bytecode =
