@@ -97,6 +97,18 @@ class Cursor {
       case C::GetTypeIndex<Id>():
         callback.OnCell(idx);
         break;
+      case C::GetTypeIndex<Uint32>():
+        callback.OnCell(c.storage.unchecked_data<Uint32>()[idx]);
+        break;
+      case C::GetTypeIndex<Int32>():
+        callback.OnCell(c.storage.unchecked_data<Int32>()[idx]);
+        break;
+      case C::GetTypeIndex<Int64>():
+        callback.OnCell(c.storage.unchecked_data<Int64>()[idx]);
+        break;
+      case C::GetTypeIndex<Double>():
+        callback.OnCell(c.storage.unchecked_data<Double>()[idx]);
+        break;
       default:
         PERFETTO_FATAL("Invalid storage spec");
     }

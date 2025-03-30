@@ -42,8 +42,23 @@ using ColumnType = TypeSet<Id, Uint32, Int32, Int64, Double>;
 // Equality comparison operation for filter conditions.
 struct Eq {};
 
+// Not equal comparison operation for filter conditions.
+struct Ne {};
+
+// Less than comparison operation for filter conditions.
+struct Lt {};
+
+// Less than or equal to comparison operation for filter conditions.
+struct Le {};
+
+// Greater than comparison operation for filter conditions.
+struct Gt {};
+
+// Greater than or equal to comparison operation for filter conditions.
+struct Ge {};
+
 // TypeSet of all possible operations for filter conditions.
-using Op = TypeSet<Eq>;
+using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
 
 // -----------------------------------------------------------------------------
 // Sort State Types

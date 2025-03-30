@@ -48,8 +48,18 @@ template <typename T, typename Op>
 auto NumericComparator() {
   if constexpr (std::is_same_v<Op, Eq>) {
     return std::equal_to<T>();
+  } else if constexpr (std::is_same_v<Op, Ne>) {
+    return std::not_equal_to<T>();
+  } else if constexpr (std::is_same_v<Op, Lt>) {
+    return std::less<T>();
+  } else if constexpr (std::is_same_v<Op, Le>) {
+    return std::less_equal<T>();
+  } else if constexpr (std::is_same_v<Op, Gt>) {
+    return std::greater<T>();
+  } else if constexpr (std::is_same_v<Op, Ge>) {
+    return std::greater_equal<T>();
   } else {
-    static_assert(std::is_same_v<Op, Eq>, "Unsupported op");
+    static_assert(false);
   }
 }
 
@@ -226,27 +236,52 @@ class Interpreter {
         bool in_bounds = inner_val >= update.b && inner_val < update.e;
         update.b = inner_val;
         update.e = inner_val + in_bounds;
+      } else if constexpr (std::is_same_v<RangeOp, LowerBound> ||
+                           std::is_same_v<RangeOp, UpperBound>) {
+        if (inner_val >= update.b && inner_val < update.e) {
+          BoundModifier bound = f.arg<B::write_result_to>();
+          auto& res = bound.Is<BeginBound>() ? update.b : update.e;
+          res = inner_val + std::is_same_v<RangeOp, UpperBound>;
+        } else {
+          update.e = update.b;
+        }
       } else {
         static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
       }
     } else if constexpr (NumericType::Contains<T>()) {
-      uint32_t col_idx = f.arg<B::col>();
-      const auto& storage =
-          columns_[col_idx].storage.template unchecked_get<T>();
-      if constexpr (std::is_same_v<RangeOp, EqualRange>) {
-        const M* begin = storage.data();
-        auto it = std::lower_bound(begin + update.b, begin + update.e, val);
-        for (; it != begin + update.e; ++it) {
-          if (*it != val) {
-            break;
-          }
-        }
-        update.e = it - begin;
-      } else {
-        static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
-      }
+      BoundModifier b = f.arg<B::write_result_to>();
+      auto* d = columns_[f.arg<B::col>()].storage.template unchecked_data<T>();
+      SortedNumericFilter<RangeOp>(d + update.b, d + update.e, val, b, update);
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
+    }
+  }
+
+  template <typename RangeOp, typename M>
+  PERFETTO_ALWAYS_INLINE void SortedNumericFilter(const M* begin,
+                                                  const M* end,
+                                                  M val,
+                                                  BoundModifier bound,
+                                                  Range& update) {
+    if constexpr (std::is_same_v<RangeOp, EqualRange>) {
+      PERFETTO_DCHECK(bound.Is<BothBounds>());
+      const M* eq_start = std::lower_bound(begin, end, val);
+      for (auto* it = eq_start; it != end; ++it) {
+        if (*it != val) {
+          update.b = eq_start - begin;
+          update.e = it - begin;
+          return;
+        }
+      }
+      update.e = update.b;
+    } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
+      auto& res = bound.Is<BeginBound>() ? update.b : update.e;
+      res = std::lower_bound(begin, end, val) - begin;
+    } else if constexpr (std::is_same_v<RangeOp, UpperBound>) {
+      auto& res = bound.Is<BeginBound>() ? update.b : update.e;
+      res = std::upper_bound(begin, end, val) - begin;
+    } else {
+      static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
     }
   }
 
@@ -368,8 +403,23 @@ class Interpreter {
       bool is_big = res > std::numeric_limits<T>::max();
       if (PERFETTO_UNLIKELY(is_small || is_big)) {
         switch (op.index()) {
+          case Op::GetTypeIndex<Lt>():
+          case Op::GetTypeIndex<Le>():
+            if (is_small) {
+              return CastFilterValueResult::kNoneMatch;
+            }
+            break;
+          case Op::GetTypeIndex<Gt>():
+          case Op::GetTypeIndex<Ge>():
+            if (is_big) {
+              return CastFilterValueResult::kNoneMatch;
+            }
+            break;
           case Op::GetTypeIndex<Eq>():
             return CastFilterValueResult::kNoneMatch;
+          case Op::GetTypeIndex<Ne>():
+            // Do nothing.
+            break;
           default:
             PERFETTO_FATAL("Invalid numeric filter op");
         }
@@ -409,8 +459,19 @@ class Interpreter {
       }
 
       switch (op.index()) {
-        case NonStringOp::GetTypeIndex<Eq>():
+        case Op::GetTypeIndex<Lt>():
+          return DoubleToInt<T, std::ceil>(is_small, is_big, d, out);
+        case Op::GetTypeIndex<Le>():
+          return DoubleToInt<T, std::floor>(is_small, is_big, d, out);
+        case Op::GetTypeIndex<Gt>():
+          return DoubleToInt<T, std::ceil>(is_big, is_small, d, out);
+        case Op::GetTypeIndex<Ge>():
+          return DoubleToInt<T, std::floor>(is_big, is_small, d, out);
+        case Op::GetTypeIndex<Eq>():
           return CastFilterValueResult::kNoneMatch;
+        case Op::GetTypeIndex<Ne>():
+          // Do nothing.
+          return CastFilterValueResult::kAllMatch;
         default:
           PERFETTO_FATAL("Invalid numeric filter op");
       }
@@ -435,13 +496,38 @@ class Interpreter {
       int64_t i = fetcher->Int64Value(handle.index);
       auto iad = static_cast<double>(i);
       auto iad_int = static_cast<int64_t>(iad);
-      if (i == iad_int) {
+      if (PERFETTO_LIKELY(i == iad_int)) {
         out = iad;
         return CastFilterValueResult::kValid;
       }
       switch (op.index()) {
+        case Op::GetTypeIndex<Lt>():
+          out = iad_int > i ? iad
+                            : std::nextafter(
+                                  iad, std::numeric_limits<double>::infinity());
+          return CastFilterValueResult::kValid;
+        case Op::GetTypeIndex<Le>():
+          out = iad_int < i
+                    ? iad
+                    : std::nextafter(iad,
+                                     -std::numeric_limits<double>::infinity());
+          return CastFilterValueResult::kValid;
+        case Op::GetTypeIndex<Gt>():
+          out = iad_int > i ? iad
+                            : std::nextafter(
+                                  iad, std::numeric_limits<double>::infinity());
+          return CastFilterValueResult::kValid;
+        case Op::GetTypeIndex<Ge>():
+          out = iad_int < i
+                    ? iad
+                    : std::nextafter(iad,
+                                     -std::numeric_limits<double>::infinity());
+          return CastFilterValueResult::kValid;
         case Op::GetTypeIndex<Eq>():
           return CastFilterValueResult::kNoneMatch;
+        case Op::GetTypeIndex<Ne>():
+          // Do nothing.
+          return CastFilterValueResult::kAllMatch;
         default:
           PERFETTO_FATAL("Invalid numeric filter op");
       }
@@ -471,10 +557,14 @@ class Interpreter {
                                 NonStringOp op) {
     if (filter_value_type == FVF::kString) {
       using Op = NonStringOp;
-      if (op.index() == Op::GetTypeIndex<Eq>()) {
+      if (op.index() == Op::GetTypeIndex<Eq>() ||
+          op.index() == Op::GetTypeIndex<Ge>() ||
+          op.index() == Op::GetTypeIndex<Gt>()) {
         return CastFilterValueResult::kNoneMatch;
       }
-      PERFETTO_DCHECK(false);
+      PERFETTO_DCHECK(op.index() == Op::GetTypeIndex<Ne>() ||
+                      op.index() == Op::GetTypeIndex<Le>() ||
+                      op.index() == Op::GetTypeIndex<Lt>());
       return CastFilterValueResult::kAllMatch;
     }
 
