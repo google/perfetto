@@ -304,10 +304,9 @@ class Interpreter {
       uint32_t* o_start,
       const V& value,
       const Comparator& comparator) {
-    uint32_t* o_read = o_start;
     uint32_t* o_write = o_start;
-    for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-      *o_write = *o_read;
+    for (const uint32_t* it = begin; it != end; ++it) {
+      *o_write = *it;
       o_write += comparator(data[*it], value);
     }
     return o_write;

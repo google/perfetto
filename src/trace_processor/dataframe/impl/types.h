@@ -192,6 +192,7 @@ struct Range {
 
   // Get the number of elements in the range.
   size_t size() const { return e - b; }
+  bool empty() const { return b == e; }
 };
 
 // Represents a contiguous sequence of elements of an arbitrary type T.
