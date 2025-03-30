@@ -400,6 +400,10 @@ export class TraceImpl implements Trace {
     return this.appImpl.initialRouteArgs;
   }
 
+  get initialPluginRouteArgs() {
+    return this.appImpl.initialPluginRouteArgs;
+  }
+
   get featureFlags(): FeatureFlagManager {
     return {
       register: (settings: FlagSettings) => featureFlags.register(settings),
