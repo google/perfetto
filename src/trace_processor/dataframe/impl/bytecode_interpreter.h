@@ -78,7 +78,8 @@ PERFETTO_ALWAYS_INLINE bool HandleInvalidCastFilterValueResult(
 template <typename FVF>
 class Interpreter {
  public:
-  static_assert(std::is_base_of_v<ValueFetcher, FVF>);
+  static_assert(std::is_base_of_v<ValueFetcher, FVF>,
+                "FVF must be a subclass of ValueFetcher");
 
   Interpreter(BytecodeVector bytecode,
               const Column* columns,

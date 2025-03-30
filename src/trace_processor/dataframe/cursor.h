@@ -30,6 +30,7 @@
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/value_fetcher.h"
 
 namespace perfetto::trace_processor::dataframe {
 
@@ -48,6 +49,9 @@ struct CellCallback {
 template <typename FVF>
 class Cursor {
  public:
+  static_assert(std::is_base_of_v<ValueFetcher, FVF>,
+                "FVF must be a subclass of ValueFetcher");
+
   // Executes the query and prepares the cursor for iteration.
   // This initializes the cursor's position to the first row of results.
   //
@@ -80,6 +84,8 @@ class Cursor {
   //             position.
   template <typename CC>
   PERFETTO_ALWAYS_INLINE void Cell(uint32_t col, CC& callback) {
+    static_assert(std::is_base_of_v<CellCallback, CC>,
+                  "CC must be a subclass of CellCallback");
     const impl::Column& c = columns_[col];
     uint32_t idx = pos_[params_.col_to_output_offset[col]];
     if (idx == std::numeric_limits<uint32_t>::max()) {
