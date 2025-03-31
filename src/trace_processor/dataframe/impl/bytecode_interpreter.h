@@ -151,7 +151,7 @@ class Interpreter {
 
       // Update the span to point to the pre-allocated slab.
       WriteRegister(ai.arg<B::dest_span_register>(),
-               Span<uint32_t>{exist_slab->begin(), exist_slab->end()});
+                    Span<uint32_t>{exist_slab->begin(), exist_slab->end()});
     } else {
       auto slab = Slab<uint32_t>::Alloc(ai.arg<B::size>());
       Span<uint32_t> span{slab.begin(), slab.end()};
@@ -196,7 +196,7 @@ class Interpreter {
     if (validity == CastFilterValueResult::kValid) {
       result.value = out;
     }
-    WriteRegister (f.arg<B::write_register>(), result);
+    WriteRegister(f.arg<B::write_register>(), result);
   }
 
   // Applies a filter operation to a sorted range based on the provided value.
