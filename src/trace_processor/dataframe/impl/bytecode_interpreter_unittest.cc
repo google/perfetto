@@ -99,19 +99,19 @@ struct Fetcher : ValueFetcher {
   static constexpr Type kNull = base::variant_index<FilterValue, nullptr_t>();
 
   // Fetches an int64_t value at the given index.
-  int64_t Int64Value(uint32_t idx) const {
+  int64_t GetInt64Value(uint32_t idx) const {
     return std::get<int64_t>(values[idx]);
   }
   // Fetches a double value at the given index.
-  double DoubleValue(uint32_t idx) const {
+  double GetDoubleValue(uint32_t idx) const {
     return std::get<double>(values[idx]);
   }
   // Fetches a string value at the given index.
-  const char* StringValue(uint32_t idx) const {
+  const char* GetStringValue(uint32_t idx) const {
     return std::get<const char*>(values[idx]);
   }
   // Fetches the type of the value at the given index.
-  Type ValueType(uint32_t idx) const { return values[idx].index(); }
+  Type GetValueType(uint32_t idx) const { return values[idx].index(); }
 
   const FilterValue* values;
 };
