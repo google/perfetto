@@ -58,7 +58,7 @@ SELECT
   slice.category,
   slice.name,
   slice.track_id,
-  process_track.name AS track_name,
+  track.name AS track_name,
   NULL AS thread_name,
   NULL AS utid,
   NULL AS tid,
@@ -69,5 +69,6 @@ SELECT
   slice.parent_id,
   slice.arg_set_id
 FROM slice
+JOIN track ON slice.track_id = track.id
 WHERE NOT (slice.track_id IN (SELECT id FROM process_track))
   AND NOT (slice.track_id IN (SELECT id FROM thread_track));
