@@ -66,22 +66,22 @@ struct Fetcher : ValueFetcher {
   static constexpr Type kNull = base::variant_index<FilterValue, nullptr_t>();
 
   // Fetches an int64_t value at the given index.
-  int64_t Int64Value(uint32_t idx) const {
+  int64_t GetInt64Value(uint32_t idx) const {
     PERFETTO_CHECK(idx == 0);
     return std::get<int64_t>(value);
   }
   // Fetches a double value at the given index.
-  double DoubleValue(uint32_t idx) const {
+  double GetDoubleValue(uint32_t idx) const {
     PERFETTO_CHECK(idx == 0);
     return std::get<double>(value);
   }
   // Fetches a string value at the given index.
-  const char* StringValue(uint32_t idx) const {
+  const char* GetStringValue(uint32_t idx) const {
     PERFETTO_CHECK(idx == 0);
     return std::get<const char*>(value);
   }
   // Fetches the type of the value at the given index.
-  Type ValueType(uint32_t idx) const {
+  Type GetValueType(uint32_t idx) const {
     PERFETTO_CHECK(idx == 0);
     return value.index();
   }
