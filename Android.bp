@@ -749,7 +749,7 @@ cc_library_shared {
 }
 
 // GN: //src/shared_lib:libperfetto_c
-cc_library_shared {
+cc_library {
     name: "libperfetto_c",
     srcs: [
         ":perfetto_base_default_platform",
