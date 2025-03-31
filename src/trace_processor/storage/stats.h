@@ -201,6 +201,9 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace,    ""), \
   F(traced_clone_started_timestamp_ns,    kSingle,  kInfo,     kTrace,         \
     "The timestamp when the clone snapshot operation for this trace started"), \
+  F(traced_clone_trigger_timestamp_ns,    kSingle,  kInfo,     kTrace,         \
+    "The timestamp when trigger for the clone snapshot operation for this "    \
+    "trace was received"), \
   F(traced_chunks_discarded,              kSingle,  kInfo,     kTrace,    ""), \
   F(traced_data_sources_registered,       kSingle,  kInfo,     kTrace,    ""), \
   F(traced_data_sources_seen,             kSingle,  kInfo,     kTrace,    ""), \
