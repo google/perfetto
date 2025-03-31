@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: PRs only on main or UI branches
+name: Run tools/run_presubmit script
 
 on:
   pull_request:
