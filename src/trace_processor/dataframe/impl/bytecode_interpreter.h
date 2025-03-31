@@ -54,7 +54,9 @@ auto NumericComparator() {
 }
 
 // Handles invalid cast filter value results for filtering operations.
-// If the cast result is invalid, updates the range or segment accordingly.
+// If the cast result is invalid, updates the range or span accordingly.
+//
+// Returns true if the result is valid, false otherwise.
 template <typename T>
 PERFETTO_ALWAYS_INLINE bool HandleInvalidCastFilterValueResult(
     const CastFilterValueResult& value,
@@ -89,7 +91,7 @@ class Interpreter {
   }
 
   // Not movable because it's a very large object and the move cost would be
-  // high. Phandleer constructing in place.
+  // high. Prefer constructing in place.
   Interpreter(Interpreter&&) = delete;
   Interpreter& operator=(Interpreter&&) = delete;
 
@@ -137,37 +139,36 @@ class Interpreter {
   const Column* columns() const { return columns_; }
 
  private:
-  // Initializes a range with the specified size, starting at zero.
   PERFETTO_ALWAYS_INLINE void InitRange(const bytecode::InitRange& init) {
     using B = bytecode::InitRange;
-    WriteReg(init.arg<B::dest_register>(), Range{0, init.arg<B::size>()});
+    WriteRegister(init.arg<B::dest_register>(), Range{0, init.arg<B::size>()});
   }
 
   PERFETTO_ALWAYS_INLINE void AllocateIndices(
       const bytecode::AllocateIndices& ai) {
     using B = bytecode::AllocateIndices;
 
-    if (auto* exist_slab = MaybeReg(ai.arg<B::dest_slab_register>())) {
+    if (auto* exist_slab = MaybeRegister(ai.arg<B::dest_slab_register>())) {
       // Ensure that the slab is the same size as the requested size.
       PERFETTO_DCHECK(exist_slab->size() == ai.arg<B::size>());
 
       // Update the span to point to the pre-allocated slab.
-      WriteReg(ai.arg<B::dest_span_register>(),
-               Span<uint32_t>{exist_slab->begin(), exist_slab->end()});
+      WriteRegister(ai.arg<B::dest_span_register>(),
+                    Span<uint32_t>{exist_slab->begin(), exist_slab->end()});
     } else {
       auto slab = Slab<uint32_t>::Alloc(ai.arg<B::size>());
       Span<uint32_t> span{slab.begin(), slab.end()};
-      WriteReg(ai.arg<B::dest_slab_register>(), std::move(slab));
-      WriteReg(ai.arg<B::dest_span_register>(), span);
+      WriteRegister(ai.arg<B::dest_slab_register>(), std::move(slab));
+      WriteRegister(ai.arg<B::dest_span_register>(), span);
     }
   }
 
   // Fills a SlabSegment with sequential values starting from source.begin().
   PERFETTO_ALWAYS_INLINE void Iota(const bytecode::Iota& r) {
     using B = bytecode::Iota;
-    const auto& source = Reg(r.arg<B::source_register>());
+    const auto& source = Register(r.arg<B::source_register>());
 
-    auto& update = Reg(r.arg<B::update_register>());
+    auto& update = Register(r.arg<B::update_register>());
     PERFETTO_DCHECK(source.size() <= update.size());
     auto* end = update.b + source.size();
     std::iota(update.b, end, source.b);
@@ -203,7 +204,7 @@ class Interpreter {
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
-    WriteReg(f.arg<B::write_register>(), result);
+    WriteRegister(f.arg<B::write_register>(), result);
   }
 
   // Applies a filter operation to a sorted range based on the provided value.
@@ -213,8 +214,8 @@ class Interpreter {
       const bytecode::SortedFilterBase& f) {
     using B = bytecode::SortedFilterBase;
 
-    const CastFilterValueResult& value = Reg(f.arg<B::val_register>());
-    auto& update = Reg(f.arg<B::update_register>());
+    const CastFilterValueResult& value = Register(f.arg<B::val_register>());
+    auto& update = Register(f.arg<B::update_register>());
     if (!HandleInvalidCastFilterValueResult(value, update)) {
       return;
     }
@@ -256,12 +257,12 @@ class Interpreter {
   PERFETTO_ALWAYS_INLINE void NonStringFilter(
       const bytecode::NonStringFilterBase& nf) {
     using B = bytecode::NonStringFilter<T, Op>;
-    const CastFilterValueResult& value = Reg(nf.arg<B::val_register>());
-    auto& update = Reg(nf.arg<B::update_register>());
+    const CastFilterValueResult& value = Register(nf.arg<B::val_register>());
+    auto& update = Register(nf.arg<B::update_register>());
     if (!HandleInvalidCastFilterValueResult(value, update)) {
       return;
     }
-    const auto& source = Reg(nf.arg<B::source_register>());
+    const auto& source = Register(nf.arg<B::source_register>());
     using M = ColumnType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
     if constexpr (std::is_same_v<T, Id>) {
       update.e = IdentityFilter(source.b, source.e, update.b,
@@ -281,8 +282,8 @@ class Interpreter {
   // Copies values from source to update with a specified stride.
   PERFETTO_ALWAYS_INLINE void StrideCopy(const bytecode::StrideCopy& tr) {
     using B = bytecode::StrideCopy;
-    const auto& source = Reg(tr.arg<B::source_register>());
-    auto& update = Reg(tr.arg<B::update_register>());
+    const auto& source = Register(tr.arg<B::source_register>());
+    auto& update = Register(tr.arg<B::update_register>());
     uint32_t stride = tr.arg<B::stride>();
     PERFETTO_DCHECK(source.size() * stride <= update.size());
     uint32_t* ptr = update.b;
@@ -487,20 +488,20 @@ class Interpreter {
 
   // Access a register for reading/writing with type safety through the handle.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE T& Reg(reg::RwHandle<T> reg) {
+  PERFETTO_ALWAYS_INLINE T& Register(reg::RwHandle<T> reg) {
     return base::unchecked_get<T>(registers_[reg.index]);
   }
 
   // Access a register for reading only with type safety through the handle.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE const T& Reg(reg::ReadHandle<T> reg) const {
+  PERFETTO_ALWAYS_INLINE const T& Register(reg::ReadHandle<T> reg) const {
     return base::unchecked_get<T>(registers_[reg.index]);
   }
 
   // Conditionally access a register if it contains the expected type.
   // Returns nullptr if the register holds a different type.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE T* MaybeReg(reg::WriteHandle<T> reg) {
+  PERFETTO_ALWAYS_INLINE T* MaybeRegister(reg::WriteHandle<T> reg) {
     if (std::holds_alternative<T>(registers_[reg.index])) {
       return &base::unchecked_get<T>(registers_[reg.index]);
     }
@@ -510,7 +511,7 @@ class Interpreter {
   // Writes a value to the specified register, handling type safety through the
   // handle.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE void WriteReg(reg::WriteHandle<T> reg, T value) {
+  PERFETTO_ALWAYS_INLINE void WriteRegister(reg::WriteHandle<T> reg, T value) {
     registers_[reg.index] = std::move(value);
   }
 
