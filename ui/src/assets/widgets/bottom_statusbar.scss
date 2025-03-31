@@ -36,7 +36,6 @@
   --statusbar-min-height: 2rem;
   --statusbar-border-radius: 0.25rem;
   --statusbar-z-index: 10;
-  --animation-easing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .perfetto-statusbar {
@@ -73,7 +72,6 @@
     padding: var(--statusbar-item-padding);
     border-radius: var(--statusbar-border-radius);
     cursor: default;
-    transition: background-color 0.15s var(--animation-easing);
 
     i.material-icons {
       font-size: var(--statusbar-icon-size);
@@ -94,7 +92,6 @@
     color: var(--statusbar-text-color);
     font-size: var(--statusbar-font-size);
     cursor: pointer;
-    transition: background-color 0.15s var(--animation-easing), border-color 0.15s var(--animation-easing), opacity 0.15s var(--animation-easing);
     white-space: nowrap;
 
     &:hover {
