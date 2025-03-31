@@ -1690,6 +1690,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/dataframe/specs.h",
         "src/trace_processor/dataframe/type_set.h",
+        "src/trace_processor/dataframe/value_fetcher.h",
     ],
 )
 

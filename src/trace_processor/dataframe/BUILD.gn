@@ -35,6 +35,7 @@ source_set("specs") {
   sources = [
     "specs.h",
     "type_set.h",
+    "value_fetcher.h",
   ]
   deps = [
     "../../../gn:default_deps",
