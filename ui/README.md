@@ -18,7 +18,7 @@ ui/build
 # ui/build before running ui/run-dev-server.
 ui/run-dev-server
 ```
-
+ 
 Then navigate to `http://localhost:10000`.
 
 See also https://perfetto.dev/docs/contributing/build-instructions#ui-development
