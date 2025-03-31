@@ -517,7 +517,7 @@ class Interpreter {
         return CastFilterValueResult::kValid;
       }
       switch (op.index()) {
-        case NonStringOp  ::GetTypeIndex<Lt>():
+        case NonStringOp::GetTypeIndex<Lt>():
           out = iad_int > i ? iad
                             : std::nextafter(
                                   iad, std::numeric_limits<double>::infinity());
