@@ -5,10 +5,11 @@ on:
     types: [opened, synchronize, reopened, edited]
 
 jobs:
-  branch-check:
+  pr-branch-check:
     runs-on: self-hosted
+    name: pr-branch-check
     steps:
-      - name: Check if target branch is allowed
+      - name: Check if target branch is allowed for merging PRs
         run: |
           # Define your list of allowed branches
           ALLOWED_BRANCHES=("main" "ui-canary" "ui-stable")
@@ -20,10 +21,10 @@ jobs:
 
           # Check if the target branch is in the allowed list
           if [[ " ${ALLOWED_BRANCHES[*]} " == *" $TARGET_BRANCH "* ]]; then
-            echo "✅ Target branch $TARGET_BRANCH is in the allowed list"
+            echo "✅ PR target branch $TARGET_BRANCH is in the allowed list"
             exit 0
           else
-            echo "❌ Target branch $TARGET_BRANCH is not in the allowed list"
+            echo "❌ PR target branch $TARGET_BRANCH is not in the allowed list"
             echo "Only the following branches are allowed for merging: ${ALLOWED_BRANCHES[*]}"
             exit 1
           fi
