@@ -143,7 +143,7 @@ class Interpreter {
   // the preexisting value of a register.
   template <typename T>
   void SetRegisterValueForTesting(reg::WriteHandle<T> reg, T value) {
-    WriteReg(reg, std::move(value));
+    WriteRegister(reg, std::move(value));
   }
 
   const Column* columns() const { return columns_; }
