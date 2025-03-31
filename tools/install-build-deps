@@ -878,15 +878,17 @@ def Main():
     else:
       InstallNodeModules(force_clean=nodejs_updated)
 
-  # Check if the hook is installed
-  git_hook_path = os.path.join(ROOT_DIR, '.git', 'hooks', 'pre-push')
-  tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'presubmit-pre-push-hook')
-  if args.check_only:
-    expected_content = ReadFile(tools_hook_path)
-    actual_content = ReadFile(git_hook_path)
-    deps_updated |= expected_content != actual_content
-  else:
-    subprocess.check_call(['cp', tools_hook_path, git_hook_path])
+  # Install the pre-push hook if the .git/hooks directory exists.
+  git_hook_dir = os.path.join(ROOT_DIR, '.git', 'hooks')
+  if os.path.exists(git_hook_dir):
+    git_hook_path = os.path.join(git_hook_dir, 'pre-push')
+    tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'presubmit-pre-push-hook')
+    if args.check_only:
+      expected_content = ReadFile(tools_hook_path)
+      actual_content = ReadFile(git_hook_path)
+      deps_updated |= expected_content != actual_content
+    else:
+      subprocess.check_call(['cp', tools_hook_path, git_hook_path])
 
   cur_python_interpreter = sys.executable
   test_data_synced = 0 == subprocess.call([
