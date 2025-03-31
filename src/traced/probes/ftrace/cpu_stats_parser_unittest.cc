@@ -16,7 +16,6 @@
 
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 
-#include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
 #include "test/gtest_and_gmock.h"
 
