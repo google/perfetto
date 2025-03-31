@@ -26,6 +26,9 @@
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode::reg {
 
+// Set an upper bound on registers to allow for using std::array to
+// store register values.
+// Arbitrary value chosen to be larger than any reasonable bytecode program.
 static constexpr uint32_t kMaxRegisters = 64;
 
 // Register system for the bytecode interpreter.
