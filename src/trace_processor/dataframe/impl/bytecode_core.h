@@ -148,6 +148,7 @@ PERFETTO_NO_INLINE inline std::string BytecodeFieldsFormat(
   };                                                                           \
   using tuple = std::tuple<t1, t2, t3, t4, t5>;                                \
   static constexpr auto kOffsets = MakeOffsetsArray<tuple>();                  \
+  static constexpr auto kNames = std::array{#n1, #n2, #n3, #n4, #n5};          \
                                                                                \
   template <Field N>                                                           \
   const auto& arg() const {                                                    \

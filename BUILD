@@ -1664,6 +1664,7 @@ perfetto_filegroup(
         "src/trace_processor/dataframe/impl/bit_vector.h",
         "src/trace_processor/dataframe/impl/bytecode_core.h",
         "src/trace_processor/dataframe/impl/bytecode_instructions.h",
+        "src/trace_processor/dataframe/impl/bytecode_interpreter.h",
         "src/trace_processor/dataframe/impl/bytecode_registers.h",
         "src/trace_processor/dataframe/impl/flex_vector.h",
         "src/trace_processor/dataframe/impl/query_plan.cc",
