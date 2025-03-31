@@ -137,7 +137,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
           chromeConfig;
       }
       if (cats.has('disabled-by-default-histogram_samples')) {
-        const histogram = tc.addDataSource('org.chromium.histogram_samples');
+        const histogram = tc.addDataSource('org.chromium.histogram_sample');
         const histogramCfg = (histogram.chromiumHistogramSamples ??= {});
         histogramCfg.filterHistogramNames = privacyFilteringEnabled;
       }
