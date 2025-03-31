@@ -749,7 +749,7 @@ cc_library_shared {
 }
 
 // GN: //src/shared_lib:libperfetto_c
-cc_library_shared {
+cc_library {
     name: "libperfetto_c",
     srcs: [
         ":perfetto_base_default_platform",
@@ -14624,6 +14624,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/stack_trace/jit.sql",
         "src/trace_processor/perfetto_sql/stdlib/stacks/cpu_profiling.sql",
         "src/trace_processor/perfetto_sql/stdlib/time/conversion.sql",
+        "src/trace_processor/perfetto_sql/stdlib/traced/stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/v8/jit.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/flamegraph.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/slices.sql",

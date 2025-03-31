@@ -124,6 +124,14 @@ target_vendor_available = [
     '//src/shared_lib:libperfetto_c',
 ]
 
+# Library targets that should be exported as "cc_library" instead of
+# "cc_library_static" or "cc_library_shared"
+target_cc_library = [
+    # The soong target `libandroid_runtime` on host might need this as a static
+    # library.
+    '//src/shared_lib:libperfetto_c',
+]
+
 target_product_available = [
     '//:libperfetto_client_experimental',
 ]
@@ -1240,11 +1248,17 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
       module_type = 'cc_binary'
     module = Module(module_type, bp_module_name, gn_target_name)
   elif target.type == 'static_library':
-    module = Module('cc_library_static', bp_module_name, gn_target_name)
+    bp_type = 'cc_library_static'
+    if (gn_target_name in target_cc_library):
+      bp_type = 'cc_library'
+    module = Module(bp_type, bp_module_name, gn_target_name)
   elif target.type == 'shared_library':
     if is_target_android_jni_lib(target):
       bp_module_name = android_jni_lib_custom_target_name(target)
-    module = Module('cc_library_shared', bp_module_name, gn_target_name)
+    bp_type = 'cc_library_shared'
+    if (gn_target_name in target_cc_library):
+      bp_type = 'cc_library'
+    module = Module(bp_type, bp_module_name, gn_target_name)
   elif target.type == 'source_set':
     module = Module('filegroup', bp_module_name, gn_target_name)
   elif target.type == 'group':
@@ -1367,6 +1381,15 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
       module.shared_libs.add(dep_module.name)
     elif dep_module.type == 'cc_library_static':
       module.static_libs.add(dep_module.name)
+    elif dep_module.type == 'cc_library':
+      dep_gn_target = gn.get_target(dep_name)
+      if dep_gn_target.type == 'shared_library':
+        module.shared_libs.add(dep_module.name)
+      elif dep_gn_target.type == 'static_library':
+        module.static_libs.add(dep_module.name)
+      else:
+        raise Error('Unknown gn type %s for cc_library dep %s' %
+                    (dep_gn_target.type, dep_module.name))
     elif dep_module.type == 'filegroup':
       module.srcs.add(':' + dep_module.name)
     elif dep_module.type == 'genrule':
