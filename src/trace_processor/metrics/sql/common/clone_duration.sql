@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE trace.stats;
+INCLUDE PERFETTO MODULE traced.stats;
 
 DROP VIEW IF EXISTS clone_duration_output;
 CREATE PERFETTO VIEW clone_duration_output AS
@@ -27,6 +27,6 @@ SELECT
           'duration_ns',
           duration_ns
         ))
-      FROM clone_flush_latency
+      FROM traced_clone_flush_latency
     )
   );

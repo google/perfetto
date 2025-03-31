@@ -16,7 +16,7 @@
 
 -- Reports the duration of the flush operation for cloned traces (for each
 -- buffer).
-CREATE PERFETTO TABLE clone_flush_latency (
+CREATE PERFETTO TABLE traced_clone_flush_latency (
   -- Id of the buffer (matches the config).
   buffer_id LONG,
   -- Interval from the start of the clone operation to the end of the flush for
@@ -52,7 +52,7 @@ ORDER BY
 
 -- Reports the delay in finalizing the trace from the trigger that causes the
 -- clone operation.
-CREATE PERFETTO TABLE trigger_clone_flush_latency (
+CREATE PERFETTO TABLE traced_trigger_clone_flush_latency (
   -- Id of the buffer.
   buffer_id LONG,
   -- Interval from the trigger that caused the clone operation to the end of

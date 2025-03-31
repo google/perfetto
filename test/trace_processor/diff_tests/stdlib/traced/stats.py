@@ -66,14 +66,14 @@ CLONE_DONE = r"""
         }
         """
 
-class TraceStats(TestSuite):
+class TracedStats(TestSuite):
   def test_clone_flush_latency(self):
     return DiffTestBlueprint(
         trace=TextProto(BASE_TRACE + CLONE_STARTED + CLONE_DONE),
         query=r"""
-        INCLUDE PERFETTO MODULE trace.stats;
+        INCLUDE PERFETTO MODULE traced.stats;
 
-        SELECT * FROM clone_flush_latency;
+        SELECT * FROM traced_clone_flush_latency;
         """,
         out=Csv("""
         "buffer_id","duration_ns"
@@ -86,9 +86,9 @@ class TraceStats(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(BASE_TRACE + CLONE_DONE),
         query=r"""
-        INCLUDE PERFETTO MODULE trace.stats;
+        INCLUDE PERFETTO MODULE traced.stats;
 
-        SELECT * FROM clone_flush_latency;
+        SELECT * FROM traced_clone_flush_latency;
         """,
         out=Csv("""
         "buffer_id","duration_ns"
@@ -98,9 +98,9 @@ class TraceStats(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(BASE_TRACE + CLONE_STARTED),
         query=r"""
-        INCLUDE PERFETTO MODULE trace.stats;
+        INCLUDE PERFETTO MODULE traced.stats;
 
-        SELECT * FROM clone_flush_latency;
+        SELECT * FROM traced_clone_flush_latency;
         """,
         out=Csv("""
         "buffer_id","duration_ns"
@@ -110,9 +110,9 @@ class TraceStats(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(BASE_TRACE + CLONE_TRIGGERED + CLONE_DONE),
         query=r"""
-        INCLUDE PERFETTO MODULE trace.stats;
+        INCLUDE PERFETTO MODULE traced.stats;
 
-        SELECT * FROM trigger_clone_flush_latency;
+        SELECT * FROM traced_trigger_clone_flush_latency;
         """,
         out=Csv("""
         "buffer_id","duration_ns"
@@ -125,9 +125,9 @@ class TraceStats(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(BASE_TRACE + CLONE_DONE),
         query=r"""
-        INCLUDE PERFETTO MODULE trace.stats;
+        INCLUDE PERFETTO MODULE traced.stats;
 
-        SELECT * FROM trigger_clone_flush_latency;
+        SELECT * FROM traced_trigger_clone_flush_latency;
         """,
         out=Csv("""
         "buffer_id","duration_ns"
@@ -137,9 +137,9 @@ class TraceStats(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(BASE_TRACE + CLONE_TRIGGERED),
         query=r"""
-        INCLUDE PERFETTO MODULE trace.stats;
+        INCLUDE PERFETTO MODULE traced.stats;
 
-        SELECT * FROM trigger_clone_flush_latency;
+        SELECT * FROM traced_trigger_clone_flush_latency;
         """,
         out=Csv("""
         "buffer_id","duration_ns"
