@@ -101,9 +101,8 @@ class Interpreter {
     break;                                                                  \
   }
 
-  // Executes the bytecode sequence and returns the result stored in the
-  // specified output register. Processes each bytecode instruction in sequence,
-  // dispatching to the appropriate handler.
+  // Executes the bytecode sequence, processing each bytecode instruction in
+  // turn, and dispatching to the appropriate function in this class.
   void Execute() {
     for (const auto& bytecode : bytecode_) {
       switch (bytecode.option) {
