@@ -7,6 +7,7 @@ perfetto_android_library("perfetto_trace_lib") {
   sources = [
     "dev/perfetto/sdk/PerfettoTrace.java",
     "dev/perfetto/sdk/PerfettoTrackEventExtra.java",
+    "dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
   ]
   deps = [ "../../jni:libperfetto_jni" ]
   manifest = "AndroidManifest.xml"

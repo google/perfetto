@@ -38,29 +38,17 @@ public final class PerfettoTrace {
   private static final int PERFETTO_TE_TYPE_INSTANT = 3;
   private static final int PERFETTO_TE_TYPE_COUNTER = 4;
 
-  static class NativeAllocationRegistry {
-    public static NativeAllocationRegistry createMalloced(
-        ClassLoader classLoader, long freeFunction) {
-      // do nothing
-      return new NativeAllocationRegistry();
-    }
-
-    public void registerNativeAllocation(Object obj, long ptr) {
-      // do nothing
-    }
-  }
-
   /** For fetching the next flow event id in a process. */
   private static final AtomicInteger sFlowEventId = new AtomicInteger();
+
+  private static final PerfettoNativeMemoryCleaner memoryCleaner =
+      new PerfettoNativeMemoryCleaner();
 
   /**
    * Perfetto category a trace event belongs to. Registering a category is not sufficient to capture
    * events within the category, it must also be enabled in the trace config.
    */
   public static final class Category implements PerfettoTrackEventExtra.PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(Category.class.getClassLoader(), native_delete());
-
     private final long mPtr;
     private final long mExtraPtr;
     private final String mName;
@@ -100,6 +88,7 @@ public final class PerfettoTrace {
       mSeverity = severity;
       mPtr = native_init(name, tag, severity);
       mExtraPtr = native_get_extra_ptr(mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @FastNative
