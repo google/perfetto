@@ -28,9 +28,7 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/scoped_file.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
-#include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/format_parser/format_parser.h"
 #include "src/traced/probes/ftrace/printk_formats_parser.h"
 
@@ -97,6 +95,9 @@ class ProtoTranslationTable {
       std::vector<Field> common_fields);
   virtual ~ProtoTranslationTable();
 
+  ProtoTranslationTable(const ProtoTranslationTable&) = delete;
+  ProtoTranslationTable& operator=(const ProtoTranslationTable&) = delete;
+
   ProtoTranslationTable(const FtraceProcfs* ftrace_procfs,
                         const std::vector<Event>& events,
                         std::vector<Field> common_fields,
@@ -152,7 +153,7 @@ class ProtoTranslationTable {
   // Returns the size in bytes of the "size" field in the ftrace header. This
   // usually matches sizeof(void*) in the kernel (which can be != sizeof(void*)
   // of user space on 32bit-user + 64-bit-kernel configurations).
-  inline uint16_t page_header_size_len() const {
+  uint16_t page_header_size_len() const {
     // TODO(fmayer): Do kernel deepdive to double check this.
     return ftrace_page_header_spec_.size.size;
   }
@@ -187,9 +188,6 @@ class ProtoTranslationTable {
   }
 
  private:
-  ProtoTranslationTable(const ProtoTranslationTable&) = delete;
-  ProtoTranslationTable& operator=(const ProtoTranslationTable&) = delete;
-
   // Store strings so they can be read when writing the trace output.
   const char* InternString(const std::string& str);
 
@@ -219,10 +217,13 @@ class ProtoTranslationTable {
 // to be consumed by CpuReader.
 class EventFilter {
  public:
-  EventFilter();
-  ~EventFilter();
+  EventFilter() = default;
+  ~EventFilter() = default;
+  // move-only
   EventFilter(EventFilter&&) = default;
   EventFilter& operator=(EventFilter&&) = default;
+  EventFilter(const EventFilter&) = delete;
+  EventFilter& operator=(const EventFilter&) = delete;
 
   void AddEnabledEvent(size_t ftrace_event_id);
   void DisableEvent(size_t ftrace_event_id);
@@ -231,9 +232,6 @@ class EventFilter {
   void EnableEventsFrom(const EventFilter&);
 
  private:
-  EventFilter(const EventFilter&) = delete;
-  EventFilter& operator=(const EventFilter&) = delete;
-
   std::vector<bool> enabled_ids_;
 };
 

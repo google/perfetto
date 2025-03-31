@@ -18,7 +18,6 @@
 #define SRC_TOOLS_FTRACE_PROTO_GEN_PROTO_GEN_UTILS_H_
 
 #include <map>
-#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -93,7 +92,6 @@ struct Proto {
 
 std::string ToCamelCase(const std::string& s);
 ProtoType GetCommon(ProtoType one, ProtoType other);
-std::string ProtoHeader();
 ProtoType InferProtoType(const FtraceEvent::Field& field);
 
 }  // namespace perfetto

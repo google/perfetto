@@ -28,12 +28,15 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
+#include "protos/perfetto/common/sys_stats_counters.gen.h"
 #include "protos/perfetto/config/power/android_power_config.pbzero.h"
+#include "protos/perfetto/config/sys_stats/sys_stats_config.gen.h"
 #include "protos/perfetto/config/test_config.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace.gen.h"
@@ -42,15 +45,12 @@
 #include "protos/perfetto/trace/ftrace/ftrace_stats.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/power/battery_counters.gen.h"
+#include "protos/perfetto/trace/sys_stats/sys_stats.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trigger.gen.h"
-
-#include "protos/perfetto/common/sys_stats_counters.gen.h"
-#include "protos/perfetto/config/sys_stats/sys_stats_config.gen.h"
-#include "protos/perfetto/trace/sys_stats/sys_stats.gen.h"
 
 namespace perfetto {
 
