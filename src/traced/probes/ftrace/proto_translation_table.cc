@@ -20,10 +20,10 @@
 #include <sys/utsname.h>
 
 #include <algorithm>
+#include <memory>
 
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -94,7 +94,7 @@ ProtoTranslationTable::FtracePageHeaderSpec GuessFtracePageHeaderSpec() {
   return spec;
 }
 
-const std::deque<Event> BuildEventsDeque(const std::vector<Event>& events) {
+std::deque<Event> BuildEventsDeque(const std::vector<Event>& events) {
   size_t largest_id = 0;
   for (const Event& event : events) {
     if (event.ftrace_event_id > largest_id)
@@ -507,9 +507,9 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
   std::string text = ftrace_procfs->ReadPrintkFormats();
   PrintkMap printk_formats = ParsePrintkFormats(text);
 
-  auto table = std::unique_ptr<ProtoTranslationTable>(new ProtoTranslationTable(
+  auto table = std::make_unique<ProtoTranslationTable>(
       ftrace_procfs, events, std::move(common_fields), header_spec,
-      compact_sched, std::move(printk_formats)));
+      compact_sched, std::move(printk_formats));
   return table;
 }
 
@@ -524,9 +524,9 @@ ProtoTranslationTable::ProtoTranslationTable(
       events_(BuildEventsDeque(events)),
       largest_id_(events_.size() - 1),
       common_fields_(std::move(common_fields)),
-      ftrace_page_header_spec_(ftrace_page_header_spec),
-      compact_sched_format_(compact_sched_format),
-      printk_formats_(printk_formats) {
+      ftrace_page_header_spec_(std::move(ftrace_page_header_spec)),
+      compact_sched_format_(std::move(compact_sched_format)),
+      printk_formats_(std::move(printk_formats)) {
   for (const Event& event : events) {
     group_and_name_to_event_[GroupAndName(event.group, event.name)] =
         &events_.at(event.ftrace_event_id);
@@ -673,9 +673,6 @@ uint16_t ProtoTranslationTable::CreateGenericEventField(
   PERFETTO_DCHECK(success);
   return field_end;
 }
-
-EventFilter::EventFilter() = default;
-EventFilter::~EventFilter() = default;
 
 void EventFilter::AddEnabledEvent(size_t ftrace_event_id) {
   if (ftrace_event_id >= enabled_ids_.size())

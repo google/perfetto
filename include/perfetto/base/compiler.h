@@ -30,7 +30,7 @@
 #else
 #define PERFETTO_ASSUME(x)     \
   do {                         \
-    if (!x)                    \
+    if (!(x))                  \
       __builtin_unreachable(); \
   } while (0)
 #endif

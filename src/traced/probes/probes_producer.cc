@@ -25,15 +25,11 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/base/weak_ptr.h"
-#include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
-#include "perfetto/tracing/core/trace_config.h"
-#include "src/android_stats/statsd_logging_helper.h"
 #include "src/traced/probes/android_game_intervention_list/android_game_intervention_list_data_source.h"
 #include "src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks_data_source.h"
 #include "src/traced/probes/android_log/android_log_data_source.h"
@@ -523,7 +519,7 @@ void ProbesProducer::Flush(FlushRequestID flush_request_id,
     if (it == data_sources_.end() || !it->second->started)
       continue;
     pending_flushes_.emplace(flush_request_id, ds_id);
-    ds_to_flush.emplace_back(std::make_pair(ds_id, it->second.get()));
+    ds_to_flush.emplace_back(ds_id, it->second.get());
   }
 
   // If there is nothing to flush, ack immediately.
