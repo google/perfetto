@@ -384,7 +384,6 @@ class Interpreter {
         out = static_cast<T>(d);
         return CastFilterValueResult::kValid;
       }
-
       switch (op.index()) {
         case NonNullOp::GetTypeIndex<Eq>():
           return CastFilterValueResult::kNoneMatch;
