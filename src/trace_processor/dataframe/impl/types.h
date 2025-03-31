@@ -19,8 +19,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <variant>
 
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
@@ -139,17 +142,36 @@ struct FilterValueHandle {
 
 // Result of casting a filter value for comparison during query execution.
 struct CastFilterValueResult {
+  enum Validity : uint8_t { kValid, kAllMatch, kNoneMatch };
+
   // Cast value for Id columns.
   struct Id {
+    bool operator==(const Id& other) const { return value == other.value; }
     uint32_t value;
   };
-
-  // Variant of all possible cast value types.
   using Value = std::variant<Id>;
-  Value value;
+
+  bool operator==(const CastFilterValueResult& other) const {
+    return validity == other.validity && value == other.value;
+  }
+
+  static constexpr CastFilterValueResult Valid(Value value) {
+    return CastFilterValueResult{Validity::kValid, value};
+  }
+
+  static constexpr CastFilterValueResult NoneMatch() {
+    return CastFilterValueResult{Validity::kNoneMatch, Id{0}};
+  }
+
+  static constexpr CastFilterValueResult AllMatch() {
+    return CastFilterValueResult{Validity::kAllMatch, Id{0}};
+  }
 
   // Status of the casting result.
-  enum { kValid, kAllMatch, kNoneMatch } valid;
+  Validity validity;
+
+  // Variant of all possible cast value types.
+  Value value;
 };
 
 // Represents a contiguous range of indices [b, e).
@@ -160,6 +182,16 @@ struct Range {
 
   // Get the number of elements in the range.
   size_t size() const { return e - b; }
+};
+
+// Represents a contiguous sequence of elements of an arbitrary type T.
+// Basically a very simple backport of std::span to C++17.
+template <typename T>
+struct Span {
+  T* b;
+  T* e;
+
+  size_t size() const { return static_cast<size_t>(e - b); }
 };
 
 }  // namespace perfetto::trace_processor::dataframe::impl

@@ -79,7 +79,7 @@ CompactSchedEventFormat InvalidCompactSchedEventFormatForTesting();
 
 // Compact encoding configuration used at ftrace reading & parsing time.
 struct CompactSchedConfig {
-  CompactSchedConfig(bool _enabled) : enabled(_enabled) {}
+  explicit CompactSchedConfig(bool _enabled) : enabled(_enabled) {}
 
   // If true, and sched_switch and/or sched_waking events are enabled, encode
   // them in a compact format instead of the normal form.
@@ -109,7 +109,7 @@ class CompactSchedSwitchBuffer {
     return timestamp_.size();
   }
 
-  inline void AppendTimestamp(uint64_t timestamp) {
+  void AppendTimestamp(uint64_t timestamp) {
     timestamp_.Append(timestamp - last_timestamp_);
     last_timestamp_ = timestamp;
   }
@@ -145,7 +145,7 @@ class CompactSchedWakingBuffer {
     return timestamp_.size();
   }
 
-  inline void AppendTimestamp(uint64_t timestamp) {
+  void AppendTimestamp(uint64_t timestamp) {
     timestamp_.Append(timestamp - last_timestamp_);
     last_timestamp_ = timestamp;
   }
