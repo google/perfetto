@@ -1,3 +1,5 @@
+# Commits to ignore in git blame due to bulk changes
+
 # Replace block comments with line comments to appease eslint
 e56b1a91dcc4638262843eaead4347d7bf5a73b0
 
@@ -6,3 +8,5 @@ e56b1a91dcc4638262843eaead4347d7bf5a73b0
 
 # Format all files using prettier
 7e63f42d755ca255162f1f327126f90e34465581
+
+# Additional context or documentation link (if needed)
