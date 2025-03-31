@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DATAFRAME_VALUE_SOURCE_SINK_H_
-#define SRC_TRACE_PROCESSOR_DATAFRAME_VALUE_SOURCE_SINK_H_
+#ifndef SRC_TRACE_PROCESSOR_DATAFRAME_VALUE_FETCHER_H_
+#define SRC_TRACE_PROCESSOR_DATAFRAME_VALUE_FETCHER_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -48,4 +48,4 @@ struct ValueFetcher {
 
 }  // namespace perfetto::trace_processor::dataframe
 
-#endif  // SRC_TRACE_PROCESSOR_DATAFRAME_VALUE_SOURCE_SINK_H_
+#endif  // SRC_TRACE_PROCESSOR_DATAFRAME_VALUE_FETCHER_H_
