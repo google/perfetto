@@ -46,11 +46,11 @@ struct CellCallback {
 
 // Cursor provides a mechanism to iterate through dataframe query results
 // and access column values.
-template <typename FVF>
+template <typename FilterValueFetcherImpl>
 class Cursor {
  public:
-  static_assert(std::is_base_of_v<ValueFetcher, FVF>,
-                "FVF must be a subclass of ValueFetcher");
+  static_assert(std::is_base_of_v<ValueFetcher, FilterValueFetcherImpl>,
+                "FilterValueFetcherImpl must be a subclass of ValueFetcher");
 
   // Executes the query and prepares the cursor for iteration.
   // This initializes the cursor's position to the first row of results.
@@ -58,18 +58,22 @@ class Cursor {
   // Parameters:
   //   fvf: A subclass of `ValueFetcher` that defines the logic for fetching
   //        filter values for each filter spec.
-  PERFETTO_ALWAYS_INLINE void Execute(FVF& fvf) {
+  PERFETTO_ALWAYS_INLINE void Execute(
+      FilterValueFetcherImpl& filter_value_fetcher) {
     using S = impl::Span<uint32_t>;
-    interpeter_.Execute(fvf);
+    interpreter_.Execute(filter_value_fetcher);
 
     const auto& span =
-        *interpeter_.template GetRegisterValue<S>(params_.output_register);
+        *interpreter_.template GetRegisterValue<S>(params_.output_register);
     pos_ = span.b;
     end_ = span.e;
   }
 
   // Advances the cursor to the next row of results.
-  PERFETTO_ALWAYS_INLINE void Next() { pos_ += params_.output_per_row; }
+  PERFETTO_ALWAYS_INLINE void Next() {
+    PERFETTO_DCHECK(pos_ < end_);
+    pos_ += params_.output_per_row;
+  }
 
   // Returns true if the cursor has reached the end of the result set.
   PERFETTO_ALWAYS_INLINE bool Eof() const { return pos_ == end_; }
@@ -82,20 +86,20 @@ class Cursor {
   //   callback: A subclass of `CellCallback` that defines the logic for
   //             processing the value of the column at the current cursor
   //             position.
-  template <typename CC>
-  PERFETTO_ALWAYS_INLINE void Cell(uint32_t col, CC& callback) {
-    static_assert(std::is_base_of_v<CellCallback, CC>,
-                  "CC must be a subclass of CellCallback");
+  template <typename CellCallbackImpl>
+  PERFETTO_ALWAYS_INLINE void Cell(uint32_t col,
+                                   CellCallbackImpl& cell_callback_impl) {
+    static_assert(std::is_base_of_v<CellCallback, CellCallbackImpl>,
+                  "CellCallbackImpl must be a subclass of CellCallback");
     const impl::Column& c = columns_[col];
     uint32_t idx = pos_[params_.col_to_output_offset[col]];
     if (idx == std::numeric_limits<uint32_t>::max()) {
-      callback.OnCell(nullptr);
+      cell_callback_impl.OnCell(nullptr);
       return;
     }
-    using C = ColumnType;
     switch (c.spec.column_type.index()) {
-      case C::GetTypeIndex<Id>():
-        callback.OnCell(idx);
+      case ColumnType::GetTypeIndex<Id>():
+        cell_callback_impl.OnCell(idx);
         break;
       case C::GetTypeIndex<Uint32>():
         callback.OnCell(c.storage.unchecked_data<Uint32>()[idx]);
@@ -120,21 +124,21 @@ class Cursor {
   // Constructs a cursor from a query plan and dataframe columns.
   // This constructor is private and called by Dataframe::SetupCursor.
   explicit Cursor(impl::QueryPlan plan, impl::Column* columns, StringPool* pool)
-      : interpeter_(std::move(plan.bytecode), columns, pool),
+      : interpreter_(std::move(plan.bytecode), columns, pool),
         params_(plan.params),
         columns_(columns) {}
 
   // Bytecode interpreter that executes the query.
-  impl::bytecode::Interpreter<FVF> interpeter_;
+  impl::bytecode::Interpreter<FilterValueFetcherImpl> interpreter_;
   // Parameters for query execution.
   impl::QueryPlan::ExecutionParams params_;
   // Pointer to the dataframe columns.
   const impl::Column* columns_;
 
   // Current position in the result set.
-  uint32_t* pos_;
+  const uint32_t* pos_;
   // End position in the result set.
-  uint32_t* end_;
+  const uint32_t* end_;
 };
 
 }  // namespace perfetto::trace_processor::dataframe

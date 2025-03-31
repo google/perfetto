@@ -27,7 +27,6 @@ namespace protos {
 namespace pbzero {
 class FtraceStats;
 class FtraceCpuStats;
-class FtraceKprobeStats;
 }  // namespace pbzero
 }  // namespace protos
 

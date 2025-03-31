@@ -16,7 +16,7 @@ namespace perfetto::trace_processor::dataframe {
 
 // Represents values where the index of the value in the table is the same as
 // the value. This allows for zero memory overhead as values don't need to be
-// explicitly stored. Operations on these column with this type can be highly
+// explicitly stored. Operations on column with this type can be highly
 // optimized.
 struct Id {};
 

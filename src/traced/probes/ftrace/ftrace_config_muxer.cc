@@ -19,14 +19,15 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <cctype>
 #include <cstdint>
 
 #include <algorithm>
 #include <iterator>
 #include <limits>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/utils.h"
+#include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
@@ -137,39 +138,41 @@ void PERFETTO_NO_INLINE InsertEvent(const char* group,
 
 std::map<GroupAndName, KprobeEvent::KprobeType> GetFtraceKprobeEvents(
     const FtraceConfig& request) {
-  std::map<GroupAndName, KprobeEvent::KprobeType> events;
-  for (const auto& config_value : request.kprobe_events()) {
-    switch (config_value.type()) {
-      case protos::gen::FtraceConfig::KprobeEvent::KPROBE_TYPE_KPROBE:
-        events[GroupAndName(kKprobeGroup, config_value.probe().c_str())] =
-            KprobeEvent::KprobeType::KPROBE_TYPE_INSTANT;
+  using CFG = protos::gen::FtraceConfig::KprobeEvent;
+  using TRACE = protos::pbzero::KprobeEvent;
+
+  std::map<GroupAndName, TRACE::KprobeType> events;
+  auto add_kprobe = [&events](const std::string& name, auto type) {
+    events.emplace(GroupAndName(kKprobeGroup, name), type);
+  };
+  auto add_kretprobe = [&events](const std::string& name, auto type) {
+    events.emplace(GroupAndName(kKretprobeGroup, name), type);
+  };
+
+  for (const auto& cfg_evt : request.kprobe_events()) {
+    switch (cfg_evt.type()) {
+      case CFG::KPROBE_TYPE_KPROBE:
+        add_kprobe(cfg_evt.probe(), TRACE::KPROBE_TYPE_INSTANT);
         break;
-      case protos::gen::FtraceConfig::KprobeEvent::KPROBE_TYPE_KRETPROBE:
-        events[GroupAndName(kKretprobeGroup, config_value.probe().c_str())] =
-            KprobeEvent::KprobeType::KPROBE_TYPE_INSTANT;
+      case CFG::KPROBE_TYPE_KRETPROBE:
+        add_kretprobe(cfg_evt.probe(), TRACE::KPROBE_TYPE_INSTANT);
         break;
-      case protos::gen::FtraceConfig::KprobeEvent::KPROBE_TYPE_BOTH:
-        events[GroupAndName(kKprobeGroup, config_value.probe().c_str())] =
-            KprobeEvent::KprobeType::KPROBE_TYPE_BEGIN;
-        events[GroupAndName(kKretprobeGroup, config_value.probe().c_str())] =
-            KprobeEvent::KprobeType::KPROBE_TYPE_END;
+      case CFG::KPROBE_TYPE_BOTH:
+        add_kprobe(cfg_evt.probe(), TRACE::KPROBE_TYPE_BEGIN);
+        add_kretprobe(cfg_evt.probe(), TRACE::KPROBE_TYPE_END);
         break;
-      case protos::gen::FtraceConfig::KprobeEvent::KPROBE_TYPE_UNKNOWN:
+      case CFG::KPROBE_TYPE_UNKNOWN:
         PERFETTO_DLOG("Unknown kprobe event");
         break;
     }
-    PERFETTO_DLOG("Added kprobe event: %s", config_value.probe().c_str());
+    PERFETTO_DLOG("Added kprobe event: %s", cfg_evt.probe().c_str());
   }
   return events;
 }
 
 bool ValidateKprobeName(const std::string& name) {
-  for (const char& c : name) {
-    if (!std::isalnum(c) && c != '_') {
-      return false;
-    }
-  }
-  return true;
+  return std::all_of(name.begin(), name.end(),
+                     [](char c) { return std::isalnum(c) || c == '_'; });
 }
 
 }  // namespace
@@ -1202,17 +1205,17 @@ bool FtraceConfigMuxer::StartAtrace(const std::vector<std::string>& apps,
   PERFETTO_DLOG("Update atrace config...");
 
   std::vector<std::string> args;
-  args.push_back("atrace");  // argv0 for exec()
-  args.push_back("--async_start");
+  args.emplace_back("atrace");  // argv0 for exec()
+  args.emplace_back("--async_start");
   if (atrace_wrapper_->SupportsUserspaceOnly())
-    args.push_back("--only_userspace");
+    args.emplace_back("--only_userspace");
 
   for (const auto& category : categories)
     args.push_back(category);
 
   if (!apps.empty()) {
-    args.push_back("-a");
-    std::string arg = "";
+    args.emplace_back("-a");
+    std::string arg;
     for (const auto& app : apps) {
       arg += app;
       arg += ",";
@@ -1235,8 +1238,8 @@ bool FtraceConfigMuxer::SetAtracePreferSdk(
   PERFETTO_DLOG("Update atrace prefer sdk categories...");
 
   std::vector<std::string> args;
-  args.push_back("atrace");  // argv0 for exec()
-  args.push_back("--prefer_sdk");
+  args.emplace_back("atrace");  // argv0 for exec()
+  args.emplace_back("--prefer_sdk");
 
   for (const auto& category : prefer_sdk_categories)
     args.push_back(category);
@@ -1253,7 +1256,7 @@ void FtraceConfigMuxer::DisableAtrace() {
 
   std::vector<std::string> args{"atrace", "--async_stop"};
   if (atrace_wrapper_->SupportsUserspaceOnly())
-    args.push_back("--only_userspace");
+    args.emplace_back("--only_userspace");
   if (atrace_wrapper_->RunAtrace(args, /*atrace_errors=*/nullptr)) {
     current_state_.atrace_categories.clear();
     current_state_.atrace_apps.clear();
