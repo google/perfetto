@@ -78,11 +78,6 @@ def get_merge_base() -> Optional[str]:
     result = run_command(['git', 'merge-base', 'HEAD', '@{u}'])
     return result.stdout.strip()
   except subprocess.CalledProcessError:
-    # No upstream or other error
-    print(
-        "INFO: No upstream branch found or not a tracking branch. Comparing "
-        "against relevant files.",
-        file=sys.stderr)
     return None
 
 
@@ -936,6 +931,11 @@ def CheckStdlibFormatting(changed_files: List[str]) -> List[str]:
 def main():
   # 1. Determine files to check
   merge_base = get_merge_base()
+  if not merge_base:
+    print("No upstream branch found. Ensure that an upstream tracking branch "
+          "has been set.")
+    sys.exit(1)
+
   changed_files = get_changed_files(merge_base)
 
   if not changed_files:
