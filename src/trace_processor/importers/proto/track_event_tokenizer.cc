@@ -364,8 +364,12 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   if (PERFETTO_UNLIKELY(event.has_legacy_event())) {
     protos::pbzero::TrackEvent::LegacyEvent::Decoder leg(event.legacy_event());
     if (PERFETTO_UNLIKELY(leg.phase() == 'P')) {
-      RETURN_IF_ERROR(TokenizeLegacySampleEvent(
-          event, leg, *data.trace_packet_data.sequence_state));
+      base::Status status = TokenizeLegacySampleEvent(
+          event, leg, *data.trace_packet_data.sequence_state);
+      if (!status.ok()) {
+        context_->storage->IncrementStats(
+            stats::legacy_v8_cpu_profile_invalid_sample);
+      }
     }
   }
 
