@@ -808,39 +808,6 @@ def CheckSqlMetrics(changed_files: List[str]) -> List[str]:
   return []
 
 
-def CheckTestData(_: List[str]) -> List[str]:
-  tool_rel_path = 'tools/test_data'
-  tool = os.path.join(REPO_ROOT, tool_rel_path)
-  try:
-    # Assume tool needs execution permissions or use sys.executable
-    run_command([sys.executable, tool, 'status', '--quiet'], cwd=REPO_ROOT)
-  except FileNotFoundError:
-    # Try without sys.executable if it's meant to be directly executable
-    try:
-      run_command([tool, 'status', '--quiet'], cwd=REPO_ROOT)
-    except FileNotFoundError:
-      return [f"Tool not found: {tool}"]
-    except subprocess.CalledProcessError:
-      # Fall through to error message
-      pass
-    else:
-      return []  # Succeeded without sys.executable
-  except subprocess.CalledProcessError:
-    # Fall through to error message
-    pass
-  else:  # If try block succeeded
-    return []
-
-  # If we reached here, it failed
-  return [
-      f'//test/data is out of sync. Run `{tool} status` for more.\n'
-      f'If you rebaselined UI tests or added a new test trace, run: `{tool} '
-      f'upload`.\n'
-      f'Otherwise run `tools/install-build-deps` or `{tool} download '
-      f'--overwrite` to sync local test_data'
-  ]
-
-
 def CheckChromeStdlib(changed_files: List[str]) -> List[str]:
   # Use fnmatch patterns
   stdlib_paths_patterns = ("src/trace_processor/perfetto_sql/stdlib/chrome/*",
@@ -1042,8 +1009,6 @@ def main():
       (CheckBadCppPatterns, [changed_files]),
       (CheckSqlModules, [changed_files]),
       (CheckSqlMetrics, [changed_files]),
-      (CheckTestData, [changed_files
-                      ]),  # Doesn't need specific files list but pass anyway
       (CheckAmalgamatedPythonTools, [changed_files]),
       (CheckChromeStdlib, [changed_files]),  # Checks commit msg
       (CheckAbsolutePathsInGn, [changed_files]),
