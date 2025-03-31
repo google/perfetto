@@ -69,16 +69,64 @@ def run_command(args: List[str],
 
 
 def get_merge_base() -> Optional[str]:
-  """Gets the merge base with the upstream branch (@{u}). Returns None if not
-  found."""
+  result = run_command(["git", "symbolic-ref", "--short", "HEAD"], check=True)
+  branch = result.stdout.strip()
+
+  # First check if there's a tracking branch
   try:
-    run_command(['git', 'rev-parse', '--abbrev-ref', '@{u}'],
-                check=True,
-                stderr=subprocess.DEVNULL)
-    result = run_command(['git', 'merge-base', 'HEAD', '@{u}'])
-    return result.stdout.strip()
+    args = [
+        "git",
+        "for-each-ref",
+        f"--format=%(upstream:short)",
+        f"refs/heads/{branch}",
+    ]
+    tracking_result = run_command(args, check=True)
+    tracking_branch = tracking_result.stdout.strip()
+
+    # If we have a tracking branch, check if it's local
+    if tracking_branch:
+      # Check if this is a local branch by trying to get its ref in refs/heads/
+      try:
+        _ = run_command(
+            ["git", "show-ref", "--verify", f"refs/heads/{tracking_branch}"],
+            check=True)
+        # If we get here without an exception, it's a local branch
+        return tracking_branch
+      except subprocess.CalledProcessError:
+        # Not a local branch, continue with merge-base logic
+        pass
   except subprocess.CalledProcessError:
-    return None
+    # No tracking branch, continue with merge-base logic
+    pass
+
+  # If tracking branch check didn't return a local branch, use the original
+  # logic
+  result = run_command(
+      ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
+      check=True)
+  all_branches = [b for b in result.stdout.strip().split('\n') if b != branch]
+
+  potential_bases = []
+
+  for potential_base in all_branches:
+    base_commit = run_command(["git", "rev-parse", potential_base],
+                              check=True).stdout.strip()
+
+    merge_base = run_command(["git", "merge-base", potential_base, branch],
+                             check=True).stdout.strip()
+
+    if base_commit == merge_base:
+      distance = run_command(
+          ["git", "rev-list", "--count", f"{potential_base}..{branch}"],
+          check=True).stdout.strip()
+
+      potential_bases.append((potential_base, int(distance)))
+
+  if potential_bases:
+    potential_bases.sort(key=lambda x: x[1])
+    return potential_bases[0][0]
+
+  return None
 
 
 def get_changed_files(merge_base: Optional[str]) -> List[str]:
