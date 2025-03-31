@@ -18,6 +18,7 @@ source_set("dataframe") {
   sources = [
     "dataframe.cc",
     "dataframe.h",
+    "cursor.h",
   ]
   deps = [
     "../../../gn:default_deps",
