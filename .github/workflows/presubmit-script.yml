@@ -23,13 +23,7 @@ jobs:
     runs-on: self-hosted
     name: presubmit
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-        
-    - name: Run presubmit checks
-      run: python3 tools/run_presubmit
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Run presubmit checks
+        run: python3 tools/run_presubmit
