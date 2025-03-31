@@ -963,6 +963,7 @@ def main():
             "ui/*.[jt]s",
             "ui/pnpm-lock.yaml",
             'tools/install-build-deps',
+            ".github/workflows/*.yml",
         ])
 
   # 3. Run all checks
