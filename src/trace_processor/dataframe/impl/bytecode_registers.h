@@ -26,6 +26,11 @@
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode::reg {
 
+// Set an upper bound on registers to allow for using std::array to
+// store register values.
+// Arbitrary value chosen to be larger than any reasonable bytecode program.
+static constexpr uint32_t kMaxRegisters = 64;
+
 // Register system for the bytecode interpreter.
 // Provides typed handles for accessing virtual registers with appropriate
 // read/write permissions.
@@ -81,7 +86,11 @@ struct WriteHandle : HandleBase {
 struct Empty {};
 
 // Values that can be stored in a register.
-using Value = std::variant<Empty, Range, Slab<uint32_t>, CastFilterValueResult>;
+using Value = std::variant<Empty,
+                           Range,
+                           Slab<uint32_t>,
+                           Span<uint32_t>,
+                           CastFilterValueResult>;
 
 }  // namespace perfetto::trace_processor::dataframe::impl::bytecode::reg
 

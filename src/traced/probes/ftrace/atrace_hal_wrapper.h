@@ -21,8 +21,6 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/scoped_file.h"
-
 namespace perfetto {
 
 class AtraceHalWrapper {

@@ -167,28 +167,30 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
 
   // Ensure indices are in a slab for efficient access
   auto in_memory_indices = EnsureIndicesAreInSlab();
-  bytecode::reg::ReadHandle<Slab<uint32_t>> storage_indices_register;
+  bytecode::reg::ReadHandle<Span<uint32_t>> storage_indices_register;
 
   // Handle multi-column output if needed
   if (plan_.interpreter_spec.output_per_row > 1) {
     // Allocate storage for expanded indices
-    bytecode::reg::RwHandle<Slab<uint32_t>> new_reg{register_count_++};
+    bytecode::reg::RwHandle<Slab<uint32_t>> slab_register{register_count_++};
+    bytecode::reg::RwHandle<Span<uint32_t>> span_register{register_count_++};
     {
       using B = bytecode::AllocateIndices;
       auto& bc = AddOpcode<B>();
       bc.arg<B::size>() =
           max_row_count_ * plan_.interpreter_spec.output_per_row;
-      bc.arg<B::dest_register>() = new_reg;
+      bc.arg<B::dest_slab_register>() = slab_register;
+      bc.arg<B::dest_span_register>() = span_register;
     }
 
     // Expand indices with stride for multi-column access
     {
-      using B = bytecode::StrideExpandedCopy;
+      using B = bytecode::StrideCopy;
       auto& bc = AddOpcode<B>();
       bc.arg<B::source_register>() = in_memory_indices;
-      bc.arg<B::update_register>() = new_reg;
+      bc.arg<B::update_register>() = span_register;
       bc.arg<B::stride>() = plan_.interpreter_spec.output_per_row;
-      storage_indices_register = new_reg;
+      storage_indices_register = span_register;
     }
 
     // Process nullability for each column if needed
@@ -275,9 +277,9 @@ bool QueryPlanBuilder::TrySortedConstraint(
   return true;
 }
 
-bytecode::reg::RwHandle<Slab<uint32_t>>
+bytecode::reg::RwHandle<Span<uint32_t>>
 QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
-  bytecode::reg::RwHandle<Slab<uint32_t>> main = EnsureIndicesAreInSlab();
+  bytecode::reg::RwHandle<Span<uint32_t>> main = EnsureIndicesAreInSlab();
   const auto& col = columns_[c.column_index];
 
   // Handle based on nullability type
@@ -289,39 +291,36 @@ QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
   }
 }
 
-PERFETTO_NO_INLINE bytecode::reg::RwHandle<Slab<uint32_t>>
+PERFETTO_NO_INLINE bytecode::reg::RwHandle<Span<uint32_t>>
 QueryPlanBuilder::EnsureIndicesAreInSlab() {
-  using RegSlab = bytecode::reg::RwHandle<Slab<uint32_t>>;
+  using SpanReg = bytecode::reg::RwHandle<Span<uint32_t>>;
+  using SlabReg = bytecode::reg::RwHandle<Slab<uint32_t>>;
 
-  // If indices are already in a slab, return them
-  if (PERFETTO_LIKELY(std::holds_alternative<RegSlab>(indices_reg_))) {
-    return base::unchecked_get<RegSlab>(indices_reg_);
+  if (PERFETTO_LIKELY(std::holds_alternative<SpanReg>(indices_reg_))) {
+    return base::unchecked_get<SpanReg>(indices_reg_);
   }
 
-  // Convert range to slab of indices
   using RegRange = bytecode::reg::RwHandle<Range>;
   PERFETTO_DCHECK(std::holds_alternative<RegRange>(indices_reg_));
   auto range_reg = base::unchecked_get<RegRange>(indices_reg_);
 
-  // Allocate space for indices
-  RegSlab slab_reg{register_count_++};
+  SlabReg slab_reg{register_count_++};
+  SpanReg span_reg{register_count_++};
   {
     using B = bytecode::AllocateIndices;
     auto& bc = AddOpcode<B>();
     bc.arg<B::size>() = max_row_count_;
-    bc.arg<B::dest_register>() = slab_reg;
+    bc.arg<B::dest_slab_register>() = slab_reg;
+    bc.arg<B::dest_span_register>() = span_reg;
   }
-  // Fill with sequential indices from the range
   {
     using B = bytecode::Iota;
     auto& bc = AddOpcode<B>();
     bc.arg<B::source_register>() = range_reg;
-    bc.arg<B::update_register>() = slab_reg;
+    bc.arg<B::update_register>() = span_reg;
   }
-
-  // Update our indices to use the slab
-  indices_reg_ = slab_reg;
-  return slab_reg;
+  indices_reg_ = span_reg;
+  return span_reg;
 }
 
 template <typename T>
@@ -336,13 +335,15 @@ void QueryPlanBuilder::SetGuaranteedToBeEmpty() {
 
   // Set result size to zero (empty set)
   bytecode::reg::RwHandle<Slab<uint32_t>> slab_reg{register_count_++};
+  bytecode::reg::RwHandle<Span<uint32_t>> span_reg{register_count_++};
   {
     using B = bytecode::AllocateIndices;
     auto& bc = AddOpcode<B>();
     bc.arg<B::size>() = 0;
-    bc.arg<B::dest_register>() = slab_reg;
+    bc.arg<B::dest_slab_register>() = slab_reg;
+    bc.arg<B::dest_span_register>() = span_reg;
   }
-  indices_reg_ = slab_reg;
+  indices_reg_ = span_reg;
 }
 
 }  // namespace perfetto::trace_processor::dataframe::impl
