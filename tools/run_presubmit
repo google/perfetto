@@ -294,7 +294,7 @@ def CheckPatchFormatted(changed_files: List[str],
     changed_files_str = "\n  ".join(files_to_format_paths)
     errors.append(
         f"clang-format check failed. Run 'clang-format -i <file>' on affected "
-        "files:\n---\n{e.stderr}\n---\nAffected files:\n  {changed_files_str}")
+        f"files:\n---\n{e.stderr}\n---\nAffected files:\n  {changed_files_str}")
   return errors
 
 
