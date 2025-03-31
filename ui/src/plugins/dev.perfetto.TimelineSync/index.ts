@@ -18,6 +18,9 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Time, TimeSpan} from '../../base/time';
 import {redrawModal, showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/logging';
+import { showStatusbar, closeStatusbar } from '../../widgets/bottom_statusbar';
+import { createSyncStatusbarVnode, SyncStatus } from './timeline_sync_status_bar_content';
+
 
 const PLUGIN_ID = 'dev.perfetto.TimelineSync';
 const DEFAULT_BROADCAST_CHANNEL = `${PLUGIN_ID}#broadcastChannel`;
@@ -25,6 +28,7 @@ const VIEWPORT_UPDATE_THROTTLE_TIME_FOR_SENDING_AFTER_RECEIVING_MS = 1_000;
 const BIGINT_PRECISION_MULTIPLIER = 1_000_000_000n;
 const ADVERTISE_PERIOD_MS = 10_000;
 const DEFAULT_SESSION_ID = 1;
+const STATUSBAR_KEY = 'timeline-sync';
 type ClientId = number;
 type SessionId = number;
 
@@ -105,6 +109,7 @@ export default class implements PerfettoPlugin {
     if (this._sessionidFromUrl !== 0) {
       this.enableTimelineSync(this._sessionidFromUrl);
     }
+    this._updateStatusbar();
     ctx.trash.defer(() => {
       this.disableTimelineSync(this._sessionId);
       this._ctx = undefined;
@@ -146,6 +151,7 @@ export default class implements PerfettoPlugin {
       }
       selectedClients.push(this._clientId); // Always add ourselves.
       this._sessionId = Math.floor(Math.random() * 1_000_000);
+      this._updateStatusbar();
       this._chan?.postMessage({
         perfettoSync: {
           cmd: 'MSG_SESSION_START',
@@ -219,6 +225,7 @@ export default class implements PerfettoPlugin {
     this._sessionId = sessionId;
     this._initialBoundsForSibling.clear();
     this.scheduleViewportUpdateMessage();
+    this._updateStatusbar();
   }
 
   private disableTimelineSync(sessionId: SessionId, skipMsg = false) {
@@ -235,6 +242,24 @@ export default class implements PerfettoPlugin {
     }
     this._sessionId = 0;
     this._initialBoundsForSibling.clear();
+    this._updateStatusbar();
+  }
+
+  // Add: Method to update status bar UI
+  private _updateStatusbar() {
+    if (this.active) {
+      const currentStatus: SyncStatus = 'active';
+      showStatusbar({
+        key: STATUSBAR_KEY,
+        content: () => createSyncStatusbarVnode({
+          status: currentStatus,
+          onResume: () => console.log("Not implemented yet"),
+          onStop: () => this.disableTimelineSync(this._sessionId),
+        }),
+      });
+    } else {
+      closeStatusbar(STATUSBAR_KEY);
+    }
   }
 
   private shouldThrottleViewportUpdates() {

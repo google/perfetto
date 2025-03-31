@@ -1,0 +1,145 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+:root {
+  --statusbar-bg-color: #f3f4f6;
+  --statusbar-border-color: #e5e7eb;
+  --statusbar-text-color: #374151;
+  --statusbar-separator-color: #d1d5db;
+  --statusbar-item-hover-bg: #e5e7eb;
+  --statusbar-button-bg: #ffffff;
+  --statusbar-button-border: #d1d5db;
+  --statusbar-button-hover-bg: #f9fafb;
+  --statusbar-button-disabled-opacity: 0.5;
+  --statusbar-danger-color: #dc2626;
+  --statusbar-danger-hover-bg: #fee2e2;
+  --statusbar-font-family: 'Inter', sans-serif;
+  --statusbar-font-size: 0.75rem;
+  --statusbar-padding-y: 0.375rem;
+  --statusbar-padding-x: 0.75rem;
+  --statusbar-item-padding: 0.25rem;
+  --statusbar-item-gap: 0.25rem;
+  --statusbar-group-gap: 0.5rem;
+  --statusbar-icon-size: 1rem;
+  --statusbar-button-icon-font-size: 16px;
+  --statusbar-min-height: 2rem;
+  --statusbar-border-radius: 0.25rem;
+  --statusbar-z-index: 10;
+  --animation-easing: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.perfetto-statusbar {
+  grid-area: statusbar;
+  z-index: var(--statusbar-z-index);
+  background-color: var(--statusbar-bg-color);
+  border-top: 1px solid var(--statusbar-border-color);
+  padding: var(--statusbar-padding-y) var(--statusbar-padding-x);
+  font-family: var(--statusbar-font-family);
+  font-size: var(--statusbar-font-size);
+  color: var(--statusbar-text-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--statusbar-min-height);
+  box-sizing: border-box;
+
+  > div {
+    display: flex;
+    align-items: center;
+    gap: var(--statusbar-group-gap);
+  }
+
+  .status-bar-separator {
+    border-left: 1px solid var(--statusbar-separator-color);
+    height: calc(var(--statusbar-button-icon-font-size) * 1.1);
+    margin: 0 0.25rem;
+  }
+
+  .status-bar-item-container {
+    display: flex;
+    align-items: center;
+    gap: var(--statusbar-item-gap);
+    padding: var(--statusbar-item-padding);
+    border-radius: var(--statusbar-border-radius);
+    cursor: default;
+    transition: background-color 0.15s var(--animation-easing);
+
+    i.material-icons {
+      font-size: var(--statusbar-icon-size);
+      display: block;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+  }
+
+  .status-bar-button {
+    display: inline-flex;
+    align-items: center; // Vertically center items in the button flex container
+    justify-content: center;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid var(--statusbar-button-border);
+    border-radius: var(--statusbar-border-radius);
+    background-color: var(--statusbar-button-bg);
+    color: var(--statusbar-text-color);
+    font-size: var(--statusbar-font-size);
+    cursor: pointer;
+    transition: background-color 0.15s var(--animation-easing), border-color 0.15s var(--animation-easing), opacity 0.15s var(--animation-easing);
+    white-space: nowrap;
+
+    &:hover {
+      background-color: var(--statusbar-button-hover-bg);
+    }
+
+    &:focus {
+      outline: 2px solid transparent;
+      outline-offset: 2px;
+    }
+
+    i.material-icons {
+      font-size: var(--statusbar-button-icon-font-size);
+      margin-right: 0.25rem;
+      line-height: 1; // Keep line-height 1 to prevent icon stretching
+      flex-shrink: 0;
+      color: inherit;
+    }
+
+    // Styles for text inside buttons
+    span {
+      line-height: inherit;
+    }
+
+    // Disabled state
+    &[disabled] {
+      opacity: var(--statusbar-button-disabled-opacity);
+      cursor: not-allowed;
+      background-color: var(--statusbar-button-bg);
+      &:hover {
+        background-color: var(--statusbar-button-bg);
+      }
+    }
+
+    // Specific style for the danger/stop button hint class
+    &.text-red-600 {
+      color: var(--statusbar-danger-color);
+
+      i.material-icons {
+        color: var(--statusbar-danger-color);
+      }
+
+      &:hover:not([disabled]) {
+        background-color: var(--statusbar-danger-hover-bg);
+      }
+    }
+  }
+}

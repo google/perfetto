@@ -51,6 +51,7 @@ import {
 } from '../core/state_serialization';
 import {featureFlags} from '../core/feature_flags';
 import {trackMatchesFilter} from '../core/track_manager';
+import {maybeRenderStatusbar} from "../widgets/bottom_statusbar";
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 const OMNIBOX_INPUT_REF = 'omnibox';
@@ -802,6 +803,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         app.pages.renderPageForCurrentRoute(app.trace),
         m(CookieConsent),
         maybeRenderFullscreenModalDialog(),
+        maybeRenderStatusbar(),
         app.perfDebugging.renderPerfStats(),
       ),
     );
