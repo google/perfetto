@@ -47,16 +47,16 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     static const Type kString = sqlite::Type::kText;
     static const Type kNull = sqlite::Type::kNull;
 
-    int64_t Int64Value(uint32_t idx) const {
+    int64_t GetInt64Value(uint32_t idx) const {
       return sqlite::value::Int64(sqlite_value[idx]);
     }
-    double DoubleValue(uint32_t idx) const {
+    double GetDoubleValue(uint32_t idx) const {
       return sqlite::value::Double(sqlite_value[idx]);
     }
-    const char* StringValue(uint32_t idx) const {
+    const char* GetStringValue(uint32_t idx) const {
       return sqlite::value::Text(sqlite_value[idx]);
     }
-    Type ValueType(uint32_t idx) const {
+    Type GetValueType(uint32_t idx) const {
       return sqlite::value::Type(sqlite_value[idx]);
     }
     sqlite3_value** sqlite_value;
