@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from __future__ import print_function
+import argparse
 import fnmatch
 import os
 import re
@@ -977,8 +978,12 @@ def CheckStdlibFormatting(changed_files: List[str]) -> List[str]:
 
 
 def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--merge-base', type=str, help='Merge base')
+  args = parser.parse_args()
+
   # 1. Determine files to check
-  merge_base = get_merge_base()
+  merge_base = args.merge_base or get_merge_base()
   if not merge_base:
     print("No upstream branch found. Ensure that an upstream tracking branch "
           "has been set.")

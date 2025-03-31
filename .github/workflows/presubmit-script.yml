@@ -23,7 +23,16 @@ jobs:
     runs-on: self-hosted
     name: presubmit
     steps:
-      - name: Checkout repository
+      - name: Checkout PR
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 2  # Only fetch the PR commit and its immediate parent
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Fetch base branch
+        run: |
+          # Fetch only the tip of the base branch
+          git fetch --depth=1 origin ${{ github.base_ref }}
+          # Create a local branch to reference it
+          git branch base-branch FETCH_HEAD
       - name: Run presubmit checks
-        run: python3 tools/run_presubmit
+        run: python3 tools/run_presubmit --merge-base base-branch
