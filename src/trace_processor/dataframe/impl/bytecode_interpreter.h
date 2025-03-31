@@ -313,7 +313,6 @@ class Interpreter {
       return CastFilterValueToDouble(value, op, out);
     } else if constexpr (std::is_integral_v<T>) {
       return CastFilterValueToInteger<T>(value, op, out);
-    } else if constexpr (std::is_same_v<T, uint32_t>) {
     } else {
       static_assert(std::is_same_v<T, double>, "Unsupported type");
     }
