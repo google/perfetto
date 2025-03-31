@@ -32,6 +32,8 @@
 
 namespace perfetto::trace_processor {
 
+// Adapter class between SQLite and the Dataframe API. Allows SQLite to query
+// and iterate over the results of a dataframe query.
 struct DataframeModule : sqlite::Module<DataframeModule> {
   using Context = void;
   static constexpr auto kType = kEponymousOnly;

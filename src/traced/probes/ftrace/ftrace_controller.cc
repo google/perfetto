@@ -188,8 +188,8 @@ std::unique_ptr<FtraceController> FtraceController::Create(
   SyscallTable syscalls = SyscallTable::FromCurrentArch();
 
   auto muxer = std::make_unique<FtraceConfigMuxer>(
-      ftrace_procfs.get(), atrace_wrapper.get(), table.get(),
-      std::move(syscalls), vendor_evts);
+      ftrace_procfs.get(), atrace_wrapper.get(), table.get(), syscalls,
+      vendor_evts);
   return std::unique_ptr<FtraceController>(new FtraceController(
       std::move(ftrace_procfs), std::move(table), std::move(atrace_wrapper),
       std::move(muxer), runner, observer));
@@ -439,7 +439,7 @@ void FtraceController::RemoveBufferWatermarkWatches(
 // TODO(rsavitski): consider calling OnFtraceData only if we're not reposting
 // a continuation. It's a tradeoff between procfs scrape freshness and urgency
 // to drain ftrace kernel buffers.
-void FtraceController::OnBufferPastWatermark(std::string instance_name,
+void FtraceController::OnBufferPastWatermark(const std::string& instance_name,
                                              size_t cpu,
                                              bool repoll_watermark) {
   metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
@@ -637,7 +637,7 @@ void FtraceController::RemoveDataSource(FtraceDataSource* data_source) {
   StopIfNeeded(instance);
 }
 
-bool DumpKprobeStats(const std::string& text, FtraceStats* ftrace_stats) {
+bool DumpKprobeStats(std::string text, FtraceStats* ftrace_stats) {
   int64_t hits = 0;
   int64_t misses = 0;
 
@@ -682,8 +682,7 @@ void FtraceController::DumpFtraceStats(FtraceDataSource* data_source,
   }
 
   if (data_source->parsing_config()->kprobes.size() > 0) {
-    DumpKprobeStats(instance->ftrace_procfs.get()->ReadKprobeStats(),
-                    stats_out);
+    DumpKprobeStats(instance->ftrace_procfs->ReadKprobeStats(), stats_out);
   }
 }
 
@@ -852,8 +851,8 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
   auto syscalls = SyscallTable::FromCurrentArch();
 
   auto muxer = std::make_unique<FtraceConfigMuxer>(
-      ftrace_procfs.get(), atrace_wrapper_.get(), table.get(),
-      std::move(syscalls), vendor_evts,
+      ftrace_procfs.get(), atrace_wrapper_.get(), table.get(), syscalls,
+      vendor_evts,
       /* secondary_instance= */ true);
   return std::make_unique<FtraceInstanceState>(
       std::move(ftrace_procfs), std::move(table), std::move(muxer));

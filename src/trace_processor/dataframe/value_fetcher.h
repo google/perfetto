@@ -37,13 +37,13 @@ struct ValueFetcher {
   static const Type kNull;
 
   // Fetches an int64_t value at the given index.
-  int64_t Int64Value(uint32_t);
+  int64_t GetInt64Value(uint32_t);
   // Fetches a double value at the given index.
-  double DoubleValue(uint32_t);
+  double GetDoubleValue(uint32_t);
   // Fetches a string value at the given index.
-  const char* StringValue(uint32_t);
+  const char* GetStringValue(uint32_t);
   // Fetches the type of the value at the given index.
-  Type ValueType(uint32_t);
+  Type GetValueType(uint32_t);
 };
 
 }  // namespace perfetto::trace_processor::dataframe
