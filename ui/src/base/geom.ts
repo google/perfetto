@@ -292,17 +292,17 @@ export class Rect2D implements Bounds2D, Size2D, Point2D {
    */
   translate(point: Point2D): Rect2D {
     return new Rect2D({
-      top: this.top + point.y,
       left: this.left + point.x,
-      bottom: this.bottom + point.y,
+      top: this.top + point.y,
       right: this.right + point.x,
+      bottom: this.bottom + point.y,
     });
   }
 
   equals(bounds: Bounds2D): boolean {
     return (
-      bounds.top === this.top &&
       bounds.left === this.left &&
+      bounds.top === this.top &&
       bounds.right === this.right &&
       bounds.bottom === this.bottom
     );
