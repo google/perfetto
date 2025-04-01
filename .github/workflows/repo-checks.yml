@@ -51,6 +51,7 @@ jobs:
           tools/check_sql_modules.py
           tools/check_sql_metrics.py
 
+      # Check that the amalgamated SDK can be built.
       - name: Check amalgamated SDK
         run: python3 tools/test_gen_amalgamated.py
 
