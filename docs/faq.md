@@ -62,7 +62,6 @@ The recommended approach for this is to emit Perfetto's native TrackEvent proto
 format. A reference guide for this is available
 [here](/docs/reference/synthetic-track-event.md).
 
-
 ## My app has multiple processes. How can see all of them in the same trace?
 
 Use the [Tracing SDK](/docs/instrumentation/tracing-sdk.md#system-mode) in
