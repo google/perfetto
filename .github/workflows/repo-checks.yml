@@ -54,5 +54,6 @@ jobs:
       - name: Check amalgamated SDK
         run: python3 tools/test_gen_amalgamated.py
 
+      # Check that the perfetto.dev docs website is buildable.
       - name: Build docs
         run: infra/perfetto.dev/build
