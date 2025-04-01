@@ -17,14 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_DATAFRAME_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_DATAFRAME_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -35,7 +38,7 @@ namespace perfetto::trace_processor::dataframe {
 // of tabular data. It provides:
 //
 // - Type-specialized storage and filtering optimized for common trace data
-// patterns
+//   patterns
 // - Efficient query execution with optimized bytecode generation
 // - Support for serializable query plans that separate planning from execution
 // - Memory-efficient storage with support for specialized column types
@@ -46,6 +49,7 @@ class Dataframe {
   // metadata needed to execute a query.
   class QueryPlan {
    public:
+    // Default constructor for an empty query plan.
     QueryPlan() = default;
 
     // Serializes the query plan to a string.
@@ -62,15 +66,17 @@ class Dataframe {
 
    private:
     friend class Dataframe;
+    // Constructs a QueryPlan from its implementation.
     explicit QueryPlan(impl::QueryPlan plan) : plan_(std::move(plan)) {}
+    // The underlying query plan implementation.
     impl::QueryPlan plan_;
   };
 
-  // Creates a dataframe.
+  // Creates a dataframe with the specified column specifications.
   //
-  // StringPool is passed here to allow for implicit lookup of the value of
-  // string columns.
-  Dataframe(const std::vector<ColumnSpec>&, const StringPool* string_pool);
+  // StringPool is passed here to allow for efficient storage and lookup
+  // of string column values.
+  Dataframe(const std::vector<ColumnSpec>&, StringPool* string_pool);
 
   // Non-copyable
   Dataframe(const Dataframe&) = delete;
@@ -88,18 +94,52 @@ class Dataframe {
   //   cols_used_bitmap: Bitmap where each bit corresponds to a column that may
   //                     be requested. Only columns with set bits can be
   //                     fetched.
+  // Returns:
+  //   A StatusOr containing the QueryPlan or an error status.
   base::StatusOr<QueryPlan> PlanQuery(std::vector<FilterSpec>& specs,
                                       uint64_t cols_used_bitmap);
 
+  // Prepares a cursor for executing the query plan. The template parameter
+  // `FVF` is a subclass of `ValueFetcher` that defines the logic for fetching
+  // filter values for each filter specs specified when calling `PlanQuery`.
+  //
+  // Parameters:
+  //   plan: The query plan to execute.
+  //   c:    A pointer to the storage for the cursor. The cursor will be
+  //         constructed in-place at the location pointed to by `c`.
+  template <typename FVF>
+  void PrepareCursor(QueryPlan plan, Cursor<FVF>* c) {
+    new (c) Cursor<FVF>(std::move(plan.plan_), columns_.data(), string_pool_);
+  }
+
+  // Inserts a row into the dataframe.
+  //
+  // TODO(lalitm): this is a temporary function to allow for easy insertion of
+  // rows into the dataframe. We should remove this function once we have a
+  // a builder pattern for dataframe construction.
+  template <typename VF>
+  void InsertRow() {
+    for (auto& column : columns_) {
+      switch (column.spec.column_type.index()) {
+        case ColumnType::GetTypeIndex<Id>():
+          column.storage.unchecked_get<Id>().size++;
+          break;
+        default:
+          PERFETTO_FATAL("Invalid column type");
+      }
+    }
+    row_count_++;
+  }
+
  private:
-  // Internal storage for columns
+  // Internal storage for columns in the dataframe.
   std::vector<impl::Column> columns_;
 
-  // Number of rows in the dataframe
+  // Number of rows in the dataframe.
   uint32_t row_count_ = 0;
 
-  // String pool for efficient string storage
-  const StringPool* string_pool_;
+  // String pool for efficient string storage and interning.
+  StringPool* string_pool_;
 };
 
 }  // namespace perfetto::trace_processor::dataframe

@@ -36,7 +36,6 @@
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
-#include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 
@@ -47,9 +46,8 @@ static constexpr uint32_t kMaxFilters = 16;
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
 struct QueryPlan {
-  // Specification for the bytecode interpreter.
-  // Contains parameters needed to execute the bytecode instructions.
-  struct InterpreterSpec {
+  // Contains various parameters required for execution of this query plan.
+  struct ExecutionParams {
     // Number of filter values used by this query.
     uint32_t filter_value_count = 0;
 
@@ -62,15 +60,15 @@ struct QueryPlan {
     // Number of output indices per row.
     uint32_t output_per_row = 0;
   };
-  static_assert(std::is_trivially_copyable_v<InterpreterSpec>);
-  static_assert(std::is_trivially_destructible_v<InterpreterSpec>);
+  static_assert(std::is_trivially_copyable_v<ExecutionParams>);
+  static_assert(std::is_trivially_destructible_v<ExecutionParams>);
 
   // Serializes the query plan to a Base64-encoded string.
   // This allows plans to be stored or transmitted between processes.
   std::string Serialize() const {
     size_t size = sizeof(size_t) +
                   (bytecode.size() * sizeof(bytecode::Bytecode)) +
-                  sizeof(interpreter_spec);
+                  sizeof(params);
     std::string res(size, '\0');
     char* p = res.data();
     {
@@ -83,8 +81,8 @@ struct QueryPlan {
       p += bytecode.size() * sizeof(bytecode::Bytecode);
     }
     {
-      memcpy(p, &interpreter_spec, sizeof(interpreter_spec));
-      p += sizeof(interpreter_spec);
+      memcpy(p, &params, sizeof(params));
+      p += sizeof(params);
     }
     PERFETTO_CHECK(p == res.data() + res.size());
     return base::Base64Encode(base::StringView(res));
@@ -112,17 +110,14 @@ struct QueryPlan {
       p += bytecode_size * sizeof(bytecode::Bytecode);
     }
     {
-      memcpy(&res.interpreter_spec, p, sizeof(res.interpreter_spec));
-      p += sizeof(res.interpreter_spec);
+      memcpy(&res.params, p, sizeof(res.params));
+      p += sizeof(res.params);
     }
     PERFETTO_CHECK(p == raw_data->data() + raw_data->size());
     return res;
   }
 
-  // Configuration for the bytecode interpreter.
-  InterpreterSpec interpreter_spec;
-
-  // Vector of bytecode instructions to execute.
+  ExecutionParams params;
   bytecode::BytecodeVector bytecode;
 };
 
@@ -168,7 +163,7 @@ class QueryPlanBuilder {
   // Processes non-string filter constraints.
   void NonStringConstraint(
       const FilterSpec& c,
-      const NonStringContent& type,
+      const NonStringType& type,
       const NonStringOp& op,
       const bytecode::reg::ReadHandle<CastFilterValueResult>& result);
 
@@ -176,7 +171,7 @@ class QueryPlanBuilder {
   // Returns true if the optimization was applied.
   bool TrySortedConstraint(
       const FilterSpec& fs,
-      const Content& type,
+      const ColumnType& ct,
       const NonNullOp& op,
       const bytecode::reg::RwHandle<CastFilterValueResult>& result);
 

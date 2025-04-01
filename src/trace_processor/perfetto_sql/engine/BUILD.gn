@@ -20,6 +20,8 @@ source_set("engine") {
   sources = [
     "created_function.cc",
     "created_function.h",
+    "dataframe_module.cc",
+    "dataframe_module.h",
     "perfetto_sql_engine.cc",
     "perfetto_sql_engine.h",
     "runtime_table_function.cc",
@@ -37,6 +39,7 @@ source_set("engine") {
     "../../containers",
     "../../db",
     "../../db/column",
+    "../../dataframe",
     "../../perfetto_sql/intrinsics/functions:interface",
     "../../perfetto_sql/intrinsics/table_functions:interface",
     "../../sqlite",

@@ -40,6 +40,7 @@
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/value_fetcher.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode {
@@ -50,20 +51,22 @@ using testing::Ge;
 using testing::IsEmpty;
 using testing::Le;
 
-std::string FilterValueToString(const FilterSpec::Value& value) {
+using FilterValue = std::variant<int64_t, double, const char*, nullptr_t>;
+
+std::string FilterValueToString(const FilterValue& value) {
   switch (value.index()) {
-    case base::variant_index<FilterSpec::Value, nullptr_t>():
+    case base::variant_index<FilterValue, nullptr_t>():
       return "nullptr";
-    case base::variant_index<FilterSpec::Value, int64_t>(): {
+    case base::variant_index<FilterValue, int64_t>(): {
       auto res = base::unchecked_get<int64_t>(value);
       return res < 0 ? "neg_" + std::to_string(-res) : std::to_string(res);
     }
-    case base::variant_index<FilterSpec::Value, double>(): {
+    case base::variant_index<FilterValue, double>(): {
       std::string no_dot = base::ReplaceAll(
           std::to_string(base::unchecked_get<double>(value)), ".", "_");
       return base::ReplaceAll(no_dot, "-", "neg_");
     }
-    case base::variant_index<FilterSpec::Value, const char*>():
+    case base::variant_index<FilterValue, const char*>():
       return {base::unchecked_get<const char*>(value)};
     default:
       PERFETTO_FATAL("Unknown filter value type");
@@ -87,6 +90,31 @@ std::string CastResultToString(const CastFilterValueResult& res) {
              ? "NoneMatch"
              : "AllMatch";
 }
+
+struct Fetcher : ValueFetcher {
+  using Type = size_t;
+  static constexpr Type kInt64 = base::variant_index<FilterValue, int64_t>();
+  static constexpr Type kDouble = base::variant_index<FilterValue, double>();
+  static constexpr Type kString = base::variant_index<FilterValue, const char*>();
+  static constexpr Type kNull = base::variant_index<FilterValue, nullptr_t>();
+
+  // Fetches an int64_t value at the given index.
+  int64_t GetInt64Value(uint32_t idx) const {
+    return std::get<int64_t>(values[idx]);
+  }
+  // Fetches a double value at the given index.
+  double GetDoubleValue(uint32_t idx) const {
+    return std::get<double>(values[idx]);
+  }
+  // Fetches a string value at the given index.
+  const char* GetStringValue(uint32_t idx) const {
+    return std::get<const char*>(values[idx]);
+  }
+  // Fetches the type of the value at the given index.
+  Type GetValueType(uint32_t idx) const { return values[idx].index(); }
+
+  const FilterValue* values;
+};
 
 Bytecode ParseBytecode(const std::string& bytecode_str) {
   static constexpr uint32_t kNumBytecodeCount =
@@ -165,8 +193,9 @@ TEST(BytecodeInterpreterTest, InitRange) {
   bytecode.emplace_back(
       ParseBytecode("InitRange: [size=134, dest_register=Register(0)]"));
 
-  Interpreter interpreter(std::move(bytecode), {}, nullptr, nullptr);
-  interpreter.Execute();
+  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
+  Fetcher fetcher{{}, nullptr};
+  interpreter.Execute(fetcher);
   const auto* result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(0));
   ASSERT_TRUE(result);
   EXPECT_EQ(result->b, 0u);
@@ -179,8 +208,9 @@ TEST(BytecodeInterpreterTest, AllocateIndices) {
       "AllocateIndices: [size=132, dest_slab_register=Register(0), "
       "dest_span_register=Register(1)]"));
 
-  Interpreter interpreter(std::move(bytecode), {}, nullptr, nullptr);
-  interpreter.Execute();
+  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
+  Fetcher fetcher{{}, nullptr};
+  interpreter.Execute(fetcher);
 
   const auto* slab =
       interpreter.GetRegisterValue(reg::ReadHandle<Slab<uint32_t>>(0));
@@ -204,13 +234,15 @@ TEST(BytecodeInterpreterTest, AllocateIndicesAlreadyAllocated) {
       "AllocateIndices: [size=132, dest_slab_register=Register(0), "
       "dest_span_register=Register(1)]"));
 
-  Interpreter interpreter(std::move(bytecode), {}, nullptr, nullptr);
+  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
   auto existing_slab = Slab<uint32_t>::Alloc(132u);
   auto* expected_begin = existing_slab.begin();
   auto* expected_end = existing_slab.end();
   interpreter.SetRegisterValueForTesting(reg::WriteHandle<Slab<uint32_t>>(0),
                                          std::move(existing_slab));
-  interpreter.Execute();
+
+  Fetcher fetcher{{}, nullptr};
+  interpreter.Execute(fetcher);
 
   const auto* slab =
       interpreter.GetRegisterValue(reg::ReadHandle<Slab<uint32_t>>(0));
@@ -234,13 +266,15 @@ TEST(BytecodeInterpreterTest, Iota) {
       "Iota: [source_register=Register(0), update_register=Register(1)]"));
 
   std::vector<uint32_t> res(132u);
-  Interpreter interpreter(std::move(bytecode), {}, nullptr, nullptr);
+  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
   interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(0),
                                          Range{5, 10});
   interpreter.SetRegisterValueForTesting(
       reg::WriteHandle<Span<uint32_t>>(1),
       Span<uint32_t>{res.data(), res.data() + res.size()});
-  interpreter.Execute();
+
+  Fetcher fetcher{{}, nullptr};
+  interpreter.Execute(fetcher);
 
   const auto* update =
       interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(1));
@@ -251,7 +285,6 @@ TEST(BytecodeInterpreterTest, Iota) {
               testing::ElementsAreArray({5, 6, 7, 8, 9}));
 }
 
-using FilterValue = FilterSpec::Value;
 using CastResult = CastFilterValueResult;
 
 struct CastTestCase {
@@ -274,8 +307,9 @@ TEST_P(BytecodeInterpreterCastTest, Cast) {
                         op.index())
                         .ToStdString()));
 
-  Interpreter interpreter(std::move(bytecode), &input, nullptr, nullptr);
-  interpreter.Execute();
+  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
+  Fetcher fetcher{{}, &input};
+  interpreter.Execute(fetcher);
 
   const auto* result =
       interpreter.GetRegisterValue(reg::ReadHandle<CastFilterValueResult>(0));
@@ -339,7 +373,7 @@ TEST(BytecodeInterpreterTest, SortedFilterId) {
       "SortedFilter<Id, EqualRange>: [col=0, val_register=Register(0), "
       "update_register=Register(1), write_result_to=BoundModifier(0)]"));
 
-  Interpreter interpreter(std::move(bytecode), nullptr, nullptr, nullptr);
+  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
 
   // Test case 1: Value exists in range
   interpreter.SetRegisterValueForTesting(
@@ -347,7 +381,9 @@ TEST(BytecodeInterpreterTest, SortedFilterId) {
       CastFilterValueResult::Valid(CastFilterValueResult::Id{5}));
   interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
                                          Range{0, 10});
-  interpreter.Execute();
+
+  Fetcher fetcher{{}, nullptr};
+  interpreter.Execute(fetcher);
 
   const auto* result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
   ASSERT_TRUE(result);
@@ -360,7 +396,7 @@ TEST(BytecodeInterpreterTest, SortedFilterId) {
       CastFilterValueResult::Valid(CastFilterValueResult::Id{10}));
   interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
                                          Range{0, 10});
-  interpreter.Execute();
+  interpreter.Execute(fetcher);
 
   result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
   ASSERT_TRUE(result);
@@ -372,7 +408,7 @@ TEST(BytecodeInterpreterTest, SortedFilterId) {
       CastFilterValueResult::Valid(CastFilterValueResult::Id{2}));
   interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
                                          Range{3, 10});
-  interpreter.Execute();
+  interpreter.Execute(fetcher);
 
   result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
   ASSERT_TRUE(result);
@@ -384,7 +420,7 @@ TEST(BytecodeInterpreterTest, SortedFilterId) {
       CastFilterValueResult::NoneMatch());
   interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
                                          Range{0, 10});
-  interpreter.Execute();
+  interpreter.Execute(fetcher);
 
   result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
   ASSERT_TRUE(result);
@@ -397,7 +433,7 @@ TEST(BytecodeInterpreterTest, FilterId) {
       "NonStringFilter<Id, Eq>: [col=0, val_register=Register(0), "
       "source_register=Register(1), update_register=Register(2)]"));
 
-  Interpreter interpreter(std::move(bytecode), nullptr, nullptr, nullptr);
+  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
 
   std::vector<uint32_t> indices_spec = {12, 44, 10, 4, 5, 2, 3};
   {
@@ -412,7 +448,8 @@ TEST(BytecodeInterpreterTest, FilterId) {
     interpreter.SetRegisterValueForTesting(
         reg::WriteHandle<Span<uint32_t>>(2),
         Span<uint32_t>{indices.data(), indices.data() + indices.size()});
-    interpreter.Execute();
+    Fetcher fetcher{{}, nullptr};
+    interpreter.Execute(fetcher);
 
     const auto* result =
         interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(2));
@@ -431,7 +468,8 @@ TEST(BytecodeInterpreterTest, FilterId) {
     interpreter.SetRegisterValueForTesting(
         reg::WriteHandle<Span<uint32_t>>(2),
         Span<uint32_t>{indices.data(), indices.data() + indices.size()});
-    interpreter.Execute();
+    Fetcher fetcher{{}, nullptr};
+    interpreter.Execute(fetcher);
 
     const auto* result =
         interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(2));
@@ -450,7 +488,8 @@ TEST(BytecodeInterpreterTest, FilterId) {
     interpreter.SetRegisterValueForTesting(
         reg::WriteHandle<Span<uint32_t>>(2),
         Span<uint32_t>{indices.data(), indices.data() + indices.size()});
-    interpreter.Execute();
+    Fetcher fetcher{{}, nullptr};
+    interpreter.Execute(fetcher);
 
     const auto* result =
         interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(2));
@@ -465,7 +504,7 @@ TEST(BytecodeInterpreterTest, StrideCopy) {
       ParseBytecode("StrideCopy: [source_register=Register(0), "
                     "update_register=Register(1), stride=3]"));
 
-  Interpreter interpreter(std::move(bytecode), nullptr, nullptr, nullptr);
+  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
   std::vector<uint32_t> source = {10, 3, 12, 4};
   std::vector<uint32_t> dest(source.size() * 3);
 
@@ -475,7 +514,8 @@ TEST(BytecodeInterpreterTest, StrideCopy) {
   interpreter.SetRegisterValueForTesting(
       reg::WriteHandle<Span<uint32_t>>(1),
       Span<uint32_t>{dest.data(), dest.data() + dest.size()});
-  interpreter.Execute();
+  Fetcher fetcher{{}, nullptr};
+  interpreter.Execute(fetcher);
 
   const auto* result =
       interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(1));
