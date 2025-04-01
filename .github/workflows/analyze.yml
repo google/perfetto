@@ -81,20 +81,3 @@ jobs:
     needs: analyze
     if: needs.analyze.outputs.UI_ONLY_CHANGE == '0'
     uses: ./.github/workflows/repo-checks.yml
-
-  # When creating stacked PRs, ensure that PRs are based on main (or another
-  # branch) before submitting. This avoid to accidentally merge PR2 onto PR1,
-  # if both PR1 and PR2 are opened, which is very confusing when dealing with
-  # stacked changes.
-  pr-branch-check:
-    if: startsWith(github.base_ref, 'dev/')
-    runs-on: self-hosted
-    steps:
-      - name: Prevent accidental merge PRs into dev branches
-        run: |
-          echo "❌ You are trying to merge the a PR ${{ github.ref }} on top \
-              of another one (${{ github.base_ref }})."
-          echo "When working with stacked changes you need to first land the \
-              upstream PR, then click on the button that suggests to set main \
-              as merge base."
-          exit 1
