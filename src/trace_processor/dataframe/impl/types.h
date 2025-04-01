@@ -19,11 +19,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string>
+#include <utility>
 #include <variant>
 
 #include "perfetto/base/compiler.h"
-#include "perfetto/base/logging.h"
+#include "src/trace_processor/dataframe/impl/flex_vector.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
@@ -33,10 +33,10 @@ namespace perfetto::trace_processor::dataframe::impl {
 // These define which operations can be applied to which content types.
 
 // Set of content types that aren't string-based.
-using NonStringType = TypeSet<Id>;
+using NonStringType = TypeSet<Id, Uint32, Int32, Int64, Double>;
 
 // Set of content types that are numeric in nature.
-using NumericType = TypeSet<Id>;
+using NumericType = TypeSet<Uint32, Int32, Int64, Double>;
 
 // Set of operations applicable to non-null values.
 using NonNullOp = TypeSet<Eq>;
@@ -63,8 +63,16 @@ class Storage {
   struct Id {
     uint32_t size;  // Number of rows in the column
   };
+  using Uint32 = FlexVector<uint32_t>;
+  using Int32 = FlexVector<int32_t>;
+  using Int64 = FlexVector<int64_t>;
+  using Double = FlexVector<double>;
 
   explicit Storage(Storage::Id data) : data_(data) {}
+  explicit Storage(Storage::Uint32 data) : data_(std::move(data)) {}
+  explicit Storage(Storage::Int32 data) : data_(std::move(data)) {}
+  explicit Storage(Storage::Int64 data) : data_(std::move(data)) {}
+  explicit Storage(Storage::Double data) : data_(std::move(data)) {}
 
   // Type-safe access to storage with unchecked variant access.
   template <typename T>
@@ -92,7 +100,7 @@ class Storage {
 
  private:
   // Variant containing all possible storage representations.
-  using Variant = std::variant<Id>;
+  using Variant = std::variant<Id, Uint32, Int32, Int64, Double>;
   Variant data_;
 };
 
@@ -149,7 +157,7 @@ struct CastFilterValueResult {
     bool operator==(const Id& other) const { return value == other.value; }
     uint32_t value;
   };
-  using Value = std::variant<Id>;
+  using Value = std::variant<Id, uint32_t, int32_t, int64_t, double>;
 
   bool operator==(const CastFilterValueResult& other) const {
     return validity == other.validity && value == other.value;
@@ -182,16 +190,25 @@ struct Range {
 
   // Get the number of elements in the range.
   size_t size() const { return e - b; }
+  bool empty() const { return b == e; }
 };
 
 // Represents a contiguous sequence of elements of an arbitrary type T.
 // Basically a very simple backport of std::span to C++17.
 template <typename T>
 struct Span {
+  using value_type = T;
+  using const_iterator = T*;
+
   T* b;
   T* e;
 
+  Span(T* _b, T* _e) : b(_b), e(_e) {}
+
+  T* begin() const { return b; }
+  T* end() const { return e; }
   size_t size() const { return static_cast<size_t>(e - b); }
+  bool empty() const { return b == e; }
 };
 
 }  // namespace perfetto::trace_processor::dataframe::impl

@@ -194,21 +194,25 @@ class Interpreter {
 
     using M = std::variant_alternative_t<ColumnType::GetTypeIndex<T>(),
                                          CastFilterValueResult::Value>;
-    CastFilterValueResult::Validity validity;
-    M result_value;
+    CastFilterValueResult result;
     if constexpr (std::is_same_v<T, Id>) {
-      uint32_t inner_output_value;
-      validity = CastFilterValueToInteger(handle, filter_value_type,
-                                          filter_value_fetcher_, f.arg<B::op>(),
-                                          inner_output_value);
-      result_value = CastFilterValueResult::Id{inner_output_value};
+      uint32_t val;
+      result.validity =
+          CastFilterValueToInteger(handle, filter_value_type,
+                                   filter_value_fetcher_, f.arg<B::op>(), val);
+      if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+        result.value = CastFilterValueResult::Id{val};
+      }
+    } else if constexpr (NumericType::Contains<T>()) {
+      M out;
+      result.validity = CastFilterValueToIntegerOrDouble(
+          handle, filter_value_type, filter_value_fetcher_, f.arg<B::op>(),
+          out);
+      if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+        result.value = out;
+      }
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
-    }
-    CastFilterValueResult result;
-    result.validity = validity;
-    if (validity == CastFilterValueResult::kValid) {
-      result.value = result_value;
     }
     WriteToRegister(f.arg<B::write_register>(), result);
   }
@@ -221,7 +225,7 @@ class Interpreter {
     using B = bytecode::SortedFilterBase;
 
     const auto& value = ReadFromRegister(f.arg<B::val_register>());
-    auto& update = ReadFromRegister(f.arg<B::update_register>());
+    Range& update = ReadFromRegister(f.arg<B::update_register>());
     if (!HandleInvalidCastFilterValueResult(value, update)) {
       return;
     }
@@ -233,6 +237,22 @@ class Interpreter {
         bool in_bounds = inner_val >= update.b && inner_val < update.e;
         update.b = inner_val;
         update.e = inner_val + in_bounds;
+      } else {
+        static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
+      }
+    } else if constexpr (NumericType::Contains<T>()) {
+      uint32_t col_idx = f.arg<B::col>();
+      const auto& storage =
+          columns_[col_idx].storage.template unchecked_get<T>();
+      if constexpr (std::is_same_v<RangeOp, EqualRange>) {
+        const M* begin = storage.data();
+        auto it = std::lower_bound(begin + update.b, begin + update.e, val);
+        for (; it != begin + update.e; ++it) {
+          if (std::not_equal_to<>()(*it, val)) {
+            break;
+          }
+        }
+        update.e = static_cast<uint32_t>(it - begin);
       } else {
         static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
       }
@@ -259,6 +279,14 @@ class Interpreter {
       update.e = IdentityFilter(source.b, source.e, update.b,
                                 base::unchecked_get<M>(value.value).value,
                                 NumericComparator<uint32_t, Op>());
+    } else if constexpr (NumericType::Contains<T>()) {
+      const auto* data =
+          columns_[nf.arg<B::col>()].storage.template unchecked_data<T>();
+      update.e = Filter(data, source.b, source.e, update.b,
+                        base::unchecked_get<M>(value.value),
+                        NumericComparator<M, Op>());
+    } else {
+      static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
   }
 
@@ -280,18 +308,17 @@ class Interpreter {
 
   // Filters data based on a comparison with a specific value.
   // Only copies values that match the comparison condition.
-  template <typename Comparator, typename V, typename I>
+  template <typename Comparator, typename ValueType, typename DataType>
   [[nodiscard]] PERFETTO_ALWAYS_INLINE static uint32_t* Filter(
-      const I* data,
+      const DataType* data,
       const uint32_t* begin,
       const uint32_t* end,
       uint32_t* o_start,
-      const V& value,
+      const ValueType& value,
       const Comparator& comparator) {
-    uint32_t* o_read = o_start;
     uint32_t* o_write = o_start;
-    for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-      *o_write = *o_read;
+    for (const uint32_t* it = begin; it != end; ++it) {
+      *o_write = *it;
       o_write += comparator(data[*it], value);
     }
     return o_write;
@@ -319,13 +346,18 @@ class Interpreter {
   // appropriate type-specific conversion function.
   template <typename T>
   [[nodiscard]] PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
-  CastFilterValueToNumeric(FilterValueHandle filter_value_handle,
-                           NonNullOp op,
-                           T& out) {
+  CastFilterValueToIntegerOrDouble(
+      FilterValueHandle handle,
+      typename FilterValueFetcherImpl::Type filter_value_type,
+      FilterValueFetcherImpl* fetcher,
+      NonNullOp op,
+      T& out) {
     if constexpr (std::is_same_v<T, double>) {
-      return CastFilterValueToDouble(filter_value_handle, op, out);
+      return CastFilterValueToDouble(handle, filter_value_type, fetcher, op,
+                                     out);
     } else if constexpr (std::is_integral_v<T>) {
-      return CastFilterValueToInteger<T>(filter_value_handle, op, out);
+      return CastFilterValueToInteger<T>(handle, filter_value_type, fetcher, op,
+                                         out);
     } else {
       static_assert(std::is_same_v<T, double>, "Unsupported type");
     }
@@ -336,15 +368,15 @@ class Interpreter {
   template <typename T>
   [[nodiscard]] PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
   CastFilterValueToInteger(
-      FilterValueHandle filter_value_handle,
+      FilterValueHandle handle,
       typename FilterValueFetcherImpl::Type filter_value_type,
-      FilterValueFetcherImpl* filter_value_fetcher,
+      FilterValueFetcherImpl* fetcher,
       NonStringOp op,
       T& out) {
-    static_assert(std::is_integral_v<T>);
+    static_assert(std::is_integral_v<T>, "Unsupported type");
+
     if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl::kInt64)) {
-      int64_t res =
-          filter_value_fetcher->GetInt64Value(filter_value_handle.index);
+      int64_t res = fetcher->GetInt64Value(handle.index);
       bool is_small = res < std::numeric_limits<T>::min();
       bool is_big = res > std::numeric_limits<T>::max();
       if (PERFETTO_UNLIKELY(is_small || is_big)) {
@@ -360,8 +392,8 @@ class Interpreter {
       return CastFilterValueResult::kValid;
     }
     if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl::kDouble)) {
-      double d =
-          filter_value_fetcher->GetDoubleValue(filter_value_handle.index);
+      double d = fetcher->GetDoubleValue(handle.index);
+
       // We use the constants directly instead of using numeric_limits for
       // int64_t as the casts introduces rounding in the doubles as a double
       // cannot exactly represent int64::max().
@@ -378,8 +410,12 @@ class Interpreter {
         return CastFilterValueResult::kNoneMatch;
       }
 
+      // The greater than or equal is intentional to account for the fact that
+      // twos-complement integers are not symmetric around zero (i.e.
+      // -9223372036854775808 can be represented but 9223372036854775808
+      // cannot).
+      bool is_big = d >= kMax;
       bool is_small = d < kMin;
-      bool is_big = d > kMax;
       if (PERFETTO_LIKELY(d == trunc(d) && !is_small && !is_big)) {
         out = static_cast<T>(d);
         return CastFilterValueResult::kValid;
@@ -391,7 +427,7 @@ class Interpreter {
           PERFETTO_FATAL("Invalid numeric filter op");
       }
     }
-    return NumericConvertNonNumericValue(filter_value_type, op);
+    return CastStringOrNullFilterValueToIntegerOrDouble(filter_value_type, op);
   }
 
   // Attempts to cast a filter value to a double, handling integer inputs and
@@ -403,7 +439,6 @@ class Interpreter {
       FilterValueFetcherImpl* fetcher,
       NonStringOp op,
       double& out) {
-    using Op = NonStringOp;
     if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl::kDouble)) {
       out = fetcher->GetDoubleValue(filter_value_handle.index);
       return CastFilterValueResult::kValid;
@@ -420,20 +455,20 @@ class Interpreter {
         return CastFilterValueResult::kValid;
       }
       switch (op.index()) {
-        case Op::GetTypeIndex<Eq>():
+        case NonStringOp::GetTypeIndex<Eq>():
           return CastFilterValueResult::kNoneMatch;
         default:
           PERFETTO_FATAL("Invalid numeric filter op");
       }
     }
-    return NumericConvertNonNumericValue(filter_value_type, op);
+    return CastStringOrNullFilterValueToIntegerOrDouble(filter_value_type, op);
   }
 
   // Converts a double to an integer type using the specified function (e.g.,
-  // trunc, floor). Used as a helper for various numeric conversion operations.
+  // trunc, floor). Used as a helper for various casting operations.
   template <typename T, double (*fn)(double)>
   PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
-  DoubleToInt(bool no_data, bool all_data, double d, T& out) {
+  CastDoubleToIntHelper(bool no_data, bool all_data, double d, T& out) {
     if (no_data) {
       return CastFilterValueResult::kNoneMatch;
     }
@@ -447,12 +482,11 @@ class Interpreter {
   // Handles conversion of non-numeric values (strings, nulls) to numeric types
   // for comparison operations.
   PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
-  NumericConvertNonNumericValue(
+  CastStringOrNullFilterValueToIntegerOrDouble(
       typename FilterValueFetcherImpl::Type filter_value_type,
       NonStringOp op) {
     if (filter_value_type == FilterValueFetcherImpl::kString) {
-      using Op = NonStringOp;
-      if (op.index() == Op::GetTypeIndex<Eq>()) {
+      if (op.index() == NonStringOp::GetTypeIndex<Eq>()) {
         return CastFilterValueResult::kNoneMatch;
       }
       PERFETTO_DCHECK(false);

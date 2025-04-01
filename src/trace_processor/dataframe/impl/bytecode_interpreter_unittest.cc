@@ -24,6 +24,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -34,9 +35,11 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
+#include "src/trace_processor/dataframe/impl/flex_vector.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -45,26 +48,62 @@
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode {
 namespace {
+
 using testing::AllOf;
 using testing::ElementsAre;
-using testing::Ge;
+using testing::ElementsAreArray;
 using testing::IsEmpty;
-using testing::Le;
+using testing::SizeIs;
 
 using FilterValue = std::variant<int64_t, double, const char*, nullptr_t>;
 
-std::string FilterValueToString(const FilterValue& value) {
+struct Fetcher : ValueFetcher {
+  using Type = size_t;
+  static constexpr Type kInt64 = base::variant_index<FilterValue, int64_t>();
+  static constexpr Type kDouble = base::variant_index<FilterValue, double>();
+  static constexpr Type kString =
+      base::variant_index<FilterValue, const char*>();
+  static constexpr Type kNull = base::variant_index<FilterValue, nullptr_t>();
+
+  // Fetches an int64_t value at the given index.
+  int64_t GetInt64Value(uint32_t idx) const {
+    PERFETTO_CHECK(idx == 0);
+    return std::get<int64_t>(value);
+  }
+  // Fetches a double value at the given index.
+  double GetDoubleValue(uint32_t idx) const {
+    PERFETTO_CHECK(idx == 0);
+    return std::get<double>(value);
+  }
+  // Fetches a string value at the given index.
+  const char* GetStringValue(uint32_t idx) const {
+    PERFETTO_CHECK(idx == 0);
+    return std::get<const char*>(value);
+  }
+  // Fetches the type of the value at the given index.
+  Type GetValueType(uint32_t idx) const {
+    PERFETTO_CHECK(idx == 0);
+    return value.index();
+  }
+
+  FilterValue value;
+};
+
+std::string FixNegativeAndDecimal(const std::string& str) {
+  return base::ReplaceAll(base::ReplaceAll(str, ".", "_"), "-", "neg_");
+}
+
+std::string ValToString(const FilterValue& value) {
   switch (value.index()) {
     case base::variant_index<FilterValue, nullptr_t>():
       return "nullptr";
     case base::variant_index<FilterValue, int64_t>(): {
       auto res = base::unchecked_get<int64_t>(value);
-      return res < 0 ? "neg_" + std::to_string(-res) : std::to_string(res);
+      return FixNegativeAndDecimal(std::to_string(res));
     }
     case base::variant_index<FilterValue, double>(): {
-      std::string no_dot = base::ReplaceAll(
-          std::to_string(base::unchecked_get<double>(value)), ".", "_");
-      return base::ReplaceAll(no_dot, "-", "neg_");
+      auto res = base::unchecked_get<double>(value);
+      return FixNegativeAndDecimal(std::to_string(res));
     }
     case base::variant_index<FilterValue, const char*>():
       return {base::unchecked_get<const char*>(value)};
@@ -73,14 +112,30 @@ std::string FilterValueToString(const FilterValue& value) {
   }
 }
 
-std::string CastResultToString(const CastFilterValueResult& res) {
+std::string ResultToString(const CastFilterValueResult& res) {
   if (res.validity == CastFilterValueResult::Validity::kValid) {
     switch (res.value.index()) {
       case base::variant_index<CastFilterValueResult::Value,
                                CastFilterValueResult::Id>(): {
         const auto& id =
             base::unchecked_get<CastFilterValueResult::Id>(res.value);
-        return "Id_" + std::to_string(id.value);
+        return "Id_" + FixNegativeAndDecimal(std::to_string(id.value));
+      }
+      case base::variant_index<CastFilterValueResult::Value, uint32_t>(): {
+        const auto& uint32 = base::unchecked_get<uint32_t>(res.value);
+        return "Uint32_" + FixNegativeAndDecimal(std::to_string(uint32));
+      }
+      case base::variant_index<CastFilterValueResult::Value, int32_t>(): {
+        const auto& int32 = base::unchecked_get<int32_t>(res.value);
+        return "Int32_" + FixNegativeAndDecimal(std::to_string(int32));
+      }
+      case base::variant_index<CastFilterValueResult::Value, int64_t>(): {
+        const auto& int64 = base::unchecked_get<int64_t>(res.value);
+        return "Int64_" + FixNegativeAndDecimal(std::to_string(int64));
+      }
+      case base::variant_index<CastFilterValueResult::Value, double>(): {
+        const auto& d = base::unchecked_get<double>(res.value);
+        return "Double_" + FixNegativeAndDecimal(std::to_string(d));
       }
       default:
         PERFETTO_FATAL("Unknown filter value type");
@@ -91,30 +146,10 @@ std::string CastResultToString(const CastFilterValueResult& res) {
              : "AllMatch";
 }
 
-struct Fetcher : ValueFetcher {
-  using Type = size_t;
-  static constexpr Type kInt64 = base::variant_index<FilterValue, int64_t>();
-  static constexpr Type kDouble = base::variant_index<FilterValue, double>();
-  static constexpr Type kString = base::variant_index<FilterValue, const char*>();
-  static constexpr Type kNull = base::variant_index<FilterValue, nullptr_t>();
-
-  // Fetches an int64_t value at the given index.
-  int64_t GetInt64Value(uint32_t idx) const {
-    return std::get<int64_t>(values[idx]);
-  }
-  // Fetches a double value at the given index.
-  double GetDoubleValue(uint32_t idx) const {
-    return std::get<double>(values[idx]);
-  }
-  // Fetches a string value at the given index.
-  const char* GetStringValue(uint32_t idx) const {
-    return std::get<const char*>(values[idx]);
-  }
-  // Fetches the type of the value at the given index.
-  Type GetValueType(uint32_t idx) const { return values[idx].index(); }
-
-  const FilterValue* values;
-};
+template <typename T>
+Span<T> GetSpan(std::vector<T>& vec) {
+  return Span<T>{vec.data(), vec.data() + vec.size()};
+}
 
 Bytecode ParseBytecode(const std::string& bytecode_str) {
   static constexpr uint32_t kNumBytecodeCount =
@@ -188,340 +223,367 @@ Bytecode ParseBytecode(const std::string& bytecode_str) {
   return bc;
 }
 
-TEST(BytecodeInterpreterTest, InitRange) {
-  BytecodeVector bytecode;
-  bytecode.emplace_back(
-      ParseBytecode("InitRange: [size=134, dest_register=Register(0)]"));
-
-  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
-  Fetcher fetcher{{}, nullptr};
-  interpreter.Execute(fetcher);
-  const auto* result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(0));
-  ASSERT_TRUE(result);
-  EXPECT_EQ(result->b, 0u);
-  EXPECT_EQ(result->e, 134u);
+template <typename T>
+FlexVector<T> CreateFlexVectorForTesting(std::initializer_list<T> values) {
+  FlexVector<T> vec;
+  for (const auto& value : values) {
+    vec.push_back(value);
+  }
+  return vec;
 }
 
-TEST(BytecodeInterpreterTest, AllocateIndices) {
-  BytecodeVector bytecode;
-  bytecode.emplace_back(ParseBytecode(
-      "AllocateIndices: [size=132, dest_slab_register=Register(0), "
-      "dest_span_register=Register(1)]"));
-
-  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
-  Fetcher fetcher{{}, nullptr};
-  interpreter.Execute(fetcher);
-
-  const auto* slab =
-      interpreter.GetRegisterValue(reg::ReadHandle<Slab<uint32_t>>(0));
-  {
-    ASSERT_TRUE(slab);
-    EXPECT_EQ(slab->size(), 132u);
+class BytecodeInterpreterTest : public testing::Test {
+ protected:
+  template <typename... Ts>
+  void SetRegistersAndExecute(const std::string& bytecode, Ts... value) {
+    BytecodeVector bytecode_vector;
+    bytecode_vector.emplace_back(ParseBytecode(bytecode));
+    interpreter_ = std::make_unique<Interpreter<Fetcher>>(
+        std::move(bytecode_vector), column_.get(), &spool_);
+    uint32_t i = 0;
+    (interpreter_->SetRegisterValueForTesting(reg::WriteHandle<Ts>(i++),
+                                              std::move(value)),
+     ...);
+    interpreter_->Execute(fetcher_);
   }
+
+  template <typename T>
+  const T& GetRegister(uint32_t reg_idx) {
+    const auto* r = interpreter_->GetRegisterValue(reg::ReadHandle<T>(reg_idx));
+    PERFETTO_CHECK(r);
+    return *r;
+  }
+
+  Fetcher fetcher_;
+  StringPool spool_;
+  std::unique_ptr<Column> column_;
+  std::unique_ptr<Interpreter<Fetcher>> interpreter_;
+};
+
+TEST_F(BytecodeInterpreterTest, InitRange) {
+  SetRegistersAndExecute("InitRange: [size=134, dest_register=Register(0)]");
+
+  const auto& result = GetRegister<Range>(0);
+  EXPECT_EQ(result.b, 0u);
+  EXPECT_EQ(result.e, 134u);
+}
+
+TEST_F(BytecodeInterpreterTest, AllocateIndices) {
+  SetRegistersAndExecute(
+      "AllocateIndices: [size=132, dest_slab_register=Register(0), "
+      "dest_span_register=Register(1)]");
+
+  const auto& slab = GetRegister<Slab<uint32_t>>(0);
+  { EXPECT_THAT(slab, SizeIs(132u)); }
   {
-    const auto* span =
-        interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(1));
-    ASSERT_TRUE(span);
-    EXPECT_EQ(span->size(), 132u);
-    EXPECT_EQ(span->b, slab->begin());
-    EXPECT_EQ(span->e, slab->end());
+    const auto& span = GetRegister<Span<uint32_t>>(1);
+    EXPECT_THAT(span, SizeIs(132u));
+    EXPECT_EQ(span.b, slab.begin());
+    EXPECT_EQ(span.e, slab.end());
   }
 }
 
-TEST(BytecodeInterpreterTest, AllocateIndicesAlreadyAllocated) {
-  BytecodeVector bytecode;
-  bytecode.emplace_back(ParseBytecode(
-      "AllocateIndices: [size=132, dest_slab_register=Register(0), "
-      "dest_span_register=Register(1)]"));
-
-  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
+TEST_F(BytecodeInterpreterTest, AllocateIndicesAlreadyAllocated) {
   auto existing_slab = Slab<uint32_t>::Alloc(132u);
   auto* expected_begin = existing_slab.begin();
   auto* expected_end = existing_slab.end();
-  interpreter.SetRegisterValueForTesting(reg::WriteHandle<Slab<uint32_t>>(0),
-                                         std::move(existing_slab));
+  SetRegistersAndExecute(
+      "AllocateIndices: [size=132, dest_slab_register=Register(0), "
+      "dest_span_register=Register(1)]",
+      std::move(existing_slab));
 
-  Fetcher fetcher{{}, nullptr};
-  interpreter.Execute(fetcher);
-
-  const auto* slab =
-      interpreter.GetRegisterValue(reg::ReadHandle<Slab<uint32_t>>(0));
+  const auto& slab = GetRegister<Slab<uint32_t>>(0);
   {
-    EXPECT_EQ(slab->begin(), expected_begin);
-    EXPECT_EQ(slab->end(), expected_end);
+    EXPECT_EQ(slab.begin(), expected_begin);
+    EXPECT_EQ(slab.end(), expected_end);
   }
   {
-    const auto* span =
-        interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(1));
-    ASSERT_TRUE(span);
-    EXPECT_EQ(span->size(), 132u);
-    EXPECT_EQ(span->b, slab->begin());
-    EXPECT_EQ(span->e, slab->end());
+    const auto& span = GetRegister<Span<uint32_t>>(1);
+    EXPECT_THAT(span, SizeIs(132u));
+    EXPECT_EQ(span.b, slab.begin());
+    EXPECT_EQ(span.e, slab.end());
   }
 }
 
-TEST(BytecodeInterpreterTest, Iota) {
-  BytecodeVector bytecode;
-  bytecode.emplace_back(ParseBytecode(
-      "Iota: [source_register=Register(0), update_register=Register(1)]"));
-
+TEST_F(BytecodeInterpreterTest, Iota) {
   std::vector<uint32_t> res(132u);
-  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
-  interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(0),
-                                         Range{5, 10});
-  interpreter.SetRegisterValueForTesting(
-      reg::WriteHandle<Span<uint32_t>>(1),
-      Span<uint32_t>{res.data(), res.data() + res.size()});
+  SetRegistersAndExecute(
+      "Iota: [source_register=Register(0), update_register=Register(1)]",
+      Range{5, 10}, GetSpan(res));
 
-  Fetcher fetcher{{}, nullptr};
-  interpreter.Execute(fetcher);
-
-  const auto* update =
-      interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(1));
-  ASSERT_TRUE(update);
-  ASSERT_THAT(update->b, AllOf(Ge(res.data()), Le(res.data() + res.size())));
-  ASSERT_THAT(update->e, AllOf(Ge(res.data()), Le(res.data() + res.size())));
-  EXPECT_THAT(std::vector<uint32_t>(update->b, update->e),
-              testing::ElementsAreArray({5, 6, 7, 8, 9}));
+  const auto& update = GetRegister<Span<uint32_t>>(1);
+  ASSERT_THAT(update.b, AllOf(testing::Ge(res.data()),
+                              testing::Le(res.data() + res.size())));
+  ASSERT_THAT(update.e, AllOf(testing::Ge(res.data()),
+                              testing::Le(res.data() + res.size())));
+  EXPECT_THAT(update, ElementsAreArray({5u, 6u, 7u, 8u, 9u}));
 }
 
 using CastResult = CastFilterValueResult;
 
 struct CastTestCase {
+  std::string input_type;
   FilterValue input;
   CastResult expected;
-  Op op = Eq{};
+  Op op = dataframe::Eq{};
+  static std::string ToString(const testing::TestParamInfo<CastTestCase>& i) {
+    return ValToString(i.param.input) + "_" + ResultToString(i.param.expected);
+  }
 };
 
 class BytecodeInterpreterCastTest
-    : public testing::TestWithParam<CastTestCase> {};
+    : public BytecodeInterpreterTest,
+      public testing::WithParamInterface<CastTestCase> {};
 
 TEST_P(BytecodeInterpreterCastTest, Cast) {
-  const auto& [input, expected, op] = GetParam();
+  const auto& [input_type, input, expected, op] = GetParam();
 
-  BytecodeVector bytecode;
-  bytecode.emplace_back(
-      ParseBytecode(base::StackString<1024>(
-                        "CastFilterValue<Id>: [fval_handle=FilterValue(0), "
-                        "write_register=Register(0), op=Op(%u)]",
-                        op.index())
-                        .ToStdString()));
+  fetcher_.value = input;
+  SetRegistersAndExecute(
+      base::StackString<1024>(
+          "CastFilterValue<%s>: [fval_handle=FilterValue(0), "
+          "write_register=Register(0), op=Op(%u)]",
+          input_type.c_str(), op.index())
+          .ToStdString());
 
-  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
-  Fetcher fetcher{{}, &input};
-  interpreter.Execute(fetcher);
-
-  const auto* result =
-      interpreter.GetRegisterValue(reg::ReadHandle<CastFilterValueResult>(0));
-  ASSERT_TRUE(result);
-  EXPECT_EQ(result->validity, expected.validity);
-  if (result->validity == CastResult::Validity::kValid) {
-    EXPECT_EQ(result->value, expected.value);
+  const auto& result = GetRegister<CastFilterValueResult>(0);
+  ASSERT_THAT(result.validity, testing::Eq(expected.validity));
+  if (result.validity == CastResult::Validity::kValid) {
+    ASSERT_THAT(result.value, testing::Eq(expected.value));
   }
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    ToDouble,
+    BytecodeInterpreterCastTest,
+    testing::Values(
+        CastTestCase{
+            "Double",
+            FilterValue{1024.0},
+            CastResult::Valid(1024.0),
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{1024l},
+            CastResult::Valid(1024.0),
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{int64_t(std::numeric_limits<int64_t>::max()) - 1},
+            CastResult::NoneMatch(),
+        }),
+    &CastTestCase::ToString);
 
 INSTANTIATE_TEST_SUITE_P(
     IntegerToInteger,
     BytecodeInterpreterCastTest,
     testing::Values(
         CastTestCase{
+            "Id",
             FilterValue{1024l},
             CastResult::Valid(CastResult::Id{1024}),
         },
         CastTestCase{
+            "Id",
             FilterValue{int64_t(std::numeric_limits<uint32_t>::max()) + 1},
             CastResult::NoneMatch(),
         },
         CastTestCase{
+            "Id",
             FilterValue{int64_t(std::numeric_limits<uint32_t>::min()) - 1},
             CastResult::NoneMatch(),
+        },
+        CastTestCase{
+            "Uint32",
+            FilterValue{1024l},
+            CastResult::Valid(uint32_t(1024)),
+        },
+        CastTestCase{
+            "Int64",
+            FilterValue{std::numeric_limits<int64_t>::max()},
+            CastResult::Valid(std::numeric_limits<int64_t>::max()),
         }),
-    [](const testing::TestParamInfo<BytecodeInterpreterCastTest::ParamType>&
-           info) {
-      return FilterValueToString(info.param.input) + "_" +
-             CastResultToString(info.param.expected);
-    });
+    &CastTestCase::ToString);
 
 INSTANTIATE_TEST_SUITE_P(
     DoubleToInteger,
     BytecodeInterpreterCastTest,
     testing::Values(
         CastTestCase{
+            "Id",
             FilterValue{1024.0},
             CastResult::Valid(CastResult::Id{1024}),
         },
-        CastTestCase{FilterValue{1024.1}, CastResult::NoneMatch()},
-        CastTestCase{FilterValue{1024.9}, CastResult::NoneMatch()},
-        CastTestCase{FilterValue{NAN}, CastResult::NoneMatch()},
+        CastTestCase{"Id", FilterValue{1024.1}, CastResult::NoneMatch()},
+        CastTestCase{"Id", FilterValue{1024.9}, CastResult::NoneMatch()},
+        CastTestCase{"Id", FilterValue{NAN}, CastResult::NoneMatch()},
         CastTestCase{
+            "Id",
             FilterValue{double(std::numeric_limits<uint32_t>::max()) + 1},
             CastResult::NoneMatch(),
         },
         CastTestCase{
+            "Id",
             FilterValue{double(std::numeric_limits<uint32_t>::min()) - 1},
             CastResult::NoneMatch(),
+        },
+        CastTestCase{
+            "Uint32",
+            FilterValue{1024.0},
+            CastResult::Valid(uint32_t(1024)),
+        },
+        CastTestCase{
+            "Int64",
+            FilterValue{-9223372036854775808.0},
+            CastResult::Valid(int64_t(-9223372036854775807ll - 1)),
+        },
+        CastTestCase{
+            "Int64",
+            FilterValue{9223372036854775808.0},
+            CastResult::NoneMatch(),
         }),
-    [](const testing::TestParamInfo<BytecodeInterpreterCastTest::ParamType>&
-           info) {
-      return FilterValueToString(info.param.input) + "_" +
-             CastResultToString(info.param.expected);
-    });
+    &CastTestCase::ToString);
 
-TEST(BytecodeInterpreterTest, SortedFilterId) {
-  BytecodeVector bytecode;
-  bytecode.emplace_back(ParseBytecode(
+TEST_F(BytecodeInterpreterTest, SortedFilterId) {
+  std::string bytecode =
       "SortedFilter<Id, EqualRange>: [col=0, val_register=Register(0), "
-      "update_register=Register(1), write_result_to=BoundModifier(0)]"));
+      "update_register=Register(1), write_result_to=BoundModifier(0)]";
+  {
+    // Test case 1: Value exists in range
+    SetRegistersAndExecute(
+        bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{5}),
+        Range{0, 10});
 
-  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
-
-  // Test case 1: Value exists in range
-  interpreter.SetRegisterValueForTesting(
-      reg::WriteHandle<CastFilterValueResult>(0),
-      CastFilterValueResult::Valid(CastFilterValueResult::Id{5}));
-  interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
-                                         Range{0, 10});
-
-  Fetcher fetcher{{}, nullptr};
-  interpreter.Execute(fetcher);
-
-  const auto* result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
-  ASSERT_TRUE(result);
-  EXPECT_EQ(result->b, 5u);
-  EXPECT_EQ(result->e, 6u);
-
-  // Test case 2: Value above range
-  interpreter.SetRegisterValueForTesting(
-      reg::WriteHandle<CastFilterValueResult>(0),
-      CastFilterValueResult::Valid(CastFilterValueResult::Id{10}));
-  interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
-                                         Range{0, 10});
-  interpreter.Execute(fetcher);
-
-  result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
-  ASSERT_TRUE(result);
-  EXPECT_EQ(result->size(), 0u);
-
-  // Test case 3: Value below range
-  interpreter.SetRegisterValueForTesting(
-      reg::WriteHandle<CastFilterValueResult>(0),
-      CastFilterValueResult::Valid(CastFilterValueResult::Id{2}));
-  interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
-                                         Range{3, 10});
-  interpreter.Execute(fetcher);
-
-  result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
-  ASSERT_TRUE(result);
-  EXPECT_EQ(result->size(), 0u);
-
-  // Test case 4: Invalid cast result (NoneMatch)
-  interpreter.SetRegisterValueForTesting(
-      reg::WriteHandle<CastFilterValueResult>(0),
-      CastFilterValueResult::NoneMatch());
-  interpreter.SetRegisterValueForTesting(reg::WriteHandle<Range>(1),
-                                         Range{0, 10});
-  interpreter.Execute(fetcher);
-
-  result = interpreter.GetRegisterValue(reg::ReadHandle<Range>(1));
-  ASSERT_TRUE(result);
-  EXPECT_EQ(result->size(), 0u);
+    const auto& result = GetRegister<Range>(1);
+    EXPECT_EQ(result.b, 5u);
+    EXPECT_EQ(result.e, 6u);
+  }
+  {
+    // Test case 2: Value below range
+    SetRegistersAndExecute(
+        bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{2}),
+        Range{3, 10});
+    EXPECT_THAT(GetRegister<Range>(1), IsEmpty());
+  }
+  {
+    // Test case 3: Invalid cast result (NoneMatch)
+    SetRegistersAndExecute(bytecode, CastFilterValueResult::NoneMatch(),
+                           Range{0, 10});
+    EXPECT_THAT(GetRegister<Range>(1), IsEmpty());
+  }
 }
 
-TEST(BytecodeInterpreterTest, FilterId) {
-  BytecodeVector bytecode;
-  bytecode.emplace_back(ParseBytecode(
-      "NonStringFilter<Id, Eq>: [col=0, val_register=Register(0), "
-      "source_register=Register(1), update_register=Register(2)]"));
+TEST_F(BytecodeInterpreterTest, SortedFilterUint32) {
+  std::string bytecode =
+      "SortedFilter<Uint32, EqualRange>: [col=0, val_register=Register(0), "
+      "update_register=Register(1), write_result_to=BoundModifier(0)]";
 
-  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
+  auto values =
+      CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
+  column_.reset(new Column{ColumnSpec{"foo", Uint32(), Sorted(), NonNull()},
+                           Storage{std::move(values)},
+                           Overlay{Overlay::NoOverlay{}}});
+  {
+    // Test case 1: Value exists in range
+    SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+                           Range{3u, 8u});
+    const auto& result = GetRegister<Range>(1);
+    EXPECT_EQ(result.b, 3u);
+    EXPECT_EQ(result.e, 5u);
+  }
+  {
+    // Test case 2: Value exists not range
+    SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(4u),
+                           Range{3u, 8u});
+    EXPECT_THAT(GetRegister<Range>(1), IsEmpty());
+  }
+  {
+    // Test case 3: Invalid cast result (NoneMatch)
+    SetRegistersAndExecute(bytecode, CastFilterValueResult::NoneMatch(),
+                           Range{0, 8u});
+    EXPECT_THAT(GetRegister<Range>(1), IsEmpty());
+  }
+}
+
+TEST_F(BytecodeInterpreterTest, FilterId) {
+  std::string bytecode =
+      "NonStringFilter<Id, Eq>: [col=0, val_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]";
 
   std::vector<uint32_t> indices_spec = {12, 44, 10, 4, 5, 2, 3};
   {
     // Test case 1: Value exists in range
     std::vector<uint32_t> indices = indices_spec;
-    interpreter.SetRegisterValueForTesting(
-        reg::WriteHandle<CastFilterValueResult>(0),
-        CastFilterValueResult::Valid(CastFilterValueResult::Id{5}));
-    interpreter.SetRegisterValueForTesting(
-        reg::WriteHandle<Span<uint32_t>>(1),
-        Span<uint32_t>{indices.data(), indices.data() + indices.size()});
-    interpreter.SetRegisterValueForTesting(
-        reg::WriteHandle<Span<uint32_t>>(2),
-        Span<uint32_t>{indices.data(), indices.data() + indices.size()});
-    Fetcher fetcher{{}, nullptr};
-    interpreter.Execute(fetcher);
-
-    const auto* result =
-        interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(2));
-    ASSERT_TRUE(result);
-    EXPECT_THAT(std::vector<uint32_t>(result->b, result->e), ElementsAre(5));
+    SetRegistersAndExecute(
+        bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{5}),
+        GetSpan(indices), GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(5u));
   }
   {
     // Test case 2: Value above range
     std::vector<uint32_t> indices = indices_spec;
-    interpreter.SetRegisterValueForTesting(
-        reg::WriteHandle<CastFilterValueResult>(0),
-        CastFilterValueResult::Valid(CastFilterValueResult::Id{11}));
-    interpreter.SetRegisterValueForTesting(
-        reg::WriteHandle<Span<uint32_t>>(1),
-        Span<uint32_t>{indices.data(), indices.data() + indices.size()});
-    interpreter.SetRegisterValueForTesting(
-        reg::WriteHandle<Span<uint32_t>>(2),
-        Span<uint32_t>{indices.data(), indices.data() + indices.size()});
-    Fetcher fetcher{{}, nullptr};
-    interpreter.Execute(fetcher);
-
-    const auto* result =
-        interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(2));
-    ASSERT_TRUE(result);
-    EXPECT_THAT(std::vector<uint32_t>(result->b, result->e), IsEmpty());
+    SetRegistersAndExecute(
+        bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{11}),
+        GetSpan(indices), GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
   }
   {
     // Test case 3: Invalid cast result (NoneMatch)
     std::vector<uint32_t> indices = indices_spec;
-    interpreter.SetRegisterValueForTesting(
-        reg::WriteHandle<CastFilterValueResult>(0),
-        CastFilterValueResult::NoneMatch());
-    interpreter.SetRegisterValueForTesting(
-        reg::WriteHandle<Span<uint32_t>>(1),
-        Span<uint32_t>{indices.data(), indices.data() + indices.size()});
-    interpreter.SetRegisterValueForTesting(
-        reg::WriteHandle<Span<uint32_t>>(2),
-        Span<uint32_t>{indices.data(), indices.data() + indices.size()});
-    Fetcher fetcher{{}, nullptr};
-    interpreter.Execute(fetcher);
-
-    const auto* result =
-        interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(2));
-    ASSERT_TRUE(result);
-    EXPECT_THAT(std::vector<uint32_t>(result->b, result->e), IsEmpty());
+    SetRegistersAndExecute(bytecode, CastFilterValueResult::NoneMatch(),
+                           CastFilterValueResult::NoneMatch(), GetSpan(indices),
+                           GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
   }
 }
 
-TEST(BytecodeInterpreterTest, StrideCopy) {
-  BytecodeVector bytecode;
-  bytecode.emplace_back(
-      ParseBytecode("StrideCopy: [source_register=Register(0), "
-                    "update_register=Register(1), stride=3]"));
+TEST_F(BytecodeInterpreterTest, FilterUint32) {
+  std::string bytecode =
+      "NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]";
 
-  Interpreter<Fetcher> interpreter(std::move(bytecode), nullptr, nullptr);
+  auto values =
+      CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
+  column_.reset(new Column{ColumnSpec{"foo", Uint32(), Unsorted(), NonNull()},
+                           Storage{std::move(values)},
+                           Overlay{Overlay::NoOverlay{}}});
+
+  std::vector<uint32_t> indices_spec = {3, 3, 4, 5, 0, 6, 0};
+  {
+    // Test case 1: Value exists
+    std::vector<uint32_t> indices = indices_spec;
+    SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(4u),
+                           GetSpan(indices), GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2),
+                ElementsAre(3u, 3u, 5u, 0u, 0u));
+  }
+  {
+    // Test case 2: Value does not exist
+    std::vector<uint32_t> indices = indices_spec;
+    SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+                           GetSpan(indices), GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+  }
+  {
+    // Test case 3: Invalid cast result (NoneMatch)
+    std::vector<uint32_t> indices = indices_spec;
+    SetRegistersAndExecute(bytecode, CastFilterValueResult::NoneMatch(),
+                           GetSpan(indices), GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+  }
+}
+
+TEST_F(BytecodeInterpreterTest, StrideCopy) {
+  std::string bytecode =
+      "StrideCopy: [source_register=Register(0), update_register=Register(1), "
+      "stride=3]";
+
   std::vector<uint32_t> source = {10, 3, 12, 4};
   std::vector<uint32_t> dest(source.size() * 3);
+  SetRegistersAndExecute(bytecode, GetSpan(source), GetSpan(dest));
 
-  interpreter.SetRegisterValueForTesting(
-      reg::WriteHandle<Span<uint32_t>>(0),
-      Span<uint32_t>{source.data(), source.data() + source.size()});
-  interpreter.SetRegisterValueForTesting(
-      reg::WriteHandle<Span<uint32_t>>(1),
-      Span<uint32_t>{dest.data(), dest.data() + dest.size()});
-  Fetcher fetcher{{}, nullptr};
-  interpreter.Execute(fetcher);
-
-  const auto* result =
-      interpreter.GetRegisterValue(reg::ReadHandle<Span<uint32_t>>(1));
-  ASSERT_TRUE(result);
-  EXPECT_THAT(std::vector<uint32_t>(result->b, result->e),
-              ElementsAre(10, 0, 0, 3, 0, 0, 12, 0, 0, 4, 0, 0));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(1),
+              ElementsAre(10u, 0u, 0u, 3u, 0u, 0u, 12u, 0u, 0u, 4u, 0u, 0u));
 }
 
 }  // namespace

@@ -42,16 +42,20 @@ namespace {
 // Lower scores are applied first for better efficiency.
 uint32_t FilterPreference(const FilterSpec& fs, const ColumnSpec& col) {
   enum AbsolutePreference : uint8_t {
-    kIndexAsValueEq,  // Most efficient: index-as-value equality check
-    kLeastPreferred,  // Least preferred
+    kIdEq,             // Most efficient: id equality check
+    kNumericSortedEq,  // Numeric sorted equality check
+    kLeastPreferred,   // Least preferred
   };
   const auto& op = fs.op;
   const auto& ct = col.column_type;
   const auto& n = col.nullability;
 
-  // IndexAsValue columns with non-null equality comparison are most efficient
   if (n.Is<NonNull>() && ct.Is<Id>() && op.Is<Eq>()) {
-    return kIndexAsValueEq;
+    return kIdEq;
+  }
+  if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() &&
+      ct.IsAnyOf<NumericType>() && op.Is<Eq>()) {
+    return kNumericSortedEq;
   }
   return kLeastPreferred;
 }
@@ -241,8 +245,8 @@ bool QueryPlanBuilder::TrySortedConstraint(
   const auto& col = columns_[fs.column_index];
   const auto& n = col.spec.nullability;
 
-  // Only applicable to non-null columns
-  if (!n.Is<NonNull>()) {
+  // Only applicable to non-null or sorted columns
+  if (!n.Is<NonNull>() || col.spec.sort_state.Is<Unsorted>()) {
     return false;
   }
 
