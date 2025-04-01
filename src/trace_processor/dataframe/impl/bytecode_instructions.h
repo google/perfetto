@@ -133,8 +133,20 @@ struct StrideCopy : Bytecode {
   X(AllocateIndices)                        \
   X(Iota)                                   \
   X(CastFilterValue<Id>)                    \
+  X(CastFilterValue<Uint32>)                \
+  X(CastFilterValue<Int32>)                 \
+  X(CastFilterValue<Int64>)                 \
+  X(CastFilterValue<Double>)                \
   X(SortedFilter<Id, EqualRange>)           \
+  X(SortedFilter<Uint32, EqualRange>)       \
+  X(SortedFilter<Int32, EqualRange>)        \
+  X(SortedFilter<Int64, EqualRange>)        \
+  X(SortedFilter<Double, EqualRange>)       \
   X(NonStringFilter<Id, Eq>)                \
+  X(NonStringFilter<Uint32, Eq>)            \
+  X(NonStringFilter<Int32, Eq>)             \
+  X(NonStringFilter<Int64, Eq>)             \
+  X(NonStringFilter<Double, Eq>)            \
   X(StrideCopy)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
