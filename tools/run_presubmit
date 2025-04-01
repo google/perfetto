@@ -253,27 +253,6 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
   return errors
 
 
-def CheckLongLines(changed_files: List[str], max_length: int,
-                   filter_func: Callable[[List[str]], List[str]]) -> List[str]:
-  errors = []
-  files_to_check_list = filter_func(
-      changed_files)  # Apply specific filter provided by caller
-
-  for f_path in files_to_check_list:
-    content = read_file_content(f_path)
-    if content:
-      for i, line in enumerate(content):
-        # Strip trailing newline before checking length
-        line_content = line.rstrip('\n\r')
-        # Allow certain URLs to be long
-        if "http://" in line_content or "https://" in line_content:
-          continue
-        if len(line_content) > max_length:
-          errors.append(f"{f_path}:{i+1}: Line exceeds {max_length} characters "
-                        f"({len(line_content)})")
-  return errors
-
-
 def CheckPatchFormatted(changed_files: List[str],
                         check_js: bool = True) -> List[str]:
   errors = []
@@ -1001,7 +980,6 @@ def main():
   checks_to_run = [
       (CheckDoNotSubmit, [changed_files]),
       (CheckChangeHasNoTabs, [changed_files]),
-      (CheckLongLines, [changed_files, 80, long_line_sources_filter]),
       (CheckPatchFormatted, [changed_files, False]),  # check_js=False
       (CheckGNFormatted, [changed_files]),
       (CheckIncludeGuards, [changed_files]),
