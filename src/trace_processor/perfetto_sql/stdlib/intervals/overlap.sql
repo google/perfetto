@@ -466,13 +466,13 @@ RETURNS TableOrSubquery AS
   FROM _only_singleton
 );
 
--- Merge intervals intervals when they overlap to generate a minimum covering set of
--- intervals with no overlap. The intervals are closed (contain both endpoints) and
--- we consider two intervals overlapping
+-- Merge intervals when they overlap to generate a minimum covering set of
+-- intervals with no overlap. The intervals are closed (contain both endpoints)
+-- and we consider two intervals overlapping
 --   (a) the intervals overlap or
---   (b) if the end point of one interval is within epsilon of the start point of
---       the other
-CREATE PERFETTO MACRO interval_remove_overlap(
+--   (b) if the end point of one interval is within epsilon of the start point
+--       of the other.
+CREATE PERFETTO MACRO interval_merge_overlapping(
     -- Table or subquery containing interval data.
     intervals TableOrSubquery,
     -- Constant expression for a tolerance in testing overlap (usually `0`)

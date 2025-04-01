@@ -73,13 +73,13 @@ def run_command(args: List[str],
 
 
 def get_merge_base() -> Optional[str]:
-  result = run_command(["git", "symbolic-ref", "--short", "HEAD"], check=True)
+  result = run_command(['git', 'symbolic-ref', '--short', 'HEAD'], check=True)
   branch = result.stdout.strip()
 
   # First check if there's a tracking branch
   try:
     # More direct way to get the upstream branch
-    args = ["git", "rev-parse", "--abbrev-ref", f"{branch}@{{upstream}}"]
+    args = ['git', 'rev-parse', '--abbrev-ref', f'{branch}@{{upstream}}']
     tracking_result = run_command(args, check=True)
     tracking_branch = tracking_result.stdout.strip()
 
@@ -88,7 +88,7 @@ def get_merge_base() -> Optional[str]:
       # Check if this is a local branch by trying to get its ref in refs/heads/
       try:
         _ = run_command(
-            ["git", "show-ref", "--verify", f"refs/heads/{tracking_branch}"],
+            ['git', 'show-ref', '--verify', f'refs/heads/{tracking_branch}'],
             check=True)
         # If we get here without an exception, it's a local branch
         return tracking_branch
@@ -102,9 +102,9 @@ def get_merge_base() -> Optional[str]:
   # Fallback to origin/main
   try:
     # Check if origin/main exists
-    _ = run_command(["git", "show-ref", "--verify", "refs/remotes/origin/main"],
+    _ = run_command(['git', 'show-ref', '--verify', 'refs/remotes/origin/main'],
                     check=True)
-    return "origin/main"
+    return 'origin/main'
   except subprocess.CalledProcessError:
     # origin/main doesn't exist, return None
     return None
