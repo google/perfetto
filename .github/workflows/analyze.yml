@@ -29,7 +29,7 @@ on:
     types: [opened, synchronize]
     branches:
       - main
-      - dev/*
+      - dev/**/*
 
 # If a new commit is pushed, cancel previous jobs for the same PR / branch.
 concurrency:
