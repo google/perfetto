@@ -5,25 +5,23 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <variant>
 
-#include "perfetto/base/compiler.h"
-#include "perfetto/base/logging.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
 namespace perfetto::trace_processor::dataframe {
 
 // -----------------------------------------------------------------------------
-// Content Types
+// Column value Types
 // -----------------------------------------------------------------------------
 
-// Represents columns where the index is the same as the value.
-// This allows for zero memory overhead as values don't need to be explicitly
-// stored. Operations on these columns can be highly optimized.
+// Represents values where the index of the value in the table is the same as
+// the value. This allows for zero memory overhead as values don't need to be
+// explicitly stored. Operations on column with this type can be highly
+// optimized.
 struct Id {};
 
-// TypeSet of all possible column content types.
-using Content = TypeSet<Id>;
+// TypeSet of all possible column value types.
+using ColumnType = TypeSet<Id>;
 
 // -----------------------------------------------------------------------------
 // Operation Types
@@ -64,9 +62,6 @@ using Nullability = TypeSet<NonNull>;
 // Specifies a filter operation to be applied to column data.
 // This is used to generate query plans for filtering rows.
 struct FilterSpec {
-  // Variant type for possible filter values.
-  using Value = std::variant<nullptr_t, int64_t, double, const char*>;
-
   // Index of the column in the dataframe to filter.
   uint32_t column_index;
 
@@ -91,7 +86,7 @@ struct ColumnSpec {
   std::string name;
 
   // Type of content stored in the column.
-  Content content;
+  ColumnType column_type;
 
   // Sort order of the column data.
   SortState sort_state;

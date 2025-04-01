@@ -46,11 +46,11 @@ uint32_t FilterPreference(const FilterSpec& fs, const ColumnSpec& col) {
     kLeastPreferred,  // Least preferred
   };
   const auto& op = fs.op;
-  const auto& c = col.content;
+  const auto& ct = col.column_type;
   const auto& n = col.nullability;
 
   // IndexAsValue columns with non-null equality comparison are most efficient
-  if (n.Is<NonNull>() && c.Is<Id>() && op.Is<Eq>()) {
+  if (n.Is<NonNull>() && ct.Is<Id>() && op.Is<Eq>()) {
     return kIndexAsValueEq;
   }
   return kLeastPreferred;
@@ -101,7 +101,7 @@ void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
   // Apply each filter in the optimized order
   for (FilterSpec& c : specs) {
     const Column& col = columns_[c.column_index];
-    const auto& content = col.spec.content;
+    const auto& ct = col.spec.column_type;
 
     // Get the non-null operation (all our ops are non-null at this point)
     auto non_null_op = c.op.TryDowncast<NonNullOp>();
@@ -111,21 +111,20 @@ void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
     bytecode::reg::RwHandle<CastFilterValueResult> value_reg{register_count_++};
     {
       using B = bytecode::CastFilterValueBase;
-      auto& bc =
-          AddOpcode<B>(bytecode::Index<bytecode::CastFilterValue>(content));
-      bc.arg<B::fval_handle>() = {plan_.interpreter_spec.filter_value_count};
+      auto& bc = AddOpcode<B>(bytecode::Index<bytecode::CastFilterValue>(ct));
+      bc.arg<B::fval_handle>() = {plan_.params.filter_value_count};
       bc.arg<B::write_register>() = value_reg;
       bc.arg<B::op>() = *non_null_op;
-      c.value_index = plan_.interpreter_spec.filter_value_count++;
+      c.value_index = plan_.params.filter_value_count++;
     }
 
     // Try specialized optimizations first
-    if (TrySortedConstraint(c, content, *non_null_op, value_reg)) {
+    if (TrySortedConstraint(c, ct, *non_null_op, value_reg)) {
       continue;
     }
 
     // Handle non-string data types
-    if (const auto& n = content.TryDowncast<NonStringContent>(); n) {
+    if (const auto& n = ct.TryDowncast<NonStringType>(); n) {
       if (auto op = c.op.TryDowncast<NonStringOp>(); op) {
         NonStringConstraint(c, *n, *op, value_reg);
       } else {
@@ -146,7 +145,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
   };
 
   base::SmallVector<ColAndOffset, 64> null_cols;
-  plan_.interpreter_spec.output_per_row = 1;
+  plan_.params.output_per_row = 1;
 
   // Process each column that will be used in the output
   for (uint32_t i = 0; i < 64; ++i, cols_used >>= 1) {
@@ -158,7 +157,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
     switch (col.spec.nullability.index()) {
       case Nullability::GetTypeIndex<NonNull>():
         // For non-null columns, we can directly use the indices
-        plan_.interpreter_spec.col_to_output_offset[i] = 0;
+        plan_.params.col_to_output_offset[i] = 0;
         break;
       default:
         PERFETTO_FATAL("Unreachable");
@@ -170,15 +169,14 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
   bytecode::reg::ReadHandle<Span<uint32_t>> storage_indices_register;
 
   // Handle multi-column output if needed
-  if (plan_.interpreter_spec.output_per_row > 1) {
+  if (plan_.params.output_per_row > 1) {
     // Allocate storage for expanded indices
     bytecode::reg::RwHandle<Slab<uint32_t>> slab_register{register_count_++};
     bytecode::reg::RwHandle<Span<uint32_t>> span_register{register_count_++};
     {
       using B = bytecode::AllocateIndices;
       auto& bc = AddOpcode<B>();
-      bc.arg<B::size>() =
-          max_row_count_ * plan_.interpreter_spec.output_per_row;
+      bc.arg<B::size>() = max_row_count_ * plan_.params.output_per_row;
       bc.arg<B::dest_slab_register>() = slab_register;
       bc.arg<B::dest_span_register>() = span_register;
     }
@@ -189,7 +187,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
       auto& bc = AddOpcode<B>();
       bc.arg<B::source_register>() = in_memory_indices;
       bc.arg<B::update_register>() = span_register;
-      bc.arg<B::stride>() = plan_.interpreter_spec.output_per_row;
+      bc.arg<B::stride>() = plan_.params.output_per_row;
       storage_indices_register = span_register;
     }
 
@@ -209,7 +207,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
   }
 
   // Set the output register
-  plan_.interpreter_spec.output_register = storage_indices_register;
+  plan_.params.output_register = storage_indices_register;
 }
 
 QueryPlan QueryPlanBuilder::Build() && {
@@ -218,7 +216,7 @@ QueryPlan QueryPlanBuilder::Build() && {
 
 void QueryPlanBuilder::NonStringConstraint(
     const FilterSpec& c,
-    const NonStringContent& type,
+    const NonStringType& type,
     const NonStringOp& op,
     const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
   // Get the source register, applying any needed overlay translation
@@ -237,7 +235,7 @@ void QueryPlanBuilder::NonStringConstraint(
 
 bool QueryPlanBuilder::TrySortedConstraint(
     const FilterSpec& fs,
-    const Content& type,
+    const ColumnType& ct,
     const NonNullOp& op,
     const bytecode::reg::RwHandle<CastFilterValueResult>& result) {
   const auto& col = columns_[fs.column_index];
@@ -268,7 +266,7 @@ bool QueryPlanBuilder::TrySortedConstraint(
   {
     using B = bytecode::SortedFilterBase;
     auto& bc =
-        AddOpcode<B>(bytecode::Index<bytecode::SortedFilter>(type, erlbub));
+        AddOpcode<B>(bytecode::Index<bytecode::SortedFilter>(ct, erlbub));
     bc.arg<B::col>() = fs.column_index;
     bc.arg<B::val_register>() = result;
     bc.arg<B::update_register>() = reg;
