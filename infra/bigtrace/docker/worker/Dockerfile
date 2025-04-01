@@ -15,7 +15,7 @@
 FROM debian:12
 
 RUN apt update && apt install -y git python3 curl build-essential
-RUN  git clone --depth 1 https://android.googlesource.com/platform/external/perfetto/
+RUN  git clone --depth 1 https://github.com/google/perfetto/
 WORKDIR /perfetto
 RUN tools/install-build-deps --grpc
 RUN tools/gn gen out/dist '--args=is_clang=true \

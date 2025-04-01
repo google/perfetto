@@ -25,7 +25,7 @@ takes care of keeping chromium's DEPS up to date.
 #### Get the code
 
 ```bash
-git clone https://android.googlesource.com/platform/external/perfetto/
+git clone https://github.com/google/perfetto
 ```
 
 #### Pull dependent libraries and toolchains
