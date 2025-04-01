@@ -2,8 +2,7 @@
 # NOTE: The last matching rule is the one that defines the owner.
 
 # General repo-wide owners 
-# TODO(primiano): add @betasheet once he joins google org
-* @primiano @LalitMaganti @ddiproietto @rsavitski @stevegolton @aMayzner @ilkos
+* @primiano @LalitMaganti @ddiproietto @rsavitski @stevegolton @aMayzner @ilkos @betasheet
 
 # No owners required for docs changes.
 /docs/*
@@ -11,5 +10,4 @@
 # Changes to the Tracing Protocol ABI are extremely subtle because they need to
 # be forward/backward compatible with various combinations of producer and
 # service versions. Adding >1 owner to reviews is encouraged here.
-# TODO(primiano): add @betasheet once he joins google org
-/protos/perfetto/ipc/* @primiano @LalitMaganti
+/protos/perfetto/ipc/* @primiano @LalitMaganti @betasheet
