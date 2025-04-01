@@ -324,16 +324,14 @@ BUILD_DEPS_HOST = [
         'https://storage.googleapis.com/perfetto/bloaty-1.1-b3b829de35babc2fe831b9488ad2e50bca939412-mac.zip',
         '2d301bd72a20e3f42888c9274ceb4dca76c103608053572322412c2c65ab8cb8',
         'darwin', 'all'),
-
-    Dependency('buildtools/open_csd',
-            'https://android.googlesource.com/platform/external/OpenCSD.git',
-            '0ce01e934f95efb6a216a6efa35af1245151c779', 'all', 'all'),
+    Dependency(
+        'buildtools/open_csd',
+        'https://android.googlesource.com/platform/external/OpenCSD.git',
+        '0ce01e934f95efb6a216a6efa35af1245151c779', 'all', 'all'),
 
     # sqlglot for SQL formatting.
-    Dependency(
-        'buildtools/sqlglot',
-        'https://github.com/tobymao/sqlglot.git',
-        'dd1cdb0b91ac597a9cb1f1f517a616c264f5b654', 'all', 'all'),
+    Dependency('buildtools/sqlglot', 'https://github.com/tobymao/sqlglot.git',
+               'dd1cdb0b91ac597a9cb1f1f517a616c264f5b654', 'all', 'all'),
 ]
 
 # Dependencies required to build code on the host using Bazel build system.
@@ -464,7 +462,6 @@ UI_DEPS = [
         'buildtools/typefaces.tgz',
         'https://storage.googleapis.com/perfetto/typefaces-%s.tar.gz' %
         TYPEFACES_SHA256, TYPEFACES_SHA256, 'all', 'all'),
-
     Dependency(
         'third_party/pnpm/pnpm',
         'https://storage.googleapis.com/perfetto/pnpm-linux-arm64-8.6.3',
@@ -493,12 +490,9 @@ BIGTRACE_DEPS = [
         'buildtools/grpc/src',
         'https://chromium.googlesource.com/external/github.com/grpc/grpc.git',
         '4795c5e69b25e8c767b498bea784da0ef8c96fd5', 'all', 'all', True),
-    Dependency(
-      'buildtools/cpp-httplib',
-      'https://github.com/yhirose/cpp-httplib.git',
-      '6c3e8482f7b4e3b307bb42afbb85fd8771da86b8',
-      'all', 'all', True
-    )
+    Dependency('buildtools/cpp-httplib',
+               'https://github.com/yhirose/cpp-httplib.git',
+               '6c3e8482f7b4e3b307bb42afbb85fd8771da86b8', 'all', 'all', True)
 ]
 
 # Sysroots required to cross-compile Linux targets (linux-arm{,64}).
@@ -584,7 +578,7 @@ def HashLocalFile(path):
 def ExtractZipfilePreservePermissions(zf, info, path):
   target_path = os.path.join(path, info.filename)
   mode = info.external_attr >> 16
-  S_IFLNK  = 0o120000  # symbolic link
+  S_IFLNK = 0o120000  # symbolic link
   if (mode & S_IFLNK) == S_IFLNK:
     dst = zf.read(info).decode()
     os.symlink(dst, target_path)
@@ -653,7 +647,9 @@ def InstallNodeModules(force_clean=False):
     logging.info('Clearing %s', node_modules)
     subprocess.check_call(['git', 'clean', '-qxffd', node_modules],
                           cwd=ROOT_DIR)
-  logging.info("Running `pnpm install --shamefully-hoist --frozen-lockfile` in {0}".format(UI_DIR))
+  logging.info(
+      "Running `pnpm install --shamefully-hoist --frozen-lockfile` in {0}"
+      .format(UI_DIR))
 
   # Some node modules have postinstall scripts (already bad) but worse
   # sometimes they are in the form: "postinstall: 'node ./scripts/foo'"
@@ -663,12 +659,11 @@ def InstallNodeModules(force_clean=False):
   env['PATH'] = TOOLS_DIR + ':' + env['PATH']
 
   subprocess.check_call([
-    os.path.join(TOOLS_DIR, 'pnpm'),
-    'install',
-    '--shamefully-hoist',
-    '--frozen-lockfile'],
-    cwd=UI_DIR,
-    env=env)
+      os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--shamefully-hoist',
+      '--frozen-lockfile'
+  ],
+                        cwd=UI_DIR,
+                        env=env)
   # pbjs has the bad habit of installing extra packages on its first
   # run. Run it here, so we avoid fetches while building.
   pbjs = ['node_modules/.bin/pbjs', '/dev/null', '-o', '/dev/null']
@@ -805,9 +800,12 @@ def Main():
       deps_updated |= CheckoutGitRepo(local_path, dep.source_url, dep.checksum,
                                       args.check_only)
       continue
-    is_compressed = any([local_path.endswith(ext) for ext in ['.zip', '.tgz', '.tbz2']])
-    compressed_target_dir = os.path.splitext(local_path)[0] if is_compressed else None
-    compressed_dir_stamp = os.path.join(compressed_target_dir, '.stamp') if is_compressed else None
+    is_compressed = any(
+        [local_path.endswith(ext) for ext in ['.zip', '.tgz', '.tbz2']])
+    compressed_target_dir = os.path.splitext(
+        local_path)[0] if is_compressed else None
+    compressed_dir_stamp = os.path.join(compressed_target_dir,
+                                        '.stamp') if is_compressed else None
 
     if ((not is_compressed and HashLocalFile(local_path) == dep.checksum) or
         (is_compressed and ReadFile(compressed_dir_stamp) == dep.checksum)):
@@ -834,14 +832,17 @@ def Main():
     assert (HashLocalFile(local_path) == dep.checksum)
 
     if is_compressed:
-      logging.info('Extracting %s into %s' % (local_path, compressed_target_dir))
-      assert (os.path.commonprefix((ROOT_DIR, compressed_target_dir)) == ROOT_DIR)
+      logging.info('Extracting %s into %s' %
+                   (local_path, compressed_target_dir))
+      assert (os.path.commonprefix(
+          (ROOT_DIR, compressed_target_dir)) == ROOT_DIR)
       RmtreeIfExists(compressed_target_dir)
 
       # Decompress the archive.
       if local_path.endswith('.tgz'):
         MkdirRecursive(compressed_target_dir)
-        subprocess.check_call(['tar', '-oxf', local_path], cwd=compressed_target_dir)
+        subprocess.check_call(['tar', '-oxf', local_path],
+                              cwd=compressed_target_dir)
       elif local_path.endswith('.zip'):
         with zipfile.ZipFile(local_path, 'r') as zf:
           for info in zf.infolist():
@@ -852,7 +853,8 @@ def Main():
           with bz2.open(local_path, 'r') as bf:
             f.write(bf.read())
         MkdirRecursive(compressed_target_dir)
-        subprocess.check_call(['tar', '-oxf', tar_path], cwd=compressed_target_dir)
+        subprocess.check_call(['tar', '-oxf', tar_path],
+                              cwd=compressed_target_dir)
 
       # If the zip contains one root folder, rebase one level up moving all
       # its sub files and folders inside |target_dir|.
@@ -875,6 +877,15 @@ def Main():
       deps_updated |= not CheckNodeModules()
     else:
       InstallNodeModules(force_clean=nodejs_updated)
+
+  # Install the pre-push hook if the .git/hooks directory exists and it's a
+  # non check-only invocation.
+  git_hook_dir = os.path.join(ROOT_DIR, '.git', 'hooks')
+  if not args.check_only and os.path.exists(git_hook_dir):
+    git_hook_path = os.path.join(git_hook_dir, 'pre-push')
+    if not os.path.exists(git_hook_path):
+      tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'run_presubmit')
+      os.symlink(tools_hook_path, git_hook_path)
 
   cur_python_interpreter = sys.executable
   test_data_synced = 0 == subprocess.call([

@@ -138,15 +138,44 @@ struct StrideCopy : Bytecode {
   X(CastFilterValue<Int64>)                 \
   X(CastFilterValue<Double>)                \
   X(SortedFilter<Id, EqualRange>)           \
+  X(SortedFilter<Id, LowerBound>)           \
+  X(SortedFilter<Id, UpperBound>)           \
   X(SortedFilter<Uint32, EqualRange>)       \
+  X(SortedFilter<Uint32, LowerBound>)       \
+  X(SortedFilter<Uint32, UpperBound>)       \
   X(SortedFilter<Int32, EqualRange>)        \
+  X(SortedFilter<Int32, LowerBound>)        \
+  X(SortedFilter<Int32, UpperBound>)        \
   X(SortedFilter<Int64, EqualRange>)        \
+  X(SortedFilter<Int64, LowerBound>)        \
+  X(SortedFilter<Int64, UpperBound>)        \
   X(SortedFilter<Double, EqualRange>)       \
+  X(SortedFilter<Double, LowerBound>)       \
+  X(SortedFilter<Double, UpperBound>)       \
   X(NonStringFilter<Id, Eq>)                \
+  X(NonStringFilter<Id, Ne>)                \
+  X(NonStringFilter<Id, Lt>)                \
+  X(NonStringFilter<Id, Le>)                \
+  X(NonStringFilter<Id, Gt>)                \
+  X(NonStringFilter<Id, Ge>)                \
   X(NonStringFilter<Uint32, Eq>)            \
-  X(NonStringFilter<Int32, Eq>)             \
+  X(NonStringFilter<Uint32, Ne>)            \
+  X(NonStringFilter<Uint32, Lt>)            \
+  X(NonStringFilter<Uint32, Le>)            \
+  X(NonStringFilter<Uint32, Gt>)            \
+  X(NonStringFilter<Uint32, Ge>)            \
   X(NonStringFilter<Int64, Eq>)             \
+  X(NonStringFilter<Int64, Ne>)             \
+  X(NonStringFilter<Int64, Lt>)             \
+  X(NonStringFilter<Int64, Le>)             \
+  X(NonStringFilter<Int64, Gt>)             \
+  X(NonStringFilter<Int64, Ge>)             \
   X(NonStringFilter<Double, Eq>)            \
+  X(NonStringFilter<Double, Ne>)            \
+  X(NonStringFilter<Double, Lt>)            \
+  X(NonStringFilter<Double, Le>)            \
+  X(NonStringFilter<Double, Gt>)            \
+  X(NonStringFilter<Double, Ge>)            \
   X(StrideCopy)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,

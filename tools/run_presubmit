@@ -20,9 +20,12 @@ import re
 import subprocess
 import sys
 import time
-from typing import List, Callable, Optional, Tuple, Iterable
+from typing import List, Optional, Tuple, Iterable
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# The script can be executed as a git hook symlink which is why we also
+# do realpath.
+REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.abspath(os.path.realpath(__file__))))
 
 
 def RunAndReportIfLong(func, *args, **kargs):
@@ -246,27 +249,6 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
         if '\t' in line:
           errors.append(f"{f_path}:{i+1}: Found tab character")
           break  # Only report once per file
-  return errors
-
-
-def CheckLongLines(changed_files: List[str], max_length: int,
-                   filter_func: Callable[[List[str]], List[str]]) -> List[str]:
-  errors = []
-  files_to_check_list = filter_func(
-      changed_files)  # Apply specific filter provided by caller
-
-  for f_path in files_to_check_list:
-    content = read_file_content(f_path)
-    if content:
-      for i, line in enumerate(content):
-        # Strip trailing newline before checking length
-        line_content = line.rstrip('\n\r')
-        # Allow certain URLs to be long
-        if "http://" in line_content or "https://" in line_content:
-          continue
-        if len(line_content) > max_length:
-          errors.append(f"{f_path}:{i+1}: Line exceeds {max_length} characters "
-                        f"({len(line_content)})")
   return errors
 
 
@@ -974,19 +956,20 @@ def main():
         files,
         files_to_check=['*'],  # Check all initially
         files_to_skip=[
-            'Android.bp',  # Match filename directly
-            "buildtools/grpc/BUILD.gn",  # Match specific path
-            '*.json',  # Match extension
-            '*.sql',  # Match extension
-            '*.out',  # Match extension
-            'test/trace_processor/*/tests*',  # Match pattern
-            '*BUILD',  # Match files ending in BUILD
-            'WORKSPACE',  # Match filename
-            '*/Makefile',  # Match filename in any subdir
-            '*/perfetto_build_flags.h',  # Match specific filename in any subdir
-            "infra/luci/*",  # Match pattern
-            "ui/*.[jt]s",  # Correct fnmatch pattern
-            "ui/pnpm-lock.yaml",  # Match specific path
+            'Android.bp',
+            "buildtools/grpc/BUILD.gn",
+            '*.json',
+            '*.sql',
+            '*.out',
+            'test/trace_processor/*/tests*',
+            '*BUILD',
+            'WORKSPACE',
+            '*/Makefile',
+            '*/perfetto_build_flags.h',
+            "infra/luci/*",
+            "ui/*.[jt]s",
+            "ui/pnpm-lock.yaml",
+            'tools/install-build-deps',
         ])
 
   # 3. Run all checks
@@ -996,7 +979,6 @@ def main():
   checks_to_run = [
       (CheckDoNotSubmit, [changed_files]),
       (CheckChangeHasNoTabs, [changed_files]),
-      (CheckLongLines, [changed_files, 80, long_line_sources_filter]),
       (CheckPatchFormatted, [changed_files, False]),  # check_js=False
       (CheckGNFormatted, [changed_files]),
       (CheckIncludeGuards, [changed_files]),
