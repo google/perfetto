@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <initializer_list>
 #include <type_traits>
 
 #include "perfetto/base/logging.h"
