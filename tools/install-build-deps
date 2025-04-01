@@ -882,7 +882,7 @@ def Main():
   git_hook_dir = os.path.join(ROOT_DIR, '.git', 'hooks')
   if os.path.exists(git_hook_dir):
     git_hook_path = os.path.join(git_hook_dir, 'pre-push')
-    tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'presubmit-pre-push-hook')
+    tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'run_presubmit')
     if args.check_only:
       expected_content = ReadFile(tools_hook_path)
       actual_content = ReadFile(git_hook_path)
