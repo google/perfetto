@@ -15,8 +15,31 @@
 @import "theme";
 
 .pf-segmented-buttons {
-  display: flex;
+  font-family: $pf-font;
+  display: inline-flex;
   flex-direction: row;
+  padding: 2px;
+  background: rgb(232, 232, 232);
+  border-radius: $pf-border-radius;
+  gap: 2px;
+
+  &__button {
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: $pf-border-radius;
+
+    &:hover {
+      background: lightgray;
+    }
+
+    &--active {
+      background: $pf-primary-background;
+      color: $pf-primary-foreground;
+      &:hover {
+        background: $pf-primary-background;
+      }
+    }
+  }
 
   .pf-button {
     border-radius: 0;

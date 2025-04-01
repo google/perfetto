@@ -6,6 +6,7 @@ and implement _'Open with Perfetto UI'_-like features.
 
 ## Using window.open and postMessage
 
+
 The supported way of doing this is to _inject_ the trace as an ArrayBuffer
 via `window.open('https://ui.perfetto.dev')` and `postMessage()`.
 In order to do this you need some minimal JavaScript code running on some
