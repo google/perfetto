@@ -235,7 +235,7 @@ class Interpreter {
     using B = bytecode::SortedFilterBase;
 
     const auto& value = ReadFromRegister(f.arg<B::val_register>());
-    auto& update = ReadFromRegister(f.arg<B::update_register>());
+    Range& update = ReadFromRegister(f.arg<B::update_register>());
     if (!HandleInvalidCastFilterValueResult(value, update)) {
       return;
     }
@@ -260,24 +260,25 @@ class Interpreter {
         static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
       }
     } else if constexpr (NumericType::Contains<T>()) {
-      BoundModifier b = f.arg<B::write_result_to>();
-      auto* d = columns_[f.arg<B::col>()].storage.template unchecked_data<T>();
-      SortedNumericFilter<RangeOp>(d, val, b, update);
+      BoundModifier bound_modifier = f.arg<B::write_result_to>();
+      auto* data =
+          columns_[f.arg<B::col>()].storage.template unchecked_data<T>();
+      SortedNumericFilter<RangeOp>(data, val, bound_modifier, update);
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
   }
 
-  template <typename RangeOp, typename M>
-  PERFETTO_ALWAYS_INLINE void SortedNumericFilter(const M* data,
-                                                  M val,
-                                                  BoundModifier bound,
+  template <typename RangeOp, typename DataType>
+  PERFETTO_ALWAYS_INLINE void SortedNumericFilter(const DataType* data,
+                                                  DataType val,
+                                                  BoundModifier bound_modifier,
                                                   Range& update) {
     auto* begin = data + update.b;
     auto* end = data + update.e;
     if constexpr (std::is_same_v<RangeOp, EqualRange>) {
-      PERFETTO_DCHECK(bound.Is<BothBounds>());
-      const M* eq_start = std::lower_bound(begin, end, val);
+      PERFETTO_DCHECK(bound_modifier.Is<BothBounds>());
+      const DataType* eq_start = std::lower_bound(begin, end, val);
       for (auto* it = eq_start; it != end; ++it) {
         if (*it != val) {
           update.b = eq_start - data;
@@ -287,10 +288,10 @@ class Interpreter {
       }
       update.e = update.b;
     } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
-      auto& res = bound.Is<BeginBound>() ? update.b : update.e;
+      auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
       res = std::lower_bound(begin, end, val) - data;
     } else if constexpr (std::is_same_v<RangeOp, UpperBound>) {
-      auto& res = bound.Is<BeginBound>() ? update.b : update.e;
+      auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
       res = std::upper_bound(begin, end, val) - data;
     } else {
       static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
@@ -473,13 +474,13 @@ class Interpreter {
       }
       switch (op.index()) {
         case NonStringOp::GetTypeIndex<Lt>():
-          return DoubleToInt<T, std::ceil>(is_small, is_big, d, out);
+          return CastDoubleToIntHelper<T, std::ceil>(is_small, is_big, d, out);
         case NonStringOp::GetTypeIndex<Le>():
-          return DoubleToInt<T, std::floor>(is_small, is_big, d, out);
+          return CastDoubleToIntHelper<T, std::floor>(is_small, is_big, d, out);
         case NonStringOp::GetTypeIndex<Gt>():
-          return DoubleToInt<T, std::floor>(is_big, is_small, d, out);
+          return CastDoubleToIntHelper<T, std::floor>(is_big, is_small, d, out);
         case NonStringOp::GetTypeIndex<Ge>():
-          return DoubleToInt<T, std::ceil>(is_big, is_small, d, out);
+          return CastDoubleToIntHelper<T, std::ceil>(is_big, is_small, d, out);
         case NonStringOp::GetTypeIndex<Eq>():
           return CastFilterValueResult::kNoneMatch;
         case NonStringOp::GetTypeIndex<Ne>():
