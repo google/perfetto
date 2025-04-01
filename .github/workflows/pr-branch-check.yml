@@ -1,0 +1,36 @@
+# Copyright (C) 2025 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# When creating stacked PRs, ensure that PRs are based on main (or another
+# branch) before submitting. This avoid to accidentally merge PR2 onto PR1,
+# if both PR1 and PR2 are opened, which is very confusing when dealing with
+# stacked changes.
+
+name: Prevent accidental merge PRs into dev branches
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches:
+      - dev/**/*
+
+jobs:
+  pr-branch-check:
+    if: startsWith(github.base_ref, 'dev/')
+    runs-on: self-hosted
+    steps:
+      - name: Prevent accidental merge PRs into dev branches
+        run: |
+          echo "❌ You are trying to merge the a PR ${{ github.ref }} on top of another one (${{ github.base_ref }})."
+          echo "When working with stacked changes you need to first land the upstream PR, then click on the button that suggests to set main as merge base."
+          exit 1
