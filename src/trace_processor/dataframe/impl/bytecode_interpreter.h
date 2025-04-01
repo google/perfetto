@@ -205,9 +205,9 @@ class Interpreter {
       }
     } else if constexpr (NumericType::Contains<T>()) {
       M out;
-      result.validity =
-          CastFilterValueToNumeric(handle, filter_value_type,
-                                   filter_value_fetcher_, f.arg<B::op>(), out);
+      result.validity = CastFilterValueToIntegerOrDouble(
+          handle, filter_value_type, filter_value_fetcher_, f.arg<B::op>(),
+          out);
       if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
         result.value = out;
       }
@@ -308,13 +308,13 @@ class Interpreter {
 
   // Filters data based on a comparison with a specific value.
   // Only copies values that match the comparison condition.
-  template <typename Comparator, typename V, typename I>
+  template <typename Comparator, typename ValueType, typename DataType>
   [[nodiscard]] PERFETTO_ALWAYS_INLINE static uint32_t* Filter(
-      const I* data,
+      const DataType* data,
       const uint32_t* begin,
       const uint32_t* end,
       uint32_t* o_start,
-      const V& value,
+      const ValueType& value,
       const Comparator& comparator) {
     uint32_t* o_write = o_start;
     for (const uint32_t* it = begin; it != end; ++it) {
@@ -346,7 +346,7 @@ class Interpreter {
   // appropriate type-specific conversion function.
   template <typename T>
   [[nodiscard]] PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
-  CastFilterValueToNumeric(
+  CastFilterValueToIntegerOrDouble(
       FilterValueHandle handle,
       typename FilterValueFetcherImpl::Type filter_value_type,
       FilterValueFetcherImpl* fetcher,
@@ -427,7 +427,7 @@ class Interpreter {
           PERFETTO_FATAL("Invalid numeric filter op");
       }
     }
-    return NumericConvertNonNumericValue(filter_value_type, op);
+    return CastStringOrNullFilterValueToIntegerOrDouble(filter_value_type, op);
   }
 
   // Attempts to cast a filter value to a double, handling integer inputs and
@@ -461,14 +461,14 @@ class Interpreter {
           PERFETTO_FATAL("Invalid numeric filter op");
       }
     }
-    return NumericConvertNonNumericValue(filter_value_type, op);
+    return CastStringOrNullFilterValueToIntegerOrDouble(filter_value_type, op);
   }
 
   // Converts a double to an integer type using the specified function (e.g.,
-  // trunc, floor). Used as a helper for various numeric conversion operations.
+  // trunc, floor). Used as a helper for various casting operations.
   template <typename T, double (*fn)(double)>
   PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
-  DoubleToInt(bool no_data, bool all_data, double d, T& out) {
+  CastDoubleToIntHelper(bool no_data, bool all_data, double d, T& out) {
     if (no_data) {
       return CastFilterValueResult::kNoneMatch;
     }
@@ -482,7 +482,7 @@ class Interpreter {
   // Handles conversion of non-numeric values (strings, nulls) to numeric types
   // for comparison operations.
   PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
-  NumericConvertNonNumericValue(
+  CastStringOrNullFilterValueToIntegerOrDouble(
       typename FilterValueFetcherImpl::Type filter_value_type,
       NonStringOp op) {
     if (filter_value_type == FilterValueFetcherImpl::kString) {

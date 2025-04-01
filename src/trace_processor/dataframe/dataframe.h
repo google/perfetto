@@ -102,27 +102,29 @@ class Dataframe {
                                       uint64_t cols_used_bitmap);
 
   // Prepares a cursor for executing the query plan. The template parameter
-  // `FVF` is a subclass of `ValueFetcher` that defines the logic for fetching
-  // filter values for each filter specs specified when calling `PlanQuery`.
+  // `FilterValueFetcherImpl` is a subclass of `ValueFetcher` that defines the
+  // logic for fetching filter values for each filter specs specified when
+  // calling `PlanQuery`.
   //
   // Parameters:
   //   plan: The query plan to execute.
   //   c:    A pointer to the storage for the cursor. The cursor will be
   //         constructed in-place at the location pointed to by `c`.
-  template <typename FVF>
-  void PrepareCursor(QueryPlan plan, Cursor<FVF>* c) {
-    new (c) Cursor<FVF>(std::move(plan.plan_), columns_.data(), string_pool_);
+  template <typename FilterValueFetcherImpl>
+  void PrepareCursor(QueryPlan plan, Cursor<FilterValueFetcherImpl>* c) {
+    new (c) Cursor<FilterValueFetcherImpl>(std::move(plan.plan_),
+                                           columns_.data(), string_pool_);
   }
 
   // Inserts a row into the dataframe.
   //
-  // TODO(lalitm): this is a temporary function to allow for easy insertion of
-  // rows into the dataframe. We should remove this function once we have a
-  // a builder pattern for dataframe construction.
-  template <typename VF>
+  // TODO(lalitm): this is a temporary function which exists for testing
+  // purposes only. We should remove this function once we have a proper builder
+  // class for dataframe construction.
+  template <typename ValueFetcherImpl>
   void InsertRow() {
-    static_assert(std::is_base_of_v<ValueFetcher, VF>,
-                  "VF must inherit from ValueFetcher");
+    static_assert(std::is_base_of_v<ValueFetcher, ValueFetcherImpl>,
+                  "ValueFetcherImpl must inherit from ValueFetcher");
     for (auto& column : columns_) {
       switch (column.spec.column_type.index()) {
         case ColumnType::GetTypeIndex<Id>():
