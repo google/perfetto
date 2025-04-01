@@ -92,6 +92,7 @@ jobs:
     steps:
       - name: Prevent accidental merge PRs into dev branches
         run: |
-          echo "::error You are trying to merge the a PR onto another PR rather than main."
+          echo "::error title=Prevent accidental merge PR into dev branches rather than main::"
+          echo "❌ You are trying to merge the a PR onto another PR rather than main."
           echo "When working with stacked changes you need to first land the upstream PR, then click on the button that suggests to set main as merge base."
           exit 1
