@@ -42,20 +42,28 @@ namespace {
 // Lower scores are applied first for better efficiency.
 uint32_t FilterPreference(const FilterSpec& fs, const ColumnSpec& col) {
   enum AbsolutePreference : uint8_t {
-    kIdEq,             // Most efficient: id equality check
-    kNumericSortedEq,  // Numeric sorted equality check
-    kLeastPreferred,   // Least preferred
+    kIdEq,                     // Most efficient: id equality check
+    kIdInequality,             // Id inequality check
+    kNumericSortedEq,          // Numeric sorted equality check
+    kNumericSortedInequality,  // Numeric inequality check
+    kLeastPreferred,           // Least preferred
   };
   const auto& op = fs.op;
   const auto& ct = col.column_type;
   const auto& n = col.nullability;
-
   if (n.Is<NonNull>() && ct.Is<Id>() && op.Is<Eq>()) {
     return kIdEq;
   }
+  if (n.Is<NonNull>() && ct.Is<Id>() && op.IsAnyOf<InequalityOp>()) {
+    return kIdInequality;
+  }
   if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() &&
-      ct.IsAnyOf<NumericType>() && op.Is<Eq>()) {
+      ct.IsAnyOf<IntegerOrDoubleType>() && op.Is<Eq>()) {
     return kNumericSortedEq;
+  }
+  if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() &&
+      ct.IsAnyOf<IntegerOrDoubleType>() && op.IsAnyOf<InequalityOp>()) {
+    return kNumericSortedInequality;
   }
   return kLeastPreferred;
 }
@@ -65,8 +73,16 @@ uint32_t FilterPreference(const FilterSpec& fs, const ColumnSpec& col) {
 std::pair<BoundModifier, EqualRangeLowerBoundUpperBound> GetSortedFilterArgs(
     const RangeOp& op) {
   switch (op.index()) {
-    case EqualRangeLowerBoundUpperBound::GetTypeIndex<EqualRange>():
+    case RangeOp::GetTypeIndex<Eq>():
       return std::make_pair(BothBounds{}, EqualRange{});
+    case RangeOp::GetTypeIndex<Lt>():
+      return std::make_pair(EndBound{}, LowerBound{});
+    case RangeOp::GetTypeIndex<Le>():
+      return std::make_pair(EndBound{}, UpperBound{});
+    case RangeOp::GetTypeIndex<Gt>():
+      return std::make_pair(BeginBound{}, UpperBound{});
+    case RangeOp::GetTypeIndex<Ge>():
+      return std::make_pair(BeginBound{}, LowerBound{});
     default:
       PERFETTO_FATAL("Unreachable");
   }
@@ -136,7 +152,6 @@ void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
       }
       continue;
     }
-
     PERFETTO_FATAL("Unreachable");
   }
 }
@@ -156,7 +171,6 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
     if ((cols_used & 1u) == 0) {
       continue;
     }
-
     const auto& col = columns_[i];
     switch (col.spec.nullability.index()) {
       case Nullability::GetTypeIndex<NonNull>():
@@ -168,13 +182,9 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
     }
   }
 
-  // Ensure indices are in a slab for efficient access
   auto in_memory_indices = EnsureIndicesAreInSlab();
   bytecode::reg::ReadHandle<Span<uint32_t>> storage_indices_register;
-
-  // Handle multi-column output if needed
   if (plan_.params.output_per_row > 1) {
-    // Allocate storage for expanded indices
     bytecode::reg::RwHandle<Slab<uint32_t>> slab_register{register_count_++};
     bytecode::reg::RwHandle<Span<uint32_t>> span_register{register_count_++};
     {
@@ -184,8 +194,6 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
       bc.arg<B::dest_slab_register>() = slab_register;
       bc.arg<B::dest_span_register>() = span_register;
     }
-
-    // Expand indices with stride for multi-column access
     {
       using B = bytecode::StrideCopy;
       auto& bc = AddOpcode<B>();
@@ -194,8 +202,6 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
       bc.arg<B::stride>() = plan_.params.output_per_row;
       storage_indices_register = span_register;
     }
-
-    // Process nullability for each column if needed
     for (auto [col, offset] : null_cols) {
       const auto& c = columns_[col];
       switch (c.spec.nullability.index()) {
@@ -205,12 +211,9 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
       }
     }
   } else {
-    // Single column output is simpler
     PERFETTO_CHECK(null_cols.empty());
     storage_indices_register = in_memory_indices;
   }
-
-  // Set the output register
   plan_.params.output_register = storage_indices_register;
 }
 
@@ -223,10 +226,7 @@ void QueryPlanBuilder::NonStringConstraint(
     const NonStringType& type,
     const NonStringOp& op,
     const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
-  // Get the source register, applying any needed overlay translation
   auto source = MaybeAddOverlayTranslation(c);
-
-  // Add the filter operation
   {
     using B = bytecode::NonStringFilterBase;
     B& bc = AddOpcode<B>(bytecode::Index<bytecode::NonStringFilter>(type, op));
@@ -244,13 +244,9 @@ bool QueryPlanBuilder::TrySortedConstraint(
     const bytecode::reg::RwHandle<CastFilterValueResult>& result) {
   const auto& col = columns_[fs.column_index];
   const auto& n = col.spec.nullability;
-
-  // Only applicable to non-null or sorted columns
   if (!n.Is<NonNull>() || col.spec.sort_state.Is<Unsorted>()) {
     return false;
   }
-
-  // Check if operation is a range operation
   auto range_op = op.TryDowncast<RangeOp>();
   if (!range_op) {
     return false;
@@ -263,10 +259,7 @@ bool QueryPlanBuilder::TrySortedConstraint(
   const auto& reg =
       base::unchecked_get<bytecode::reg::RwHandle<Range>>(indices_reg_);
 
-  // Get the appropriate bound modifier and range operation
   const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
-
-  // Add the sorted filter operation
   {
     using B = bytecode::SortedFilterBase;
     auto& bc =
@@ -283,8 +276,6 @@ bytecode::reg::RwHandle<Span<uint32_t>>
 QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
   bytecode::reg::RwHandle<Span<uint32_t>> main = EnsureIndicesAreInSlab();
   const auto& col = columns_[c.column_index];
-
-  // Handle based on nullability type
   switch (col.spec.nullability.index()) {
     case Nullability::GetTypeIndex<NonNull>():
       return main;
@@ -335,7 +326,6 @@ T& QueryPlanBuilder::AddOpcode(uint32_t option) {
 void QueryPlanBuilder::SetGuaranteedToBeEmpty() {
   max_row_count_ = 0;
 
-  // Set result size to zero (empty set)
   bytecode::reg::RwHandle<Slab<uint32_t>> slab_reg{register_count_++};
   bytecode::reg::RwHandle<Span<uint32_t>> span_reg{register_count_++};
   {
