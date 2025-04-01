@@ -1,7 +1,7 @@
 # Perfetto build instructions
 
-The source of truth for the Perfetto codebase is
-https://github.com/google/perfetto
+The source of truth for the Perfetto codebase is [github.com/google/perfetto](
+https://github.com/google/perfetto)
 
 A copy is also available in the Android tree under /external/perfetto and is
 updated with the regular Android release cadence.
@@ -27,6 +27,8 @@ takes care of keeping chromium's DEPS up to date.
 ```bash
 git clone https://github.com/google/perfetto
 ```
+
+**Googlers**: use `git@github.com:google/perfetto.git` and see [go/perfetto-github-instructions](http://go/perfetto-github-instructions)
 
 #### Pull dependent libraries and toolchains
 
