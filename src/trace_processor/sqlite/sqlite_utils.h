@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/util/status_macros.h"  // IWYU pragma: keep
 
 // Analogous to ASSIGN_OR_RETURN macro. Returns an sqlite error.
 #define SQLITE_RETURN_IF_ERROR(vtab, expr)                                  \
