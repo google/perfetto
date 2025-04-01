@@ -22,5 +22,6 @@ perfetto_proto_library("@TYPE@") {
   ]
   deps = [ "../perfetto_sql:@TYPE@" ]
   generate_descriptor = "trace_summary.descriptor"
+  generator_visibility = [ "../../../src/trace_processor/trace_summary:gen_cc_trace_summary_descriptor" ]
   descriptor_root_source = "file.proto"
 }

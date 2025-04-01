@@ -24,7 +24,11 @@ template("proto_library") {
   assert(defined(invoker.sources))
 
   # This is used in chromium build.
-  not_needed(invoker, [ "proto_deps" ])
+  not_needed(invoker,
+             [
+               "generator_visibility",
+               "proto_deps",
+             ])
 
   proto_sources = invoker.sources
 
