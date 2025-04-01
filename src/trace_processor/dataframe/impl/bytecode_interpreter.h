@@ -19,7 +19,6 @@
 
 #include <array>
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <limits>
@@ -42,10 +41,10 @@
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode {
 
-// Returns an appropriate comparator functor for the given numeric type and
-// operation. Currently only supports equality comparison.
+// Returns an appropriate comparator functor for the given integer/double type
+// and operation. Currently only supports equality comparison.
 template <typename T, typename Op>
-auto NumericComparator() {
+auto IntegerOrDoubleComparator() {
   if constexpr (std::is_same_v<Op, Eq>) {
     return std::equal_to<T>();
   } else if constexpr (std::is_same_v<Op, Ne>) {
@@ -213,7 +212,7 @@ class Interpreter {
       if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
         result.value = CastFilterValueResult::Id{val};
       }
-    } else if constexpr (NumericType::Contains<T>()) {
+    } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
       M out;
       result.validity = CastFilterValueToIntegerOrDouble(
           handle, filter_value_type, filter_value_fetcher_, f.arg<B::op>(),
@@ -259,21 +258,22 @@ class Interpreter {
       } else {
         static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
       }
-    } else if constexpr (NumericType::Contains<T>()) {
+    } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
       BoundModifier bound_modifier = f.arg<B::write_result_to>();
       auto* data =
           columns_[f.arg<B::col>()].storage.template unchecked_data<T>();
-      SortedNumericFilter<RangeOp>(data, val, bound_modifier, update);
+      SortedIntegerOrDoubleFilter<RangeOp>(data, val, bound_modifier, update);
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
   }
 
   template <typename RangeOp, typename DataType>
-  PERFETTO_ALWAYS_INLINE void SortedNumericFilter(const DataType* data,
-                                                  DataType val,
-                                                  BoundModifier bound_modifier,
-                                                  Range& update) {
+  PERFETTO_ALWAYS_INLINE void SortedIntegerOrDoubleFilter(
+      const DataType* data,
+      DataType val,
+      BoundModifier bound_modifier,
+      Range& update) {
     auto* begin = data + update.b;
     auto* end = data + update.e;
     if constexpr (std::is_same_v<RangeOp, EqualRange>) {
@@ -315,13 +315,13 @@ class Interpreter {
     if constexpr (std::is_same_v<T, Id>) {
       update.e = IdentityFilter(source.b, source.e, update.b,
                                 base::unchecked_get<M>(value.value).value,
-                                NumericComparator<uint32_t, Op>());
-    } else if constexpr (NumericType::Contains<T>()) {
+                                IntegerOrDoubleComparator<uint32_t, Op>());
+    } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
       const auto* data =
           columns_[nf.arg<B::col>()].storage.template unchecked_data<T>();
       update.e = Filter(data, source.b, source.e, update.b,
                         base::unchecked_get<M>(value.value),
-                        NumericComparator<M, Op>());
+                        IntegerOrDoubleComparator<M, Op>());
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
@@ -567,8 +567,8 @@ class Interpreter {
     return CastFilterValueResult::kValid;
   }
 
-  // Handles conversion of non-numeric values (strings, nulls) to numeric types
-  // for comparison operations.
+  // Handles conversion of strings or nulls to integer or double types for
+  // filtering operations.
   PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
   CastStringOrNullFilterValueToIntegerOrDouble(
       typename FilterValueFetcherImpl::Type filter_value_type,

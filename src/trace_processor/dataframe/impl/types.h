@@ -36,7 +36,7 @@ namespace perfetto::trace_processor::dataframe::impl {
 using NonStringType = TypeSet<Id, Uint32, Int32, Int64, Double>;
 
 // Set of content types that are numeric in nature.
-using NumericType = TypeSet<Uint32, Int32, Int64, Double>;
+using IntegerOrDoubleType = TypeSet<Uint32, Int32, Int64, Double>;
 
 // Set of operations applicable to non-null values.
 using NonNullOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;

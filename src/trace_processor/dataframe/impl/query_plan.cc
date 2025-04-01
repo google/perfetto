@@ -58,11 +58,11 @@ uint32_t FilterPreference(const FilterSpec& fs, const ColumnSpec& col) {
     return kIdInequality;
   }
   if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() &&
-      ct.IsAnyOf<NumericType>() && op.Is<Eq>()) {
+      ct.IsAnyOf<IntegerOrDoubleType>() && op.Is<Eq>()) {
     return kNumericSortedEq;
   }
   if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() &&
-      ct.IsAnyOf<NumericType>() && op.IsAnyOf<InequalityOp>()) {
+      ct.IsAnyOf<IntegerOrDoubleType>() && op.IsAnyOf<InequalityOp>()) {
     return kNumericSortedInequality;
   }
   return kLeastPreferred;
