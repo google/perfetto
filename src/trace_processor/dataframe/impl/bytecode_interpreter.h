@@ -19,7 +19,6 @@
 
 #include <array>
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <limits>
@@ -42,12 +41,22 @@
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode {
 
-// Returns an appropriate comparator functor for the given numeric type and
-// operation. Currently only supports equality comparison.
+// Returns an appropriate comparator functor for the given integer/double type
+// and operation. Currently only supports equality comparison.
 template <typename T, typename Op>
-auto NumericComparator() {
+auto IntegerOrDoubleComparator() {
   if constexpr (std::is_same_v<Op, Eq>) {
     return std::equal_to<T>();
+  } else if constexpr (std::is_same_v<Op, Ne>) {
+    return std::not_equal_to<T>();
+  } else if constexpr (std::is_same_v<Op, Lt>) {
+    return std::less<T>();
+  } else if constexpr (std::is_same_v<Op, Le>) {
+    return std::less_equal<T>();
+  } else if constexpr (std::is_same_v<Op, Gt>) {
+    return std::greater<T>();
+  } else if constexpr (std::is_same_v<Op, Ge>) {
+    return std::greater_equal<T>();
   } else {
     static_assert(std::is_same_v<Op, Eq>, "Unsupported op");
   }
@@ -203,7 +212,7 @@ class Interpreter {
       if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
         result.value = CastFilterValueResult::Id{val};
       }
-    } else if constexpr (NumericType::Contains<T>()) {
+    } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
       M out;
       result.validity = CastFilterValueToIntegerOrDouble(
           handle, filter_value_type, filter_value_fetcher_, f.arg<B::op>(),
@@ -237,27 +246,55 @@ class Interpreter {
         bool in_bounds = inner_val >= update.b && inner_val < update.e;
         update.b = inner_val;
         update.e = inner_val + in_bounds;
-      } else {
-        static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
-      }
-    } else if constexpr (NumericType::Contains<T>()) {
-      uint32_t col_idx = f.arg<B::col>();
-      const auto& storage =
-          columns_[col_idx].storage.template unchecked_get<T>();
-      if constexpr (std::is_same_v<RangeOp, EqualRange>) {
-        const M* begin = storage.data();
-        auto it = std::lower_bound(begin + update.b, begin + update.e, val);
-        for (; it != begin + update.e; ++it) {
-          if (std::not_equal_to<>()(*it, val)) {
-            break;
-          }
+      } else if constexpr (std::is_same_v<RangeOp, LowerBound> ||
+                           std::is_same_v<RangeOp, UpperBound>) {
+        if (inner_val >= update.b && inner_val < update.e) {
+          BoundModifier bound = f.arg<B::write_result_to>();
+          auto& res = bound.Is<BeginBound>() ? update.b : update.e;
+          res = inner_val + std::is_same_v<RangeOp, UpperBound>;
+        } else {
+          update.e = update.b;
         }
-        update.e = static_cast<uint32_t>(it - begin);
       } else {
         static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
       }
+    } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
+      BoundModifier bound_modifier = f.arg<B::write_result_to>();
+      auto* data =
+          columns_[f.arg<B::col>()].storage.template unchecked_data<T>();
+      SortedIntegerOrDoubleFilter<RangeOp>(data, val, bound_modifier, update);
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
+    }
+  }
+
+  template <typename RangeOp, typename DataType>
+  PERFETTO_ALWAYS_INLINE void SortedIntegerOrDoubleFilter(
+      const DataType* data,
+      DataType val,
+      BoundModifier bound_modifier,
+      Range& update) {
+    auto* begin = data + update.b;
+    auto* end = data + update.e;
+    if constexpr (std::is_same_v<RangeOp, EqualRange>) {
+      PERFETTO_DCHECK(bound_modifier.Is<BothBounds>());
+      const DataType* eq_start = std::lower_bound(begin, end, val);
+      for (auto* it = eq_start; it != end; ++it) {
+        if (std::not_equal_to<>()(*it, val)) {
+          update.b = static_cast<uint32_t>(eq_start - data);
+          update.e = static_cast<uint32_t>(it - data);
+          return;
+        }
+      }
+      update.e = update.b;
+    } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
+      auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
+      res = static_cast<uint32_t>(std::lower_bound(begin, end, val) - data);
+    } else if constexpr (std::is_same_v<RangeOp, UpperBound>) {
+      auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
+      res = static_cast<uint32_t>(std::upper_bound(begin, end, val) - data);
+    } else {
+      static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
     }
   }
 
@@ -278,13 +315,13 @@ class Interpreter {
     if constexpr (std::is_same_v<T, Id>) {
       update.e = IdentityFilter(source.b, source.e, update.b,
                                 base::unchecked_get<M>(value.value).value,
-                                NumericComparator<uint32_t, Op>());
-    } else if constexpr (NumericType::Contains<T>()) {
+                                IntegerOrDoubleComparator<uint32_t, Op>());
+    } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
       const auto* data =
           columns_[nf.arg<B::col>()].storage.template unchecked_data<T>();
       update.e = Filter(data, source.b, source.e, update.b,
                         base::unchecked_get<M>(value.value),
-                        NumericComparator<M, Op>());
+                        IntegerOrDoubleComparator<M, Op>());
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
@@ -381,8 +418,23 @@ class Interpreter {
       bool is_big = res > std::numeric_limits<T>::max();
       if (PERFETTO_UNLIKELY(is_small || is_big)) {
         switch (op.index()) {
-          case NonNullOp::GetTypeIndex<Eq>():
+          case NonStringOp::GetTypeIndex<Lt>():
+          case NonStringOp::GetTypeIndex<Le>():
+            if (is_small) {
+              return CastFilterValueResult::kNoneMatch;
+            }
+            break;
+          case NonStringOp::GetTypeIndex<Gt>():
+          case NonStringOp::GetTypeIndex<Ge>():
+            if (is_big) {
+              return CastFilterValueResult::kNoneMatch;
+            }
+            break;
+          case NonStringOp::GetTypeIndex<Eq>():
             return CastFilterValueResult::kNoneMatch;
+          case NonStringOp::GetTypeIndex<Ne>():
+            // Do nothing.
+            break;
           default:
             PERFETTO_FATAL("Invalid numeric filter op");
         }
@@ -421,8 +473,19 @@ class Interpreter {
         return CastFilterValueResult::kValid;
       }
       switch (op.index()) {
-        case NonNullOp::GetTypeIndex<Eq>():
+        case NonStringOp::GetTypeIndex<Lt>():
+          return CastDoubleToIntHelper<T, std::ceil>(is_small, is_big, d, out);
+        case NonStringOp::GetTypeIndex<Le>():
+          return CastDoubleToIntHelper<T, std::floor>(is_small, is_big, d, out);
+        case NonStringOp::GetTypeIndex<Gt>():
+          return CastDoubleToIntHelper<T, std::floor>(is_big, is_small, d, out);
+        case NonStringOp::GetTypeIndex<Ge>():
+          return CastDoubleToIntHelper<T, std::ceil>(is_big, is_small, d, out);
+        case NonStringOp::GetTypeIndex<Eq>():
           return CastFilterValueResult::kNoneMatch;
+        case NonStringOp::GetTypeIndex<Ne>():
+          // Do nothing.
+          return CastFilterValueResult::kAllMatch;
         default:
           PERFETTO_FATAL("Invalid numeric filter op");
       }
@@ -450,13 +513,46 @@ class Interpreter {
 
       // If the integer value can be converted to a double while preserving the
       // exact integer value, then we can use the double value for comparison.
-      if (i == iad_int) {
+      if (PERFETTO_LIKELY(i == iad_int)) {
         out = iad;
         return CastFilterValueResult::kValid;
       }
+
+      // This can happen in cases where we round `i` up above
+      // numeric_limits::max(). In that case, still consider the double larger.
+      bool overflow_positive_to_negative = i > 0 && iad_int < 0;
+      bool iad_greater_than_i = iad_int > i || overflow_positive_to_negative;
+      bool iad_less_than_i = iad_int < i && !overflow_positive_to_negative;
       switch (op.index()) {
+        case NonStringOp::GetTypeIndex<Lt>():
+          out = iad_greater_than_i
+                    ? iad
+                    : std::nextafter(iad,
+                                     std::numeric_limits<double>::infinity());
+          return CastFilterValueResult::kValid;
+        case NonStringOp::GetTypeIndex<Le>():
+          out = iad_less_than_i
+                    ? iad
+                    : std::nextafter(iad,
+                                     -std::numeric_limits<double>::infinity());
+          return CastFilterValueResult::kValid;
+        case NonStringOp::GetTypeIndex<Gt>():
+          out = iad_less_than_i
+                    ? iad
+                    : std::nextafter(iad,
+                                     -std::numeric_limits<double>::infinity());
+          return CastFilterValueResult::kValid;
+        case NonStringOp::GetTypeIndex<Ge>():
+          out = iad_greater_than_i
+                    ? iad
+                    : std::nextafter(iad,
+                                     std::numeric_limits<double>::infinity());
+          return CastFilterValueResult::kValid;
         case NonStringOp::GetTypeIndex<Eq>():
           return CastFilterValueResult::kNoneMatch;
+        case NonStringOp::GetTypeIndex<Ne>():
+          // Do nothing.
+          return CastFilterValueResult::kAllMatch;
         default:
           PERFETTO_FATAL("Invalid numeric filter op");
       }
@@ -479,17 +575,21 @@ class Interpreter {
     return CastFilterValueResult::kValid;
   }
 
-  // Handles conversion of non-numeric values (strings, nulls) to numeric types
-  // for comparison operations.
+  // Handles conversion of strings or nulls to integer or double types for
+  // filtering operations.
   PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
   CastStringOrNullFilterValueToIntegerOrDouble(
       typename FilterValueFetcherImpl::Type filter_value_type,
       NonStringOp op) {
     if (filter_value_type == FilterValueFetcherImpl::kString) {
-      if (op.index() == NonStringOp::GetTypeIndex<Eq>()) {
+      if (op.index() == NonStringOp::GetTypeIndex<Eq>() ||
+          op.index() == NonStringOp::GetTypeIndex<Ge>() ||
+          op.index() == NonStringOp::GetTypeIndex<Gt>()) {
         return CastFilterValueResult::kNoneMatch;
       }
-      PERFETTO_DCHECK(false);
+      PERFETTO_DCHECK(op.index() == NonStringOp::GetTypeIndex<Ne>() ||
+                      op.index() == NonStringOp::GetTypeIndex<Le>() ||
+                      op.index() == NonStringOp::GetTypeIndex<Lt>());
       return CastFilterValueResult::kAllMatch;
     }
 

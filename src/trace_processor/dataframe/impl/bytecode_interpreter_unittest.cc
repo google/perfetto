@@ -26,6 +26,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -109,6 +110,25 @@ std::string ValToString(const FilterValue& value) {
       return {base::unchecked_get<const char*>(value)};
     default:
       PERFETTO_FATAL("Unknown filter value type");
+  }
+}
+
+std::string OpToString(const Op& op) {
+  switch (op.index()) {
+    case Op::GetTypeIndex<Eq>():
+      return "Eq";
+    case Op::GetTypeIndex<Ne>():
+      return "Ne";
+    case Op::GetTypeIndex<Lt>():
+      return "Lt";
+    case Op::GetTypeIndex<Le>():
+      return "Le";
+    case Op::GetTypeIndex<Gt>():
+      return "Gt";
+    case Op::GetTypeIndex<Ge>():
+      return "Ge";
+    default:
+      PERFETTO_FATAL("Unknown op");
   }
 }
 
@@ -274,7 +294,9 @@ TEST_F(BytecodeInterpreterTest, AllocateIndices) {
       "dest_span_register=Register(1)]");
 
   const auto& slab = GetRegister<Slab<uint32_t>>(0);
-  { EXPECT_THAT(slab, SizeIs(132u)); }
+  {
+    EXPECT_THAT(slab, SizeIs(132u));
+  }
   {
     const auto& span = GetRegister<Span<uint32_t>>(1);
     EXPECT_THAT(span, SizeIs(132u));
@@ -327,7 +349,8 @@ struct CastTestCase {
   CastResult expected;
   Op op = dataframe::Eq{};
   static std::string ToString(const testing::TestParamInfo<CastTestCase>& i) {
-    return ValToString(i.param.input) + "_" + ResultToString(i.param.expected);
+    return ValToString(i.param.input) + "_" + ResultToString(i.param.expected) +
+           "_" + OpToString(i.param.op);
   }
 };
 
@@ -371,6 +394,60 @@ INSTANTIATE_TEST_SUITE_P(
             "Double",
             FilterValue{int64_t(std::numeric_limits<int64_t>::max()) - 1},
             CastResult::NoneMatch(),
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{int64_t(std::numeric_limits<int64_t>::max()) - 1},
+            CastResult::AllMatch(),
+            dataframe::Ne{},
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{int64_t(std::numeric_limits<int64_t>::max()) - 1},
+            CastResult::Valid(9223372036854775808.0),
+            dataframe::Ge{},
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{int64_t(std::numeric_limits<int64_t>::max()) - 1},
+            CastResult::Valid(9223372036854774784.0),
+            dataframe::Gt{},
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{int64_t(std::numeric_limits<int64_t>::max()) - 1},
+            CastResult::Valid(9223372036854775808.0),
+            dataframe::Lt{},
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{int64_t(std::numeric_limits<int64_t>::max()) - 1},
+            CastResult::Valid(9223372036854774784.0),
+            dataframe::Le{},
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{9223372036854767615},
+            CastResult::Valid(9223372036854767616.0),
+            dataframe::Ge{},
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{9223372036854767615},
+            CastResult::Valid(9223372036854766592.0),
+            dataframe::Gt{},
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{9223372036854767615},
+            CastResult::Valid(9223372036854767616.0),
+            dataframe::Lt{},
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{9223372036854767615},
+            CastResult::Valid(9223372036854766592.0),
+            dataframe::Le{},
         }),
     &CastTestCase::ToString);
 
@@ -397,6 +474,36 @@ INSTANTIATE_TEST_SUITE_P(
             "Uint32",
             FilterValue{1024l},
             CastResult::Valid(uint32_t(1024)),
+        },
+        CastTestCase{
+            "Uint32",
+            FilterValue{int64_t(std::numeric_limits<uint32_t>::max()) + 1},
+            CastResult::NoneMatch(),
+            dataframe::Ge{},
+        },
+        CastTestCase{
+            "Uint32",
+            FilterValue{int64_t(std::numeric_limits<uint32_t>::max()) + 1},
+            CastResult::AllMatch(),
+            dataframe::Le{},
+        },
+        CastTestCase{
+            "Uint32",
+            FilterValue{int64_t(std::numeric_limits<uint32_t>::min()) - 1},
+            CastResult::AllMatch(),
+            dataframe::Gt{},
+        },
+        CastTestCase{
+            "Uint32",
+            FilterValue{int64_t(std::numeric_limits<uint32_t>::min()) - 1},
+            CastResult::NoneMatch(),
+            dataframe::Lt{},
+        },
+        CastTestCase{
+            "Uint32",
+            FilterValue{int64_t(std::numeric_limits<uint32_t>::min()) - 1},
+            CastResult::AllMatch(),
+            dataframe::Ne{},
         },
         CastTestCase{
             "Int64",
@@ -441,10 +548,41 @@ INSTANTIATE_TEST_SUITE_P(
             "Int64",
             FilterValue{9223372036854775808.0},
             CastResult::NoneMatch(),
+        },
+        CastTestCase{
+            "Int64",
+            FilterValue{9223372036854775808.0},
+            CastResult::AllMatch(),
+            dataframe::Ne{},
+        },
+        CastTestCase{
+            "Uint32",
+            FilterValue{double(std::numeric_limits<uint32_t>::max()) - 0.5},
+            CastResult::Valid(uint32_t(std::numeric_limits<uint32_t>::max() -
+                                       1)),
+            dataframe::Le{},
+        },
+        CastTestCase{
+            "Uint32",
+            FilterValue{double(std::numeric_limits<uint32_t>::max()) - 0.5},
+            CastResult::Valid(uint32_t(std::numeric_limits<uint32_t>::max())),
+            dataframe::Lt{},
+        },
+        CastTestCase{
+            "Int32",
+            FilterValue{double(std::numeric_limits<int32_t>::max()) - 0.5},
+            CastResult::Valid(int32_t(std::numeric_limits<int32_t>::max())),
+            dataframe::Ge{},
+        },
+        CastTestCase{
+            "Int32",
+            FilterValue{double(std::numeric_limits<int32_t>::max()) - 0.5},
+            CastResult::Valid(int32_t(std::numeric_limits<int32_t>::max() - 1)),
+            dataframe::Gt{},
         }),
     &CastTestCase::ToString);
 
-TEST_F(BytecodeInterpreterTest, SortedFilterId) {
+TEST_F(BytecodeInterpreterTest, SortedFilterIdEq) {
   std::string bytecode =
       "SortedFilter<Id, EqualRange>: [col=0, val_register=Register(0), "
       "update_register=Register(1), write_result_to=BoundModifier(0)]";
@@ -473,7 +611,33 @@ TEST_F(BytecodeInterpreterTest, SortedFilterId) {
   }
 }
 
-TEST_F(BytecodeInterpreterTest, SortedFilterUint32) {
+TEST_F(BytecodeInterpreterTest, SortedFilterIdLowerBound) {
+  std::string bytecode =
+      "SortedFilter<Id, LowerBound>: [col=0, val_register=Register(0), "
+      "update_register=Register(1), write_result_to=BoundModifier(1)]";
+  SetRegistersAndExecute(
+      bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{5}),
+      Range{0, 10});
+
+  const auto& result = GetRegister<Range>(1);
+  EXPECT_EQ(result.b, 5u);
+  EXPECT_EQ(result.e, 10u);
+}
+
+TEST_F(BytecodeInterpreterTest, SortedFilterIdUpperBound) {
+  std::string bytecode =
+      "SortedFilter<Id, UpperBound>: [col=0, val_register=Register(0), "
+      "update_register=Register(1), write_result_to=BoundModifier(2)]";
+  SetRegistersAndExecute(
+      bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{5}),
+      Range{0, 10});
+
+  const auto& result = GetRegister<Range>(1);
+  EXPECT_EQ(result.b, 0u);
+  EXPECT_EQ(result.e, 6u);
+}
+
+TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq) {
   std::string bytecode =
       "SortedFilter<Uint32, EqualRange>: [col=0, val_register=Register(0), "
       "update_register=Register(1), write_result_to=BoundModifier(0)]";
@@ -505,7 +669,47 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32) {
   }
 }
 
-TEST_F(BytecodeInterpreterTest, FilterId) {
+TEST_F(BytecodeInterpreterTest, SortedFilterUint32LowerBound) {
+  std::string bytecode =
+      "SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(0), "
+      "update_register=Register(1), write_result_to=BoundModifier(2)]";
+
+  auto values =
+      CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
+  column_.reset(new Column{ColumnSpec{"foo", Uint32(), Sorted(), NonNull()},
+                           Storage{std::move(values)},
+                           Overlay{Overlay::NoOverlay{}}});
+
+  SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+                         Range{3u, 8u});
+  EXPECT_THAT(GetRegister<Range>(1), IsEmpty());
+
+  SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+                         Range{1u, 8u});
+  auto result = GetRegister<Range>(1);
+  EXPECT_EQ(result.b, 1u);
+  EXPECT_EQ(result.e, 2u);
+}
+
+TEST_F(BytecodeInterpreterTest, SortedFilterUint32UpperBound) {
+  std::string bytecode =
+      "SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(0), "
+      "update_register=Register(1), write_result_to=BoundModifier(1)]";
+
+  auto values =
+      CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
+  column_.reset(new Column{ColumnSpec{"foo", Uint32(), Sorted(), NonNull()},
+                           Storage{std::move(values)},
+                           Overlay{Overlay::NoOverlay{}}});
+
+  SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+                         Range{3u, 7u});
+  auto result = GetRegister<Range>(1);
+  EXPECT_EQ(result.b, 5u);
+  EXPECT_EQ(result.e, 7u);
+}
+
+TEST_F(BytecodeInterpreterTest, FilterIdEq) {
   std::string bytecode =
       "NonStringFilter<Id, Eq>: [col=0, val_register=Register(0), "
       "source_register=Register(1), update_register=Register(2)]";
@@ -537,7 +741,7 @@ TEST_F(BytecodeInterpreterTest, FilterId) {
   }
 }
 
-TEST_F(BytecodeInterpreterTest, FilterUint32) {
+TEST_F(BytecodeInterpreterTest, FilterUint32Eq) {
   std::string bytecode =
       "NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(0), "
       "source_register=Register(1), update_register=Register(2)]";

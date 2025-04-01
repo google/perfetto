@@ -36,24 +36,47 @@ namespace perfetto::trace_processor::dataframe::impl {
 using NonStringType = TypeSet<Id, Uint32, Int32, Int64, Double>;
 
 // Set of content types that are numeric in nature.
-using NumericType = TypeSet<Uint32, Int32, Int64, Double>;
+using IntegerOrDoubleType = TypeSet<Uint32, Int32, Int64, Double>;
 
 // Set of operations applicable to non-null values.
-using NonNullOp = TypeSet<Eq>;
+using NonNullOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
 
 // Set of operations applicable to non-string values.
-using NonStringOp = TypeSet<Eq>;
+using NonStringOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
 
 // Set of operations applicable to ranges.
-using RangeOp = TypeSet<Eq>;
+using RangeOp = TypeSet<Eq, Lt, Le, Gt, Ge>;
+
+// Set of inequality operations (Lt, Le, Gt, Ge).
+using InequalityOp = TypeSet<Lt, Le, Gt, Ge>;
 
 // Indicates an operation applies to both bounds of a range.
 struct BothBounds {};
-using BoundModifier = TypeSet<BothBounds>;
 
-// Represents a range where both bounds are equal (point value).
+// Indicates an operation applies to the lower bound of a range.
+struct BeginBound {};
+
+// Indicates an operation applies to the upper bound of a range.
+struct EndBound {};
+
+// Which bounds should be modified by a range operation.
+using BoundModifier = TypeSet<BothBounds, BeginBound, EndBound>;
+
+// Represents a filter operation where we are performing an equality operation
+// on a sorted column.
 struct EqualRange {};
-using EqualRangeLowerBoundUpperBound = TypeSet<EqualRange>;
+
+// Represents a filter operation where we are performing a lower bound operation
+// on a sorted column.
+struct LowerBound {};
+
+// Represents a filter operation where we are performing an upper bound
+// operation on a sorted column.
+struct UpperBound {};
+
+// Set of operations that can be applied to a sorted column.
+using EqualRangeLowerBoundUpperBound =
+    TypeSet<EqualRange, LowerBound, UpperBound>;
 
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.

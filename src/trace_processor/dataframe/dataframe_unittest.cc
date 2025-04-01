@@ -166,17 +166,93 @@ TEST_F(DataframeBytecodeTest, NumericSortedEq) {
   )");
 }
 
-TEST_F(DataframeBytecodeTest, NumericEq) {
+TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
+  std::vector<ColumnSpec> col_specs = {
+      {"col1", Uint32{}, Sorted{}, NonNull{}},
+  };
+  std::vector<FilterSpec> filters;
+  filters = {{0, 0, Lt{}, std::nullopt}};
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(2)]
+    SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+  )");
+  filters = {{0, 0, Le{}, std::nullopt}};
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(3)]
+    SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+  )");
+  filters = {{0, 0, Gt{}, std::nullopt}};
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
+    SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+  )");
+  filters = {{0, 0, Ge{}, std::nullopt}};
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(5)]
+    SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+  )");
+}
+
+TEST_F(DataframeBytecodeTest, Numeric) {
   std::vector<ColumnSpec> col_specs = {
       {"col1", Uint32{}, Unsorted{}, NonNull{}},
   };
-  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+  std::vector<FilterSpec> filters;
+  filters = {{0, 0, Eq{}, std::nullopt}};
   RunBytecodeTest(col_specs, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
     NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+  )");
+  filters = {{0, 0, Ge{}, std::nullopt}};
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(5)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+    NonStringFilter<Uint32, Ge>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+  )");
+}
+
+TEST_F(DataframeBytecodeTest, SortingOfFilters) {
+  std::vector<ColumnSpec> col_specs = {
+      {"id", Id{}, IdSorted{}, NonNull{}},
+      {"col1", Uint32{}, Sorted{}, NonNull{}},
+      {"col2", Uint32{}, Unsorted{}, NonNull{}},
+  };
+  std::vector<FilterSpec> filters = {
+      {0, 0, Le{}, std::nullopt}, {1, 0, Eq{}, std::nullopt},
+      {0, 0, Eq{}, std::nullopt}, {2, 0, Eq{}, std::nullopt},
+      {1, 0, Le{}, std::nullopt},
+  };
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
+    SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
+    CastFilterValue<Id>: [fval_handle=FilterValue(1), write_register=Register(2), op=NonNullOp(3)]
+    SortedFilter<Id, UpperBound>: [col=0, val_register=Register(2), update_register=Register(0), write_result_to=BoundModifier(2)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(2), write_register=Register(3), op=NonNullOp(0)]
+    SortedFilter<Uint32, EqualRange>: [col=1, val_register=Register(3), update_register=Register(0), write_result_to=BoundModifier(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(3), write_register=Register(4), op=NonNullOp(3)]
+    SortedFilter<Uint32, UpperBound>: [col=1, val_register=Register(4), update_register=Register(0), write_result_to=BoundModifier(2)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(4), write_register=Register(5), op=NonNullOp(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(6), dest_span_register=Register(7)]
+    Iota: [source_register=Register(0), update_register=Register(7)]
+    NonStringFilter<Uint32, Eq>: [col=2, val_register=Register(5), source_register=Register(7), update_register=Register(7)]
   )");
 }
 
