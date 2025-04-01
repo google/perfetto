@@ -45,6 +45,7 @@ perfetto_unittest_source_set("unittests") {
   ]
   deps = [
     ":impl",
+    "..:dataframe",
     "..:specs",
     "../../../base",
     "../../../../gn:default_deps",
