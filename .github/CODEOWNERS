@@ -1,12 +1,35 @@
-# This file is OWNERS for GitHub
+# This file define code owners for GitHub pull requests
 # NOTE: The last matching rule is the one that defines the owner.
 
 # General repo-wide owners 
-# TODO(primiano): add @betasheet once he joins google org
-* @primiano @LalitMaganti @ddiproietto @rsavitski @stevegolton @aMayzner @ilkos
+* @google/perfetto-team
 
-# No owners required for docs changes.
+# ui.perfetto.dev
+/ui/* @google/perfetto-ui-team
+
+# On-device and SDK code
+/src/* @google/perfetto-traced-team
+/include/* @google/perfetto-traced-team
+
+# Trace Processor (keep after src/*)
+/src/trace_processor/* @google/perfetto-tp-team
+/include/perfetto/ext/trace_processor/* @google/perfetto-tp-team
+/include/perfetto/trace_processor/* @google/perfetto-tp-team
+
+# Files/Directories that don't require a strict owner check.
+/Android.bp
+/Android.bp.extras
+/BUILD
+/BUILD.*
 /docs/*
+/examples/*
+/protos/perfetto/trace/*
+/protos/perfetto/config/*
+/protos/perfetto/metrics/*
+/ui/src/plugins/*
+/ui/src/test/*
+/tools/*
+/test/*
 
 # Changes to the Tracing Protocol ABI are extremely subtle because they need to
 # be forward/backward compatible with various combinations of producer and
