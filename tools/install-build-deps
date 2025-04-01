@@ -889,6 +889,7 @@ def Main():
       deps_updated |= expected_content != actual_content
     else:
       subprocess.check_call(['cp', tools_hook_path, git_hook_path])
+      subprocess.check_call(['chmod', '+x', git_hook_path])
 
   cur_python_interpreter = sys.executable
   test_data_synced = 0 == subprocess.call([
