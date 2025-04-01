@@ -33,9 +33,17 @@ namespace {
 
 // Creates appropriate storage for a column based on its specification
 impl::Storage MakeStorage(const ColumnSpec& c) {
-  switch (c.content.index()) {
-    case Content::GetTypeIndex<Id>():
+  switch (c.column_type.index()) {
+    case ColumnType::GetTypeIndex<Id>():
       return impl::Storage{impl::Storage::Id{}};
+    case ColumnType::GetTypeIndex<Uint32>():
+      return impl::Storage{impl::Storage::Uint32{}};
+    case ColumnType::GetTypeIndex<Int32>():
+      return impl::Storage{impl::Storage::Int32{}};
+    case ColumnType::GetTypeIndex<Int64>():
+      return impl::Storage{impl::Storage::Int64{}};
+    case ColumnType::GetTypeIndex<Double>():
+      return impl::Storage{impl::Storage::Double{}};
     default:
       PERFETTO_FATAL("Unreachable");
   }
@@ -45,7 +53,7 @@ impl::Storage MakeStorage(const ColumnSpec& c) {
 impl::Overlay MakeOverlay(const ColumnSpec& c) {
   switch (c.nullability.index()) {
     case Nullability::GetTypeIndex<NonNull>():
-      return impl::Overlay::NoOverlay{};
+      return impl::Overlay{impl::Overlay::NoOverlay{}};
     default:
       PERFETTO_FATAL("Unreachable");
   }
@@ -54,9 +62,8 @@ impl::Overlay MakeOverlay(const ColumnSpec& c) {
 }  // namespace
 
 Dataframe::Dataframe(const std::vector<ColumnSpec>& column_specs,
-                     const StringPool* string_pool)
+                     StringPool* string_pool)
     : string_pool_(string_pool) {
-  // Create storage for each column based on its specification
   for (const auto& c : column_specs) {
     columns_.emplace_back(impl::Column{
         c,

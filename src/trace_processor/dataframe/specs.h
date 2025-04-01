@@ -5,25 +5,35 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <variant>
 
-#include "perfetto/base/compiler.h"
-#include "perfetto/base/logging.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
 namespace perfetto::trace_processor::dataframe {
 
 // -----------------------------------------------------------------------------
-// Content Types
+// Column value Types
 // -----------------------------------------------------------------------------
 
-// Represents columns where the index is the same as the value.
-// This allows for zero memory overhead as values don't need to be explicitly
-// stored. Operations on these columns can be highly optimized.
+// Represents values where the index of the value in the table is the same as
+// the value. This allows for zero memory overhead as values don't need to be
+// explicitly stored. Operations on column with this type can be highly
+// optimized.
 struct Id {};
 
-// TypeSet of all possible column content types.
-using Content = TypeSet<Id>;
+// Represents values where the value is a 32-bit unsigned integer.
+struct Uint32 {};
+
+// Represents values where the value is a 32-bit signed integer.
+struct Int32 {};
+
+// Represents values where the value is a 64-bit signed integer.
+struct Int64 {};
+
+// Represents values where the value is a double.
+struct Double {};
+
+// TypeSet of all possible column value types.
+using ColumnType = TypeSet<Id, Uint32, Int32, Int64, Double>;
 
 // -----------------------------------------------------------------------------
 // Operation Types
@@ -32,8 +42,23 @@ using Content = TypeSet<Id>;
 // Equality comparison operation for filter conditions.
 struct Eq {};
 
+// Not equal comparison operation for filter conditions.
+struct Ne {};
+
+// Less than comparison operation for filter conditions.
+struct Lt {};
+
+// Less than or equal to comparison operation for filter conditions.
+struct Le {};
+
+// Greater than comparison operation for filter conditions.
+struct Gt {};
+
+// Greater than or equal to comparison operation for filter conditions.
+struct Ge {};
+
 // TypeSet of all possible operations for filter conditions.
-using Op = TypeSet<Eq>;
+using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
 
 // -----------------------------------------------------------------------------
 // Sort State Types
@@ -44,8 +69,14 @@ using Op = TypeSet<Eq>;
 // the natural ordering where indices equal values.
 struct IdSorted {};
 
+// Represents a column which is sorted in ascending order by its value.
+struct Sorted {};
+
+// Represents a column which is not sorted.
+struct Unsorted {};
+
 // TypeSet of all possible column sort states.
-using SortState = TypeSet<IdSorted>;
+using SortState = TypeSet<IdSorted, Sorted, Unsorted>;
 
 // -----------------------------------------------------------------------------
 // Nullability Types
@@ -64,9 +95,6 @@ using Nullability = TypeSet<NonNull>;
 // Specifies a filter operation to be applied to column data.
 // This is used to generate query plans for filtering rows.
 struct FilterSpec {
-  // Variant type for possible filter values.
-  using Value = std::variant<nullptr_t, int64_t, double, const char*>;
-
   // Index of the column in the dataframe to filter.
   uint32_t column_index;
 
@@ -91,7 +119,7 @@ struct ColumnSpec {
   std::string name;
 
   // Type of content stored in the column.
-  Content content;
+  ColumnType column_type;
 
   // Sort order of the column data.
   SortState sort_state;
