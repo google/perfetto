@@ -26,6 +26,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -293,7 +294,9 @@ TEST_F(BytecodeInterpreterTest, AllocateIndices) {
       "dest_span_register=Register(1)]");
 
   const auto& slab = GetRegister<Slab<uint32_t>>(0);
-  { EXPECT_THAT(slab, SizeIs(132u)); }
+  {
+    EXPECT_THAT(slab, SizeIs(132u));
+  }
   {
     const auto& span = GetRegister<Span<uint32_t>>(1);
     EXPECT_THAT(span, SizeIs(132u));
@@ -420,6 +423,30 @@ INSTANTIATE_TEST_SUITE_P(
             "Double",
             FilterValue{int64_t(std::numeric_limits<int64_t>::max()) - 1},
             CastResult::Valid(9223372036854774784.0),
+            dataframe::Le{},
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{9223372036854767615},
+            CastResult::Valid(9223372036854767616.0),
+            dataframe::Ge{},
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{9223372036854767615},
+            CastResult::Valid(9223372036854766592.0),
+            dataframe::Gt{},
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{9223372036854767615},
+            CastResult::Valid(9223372036854767616.0),
+            dataframe::Lt{},
+        },
+        CastTestCase{
+            "Double",
+            FilterValue{9223372036854767615},
+            CastResult::Valid(9223372036854766592.0),
             dataframe::Le{},
         }),
     &CastTestCase::ToString);

@@ -517,28 +517,36 @@ class Interpreter {
         out = iad;
         return CastFilterValueResult::kValid;
       }
+
+      // This can happen in cases where we round `i` up above
+      // numeric_limits::max(). In that case, still consider the double larger.
+      bool overflow_positive_to_negative = i > 0 && iad_int < 0;
+      bool iad_greater_than_i = iad_int > i || overflow_positive_to_negative;
+      bool iad_less_than_i = iad_int < i && !overflow_positive_to_negative;
       switch (op.index()) {
         case NonStringOp::GetTypeIndex<Lt>():
-          out = iad_int > i ? iad
-                            : std::nextafter(
-                                  iad, std::numeric_limits<double>::infinity());
+          out = iad_greater_than_i
+                    ? iad
+                    : std::nextafter(iad,
+                                     std::numeric_limits<double>::infinity());
           return CastFilterValueResult::kValid;
         case NonStringOp::GetTypeIndex<Le>():
-          out = iad_int < i
+          out = iad_less_than_i
                     ? iad
                     : std::nextafter(iad,
                                      -std::numeric_limits<double>::infinity());
           return CastFilterValueResult::kValid;
         case NonStringOp::GetTypeIndex<Gt>():
-          out = iad_int < i
+          out = iad_less_than_i
                     ? iad
                     : std::nextafter(iad,
                                      -std::numeric_limits<double>::infinity());
           return CastFilterValueResult::kValid;
         case NonStringOp::GetTypeIndex<Ge>():
-          out = iad_int > i ? iad
-                            : std::nextafter(
-                                  iad, std::numeric_limits<double>::infinity());
+          out = iad_greater_than_i
+                    ? iad
+                    : std::nextafter(iad,
+                                     std::numeric_limits<double>::infinity());
           return CastFilterValueResult::kValid;
         case NonStringOp::GetTypeIndex<Eq>():
           return CastFilterValueResult::kNoneMatch;
