@@ -1,2 +1,15 @@
-# See https://github.com/orgs/google/teams/perfetto-team/members
-* @google/perfetto-team
+# This file is OWNERS for GitHub
+# NOTE: The last matching rule is the one that defines the owner.
+
+# General repo-wide owners 
+# TODO(primiano): add @betasheet once he joins google org
+* @primiano @LalitMaganti @ddiproietto @rsavitski @stevegolton @aMayzner @ilkos
+
+# No owners required for docs changes.
+/docs/*
+
+# Changes to the Tracing Protocol ABI are extremely subtle because they need to
+# be forward/backward compatible with various combinations of producer and
+# service versions. Adding >1 owner to reviews is encouraged here.
+# TODO(primiano): add @betasheet once he joins google org
+/protos/perfetto/ipc/* @primiano @LalitMaganti
