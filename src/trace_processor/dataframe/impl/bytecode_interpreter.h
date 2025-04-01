@@ -17,20 +17,26 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_BYTECODE_INTERPRETER_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_BYTECODE_INTERPRETER_H_
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <variant>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
@@ -38,8 +44,11 @@
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
+#include "src/trace_processor/util/glob.h"
+#include "src/trace_processor/util/regex.h"
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode {
+namespace comparators {
 
 // Returns an appropriate comparator functor for the given integer/double type
 // and operation. Currently only supports equality comparison.
@@ -61,6 +70,49 @@ auto IntegerOrDoubleComparator() {
     static_assert(std::is_same_v<Op, Eq>, "Unsupported op");
   }
 }
+
+template <typename T>
+struct StringComparator {
+  bool operator()(StringPool::Id lhs, NullTermStringView rhs) const {
+    if constexpr (std::is_same_v<T, Lt>) {
+      return pool_->Get(lhs) < rhs;
+    } else if constexpr (std::is_same_v<T, Le>) {
+      return pool_->Get(lhs) <= rhs;
+    } else if constexpr (std::is_same_v<T, Gt>) {
+      return pool_->Get(lhs) > rhs;
+    } else if constexpr (std::is_same_v<T, Ge>) {
+      return pool_->Get(lhs) >= rhs;
+    } else {
+      static_assert(std::is_same_v<T, Lt>, "Unsupported op");
+    }
+  }
+  const StringPool* pool_;
+};
+struct StringLessInvert {
+  bool operator()(NullTermStringView lhs, StringPool::Id rhs) const {
+    return lhs < pool_->Get(rhs);
+  }
+  const StringPool* pool_;
+};
+struct Glob {
+  bool operator()(StringPool::Id lhs, const util::GlobMatcher& matcher) const {
+    return matcher.Matches(pool_->Get(lhs));
+  }
+  const StringPool* pool_;
+};
+struct GlobFullStringPool {
+  bool operator()(StringPool::Id lhs, const BitVector& matches) const {
+    return matches.is_set(lhs.raw_id());
+  }
+};
+struct Regex {
+  bool operator()(StringPool::Id lhs, const regex::Regex& pattern) const {
+    return pattern.Search(pool_->Get(lhs).c_str());
+  }
+  const StringPool* pool_;
+};
+
+}  // namespace comparators
 
 // Handles invalid cast filter value results for filtering operations.
 // If the cast result is invalid, updates the range or span accordingly.
@@ -100,9 +152,7 @@ class Interpreter {
               const StringPool* string_pool)
       : bytecode_(std::move(bytecode)),
         columns_(columns),
-        string_pool_(string_pool) {
-    base::ignore_result(string_pool_);
-  }
+        string_pool_(string_pool) {}
 
   // Not movable because it's a very large object and the move cost would be
   // high. Prefer constructing in place.
@@ -201,24 +251,33 @@ class Interpreter {
     typename FilterValueFetcherImpl::Type filter_value_type =
         filter_value_fetcher_->GetValueType(handle.index);
 
-    using M = std::variant_alternative_t<ColumnType::GetTypeIndex<T>(),
-                                         CastFilterValueResult::Value>;
+    using ValueType =
+        ColumnType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
     CastFilterValueResult result;
     if constexpr (std::is_same_v<T, Id>) {
-      uint32_t val;
-      result.validity =
-          CastFilterValueToInteger(handle, filter_value_type,
-                                   filter_value_fetcher_, f.arg<B::op>(), val);
+      auto op = *f.arg<B::op>().TryDowncast<NonStringOp>();
+      uint32_t result_value;
+      result.validity = CastFilterValueToInteger(
+          handle, filter_value_type, filter_value_fetcher_, op, result_value);
       if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
-        result.value = CastFilterValueResult::Id{val};
+        result.value = CastFilterValueResult::Id{result_value};
       }
     } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
-      M out;
+      auto op = *f.arg<B::op>().TryDowncast<NonStringOp>();
+      ValueType result_value;
       result.validity = CastFilterValueToIntegerOrDouble(
-          handle, filter_value_type, filter_value_fetcher_, f.arg<B::op>(),
-          out);
+          handle, filter_value_type, filter_value_fetcher_, op, result_value);
       if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
-        result.value = out;
+        result.value = result_value;
+      }
+    } else if constexpr (std::is_same_v<T, String>) {
+      static_assert(std::is_same_v<ValueType, const char*>);
+      const char* result_value;
+      result.validity = CastFilterValueToString(handle, filter_value_type,
+                                                filter_value_fetcher_,
+                                                f.arg<B::op>(), result_value);
+      if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+        result.value = result_value;
       }
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
@@ -226,8 +285,6 @@ class Interpreter {
     WriteToRegister(f.arg<B::write_register>(), result);
   }
 
-  // Applies a filter operation to a sorted range based on the provided value.
-  // Currently only supports EqualRange operation on Id type.
   template <typename T, typename RangeOp>
   PERFETTO_ALWAYS_INLINE void SortedFilter(
       const bytecode::SortedFilterBase& f) {
@@ -260,9 +317,14 @@ class Interpreter {
       }
     } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
       BoundModifier bound_modifier = f.arg<B::write_result_to>();
-      auto* data =
+      const auto* data =
           columns_[f.arg<B::col>()].storage.template unchecked_data<T>();
       SortedIntegerOrDoubleFilter<RangeOp>(data, val, bound_modifier, update);
+    } else if constexpr (std::is_same_v<T, String>) {
+      BoundModifier bound_modifier = f.arg<B::write_result_to>();
+      const auto* data =
+          columns_[f.arg<B::col>()].storage.template unchecked_data<String>();
+      SortedStringFilter<RangeOp>(data, val, bound_modifier, update);
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
@@ -298,14 +360,51 @@ class Interpreter {
     }
   }
 
-  // Applies a non-string filter operation to a range of values.
-  // Currently only supports equality filtering on Id type.
+  template <typename RangeOp>
+  PERFETTO_ALWAYS_INLINE void SortedStringFilter(const StringPool::Id* data,
+                                                 const char* val,
+                                                 BoundModifier bound_modifier,
+                                                 Range& update) {
+    const StringPool::Id* begin = data + update.b;
+    const StringPool::Id* end = data + update.e;
+    if constexpr (std::is_same_v<RangeOp, EqualRange>) {
+      PERFETTO_DCHECK(bound_modifier.Is<BothBounds>());
+      std::optional<StringPool::Id> id =
+          string_pool_->GetId(base::StringView(val));
+      if (!id) {
+        update.e = update.b;
+        return;
+      }
+      const StringPool::Id* eq_start = std::lower_bound(
+          begin, end, val, comparators::StringComparator<Lt>{string_pool_});
+      for (const StringPool::Id* it = eq_start; it != end; ++it) {
+        if (*it != *id) {
+          update.b = static_cast<uint32_t>(eq_start - data);
+          update.e = static_cast<uint32_t>(it - data);
+          return;
+        }
+      }
+      update.e = update.b;
+    } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
+      auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
+      const auto* it = std::lower_bound(
+          begin, end, val, comparators::StringComparator<Lt>{string_pool_});
+      res = static_cast<uint32_t>(it - data);
+    } else if constexpr (std::is_same_v<RangeOp, UpperBound>) {
+      auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
+      const auto* it = std::upper_bound(
+          begin, end, val, comparators::StringLessInvert{string_pool_});
+      res = static_cast<uint32_t>(it - data);
+    } else {
+      static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
+    }
+  }
+
   template <typename T, typename Op>
   PERFETTO_ALWAYS_INLINE void NonStringFilter(
       const bytecode::NonStringFilterBase& nf) {
-    using B = bytecode::NonStringFilter<T, Op>;
-    const CastFilterValueResult& value =
-        ReadFromRegister(nf.arg<B::val_register>());
+    using B = bytecode::NonStringFilterBase;
+    const auto& value = ReadFromRegister(nf.arg<B::val_register>());
     auto& update = ReadFromRegister(nf.arg<B::update_register>());
     if (!HandleInvalidCastFilterValueResult(value, update)) {
       return;
@@ -313,26 +412,44 @@ class Interpreter {
     const auto& source = ReadFromRegister(nf.arg<B::source_register>());
     using M = ColumnType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
     if constexpr (std::is_same_v<T, Id>) {
-      update.e = IdentityFilter(source.b, source.e, update.b,
-                                base::unchecked_get<M>(value.value).value,
-                                IntegerOrDoubleComparator<uint32_t, Op>());
+      update.e = IdentityFilter(
+          source.b, source.e, update.b,
+          base::unchecked_get<M>(value.value).value,
+          comparators::IntegerOrDoubleComparator<uint32_t, Op>());
     } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
       const auto* data =
           columns_[nf.arg<B::col>()].storage.template unchecked_data<T>();
       update.e = Filter(data, source.b, source.e, update.b,
                         base::unchecked_get<M>(value.value),
-                        IntegerOrDoubleComparator<M, Op>());
+                        comparators::IntegerOrDoubleComparator<M, Op>());
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
   }
 
-  // Copies values from source to update with a specified stride.
-  PERFETTO_ALWAYS_INLINE void StrideCopy(const bytecode::StrideCopy& sc) {
+  template <typename Op>
+  PERFETTO_ALWAYS_INLINE void StringFilter(
+      const bytecode::StringFilterBase& sf) {
+    using B = bytecode::StringFilterBase;
+    const auto& filter_value = ReadFromRegister(sf.arg<B::val_register>());
+    auto& update = ReadFromRegister(sf.arg<B::update_register>());
+    if (!HandleInvalidCastFilterValueResult(filter_value, update)) {
+      return;
+    }
+    const char* val = base::unchecked_get<const char*>(filter_value.value);
+    const auto& source = ReadFromRegister(sf.arg<B::source_register>());
+    const StringPool::Id* ptr =
+        columns_[sf.arg<B::col>()].storage.template unchecked_data<String>();
+    update.e = FilterStringOp<Op>(ptr, source.b, source.e, update.b, val);
+  }
+
+  PERFETTO_ALWAYS_INLINE void StrideCopy(
+      const bytecode::StrideCopy& stride_copy) {
     using B = bytecode::StrideCopy;
-    const auto& source = ReadFromRegister(sc.arg<B::source_register>());
-    auto& update = ReadFromRegister(sc.arg<B::update_register>());
-    uint32_t stride = sc.arg<B::stride>();
+    const auto& source =
+        ReadFromRegister(stride_copy.arg<B::source_register>());
+    auto& update = ReadFromRegister(stride_copy.arg<B::update_register>());
+    uint32_t stride = stride_copy.arg<B::stride>();
     PERFETTO_DCHECK(source.size() * stride <= update.size());
     uint32_t* write_ptr = update.b;
     for (const uint32_t* it = source.b; it < source.e; ++it) {
@@ -341,6 +458,102 @@ class Interpreter {
     }
     PERFETTO_DCHECK(write_ptr == update.b + source.size() * stride);
     update.e = write_ptr;
+  }
+
+  template <typename Op>
+  PERFETTO_ALWAYS_INLINE uint32_t* FilterStringOp(const StringPool::Id* data,
+                                                  const uint32_t* begin,
+                                                  const uint32_t* end,
+                                                  uint32_t* output,
+                                                  const char* val) {
+    if constexpr (std::is_same_v<Op, Eq>) {
+      return StringFilterEq(data, begin, end, output, val);
+    } else if constexpr (std::is_same_v<Op, Ne>) {
+      return StringFilterNe(data, begin, end, output, val);
+    } else if constexpr (std::is_same_v<Op, Glob>) {
+      return StringFilterGlob(data, begin, end, output, val);
+    } else if constexpr (std::is_same_v<Op, Regex>) {
+      return StringFilterRegex(data, begin, end, output, val);
+    } else {
+      return Filter(data, begin, end, output, NullTermStringView(val),
+                    comparators::StringComparator<Op>{string_pool_});
+    }
+  }
+
+  PERFETTO_ALWAYS_INLINE uint32_t* StringFilterEq(const StringPool::Id* data,
+                                                  const uint32_t* begin,
+                                                  const uint32_t* end,
+                                                  uint32_t* output,
+                                                  const char* val) {
+    std::optional<StringPool::Id> id =
+        string_pool_->GetId(base::StringView(val));
+    if (!id) {
+      return output;
+    }
+    static_assert(sizeof(StringPool::Id) == 4, "Id should be 4 bytes");
+    return Filter(reinterpret_cast<const uint32_t*>(data), begin, end, output,
+                  id->raw_id(), std::equal_to<>());
+  }
+
+  PERFETTO_ALWAYS_INLINE uint32_t* StringFilterNe(const StringPool::Id* data,
+                                                  const uint32_t* begin,
+                                                  const uint32_t* end,
+                                                  uint32_t* output,
+                                                  const char* val) {
+    std::optional<StringPool::Id> id =
+        string_pool_->GetId(base::StringView(val));
+    if (!id) {
+      memcpy(output, begin, size_t(end - begin));
+      return output + (end - begin);
+    }
+    static_assert(sizeof(StringPool::Id) == 4, "Id should be 4 bytes");
+    return Filter(reinterpret_cast<const uint32_t*>(data), begin, end, output,
+                  id->raw_id(), std::not_equal_to<>());
+  }
+
+  PERFETTO_ALWAYS_INLINE uint32_t* StringFilterGlob(const StringPool::Id* data,
+                                                    const uint32_t* begin,
+                                                    const uint32_t* end,
+                                                    uint32_t* output,
+                                                    const char* val) {
+    auto matcher = util::GlobMatcher::FromPattern(val);
+    // If glob pattern doesn't involve any special characters, the function
+    // called should be equality.
+    if (matcher.IsEquality()) {
+      return StringFilterEq(data, begin, end, output, val);
+    }
+    // For very big string pools (or small ranges) or pools with large
+    // strings run a standard glob function.
+    if (size_t(end - begin) < string_pool_->size() ||
+        string_pool_->HasLargeString()) {
+      return Filter(data, begin, end, output, matcher,
+                    comparators::Glob{string_pool_});
+    }
+    // TODO(lalitm): the BitVector can be placed in a register removing to
+    // need to allocate every time.
+    auto matches =
+        BitVector::CreateWithSize(string_pool_->MaxSmallStringId().raw_id());
+    PERFETTO_DCHECK(!string_pool_->HasLargeString());
+    for (auto it = string_pool_->CreateIterator(); it; ++it) {
+      auto id = it.StringId();
+      matches.change_assume_unset(id.raw_id(),
+                                  matcher.Matches(string_pool_->Get(id)));
+    }
+    return Filter(data, begin, end, output, matches,
+                  comparators::GlobFullStringPool{});
+  }
+
+  PERFETTO_ALWAYS_INLINE uint32_t* StringFilterRegex(const StringPool::Id* data,
+                                                     const uint32_t* begin,
+                                                     const uint32_t* end,
+                                                     uint32_t* output,
+                                                     const char* val) {
+    auto regex = regex::Regex::Create(val);
+    if (!regex.ok()) {
+      return output;
+    }
+    return Filter(data, begin, end, output, regex.value(),
+                  comparators::Regex{string_pool_});
   }
 
   // Filters data based on a comparison with a specific value.
@@ -387,7 +600,7 @@ class Interpreter {
       FilterValueHandle handle,
       typename FilterValueFetcherImpl::Type filter_value_type,
       FilterValueFetcherImpl* fetcher,
-      NonNullOp op,
+      NonStringOp op,
       T& out) {
     if constexpr (std::is_same_v<T, double>) {
       return CastFilterValueToDouble(handle, filter_value_type, fetcher, op,
@@ -598,6 +811,44 @@ class Interpreter {
     // Nulls always compare false to any value (including other nulls),
     // regardless of the operator.
     return CastFilterValueResult::kNoneMatch;
+  }
+
+  PERFETTO_ALWAYS_INLINE static CastFilterValueResult::Validity
+  CastFilterValueToString(
+      FilterValueHandle handle,
+      typename FilterValueFetcherImpl::Type filter_value_type,
+      FilterValueFetcherImpl* fetcher,
+      const Op& op,
+      const char*& out) {
+    if (PERFETTO_LIKELY(filter_value_type ==
+                        FilterValueFetcherImpl ::kString)) {
+      out = fetcher->GetStringValue(handle.index);
+      return CastFilterValueResult::kValid;
+    }
+    if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl ::kNull)) {
+      // Nulls always compare false to any value (including other nulls),
+      // regardless of the operator.
+      return CastFilterValueResult::kNoneMatch;
+    }
+    if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl ::kInt64 ||
+                        filter_value_type ==
+                            FilterValueFetcherImpl ::kDouble)) {
+      switch (op.index()) {
+        case Op::GetTypeIndex<Eq>():
+        case Op::GetTypeIndex<Ge>():
+        case Op::GetTypeIndex<Gt>():
+        case Op::GetTypeIndex<Ne>():
+          return CastFilterValueResult::kAllMatch;
+        case Op::GetTypeIndex<Le>():
+        case Op::GetTypeIndex<Lt>():
+        case Op::GetTypeIndex<Glob>():
+        case Op::GetTypeIndex<Regex>():
+          return CastFilterValueResult::kNoneMatch;
+        default:
+          PERFETTO_FATAL("Invalid string filter op");
+      }
+    }
+    PERFETTO_FATAL("Invalid filter spec value");
   }
 
   // Access a register for reading/writing with type safety through the handle.

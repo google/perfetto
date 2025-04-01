@@ -26,7 +26,6 @@
 #include <limits>
 #include <memory>
 #include <optional>
-#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -127,6 +126,10 @@ std::string OpToString(const Op& op) {
       return "Gt";
     case Op::GetTypeIndex<Ge>():
       return "Ge";
+    case Op::GetTypeIndex<Glob>():
+      return "Glob";
+    case Op::GetTypeIndex<Regex>():
+      return "Regex";
     default:
       PERFETTO_FATAL("Unknown op");
   }
@@ -156,6 +159,9 @@ std::string ResultToString(const CastFilterValueResult& res) {
       case base::variant_index<CastFilterValueResult::Value, double>(): {
         const auto& d = base::unchecked_get<double>(res.value);
         return "Double_" + FixNegativeAndDecimal(std::to_string(d));
+      }
+      case base::variant_index<CastFilterValueResult::Value, const char*>(): {
+        return base::unchecked_get<const char*>(res.value);
       }
       default:
         PERFETTO_FATAL("Unknown filter value type");
@@ -294,9 +300,7 @@ TEST_F(BytecodeInterpreterTest, AllocateIndices) {
       "dest_span_register=Register(1)]");
 
   const auto& slab = GetRegister<Slab<uint32_t>>(0);
-  {
-    EXPECT_THAT(slab, SizeIs(132u));
-  }
+  { EXPECT_THAT(slab, SizeIs(132u)); }
   {
     const auto& span = GetRegister<Span<uint32_t>>(1);
     EXPECT_THAT(span, SizeIs(132u));
@@ -372,6 +376,13 @@ TEST_P(BytecodeInterpreterCastTest, Cast) {
   const auto& result = GetRegister<CastFilterValueResult>(0);
   ASSERT_THAT(result.validity, testing::Eq(expected.validity));
   if (result.validity == CastResult::Validity::kValid) {
+    if (std::holds_alternative<const char*>(expected.value)) {
+      ASSERT_TRUE(std::holds_alternative<const char*>(result.value));
+      ASSERT_STREQ(base::unchecked_get<const char*>(result.value),
+                   base::unchecked_get<const char*>(expected.value));
+    } else {
+      ASSERT_THAT(result.value, testing::Eq(expected.value));
+    }
     ASSERT_THAT(result.value, testing::Eq(expected.value));
   }
 }
@@ -582,6 +593,69 @@ INSTANTIATE_TEST_SUITE_P(
         }),
     &CastTestCase::ToString);
 
+INSTANTIATE_TEST_SUITE_P(
+    CastToStringSuite,
+    BytecodeInterpreterCastTest,
+    testing::Values(
+        // Strings are directly returned without any conversion.
+        CastTestCase{"String", FilterValue{"hello"}, CastResult::Valid("hello"),
+                     dataframe::Eq{}},
+        CastTestCase{"String", FilterValue{"world"}, CastResult::Valid("world"),
+                     dataframe::Ne{}},
+        CastTestCase{"String", FilterValue{"test"}, CastResult::Valid("test"),
+                     dataframe::Glob{}},
+        CastTestCase{"String", FilterValue{"regex"}, CastResult::Valid("regex"),
+                     dataframe::Regex{}},
+
+        // Nulls always compare false with everything.
+        CastTestCase{"String", FilterValue{nullptr}, CastResult::NoneMatch(),
+                     dataframe::Eq{}},
+        CastTestCase{"String", FilterValue{nullptr}, CastResult::NoneMatch(),
+                     dataframe::Ne{}},
+        CastTestCase{"String", FilterValue{nullptr}, CastResult::NoneMatch(),
+                     dataframe::Lt{}},
+        CastTestCase{"String", FilterValue{nullptr}, CastResult::NoneMatch(),
+                     dataframe::Glob{}},
+        CastTestCase{"String", FilterValue{nullptr}, CastResult::NoneMatch(),
+                     dataframe::Regex{}},
+
+        // Strings are always greater than integers.
+        CastTestCase{"String", FilterValue{123l}, CastResult::AllMatch(),
+                     dataframe::Eq{}},
+        CastTestCase{"String", FilterValue{123l}, CastResult::AllMatch(),
+                     dataframe::Ne{}},
+        CastTestCase{"String", FilterValue{123l}, CastResult::NoneMatch(),
+                     dataframe::Lt{}},
+        CastTestCase{"String", FilterValue{123l}, CastResult::NoneMatch(),
+                     dataframe::Le{}},
+        CastTestCase{"String", FilterValue{123l}, CastResult::AllMatch(),
+                     dataframe::Gt{}},
+        CastTestCase{"String", FilterValue{123l}, CastResult::AllMatch(),
+                     dataframe::Ge{}},
+        CastTestCase{"String", FilterValue{123l}, CastResult::NoneMatch(),
+                     dataframe::Glob{}},
+        CastTestCase{"String", FilterValue{123l}, CastResult::NoneMatch(),
+                     dataframe::Regex{}},
+
+        // Strings are also always greater than doubles.
+        CastTestCase{"String", FilterValue{123.45}, CastResult::AllMatch(),
+                     dataframe::Eq{}},
+        CastTestCase{"String", FilterValue{123.45}, CastResult::AllMatch(),
+                     dataframe::Ne{}},
+        CastTestCase{"String", FilterValue{123.45}, CastResult::NoneMatch(),
+                     dataframe::Lt{}},
+        CastTestCase{"String", FilterValue{123.45}, CastResult::NoneMatch(),
+                     dataframe::Le{}},
+        CastTestCase{"String", FilterValue{123.45}, CastResult::AllMatch(),
+                     dataframe::Gt{}},
+        CastTestCase{"String", FilterValue{123.45}, CastResult::AllMatch(),
+                     dataframe::Ge{}},
+        CastTestCase{"String", FilterValue{123.45}, CastResult::NoneMatch(),
+                     dataframe::Glob{}},
+        CastTestCase{"String", FilterValue{123.45}, CastResult::NoneMatch(),
+                     dataframe::Regex{}}),
+    &CastTestCase::ToString);
+
 TEST_F(BytecodeInterpreterTest, SortedFilterIdEq) {
   std::string bytecode =
       "SortedFilter<Id, EqualRange>: [col=0, val_register=Register(0), "
@@ -788,6 +862,119 @@ TEST_F(BytecodeInterpreterTest, StrideCopy) {
 
   EXPECT_THAT(GetRegister<Span<uint32_t>>(1),
               ElementsAre(10u, 0u, 0u, 3u, 0u, 0u, 12u, 0u, 0u, 4u, 0u, 0u));
+}
+
+TEST_F(BytecodeInterpreterTest, SortedFilterString) {
+  auto apple_id = spool_.InternString("apple");
+  auto banana_id = spool_.InternString("banana");
+  auto cherry_id = spool_.InternString("cherry");
+  auto date_id = spool_.InternString("date");
+
+  // Sorted string data: ["apple", "banana", "banana", "cherry", "date"]
+  auto values = CreateFlexVectorForTesting<StringPool::Id>(
+      {apple_id, banana_id, banana_id, cherry_id, date_id});
+  column_.reset(new Column{ColumnSpec{"col", String{}, Sorted{}, NonNull{}},
+                           Storage{std::move(values)},
+                           Overlay{Overlay::NoOverlay{}}});
+
+  // --- Sub-test for EqualRange (Eq) ---
+  {
+    std::string bytecode_str =
+        "SortedFilter<String, EqualRange>: [col=0, val_register=Register(0), "
+        "update_register=Register(1), write_result_to=BoundModifier(0)]";
+    SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("banana"),
+                           Range{0, 5});
+    const auto& result_range = GetRegister<Range>(1);
+    EXPECT_EQ(result_range.b, 1u) << "EqualRange begin";
+    EXPECT_EQ(result_range.e, 3u) << "EqualRange end";
+  }
+  // --- Sub-test for LowerBound (using Ge case) ---
+  {
+    // BoundModifier(1) == BeginBound (for Ge)
+    std::string bytecode_str =
+        "SortedFilter<String, LowerBound>: [col=0, val_register=Register(0), "
+        "update_register=Register(1), write_result_to=BoundModifier(1)]";
+    SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("banana"),
+                           Range{0, 5});
+    const auto& result_range = GetRegister<Range>(1);
+    EXPECT_EQ(result_range.b, 1u) << "LowerBound(Ge) begin";
+    EXPECT_EQ(result_range.e, 5u) << "LowerBound(Ge) end";
+  }
+  // --- Sub-test for UpperBound (using Le case) ---
+  {
+    // BoundModifier(2) == EndBound (for Le)
+    std::string bytecode_str =
+        "SortedFilter<String, UpperBound>: [col=0, val_register=Register(0), "
+        "update_register=Register(1), write_result_to=BoundModifier(2)]";
+    SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("banana"),
+                           Range{0, 5});
+    const auto& result_range = GetRegister<Range>(1);
+    EXPECT_EQ(result_range.b, 0u) << "UpperBound(Le) begin";
+    EXPECT_EQ(result_range.e, 3u) << "UpperBound(Le) end";
+  }
+}
+
+TEST_F(BytecodeInterpreterTest, StringFilter) {
+  // 1. Setup Shared Column Data (Unsorted, includes empty string)
+  auto apple_id = spool_.InternString("apple");
+  auto banana_id = spool_.InternString("banana");
+  auto cherry_id = spool_.InternString("cherry");
+  auto date_id = spool_.InternString("date");
+  auto durian_id = spool_.InternString("durian");
+  auto empty_id = spool_.InternString("");  // Intern the empty string
+
+  // Data: ["cherry", "apple", "", "banana", "apple", "date", "durian"]
+  // Index:    0        1      2      3        4       5        6
+  auto values = CreateFlexVectorForTesting<StringPool::Id>(
+      {cherry_id, apple_id, empty_id, banana_id, apple_id, date_id, durian_id});
+  column_.reset(new Column{ColumnSpec{"col", String{}, Unsorted{}, NonNull{}},
+                           Storage{std::move(values)},
+                           Overlay{Overlay::NoOverlay{}}});
+
+  // Initial indices {0, 1, 2, 3, 4, 5, 6} pointing to the data
+  const std::vector<uint32_t> source_indices = {0, 1, 2, 3, 4, 5, 6};
+
+  // 2. Define Helper Lambda for Running Sub-Tests
+  auto RunStringFilterSubTest =
+      [&](const std::string& test_label, const std::string& op_name,
+          const char* filter_value,
+          const std::vector<uint32_t>& expected_indices) {
+        // Construct the bytecode string for the specific operation
+        std::string bytecode_str =
+            base::StackString<1024>(
+                "StringFilter<%s>: [col=0, val_register=Register(0), "
+                "source_register=Register(1), update_register=Register(2)]",
+                op_name.c_str())
+                .ToStdString();
+
+        std::vector<uint32_t> res = source_indices;
+        SetRegistersAndExecute(bytecode_str,
+                               CastFilterValueResult::Valid(filter_value),
+                               GetSpan(res), GetSpan(res));
+        EXPECT_THAT(GetRegister<Span<uint32_t>>(2),
+                    ElementsAreArray(expected_indices))
+            << test_label;
+      };
+
+  RunStringFilterSubTest("Eq apple", "Eq", "apple", {1, 4});
+  RunStringFilterSubTest("Ne apple", "Ne", "apple", {0, 2, 3, 5, 6});
+  RunStringFilterSubTest("Glob a*e", "Glob", "a*e", {1, 4});  // Matches apple
+  RunStringFilterSubTest("Regex ^d", "Regex", "^d",
+                         {5, 6});  // Matches date, durian
+  RunStringFilterSubTest("Lt banana", "Lt", "banana",
+                         {1, 2, 4});  // Matches apple, ""
+  RunStringFilterSubTest("Ge cherry", "Ge", "cherry",
+                         {0, 5, 6});  // Matches cherry, date, durian
+  RunStringFilterSubTest("Le banana", "Le", "banana",
+                         {1, 2, 3, 4});  // apple, "", banana, apple
+  RunStringFilterSubTest("Gt cherry", "Gt", "cherry", {5, 6});  // date, durian
+
+  RunStringFilterSubTest("Glob 'apple' as Eq", "Glob", "apple", {1, 4});
+  RunStringFilterSubTest("Eq empty string", "Eq", "", {2});
+  RunStringFilterSubTest("Eq string not in pool", "Eq", "grape", {});
+  RunStringFilterSubTest("Ne empty string", "Ne", "", {0, 1, 3, 4, 5, 6});
+  RunStringFilterSubTest("Ne string not in pool", "Ne", "grape",
+                         {0, 1, 2, 3, 4, 5, 6});
 }
 
 }  // namespace
