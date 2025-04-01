@@ -69,20 +69,40 @@ def run_command(args: List[str],
 
 
 def get_merge_base() -> Optional[str]:
-  """Gets the merge base with the upstream branch (@{u}). Returns None if not
-  found."""
+  result = run_command(['git', 'symbolic-ref', '--short', 'HEAD'], check=True)
+  branch = result.stdout.strip()
+
+  # First check if there's a tracking branch
   try:
-    run_command(['git', 'rev-parse', '--abbrev-ref', '@{u}'],
-                check=True,
-                stderr=subprocess.DEVNULL)
-    result = run_command(['git', 'merge-base', 'HEAD', '@{u}'])
-    return result.stdout.strip()
+    # More direct way to get the upstream branch
+    args = ['git', 'rev-parse', '--abbrev-ref', f'{branch}@{{upstream}}']
+    tracking_result = run_command(args, check=True)
+    tracking_branch = tracking_result.stdout.strip()
+
+    # If we have a tracking branch, check if it's local
+    if tracking_branch:
+      # Check if this is a local branch by trying to get its ref in refs/heads/
+      try:
+        _ = run_command(
+            ['git', 'show-ref', '--verify', f'refs/heads/{tracking_branch}'],
+            check=True)
+        # If we get here without an exception, it's a local branch
+        return tracking_branch
+      except subprocess.CalledProcessError:
+        # Not a local branch, continue to fallback
+        pass
   except subprocess.CalledProcessError:
-    # No upstream or other error
-    print(
-        "INFO: No upstream branch found or not a tracking branch. Comparing "
-        "against relevant files.",
-        file=sys.stderr)
+    # No tracking branch, continue to fallback
+    pass
+
+  # Fallback to origin/main
+  try:
+    # Check if origin/main exists
+    _ = run_command(['git', 'show-ref', '--verify', 'refs/remotes/origin/main'],
+                    check=True)
+    return 'origin/main'
+  except subprocess.CalledProcessError:
+    # origin/main doesn't exist, return None
     return None
 
 
@@ -294,7 +314,7 @@ def CheckPatchFormatted(changed_files: List[str],
     changed_files_str = "\n  ".join(files_to_format_paths)
     errors.append(
         f"clang-format check failed. Run 'clang-format -i <file>' on affected "
-        "files:\n---\n{e.stderr}\n---\nAffected files:\n  {changed_files_str}")
+        f"files:\n---\n{e.stderr}\n---\nAffected files:\n  {changed_files_str}")
   return errors
 
 
@@ -936,6 +956,11 @@ def CheckStdlibFormatting(changed_files: List[str]) -> List[str]:
 def main():
   # 1. Determine files to check
   merge_base = get_merge_base()
+  if not merge_base:
+    print("No upstream branch found. Ensure that an upstream tracking branch "
+          "has been set.")
+    sys.exit(1)
+
   changed_files = get_changed_files(merge_base)
 
   if not changed_files:

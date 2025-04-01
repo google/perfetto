@@ -63,7 +63,7 @@
       "fetch",
       "--tags",
       "--force",
-      "https://android.googlesource.com/platform/external/perfetto",
+      "https://github.com/google/perfetto/",
       "refs/heads/main"
     ],
     "cwd": "[CACHE]/builder/perfetto",

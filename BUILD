@@ -1678,6 +1678,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_dataframe_dataframe",
     srcs = [
+        "src/trace_processor/dataframe/cursor.h",
         "src/trace_processor/dataframe/dataframe.cc",
         "src/trace_processor/dataframe/dataframe.h",
     ],
@@ -1689,6 +1690,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/dataframe/specs.h",
         "src/trace_processor/dataframe/type_set.h",
+        "src/trace_processor/dataframe/value_fetcher.h",
     ],
 )
 
@@ -2810,6 +2812,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/engine/created_function.cc",
         "src/trace_processor/perfetto_sql/engine/created_function.h",
+        "src/trace_processor/perfetto_sql/engine/dataframe_module.cc",
+        "src/trace_processor/perfetto_sql/engine/dataframe_module.h",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
