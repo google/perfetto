@@ -1,7 +1,7 @@
 # Perfetto build instructions
 
-The source of truth for the Perfetto codebase is [github.com/google/perfetto](
-https://github.com/google/perfetto)
+The source of truth for the Perfetto codebase is
+[github.com/google/perfetto](https://github.com/google/perfetto)
 
 A copy is also available in the Android tree under /external/perfetto and is
 updated with the regular Android release cadence.
