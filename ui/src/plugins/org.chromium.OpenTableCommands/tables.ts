@@ -61,9 +61,9 @@ export function getProcessTable(): SqlTableDescription {
 
 export function getSliceTable(): SqlTableDescription {
   return {
-    imports: ['slices.with_context'],
-    name: 'thread_or_process_slice',
-    displayName: 'thread_or_process_slice',
+    imports: ['viz.slices'],
+    name: '_viz_slices_for_ui_table',
+    displayName: 'Slices',
     columns: [
       new SliceIdColumn('id', {notNull: true, type: 'id'}),
       new TimestampColumn('ts'),
