@@ -225,7 +225,7 @@ class Interpreter {
     using B = bytecode::SortedFilterBase;
 
     const auto& value = ReadFromRegister(f.arg<B::val_register>());
-    auto& update = ReadFromRegister(f.arg<B::update_register>());
+    Range& update = ReadFromRegister(f.arg<B::update_register>());
     if (!HandleInvalidCastFilterValueResult(value, update)) {
       return;
     }
@@ -248,11 +248,11 @@ class Interpreter {
         const M* begin = storage.data();
         auto it = std::lower_bound(begin + update.b, begin + update.e, val);
         for (; it != begin + update.e; ++it) {
-          if (*it != val) {
+          if (std::not_equal_to<>()(*it, val)) {
             break;
           }
         }
-        update.e = it - begin;
+        update.e = static_cast<uint32_t>(it - begin);
       } else {
         static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
       }

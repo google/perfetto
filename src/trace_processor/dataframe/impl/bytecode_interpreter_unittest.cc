@@ -240,7 +240,7 @@ class BytecodeInterpreterTest : public testing::Test {
     bytecode_vector.emplace_back(ParseBytecode(bytecode));
     interpreter_ = std::make_unique<Interpreter<Fetcher>>(
         std::move(bytecode_vector), column_.get(), &spool_);
-    size_t i = 0;
+    uint32_t i = 0;
     (interpreter_->SetRegisterValueForTesting(reg::WriteHandle<Ts>(i++),
                                               std::move(value)),
      ...);
