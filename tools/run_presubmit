@@ -24,6 +24,10 @@ from typing import List, Callable, Optional, Tuple, Iterable
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Check if we are inside a git hooks folder. If so go up one extra level.
+if os.path.dirname(REPO_ROOT) == '.git':
+  REPO_ROOT = os.path.dirname(REPO_ROOT)
+
 
 def RunAndReportIfLong(func, *args, **kargs):
   """Runs function, reports runtime if it exceeds a limit."""
