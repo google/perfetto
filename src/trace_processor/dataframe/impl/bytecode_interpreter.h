@@ -59,7 +59,7 @@ auto NumericComparator() {
   } else if constexpr (std::is_same_v<Op, Ge>) {
     return std::greater_equal<T>();
   } else {
-    static_assert(false);
+    static_assert(std::is_same_v<Op, Eq>, "Unsupported op");
   }
 }
 
@@ -281,18 +281,18 @@ class Interpreter {
       const DataType* eq_start = std::lower_bound(begin, end, val);
       for (auto* it = eq_start; it != end; ++it) {
         if (*it != val) {
-          update.b = eq_start - data;
-          update.e = it - data;
+          update.b = static_cast<uint32_t>(eq_start - data);
+          update.e = static_cast<uint32_t>(it - data);
           return;
         }
       }
       update.e = update.b;
     } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
       auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
-      res = std::lower_bound(begin, end, val) - data;
+      res = static_cast<uint32_t>(std::lower_bound(begin, end, val) - data);
     } else if constexpr (std::is_same_v<RangeOp, UpperBound>) {
       auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
-      res = std::upper_bound(begin, end, val) - data;
+      res = static_cast<uint32_t>(std::upper_bound(begin, end, val) - data);
     } else {
       static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
     }
