@@ -280,7 +280,7 @@ class Interpreter {
       PERFETTO_DCHECK(bound_modifier.Is<BothBounds>());
       const DataType* eq_start = std::lower_bound(begin, end, val);
       for (auto* it = eq_start; it != end; ++it) {
-        if (*it != val) {
+        if (std::not_equal_to<>()(*it, val)) {
           update.b = static_cast<uint32_t>(eq_start - data);
           update.e = static_cast<uint32_t>(it - data);
           return;
