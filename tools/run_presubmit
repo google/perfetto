@@ -20,13 +20,12 @@ import re
 import subprocess
 import sys
 import time
-from typing import List, Callable, Optional, Tuple, Iterable
+from typing import List, Optional, Tuple, Iterable
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# Check if we are inside a git hooks folder. If so go up one extra level.
-if os.path.basename(REPO_ROOT) == '.git':
-  REPO_ROOT = os.path.dirname(REPO_ROOT)
+# The script can be executed as a git hook symlink which is why we also
+# do realpath.
+REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.abspath(os.path.realpath(__file__))))
 
 
 def RunAndReportIfLong(func, *args, **kargs):
