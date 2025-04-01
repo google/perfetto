@@ -36,6 +36,7 @@
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
+#include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 
@@ -143,7 +144,9 @@ class QueryPlanBuilder {
                                   bytecode::reg::RwHandle<Span<uint32_t>>>;
 
   // State information for a column during query planning.
-  struct ColumnState {};
+  struct ColumnState {
+    std::optional<bytecode::reg::RwHandle<Slab<uint32_t>>> prefix_popcount;
+  };
 
   // Constructs a builder for the given number of rows and columns.
   QueryPlanBuilder(uint32_t row_count, const std::vector<Column>& columns);
@@ -172,6 +175,9 @@ class QueryPlanBuilder {
       const FilterSpec& c,
       const StringOp& op,
       const bytecode::reg::ReadHandle<CastFilterValueResult>& result);
+
+  // Processes null filter constraints.
+  void NullConstraint(const NullOp&, FilterSpec&);
 
   // Attempts to apply optimized filtering on sorted data.
   // Returns true if the optimization was applied.
@@ -202,6 +208,10 @@ class QueryPlanBuilder {
 
   // Sets the result to an empty set. Use when a filter guarantees no matches.
   void SetGuaranteedToBeEmpty();
+
+  // Returns the prefix popcount register for the given column.
+  bytecode::reg::ReadHandle<Slab<uint32_t>> PrefixPopcountRegisterFor(
+      uint32_t col);
 
   // Maximum number of rows in the query result.
   uint32_t max_row_count_ = 0;

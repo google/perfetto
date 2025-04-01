@@ -25,6 +25,7 @@
 #include <initializer_list>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -36,6 +37,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
@@ -975,6 +977,343 @@ TEST_F(BytecodeInterpreterTest, StringFilter) {
   RunStringFilterSubTest("Ne empty string", "Ne", "", {0, 1, 3, 4, 5, 6});
   RunStringFilterSubTest("Ne string not in pool", "Ne", "grape",
                          {0, 1, 2, 3, 4, 5, 6});
+}
+TEST_F(BytecodeInterpreterTest, NullFilter) {
+  // Create a BitVector representing nulls: 0=null, 1=not_null, 2=null,
+  // 3=not_null, ...
+  //
+  // Indices:    0  1   2  3   4  5    6   7   8   9  10 ... 63 64 65 66
+  // Is Null:    T  F   T  F   T  F    T   F   T   F   T ...  F  T  F  T
+  // Is Set (BV):F  T   F  T   F  T    F   T   F   T   F ...  T  F  T  F
+  constexpr uint32_t kNumIndices = 70;
+  auto bv = BitVector::CreateWithSize(kNumIndices);
+  for (uint32_t i = 0; i < kNumIndices; ++i) {
+    // Set bits for non-null indices (odd indices)
+    if (i % 2 != 0) {
+      bv.set(i);
+    }
+  }
+
+  // Create a dummy column with a DenseNull overlay using the BitVector
+  // (SparseNull would work identically for this specific test)
+  column_ = std::make_unique<Column>(Column{
+      ColumnSpec{"col_nullable", Uint32{}, Unsorted{}, DenseNull{}},
+      Storage{Storage::Uint32{}},  // Storage type doesn't matter for NullFilter
+      Overlay{Overlay::DenseNull{std::move(bv)}}});
+
+  std::vector<uint32_t> indices(kNumIndices);
+  std::iota(indices.begin(), indices.end(), 0);
+  {
+    std::vector<uint32_t> res = indices;
+    SetRegistersAndExecute(
+        "NullFilter<IsNull>: [col=0, update_register=Register(0)]",
+        GetSpan(res));
+
+    // Expected output: indices where the bit was *not* set (even indices)
+    std::vector<uint32_t> expected_isnull;
+    for (uint32_t i = 0; i < kNumIndices; i += 2) {
+      expected_isnull.push_back(i);
+    }
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(0),
+                ElementsAreArray(expected_isnull));
+  }
+  {
+    std::vector<uint32_t> res = indices;
+    SetRegistersAndExecute(
+        "NullFilter<IsNotNull>: [col=0, update_register=Register(0)]",
+        GetSpan(res));
+
+    // Expected output: indices where the bit *was* set (odd indices)
+    std::vector<uint32_t> expected_isnotnull;
+    for (uint32_t i = 1; i < kNumIndices; i += 2) {
+      expected_isnotnull.push_back(i);
+    }
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(0),
+                ElementsAreArray(expected_isnotnull));
+  }
+}
+
+TEST_F(BytecodeInterpreterTest, PrefixPopcount) {
+  // Create a BitVector with a specific pattern across words
+  // Word 0 (0-63):   Bits 5, 20, 40 set (3 bits)
+  // Word 1 (64-127): Bits 70, 100 set (2 bits)
+  // Word 2 (128-191):Bits 130, 140, 150, 160 set (4 bits)
+  // Word 3 (192-255):Bit 200 set (1 bit)
+  constexpr uint32_t kNumBits = 210;
+  auto bv = BitVector::CreateWithSize(kNumBits);
+  bv.set(5);
+  bv.set(20);
+  bv.set(40);  // Word 0
+  bv.set(70);
+  bv.set(100);  // Word 1
+  bv.set(130);
+  bv.set(140);
+  bv.set(150);
+  bv.set(160);  // Word 2
+  bv.set(200);  // Word 3
+
+  column_ = std::make_unique<Column>(
+      Column{ColumnSpec{"col_nullable", Uint32{}, Unsorted{}, SparseNull{}},
+             Storage{Storage::Uint32{}},  // Storage type doesn't matter
+             Overlay{Overlay::SparseNull{std::move(bv)}}});
+  SetRegistersAndExecute("PrefixPopcount: [col=0, dest_register=Register(0)]");
+
+  const auto& result_slab = GetRegister<Slab<uint32_t>>(0);
+
+  // Expected prefix sums:
+  // Before word 0: 0
+  // Before word 1: 0 + 3 = 3
+  // Before word 2: 3 + 2 = 5
+  // Before word 3: 5 + 4 = 9
+  // Total words needed = ceil(210 / 64) = 4
+  ASSERT_EQ(result_slab.size(), 4u);
+  EXPECT_THAT(std::vector<uint32_t>(result_slab.begin(), result_slab.end()),
+              ElementsAre(0u, 3u, 5u, 9u));
+
+  // Execute again. The interpreter should detect the register is already
+  // populated and not recompute.
+  interpreter_->Execute(fetcher_);
+
+  const auto& result_slab_cached = GetRegister<Slab<uint32_t>>(0);
+  EXPECT_THAT(result_slab_cached, ElementsAre(0u, 3u, 5u, 9u));
+
+  // Check that the underlying data pointer is the same, proving it wasn't
+  // reallocated.
+  EXPECT_EQ(result_slab_cached.data(), result_slab.data());
+}
+
+TEST_F(BytecodeInterpreterTest, TranslateSparseNullIndices) {
+  // Use the same BitVector and PrefixPopcount setup as the PrefixPopcount test
+  // Word 0 (0-63):    Bits 5, 20, 40 set (3 bits) -> Storage Indices 0, 1, 2
+  // Word 1 (64-127):  Bits 70, 100 set (2 bits) -> Storage Indices 3, 4
+  // Word 2 (128-191): Bits 130, 140, 150, 160 set (4 bits) -> Storage Indices
+  //                   5, 6, 7, 8
+  // Word 3 (192-255): Bit 200 set (1 bit) -> Storage Index 9
+  constexpr uint32_t kNumBits = 210;
+  auto bv = BitVector::CreateWithSize(kNumBits);
+  bv.set(5);
+  bv.set(20);
+  bv.set(40);  // Word 0
+  bv.set(70);
+  bv.set(100);  // Word 1
+  bv.set(130);
+  bv.set(140);
+  bv.set(150);
+  bv.set(160);  // Word 2
+  bv.set(200);  // Word 3
+
+  column_ = std::make_unique<Column>(
+      Column{ColumnSpec{"col_sparse", Uint32{}, Unsorted{}, SparseNull{}},
+             Storage{Storage::Uint32{}},  // Storage type doesn't matter
+             Overlay{Overlay::SparseNull{std::move(bv)}}});
+
+  // Precomputed PrefixPopcount Slab (from previous test)
+  auto popcount_slab = Slab<uint32_t>::Alloc(4);
+  popcount_slab[0] = 0;
+  popcount_slab[1] = 3;
+  popcount_slab[2] = 5;
+  popcount_slab[3] = 9;
+
+  std::vector<uint32_t> source_indices = {5, 40, 70, 150, 200};
+  std::vector<uint32_t> translated_indices(source_indices.size());
+  SetRegistersAndExecute(
+      "TranslateSparseNullIndices: [col=0, popcount_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]",
+      std::move(popcount_slab), GetSpan(source_indices),
+      GetSpan(translated_indices));
+
+  // Verify the translated indices in Register 2
+  // Index 5 -> Storage 0 (Popcnt[0] + 0)
+  // Index 40 -> Storage 2 (Popcnt[0] + 2)
+  // Index 70 -> Storage 3 (Popcnt[1] + 0)
+  // Index 150 -> Storage 7 (Popcnt[2] + 2)
+  // Index 200 -> Storage 9 (Popcnt[3] + 0)
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(0u, 2u, 3u, 7u, 9u));
+}
+
+TEST_F(BytecodeInterpreterTest, StrideTranslateAndCopySparseNullIndices) {
+  // Use the same BitVector and PrefixPopcount setup as the PrefixPopcount test
+  // Word 0 (0-63):    Bits 5, 20, 40 set (3 bits) -> Storage Indices 0, 1, 2
+  // Word 1 (64-127):  Bits 70, 100 set (2 bits) -> Storage Indices 3, 4
+  // Word 2 (128-191): Bits 130, 140, 150, 160 set (4 bits) -> Storage Indices
+  //                   5, 6, 7, 8
+  // Word 3 (192-255): Bit 200 set (1 bit) -> Storage Index 9
+  constexpr uint32_t kNumBits = 210;
+  auto bv = BitVector::CreateWithSize(kNumBits);
+  bv.set(5);
+  bv.set(20);
+  bv.set(40);  // Word 0
+  bv.set(70);
+  bv.set(100);  // Word 1
+  bv.set(130);
+  bv.set(140);
+  bv.set(150);
+  bv.set(160);  // Word 2
+  bv.set(200);  // Word 3
+
+  // Precomputed PrefixPopcount Slab
+  auto popcount_slab = Slab<uint32_t>::Alloc(4);
+  popcount_slab[0] = 0;
+  popcount_slab[1] = 3;
+  popcount_slab[2] = 5;
+  popcount_slab[3] = 9;
+
+  // Create a dummy column with the BitVector (SparseNull overlay)
+  column_ = std::make_unique<Column>(
+      Column{ColumnSpec{"col_sparse", Uint32{}, Unsorted{}, SparseNull{}},
+             Storage{Storage::Uint32{}},  // Storage type doesn't matter
+             Overlay{Overlay::SparseNull{std::move(bv)}}});
+
+  // Input/Output buffer setup: Stride = 3, Offset for this column = 1
+  // We pre-populate offset 0 with the original indices to simulate the state
+  // after StrideCopy would have run.
+  constexpr uint32_t kStride = 3;
+  constexpr uint32_t kOffset = 1;
+  std::vector<uint32_t> original_indices = {0, 5, 20, 64, 70, 130, 199, 200};
+  std::vector<uint32_t> buffer(original_indices.size() * kStride,
+                               999);  // Fill with dummy
+  for (size_t i = 0; i < original_indices.size(); ++i) {
+    buffer[(i * kStride) + 0] = original_indices[i];
+  }
+
+  SetRegistersAndExecute(
+      "StrideTranslateAndCopySparseNullIndices: [col=0, "
+      "popcount_register=Register(0), "
+      "update_register=Register(1), offset=" +
+          std::to_string(kOffset) + ", stride=" + std::to_string(kStride) + "]",
+      std::move(popcount_slab), GetSpan(buffer));
+
+  // Verify the contents of the buffer at the specified offset
+  // Original Index | Is Set (Not Null) | Storage Index | Expected @ Offset 1
+  // ----------------|-------------------|---------------|--------------------
+  // 0               | F (Null)          | N/A           | UINT32_MAX
+  // 5               | T (Not Null)      | 0             | 0
+  // 20              | T (Not Null)      | 1             | 1
+  // 64              | F (Null)          | N/A           | UINT32_MAX
+  // 70              | T (Not Null)      | 3             | 3
+  // 130             | T (Not Null)      | 5             | 5
+  // 199             | F (Null)          | N/A           | UINT32_MAX
+  // 200             | T (Not Null)      | 9             | 9
+  const uint32_t N = std::numeric_limits<uint32_t>::max();
+  std::vector<uint32_t> expected_buffer = {
+      0,   N, 999,  // Row 0 (Index 0 -> Null)
+      5,   0, 999,  // Row 1 (Index 5 -> Storage 0)
+      20,  1, 999,  // Row 2 (Index 20 -> Storage 1)
+      64,  N, 999,  // Row 3 (Index 64 -> Null)
+      70,  3, 999,  // Row 4 (Index 70 -> Storage 3)
+      130, 5, 999,  // Row 5 (Index 130 -> Storage 5)
+      199, N, 999,  // Row 6 (Index 199 -> Null)
+      200, 9, 999   // Row 7 (Index 200 -> Storage 9)
+  };
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(1),
+              ElementsAreArray(expected_buffer));
+}
+
+TEST_F(BytecodeInterpreterTest, StrideCopyDenseNullIndices) {
+  // Use the same BitVector setup as the PrefixPopcount test
+  // Word 0 (0-63):   Bits 5, 20, 40 set
+  // Word 1 (64-127): Bits 70, 100 set
+  // Word 2 (128-191):Bits 130, 140, 150, 160 set
+  // Word 3 (192-255):Bit 200 set
+  constexpr uint32_t kNumBits = 210;
+  auto bv = BitVector::CreateWithSize(kNumBits);
+  bv.set(5);
+  bv.set(20);
+  bv.set(40);  // Word 0
+  bv.set(70);
+  bv.set(100);  // Word 1
+  bv.set(130);
+  bv.set(140);
+  bv.set(150);
+  bv.set(160);  // Word 2
+  bv.set(200);  // Word 3
+
+  // Create a dummy column with the BitVector (DenseNull overlay)
+  column_ = std::make_unique<Column>(
+      Column{ColumnSpec{"col_dense", Uint32{}, Unsorted{}, DenseNull{}},
+             Storage{Storage::Uint32{}},  // Storage type doesn't matter
+             Overlay{Overlay::DenseNull{std::move(bv)}}});
+
+  // Input/Output buffer setup: Stride = 2, Offset for this column = 1
+  // Pre-populate offset 0 with the original indices.
+  constexpr uint32_t kStride = 2;
+  constexpr uint32_t kOffset = 1;
+  std::vector<uint32_t> original_indices = {0, 5, 20, 64, 70, 130, 199, 200};
+  std::vector<uint32_t> buffer(original_indices.size() * kStride,
+                               999);  // Fill with dummy
+  for (size_t i = 0; i < original_indices.size(); ++i) {
+    buffer[(i * kStride) + 0] = original_indices[i];  // Populate offset 0
+  }
+
+  SetRegistersAndExecute(
+      "StrideCopyDenseNullIndices: [col=0, update_register=Register(0), "
+      "offset=" +
+          std::to_string(kOffset) + ", stride=" + std::to_string(kStride) + "]",
+      GetSpan(buffer));
+
+  // Verify the contents of the buffer at the specified offset
+  // Original Index | Is Set (Not Null) | Expected @ Offset 1
+  // ----------------|-------------------|--------------------
+  // 0               | F (Null)          | UINT32_MAX
+  // 5               | T (Not Null)      | 5
+  // 20              | T (Not Null)      | 20
+  // 64              | F (Null)          | UINT32_MAX
+  // 70              | T (Not Null)      | 70
+  // 130             | T (Not Null)      | 130
+  // 199             | F (Null)          | UINT32_MAX
+  // 200             | T (Not Null)      | 200
+  const uint32_t N = std::numeric_limits<uint32_t>::max();
+  std::vector<uint32_t> expected_buffer = {
+      0,   N,    // Row 0 (Index 0 -> Null)
+      5,   5,    // Row 1 (Index 5 -> Not Null)
+      20,  20,   // Row 2 (Index 20 -> Not Null)
+      64,  N,    // Row 3 (Index 64 -> Null)
+      70,  70,   // Row 4 (Index 70 -> Not Null)
+      130, 130,  // Row 5 (Index 130 -> Not Null)
+      199, N,    // Row 6 (Index 199 -> Null)
+      200, 200   // Row 7 (Index 200 -> Not Null)
+  };
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0),
+              ElementsAreArray(expected_buffer));
+}
+
+// Test NonStringFilter simulating in-place filtering behavior.
+// This happens when update_register is filtered based on data lookups
+// using indices from source_register (e.g., filtering SparseNull columns
+// after translation).
+TEST_F(BytecodeInterpreterTest, NonStringFilterInPlace) {
+  // Column data: {5, 10, 5, 15, 10, 20}
+  auto values = CreateFlexVectorForTesting<uint32_t>({5, 10, 5, 15, 10, 20});
+  column_ = std::make_unique<Column>(
+      Column{ColumnSpec{"col", Uint32{}, Unsorted{}, NonNull{}},
+             Storage{std::move(values)}, Overlay{Overlay::NoOverlay{}}});
+
+  // Source indices (imagine these are translated storage indices for data
+  // lookup).
+  // Indices:         0   1   3   4   5
+  // Data values:     5  10  15  10  20
+  std::vector<uint32_t> source_indices = {0, 1, 3, 4, 5};
+
+  // Update buffer containing the actual indices we want to filter *in-place*.
+  std::vector<uint32_t> update_indices = {100, 101, 102, 103,
+                                          104};  // Initial values
+
+  SetRegistersAndExecute(
+      "NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]",
+      CastFilterValueResult::Valid(10u), GetSpan(source_indices),
+      GetSpan(update_indices));
+
+  // Verify the update register (Register 2) - it should be filtered in-place.
+  // Iteration | Src Idx | Data | Update Idx | Compares? | Action
+  // ----------|---------|------|------------|-----------|--------
+  // 1         | 0       | 5    | 100        | False     | -
+  // 2         | 1       | 10   | 101        | True      | W/r 101 to output[0]
+  // 3         | 3       | 15   | 102        | False     | -
+  // 4         | 4       | 10   | 103        | True      | W/r 103 to output[1]
+  // 5         | 5       | 20   | 104        | False     | -
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2),
+              ElementsAre(101u, 103u));  // Indices 101 and 103 are kept
 }
 
 }  // namespace

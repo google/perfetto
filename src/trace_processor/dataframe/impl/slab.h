@@ -58,6 +58,9 @@ class Slab {
   static_assert(internal::IsPowerOfTwo(kAlignment),
                 "Alignment must be a power of two");
 
+  using value_type = T;
+  using const_iterator = const T*;
+
   // Default constructor creates an empty slab.
   Slab() = default;
 

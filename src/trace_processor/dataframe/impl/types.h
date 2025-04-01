@@ -23,7 +23,9 @@
 #include <variant>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/type_set.h"
@@ -56,6 +58,9 @@ using RangeOp = TypeSet<Eq, Lt, Le, Gt, Ge>;
 
 // Set of inequality operations (Lt, Le, Gt, Ge).
 using InequalityOp = TypeSet<Lt, Le, Gt, Ge>;
+
+// Set of null operations (IsNotNull, IsNull).
+using NullOp = TypeSet<IsNotNull, IsNull>;
 
 // Indicates an operation applies to both bounds of a range.
 struct BothBounds {};
@@ -148,22 +153,55 @@ class Overlay {
   // No overlay data (for columns with default properties).
   struct NoOverlay {};
 
+  // Sparse null overlay data (for columns with sparse NULL values).
+  struct SparseNull {
+    BitVector bit_vector;
+  };
+
+  // Dense null overlay data (for columns with dense NULL values).
+  struct DenseNull {
+    BitVector bit_vector;
+  };
+
   explicit Overlay(NoOverlay n) : data_(n) {}
+  explicit Overlay(SparseNull s) : data_(std::move(s)) {}
+  explicit Overlay(DenseNull d) : data_(std::move(d)) {}
 
   // Type-safe unchecked access to variant data.
   template <typename T>
-  T& uget() {
+  T& unchecked_get() {
     return base::unchecked_get<T>(data_);
   }
 
   template <typename T>
-  const T& uget() const {
+  const T& unchecked_get() const {
     return base::unchecked_get<T>(data_);
+  }
+
+  BitVector& GetNullBitVector() {
+    switch (data_.index()) {
+      case TypeIndex<SparseNull>():
+        return unchecked_get<SparseNull>().bit_vector;
+      case TypeIndex<DenseNull>():
+        return unchecked_get<DenseNull>().bit_vector;
+      default:
+        PERFETTO_FATAL("Unsupported overlay type");
+    }
+  }
+  const BitVector& GetNullBitVector() const {
+    switch (data_.index()) {
+      case TypeIndex<SparseNull>():
+        return unchecked_get<SparseNull>().bit_vector;
+      case TypeIndex<DenseNull>():
+        return unchecked_get<DenseNull>().bit_vector;
+      default:
+        PERFETTO_FATAL("Unsupported overlay type");
+    }
   }
 
  private:
   // Variant containing all possible overlay types.
-  using Variant = std::variant<NoOverlay>;
+  using Variant = std::variant<NoOverlay, SparseNull, DenseNull>;
   Variant data_;
 };
 

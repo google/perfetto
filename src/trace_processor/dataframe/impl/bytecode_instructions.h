@@ -21,7 +21,6 @@
 #include <string>
 #include <variant>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
@@ -141,68 +140,170 @@ struct StrideCopy : Bytecode {
                                      stride);
 };
 
+// Computes the prefix popcount for the null overlay for a given column.
+//
+// Popcount means to compute the number of set bits in a word of a BitVector. So
+// prefix popcount is a along with a prefix sum over the counts vector.
+//
+// Note: if `dest_register` already has a value, we'll assume that this bytecode
+// has already been executed and skip the computation. This allows for caching
+// the result of this bytecode across executions of the interpreter.
+struct PrefixPopcount : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
+                                     col,
+                                     reg::WriteHandle<Slab<uint32_t>>,
+                                     dest_register);
+};
+
+// Translates a set of indices into a sparse null overlay into indices into
+// the underlying storage.
+//
+// Note that every index in the `source_register` is assumed to be a non-null
+// index (i.e. the position of a set bit in the null overlay). To accomplish
+// this, make sure to first apply a NullFilter with the IsNotNull operator.
+//
+// `popcount_register` should point to a register containing the result of the
+// PrefixPopcount instruction. This is used to significantly accelerate the
+// translation.
+struct TranslateSparseNullIndices : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
+                                     col,
+                                     reg::ReadHandle<Slab<uint32_t>>,
+                                     popcount_register,
+                                     reg::ReadHandle<Span<uint32_t>>,
+                                     source_register,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+
+// Base class for null filter operations.
+struct NullFilterBase : TemplatedBytecode1<NullOp> {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
+                                     col,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+
+// Template specialization for a given null operator.
+template <typename NullOp>
+struct NullFilter : NullFilterBase {
+  static_assert(TS1::Contains<NullOp>());
+};
+
+// A complex opcode which does the following:
+// 1. Iterates over indices in `update_register` starting at offset 0 each
+//    incrementing by `stride` each iteration.
+// 2. For each such index, if it's non-null, translates it using the sparse null
+//    translation logic (see TranslateSparseNullIndices) for the sparse null
+//    overlay of `col`
+// 3. If the index is null, replace it with UINT32_MAX (representing NULL).
+// 4. Copies the result of step 2/3 into position `offset` of the current "row"
+//    of indices in `update_register`.
+//
+// Necessary for the case where we are trying to build the output indices span
+// with all the indices into the storage for each relevant column.
+struct StrideTranslateAndCopySparseNullIndices : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_5(uint32_t,
+                                     col,
+                                     reg::ReadHandle<Slab<uint32_t>>,
+                                     popcount_register,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register,
+                                     uint32_t,
+                                     offset,
+                                     uint32_t,
+                                     stride);
+};
+
+// A complex opcode which does the following:
+// 1. Iterates over indices in `read_register` starting at offset 0 each
+//    incrementing by `stride` each iteration.
+// 2. For each such index, if it's non-null, just use it as is in step 4.
+// 3. If the index is null, replace it with UINT32_MAX (representing NULL).
+// 4. Copies the result of step 2/3 into position `offset` of the current "row"
+//    of indices in `update_register`.
+//
+// Necessary for the case where we are trying to build the output indices span
+// with all the indices into the storage for each relevant column.
+struct StrideCopyDenseNullIndices : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
+                                     col,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register,
+                                     uint32_t,
+                                     offset,
+                                     uint32_t,
+                                     stride);
+};
+
 // List of all bytecode instruction types for variant definition.
-#define PERFETTO_DATAFRAME_BYTECODE_LIST(X) \
-  X(InitRange)                              \
-  X(AllocateIndices)                        \
-  X(Iota)                                   \
-  X(CastFilterValue<Id>)                    \
-  X(CastFilterValue<Uint32>)                \
-  X(CastFilterValue<Int32>)                 \
-  X(CastFilterValue<Int64>)                 \
-  X(CastFilterValue<Double>)                \
-  X(CastFilterValue<String>)                \
-  X(SortedFilter<Id, EqualRange>)           \
-  X(SortedFilter<Id, LowerBound>)           \
-  X(SortedFilter<Id, UpperBound>)           \
-  X(SortedFilter<Uint32, EqualRange>)       \
-  X(SortedFilter<Uint32, LowerBound>)       \
-  X(SortedFilter<Uint32, UpperBound>)       \
-  X(SortedFilter<Int32, EqualRange>)        \
-  X(SortedFilter<Int32, LowerBound>)        \
-  X(SortedFilter<Int32, UpperBound>)        \
-  X(SortedFilter<Int64, EqualRange>)        \
-  X(SortedFilter<Int64, LowerBound>)        \
-  X(SortedFilter<Int64, UpperBound>)        \
-  X(SortedFilter<Double, EqualRange>)       \
-  X(SortedFilter<Double, LowerBound>)       \
-  X(SortedFilter<Double, UpperBound>)       \
-  X(SortedFilter<String, EqualRange>)       \
-  X(SortedFilter<String, LowerBound>)       \
-  X(SortedFilter<String, UpperBound>)       \
-  X(NonStringFilter<Id, Eq>)                \
-  X(NonStringFilter<Id, Ne>)                \
-  X(NonStringFilter<Id, Lt>)                \
-  X(NonStringFilter<Id, Le>)                \
-  X(NonStringFilter<Id, Gt>)                \
-  X(NonStringFilter<Id, Ge>)                \
-  X(NonStringFilter<Uint32, Eq>)            \
-  X(NonStringFilter<Uint32, Ne>)            \
-  X(NonStringFilter<Uint32, Lt>)            \
-  X(NonStringFilter<Uint32, Le>)            \
-  X(NonStringFilter<Uint32, Gt>)            \
-  X(NonStringFilter<Uint32, Ge>)            \
-  X(NonStringFilter<Int64, Eq>)             \
-  X(NonStringFilter<Int64, Ne>)             \
-  X(NonStringFilter<Int64, Lt>)             \
-  X(NonStringFilter<Int64, Le>)             \
-  X(NonStringFilter<Int64, Gt>)             \
-  X(NonStringFilter<Int64, Ge>)             \
-  X(NonStringFilter<Double, Eq>)            \
-  X(NonStringFilter<Double, Ne>)            \
-  X(NonStringFilter<Double, Lt>)            \
-  X(NonStringFilter<Double, Le>)            \
-  X(NonStringFilter<Double, Gt>)            \
-  X(NonStringFilter<Double, Ge>)            \
-  X(StringFilter<Eq>)                       \
-  X(StringFilter<Ne>)                       \
-  X(StringFilter<Lt>)                       \
-  X(StringFilter<Le>)                       \
-  X(StringFilter<Gt>)                       \
-  X(StringFilter<Ge>)                       \
-  X(StringFilter<Glob>)                     \
-  X(StringFilter<Regex>)                    \
-  X(StrideCopy)
+#define PERFETTO_DATAFRAME_BYTECODE_LIST(X)  \
+  X(InitRange)                               \
+  X(AllocateIndices)                         \
+  X(Iota)                                    \
+  X(CastFilterValue<Id>)                     \
+  X(CastFilterValue<Uint32>)                 \
+  X(CastFilterValue<Int32>)                  \
+  X(CastFilterValue<Int64>)                  \
+  X(CastFilterValue<Double>)                 \
+  X(CastFilterValue<String>)                 \
+  X(SortedFilter<Id, EqualRange>)            \
+  X(SortedFilter<Id, LowerBound>)            \
+  X(SortedFilter<Id, UpperBound>)            \
+  X(SortedFilter<Uint32, EqualRange>)        \
+  X(SortedFilter<Uint32, LowerBound>)        \
+  X(SortedFilter<Uint32, UpperBound>)        \
+  X(SortedFilter<Int32, EqualRange>)         \
+  X(SortedFilter<Int32, LowerBound>)         \
+  X(SortedFilter<Int32, UpperBound>)         \
+  X(SortedFilter<Int64, EqualRange>)         \
+  X(SortedFilter<Int64, LowerBound>)         \
+  X(SortedFilter<Int64, UpperBound>)         \
+  X(SortedFilter<Double, EqualRange>)        \
+  X(SortedFilter<Double, LowerBound>)        \
+  X(SortedFilter<Double, UpperBound>)        \
+  X(SortedFilter<String, EqualRange>)        \
+  X(SortedFilter<String, LowerBound>)        \
+  X(SortedFilter<String, UpperBound>)        \
+  X(NonStringFilter<Id, Eq>)                 \
+  X(NonStringFilter<Id, Ne>)                 \
+  X(NonStringFilter<Id, Lt>)                 \
+  X(NonStringFilter<Id, Le>)                 \
+  X(NonStringFilter<Id, Gt>)                 \
+  X(NonStringFilter<Id, Ge>)                 \
+  X(NonStringFilter<Uint32, Eq>)             \
+  X(NonStringFilter<Uint32, Ne>)             \
+  X(NonStringFilter<Uint32, Lt>)             \
+  X(NonStringFilter<Uint32, Le>)             \
+  X(NonStringFilter<Uint32, Gt>)             \
+  X(NonStringFilter<Uint32, Ge>)             \
+  X(NonStringFilter<Int64, Eq>)              \
+  X(NonStringFilter<Int64, Ne>)              \
+  X(NonStringFilter<Int64, Lt>)              \
+  X(NonStringFilter<Int64, Le>)              \
+  X(NonStringFilter<Int64, Gt>)              \
+  X(NonStringFilter<Int64, Ge>)              \
+  X(NonStringFilter<Double, Eq>)             \
+  X(NonStringFilter<Double, Ne>)             \
+  X(NonStringFilter<Double, Lt>)             \
+  X(NonStringFilter<Double, Le>)             \
+  X(NonStringFilter<Double, Gt>)             \
+  X(NonStringFilter<Double, Ge>)             \
+  X(StringFilter<Eq>)                        \
+  X(StringFilter<Ne>)                        \
+  X(StringFilter<Lt>)                        \
+  X(StringFilter<Le>)                        \
+  X(StringFilter<Gt>)                        \
+  X(StringFilter<Ge>)                        \
+  X(StringFilter<Glob>)                      \
+  X(StringFilter<Regex>)                     \
+  X(NullFilter<IsNotNull>)                   \
+  X(NullFilter<IsNull>)                      \
+  X(StrideCopy)                              \
+  X(StrideTranslateAndCopySparseNullIndices) \
+  X(StrideCopyDenseNullIndices)              \
+  X(PrefixPopcount)                          \
+  X(TranslateSparseNullIndices)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 
