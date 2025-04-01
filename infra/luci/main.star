@@ -94,8 +94,8 @@ def official_builder(name, os, caches=[]):
             luci.gitiles_poller(
                 name = "perfetto-gitiles-trigger",
                 bucket = "official",
-                repo = "https://android.googlesource.com/platform/external/perfetto",
-                refs = ["refs/tags/v.+"],
+                repo = "https://chromium.googlesource.com/external/github.com/google/perfetto",
+                refs = ["refs/tags/upstream/v.+"],
             ),
         ],
         caches = [

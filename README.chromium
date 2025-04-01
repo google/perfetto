@@ -1,5 +1,5 @@
 Name: Perfetto
-URL: https://android.googlesource.com/platform/external/perfetto/
+URL: https://github.com/google/perfetto/
 Version: unknown
 License: blessing, BSD-3-Clause, Apache-2.0
 License File: LICENSE
