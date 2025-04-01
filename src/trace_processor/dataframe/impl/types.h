@@ -19,10 +19,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <utility>
 #include <variant>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
@@ -205,7 +203,7 @@ struct Span {
   T* b;
   T* e;
 
-  Span(T* b, T* e) : b(b), e(e) {}
+  Span(T* _b, T* _e) : b(_b), e(_e) {}
 
   T* begin() const { return b; }
   T* end() const { return e; }
