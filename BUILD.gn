@@ -334,7 +334,7 @@ if (build_with_chromium) {
       ]
       public_deps += [ "include/perfetto/ext/tracing/ipc:ipc" ]
     }
-    if (!is_nacl) {
+    if (perfetto_libperfetto_includes_json) {
       deps += [
         "src/trace_processor:export_json",
         "src/trace_processor:storage_minimal",
