@@ -71,7 +71,7 @@ jobs:
         run: |
           mkdir /tmp/chrome
           cd /tmp/chrome
-          CHROME_VERSION=134.0.6998.35
+          CHROME_VERSION=135.0.7049.52
           curl -Ls -o chrome.deb https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${CHROME_VERSION}-1_amd64.deb
           dpkg-deb -x chrome.deb  .
 
