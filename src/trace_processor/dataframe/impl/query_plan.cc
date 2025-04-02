@@ -46,6 +46,8 @@ uint32_t FilterPreference(const FilterSpec& fs, const ColumnSpec& col) {
     kIdInequality,             // Id inequality check
     kNumericSortedEq,          // Numeric sorted equality check
     kNumericSortedInequality,  // Numeric inequality check
+    kStringSortedEq,           // String sorted equality check
+    kStringSortedInequality,   // String inequality check
     kLeastPreferred,           // Least preferred
   };
   const auto& op = fs.op;
@@ -64,6 +66,14 @@ uint32_t FilterPreference(const FilterSpec& fs, const ColumnSpec& col) {
   if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() &&
       ct.IsAnyOf<IntegerOrDoubleType>() && op.IsAnyOf<InequalityOp>()) {
     return kNumericSortedInequality;
+  }
+  if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() && ct.Is<String>() &&
+      op.Is<Eq>()) {
+    return kStringSortedEq;
+  }
+  if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() && ct.Is<String>() &&
+      op.IsAnyOf<InequalityOp>()) {
+    return kStringSortedInequality;
   }
   return kLeastPreferred;
 }
@@ -108,15 +118,13 @@ QueryPlanBuilder::QueryPlanBuilder(uint32_t row_count,
 
 void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
   // Sort filters by efficiency (most selective/cheapest first)
-  std::sort(specs.begin(), specs.end(),
-            [this](const FilterSpec& a, const FilterSpec& b) {
-              const auto& a_col = columns_[a.column_index];
-              const auto& b_col = columns_[b.column_index];
-              return std::make_tuple(FilterPreference(a, a_col.spec),
-                                     a.column_index) <
-                     std::make_tuple(FilterPreference(b, b_col.spec),
-                                     b.column_index);
-            });
+  std::stable_sort(specs.begin(), specs.end(),
+                   [this](const FilterSpec& a, const FilterSpec& b) {
+                     const auto& a_col = columns_[a.column_index];
+                     const auto& b_col = columns_[b.column_index];
+                     return FilterPreference(a, a_col.spec) <
+                            FilterPreference(b, b_col.spec);
+                   });
 
   // Apply each filter in the optimized order
   for (FilterSpec& c : specs) {
@@ -152,7 +160,11 @@ void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
       }
       continue;
     }
-    PERFETTO_FATAL("Unreachable");
+
+    PERFETTO_CHECK(ct.Is<String>());
+    auto op = non_null_op->TryDowncast<StringOp>();
+    PERFETTO_CHECK(op);
+    StringConstraint(c, *op, value_reg);
   }
 }
 
@@ -230,6 +242,21 @@ void QueryPlanBuilder::NonStringConstraint(
   {
     using B = bytecode::NonStringFilterBase;
     B& bc = AddOpcode<B>(bytecode::Index<bytecode::NonStringFilter>(type, op));
+    bc.arg<B::col>() = c.column_index;
+    bc.arg<B::val_register>() = result;
+    bc.arg<B::source_register>() = source;
+    bc.arg<B::update_register>() = EnsureIndicesAreInSlab();
+  }
+}
+
+void QueryPlanBuilder::StringConstraint(
+    const FilterSpec& c,
+    const StringOp& op,
+    const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
+  auto source = MaybeAddOverlayTranslation(c);
+  {
+    using B = bytecode::StringFilterBase;
+    B& bc = AddOpcode<B>(bytecode::Index<bytecode::StringFilter>(op));
     bc.arg<B::col>() = c.column_index;
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;

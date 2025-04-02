@@ -98,7 +98,7 @@ struct SortedFilter : SortedFilterBase {
   static_assert(TS2::Contains<RangeOp>());
 };
 
-// Base for filter operations on non-string values.
+// Filter operations on non-string columns.
 struct NonStringFilterBase : TemplatedBytecode2<NonStringType, NonStringOp> {
   PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
                                      col,
@@ -109,12 +109,26 @@ struct NonStringFilterBase : TemplatedBytecode2<NonStringType, NonStringOp> {
                                      reg::RwHandle<Span<uint32_t>>,
                                      update_register);
 };
-
-// Specialized filter for non-string data.
 template <typename T, typename NonStringOp>
 struct NonStringFilter : NonStringFilterBase {
   static_assert(TS1::Contains<T>());
   static_assert(TS2::Contains<NonStringOp>());
+};
+
+// Filter operations on string columns.
+struct StringFilterBase : TemplatedBytecode1<StringOp> {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
+                                     col,
+                                     reg::ReadHandle<CastFilterValueResult>,
+                                     val_register,
+                                     reg::ReadHandle<Span<uint32_t>>,
+                                     source_register,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+template <typename Op>
+struct StringFilter : StringFilterBase {
+  static_assert(TS1::Contains<Op>());
 };
 
 // Copies data with a given stride.
@@ -137,6 +151,7 @@ struct StrideCopy : Bytecode {
   X(CastFilterValue<Int32>)                 \
   X(CastFilterValue<Int64>)                 \
   X(CastFilterValue<Double>)                \
+  X(CastFilterValue<String>)                \
   X(SortedFilter<Id, EqualRange>)           \
   X(SortedFilter<Id, LowerBound>)           \
   X(SortedFilter<Id, UpperBound>)           \
@@ -152,6 +167,9 @@ struct StrideCopy : Bytecode {
   X(SortedFilter<Double, EqualRange>)       \
   X(SortedFilter<Double, LowerBound>)       \
   X(SortedFilter<Double, UpperBound>)       \
+  X(SortedFilter<String, EqualRange>)       \
+  X(SortedFilter<String, LowerBound>)       \
+  X(SortedFilter<String, UpperBound>)       \
   X(NonStringFilter<Id, Eq>)                \
   X(NonStringFilter<Id, Ne>)                \
   X(NonStringFilter<Id, Lt>)                \
@@ -176,6 +194,14 @@ struct StrideCopy : Bytecode {
   X(NonStringFilter<Double, Le>)            \
   X(NonStringFilter<Double, Gt>)            \
   X(NonStringFilter<Double, Ge>)            \
+  X(StringFilter<Eq>)                       \
+  X(StringFilter<Ne>)                       \
+  X(StringFilter<Lt>)                       \
+  X(StringFilter<Le>)                       \
+  X(StringFilter<Gt>)                       \
+  X(StringFilter<Ge>)                       \
+  X(StringFilter<Glob>)                     \
+  X(StringFilter<Regex>)                    \
   X(StrideCopy)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,

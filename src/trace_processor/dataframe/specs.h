@@ -32,8 +32,11 @@ struct Int64 {};
 // Represents values where the value is a double.
 struct Double {};
 
+// Represents values where the value is a string.
+struct String {};
+
 // TypeSet of all possible column value types.
-using ColumnType = TypeSet<Id, Uint32, Int32, Int64, Double>;
+using ColumnType = TypeSet<Id, Uint32, Int32, Int64, Double, String>;
 
 // -----------------------------------------------------------------------------
 // Operation Types
@@ -57,8 +60,14 @@ struct Gt {};
 // Greater than or equal to comparison operation for filter conditions.
 struct Ge {};
 
+// Glob pattern matching operation for filter conditions.
+struct Glob {};
+
+// Regex pattern matching operation for filter conditions.
+struct Regex {};
+
 // TypeSet of all possible operations for filter conditions.
-using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
+using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
 
 // -----------------------------------------------------------------------------
 // Sort State Types

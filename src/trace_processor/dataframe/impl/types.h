@@ -23,6 +23,7 @@
 #include <variant>
 
 #include "perfetto/base/compiler.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/type_set.h"
@@ -39,10 +40,16 @@ using NonStringType = TypeSet<Id, Uint32, Int32, Int64, Double>;
 using IntegerOrDoubleType = TypeSet<Uint32, Int32, Int64, Double>;
 
 // Set of operations applicable to non-null values.
-using NonNullOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
+using NonNullOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
 
 // Set of operations applicable to non-string values.
 using NonStringOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
+
+// Set of operations applicable to string values.
+using StringOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
+
+// Set of operations applicable to only string values.
+using OnlyStringOp = TypeSet<Glob, Regex>;
 
 // Set of operations applicable to ranges.
 using RangeOp = TypeSet<Eq, Lt, Le, Gt, Ge>;
@@ -90,12 +97,14 @@ class Storage {
   using Int32 = FlexVector<int32_t>;
   using Int64 = FlexVector<int64_t>;
   using Double = FlexVector<double>;
+  using String = FlexVector<StringPool::Id>;
 
   explicit Storage(Storage::Id data) : data_(data) {}
   explicit Storage(Storage::Uint32 data) : data_(std::move(data)) {}
   explicit Storage(Storage::Int32 data) : data_(std::move(data)) {}
   explicit Storage(Storage::Int64 data) : data_(std::move(data)) {}
   explicit Storage(Storage::Double data) : data_(std::move(data)) {}
+  explicit Storage(Storage::String data) : data_(std::move(data)) {}
 
   // Type-safe access to storage with unchecked variant access.
   template <typename T>
@@ -123,7 +132,7 @@ class Storage {
 
  private:
   // Variant containing all possible storage representations.
-  using Variant = std::variant<Id, Uint32, Int32, Int64, Double>;
+  using Variant = std::variant<Id, Uint32, Int32, Int64, Double, String>;
   Variant data_;
 };
 
@@ -180,7 +189,8 @@ struct CastFilterValueResult {
     bool operator==(const Id& other) const { return value == other.value; }
     uint32_t value;
   };
-  using Value = std::variant<Id, uint32_t, int32_t, int64_t, double>;
+  using Value =
+      std::variant<Id, uint32_t, int32_t, int64_t, double, const char*>;
 
   bool operator==(const CastFilterValueResult& other) const {
     return validity == other.validity && value == other.value;

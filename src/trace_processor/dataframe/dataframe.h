@@ -142,6 +142,10 @@ class Dataframe {
         case ColumnType::GetTypeIndex<Double>():
           column.storage.unchecked_get<Double>().push_back(0);
           break;
+        case ColumnType::GetTypeIndex<String>():
+          column.storage.unchecked_get<String>().push_back(
+              string_pool_->InternString(""));
+          break;
         default:
           PERFETTO_FATAL("Invalid column type");
       }

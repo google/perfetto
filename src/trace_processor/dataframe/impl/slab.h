@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <type_traits>
 
 #include "perfetto/ext/base/utils.h"
@@ -72,7 +73,7 @@ class Slab {
   //
   // size: Number of elements to allocate space for.
   // Returns a new Slab object with the requested capacity.
-  static Slab<T, kAlignment> Alloc(size_t size) {
+  static Slab<T, kAlignment> Alloc(uint64_t size) {
     return Slab(
         static_cast<T*>(base::AlignedAlloc(kAlignment, size * sizeof(T))),
         size);
@@ -83,24 +84,24 @@ class Slab {
   PERFETTO_ALWAYS_INLINE T* data() { return data_.get(); }
 
   // Returns the number of elements in the slab.
-  PERFETTO_ALWAYS_INLINE size_t size() const { return size_; }
+  PERFETTO_ALWAYS_INLINE uint64_t size() const { return size_; }
 
   // Returns iterators for range-based for loops.
   PERFETTO_ALWAYS_INLINE T* begin() const { return data_.get(); }
   PERFETTO_ALWAYS_INLINE T* end() const { return data_.get() + size_; }
 
   // Provides indexed access to elements.
-  PERFETTO_ALWAYS_INLINE T& operator[](size_t i) const { return data_[i]; }
+  PERFETTO_ALWAYS_INLINE T& operator[](uint64_t i) const { return data_[i]; }
 
  private:
   // Constructor used by Alloc.
-  Slab(T* data, size_t size) : data_(data), size_(size) {}
+  Slab(T* data, uint64_t size) : data_(data), size_(size) {}
 
   // Aligned unique pointer that holds the allocated memory.
   base::AlignedUniquePtr<T[]> data_;
 
   // Number of elements in the slab.
-  size_t size_ = 0;
+  uint64_t size_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::dataframe::impl
