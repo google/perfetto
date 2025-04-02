@@ -52,6 +52,13 @@ class Cursor {
   static_assert(std::is_base_of_v<ValueFetcher, FilterValueFetcherImpl>,
                 "FilterValueFetcherImpl must be a subclass of ValueFetcher");
 
+  // Constructs a cursor from a query plan and dataframe columns.
+  Cursor(impl::QueryPlan plan, impl::Column* columns, StringPool* pool)
+      : interpreter_(std::move(plan.bytecode), columns, pool),
+        params_(plan.params),
+        columns_(columns),
+        pool_(pool) {}
+
   // Executes the query and prepares the cursor for iteration.
   // This initializes the cursor's position to the first row of results.
   //
@@ -97,23 +104,23 @@ class Cursor {
       cell_callback_impl.OnCell(nullptr);
       return;
     }
-    switch (c.spec.column_type.index()) {
-      case ColumnType::GetTypeIndex<Id>():
+    switch (c.storage.type().index()) {
+      case StorageType::GetTypeIndex<Id>():
         cell_callback_impl.OnCell(idx);
         break;
-      case ColumnType::GetTypeIndex<Uint32>():
+      case StorageType::GetTypeIndex<Uint32>():
         cell_callback_impl.OnCell(c.storage.unchecked_data<Uint32>()[idx]);
         break;
-      case ColumnType::GetTypeIndex<Int32>():
+      case StorageType::GetTypeIndex<Int32>():
         cell_callback_impl.OnCell(c.storage.unchecked_data<Int32>()[idx]);
         break;
-      case ColumnType::GetTypeIndex<Int64>():
+      case StorageType::GetTypeIndex<Int64>():
         cell_callback_impl.OnCell(c.storage.unchecked_data<Int64>()[idx]);
         break;
-      case ColumnType::GetTypeIndex<Double>():
+      case StorageType::GetTypeIndex<Double>():
         cell_callback_impl.OnCell(c.storage.unchecked_data<Double>()[idx]);
         break;
-      case ColumnType::GetTypeIndex<String>():
+      case StorageType::GetTypeIndex<String>():
         cell_callback_impl.OnCell(
             pool_->Get(c.storage.unchecked_data<String>()[idx]));
         break;
@@ -123,16 +130,6 @@ class Cursor {
   }
 
  private:
-  friend class Dataframe;
-
-  // Constructs a cursor from a query plan and dataframe columns.
-  // This constructor is private and called by Dataframe::SetupCursor.
-  explicit Cursor(impl::QueryPlan plan, impl::Column* columns, StringPool* pool)
-      : interpreter_(std::move(plan.bytecode), columns, pool),
-        params_(plan.params),
-        columns_(columns),
-        pool_(pool) {}
-
   // Bytecode interpreter that executes the query.
   impl::bytecode::Interpreter<FilterValueFetcherImpl> interpreter_;
   // Parameters for query execution.

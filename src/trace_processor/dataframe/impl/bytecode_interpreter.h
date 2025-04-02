@@ -252,7 +252,7 @@ class Interpreter {
         filter_value_fetcher_->GetValueType(handle.index);
 
     using ValueType =
-        ColumnType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+        StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
     CastFilterValueResult result;
     if constexpr (std::is_same_v<T, Id>) {
       auto op = *f.arg<B::op>().TryDowncast<NonStringOp>();
@@ -295,7 +295,7 @@ class Interpreter {
     if (!HandleInvalidCastFilterValueResult(value, update)) {
       return;
     }
-    using M = ColumnType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+    using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
     M val = base::unchecked_get<M>(value.value);
     if constexpr (std::is_same_v<T, Id>) {
       uint32_t inner_val = val.value;
@@ -341,7 +341,7 @@ class Interpreter {
       return;
     }
     using ValueType =
-        ColumnType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
+        StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
     auto val = base::unchecked_get<ValueType>(cast_result.value);
     const auto& col = columns_[bytecode.arg<B::col>()];
     const auto* storage = col.storage.template unchecked_data<Uint32>();
@@ -437,7 +437,7 @@ class Interpreter {
       return;
     }
     const auto& source = ReadFromRegister(nf.arg<B::source_register>());
-    using M = ColumnType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+    using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
     if constexpr (std::is_same_v<T, Id>) {
       update.e = IdentityFilter(
           source.b, source.e, update.b,

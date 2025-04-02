@@ -66,17 +66,8 @@ int DataframeModule::Connect(sqlite3* db,
     return ret;
   }
   StringPool pool;
-  using CS = dataframe::ColumnSpec;
-
-  // TODO(lalitm): take this from the engine rather than hardcoding it here.
-  auto df = dataframe::Dataframe(
-      {CS{"id", dataframe::Id(), dataframe::IdSorted(), dataframe::NonNull()}},
-      &pool);
-  for (int i = 0; i < 10000; ++i) {
-    df.InsertRow<ConstantValueFetcher>();
-  }
-  std::unique_ptr<Vtab> res =
-      std::make_unique<Vtab>(Vtab{{}, &pool, std::move(df)});
+  // TODO(lalitm): actually create a dataframe properly and return it here.
+  std::unique_ptr<Vtab> res;
   *vtab = res.release();
   return SQLITE_OK;
 }
@@ -136,34 +127,33 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
   auto* c = GetCursor(cur);
   if (idxStr != c->last_idx_str) {
     auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idxStr);
-    v->dataframe.PrepareCursor(plan, c->df_cursor());
+    v->dataframe.PrepareCursor(plan, c->df_cursor);
     c->last_idx_str = idxStr;
   }
   SqliteValueFetcher fetcher{{}, argv};
-  c->df_cursor()->Execute(fetcher);
+  c->df_cursor->Execute(fetcher);
   return SQLITE_OK;
 }
 
 int DataframeModule::Next(sqlite3_vtab_cursor* cur) {
-  GetCursor(cur)->df_cursor()->Next();
+  GetCursor(cur)->df_cursor->Next();
   return SQLITE_OK;
 }
 
 int DataframeModule::Eof(sqlite3_vtab_cursor* cur) {
-  return GetCursor(cur)->df_cursor()->Eof();
+  return GetCursor(cur)->df_cursor->Eof();
 }
 
 int DataframeModule::Column(sqlite3_vtab_cursor* cur,
                             sqlite3_context* ctx,
                             int raw_n) {
   SqliteResultCallback visitor{{}, ctx};
-  GetCursor(cur)->df_cursor()->Cell(static_cast<uint32_t>(raw_n), visitor);
+  GetCursor(cur)->df_cursor->Cell(static_cast<uint32_t>(raw_n), visitor);
   return SQLITE_OK;
 }
 
 int DataframeModule::Rowid(sqlite3_vtab_cursor*, sqlite_int64*) {
   return SQLITE_ERROR;
 }
-
 
 }  // namespace perfetto::trace_processor

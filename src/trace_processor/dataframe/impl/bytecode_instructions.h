@@ -61,7 +61,7 @@ struct Iota : Bytecode {
 };
 
 // Base class for casting filter value operations.
-struct CastFilterValueBase : TemplatedBytecode1<ColumnType> {
+struct CastFilterValueBase : TemplatedBytecode1<StorageType> {
   PERFETTO_DATAFRAME_BYTECODE_IMPL_3(FilterValueHandle,
                                      fval_handle,
                                      reg::WriteHandle<CastFilterValueResult>,
@@ -78,7 +78,7 @@ struct CastFilterValue : CastFilterValueBase {
 
 // Base for operations on sorted data.
 struct SortedFilterBase
-    : TemplatedBytecode2<ColumnType, EqualRangeLowerBoundUpperBound> {
+    : TemplatedBytecode2<StorageType, EqualRangeLowerBoundUpperBound> {
   PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
                                      col,
                                      reg::ReadHandle<CastFilterValueResult>,
