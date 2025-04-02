@@ -24,6 +24,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -44,6 +45,8 @@ impl::Storage MakeStorage(const ColumnSpec& c) {
       return impl::Storage{impl::Storage::Int64{}};
     case ColumnType::GetTypeIndex<Double>():
       return impl::Storage{impl::Storage::Double{}};
+    case ColumnType::GetTypeIndex<String>():
+      return impl::Storage{impl::Storage::String{}};
     default:
       PERFETTO_FATAL("Unreachable");
   }
@@ -54,6 +57,10 @@ impl::Overlay MakeOverlay(const ColumnSpec& c) {
   switch (c.nullability.index()) {
     case Nullability::GetTypeIndex<NonNull>():
       return impl::Overlay{impl::Overlay::NoOverlay{}};
+    case Nullability::GetTypeIndex<SparseNull>():
+      return impl::Overlay{impl::Overlay::SparseNull{impl::BitVector()}};
+    case Nullability::GetTypeIndex<DenseNull>():
+      return impl::Overlay{impl::Overlay::DenseNull{impl::BitVector()}};
     default:
       PERFETTO_FATAL("Unreachable");
   }
