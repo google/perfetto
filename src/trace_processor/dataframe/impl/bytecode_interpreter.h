@@ -272,10 +272,10 @@ class Interpreter {
       }
     } else if constexpr (std::is_same_v<T, String>) {
       static_assert(std::is_same_v<ValueType, const char*>);
+      auto op = *f.arg<B::op>().TryDowncast<StringOp>();
       const char* result_value;
-      result.validity = CastFilterValueToString(handle, filter_value_type,
-                                                filter_value_fetcher_,
-                                                f.arg<B::op>(), result_value);
+      result.validity = CastFilterValueToString(
+          handle, filter_value_type, filter_value_fetcher_, op, result_value);
       if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
         result.value = result_value;
       }
@@ -443,6 +443,18 @@ class Interpreter {
     update.e = FilterStringOp<Op>(ptr, source.b, source.e, update.b, val);
   }
 
+  template <typename NullOp>
+  PERFETTO_ALWAYS_INLINE void NullFilter(
+      const bytecode::NullFilterBase& filter) {
+    using B = bytecode::NullFilterBase;
+    const auto& column = columns_[filter.arg<B::col>()];
+    const auto& overlay = column.overlay;
+    auto& update = ReadFromRegister(filter.arg<B::update_register>());
+    static constexpr bool kInvert = std::is_same_v<NullOp, IsNull>;
+    update.e = overlay.GetNullBitVector().template PackLeft<kInvert>(
+        update.b, update.e, update.b);
+  }
+
   PERFETTO_ALWAYS_INLINE void StrideCopy(
       const bytecode::StrideCopy& stride_copy) {
     using B = bytecode::StrideCopy;
@@ -458,6 +470,77 @@ class Interpreter {
     }
     PERFETTO_DCHECK(write_ptr == update.b + source.size() * stride);
     update.e = write_ptr;
+  }
+
+  PERFETTO_ALWAYS_INLINE void PrefixPopcount(
+      const bytecode::PrefixPopcount& popcount) {
+    using B = bytecode::PrefixPopcount;
+    auto dest_register = popcount.arg<B::dest_register>();
+    if (MaybeReadFromRegister<Slab<uint32_t>>(dest_register)) {
+      return;
+    }
+    const auto& overlay = columns_[popcount.arg<B::col>()].overlay;
+    WriteToRegister(dest_register, overlay.GetNullBitVector().PrefixPopcount());
+  }
+
+  PERFETTO_ALWAYS_INLINE void TranslateSparseNullIndices(
+      const bytecode::TranslateSparseNullIndices& bytecode) {
+    using B = bytecode::TranslateSparseNullIndices;
+    const auto& overlay = columns_[bytecode.arg<B::col>()].overlay;
+    const auto& bv =
+        overlay.template unchecked_get<Overlay::SparseNull>().bit_vector;
+
+    const auto& source = ReadFromRegister(bytecode.arg<B::source_register>());
+    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
+    PERFETTO_DCHECK(source.size() <= update.size());
+
+    const Slab<uint32_t>& popcnt =
+        ReadFromRegister(bytecode.arg<B::popcount_register>());
+    uint32_t* out = update.b;
+    for (uint32_t* it = source.b; it != source.e; ++it, ++out) {
+      uint32_t s = *it;
+      *out = static_cast<uint32_t>(popcnt[s / 64] +
+                                   bv.count_set_bits_until_in_word(s));
+    }
+    update.e = out;
+  }
+
+  PERFETTO_ALWAYS_INLINE void StrideTranslateAndCopySparseNullIndices(
+      const bytecode::StrideTranslateAndCopySparseNullIndices& bytecode) {
+    using B = bytecode::StrideTranslateAndCopySparseNullIndices;
+    const auto& overlay = columns_[bytecode.arg<B::col>()].overlay;
+    const auto& bv =
+        overlay.template unchecked_get<Overlay::SparseNull>().bit_vector;
+
+    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
+    uint32_t stride = bytecode.arg<B::stride>();
+    uint32_t offset = bytecode.arg<B::offset>();
+    const Slab<uint32_t>& popcnt =
+        ReadFromRegister(bytecode.arg<B::popcount_register>());
+    for (uint32_t* it = update.b; it != update.e; it += stride) {
+      uint32_t index = *it;
+      if (bv.is_set(index)) {
+        it[offset] = static_cast<uint32_t>(
+            popcnt[index / 64] + bv.count_set_bits_until_in_word(index));
+      } else {
+        it[offset] = std::numeric_limits<uint32_t>::max();
+      }
+    }
+  }
+
+  PERFETTO_ALWAYS_INLINE void StrideCopyDenseNullIndices(
+      const bytecode::StrideCopyDenseNullIndices& bytecode) {
+    using B = bytecode::StrideCopyDenseNullIndices;
+    const auto& overlay = columns_[bytecode.arg<B::col>()].overlay;
+    const auto& bv =
+        overlay.template unchecked_get<Overlay::DenseNull>().bit_vector;
+
+    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
+    uint32_t stride = bytecode.arg<B::stride>();
+    uint32_t offset = bytecode.arg<B::offset>();
+    for (uint32_t* it = update.b; it != update.e; it += stride) {
+      it[offset] = bv.is_set(*it) ? *it : std::numeric_limits<uint32_t>::max();
+    }
   }
 
   template <typename Op>
@@ -556,8 +639,48 @@ class Interpreter {
                   comparators::Regex{string_pool_});
   }
 
-  // Filters data based on a comparison with a specific value.
-  // Only copies values that match the comparison condition.
+  // Filters an existing index buffer in-place, based on data comparisons
+  // performed using a separate set of source indices.
+  //
+  // This function iterates synchronously through two sets of indices:
+  // 1. Source Indices: Provided by [begin, end), pointed to by `it`. These
+  //    indices are used *only* to look up data values (`data[*it]`).
+  // 2. Destination/Update Indices: Starting at `o_start`, pointed to by
+  //    `o_read` (for reading the original index) and `o_write` (for writing
+  //    (for reading the original index) and `o_write` (for writing kept
+  //    indices). This buffer is modified *in-place*.
+  //
+  // For each step `i`:
+  //   - It retrieves the data value using the i-th source index:
+  //   `data[begin[i]]`.
+  //   - It compares this data value against the provided `value`.
+  //   - It reads the i-th *original* index from the destination buffer:
+  //   `o_read[i]`.
+  //   - If the comparison is true, it copies the original index `o_read[i]`
+  //     to the current write position `*o_write` and advances `o_write`.
+  //
+  // The result is that the destination buffer `[o_start, returned_pointer)`
+  // contains the subset of its *original* indices for which the comparison
+  // (using the corresponding source index for data lookup) was true.
+  //
+  // Use Case Example (SparseNull Filter):
+  //   - `[begin, end)` holds translated storage indices (for correct data
+  //     lookup).
+  //   - `o_start` points to the buffer holding original table indices (that
+  //     was have already been filtered by `NullFilter<IsNotNull>`).
+  //   - This function further filters the original table indices in `o_start`
+  //     based on data comparisons using the translated indices.
+  //
+  // Args:
+  //   data: Pointer to the start of the column's data storage.
+  //   begin: Pointer to the first index in the source span (for data lookup).
+  //   end: Pointer one past the last index in the source span.
+  //   o_start: Pointer to the destination/update buffer (filtered in-place).
+  //   value: The value to compare data against.
+  //   comparator: Functor implementing the comparison logic.
+  //
+  // Returns:
+  //   A pointer one past the last index written to the destination buffer.
   template <typename Comparator, typename ValueType, typename DataType>
   [[nodiscard]] PERFETTO_ALWAYS_INLINE static uint32_t* Filter(
       const DataType* data,
@@ -566,9 +689,10 @@ class Interpreter {
       uint32_t* o_start,
       const ValueType& value,
       const Comparator& comparator) {
+    const uint32_t* o_read = o_start;
     uint32_t* o_write = o_start;
-    for (const uint32_t* it = begin; it != end; ++it) {
-      *o_write = *it;
+    for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
+      *o_write = *o_read;
       o_write += comparator(data[*it], value);
     }
     return o_write;
@@ -583,7 +707,7 @@ class Interpreter {
       uint32_t* o_start,
       uint32_t value,
       Comparator comparator) {
-    uint32_t* o_read = o_start;
+    const uint32_t* o_read = o_start;
     uint32_t* o_write = o_start;
     for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
       *o_write = *o_read;
@@ -818,7 +942,7 @@ class Interpreter {
       FilterValueHandle handle,
       typename FilterValueFetcherImpl::Type filter_value_type,
       FilterValueFetcherImpl* fetcher,
-      const Op& op,
+      const StringOp& op,
       const char*& out) {
     if (PERFETTO_LIKELY(filter_value_type ==
                         FilterValueFetcherImpl ::kString)) {

@@ -284,5 +284,212 @@ TEST_F(DataframeBytecodeTest, StringFilter) {
   )");
 }
 
+TEST_F(DataframeBytecodeTest, SparseNullFilters) {
+  std::vector<ColumnSpec> col_specs = {
+      {"col_sparse", Uint32{}, Unsorted{}, SparseNull{}},
+  };
+
+  std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
+  RunBytecodeTest(col_specs, filters_isnull, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    NullFilter<IsNull>: [col=0, update_register=Register(2)]
+  )",
+                  /*cols_used=*/0);
+
+  std::vector<FilterSpec> filters_isnotnull = {
+      {0, 0, IsNotNull{}, std::nullopt},
+  };
+  RunBytecodeTest(col_specs, filters_isnotnull, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    NullFilter<IsNotNull>: [col=0, update_register=Register(2)]
+  )",
+                  /*cols_used=*/0);
+}
+
+TEST_F(DataframeBytecodeTest, DenseNullFilters) {
+  // Test IsNull and IsNotNull filters on a DenseNull column
+  std::vector<ColumnSpec> col_specs = {
+      {"col_dense", Uint32{}, Unsorted{}, DenseNull{}},
+  };
+
+  // Test IsNull
+  std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
+  RunBytecodeTest(col_specs, filters_isnull, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    NullFilter<IsNull>: [col=0, update_register=Register(2)]
+  )",
+                  /*cols_used=*/0);
+
+  // Test IsNotNull
+  std::vector<FilterSpec> filters_isnotnull = {
+      {0, 0, IsNotNull{}, std::nullopt}};
+  RunBytecodeTest(col_specs, filters_isnotnull, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    NullFilter<IsNotNull>: [col=0, update_register=Register(2)]
+  )",
+                  /*cols_used=*/0);
+}
+
+TEST_F(DataframeBytecodeTest, NonNullFilters) {
+  // Test IsNull and IsNotNull filters on a NonNull column
+  std::vector<ColumnSpec> col_specs = {
+      {"col_nonnull", Uint32{}, Unsorted{}, NonNull{}},
+  };
+
+  // Test IsNull: Should result in an empty result set as the column is NonNull
+  std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
+  RunBytecodeTest(col_specs, filters_isnull, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+  )");
+
+  // Test IsNotNull: Should have no effect as the column is already NonNull
+  std::vector<FilterSpec> filters_isnotnull = {
+      {0, 0, IsNotNull{}, std::nullopt}};
+  RunBytecodeTest(col_specs, filters_isnotnull, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+  )");
+}
+
+TEST_F(DataframeBytecodeTest, StandardFilterOnSparseNull) {
+  // Test a standard filter (Eq) on a SparseNull column.
+  // Expect bytecode to handle nulls first, then apply the filter.
+  std::vector<ColumnSpec> col_specs = {
+      {"col_sparse", Uint32{}, Unsorted{}, SparseNull{}},
+  };
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+    NullFilter<IsNotNull>: [col=0, update_register=Register(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(4), dest_span_register=Register(5)]
+    PrefixPopcount: [col=0, dest_register=Register(6)]
+    TranslateSparseNullIndices: [col=0, popcount_register=Register(6), source_register=Register(3), update_register=Register(5)]
+    NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(5), update_register=Register(3)]
+  )",
+                  /*cols_used=*/0);
+}
+
+TEST_F(DataframeBytecodeTest, StandardFilterOnDenseNull) {
+  // Test a standard filter (Eq) on a DenseNull column.
+  // Expect bytecode to handle nulls first, then apply the filter directly.
+  std::vector<ColumnSpec> col_specs = {
+      {"col_dense", Uint32{}, Unsorted{}, DenseNull{}},
+  };
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+    NullFilter<IsNotNull>: [col=0, update_register=Register(3)]
+    NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+  )",
+                  /*cols_used=*/0);
+}
+
+TEST_F(DataframeBytecodeTest, OutputSparseNullColumn) {
+  // Test requesting a SparseNull column in the output
+  std::vector<ColumnSpec> col_specs = {
+      {"col_nonnull", Uint32{}, Unsorted{}, NonNull{}},
+      {"col_sparse", Int64{}, Unsorted{}, SparseNull{}},
+  };
+  std::vector<FilterSpec> filters;  // No filters
+
+  // cols_used_bitmap: 0b10 means use column at index 1 (col_sparse)
+  uint64_t cols_used = 0b10;
+
+  // Since we request a nullable column (col_sparse at index 1), the output
+  // needs two slots per row:
+  // Slot 0: Original index (copied by StrideCopy)
+  // Slot 1: Translated index for col_sparse (or UINT32_MAX for null)
+  // Therefore, stride = 2.
+  // col_sparse (index 1) maps to offset 1 in the output row.
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+    StrideCopy: [source_register=Register(2), update_register=Register(4), stride=2]
+    PrefixPopcount: [col=1, dest_register=Register(5)]
+    StrideTranslateAndCopySparseNullIndices: [col=1, popcount_register=Register(5), update_register=Register(4), offset=1, stride=2]
+  )",
+                  cols_used);
+}
+
+TEST_F(DataframeBytecodeTest, OutputDenseNullColumn) {
+  // Test requesting a DenseNull column in the output
+  std::vector<ColumnSpec> col_specs = {
+      {"col_nonnull", Uint32{}, Unsorted{}, NonNull{}},
+      {"col_dense", Int64{}, Unsorted{}, DenseNull{}},  // The column we request
+  };
+  std::vector<FilterSpec> filters;  // No filters
+
+  // cols_used_bitmap: 0b10 means use column at index 1 (col_dense)
+  uint64_t cols_used = 0b10;
+
+  // Since we request a nullable column (col_dense at index 1), the output
+  // needs two slots per row:
+  // Slot 0: Original index (copied by StrideCopy)
+  // Slot 1: Original index if non-null, else UINT32_MAX (copied by
+  // StrideCopyDenseNullIndices) Therefore, stride = 2. col_dense (index 1) maps
+  // to offset 1 in the output row.
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+    StrideCopy: [source_register=Register(2), update_register=Register(4), stride=2]
+    StrideCopyDenseNullIndices: [col=1, update_register=Register(4), offset=1, stride=2]
+  )",
+                  cols_used);
+}
+
+TEST_F(DataframeBytecodeTest, OutputMultipleNullableColumns) {
+  // Test requesting both a SparseNull and a DenseNull column
+  std::vector<ColumnSpec> col_specs = {
+      {"col_nonnull", Uint32{}, Unsorted{}, NonNull{}},
+      {"col_sparse", Int64{}, Unsorted{}, SparseNull{}},  // Requested (index 1)
+      {"col_dense", Double{}, Unsorted{}, DenseNull{}},   // Requested (index 2)
+  };
+  std::vector<FilterSpec> filters;  // No filters
+
+  // cols_used_bitmap: 0b110 means use columns at index 1 (sparse) and 2 (dense)
+  uint64_t cols_used = 0b110;
+
+  // Output needs 3 slots per row:
+  // Slot 0: Original index (StrideCopy)
+  // Slot 1: Translated index for col_sparse (index 1)
+  // Slot 2: Copied index for col_dense (index 2)
+  // Stride = 3.
+  // col_sparse (index 1) maps to offset 1.
+  // col_dense (index 2) maps to offset 2.
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+    StrideCopy: [source_register=Register(2), update_register=Register(4), stride=3]
+    PrefixPopcount: [col=1, dest_register=Register(5)]
+    StrideTranslateAndCopySparseNullIndices: [col=1, popcount_register=Register(5), update_register=Register(4), offset=1, stride=3]
+    StrideCopyDenseNullIndices: [col=2, update_register=Register(4), offset=2, stride=3]
+  )",
+                  cols_used);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::dataframe

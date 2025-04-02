@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
-#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -133,7 +132,10 @@ void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
 
     // Get the non-null operation (all our ops are non-null at this point)
     auto non_null_op = c.op.TryDowncast<NonNullOp>();
-    PERFETTO_CHECK(non_null_op);
+    if (!non_null_op) {
+      NullConstraint(*c.op.TryDowncast<NullOp>(), c);
+      continue;
+    }
 
     // Create a register for the coerced filter value
     bytecode::reg::RwHandle<CastFilterValueResult> value_reg{register_count_++};
@@ -185,6 +187,11 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
     }
     const auto& col = columns_[i];
     switch (col.spec.nullability.index()) {
+      case Nullability::GetTypeIndex<SparseNull>():
+      case Nullability::GetTypeIndex<DenseNull>():
+        null_cols.emplace_back(ColAndOffset{i, plan_.params.output_per_row});
+        plan_.params.col_to_output_offset[i] = plan_.params.output_per_row++;
+        break;
       case Nullability::GetTypeIndex<NonNull>():
         // For non-null columns, we can directly use the indices
         plan_.params.col_to_output_offset[i] = 0;
@@ -195,7 +202,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
   }
 
   auto in_memory_indices = EnsureIndicesAreInSlab();
-  bytecode::reg::ReadHandle<Span<uint32_t>> storage_indices_register;
+  bytecode::reg::RwHandle<Span<uint32_t>> storage_indices_register;
   if (plan_.params.output_per_row > 1) {
     bytecode::reg::RwHandle<Slab<uint32_t>> slab_register{register_count_++};
     bytecode::reg::RwHandle<Span<uint32_t>> span_register{register_count_++};
@@ -217,6 +224,26 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
     for (auto [col, offset] : null_cols) {
       const auto& c = columns_[col];
       switch (c.spec.nullability.index()) {
+        case Nullability::GetTypeIndex<SparseNull>(): {
+          using B = bytecode::StrideTranslateAndCopySparseNullIndices;
+          auto reg = PrefixPopcountRegisterFor(col);
+          auto& bc = AddOpcode<B>();
+          bc.arg<B::update_register>() = storage_indices_register;
+          bc.arg<B::popcount_register>() = {reg};
+          bc.arg<B::col>() = col;
+          bc.arg<B::offset>() = offset;
+          bc.arg<B::stride>() = plan_.params.output_per_row;
+          break;
+        }
+        case Nullability::GetTypeIndex<DenseNull>(): {
+          using B = bytecode::StrideCopyDenseNullIndices;
+          auto& bc = AddOpcode<B>();
+          bc.arg<B::update_register>() = storage_indices_register;
+          bc.arg<B::col>() = col;
+          bc.arg<B::offset>() = offset;
+          bc.arg<B::stride>() = plan_.params.output_per_row;
+          break;
+        }
         case Nullability::GetTypeIndex<NonNull>():
         default:
           PERFETTO_FATAL("Unreachable");
@@ -264,6 +291,35 @@ void QueryPlanBuilder::StringConstraint(
   }
 }
 
+void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
+  // Even if we don't need this to filter null/non-null, we add it so that
+  // the caller (i.e. SQLite) knows that we are able to handle the constraint.
+  c.value_index = plan_.params.filter_value_count++;
+
+  switch (columns_[c.column_index].spec.nullability.index()) {
+    case Nullability::GetTypeIndex<SparseNull>():
+    case Nullability::GetTypeIndex<DenseNull>(): {
+      auto indices = EnsureIndicesAreInSlab();
+      {
+        using B = bytecode::NullFilterBase;
+        B& bc = AddOpcode<B>(bytecode::Index<bytecode::NullFilter>(op));
+        bc.arg<B::col>() = c.column_index;
+        bc.arg<B::update_register>() = indices;
+      }
+      break;
+    }
+    case Nullability::GetTypeIndex<NonNull>():
+      if (op.Is<IsNull>()) {
+        SetGuaranteedToBeEmpty();
+        return;
+      }
+      // Nothing to do as the column is non-null.
+      return;
+    default:
+      PERFETTO_FATAL("Unreachable");
+  }
+}
+
 bool QueryPlanBuilder::TrySortedConstraint(
     const FilterSpec& fs,
     const ColumnType& ct,
@@ -304,6 +360,40 @@ QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
   bytecode::reg::RwHandle<Span<uint32_t>> main = EnsureIndicesAreInSlab();
   const auto& col = columns_[c.column_index];
   switch (col.spec.nullability.index()) {
+    case Nullability::GetTypeIndex<SparseNull>(): {
+      bytecode::reg::RwHandle<Slab<uint32_t>> scratch_slab{register_count_++};
+      bytecode::reg::RwHandle<Span<uint32_t>> scratch_span{register_count_++};
+      {
+        using B = bytecode::NullFilter<IsNotNull>;
+        bytecode::NullFilterBase& bc = AddOpcode<B>();
+        bc.arg<B::col>() = c.column_index;
+        bc.arg<B::update_register>() = main;
+      }
+      {
+        using B = bytecode::AllocateIndices;
+        auto& bc = AddOpcode<B>();
+        bc.arg<B::size>() = max_row_count_;
+        bc.arg<B::dest_slab_register>() = scratch_slab;
+        bc.arg<B::dest_span_register>() = scratch_span;
+      }
+      auto popcount_reg = PrefixPopcountRegisterFor(c.column_index);
+      {
+        using B = bytecode::TranslateSparseNullIndices;
+        auto& bc = AddOpcode<B>();
+        bc.arg<B::col>() = c.column_index;
+        bc.arg<B::popcount_register>() = popcount_reg;
+        bc.arg<B::source_register>() = main;
+        bc.arg<B::update_register>() = scratch_span;
+      }
+      return scratch_span;
+    }
+    case Nullability::GetTypeIndex<DenseNull>(): {
+      using B = bytecode::NullFilter<IsNotNull>;
+      bytecode::NullFilterBase& bc = AddOpcode<B>();
+      bc.arg<B::col>() = c.column_index;
+      bc.arg<B::update_register>() = main;
+      return main;
+    }
     case Nullability::GetTypeIndex<NonNull>():
       return main;
     default:
@@ -363,6 +453,21 @@ void QueryPlanBuilder::SetGuaranteedToBeEmpty() {
     bc.arg<B::dest_span_register>() = span_reg;
   }
   indices_reg_ = span_reg;
+}
+
+bytecode::reg::ReadHandle<Slab<uint32_t>>
+QueryPlanBuilder::PrefixPopcountRegisterFor(uint32_t col) {
+  auto& reg = column_states_[col].prefix_popcount;
+  if (!reg) {
+    reg = bytecode::reg::RwHandle<Slab<uint32_t>>{register_count_++};
+    {
+      using B = bytecode::PrefixPopcount;
+      auto& bc = AddOpcode<B>();
+      bc.arg<B::col>() = col;
+      bc.arg<B::dest_register>() = *reg;
+    }
+  }
+  return *reg;
 }
 
 }  // namespace perfetto::trace_processor::dataframe::impl

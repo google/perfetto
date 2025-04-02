@@ -25,10 +25,12 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
+#include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -126,6 +128,16 @@ class Dataframe {
     static_assert(std::is_base_of_v<ValueFetcher, ValueFetcherImpl>,
                   "ValueFetcherImpl must inherit from ValueFetcher");
     for (auto& column : columns_) {
+      switch (column.spec.nullability.index()) {
+        case Nullability::GetTypeIndex<NonNull>():
+          break;
+        case Nullability::GetTypeIndex<SparseNull>():
+        case Nullability::GetTypeIndex<DenseNull>():
+          column.overlay.GetNullBitVector().push_back(true);
+          break;
+        default:
+          PERFETTO_ASSUME(false);
+      }
       switch (column.spec.column_type.index()) {
         case ColumnType::GetTypeIndex<Id>():
           column.storage.unchecked_get<Id>().size++;
