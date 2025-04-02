@@ -274,7 +274,7 @@ BUILD_DEPS_HOST = [
     # If updating the version, also update bazel/deps.bzl.
     Dependency('buildtools/zlib',
                'https://android.googlesource.com/platform/external/zlib.git',
-               '6d3f6aa0f87c9791ca7724c279ef61384f331dfd', 'all', 'all'),
+               'f29fc757b1f27c182f36790eb0ccc6cf8ec27e8e', 'all', 'all'),
 
     # Linenoise, used only by trace_processor in standalone builds.
     # If updating the version, also update bazel/deps.bzl.
