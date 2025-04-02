@@ -38,7 +38,7 @@ test('multiple traces via url and local_cache_key', async ({browser}) => {
   await pth.navigate('#!/viewer?local_cache_key=' + cacheKey1);
   await pth.waitForIdleAndScreenshot('confirmation_dialog.png');
 
-  await page.locator('button.modal-btn-primary').click();
+  await page.locator('.pf-button.pf-intent-primary').click();
   await pth.waitForPerfettoIdle();
   await pth.waitForIdleAndScreenshot('back_to_trace_1.png');
 });

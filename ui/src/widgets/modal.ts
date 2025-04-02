@@ -107,7 +107,9 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
       // even if the user has not clicked yet on any element.
       // If there is a primary button, focus that, so Enter does the default
       // action. If not just focus the whole dialog.
-      const primaryBtn = vnode.dom.querySelector('.modal-btn-primary');
+      const primaryBtn = vnode.dom.querySelector(
+        '.pf-button.pf-intent-primary',
+      );
       if (primaryBtn) {
         (primaryBtn as HTMLElement).focus();
       } else {
