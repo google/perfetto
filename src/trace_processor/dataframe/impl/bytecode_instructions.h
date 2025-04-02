@@ -97,6 +97,17 @@ struct SortedFilter : SortedFilterBase {
   static_assert(TS2::Contains<RangeOp>());
 };
 
+// Specialized filter for Uint32 columns with SetIdSorted state and equality
+// operation.
+struct Uint32SetIdSortedEq : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
+                                     col,
+                                     reg::ReadHandle<CastFilterValueResult>,
+                                     val_register,
+                                     reg::RwHandle<Range>,
+                                     update_register);
+};
+
 // Filter operations on non-string columns.
 struct NonStringFilterBase : TemplatedBytecode2<NonStringType, NonStringOp> {
   PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
@@ -265,6 +276,7 @@ struct StrideCopyDenseNullIndices : Bytecode {
   X(SortedFilter<String, EqualRange>)        \
   X(SortedFilter<String, LowerBound>)        \
   X(SortedFilter<String, UpperBound>)        \
+  X(Uint32SetIdSortedEq)                     \
   X(NonStringFilter<Id, Eq>)                 \
   X(NonStringFilter<Id, Ne>)                 \
   X(NonStringFilter<Id, Lt>)                 \

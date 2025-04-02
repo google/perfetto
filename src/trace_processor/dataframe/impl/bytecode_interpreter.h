@@ -330,6 +330,33 @@ class Interpreter {
     }
   }
 
+  PERFETTO_ALWAYS_INLINE void Uint32SetIdSortedEq(
+      const bytecode::Uint32SetIdSortedEq& bytecode) {
+    using B = bytecode::Uint32SetIdSortedEq;
+
+    const CastFilterValueResult& cast_result =
+        ReadFromRegister(bytecode.arg<B::val_register>());
+    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
+    if (!HandleInvalidCastFilterValueResult(cast_result, update)) {
+      return;
+    }
+    using ValueType =
+        ColumnType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
+    auto val = base::unchecked_get<ValueType>(cast_result.value);
+    const auto& col = columns_[bytecode.arg<B::col>()];
+    const auto* storage = col.storage.template unchecked_data<Uint32>();
+    const auto* start =
+        std::clamp(storage + val, storage + update.b, storage + update.e);
+    update.b = static_cast<uint32_t>(start - storage);
+    const auto* it = start;
+    for (; it != storage + update.e; ++it) {
+      if (*it != val) {
+        break;
+      }
+    }
+    update.e = static_cast<uint32_t>(it - storage);
+  }
+
   template <typename RangeOp, typename DataType>
   PERFETTO_ALWAYS_INLINE void SortedIntegerOrDoubleFilter(
       const DataType* data,

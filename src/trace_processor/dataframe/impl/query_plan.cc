@@ -342,6 +342,14 @@ bool QueryPlanBuilder::TrySortedConstraint(
   const auto& reg =
       base::unchecked_get<bytecode::reg::RwHandle<Range>>(indices_reg_);
 
+  // Handle set id equality with a specialized opcode.
+  if (ct.Is<Uint32>() && col.spec.sort_state.Is<SetIdSorted>() && op.Is<Eq>()) {
+    using B = bytecode::Uint32SetIdSortedEq;
+    auto& bc = AddOpcode<B>();
+    bc.arg<B::val_register>() = result;
+    bc.arg<B::update_register>() = reg;
+    return true;
+  }
   const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
   {
     using B = bytecode::SortedFilterBase;
