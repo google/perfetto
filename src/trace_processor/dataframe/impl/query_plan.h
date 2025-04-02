@@ -167,6 +167,12 @@ class QueryPlanBuilder {
       const NonStringOp& op,
       const bytecode::reg::ReadHandle<CastFilterValueResult>& result);
 
+  // Processes string filter constraints.
+  void StringConstraint(
+      const FilterSpec& c,
+      const StringOp& op,
+      const bytecode::reg::ReadHandle<CastFilterValueResult>& result);
+
   // Attempts to apply optimized filtering on sorted data.
   // Returns true if the optimization was applied.
   bool TrySortedConstraint(

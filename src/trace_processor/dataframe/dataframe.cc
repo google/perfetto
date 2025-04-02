@@ -44,6 +44,8 @@ impl::Storage MakeStorage(const ColumnSpec& c) {
       return impl::Storage{impl::Storage::Int64{}};
     case ColumnType::GetTypeIndex<Double>():
       return impl::Storage{impl::Storage::Double{}};
+    case ColumnType::GetTypeIndex<String>():
+      return impl::Storage{impl::Storage::String{}};
     default:
       PERFETTO_FATAL("Unreachable");
   }

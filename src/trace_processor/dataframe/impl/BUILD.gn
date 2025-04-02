@@ -32,6 +32,8 @@ source_set("impl") {
     "../../../../gn:default_deps",
     "../../../base",
     "../../containers",
+    "../../util:glob",
+    "../../util:regex",
   ]
 }
 
@@ -47,9 +49,9 @@ perfetto_unittest_source_set("unittests") {
     ":impl",
     "..:dataframe",
     "..:specs",
-    "../../../base",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../../base",
     "../../containers",
   ]
 }

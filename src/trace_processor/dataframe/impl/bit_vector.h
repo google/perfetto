@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <utility>
 
 #include "perfetto/base/compiler.h"
@@ -50,16 +51,15 @@ struct BitVector {
   // Default constructor creates an empty bit vector.
   BitVector() = default;
 
-  // Allocates a new BitVector with the specified capacity of bits.
+  // Allocates a new BitVector with `size` unset bits.
   //
-  // capacity: Capacity for how many bits to allocate storage for. Must be a
-  //           power of two.
-  // Returns an empty BitVector with which has the given capacity (i.e. the
-  // ability to store `capacity` bits without allocating more storage).
-  static BitVector CreateWithCapacity(size_t capacity) {
-    PERFETTO_CHECK(internal::IsPowerOfTwo(capacity));
-    return BitVector(
-        FlexVector<uint64_t>::CreateWithCapacity(capacity / 64ull));
+  // size: Size for how many bits to add to the BitVector.
+  // Returns a BitVector with the given size and with all bits set to false.
+  static BitVector CreateWithSize(uint64_t size) {
+    auto words = FlexVector<uint64_t>::CreateWithSize((size + 63u) / 64u);
+    memset(words.data(), 0, words.size() * sizeof(uint64_t));
+    PERFETTO_DCHECK(size <= words.size() * 64u);
+    return BitVector(std::move(words), size);
   }
 
   // Adds a bit to the end of the vector.
@@ -77,7 +77,7 @@ struct BitVector {
   //
   // i: The index of the bit to change.
   // bit: The new boolean value.
-  PERFETTO_ALWAYS_INLINE void change(size_t i, bool bit) {
+  PERFETTO_ALWAYS_INLINE void change(uint64_t i, bool bit) {
     PERFETTO_DCHECK(i < size_);
     uint64_t n = i % 64ull;
     words_[i / 64ull] =
@@ -99,7 +99,7 @@ struct BitVector {
   // Sets the bit at the specified position to true.
   //
   // i: The index of the bit to set.
-  PERFETTO_ALWAYS_INLINE void set(size_t i) {
+  PERFETTO_ALWAYS_INLINE void set(uint64_t i) {
     PERFETTO_DCHECK(i < size_);
     words_[i / 64ull] |= 1ull << (i % 64ull);
   }
@@ -107,7 +107,7 @@ struct BitVector {
   // Sets the bit at the specified position to false.
   //
   // i: The index of the bit to clear.
-  PERFETTO_ALWAYS_INLINE void clear(size_t i) {
+  PERFETTO_ALWAYS_INLINE void clear(uint64_t i) {
     PERFETTO_DCHECK(i < size_);
     words_[i / 64ull] &= ~(1ull << (i % 64ull));
   }
@@ -116,7 +116,7 @@ struct BitVector {
   //
   // i: The index of the bit to check.
   // Returns true if the bit is set, false otherwise.
-  PERFETTO_ALWAYS_INLINE bool is_set(size_t i) const {
+  PERFETTO_ALWAYS_INLINE bool is_set(uint64_t i) const {
     PERFETTO_DCHECK(i < size_);
     return (words_[i / 64ull] >> (i % 64ull)) & 1ull;
   }
@@ -126,9 +126,10 @@ struct BitVector {
   // i: The index position to check up to.
   // Returns the number of set bits in the same 64-bit word as the bit at
   // position i up to position in word (i % 64).
-  PERFETTO_ALWAYS_INLINE size_t count_set_bits_until_in_word(size_t i) const {
+  PERFETTO_ALWAYS_INLINE uint64_t
+  count_set_bits_until_in_word(uint64_t i) const {
     PERFETTO_DCHECK(i < size_);
-    return static_cast<size_t>(
+    return static_cast<uint64_t>(
         PERFETTO_POPCOUNT(words_[i / 64ull] & ((1ull << (i % 64ull)) - 1ull)));
   }
 
@@ -177,17 +178,18 @@ struct BitVector {
   }
 
   // Returns the number of bits in the vector.
-  PERFETTO_ALWAYS_INLINE size_t size() const { return size_; }
+  PERFETTO_ALWAYS_INLINE uint64_t size() const { return size_; }
 
  private:
   // Constructor used by Alloc.
-  explicit BitVector(FlexVector<uint64_t> data) : words_(std::move(data)) {}
+  explicit BitVector(FlexVector<uint64_t> data, uint64_t size)
+      : words_(std::move(data)), size_(size) {}
 
   // The underlying storage as 64-bit words.
   FlexVector<uint64_t> words_;
 
   // Number of bits in the vector.
-  size_t size_ = 0;
+  uint64_t size_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::dataframe::impl
