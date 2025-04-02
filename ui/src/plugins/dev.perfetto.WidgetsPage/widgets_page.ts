@@ -1229,6 +1229,30 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
       }),
       m(WidgetShowcase, {
         label: 'Modal',
+        description: `Shows a dialog box in the center of the screen over the
+                      top of other elements.`,
+        renderWidget: () =>
+          m(Button, {
+            label: 'Show Modal',
+            onclick: () => {
+              showModal({
+                title: 'Attention',
+                content: () => 'This is a modal dialog',
+                buttons: [
+                  {
+                    text: 'Cancel',
+                  },
+                  {
+                    text: 'OK',
+                    primary: true,
+                  },
+                ],
+              });
+            },
+          }),
+      }),
+      m(WidgetShowcase, {
+        label: 'Advanced Modal',
         description: `A helper for modal dialog.`,
         renderWidget: () => m(ModalShowcase),
       }),
