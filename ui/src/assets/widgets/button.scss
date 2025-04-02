@@ -14,13 +14,34 @@
 
 @import "theme";
 
+@mixin filled-color-scheme($intent-color, $text-color) {
+  color: $text-color;
+  background: $intent-color;
+
+  &:hover {
+    background: lighten($intent-color, 5%);
+  }
+
+  &:active,
+  &.pf-active {
+    background: darken($intent-color, 5%);
+  }
+
+  &[disabled] {
+    &:hover {
+      background: $intent-color;
+    }
+
+    &.pf-active {
+      background: darken($intent-color, 5%);
+    }
+  }
+}
+
 .pf-button {
   font-family: $pf-font;
   line-height: 1;
   user-select: none;
-  transition:
-    background $pf-anim-timing,
-    box-shadow $pf-anim-timing;
   border-radius: $pf-border-radius;
   padding: 4px 8px;
   white-space: nowrap;
@@ -46,47 +67,6 @@
     @include focus;
   }
 
-  background: $pf-minimal-background;
-  color: inherit;
-
-  &:hover {
-    background: $pf-minimal-background-hover;
-  }
-
-  &:active,
-  &.pf-active {
-    background: $pf-minimal-background-active;
-  }
-
-  &[disabled] {
-    color: $pf-minimal-foreground-disabled;
-    background: $pf-minimal-background-disabled;
-    cursor: not-allowed;
-  }
-
-  // Remove default background in minimal mode, showing only the text
-  &.pf-intent-primary {
-    color: $pf-primary-foreground;
-    background: $pf-primary-background;
-
-    &:hover {
-      background: $pf-primary-background-hover;
-    }
-
-    &:active,
-    &.pf-active {
-      transition: none;
-      background: $pf-primary-background-active;
-      box-shadow: inset 1px 1px 4px #00000040;
-    }
-    &[disabled] {
-      background: $pf-primary-background-disabled;
-      color: $pf-primary-foreground-disabled;
-      box-shadow: none;
-      cursor: not-allowed;
-    }
-  }
-
   // Reduce padding when compact
   &.pf-compact {
     padding: 2px 4px;
@@ -109,6 +89,93 @@
 
     &.pf-compact {
       padding: 0;
+    }
+  }
+
+  &[disabled] {
+    filter: opacity(50%);
+    cursor: not-allowed;
+  }
+
+  // From here on in we just describe the colours
+  &--filled {
+    background: rgba(gray, 20%);
+
+    &:hover {
+      background: rgba(gray, 30%);
+    }
+
+    &.pf-active,
+    &:active {
+      background: rgba(gray, 40%);
+    }
+
+    &[disabled] {
+      &:hover {
+        background: rgba(gray, 20%); // Reset to the default background
+      }
+
+      &.pf-active {
+        background: rgba(gray, 40%);
+      }
+    }
+
+    &.pf-intent-primary {
+      @include filled-color-scheme($color-primary, white);
+    }
+
+    &.pf-intent-success {
+      @include filled-color-scheme($color-success, white);
+    }
+
+    &.pf-intent-danger {
+      @include filled-color-scheme($color-danger, white);
+    }
+
+    &.pf-intent-warning {
+      @include filled-color-scheme($color-warning, black);
+    }
+  }
+
+  &--outlined {
+    border: 1px solid color-mix(in srgb, currentColor 50%, transparent);
+  }
+
+  &--minimal,
+  &--outlined {
+    &:hover {
+      background: color-mix(in srgb, currentColor 10%, transparent);
+    }
+
+    &:active,
+    &.pf-active {
+      background: color-mix(in srgb, currentColor 20%, transparent);
+    }
+
+    &.pf-intent-primary {
+      color: $pf-primary-background;
+    }
+
+    &.pf-intent-success {
+      color: $color-success;
+    }
+
+    &.pf-intent-danger {
+      color: $color-danger;
+    }
+
+    &.pf-intent-warning {
+      color: $color-warning;
+    }
+
+    &[disabled] {
+      &:hover {
+        background: unset;
+      }
+
+      &.pf-active {
+        background: color-mix(in srgb, currentColor 20%, transparent);
+      }
     }
   }
 }

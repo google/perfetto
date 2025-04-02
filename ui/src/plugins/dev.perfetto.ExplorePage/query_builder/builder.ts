@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {PageWithTraceAttrs} from '../../../public/page';
-import {Button} from '../../../widgets/button';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
 import {ColumnControllerRow} from './column_controller';
 import {QueryNode} from '../query_node';
@@ -105,6 +105,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
                 trigger: m(Button, {
                   icon: Icons.Add,
                   intent: Intent.Primary,
+                  variant: ButtonVariant.Filled,
                   style: {
                     height: '100px',
                     width: '100px',

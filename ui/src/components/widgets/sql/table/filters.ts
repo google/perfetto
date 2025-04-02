@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button, ButtonBar} from '../../../../widgets/button';
+import {Button, ButtonBar, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
 import {isSqlColumnEqual, SqlColumn, sqlColumnId} from './sql_column';
 import {
@@ -120,6 +120,7 @@ export function renderFilters(filters: Filters): m.Children {
         label: filterTitle(filter),
         icon: 'close',
         intent: Intent.Primary,
+        variant: ButtonVariant.Filled,
         onclick: () => filters.removeFilter(filter),
       }),
     ),

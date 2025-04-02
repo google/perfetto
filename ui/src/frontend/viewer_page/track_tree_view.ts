@@ -62,7 +62,7 @@ import {TrackView} from './track_view';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
 import {featureFlags} from '../../core/feature_flags';
 import {EmptyState} from '../../widgets/empty_state';
-import {Button} from '../../widgets/button';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 
 const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
@@ -222,6 +222,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           },
           m(Button, {
             intent: Intent.Primary,
+            variant: ButtonVariant.Filled,
             label: 'Clear track filter',
             onclick: () => trace.tracks.filters.clearAll(),
           }),
