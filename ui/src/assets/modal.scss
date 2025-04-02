@@ -114,8 +114,9 @@
 
   footer {
     display: flex;
-    justify-content: space-around;
+    justify-content: end;
     margin-top: 2rem;
+    gap: 4px;
   } // footer
 
   .modal-btn {
