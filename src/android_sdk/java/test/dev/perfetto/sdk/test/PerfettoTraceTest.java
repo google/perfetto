@@ -76,7 +76,7 @@ public class PerfettoTraceTest {
 
   @Before
   public void setUp() {
-    PerfettoTrace.register(true);
+    PerfettoTrace.registerWithDebugChecks(true);
     // 'var unused' suppress error-prone warning
     var unused = FOO_CATEGORY.register();
 
