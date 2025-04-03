@@ -14,8 +14,8 @@ Build-Depends: debhelper (>= 13),
   zlib1g
 Standards-Version: 4.5.1
 Homepage: https://perfetto.dev
-Vcs-Git: https://android.googlesource.com/platform/external/perfetto/
-Vcs-Browser: https://android.googlesource.com/platform/external/perfetto/
+Vcs-Git: https://github.com/google/perfetto
+Vcs-Browser: https://github.com/google/perfetto
 Rules-Requires-Root: no
 
 Package: perfetto

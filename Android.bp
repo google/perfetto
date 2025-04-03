@@ -749,7 +749,7 @@ cc_library_shared {
 }
 
 // GN: //src/shared_lib:libperfetto_c
-cc_library_shared {
+cc_library {
     name: "libperfetto_c",
     srcs: [
         ":perfetto_base_default_platform",
@@ -13218,6 +13218,7 @@ filegroup {
     name: "perfetto_src_trace_processor_dataframe_impl_unittests",
     srcs: [
         "src/trace_processor/dataframe/impl/bit_vector_unittest.cc",
+        "src/trace_processor/dataframe/impl/bytecode_interpreter_unittest.cc",
         "src/trace_processor/dataframe/impl/flex_vector_unittest.cc",
         "src/trace_processor/dataframe/impl/slab_unittest.cc",
     ],
@@ -14222,6 +14223,7 @@ filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_engine_engine",
     srcs: [
         "src/trace_processor/perfetto_sql/engine/created_function.cc",
+        "src/trace_processor/perfetto_sql/engine/dataframe_module.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
         "src/trace_processor/perfetto_sql/engine/table_pointer_module.cc",
@@ -14623,6 +14625,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/stack_trace/jit.sql",
         "src/trace_processor/perfetto_sql/stdlib/stacks/cpu_profiling.sql",
         "src/trace_processor/perfetto_sql/stdlib/time/conversion.sql",
+        "src/trace_processor/perfetto_sql/stdlib/traced/stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/v8/jit.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/flamegraph.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/slices.sql",

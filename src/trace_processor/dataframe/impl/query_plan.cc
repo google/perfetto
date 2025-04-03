@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
-#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -42,16 +41,38 @@ namespace {
 // Lower scores are applied first for better efficiency.
 uint32_t FilterPreference(const FilterSpec& fs, const ColumnSpec& col) {
   enum AbsolutePreference : uint8_t {
-    kIndexAsValueEq,  // Most efficient: index-as-value equality check
-    kLeastPreferred,  // Least preferred
+    kIdEq,                     // Most efficient: id equality check
+    kIdInequality,             // Id inequality check
+    kNumericSortedEq,          // Numeric sorted equality check
+    kNumericSortedInequality,  // Numeric inequality check
+    kStringSortedEq,           // String sorted equality check
+    kStringSortedInequality,   // String inequality check
+    kLeastPreferred,           // Least preferred
   };
   const auto& op = fs.op;
-  const auto& c = col.content;
+  const auto& ct = col.column_type;
   const auto& n = col.nullability;
-
-  // IndexAsValue columns with non-null equality comparison are most efficient
-  if (n.Is<NonNull>() && c.Is<Id>() && op.Is<Eq>()) {
-    return kIndexAsValueEq;
+  if (n.Is<NonNull>() && ct.Is<Id>() && op.Is<Eq>()) {
+    return kIdEq;
+  }
+  if (n.Is<NonNull>() && ct.Is<Id>() && op.IsAnyOf<InequalityOp>()) {
+    return kIdInequality;
+  }
+  if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() &&
+      ct.IsAnyOf<IntegerOrDoubleType>() && op.Is<Eq>()) {
+    return kNumericSortedEq;
+  }
+  if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() &&
+      ct.IsAnyOf<IntegerOrDoubleType>() && op.IsAnyOf<InequalityOp>()) {
+    return kNumericSortedInequality;
+  }
+  if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() && ct.Is<String>() &&
+      op.Is<Eq>()) {
+    return kStringSortedEq;
+  }
+  if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() && ct.Is<String>() &&
+      op.IsAnyOf<InequalityOp>()) {
+    return kStringSortedInequality;
   }
   return kLeastPreferred;
 }
@@ -61,8 +82,16 @@ uint32_t FilterPreference(const FilterSpec& fs, const ColumnSpec& col) {
 std::pair<BoundModifier, EqualRangeLowerBoundUpperBound> GetSortedFilterArgs(
     const RangeOp& op) {
   switch (op.index()) {
-    case EqualRangeLowerBoundUpperBound::GetTypeIndex<EqualRange>():
+    case RangeOp::GetTypeIndex<Eq>():
       return std::make_pair(BothBounds{}, EqualRange{});
+    case RangeOp::GetTypeIndex<Lt>():
+      return std::make_pair(EndBound{}, LowerBound{});
+    case RangeOp::GetTypeIndex<Le>():
+      return std::make_pair(EndBound{}, UpperBound{});
+    case RangeOp::GetTypeIndex<Gt>():
+      return std::make_pair(BeginBound{}, UpperBound{});
+    case RangeOp::GetTypeIndex<Ge>():
+      return std::make_pair(BeginBound{}, LowerBound{});
     default:
       PERFETTO_FATAL("Unreachable");
   }
@@ -88,44 +117,44 @@ QueryPlanBuilder::QueryPlanBuilder(uint32_t row_count,
 
 void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
   // Sort filters by efficiency (most selective/cheapest first)
-  std::sort(specs.begin(), specs.end(),
-            [this](const FilterSpec& a, const FilterSpec& b) {
-              const auto& a_col = columns_[a.column_index];
-              const auto& b_col = columns_[b.column_index];
-              return std::make_tuple(FilterPreference(a, a_col.spec),
-                                     a.column_index) <
-                     std::make_tuple(FilterPreference(b, b_col.spec),
-                                     b.column_index);
-            });
+  std::stable_sort(specs.begin(), specs.end(),
+                   [this](const FilterSpec& a, const FilterSpec& b) {
+                     const auto& a_col = columns_[a.column_index];
+                     const auto& b_col = columns_[b.column_index];
+                     return FilterPreference(a, a_col.spec) <
+                            FilterPreference(b, b_col.spec);
+                   });
 
   // Apply each filter in the optimized order
   for (FilterSpec& c : specs) {
     const Column& col = columns_[c.column_index];
-    const auto& content = col.spec.content;
+    const auto& ct = col.spec.column_type;
 
     // Get the non-null operation (all our ops are non-null at this point)
     auto non_null_op = c.op.TryDowncast<NonNullOp>();
-    PERFETTO_CHECK(non_null_op);
+    if (!non_null_op) {
+      NullConstraint(*c.op.TryDowncast<NullOp>(), c);
+      continue;
+    }
 
     // Create a register for the coerced filter value
     bytecode::reg::RwHandle<CastFilterValueResult> value_reg{register_count_++};
     {
       using B = bytecode::CastFilterValueBase;
-      auto& bc =
-          AddOpcode<B>(bytecode::Index<bytecode::CastFilterValue>(content));
-      bc.arg<B::fval_handle>() = {plan_.interpreter_spec.filter_value_count};
+      auto& bc = AddOpcode<B>(bytecode::Index<bytecode::CastFilterValue>(ct));
+      bc.arg<B::fval_handle>() = {plan_.params.filter_value_count};
       bc.arg<B::write_register>() = value_reg;
       bc.arg<B::op>() = *non_null_op;
-      c.value_index = plan_.interpreter_spec.filter_value_count++;
+      c.value_index = plan_.params.filter_value_count++;
     }
 
     // Try specialized optimizations first
-    if (TrySortedConstraint(c, content, *non_null_op, value_reg)) {
+    if (TrySortedConstraint(c, ct, *non_null_op, value_reg)) {
       continue;
     }
 
     // Handle non-string data types
-    if (const auto& n = content.TryDowncast<NonStringContent>(); n) {
+    if (const auto& n = ct.TryDowncast<NonStringType>(); n) {
       if (auto op = c.op.TryDowncast<NonStringOp>(); op) {
         NonStringConstraint(c, *n, *op, value_reg);
       } else {
@@ -134,7 +163,10 @@ void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
       continue;
     }
 
-    PERFETTO_FATAL("Unreachable");
+    PERFETTO_CHECK(ct.Is<String>());
+    auto op = non_null_op->TryDowncast<StringOp>();
+    PERFETTO_CHECK(op);
+    StringConstraint(c, *op, value_reg);
   }
 }
 
@@ -146,68 +178,82 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
   };
 
   base::SmallVector<ColAndOffset, 64> null_cols;
-  plan_.interpreter_spec.output_per_row = 1;
+  plan_.params.output_per_row = 1;
 
   // Process each column that will be used in the output
   for (uint32_t i = 0; i < 64; ++i, cols_used >>= 1) {
     if ((cols_used & 1u) == 0) {
       continue;
     }
-
     const auto& col = columns_[i];
     switch (col.spec.nullability.index()) {
+      case Nullability::GetTypeIndex<SparseNull>():
+      case Nullability::GetTypeIndex<DenseNull>():
+        null_cols.emplace_back(ColAndOffset{i, plan_.params.output_per_row});
+        plan_.params.col_to_output_offset[i] = plan_.params.output_per_row++;
+        break;
       case Nullability::GetTypeIndex<NonNull>():
         // For non-null columns, we can directly use the indices
-        plan_.interpreter_spec.col_to_output_offset[i] = 0;
+        plan_.params.col_to_output_offset[i] = 0;
         break;
       default:
         PERFETTO_FATAL("Unreachable");
     }
   }
 
-  // Ensure indices are in a slab for efficient access
   auto in_memory_indices = EnsureIndicesAreInSlab();
-  bytecode::reg::ReadHandle<Slab<uint32_t>> storage_indices_register;
-
-  // Handle multi-column output if needed
-  if (plan_.interpreter_spec.output_per_row > 1) {
-    // Allocate storage for expanded indices
-    bytecode::reg::RwHandle<Slab<uint32_t>> new_reg{register_count_++};
+  bytecode::reg::RwHandle<Span<uint32_t>> storage_indices_register;
+  if (plan_.params.output_per_row > 1) {
+    bytecode::reg::RwHandle<Slab<uint32_t>> slab_register{register_count_++};
+    bytecode::reg::RwHandle<Span<uint32_t>> span_register{register_count_++};
     {
       using B = bytecode::AllocateIndices;
       auto& bc = AddOpcode<B>();
-      bc.arg<B::size>() =
-          max_row_count_ * plan_.interpreter_spec.output_per_row;
-      bc.arg<B::dest_register>() = new_reg;
+      bc.arg<B::size>() = max_row_count_ * plan_.params.output_per_row;
+      bc.arg<B::dest_slab_register>() = slab_register;
+      bc.arg<B::dest_span_register>() = span_register;
     }
-
-    // Expand indices with stride for multi-column access
     {
-      using B = bytecode::StrideExpandedCopy;
+      using B = bytecode::StrideCopy;
       auto& bc = AddOpcode<B>();
       bc.arg<B::source_register>() = in_memory_indices;
-      bc.arg<B::update_register>() = new_reg;
-      bc.arg<B::stride>() = plan_.interpreter_spec.output_per_row;
-      storage_indices_register = new_reg;
+      bc.arg<B::update_register>() = span_register;
+      bc.arg<B::stride>() = plan_.params.output_per_row;
+      storage_indices_register = span_register;
     }
-
-    // Process nullability for each column if needed
     for (auto [col, offset] : null_cols) {
       const auto& c = columns_[col];
       switch (c.spec.nullability.index()) {
+        case Nullability::GetTypeIndex<SparseNull>(): {
+          using B = bytecode::StrideTranslateAndCopySparseNullIndices;
+          auto reg = PrefixPopcountRegisterFor(col);
+          auto& bc = AddOpcode<B>();
+          bc.arg<B::update_register>() = storage_indices_register;
+          bc.arg<B::popcount_register>() = {reg};
+          bc.arg<B::col>() = col;
+          bc.arg<B::offset>() = offset;
+          bc.arg<B::stride>() = plan_.params.output_per_row;
+          break;
+        }
+        case Nullability::GetTypeIndex<DenseNull>(): {
+          using B = bytecode::StrideCopyDenseNullIndices;
+          auto& bc = AddOpcode<B>();
+          bc.arg<B::update_register>() = storage_indices_register;
+          bc.arg<B::col>() = col;
+          bc.arg<B::offset>() = offset;
+          bc.arg<B::stride>() = plan_.params.output_per_row;
+          break;
+        }
         case Nullability::GetTypeIndex<NonNull>():
         default:
           PERFETTO_FATAL("Unreachable");
       }
     }
   } else {
-    // Single column output is simpler
     PERFETTO_CHECK(null_cols.empty());
     storage_indices_register = in_memory_indices;
   }
-
-  // Set the output register
-  plan_.interpreter_spec.output_register = storage_indices_register;
+  plan_.params.output_register = storage_indices_register;
 }
 
 QueryPlan QueryPlanBuilder::Build() && {
@@ -216,13 +262,10 @@ QueryPlan QueryPlanBuilder::Build() && {
 
 void QueryPlanBuilder::NonStringConstraint(
     const FilterSpec& c,
-    const NonStringContent& type,
+    const NonStringType& type,
     const NonStringOp& op,
     const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
-  // Get the source register, applying any needed overlay translation
   auto source = MaybeAddOverlayTranslation(c);
-
-  // Add the filter operation
   {
     using B = bytecode::NonStringFilterBase;
     B& bc = AddOpcode<B>(bytecode::Index<bytecode::NonStringFilter>(type, op));
@@ -233,20 +276,60 @@ void QueryPlanBuilder::NonStringConstraint(
   }
 }
 
+void QueryPlanBuilder::StringConstraint(
+    const FilterSpec& c,
+    const StringOp& op,
+    const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
+  auto source = MaybeAddOverlayTranslation(c);
+  {
+    using B = bytecode::StringFilterBase;
+    B& bc = AddOpcode<B>(bytecode::Index<bytecode::StringFilter>(op));
+    bc.arg<B::col>() = c.column_index;
+    bc.arg<B::val_register>() = result;
+    bc.arg<B::source_register>() = source;
+    bc.arg<B::update_register>() = EnsureIndicesAreInSlab();
+  }
+}
+
+void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
+  // Even if we don't need this to filter null/non-null, we add it so that
+  // the caller (i.e. SQLite) knows that we are able to handle the constraint.
+  c.value_index = plan_.params.filter_value_count++;
+
+  switch (columns_[c.column_index].spec.nullability.index()) {
+    case Nullability::GetTypeIndex<SparseNull>():
+    case Nullability::GetTypeIndex<DenseNull>(): {
+      auto indices = EnsureIndicesAreInSlab();
+      {
+        using B = bytecode::NullFilterBase;
+        B& bc = AddOpcode<B>(bytecode::Index<bytecode::NullFilter>(op));
+        bc.arg<B::col>() = c.column_index;
+        bc.arg<B::update_register>() = indices;
+      }
+      break;
+    }
+    case Nullability::GetTypeIndex<NonNull>():
+      if (op.Is<IsNull>()) {
+        SetGuaranteedToBeEmpty();
+        return;
+      }
+      // Nothing to do as the column is non-null.
+      return;
+    default:
+      PERFETTO_FATAL("Unreachable");
+  }
+}
+
 bool QueryPlanBuilder::TrySortedConstraint(
     const FilterSpec& fs,
-    const Content& type,
+    const ColumnType& ct,
     const NonNullOp& op,
     const bytecode::reg::RwHandle<CastFilterValueResult>& result) {
   const auto& col = columns_[fs.column_index];
   const auto& n = col.spec.nullability;
-
-  // Only applicable to non-null columns
-  if (!n.Is<NonNull>()) {
+  if (!n.Is<NonNull>() || col.spec.sort_state.Is<Unsorted>()) {
     return false;
   }
-
-  // Check if operation is a range operation
   auto range_op = op.TryDowncast<RangeOp>();
   if (!range_op) {
     return false;
@@ -259,14 +342,19 @@ bool QueryPlanBuilder::TrySortedConstraint(
   const auto& reg =
       base::unchecked_get<bytecode::reg::RwHandle<Range>>(indices_reg_);
 
-  // Get the appropriate bound modifier and range operation
+  // Handle set id equality with a specialized opcode.
+  if (ct.Is<Uint32>() && col.spec.sort_state.Is<SetIdSorted>() && op.Is<Eq>()) {
+    using B = bytecode::Uint32SetIdSortedEq;
+    auto& bc = AddOpcode<B>();
+    bc.arg<B::val_register>() = result;
+    bc.arg<B::update_register>() = reg;
+    return true;
+  }
   const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
-
-  // Add the sorted filter operation
   {
     using B = bytecode::SortedFilterBase;
     auto& bc =
-        AddOpcode<B>(bytecode::Index<bytecode::SortedFilter>(type, erlbub));
+        AddOpcode<B>(bytecode::Index<bytecode::SortedFilter>(ct, erlbub));
     bc.arg<B::col>() = fs.column_index;
     bc.arg<B::val_register>() = result;
     bc.arg<B::update_register>() = reg;
@@ -275,13 +363,45 @@ bool QueryPlanBuilder::TrySortedConstraint(
   return true;
 }
 
-bytecode::reg::RwHandle<Slab<uint32_t>>
+bytecode::reg::RwHandle<Span<uint32_t>>
 QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
-  bytecode::reg::RwHandle<Slab<uint32_t>> main = EnsureIndicesAreInSlab();
+  bytecode::reg::RwHandle<Span<uint32_t>> main = EnsureIndicesAreInSlab();
   const auto& col = columns_[c.column_index];
-
-  // Handle based on nullability type
   switch (col.spec.nullability.index()) {
+    case Nullability::GetTypeIndex<SparseNull>(): {
+      bytecode::reg::RwHandle<Slab<uint32_t>> scratch_slab{register_count_++};
+      bytecode::reg::RwHandle<Span<uint32_t>> scratch_span{register_count_++};
+      {
+        using B = bytecode::NullFilter<IsNotNull>;
+        bytecode::NullFilterBase& bc = AddOpcode<B>();
+        bc.arg<B::col>() = c.column_index;
+        bc.arg<B::update_register>() = main;
+      }
+      {
+        using B = bytecode::AllocateIndices;
+        auto& bc = AddOpcode<B>();
+        bc.arg<B::size>() = max_row_count_;
+        bc.arg<B::dest_slab_register>() = scratch_slab;
+        bc.arg<B::dest_span_register>() = scratch_span;
+      }
+      auto popcount_reg = PrefixPopcountRegisterFor(c.column_index);
+      {
+        using B = bytecode::TranslateSparseNullIndices;
+        auto& bc = AddOpcode<B>();
+        bc.arg<B::col>() = c.column_index;
+        bc.arg<B::popcount_register>() = popcount_reg;
+        bc.arg<B::source_register>() = main;
+        bc.arg<B::update_register>() = scratch_span;
+      }
+      return scratch_span;
+    }
+    case Nullability::GetTypeIndex<DenseNull>(): {
+      using B = bytecode::NullFilter<IsNotNull>;
+      bytecode::NullFilterBase& bc = AddOpcode<B>();
+      bc.arg<B::col>() = c.column_index;
+      bc.arg<B::update_register>() = main;
+      return main;
+    }
     case Nullability::GetTypeIndex<NonNull>():
       return main;
     default:
@@ -289,39 +409,36 @@ QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
   }
 }
 
-PERFETTO_NO_INLINE bytecode::reg::RwHandle<Slab<uint32_t>>
+PERFETTO_NO_INLINE bytecode::reg::RwHandle<Span<uint32_t>>
 QueryPlanBuilder::EnsureIndicesAreInSlab() {
-  using RegSlab = bytecode::reg::RwHandle<Slab<uint32_t>>;
+  using SpanReg = bytecode::reg::RwHandle<Span<uint32_t>>;
+  using SlabReg = bytecode::reg::RwHandle<Slab<uint32_t>>;
 
-  // If indices are already in a slab, return them
-  if (PERFETTO_LIKELY(std::holds_alternative<RegSlab>(indices_reg_))) {
-    return base::unchecked_get<RegSlab>(indices_reg_);
+  if (PERFETTO_LIKELY(std::holds_alternative<SpanReg>(indices_reg_))) {
+    return base::unchecked_get<SpanReg>(indices_reg_);
   }
 
-  // Convert range to slab of indices
   using RegRange = bytecode::reg::RwHandle<Range>;
   PERFETTO_DCHECK(std::holds_alternative<RegRange>(indices_reg_));
   auto range_reg = base::unchecked_get<RegRange>(indices_reg_);
 
-  // Allocate space for indices
-  RegSlab slab_reg{register_count_++};
+  SlabReg slab_reg{register_count_++};
+  SpanReg span_reg{register_count_++};
   {
     using B = bytecode::AllocateIndices;
     auto& bc = AddOpcode<B>();
     bc.arg<B::size>() = max_row_count_;
-    bc.arg<B::dest_register>() = slab_reg;
+    bc.arg<B::dest_slab_register>() = slab_reg;
+    bc.arg<B::dest_span_register>() = span_reg;
   }
-  // Fill with sequential indices from the range
   {
     using B = bytecode::Iota;
     auto& bc = AddOpcode<B>();
     bc.arg<B::source_register>() = range_reg;
-    bc.arg<B::update_register>() = slab_reg;
+    bc.arg<B::update_register>() = span_reg;
   }
-
-  // Update our indices to use the slab
-  indices_reg_ = slab_reg;
-  return slab_reg;
+  indices_reg_ = span_reg;
+  return span_reg;
 }
 
 template <typename T>
@@ -334,15 +451,31 @@ T& QueryPlanBuilder::AddOpcode(uint32_t option) {
 void QueryPlanBuilder::SetGuaranteedToBeEmpty() {
   max_row_count_ = 0;
 
-  // Set result size to zero (empty set)
   bytecode::reg::RwHandle<Slab<uint32_t>> slab_reg{register_count_++};
+  bytecode::reg::RwHandle<Span<uint32_t>> span_reg{register_count_++};
   {
     using B = bytecode::AllocateIndices;
     auto& bc = AddOpcode<B>();
     bc.arg<B::size>() = 0;
-    bc.arg<B::dest_register>() = slab_reg;
+    bc.arg<B::dest_slab_register>() = slab_reg;
+    bc.arg<B::dest_span_register>() = span_reg;
   }
-  indices_reg_ = slab_reg;
+  indices_reg_ = span_reg;
+}
+
+bytecode::reg::ReadHandle<Slab<uint32_t>>
+QueryPlanBuilder::PrefixPopcountRegisterFor(uint32_t col) {
+  auto& reg = column_states_[col].prefix_popcount;
+  if (!reg) {
+    reg = bytecode::reg::RwHandle<Slab<uint32_t>>{register_count_++};
+    {
+      using B = bytecode::PrefixPopcount;
+      auto& bc = AddOpcode<B>();
+      bc.arg<B::col>() = col;
+      bc.arg<B::dest_register>() = *reg;
+    }
+  }
+  return *reg;
 }
 
 }  // namespace perfetto::trace_processor::dataframe::impl

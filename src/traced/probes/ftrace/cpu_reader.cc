@@ -158,6 +158,14 @@ void WriteAndSetParseError(CpuReader::Bundler* bundler,
   proto->set_status(status);
 }
 
+void SerialiseOffendingPage([[maybe_unused]] CpuReader::Bundler* bundler,
+                            [[maybe_unused]] const uint8_t* page,
+                            [[maybe_unused]] size_t size) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  bundler->GetOrCreateBundle()->set_broken_abi_trace_page(page, size);
+#endif
+}
+
 }  // namespace
 
 using protos::pbzero::GenericFtraceEvent;
@@ -453,6 +461,9 @@ bool CpuReader::ProcessPagesForDataSource(
           &bundler, parse_errors,
           page_header.has_value() ? page_header->timestamp : 0,
           FtraceParseStatus::FTRACE_STATUS_ABI_INVALID_PAGE_HEADER);
+      if (ds_config->debug_ftrace_abi) {
+        SerialiseOffendingPage(&bundler, curr_page, sys_page_size);
+      }
       success = false;
       continue;
     }
@@ -482,6 +493,9 @@ bool CpuReader::ProcessPagesForDataSource(
     if (status != FtraceParseStatus::FTRACE_STATUS_OK) {
       WriteAndSetParseError(&bundler, parse_errors, page_header->timestamp,
                             status);
+      if (ds_config->debug_ftrace_abi) {
+        SerialiseOffendingPage(&bundler, curr_page, sys_page_size);
+      }
       success = false;
       continue;
     }

@@ -1664,6 +1664,7 @@ perfetto_filegroup(
         "src/trace_processor/dataframe/impl/bit_vector.h",
         "src/trace_processor/dataframe/impl/bytecode_core.h",
         "src/trace_processor/dataframe/impl/bytecode_instructions.h",
+        "src/trace_processor/dataframe/impl/bytecode_interpreter.h",
         "src/trace_processor/dataframe/impl/bytecode_registers.h",
         "src/trace_processor/dataframe/impl/flex_vector.h",
         "src/trace_processor/dataframe/impl/query_plan.cc",
@@ -1677,6 +1678,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_dataframe_dataframe",
     srcs = [
+        "src/trace_processor/dataframe/cursor.h",
         "src/trace_processor/dataframe/dataframe.cc",
         "src/trace_processor/dataframe/dataframe.h",
     ],
@@ -1688,6 +1690,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/dataframe/specs.h",
         "src/trace_processor/dataframe/type_set.h",
+        "src/trace_processor/dataframe/value_fetcher.h",
     ],
 )
 
@@ -2809,6 +2812,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/engine/created_function.cc",
         "src/trace_processor/perfetto_sql/engine/created_function.h",
+        "src/trace_processor/perfetto_sql/engine/dataframe_module.cc",
+        "src/trace_processor/perfetto_sql/engine/dataframe_module.h",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
@@ -3396,6 +3401,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/traced:traced
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_traced_traced",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/traced/stats.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/v8:v8
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_v8_v8",
@@ -3488,6 +3501,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_stack_trace_stack_trace",
         ":src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
         ":src_trace_processor_perfetto_sql_stdlib_time_time",
+        ":src_trace_processor_perfetto_sql_stdlib_traced_traced",
         ":src_trace_processor_perfetto_sql_stdlib_v8_v8",
         ":src_trace_processor_perfetto_sql_stdlib_viz_summary_summary",
         ":src_trace_processor_perfetto_sql_stdlib_viz_viz",

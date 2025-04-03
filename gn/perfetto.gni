@@ -102,6 +102,12 @@ if (!defined(perfetto_build_with_embedder)) {
   perfetto_build_with_embedder = build_with_chromium || is_perfetto_embedder
 }
 
+# Controls whether the `libperfetto` target bundles the JSON export code in its
+# dependencies. Can be overriden by embedders to reduce dependency bloat.
+if (!defined(perfetto_libperfetto_includes_json)) {
+  perfetto_libperfetto_includes_json = build_with_chromium && !is_nacl
+}
+
 perfetto_build_standalone =
     !perfetto_build_with_android && !build_with_chromium &&
     !perfetto_build_with_embedder

@@ -350,6 +350,7 @@ template("perfetto_proto_library") {
                                "visibility",
                                "testonly",
                                "exclude_imports",
+                               "generator_visibility",
                              ])
     }
   }

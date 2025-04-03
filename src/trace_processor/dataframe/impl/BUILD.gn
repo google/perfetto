@@ -19,6 +19,7 @@ source_set("impl") {
     "bit_vector.h",
     "bytecode_core.h",
     "bytecode_instructions.h",
+    "bytecode_interpreter.h",
     "bytecode_registers.h",
     "flex_vector.h",
     "query_plan.cc",
@@ -30,6 +31,9 @@ source_set("impl") {
     "..:specs",
     "../../../../gn:default_deps",
     "../../../base",
+    "../../containers",
+    "../../util:glob",
+    "../../util:regex",
   ]
 }
 
@@ -37,12 +41,17 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "bit_vector_unittest.cc",
+    "bytecode_interpreter_unittest.cc",
     "flex_vector_unittest.cc",
     "slab_unittest.cc",
   ]
   deps = [
     ":impl",
+    "..:dataframe",
+    "..:specs",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../../base",
+    "../../containers",
   ]
 }

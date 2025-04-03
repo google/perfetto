@@ -41,6 +41,7 @@
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
@@ -314,6 +315,10 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks)
     static_table_fn_context_ = ctx.get();
     engine_->RegisterVirtualTableModule<DbSqliteModule>("static_table_function",
                                                         std::move(ctx));
+  }
+  {
+    engine_->RegisterVirtualTableModule<DataframeModule>(
+        "__intrinsic_dataframe", nullptr);
   }
 }
 

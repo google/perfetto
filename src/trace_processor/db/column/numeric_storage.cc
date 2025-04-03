@@ -60,7 +60,7 @@ using FilterOpVariant = std::variant<std::greater<T>,
 
 // Based on SqlValue and ColumnType, casts SqlValue to proper type. Assumes the
 // |val| and |type| are correct.
-inline NumericValue GetNumericTypeVariant(ColumnType type, SqlValue val) {
+inline NumericValue GetIntegerOrDoubleTypeVariant(ColumnType type, SqlValue val) {
   switch (type) {
     case ColumnType::kDouble:
       return val.AsDouble();
@@ -386,7 +386,7 @@ RangeOrBitVector NumericStorageBase::ChainImpl::SearchValidated(
     }
   }
 
-  NumericValue val = GetNumericTypeVariant(storage_type_, sql_val);
+  NumericValue val = GetIntegerOrDoubleTypeVariant(storage_type_, sql_val);
 
   if (is_sorted_) {
     if (op != FilterOp::kNe) {
@@ -430,7 +430,7 @@ void NumericStorageBase::ChainImpl::IndexSearchValidated(
     }
   }
 
-  NumericValue val = GetNumericTypeVariant(storage_type_, sql_val);
+  NumericValue val = GetIntegerOrDoubleTypeVariant(storage_type_, sql_val);
   std::visit(
       [this, &indices, op](auto val) {
         using T = decltype(val);

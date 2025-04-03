@@ -2,7 +2,7 @@
   "name": "perfetto-webui",
   "version": "1.0.0",
   "description": "Perfetto Web UI",
-  "repository": "https://android.googlesource.com/platform/external/perfetto",
+  "repository": "https://github.com/google/perfetto",
   "main": "main.js",
   "author": "Perfetto Team",
   "license": "Apache-2.0",

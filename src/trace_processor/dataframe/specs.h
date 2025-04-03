@@ -5,33 +5,75 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <variant>
 
 #include "src/trace_processor/dataframe/type_set.h"
 
 namespace perfetto::trace_processor::dataframe {
 
 // -----------------------------------------------------------------------------
-// Content Types
+// Column value Types
 // -----------------------------------------------------------------------------
 
-// Represents columns where the index is the same as the value.
-// This allows for zero memory overhead as values don't need to be explicitly
-// stored. Operations on these columns can be highly optimized.
+// Represents values where the index of the value in the table is the same as
+// the value. This allows for zero memory overhead as values don't need to be
+// explicitly stored. Operations on column with this type can be highly
+// optimized.
 struct Id {};
 
-// TypeSet of all possible column content types.
-using Content = TypeSet<Id>;
+// Represents values where the value is a 32-bit unsigned integer.
+struct Uint32 {};
+
+// Represents values where the value is a 32-bit signed integer.
+struct Int32 {};
+
+// Represents values where the value is a 64-bit signed integer.
+struct Int64 {};
+
+// Represents values where the value is a double.
+struct Double {};
+
+// Represents values where the value is a string.
+struct String {};
+
+// TypeSet of all possible column value types.
+using ColumnType = TypeSet<Id, Uint32, Int32, Int64, Double, String>;
 
 // -----------------------------------------------------------------------------
 // Operation Types
 // -----------------------------------------------------------------------------
 
-// Equality comparison operation for filter conditions.
+// Filters only cells which compare equal to the given value.
 struct Eq {};
 
+// Filters only cells which do not compare equal to the given value.
+struct Ne {};
+
+// Filters only cells which are less than the given value.
+struct Lt {};
+
+// Filters only cells which are less than or equal to the given value.
+struct Le {};
+
+// Filters only cells which are greater than the given value.
+struct Gt {};
+
+// Filters only cells which are greater than or equal to the given value.
+struct Ge {};
+
+// Filters only cells which match the given glob pattern.
+struct Glob {};
+
+// Filters only cells which match the given regex pattern.
+struct Regex {};
+
+// Filters only cells which are not NULL.
+struct IsNotNull {};
+
+// Filters only cells which are NULL.
+struct IsNull {};
+
 // TypeSet of all possible operations for filter conditions.
-using Op = TypeSet<Eq>;
+using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex, IsNotNull, IsNull>;
 
 // -----------------------------------------------------------------------------
 // Sort State Types
@@ -42,8 +84,25 @@ using Op = TypeSet<Eq>;
 // the natural ordering where indices equal values.
 struct IdSorted {};
 
+// Represents a column which has two properties:
+// 1) is sorted in ascending order
+// 2) for each unique value `v` in the column, the first occurrence of `v` is
+//    at index `v` in the column.
+//
+// In essence, this means that the columns end up looking like:
+// [0, 0, 0, 3, 3, 5, 5, 7, 7, 7, 10]
+//
+// This state can only be applied to Uint32 columns.
+struct SetIdSorted {};
+
+// Represents a column which is sorted in ascending order by its value.
+struct Sorted {};
+
+// Represents a column which is not sorted.
+struct Unsorted {};
+
 // TypeSet of all possible column sort states.
-using SortState = TypeSet<IdSorted>;
+using SortState = TypeSet<IdSorted, SetIdSorted, Sorted, Unsorted>;
 
 // -----------------------------------------------------------------------------
 // Nullability Types
@@ -52,8 +111,16 @@ using SortState = TypeSet<IdSorted>;
 // Represents a column that doesn't contain NULL values.
 struct NonNull {};
 
+// Represents a column that contains NULL values with the storage only
+// containing data for non-NULL values.
+struct SparseNull {};
+
+// Represents a column that contains NULL values with the storage containing
+// data for all values (with undefined values at positions that would be NULL).
+struct DenseNull {};
+
 // TypeSet of all possible column nullability states.
-using Nullability = TypeSet<NonNull>;
+using Nullability = TypeSet<NonNull, SparseNull, DenseNull>;
 
 // -----------------------------------------------------------------------------
 // Filter Specifications
@@ -62,9 +129,6 @@ using Nullability = TypeSet<NonNull>;
 // Specifies a filter operation to be applied to column data.
 // This is used to generate query plans for filtering rows.
 struct FilterSpec {
-  // Variant type for possible filter values.
-  using Value = std::variant<nullptr_t, int64_t, double, const char*>;
-
   // Index of the column in the dataframe to filter.
   uint32_t column_index;
 
@@ -89,7 +153,7 @@ struct ColumnSpec {
   std::string name;
 
   // Type of content stored in the column.
-  Content content;
+  ColumnType column_type;
 
   // Sort order of the column data.
   SortState sort_state;
