@@ -10,7 +10,7 @@ android_blocking_calls_cuj_metric {
       is_kernel_task: false
     }
     ts: 0
-    dur: 18000000
+    dur: 16000000
     blocking_calls {
       name: "measure"
       cnt: 1
@@ -33,16 +33,16 @@ android_blocking_calls_cuj_metric {
       is_kernel_task: false
     }
     ts: 0
-    dur: 18000000
+    dur: 16000000
     blocking_calls {
       name: "animation"
       cnt: 1
-      total_dur_ms: 2
-      max_dur_ms: 2
-      min_dur_ms: 2
-      total_dur_ns: 2000000
-      max_dur_ns: 2000000
-      min_dur_ns: 2000000
+      total_dur_ms: 1
+      max_dur_ms: 1
+      min_dur_ms: 1
+      total_dur_ns: 1000000
+      max_dur_ns: 1000000
+      min_dur_ns: 1000000
     }
   }
 }
