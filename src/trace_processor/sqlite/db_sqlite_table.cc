@@ -840,7 +840,7 @@ int DbSqliteModule::Column(sqlite3_vtab_cursor* cursor,
 
   // We can say kSqliteStatic for strings because all strings are expected
   // to come from the string pool. Thus they will be valid for the lifetime
-  // of trace processor. Similarily, for bytes, we can also use
+  // of trace processor. Similarly, for bytes, we can also use
   // kSqliteStatic because for our iterator will hold onto the pointer as
   // long as we don't call Next(). However, that only happens when Next() is
   // called on the Cursor itself, at which point SQLite no longer cares

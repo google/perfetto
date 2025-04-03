@@ -250,7 +250,7 @@ class GeneratorJob {
       case FieldDescriptor::TYPE_MESSAGE:
       case FieldDescriptor::TYPE_BYTES:
       case FieldDescriptor::TYPE_GROUP:
-        Abort("Unexpected FieldDescritor::Type.");
+        Abort("Unexpected FieldDescriptor::Type.");
     }
     Abort("Unrecognized FieldDescriptor::Type.");
     return "";
@@ -677,7 +677,7 @@ case $full_class$::$value_name$:
   }
 
   // Packed repeated fields are encoded as a length-delimited field on the wire,
-  // where the payload is the concatenation of invidually encoded elements.
+  // where the payload is the concatenation of individually encoded elements.
   void GeneratePackedRepeatedFieldDescriptor(const FieldDescriptor* field) {
     std::map<std::string, std::string> setter;
     setter["name"] = field->lowercase_name();

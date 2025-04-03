@@ -381,7 +381,7 @@ TEST_F(AndroidLogDataSourceTest, BinaryEvents) {
 TEST_F(AndroidLogDataSourceTest, BinaryEventsWithTagFiltering) {
   DataSourceConfig cfg;
   AndroidLogConfig acfg;
-  acfg.add_filter_tags("not mached");
+  acfg.add_filter_tags("not matched");
   acfg.add_filter_tags("am_uid_stopped");
   cfg.set_android_log_config_raw(acfg.SerializeAsString());
   CreateInstance(cfg);

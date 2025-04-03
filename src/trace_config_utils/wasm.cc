@@ -61,7 +61,7 @@ uint32_t trace_config_pb_to_txt(uint32_t size) {
 
 // Like the above, but converts a pbtxt into proto-encoded bytes.
 // Because this can fail (the C++ function returns a StatusOr) we write
-// a success/failure in the first byte to tell the diffrence.
+// a success/failure in the first byte to tell the difference.
 uint32_t EMSCRIPTEN_KEEPALIVE trace_config_txt_to_pb(uint32_t size);
 
 uint32_t trace_config_txt_to_pb(uint32_t size) {

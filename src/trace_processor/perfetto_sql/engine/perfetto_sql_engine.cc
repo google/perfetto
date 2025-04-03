@@ -199,7 +199,7 @@ ValidateAndGetEffectiveSchema(
     return base::ErrStatus(
         "%s: the following columns are declared in the schema, but do not "
         "exist: "
-        "%s; and the folowing columns exist, but are not declared: %s",
+        "%s; and the following columns exist, but are not declared: %s",
         tag, base::Join(columns_missing_from_query, ", ").c_str(),
         base::Join(columns_missing_from_schema, ", ").c_str());
   }
@@ -497,7 +497,7 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
       RETURN_IF_ERROR(res->status());
     }
 
-    // Propogate the current statement to the next iteration.
+    // Propagate the current statement to the next iteration.
     res = std::move(cur_stmt);
 
     // Step the newly prepared statement once. This is considered to be
@@ -988,7 +988,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateFunction(
         state->return_values.size());
   }
 
-  // Verify that the return names matches the prepared statment column names.
+  // Verify that the return names matches the prepared statement column names.
   for (uint32_t i = 0; i < col_count; ++i) {
     const char* name =
         sqlite3_column_name(stmt.sqlite_stmt(), static_cast<int>(i));

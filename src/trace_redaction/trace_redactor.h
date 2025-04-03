@@ -29,9 +29,9 @@
 namespace perfetto::trace_redaction {
 
 // Removes sensitive information from Perfetto traces by executing collect,
-// build, and transforms primtives in the correct order.
+// build, and transforms primitives in the correct order.
 //
-// The caller is responsible for adding all neccessary primitives. Primitives
+// The caller is responsible for adding all necessary primitives. Primitives
 // are not directly dependent on each other, but rather dependent on the
 // information inside of the context.
 class TraceRedactor {

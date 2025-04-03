@@ -47,7 +47,7 @@ struct SpanJoinOperatorModule;
 // operations which run for a particular *span* of time.
 //
 // We draw spans like so (time on the x-axis):
-// start of span->[ time where opertion is running ]<- end of span
+// start of span->[ time where operation is running ]<- end of span
 //
 // Multiple spans can happen in parallel:
 // [      ]
@@ -184,7 +184,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
       // real slice present.
       kPresentPartitionShadow,
 
-      // Encodes that the current slice is on a paritition(s) for which there is
+      // Encodes that the current slice is on a partition(s) for which there is
       // no real slice for those partition(s).
       kMissingPartitionShadow,
 

@@ -975,7 +975,7 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
     if (active_configs_.empty()) {
       // This was the last active config for now, but potentially more dormant
       // configs need to be activated. We are not interested in reading while no
-      // active configs so diasble tracing_on here.
+      // active configs so disable tracing_on here.
       ftrace_->SetTracingOn(false);
     }
   }

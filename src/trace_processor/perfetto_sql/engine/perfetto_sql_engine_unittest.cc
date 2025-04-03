@@ -162,7 +162,7 @@ TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema_MissingColumn) {
       res.status().c_message(),
       testing::EndsWith("CREATE PERFETTO TABLE: the following columns are "
                         "declared in the schema, but do not exist: x; and the "
-                        "folowing columns exist, but are not declared: y"));
+                        "following columns exist, but are not declared: y"));
 }
 
 TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema_IncorrectType) {
@@ -232,7 +232,7 @@ TEST_F(PerfettoSqlEngineTest, View_IncorrectSchema) {
       res.status().c_message(),
       testing::EndsWith("CREATE PERFETTO VIEW: the following columns are "
                         "declared in the schema, but do not exist: x; and the "
-                        "folowing columns exist, but are not declared: y"));
+                        "following columns exist, but are not declared: y"));
 }
 
 TEST_F(PerfettoSqlEngineTest, View_Duplicates) {

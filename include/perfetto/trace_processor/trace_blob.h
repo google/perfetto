@@ -72,11 +72,11 @@ class PERFETTO_EXPORT_COMPONENT TraceBlob : public RefCounted {
   size_t size() const { return size_; }
 
  private:
-  enum class Ownership { kNullOrMmaped = 0, kHeapBuf };
+  enum class Ownership { kNullOrMmapped = 0, kHeapBuf };
 
   TraceBlob(Ownership ownership, uint8_t* data, size_t size);
 
-  Ownership ownership_ = Ownership::kNullOrMmaped;
+  Ownership ownership_ = Ownership::kNullOrMmapped;
   uint8_t* data_ = nullptr;
   size_t size_ = 0;
   std::unique_ptr<base::ScopedMmap> mapping_;

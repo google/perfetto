@@ -330,7 +330,7 @@ class ErrorPrinter : public google::protobuf::io::ErrorCollector {
   }
 };
 
-// This function returns an indentifier for a metric suitable for use
+// This function returns an identifier for a metric suitable for use
 // as an SQL table name (i.e. containing no forward or backward slashes).
 std::string BaseName(std::string metric_path) {
   std::replace(metric_path.begin(), metric_path.end(), '\\', '/');
@@ -584,7 +584,7 @@ base::Status RunQueriesAndPrintResult(const std::string& sql_query,
   if (prev_with_output > 0) {
     return base::ErrStatus(
         "Result rows were returned for multiples queries. Ensure that only the "
-        "final statement is a SELECT statment or use `suppress_query_output` "
+        "final statement is a SELECT statement or use `suppress_query_output` "
         "to prevent function invocations causing this "
         "error (see "
         "https://perfetto.dev/docs/contributing/"
@@ -865,7 +865,7 @@ Advanced:
 Metrics (v1):
 
   NOTE: the trace-based metrics system has been "soft" deprecated. Specifically,
-  all exisiting metrics will continue functioning but we will not be building
+  all existing metrics will continue functioning but we will not be building
   any new features nor developing any metrics there further. Please use the
   metrics v2 system as part of trace summarization.
 

@@ -52,7 +52,7 @@ constexpr size_t kMaxRegisterDataSize =
 // Types needed for the wire format used for communication between the client
 // and heapprofd. The basic format of a record sent by the client is
 // record size (uint64_t) | record type (RecordType = uint64_t) | record
-// If record type is Malloc, the record format is AllocMetdata | raw stack.
+// If record type is Malloc, the record format is AllocMetadata | raw stack.
 // If the record type is Free, the record is a FreeEntry.
 // If record type is HeapName, the record is a HeapName.
 // On connect, heapprofd sends one ClientConfiguration struct over the control
@@ -90,7 +90,7 @@ enum class RecordType : uint64_t {
   HeapName = 2,
 };
 
-// Make the whole struct 8-aligned. This is to make sizeof(AllocMetdata)
+// Make the whole struct 8-aligned. This is to make sizeof(AllocMetadata)
 // the same on 32 and 64-bit.
 struct alignas(8) AllocMetadata {
   PERFETTO_CROSS_ABI_ALIGNED(uint64_t) sequence_number;

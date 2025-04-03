@@ -185,7 +185,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
           __builtin_offsetof(sockaddr_un, sun_path) + name_len + 1);
 
       // Abstract sockets do NOT require a trailing null terminator (which is
-      // instad mandatory for filesystem sockets). Any byte up to `size`,
+      // instead mandatory for filesystem sockets). Any byte up to `size`,
       // including '\0' will become part of the socket name.
       if (saddr.sun_path[0] == '\0')
         --size;
@@ -720,8 +720,8 @@ bool UnixSocketRaw::SetTxTimeout(uint32_t timeout_ms) {
 #endif
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
   if (family() == SockFamily::kVsock) {
-      // QNX doesn't support SO_SNDTIMEO for vsocks.
-      return true;
+    // QNX doesn't support SO_SNDTIMEO for vsocks.
+    return true;
   }
 #endif
 
@@ -1042,7 +1042,7 @@ void UnixSocket::OnEvent() {
       // re-posted immediately. In both cases, not doing a Recv() in
       // OnDataAvailable, leads to something bad (getting stuck on Windows,
       // getting in a hot loop on Linux), so doesn't feel we should worry too
-      // much about this. If we wanted to keep the behavrior consistent, here
+      // much about this. If we wanted to keep the behavior consistent, here
       // we should do something like: `if (sock_raw_)
       // sock_raw_.SetBlocking(false)` (Note that the socket might be closed
       // by the time we come back here, hence the if part).

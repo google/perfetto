@@ -156,7 +156,7 @@ class FtraceConfigMuxer {
 
   // Resets the current tracer to "nop" (the default). This cannot be handled
   // by |RemoveConfig| because it requires all ftrace readers to be released
-  // beforehand, which is the reponsibility of ftrace_controller.
+  // beforehand, which is the responsibility of ftrace_controller.
   bool ResetCurrentTracer();
 
   // Returns the current per-cpu buffer size, as configured by this muxer

@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
 
   if (argc < 2) {
     fprintf(stderr,
-            "Specifiy one of AssignValues / SumUp / ReadDevZeroChunks\n");
+            "Specify one of AssignValues / SumUp / ReadDevZeroChunks\n");
     abort();
   }
 

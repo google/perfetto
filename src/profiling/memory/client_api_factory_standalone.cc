@@ -55,7 +55,7 @@ bool MonitorFdOnce() {
   char buf[1];
   ssize_t r = g_client_sock->Receive(buf, sizeof(buf));
   if (r == 0) {
-    PERFETTO_ELOG("Server disconneced.");
+    PERFETTO_ELOG("Server disconnected.");
     return false;
   }
   if (r < 0) {
