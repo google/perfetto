@@ -84,6 +84,17 @@ using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex, IsNotNull, IsNull>;
 // the natural ordering where indices equal values.
 struct IdSorted {};
 
+// Represents a column which has two properties:
+// 1) is sorted in ascending order
+// 2) for each unique value `v` in the column, the first occurrence of `v` is
+//    at index `v` in the column.
+//
+// In essence, this means that the columns end up looking like:
+// [0, 0, 0, 3, 3, 5, 5, 7, 7, 7, 10]
+//
+// This state can only be applied to Uint32 columns.
+struct SetIdSorted {};
+
 // Represents a column which is sorted in ascending order by its value.
 struct Sorted {};
 
@@ -91,7 +102,7 @@ struct Sorted {};
 struct Unsorted {};
 
 // TypeSet of all possible column sort states.
-using SortState = TypeSet<IdSorted, Sorted, Unsorted>;
+using SortState = TypeSet<IdSorted, SetIdSorted, Sorted, Unsorted>;
 
 // -----------------------------------------------------------------------------
 // Nullability Types
