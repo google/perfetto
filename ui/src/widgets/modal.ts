@@ -15,6 +15,8 @@
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {Icon} from './icon';
+import {Button} from './button';
+import {Intent} from './common';
 
 // This module deals with modal dialogs. Unlike most components, here we want to
 // render the DOM elements outside of the corresponding vdom tree. For instance
@@ -105,7 +107,9 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
       // even if the user has not clicked yet on any element.
       // If there is a primary button, focus that, so Enter does the default
       // action. If not just focus the whole dialog.
-      const primaryBtn = vnode.dom.querySelector('.modal-btn-primary');
+      const primaryBtn = vnode.dom.querySelector(
+        '.pf-button.pf-intent-primary',
+      );
       if (primaryBtn) {
         (primaryBtn as HTMLElement).focus();
       } else {
@@ -123,18 +127,15 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
     const buttons: m.Children = [];
     for (const button of attrs.buttons || []) {
       buttons.push(
-        m(
-          'button.modal-btn',
-          {
-            class: button.primary ? 'modal-btn-primary' : '',
-            id: button.id,
-            onclick: () => {
-              closeModal(attrs.key);
-              if (button.action !== undefined) button.action();
-            },
+        m(Button, {
+          intent: button.primary ? Intent.Primary : Intent.None,
+          id: button.id,
+          onclick: () => {
+            closeModal(attrs.key);
+            if (button.action !== undefined) button.action();
           },
-          button.text,
-        ),
+          label: button.text,
+        }),
       );
     }
 
