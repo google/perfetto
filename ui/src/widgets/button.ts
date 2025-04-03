@@ -18,6 +18,13 @@ import {HTMLAttrs, HTMLButtonAttrs, Intent, classForIntent} from './common';
 import {Icon} from './icon';
 import {Popup} from './popup';
 import {Spinner} from './spinner';
+import {assertUnreachable} from '../base/logging';
+
+export enum ButtonVariant {
+  Filled = 'Filled',
+  Outlined = 'Outlined',
+  Minimal = 'Minimal',
+}
 
 interface CommonAttrs extends HTMLButtonAttrs {
   // Always show the button as if the "active" pseudo class were applied, which
@@ -42,9 +49,16 @@ interface CommonAttrs extends HTMLButtonAttrs {
   // Whether to use a filled icon
   // Defaults to false;
   iconFilled?: boolean;
-  // Indicate button colouring by intent.
+  // Indicate the intent of the button using color.
   // Defaults to undefined aka "None"
   intent?: Intent;
+  // Choose what style the button should have.
+  // - Filled: The button has a background - used for standalone buttons.
+  // - Text: The button has no visible background - used for when many buttons
+  //   appear together and styling on each one would be too visually busy e.g.
+  //   on toolbars.
+  // Defaults to Filled.
+  variant?: ButtonVariant;
 }
 
 interface IconButtonAttrs extends CommonAttrs {
@@ -72,16 +86,19 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       dismissPopup,
       iconFilled,
       intent = Intent.None,
+      variant = ButtonVariant.Minimal,
       ...htmlAttrs
     } = attrs;
 
     const label = 'label' in attrs ? attrs.label : undefined;
+    const iconOnly = Boolean(icon && !label);
 
     const classes = classNames(
       active && 'pf-active',
       compact && 'pf-compact',
+      classForVariant(variant),
       classForIntent(intent),
-      icon && !label && 'pf-icon-only',
+      iconOnly && 'pf-icon-only',
       dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
       className,
     );
@@ -113,6 +130,19 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
     } else {
       return undefined;
     }
+  }
+}
+
+function classForVariant(variant: ButtonVariant) {
+  switch (variant) {
+    case ButtonVariant.Filled:
+      return 'pf-button--filled';
+    case ButtonVariant.Outlined:
+      return 'pf-button--outlined';
+    case ButtonVariant.Minimal:
+      return 'pf-button--minimal';
+    default:
+      assertUnreachable(variant);
   }
 }
 

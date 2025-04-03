@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DisposableStack} from '../base/disposable_stack';
-import {toHTMLElement} from '../base/dom_utils';
-import {DragGestureHandler} from '../base/drag_gesture_handler';
-import {assertExists, assertUnreachable} from '../base/logging';
-import {Button, ButtonBar} from './button';
+import { DisposableStack } from '../base/disposable_stack';
+import { toHTMLElement } from '../base/dom_utils';
+import { DragGestureHandler } from '../base/drag_gesture_handler';
+import { assertExists, assertUnreachable } from '../base/logging';
+import { Button, ButtonBar } from './button';
 
 export enum SplitPanelDrawerVisibility {
   VISIBLE,

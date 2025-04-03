@@ -18,7 +18,7 @@ import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {PageWithTraceAttrs} from '../../public/page';
 import {DataVisualiser} from './data_visualiser/data_visualiser';
 import {QueryBuilder} from './query_builder/builder';
-import {Button} from '../../widgets/button';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {NodeType, QueryNode} from './query_node';
 import {MenuItem} from '../../widgets/menu';
@@ -159,6 +159,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
                     label: 'Add new node',
                     icon: Icons.Add,
                     intent: Intent.Primary,
+                    variant: ButtonVariant.Filled,
                   }),
                 },
                 addSourcePopupMenu(attrs),
@@ -166,6 +167,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
               m(Button, {
                 label: 'Clear All Query Nodes',
                 intent: Intent.Primary,
+                variant: ButtonVariant.Filled,
                 onclick: () => {
                   state.rootNodes = [];
                   state.selectedNode = undefined;
@@ -176,6 +178,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           : m(Button, {
               label: 'Back to Query Builder',
               intent: Intent.Primary,
+              variant: ButtonVariant.Filled,
               onclick: () => {
                 state.mode = ExplorePageModes.QUERY_BUILDER;
               },

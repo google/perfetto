@@ -18,7 +18,7 @@ import {Hotkey, Platform} from '../../base/hotkeys';
 import {isString} from '../../base/object_utils';
 import {Icons} from '../../base/semantic_icons';
 import {Anchor} from '../../widgets/anchor';
-import {Button} from '../../widgets/button';
+import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {Checkbox} from '../../widgets/checkbox';
 import {Editor} from '../../widgets/editor';
@@ -310,7 +310,6 @@ function PortalButton() {
       return [
         m(Button, {
           label: 'Toggle Portal',
-          intent: Intent.Primary,
           onclick: () => {
             portalOpen = !portalOpen;
           },
@@ -674,14 +673,38 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
       m('h1', 'Widgets'),
       m(WidgetShowcase, {
         label: 'Button',
-        renderWidget: ({label, icon, rightIcon, ...rest}) =>
-          m(Button, {
-            icon: arg(icon, 'send'),
-            rightIcon: arg(rightIcon, 'arrow_forward'),
-            label: arg(label, 'Button', ''),
-            onclick: () => alert('button pressed'),
-            ...rest,
-          }),
+        renderWidget: ({label, icon, rightIcon, showAsGrid, ...rest}) =>
+          Boolean(showAsGrid)
+            ? m(
+                '',
+                {
+                  style: {
+                    display: 'grid',
+                    gridTemplateColumns: 'auto auto auto',
+                    gap: '4px',
+                  },
+                },
+                Object.values(Intent).map((intent) => {
+                  return Object.values(ButtonVariant).map((variant) => {
+                    return m(Button, {
+                      style: {
+                        width: '80px',
+                      },
+                      ...rest,
+                      label: variant,
+                      variant,
+                      intent,
+                    });
+                  });
+                }),
+              )
+            : m(Button, {
+                icon: arg(icon, 'send'),
+                rightIcon: arg(rightIcon, 'arrow_forward'),
+                label: arg(label, 'Button', ''),
+                onclick: () => alert('button pressed'),
+                ...rest,
+              }),
         initialOpts: {
           label: true,
           icon: true,
@@ -691,6 +714,11 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           active: false,
           compact: false,
           loading: false,
+          variant: new EnumOption(
+            ButtonVariant.Filled,
+            Object.values(ButtonVariant),
+          ),
+          showAsGrid: false,
         },
       }),
       m(WidgetShowcase, {
@@ -1089,18 +1117,20 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
             {
               trigger: m(Button, {label: 'Open the popup'}),
             },
-            m(
-              PopupMenu,
-              {
-                trigger: m(Button, {label: 'Select an option'}),
-              },
-              m(MenuItem, {label: 'Option 1'}),
-              m(MenuItem, {label: 'Option 2'}),
-            ),
-            m(Button, {
-              label: 'Done',
-              dismissPopup: true,
-            }),
+            m(ButtonBar, [
+              m(
+                PopupMenu,
+                {
+                  trigger: m(Button, {label: 'Select an option'}),
+                },
+                m(MenuItem, {label: 'Option 1'}),
+                m(MenuItem, {label: 'Option 2'}),
+              ),
+              m(Button, {
+                label: 'Done',
+                dismissPopup: true,
+              }),
+            ]),
           ),
       }),
       m(WidgetShowcase, {
@@ -1539,7 +1569,6 @@ class ModalShowcase implements m.ClassComponent {
               '',
               `Counter value: ${counter}`,
               m(Button, {
-                intent: Intent.Primary,
                 label: 'Increment Counter',
                 onclick: () => ++counter,
               }),

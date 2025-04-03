@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Anchor} from '../../widgets/anchor';
-import {Button} from '../../widgets/button';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
@@ -312,6 +312,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
         m(Button, {
           label: 'Critical path lite',
           intent: Intent.Primary,
+          variant: ButtonVariant.Filled,
           onclick: () => {
             this.trace.commands.runCommand(
               CRITICAL_PATH_LITE_CMD,

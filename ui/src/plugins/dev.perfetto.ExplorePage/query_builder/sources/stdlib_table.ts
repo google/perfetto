@@ -32,7 +32,7 @@ import {
 import protos from '../../../../protos';
 import {TextParagraph} from '../../../../widgets/text_paragraph';
 import {Trace} from '../../../../public/trace';
-import {Button} from '../../../../widgets/button';
+import {Button, ButtonVariant} from '../../../../widgets/button';
 import {closeModal} from '../../../../widgets/modal';
 import {
   createFiltersProto,
@@ -162,6 +162,7 @@ export class StdlibTableSource implements m.ClassComponent<StdlibTableAttrs> {
       m(Button, {
         label: attrs.sqlTable ? 'Change table' : 'Select table',
         intent: Intent.Primary,
+        variant: ButtonVariant.Filled,
         onclick: async () => {
           this.onTableSelect(attrs);
         },
