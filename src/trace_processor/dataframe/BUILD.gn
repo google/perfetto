@@ -16,14 +16,15 @@ import("../../../gn/test.gni")
 
 source_set("dataframe") {
   sources = [
+    "cursor.h",
     "dataframe.cc",
     "dataframe.h",
-    "cursor.h",
   ]
   deps = [
     "../../../gn:default_deps",
     "../../base",
     "../containers",
+    "../util",
     "../util:glob",
     "../util:regex",
     "impl",
@@ -56,6 +57,7 @@ perfetto_unittest_source_set("unittests") {
     "../../base",
     "../../base:test_support",
     "../containers",
+    "../util:regex",
     "impl",
   ]
 }
