@@ -579,7 +579,7 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
   }
 
   {
-    // Pick a resonable value -> get that value.
+    // Pick a reasonable value -> get that value.
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_drain_period_ms(200);
     auto data_source = controller->AddFakeDataSource(config);

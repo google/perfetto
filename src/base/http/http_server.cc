@@ -406,7 +406,7 @@ size_t HttpServer::ParseOneWebsocketFrame(HttpServerConnection* conn) {
   rd += sizeof(mask);
 
   if (avail() < payload_len)
-    return 0;  // Not enouh data to read the payload.
+    return 0;  // Not enough data to read the payload.
   uint8_t* const payload_start = rd;
 
   // Unmask the payload.

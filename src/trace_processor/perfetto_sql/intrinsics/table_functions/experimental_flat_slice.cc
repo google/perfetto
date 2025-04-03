@@ -199,11 +199,11 @@ ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
     TrackId track_id = it.track_id();
     Track& track = tracks[track_id];
 
-    // Initalize the track (if needed) by adding a sentinel slice starting at
+    // Initialize the track (if needed) by adding a sentinel slice starting at
     // start_bound.
     bool is_root = it.depth() == 0;
     if (!track.initialized) {
-      // If we are unintialized and our start box picks up slices mid way
+      // If we are uninitialized and our start box picks up slices mid way
       // through startup, wait until we reach a root slice.
       if (!is_root)
         continue;

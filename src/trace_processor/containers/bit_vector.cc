@@ -183,7 +183,7 @@ void BitVector::Resize(uint32_t new_size, bool filler) {
       // made to the blocks.
 
       // We start by adding the bits we set in the first block to the
-      // cummulative count before the range we changed.
+      // cumulative count before the range we changed.
       Address end_of_block = {start_filler.block_idx,
                               {Block::kWords - 1, BitWord::kBits - 1}};
       uint32_t count_in_block_after_end =
@@ -192,7 +192,7 @@ void BitVector::Resize(uint32_t new_size, bool filler) {
 
       for (uint32_t i = start_filler.block_idx + 1; i <= last_addr.block_idx;
            ++i) {
-        // Set the count to the cummulative count so far.
+        // Set the count to the cumulative count so far.
         counts_[i] = set_count;
 
         // Add a full block of set bits to the count.
@@ -413,7 +413,7 @@ void BitVector::SelectBits(const BitVector& mask_bv) {
 
   // Fix up the counts to match the new values. The Resize above should ensure
   // that a) the counts vector is correctly sized, b) the bits after
-  // |set_bits_in_mask| are cleared (allowing this count algortihm to be
+  // |set_bits_in_mask| are cleared (allowing this count algorithm to be
   // accurate).
   UpdateCounts(words_, counts_);
 }

@@ -202,7 +202,7 @@ TEST_F(ProtoRingBufferTest, RandomSizes) {
 TEST_F(ProtoRingBufferTest, HandleProtoErrorsGracefully) {
   ProtoRingBuffer buf;
 
-  // Apppend a partial valid 32 byte message, followed by some invalild
+  // Append a partial valid 32 byte message, followed by some invalild
   // data.
   auto expected = MakeProtoMessage(1, 32);
   buf.Append(last_msg_.data(), last_msg_.size() - 1);
@@ -214,7 +214,7 @@ TEST_F(ProtoRingBufferTest, HandleProtoErrorsGracefully) {
   invalid[0] = last_msg_.back();
   buf.Append(invalid, sizeof(invalid));
 
-  // The first message shoudl be valild
+  // The first message should be valild
   msg = buf.ReadMessage();
   EXPECT_EQ(msg, expected);
 

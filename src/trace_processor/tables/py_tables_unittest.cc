@@ -46,7 +46,7 @@ class PyTablesUnittest : public ::testing::Test {
   TestArgsTable args_{&pool_};
 };
 
-TEST_F(PyTablesUnittest, EventTableProprties) {
+TEST_F(PyTablesUnittest, EventTableProperties) {
   ASSERT_STREQ(TestEventTable::Name(), "event");
 
   ASSERT_EQ(TestEventTable::ColumnIndex::id, 0u);
@@ -59,7 +59,7 @@ TEST_F(PyTablesUnittest, EventTableProprties) {
             ColumnLegacy::Flag::kNoFlag);
 }
 
-TEST_F(PyTablesUnittest, ArgsTableProprties) {
+TEST_F(PyTablesUnittest, ArgsTableProperties) {
   ASSERT_STREQ(TestArgsTable::Name(), "args");
 
   ASSERT_EQ(TestArgsTable::ColumnIndex::id, 0u);

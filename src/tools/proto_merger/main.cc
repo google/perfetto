@@ -217,7 +217,7 @@ int Main(int argc, char** argv) {
 
   if (!allowlist.empty() && upstream_root_message.empty()) {
     PERFETTO_ELOG(
-        "Need to specifiy upstream root message (--upstream-root-message) when "
+        "Need to specify upstream root message (--upstream-root-message) when "
         "specifying allowlist");
     return 1;
   }

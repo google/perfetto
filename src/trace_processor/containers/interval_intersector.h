@@ -42,7 +42,7 @@ class IntervalIntersector {
     // Use `IntervalTree` as an underlying implementation.. Would create an
     // interval tree - with complexity of O(N) and memory complexity of O(N).
     // Query cost is O(logN).
-    // NOTE: Only use if intevals are overlapping and tree would be queried
+    // NOTE: Only use if intervals are overlapping and tree would be queried
     // multiple times.
     kIntervalTree,
     // If the intervals are non overlapping we can use simple binary search.

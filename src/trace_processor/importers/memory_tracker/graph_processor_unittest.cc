@@ -418,7 +418,7 @@ TEST_F(GraphProcessorTest, AggregateNumericsRecursively) {
   Node* c3_c2 = process->CreateNode(kEmptyId, "c3/c2", false);
 
   // If an entry already exists in the parent, the child should not
-  // ovewrite it. If nothing exists, then the child can aggregrate.
+  // overwrite it. If nothing exists, then the child can aggregate.
   c1->AddEntry("random_numeric", Node::Entry::ScalarUnits::kBytes, 100);
   c2->AddEntry("random_numeric", Node::Entry::ScalarUnits::kBytes, 256);
   c2_c1->AddEntry("random_numeric", Node::Entry::ScalarUnits::kBytes, 256);
@@ -620,7 +620,7 @@ TEST_F(GraphProcessorTest, CalculateNodeCumulativeOwnershipCoefficient) {
   c1_c2->AddEntry("size", Node::Entry::kBytes, 10);
   owned->AddEntry("size", Node::Entry::kBytes, 10);
 
-  // Setup the owned/owning cummulative coefficients.
+  // Setup the owned/owning cumulative coefficients.
   c1->set_cumulative_owning_coefficient(0.123);
   c1->set_cumulative_owned_coefficient(0.456);
   owned->set_cumulative_owning_coefficient(0.789);
@@ -654,7 +654,7 @@ TEST_F(GraphProcessorTest, CalculateNodeEffectiveSize) {
   c1_c1->AddEntry("size", Node::Entry::kBytes, 32);
   c1_c2->AddEntry("size", Node::Entry::kBytes, 20);
 
-  // Setup the owned/owning cummulative coefficients.
+  // Setup the owned/owning cumulative coefficients.
   c1_c1->set_cumulative_owning_coefficient(0.123);
   c1_c1->set_cumulative_owned_coefficient(0.456);
   c1_c2->set_cumulative_owning_coefficient(0.789);

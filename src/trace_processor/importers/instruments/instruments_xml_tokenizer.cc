@@ -367,7 +367,7 @@ class InstrumentsXmlTokenizer::Impl {
           uint64_t clock_sync_timestamp = *current_os_log_metadata_uint64_ref_;
           if (latest_clock_sync_timestamp_ > clock_sync_timestamp) {
             PERFETTO_DLOG("Skipping timestamp %" PRId64
-                          ", non-monotonic sync deteced",
+                          ", non-monotonic sync detected",
                           current_row_.timestamp_);
           } else {
             latest_clock_sync_timestamp_ = clock_sync_timestamp;

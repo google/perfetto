@@ -315,7 +315,7 @@ base::StatusOr<std::string> ExtractStringArg(const char* function_name,
 
 // Verifies if |value| has the type represented by |expected_type|.
 // Returns base::OkStatus if it does or an base::ErrStatus with an
-// appropriate error mesage (incorporating |expected_type_str| if specified).
+// appropriate error message (incorporating |expected_type_str| if specified).
 base::Status TypeCheckSqliteValue(sqlite3_value* value,
                                   SqlValue::Type expected_type);
 base::Status TypeCheckSqliteValue(sqlite3_value* value,
