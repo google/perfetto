@@ -43,7 +43,7 @@
       is_kernel_task: false
     }
     ts: 0
-    dur: 802000000
+    dur: 702000000
     blocking_calls {
       name: "binder transaction"
       cnt: 13

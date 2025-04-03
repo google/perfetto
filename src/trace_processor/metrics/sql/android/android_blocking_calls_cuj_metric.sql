@@ -13,74 +13,12 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Create the base table (`android_jank_cuj`) containing all completed CUJs
--- found in the trace.
--- This script will use the `android_jank_cuj_main_thread_cuj_boundary`,
--- containing bounds of jank CUJs.
-SELECT RUN_METRIC('android/android_jank_cuj.sql');
+SELECT RUN_METRIC('android/process_metadata.sql');
 
 INCLUDE PERFETTO MODULE android.slices;
 INCLUDE PERFETTO MODULE android.binder;
 INCLUDE PERFETTO MODULE android.critical_blocking_calls;
-
--- Jank "J<*>" and latency "L<*>" cujs are put together in android_cujs table.
--- They are computed separately as latency ones are slightly different, don't
--- currently have the same way to be cancelled, and are not anchored to vsyncs.
-DROP TABLE IF EXISTS android_cujs;
-CREATE TABLE android_cujs AS
-WITH latency_cujs AS (
-    SELECT
-        ROW_NUMBER() OVER (ORDER BY ts) AS cuj_id,
-        process.upid AS upid,
-        -- Latency CUJs don't have a well defined thread. Let's always consider
-        -- the app main thread for those.
-        process.upid AS utid,
-        process.name AS process_name,
-        process_metadata.metadata AS process_metadata,
-        -- Extracts "CUJ_NAME" from "L<CUJ_NAME>"
-        SUBSTR(slice.name, 3, LENGTH(slice.name) - 3) AS cuj_name,
-        ts,
-        dur,
-        ts + dur AS ts_end,
-        'completed' AS state
-    FROM slice
-        JOIN process_track
-          ON slice.track_id = process_track.id
-        JOIN process USING (upid)
-        JOIN process_metadata USING (upid)
-    WHERE
-        slice.name GLOB 'L<*>'
-    AND dur > 0
-),
-all_cujs AS (
-    SELECT
-        cuj_id,
-        cuj.upid,
-        t.utid as ui_thread,
-        process_name,
-        process_metadata,
-        cuj_name,
-        tb.ts,
-        tb.dur,
-        tb.ts_end
-    FROM android_jank_cuj_main_thread_cuj_boundary tb
-        JOIN android_jank_cuj cuj USING (cuj_id)
-        JOIN android_jank_cuj_main_thread t USING (cuj_id)
-UNION
-    SELECT
-        cuj_id,
-        upid,
-        utid as ui_thread,
-        process_name,
-        process_metadata,
-        cuj_name,
-        ts,
-        dur,
-        ts_end
-    FROM latency_cujs
-)
-SELECT ROW_NUMBER() OVER (ORDER BY ts) AS cuj_id, *
-FROM all_cujs;
+INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 
 -- We have:
 --  (1) a list of slices from the main thread of each process from the
@@ -106,7 +44,7 @@ SELECT
     s.upid,
     s.utid
 FROM _android_critical_blocking_calls s
-    JOIN  android_cujs cuj
+    JOIN  android_jank_latency_cujs cuj
     -- only when there is an overlap
     ON s.ts + s.dur > cuj.ts AND s.ts < cuj.ts_end
         -- and are from the same process
@@ -140,7 +78,7 @@ SELECT AndroidBlockingCallsCujMetric('cuj', (
         AndroidBlockingCallsCujMetric_Cuj(
             'id', cuj_id,
             'name', cuj_name,
-            'process', process_metadata,
+            'process', process_metadata_proto(cuj.upid),
             'ts',  cuj.ts,
             'dur', cuj.dur,
             'blocking_calls', (
@@ -162,6 +100,6 @@ SELECT AndroidBlockingCallsCujMetric('cuj', (
             )
         )
     )
-    FROM android_cujs cuj
+    FROM android_jank_latency_cujs cuj
     ORDER BY cuj.cuj_id ASC
 ));
