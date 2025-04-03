@@ -29,6 +29,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::dataframe {
@@ -265,13 +266,15 @@ TEST_F(DataframeBytecodeTest, SortingOfFilters) {
   )");
 }
 
-TEST_F(DataframeBytecodeTest, StringFilter) {
+TEST_F(DataframeBytecodeTest, StringFilterRegex) {
+  if constexpr (!regex::IsRegexSupported()) {
+    GTEST_SKIP() << "Regex is not supported";
+  }
   std::vector<ColumnSpec> col_specs = {
       {"col1", String{}, Unsorted{}, NonNull{}},
   };
   std::vector<FilterSpec> filters = {
       {0, 0, Regex{}, std::nullopt},
-      {0, 0, Glob{}, std::nullopt},
   };
   RunBytecodeTest(col_specs, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
@@ -279,8 +282,22 @@ TEST_F(DataframeBytecodeTest, StringFilter) {
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
     StringFilter<Regex>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
-    CastFilterValue<String>: [fval_handle=FilterValue(1), write_register=Register(4), op=NonNullOp(6)]
-    StringFilter<Glob>: [col=0, val_register=Register(4), source_register=Register(3), update_register=Register(3)]
+  )");
+}
+
+TEST_F(DataframeBytecodeTest, StringFilterGlob) {
+  std::vector<ColumnSpec> col_specs = {
+      {"col1", String{}, Unsorted{}, NonNull{}},
+  };
+  std::vector<FilterSpec> filters = {
+      {0, 0, Glob{}, std::nullopt},
+  };
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(6)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+    StringFilter<Glob>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )");
 }
 

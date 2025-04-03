@@ -46,6 +46,7 @@
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
+#include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode {
@@ -961,8 +962,10 @@ TEST_F(BytecodeInterpreterTest, StringFilter) {
   RunStringFilterSubTest("Eq apple", "Eq", "apple", {1, 4});
   RunStringFilterSubTest("Ne apple", "Ne", "apple", {0, 2, 3, 5, 6});
   RunStringFilterSubTest("Glob a*e", "Glob", "a*e", {1, 4});  // Matches apple
-  RunStringFilterSubTest("Regex ^d", "Regex", "^d",
-                         {5, 6});  // Matches date, durian
+  if constexpr (regex::IsRegexSupported()) {
+    RunStringFilterSubTest("Regex ^d", "Regex", "^d",
+                           {5, 6});  // Matches date, durian
+  }
   RunStringFilterSubTest("Lt banana", "Lt", "banana",
                          {1, 2, 4});  // Matches apple, ""
   RunStringFilterSubTest("Ge cherry", "Ge", "cherry",

@@ -25,6 +25,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
@@ -32,6 +33,8 @@
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/util/regex.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
 
@@ -115,7 +118,7 @@ QueryPlanBuilder::QueryPlanBuilder(uint32_t row_count,
   indices_reg_ = range;
 }
 
-void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
+base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
   // Sort filters by efficiency (most selective/cheapest first)
   std::stable_sort(specs.begin(), specs.end(),
                    [this](const FilterSpec& a, const FilterSpec& b) {
@@ -166,8 +169,9 @@ void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
     PERFETTO_CHECK(ct.Is<String>());
     auto op = non_null_op->TryDowncast<StringOp>();
     PERFETTO_CHECK(op);
-    StringConstraint(c, *op, value_reg);
+    RETURN_IF_ERROR(StringConstraint(c, *op, value_reg));
   }
+  return base::OkStatus();
 }
 
 void QueryPlanBuilder::Output(uint64_t cols_used) {
@@ -276,10 +280,16 @@ void QueryPlanBuilder::NonStringConstraint(
   }
 }
 
-void QueryPlanBuilder::StringConstraint(
+base::Status QueryPlanBuilder::StringConstraint(
     const FilterSpec& c,
     const StringOp& op,
     const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
+  if constexpr (!regex::IsRegexSupported()) {
+    if (op.Is<Regex>()) {
+      return base::ErrStatus("Regex is not supported");
+    }
+  }
+
   auto source = MaybeAddOverlayTranslation(c);
   {
     using B = bytecode::StringFilterBase;
@@ -289,6 +299,7 @@ void QueryPlanBuilder::StringConstraint(
     bc.arg<B::source_register>() = source;
     bc.arg<B::update_register>() = EnsureIndicesAreInSlab();
   }
+  return base::OkStatus();
 }
 
 void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {

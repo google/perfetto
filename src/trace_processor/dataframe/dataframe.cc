@@ -17,6 +17,7 @@
 #include "src/trace_processor/dataframe/dataframe.h"
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
@@ -28,6 +29,7 @@
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe {
 namespace {
@@ -89,8 +91,9 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
         "Too many filters provided on a single dataframe. We only support up "
         "to 16 filters for performance reasons.");
   }
-  return QueryPlan(
-      impl::QueryPlanBuilder::Build(row_count_, columns_, specs, cols_used));
+  ASSIGN_OR_RETURN(auto plan, impl::QueryPlanBuilder::Build(
+                                  row_count_, columns_, specs, cols_used));
+  return QueryPlan(std::move(plan));
 }
 
 }  // namespace perfetto::trace_processor::dataframe
