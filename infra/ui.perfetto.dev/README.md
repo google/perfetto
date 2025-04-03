@@ -47,3 +47,5 @@ gcloud auth print-access-token \
 docker build -t europe-docker.pkg.dev/perfetto-ui/builder/perfetto-ui-builder infra/ui.perfetto.dev/builder
 docker push europe-docker.pkg.dev/perfetto-ui/builder/perfetto-ui-builder
 ```
+
+TEST
