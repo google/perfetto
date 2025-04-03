@@ -491,5 +491,21 @@ TEST_F(DataframeBytecodeTest, OutputMultipleNullableColumns) {
                   cols_used);
 }
 
+TEST_F(DataframeBytecodeTest, Uint32SetIdSortedEqGeneration) {
+  std::vector<ColumnSpec> col_specs = {
+      {"col", Uint32(), SetIdSorted(), NonNull{}},
+  };
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+
+  // Expect the specialized Uint32SetIdSortedEq bytecode for this combination
+  RunBytecodeTest(col_specs, filters, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
+    Uint32SetIdSortedEq: [col=0, val_register=Register(1), update_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+  )");
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::dataframe

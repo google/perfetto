@@ -1316,5 +1316,84 @@ TEST_F(BytecodeInterpreterTest, NonStringFilterInPlace) {
               ElementsAre(101u, 103u));  // Indices 101 and 103 are kept
 }
 
+TEST_F(BytecodeInterpreterTest, Uint32SetIdSortedEq) {
+  // Data conforming to SetIdSorted: `data[v] == v` for the first occurrence of
+  // v. Index:  0  1  2  3  4  5  6  7  8  9  10 Value:  0  0  0  3  3  5  5  7
+  // 7  7  10
+  auto values = CreateFlexVectorForTesting<uint32_t>(
+      {0u, 0u, 0u, 3u, 3u, 5u, 5u, 7u, 7u, 7u, 10u});
+  column_ = std::make_unique<Column>(
+      Column{ColumnSpec{"col", Uint32(), SetIdSorted(), NonNull()},
+             Storage{std::move(values)}, Overlay{Overlay::NoOverlay{}}});
+
+  std::string bytecode =
+      "Uint32SetIdSortedEq: [col=0, val_register=Register(0), "
+      "update_register=Register(1)]";
+
+  auto RunSubTest = [&](const std::string& label, Range initial_range,
+                        uint32_t filter_val, Range expected_range) {
+    SCOPED_TRACE("Sub-test: " + label);
+    SetRegistersAndExecute(bytecode,
+                           CastFilterValueResult::Valid(uint32_t(filter_val)),
+                           initial_range);
+    const auto& result = GetRegister<Range>(1);
+    EXPECT_EQ(result.b, expected_range.b) << "Range begin mismatch";
+    EXPECT_EQ(result.e, expected_range.e) << "Range end mismatch";
+  };
+
+  Range full_range{0, 11};  // Covers all data {0..10}
+
+  // --- Test Cases ---
+  RunSubTest("Value 3 found", full_range, 3u, Range{3, 5});
+  RunSubTest("Value 0 found", full_range, 0u, Range{0, 3});
+  RunSubTest("Value 7 found", full_range, 7u, Range{7, 10});
+  RunSubTest("Value 5 found", full_range, 5u, Range{5, 7});
+  RunSubTest("Value 10 found (at end)", full_range, 10u, Range{10, 11});
+
+  // Values not present
+  RunSubTest("Value 2 not found (gap)", full_range, 2u,
+             Range{2, 2});  // Clamp starts at index 2, finds 0, breaks. end=2.
+  RunSubTest("Value 4 not found (gap)", full_range, 4u,
+             Range{4, 4});  // Clamp starts at index 4, finds 3, breaks. end=4.
+  RunSubTest("Value 6 not found (gap)", full_range, 6u,
+             Range{6, 6});  // Clamp starts at index 6, finds 5, breaks. end=6.
+  RunSubTest("Value 8 not found (gap)", full_range, 8u,
+             Range{8, 8});  // Clamp starts at index 8, finds 7, breaks. end=8.
+  RunSubTest(
+      "Value 11 not found (above)", full_range, 11u,
+      Range{11,
+            11});  // Clamp starts at index 11 (end), loop doesn't run. end=11.
+
+  // Range subsets
+  RunSubTest("Value 3 found (range starts mid-value)", Range{4, 11}, 3u,
+             Range{4, 5});
+  RunSubTest("Value 7 found (range ends mid-value)", Range{0, 9}, 7u,
+             Range{7, 9});
+  RunSubTest("Value 5 found (subset range exact)", Range{5, 7}, 5u,
+             Range{5, 7});
+  RunSubTest("Value 0 not found (range excludes)", Range{3, 11}, 0u,
+             Range{3, 3});
+  RunSubTest("Value 10 not found (range excludes)", Range{0, 10}, 10u,
+             Range{10, 10});
+
+  // Test with invalid cast results
+  {
+    SCOPED_TRACE("Sub-test: Invalid Cast (NoneMatch)");
+    SetRegistersAndExecute(bytecode, CastFilterValueResult::NoneMatch(),
+                           full_range);
+    const auto& result = GetRegister<Range>(1);
+    EXPECT_TRUE(result.empty());  // Should become empty
+  }
+  {
+    SCOPED_TRACE("Sub-test: Invalid Cast (AllMatch)");
+    SetRegistersAndExecute(bytecode, CastFilterValueResult::AllMatch(),
+                           full_range);
+    const auto& result = GetRegister<Range>(1);
+    // Instruction returns early, keeps original range
+    EXPECT_EQ(result.b, full_range.b);
+    EXPECT_EQ(result.e, full_range.e);
+  }
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::dataframe::impl::bytecode
