@@ -32,33 +32,48 @@ struct Int64 {};
 // Represents values where the value is a double.
 struct Double {};
 
+// Represents values where the value is a string.
+struct String {};
+
 // TypeSet of all possible column value types.
-using ColumnType = TypeSet<Id, Uint32, Int32, Int64, Double>;
+using ColumnType = TypeSet<Id, Uint32, Int32, Int64, Double, String>;
 
 // -----------------------------------------------------------------------------
 // Operation Types
 // -----------------------------------------------------------------------------
 
-// Equality comparison operation for filter conditions.
+// Filters only cells which compare equal to the given value.
 struct Eq {};
 
-// Not equal comparison operation for filter conditions.
+// Filters only cells which do not compare equal to the given value.
 struct Ne {};
 
-// Less than comparison operation for filter conditions.
+// Filters only cells which are less than the given value.
 struct Lt {};
 
-// Less than or equal to comparison operation for filter conditions.
+// Filters only cells which are less than or equal to the given value.
 struct Le {};
 
-// Greater than comparison operation for filter conditions.
+// Filters only cells which are greater than the given value.
 struct Gt {};
 
-// Greater than or equal to comparison operation for filter conditions.
+// Filters only cells which are greater than or equal to the given value.
 struct Ge {};
 
+// Filters only cells which match the given glob pattern.
+struct Glob {};
+
+// Filters only cells which match the given regex pattern.
+struct Regex {};
+
+// Filters only cells which are not NULL.
+struct IsNotNull {};
+
+// Filters only cells which are NULL.
+struct IsNull {};
+
 // TypeSet of all possible operations for filter conditions.
-using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
+using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex, IsNotNull, IsNull>;
 
 // -----------------------------------------------------------------------------
 // Sort State Types
@@ -85,8 +100,16 @@ using SortState = TypeSet<IdSorted, Sorted, Unsorted>;
 // Represents a column that doesn't contain NULL values.
 struct NonNull {};
 
+// Represents a column that contains NULL values with the storage only
+// containing data for non-NULL values.
+struct SparseNull {};
+
+// Represents a column that contains NULL values with the storage containing
+// data for all values (with undefined values at positions that would be NULL).
+struct DenseNull {};
+
 // TypeSet of all possible column nullability states.
-using Nullability = TypeSet<NonNull>;
+using Nullability = TypeSet<NonNull, SparseNull, DenseNull>;
 
 // -----------------------------------------------------------------------------
 // Filter Specifications

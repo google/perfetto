@@ -21,6 +21,8 @@ import {getCurrentModalKey, showModal} from '../widgets/modal';
 import {globals} from './globals';
 import {AppImpl} from '../core/app_impl';
 import {Router} from '../core/router';
+import {Button} from '../widgets/button';
+import {Intent} from '../widgets/common';
 
 const MODAL_KEY = 'crash_modal';
 
@@ -221,11 +223,11 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
       ),
       m(
         'footer',
-        m(
-          'button.modal-btn.modal-btn-primary',
-          {onclick: () => this.fileBug(err)},
-          'File a bug (Googlers only)',
-        ),
+        m(Button, {
+          onclick: () => this.fileBug(err),
+          intent: Intent.Primary,
+          label: 'File a bug (Googlers only)',
+        }),
       ),
     ];
   }
