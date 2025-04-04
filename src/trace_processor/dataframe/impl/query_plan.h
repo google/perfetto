@@ -30,7 +30,9 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
@@ -39,6 +41,7 @@
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
 
@@ -128,12 +131,12 @@ struct QueryPlan {
 // needed to execute a query.
 class QueryPlanBuilder {
  public:
-  static QueryPlan Build(uint32_t row_count,
-                         const std::vector<Column>& columns,
-                         std::vector<FilterSpec>& specs,
-                         uint64_t cols_used) {
+  static base::StatusOr<QueryPlan> Build(uint32_t row_count,
+                                         const std::vector<Column>& columns,
+                                         std::vector<FilterSpec>& specs,
+                                         uint64_t cols_used) {
     QueryPlanBuilder builder(row_count, columns);
-    builder.Filter(specs);
+    RETURN_IF_ERROR(builder.Filter(specs));
     builder.Output(cols_used);
     return std::move(builder).Build();
   }
@@ -153,7 +156,7 @@ class QueryPlanBuilder {
 
   // Adds filter operations to the query plan based on filter specifications.
   // Optimizes the order of filters for efficiency.
-  void Filter(std::vector<FilterSpec>& specs);
+  base::Status Filter(std::vector<FilterSpec>& specs);
 
   // Configures output handling for the filtered rows.
   // |cols_used_bitmap| is a bitmap with bits set for columns that will be
@@ -171,7 +174,7 @@ class QueryPlanBuilder {
       const bytecode::reg::ReadHandle<CastFilterValueResult>& result);
 
   // Processes string filter constraints.
-  void StringConstraint(
+  base::Status StringConstraint(
       const FilterSpec& c,
       const StringOp& op,
       const bytecode::reg::ReadHandle<CastFilterValueResult>& result);

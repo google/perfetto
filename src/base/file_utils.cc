@@ -143,7 +143,7 @@ bool ReadPlatformHandle(PlatformHandle h, std::string* out) {
       out->resize(i);
       const bool is_eof = res && bytes_read == 0;
       auto err = res ? 0 : GetLastError();
-      // The "Broken pipe" error on Windows is slighly different than Unix:
+      // The "Broken pipe" error on Windows is slightly different than Unix:
       // On Unix: a "broken pipe" error can happen only on the writer side. On
       // the reader there is no broken pipe, just a EOF.
       // On windows: the reader also sees a broken pipe error.

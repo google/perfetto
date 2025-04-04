@@ -37,7 +37,7 @@ class Host;
 
 // Implements the Consumer port of the IPC service. This class proxies requests
 // and responses between the core service logic (|svc_|) and remote Consumer(s)
-// on the IPC socket, through the methods overriddden from ConsumerPort.
+// on the IPC socket, through the methods overridden from ConsumerPort.
 class ConsumerIPCService : public protos::gen::ConsumerPort {
  public:
   explicit ConsumerIPCService(TracingService* core_service);

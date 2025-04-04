@@ -117,7 +117,7 @@ bool ServiceIPCHostImpl::DoStart() {
   for (auto& producer_ipc_port : producer_ipc_ports_)
     producer_ipc_port->SetSocketSendTimeoutMs(kProducerSocketTxTimeoutMs);
 
-  // TODO(fmayer): add a test that destroyes the ServiceIPCHostImpl soon after
+  // TODO(fmayer): add a test that destroys the ServiceIPCHostImpl soon after
   // Start() and checks that no spurious callbacks are issued.
   for (auto& producer_ipc_port : producer_ipc_ports_) {
     bool producer_service_exposed = producer_ipc_port->ExposeService(

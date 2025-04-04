@@ -100,7 +100,7 @@ class SizeProfileComputer {
   // nested inside message Bar which is in turn a field named bar on the message
   // Foo. Then the stack would be: Foo, #bar, Bar, #baz, int
   // We keep track of both the field names (#bar, #baz) and the field types
-  // (Foo, Bar, int) as sometimes we are intrested in which fields are big
+  // (Foo, Bar, int) as sometimes we are interested in which fields are big
   // and sometimes which types are big.
   FieldPath field_path_;
 

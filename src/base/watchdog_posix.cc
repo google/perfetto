@@ -152,7 +152,7 @@ void Watchdog::RearmTimerFd_Locked() {
     return;
   auto it = std::min_element(timers_.begin(), timers_.end());
 
-  // We use one timerfd to handle all the oustanding |timers_|. Keep it armed
+  // We use one timerfd to handle all the outstanding |timers_|. Keep it armed
   // to the task expiring soonest.
   struct itimerspec ts {};
   if (it != timers_.end()) {

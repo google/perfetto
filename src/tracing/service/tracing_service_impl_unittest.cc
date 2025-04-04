@@ -510,7 +510,7 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerTimeOut) {
   EXPECT_THAT(consumer->ReadBuffers(), IsEmpty());
 }
 
-// Regression test for b/274931668. An unkonwn trigger should not cause a trace
+// Regression test for b/274931668. An unknown trigger should not cause a trace
 // that runs indefinitely.
 TEST_F(TracingServiceImplTest, FailOnUnknownTrigger) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
@@ -2182,9 +2182,9 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
       {16, 0, 16, 16, 0, 16},
       // Config is 0, use hint.
       {0, 4, 4, 0, 16, 16},
-      // Config takes precendence over hint.
+      // Config takes precedence over hint.
       {4, 8, 4, 16, 32, 16},
-      // Config takes precendence over hint, even if it's larger.
+      // Config takes precedence over hint, even if it's larger.
       {8, 4, 8, 32, 16, 32},
       // Config page size % 4 != 0, fallback to defaults.
       {3, 0, kDefaultShmPageSizeKb, 0, 0, kDefaultShmSizeKb},
@@ -2382,7 +2382,7 @@ TEST_F(TracingServiceImplTest, BatchFlushes) {
   // Reply only to flush 3. Do not reply to 1,2 and 4.
   producer->endpoint()->NotifyFlushComplete(third_flush_id);
 
-  // Even if the producer explicily replied only to flush ID == 3, all the
+  // Even if the producer explicitly replied only to flush ID == 3, all the
   // previous flushed < 3 should be implicitly acked.
   ASSERT_TRUE(flush_req_1.WaitForReply());
   ASSERT_TRUE(flush_req_2.WaitForReply());

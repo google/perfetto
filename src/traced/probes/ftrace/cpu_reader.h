@@ -249,7 +249,7 @@ class CpuReader {
     // ReadSymbolAddr is a bit special. In order to not disclose KASLR layout
     // via traces, we put in the trace only a mangled address (which really is
     // the insertion order into metadata.kernel_addrs). We don't care about the
-    // actual symbol addesses. We just need to match that against the symbol
+    // actual symbol addresses. We just need to match that against the symbol
     // name in the names in the FtraceEventBundle.KernelSymbols.
     T full_addr;
     memcpy(&full_addr, reinterpret_cast<const void*>(start), sizeof(T));

@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {Icon} from './icon';
-import {Button} from './button';
+import {Button, ButtonVariant} from './button';
 import {Intent} from './common';
 
 // This module deals with modal dialogs. Unlike most components, here we want to
@@ -129,6 +129,7 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
       buttons.push(
         m(Button, {
           intent: button.primary ? Intent.Primary : Intent.None,
+          variant: ButtonVariant.Filled,
           id: button.id,
           onclick: () => {
             closeModal(attrs.key);

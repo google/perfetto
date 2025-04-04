@@ -39,7 +39,7 @@ namespace perfetto::trace_processor::util {
 //
 // This is a class instead of a free function to allow preprocessing the
 // pattern (e.g. to compute Kleene star offsets). This can create big savings
-// because trace processsor needs to match the same pattern on many strings
+// because trace processor needs to match the same pattern on many strings
 // when filtering tables.
 //
 // Implementation:

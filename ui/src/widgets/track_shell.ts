@@ -21,7 +21,7 @@ import {assertExists} from '../base/logging';
 import {clamp} from '../base/math_utils';
 import {hasChildren, MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
-import {Button, ButtonBar} from './button';
+import {Button, ButtonBar, ButtonVariant} from './button';
 import {Chip, ChipBar} from './chip';
 import {HTMLAttrs, Intent} from './common';
 import {MiddleEllipsis} from './middle_ellipsis';
@@ -441,6 +441,7 @@ function renderCrashButton(error: Error, pluginId: string | undefined) {
       m(Button, {
         label: 'View & Report Crash',
         intent: Intent.Primary,
+        variant: ButtonVariant.Filled,
         className: Popup.DISMISS_POPUP_GROUP_CLASS,
         onclick: () => {
           throw error;

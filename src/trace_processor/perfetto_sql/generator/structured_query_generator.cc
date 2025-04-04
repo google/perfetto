@@ -167,7 +167,7 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
 base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
   StructuredQuery::Decoder q(state_[state_index_].bytes);
 
-  // Warning: do *not* keep a reference to elemenets in `state_` across any of
+  // Warning: do *not* keep a reference to elements in `state_` across any of
   // these functions: `state_` can be modified by them.
   std::string source;
   {

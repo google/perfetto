@@ -47,7 +47,7 @@ constexpr size_t kLogRingBufMsgLen = 256;
 // - The Append() method can be called concurrently by several threads, unless
 //   there are > kLogRingBufEntries concurrent threads. Even if that happens,
 //   case some events will contain a mix of strings but the behavior of
-//   futher Append() and Read() is still defined.
+//   further Append() and Read() is still defined.
 // - The Read() method is not thread safe but it's fine in practice. Even if
 //   it's called concurrently with other Append(), it only causes some partial
 //   events to be emitted in output.

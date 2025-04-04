@@ -113,7 +113,8 @@ std::string OpToString(int op) {
       // The "null" will be added below in EscapedSqliteValueAsString.
       return " is not ";
     default:
-      PERFETTO_FATAL("Operator to string conversion not impemented for %d", op);
+      PERFETTO_FATAL("Operator to string conversion not implemented for %d",
+                     op);
   }
 }
 
@@ -177,7 +178,7 @@ std::string SpanJoinOperatorModule::State::BestIndexStrForDefinition(
     }
 
     // Le constraints can be passed straight to the child tables as they won't
-    // affect the span join computation. Similarily, source_geq constraints
+    // affect the span join computation. Similarly, source_geq constraints
     // explicitly request that they are passed as geq constraints to the source
     // tables.
     if (col_name == kTsColumnName && !sqlite::utils::IsOpLe(c.op) &&
@@ -191,7 +192,7 @@ std::string SpanJoinOperatorModule::State::BestIndexStrForDefinition(
       continue;
     }
 
-    // If we're emitting shadow slices, don't propogate any constraints
+    // If we're emitting shadow slices, don't propagate any constraints
     // on this table as this will break the shadow slice computation.
     if (defn.ShouldEmitPresentPartitionShadow()) {
       continue;

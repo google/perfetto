@@ -188,7 +188,7 @@ int CounterMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
   c->counters.clear();
 
   // If there is a counter value before the start of this window, include it in
-  // the aggregation as well becaue it contributes to what should be rendered
+  // the aggregation as well because it contributes to what should be rendered
   // here.
   auto ts_lb = std::lower_bound(state->timestamps.begin(),
                                 state->timestamps.end(), start_ts);

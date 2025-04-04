@@ -19,7 +19,7 @@ import {exists} from '../../base/utils';
 import {AppImpl} from '../../core/app_impl';
 import {PluginWrapper} from '../../core/plugin_manager';
 import {PageAttrs} from '../../public/page';
-import {Button, ButtonBar} from '../../widgets/button';
+import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
 import {Card, CardList} from '../../widgets/card';
 import {Chip} from '../../widgets/chip';
 import {Intent} from '../../widgets/common';
@@ -187,6 +187,7 @@ function reloadButton() {
     icon: 'refresh',
     label: 'Reload required',
     intent: Intent.Primary,
+    variant: ButtonVariant.Filled,
     title: 'Click here to reload the page',
     onclick: () => location.reload(),
   });

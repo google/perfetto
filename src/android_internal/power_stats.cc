@@ -151,7 +151,7 @@ bool GetPowerEntityStateResidency(PowerEntityStateResidency* residency,
                                                          size_of_arr);
 }
 
-/*** Power Stats HAL Implemenation *******************************************/
+/*** Power Stats HAL Implementation *******************************************/
 
 using android::hardware::hidl_vec;
 using android::hardware::Return;
@@ -251,9 +251,9 @@ bool PowerStatsHalDataProvider::GetPowerEntityStateResidency(
   return false;
 }
 
-/*** End of Power Stats HAL Implemenation *************************************/
+/*** End of Power Stats HAL Implementation ************************************/
 
-/*** Power Stats AIDL Implemenation *******************************************/
+/*** Power Stats AIDL Implementation ******************************************/
 aidl::IPowerStats* PowerStatsAidlDataProvider::MaybeGetService() {
   if (svc_ == nullptr) {
     svc_ = android::checkDeclaredService<aidl::IPowerStats>(
@@ -503,7 +503,7 @@ bool PowerStatsAidlDataProvider::GetPowerEntityStateResidency(
   return true;
 }
 
-/*** End of Power Stats AIDL Implemenation ************************************/
+/*** End of Power Stats AIDL Implementation ***********************************/
 
 }  // namespace android_internal
 }  // namespace perfetto

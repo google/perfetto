@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button} from './button';
+import {Button, ButtonVariant} from './button';
 import {HTMLAttrs, HTMLLabelAttrs} from './common';
 import {Popup} from './popup';
 import {Intent} from '../widgets/common';
@@ -74,6 +74,7 @@ export class Form implements m.ClassComponent<FormAttrs> {
           rightIcon: submitIcon,
           className: Popup.DISMISS_POPUP_GROUP_CLASS,
           intent: Intent.Primary,
+          variant: ButtonVariant.Filled,
           onclick: (e: Event) => {
             preventDefault && e.preventDefault();
             onSubmit();
@@ -84,12 +85,14 @@ export class Form implements m.ClassComponent<FormAttrs> {
           m(Button, {
             type: 'button',
             label: cancelLabel,
+            variant: ButtonVariant.Filled,
             className: Popup.DISMISS_POPUP_GROUP_CLASS,
           }),
         // This reset button just clears the form.
         resetLabel &&
           m(Button, {
             label: resetLabel,
+            variant: ButtonVariant.Filled,
             type: 'reset',
           }),
       ),

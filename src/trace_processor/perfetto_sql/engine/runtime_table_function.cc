@@ -139,7 +139,7 @@ int RuntimeTableFunctionModule::BestIndex(sqlite3_vtab* tab,
   auto* s = sqlite::ModuleStateManager<RuntimeTableFunctionModule>::GetState(
       t->state);
 
-  // Don't deal with any constraints on the output parameters for simplicty.
+  // Don't deal with any constraints on the output parameters for simplicity.
   // TODO(lalitm): reconsider this decision to allow more efficient queries:
   // we would need to wrap the query in a SELECT * FROM (...) WHERE constraint
   // like we do for SPAN JOIN.

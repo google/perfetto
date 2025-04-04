@@ -13,26 +13,26 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {canvasClip} from '../../base/canvas_utils';
-import {currentTargetOffset, findRef} from '../../base/dom_utils';
-import {Size2D} from '../../base/geom';
-import {assertUnreachable} from '../../base/logging';
-import {Icons} from '../../base/semantic_icons';
-import {TimeScale} from '../../base/time_scale';
-import {randomColor} from '../../components/colorizer';
-import {raf} from '../../core/raf_scheduler';
-import {TraceImpl} from '../../core/trace_impl';
-import {Note, SpanNote} from '../../public/note';
-import {Button, ButtonBar} from '../../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
-import {Select} from '../../widgets/select';
-import {TRACK_SHELL_WIDTH} from '../css_constants';
-import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
-import {TextInput} from '../../widgets/text_input';
-import {Popup} from '../../widgets/popup';
-import {TrackNode, Workspace} from '../../public/workspace';
-import {AreaSelection, Selection} from '../../public/selection';
-import {MultiSelectOption, PopupMultiSelect} from '../../widgets/multiselect';
+import { canvasClip } from '../../base/canvas_utils';
+import { currentTargetOffset, findRef } from '../../base/dom_utils';
+import { Size2D } from '../../base/geom';
+import { assertUnreachable } from '../../base/logging';
+import { Icons } from '../../base/semantic_icons';
+import { TimeScale } from '../../base/time_scale';
+import { randomColor } from '../../components/colorizer';
+import { raf } from '../../core/raf_scheduler';
+import { TraceImpl } from '../../core/trace_impl';
+import { Note, SpanNote } from '../../public/note';
+import { Button, ButtonBar } from '../../widgets/button';
+import { MenuDivider, MenuItem, PopupMenu } from '../../widgets/menu';
+import { Select } from '../../widgets/select';
+import { TRACK_SHELL_WIDTH } from '../css_constants';
+import { generateTicks, getMaxMajorTicks, TickType } from './gridline_helper';
+import { TextInput } from '../../widgets/text_input';
+import { Popup } from '../../widgets/popup';
+import { TrackNode, Workspace } from '../../public/workspace';
+import { AreaSelection, Selection } from '../../public/selection';
+import { MultiSelectOption, PopupMultiSelect } from '../../widgets/multiselect';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;

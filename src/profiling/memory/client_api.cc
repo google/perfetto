@@ -122,7 +122,7 @@ AHeapInfo& GetHeap(uint32_t id) {
 // Protects g_client, and serves as an external lock for sampling decisions (see
 // perfetto::profiling::Sampler).
 //
-// We rely on this atomic's destuction being a nop, as it is possible for the
+// We rely on this atomic's destruction being a nop, as it is possible for the
 // hooks to attempt to acquire the spinlock after its destructor should have run
 // (technically a use-after-destruct scenario).
 static_assert(
@@ -228,7 +228,7 @@ uint64_t MaybeToggleHeap(uint32_t heap_id,
 }
 
 // We're a library loaded into a potentially-multithreaded process, which might
-// not be explicitly aware of this possiblity. Deadling with forks/clones is
+// not be explicitly aware of this possibility. Deadling with forks/clones is
 // extremely complicated in such situations, but we attempt to handle certain
 // cases.
 //
