@@ -581,6 +581,7 @@ cc_library_shared {
         ":perfetto_src_ipc_common",
         ":perfetto_src_ipc_host",
         ":perfetto_src_kallsyms_kallsyms",
+        ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
@@ -1763,6 +1764,7 @@ cc_library_static {
         ":perfetto_src_ipc_host",
         ":perfetto_src_ipc_perfetto_ipc",
         ":perfetto_src_kallsyms_kallsyms",
+        ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_generator",
@@ -2078,6 +2080,7 @@ cc_library_static {
         ":perfetto_src_ipc_host",
         ":perfetto_src_ipc_perfetto_ipc",
         ":perfetto_src_kallsyms_kallsyms",
+        ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
@@ -2650,6 +2653,7 @@ cc_test {
         ":perfetto_src_ipc_host",
         ":perfetto_src_ipc_perfetto_ipc",
         ":perfetto_src_kallsyms_kallsyms",
+        ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_perfetto_cmd_bugreport_path",
         ":perfetto_src_profiling_common_callstack_trie",
@@ -12082,6 +12086,11 @@ filegroup {
     ],
 }
 
+// GN: //src/kernel_utils:kernel_wakelock_errors
+filegroup {
+    name: "perfetto_src_kernel_utils_kernel_wakelock_errors",
+}
+
 // GN: //src/kernel_utils:syscall_table
 filegroup {
     name: "perfetto_src_kernel_utils_syscall_table",
@@ -16640,6 +16649,7 @@ cc_test {
         ":perfetto_src_ipc_unittests",
         ":perfetto_src_kallsyms_kallsyms",
         ":perfetto_src_kallsyms_unittests",
+        ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_kernel_utils_unittests",
         ":perfetto_src_perfetto_cmd_bugreport_path",
@@ -17203,6 +17213,7 @@ cc_library_static {
         ":perfetto_src_ipc_host",
         ":perfetto_src_ipc_perfetto_ipc",
         ":perfetto_src_kallsyms_kallsyms",
+        ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
@@ -17528,6 +17539,7 @@ cc_binary {
         ":perfetto_src_base_http_http",
         ":perfetto_src_base_unix_socket",
         ":perfetto_src_base_version",
+        ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_profiling_deobfuscator",
         ":perfetto_src_profiling_symbolizer_symbolize_database",
@@ -17974,6 +17986,7 @@ cc_binary_host {
         ":perfetto_src_base_base",
         ":perfetto_src_base_clock_snapshots",
         ":perfetto_src_base_version",
+        ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_profiling_deobfuscator",
         ":perfetto_src_profiling_symbolizer_symbolize_database",
