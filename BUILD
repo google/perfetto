@@ -1681,6 +1681,7 @@ perfetto_filegroup(
         "src/trace_processor/dataframe/cursor.h",
         "src/trace_processor/dataframe/dataframe.cc",
         "src/trace_processor/dataframe/dataframe.h",
+        "src/trace_processor/dataframe/runtime_dataframe_builder.h",
     ],
 )
 

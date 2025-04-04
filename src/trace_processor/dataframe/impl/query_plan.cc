@@ -25,6 +25,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
@@ -32,6 +33,8 @@
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/util/regex.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
 
@@ -39,9 +42,10 @@ namespace {
 
 // Calculates filter preference score for ordering filters.
 // Lower scores are applied first for better efficiency.
-uint32_t FilterPreference(const FilterSpec& fs, const ColumnSpec& col) {
+uint32_t FilterPreference(const FilterSpec& fs, const impl::Column& col) {
   enum AbsolutePreference : uint8_t {
     kIdEq,                     // Most efficient: id equality check
+    kSetIdSortedEq,            // Set id sorted equality check
     kIdInequality,             // Id inequality check
     kNumericSortedEq,          // Numeric sorted equality check
     kNumericSortedInequality,  // Numeric inequality check
@@ -50,10 +54,14 @@ uint32_t FilterPreference(const FilterSpec& fs, const ColumnSpec& col) {
     kLeastPreferred,           // Least preferred
   };
   const auto& op = fs.op;
-  const auto& ct = col.column_type;
-  const auto& n = col.nullability;
+  const auto& ct = col.storage.type();
+  const auto& n = col.overlay.nullability();
   if (n.Is<NonNull>() && ct.Is<Id>() && op.Is<Eq>()) {
     return kIdEq;
+  }
+  if (n.Is<NonNull>() && ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() &&
+      op.Is<Eq>()) {
+    return kSetIdSortedEq;
   }
   if (n.Is<NonNull>() && ct.Is<Id>() && op.IsAnyOf<InequalityOp>()) {
     return kIdInequality;
@@ -115,20 +123,20 @@ QueryPlanBuilder::QueryPlanBuilder(uint32_t row_count,
   indices_reg_ = range;
 }
 
-void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
+base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
   // Sort filters by efficiency (most selective/cheapest first)
   std::stable_sort(specs.begin(), specs.end(),
                    [this](const FilterSpec& a, const FilterSpec& b) {
                      const auto& a_col = columns_[a.column_index];
                      const auto& b_col = columns_[b.column_index];
-                     return FilterPreference(a, a_col.spec) <
-                            FilterPreference(b, b_col.spec);
+                     return FilterPreference(a, a_col) <
+                            FilterPreference(b, b_col);
                    });
 
   // Apply each filter in the optimized order
   for (FilterSpec& c : specs) {
     const Column& col = columns_[c.column_index];
-    const auto& ct = col.spec.column_type;
+    StorageType ct = col.storage.type();
 
     // Get the non-null operation (all our ops are non-null at this point)
     auto non_null_op = c.op.TryDowncast<NonNullOp>();
@@ -166,8 +174,9 @@ void QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
     PERFETTO_CHECK(ct.Is<String>());
     auto op = non_null_op->TryDowncast<StringOp>();
     PERFETTO_CHECK(op);
-    StringConstraint(c, *op, value_reg);
+    RETURN_IF_ERROR(StringConstraint(c, *op, value_reg));
   }
+  return base::OkStatus();
 }
 
 void QueryPlanBuilder::Output(uint64_t cols_used) {
@@ -186,7 +195,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
       continue;
     }
     const auto& col = columns_[i];
-    switch (col.spec.nullability.index()) {
+    switch (col.overlay.nullability().index()) {
       case Nullability::GetTypeIndex<SparseNull>():
       case Nullability::GetTypeIndex<DenseNull>():
         null_cols.emplace_back(ColAndOffset{i, plan_.params.output_per_row});
@@ -223,7 +232,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
     }
     for (auto [col, offset] : null_cols) {
       const auto& c = columns_[col];
-      switch (c.spec.nullability.index()) {
+      switch (c.overlay.nullability().index()) {
         case Nullability::GetTypeIndex<SparseNull>(): {
           using B = bytecode::StrideTranslateAndCopySparseNullIndices;
           auto reg = PrefixPopcountRegisterFor(col);
@@ -276,10 +285,16 @@ void QueryPlanBuilder::NonStringConstraint(
   }
 }
 
-void QueryPlanBuilder::StringConstraint(
+base::Status QueryPlanBuilder::StringConstraint(
     const FilterSpec& c,
     const StringOp& op,
     const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
+  if constexpr (!regex::IsRegexSupported()) {
+    if (op.Is<Regex>()) {
+      return base::ErrStatus("Regex is not supported");
+    }
+  }
+
   auto source = MaybeAddOverlayTranslation(c);
   {
     using B = bytecode::StringFilterBase;
@@ -289,6 +304,7 @@ void QueryPlanBuilder::StringConstraint(
     bc.arg<B::source_register>() = source;
     bc.arg<B::update_register>() = EnsureIndicesAreInSlab();
   }
+  return base::OkStatus();
 }
 
 void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
@@ -296,7 +312,9 @@ void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
   // the caller (i.e. SQLite) knows that we are able to handle the constraint.
   c.value_index = plan_.params.filter_value_count++;
 
-  switch (columns_[c.column_index].spec.nullability.index()) {
+  const auto& col = columns_[c.column_index];
+  uint32_t nullability_type_index = col.overlay.nullability().index();
+  switch (nullability_type_index) {
     case Nullability::GetTypeIndex<SparseNull>():
     case Nullability::GetTypeIndex<DenseNull>(): {
       auto indices = EnsureIndicesAreInSlab();
@@ -322,12 +340,12 @@ void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
 
 bool QueryPlanBuilder::TrySortedConstraint(
     const FilterSpec& fs,
-    const ColumnType& ct,
+    const StorageType& ct,
     const NonNullOp& op,
     const bytecode::reg::RwHandle<CastFilterValueResult>& result) {
   const auto& col = columns_[fs.column_index];
-  const auto& n = col.spec.nullability;
-  if (!n.Is<NonNull>() || col.spec.sort_state.Is<Unsorted>()) {
+  const auto& nullability = col.overlay.nullability();
+  if (!nullability.Is<NonNull>() || col.sort_state.Is<Unsorted>()) {
     return false;
   }
   auto range_op = op.TryDowncast<RangeOp>();
@@ -343,7 +361,7 @@ bool QueryPlanBuilder::TrySortedConstraint(
       base::unchecked_get<bytecode::reg::RwHandle<Range>>(indices_reg_);
 
   // Handle set id equality with a specialized opcode.
-  if (ct.Is<Uint32>() && col.spec.sort_state.Is<SetIdSorted>() && op.Is<Eq>()) {
+  if (ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() && op.Is<Eq>()) {
     using B = bytecode::Uint32SetIdSortedEq;
     auto& bc = AddOpcode<B>();
     bc.arg<B::val_register>() = result;
@@ -367,7 +385,8 @@ bytecode::reg::RwHandle<Span<uint32_t>>
 QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
   bytecode::reg::RwHandle<Span<uint32_t>> main = EnsureIndicesAreInSlab();
   const auto& col = columns_[c.column_index];
-  switch (col.spec.nullability.index()) {
+  uint32_t nullability_type_index = col.overlay.nullability().index();
+  switch (nullability_type_index) {
     case Nullability::GetTypeIndex<SparseNull>(): {
       bytecode::reg::RwHandle<Slab<uint32_t>> scratch_slab{register_count_++};
       bytecode::reg::RwHandle<Span<uint32_t>> scratch_span{register_count_++};

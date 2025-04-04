@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -78,8 +79,7 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   };
   using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
-    DfCursor* df_cursor() { return reinterpret_cast<DfCursor*>(cursor); }
-    alignas(DfCursor) char cursor[sizeof(DfCursor)];
+    std::optional<DfCursor> df_cursor;
     const char* last_idx_str = nullptr;
   };
 
