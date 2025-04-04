@@ -60,7 +60,7 @@ struct BitVector {
   // Allocates a new BitVector with `size` unset bits.
   //
   // size: Size for how many bits to add to the BitVector.
-  // Returns a BitVector with the given size and with all bits set to ``value`.
+  // Returns a BitVector with the given size and with all bits set to `value`.
   static BitVector CreateWithSize(uint64_t size, bool value = false) {
     if (size == 0) {
       return {};
