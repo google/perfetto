@@ -5633,6 +5633,7 @@ TEST_F(TracingServiceImplTest, CloneSnapshotTriggerProducesEvent) {
   EXPECT_EQ(trigger_hit_event.producer_name(), kMockProducerName);
   EXPECT_EQ(trigger_hit_event.producer_uid(), kMockProducerUid);
   EXPECT_GT(trigger_hit_event.boot_time_ns(), 0ul);
+  EXPECT_EQ(trigger_hit_event.trigger_delay_mono_ms(), 1u);
 
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("ds_1");
@@ -5673,6 +5674,7 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
   static constexpr auto kCloneTriggerProducerName = "trigger_producer_name";
   static constexpr uid_t kCloneTriggerProducerUid = 42;
   static constexpr uint64_t kCloneTriggerTimestamp = 456789123;
+  static constexpr uint64_t kCloneTriggerDelayMs = 104;
   {
     auto clone_done = task_runner.CreateCheckpoint("clone_done");
     EXPECT_CALL(*consumer2, OnSessionCloned(_))
@@ -5688,6 +5690,7 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
     args.clone_trigger_producer_name = kCloneTriggerProducerName;
     args.clone_trigger_trusted_producer_uid = kCloneTriggerProducerUid;
     args.clone_trigger_boot_time_ns = kCloneTriggerTimestamp;
+    args.clone_trigger_delay_mono_ms = kCloneTriggerDelayMs;
     consumer2->endpoint()->CloneSession(args);
     // CloneSession() will implicitly issue a flush. Linearize with that.
     producer->ExpectFlush(writer.get());
@@ -5729,6 +5732,7 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
   EXPECT_EQ(trigger.producer_name(), kCloneTriggerProducerName);
   EXPECT_EQ(trigger.trusted_producer_uid(),
             static_cast<int32_t>(kCloneTriggerProducerUid));
+  EXPECT_EQ(trigger.stop_delay_ms(), kCloneTriggerDelayMs);
 
   // A second ReadBuffers() should not reemit the clone_snapshot_trigger.
   cloned_packets = consumer2->ReadBuffers();

@@ -992,6 +992,8 @@ TEST_F(PerfettoCmdlineTest, MultipleTriggersCloneSnapshot) {
   ASSERT_EQ(clone_trigger_packets.size(), 1ul);
   EXPECT_EQ(clone_trigger_packets[0].clone_snapshot_trigger().trigger_name(),
             "trigger_name_2");
+  EXPECT_EQ(clone_trigger_packets[0].clone_snapshot_trigger().stop_delay_ms(),
+            500u);
   // Assert that all fields of 'clone_snapshot_trigger' equal to the same fields
   // of a 'trigger'.
   EXPECT_EQ(clone_trigger_packets[0].timestamp(), trigger_packet.timestamp());
