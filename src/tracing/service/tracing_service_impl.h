@@ -478,6 +478,7 @@ class TracingServiceImpl : public TracingService {
     std::string trigger_name;
     std::string producer_name;
     uid_t producer_uid = 0;
+    uint64_t trigger_delay_mono_ms = 0;
   };
 
   struct PendingClone {
