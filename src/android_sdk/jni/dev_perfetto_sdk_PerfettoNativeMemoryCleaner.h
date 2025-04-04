@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
+/*
  * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,14 +12,19 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- -->
+ */
 
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="dev.perfetto.sdk">
-    <uses-sdk android:minSdkVersion="33" />
+#ifndef SRC_ANDROID_SDK_JNI_DEV_PERFETTO_SDK_PERFETTONATIVEMEMORYCLEANER_H_
+#define SRC_ANDROID_SDK_JNI_DEV_PERFETTO_SDK_PERFETTONATIVEMEMORYCLEANER_H_
 
-    <application>
-        <!-- ... -->
-    </application>
+#include <jni.h>
 
-</manifest>
+namespace perfetto {
+namespace jni {
+
+int register_android_os_PerfettoNativeMemoryCleaner(JNIEnv* env);
+
+}  // namespace jni
+}  // namespace perfetto
+
+#endif  // SRC_ANDROID_SDK_JNI_DEV_PERFETTO_SDK_PERFETTONATIVEMEMORYCLEANER_H_

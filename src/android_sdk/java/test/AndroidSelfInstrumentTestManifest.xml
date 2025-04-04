@@ -24,6 +24,6 @@
         android:name="androidx.test.runner.AndroidJUnitRunner"
         android:targetPackage="dev.perfetto.sdk.test" />
 
-    <uses-sdk android:minSdkVersion="31" />
+    <uses-sdk android:minSdkVersion="33" />
 
 </manifest>

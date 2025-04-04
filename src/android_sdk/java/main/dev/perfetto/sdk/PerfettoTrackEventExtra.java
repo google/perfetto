@@ -55,17 +55,8 @@ public final class PerfettoTrackEventExtra {
   private Flow mFlow;
   private Flow mTerminatingFlow;
 
-  static class NativeAllocationRegistry {
-    public static NativeAllocationRegistry createMalloced(
-        ClassLoader classLoader, long freeFunction) {
-      // do nothing
-      return new NativeAllocationRegistry();
-    }
-
-    public void registerNativeAllocation(Object obj, long ptr) {
-      // do nothing
-    }
-  }
+  //@VisibleForTesting
+  public static final PerfettoNativeMemoryCleaner memoryCleaner = new PerfettoNativeMemoryCleaner();
 
   /** Represents a native pointer to a Perfetto C SDK struct. E.g. PerfettoTeHlExtra. */
   public interface PerfettoPointer {
@@ -595,10 +586,6 @@ public final class PerfettoTrackEventExtra {
   private final Pool<FieldNested> mFieldNestedCache = new Pool(DEFAULT_EXTRA_CACHE_SIZE);
   private final Pool<Builder> mBuilderCache = new Pool(DEFAULT_EXTRA_CACHE_SIZE);
 
-  private static final NativeAllocationRegistry sRegistry =
-      NativeAllocationRegistry.createMalloced(
-          PerfettoTrackEventExtra.class.getClassLoader(), native_delete());
-
   private final long mPtr;
   private static final String TAG = "PerfettoTrackEventExtra";
 
@@ -671,7 +658,7 @@ public final class PerfettoTrackEventExtra {
     Flow() {
       mPtr = native_init();
       mExtraPtr = native_get_extra_ptr(mPtr);
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     public void setProcessFlow(long type) {
@@ -704,9 +691,6 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static class NamedTrack implements PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(NamedTrack.class.getClassLoader(), native_delete());
-
     private final long mPtr;
     private final long mExtraPtr;
     private final String mName;
@@ -715,7 +699,7 @@ public final class PerfettoTrackEventExtra {
       mPtr = native_init(sNamedTrackId.incrementAndGet(), name, parentUuid);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
@@ -738,10 +722,6 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static final class CounterTrack implements PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(
-            CounterTrack.class.getClassLoader(), native_delete());
-
     private final long mPtr;
     private final long mExtraPtr;
     private final String mName;
@@ -750,7 +730,7 @@ public final class PerfettoTrackEventExtra {
       mPtr = native_init(name, parentUuid);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
@@ -773,17 +753,13 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static final class CounterInt64 implements PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(
-            CounterInt64.class.getClassLoader(), native_delete());
-
     private final long mPtr;
     private final long mExtraPtr;
 
     CounterInt64() {
       mPtr = native_init();
       mExtraPtr = native_get_extra_ptr(mPtr);
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
@@ -809,17 +785,13 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static final class CounterDouble implements PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(
-            CounterDouble.class.getClassLoader(), native_delete());
-
     private final long mPtr;
     private final long mExtraPtr;
 
     CounterDouble() {
       mPtr = native_init();
       mExtraPtr = native_get_extra_ptr(mPtr);
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
@@ -845,9 +817,6 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static final class ArgInt64 implements PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(ArgInt64.class.getClassLoader(), native_delete());
-
     // Private pointer holding Perfetto object with metadata
     private final long mPtr;
 
@@ -860,7 +829,7 @@ public final class PerfettoTrackEventExtra {
       mPtr = native_init(name);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
@@ -890,9 +859,6 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static final class ArgBool implements PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(ArgBool.class.getClassLoader(), native_delete());
-
     // Private pointer holding Perfetto object with metadata
     private final long mPtr;
 
@@ -905,7 +871,7 @@ public final class PerfettoTrackEventExtra {
       mPtr = native_init(name);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
@@ -935,9 +901,6 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static final class ArgDouble implements PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(ArgDouble.class.getClassLoader(), native_delete());
-
     // Private pointer holding Perfetto object with metadata
     private final long mPtr;
 
@@ -950,7 +913,7 @@ public final class PerfettoTrackEventExtra {
       mPtr = native_init(name);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
@@ -980,9 +943,6 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static final class ArgString implements PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(ArgString.class.getClassLoader(), native_delete());
-
     // Private pointer holding Perfetto object with metadata
     private final long mPtr;
 
@@ -995,7 +955,7 @@ public final class PerfettoTrackEventExtra {
       mPtr = native_init(name);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
@@ -1025,9 +985,6 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static final class Proto implements PerfettoPointer, FieldContainer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(Proto.class.getClassLoader(), native_delete());
-
     // Private pointer holding Perfetto object with metadata
     private final long mPtr;
 
@@ -1037,7 +994,7 @@ public final class PerfettoTrackEventExtra {
     Proto() {
       mPtr = native_init();
       mExtraPtr = native_get_extra_ptr(mPtr);
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
@@ -1071,9 +1028,6 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static final class FieldInt64 implements PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(FieldInt64.class.getClassLoader(), native_delete());
-
     // Private pointer holding Perfetto object with metadata
     private final long mPtr;
 
@@ -1083,7 +1037,7 @@ public final class PerfettoTrackEventExtra {
     FieldInt64() {
       mPtr = native_init();
       mFieldPtr = native_get_extra_ptr(mPtr);
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
@@ -1109,10 +1063,6 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static final class FieldDouble implements PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(
-            FieldDouble.class.getClassLoader(), native_delete());
-
     // Private pointer holding Perfetto object with metadata
     private final long mPtr;
 
@@ -1122,7 +1072,7 @@ public final class PerfettoTrackEventExtra {
     FieldDouble() {
       mPtr = native_init();
       mFieldPtr = native_get_extra_ptr(mPtr);
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
@@ -1148,10 +1098,6 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static final class FieldString implements PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(
-            FieldString.class.getClassLoader(), native_delete());
-
     // Private pointer holding Perfetto object with metadata
     private final long mPtr;
 
@@ -1161,7 +1107,7 @@ public final class PerfettoTrackEventExtra {
     FieldString() {
       mPtr = native_init();
       mFieldPtr = native_get_extra_ptr(mPtr);
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
@@ -1187,10 +1133,6 @@ public final class PerfettoTrackEventExtra {
   }
 
   private static final class FieldNested implements PerfettoPointer, FieldContainer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(
-            FieldNested.class.getClassLoader(), native_delete());
-
     // Private pointer holding Perfetto object with metadata
     private final long mPtr;
 
@@ -1200,7 +1142,7 @@ public final class PerfettoTrackEventExtra {
     FieldNested() {
       mPtr = native_init();
       mFieldPtr = native_get_extra_ptr(mPtr);
-      sRegistry.registerNativeAllocation(this, mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @Override
