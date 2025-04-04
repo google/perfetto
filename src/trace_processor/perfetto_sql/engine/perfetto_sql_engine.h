@@ -33,6 +33,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -65,7 +66,9 @@ class PerfettoSqlEngine {
     ExecutionStats stats;
   };
 
-  PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks);
+  PerfettoSqlEngine(StringPool* pool,
+                    DataframeSharedStorage* storage,
+                    bool enable_extra_checks);
 
   // Executes all the statements in |sql| and returns a |ExecutionResult|
   // object. The metadata will reference all the statements executed and the
@@ -257,6 +260,12 @@ class PerfettoSqlEngine {
 
   base::Status ExecuteDropIndex(const PerfettoSqlParser::DropIndex&);
 
+  base::Status ExecuteCreateTableUsingDataframe(
+      const PerfettoSqlParser::CreateTable& create_table,
+      SqliteEngine::PreparedStatement stmt,
+      std::vector<std::string> column_names,
+      const std::vector<sql_argument::ArgumentDefinition>& effective_schema);
+
   base::Status ExecuteCreateTableUsingRuntimeTable(
       const PerfettoSqlParser::CreateTable& create_table,
       SqliteEngine::PreparedStatement stmt,
@@ -352,6 +361,7 @@ class PerfettoSqlEngine {
   DbSqliteModule::Context* static_table_fn_context_ = nullptr;
   base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
   base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
+  DataframeSharedStorage* dataframe_shared_storage_;
   std::unique_ptr<SqliteEngine> engine_;
 };
 
