@@ -118,9 +118,16 @@ return_type(Y) ::= TABLE LP sql_argument_list_nonempty(A) RP. {
   Y = OnPerfettoSqlCreateTableReturnType(A);
 }
 
+table_impl(Y) ::=. {
+  Y = (struct PerfettoSqlToken) {0, 0};
+}
+table_impl(Y) ::= USING ID(N). {
+  Y = N;
+}
+
 // CREATE PERFETTO TABLE
-cmd ::= CREATE or_replace(R) PERFETTO TABLE ID(N) table_schema(S) AS select(A) pscantok(Q). {
-  OnPerfettoSqlCreateTable(state, R, &N, S, &A, &Q);
+cmd ::= CREATE or_replace(R) PERFETTO TABLE ID(N) table_impl(Y) table_schema(S) AS select(A) pscantok(Q). {
+  OnPerfettoSqlCreateTable(state, R, &N, &Y, S, &A, &Q);
 }
 
 // CREATE PERFETTO VIEW
