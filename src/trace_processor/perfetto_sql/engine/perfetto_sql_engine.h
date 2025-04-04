@@ -257,6 +257,12 @@ class PerfettoSqlEngine {
 
   base::Status ExecuteDropIndex(const PerfettoSqlParser::DropIndex&);
 
+  base::Status ExecuteCreateTableUsingRuntimeTable(
+      const PerfettoSqlParser::CreateTable& create_table,
+      SqliteEngine::PreparedStatement stmt,
+      const std::vector<std::string>& column_names,
+      const std::vector<sql_argument::ArgumentDefinition>& effective_schema);
+
   enum class CreateTableType {
     kCreateTable,
     // For now, bytes columns are not supported in CREATE PERFETTO TABLE,
@@ -266,7 +272,8 @@ class PerfettoSqlEngine {
   };
   // |effective_schema| should have been normalised and its column order
   // should match |column_names|.
-  base::StatusOr<std::unique_ptr<RuntimeTable>> CreateTableImpl(
+  base::StatusOr<std::unique_ptr<RuntimeTable>>
+  CreateTableUsingRuntimeTableImpl(
       const char* tag,
       const std::string& name,
       SqliteEngine::PreparedStatement source,
