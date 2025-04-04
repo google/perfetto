@@ -35,9 +35,7 @@ import {
   getThreadName,
 } from '../../components/sql_utils/thread';
 import {ThreadStateRef} from '../../components/widgets/thread_state';
-import {
-  CRITICAL_PATH_LITE_CMD,
-} from '../../public/exposed_commands';
+import {CRITICAL_PATH_LITE_CMD} from '../../public/exposed_commands';
 import {goToSchedSlice} from '../../components/widgets/sched';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
