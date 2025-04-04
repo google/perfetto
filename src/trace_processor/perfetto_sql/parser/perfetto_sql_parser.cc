@@ -242,13 +242,25 @@ void OnPerfettoSqlCreateFunction(PerfettoSqlParserState* state,
 void OnPerfettoSqlCreateTable(PerfettoSqlParserState* state,
                               int replace,
                               PerfettoSqlToken* name,
+                              PerfettoSqlToken* table_impl,
                               PerfettoSqlArgumentList* args,
                               PerfettoSqlToken* body_start,
                               PerfettoSqlToken* body_end) {
   std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
+  PerfettoSqlParser::CreateTable::Implmentation implementation;
+  if (table_impl->n == 0 ||
+      std::string_view(table_impl->ptr, table_impl->n) == "RUNTIME_TABLE") {
+    implementation = PerfettoSqlParser::CreateTable::kRuntimeTable;
+  } else if (std::string_view(table_impl->ptr, table_impl->n) == "DATAFRAME") {
+    implementation = PerfettoSqlParser::CreateTable::kDataframe;
+  } else {
+    state->ErrorAtToken("Invalid table implementation", *table_impl);
+    return;
+  }
   state->current_statement = PerfettoSqlParser::CreateTable{
       replace != 0,
       std::string(name->ptr, name->n),
+      implementation,
       args ? std::move(args->inner)
            : std::vector<sql_argument::ArgumentDefinition>{},
       state->tokenizer.Substr(PerfettoSqlTokenToToken(*body_start),
