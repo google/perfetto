@@ -160,14 +160,14 @@ public final class PerfettoTrackEventBuilder {
       return;
     }
     if (parent == null) {
-      // Crete a root builder, saved into thread-local variable.
+      // We are creating a root builder which will be saved in thread local storage.
       mParent = null;
       mChildBuildersCache = new Pool<>(DEFAULT_EXTRA_CACHE_SIZE);
       mObjectsPool = new ObjectsPool(DEFAULT_EXTRA_CACHE_SIZE);
       mObjectsCache = new ObjectsCache(DEFAULT_EXTRA_CACHE_SIZE);
       mLazyInitObjects = new LazyInitObjects();
     } else {
-      // Create a child builder for proto fields, read all cache fields from the parent.
+      // We are create a child builder for proto fields, read all cache fields from the parent.
       mParent = parent;
       readAllCacheFieldsFromParent(parent);
     }
