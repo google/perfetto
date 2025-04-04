@@ -75,9 +75,12 @@ class ModuleStateManager {
     friend class ModuleStateManager<Module>;
 
     ModuleStateManager* manager;
-    bool create_committed = false;
     std::string table_name;
     std::unique_ptr<typename Module::State> state;
+
+    // Tracks whether a `Commit` call has been seen while the vtab's state
+    // was being tracked.
+    bool create_committed = false;
   };
 
   // Lifecycle method to be called from Module::Create.
@@ -174,11 +177,6 @@ class ModuleStateManager {
   StateMap state_by_name_;
   StateMap destroyed_state_by_name_;
 };
-
-struct Foo {
-  struct State {};
-};
-template class ModuleStateManager<Foo>;
 
 }  // namespace perfetto::trace_processor::sqlite
 
