@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "gtest/gtest.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -835,6 +836,34 @@ TEST_F(TraceProcessorIntegrationTest, NoNotifyEndOfFileCalled) {
                   ->Parse(TraceBlobView(
                       TraceBlob::CopyFrom(kProtoData, sizeof(kProtoData))))
                   .ok());
+}
+
+TEST_F(TraceProcessorIntegrationTest, BeginAndRollbackWorksCorrectly) {
+  {
+    auto it = Query("create perfetto table foo as select 1 as x");
+    ASSERT_FALSE(it.Next());
+    ASSERT_OK(it.Status());
+  }
+  {
+    auto it =
+        Query("begin; create or replace perfetto table foo as select 2 as x");
+    ASSERT_FALSE(it.Next());
+    ASSERT_OK(it.Status());
+  }
+  {
+    auto it = Query("select * from foo");
+    ASSERT_TRUE(it.Next());
+    ASSERT_EQ(it.Get(0).AsLong(), 2);
+    ASSERT_FALSE(it.Next());
+    ASSERT_OK(it.Status());
+  }
+  {
+    auto it = Query("rollback; select * from foo");
+    ASSERT_TRUE(it.Next());
+    ASSERT_EQ(it.Get(0).AsLong(), 1);
+    ASSERT_FALSE(it.Next());
+    ASSERT_OK(it.Status());
+  }
 }
 
 }  // namespace

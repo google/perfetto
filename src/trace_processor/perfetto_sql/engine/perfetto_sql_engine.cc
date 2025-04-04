@@ -292,6 +292,16 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks)
     PERFETTO_FATAL("Failed to initialize perfetto_tables: %s", errmsg_raw);
   }
 
+  // Register callbacks for transaction management.
+  engine_->SetCommitCallback(
+      [](void* ctx) {
+        return static_cast<PerfettoSqlEngine*>(ctx)->OnCommit();
+      },
+      this);
+  engine_->SetRollbackCallback(
+      [](void* ctx) { static_cast<PerfettoSqlEngine*>(ctx)->OnRollback(); },
+      this);
+
   {
     auto ctx = std::make_unique<RuntimeTableFunctionModule::Context>();
     runtime_table_fn_context_ = ctx.get();
@@ -1085,6 +1095,21 @@ base::Status PerfettoSqlEngine::ExecuteCreateMacro(
   auto it_and_inserted = macros_.Insert(std::move(name), std::move(macro));
   PERFETTO_CHECK(it_and_inserted.second);
   return base::OkStatus();
+}
+
+int PerfettoSqlEngine::OnCommit() {
+  runtime_table_context_->manager.OnCommit();
+  runtime_table_fn_context_->manager.OnCommit();
+  static_table_context_->manager.OnCommit();
+  static_table_fn_context_->manager.OnCommit();
+  return 0;
+}
+
+void PerfettoSqlEngine::OnRollback() {
+  runtime_table_context_->manager.OnRollback();
+  runtime_table_fn_context_->manager.OnRollback();
+  static_table_context_->manager.OnRollback();
+  static_table_fn_context_->manager.OnRollback();
 }
 
 const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(

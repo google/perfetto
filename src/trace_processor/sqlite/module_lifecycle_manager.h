@@ -20,6 +20,8 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -73,7 +75,7 @@ class ModuleStateManager {
     friend class ModuleStateManager<Module>;
 
     ModuleStateManager* manager;
-    bool disconnected = false;
+    bool create_committed = false;
     std::string table_name;
     std::unique_ptr<typename Module::State> state;
   };
@@ -82,26 +84,21 @@ class ModuleStateManager {
   [[nodiscard]] PerVtabState* OnCreate(
       const char* const* argv,
       std::unique_ptr<typename Module::State> state) {
-    auto it_and_inserted = state_by_name_.Insert(argv[2], nullptr);
-    PERFETTO_CHECK(
-        it_and_inserted.second ||
-        (it_and_inserted.first && it_and_inserted.first->get()->disconnected));
+    auto [it, inserted] =
+        state_by_name_.Insert(argv[2], std::make_unique<PerVtabState>());
+    PERFETTO_CHECK(inserted);
 
-    auto s = std::make_unique<PerVtabState>();
-    auto* s_ptr = s.get();
-    *it_and_inserted.first = std::move(s);
-
+    auto* s_ptr = it->get();
     s_ptr->manager = this;
     s_ptr->table_name = argv[2];
     s_ptr->state = std::move(state);
-    return it_and_inserted.first->get();
+    return s_ptr;
   }
 
   // Lifecycle method to be called from Module::Connect.
   [[nodiscard]] PerVtabState* OnConnect(const char* const* argv) {
     auto* ptr = state_by_name_.Find(argv[2]);
     PERFETTO_CHECK(ptr);
-    ptr->get()->disconnected = false;
     return ptr->get();
   }
 
@@ -109,12 +106,50 @@ class ModuleStateManager {
   static void OnDisconnect(PerVtabState* state) {
     auto* ptr = state->manager->state_by_name_.Find(state->table_name);
     PERFETTO_CHECK(ptr);
-    ptr->get()->disconnected = true;
+    PERFETTO_CHECK(ptr->get() == state);
   }
 
   // Lifecycle method to be called from Module::Destroy.
   static void OnDestroy(PerVtabState* state) {
+    auto* ptr = state->manager->state_by_name_.Find(state->table_name);
+    PERFETTO_CHECK(ptr);
+    PERFETTO_CHECK(ptr->get() == state);
+    if (state->create_committed) {
+      state->manager->destroyed_state_by_name_.Insert(state->table_name,
+                                                      std::move(*ptr));
+    }
     PERFETTO_CHECK(state->manager->state_by_name_.Erase(state->table_name));
+  }
+
+  // Called by the engine when a transaction is rolled back.
+  //
+  // This is used to undo the effects of all the destroys performed since a
+  // previous rollback or commit.
+  void OnRollback() {
+    std::vector<std::string> to_erase;
+    for (auto it = state_by_name_.GetIterator(); it; ++it) {
+      if (!it.value()->create_committed) {
+        to_erase.push_back(it.key());
+      }
+    }
+    for (const auto& name : to_erase) {
+      state_by_name_.Erase(name);
+    }
+    for (auto it = destroyed_state_by_name_.GetIterator(); it; ++it) {
+      state_by_name_.Insert(it.key(), std::move(it.value()));
+    }
+    destroyed_state_by_name_.Clear();
+  }
+
+  // Called by the engine when a transaction is committed.
+  //
+  // This is used to finalize all the destroys performed since a previous
+  // rollback or commit.
+  void OnCommit() {
+    for (auto it = state_by_name_.GetIterator(); it; ++it) {
+      it.value()->create_committed = true;
+    }
+    destroyed_state_by_name_.Clear();
   }
 
   // Method to be called from module callbacks to extract the module state
@@ -134,8 +169,16 @@ class ModuleStateManager {
   }
 
  private:
-  base::FlatHashMap<std::string, std::unique_ptr<PerVtabState>> state_by_name_;
+  using StateMap =
+      base::FlatHashMap<std::string, std::unique_ptr<PerVtabState>>;
+  StateMap state_by_name_;
+  StateMap destroyed_state_by_name_;
 };
+
+struct Foo {
+  struct State {};
+};
+template class ModuleStateManager<Foo>;
 
 }  // namespace perfetto::trace_processor::sqlite
 

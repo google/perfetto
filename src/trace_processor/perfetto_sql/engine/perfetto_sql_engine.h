@@ -300,6 +300,12 @@ class PerfettoSqlEngine {
                                  const std::string& key,
                                  const PerfettoSqlParser&);
 
+  // Called when a transaction is committed.
+  int OnCommit();
+
+  // Called when a transaction is rolled back.
+  void OnRollback();
+
   // Find table (Static or Runtime) registered with engine with provided name.
   Table* GetTableOrNull(std::string_view name) {
     if (auto* maybe_runtime = GetRuntimeTableOrNull(name); maybe_runtime) {
