@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
