@@ -21,4 +21,7 @@ perfetto_proto_library("scenario_@TYPE@") {
   sources = [ "scenario_config.proto" ]
   generate_descriptor = "scenario_config.descriptor"
   descriptor_root_source = "scenario_config.proto"
+  if (build_with_chromium) {
+    generator_visibility = [ "*" ]
+  }
 }
