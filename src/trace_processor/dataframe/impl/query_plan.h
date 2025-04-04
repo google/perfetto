@@ -186,7 +186,7 @@ class QueryPlanBuilder {
   // Returns true if the optimization was applied.
   bool TrySortedConstraint(
       const FilterSpec& fs,
-      const ColumnType& ct,
+      const StorageType& ct,
       const NonNullOp& op,
       const bytecode::reg::RwHandle<CastFilterValueResult>& result);
 

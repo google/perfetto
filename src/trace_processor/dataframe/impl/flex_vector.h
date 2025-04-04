@@ -69,9 +69,9 @@ class FlexVector {
 
   // Allocates a new FlexVector with the specified initial capacity.
   //
-  // capacity: Initial capacity (number of elements). Must be a power of two.
+  // capacity: Initial capacity (number of elements).
   static FlexVector<T, kAlignment> CreateWithCapacity(uint64_t capacity) {
-    return FlexVector(capacity, 0);
+    return FlexVector(capacity == 0 ? 0 : NextPowerOfTwo(capacity), 0);
   }
 
   // Allocates a new FlexVector with the specified initial size. The values
@@ -80,17 +80,7 @@ class FlexVector {
   //
   // size: Initial size (number of elements).
   static FlexVector<T, kAlignment> CreateWithSize(uint64_t size) {
-    static constexpr auto next_power_of_two = [](uint64_t x) {
-      uint64_t n = x - 1;
-      n |= n >> 1;
-      n |= n >> 2;
-      n |= n >> 4;
-      n |= n >> 8;
-      n |= n >> 16;
-      n |= n >> 32;
-      return n + 1;
-    };
-    return FlexVector(size == 0 ? 0 : next_power_of_two(size), size);
+    return FlexVector(size == 0 ? 0 : NextPowerOfTwo(size), size);
   }
 
   // Adds an element to the end of the vector, automatically resizing if needed.
@@ -134,6 +124,26 @@ class FlexVector {
   PERFETTO_ALWAYS_INLINE const T* end() const { return slab_.data() + size_; }
   PERFETTO_ALWAYS_INLINE T* begin() { return slab_.data(); }
   PERFETTO_ALWAYS_INLINE T* end() { return slab_.data() + size_; }
+
+  PERFETTO_ALWAYS_INLINE const T& back() const {
+    PERFETTO_DCHECK(!empty());
+    return slab_.data()[size_ - 1];
+  }
+  PERFETTO_ALWAYS_INLINE T& back() {
+    PERFETTO_DCHECK(!empty());
+    return slab_.data()[size_ - 1];
+  }
+
+  static constexpr uint64_t NextPowerOfTwo(uint64_t x) {
+    uint64_t n = x - 1;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    n |= n >> 32;
+    return n + 1;
+  }
 
   // Returns the current capacity (maximum size without reallocation).
   PERFETTO_ALWAYS_INLINE uint64_t capacity() const { return slab_.size(); }
