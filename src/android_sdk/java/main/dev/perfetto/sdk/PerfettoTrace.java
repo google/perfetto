@@ -38,6 +38,8 @@ public final class PerfettoTrace {
   private static final int PERFETTO_TE_TYPE_INSTANT = 3;
   private static final int PERFETTO_TE_TYPE_COUNTER = 4;
 
+  private static boolean sIsDebug = false;
+
   static class NativeAllocationRegistry {
     public static NativeAllocationRegistry createMalloced(
         ClassLoader classLoader, long freeFunction) {
@@ -195,9 +197,8 @@ public final class PerfettoTrace {
    * @param category The perfetto category.
    * @param eventName The event name to appear in the trace.
    */
-  public static PerfettoTrackEventExtra.Builder instant(Category category, String eventName) {
-    return PerfettoTrackEventExtra.builder(category.isEnabled())
-        .init(PERFETTO_TE_TYPE_INSTANT, category)
+  public static PerfettoTrackEventBuilder instant(Category category, String eventName) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_INSTANT, category, sIsDebug)
         .setEventName(eventName);
   }
 
@@ -207,9 +208,8 @@ public final class PerfettoTrace {
    * @param category The perfetto category.
    * @param eventName The event name to appear in the trace.
    */
-  public static PerfettoTrackEventExtra.Builder begin(Category category, String eventName) {
-    return PerfettoTrackEventExtra.builder(category.isEnabled())
-        .init(PERFETTO_TE_TYPE_SLICE_BEGIN, category)
+  public static PerfettoTrackEventBuilder begin(Category category, String eventName) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_SLICE_BEGIN, category, sIsDebug)
         .setEventName(eventName);
   }
 
@@ -218,9 +218,8 @@ public final class PerfettoTrace {
    *
    * @param category The perfetto category.
    */
-  public static PerfettoTrackEventExtra.Builder end(Category category) {
-    return PerfettoTrackEventExtra.builder(category.isEnabled())
-        .init(PERFETTO_TE_TYPE_SLICE_END, category);
+  public static PerfettoTrackEventBuilder end(Category category) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_SLICE_END, category, sIsDebug);
   }
 
   /**
@@ -229,9 +228,8 @@ public final class PerfettoTrace {
    * @param category The perfetto category.
    * @param value The value of the counter.
    */
-  public static PerfettoTrackEventExtra.Builder counter(Category category, long value) {
-    return PerfettoTrackEventExtra.builder(category.isEnabled())
-        .init(PERFETTO_TE_TYPE_COUNTER, category)
+  public static PerfettoTrackEventBuilder counter(Category category, long value) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_COUNTER, category, sIsDebug)
         .setCounter(value);
   }
 
@@ -242,8 +240,7 @@ public final class PerfettoTrace {
    * @param value The value of the counter.
    * @param trackName The trackName for the event.
    */
-  public static PerfettoTrackEventExtra.Builder counter(
-      Category category, long value, String trackName) {
+  public static PerfettoTrackEventBuilder counter(Category category, long value, String trackName) {
     return counter(category, value).usingProcessCounterTrack(trackName);
   }
 
@@ -253,9 +250,8 @@ public final class PerfettoTrace {
    * @param category The perfetto category.
    * @param value The value of the counter.
    */
-  public static PerfettoTrackEventExtra.Builder counter(Category category, double value) {
-    return PerfettoTrackEventExtra.builder(category.isEnabled())
-        .init(PERFETTO_TE_TYPE_COUNTER, category)
+  public static PerfettoTrackEventBuilder counter(Category category, double value) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_COUNTER, category, sIsDebug)
         .setCounter(value);
   }
 
@@ -266,7 +262,7 @@ public final class PerfettoTrace {
    * @param value The value of the counter.
    * @param trackName The trackName for the event.
    */
-  public static PerfettoTrackEventExtra.Builder counter(
+  public static PerfettoTrackEventBuilder counter(
       Category category, double value, String trackName) {
     return counter(category, value).usingProcessCounterTrack(trackName);
   }
@@ -299,5 +295,11 @@ public final class PerfettoTrace {
   /** Registers the process with Perfetto. */
   public static void register(boolean isBackendInProcess) {
     native_register(isBackendInProcess);
+  }
+
+  /** Registers the process with Perfetto and enable additional debug checks on the Java side. */
+  public static void registerWithDebugChecks(boolean isBackendInProcess) {
+    sIsDebug = true;
+    register(isBackendInProcess);
   }
 }
