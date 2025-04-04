@@ -73,11 +73,13 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 400px;
 
   &__row {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    
   }
 
   label {

@@ -32,7 +32,7 @@ import {TextInput} from '../../widgets/text_input';
 import {Popup} from '../../widgets/popup';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {AreaSelection, Selection} from '../../public/selection';
-import {MultiSelectOption, PopupMultiSelect} from '../../widgets/multiselect';
+import {Multiselect2} from '../../widgets/multiselect2';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -255,54 +255,44 @@ export class NotesPanel {
           }),
         ),
         this.trace.tracks.trackFilterCriteria.map((filter) => {
+          const selectedOptions =
+            trackFilters.criteriaFilters.get(filter.name) ?? [];
+          const opts = filter.options.filter((o) =>
+            selectedOptions.includes(o.key),
+          );
+
           return m(
             '.pf-track-filter__row',
             m('label', 'Filter by ', filter.name),
-            m(PopupMultiSelect, {
-              label: filter.name,
-              showNumSelected: true,
-              // It usually doesn't make sense to select all filters - if users
-              // want to pass all they should just remove the filters instead.
-              showSelectAllButton: false,
-              onChange: (diff) => {
-                for (const {id, checked} of diff) {
-                  if (checked) {
-                    // Add the filter option to the criteria.
-                    const criteriaFilters = trackFilters.criteriaFilters.get(
-                      filter.name,
-                    );
-                    if (criteriaFilters) {
-                      criteriaFilters.push(id);
-                    } else {
-                      trackFilters.criteriaFilters.set(filter.name, [id]);
-                    }
+            m(Multiselect2<{key: string; label: string}>, {
+              options: filter.options.filter((f) => f.label !== ''),
+              getLabel: (o) => o.label,
+              getKey: (o) => o.key,
+              selectedOptions: opts,
+              onOptionAdd: (o) => {
+                const criteriaFilters = trackFilters.criteriaFilters.get(
+                  filter.name,
+                );
+                if (criteriaFilters) {
+                  criteriaFilters.push(o.key);
+                } else {
+                  trackFilters.criteriaFilters.set(filter.name, [o.key]);
+                }
+              },
+              onOptionRemove: (o) => {
+                // Remove the filter option from the criteria.
+                const criteriaFilters = trackFilters.criteriaFilters.get(
+                  filter.name,
+                );
+                if (criteriaFilters) {
+                  const newOptions = criteriaFilters.filter((f) => f !== o.key);
+                  if (newOptions.length === 0) {
+                    trackFilters.criteriaFilters.delete(filter.name);
                   } else {
-                    // Remove the filter option from the criteria.
-                    const filterOptions = trackFilters.criteriaFilters.get(
-                      filter.name,
-                    );
-
-                    if (!filterOptions) continue;
-                    const newOptions = filterOptions.filter((f) => f !== id);
-                    if (newOptions.length === 0) {
-                      trackFilters.criteriaFilters.delete(filter.name);
-                    } else {
-                      trackFilters.criteriaFilters.set(filter.name, newOptions);
-                    }
+                    trackFilters.criteriaFilters.set(filter.name, newOptions);
                   }
                 }
               },
-              options: filter.options
-                .map((o): MultiSelectOption => {
-                  const filterOptions = trackFilters.criteriaFilters.get(
-                    filter.name,
-                  );
-                  const checked = Boolean(
-                    filterOptions && filterOptions.includes(o.key),
-                  );
-                  return {id: o.key, name: o.label, checked};
-                })
-                .filter((f) => f.name !== ''),
             }),
           );
         }),
