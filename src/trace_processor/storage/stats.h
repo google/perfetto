@@ -108,6 +108,13 @@ namespace perfetto::trace_processor::stats {
        "Duplicated interning ID seen. Should never happen."),                  \
   F(kernel_wakelock_unknown_id,           kSingle,  kError,    kAnalysis,      \
        "Interning ID not found. Should never happen."),                        \
+  F(kernel_wakelock_zero_value_reported,  kSingle,  kDataLoss, kTrace,         \
+       "Zero value received from SuspendControlService. Indicates a transient "\
+       "error in SuspendControlService."),                                     \
+  F(kernel_wakelock_non_monotonic_value_reported,                              \
+                                          kSingle,  kDataLoss, kTrace,         \
+       "Decreased value received from SuspendControlService. Indicates a "     \
+       "transient error in SuspendControlService."),                           \
   F(app_wakelock_parse_error,             kSingle,  kError,    kAnalysis,      \
        "Parsing packed repeated field. Should never happen."),                 \
   F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis,      \
