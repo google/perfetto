@@ -56,12 +56,7 @@ void RelayIPCClient::OnDisconnect() {
 
 void RelayIPCClient::InitRelay(const InitRelayRequest& init_relay_request) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (!connected_) {
-    return task_runner_->PostTask([listener = listener_]() {
-      if (listener)
-        listener->OnServiceDisconnected();
-    });
-  }
+  PERFETTO_CHECK(connected_);
 
   ipc::Deferred<protos::gen::InitRelayResponse> async_resp;
   async_resp.Bind(

@@ -22,7 +22,6 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -30,7 +29,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/ext/base/version.h"
 #include "perfetto/ext/ipc/client.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/ipc/wire_protocol.gen.h"
@@ -85,85 +83,43 @@ std::string GenerateSetPeerIdentityRequest(int32_t pid,
 }
 
 void SetSystemInfo(protos::gen::InitRelayRequest* request) {
+  base::SystemInfo sys_info = base::GetSystemInfo();
+
   auto* info = request->mutable_system_info();
-  info->set_tracing_service_version(base::GetVersionString());
+  info->set_tracing_service_version(sys_info.tracing_service_version);
 
-  std::optional<int32_t> tzoff = base::GetTimezoneOffsetMins();
-  if (tzoff.has_value())
-    info->set_timezone_off_mins(*tzoff);
+  if (sys_info.timezone_off_mins.has_value())
+    info->set_timezone_off_mins(*sys_info.timezone_off_mins);
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
-  struct utsname uname_info;
-  if (uname(&uname_info) == 0) {
+  if (sys_info.utsname_info.has_value()) {
     auto* utsname_info = info->mutable_utsname();
-    utsname_info->set_sysname(uname_info.sysname);
-    utsname_info->set_version(uname_info.version);
-    utsname_info->set_machine(uname_info.machine);
-    utsname_info->set_release(uname_info.release);
-  }
-  info->set_page_size(static_cast<uint32_t>(sysconf(_SC_PAGESIZE)));
-  info->set_num_cpus(static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF)));
-#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  std::string fingerprint_value = base::GetAndroidProp("ro.build.fingerprint");
-  if (!fingerprint_value.empty()) {
-    info->set_android_build_fingerprint(fingerprint_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.build.fingerprint");
+    utsname_info->set_sysname(sys_info.utsname_info->sysname);
+    utsname_info->set_version(sys_info.utsname_info->version);
+    utsname_info->set_machine(sys_info.utsname_info->machine);
+    utsname_info->set_release(sys_info.utsname_info->release);
   }
 
-  std::string device_manufacturer_value =
-      base::GetAndroidProp("ro.product.manufacturer");
-  if (!device_manufacturer_value.empty()) {
-    info->set_android_device_manufacturer(device_manufacturer_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.product.manufacturer");
-  }
+  if (sys_info.page_size.has_value())
+    info->set_page_size(*sys_info.page_size);
+  if (sys_info.num_cpus.has_value())
+    info->set_num_cpus(*sys_info.num_cpus);
 
-  std::string sdk_str_value = base::GetAndroidProp("ro.build.version.sdk");
-  std::optional<uint64_t> sdk_value = base::StringToUInt64(sdk_str_value);
-  if (sdk_value.has_value()) {
-    info->set_android_sdk_version(*sdk_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.build.version.sdk");
-  }
-
-  std::string soc_model_value = base::GetAndroidProp("ro.soc.model");
-  if (!soc_model_value.empty()) {
-    info->set_android_soc_model(soc_model_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.soc.model");
-  }
-
-  // guest_soc model is not always present
-  std::string guest_soc_model_value =
-      base::GetAndroidProp("ro.boot.guest_soc.model");
-  if (!guest_soc_model_value.empty()) {
-    info->set_android_guest_soc_model(guest_soc_model_value);
-  }
-
-  std::string hw_rev_value = base::GetAndroidProp("ro.boot.hardware.revision");
-  if (!hw_rev_value.empty()) {
-    info->set_android_hardware_revision(hw_rev_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.boot.hardware.revision");
-  }
-
-  std::string hw_ufs_value = base::GetAndroidProp("ro.boot.hardware.ufs");
-  if (!hw_ufs_value.empty()) {
-    info->set_android_storage_model(hw_ufs_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.boot.hardware.ufs");
-  }
-
-  std::string hw_ddr_value = base::GetAndroidProp("ro.boot.hardware.ddr");
-  if (!hw_ddr_value.empty()) {
-    info->set_android_ram_model(hw_ddr_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.boot.hardware.ddr");
-  }
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (!sys_info.android_build_fingerprint.empty())
+    info->set_android_build_fingerprint(sys_info.android_build_fingerprint);
+  if (!sys_info.android_device_manufacturer.empty())
+    info->set_android_device_manufacturer(sys_info.android_device_manufacturer);
+  if (sys_info.android_sdk_version.has_value())
+    info->set_android_sdk_version(*sys_info.android_sdk_version);
+  if (!sys_info.android_soc_model.empty())
+    info->set_android_soc_model(sys_info.android_soc_model);
+  if (!sys_info.android_guest_soc_model.empty())
+    info->set_android_guest_soc_model(sys_info.android_guest_soc_model);
+  if (!sys_info.android_hardware_revision.empty())
+    info->set_android_hardware_revision(sys_info.android_hardware_revision);
+  if (!sys_info.android_storage_model.empty())
+    info->set_android_storage_model(sys_info.android_storage_model);
+  if (!sys_info.android_ram_model.empty())
+    info->set_android_ram_model(sys_info.android_ram_model);
 }
 
 }  // Anonymous namespace.
