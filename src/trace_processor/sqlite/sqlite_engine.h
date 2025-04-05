@@ -20,6 +20,7 @@
 #include <sqlite3.h>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -139,6 +140,24 @@ class SqliteEngine {
 
   // Gets the context for a registered SQL function.
   void* GetFunctionContext(const std::string& name, int argc);
+
+  // Sets a callback to be called when a transaction is committed.
+  //
+  // Returns the prior context object passed to a previous invocation of this
+  // function.
+  //
+  // See https://www.sqlite.org/c3ref/commit_hook.html for more details.
+  using CommitCallback = int(void*);
+  void* SetCommitCallback(CommitCallback callback, void* ctx);
+
+  // Sets a callback to be called when a transaction is rolled back.
+  //
+  // Returns the prior context object passed to a previous invocation of this
+  // function.
+  //
+  // See https://www.sqlite.org/c3ref/commit_hook.html for more details.
+  using RollbackCallback = void(void*);
+  void* SetRollbackCallback(RollbackCallback callback, void* ctx);
 
   sqlite3* db() const { return db_.get(); }
 

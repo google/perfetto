@@ -300,6 +300,22 @@ class PerfettoSqlEngine {
                                  const std::string& key,
                                  const PerfettoSqlParser&);
 
+  // Called when a transaction is committed by SQLite; that is, the result of
+  // running some SQL is considered "perm".
+  //
+  // See https://www.sqlite.org/lang_transaction.html for an explanation of
+  // transactions in SQLite.
+  int OnCommit();
+
+  // Called when a transaction is rolled back by SQLite; that is, the result of
+  // of running some SQL should be discarded and the state of the database
+  // should be restored to the state it was in before the transaction was
+  // started.
+  //
+  // See https://www.sqlite.org/lang_transaction.html for an explanation of
+  // transactions in SQLite.
+  void OnRollback();
+
   // Find table (Static or Runtime) registered with engine with provided name.
   Table* GetTableOrNull(std::string_view name) {
     if (auto* maybe_runtime = GetRuntimeTableOrNull(name); maybe_runtime) {
