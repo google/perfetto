@@ -286,6 +286,11 @@ class TracingServiceImpl : public TracingService {
     explicit RelayEndpointImpl(RelayClientID relay_client_id,
                                TracingServiceImpl* service);
     ~RelayEndpointImpl() override;
+
+    void CacheSystemInfo(std::vector<uint8_t> serialized_system_info) override {
+      serialized_system_info_ = serialized_system_info;
+    }
+
     void SyncClocks(SyncMode sync_mode,
                     base::ClockSnapshotVector client_clocks,
                     base::ClockSnapshotVector host_clocks) override;
@@ -297,12 +302,17 @@ class TracingServiceImpl : public TracingService {
       return synced_clocks_;
     }
 
+    std::vector<uint8_t>& serialized_system_info() {
+      return serialized_system_info_;
+    }
+
    private:
     RelayEndpointImpl(const RelayEndpointImpl&) = delete;
     RelayEndpointImpl& operator=(const RelayEndpointImpl&) = delete;
 
     RelayClientID relay_client_id_;
     TracingServiceImpl* const service_;
+    std::vector<uint8_t> serialized_system_info_;
     base::CircularQueue<SyncedClockSnapshots> synced_clocks_;
 
     PERFETTO_THREAD_CHECKER(thread_checker_)
@@ -815,6 +825,7 @@ class TracingServiceImpl : public TracingService {
   void EmitUuid(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void EmitSystemInfo(std::vector<TracePacket>*);
+  void MaybeEmitRemoteSystemInfo(std::vector<TracePacket>*);
   void MaybeEmitCloneTrigger(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitRemoteClockSync(TracingSession*, std::vector<TracePacket>*);

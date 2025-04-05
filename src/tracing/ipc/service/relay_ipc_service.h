@@ -37,6 +37,8 @@ class RelayIPCService : public protos::gen::RelayPort {
   ~RelayIPCService() override = default;
 
   void OnClientDisconnected() override;
+  void InitRelay(const protos::gen::InitRelayRequest&,
+                 DeferredInitRelayResponse) override;
   void SyncClock(const protos::gen::SyncClockRequest&,
                  DeferredSyncClockResponse) override;
 

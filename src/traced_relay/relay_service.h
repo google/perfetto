@@ -74,6 +74,7 @@ class RelayClient : private base::UnixSocket::EventListener,
 
   void NotifyError();
   void Connect();
+  void InitRelayRequest();
   void SendSyncClockRequest();
 
   // RelayIPCClient::EventListener implementation.
