@@ -53,6 +53,7 @@ export function isTrustedOrigin(origin: string): boolean {
   const hostname = new URL(origin).hostname;
   if (hostname.endsWith('.corp.google.com')) return true;
   if (hostname.endsWith('.c.googlers.com')) return true;
+  if (hostname.endsWith('.proxy.googlers.com')) return true;
   if (
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
