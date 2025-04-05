@@ -346,9 +346,20 @@ class PerfettoSqlEngine {
   const Table* GetStaticTableOrNull(std::string_view) const;
 
   StringPool* pool_ = nullptr;
+
+  // Storage for shared Dataframe objects.
+  //
+  // Note that this class can be shared between multiple PerfettoSqlEngine
+  // instances which are operating on different threads.
+  DataframeSharedStorage* dataframe_shared_storage_;
+
   // If true, engine will perform additional consistency checks when e.g.
   // creating tables and views.
   const bool enable_extra_checks_;
+
+  // A stack which keeps track of the modules which are being included. Used to
+  // know when dataframes should be shared.
+  std::vector<std::string> module_include_stack_;
 
   uint64_t static_function_count_ = 0;
   uint64_t static_aggregate_function_count_ = 0;
@@ -361,7 +372,6 @@ class PerfettoSqlEngine {
   DbSqliteModule::Context* static_table_fn_context_ = nullptr;
   base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
   base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
-  DataframeSharedStorage* dataframe_shared_storage_;
   std::unique_ptr<SqliteEngine> engine_;
 };
 

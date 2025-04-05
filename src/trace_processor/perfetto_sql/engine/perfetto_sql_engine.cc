@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -45,6 +46,7 @@
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
@@ -302,8 +304,11 @@ std::string GetTokenNamesAllowedInMacro() {
 
 }  // namespace
 
-PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks)
+PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
+                                     DataframeSharedStorage* storage,
+                                     bool enable_extra_checks)
     : pool_(pool),
+      dataframe_shared_storage_(storage),
       enable_extra_checks_(enable_extra_checks),
       engine_(new SqliteEngine()) {
   // Initialize `perfetto_tables` table, which will contain the names of all of
@@ -716,8 +721,14 @@ base::Status PerfettoSqlEngine::ExecuteCreateTableUsingDataframe(
     SqliteEngine::PreparedStatement prepared_stmt,
     std::vector<std::string> column_names,
     const std::vector<sql_argument::ArgumentDefinition>&) {
-  std::shared_ptr<dataframe::Dataframe> df =
-      dataframe_shared_storage_->Find(create_table.sql.sql());
+  DataframeSharedStorage::Tag tag;
+  if (module_include_stack_.empty()) {
+    tag = DataframeSharedStorage::MakeUniqueTag();
+  } else {
+    tag = DataframeSharedStorage::MakeTagForSqlModuleTable(
+        module_include_stack_.back(), create_table.name);
+  }
+  auto df = dataframe_shared_storage_->Find(tag);
   if (!df) {
     int res;
     auto* stmt = prepared_stmt.sqlite_stmt();
@@ -727,36 +738,32 @@ base::Status PerfettoSqlEngine::ExecuteCreateTableUsingDataframe(
          res = sqlite3_step(stmt)) {
       builder.AddRow(&fetcher);
     }
-    static const char* tag = "CREATE PERFETTO TABLE";
+    static const char* err_tag = "CREATE PERFETTO TABLE";
     if (res != SQLITE_DONE) {
       return base::ErrStatus(
-          "%s: SQLite error while creating body for table '%s': %s", tag,
+          "%s: SQLite error while creating body for table '%s': %s", err_tag,
           create_table.name.c_str(), sqlite3_errmsg(engine_->db()));
     }
     ASSIGN_OR_RETURN(auto table, std::move(builder).Build());
     df = dataframe_shared_storage_->Insert(
-        create_table.sql.sql(),
-        std::make_unique<dataframe::Dataframe>(std::move(table)));
+        tag, std::make_unique<dataframe::Dataframe>(std::move(table)));
   }
-  PERFETTO_CHECK(df);
-  std::string sql = "SAVEPOINT create_table_using_dataframe;";
-  if (create_table.replace) {
-    sql += "DROP TABLE IF EXISTS ";
-    sql += create_table.name;
-    sql += ";";
-  }
-  sql += "CREATE VIRTUAL TABLE ";
-  sql += create_table.name;
-  sql += " USING __intrinsic_dataframe();";
-  sql += "RELEASE SAVEPOINT create_table_using_dataframe;";
+  base::StackString<1024> drop("DROP TABLE IF EXISTS %s;",
+                               create_table.name.c_str());
+  base::StackString<1024> sql_str(
+      "SAVEPOINT create_table_using_dataframe; %s "
+      "CREATE VIRTUAL TABLE %s USING __intrinsic_dataframe(%" PRIu64
+      "); "
+      "RELEASE SAVEPOINT create_table_using_dataframe",
+      create_table.replace ? drop.c_str() : "", create_table.name.c_str(),
+      tag.hash);
 
-  auto exec_res =
-      Execute(SqlSource::FromTraceProcessorImplementation(std::move(sql)));
+  auto exec_res = Execute(
+      SqlSource::FromTraceProcessorImplementation(sql_str.ToStdString()));
   if (!exec_res.ok()) {
     auto rollback_res = Execute(SqlSource::FromTraceProcessorImplementation(
         "ROLLBACK TO create_table_using_dataframe; "
         "RELEASE create_table_using_dataframe;"));
-
     // Failing a rollback/release is pretty catastrophic as we have no idea what
     // state the database is in anymore.
     PERFETTO_CHECK(rollback_res.ok());
@@ -987,7 +994,11 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
     return base::OkStatus();
   }
 
+  module_include_stack_.push_back(key);
   auto it = Execute(SqlSource::FromModuleInclude(file.sql, key));
+  PERFETTO_CHECK(module_include_stack_.size() > 0);
+  PERFETTO_CHECK(module_include_stack_.back() == key);
+  module_include_stack_.pop_back();
   if (!it.status().ok()) {
     return base::ErrStatus("%s%s",
                            parser.statement_sql().AsTraceback(0).c_str(),

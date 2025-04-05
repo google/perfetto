@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_SHARED_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_SHARED_STORAGE_H_
 
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -24,27 +25,75 @@
 
 #include "perfetto/base/thread_annotations.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/uuid.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 
 namespace perfetto::trace_processor {
 
+// Shared storage for Dataframe objects.
+//
+// The problem we are trying to solve is as follows:
+//  1) We want to have multiple PerfettoSqlEngine instances which are working
+//     on different threads.
+//  2) There are several large tables in trace processor which will be used by
+//     all the engines; these are both the static tables and the tables in the
+//     SQL modules.
+//  3) We don't want to duplicate the memory for these tables across the
+//     engines.
+//  4) So we need some shared storage for such dataframe objects: that's where
+//     this class comes in.
+//
+// Specifically, this class works by having the notion of a "Tag" which is a
+// unique identifier for a dataframe *before* any dataframe is created. The
+// engines will use the tag to lookup whether the dataframe has already been
+// created. If it has, then the engine will use the existing dataframe. If it
+// hasn't, then the engine will create a new dataframe and insert it into the
+// shared storage for others to use.
+//
+// For convenience, even dataframes which we don't want to share can be stored
+// to reduce complexity. We just given them a unique tag with a random UUID.
+//
+// Usage:
+//  auto tag = DataframeSharedStorage::MakeTagForSqlModuleTable(
+//      "sql_module_name", "table_name");
+//  auto df = DataframeSharedStorage::Find(tag);
+//  if (!df) {
+//    df = DataframeSharedStorage::Insert(tag, ComputeDataframe());
+//  }
+//
+// This class is thread-safe.
 class DataframeSharedStorage {
  public:
-  std::shared_ptr<dataframe::Dataframe> Find(const std::string& tag) {
+  // Identifies a dataframe. See the `MakeTag` methods below.
+  struct Tag {
+    uint64_t hash;
+  };
+
+  // Checks whether a dataframe with the given tag has already been created.
+  //
+  // Returns nullptr if no such dataframe exists.
+  std::shared_ptr<const dataframe::Dataframe> Find(Tag tag) {
     std::lock_guard mu(mutex_);
-    auto* it = dataframes_.Find(tag);
+    auto* it = dataframes_.Find(tag.hash);
     if (!it) {
       return nullptr;
     }
     return it->lock();
   }
 
-  std::shared_ptr<dataframe::Dataframe> Insert(
-      const std::string& tag,
+  // Inserts a dataframe into the shared storage to be associated with the given
+  // tag.
+  //
+  // Returns the dataframe which is now owned by the shared storage. This might
+  // be the same dataframe which was passed in as the argument or it might be a
+  // a dataframe which is already stored in the shared storage.
+  std::shared_ptr<const dataframe::Dataframe> Insert(
+      Tag tag,
       std::unique_ptr<dataframe::Dataframe> df) {
     std::shared_ptr<dataframe::Dataframe> shared_df(std::move(df));
     std::lock_guard mu(mutex_);
-    auto [it, inserted] = dataframes_.Insert(tag, shared_df);
+    auto [it, inserted] = dataframes_.Insert(tag.hash, shared_df);
     if (inserted) {
       return shared_df;
     }
@@ -56,9 +105,23 @@ class DataframeSharedStorage {
     return shared_df;
   }
 
+  static Tag MakeTagForSqlModuleTable(const std::string& module_name,
+                                      const std::string& table_name) {
+    return Tag{base::Hasher::Combine(module_name, table_name)};
+  }
+
+  static Tag MakeTagForStaticTable(const std::string& table_name) {
+    return Tag{base::Hasher::Combine(table_name)};
+  }
+
+  static Tag MakeUniqueTag() {
+    return Tag{base::Hasher::Combine(base::Uuidv4().ToPrettyString())};
+  }
+
  private:
-  using DataframeMap =
-      base::FlatHashMap<std::string, std::weak_ptr<dataframe::Dataframe>>;
+  using DataframeMap = base::FlatHashMap<uint64_t,
+                                         std::weak_ptr<dataframe::Dataframe>,
+                                         base::AlreadyHashed<uint64_t>>;
 
   std::mutex mutex_;
   DataframeMap dataframes_ PERFETTO_GUARDED_BY(mutex_);
