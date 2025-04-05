@@ -52,6 +52,7 @@ import {PostedTrace} from './trace_source';
 import {PerfManager} from './perf_manager';
 import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
+import {StatusBarManager} from './statusbar_manager';
 
 /**
  * Handles the per-trace state of the UI
@@ -79,6 +80,7 @@ export class TraceContext implements Disposable {
   readonly scrollHelper: ScrollHelper;
   readonly trash = new DisposableStack();
   readonly onTraceReady = new EvtSource<void>();
+  readonly statusbarMgr = new StatusBarManager();
 
   // List of errors that were encountered while loading the trace by the TS
   // code. These are on top of traceInfo.importErrors, which is a summary of
@@ -348,6 +350,10 @@ export class TraceImpl implements Trace {
 
   get traceInfo(): TraceInfoImpl {
     return this.traceCtx.traceInfo;
+  }
+
+  get statusbar(): StatusBarManager {
+    return this.traceCtx.statusbarMgr;
   }
 
   get notes() {

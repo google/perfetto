@@ -1,0 +1,51 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+:root {
+  --statusbar-text-color: #374151;
+  --statusbar-separator-color: #d1d5db;
+  --statusbar-danger-color: #dc2626;
+  --statusbar-font-size: 0.8rem;
+  --statusbar-padding-y: 0.375rem;
+  --statusbar-padding-x: 0.75rem;
+  --statusbar-group-gap: 0.5rem;
+  --statusbar-button-icon-font-size: 16px;
+}
+
+.pf-statusbar {
+  background: rgb(38, 47, 60);
+  grid-area: statusbar;
+  padding: 0px 8px;
+  color: lightgray;
+  font-size: 14px;
+  // font-size: var(--statusbar-font-size);
+  // color: var(--statusbar-text-color);
+  display: flex;
+  align-items: baseline;
+  // justify-content: space-between;
+  // min-height: var(--statusbar-min-height);
+  // box-sizing: border-box;
+
+  .pf-statusbar__separator {
+    border-left: 1px solid var(--statusbar-separator-color);
+    // height: calc(var(--statusbar-button-icon-font-size) * 1.1);
+    margin: 0 0.25rem;
+  }
+
+  // .pf-statusbar__button--red {
+  //   color: var(--statusbar-danger-color);
+  //   border: 1px solid var(--statusbar-danger-color);
+  //   border-radius: 10px;
+  // }
+}
