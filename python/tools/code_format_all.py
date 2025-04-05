@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env python3
 # Copyright (C) 2025 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eu
-ROOT_DIR="$(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd))"
-exec /usr/bin/env python3 $ROOT_DIR/python/tools/code_format_ui.py "$@"
+import sys
+
+from code_format_utils import run_code_formatters
+from code_format_clang import ClangFormat
+from code_format_ui import UI_CODE_FORMATTERS
+
+if __name__ == '__main__':
+  formatters = [
+      ClangFormat(),
+  ] + UI_CODE_FORMATTERS
+  sys.exit(run_code_formatters(formatters))
