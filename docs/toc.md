@@ -84,6 +84,7 @@
 * [Contributing](#)
     * [Getting started](contributing/getting-started.md)
     * [Build instructions](contributing/build-instructions.md)
+    * [Developer tools](contributing/developer-tools.md)
     * [Running tests](contributing/testing.md)
     * [UI plugins](contributing/ui-plugins.md)
     * [UI development hints](contributing/ui-development.md)
