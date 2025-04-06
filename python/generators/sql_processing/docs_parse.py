@@ -221,21 +221,9 @@ class TableViewDocParser(AbstractDocParser):
     if _is_internal(self.name):
       return None
 
-    if not schema and self.name.lower() != "window":
-      self._error(
-          f'{type} "{self.name}": schema is missing for a non-internal stdlib'
-          f' perfetto table or view')
-      return
-
     if type.lower() == "table" and not perfetto_or_virtual:
       self._error(
           f'{type} "{self.name}": Can only expose CREATE PERFETTO tables')
-      return
-
-    is_virtual_table = type.lower() == "table" and perfetto_or_virtual.lower(
-    ) == "virtual"
-    if is_virtual_table and self.name.lower() != "window":
-      self._error(f'{type} "{self.name}": Virtual tables cannot be exposed.')
       return
 
     cols = self._parse_columns(schema, ObjKind.table_view)
