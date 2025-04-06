@@ -832,7 +832,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
                       record->AddArg("cols", base::Join(index.col_names, ", "));
                     });
 
-  Table* t = GetTableOrNull(index.table_name);
+  Table* t = GetTableOrNullSlow(index.table_name);
   if (!t) {
     return base::ErrStatus("CREATE PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
@@ -860,7 +860,7 @@ base::Status PerfettoSqlEngine::ExecuteDropIndex(
                       record->AddArg("table_name", index.table_name);
                     });
 
-  Table* t = GetTableOrNull(index.table_name);
+  Table* t = GetTableOrNullSlow(index.table_name);
   if (!t) {
     return base::ErrStatus("DROP PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
@@ -1112,25 +1112,26 @@ void PerfettoSqlEngine::OnRollback() {
   static_table_fn_context_->manager.OnRollback();
 }
 
-const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(
+const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNullSlow(
     std::string_view name) const {
-  auto* state = runtime_table_context_->manager.FindStateByName(name);
+  auto* state = runtime_table_context_->manager.FindStateByNameSlow(name);
   return state ? state->runtime_table.get() : nullptr;
 }
 
-RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(std::string_view name) {
-  auto* state = runtime_table_context_->manager.FindStateByName(name);
+RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNullSlow(
+    std::string_view name) {
+  auto* state = runtime_table_context_->manager.FindStateByNameSlow(name);
   return state ? state->runtime_table.get() : nullptr;
 }
 
-const Table* PerfettoSqlEngine::GetStaticTableOrNull(
+const Table* PerfettoSqlEngine::GetStaticTableOrNullSlow(
     std::string_view name) const {
-  auto* state = static_table_context_->manager.FindStateByName(name);
+  auto* state = static_table_context_->manager.FindStateByNameSlow(name);
   return state ? state->static_table : nullptr;
 }
 
-Table* PerfettoSqlEngine::GetStaticTableOrNull(std::string_view name) {
-  auto* state = static_table_context_->manager.FindStateByName(name);
+Table* PerfettoSqlEngine::GetStaticTableOrNullSlow(std::string_view name) {
+  auto* state = static_table_context_->manager.FindStateByNameSlow(name);
   return state ? state->static_table : nullptr;
 }
 

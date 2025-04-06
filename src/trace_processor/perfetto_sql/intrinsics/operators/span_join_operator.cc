@@ -741,7 +741,7 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
   }
 
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnCreate(argv, std::move(state));
+  res->state = context->manager.OnCreate(argc, argv, std::move(state));
   *vtab = res.release();
   return SQLITE_OK;
 }
@@ -754,13 +754,13 @@ int SpanJoinOperatorModule::Destroy(sqlite3_vtab* vtab) {
 
 int SpanJoinOperatorModule::Connect(sqlite3* db,
                                     void* ctx,
-                                    int,
+                                    int argc,
                                     const char* const* argv,
                                     sqlite3_vtab** vtab,
                                     char**) {
   auto* context = GetContext(ctx);
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnConnect(argv);
+  res->state = context->manager.OnConnect(argc, argv);
 
   auto* state =
       sqlite::ModuleStateManager<SpanJoinOperatorModule>::GetState(res->state);

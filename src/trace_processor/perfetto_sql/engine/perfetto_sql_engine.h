@@ -232,11 +232,14 @@ class PerfettoSqlEngine {
   }
 
   // Find table (Static or Runtime) registered with engine with provided name.
-  const Table* GetTableOrNull(std::string_view name) const {
-    if (const auto* r = GetRuntimeTableOrNull(name); r) {
+  //
+  // This function is O(n) in the number of tables registered with the engine so
+  // should not be called in performance sensitive contexts.
+  const Table* GetTableOrNullSlow(std::string_view name) const {
+    if (const auto* r = GetRuntimeTableOrNullSlow(name); r) {
       return r;
     }
-    return GetStaticTableOrNull(name);
+    return GetStaticTableOrNullSlow(name);
   }
 
  private:
@@ -316,25 +319,24 @@ class PerfettoSqlEngine {
   // transactions in SQLite.
   void OnRollback();
 
-  // Find table (Static or Runtime) registered with engine with provided name.
-  Table* GetTableOrNull(std::string_view name) {
-    if (auto* maybe_runtime = GetRuntimeTableOrNull(name); maybe_runtime) {
+  Table* GetTableOrNullSlow(std::string_view name) {
+    if (auto* maybe_runtime = GetRuntimeTableOrNullSlow(name); maybe_runtime) {
       return maybe_runtime;
     }
-    return GetStaticTableOrNull(name);
+    return GetStaticTableOrNullSlow(name);
   }
 
   // Find RuntimeTable registered with engine with provided name.
-  RuntimeTable* GetRuntimeTableOrNull(std::string_view);
+  RuntimeTable* GetRuntimeTableOrNullSlow(std::string_view);
 
   // Find static table registered with engine with provided name.
-  Table* GetStaticTableOrNull(std::string_view);
+  Table* GetStaticTableOrNullSlow(std::string_view);
 
   // Find RuntimeTable registered with engine with provided name.
-  const RuntimeTable* GetRuntimeTableOrNull(std::string_view) const;
+  const RuntimeTable* GetRuntimeTableOrNullSlow(std::string_view) const;
 
   // Find static table registered with engine with provided name.
-  const Table* GetStaticTableOrNull(std::string_view) const;
+  const Table* GetStaticTableOrNullSlow(std::string_view) const;
 
   StringPool* pool_ = nullptr;
   // If true, engine will perform additional consistency checks when e.g.

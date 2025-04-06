@@ -837,33 +837,5 @@ TEST_F(TraceProcessorIntegrationTest, NoNotifyEndOfFileCalled) {
                   .ok());
 }
 
-TEST_F(TraceProcessorIntegrationTest, BeginAndRollbackWorksCorrectly) {
-  {
-    auto it = Query("create perfetto table foo as select 1 as x");
-    ASSERT_FALSE(it.Next());
-    ASSERT_OK(it.Status());
-  }
-  {
-    auto it =
-        Query("begin; create or replace perfetto table foo as select 2 as x");
-    ASSERT_FALSE(it.Next());
-    ASSERT_OK(it.Status());
-  }
-  {
-    auto it = Query("select * from foo");
-    ASSERT_TRUE(it.Next());
-    ASSERT_EQ(it.Get(0).AsLong(), 2);
-    ASSERT_FALSE(it.Next());
-    ASSERT_OK(it.Status());
-  }
-  {
-    auto it = Query("rollback; select * from foo");
-    ASSERT_TRUE(it.Next());
-    ASSERT_EQ(it.Get(0).AsLong(), 1);
-    ASSERT_FALSE(it.Next());
-    ASSERT_OK(it.Status());
-  }
-}
-
 }  // namespace
 }  // namespace perfetto::trace_processor

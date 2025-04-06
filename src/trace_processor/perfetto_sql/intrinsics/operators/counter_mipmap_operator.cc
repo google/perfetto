@@ -112,7 +112,7 @@ int CounterMipmapOperator::Create(sqlite3* db,
   }
 
   std::unique_ptr<Vtab> vtab_res = std::make_unique<Vtab>();
-  vtab_res->state = ctx->manager.OnCreate(argv, std::move(state));
+  vtab_res->state = ctx->manager.OnCreate(argc, argv, std::move(state));
   *vtab = vtab_res.release();
   return SQLITE_OK;
 }
@@ -135,7 +135,7 @@ int CounterMipmapOperator::Connect(sqlite3* db,
   }
   auto* ctx = GetContext(raw_ctx);
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = ctx->manager.OnConnect(argv);
+  res->state = ctx->manager.OnConnect(argc, argv);
   *vtab = res.release();
   return SQLITE_OK;
 }
