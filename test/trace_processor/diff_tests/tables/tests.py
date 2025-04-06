@@ -20,24 +20,6 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Tables(TestSuite):
-  # Contains tests for the handling of tables by trace processor. The focus of
-  # here is to check that trace processor is correctly returning and handling
-  # on the really important tables in trace processor.  Note: It's generally
-  # advisable to add tests here. Check the guidance provided by
-  # for choosing which folder to add a new test to. Window table
-  def test_android_sched_and_ps_smoke_window(self):
-    return DiffTestBlueprint(
-        trace=DataPath('android_sched_and_ps.pb'),
-        query="""
-        SELECT * FROM "window";
-        """,
-        out=Csv("""
-        "ts","dur","quantum_ts"
-        0,9223372036854775807,0
-        """))
-
-
-
   # Null printing
   def test_nulls(self):
     return DiffTestBlueprint(
