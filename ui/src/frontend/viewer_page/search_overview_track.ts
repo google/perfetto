@@ -58,7 +58,11 @@ export class SearchOverviewTrack implements AsyncDisposable {
   private async initialize() {
     const engine = this.trace.engine;
     this.trash.use(
-      await createVirtualTable(engine, 'search_summary_window', 'window'),
+      await createVirtualTable(
+        engine,
+        'search_summary_window',
+        '__intrinsic_window(0, 0, 1)',
+      ),
     );
     this.trash.use(
       await createVirtualTable(
@@ -94,11 +98,14 @@ export class SearchOverviewTrack implements AsyncDisposable {
 
     const windowDur = Duration.max(Time.diff(end, start), 1n);
     const engine = this.trace.engine;
-    await engine.query(`update search_summary_window set
-      window_start=${start},
-      window_dur=${windowDur},
-      quantum=${quantum}
-      where rowid = 0;`);
+    // Regneerate the search window table based on the new quantums.
+    // TODO(lalitm): this is a big hack. When searching is rewritten, we need to
+    // remove this.
+    await engine.query(`
+      drop table search_summary_window;
+      create virtual table search_summary_window
+        using __intrinsic_window(${start}, ${windowDur}, ${quantum});
+    `);
 
     const utidRes = await engine.query(`select utid from thread join process
       using(upid) where thread.name glob ${searchLiteral}
