@@ -1061,7 +1061,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       "span_outer_join",
       std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
   engine_->RegisterVirtualTableModule<WindowOperatorModule>(
-      "window", std::make_unique<WindowOperatorModule::Context>());
+      "__intrinsic_window", nullptr);
   engine_->RegisterVirtualTableModule<CounterMipmapOperator>(
       "__intrinsic_counter_mipmap",
       std::make_unique<CounterMipmapOperator::Context>(engine_.get()));

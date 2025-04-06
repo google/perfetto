@@ -40,17 +40,10 @@ WHERE name = 'cpuidle';
 CREATE VIRTUAL TABLE freq_idle
 USING span_join(freq_view PARTITIONED cpu, idle_view PARTITIONED cpu);
 
-CREATE VIRTUAL TABLE window_freq_idle USING window;
+CREATE VIRTUAL TABLE window_freq_idle USING __intrinsic_window(2579596465618, 9608823041, 1000000);
 
 CREATE VIRTUAL TABLE span_freq_idle
 USING span_join(freq_idle PARTITIONED cpu, window_freq_idle);
-
-UPDATE window_freq_idle
-SET
-  window_start = (SELECT min(ts) FROM sched),
-  window_dur = (SELECT max(ts) - min(ts) FROM sched),
-  quantum = 1000000
-WHERE rowid = 0;
 
 CREATE VIEW counter_view
 AS SELECT

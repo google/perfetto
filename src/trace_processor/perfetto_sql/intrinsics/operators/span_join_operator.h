@@ -32,7 +32,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 
 namespace perfetto::trace_processor {
@@ -77,7 +76,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
   static constexpr uint32_t kSourceGeqOpCode =
       SQLITE_INDEX_CONSTRAINT_FUNCTION + 1;
 
-  struct State;
+  struct Vtab;
 
   // Enum indicating whether the queries on the two inner tables should
   // emit shadows.
@@ -192,7 +191,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
       kEof,
     };
 
-    Query(SpanJoinOperatorModule::State*, const TableDefinition*);
+    Query(Vtab*, const TableDefinition*);
     virtual ~Query();
 
     Query(Query&&) noexcept = default;
@@ -344,7 +343,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     std::optional<SqliteEngine::PreparedStatement> stmt_;
 
     const TableDefinition* defn_ = nullptr;
-    SpanJoinOperatorModule::State* in_state_ = nullptr;
+    Vtab* vtab_ = nullptr;
   };
 
   // Columns of the span operator table.
@@ -373,12 +372,12 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     size_t col_index;
   };
 
-  struct Context : sqlite::ModuleStateManager<SpanJoinOperatorModule> {
+  struct Context {
     explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}
 
     PerfettoSqlEngine* engine;
   };
-  struct State {
+  struct Vtab : public sqlite3_vtab {
     bool IsLeftJoin() const {
       return base::CaseInsensitiveEqual(module_name, "span_left_join");
     }
@@ -407,16 +406,11 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     PartitioningType partitioning;
     base::FlatHashMap<size_t, ColumnLocator> global_index_to_column_locator;
   };
-  struct Vtab : public sqlite3_vtab {
-    sqlite::ModuleStateManager<SpanJoinOperatorModule>::PerVtabState* state;
-  };
 
   // Base class for a cursor on the span table.
   struct Cursor final : public sqlite3_vtab_cursor {
-    explicit Cursor(State* _state)
-        : t1(_state, &_state->t1_defn),
-          t2(_state, &_state->t2_defn),
-          state(_state) {}
+    explicit Cursor(Vtab* _vtab)
+        : t1(_vtab, &_vtab->t1_defn), t2(_vtab, &_vtab->t2_defn), vtab(_vtab) {}
 
     bool IsOverlappingSpan() const;
     base::Status FindOverlappingSpan();
@@ -430,7 +424,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     // Only valid for kMixedPartition.
     int64_t last_mixed_partition_ = std::numeric_limits<int64_t>::min();
 
-    State* state;
+    Vtab* vtab;
   };
 
   static constexpr bool kSupportsWrites = false;
