@@ -1051,30 +1051,28 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   TraceStorage* storage = context_.storage.get();
 
   // Operator tables.
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+  engine_->RegisterVirtualTableModule<SpanJoinOperatorModule>(
       "span_join",
       std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+  engine_->RegisterVirtualTableModule<SpanJoinOperatorModule>(
       "span_left_join",
       std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+  engine_->RegisterVirtualTableModule<SpanJoinOperatorModule>(
       "span_outer_join",
       std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
-  engine_->sqlite_engine()->RegisterVirtualTableModule<WindowOperatorModule>(
-      "window", std::make_unique<WindowOperatorModule::Context>());
-  engine_->sqlite_engine()->RegisterVirtualTableModule<CounterMipmapOperator>(
+  engine_->RegisterVirtualTableModule<WindowOperatorModule>(
+      "__intrinsic_window", nullptr);
+  engine_->RegisterVirtualTableModule<CounterMipmapOperator>(
       "__intrinsic_counter_mipmap",
       std::make_unique<CounterMipmapOperator::Context>(engine_.get()));
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SliceMipmapOperator>(
+  engine_->RegisterVirtualTableModule<SliceMipmapOperator>(
       "__intrinsic_slice_mipmap",
       std::make_unique<SliceMipmapOperator::Context>(engine_.get()));
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  engine_->sqlite_engine()
-      ->RegisterVirtualTableModule<etm::EtmDecodeTraceVtable>(
-          "__intrinsic_etm_decode_trace", storage);
-  engine_->sqlite_engine()
-      ->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
-          "__intrinsic_etm_iterate_instruction_range", storage);
+  engine_->RegisterVirtualTableModule<etm::EtmDecodeTraceVtable>(
+      "__intrinsic_etm_decode_trace", storage);
+  engine_->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
+      "__intrinsic_etm_iterate_instruction_range", storage);
 #endif
 
   // Register stdlib packages.
@@ -1105,11 +1103,9 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
           metrics::RunMetric::Context{engine_.get(), &sql_metrics_}));
 
   // Legacy tables.
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SqlStatsModule>(
-      "sqlstats", storage);
-  engine_->sqlite_engine()->RegisterVirtualTableModule<StatsModule>("stats",
-                                                                    storage);
-  engine_->sqlite_engine()->RegisterVirtualTableModule<TablePointerModule>(
+  engine_->RegisterVirtualTableModule<SqlStatsModule>("sqlstats", storage);
+  engine_->RegisterVirtualTableModule<StatsModule>("stats", storage);
+  engine_->RegisterVirtualTableModule<TablePointerModule>(
       "__intrinsic_table_ptr", nullptr);
 
   // New style db-backed tables.

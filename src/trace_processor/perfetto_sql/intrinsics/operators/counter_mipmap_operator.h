@@ -24,7 +24,7 @@
 #include "src/trace_processor/containers/implicit_segment_forest.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 
 namespace perfetto::trace_processor {
 
@@ -68,10 +68,9 @@ struct CounterMipmapOperator : sqlite::Module<CounterMipmapOperator> {
     ImplicitSegmentForest<Counter, Agg> forest;
     std::vector<int64_t> timestamps;
   };
-  struct Context {
+  struct Context : sqlite::ModuleStateManager<CounterMipmapOperator> {
     explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}
     PerfettoSqlEngine* engine;
-    sqlite::ModuleStateManager<CounterMipmapOperator> manager;
   };
   struct Vtab : sqlite::Module<CounterMipmapOperator>::Vtab {
     sqlite::ModuleStateManager<CounterMipmapOperator>::PerVtabState* state;
