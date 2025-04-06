@@ -220,13 +220,14 @@ base::Status SqliteEngine::UnregisterFunction(const char* name, int argc) {
   return base::OkStatus();
 }
 
-base::Status SqliteEngine::DeclareVirtualTable(const std::string& create_stmt) {
-  int res = sqlite3_declare_vtab(db_.get(), create_stmt.c_str());
-  if (res != SQLITE_OK) {
-    return base::ErrStatus("Declare vtab failed: %s",
-                           sqlite3_errmsg(db_.get()));
-  }
-  return base::OkStatus();
+void SqliteEngine::RegisterVirtualTableModule(
+    const std::string& module_name,
+    const sqlite3_module* module,
+    void* ctx,
+    ModuleContextDestructor destructor) {
+  int res = sqlite3_create_module_v2(db_.get(), module_name.c_str(), module,
+                                     ctx, destructor);
+  PERFETTO_CHECK(res == SQLITE_OK);
 }
 
 void* SqliteEngine::GetFunctionContext(const std::string& name, int argc) {

@@ -22,7 +22,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto::trace_processor {
@@ -64,7 +64,7 @@ int WindowOperatorModule::Create(sqlite3* db,
   }
   auto* ctx = GetContext(raw_ctx);
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = ctx->manager.OnCreate(argc, argv, std::make_unique<State>());
+  res->state = ctx->OnCreate(argc, argv, std::make_unique<State>());
   *vtab = res.release();
   return SQLITE_OK;
 }
@@ -87,7 +87,7 @@ int WindowOperatorModule::Connect(sqlite3* db,
   }
   auto* ctx = GetContext(raw_ctx);
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = ctx->manager.OnConnect(argc, argv);
+  res->state = ctx->OnConnect(argc, argv);
   *vtab = res.release();
   return SQLITE_OK;
 }

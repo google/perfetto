@@ -32,7 +32,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 
 namespace perfetto::trace_processor {
@@ -373,11 +373,10 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     size_t col_index;
   };
 
-  struct Context {
+  struct Context : sqlite::ModuleStateManager<SpanJoinOperatorModule> {
     explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}
 
     PerfettoSqlEngine* engine;
-    sqlite::ModuleStateManager<SpanJoinOperatorModule> manager;
   };
   struct State {
     bool IsLeftJoin() const {

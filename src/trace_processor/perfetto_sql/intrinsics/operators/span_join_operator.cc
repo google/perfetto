@@ -37,7 +37,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -741,7 +741,7 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
   }
 
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnCreate(argc, argv, std::move(state));
+  res->state = context->OnCreate(argc, argv, std::move(state));
   *vtab = res.release();
   return SQLITE_OK;
 }
@@ -760,7 +760,7 @@ int SpanJoinOperatorModule::Connect(sqlite3* db,
                                     char**) {
   auto* context = GetContext(ctx);
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnConnect(argc, argv);
+  res->state = context->OnConnect(argc, argv);
 
   auto* state =
       sqlite::ModuleStateManager<SpanJoinOperatorModule>::GetState(res->state);

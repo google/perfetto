@@ -24,7 +24,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 
 namespace perfetto::trace_processor {
 
@@ -47,9 +47,7 @@ struct WindowOperatorModule : sqlite::Module<WindowOperatorModule> {
     // uint64s.
     int64_t window_dur = std::numeric_limits<int64_t>::max();
   };
-  struct Context {
-    sqlite::ModuleStateManager<WindowOperatorModule> manager;
-  };
+  struct Context : sqlite::ModuleStateManager<WindowOperatorModule> {};
   struct Vtab : sqlite::Module<WindowOperatorModule>::Vtab {
     sqlite::ModuleStateManager<WindowOperatorModule>::PerVtabState* state;
   };

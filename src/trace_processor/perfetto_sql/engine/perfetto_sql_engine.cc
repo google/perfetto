@@ -305,30 +305,28 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks)
   {
     auto ctx = std::make_unique<RuntimeTableFunctionModule::Context>();
     runtime_table_fn_context_ = ctx.get();
-    engine_->RegisterVirtualTableModule<RuntimeTableFunctionModule>(
+    RegisterVirtualTableModule<RuntimeTableFunctionModule>(
         "runtime_table_function", std::move(ctx));
   }
   {
     auto ctx = std::make_unique<DbSqliteModule::Context>();
     runtime_table_context_ = ctx.get();
-    engine_->RegisterVirtualTableModule<DbSqliteModule>("runtime_table",
-                                                        std::move(ctx));
+    RegisterVirtualTableModule<DbSqliteModule>("runtime_table", std::move(ctx));
   }
   {
     auto ctx = std::make_unique<DbSqliteModule::Context>();
     static_table_context_ = ctx.get();
-    engine_->RegisterVirtualTableModule<DbSqliteModule>("static_table",
-                                                        std::move(ctx));
+    RegisterVirtualTableModule<DbSqliteModule>("static_table", std::move(ctx));
   }
   {
     auto ctx = std::make_unique<DbSqliteModule::Context>();
     static_table_fn_context_ = ctx.get();
-    engine_->RegisterVirtualTableModule<DbSqliteModule>("static_table_function",
-                                                        std::move(ctx));
+    RegisterVirtualTableModule<DbSqliteModule>("static_table_function",
+                                               std::move(ctx));
   }
   {
-    engine_->RegisterVirtualTableModule<DataframeModule>(
-        "__intrinsic_dataframe", nullptr);
+    RegisterVirtualTableModule<DataframeModule>("__intrinsic_dataframe",
+                                                nullptr);
   }
 }
 
@@ -1098,40 +1096,38 @@ base::Status PerfettoSqlEngine::ExecuteCreateMacro(
 }
 
 int PerfettoSqlEngine::OnCommit() {
-  runtime_table_context_->manager.OnCommit();
-  runtime_table_fn_context_->manager.OnCommit();
-  static_table_context_->manager.OnCommit();
-  static_table_fn_context_->manager.OnCommit();
+  for (auto* ctx : virtual_module_state_managers_) {
+    ctx->OnCommit();
+  }
   return 0;
 }
 
 void PerfettoSqlEngine::OnRollback() {
-  runtime_table_context_->manager.OnRollback();
-  runtime_table_fn_context_->manager.OnRollback();
-  static_table_context_->manager.OnRollback();
-  static_table_fn_context_->manager.OnRollback();
+  for (auto* ctx : virtual_module_state_managers_) {
+    ctx->OnRollback();
+  }
 }
 
 const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNullSlow(
     std::string_view name) const {
-  auto* state = runtime_table_context_->manager.FindStateByNameSlow(name);
+  auto* state = runtime_table_context_->FindStateByNameSlow(name);
   return state ? state->runtime_table.get() : nullptr;
 }
 
 RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNullSlow(
     std::string_view name) {
-  auto* state = runtime_table_context_->manager.FindStateByNameSlow(name);
+  auto* state = runtime_table_context_->FindStateByNameSlow(name);
   return state ? state->runtime_table.get() : nullptr;
 }
 
 const Table* PerfettoSqlEngine::GetStaticTableOrNullSlow(
     std::string_view name) const {
-  auto* state = static_table_context_->manager.FindStateByNameSlow(name);
+  auto* state = static_table_context_->FindStateByNameSlow(name);
   return state ? state->static_table : nullptr;
 }
 
 Table* PerfettoSqlEngine::GetStaticTableOrNullSlow(std::string_view name) {
-  auto* state = static_table_context_->manager.FindStateByNameSlow(name);
+  auto* state = static_table_context_->FindStateByNameSlow(name);
   return state ? state->static_table : nullptr;
 }
 
