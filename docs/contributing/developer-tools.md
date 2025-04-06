@@ -42,39 +42,39 @@ your `.gitconfig` to include the following:
 [alias]
     # Create a new branch based on a parent and set its parent config
     # Usage: git new-branch <new_branch_name> [--parent <parent_branch>]
-    new-branch   = "!f() { ./tools/new-branch.py \"$@\"; }; f"
+    new-branch   = "!f() { ./tools/git_new_branch.py \"$@\"; }; f"
 
     # Set the parent branch for the target branch (default: current)
     # Usage: git set-parent <parent_branch> [--target <branch>]
-    set-parent   = "!f() { ./tools/set-parent.py \"$@\"; }; f"
+    set-parent   = "!f() { ./tools/git_set_parent.py \"$@\"; }; f"
 
     # Renames local branch and updates children's parent config
     # Usage: git rename-branch --new <new_name> [--target <old_name>]
-    rename-branch = "!f() { ./tools/rename-branch.py \"$@\"; }; f"
+    rename-branch = "!f() { ./tools/git_rename_branch.py \"$@\"; }; f"
 
     # Checkout the configured parent of the target branch (default: current)
     # Usage: git goto-parent [--target <branch>]
-    goto-parent  = "!f() { ./tools/goto-parent.py \"$@\"; }; f"
+    goto-parent  = "!f() { ./tools/git_goto_parent.py \"$@\"; }; f"
 
     # Find and checkout a child of the target branch (default: current)
     # Usage: git goto-child [--target <branch>]
-    goto-child   = "!f() { ./tools/goto-child.py \"$@\"; }; f"
+    goto-child   = "!f() { ./tools/git_goto_child.py \"$@\"; }; f"
 
     # Update local stack segment (target+ancestors+descendants) via merges
     # Usage: git update-stack [--target <branch>]
-    update-stack = "!f() { ./tools/update_stack.py \"$@\"; }; f"
+    update-stack = "!f() { ./tools/git_update_stack.py \"$@\"; }; f"
 
     # Update ALL local stacks via merges using topological sort
     # Usage: git update-all
-    update-all   = "!f() { ./tools/update_all.py \"$@\"; }; f"
+    update-all   = "!f() { ./tools/git_update_all.py \"$@\"; }; f"
 
     # Push full stack segment (target+ancestors+descendants) and sync GitHub PRs
     # Usage: git sync-stack [--target <branch>] [--remote <name>] [--draft] [--force]
-    sync-stack   = "!f() { ./tools/sync_stack.py \"$@\"; }; f"
+    sync-stack   = "!f() { ./tools/git_sync_stack.py \"$@\"; }; f"
 
     # Prune all local branches identical (no diff) to ~their effective parent
     # Usage: git prune-all [--dry-run]
-    prune-all = "!f() { ./tools/prune-all.py \"$@\"; }; f"
+    prune-all = "!f() { ./tools/git_prune_all.py \"$@\"; }; f"
 ```
 
 All of these tools work by adding an entry to the repo's gitconfig called
