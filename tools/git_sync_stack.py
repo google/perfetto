@@ -129,7 +129,7 @@ def main():
             f"Warning: Parent '{local_parent}' lacks upstream. Using default '{repo_default_branch}' as PR base.",
             file=sys.stderr)
 
-    push_args: List[str] = ['push']
+    push_args: List[str] = ['push', '-u']
     branch_remote_result = run_git_command(
         ['config', f'branch.{branch}.remote'], check=False)
     push_remote = default_remote_name
