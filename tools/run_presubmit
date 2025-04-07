@@ -275,7 +275,7 @@ def CheckPatchFormatted(changed_files: List[str],
   try:
     # Use --dry-run or -n, and -Werror to exit with error if changes are needed
     cmd = ['clang-format', '--dry-run', '-Werror'] + abs_files_to_format
-    print(cmd)
+    run_command(cmd)
   except FileNotFoundError:
     errors.append("clang-format not found. Please install or add to PATH.")
   except subprocess.CalledProcessError as e:
