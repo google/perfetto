@@ -87,6 +87,31 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testCategoryWithTags() throws Exception {
+    Category category = new Category("MyCategory", List.of("MyTag", "MyOtherTag")).register();
+    TraceConfig traceConfig = getTraceConfig(null, List.of("MyTag"));
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+    PerfettoTrace.instant(category, "event").addArg("arg", 42).emit();
+
+    byte[] traceBytes = session.close();
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    boolean hasTrackEvent = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackEvent()) {
+        hasTrackEvent = true;
+      }
+      collectInternedData(packet);
+    }
+
+    assertThat(hasTrackEvent).isTrue();
+    assertThat(mDebugAnnotationNames).contains("arg");
+    assertThat(mEventNames).contains("event");
+    assertThat(mCategoryNames).contains("MyCategory");
+  }
+
+  @Test
   public void testDebugAnnotations() throws Exception {
     TraceConfig traceConfig = getTraceConfig(FOO);
 
@@ -579,10 +604,18 @@ public class PerfettoTraceTest {
     return null;
   }
 
-  private TraceConfig getTraceConfig(String cat) {
+  private TraceConfig getTraceConfig(String enableCategory, List<String> enableTags) {
     BufferConfig bufferConfig = BufferConfig.newBuilder().setSizeKb(1024).build();
-    TrackEventConfig trackEventConfig =
-        TrackEventConfig.newBuilder().addEnabledCategories(cat).build();
+    TrackEventConfig.Builder trackEventConfigBuilder = TrackEventConfig.newBuilder();
+    if (enableCategory != null) {
+      trackEventConfigBuilder.addEnabledCategories(enableCategory);
+    }
+    if (enableTags != null) {
+      for (String tag : enableTags) {
+        trackEventConfigBuilder.addEnabledTags(tag);
+      }
+    }
+    TrackEventConfig trackEventConfig = trackEventConfigBuilder.build();
     DataSourceConfig dsConfig =
         DataSourceConfig.newBuilder()
             .setName("track_event")
@@ -593,6 +626,10 @@ public class PerfettoTraceTest {
     TraceConfig traceConfig =
         TraceConfig.newBuilder().addBuffers(bufferConfig).addDataSources(ds).build();
     return traceConfig;
+  }
+
+  private TraceConfig getTraceConfig(String enableCategory) {
+    return getTraceConfig(enableCategory, null);
   }
 
   private TraceConfig getTriggerTraceConfig(String cat, String triggerName) {
