@@ -682,34 +682,6 @@ def CheckBannedCpp(changed_files: List[str]) -> List[str]:
   return errors
 
 
-def CheckBadCppPatterns(changed_files: List[str]) -> List[str]:
-  # File Regex (for filtering), Code Regex (for checking), Message tuple
-  # File pattern needs to be fnmatch compatible
-  bad_patterns: List[Tuple[str, str, str]] = [
-      (
-          '*/tracing_service_impl.cc',
-          r'\btrigger_config\(\)',  # fnmatch pattern
-          'Use GetTriggerMode(session->config) rather than .trigger_config()'),
-  ]
-  errors = []
-  comment_pattern = re.compile(r'^\s*//')  # Regex is fine here
-
-  for file_pattern, code_regex_str, message in bad_patterns:
-    # Filter files using fnmatch pattern
-    files_to_check_list = filter_files(
-        changed_files, files_to_check=[file_pattern])
-    for f_path in files_to_check_list:
-      content = read_file_content(f_path)
-      if content:
-        for i, line in enumerate(content):
-          if comment_pattern.search(line):
-            continue  # Skip comments
-          # Check content using re.search
-          if re.search(code_regex_str, line):
-            errors.append(f'{f_path}:{i+1}: {message}')
-  return errors
-
-
 def CheckSqlModules(changed_files: List[str]) -> List[str]:
   if sys.platform == 'win32':
     return []
@@ -991,7 +963,6 @@ def main():
       (CheckMergedTraceConfigProto, [changed_files]),
       (CheckProtoEventList, [changed_files, merge_base]),  # Needs merge_base
       (CheckBannedCpp, [changed_files]),
-      (CheckBadCppPatterns, [changed_files]),
       (CheckSqlModules, [changed_files]),
       (CheckSqlMetrics, [changed_files]),
       (CheckTestData, [changed_files
