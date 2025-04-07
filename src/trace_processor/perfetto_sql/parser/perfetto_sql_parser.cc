@@ -247,11 +247,13 @@ void OnPerfettoSqlCreateTable(PerfettoSqlParserState* state,
                               PerfettoSqlToken* body_start,
                               PerfettoSqlToken* body_end) {
   std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
-  PerfettoSqlParser::CreateTable::Implmentation implementation;
+  PerfettoSqlParser::CreateTable::Implementation implementation;
   if (table_impl->n == 0 ||
-      std::string_view(table_impl->ptr, table_impl->n) == "RUNTIME_TABLE") {
+      base::CaseInsensitiveEqual(std::string(table_impl->ptr, table_impl->n),
+                                 "runtime_table")) {
     implementation = PerfettoSqlParser::CreateTable::kRuntimeTable;
-  } else if (std::string_view(table_impl->ptr, table_impl->n) == "DATAFRAME") {
+  } else if (base::CaseInsensitiveEqual(
+                 std::string(table_impl->ptr, table_impl->n), "dataframe")) {
     implementation = PerfettoSqlParser::CreateTable::kDataframe;
   } else {
     state->ErrorAtToken("Invalid table implementation", *table_impl);
