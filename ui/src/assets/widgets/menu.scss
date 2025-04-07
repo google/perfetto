@@ -31,9 +31,10 @@
     font-family: $pf-font;
     user-select: none;
     text-align: left;
-    padding: 5px 10px;
+    padding: 6px 10px;
     white-space: nowrap;
     min-width: max-content;
+    line-height: 1;
     cursor: pointer;
 
     background: $pf-minimal-background;
@@ -45,12 +46,10 @@
     }
 
     & > .pf-left-icon {
-      float: left;
       margin-right: 6px; // Make some room between the icon and label
     }
 
     & > .pf-right-icon {
-      float: right;
       margin-left: 6px; // Make some room between the icon and label
     }
 
