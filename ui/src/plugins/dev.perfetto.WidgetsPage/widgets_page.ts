@@ -673,7 +673,14 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
       m('h1', 'Widgets'),
       m(WidgetShowcase, {
         label: 'Button',
-        renderWidget: ({label, icon, rightIcon, showAsGrid, ...rest}) =>
+        renderWidget: ({
+          label,
+          icon,
+          rightIcon,
+          showAsGrid,
+          showInlineWithText,
+          ...rest
+        }) =>
           Boolean(showAsGrid)
             ? m(
                 '',
@@ -698,13 +705,17 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
                   });
                 }),
               )
-            : m(Button, {
-                icon: arg(icon, 'send'),
-                rightIcon: arg(rightIcon, 'arrow_forward'),
-                label: arg(label, 'Button', ''),
-                onclick: () => alert('button pressed'),
-                ...rest,
-              }),
+            : m('', [
+                Boolean(showInlineWithText) && 'Inline',
+                m(Button, {
+                  icon: arg(icon, 'send'),
+                  rightIcon: arg(rightIcon, 'arrow_forward'),
+                  label: arg(label, 'Button', ''),
+                  onclick: () => alert('button pressed'),
+                  ...rest,
+                }),
+                Boolean(showInlineWithText) && 'text',
+              ]),
         initialOpts: {
           label: true,
           icon: true,
@@ -719,6 +730,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
             Object.values(ButtonVariant),
           ),
           showAsGrid: false,
+          showInlineWithText: false,
         },
       }),
       m(WidgetShowcase, {
@@ -747,6 +759,31 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         initialOpts: {
           label: true,
           disabled: false,
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'Anchor',
+        renderWidget: ({icon, showInlineWithText, long}) =>
+          m('', [
+            Boolean(showInlineWithText) && 'Inline',
+            m(
+              Anchor,
+              {
+                icon: arg(icon, 'open_in_new'),
+                href: 'https://perfetto.dev/docs/',
+                target: '_blank',
+              },
+              Boolean(long)
+                ? 'This is some really long text and it will probably overflow the container'
+                : 'Link',
+            ),
+            Boolean(showInlineWithText) && 'text',
+          ]),
+
+        initialOpts: {
+          icon: true,
+          showInlineWithText: false,
+          long: false,
         },
       }),
       m(WidgetShowcase, {
@@ -786,22 +823,6 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         initialOpts: {
           header: true,
           content: true,
-        },
-      }),
-      m(WidgetShowcase, {
-        label: 'Anchor',
-        renderWidget: ({icon}) =>
-          m(
-            Anchor,
-            {
-              icon: arg(icon, 'open_in_new'),
-              href: 'https://perfetto.dev/docs/',
-              target: '_blank',
-            },
-            'This is some really long text and it will probably overflow the container',
-          ),
-        initialOpts: {
-          icon: true,
         },
       }),
       m(WidgetShowcase, {
