@@ -21,15 +21,18 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/containers/string_pool.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/dataframe/value_fetcher.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto::trace_processor {
@@ -45,35 +48,101 @@ dataframe::Op SqliteOpToDataframeOp(int op) {
   }
 }
 
-// TODO(lalitm): take this from the sqlite context instead.
-struct ConstantValueFetcher : dataframe::ValueFetcher {};
+std::string ToSqliteCreateTableType(dataframe::StorageType type) {
+  switch (type.index()) {
+    case dataframe::StorageType::GetTypeIndex<dataframe::Id>():
+    case dataframe::StorageType::GetTypeIndex<dataframe::Uint32>():
+    case dataframe::StorageType::GetTypeIndex<dataframe::Int32>():
+    case dataframe::StorageType::GetTypeIndex<dataframe::Int64>():
+      return "INTEGER";
+    case dataframe::StorageType::GetTypeIndex<dataframe::Double>():
+      return "REAL";
+    case dataframe::StorageType::GetTypeIndex<dataframe::String>():
+      return "TEXT";
+    default:
+      PERFETTO_FATAL("Unimplemented");
+  }
+}
+
+std::string CreateTableStmt(
+    const std::vector<dataframe::Dataframe::ColumnSpec>& specs) {
+  std::string create_stmt = "CREATE TABLE x(";
+  for (const auto& spec : specs) {
+    create_stmt += spec.name + " " + ToSqliteCreateTableType(spec.type) + ", ";
+  }
+  create_stmt += "PRIMARY KEY(id)) WITHOUT ROWID";
+  PERFETTO_ELOG("Create table stmt: %s", create_stmt.c_str());
+  return create_stmt;
+}
 
 }  // namespace
 
+int DataframeModule::Create(sqlite3* db,
+                            void* raw_ctx,
+                            int argc,
+                            const char* const* argv,
+                            sqlite3_vtab** vtab,
+                            char**) {
+  // SQLite automatically should provide the first three arguments. And the
+  // fourth argument should be the tag hash of the dataframe from the engine.
+  PERFETTO_CHECK(argc == 4);
+
+  std::optional<uint64_t> tag_hash = base::CStringToUInt64(argv[3]);
+  PERFETTO_CHECK(tag_hash);
+
+  auto* ctx = GetContext(raw_ctx);
+  auto table = ctx->dataframe_shared_storage->Find(
+      DataframeSharedStorage::Tag{*tag_hash});
+  PERFETTO_CHECK(table);
+
+  std::string create_stmt = CreateTableStmt(table->CreateColumnSpecs());
+  if (int r = sqlite3_declare_vtab(db, create_stmt.c_str()); r != SQLITE_OK) {
+    return r;
+  }
+  std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
+  res->dataframe = table.get();
+  auto* state =
+      ctx->OnCreate(argc, argv, std::make_unique<State>(std::move(table)));
+  res->state = state;
+  *vtab = res.release();
+  return SQLITE_OK;
+}
+
+int DataframeModule::Destroy(sqlite3_vtab* vtab) {
+  std::unique_ptr<Vtab> v(GetVtab(vtab));
+  sqlite::ModuleStateManager<DataframeModule>::OnDestroy(v->state);
+  return SQLITE_OK;
+}
+
 int DataframeModule::Connect(sqlite3* db,
-                             void*,
-                             int,
-                             const char* const*,
+                             void* raw_ctx,
+                             int argc,
+                             const char* const* argv,
                              sqlite3_vtab** vtab,
                              char**) {
-  static constexpr char kSchema[] = R"(
-    CREATE TABLE x(
-      id INTEGER NOT NULL,
-      PRIMARY KEY(id)
-    ) WITHOUT ROWID
-  )";
-  if (int ret = sqlite3_declare_vtab(db, kSchema); ret != SQLITE_OK) {
-    return ret;
+  // SQLite automatically should provide the first three arguments. And the
+  // fourth argument should be the type of the tag of the dataframe which the
+  // engine should always provide.
+  PERFETTO_CHECK(argc >= 4);
+
+  auto* vtab_state = GetContext(raw_ctx)->OnConnect(argc, argv);
+  auto* state =
+      sqlite::ModuleStateManager<DataframeModule>::GetState(vtab_state);
+  std::string create_stmt =
+      CreateTableStmt(state->dataframe->CreateColumnSpecs());
+  if (int r = sqlite3_declare_vtab(db, create_stmt.c_str()); r != SQLITE_OK) {
+    return r;
   }
-  StringPool pool;
-  // TODO(lalitm): actually create a dataframe properly and return it here.
-  std::unique_ptr<Vtab> res;
+  std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
+  res->dataframe = state->dataframe.get();
+  res->state = vtab_state;
   *vtab = res.release();
   return SQLITE_OK;
 }
 
 int DataframeModule::Disconnect(sqlite3_vtab* vtab) {
   std::unique_ptr<Vtab> v(GetVtab(vtab));
+  sqlite::ModuleStateManager<DataframeModule>::OnDisconnect(v->state);
   return SQLITE_OK;
 }
 
@@ -94,7 +163,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
     });
   }
   SQLITE_ASSIGN_OR_RETURN(tab, auto plan,
-                          v->dataframe.PlanQuery(filter_specs, info->colUsed));
+                          v->dataframe->PlanQuery(filter_specs, info->colUsed));
   for (const auto& c : filter_specs) {
     if (auto value_index = c.value_index; value_index) {
       info->aConstraintUsage[c.source_index].argvIndex =
@@ -127,7 +196,7 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
   auto* c = GetCursor(cur);
   if (idxStr != c->last_idx_str) {
     auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idxStr);
-    v->dataframe.PrepareCursor(plan, c->df_cursor);
+    v->dataframe->PrepareCursor(plan, c->df_cursor);
     c->last_idx_str = idxStr;
   }
   SqliteValueFetcher fetcher{{}, argv};

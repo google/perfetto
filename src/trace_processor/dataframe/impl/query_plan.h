@@ -45,7 +45,7 @@
 
 namespace perfetto::trace_processor::dataframe::impl {
 
-static constexpr uint32_t kMaxFilters = 16;
+static constexpr uint32_t kMaxColumns = 64;
 
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
@@ -59,7 +59,7 @@ struct QueryPlan {
     bytecode::reg::ReadHandle<Span<uint32_t>> output_register;
 
     // Maps column indices to output offsets.
-    std::array<uint32_t, kMaxFilters> col_to_output_offset;
+    std::array<uint32_t, kMaxColumns> col_to_output_offset;
 
     // Number of output indices per row.
     uint32_t output_per_row = 0;

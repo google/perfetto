@@ -53,7 +53,7 @@ class Cursor {
                 "FilterValueFetcherImpl must be a subclass of ValueFetcher");
 
   // Constructs a cursor from a query plan and dataframe columns.
-  Cursor(impl::QueryPlan plan, impl::Column* columns, StringPool* pool)
+  Cursor(impl::QueryPlan plan, const impl::Column* columns, StringPool* pool)
       : interpreter_(std::move(plan.bytecode), columns, pool),
         params_(plan.params),
         columns_(columns),
