@@ -115,6 +115,8 @@ class Extra {
  */
 class Category {
  public:
+  explicit Category(const std::string& name);
+
   Category(const std::string& name, const std::vector<std::string>& tags);
 
   ~Category();

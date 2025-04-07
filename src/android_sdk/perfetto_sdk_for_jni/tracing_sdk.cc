@@ -85,6 +85,8 @@ PerfettoTeHlExtra* const* Extra::get() const {
   return extras_.data();
 }
 
+Category::Category(const std::string& name) : Category(name, {}) {}
+
 Category::Category(const std::string& name,
                    const std::vector<std::string>& tags)
     : category_({&perfetto_atomic_false, {}, {}, 0}), name_(name), tags_(tags) {
