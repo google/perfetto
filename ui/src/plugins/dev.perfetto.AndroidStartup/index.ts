@@ -18,6 +18,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
 import {optimizationsTrack} from './optimizations';
+import {slowInsightsTrack} from './slow_insights';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidStartup';
@@ -63,6 +64,13 @@ export default class implements PerfettoPlugin {
     trackNode.addChildLast(trackBreakdownNode);
     if (!!optimizations) {
       trackNode.addChildLast(optimizations);
+    }
+    // TODO(haiping): get the deeplink reason ID and package name params.
+    const reasonId = 0;
+    const pkgName = '';
+    const slowInsights = await slowInsightsTrack(ctx, reasonId, pkgName);
+    if (!!slowInsights) {
+      trackNode.addChildLast(slowInsights);
     }
   }
 
