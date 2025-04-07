@@ -39,9 +39,11 @@
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -91,6 +93,50 @@ class PerfettoSqlEngine {
   // no valid SQL to run.
   base::StatusOr<SqliteEngine::PreparedStatement> PrepareSqliteStatement(
       SqlSource sql);
+
+  // Registers a virtual table module with the given name.
+  //
+  // |name|: name of the module in SQL.
+  // |ctx|:  context object for the module. This object *must* outlive the
+  //         module so should likely be either static or scoped to the lifetime
+  //         of TraceProcessor.
+  template <typename Module>
+  void RegisterVirtualTableModule(const char* name,
+                                  typename Module::Context* ctx) {
+    static_assert(std::is_base_of_v<sqlite::Module<Module>, Module>,
+                  "Must subclass sqlite::Module");
+    // If the context class of the module inherits from
+    // ModuleStateManagerBase, we need to add it to the list of virtual module
+    // state managers so it receives the OnCommit/OnRollback callbacks.
+    if constexpr (std::is_base_of_v<sqlite::ModuleStateManagerBase,
+                                    typename Module::Context>) {
+      virtual_module_state_managers_.push_back(ctx);
+    }
+    engine_->RegisterVirtualTableModule(name, &Module::kModule, ctx, nullptr);
+  }
+
+  // Registers a virtual table module with the given name.
+  //
+  // |name|: name of the module in SQL.
+  // |ctx|:  context object for the module. The lifetime of the context object
+  //         is managed by SQLite.
+  template <typename Module>
+  void RegisterVirtualTableModule(
+      const char* name,
+      std::unique_ptr<typename Module::Context> ctx) {
+    static_assert(std::is_base_of_v<sqlite::Module<Module>, Module>,
+                  "Must subclass sqlite::Module");
+    // If the context class of the module inherits from
+    // ModuleStateManagerBase, we need to add it to the list of virtual module
+    // state managers so it receives the OnCommit/OnRollback callbacks.
+    if constexpr (std::is_base_of_v<sqlite::ModuleStateManagerBase,
+                                    typename Module::Context>) {
+      virtual_module_state_managers_.push_back(ctx.get());
+    }
+    engine_->RegisterVirtualTableModule(
+        name, &Module::kModule, ctx.release(),
+        [](void* ptr) { delete static_cast<typename Module::Context*>(ptr); });
+  }
 
   // Registers a trace processor C++ function to be runnable from SQL.
   //
@@ -339,6 +385,7 @@ class PerfettoSqlEngine {
   const Table* GetStaticTableOrNullSlow(std::string_view) const;
 
   StringPool* pool_ = nullptr;
+
   // If true, engine will perform additional consistency checks when e.g.
   // creating tables and views.
   const bool enable_extra_checks_;
@@ -347,6 +394,10 @@ class PerfettoSqlEngine {
   uint64_t static_aggregate_function_count_ = 0;
   uint64_t static_window_function_count_ = 0;
   uint64_t runtime_function_count_ = 0;
+
+  // Contains the pointers for all registered virtual table modules where the
+  // context class of the module inherits from ModuleStateManagerBase.
+  std::vector<sqlite::ModuleStateManagerBase*> virtual_module_state_managers_;
 
   RuntimeTableFunctionModule::Context* runtime_table_fn_context_ = nullptr;
   DbSqliteModule::Context* runtime_table_context_ = nullptr;

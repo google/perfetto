@@ -24,7 +24,7 @@
 #include "src/trace_processor/containers/implicit_segment_forest.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 
 namespace perfetto::trace_processor {
 
@@ -68,10 +68,9 @@ struct SliceMipmapOperator : sqlite::Module<SliceMipmapOperator> {
   struct State {
     std::vector<PerDepth> by_depth;
   };
-  struct Context {
+  struct Context : sqlite::ModuleStateManager<SliceMipmapOperator> {
     explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}
     PerfettoSqlEngine* engine;
-    sqlite::ModuleStateManager<SliceMipmapOperator> manager;
   };
   struct Vtab : sqlite::Module<SliceMipmapOperator>::Vtab {
     sqlite::ModuleStateManager<SliceMipmapOperator>::PerVtabState* state;

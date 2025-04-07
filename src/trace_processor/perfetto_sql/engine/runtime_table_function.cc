@@ -32,7 +32,7 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/sql_argument.h"
@@ -89,7 +89,7 @@ int RuntimeTableFunctionModule::Create(sqlite3* db,
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
   res->reusable_stmt = std::move(state->temporary_create_stmt);
   state->temporary_create_stmt = std::nullopt;
-  res->state = context->manager.OnCreate(argc, argv, std::move(state));
+  res->state = context->OnCreate(argc, argv, std::move(state));
   *vtab = res.release();
   return SQLITE_OK;
 }
@@ -109,7 +109,7 @@ int RuntimeTableFunctionModule::Connect(sqlite3* db,
   auto* context = GetContext(ctx);
 
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnConnect(argc, argv);
+  res->state = context->OnConnect(argc, argv);
 
   auto create_table_str = CreateTableStrFromState(
       sqlite::ModuleStateManager<RuntimeTableFunctionModule>::GetState(

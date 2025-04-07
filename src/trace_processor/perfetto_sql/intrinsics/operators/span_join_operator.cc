@@ -37,7 +37,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"

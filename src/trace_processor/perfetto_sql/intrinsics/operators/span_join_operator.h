@@ -32,7 +32,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 
 namespace perfetto::trace_processor {
