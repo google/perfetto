@@ -36,6 +36,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
+#include "winscope_module.h"
 
 namespace perfetto::trace_processor {
 
@@ -244,6 +245,10 @@ void WinscopeModule::ParseWindowManagerData(int64_t timestamp,
     context_->storage->IncrementStats(
         stats::winscope_windowmanager_parse_errors);
   }
+}
+
+void WinscopeModule::NotifyEndOfFile() {
+  ShellTransitionsTracker::GetOrCreate(context_)->Flush();
 }
 
 }  // namespace perfetto::trace_processor
