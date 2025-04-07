@@ -19,24 +19,28 @@ syntax = "proto2";
 package perfetto.protos;
 
 message AndroidHwcomposerMetrics {
-  // Counts the number of composition total layers in the trace. (non-weighted average)
+  // Counts the number of composition total layers in the trace. (non-weighted
+  // average)
   optional double composition_total_layers = 1;
 
-  // Counts the number of composition dpu layers in the trace. (non-weighted average)
+  // Counts the number of composition dpu layers in the trace. (non-weighted
+  // average)
   optional double composition_dpu_layers = 2;
 
-  // Counts the number of composition gpu layers in the trace. (non-weighted average)
+  // Counts the number of composition gpu layers in the trace. (non-weighted
+  // average)
   optional double composition_gpu_layers = 3;
 
-  // Counts the number of composition dpu cached layers in the trace. (non-weighted average)
+  // Counts the number of composition dpu cached layers in the trace.
+  // (non-weighted average)
   optional double composition_dpu_cached_layers = 4;
 
   // Counts the number of composition surfaceflinger cached layers in the trace.
   // (non-weighted average)
   optional double composition_sf_cached_layers = 5;
 
-  // Counts the number of composition rounded corner decoration layers in the trace.
-  // (non-weighted average)
+  // Counts the number of composition rounded corner decoration layers in the
+  // trace. (non-weighted average)
   optional double composition_rcd_layers = 15;
 
   // Counts how many times validateDisplay is skipped.
@@ -45,8 +49,8 @@ message AndroidHwcomposerMetrics {
   // Counts how many times validateDisplay cannot be skipped.
   optional int32 unskipped_validation_count = 7;
 
-  // Counts how many times validateDisplay is already separated from presentDisplay
-  // since the beginning.
+  // Counts how many times validateDisplay is already separated from
+  // presentDisplay since the beginning.
   optional int32 separated_validation_count = 8;
 
   // Counts how many unhandled validation cases which might be caused by errors.
@@ -88,24 +92,28 @@ message AndroidHwcomposerMetrics {
     // Display ID in HWC
     optional string display_id = 1;
 
-    // Counts the number of composition total layers in the trace. (non-weighted average)
+    // Counts the number of composition total layers in the trace. (non-weighted
+    // average)
     optional double composition_total_layers = 2;
 
-    // Counts the number of composition dpu layers in the trace. (non-weighted average)
+    // Counts the number of composition dpu layers in the trace. (non-weighted
+    // average)
     optional double composition_dpu_layers = 3;
 
-    // Counts the number of composition gpu layers in the trace. (non-weighted average)
+    // Counts the number of composition gpu layers in the trace. (non-weighted
+    // average)
     optional double composition_gpu_layers = 4;
 
-    // Counts the number of composition dpu cached layers in the trace. (non-weighted average)
+    // Counts the number of composition dpu cached layers in the trace.
+    // (non-weighted average)
     optional double composition_dpu_cached_layers = 5;
 
-    // Counts the number of composition surfaceflinger cached layers in the trace.
-    // (non-weighted average)
+    // Counts the number of composition surfaceflinger cached layers in the
+    // trace. (non-weighted average)
     optional double composition_sf_cached_layers = 6;
 
-    // Counts the number of composition rounded corner decoration layers in the trace.
-    // (non-weighted average)
+    // Counts the number of composition rounded corner decoration layers in the
+    // trace. (non-weighted average)
     optional double composition_rcd_layers = 7;
 
     // Counts how many times validateDisplay is skipped.
@@ -114,11 +122,12 @@ message AndroidHwcomposerMetrics {
     // Counts how many times validateDisplay cannot be skipped.
     optional int32 unskipped_validation_count = 9;
 
-    // Counts how many times validateDisplay is already separated from presentDisplay
-    // since the beginning.
+    // Counts how many times validateDisplay is already separated from
+    // presentDisplay since the beginning.
     optional int32 separated_validation_count = 10;
 
-    // Counts how many unhandled validation cases which might be caused by errors.
+    // Counts how many unhandled validation cases which might be caused by
+    // errors.
     optional int32 unknown_validation_count = 11;
 
     // the average of overall hwcomposer execution time.

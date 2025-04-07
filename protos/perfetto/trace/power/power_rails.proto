@@ -18,7 +18,6 @@ syntax = "proto2";
 package perfetto.protos;
 
 message PowerRails {
-
   message RailDescriptor {
     // Index corresponding to the rail
     optional uint32 index = 1;

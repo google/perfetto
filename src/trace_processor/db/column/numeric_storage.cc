@@ -60,7 +60,8 @@ using FilterOpVariant = std::variant<std::greater<T>,
 
 // Based on SqlValue and ColumnType, casts SqlValue to proper type. Assumes the
 // |val| and |type| are correct.
-inline NumericValue GetIntegerOrDoubleTypeVariant(ColumnType type, SqlValue val) {
+inline NumericValue GetIntegerOrDoubleTypeVariant(ColumnType type,
+                                                  SqlValue val) {
   switch (type) {
     case ColumnType::kDouble:
       return val.AsDouble();

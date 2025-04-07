@@ -57,8 +57,7 @@ void ListenAndRespond(const std::string& name, base::UnixTaskRunner** tr) {
   });
 
   FakeProducer producer(name, &task_runner);
-  producer.Connect(
-      GetProducerSocket(), [] {}, [] {}, [] {});
+  producer.Connect(GetProducerSocket(), [] {}, [] {}, [] {});
   task_runner.Run();
 
   // Cleanup the task runner again to remove outside visibilty so we can

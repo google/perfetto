@@ -31,7 +31,6 @@ message AndroidDisplayMetrics {
   // Stat that reports the number of dpu underrrun occurs count.
   optional uint32 total_dpu_underrun_count = 3;
 
-
   message RefreshRateStat {
     // The refresh rate value (the number of frames per second)
     optional uint32 refresh_rate_fps = 1;

@@ -809,7 +809,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       if (is_kthread && !event_config.kernel_frames()) {
         process_state = ProcessTrackingStatus::kRejected;
         EmitSkippedSample(ds_id, std::move(sample.value()),
-                        SampleSkipReason::kRejected);
+                          SampleSkipReason::kRejected);
         continue;
       }
 
@@ -823,7 +823,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
               })) {
         process_state = ProcessTrackingStatus::kRejected;
         EmitSkippedSample(ds_id, std::move(sample.value()),
-                        SampleSkipReason::kRejected);
+                          SampleSkipReason::kRejected);
         continue;
       }
 

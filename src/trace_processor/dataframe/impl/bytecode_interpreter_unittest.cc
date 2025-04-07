@@ -303,7 +303,9 @@ TEST_F(BytecodeInterpreterTest, AllocateIndices) {
       "dest_span_register=Register(1)]");
 
   const auto& slab = GetRegister<Slab<uint32_t>>(0);
-  { EXPECT_THAT(slab, SizeIs(132u)); }
+  {
+    EXPECT_THAT(slab, SizeIs(132u));
+  }
   {
     const auto& span = GetRegister<Span<uint32_t>>(1);
     EXPECT_THAT(span, SizeIs(132u));

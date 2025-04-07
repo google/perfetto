@@ -458,7 +458,8 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
   // timestamp values for the GPU time period nested inside the event data.
   auto ts_field = GetFtraceEventField(
       protos::pbzero::FtraceEvent::kGpuWorkPeriodFieldNumber, event);
-  if (!ts_field.has_value()) return;
+  if (!ts_field.has_value())
+    return;
 
   protos::pbzero::GpuWorkPeriodFtraceEvent::Decoder gpu_work_event(
       ts_field.value().data(), ts_field.value().size());
@@ -493,7 +494,8 @@ void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
   // contains the right timestamp value nested inside the event data.
   auto ts_field = GetFtraceEventField(
       protos::pbzero::FtraceEvent::kThermalExynosAcpmBulkFieldNumber, event);
-  if (!ts_field.has_value()) return;
+  if (!ts_field.has_value())
+    return;
 
   protos::pbzero::ThermalExynosAcpmBulkFtraceEvent::Decoder
       thermal_exynos_acpm_bulk_event(ts_field.value().data(),
@@ -509,13 +511,15 @@ void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
 }
 
 void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
-    uint32_t cpu, TraceBlobView event,
+    uint32_t cpu,
+    TraceBlobView event,
     RefPtr<PacketSequenceStateGeneration> state) {
   // Special handling of valid param_set_value_cpm tracepoint events which
   // contains the right timestamp value nested inside the event data.
   auto ts_field = GetFtraceEventField(
       protos::pbzero::FtraceEvent::kParamSetValueCpmFieldNumber, event);
-  if (!ts_field.has_value()) return;
+  if (!ts_field.has_value())
+    return;
 
   protos::pbzero::ParamSetValueCpmFtraceEvent::Decoder
       param_set_value_cpm_event(ts_field.value().data(),
@@ -531,7 +535,8 @@ void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
 }
 
 std::optional<protozero::Field> FtraceTokenizer::GetFtraceEventField(
-    uint32_t event_id, const TraceBlobView& event) {
+    uint32_t event_id,
+    const TraceBlobView& event) {
   //  Extract ftrace event field by decoding event trace blob.
   const uint8_t* data = event.data();
   const size_t length = event.length();

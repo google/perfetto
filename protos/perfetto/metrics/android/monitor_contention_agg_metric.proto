@@ -18,8 +18,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
- // This metric provides aggregated information about monitor contention graph
- // in a trace
+// This metric provides aggregated information about monitor contention graph
+// in a trace
 message AndroidMonitorContentionAggMetric {
   // Next id: 2
   // Stats for Monitor contention aggregated by process.
