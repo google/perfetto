@@ -24,7 +24,7 @@ class ClangFormat(CodeFormatterBase):
   def __init__(self):
     super().__init__(
         name='clang-format',
-        exts=['.cc', '.cpp', '.c', '.h', '.inc', '*.java', '*.proto'])
+        exts=['.cc', '.cpp', '.c', '.h', '.inc', '.java', '.proto'])
 
   def run_formatter(self, repo_root: str, check_only: bool, files: list[str]):
     tool = 'third_party/clang-format/clang-format'
@@ -33,6 +33,7 @@ class ClangFormat(CodeFormatterBase):
       print(err, file=sys.stderr)
       return 127
     cmd = [tool, '--Werror'] + ['--dry-run' if check_only else '-i']
+    cmd += files
     return self.check_call(cmd)
 
   def print_fix_hint(self):
