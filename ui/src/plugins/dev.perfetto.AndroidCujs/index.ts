@@ -23,14 +23,22 @@ import {addQueryResultsTab} from '../../components/query_table/query_result_tab'
  * @param {Trace} ctx For properties and methods of trace viewer
  * @param {string} trackName Display Name of the track
  * @param {string | string[]} cujNames List of Jank CUJs to pin
+ * @returns Returns true if the track was added, false otherwise
  */
-export function addJankCUJDebugTrack(
+export async function addJankCUJDebugTrack(
   ctx: Trace,
   trackName: string,
   cujNames?: string | string[],
 ) {
   const jankCujTrackConfig = generateJankCujTrackConfig(cujNames);
-  addDebugSliceTrack({trace: ctx, title: trackName, ...jankCujTrackConfig});
+  const result = await ctx.engine.query(jankCujTrackConfig.data.sqlSource);
+
+  // Check if query produces any results to prevent pinning an empty track
+  if (result.numRows() !== 0) {
+    addDebugSliceTrack({trace: ctx, title: trackName, ...jankCujTrackConfig});
+    return true;
+  }
+  return false;
 }
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
@@ -47,23 +55,7 @@ const JANK_CUJ_QUERY_PRECONDITIONS = `
 function generateJankCujTrackConfig(cujNames: string | string[] = []) {
   // This method expects the caller to have run JANK_CUJ_QUERY_PRECONDITIONS
   // Not running the precondition query here to save time in case already run
-  const jankCujQuery = JANK_CUJ_QUERY;
-  const jankCujColumns = JANK_COLUMNS;
-  const cujNamesList = typeof cujNames === 'string' ? [cujNames] : cujNames;
-  const filterCuj =
-    cujNamesList?.length > 0
-      ? ` AND cuj.name IN (${cujNamesList
-          .map((name) => `'J<${name}>'`)
-          .join(',')})`
-      : '';
-
-  return {
-    data: {
-      sqlSource: `${jankCujQuery}${filterCuj}`,
-      columns: jankCujColumns,
-    },
-    argColumns: jankCujColumns,
-  };
+  return generateCujTrackConfig(cujNames, JANK_CUJ_QUERY, JANK_COLUMNS);
 }
 
 const JANK_CUJ_QUERY = `
@@ -140,6 +132,44 @@ const JANK_COLUMNS = [
   'slice_id',
 ];
 
+/**
+ * Adds the Debug Slice Track for given Jank CUJ name
+ *
+ * @param {Trace} ctx For properties and methods of trace viewer
+ * @param {string} trackName Display Name of the track
+ * @param {string | string[]} cujNames List of Jank CUJs to pin
+ * @returns Returns true if the track was added, false otherwise
+ */
+export async function addLatencyCUJDebugTrack(
+  ctx: Trace,
+  trackName: string,
+  cujNames?: string | string[],
+) {
+  const latencyCujTrackConfig = generateLatencyCujTrackConfig(cujNames);
+  const result = await ctx.engine.query(latencyCujTrackConfig.data.sqlSource);
+
+  // Check if query produces any results to prevent pinning an empty track
+  if (result.numRows() !== 0) {
+    addDebugSliceTrack({
+      trace: ctx,
+      title: trackName,
+      ...latencyCujTrackConfig,
+    });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Generate the Track config for a multiple Latency CUJ slices
+ *
+ * @param {string | string[]} cujNames List of Latency CUJs to pin, default empty
+ * @returns Returns the track config for given CUJs
+ */
+function generateLatencyCujTrackConfig(cujNames: string | string[] = []) {
+  return generateCujTrackConfig(cujNames, LATENCY_CUJ_QUERY, LATENCY_COLUMNS);
+}
+
 const LATENCY_CUJ_QUERY = `
     SELECT
       CASE
@@ -207,6 +237,38 @@ const BLOCKING_CALLS_DURING_CUJS_COLUMNS = [
   'utid',
   'table_name',
 ];
+
+/**
+ * Generate the Track config for a multiple CUJ slices
+ *
+ * @param {string | string[]} cujNames List of Latency CUJs to pin, default empty
+ * @param {string} cujQuery The query of the CUJ track
+ * @param {string} cujColumns SQL Columns for the CUJ track
+ * @returns Returns the track config for given CUJs
+ */
+function generateCujTrackConfig(
+  cujNames: string | string[] = [],
+  cujQuery: string,
+  cujColumns: string[],
+) {
+  // This method expects the caller to have run JANK_CUJ_QUERY_PRECONDITIONS
+  // Not running the precondition query here to save time in case already run
+  const cujNamesList = typeof cujNames === 'string' ? [cujNames] : cujNames;
+  const filterCuj =
+    cujNamesList?.length > 0
+      ? ` AND cuj.name IN (${cujNamesList
+          .map((name) => `'L<${name}>','J<${name}>'`)
+          .join(',')})`
+      : '';
+
+  return {
+    data: {
+      sqlSource: `${cujQuery}${filterCuj}`,
+      columns: cujColumns,
+    },
+    argColumns: cujColumns,
+  };
+}
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidCujs';

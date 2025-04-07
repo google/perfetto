@@ -52,10 +52,10 @@ class PredictionType:
 trace = synth_common.create_trace()
 
 trace.add_packet(ts=5000000)
-trace.add_process(1001, 0, "process1")
-trace.add_process(1002, 0, "process2")
-trace.add_process(1003, 0, "process3")
-trace.add_process(1004, 0, "process4")
+trace.add_process(1001, 1, "process1")
+trace.add_process(1002, 1, "process2")
+trace.add_process(1003, 1, "process3")
+trace.add_process(1004, 1, "process4")
 
 trace.add_actual_surface_frame_start_event(
     ts=21000000,

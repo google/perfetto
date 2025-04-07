@@ -109,7 +109,7 @@ bool FilterUtil::LoadMessageDefinition(
   if (!root_message.empty()) {
     root_msg = importer.pool()->FindMessageTypeByName(root_message);
   } else if (root_file->message_type_count() > 0) {
-    // The user didn't specfy the root type. Pick the first type in the file,
+    // The user didn't specify the root type. Pick the first type in the file,
     // most times it's the right guess.
     root_msg = root_file->message_type(0);
     if (root_msg)
@@ -252,7 +252,7 @@ void FilterUtil::Dedupe() {
   }    // for (descriptors_).
 
   // Remove unreferenced descriptors. We should much rather crash in the case of
-  // a logic bug rathern than trying to use them but don't emit them.
+  // a logic bug rather than trying to use them but don't emit them.
   size_t removed_count = 0;
   for (auto it = descriptors_.begin(); it != descriptors_.end();) {
     if (referenced_descriptors.count(&*it)) {

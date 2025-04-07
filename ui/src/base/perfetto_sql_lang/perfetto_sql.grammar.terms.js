@@ -5,7 +5,7 @@ export const
   String = 3,
   Number = 4,
   Boolean = 5,
-  Keyword = 6,
-  Function = 7,
-  MacroVariable = 8,
-  Identifier = 9
+  Identifier = 6,
+  Keyword = 7,
+  Function = 8,
+  MacroVariable = 9

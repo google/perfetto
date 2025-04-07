@@ -17,11 +17,8 @@
 #ifndef SRC_TRACED_PROBES_COMMON_CPU_FREQ_INFO_H_
 #define SRC_TRACED_PROBES_COMMON_CPU_FREQ_INFO_H_
 
-#include <map>
 #include <string>
 #include <vector>
-
-#include "perfetto/ext/base/scoped_file.h"
 
 namespace perfetto {
 

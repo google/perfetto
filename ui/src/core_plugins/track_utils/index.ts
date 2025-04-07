@@ -77,6 +77,7 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'perfetto.PinTrackByName',
       name: 'Pin track by name',
+      defaultHotkey: 'Shift+T',
       callback: async () => {
         const tracksWithUris = ctx.workspace.flatTracksOrdered.filter(
           (track) => track.uri !== undefined,

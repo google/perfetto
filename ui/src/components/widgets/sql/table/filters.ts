@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button, ButtonBar} from '../../../../widgets/button';
+import {Button, ButtonBar, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
 import {isSqlColumnEqual, SqlColumn, sqlColumnId} from './sql_column';
 import {
@@ -61,13 +61,17 @@ export class Filters {
     this.notify();
   }
 
-  get(): Filter[] {
-    return this.filters;
+  setFilters(filters: ReadonlyArray<Filter>) {
+    this.filters = [...filters];
+    this.notify();
   }
 
   clear() {
-    this.filters = [];
-    this.notify();
+    this.setFilters([]);
+  }
+
+  get(): Filter[] {
+    return this.filters;
   }
 
   addObserver(observer: () => void) {
@@ -116,6 +120,7 @@ export function renderFilters(filters: Filters): m.Children {
         label: filterTitle(filter),
         icon: 'close',
         intent: Intent.Primary,
+        variant: ButtonVariant.Filled,
         onclick: () => filters.removeFilter(filter),
       }),
     ),

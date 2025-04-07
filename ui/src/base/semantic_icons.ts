@@ -24,7 +24,7 @@ export class Icons {
   static readonly SortedDesc = 'arrow_downward';
   static readonly GoBack = 'chevron_left';
   static readonly GoForward = 'chevron_right';
-  static readonly AddColumn = 'add';
+  static readonly Add = 'add';
   static readonly Close = 'close';
   static readonly Hide = 'visibility_off';
   static readonly Filter = 'filter_list';
@@ -43,4 +43,6 @@ export class Icons {
   static readonly Chart = 'bar_chart';
   static readonly Change = 'change_circle';
   static readonly GoTo = 'arrow_forward';
+  static readonly MoreVert = 'more_vert';
+  static readonly Warning = 'warning';
 }

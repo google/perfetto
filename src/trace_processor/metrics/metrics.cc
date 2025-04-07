@@ -284,7 +284,7 @@ base::Status ProtoBuilder::AppendSingleBytes(const FieldDescriptor& field,
                                              size_t size) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   if (field.type() == FieldDescriptorProto::TYPE_MESSAGE) {
-    // If we have an zero sized bytes, we still want to propogate that the field
+    // If we have an zero sized bytes, we still want to propagate that the field
     // message was set but empty.
     if (size == 0) {
       // ptr can be null and passing nullptr to AppendBytes feels dangerous so
@@ -526,7 +526,7 @@ void RepeatedField::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 
   // We use a double indirection here so we can use new and delete without
   // needing to do dangerous dances with placement new and checking
-  // initalization.
+  // initialization.
   auto** builder_ptr_ptr = static_cast<RepeatedFieldBuilder**>(
       sqlite3_aggregate_context(ctx, sizeof(RepeatedFieldBuilder*)));
 
@@ -610,7 +610,7 @@ base::Status BuildProto::Run(BuildProto::Context* ctx,
   std::vector<uint8_t> raw = builder.SerializeToProtoBuilderResult();
   if (raw.empty()) {
     // Passing nullptr to SQLite feels dangerous so just pass an empty string
-    // and zero as the size so we don't deref nullptr accidentially somewhere.
+    // and zero as the size so we don't deref nullptr accidentally somewhere.
     destructors.bytes_destructor = sqlite::utils::kSqliteStatic;
     out = SqlValue::Bytes("", 0);
     return base::OkStatus();

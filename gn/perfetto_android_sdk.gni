@@ -101,6 +101,8 @@ template("perfetto_android_instrumentation_test") {
   _vars_to_forward = [
     "app",
     "test_app",
+    "android_bp_test_manifest",
+    "android_bp_test_config",
     "testonly",
     "visibility",
   ]
@@ -130,6 +132,14 @@ template("perfetto_android_instrumentation_test") {
       perfetto_android_a_i_t_app = [ get_label_info(app, "label_no_toolchain") ]
       perfetto_android_a_i_t_test_app =
           [ get_label_info(test_app, "label_no_toolchain") ]
+      if (defined(android_bp_test_manifest)) {
+        perfetto_android_a_i_t_android_bp_test_manifest =
+            [ get_path_info(android_bp_test_manifest, "abspath") ]
+      }
+      if (defined(android_bp_test_config)) {
+        perfetto_android_a_i_t_android_bp_test_config =
+            [ get_path_info(android_bp_test_config, "abspath") ]
+      }
     }
   }
 }

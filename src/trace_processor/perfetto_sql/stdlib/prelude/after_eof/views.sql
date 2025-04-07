@@ -182,6 +182,8 @@ CREATE PERFETTO VIEW thread (
   upid JOINID(process.id),
   -- Boolean indicating if this thread is the main thread in the process.
   is_main_thread BOOL,
+  -- Boolean indicating if this thread is a kernel idle thread.
+  is_idle BOOL,
   -- Machine identifier, non-null for threads on a remote machine.
   machine_id LONG
 ) AS

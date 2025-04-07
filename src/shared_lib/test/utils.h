@@ -82,6 +82,8 @@ class TracingSession {
       disabled_categories_.push_back(std::move(category));
       return *this;
     }
+    std::vector<uint8_t> BuildProtoConfig();
+
     TracingSession Build();
 
    private:

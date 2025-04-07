@@ -49,7 +49,7 @@ def amalgamate_file(fname, stack=None, done=None, in_progress=None):
   outlines = []
   for line in lines:
     if line.startswith('from perfetto') or line.startswith('import perfetto'):
-      if not re.match('from perfetto[.][.\w]+\s+import\s+[*]$', line):
+      if not re.match(r'from perfetto[.][.\w]+\s+import\s+[*]$', line):
         logging.fatal('Error in %s on line \"%s\"', fname, line.rstrip())
         logging.fatal('Only "from perfetto.foo import *" is supported in '
                       'sources that are used in //tools and get amalgamated')

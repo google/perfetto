@@ -48,10 +48,10 @@ SELECT
   flow.slice_out AS client_slice_id,
   gralloc_slice.ts,
   gralloc_slice.dur,
-  thread_track.utid
+  gralloc_tt.utid
 FROM slice AS gralloc_slice
-JOIN thread_track
-  ON gralloc_slice.track_id = thread_track.id
+JOIN thread_track AS gralloc_tt
+  ON gralloc_slice.track_id = gralloc_tt.id
 JOIN gralloc_threads
   USING (utid)
 JOIN flow
@@ -65,12 +65,14 @@ SELECT
   r.inode,
   r.ts,
   r.buf_size,
-  coalesce(client_thread.utid, r.utid) AS attr_utid
+  coalesce(client_tt.utid, r.utid) AS attr_utid
 FROM _raw_dmabuf_events AS r
 LEFT JOIN _gralloc_binders AS gb
   ON r.utid = gb.utid AND r.ts BETWEEN gb.ts AND gb.ts + gb.dur
-LEFT JOIN thread_track AS client_thread
-  ON gb.client_slice_id = client_thread.id
+LEFT JOIN slice AS client_slice
+  ON client_slice.id = gb.client_slice_id
+LEFT JOIN thread_track AS client_tt
+  ON client_slice.track_id = client_tt.id
 ORDER BY
   r.inode,
   r.ts;

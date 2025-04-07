@@ -467,6 +467,8 @@ CREATE PERFETTO TABLE android_binder_txns (
   aidl_name STRING,
   -- Interface of the binder endpoint if existing.
   interface STRING,
+  -- Method name of the binder endpoint if existing.
+  method_name STRING,
   -- Timestamp the binder interface name was emitted. Proxy to 'ts' and 'dur' for async txns.
   aidl_ts TIMESTAMP,
   -- Duration of the binder interface name. Proxy to 'ts' and 'dur' for async txns.
@@ -542,6 +544,7 @@ WITH
   )
 SELECT
   str_split(aidl_name, '::', 2) AS interface,
+  str_split(aidl_name, '::', 3) AS method_name,
   all_binder.*,
   _extract_duration_without_suspend(client_ts, client_dur) AS client_monotonic_dur,
   _extract_duration_without_suspend(server_ts, server_dur) AS server_monotonic_dur,

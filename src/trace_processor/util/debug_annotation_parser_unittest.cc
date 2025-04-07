@@ -16,17 +16,21 @@
 
 #include "src/trace_processor/util/debug_annotation_parser.h"
 
-#include "perfetto/ext/base/string_view.h"
+#include <cstddef>
+#include <cstdint>
+#include <ios>
+#include <map>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/status.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "protos/perfetto/common/descriptor.pbzero.h"
-#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
-#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
-#include "protos/perfetto/trace/test_event.pbzero.h"
-#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
-#include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_builder.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -37,11 +41,12 @@
 #include "src/trace_processor/util/proto_to_args_parser.h"
 #include "test/gtest_and_gmock.h"
 
-#include <sstream>
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "protos/perfetto/trace/test_event.pbzero.h"
+#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+namespace perfetto::trace_processor::util {
 namespace {
 
 base::Status ParseDebugAnnotation(
@@ -320,6 +325,4 @@ TEST_F(DebugAnnotationParserTest, InternedString) {
 }
 
 }  // namespace
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util

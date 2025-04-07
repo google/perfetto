@@ -24,8 +24,4 @@
         android:targetPackage="com.google.perfetto.sdk" />
 
     <uses-sdk android:minSdkVersion="31" />
-
-    <application >
-        <!-- ... -->
-    </application>
 </manifest>

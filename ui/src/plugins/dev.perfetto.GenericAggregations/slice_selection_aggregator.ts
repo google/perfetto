@@ -16,14 +16,14 @@ import {ColumnDef, Sorting} from '../../public/aggregation';
 import {AreaSelection, AreaSelectionAggregator} from '../../public/selection';
 import {Dataset} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 
 export class SliceSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'slice_aggregation';
 
   readonly schema = {
     id: NUM,
-    name: STR,
+    name: STR_NULL,
     ts: LONG,
     dur: LONG,
   } as const;

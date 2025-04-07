@@ -226,6 +226,7 @@ const char* GetSmapsKey(uint32_t field_id) {
 SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
     : context_(context),
       utid_name_id_(context->storage->InternString("utid")),
+      is_kthread_id_(context->storage->InternString("is_kthread")),
       arm_cpu_implementer(
           context->storage->InternString("arm_cpu_implementer")),
       arm_cpu_architecture(
@@ -418,6 +419,8 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
                                          intern_track("irq_ns"));
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.softirq_ns()), intern_track("softirq_ns"));
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(ct.steal_ns()), intern_track("steal_ns"));
   }
 
   for (auto it = sys_stats.num_irq(); it; ++it) {
@@ -669,6 +672,12 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
       if (start_ts.ok()) {
         context_->process_tracker->SetStartTsIfUnset(upid, *start_ts);
       }
+    }
+
+    // Linux v6.4+: explicit field for whether this is a kernel thread.
+    if (proc.has_is_kthread()) {
+      context_->process_tracker->AddArgsTo(upid).AddArg(
+          is_kthread_id_, Variadic::Boolean(proc.is_kthread()));
     }
   }
 

@@ -51,12 +51,12 @@
 #include "protos/perfetto/trace/android/android_game_intervention_list.pbzero.h"
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/android_system_property.pbzero.h"
+#include "protos/perfetto/trace/android/bluetooth_trace.pbzero.h"
 #include "protos/perfetto/trace/android/initial_display_state.pbzero.h"
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
-#include "protos/perfetto/trace/android/bluetooth_trace.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -69,11 +69,11 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
           context_->storage->InternString("energy_consumer_id")),
       consumer_type_id_(context_->storage->InternString("consumer_type")),
       ordinal_id_(context_->storage->InternString("ordinal")),
-      bt_trace_event_id_(context_->storage->InternString("BluetoothTraceEvent")),
+      bt_trace_event_id_(
+          context_->storage->InternString("BluetoothTraceEvent")),
       bt_packet_type_id_(context_->storage->InternString("TracePacketType")),
       bt_count_id_(context_->storage->InternString("Count")),
       bt_length_id_(context_->storage->InternString("Length")),
-      bt_duration_id_(context_->storage->InternString("Duration")),
       bt_op_code_id_(context_->storage->InternString("Op Code")),
       bt_event_code_id_(context_->storage->InternString("Event Code")),
       bt_subevent_code_id_(context_->storage->InternString("Subevent Code")),
@@ -515,65 +515,53 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
   }
 }
 
-void AndroidProbesParser::ParseBtTraceEvent(int64_t ts,
-                                            ConstBytes blob) {
+void AndroidProbesParser::ParseBtTraceEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::BluetoothTraceEvent::Decoder evt(blob);
 
-  static constexpr auto kBluetoothTraceEventBlueprint =
-    tracks::SliceBlueprint("bluetooth_trace_event",
-                           tracks::DimensionBlueprints(),
-                           tracks::StaticNameBlueprint("BluetoothTraceEvent"));
+  static constexpr auto kBluetoothTraceEventBlueprint = tracks::SliceBlueprint(
+      "bluetooth_trace_event", tracks::DimensionBlueprints(),
+      tracks::StaticNameBlueprint("BluetoothTraceEvent"));
 
-  TrackId track_id = context_->track_tracker->InternTrack(
-      kBluetoothTraceEventBlueprint);
+  TrackId track_id =
+      context_->track_tracker->InternTrack(kBluetoothTraceEventBlueprint);
 
-  context_->slice_tracker->Scoped(ts, track_id, kNullStringId,
-    bt_trace_event_id_, 0, [&evt, this](ArgsTracker::BoundInserter* inserter) {
-      if (evt.has_packet_type()) {
-        StringId packet_type_str = context_->storage->InternString(
-          protos::pbzero::BluetoothTracePacketType_Name(
-            static_cast<::perfetto::protos::pbzero::BluetoothTracePacketType>(
-              evt.packet_type())));
-        inserter->AddArg(
-          bt_packet_type_id_,
-          Variadic::String(packet_type_str));
-      }
-      if (evt.has_count()) {
-        inserter->AddArg(
-          bt_count_id_,
-          Variadic::UnsignedInteger(evt.count()));
-      }
-      if (evt.has_length()) {
-        inserter->AddArg(
-          bt_length_id_,
-          Variadic::UnsignedInteger(evt.length()));
-      }
-      if (evt.has_duration()) {
-        inserter->AddArg(
-          bt_duration_id_,
-          Variadic::UnsignedInteger(evt.duration()));
-      }
-      if (evt.has_op_code()) {
-        inserter->AddArg(
-          bt_op_code_id_,
-          Variadic::UnsignedInteger(evt.op_code()));
-      }
-      if (evt.has_event_code()) {
-        inserter->AddArg(
-          bt_event_code_id_,
-          Variadic::UnsignedInteger(evt.event_code()));
-      }
-      if (evt.has_subevent_code()) {
-        inserter->AddArg(
-          bt_subevent_code_id_,
-          Variadic::UnsignedInteger(evt.subevent_code()));
-      }
-      if (evt.has_connection_handle()) {
-        inserter->AddArg(
-          bt_handle_id_,
-          Variadic::UnsignedInteger(evt.connection_handle()));
-      }
-    });
+  context_->slice_tracker->Scoped(
+      ts, track_id, kNullStringId, bt_trace_event_id_, evt.duration(),
+      [&evt, this](ArgsTracker::BoundInserter* inserter) {
+        if (evt.has_packet_type()) {
+          StringId packet_type_str = context_->storage->InternString(
+              protos::pbzero::BluetoothTracePacketType_Name(
+                  static_cast<
+                      ::perfetto::protos::pbzero::BluetoothTracePacketType>(
+                      evt.packet_type())));
+          inserter->AddArg(bt_packet_type_id_,
+                           Variadic::String(packet_type_str));
+        }
+        if (evt.has_count()) {
+          inserter->AddArg(bt_count_id_,
+                           Variadic::UnsignedInteger(evt.count()));
+        }
+        if (evt.has_length()) {
+          inserter->AddArg(bt_length_id_,
+                           Variadic::UnsignedInteger(evt.length()));
+        }
+        if (evt.has_op_code()) {
+          inserter->AddArg(bt_op_code_id_,
+                           Variadic::UnsignedInteger(evt.op_code()));
+        }
+        if (evt.has_event_code()) {
+          inserter->AddArg(bt_event_code_id_,
+                           Variadic::UnsignedInteger(evt.event_code()));
+        }
+        if (evt.has_subevent_code()) {
+          inserter->AddArg(bt_subevent_code_id_,
+                           Variadic::UnsignedInteger(evt.subevent_code()));
+        }
+        if (evt.has_connection_handle()) {
+          inserter->AddArg(bt_handle_id_,
+                           Variadic::UnsignedInteger(evt.connection_handle()));
+        }
+      });
 }
 
 }  // namespace perfetto::trace_processor

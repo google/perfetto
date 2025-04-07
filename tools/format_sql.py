@@ -80,7 +80,7 @@ class Perfetto(SQLite):
       if not comments or isinstance(expression, exp.Connector):
         return sql
 
-      comments_sql = "\n".join(f"--{comment}" for comment in comments)
+      comments_sql = "\n".join(f"--{comment.rstrip()}" for comment in comments)
       if not comments_sql:
         return sql
       sep = ('\n' if sql and sql[0].isspace() else '') + comments_sql
@@ -164,7 +164,7 @@ class Perfetto(SQLite):
             comments = []
             for comment in expression.comments:
               if comment:
-                comments.append(f"--{self.pad_comment(comment)}")
+                comments.append(f"--{self.pad_comment(comment).rstrip()}")
             op = "\n".join(comments) + "\n" + op
           stack.extend((expression.right, op, expression.left))
         return op
@@ -580,7 +580,7 @@ def format_sql(file: Path,
     with_macros = postprocess_macros(formatted, macros)
     return restore_comment_blocks(with_macros, comment_blocks).rstrip() + '\n'
   except Exception as e:
-    print(f"Failed to format SQL: {e}", file=sys.stderr)
+    print(f"Failed to format SQL: file {file}, {e}", file=sys.stderr)
     raise e
 
 
@@ -647,6 +647,10 @@ def check_sql_formatting(paths: List[Union[str, Path]],
 
 def main() -> None:
   """Main entry point."""
+  if not SQLGLOT_DIR.exists():
+    print(f"{SQLGLOT_DIR} does not exist. Run tools/install-build-deps first.")
+    sys.exit(1)
+
   parser = argparse.ArgumentParser(
       description='Format SQL queries with consistent style')
   parser.add_argument(

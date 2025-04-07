@@ -17,7 +17,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Track} from '../../public/track';
 import {z} from 'zod';
-import {assertExists, assertIsInstance} from '../../base/logging';
+import {assertIsInstance} from '../../base/logging';
 
 const PLUGIN_ID = 'dev.perfetto.RestorePinnedTrack';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
@@ -168,24 +168,34 @@ export default class implements PerfettoPlugin {
       savedTrack: this.toSavedTrack(track),
       track: track,
     }));
-    tracks.forEach((trackToRestore) => {
-      const foundTrack = this.findMatchingTrack(localTracks, trackToRestore);
-      if (foundTrack) {
-        foundTrack.pin();
-      } else {
-        console.warn(
-          '[RestorePinnedTracks] No track found that matches',
-          trackToRestore,
-        );
-      }
-    });
+    const unrestoredTracks = tracks
+      .map((trackToRestore) => {
+        const foundTrack = this.findMatchingTrack(localTracks, trackToRestore);
+        if (foundTrack) {
+          foundTrack.pin();
+          return {restored: true, track: trackToRestore};
+        } else {
+          console.warn(
+            '[RestorePinnedTracks] No track found that matches',
+            trackToRestore,
+          );
+          return {restored: false, track: trackToRestore};
+        }
+      })
+      .filter(({restored}) => !restored)
+      .map(({track}) => track.trackName);
+
+    if (unrestoredTracks.length > 0) {
+      alert(
+        `[RestorePinnedTracks]\nUnable to restore the following tracks:\n${unrestoredTracks.join('\n')}`,
+      );
+    }
   }
 
   private getCurrentPinnedTracks() {
     const res = [];
     for (const track of this.ctx.workspace.pinnedTracks) {
-      const actual = this.ctx.workspace.getTrackByUri(assertExists(track.uri));
-      res.push(this.toSavedTrack(assertExists(actual)));
+      res.push(this.toSavedTrack(track));
     }
     return res;
   }

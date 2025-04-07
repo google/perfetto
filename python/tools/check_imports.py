@@ -192,7 +192,7 @@ def find_plugin_declared_deps(path):
     return
   if len(all_deps) > 1:
     raise Exception('Ambiguous plugin deps in %s: %s' % (path, all_deps))
-  declared_deps = [x for x in re.sub('\s*', '', all_deps[0]).split(',') if x]
+  declared_deps = [x for x in re.sub(r'\s*', '', all_deps[0]).split(',') if x]
   for imported_as in declared_deps:
     resolved_dep = import_map.get(imported_as)
     if resolved_dep is None:
@@ -206,14 +206,14 @@ def find_imports(path):
   with open(path) as f:
     s = f.read()
   for m in re.finditer(
-      "^import\s+([^;]+)\s+from\s+'([^']+)';$", s, flags=re.MULTILINE):
+      r"^import\s+([^;]+)\s+from\s+'([^']+)';$", s, flags=re.MULTILINE):
     # Flatten multi-line imports into one line, removing spaces. The resulting
     # import line can look like:
     # '{foo,bar,baz}' in most cases
     # 'DefaultImportName' when doing import DefaultImportName from '...'
     # 'DefaultImportName,{foo,bar,bar}' when doing a mixture of the above.
-    imports = re.sub('\s', '', m[1])
-    default_import = (re.findall('^\w+', imports) + [None])[0]
+    imports = re.sub(r'\s', '', m[1])
+    default_import = (re.findall(r'^\w+', imports) + [None])[0]
 
     # Normalize the imported file
     target = m[2]
@@ -251,7 +251,7 @@ def write_dot(graph, f):
 
 
 def get_plugin_path(path):
-  m = re.match('^(/(?:core_)?plugins/([^/]+))/.*', path)
+  m = re.match(r'^(/(?:core_)?plugins/([^/]+))/.*', path)
   return m.group(1) if m is not None else None
 
 

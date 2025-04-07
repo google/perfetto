@@ -163,7 +163,8 @@ RETURNS TableOrSubquery AS
     root_type,
     heap_type,
     self_count,
-    self_size
+    self_size,
+    path_hash AS path_hash_stable
   FROM $tab AS c
   ORDER BY
     id

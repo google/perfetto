@@ -16,15 +16,22 @@
 
 #include "src/trace_processor/util/debug_annotation_parser.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <string>
+
 #include "perfetto/base/build_config.h"
-#include "src/trace_processor/util/interned_message_view.h"
+#include "perfetto/base/status.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/public/compiler.h"
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
+#include "src/trace_processor/util/proto_to_args_parser.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+namespace perfetto::trace_processor::util {
 
 namespace {
 
@@ -251,6 +258,4 @@ DebugAnnotationParser::ParseResult DebugAnnotationParser::ParseNestedValueArgs(
   return {base::OkStatus(), false};
 }
 
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util

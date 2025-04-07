@@ -46,8 +46,8 @@ WITH
     WHERE
       name = 'activityResume'
       AND sl.is_main_thread
-      -- Remove any launches here where the activityResume slices happens during 
-      -- a warm/cold startup. 
+      -- Remove any launches here where the activityResume slices happens during
+      -- a warm/cold startup.
       AND NOT EXISTS(
         SELECT
           1

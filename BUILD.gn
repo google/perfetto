@@ -147,6 +147,9 @@ if (enable_perfetto_android_java_sdk) {
     "src/java_sdk/main:perfetto_java_sdk_app",
     "src/java_sdk/test:perfetto_java_sdk_test_app",
     "src/java_sdk/test:perfetto_java_sdk_instrumentation_test",
+    "src/android_sdk/jni:libperfetto_jni",
+    "src/android_sdk/java/main:perfetto_trace_lib",
+    "src/android_sdk/java/test:perfetto_trace_instrumentation_test",
   ]
 }
 
@@ -331,7 +334,7 @@ if (build_with_chromium) {
       ]
       public_deps += [ "include/perfetto/ext/tracing/ipc:ipc" ]
     }
-    if (!is_nacl) {
+    if (perfetto_libperfetto_includes_json) {
       deps += [
         "src/trace_processor:export_json",
         "src/trace_processor:storage_minimal",

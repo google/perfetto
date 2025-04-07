@@ -1303,7 +1303,9 @@ void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   //      events.
   base::PeriodicTask::Args snapshot_task_args;
   snapshot_task_args.start_first_task_immediately = true;
-  snapshot_task_args.use_suspend_aware_timer = true;
+  snapshot_task_args.use_suspend_aware_timer =
+      tracing_session->config.builtin_data_sources()
+          .prefer_suspend_clock_for_snapshot();
   snapshot_task_args.task = [this, tsid] { PeriodicSnapshotTask(tsid); };
   snapshot_task_args.period_ms =
       tracing_session->config.builtin_data_sources().snapshot_interval_ms();
@@ -3921,6 +3923,9 @@ void TracingServiceImpl::MaybeEmitRemoteClockSync(
 void TracingServiceImpl::MaybeEmitCloneTrigger(
     TracingSession* tracing_session,
     std::vector<TracePacket>* packets) {
+  if (tracing_session->did_emit_initial_packets)
+    return;
+
   if (tracing_session->clone_trigger.has_value()) {
     protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
     auto* trigger = packet->set_clone_snapshot_trigger();

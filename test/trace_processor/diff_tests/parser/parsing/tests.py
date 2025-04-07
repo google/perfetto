@@ -956,17 +956,17 @@ class Parsing(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE android.process_metadata;
 
-        SELECT upid, process_name, uid, shared_uid, package_name, version_code
+        SELECT upid, process_name, uid, shared_uid, package_name, version_code, is_kernel_task
         FROM android_process_metadata
         WHERE upid != 0;
         """,
         out=Csv("""
-        "upid","process_name","uid","shared_uid","package_name","version_code"
-        1,"init",0,"[NULL]","[NULL]","[NULL]"
-        2,"system_server",1000,"[NULL]","[NULL]","[NULL]"
-        3,"com.google.android.gms",10100,1,"com.google.android.gms",1234
-        4,"com.google.android.gms.persistent",10100,1,"com.google.android.gms",1234
-        5,"com.google.android.gms",10100,1,"com.google.android.gms",1234
+        "upid","process_name","uid","shared_uid","package_name","version_code","is_kernel_task"
+        1,"init",0,"[NULL]","[NULL]","[NULL]",1
+        2,"system_server",1000,"[NULL]","[NULL]","[NULL]",0
+        3,"com.google.android.gms",10100,1,"com.google.android.gms",1234,0
+        4,"com.google.android.gms.persistent",10100,1,"com.google.android.gms",1234,0
+        5,"com.google.android.gms",10100,1,"com.google.android.gms",1234,0
         """))
 
   # Flow events importing from json

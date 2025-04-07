@@ -371,6 +371,10 @@ message TraceMetrics {
   optional AndroidWattsonTasksAttributionMetric wattson_app_startup_threads =
       79;
 
+  // Android Wattson thread attribution during atrace app windows.
+  optional AndroidWattsonTasksAttributionMetric wattson_atrace_apps_threads =
+      80;
+
   // Android
   // Demo extensions.
   extensions 450 to 499;

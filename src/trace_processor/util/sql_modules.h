@@ -17,7 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_SQL_MODULES_H_
 #define SRC_TRACE_PROCESSOR_UTIL_SQL_MODULES_H_
 
+#include <cstddef>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"

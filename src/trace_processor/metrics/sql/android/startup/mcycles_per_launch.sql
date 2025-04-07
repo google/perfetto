@@ -50,7 +50,9 @@ SELECT
   CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) AS mcycles
 FROM cpu_freq_sched_per_thread_per_launch
 LEFT JOIN core_type_per_cpu USING (cpu)
-WHERE utid != 0
+WHERE NOT utid IN (
+  SELECT utid FROM thread WHERE is_idle
+)
 GROUP BY 1, 2;
 
 -- Given a launch id and core type, returns the number of mcycles consumed
@@ -75,7 +77,7 @@ WITH mcycles_per_launch_and_process AS MATERIALIZED (
   JOIN thread USING (utid)
   JOIN process USING (upid)
   WHERE
-    utid != 0
+    NOT is_idle
     AND upid NOT IN (
       SELECT upid
       FROM android_startup_processes l

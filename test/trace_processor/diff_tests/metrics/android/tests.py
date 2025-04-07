@@ -558,6 +558,12 @@ class AndroidMetrics(TestSuite):
         query=Metric("wattson_atrace_apps_rails"),
         out=Path('wattson_atrace_apps_rails.out'))
 
+  def test_wattson_atrace_apps_threads_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sysui_qsmedia_microbenchmark.pb'),
+        query=Metric("wattson_atrace_apps_threads"),
+        out=Path('wattson_atrace_apps_threads.out'))
+
   def test_wattson_app_startup_threads_output(self):
     return DiffTestBlueprint(
         trace=DataPath('android_calculator_startup.pb'),

@@ -16,11 +16,14 @@
 
 #include "src/trace_processor/util/glob.h"
 
-#include "perfetto/ext/base/string_utils.h"
+#include <cstddef>
+#include <cstdint>
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+
+namespace perfetto::trace_processor::util {
 
 GlobMatcher::GlobMatcher(base::StringView pattern_str)
     : pattern_(pattern_str.size() + 1) {
@@ -105,7 +108,7 @@ bool GlobMatcher::Matches(base::StringView in) const {
     return false;
   }
 
-  // Similarily, if there's no trailing star, the last segment needs to be
+  // Similarly, if there's no trailing star, the last segment needs to be
   // "anchored" to the right of the string.
   if (!trailing_star_ && !EndsWith(in, segments_.back())) {
     return false;
@@ -131,8 +134,7 @@ bool GlobMatcher::Matches(base::StringView in) const {
   return true;
 }
 
-bool GlobMatcher::StartsWithSlow(base::StringView in,
-                                 const Segment& segment) const {
+bool GlobMatcher::StartsWithSlow(base::StringView in, const Segment& segment) {
   base::StringView pattern = segment.pattern;
   for (uint32_t i = 0, p = 0; p < pattern.size(); ++i, ++p) {
     // We've run out of characters to consume in the input but still have more
@@ -176,7 +178,7 @@ bool GlobMatcher::StartsWithSlow(base::StringView in,
 
 base::StringView GlobMatcher::ExtractCharacterClass(base::StringView in) {
   if (in.empty())
-    return base::StringView();
+    return {};
 
   // We should always skip the first real character: it could be ']' but if
   // so, it is treated as a normal character because empty classes are not
@@ -198,7 +200,7 @@ bool GlobMatcher::MatchesCharacterClass(char in, base::StringView char_class) {
 
   PERFETTO_DCHECK(start != end);
 
-  for (auto* ptr = start; ptr != end; ++ptr) {
+  for (const char* ptr = start; ptr != end; ++ptr) {
     char cur = *ptr;
 
     // If we see a '-' at any point except at the start or end of the string,
@@ -226,6 +228,4 @@ bool GlobMatcher::MatchesCharacterClass(char in, base::StringView char_class) {
   return invert;
 }
 
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util

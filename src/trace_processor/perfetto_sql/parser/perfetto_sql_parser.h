@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_PERFETTO_SQL_PARSER_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_PERFETTO_SQL_PARSER_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -68,8 +69,13 @@ class PerfettoSqlParser {
   // Indicates that the specified SQL was a CREATE PERFETTO TABLE statement
   // with the following parameters.
   struct CreateTable {
+    enum Implementation : uint8_t {
+      kRuntimeTable,
+      kDataframe,
+    };
     bool replace;
     std::string name;
+    Implementation implementation;
     std::vector<sql_argument::ArgumentDefinition> schema;
     // SQL source for the select statement.
     SqlSource sql;

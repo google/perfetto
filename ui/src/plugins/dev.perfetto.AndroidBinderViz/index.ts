@@ -12,36 +12,54 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {MetricVisualisation} from '../../public/plugin';
+import {
+  BreakdownTrackAggType,
+  BreakdownTracks,
+} from '../../components/tracks/breakdown_tracks';
 import {PerfettoPlugin} from '../../public/plugin';
-
-const SPEC = `
-{
-  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-  "width": "container",
-  "height": 300,
-  "description": ".",
-  "data": {
-    "name": "metric"
-  },
-  "mark": "bar",
-  "encoding": {
-    "x": {"field": "client_process", "type": "nominal"},
-    "y": {"field": "client_dur", "aggregate": "max"}
-  }
-}
-`;
+import {Trace} from '../../public/trace';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidBinderVizPlugin';
 
-  static metricVisualisations(): MetricVisualisation[] {
-    return [
-      {
-        metric: 'android_binder',
-        spec: SPEC,
-        path: ['android_binder', 'unaggregated_txn_breakdown'],
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    const binderCounterBreakdowns = new BreakdownTracks({
+      trace: ctx,
+      trackTitle: 'Binder Transaction Counts',
+      modules: ['android.binder', 'android.binder_breakdown'],
+      aggregationType: BreakdownTrackAggType.COUNT,
+      aggregation: {
+        columns: [
+          'server_process',
+          '(IFNULL(interface, "unknown"))',
+          '(IFNULL(method_name, "unknown"))',
+          '(client_process || ":" || client_upid)',
+          '(client_thread || ":" ||  client_utid)',
+        ],
+        tsCol: 'client_ts',
+        durCol: 'client_dur',
+        tableName: 'android_binder_txns',
       },
-    ];
+      slice: {
+        columns: ['aidl_name'],
+        tableName: 'android_binder_txns',
+        tsCol: 'client_ts',
+        durCol: 'client_dur',
+      },
+      pivots: {
+        columns: ['reason_type', 'reason'],
+        tableName: 'android_binder_client_server_breakdown',
+        tsCol: 'ts',
+        durCol: 'dur',
+        joins: [
+          {
+            joinTableName: 'android_binder_client_server_breakdown',
+            joinColumns: ['binder_txn_id'],
+          },
+        ],
+      },
+    });
+
+    ctx.workspace.addChildInOrder(await binderCounterBreakdowns.createTracks());
   }
 }

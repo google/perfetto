@@ -17,6 +17,7 @@ import {RecordingManager} from '../recording_manager';
 import {RecordSubpage} from '../config/config_interfaces';
 import {SavedSessionSchema, RecordPluginSchema} from '../serialization_schema';
 import {assertExists} from '../../../base/logging';
+import {shareRecordConfig} from '../config/config_sharing';
 
 export function savedConfigsPage(recMgr: RecordingManager): RecordSubpage {
   const savedConfigs = new Array<SavedSessionSchema>();
@@ -122,6 +123,15 @@ class SavedConfigsPage implements m.ClassComponent<RecMgrAttrs> {
           },
         },
         m('i.material-icons', 'save'),
+      ),
+      m(
+        'button',
+        {
+          class: 'config-button',
+          title: 'Generate a shareable URL for the saved config',
+          onclick: () => shareRecordConfig(item.config),
+        },
+        m('i.material-icons', 'share'),
       ),
       m(
         'button',

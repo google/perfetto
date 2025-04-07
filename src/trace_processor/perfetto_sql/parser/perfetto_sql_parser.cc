@@ -128,7 +128,8 @@ PerfettoSqlArgumentList* OnPerfettoSqlCreateOrAppendArgument(
   return owned_list.release();
 }
 
-void OnPerfettoSqlFreeArgumentList(PerfettoSqlArgumentList* args) {
+void OnPerfettoSqlFreeArgumentList(PerfettoSqlParserState*,
+                                   PerfettoSqlArgumentList* args) {
   std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
 }
 
@@ -143,7 +144,8 @@ PerfettoSqlIndexedColumnList* OnPerfettoSqlCreateOrAppendIndexedColumn(
   return owned_list.release();
 }
 
-void OnPerfettoSqlFreeIndexedColumnList(PerfettoSqlIndexedColumnList* cols) {
+void OnPerfettoSqlFreeIndexedColumnList(PerfettoSqlParserState*,
+                                        PerfettoSqlIndexedColumnList* cols) {
   std::unique_ptr<PerfettoSqlIndexedColumnList> cols_deleter(cols);
 }
 
@@ -162,7 +164,8 @@ PerfettoSqlMacroArgumentList* OnPerfettoSqlCreateOrAppendMacroArgument(
   return owned_list.release();
 }
 
-void OnPerfettoSqlFreeMacroArgumentList(PerfettoSqlMacroArgumentList* list) {
+void OnPerfettoSqlFreeMacroArgumentList(PerfettoSqlParserState*,
+                                        PerfettoSqlMacroArgumentList* list) {
   std::unique_ptr<PerfettoSqlMacroArgumentList> list_deleter(list);
 }
 
@@ -196,7 +199,8 @@ PerfettoSqlFnReturnType* OnPerfettoSqlCreateTableReturnType(
   return res.release();
 }
 
-void OnPerfettoSqlFnFreeReturnType(PerfettoSqlFnReturnType* type) {
+void OnPerfettoSqlFnFreeReturnType(PerfettoSqlParserState*,
+                                   PerfettoSqlFnReturnType* type) {
   std::unique_ptr<PerfettoSqlFnReturnType> type_deleter(type);
 }
 
@@ -238,13 +242,27 @@ void OnPerfettoSqlCreateFunction(PerfettoSqlParserState* state,
 void OnPerfettoSqlCreateTable(PerfettoSqlParserState* state,
                               int replace,
                               PerfettoSqlToken* name,
+                              PerfettoSqlToken* table_impl,
                               PerfettoSqlArgumentList* args,
                               PerfettoSqlToken* body_start,
                               PerfettoSqlToken* body_end) {
   std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
+  PerfettoSqlParser::CreateTable::Implementation implementation;
+  if (table_impl->n == 0 ||
+      base::CaseInsensitiveEqual(std::string(table_impl->ptr, table_impl->n),
+                                 "runtime_table")) {
+    implementation = PerfettoSqlParser::CreateTable::kRuntimeTable;
+  } else if (base::CaseInsensitiveEqual(
+                 std::string(table_impl->ptr, table_impl->n), "dataframe")) {
+    implementation = PerfettoSqlParser::CreateTable::kDataframe;
+  } else {
+    state->ErrorAtToken("Invalid table implementation", *table_impl);
+    return;
+  }
   state->current_statement = PerfettoSqlParser::CreateTable{
       replace != 0,
       std::string(name->ptr, name->n),
+      implementation,
       args ? std::move(args->inner)
            : std::vector<sql_argument::ArgumentDefinition>{},
       state->tokenizer.Substr(PerfettoSqlTokenToToken(*body_start),

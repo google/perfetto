@@ -16,26 +16,22 @@
 
 #include "src/trace_processor/importers/android_bugreport/android_battery_stats_reader.h"
 
-#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <ctime>
 #include <optional>
-#include <string>
-#include <unordered_map>
 #include <utility>
 
 #include "perfetto/base/status.h"
-#include "perfetto/base/time.h"
-#include "perfetto/ext/base/no_destructor.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_view_splitter.h"
+#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_battery_stats_history_string_tracker.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
-#include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
-#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -67,13 +63,19 @@ base::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
     return base::ErrStatus("Unexpected start of battery stats checkin line");
   }
 
-  const base::StringView possible_event_type = splitter.NextToken();
+  base::StringView possible_event_type = splitter.NextToken();
 
   if (possible_event_type == "hsp") {
     ASSIGN_OR_RETURN(int64_t index,
                      StringToStatusOrInt64(splitter.NextToken()));
-    const std::optional<int32_t> possible_uid =
+    std::optional<int32_t> possible_uid =
         base::StringViewToInt32(splitter.NextToken());
+    if (!possible_uid) {
+      // This can happen if the bugreport is redacted incorrectly (i.e.
+      // '[PHONE_NUMBER]').
+      return base::OkStatus();
+    }
+
     // the next element is quoted and can contain commas. Instead of
     // implementing general logic to parse quoted CSV elements just grab the
     // rest of the line, which is possible since this element should be the
@@ -97,21 +99,23 @@ base::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
                        StringToStatusOrInt64(possible_timestamp.substr(
                            time_marker_index + time_adjustment_marker.size())));
       return base::OkStatus();
-    } else if (possible_timestamp.find(":START") != base::StringView::npos) {
-      // Ignore line
-      return base::OkStatus();
-    } else if (possible_timestamp.find(":SHUTDOWN") != base::StringView::npos) {
-      // Ignore line
-      return base::OkStatus();
-    } else {
-      ASSIGN_OR_RETURN(int64_t parsed_timestamp_delta,
-                       StringToStatusOrInt64(possible_timestamp));
-      current_timestamp_ms_ += parsed_timestamp_delta;
-      for (base::StringView item = splitter.NextToken(); !item.empty();
-           item = splitter.NextToken()) {
-        RETURN_IF_ERROR(ProcessBatteryStatsHistoryEvent(item));
-      }
     }
+    if (possible_timestamp.find(":START") != base::StringView::npos) {
+      // Ignore line
+      return base::OkStatus();
+    }
+    if (possible_timestamp.find(":SHUTDOWN") != base::StringView::npos) {
+      // Ignore line
+      return base::OkStatus();
+    }
+    ASSIGN_OR_RETURN(int64_t parsed_timestamp_delta,
+                     StringToStatusOrInt64(possible_timestamp));
+    current_timestamp_ms_ += parsed_timestamp_delta;
+    for (base::StringView item = splitter.NextToken(); !item.empty();
+         item = splitter.NextToken()) {
+      RETURN_IF_ERROR(ProcessBatteryStatsHistoryEvent(item));
+    }
+
   } else if (possible_event_type == "0") {
     const base::StringView metadata_type = splitter.NextToken();
     if (metadata_type == "i") {

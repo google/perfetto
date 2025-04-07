@@ -91,7 +91,7 @@ class DeobfuscationMappingTable {
   // To translate entities which don't have a package id, we will use
   // |default_package_id_|. |default_package_id_| is a package id of the first
   // inserted entity with a package id;
-  // We need this because curently TraceProcessor doesn't use the package
+  // We need this because currently TraceProcessor doesn't use the package
   // version of the arguments.
   // TODO(b/244700870): start use the package version of arguments.
   std::optional<PackageId> default_package_id_;

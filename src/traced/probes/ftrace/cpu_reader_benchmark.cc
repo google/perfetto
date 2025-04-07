@@ -827,6 +827,20 @@ ExamplePage g_full_page_atrace_print{
     )",
 };
 
+FtraceDataSourceConfig ConfigForTesting(CompactSchedConfig compact_cfg) {
+  return FtraceDataSourceConfig{/*event_filter=*/EventFilter{},
+                                /*syscall_filter=*/EventFilter{},
+                                compact_cfg,
+                                /*print_filter=*/std::nullopt,
+                                /*atrace_apps=*/{},
+                                /*atrace_categories=*/{},
+                                /*atrace_categories_sdk_optout=*/{},
+                                /*symbolize_ksyms=*/false,
+                                /*buffer_percent=*/0u,
+                                /*syscalls_returning_fd=*/{},
+                                /*debug_ftrace_abi=*/false};
+}
+
 // Low level benchmark for the CpuReader::ParsePageHeader and
 // CpuReader::ParsePagePayload functions.
 void DoParse(const ExamplePage& test_case,
@@ -845,16 +859,8 @@ void DoParse(const ExamplePage& test_case,
   ProtoTranslationTable* table = GetTable(test_case.name);
   auto page = PageFromXxd(test_case.data);
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   EventFilter{},
-                                   DisabledCompactSchedConfigForTesting(),
-                                   std::nullopt,
-                                   {},
-                                   {},
-                                   {},
-                                   false /*symbolize_ksyms*/,
-                                   false /*preserve_ftrace_buffer*/,
-                                   {}};
+  FtraceDataSourceConfig ds_config =
+      ConfigForTesting(DisabledCompactSchedConfigForTesting());
   if (print_filter.has_value()) {
     ds_config.print_filter =
         FtracePrintFilterConfig::Create(print_filter.value(), table);
@@ -949,16 +955,8 @@ void DoProcessPages(const ExamplePage& test_case,
     }
   }
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   EventFilter{},
-                                   DisabledCompactSchedConfigForTesting(),
-                                   std::nullopt,
-                                   {},
-                                   {},
-                                   {},
-                                   false /*symbolize_ksyms*/,
-                                   false /*preserve_ftrace_buffer*/,
-                                   {}};
+  FtraceDataSourceConfig ds_config =
+      ConfigForTesting(DisabledCompactSchedConfigForTesting());
   if (print_filter.has_value()) {
     ds_config.print_filter =
         FtracePrintFilterConfig::Create(print_filter.value(), table);

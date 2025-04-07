@@ -43,8 +43,9 @@
      PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID))
 #define SKIP_IF_VSOCK_LOOPBACK_NOT_SUPPORTED()                                 \
   do {                                                                         \
-    if (!UnixSocketRaw::CreateMayFail(SockFamily::kVsock, SockType::kStream)   \
-             .Bind("vsock://1:10000")) {                                       \
+    auto raw_sock =                                                            \
+        UnixSocketRaw::CreateMayFail(SockFamily::kVsock, SockType::kStream);   \
+    if (!raw_sock || !raw_sock.Bind("vsock://1:10000")) {                      \
       GTEST_SKIP() << "vsock testing skipped: loopback address unsupported.\n" \
                    << "Please run sudo modprobe vsock-loopback";               \
     }                                                                          \

@@ -18,6 +18,8 @@ source_set("minimal") {
   sources = [
     "active_chrome_processes_tracker.cc",
     "active_chrome_processes_tracker.h",
+    "app_wakelock_module.cc",
+    "app_wakelock_module.h",
     "args_parser.cc",
     "args_parser.h",
     "chrome_string_lookup.cc",
@@ -117,6 +119,8 @@ source_set("full") {
     "android_camera_event_module.h",
     "android_kernel_wakelocks_module.cc",
     "android_kernel_wakelocks_module.h",
+    "android_kernel_wakelocks_state.cc",
+    "android_kernel_wakelocks_state.h",
     "android_probes_module.cc",
     "android_probes_module.h",
     "android_probes_parser.cc",

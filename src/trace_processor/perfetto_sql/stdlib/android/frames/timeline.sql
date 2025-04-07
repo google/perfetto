@@ -140,6 +140,9 @@ CREATE PERFETTO TABLE android_frames_layers (
   -- `actual_frame_timeline_slice` or, if not present the time between the
   -- `ts` and the end of the final `DrawFrame`.
   dur DURATION,
+  -- End timestamp of the frame. End of the frame as defined by the sum of start timestamp and
+  -- duration of the frame.
+  ts_end TIMESTAMP,
   -- `slice.id` of "Choreographer#doFrame" slice.
   do_frame_id JOINID(slice.id),
   -- `slice.id` of "DrawFrame" slice. For now, we only support the first
@@ -229,6 +232,9 @@ SELECT
   frame_id,
   ts,
   dur,
+  (
+    ts + dur
+  ) AS ts_end,
   do_frame_id,
   draw_frame_id,
   actual_frame_timeline_id,

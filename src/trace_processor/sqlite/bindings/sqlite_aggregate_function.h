@@ -38,7 +38,7 @@ struct SqliteAggregateContext {
   // Function which should be called from |Step| to retrieve the context.
   static Impl& GetOrCreateContextForStep(sqlite3_context* ctx) {
     // Fast path: the context is already allocated and initialized. Just fetch
-    // it (by passing 0 to SQLite to supress any allocations) and return it.
+    // it (by passing 0 to SQLite to suppress any allocations) and return it.
     if (auto* ptr = sqlite3_aggregate_context(ctx, 0); ptr) {
       return *static_cast<Impl*>(ptr);
     }

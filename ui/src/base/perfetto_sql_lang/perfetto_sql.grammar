@@ -24,13 +24,8 @@ expression {
   Identifier
 }
 
-@tokens {
-  @precedence { Keyword, Function, Boolean, Identifier }
-  String { "'" (![\'\\] | "\\" _)* "'" }
-  Number { $[0-9]+ }
-  Boolean { "true" | "false" | "TRUE" | "FALSE" }
-  Keyword {
-    // Lower case keywords
+Keyword {
+  @specialize<Identifier,
     "select" |
     "perfetto" |
     "table" |
@@ -61,7 +56,9 @@ expression {
     "over" |
     "partition" |
     "using" |
-    // Upper case keywords
+    "union" |
+    "all" |
+
     "SELECT" |
     "PERFETTO" |
     "TABLE" |
@@ -91,9 +88,14 @@ expression {
     "HAVING" |
     "OVER" |
     "PARTITION" |
-    "USING" }
-  Function {
-    // Lower case functions
+    "USING" |
+    "UNION" |
+    "ALL"
+  >
+}
+
+Function {
+  @specialize<Identifier,
     "sum" |
     "min" |
     "max" |
@@ -114,7 +116,8 @@ expression {
     "first_value" |
     "last_value" |
     "nth_value" |
-    // Upper case functions
+    "ifnull" |
+
     "SUM" |
     "MIN" |
     "MAX" |
@@ -134,8 +137,21 @@ expression {
     "LEAD" |
     "FIRST_VALUE" |
     "LAST_VALUE" |
-    "NTH_VALUE"
-  }
+    "NTH_VALUE" |
+    "IFNULL"
+  >
+}
+
+Boolean {
+  @specialize<Identifier,
+    "TRUE" | "true" |
+    "FALSE" | "false"
+  >
+}
+
+@tokens {
+  String { "'" (![\'\\] | "\\" _)* "'" }
+  Number { $[0-9]+ }
   MacroVariable { "$" $[$0-9a-zA-Z_]* }
   LineComment { "--" ![\n]* }
   Identifier { $[a-zA-Z_] $[$0-9a-zA-Z_.]* }
@@ -148,4 +164,4 @@ expression {
 @detectDelim
 
 //! To build, run:
-//! lezer-generator ui/src/widgets/sql.grammar -o ui/src/widgets/sql.grammar.js
+//! lezer-generator ui/src/base/perfetto_sql_lang/perfetto_sql.grammar -o ui/src/base/perfetto_sql_lang/perfetto_sql.grammar.js

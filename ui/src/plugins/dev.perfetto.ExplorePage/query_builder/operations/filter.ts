@@ -13,17 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {NodeType, QueryNode} from '../../query_node';
-import {
-  ColumnControllerRow,
-  newColumnControllerRows,
-} from '../column_controller';
-import protos from '../../../../protos';
-import {TextParagraph} from '../../../../widgets/text_paragraph';
+import {ColumnControllerRow} from '../column_controller';
 import {Button} from '../../../../widgets/button';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {Section} from '../../../../widgets/section';
+import protos from '../../../../protos';
 
 export interface Filter {
   filterOp: string;
@@ -34,85 +29,8 @@ export interface Filter {
 }
 
 export interface FilterAttrs {
-  prevNode: QueryNode;
-
-  filters?: Filter[];
-}
-
-export class FilterNode implements QueryNode {
-  type: NodeType = NodeType.kFilterOperator;
-  prevNode: QueryNode;
-  nextNode?: QueryNode;
-
-  dataName = undefined;
-  columns: ColumnControllerRow[];
-
+  sourceCols: ColumnControllerRow[];
   filters: Filter[];
-
-  getTitle(): string {
-    const cols = this.filters
-      .map((f) => f.columnName)
-      .map((c) => c.alias ?? c.id)
-      .join(', ');
-    return `Filter ${cols}`;
-  }
-
-  getDetails(): m.Child {
-    const filterStrs: string[] = [];
-    for (const f of this.filters) {
-      filterStrs.push(
-        `'${f.columnName.id}' ${f.filterOp} ${
-          f.stringsRhs.join(', ') + f.doubleRhs.join(', ') + f.intRhs.join(', ')
-        }`,
-      );
-    }
-
-    return m(TextParagraph, {
-      text: filterStrs.join('\nOR '),
-    });
-  }
-
-  constructor(attrs: FilterAttrs) {
-    this.prevNode = attrs.prevNode;
-    this.filters = attrs.filters ?? [];
-
-    // Columns consists of all columns from previous node.
-    this.columns = newColumnControllerRows(
-      this.prevNode.columns?.filter((c) => c.checked) ?? [],
-      true,
-    );
-  }
-
-  validate(): boolean {
-    return true;
-  }
-
-  getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (!this.validate()) return;
-    const prevNodeSq = this.prevNode.getStructuredQuery();
-    if (prevNodeSq === undefined) {
-      return;
-    }
-
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = `filter`;
-    sq.innerQuery = prevNodeSq;
-    sq.filters = this.filters.map((f) => FilterToProto(f));
-
-    const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] =
-      [];
-    for (const c of this.columns) {
-      if (c.checked === false) continue;
-      const newC = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      newC.columnName = c.column.name;
-      if (c.alias) {
-        newC.alias = c.alias;
-      }
-      selectedColumns.push(newC);
-    }
-    sq.selectColumns = selectedColumns;
-    return sq;
-  }
 }
 
 export class FilterOperation implements m.ClassComponent<FilterAttrs> {
@@ -134,7 +52,7 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
       if (attrs.filters === undefined) {
         attrs.filters = [];
       }
-      const firstCheckedColumn = attrs.prevNode.columns?.find((c) => c.checked);
+      const firstCheckedColumn = attrs.sourceCols?.find((c) => c.checked);
       if (!firstCheckedColumn) {
         return;
       }
@@ -152,7 +70,7 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
     };
 
     const filterWidgets = attrs.filters?.map((filter, index): m.Children => {
-      const columnOptions = (attrs.prevNode.columns ?? [])
+      const columnOptions = (attrs.sourceCols ?? [])
         .filter((c) => c.checked)
         .map((col) => {
           return m(
@@ -191,7 +109,7 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             {
               onchange: (e: Event) => {
                 const target = e.target as HTMLSelectElement;
-                const selectedColumn = attrs.prevNode.columns?.find(
+                const selectedColumn = attrs.sourceCols?.find(
                   (c) => c.id === target.value,
                 );
                 if (selectedColumn) {
@@ -278,7 +196,7 @@ function StringToFilterOp(s: string) {
   }
 }
 
-function FilterToProto(
+export function FilterToProto(
   filter: Filter,
 ): protos.PerfettoSqlStructuredQuery.Filter {
   const newFilter = new protos.PerfettoSqlStructuredQuery.Filter();

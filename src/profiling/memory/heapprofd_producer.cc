@@ -175,7 +175,7 @@ bool HeapprofdConfigToClientConfiguration(
     // 0. The consumer of the sampling intervals in ClientConfiguration,
     // GetSamplingInterval in wire_protocol.h, uses 0 to signal a heap is
     // disabled, either because it isn't enabled (all_heaps is not set, and the
-    // heap isn't named), or because we explicitely set it here.
+    // heap isn't named), or because we explicitly set it here.
     heaps.insert(heaps.end(), exclude_heaps.cbegin(), exclude_heaps.cend());
     heap_intervals.insert(heap_intervals.end(), exclude_heaps.size(), 0u);
   }

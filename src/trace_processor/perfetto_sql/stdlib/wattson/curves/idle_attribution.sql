@@ -102,7 +102,13 @@ WITH
       min(ts) + dur AS next_ts
     FROM _ii_idle_threads
     WHERE
-      utid != 0
+      NOT utid IN (
+        SELECT
+          utid
+        FROM thread
+        WHERE
+          is_idle
+      )
     GROUP BY
       idle_group
   ),
@@ -197,15 +203,36 @@ RETURNS TABLE (
   idle_cost_mws LONG,
   utid JOINID(thread.id),
   upid JOINID(process.id),
-  cpu LONG
+  cpu JOINID(cpu.id)
 ) AS
+-- Give the negative sum of idle costs to the swapper thread, which by
+-- definition has a utid = 0, upid = 0, and by definition will not be defined,
+-- so need to UNION to manually add swapper thread
+WITH
+  base AS (
+    SELECT
+      cost.estimated_mw * cost.dur / 1e9 AS idle_cost_mws,
+      cost.utid,
+      cost.upid,
+      cost.cpu
+    FROM _interval_intersect_single!(
+    $ts, $dur, _ii_table!(_idle_transition_cost)
+  ) AS ii
+    JOIN _idle_transition_cost AS cost
+      ON cost._auto_id = id
+  )
 SELECT
-  cost.estimated_mw * cost.dur / 1e9 AS idle_cost_mws,
-  cost.utid,
-  cost.upid,
-  cost.cpu
-FROM _interval_intersect_single!(
-  $ts, $dur, _ii_table!(_idle_transition_cost)
-) AS ii
-JOIN _idle_transition_cost AS cost
-  ON cost._auto_id = id;
+  idle_cost_mws,
+  utid,
+  upid,
+  cpu
+FROM base
+UNION ALL
+SELECT
+  -1 * sum(idle_cost_mws) AS idle_cost_mws,
+  0 AS utid,
+  0 AS upid,
+  cpu
+FROM base
+GROUP BY
+  cpu;

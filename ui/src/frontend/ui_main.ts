@@ -50,6 +50,7 @@ import {
   serializeAppState,
 } from '../core/state_serialization';
 import {featureFlags} from '../core/feature_flags';
+import {trackMatchesFilter} from '../core/track_manager';
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 const OMNIBOX_INPUT_REF = 'omnibox';
@@ -413,7 +414,7 @@ export class UiMainPerTrace implements m.ClassComponent {
           // Copies all filtered tracks as a flat list to a new workspace. This
           // means parents are not included.
           const tracks = trace.workspace.flatTracks.filter((track) =>
-            track.title.toLowerCase().includes(trace.tracks.trackFilterTerm),
+            trackMatchesFilter(trace, track),
           );
 
           if (!tracks.length) {
@@ -889,7 +890,6 @@ export class UiMainPerTrace implements m.ClassComponent {
         ),
         m('br'),
       ),
-      buttons: [],
     });
   }
 }

@@ -395,3 +395,105 @@ class ProcessTracking(TestSuite):
         68,10000000,"ksoftirqd/7"
         9301,"[NULL]","no_age_field"
         """))
+
+  # Check that column 'is_idle' is equivalent to pid = 0 for a single-machine
+  # trace.
+  def test_idle_thread_single_machine(self):
+    return DiffTestBlueprint(
+        trace=DataPath("compact_sched.pb"),
+        query="""
+        with idle_thread_comparison as
+        (
+          select
+            (
+              case
+                when pid = 0 then 1
+                else 0
+              end
+            ) as is_idle_1,
+            is_idle as is_idle_2,
+            utid
+          from thread join process using (upid)
+        )
+        select count(utid)
+        from idle_thread_comparison
+        where is_idle_1 != is_idle_2
+      """,
+        out=Csv("""
+        "count(utid)"
+        0
+      """))
+
+  # Check that column 'is_idle' is equivalent to pid = 0 for a multi-machine
+  # trace.
+  def test_idle_thread_multi_machine(self):
+    return DiffTestBlueprint(
+        trace=DataPath("arcvm_trace.pb.gz"),
+        query="""
+        with idle_thread_comparison as
+        (
+          select
+            (
+              case
+                when pid = 0 then 1
+                else 0
+              end
+            ) as is_idle_1,
+            is_idle as is_idle_2,
+            utid
+          from thread join process using (upid)
+        )
+        select count(utid)
+        from idle_thread_comparison
+        where is_idle_1 != is_idle_2
+      """,
+        out=Csv("""
+        "count(utid)"
+        0
+      """))
+
+  # Test explicit kernel thread detection on Linux v6.4+.
+  def test_process_is_kthread_from_procfs(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          first_packet_on_sequence: true
+          timestamp: 1088821452006028
+          incremental_state_cleared: true
+          process_tree {
+            processes {
+              pid: 618
+              ppid: 2
+              uid: 0
+              cmdline: "kworker/R-cryptd"
+              cmdline_is_comm: true
+              is_kthread: true
+            }
+            processes {
+              pid: 710
+              ppid: 5995
+              uid: 33
+              cmdline: "/usr/sbin/apache2"
+              cmdline: "-k"
+              cmdline: "start"
+              is_kthread: false
+            }
+            collection_end_timestamp: 1088821520810204
+          }
+          trusted_uid: 304336
+          trusted_packet_sequence_id: 3
+          trusted_pid: 1137063
+          previous_packet_dropped: true
+        }
+        """),
+        query="""
+        select p.pid, EXTRACT_ARG(arg_set_id, 'is_kthread') as is_kthread, p.cmdline
+        from process p
+        where pid in (618, 710)
+        order by pid asc;
+        """,
+        out=Csv("""
+        "pid","is_kthread","cmdline"
+        618,1,"kworker/R"
+        710,0,"/usr/sbin/apache2 -k start"
+        """))

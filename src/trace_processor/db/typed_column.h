@@ -39,7 +39,7 @@ namespace perfetto::trace_processor {
 // having to go through dynamic type checking. There are two main reasons for
 // this:
 // 1. Performance: dynamic type checking is not free and so if this is used
-//    in a particularily hot codepath, the typechecking can be a significant
+//    in a particularly hot codepath, the typechecking can be a significant
 //    overhead.
 // 2. Ergonomics: having to convert back and forth from/to SqlValue causes
 //    signifcant clutter in parts of the code which can already be quite hard

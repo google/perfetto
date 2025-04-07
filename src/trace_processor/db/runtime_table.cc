@@ -85,7 +85,7 @@ void CreateNonNullableIntsColumn(
     is_sorted = values[i - 1] <= values[i];
   }
 
-  // The special treatement for Id columns makes no sense for empty or
+  // The special treatment for Id columns makes no sense for empty or
   // single element indices. Those should be treated as standard int
   // column.
 

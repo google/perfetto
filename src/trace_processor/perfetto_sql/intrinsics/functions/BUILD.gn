@@ -44,6 +44,8 @@ source_set("functions") {
     "math.h",
     "pprof_functions.cc",
     "pprof_functions.h",
+    "replace_numbers_function.cc",
+    "replace_numbers_function.h",
     "sqlite3_str_split.cc",
     "sqlite3_str_split.h",
     "stack_functions.cc",
@@ -111,7 +113,10 @@ perfetto_tp_tables("tables") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "sqlite3_str_split_unittest.cc" ]
+  sources = [
+    "replace_numbers_function_unittest.cc",
+    "sqlite3_str_split_unittest.cc",
+  ]
   deps = [
     ":functions",
     "../../../../../gn:default_deps",

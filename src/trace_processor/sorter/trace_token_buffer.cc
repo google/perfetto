@@ -215,7 +215,7 @@ uint16_t TraceTokenBuffer::InternSeqState(
     RefPtr<PacketSequenceStateGeneration> ptr) {
   // Look back at most 32 elements. This should be far enough in most cases
   // unless either: a) we are essentially round-robining between >32 sequences
-  // b) we are churning through generations. Either case seems pathalogical.
+  // b) we are churning through generations. Either case seems pathological.
   SequenceStates& states = interned_seqs_.at(interned_index);
   size_t lookback = std::min<size_t>(32u, states.size());
   for (uint32_t i = 0; i < lookback; ++i) {

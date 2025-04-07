@@ -158,7 +158,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   // 1. The /rpc based endpoint. This is based on a chunked transfer, doing one
   //    POST request for each RPC invocation. All RPC methods are multiplexed
   //    into this one. This is still used by the python API.
-  // 2. The REST API, with one enpoint per RPC method (/parse, /query, ...).
+  // 2. The REST API, with one endpoint per RPC method (/parse, /query, ...).
   //    This is unused and will be removed at some point.
 
   if (req.uri == "/rpc") {

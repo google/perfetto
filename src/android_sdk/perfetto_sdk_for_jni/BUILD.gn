@@ -1,0 +1,36 @@
+import("../../../gn/perfetto.gni")
+import("../../../gn/test.gni")
+
+assert(enable_perfetto_android_java_sdk)
+
+source_set("perfetto_sdk_for_jni_public") {
+  sources = [ "tracing_sdk.h" ]
+}
+
+source_set("perfetto_sdk_for_jni") {
+  sources = [ "tracing_sdk.cc" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../src/base:base",
+    "../../shared_lib:shared_lib",
+  ]
+  public_deps = [
+    ":perfetto_sdk_for_jni_public",
+    "../../../include/perfetto/public",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":perfetto_sdk_for_jni",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../../protos/perfetto/trace:cpp",
+    "../../../protos/perfetto/trace/interned_data:cpp",
+    "../../../protos/perfetto/trace/track_event:cpp",
+    "../../../src/base:base",
+    "../../shared_lib/test:utils",
+  ]
+  sources = [ "tracing_sdk_unittest.cc" ]
+}

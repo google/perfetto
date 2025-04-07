@@ -80,7 +80,8 @@ class PreludePprofFunctions(TestSuite):
         SELECT HEX(
           EXPERIMENTAL_PROFILE(STACK_FROM_STACK_PROFILE_CALLSITE(callsite_id))
         )
-        FROM PERF_SAMPLE
+        FROM perf_sample
+        WHERE callsite_id IS NOT NULL
     """,
         out=BinaryProto(
             message_type="perfetto.third_party.perftools.profiles.Profile",

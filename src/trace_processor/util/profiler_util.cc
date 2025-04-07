@@ -15,13 +15,20 @@
  */
 
 #include "src/trace_processor/util/profiler_util.h"
-#include <optional>
 
+#include <cstddef>
+#include <optional>
+#include <string>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
+
+namespace perfetto::trace_processor {
 namespace {
 
 // Try to extract the package name from a path like:
@@ -194,5 +201,4 @@ std::string FullyQualifiedDeobfuscatedName(
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

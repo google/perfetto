@@ -22,8 +22,7 @@
 
 #include "src/java_sdk/main/cpp/example.h"
 
-JNIEXPORT jint JNICALL
-Java_com_google_perfetto_sdk_PerfettoExampleWrapper_runPerfettoMain(
+static jint Java_com_google_perfetto_sdk_PerfettoExampleWrapper_runPerfettoMain(
     JNIEnv* env,
     jobject /*thiz*/,
     jstring outputFilePath) {
@@ -31,4 +30,39 @@ Java_com_google_perfetto_sdk_PerfettoExampleWrapper_runPerfettoMain(
   std::string file_path = std::string(cstr);
   env->ReleaseStringUTFChars(outputFilePath, cstr);
   return run_main(file_path);
+}
+
+static jint
+Java_com_google_perfetto_sdk_PerfettoExampleWrapper_incrementIntCritical(
+    jint value) {
+  return value + 1;
+}
+
+static const JNINativeMethod myMethods[] = {
+    {"runPerfettoMain", "(Ljava/lang/String;)I",
+     reinterpret_cast<void*>(
+         Java_com_google_perfetto_sdk_PerfettoExampleWrapper_runPerfettoMain)},
+    {"incrementIntCritical", "(I)I",
+     reinterpret_cast<void*>(
+         Java_com_google_perfetto_sdk_PerfettoExampleWrapper_incrementIntCritical)}};
+
+JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
+  JNIEnv* env;
+  if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+    return JNI_ERR;
+  }
+
+  jclass myCls =
+      env->FindClass("com/google/perfetto/sdk/PerfettoExampleWrapper");
+  if (myCls == nullptr) {
+    return JNI_ERR;
+  }
+
+  int rc = env->RegisterNatives(myCls, myMethods,
+                                sizeof(myMethods) / sizeof(JNINativeMethod));
+  if (rc != JNI_OK) {
+    return JNI_ERR;
+  }
+
+  return JNI_VERSION_1_6;
 }

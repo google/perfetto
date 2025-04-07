@@ -33,9 +33,9 @@ trace.add_cpufreq(ts=15 * 1000000, freq=8000000, cpu=6)
 
 # Add 3 processes. This also adds one main thread per process.
 trace.add_packet()
-trace.add_process(pid=1, ppid=0, cmdline="Process1")
-trace.add_process(pid=2, ppid=0, cmdline="Process2")
-trace.add_process(pid=3, ppid=0, cmdline="Process3")
+trace.add_process(pid=1, ppid=1, cmdline="Process1")
+trace.add_process(pid=2, ppid=2, cmdline="Process2")
+trace.add_process(pid=3, ppid=3, cmdline="Process3")
 
 # Add 3 additional threads.
 trace.add_thread(tid=4, tgid=1, cmdline="p1-t2")
