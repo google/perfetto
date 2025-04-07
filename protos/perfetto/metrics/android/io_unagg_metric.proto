@@ -22,15 +22,15 @@ package perfetto.protos;
 // Note: this generates a lot of data so should not be requested unless it
 // is clear that this data is necessary.
 message AndroidIoUnaggregated {
-    // Next id: 2
-    message F2fsWriteUnaggreagatedStat {
-      optional uint32 tid = 1;
-      optional string thread_name = 2;
-      optional uint32 pid = 3;
-      optional string process_name = 4;
-      optional int64 ino = 5;
-      optional int64 dev = 6;
-    }
-    // F2fs write stats which are grouped by thread and inode.
-    repeated F2fsWriteUnaggreagatedStat f2fs_write_unaggregated_stats = 1;
+  // Next id: 2
+  message F2fsWriteUnaggreagatedStat {
+    optional uint32 tid = 1;
+    optional string thread_name = 2;
+    optional uint32 pid = 3;
+    optional string process_name = 4;
+    optional int64 ino = 5;
+    optional int64 dev = 6;
+  }
+  // F2fs write stats which are grouped by thread and inode.
+  repeated F2fsWriteUnaggreagatedStat f2fs_write_unaggregated_stats = 1;
 }

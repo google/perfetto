@@ -1865,7 +1865,9 @@ TEST_F(SharedLibTrackEventTest, ScopedDisabled) {
                                        .Build();
   // Check that the PERFETTO_TE_SCOPED macro does not have any effect if the
   // category is disabled.
-  { PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE("slice")); }
+  {
+    PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE("slice"));
+  }
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -2012,7 +2014,9 @@ TEST_F(SharedLibTrackEventTest, ScopedFunc) {
                                        .Build();
 
   // Check that using __func__ works as expected.
-  { PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE(__func__)); }
+  {
+    PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE(__func__));
+  }
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();

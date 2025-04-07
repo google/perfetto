@@ -196,9 +196,7 @@ TEST(PagedMemoryTest, GuardRegions) {
 #endif
 TEST(PagedMemoryTest, Unchecked) {
   const size_t kMemLimit = 256 * 1024 * 1024l;
-  struct rlimit limit {
-    kMemLimit, kMemLimit
-  };
+  struct rlimit limit{kMemLimit, kMemLimit};
   // ASSERT_EXIT here is to spawn the test in a sub-process and avoid
   // propagating the setrlimit() to other test units in case of failure.
   ASSERT_EXIT(

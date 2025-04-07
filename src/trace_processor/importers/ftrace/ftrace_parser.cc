@@ -1344,8 +1344,8 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseKprobe(ts, pid, fld_bytes);
         break;
       }
-      // TODO(b/407000648): Re-enable once param_set_value_cpm timestamp is fixed.
-      // case FtraceEvent::kParamSetValueCpmFieldNumber: {
+      // TODO(b/407000648): Re-enable once param_set_value_cpm timestamp is
+      // fixed. case FtraceEvent::kParamSetValueCpmFieldNumber: {
       //   ParseParamSetValueCpm(fld_bytes);
       //   break;
       // }
@@ -1842,33 +1842,30 @@ void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
       evt.value());
 }
 
-void FtraceParser::ParseDpuDispDpuUnderrun(int64_t timestamp,
-                                       ConstBytes blob) {
+void FtraceParser::ParseDpuDispDpuUnderrun(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::DpuDispDpuUnderrunFtraceEvent::Decoder ex(blob);
   static constexpr auto kBluePrint = tracks::SliceBlueprint(
-    "disp_dpu_underrun",
-    tracks::DimensionBlueprints(
-      tracks::UintDimensionBlueprint("display_id")
-    ),
-    tracks::FnNameBlueprint([](uint32_t display_id) {
-      return base::StackString<256>("underrun[%u]", display_id);
-    }));
+      "disp_dpu_underrun",
+      tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("display_id")),
+      tracks::FnNameBlueprint([](uint32_t display_id) {
+        return base::StackString<256>("underrun[%u]", display_id);
+      }));
 
-  TrackId track_id =
-      context_->track_tracker->InternTrack(kBluePrint, tracks::Dimensions(ex.id()));
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBluePrint, tracks::Dimensions(ex.id()));
   StringId slice_name_id =
       context_->storage->InternString(base::StringView("disp_dpu_underrun"));
 
-  context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId,
-                                  slice_name_id, 0,
-        [&](ArgsTracker::BoundInserter* inserter) {
-          inserter->AddArg(
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, slice_name_id, 0,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(
             context_->storage->InternString(base::StringView("vsync_count")),
             Variadic::Integer(ex.vsync_count()));
-          inserter->AddArg(
+        inserter->AddArg(
             context_->storage->InternString(base::StringView("pending_frame")),
             Variadic::Integer(ex.frames_pending()));
-        });
+      });
 }
 
 void FtraceParser::ParseDpuDispVblankIrqEnable(int64_t timestamp,
@@ -3988,7 +3985,6 @@ StringId FtraceParser::InternedKernelSymbolOrFallback(
 
 void FtraceParser::ParseDeviceFrequency(int64_t ts,
                                         protozero::ConstBytes blob) {
-
   static constexpr auto kBlueprint = tracks::CounterBlueprint(
       "linux_device_frequency", tracks::UnknownUnitBlueprint(),
       tracks::DimensionBlueprints(tracks::kLinuxDeviceDimensionBlueprint),
@@ -4000,9 +3996,9 @@ void FtraceParser::ParseDeviceFrequency(int64_t ts,
         std::string device = dev_name.ToStdString();
         auto position = device.find("devfreq_");
         return (position == std::string::npos)
-                ? base::StackString<255>("devfreq_%s", device.c_str())
-                : base::StackString<255>("%s", device.substr(position).c_str());
-
+                   ? base::StackString<255>("devfreq_%s", device.c_str())
+                   : base::StackString<255>("%s",
+                                            device.substr(position).c_str());
       }));
   protos::pbzero::DevfreqFrequencyFtraceEvent::Decoder event(blob);
   TrackId track_id = context_->track_tracker->InternTrack(
@@ -4064,7 +4060,7 @@ constexpr auto kCpuHpBlueprint = tracks::SliceBlueprint(
     tracks::FnNameBlueprint([](uint32_t cpu) {
       return base::StackString<255>("CPU Hotplug %u", cpu);
     }));
-}
+}  // namespace
 
 void FtraceParser::ParseCpuhpEnter(uint32_t fld_id,
                                    int64_t ts,

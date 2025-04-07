@@ -108,7 +108,7 @@ enum HwcCompositionType {
   HWC_TYPE_CURSOR = 4;
   // Layer was composited by the device via a sideband stream
   HWC_TYPE_SIDEBAND = 5;
-   // Layer was composited by hardware optimized for display decoration
+  // Layer was composited by hardware optimized for display decoration
   HWC_TYPE_DISPLAY_DECORATION = 6;
 }
 

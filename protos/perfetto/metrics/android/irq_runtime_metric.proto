@@ -34,7 +34,7 @@ message AndroidIrqRuntimeMetric {
     // over threshold count
     optional int64 over_threshold_count = 2;
     // anomaly ratio (over threshold count / total count)
-    optional double anomaly_ratio= 3;
+    optional double anomaly_ratio = 3;
   }
   message IrqRuntimeMetric {
     // max runtime of IRQ tasks
@@ -51,4 +51,3 @@ message AndroidIrqRuntimeMetric {
   optional IrqRuntimeMetric hw_irq = 1;
   optional IrqRuntimeMetric sw_irq = 2;
 }
-

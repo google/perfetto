@@ -50,7 +50,7 @@ ScopedPlatformHandle CreateTimerFd(const PeriodicTask::Args& args) {
       timerfd_create(CLOCK_BOOTTIME, TFD_CLOEXEC | TFD_NONBLOCK));
   uint32_t phase_ms = GetNextDelayMs(GetBootTimeMs(), args);
 
-  struct itimerspec its {};
+  struct itimerspec its{};
   // The "1 +" is to make sure that we never pass a zero it_value in the
   // unlikely case of phase_ms being 0. That would cause the timer to be
   // considered disarmed by timerfd_settime.

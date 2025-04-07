@@ -55,14 +55,13 @@ message AdServicesMetric {
 
 // Begin of protos/perfetto/metrics/android/android_anomaly_metric.proto
 
-// Detects outlier scenarios in different Android Systems in a trace. For now, this just
-// detects high binder transaction rates. In the future, there could be others
-// like garbage_collection, CPU, broadcasts, etc.
+// Detects outlier scenarios in different Android Systems in a trace. For now,
+// this just detects high binder transaction rates. In the future, there could
+// be others like garbage_collection, CPU, broadcasts, etc.
 message AndroidAnomalyMetric {
-
   enum Unit {
-      UNIT_UNSPECIFIED = 0;
-      COUNT_PER_SECOND = 1;
+    UNIT_UNSPECIFIED = 0;
+    COUNT_PER_SECOND = 1;
   }
 
   // For anomalies related to a particular process.
@@ -74,11 +73,13 @@ message AndroidAnomalyMetric {
   }
 
   // Binder subsystem outliers with the following aggegations:
-  // 1. Max incoming binder transaction count from each process over a one second sliding window.
-  // 2. Max outgoing binder transaction count from each process over a one second sliding window.
+  // 1. Max incoming binder transaction count from each process over a one
+  // second sliding window.
+  // 2. Max outgoing binder transaction count from each process over a one
+  // second sliding window.
   message Binder {
-      repeated ProcessAnomaly max_incoming_process_count_per_second = 1;
-      repeated ProcessAnomaly max_outgoing_process_count_per_second = 2;
+    repeated ProcessAnomaly max_incoming_process_count_per_second = 1;
+    repeated ProcessAnomaly max_outgoing_process_count_per_second = 2;
   }
 
   optional Binder binder = 1;
@@ -90,26 +91,26 @@ message AndroidAnomalyMetric {
 
 // Blocking call on the main thread.
 message AndroidBlockingCall {
-    // Name of the blocking call
-    optional string name = 1;
-    // Number of times it happened within the CUJ
-    optional int64 cnt = 2;
-    // Total duration within the CUJ
-    optional int64 total_dur_ms = 3;
-    // Maximal duration within the CUJ
-    optional int64 max_dur_ms = 4;
-    // Minimal duration within the CUJ
-    optional int64 min_dur_ms = 5;
-    // Total duration within the CUJ in nanoseconds
-    optional int64 total_dur_ns = 6;
-    // Maximal duration within the CUJ in nanoseconds
-    optional int64 max_dur_ns = 7;
-    // Minimal duration within the CUJ in nanoseconds
-    optional int64 min_dur_ns = 8;
-    // Avg duration within the CUJ
-    optional int64 avg_dur_ms = 9;
-    // Avg duration within the CUJ in nanoseconds
-    optional int64 avg_dur_ns = 10;
+  // Name of the blocking call
+  optional string name = 1;
+  // Number of times it happened within the CUJ
+  optional int64 cnt = 2;
+  // Total duration within the CUJ
+  optional int64 total_dur_ms = 3;
+  // Maximal duration within the CUJ
+  optional int64 max_dur_ms = 4;
+  // Minimal duration within the CUJ
+  optional int64 min_dur_ms = 5;
+  // Total duration within the CUJ in nanoseconds
+  optional int64 total_dur_ns = 6;
+  // Maximal duration within the CUJ in nanoseconds
+  optional int64 max_dur_ns = 7;
+  // Minimal duration within the CUJ in nanoseconds
+  optional int64 min_dur_ns = 8;
+  // Avg duration within the CUJ
+  optional int64 avg_dur_ms = 9;
+  // Avg duration within the CUJ in nanoseconds
+  optional int64 avg_dur_ns = 10;
 }
 
 // End of protos/perfetto/metrics/android/android_blocking_call.proto
@@ -186,32 +187,32 @@ message AndroidBlockingCallsCujMetric {
 
 // Blocking call per frame on the main thread.
 message AndroidBlockingCallPerFrame {
-    // Name of the blocking call
-    optional string name = 1;
-    // Maximal duration within a frame.
-    optional int64 max_dur_per_frame_ms = 2;
-    // Maximal duration within a frame in nanoseconds
-    optional int64 max_dur_per_frame_ns = 3;
-    // Mean duration within the CUJ
-    optional int64 mean_dur_per_frame_ms = 4;
-    // Mean duration within the CUJ in nanoseconds
-    optional int64 mean_dur_per_frame_ns = 5;
-    // Max count in a frame
-    optional int64 max_cnt_per_frame = 6;
-    // Mean count in a frame
-    optional double mean_cnt_per_frame = 7;
+  // Name of the blocking call
+  optional string name = 1;
+  // Maximal duration within a frame.
+  optional int64 max_dur_per_frame_ms = 2;
+  // Maximal duration within a frame in nanoseconds
+  optional int64 max_dur_per_frame_ns = 3;
+  // Mean duration within the CUJ
+  optional int64 mean_dur_per_frame_ms = 4;
+  // Mean duration within the CUJ in nanoseconds
+  optional int64 mean_dur_per_frame_ns = 5;
+  // Max count in a frame
+  optional int64 max_cnt_per_frame = 6;
+  // Mean count in a frame
+  optional double mean_cnt_per_frame = 7;
 }
 
 // End of protos/perfetto/metrics/android/android_blocking_call_per_frame.proto
 
 // Begin of protos/perfetto/metrics/android/android_blocking_calls_cuj_per_frame_metric.proto
 
-// Blocking calls per frame inside Android jank CUJs. Shows count and duration for each.
+// Blocking calls per frame inside Android jank CUJs. Shows count and duration
+// for each.
 message AndroidCujBlockingCallsPerFrameMetric {
   repeated Cuj cuj = 1;
 
   message Cuj {
-
     // Name of the CUJ, extracted from the CUJ jank trace marker.
     // For example SHADE_EXPAND_COLLAPSE from J<SHADE_EXPAND_COLLAPSE>.
     optional string name = 1;
@@ -320,7 +321,7 @@ message AndroidBootMetric {
     optional double avg_duration = 2;
     optional int64 max_duration = 3;
     optional int64 sum_duration = 4;
-}
+  }
   optional ProcessStartAggregation full_trace_process_start_aggregation = 6;
   optional ProcessStartAggregation post_boot_process_start_aggregation = 7;
   optional GarbageCollectionAggregation full_trace_gc_aggregation = 8;
@@ -336,11 +337,13 @@ message AndroidBootMetric {
   repeated OomAdjBucketDurationAggregation
       post_boot_oom_adj_bucket_duration_agg_by_process = 14;
   repeated OomAdjDurationAggregation post_boot_oom_adj_duration_agg = 15;
-  repeated BroadcastCountAggregation post_boot_broadcast_process_count_by_intent = 16;
+  repeated BroadcastCountAggregation
+      post_boot_broadcast_process_count_by_intent = 16;
   repeated BroadcastCountAggregation post_boot_broadcast_count_by_process = 17;
-  repeated BroadcastDurationAggregation post_boot_brodcast_duration_agg_by_intent = 18;
-  repeated BroadcastDurationAggregation post_boot_brodcast_duration_agg_by_process = 19;
-
+  repeated BroadcastDurationAggregation
+      post_boot_brodcast_duration_agg_by_intent = 18;
+  repeated BroadcastDurationAggregation
+      post_boot_brodcast_duration_agg_by_process = 19;
 }
 
 // End of protos/perfetto/metrics/android/android_boot.proto
@@ -436,26 +439,26 @@ message AndroidBootUnagg {
 
 // Begin of protos/perfetto/metrics/android/android_broadcasts_metric.proto
 
-  // Provides aggregated information about broadcasts
-  message AndroidBroadcastsMetric {
-    // Next id: 5
-    // Stats for Broadcasts aggregated with count.
-    message BroadcastCountAggregation {
-      optional string name = 1;
-      optional int64 count = 2;
-    }
-    // Stats for Broadcasts aggregated with duration.
-    message BroadcastDurationAggregation {
-      optional string name = 1;
-      optional double avg_duration = 2;
-      optional int64 max_duration = 3;
-      optional int64 sum_duration = 4;
-    }
-    repeated BroadcastCountAggregation process_count_by_intent = 1;
-    repeated BroadcastCountAggregation broadcast_count_by_process = 2;
-    repeated BroadcastDurationAggregation brodcast_duration_agg_by_intent = 3;
-    repeated BroadcastDurationAggregation brodcast_duration_agg_by_process = 4;
+// Provides aggregated information about broadcasts
+message AndroidBroadcastsMetric {
+  // Next id: 5
+  // Stats for Broadcasts aggregated with count.
+  message BroadcastCountAggregation {
+    optional string name = 1;
+    optional int64 count = 2;
   }
+  // Stats for Broadcasts aggregated with duration.
+  message BroadcastDurationAggregation {
+    optional string name = 1;
+    optional double avg_duration = 2;
+    optional int64 max_duration = 3;
+    optional int64 sum_duration = 4;
+  }
+  repeated BroadcastCountAggregation process_count_by_intent = 1;
+  repeated BroadcastCountAggregation broadcast_count_by_process = 2;
+  repeated BroadcastDurationAggregation brodcast_duration_agg_by_intent = 3;
+  repeated BroadcastDurationAggregation brodcast_duration_agg_by_process = 4;
+}
 
 // End of protos/perfetto/metrics/android/android_broadcasts_metric.proto
 
@@ -469,10 +472,12 @@ message AndroidFrameTimelineMetric {
     // The count of frames with this jank type
     optional int64 total_count = 2;
 
-    // The count of frames with this jank type and present type = PRESENT_UNSPECIFIED
+    // The count of frames with this jank type and present type =
+    // PRESENT_UNSPECIFIED
     optional int64 present_unspecified_count = 3;
 
-    // The count of frames with this jank type and present type = PRESENT_ON_TIME
+    // The count of frames with this jank type and present type =
+    // PRESENT_ON_TIME
     optional int64 present_on_time_count = 4;
 
     // The count of frames with this jank type and present type = PRESENT_LATE
@@ -481,10 +486,12 @@ message AndroidFrameTimelineMetric {
     // The count of frames with this jank type and present type = PRESENT_EARLY
     optional int64 present_early_count = 6;
 
-    // The count of frames with this jank type and present type = PRESENT_DROPPED
+    // The count of frames with this jank type and present type =
+    // PRESENT_DROPPED
     optional int64 present_dropped_count = 7;
 
-    // The count of frames with this jank type and present type = PRESENT_UNKNOWN
+    // The count of frames with this jank type and present type =
+    // PRESENT_UNKNOWN
     optional int64 present_unknown_count = 8;
   }
 
@@ -525,7 +532,6 @@ message AndroidFrameTimelineMetric {
 
   reserved 1;
 }
-
 
 // End of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
 
@@ -670,7 +676,8 @@ message AndroidOomAdjusterMetric {
 
 // Begin of protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto
 
-// Blocking calls inside System UI Notifications. Shows count and total duration for each.
+// Blocking calls inside System UI Notifications. Shows count and total duration
+// for each.
 message AndroidSysUINotificationsBlockingCallsMetric {
   repeated AndroidBlockingCall blocking_calls = 1;
 }
@@ -679,7 +686,7 @@ message AndroidSysUINotificationsBlockingCallsMetric {
 
 // Begin of protos/perfetto/metrics/android/anr_metric.proto
 
- message AndroidAnrMetric {
+message AndroidAnrMetric {
   repeated Anr anr = 1;
 
   // Next id: 12
@@ -1000,7 +1007,6 @@ message AndroidCpuMetric {
 // idea about performance and cpu usage when using codec
 // framework
 message AndroidCodecMetrics {
-
   // profile details in messages
   message Detail {
     // was thread_name
@@ -1118,7 +1124,6 @@ message AndroidDisplayMetrics {
   // Stat that reports the number of dpu underrrun occurs count.
   optional uint32 total_dpu_underrun_count = 3;
 
-
   message RefreshRateStat {
     // The refresh rate value (the number of frames per second)
     optional uint32 refresh_rate_fps = 1;
@@ -1164,17 +1169,17 @@ message AndroidDmaHeapMetric {
     optional int32 delta_bytes = 2;
   }
 
-    optional double avg_size_bytes = 1;
-    optional double min_size_bytes = 2;
-    optional double max_size_bytes = 3;
+  optional double avg_size_bytes = 1;
+  optional double min_size_bytes = 2;
+  optional double max_size_bytes = 3;
 
-    // Total allocation size.
-    // Essentially the sum of positive allocs.
-    optional double total_alloc_size_bytes = 4;
+  // Total allocation size.
+  // Essentially the sum of positive allocs.
+  optional double total_alloc_size_bytes = 4;
 
-    // Total delta size (bytes allocated but not freed during the trace)
-    optional int32 total_delta_bytes = 5;
-    repeated ProcessStats process_stats = 6;
+  // Total delta size (bytes allocated but not freed during the trace)
+  optional int32 total_delta_bytes = 5;
+  repeated ProcessStats process_stats = 6;
 }
 
 // End of protos/perfetto/metrics/android/dma_heap_metric.proto
@@ -1182,12 +1187,12 @@ message AndroidDmaHeapMetric {
 // Begin of protos/perfetto/metrics/android/dvfs_metric.proto
 
 message AndroidDvfsMetric {
-
   message BandStat {
     // Operating frequency
     optional int32 freq_value = 1;
 
-    // Percentage of duration in this operating frequency compared to all frequencies
+    // Percentage of duration in this operating frequency compared to all
+    // frequencies
     optional double percentage = 2;
 
     // Total duration in ns when the state was in this operating frequency
@@ -1324,24 +1329,28 @@ message AndroidGpuMetric {
 // Begin of protos/perfetto/metrics/android/hwcomposer.proto
 
 message AndroidHwcomposerMetrics {
-  // Counts the number of composition total layers in the trace. (non-weighted average)
+  // Counts the number of composition total layers in the trace. (non-weighted
+  // average)
   optional double composition_total_layers = 1;
 
-  // Counts the number of composition dpu layers in the trace. (non-weighted average)
+  // Counts the number of composition dpu layers in the trace. (non-weighted
+  // average)
   optional double composition_dpu_layers = 2;
 
-  // Counts the number of composition gpu layers in the trace. (non-weighted average)
+  // Counts the number of composition gpu layers in the trace. (non-weighted
+  // average)
   optional double composition_gpu_layers = 3;
 
-  // Counts the number of composition dpu cached layers in the trace. (non-weighted average)
+  // Counts the number of composition dpu cached layers in the trace.
+  // (non-weighted average)
   optional double composition_dpu_cached_layers = 4;
 
   // Counts the number of composition surfaceflinger cached layers in the trace.
   // (non-weighted average)
   optional double composition_sf_cached_layers = 5;
 
-  // Counts the number of composition rounded corner decoration layers in the trace.
-  // (non-weighted average)
+  // Counts the number of composition rounded corner decoration layers in the
+  // trace. (non-weighted average)
   optional double composition_rcd_layers = 15;
 
   // Counts how many times validateDisplay is skipped.
@@ -1350,8 +1359,8 @@ message AndroidHwcomposerMetrics {
   // Counts how many times validateDisplay cannot be skipped.
   optional int32 unskipped_validation_count = 7;
 
-  // Counts how many times validateDisplay is already separated from presentDisplay
-  // since the beginning.
+  // Counts how many times validateDisplay is already separated from
+  // presentDisplay since the beginning.
   optional int32 separated_validation_count = 8;
 
   // Counts how many unhandled validation cases which might be caused by errors.
@@ -1393,24 +1402,28 @@ message AndroidHwcomposerMetrics {
     // Display ID in HWC
     optional string display_id = 1;
 
-    // Counts the number of composition total layers in the trace. (non-weighted average)
+    // Counts the number of composition total layers in the trace. (non-weighted
+    // average)
     optional double composition_total_layers = 2;
 
-    // Counts the number of composition dpu layers in the trace. (non-weighted average)
+    // Counts the number of composition dpu layers in the trace. (non-weighted
+    // average)
     optional double composition_dpu_layers = 3;
 
-    // Counts the number of composition gpu layers in the trace. (non-weighted average)
+    // Counts the number of composition gpu layers in the trace. (non-weighted
+    // average)
     optional double composition_gpu_layers = 4;
 
-    // Counts the number of composition dpu cached layers in the trace. (non-weighted average)
+    // Counts the number of composition dpu cached layers in the trace.
+    // (non-weighted average)
     optional double composition_dpu_cached_layers = 5;
 
-    // Counts the number of composition surfaceflinger cached layers in the trace.
-    // (non-weighted average)
+    // Counts the number of composition surfaceflinger cached layers in the
+    // trace. (non-weighted average)
     optional double composition_sf_cached_layers = 6;
 
-    // Counts the number of composition rounded corner decoration layers in the trace.
-    // (non-weighted average)
+    // Counts the number of composition rounded corner decoration layers in the
+    // trace. (non-weighted average)
     optional double composition_rcd_layers = 7;
 
     // Counts how many times validateDisplay is skipped.
@@ -1419,11 +1432,12 @@ message AndroidHwcomposerMetrics {
     // Counts how many times validateDisplay cannot be skipped.
     optional int32 unskipped_validation_count = 9;
 
-    // Counts how many times validateDisplay is already separated from presentDisplay
-    // since the beginning.
+    // Counts how many times validateDisplay is already separated from
+    // presentDisplay since the beginning.
     optional int32 separated_validation_count = 10;
 
-    // Counts how many unhandled validation cases which might be caused by errors.
+    // Counts how many unhandled validation cases which might be caused by
+    // errors.
     optional int32 unknown_validation_count = 11;
 
     // the average of overall hwcomposer execution time.
@@ -1454,52 +1468,53 @@ message ProcessRenderInfo {
   // CPU time spent on RenderThread in milliseconds.
   optional int64 rt_cpu_time_ms = 2;
 
-  // Number of frames drawn on RenderThread, followed by max/min/avg CPU time to draw a frame
-  // in nanoseconds.
+  // Number of frames drawn on RenderThread, followed by max/min/avg CPU time to
+  // draw a frame in nanoseconds.
   optional uint32 draw_frame_count = 3;
   optional int64 draw_frame_max = 4;
   optional int64 draw_frame_min = 5;
   optional double draw_frame_avg = 6;
 
-  // Number of GPU commands flushes and max/min/avg time per flush in nanoseconds.
+  // Number of GPU commands flushes and max/min/avg time per flush in
+  // nanoseconds.
   optional uint32 flush_count = 7;
   optional int64 flush_max = 8;
   optional int64 flush_min = 9;
   optional double flush_avg = 10;
 
-  // Number of View tree preparation counts and max/min/avg time to traverse the tree in
-  // nanoseconds.
+  // Number of View tree preparation counts and max/min/avg time to traverse the
+  // tree in nanoseconds.
   optional uint32 prepare_tree_count = 11;
   optional int64 prepare_tree_max = 12;
   optional int64 prepare_tree_min = 13;
   optional double prepare_tree_avg = 14;
 
-  // Number of times the GPU rendered a frame and max/min/avg time for GPU to finish rendering in
-  // in nanoseconds.
+  // Number of times the GPU rendered a frame and max/min/avg time for GPU to
+  // finish rendering in in nanoseconds.
   optional uint32 gpu_completion_count = 15;
   optional int64 gpu_completion_max = 16;
   optional int64 gpu_completion_min = 17;
   optional double gpu_completion_avg = 18;
 
-  // Number of times a frame was recorded/serialized in a display list on the UI thread with
-  // max/min/avg time in nanoseconds.
+  // Number of times a frame was recorded/serialized in a display list on the UI
+  // thread with max/min/avg time in nanoseconds.
   optional uint32 ui_record_count = 19;
   optional int64 ui_record_max = 20;
   optional int64 ui_record_min = 21;
   optional double ui_record_avg = 22;
 
-  // number of unique shader programs that were used to render frames, followed by total and average
-  // times to prepare a shader in nanoseconds.
+  // number of unique shader programs that were used to render frames, followed
+  // by total and average times to prepare a shader in nanoseconds.
   optional uint32 shader_compile_count = 23;
   optional int64 shader_compile_time = 24;
   optional double shader_compile_avg = 25;
-  // number of shader programs loaded from the disk cache, followed by total time and average time
-  // to prepare a shader in nanoseconds.
+  // number of shader programs loaded from the disk cache, followed by total
+  // time and average time to prepare a shader in nanoseconds.
   optional uint32 cache_hit_count = 26;
   optional int64 cache_hit_time = 27;
   optional double cache_hit_avg = 28;
-  // number of shader programs compiled/linked, followed by total time and average time to prepare
-  // a shader in nanoseconds.
+  // number of shader programs compiled/linked, followed by total time and
+  // average time to prepare a shader in nanoseconds.
   optional uint32 cache_miss_count = 29;
   optional int64 cache_miss_time = 30;
   optional double cache_miss_avg = 31;
@@ -1509,7 +1524,8 @@ message ProcessRenderInfo {
   optional int64 graphics_cpu_mem_min = 33;
   optional double graphics_cpu_mem_avg = 34;
 
-  // max/min/avg GPU memory used by HWUI at the end of a frame excluding textures.
+  // max/min/avg GPU memory used by HWUI at the end of a frame excluding
+  // textures.
   optional int64 graphics_gpu_mem_max = 35;
   optional int64 graphics_gpu_mem_min = 36;
   optional double graphics_gpu_mem_avg = 37;
@@ -1519,7 +1535,8 @@ message ProcessRenderInfo {
   optional int64 texture_mem_min = 39;
   optional double texture_mem_avg = 40;
 
-  // max/min/avg memory used by HWUI at the end of a frame. This is a sum of previous 3 categories.
+  // max/min/avg memory used by HWUI at the end of a frame. This is a sum of
+  // previous 3 categories.
   optional int64 all_mem_max = 41;
   optional int64 all_mem_min = 42;
   optional double all_mem_avg = 43;
@@ -1571,17 +1588,17 @@ message AndroidIo {
 // Note: this generates a lot of data so should not be requested unless it
 // is clear that this data is necessary.
 message AndroidIoUnaggregated {
-    // Next id: 2
-    message F2fsWriteUnaggreagatedStat {
-      optional uint32 tid = 1;
-      optional string thread_name = 2;
-      optional uint32 pid = 3;
-      optional string process_name = 4;
-      optional int64 ino = 5;
-      optional int64 dev = 6;
-    }
-    // F2fs write stats which are grouped by thread and inode.
-    repeated F2fsWriteUnaggreagatedStat f2fs_write_unaggregated_stats = 1;
+  // Next id: 2
+  message F2fsWriteUnaggreagatedStat {
+    optional uint32 tid = 1;
+    optional string thread_name = 2;
+    optional uint32 pid = 3;
+    optional string process_name = 4;
+    optional int64 ino = 5;
+    optional int64 dev = 6;
+  }
+  // F2fs write stats which are grouped by thread and inode.
+  repeated F2fsWriteUnaggreagatedStat f2fs_write_unaggregated_stats = 1;
 }
 // End of protos/perfetto/metrics/android/io_unagg_metric.proto
 
@@ -1623,7 +1640,7 @@ message AndroidIrqRuntimeMetric {
     // over threshold count
     optional int64 over_threshold_count = 2;
     // anomaly ratio (over threshold count / total count)
-    optional double anomaly_ratio= 3;
+    optional double anomaly_ratio = 3;
   }
   message IrqRuntimeMetric {
     // max runtime of IRQ tasks
@@ -1640,7 +1657,6 @@ message AndroidIrqRuntimeMetric {
   optional IrqRuntimeMetric hw_irq = 1;
   optional IrqRuntimeMetric sw_irq = 2;
 }
-
 
 // End of protos/perfetto/metrics/android/irq_runtime_metric.proto
 
@@ -2031,8 +2047,8 @@ message AndroidMemoryUnaggregatedMetric {
 
 // Begin of protos/perfetto/metrics/android/monitor_contention_agg_metric.proto
 
- // This metric provides aggregated information about monitor contention graph
- // in a trace
+// This metric provides aggregated information about monitor contention graph
+// in a trace
 message AndroidMonitorContentionAggMetric {
   // Next id: 2
   // Stats for Monitor contention aggregated by process.
@@ -2110,7 +2126,6 @@ message AndroidMonitorContentionMetric {
 
 // Metrics for Multiuser events, such as switching users.
 message AndroidMultiuserMetric {
-
   // Holds the data for a Multiuser event.
   message EventData {
     // Duration of the event (in milliseconds).
@@ -2122,12 +2137,15 @@ message AndroidMultiuserMetric {
       optional int32 user_id = 1;
       // The name of the process.
       optional string process_name = 2;
-      // The number of CPU cycles (in megacycles) spent by that process during the event.
+      // The number of CPU cycles (in megacycles) spent by that process during
+      // the event.
       optional int32 cpu_mcycles = 3;
-      // The ratio of this process's cycles to the total for all processes, expressed as a percentage.
+      // The ratio of this process's cycles to the total for all processes,
+      // expressed as a percentage.
       optional float cpu_percentage = 4;
-      // General identifier for this usage source: determined from the process name, user, etc.
-      // Should be stable across multiple runs (i.e. does not print the user_id directly).
+      // General identifier for this usage source: determined from the process
+      // name, user, etc. Should be stable across multiple runs (i.e. does not
+      // print the user_id directly).
       optional string identifier = 5;
     }
     repeated CpuUsage cpu_usage = 2;
@@ -2383,7 +2401,6 @@ message AndroidRtRuntimeMetric {
   // information for top 10 RT tasks
   repeated RtSlice longest_rt_slices = 3;
 }
-
 
 // End of protos/perfetto/metrics/android/rt_runtime_metric.proto
 
@@ -2795,7 +2812,7 @@ message AndroidStartupMetric {
   // Information for the ThreadSections
   message TraceThreadSectionInfo {
     repeated TraceThreadSection thread_section = 1;
-    optional int64 start_timestamp  = 2;
+    optional int64 start_timestamp = 2;
     optional int64 end_timestamp = 3;
   }
 
@@ -2997,8 +3014,10 @@ message SysUiSlicePerformanceStatisticalData {
 // Shows count, average duration, and max duration for each.
 message SysuiNotifShadeListBuilderMetric {
   optional SysUiSlicePerformanceStatisticalData all_slices_performance = 1;
-  optional SysUiSlicePerformanceStatisticalData slices_with_inflation_performance = 2;
-  optional SysUiSlicePerformanceStatisticalData slices_with_modification_performance = 3;
+  optional SysUiSlicePerformanceStatisticalData
+      slices_with_inflation_performance = 2;
+  optional SysUiSlicePerformanceStatisticalData
+      slices_with_modification_performance = 3;
 
   // Data row for a single slice
   message SliceDuration {

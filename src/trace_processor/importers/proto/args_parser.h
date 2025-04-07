@@ -31,10 +31,10 @@ class ArgsParser : public util::ProtoToArgsParser::Delegate {
   using Key = util::ProtoToArgsParser::Key;
 
   ArgsParser(int64_t packet_timestamp,
-                      ArgsTracker::BoundInserter& inserter,
-                      TraceStorage& storage,
-                      PacketSequenceStateGeneration* sequence_state = nullptr,
-                      bool support_json = false);
+             ArgsTracker::BoundInserter& inserter,
+             TraceStorage& storage,
+             PacketSequenceStateGeneration* sequence_state = nullptr,
+             bool support_json = false);
   ~ArgsParser() override;
   void AddInteger(const Key&, int64_t) override;
   void AddUnsignedInteger(const Key&, uint64_t) override;

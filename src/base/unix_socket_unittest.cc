@@ -1078,7 +1078,7 @@ TEST_F(UnixSocketTest, Sockaddr_FilesystemLinked) {
   // Create a raw socket and manually connect to that (to avoid getting affected
   // by accidental future bugs in the logic that populates struct sockaddr_un).
   auto cli = UnixSocketRaw::CreateMayFail(SockFamily::kUnix, SockType::kStream);
-  struct sockaddr_un addr {};
+  struct sockaddr_un addr{};
   addr.sun_family = AF_UNIX;
   StringCopy(addr.sun_path, sock_path.c_str(), sizeof(addr.sun_path));
   ASSERT_EQ(0, connect(cli.fd(), reinterpret_cast<struct sockaddr*>(&addr),
@@ -1100,7 +1100,7 @@ TEST_F(UnixSocketTest, Sockaddr_AbstractUnix) {
   ASSERT_TRUE(srv && srv->is_listening());
 
   auto cli = UnixSocketRaw::CreateMayFail(SockFamily::kUnix, SockType::kStream);
-  struct sockaddr_un addr {};
+  struct sockaddr_un addr{};
   addr.sun_family = AF_UNIX;
   StringCopy(addr.sun_path, sock_name.c_str(), sizeof(addr.sun_path));
   addr.sun_path[0] = '\0';

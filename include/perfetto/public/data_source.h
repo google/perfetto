@@ -38,8 +38,7 @@ struct PerfettoDs {
 };
 
 // Initializes a PerfettoDs struct.
-#define PERFETTO_DS_INIT() \
-  { &perfetto_atomic_false, PERFETTO_NULL }
+#define PERFETTO_DS_INIT() {&perfetto_atomic_false, PERFETTO_NULL}
 
 // All the callbacks are optional and can be NULL if not needed.
 //
