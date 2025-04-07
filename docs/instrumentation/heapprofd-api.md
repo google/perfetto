@@ -27,7 +27,7 @@ Alternatively, you can build the binaries yourself from AOSP.
 First, [check out Perfetto](https://perfetto.dev/docs/contributing/build-instructions):
 
 ```
-$ git clone https://android.googlesource.com/platform/external/perfetto/
+$ git clone https://github.com/google/perfetto.git
 ```
 
 Then, change to the project directory, download and build additional

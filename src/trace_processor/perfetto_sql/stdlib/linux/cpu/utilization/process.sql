@@ -53,7 +53,7 @@ WITH
     JOIN process
       USING (upid)
     WHERE
-      upid = $upid AND utid != 0
+      upid = $upid AND NOT is_idle
   )
 SELECT
   *

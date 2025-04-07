@@ -109,7 +109,7 @@ void AppendEvents(const FtraceEventBundle::Decoder& ftrace_events,
 }  // namespace
 
 base::Status CollectTimelineEvents::Begin(Context* context) const {
-  // This primitive is artifically limited to owning the timeline. In practice
+  // This primitive is artificially limited to owning the timeline. In practice
   // there is no reason why multiple primitives could contribute to the
   // timeline.
   if (context->timeline) {

@@ -84,7 +84,7 @@ export class ProcessSchedulingTrack implements TrackRenderer {
           from thread t
           cross join sched s using (utid)
           where
-            s.utid != 0 and
+            not t.is_idle and
             t.upid = ${this.config.upid}
           order by ts
         `;

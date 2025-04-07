@@ -30,7 +30,7 @@
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 
 namespace perfetto::trace_processor {
 
@@ -68,9 +68,8 @@ struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
    private:
     State(TableComputation, Table::Schema);
   };
-  struct Context {
+  struct Context : sqlite::ModuleStateManager<DbSqliteModule> {
     std::unique_ptr<State> temporary_create_state;
-    sqlite::ModuleStateManager<DbSqliteModule> manager;
   };
   struct Vtab : public sqlite::Module<DbSqliteModule>::Vtab {
     sqlite::ModuleStateManager<DbSqliteModule>::PerVtabState* state;

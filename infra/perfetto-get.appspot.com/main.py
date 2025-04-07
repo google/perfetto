@@ -19,8 +19,7 @@ import time
 from collections import namedtuple
 from flask import Flask, make_response, redirect
 
-BASE = 'https://android.googlesource.com/platform/external/perfetto.git/' \
-       '+/main/%s?format=TEXT'
+BASE = 'https://raw.githubusercontent.com/google/perfetto/main/%s'
 
 RESOURCES = {
     'tracebox': 'tools/tracebox',

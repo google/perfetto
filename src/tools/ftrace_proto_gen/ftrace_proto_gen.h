@@ -18,9 +18,7 @@
 #define SRC_TOOLS_FTRACE_PROTO_GEN_FTRACE_PROTO_GEN_H_
 
 #include <google/protobuf/descriptor.h>
-#include <map>
 #include <set>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -42,7 +40,7 @@ void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_eventlist,
                               std::ostream* fout);
 std::string SingleEventInfo(perfetto::Proto proto,
                             const std::string& group,
-                            const uint32_t proto_field_id);
+                            uint32_t proto_field_id);
 void GenerateEventInfo(const std::vector<std::string>& events_info,
                        std::ostream* fout);
 std::string ProtoHeader();

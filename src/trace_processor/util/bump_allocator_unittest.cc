@@ -16,15 +16,15 @@
 
 #include "src/trace_processor/util/bump_allocator.h"
 
+#include <cstdint>
+#include <cstring>
 #include <limits>
 #include <random>
 #include <vector>
 
-#include "perfetto/ext/base/utils.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class BumpAllocatorUnittest : public ::testing::Test {
  public:
@@ -111,5 +111,4 @@ TEST_F(BumpAllocatorUnittest, StressTest) {
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

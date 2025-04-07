@@ -44,5 +44,8 @@ message AndroidProcessMetadata {
   // Pid of the process name.
   optional int64 pid = 9;
 
+  // Whether the process is considered kernel or not
+  optional bool is_kernel_task = 11;
+
   reserved 3, 4, 5, 6, 8;
 }

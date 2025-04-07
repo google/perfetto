@@ -17,9 +17,15 @@
 #ifndef INCLUDE_PERFETTO_TRACING_INTERNAL_INTERCEPTOR_TRACE_WRITER_H_
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_INTERCEPTOR_TRACE_WRITER_H_
 
+#include <atomic>
+#include <cstdint>
+#include <functional>
+#include <memory>
+
+#include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/interceptor.h"
-#include "perfetto/tracing/internal/basic_types.h"
+#include "perfetto/tracing/internal/data_source_internal.h"
 #include "perfetto/tracing/trace_writer_base.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -41,6 +47,7 @@ class InterceptorTraceWriter : public TraceWriterBase {
   void FinishTracePacket() override;
   void Flush(std::function<void()> callback = {}) override;
   uint64_t written() const override;
+  uint64_t drop_count() const override;
 
  private:
   std::unique_ptr<InterceptorBase::ThreadLocalState> tls_;

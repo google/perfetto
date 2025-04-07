@@ -158,6 +158,14 @@ void WriteAndSetParseError(CpuReader::Bundler* bundler,
   proto->set_status(status);
 }
 
+void SerialiseOffendingPage([[maybe_unused]] CpuReader::Bundler* bundler,
+                            [[maybe_unused]] const uint8_t* page,
+                            [[maybe_unused]] size_t size) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  bundler->GetOrCreateBundle()->set_broken_abi_trace_page(page, size);
+#endif
+}
+
 }  // namespace
 
 using protos::pbzero::GenericFtraceEvent;
@@ -453,6 +461,9 @@ bool CpuReader::ProcessPagesForDataSource(
           &bundler, parse_errors,
           page_header.has_value() ? page_header->timestamp : 0,
           FtraceParseStatus::FTRACE_STATUS_ABI_INVALID_PAGE_HEADER);
+      if (ds_config->debug_ftrace_abi) {
+        SerialiseOffendingPage(&bundler, curr_page, sys_page_size);
+      }
       success = false;
       continue;
     }
@@ -482,6 +493,9 @@ bool CpuReader::ProcessPagesForDataSource(
     if (status != FtraceParseStatus::FTRACE_STATUS_OK) {
       WriteAndSetParseError(&bundler, parse_errors, page_header->timestamp,
                             status);
+      if (ds_config->debug_ftrace_abi) {
+        SerialiseOffendingPage(&bundler, curr_page, sys_page_size);
+      }
       success = false;
       continue;
     }
@@ -698,9 +712,9 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
           }
         }  // IsEventEnabled(id)
         ptr = next;
-      }              // case (data_record)
-    }                // switch (event_header.type_or_length)
-  }                  // while (ptr < end)
+      }  // case (data_record)
+    }    // switch (event_header.type_or_length)
+  }      // while (ptr < end)
 
   if (last_written_event_ts)
     *bundle_end_timestamp = last_written_event_ts;
@@ -847,7 +861,7 @@ bool CpuReader::ParseField(const Field& field,
       size_t size = std::min<size_t>(field.ftrace_size, sizeof(n));
       memcpy(base::AssumeLittleEndian(&n),
              reinterpret_cast<const void*>(field_start), size);
-      // Look up the adddress in the printk format map and write it into the
+      // Look up the address in the printk format map and write it into the
       // proto.
       base::StringView name = table->LookupTraceString(n);
       message->AppendBytes(field_id, name.begin(), name.size());

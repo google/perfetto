@@ -13,44 +13,69 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {NodeType, QueryNode} from '../../query_node';
+import {
+  createFinalColumns,
+  createSelectColumnsProto,
+  NodeType,
+  QueryNode,
+  QueryNodeState,
+} from '../../query_node';
 import {
   ColumnControllerRow,
   columnControllerRowFromName,
+  newColumnControllerRows,
 } from '../column_controller';
 import protos from '../../../../protos';
 import {TextParagraph} from '../../../../widgets/text_paragraph';
 import {TextInput} from '../../../../widgets/text_input';
+import {
+  createFiltersProto,
+  createGroupByProto,
+  Operator,
+} from '../operations/operation_component';
 
-export interface SqlSourceAttrs {
+export interface SqlSourceAttrs extends QueryNodeState {
   sql?: string;
-  columns?: string[];
+  sqlColumns?: string[];
   preamble?: string;
 }
 
 export class SqlSourceNode implements QueryNode {
-  type: NodeType = NodeType.kSqlSource;
-  prevNode = undefined;
+  readonly type: NodeType = NodeType.kSqlSource;
+  readonly prevNode = undefined;
   nextNode?: QueryNode;
-  finished = true;
 
-  dataName: string = 'Sql source';
-  columns: ColumnControllerRow[];
+  readonly sourceCols: ColumnControllerRow[];
+  readonly finalCols: ColumnControllerRow[];
 
-  attrs: SqlSourceAttrs;
+  readonly state: SqlSourceAttrs;
 
   constructor(attrs: SqlSourceAttrs) {
-    this.attrs = attrs;
-    this.columns =
-      attrs.columns?.map((c) => columnControllerRowFromName(c)) ?? [];
+    this.state = attrs;
+    this.sourceCols =
+      attrs.sqlColumns?.map((c) => columnControllerRowFromName(c)) ?? [];
+    this.finalCols = createFinalColumns(this);
+  }
+
+  getState(): QueryNodeState {
+    const newState: SqlSourceAttrs = {
+      sql: this.state.sql,
+      sqlColumns: this.state.sqlColumns,
+      preamble: this.state.preamble,
+      sourceCols: newColumnControllerRows(this.sourceCols),
+      groupByColumns: newColumnControllerRows(this.state.groupByColumns),
+      filters: this.state.filters.map((f) => ({...f})),
+      aggregations: this.state.aggregations.map((a) => ({...a})),
+    };
+    return newState;
   }
 
   validate(): boolean {
     return (
-      this.attrs.sql !== undefined &&
-      this.attrs.columns !== undefined &&
-      this.attrs.preamble !== undefined &&
-      this.columns.length > 0
+      this.state.sql !== undefined &&
+      this.state.sqlColumns !== undefined &&
+      this.state.preamble !== undefined &&
+      this.sourceCols.length > 0
     );
   }
 
@@ -65,31 +90,30 @@ export class SqlSourceNode implements QueryNode {
     sq.id = `sql_source`;
     const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
 
-    if (this.attrs.sql) sqlProto.sql = this.attrs.sql;
-    if (this.attrs.columns) sqlProto.columnNames = this.attrs.columns;
-    if (this.attrs.preamble) sqlProto.preamble = this.attrs.preamble;
-
-    const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] =
-      [];
-    for (const c of this.columns.filter((c) => c.checked)) {
-      const newC = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      newC.columnName = c.column.name;
-      if (c.alias) {
-        newC.alias = c.alias;
-      }
-      selectedColumns.push(newC);
-    }
+    if (this.state.sql) sqlProto.sql = this.state.sql;
+    if (this.state.sqlColumns) sqlProto.columnNames = this.state.sqlColumns;
+    if (this.state.preamble) sqlProto.preamble = this.state.preamble;
     sq.sql = sqlProto;
-    sq.selectColumns = selectedColumns;
+
+    const filtersProto = createFiltersProto(this.state.filters);
+    if (filtersProto) sq.filters = filtersProto;
+    const groupByProto = createGroupByProto(
+      this.state.groupByColumns,
+      this.state.aggregations,
+    );
+    if (groupByProto) sq.groupBy = groupByProto;
+
+    const selectedColumns = createSelectColumnsProto(this);
+    if (selectedColumns) sq.selectColumns = selectedColumns;
     return sq;
   }
 
   getDetails(): m.Child {
     return m(TextParagraph, {
       text: `
-        Running custom SQL returning columns ${this.attrs.columns?.join(', ')}.\n
-        Preamble: \n${this.attrs.preamble ?? `NONE`}\n
-        SQL: \n${this.attrs.sql ?? `NONE`}`,
+        Running custom SQL returning columns ${this.state.sqlColumns?.join(', ')}.\n
+        Preamble: \n${this.state.preamble ?? `NONE`}\n
+        SQL: \n${this.state.sql ?? `NONE`}`,
     });
   }
 }
@@ -132,14 +156,27 @@ export class SqlSource implements m.ClassComponent<SqlSourceAttrs> {
           type: 'string',
           oninput: (e: Event) => {
             if (!e.target) return;
-            const colsStr = (e.target as HTMLInputElement).value.trim();
-            attrs.columns = colsStr
+            attrs.sqlColumns = (e.target as HTMLInputElement).value
               .split(',')
               .map((col) => col.trim())
               .filter(Boolean);
+            attrs.sourceCols = attrs.sqlColumns.map((c) =>
+              columnControllerRowFromName(c, true),
+            );
+            attrs.groupByColumns = newColumnControllerRows(
+              attrs.sourceCols,
+              false,
+            );
           },
         }),
       ),
+      m(Operator, {
+        filter: {sourceCols: attrs.sourceCols, filters: attrs.filters},
+        groupby: {
+          groupByColumns: attrs.groupByColumns,
+          aggregations: attrs.aggregations,
+        },
+      }),
     );
   }
 }

@@ -35,6 +35,7 @@ SELECT
   tid,
   name,
   is_main_thread,
+  is_idle,
   machine_id,
   utid IN (
     SELECT

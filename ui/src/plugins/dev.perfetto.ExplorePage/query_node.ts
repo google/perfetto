@@ -14,44 +14,86 @@
 
 import protos from '../../protos';
 import m from 'mithril';
-import {ColumnControllerRow} from './query_builder/column_controller';
+import {
+  ColumnControllerRow,
+  columnControllerRowFromName,
+  newColumnControllerRows,
+} from './query_builder/column_controller';
+import {
+  GroupByAgg,
+  placeholderNewColumnName,
+} from './query_builder/operations/groupy_by';
+import {Filter} from './query_builder/operations/filter';
 
 export enum NodeType {
   // Sources
   kStdlibTable,
   kSimpleSlices,
   kSqlSource,
+}
 
-  // Operations
-  kJoinOperator,
-  kGroupByOperator,
-  kFilterOperator,
+// All information required to create a new node.
+export interface QueryNodeState {
+  prevNode?: QueryNode;
+  sourceCols: ColumnControllerRow[];
+
+  filters: Filter[];
+  groupByColumns: ColumnControllerRow[];
+  aggregations: GroupByAgg[];
 }
 
 export interface QueryNode {
   readonly type: NodeType;
   readonly prevNode?: QueryNode;
-  nextNode?: QueryNode;
+  readonly nextNode?: QueryNode;
 
-  dataName?: string;
-  columns?: ColumnControllerRow[];
+  // Columns that are available in the source data.
+  readonly sourceCols: ColumnControllerRow[];
+
+  // Columns that are available after applying all operations.
+  readonly finalCols: ColumnControllerRow[];
+
+  // State of the node. This is used to store the user's input and can be used
+  // to fully recover the node.
+  readonly state: QueryNodeState;
 
   validate(): boolean;
   getTitle(): string;
   getDetails(): m.Child;
+  getState(): QueryNodeState;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
 }
 
-export function getLastFinishedNode(node: QueryNode): QueryNode | undefined {
-  while (node.nextNode) {
-    node = node.nextNode;
+export function createSelectColumnsProto(
+  node: QueryNode,
+): protos.PerfettoSqlStructuredQuery.SelectColumn[] | undefined {
+  if (node.finalCols.every((c) => c.checked)) return;
+  const selectedColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
+
+  for (const c of node.finalCols) {
+    if (c.checked === false) continue;
+    const newC = new protos.PerfettoSqlStructuredQuery.SelectColumn();
+    newC.columnName = c.column.name;
+    if (c.alias) {
+      newC.alias = c.alias;
+    }
+    selectedColumns.push(newC);
   }
-  return node;
+  return selectedColumns;
 }
 
-export function getFirstNode(node: QueryNode): QueryNode | undefined {
-  while (node.prevNode) {
-    node = node.prevNode;
+export function createFinalColumns(node: QueryNode) {
+  if (node.state.groupByColumns.find((c) => c.checked)) {
+    const selected = node.state.groupByColumns.filter((c) => c.checked);
+    for (const agg of node.state.aggregations) {
+      selected.push(
+        columnControllerRowFromName(
+          agg.newColumnName ?? placeholderNewColumnName(agg),
+        ),
+      );
+    }
+    return newColumnControllerRows(selected, true);
   }
-  return node;
+
+  return newColumnControllerRows(node.sourceCols, true);
 }

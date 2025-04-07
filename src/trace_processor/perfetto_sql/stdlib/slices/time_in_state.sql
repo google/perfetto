@@ -49,7 +49,7 @@ CREATE PERFETTO TABLE thread_slice_time_in_state (
   -- If in uninterruptible sleep (D), the kernel function on which was blocked.
   -- Only available on userdebug Android builds when
   -- `sched/sched_blocked_reason` ftrace tracepoint is enabled.
-  blocked_function LONG,
+  blocked_function STRING,
   -- The duration of time the threads slice spent for each
   -- (state, io_wait, blocked_function) tuple.
   dur DURATION

@@ -18,9 +18,7 @@
 #include <fstream>
 #include <map>
 #include <memory>
-#include <regex>
 #include <set>
-#include <sstream>
 #include <string>
 
 #include <google/protobuf/descriptor.h>

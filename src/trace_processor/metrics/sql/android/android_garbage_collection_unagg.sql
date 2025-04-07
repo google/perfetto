@@ -44,7 +44,8 @@ SELECT AndroidGarbageCollectionUnaggMetric(
         'tid', tid,
         'pid', pid,
         'gc_monotonic_dur', _extract_duration_without_suspend(gc_ts, gc_dur),
-        'process', metadata
+        'process', metadata,
+        'gc_count', 1
       ))
     FROM android_garbage_collection_events
     LEFT JOIN process_metadata using (upid)

@@ -358,6 +358,13 @@ export class SelectionManagerImpl implements SelectionManager {
           switchToCurrentSelectionTab: true,
         });
         break;
+      case 'event':
+        this.selectTrackEvent(trackUri, eventId, {
+          clearSearch: false,
+          scrollToSelection: true,
+          switchToCurrentSelectionTab: true,
+        });
+        break;
       default:
         assertUnreachable(source);
     }

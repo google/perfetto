@@ -23,7 +23,13 @@ SELECT
   count() AS running_count
 FROM sched
 WHERE
-  utid != 0 AND dur != -1
+  NOT utid IN (
+    SELECT
+      utid
+    FROM thread
+    WHERE
+      is_idle
+  ) AND dur != -1
 GROUP BY
   utid;
 

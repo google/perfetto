@@ -59,7 +59,7 @@
   MATERIALIZED
   REINDEX RENAME CTIME_KW IF
 // Our additions.
-  FUNCTION MODULE
+  FUNCTION MODULE PERFETTO
   .
 %wildcard ANY.
 
@@ -78,7 +78,7 @@ pscantok(A) ::= . {
 
 // Shared rules
 %type sql_argument_list { struct PerfettoSqlArgumentList* }
-%destructor sql_argument_list { OnPerfettoSqlFreeArgumentList($$); }
+%destructor sql_argument_list { OnPerfettoSqlFreeArgumentList(state, $$); }
 sql_argument_list(A) ::=. { A = 0; }
 sql_argument_list(A) ::= sql_argument_list_nonempty(X). { A = X; }
 
@@ -86,7 +86,7 @@ sql_argument_type(A) ::= ID(B). { A = B; }
 sql_argument_type(A) ::= ID(B) LP ID DOT ID RP. { A = B; }
 
 %type sql_argument_list_nonempty { struct PerfettoSqlArgumentList* }
-%destructor sql_argument_list_nonempty { OnPerfettoSqlFreeArgumentList($$); }
+%destructor sql_argument_list_nonempty { OnPerfettoSqlFreeArgumentList(state, $$); }
 sql_argument_list_nonempty(A) ::= sql_argument_list_nonempty(B) COMMA ID(C) sql_argument_type(D). {
   A = OnPerfettoSqlCreateOrAppendArgument(state, B, &C, &D);
 }
@@ -95,7 +95,7 @@ sql_argument_list_nonempty(A) ::= ID(B) sql_argument_type(C). {
 }
 
 %type table_schema { struct PerfettoSqlArgumentList* }
-%destructor table_schema { OnPerfettoSqlFreeArgumentList($$); }
+%destructor table_schema { OnPerfettoSqlFreeArgumentList(state, $$); }
 table_schema(A) ::=. { A = 0; }
 table_schema(A) ::= LP sql_argument_list_nonempty(B) RP. { A = B; }
 
@@ -110,7 +110,7 @@ cmd ::= CREATE or_replace(R) PERFETTO FUNCTION ID(N) LP sql_argument_list(A) RP 
 }
 
 %type return_type { struct PerfettoSqlFnReturnType* }
-%destructor return_type { OnPerfettoSqlFnFreeReturnType($$); }
+%destructor return_type { OnPerfettoSqlFnFreeReturnType(state, $$); }
 return_type(Y) ::= ID(X). {
   Y = OnPerfettoSqlCreateScalarReturnType(&X);
 }
@@ -118,9 +118,16 @@ return_type(Y) ::= TABLE LP sql_argument_list_nonempty(A) RP. {
   Y = OnPerfettoSqlCreateTableReturnType(A);
 }
 
+table_impl(Y) ::=. {
+  Y = (struct PerfettoSqlToken) {0, 0};
+}
+table_impl(Y) ::= USING ID(N). {
+  Y = N;
+}
+
 // CREATE PERFETTO TABLE
-cmd ::= CREATE or_replace(R) PERFETTO TABLE ID(N) table_schema(S) AS select(A) pscantok(Q). {
-  OnPerfettoSqlCreateTable(state, R, &N, S, &A, &Q);
+cmd ::= CREATE or_replace(R) PERFETTO TABLE ID(N) table_impl(Y) table_schema(S) AS select(A) pscantok(Q). {
+  OnPerfettoSqlCreateTable(state, R, &N, &Y, S, &A, &Q);
 }
 
 // CREATE PERFETTO VIEW
@@ -134,7 +141,7 @@ cmd ::= CREATE(C) or_replace(R) PERFETTO INDEX ID(N) ON ID(T) LP indexed_column_
 }
 
 %type indexed_column_list { struct PerfettoSqlIndexedColumnList* }
-%destructor indexed_column_list { OnPerfettoSqlFreeIndexedColumnList($$); }
+%destructor indexed_column_list { OnPerfettoSqlFreeIndexedColumnList(state, $$); }
 indexed_column_list(A) ::= indexed_column_list(B) COMMA ID(C). {
   A = OnPerfettoSqlCreateOrAppendIndexedColumn(B, &C);
 }
@@ -150,7 +157,7 @@ macro_body ::= ANY.
 macro_body ::= macro_body ANY.
 
 %type macro_argument_list_nonempty { struct PerfettoSqlMacroArgumentList* }
-%destructor macro_argument_list_nonempty { OnPerfettoSqlFreeMacroArgumentList($$); }
+%destructor macro_argument_list_nonempty { OnPerfettoSqlFreeMacroArgumentList(state, $$); }
 macro_argument_list_nonempty(A) ::= macro_argument_list_nonempty(D) COMMA ID(B) ID(C). {
   A = OnPerfettoSqlCreateOrAppendMacroArgument(state, D, &B, &C);
 }
@@ -159,7 +166,7 @@ macro_argument_list_nonempty(A) ::= ID(B) ID(C). {
 }
 
 %type macro_argument_list { struct PerfettoSqlMacroArgumentList* }
-%destructor macro_argument_list { OnPerfettoSqlFreeMacroArgumentList($$); }
+%destructor macro_argument_list { OnPerfettoSqlFreeMacroArgumentList(state, $$); }
 macro_argument_list(A) ::=. { A = 0; }
 macro_argument_list(A) ::= macro_argument_list_nonempty(B). { A = B; }
 

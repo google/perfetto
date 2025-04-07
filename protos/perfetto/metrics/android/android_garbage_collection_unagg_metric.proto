@@ -62,6 +62,8 @@ message AndroidGarbageCollectionUnaggMetric {
     optional int64 gc_monotonic_dur = 19;
     // Details about the process (uid, version, etc)
     optional AndroidProcessMetadata process = 20;
+    // The number of GCs in this event. Namely 1.
+    optional int64 gc_count = 21;
   }
   repeated GarbageCollectionEvent gc_events = 1;
 }

@@ -44,7 +44,7 @@ std::unique_ptr<TraceProcessorContext> MultiMachineTraceManager::CreateContext(
 
   // Register default and additional modules (if enabled).
   RegisterDefaultModules(new_context.get());
-  // Register addtional modules through the registered function pointer.
+  // Register additional modules through the registered function pointer.
   if (additional_modules_factory_)
     additional_modules_factory_(new_context.get());
 

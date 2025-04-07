@@ -24,6 +24,7 @@ perfetto_android_library("perfetto_test_lib") {
     "../../../gn:android_test_common",
     "../main:perfetto_lib",
   ]
+  manifest = "TestLibraryAndroidManifest.xml"
   testonly = true
 }
 
@@ -37,5 +38,7 @@ perfetto_android_instrumentation_test(
     "perfetto_java_sdk_instrumentation_test") {
   app = "../main:perfetto_java_sdk_app"
   test_app = ":perfetto_java_sdk_test_app"
+  android_bp_test_manifest = "AndroidSelfInstrumentTestManifest.xml"
+  android_bp_test_config = "PerfettoJavaSdkTest.xml"
   testonly = true
 }

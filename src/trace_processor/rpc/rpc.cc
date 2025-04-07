@@ -363,6 +363,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       for (const auto& r : analyzed_queries) {
         auto* query_res = analyze_result->add_results();
         query_res->set_sql(r.sql);
+        query_res->set_textproto(r.textproto);
         for (const std::string& m : r.modules) {
           query_res->add_modules(m);
         }
@@ -375,9 +376,9 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
     }
     default: {
       // This can legitimately happen if the client is newer. We reply with a
-      // generic "unkown request" response, so the client can do feature
+      // generic "unknown request" response, so the client can do feature
       // detection
-      PERFETTO_DLOG("[RPC] Uknown request type (%d), size=%zu", req_type, len);
+      PERFETTO_DLOG("[RPC] Unknown request type (%d), size=%zu", req_type, len);
       Response resp(tx_seq_id_++, req_type);
       resp->set_invalid_request(
           static_cast<RpcProto::TraceProcessorMethod>(req_type));

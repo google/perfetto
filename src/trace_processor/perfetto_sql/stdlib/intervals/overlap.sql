@@ -465,3 +465,56 @@ RETURNS TableOrSubquery AS
     dur
   FROM _only_singleton
 );
+
+-- Merge intervals when they overlap to generate a minimum covering set of
+-- intervals with no overlap. The intervals are closed (contain both endpoints)
+-- and we consider two intervals overlapping
+--   (a) the intervals overlap or
+--   (b) if the end point of one interval is within epsilon of the start point
+--       of the other.
+CREATE PERFETTO MACRO interval_merge_overlapping(
+    -- Table or subquery containing interval data.
+    intervals TableOrSubquery,
+    -- Constant expression for a tolerance in testing overlap (usually `0`)
+    epsilon Expr
+)
+RETURNS TableOrSubquery AS
+(
+  -- Algorithm: use intervals_overlap_count to generate a counter track. Pass over
+  -- the counter track from left to right, creating an interval when the counter
+  -- first becomes non-zero and ending an interval when it becomes zero again.
+  WITH
+    _w_prev_count AS (
+      SELECT
+        ts,
+        value,
+        lag(value, 1, 0) OVER (ORDER BY ts) AS prev_value
+      FROM intervals_overlap_count !($intervals, ts, (dur + $epsilon))
+      ORDER BY
+        ts ASC
+    ),
+    _end_points AS (
+      SELECT
+        ts,
+        value
+      FROM _w_prev_count
+      WHERE
+        -- start of merged intervals
+        prev_value = 0
+        -- end of merged intervals
+        OR value = 0
+    ),
+    _together AS (
+      SELECT
+        ts - iif(value = 0, $epsilon, 0) AS ts,
+        value,
+        lag(ts, 1, NULL) OVER (ORDER BY ts) AS prev_ts
+      FROM _end_points
+    )
+  SELECT
+    prev_ts AS ts,
+    ts - prev_ts AS dur
+  FROM _together
+  WHERE
+    value = 0
+);

@@ -17,9 +17,15 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_PROFILE_BUILDER_H_
 #define SRC_TRACE_PROCESSOR_UTIL_PROFILE_BUILDER_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -30,14 +36,7 @@
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/annotated_callsites.h"
 
-#include <algorithm>
-#include <cstdint>
-#include <functional>
-#include <unordered_map>
-#include <vector>
-
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -400,7 +399,6 @@ class GProfileBuilder {
   SampleAggregator samples_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_PROFILE_BUILDER_H_

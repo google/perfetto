@@ -24,40 +24,36 @@ import {
   SplitPanel,
   SplitPanelDrawerVisibility,
 } from '../../../widgets/split_panel';
-import {QueryNode} from '../query_node';
 import {VisViewSource} from './view_source';
 import {AddChartMenuItem} from '../../../components/widgets/charts/add_chart_menu';
 import {exists} from '../../../base/utils';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {SqlTable} from '../../../components/widgets/sql/table/table';
-import {SqlTableState} from '../../../components/widgets/sql/table/state';
 import {sqlValueToSqliteString} from '../../../trace_processor/sql_utils';
 import {renderFilters} from '../../../components/widgets/sql/table/filters';
-
-export interface DataVisualiserState {
-  queryNode?: QueryNode;
-}
+import {ExplorePageState} from '../explore_page';
 
 export interface DataVisualiserAttrs {
   trace: Trace;
-  readonly state: DataVisualiserState;
+  readonly state: ExplorePageState;
 }
 
 export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
   private visibility = SplitPanelDrawerVisibility.VISIBLE;
-  private viewSource?: VisViewSource;
 
   constructor({attrs}: m.Vnode<DataVisualiserAttrs>) {
-    const queryNode = attrs.state.queryNode;
-    if (queryNode === undefined) return;
+    if (attrs.state.selectedNode === undefined) return;
 
-    this.viewSource = new VisViewSource(attrs.trace, queryNode);
+    attrs.state.activeViewSource = new VisViewSource(
+      attrs.trace,
+      attrs.state.selectedNode,
+    );
   }
 
-  private renderSqlTable(sqlTableViewState?: SqlTableState) {
-    const viewSource = this.viewSource;
+  private renderSqlTable(state: ExplorePageState) {
+    const sqlTableViewState = state.activeViewSource?.visViews?.sqlTableState;
 
-    if (viewSource === undefined || sqlTableViewState === undefined) return;
+    if (sqlTableViewState === undefined) return;
 
     const range = sqlTableViewState.getDisplayedRange();
     const rowCount = sqlTableViewState.getTotalRowCount();
@@ -90,7 +86,7 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
         state: sqlTableViewState,
         addColumnMenuItems: (_, columnAlias) => {
           const chartAttrs = {
-            data: this.viewSource?.data,
+            data: state.activeViewSource?.data,
             columns: [columnAlias],
           };
 
@@ -101,14 +97,14 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
                 ...chartAttrs,
                 onIntervalSelection: (value) => {
                   const range = `(${value[columnAlias].map(sqlValueToSqliteString).join(', ')})`;
-                  this.viewSource?.filters.addFilter({
+                  state.activeViewSource?.filters.addFilter({
                     op: (cols) => `${cols[0]} IN ${range}`,
                     columns: [columnAlias],
                   });
                 },
                 onPointSelection: (item) => {
                   const value = sqlValueToSqliteString(item.datum[columnAlias]);
-                  this.viewSource?.filters.addFilter({
+                  state.activeViewSource?.filters.addFilter({
                     op: (cols) => `${cols[0]} = ${value}`,
                     columns: [columnAlias],
                   });
@@ -119,7 +115,7 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
                 ...chartAttrs,
                 onIntervalSelection: (value) => {
                   const range = `${value[columnAlias][0]} AND ${value[columnAlias][1]}`;
-                  this.viewSource?.filters.addFilter({
+                  state.activeViewSource?.filters.addFilter({
                     op: (cols) => `${cols[0]} BETWEEN ${range}`,
                     columns: [columnAlias],
                   });
@@ -128,7 +124,7 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
                   const minValue = item.datum[`bin_maxbins_10_${columnAlias}`];
                   const maxValue =
                     item.datum[`bin_maxbins_10_${columnAlias}_end`];
-                  this.viewSource?.filters.addFilter({
+                  state.activeViewSource?.filters.addFilter({
                     op: (cols) =>
                       `${cols[0]} BETWEEN ${minValue} AND ${maxValue}`,
                     columns: [columnAlias],
@@ -136,14 +132,14 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
                 },
               },
             ],
-            addChart: (chart) => this.viewSource?.addChart(chart),
+            addChart: (chart) => state.activeViewSource?.addChart(chart),
           });
         },
       }),
     );
   }
 
-  private renderRemovableChart(chart: ChartAttrs) {
+  private renderRemovableChart(chart: ChartAttrs, state: ExplorePageState) {
     return m(
       '.pf-chart-card',
       {
@@ -153,14 +149,16 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
         className: 'pf-chart-card__button',
         icon: Icons.Close,
         onclick: () => {
-          this.viewSource?.removeChart(chart);
+          state.activeViewSource?.removeChart(chart);
         },
       }),
       m('.pf-chart-card__chart', renderChart(chart)),
     );
   }
 
-  view() {
+  view({attrs}: m.Vnode<DataVisualiserAttrs>) {
+    const {state} = attrs;
+
     return m(
       SplitPanel,
       {
@@ -168,16 +166,15 @@ export class DataVisualiser implements m.ClassComponent<DataVisualiserAttrs> {
         onVisibilityChange: (visibility) => {
           this.visibility = visibility;
         },
-        drawerContent:
-          this.viewSource?.visViews &&
-          Array.from(this.viewSource?.visViews.charts.values()).map((chart) => {
-            return this.renderRemovableChart(chart);
-          }),
+        drawerContent: m(
+          '.pf-chart-container',
+          state.activeViewSource?.visViews !== undefined &&
+            Array.from(state.activeViewSource?.visViews.charts.values()).map(
+              (chart) => this.renderRemovableChart(chart, state),
+            ),
+        ),
       },
-      m(
-        '.pf-chart-card',
-        this.renderSqlTable(this.viewSource?.visViews?.sqlTableState),
-      ),
+      m('.pf-chart-card', this.renderSqlTable(state)),
     );
   }
 }

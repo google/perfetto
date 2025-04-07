@@ -119,6 +119,8 @@ default_android_targets = [
     '//src/java_sdk/main:perfetto_java_sdk_app',
     '//src/java_sdk/test:perfetto_java_sdk_test_app',
     '//src/java_sdk/test:perfetto_java_sdk_instrumentation_test',
+    "//src/android_sdk/java/main:perfetto_trace_lib",
+    "//src/android_sdk/java/test:perfetto_trace_instrumentation_test",
 ]
 
 # Proto target groups which will be made public.
@@ -149,6 +151,10 @@ proto_groups = {
     'trace_processor': {
         'sources': ['//protos/perfetto/trace_processor:source_set',],
         'visibility': [],
+    },
+    'trace_summary': {
+        'sources': ['//protos/perfetto/trace_summary:source_set',],
+        'visibility': ['//visibility:public'],
     },
 }
 
@@ -207,6 +213,12 @@ external_python_deps: Dict[str, List[str]] = {
 
 external_java_android_sdk_deps: Dict[str, List[str]] = {
     '//gn:android_test_common': ['PERFETTO_CONFIG.deps.android_test_common'],
+}
+
+# Map from GN targets to the list of Bazel deps labels
+additional_java_android_sdk_deps: Dict[str, List[str]] = {
+    '//src/android_sdk/java/test:perfetto_trace_test_lib': [
+        ':trace_java_proto_lite'],
 }
 
 # Additional arguments
@@ -403,6 +415,7 @@ class BazelLabel(object):
     self.instruments: Optional[str] = None
     self.app: Optional[str] = None
     self.test_app: Optional[str] = None
+    self.testonly: Optional[bool] = None
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
@@ -418,9 +431,10 @@ class BazelLabel(object):
     res += '%s(\n' % self.type
     any_deps = len(self.deps) + len(self.external_deps) > 0
     ORD = [
-        'name', 'srcs', 'binary_name', 'linkopts', 'manifest', 'resource_files',
-        'instruments', 'hdrs', 'defines', 'visibility', 'data', 'deps', 'outs',
-        'cmd', 'tools', 'exports', 'main', 'python_version'
+        'name', 'testonly', 'srcs', 'binary_name', 'linkopts', 'manifest',
+        'resource_files', 'instruments', 'hdrs', 'defines', 'visibility',
+        'data', 'deps', 'outs', 'cmd', 'tools', 'exports', 'main',
+        'python_version'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
@@ -695,9 +709,15 @@ def _populate_android_library_or_binary_deps(target: GnParser.Target,
     label: BazelLabel):
   for dep in sorted(target.non_proto_or_source_set_deps()):
     if dep.name in external_java_android_sdk_deps:
-      assert (isinstance(external_java_android_sdk_deps[dep.name], list))
-      label.external_deps += external_java_android_sdk_deps[dep.name]
+      list_of_deps = external_java_android_sdk_deps[dep.name]
+      assert (isinstance(list_of_deps, list))
+      label.external_deps += list_of_deps
     else:
+      if target.name in additional_java_android_sdk_deps:
+        list_of_deps = additional_java_android_sdk_deps[target.name]
+        assert (isinstance(list_of_deps, list))
+        label.deps += list_of_deps
+
       label.deps += [':' + get_bazel_label_name(dep.name)]
 
 def gen_perfetto_android_library(target: GnParser.Target):
@@ -709,6 +729,8 @@ def gen_perfetto_android_library(target: GnParser.Target):
   if target.manifest:
     label.manifest = gn_utils.label_to_path(target.manifest)
   label.tags += ['notap'] # This tag is needed to build in google3.
+  if target.testonly:
+    label.testonly = True
   return [label]
 
 def gen_perfetto_android_binary(target: GnParser.Target):
@@ -724,6 +746,8 @@ def gen_perfetto_android_binary(target: GnParser.Target):
       target.resource_files)
   if target.instruments:
     label.instruments = ':' + get_bazel_label_name(target.instruments)
+  if target.testonly:
+    label.testonly = True
   return [label]
 
 def gen_perfetto_android_instrumentation_test(target: GnParser.Target):

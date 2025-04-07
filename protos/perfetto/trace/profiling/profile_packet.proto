@@ -335,6 +335,7 @@ message PerfSample {
     PROFILER_SKIP_READ_STAGE = 1;
     PROFILER_SKIP_UNWIND_STAGE = 2;
     PROFILER_SKIP_UNWIND_ENQUEUE = 3;
+    PROFILER_SKIP_NOT_IN_SCOPE = 4;
   }
   oneof optional_sample_skipped_reason {
     SampleSkipReason sample_skipped_reason = 18;

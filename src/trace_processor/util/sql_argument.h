@@ -16,9 +16,15 @@
 
 #ifndef SRC_TRACE_PROCESSOR_UTIL_SQL_ARGUMENT_H_
 #define SRC_TRACE_PROCESSOR_UTIL_SQL_ARGUMENT_H_
-#include <optional>
 
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 
@@ -75,7 +81,7 @@ class ArgumentDefinition {
 
 // Returns whether the given |name| is considered valid.
 //
-// Names are valid if they only contain alpha-numeric characters or underscores.
+// Names are valid if they only contain alphanumeric characters or underscores.
 bool IsValidName(base::StringView name);
 
 // Parses a string containing a type from SQL and converts it to a Type enum
@@ -91,10 +97,10 @@ const char* TypeToHumanFriendlyString(sql_argument::Type type);
 SqlValue::Type TypeToSqlValueType(sql_argument::Type type);
 
 // Parses a string containing argument definitions from SQL and converts it into
-// a typed list of ArgumentDefintion structs
+// a typed list of ArgumentDefinition structs
 //
-// An argument defintion is a variable name followed by a type. Variable names
-// only contain alpha-numeric characters or underscores. Types must be one of
+// An argument definition is a variable name followed by a type. Variable names
+// only contain alphanumeric characters or underscores. Types must be one of
 // the types corresponding to the Type enum.
 //
 // The expected form of |args| is comma-separated list of argument definitions.

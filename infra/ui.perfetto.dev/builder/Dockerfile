@@ -37,6 +37,6 @@ RUN set -ex; \
     rm -rf /builder/google-cloud-sdk/.install/.backup;
 
 ADD ui_builder_entrypoint.sh /ui_builder_entrypoint.sh
-RUN chmod 755 /ui_builder_entrypoint.sh
+RUN chmod 755 /ui_builder_entrypoint.sh;
 
 ENTRYPOINT [ "tini", "-g", "--" ]

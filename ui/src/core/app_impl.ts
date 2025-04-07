@@ -155,6 +155,9 @@ export class AppContext {
 
 export class AppImpl implements App {
   readonly pluginId: string;
+  readonly initialPluginRouteArgs: {
+    [key: string]: number | boolean | string;
+  };
   private readonly appCtx: AppContext;
   private readonly pageMgrProxy: PageManagerImpl;
 
@@ -174,6 +177,23 @@ export class AppImpl implements App {
   constructor(appCtx: AppContext, pluginId: string) {
     this.appCtx = appCtx;
     this.pluginId = pluginId;
+
+    const args: {[key: string]: string | number | boolean} = {};
+    this.initialPluginRouteArgs = Object.entries(
+      appCtx.initialRouteArgs,
+    ).reduce((result, [key, value]) => {
+      // Create a regex to match keys starting with pluginId
+      const regex = new RegExp(`^${pluginId}:(.+)$`);
+      const match = key.match(regex);
+
+      // Only include entries that match the regex and have the right value type
+      if (match && ['string', 'number', 'boolean'].includes(typeof value)) {
+        const newKey = match[1];
+        // Use the capture group (what comes after the prefix) as the new key
+        result[newKey] = value;
+      }
+      return result;
+    }, args);
 
     this.pageMgrProxy = createProxy(this.appCtx.pageMgr, {
       registerPage(pageHandler: PageHandler): Disposable {

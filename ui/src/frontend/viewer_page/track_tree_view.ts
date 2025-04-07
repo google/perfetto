@@ -62,7 +62,7 @@ import {TrackView} from './track_view';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
 import {featureFlags} from '../../core/feature_flags';
 import {EmptyState} from '../../widgets/empty_state';
-import {Button} from '../../widgets/button';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 
 const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
@@ -97,9 +97,11 @@ export interface TrackTreeViewAttrs {
   // Default: false
   readonly scrollToNewTracks?: boolean;
 
-  // Optional: Whether to filter displayed tracks based on the track filter at
-  // `trace.tracks.trackFilterTerm`.
-  readonly useTrackFilter?: boolean;
+  // If supplied, each track will be run though this filter to work out whether
+  // to show it or not.
+  readonly trackFilter?: (track: TrackNode) => boolean;
+
+  readonly filtersApplied?: boolean;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -131,18 +133,17 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       canRemoveNodes,
       className,
       rootNode,
-      useTrackFilter,
+      trackFilter,
+      filtersApplied,
     } = attrs;
     const renderedTracks = new Array<TrackView>();
-    const trackFilterTerm = trace.tracks.trackFilterTerm.toLowerCase();
     let top = 0;
 
     function filterMatches(node: TrackNode): boolean {
-      if (!useTrackFilter) return true; // Filter ignored, show all tracks.
-      if (trackFilterTerm === '') return true; // Empty filter, show all tracks.
+      if (!trackFilter) return true; // Filter ignored, show all tracks.
 
       // If this track name matches filter, show it.
-      if (node.title?.toLowerCase().includes(trackFilterTerm)) return true;
+      if (trackFilter(node)) return true;
 
       // Also show if any of our children match.
       if (node.children?.some(filterMatches)) return true;
@@ -170,7 +171,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       }
 
       const children =
-        (node.headless || node.expanded || trackFilterTerm) &&
+        (node.headless || node.expanded || filtersApplied) &&
         node.hasChildren &&
         node.children.map((track) =>
           renderTrack(track, childDepth, childStickyTop),
@@ -199,7 +200,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             removable: canRemoveNodes,
             stickyTop,
             depth,
-            collapsible: !Boolean(trackFilterTerm),
+            collapsible: !filtersApplied,
           },
           children,
         );
@@ -210,19 +211,20 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
     // If there are no truthy vnode values, show "empty state" placeholder.
     if (trackVnodes.every((x) => !Boolean(x))) {
-      if (trackFilterTerm) {
+      if (filtersApplied) {
         // If we are filtering, show 'no matching tracks' empty state widget.
         return m(
           EmptyState,
           {
             className,
             icon: 'filter_alt_off',
-            title: `No tracks match track filter "${trackFilterTerm}"`,
+            title: `No tracks match track filter`,
           },
           m(Button, {
             intent: Intent.Primary,
+            variant: ButtonVariant.Filled,
             label: 'Clear track filter',
-            onclick: () => (trace.tracks.trackFilterTerm = ''),
+            onclick: () => trace.tracks.filters.clearAll(),
           }),
         );
       } else {

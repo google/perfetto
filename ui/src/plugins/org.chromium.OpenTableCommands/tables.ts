@@ -61,14 +61,13 @@ export function getProcessTable(): SqlTableDescription {
 
 export function getSliceTable(): SqlTableDescription {
   return {
-    imports: ['slices.slices'],
-    name: '_slice_with_thread_and_process_info',
-    displayName: 'slice',
+    imports: ['viz.slices'],
+    name: '_viz_slices_for_ui_table',
+    displayName: 'Slices',
     columns: [
       new SliceIdColumn('id', {notNull: true, type: 'id'}),
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
-      new DurationColumn('thread_dur'),
       new StandardColumn('category'),
       new StandardColumn('name'),
       new StandardColumn('track_id', {startsHidden: true}),

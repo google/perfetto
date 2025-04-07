@@ -76,6 +76,7 @@ void OnPerfettoSqlCreateFunction(struct PerfettoSqlParserState*,
 void OnPerfettoSqlCreateTable(struct PerfettoSqlParserState*,
                               int replace,
                               struct PerfettoSqlToken* name,
+                              struct PerfettoSqlToken* table_impl,
                               struct PerfettoSqlArgumentList* args,
                               struct PerfettoSqlToken* body_start,
                               struct PerfettoSqlToken* body_end);
@@ -110,25 +111,29 @@ struct PerfettoSqlArgumentList* OnPerfettoSqlCreateOrAppendArgument(
     struct PerfettoSqlArgumentList* list,
     struct PerfettoSqlToken* name,
     struct PerfettoSqlToken* type);
-void OnPerfettoSqlFreeArgumentList(struct PerfettoSqlArgumentList*);
+void OnPerfettoSqlFreeArgumentList(struct PerfettoSqlParserState*,
+                                   struct PerfettoSqlArgumentList*);
 
 struct PerfettoSqlIndexedColumnList* OnPerfettoSqlCreateOrAppendIndexedColumn(
     struct PerfettoSqlIndexedColumnList* list,
     struct PerfettoSqlToken* col);
-void OnPerfettoSqlFreeIndexedColumnList(struct PerfettoSqlIndexedColumnList*);
+void OnPerfettoSqlFreeIndexedColumnList(struct PerfettoSqlParserState*,
+                                        struct PerfettoSqlIndexedColumnList*);
 
 struct PerfettoSqlMacroArgumentList* OnPerfettoSqlCreateOrAppendMacroArgument(
     struct PerfettoSqlParserState* state,
     struct PerfettoSqlMacroArgumentList* list,
     struct PerfettoSqlToken* name,
     struct PerfettoSqlToken* type);
-void OnPerfettoSqlFreeMacroArgumentList(struct PerfettoSqlMacroArgumentList*);
+void OnPerfettoSqlFreeMacroArgumentList(struct PerfettoSqlParserState*,
+                                        struct PerfettoSqlMacroArgumentList*);
 
 struct PerfettoSqlFnReturnType* OnPerfettoSqlCreateScalarReturnType(
     struct PerfettoSqlToken* type);
 struct PerfettoSqlFnReturnType* OnPerfettoSqlCreateTableReturnType(
     struct PerfettoSqlArgumentList* args);
-void OnPerfettoSqlFnFreeReturnType(struct PerfettoSqlFnReturnType* type);
+void OnPerfettoSqlFnFreeReturnType(struct PerfettoSqlParserState*,
+                                   struct PerfettoSqlFnReturnType* type);
 
 #ifdef __cplusplus
 }  // namespace perfetto::trace_processor

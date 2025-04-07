@@ -167,8 +167,9 @@ def Main():
   AdbPush(test_bin, "/data/nativetest")
 
   # These two binaries are required to run perfetto_integrationtests.
-  AdbPush(os.path.join(args.out_dir, "perfetto"), "/data/nativetest")
-  AdbPush(os.path.join(args.out_dir, "trigger_perfetto"), "/data/nativetest")
+  if "perfetto_integrationtest" in args.test_name:
+    AdbPush(os.path.join(args.out_dir, "perfetto"), "/data/nativetest")
+    AdbPush(os.path.join(args.out_dir, "trigger_perfetto"), "/data/nativetest")
 
   if not args.no_data_deps:
     for dep in EnumerateDataDeps():

@@ -37,7 +37,6 @@ export default class implements PerfettoPlugin {
       with thread_cpu_sample as (
         select distinct utid
         from cpu_profile_stack_sample
-        where utid != 0
       )
       select
         utid,
@@ -46,6 +45,7 @@ export default class implements PerfettoPlugin {
         thread.name as threadName
       from thread_cpu_sample
       join thread using(utid)
+      where not is_idle
     `);
 
     const it = result.iter({

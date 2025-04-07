@@ -21,7 +21,6 @@ perfetto_android_library("perfetto_lib") {
   sources = [ "java/com/google/perfetto/sdk/PerfettoExampleWrapper.java" ]
   deps = [ "cpp:perfetto_example_jni_lib" ]
   manifest = "LibraryAndroidManifest.xml"
-  testonly = true
 }
 
 perfetto_android_app("perfetto_java_sdk_app") {
@@ -29,5 +28,4 @@ perfetto_android_app("perfetto_java_sdk_app") {
   manifest = "AndroidManifest.xml"
   resource_files_glob = "res/**/*"
   deps = [ ":perfetto_lib" ]
-  testonly = true
 }

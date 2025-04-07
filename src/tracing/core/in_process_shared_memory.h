@@ -29,6 +29,7 @@ namespace perfetto {
 class InProcessSharedMemory : public SharedMemory {
  public:
   static constexpr size_t kDefaultSize = 128 * 1024;
+  static constexpr size_t kShmemEmulationSize = 1024 * 1024;
 
   // Default ctor used for intra-process shmem between a producer and the
   // service.

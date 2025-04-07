@@ -21,13 +21,11 @@
 #include <cctype>
 #include <iosfwd>
 #include <iostream>
-#include <memory>
 #include <string>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_splitter.h"
-#include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
 namespace {

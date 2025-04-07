@@ -424,7 +424,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     if (option == OPT_RESET_GUARDRAILS) {
       PERFETTO_ILOG(
           "Guardrails no longer exist in perfetto_cmd; this option only exists "
-          "for backwards compatability.");
+          "for backwards compatibility.");
       return 0;
     }
 
@@ -700,7 +700,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       !trace_config_->incident_report_config().skip_incidentd() &&
       !has_triggers;
 
-  // Only report to the Andorid framework if:
+  // Only report to the Android framework if:
   // 1) |reporter_service_package| is set
   // 2) |skip_report| is absent or false.
   // 3) we are not simply activating triggers.

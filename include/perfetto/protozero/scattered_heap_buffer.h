@@ -79,6 +79,9 @@ class PERFETTO_EXPORT_COMPONENT ScatteredHeapBuffer
   // Stitch all the slices into a single contiguous buffer.
   std::vector<uint8_t> StitchSlices();
 
+  // Stitch all the slices into a contiguous output buffer.
+  std::pair<std::unique_ptr<uint8_t[]>, size_t> StitchAsUniquePtr();
+
   // Note that the returned ranges point back to this buffer and thus cannot
   // outlive it.
   std::vector<protozero::ContiguousMemoryRange> GetRanges();
@@ -155,6 +158,11 @@ class HeapBuffered {
   std::string SerializeAsString() {
     auto vec = SerializeAsArray();
     return std::string(reinterpret_cast<const char*>(vec.data()), vec.size());
+  }
+
+  std::pair<std::unique_ptr<uint8_t[]>, size_t> SerializeAsUniquePtr() {
+    msg_.Finalize();
+    return shb_.StitchAsUniquePtr();
   }
 
   std::vector<protozero::ContiguousMemoryRange> GetRanges() {

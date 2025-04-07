@@ -16,20 +16,11 @@
 set -exu
 
 # This script will be run in /workspace after the Cloud Build environment has
-# pulled the GitHub repo in shallow mode. We want to build off the official
-# AOSP repo, not the GitHub mirror though, hence why the clone below.
-# GitHub is used only as a trigger. This is because Google Cloud Build doesn't
-# support yet triggering from Gerrit.
-# See go/perfetto-ui-autopush for more details.
+# pulled the GitHub repo in shallow mode.
 
 # The cd is really a safeguard against people running this script on their
 # workstation and hitting the rm -rf.
 cd /workspace/
-ls -A1 | xargs rm -rf
-UPSTREAM="https://android.googlesource.com/platform/external/perfetto.git"
-git clone --depth 1 $UPSTREAM upstream
-
-cd upstream/
 git rev-parse HEAD
 
 # Install only NodeJS, gn and ninja no need to install the other toolchains.

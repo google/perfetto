@@ -18,16 +18,20 @@
 
 #include "src/trace_processor/util/gzip_utils.h"
 
+#include <zconf.h>
 #include <zlib.h>
+#include <cstddef>
+#include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <memory>
+#include <sstream>
+#include <string>
 #include "perfetto/base/logging.h"
 
 using std::string;
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+namespace perfetto::trace_processor::util {
 
 static std::string TrivialGzipCompress(const std::string& input) {
   constexpr auto buffer_len = 10000;
@@ -46,7 +50,7 @@ static std::string TrivialGzipCompress(const std::string& input) {
   deflate(&defstream, Z_FINISH);
   deflateEnd(&defstream);
   PERFETTO_CHECK(defstream.avail_out > 0);
-  return std::string(output, buffer_len - defstream.avail_out);
+  return {output, buffer_len - defstream.avail_out};
 }
 
 // Trivially decompress using ZlibOnlineDecompress.
@@ -99,7 +103,8 @@ TEST(GzipDecompressor, Streaming) {
     decompressed.append(reinterpret_cast<const char*>(data), len);
   };
   GzipDecompressor decompressor;
-  auto compressed_u8 = reinterpret_cast<const uint8_t*>(compressed.data());
+  const auto* compressed_u8 =
+      reinterpret_cast<const uint8_t*>(compressed.data());
   ASSERT_GT(compressed.size(), 17u);
   decompressor.FeedAndExtract(compressed_u8, 7, consumer);
   decompressor.FeedAndExtract(compressed_u8 + 7, 10, consumer);
@@ -140,6 +145,4 @@ TEST(GzipDecompressor, DISABLED_FileInFileOut) {
   EXPECT_TRUE(ReadFile(txt_file) == big_string);
 }
 
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util

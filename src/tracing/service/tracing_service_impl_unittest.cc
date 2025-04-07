@@ -510,7 +510,7 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerTimeOut) {
   EXPECT_THAT(consumer->ReadBuffers(), IsEmpty());
 }
 
-// Regression test for b/274931668. An unkonwn trigger should not cause a trace
+// Regression test for b/274931668. An unknown trigger should not cause a trace
 // that runs indefinitely.
 TEST_F(TracingServiceImplTest, FailOnUnknownTrigger) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
@@ -2182,9 +2182,9 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
       {16, 0, 16, 16, 0, 16},
       // Config is 0, use hint.
       {0, 4, 4, 0, 16, 16},
-      // Config takes precendence over hint.
+      // Config takes precedence over hint.
       {4, 8, 4, 16, 32, 16},
-      // Config takes precendence over hint, even if it's larger.
+      // Config takes precedence over hint, even if it's larger.
       {8, 4, 8, 32, 16, 32},
       // Config page size % 4 != 0, fallback to defaults.
       {3, 0, kDefaultShmPageSizeKb, 0, 0, kDefaultShmSizeKb},
@@ -2382,7 +2382,7 @@ TEST_F(TracingServiceImplTest, BatchFlushes) {
   // Reply only to flush 3. Do not reply to 1,2 and 4.
   producer->endpoint()->NotifyFlushComplete(third_flush_id);
 
-  // Even if the producer explicily replied only to flush ID == 3, all the
+  // Even if the producer explicitly replied only to flush ID == 3, all the
   // previous flushed < 3 should be implicitly acked.
   ASSERT_TRUE(flush_req_1.WaitForReply());
   ASSERT_TRUE(flush_req_2.WaitForReply());
@@ -2788,11 +2788,8 @@ TEST_F(TracingServiceImplTest, ResynchronizeTraceStreamUsingSyncMarker) {
     writer->NewTracePacket()->set_for_testing()->set_str(payload.c_str());
     if (i % (100 / kNumMarkers) == 0) {
       writer->Flush();
-      auto checkpoint_name =
-          "wait_snapshot_" + std::to_string(i / (100 / kNumMarkers));
-      auto timer_expired = task_runner.CreateCheckpoint(checkpoint_name);
-      task_runner.PostDelayedTask([timer_expired] { timer_expired(); }, 200);
-      task_runner.RunUntilCheckpoint(checkpoint_name);
+      // The snapshot will happen every 100ms
+      AdvanceTimeAndRunUntilIdle(100);
     }
   }
   writer->Flush();
@@ -5712,6 +5709,13 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
   EXPECT_EQ(trigger.producer_name(), kCloneTriggerProducerName);
   EXPECT_EQ(trigger.trusted_producer_uid(),
             static_cast<int32_t>(kCloneTriggerProducerUid));
+
+  // A second ReadBuffers() should not reemit the clone_snapshot_trigger.
+  cloned_packets = consumer2->ReadBuffers();
+  EXPECT_THAT(
+      cloned_packets,
+      Not(Contains(Property(
+          &protos::gen::TracePacket::has_clone_snapshot_trigger, Eq(true)))));
 }
 
 TEST_F(TracingServiceImplTest, InvalidBufferSizes) {

@@ -21,7 +21,7 @@ import {Engine} from '../../trace_processor/engine';
 export class WattsonProcessSelectionAggregator
   implements AreaSelectionAggregator
 {
-  readonly id = 'wattson_process_aggregation';
+  readonly id = 'wattson_plugin_process_aggregation';
 
   async createAggregateView(engine: Engine, area: AreaSelection) {
     await engine.query(`drop view if exists ${this.id};`);
@@ -45,29 +45,17 @@ export class WattsonProcessSelectionAggregator
 
       -- Only get idle attribution in user defined window and filter by selected
       -- CPUs and GROUP BY process
-      CREATE OR REPLACE PERFETTO TABLE _per_process_idle_attribution AS
-      WITH base AS (
+      CREATE OR REPLACE PERFETTO TABLE
+      wattson_plugin_per_process_idle_attribution AS
       SELECT
         SUM(idle_cost_mws) as idle_cost_mws,
         upid
       FROM _filter_idle_attribution(${area.start}, ${duration})
       WHERE cpu in ${cpusCsv}
-      GROUP BY upid
-      )
-      SELECT
-        idle_cost_mws,
-        upid
-      FROM base
-      -- Give the negative sum of idle costs to the swapper thread, which by
-      -- definition has a utid = 0 and by definition will not already be defined
-      UNION ALL
-      SELECT
-        (SELECT -1 * SUM(idle_cost_mws) FROM base) AS idle_cost_mws,
-        0 AS upid
-      ;
+      GROUP BY upid;
 
       -- Grouped by UPID and made CPU agnostic
-      CREATE VIEW ${this.id} AS
+      CREATE PERFETTO VIEW ${this.id} AS
       WITH base AS (
         SELECT
           ROUND(SUM(total_pws) / ${duration}, 3) as active_mw,
@@ -79,8 +67,8 @@ export class WattsonProcessSelectionAggregator
           ) as total_mws,
           pid,
           process_name
-        FROM _unioned_per_cpu_total
-        LEFT JOIN _per_process_idle_attribution USING (upid)
+        FROM wattson_plugin_unioned_per_cpu_total
+        LEFT JOIN wattson_plugin_per_process_idle_attribution USING (upid)
         GROUP BY upid
       ),
       secondary AS (

@@ -168,7 +168,7 @@ export class TrackView {
         stickyTop: attrs.stickyTop,
         pluginId: renderer?.desc.pluginId,
         lite: attrs.lite,
-        onToggleCollapsed: () => {
+        onCollapsedChanged: () => {
           node.hasChildren && node.toggleCollapsed();
         },
         onTrackContentMouseMove: (pos, bounds) => {

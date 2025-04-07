@@ -316,7 +316,7 @@ WinscopeProtoToArgsWithDefaults::ComputeTable(
   }
   std::string table_name = arguments[0].AsString();
 
-  const Table* static_table = engine_->GetTableOrNull(table_name);
+  const Table* static_table = engine_->GetTableOrNullSlow(table_name);
   if (!static_table) {
     return base::ErrStatus("Failed to find %s table.", table_name.c_str());
   }
