@@ -14,9 +14,15 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
 
 #include <benchmark/benchmark.h>
+#include <cstdint>
+#include <cstdlib>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -50,10 +56,9 @@ void RunQueryChecked(TraceProcessor* tp, const std::string& query) {
 
 static void BM_QueryResultSerializer_Mixed(benchmark::State& state) {
   auto tp = TraceProcessor::CreateInstance(Config());
-  RunQueryChecked(tp.get(), "create virtual table win using window;");
-  RunQueryChecked(tp.get(),
-                  "update win set window_start=0, window_dur=50000, quantum=1 "
-                  "where rowid = 0");
+  RunQueryChecked(
+      tp.get(),
+      "create virtual table win using __intrinsic_window(0, 50000, 1);");
   VectorType buf;
   for (auto _ : state) {
     auto iter = tp->ExecuteQuery(
@@ -72,10 +77,9 @@ static void BM_QueryResultSerializer_Mixed(benchmark::State& state) {
 
 static void BM_QueryResultSerializer_Strings(benchmark::State& state) {
   auto tp = TraceProcessor::CreateInstance(Config());
-  RunQueryChecked(tp.get(), "create virtual table win using window;");
-  RunQueryChecked(tp.get(),
-                  "update win set window_start=0, window_dur=100000, quantum=1 "
-                  "where rowid = 0");
+  RunQueryChecked(
+      tp.get(),
+      "create virtual table win using __intrinsic_window(0, 100000, 1);");
   VectorType buf;
   for (auto _ : state) {
     auto iter = tp->ExecuteQuery(

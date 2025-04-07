@@ -44,7 +44,7 @@
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/regex.h"
@@ -368,7 +368,7 @@ int DbSqliteModule::Create(sqlite3* db,
     return ret;
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnCreate(argv, std::move(state));
+  res->state = context->OnCreate(argc, argv, std::move(state));
   res->table_name = argv[2];
   *vtab = res.release();
   return SQLITE_OK;
@@ -397,7 +397,7 @@ int DbSqliteModule::Connect(sqlite3* db,
   auto* context = GetContext(ctx);
 
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnConnect(argv);
+  res->state = context->OnConnect(argc, argv);
   res->table_name = argv[2];
 
   auto* state =

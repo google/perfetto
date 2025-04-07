@@ -292,33 +292,41 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks)
     PERFETTO_FATAL("Failed to initialize perfetto_tables: %s", errmsg_raw);
   }
 
+  // Register callbacks for transaction management.
+  engine_->SetCommitCallback(
+      [](void* ctx) {
+        return static_cast<PerfettoSqlEngine*>(ctx)->OnCommit();
+      },
+      this);
+  engine_->SetRollbackCallback(
+      [](void* ctx) { static_cast<PerfettoSqlEngine*>(ctx)->OnRollback(); },
+      this);
+
   {
     auto ctx = std::make_unique<RuntimeTableFunctionModule::Context>();
     runtime_table_fn_context_ = ctx.get();
-    engine_->RegisterVirtualTableModule<RuntimeTableFunctionModule>(
+    RegisterVirtualTableModule<RuntimeTableFunctionModule>(
         "runtime_table_function", std::move(ctx));
   }
   {
     auto ctx = std::make_unique<DbSqliteModule::Context>();
     runtime_table_context_ = ctx.get();
-    engine_->RegisterVirtualTableModule<DbSqliteModule>("runtime_table",
-                                                        std::move(ctx));
+    RegisterVirtualTableModule<DbSqliteModule>("runtime_table", std::move(ctx));
   }
   {
     auto ctx = std::make_unique<DbSqliteModule::Context>();
     static_table_context_ = ctx.get();
-    engine_->RegisterVirtualTableModule<DbSqliteModule>("static_table",
-                                                        std::move(ctx));
+    RegisterVirtualTableModule<DbSqliteModule>("static_table", std::move(ctx));
   }
   {
     auto ctx = std::make_unique<DbSqliteModule::Context>();
     static_table_fn_context_ = ctx.get();
-    engine_->RegisterVirtualTableModule<DbSqliteModule>("static_table_function",
-                                                        std::move(ctx));
+    RegisterVirtualTableModule<DbSqliteModule>("static_table_function",
+                                               std::move(ctx));
   }
   {
-    engine_->RegisterVirtualTableModule<DataframeModule>(
-        "__intrinsic_dataframe", nullptr);
+    RegisterVirtualTableModule<DataframeModule>("__intrinsic_dataframe",
+                                                nullptr);
   }
 }
 
@@ -560,7 +568,7 @@ base::Status PerfettoSqlEngine::RegisterRuntimeFunction(
 }
 
 base::StatusOr<std::unique_ptr<RuntimeTable>>
-PerfettoSqlEngine::CreateTableImpl(
+PerfettoSqlEngine::CreateTableUsingRuntimeTableImpl(
     const char* tag,
     const std::string& name,
     SqliteEngine::PreparedStatement source,
@@ -615,45 +623,40 @@ PerfettoSqlEngine::CreateTableImpl(
   }
 
   ASSIGN_OR_RETURN(auto table, std::move(builder).Build(rows));
-
-  std::vector<std::string> errors;
-
-  // Validate the column types.
-  if (!schema.empty()) {
-    auto actual_schema = table->schema();
-    for (size_t i = 0; i < column_count; ++i) {
-      SqlValue::Type type = actual_schema.columns[i].type;
-      sql_argument::Type declared_type = schema[i].type();
-      SqlValue::Type effective_declared_type =
-          sql_argument::TypeToSqlValueType(declared_type);
-      if (type != SqlValue::kNull && type != effective_declared_type) {
-        errors.push_back(
-            base::StackString<1024>(
-                "column '%s' declared as %s (%s) in the "
-                "schema, but %s found",
-                column_names[i].c_str(),
-                sql_argument::TypeToHumanFriendlyString(declared_type),
-                sqlite::utils::SqlValueTypeToString(effective_declared_type),
-                sqlite::utils::SqlValueTypeToString(type))
-                .ToStdString());
-      }
-    }
+  if (schema.empty()) {
+    return std::move(table);
   }
 
+  // Validate the column types.
+  std::vector<std::string> errors;
+  const auto& actual_schema = table->schema();
+  for (size_t i = 0; i < column_count; ++i) {
+    SqlValue::Type type = actual_schema.columns[i].type;
+    sql_argument::Type declared_type = schema[i].type();
+    SqlValue::Type effective_declared_type =
+        sql_argument::TypeToSqlValueType(declared_type);
+    if (type == SqlValue::kNull || type == effective_declared_type) {
+      continue;
+    }
+    errors.push_back(
+        base::StackString<1024>(
+            " column '%s' declared as %s (%s) in the schema, but %s found",
+            column_names[i].c_str(),
+            sql_argument::TypeToHumanFriendlyString(declared_type),
+            sqlite::utils::SqlValueTypeToString(effective_declared_type),
+            sqlite::utils::SqlValueTypeToString(type))
+            .ToStdString());
+  }
   // It's really annoying to have errors one-by-one when multiple columns have
   // incorrect types, so we emit all errors together here.
   if (!errors.empty()) {
     if (errors.size() == 1) {
       return base::ErrStatus("%s(%s): %s", tag, name.c_str(),
-                             errors.front().c_str());
-    }
-    for (std::string& error : errors) {
-      error = "  " + error;
+                             base::TrimWhitespace(errors.front()).c_str());
     }
     return base::ErrStatus("%s(%s): %zu errors\n%s", tag, name.c_str(),
                            errors.size(), base::Join(errors, "\n").c_str());
   }
-
   return std::move(table);
 }
 
@@ -664,26 +667,28 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
                     [&create_table](metatrace::Record* record) {
                       record->AddArg("table_name", create_table.name);
                     });
-
   auto stmt_or = engine_->PrepareStatement(create_table.sql);
   RETURN_IF_ERROR(stmt_or.status());
   SqliteEngine::PreparedStatement stmt = std::move(stmt_or);
+  ASSIGN_OR_RETURN(auto column_names, GetColumnNamesFromSelectStatement(
+                                          stmt, "CREATE PERFETTO TABLE"));
+  ASSIGN_OR_RETURN(auto effective_schema, ValidateAndGetEffectiveSchema(
+                                              column_names, create_table.schema,
+                                              "CREATE PERFETTO TABLE"));
+  return ExecuteCreateTableUsingRuntimeTable(create_table, std::move(stmt),
+                                             column_names, effective_schema);
+}
 
-  base::StatusOr<std::vector<std::string>> maybe_column_names =
-      GetColumnNamesFromSelectStatement(stmt, "CREATE PERFETTO TABLE");
-  RETURN_IF_ERROR(maybe_column_names.status());
-  const std::vector<std::string>& column_names = *maybe_column_names;
-
-  base::StatusOr<std::vector<sql_argument::ArgumentDefinition>>
-      effective_schema = ValidateAndGetEffectiveSchema(
-          column_names, create_table.schema, "CREATE PERFETTO TABLE");
-  RETURN_IF_ERROR(effective_schema.status());
-
+base::Status PerfettoSqlEngine::ExecuteCreateTableUsingRuntimeTable(
+    const PerfettoSqlParser::CreateTable& create_table,
+    SqliteEngine::PreparedStatement stmt,
+    const std::vector<std::string>& column_names,
+    const std::vector<sql_argument::ArgumentDefinition>& effective_schema) {
   ASSIGN_OR_RETURN(
       auto table,
-      CreateTableImpl("CREATE PERFETTO TABLE", create_table.name,
-                      std::move(stmt), column_names, *effective_schema,
-                      CreateTableType::kCreateTable));
+      CreateTableUsingRuntimeTableImpl(
+          "CREATE PERFETTO TABLE", create_table.name, std::move(stmt),
+          column_names, effective_schema, CreateTableType::kCreateTable));
 
   // TODO(lalitm): unfortunately, in the (very unlikely) event that there is a
   // sqlite3_interrupt call between the DROP and CREATE, we can end up with the
@@ -700,9 +705,6 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
     RETURN_IF_ERROR(drop_res.status());
   }
 
-  base::StackString<1024> create("CREATE VIRTUAL TABLE %s USING runtime_table",
-                                 create_table.name.c_str());
-
   // Make sure we didn't accidentally leak a state from a previous function
   // creation.
   PERFETTO_CHECK(!runtime_table_context_->temporary_create_state);
@@ -711,19 +713,21 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
   // of RuntimeTableFunctionModule.
   runtime_table_context_->temporary_create_state =
       std::make_unique<DbSqliteModule::State>(std::move(table));
-  auto status =
-      Execute(SqlSource::FromTraceProcessorImplementation(create.ToStdString()))
-          .status();
+
+  base::StackString<1024> create("CREATE VIRTUAL TABLE %s USING runtime_table",
+                                 create_table.name.c_str());
+  auto res = Execute(
+      SqlSource::FromTraceProcessorImplementation(create.ToStdString()));
 
   // If an error happened, it's possible that the state was not picked up.
   // Therefore, always reset the state just in case. OTOH if the creation
   // succeeded, the state should always have been captured.
-  if (status.ok()) {
+  if (res.status().ok()) {
     PERFETTO_CHECK(!runtime_table_context_->temporary_create_state);
   } else {
     runtime_table_context_->temporary_create_state.reset();
   }
-  return status;
+  return res.status();
 }
 
 base::Status PerfettoSqlEngine::ExecuteCreateView(
@@ -756,18 +760,16 @@ base::Status PerfettoSqlEngine::ExecuteCreateView(
         effective_schema = ValidateAndGetEffectiveSchema(
             column_names, create_view.schema, "CREATE PERFETTO VIEW");
     RETURN_IF_ERROR(effective_schema.status());
-
     if (enable_extra_checks_) {
       // If extra checks are enabled, materialize the view to ensure that its
       // values are correct.
       base::StatusOr<std::unique_ptr<RuntimeTable>> materialized =
-          CreateTableImpl("CREATE PERFETTO VIEW", create_view.name,
-                          std::move(stmt), column_names, *effective_schema,
-                          CreateTableType::kValidateOnly);
+          CreateTableUsingRuntimeTableImpl(
+              "CREATE PERFETTO VIEW", create_view.name, std::move(stmt),
+              column_names, *effective_schema, CreateTableType::kValidateOnly);
       RETURN_IF_ERROR(materialized.status());
     }
   }
-
   RETURN_IF_ERROR(Execute(create_view.create_view_sql).status());
   return base::OkStatus();
 }
@@ -828,7 +830,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
                       record->AddArg("cols", base::Join(index.col_names, ", "));
                     });
 
-  Table* t = GetTableOrNull(index.table_name);
+  Table* t = GetTableOrNullSlow(index.table_name);
   if (!t) {
     return base::ErrStatus("CREATE PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
@@ -856,7 +858,7 @@ base::Status PerfettoSqlEngine::ExecuteDropIndex(
                       record->AddArg("table_name", index.table_name);
                     });
 
-  Table* t = GetTableOrNull(index.table_name);
+  Table* t = GetTableOrNullSlow(index.table_name);
   if (!t) {
     return base::ErrStatus("DROP PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
@@ -1093,25 +1095,39 @@ base::Status PerfettoSqlEngine::ExecuteCreateMacro(
   return base::OkStatus();
 }
 
-const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(
+int PerfettoSqlEngine::OnCommit() {
+  for (auto* ctx : virtual_module_state_managers_) {
+    ctx->OnCommit();
+  }
+  return 0;
+}
+
+void PerfettoSqlEngine::OnRollback() {
+  for (auto* ctx : virtual_module_state_managers_) {
+    ctx->OnRollback();
+  }
+}
+
+const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNullSlow(
     std::string_view name) const {
-  auto* state = runtime_table_context_->manager.FindStateByName(name);
+  auto* state = runtime_table_context_->FindStateByNameSlow(name);
   return state ? state->runtime_table.get() : nullptr;
 }
 
-RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(std::string_view name) {
-  auto* state = runtime_table_context_->manager.FindStateByName(name);
+RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNullSlow(
+    std::string_view name) {
+  auto* state = runtime_table_context_->FindStateByNameSlow(name);
   return state ? state->runtime_table.get() : nullptr;
 }
 
-const Table* PerfettoSqlEngine::GetStaticTableOrNull(
+const Table* PerfettoSqlEngine::GetStaticTableOrNullSlow(
     std::string_view name) const {
-  auto* state = static_table_context_->manager.FindStateByName(name);
+  auto* state = static_table_context_->FindStateByNameSlow(name);
   return state ? state->static_table : nullptr;
 }
 
-Table* PerfettoSqlEngine::GetStaticTableOrNull(std::string_view name) {
-  auto* state = static_table_context_->manager.FindStateByName(name);
+Table* PerfettoSqlEngine::GetStaticTableOrNullSlow(std::string_view name) {
+  auto* state = static_table_context_->FindStateByNameSlow(name);
   return state ? state->static_table : nullptr;
 }
 

@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -28,14 +29,14 @@
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
+#include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::dataframe {
-namespace {
 
-std::string TrimSpacePerLine(const std::string& s) {
+inline std::string TrimSpacePerLine(const std::string& s) {
   std::string result;
   result.reserve(s.size());
   bool at_line_start = true;
@@ -52,6 +53,14 @@ std::string TrimSpacePerLine(const std::string& s) {
     }
   }
   return result;
+}
+
+template <typename... Args>
+std::vector<impl::Column> MakeColumnVector(Args&&... args) {
+  std::vector<impl::Column> container;
+  container.reserve(sizeof...(Args));
+  ((container.emplace_back(std::forward<Args>(args))), ...);
+  return container;
 }
 
 // Custom matcher that compares strings ignoring all whitespace
@@ -82,15 +91,14 @@ class DataframeBytecodeTest : public ::testing::Test {
     return result;
   }
 
-  void RunBytecodeTest(const std::vector<ColumnSpec>& col_specs,
+  void RunBytecodeTest(std::vector<impl::Column>& cols,
                        std::vector<FilterSpec>& filters,
                        const std::string& expected_bytecode,
                        uint64_t cols_used = 0xFFFFFFFF) {
     // Sanitize cols_used to ensure it only references valid columns.
-    PERFETTO_CHECK(col_specs.size() < 64);
-    uint64_t sanitized_cols_used =
-        cols_used & ((1ull << col_specs.size()) - 1ull);
-    Dataframe df(col_specs, &string_pool_);
+    PERFETTO_CHECK(cols.size() < 64);
+    uint64_t sanitized_cols_used = cols_used & ((1ull << cols.size()) - 1ull);
+    Dataframe df(std::move(cols), 0, &string_pool_);
     ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
                          df.PlanQuery(filters, sanitized_cols_used));
     EXPECT_THAT(FormatBytecode(plan),
@@ -102,12 +110,13 @@ class DataframeBytecodeTest : public ::testing::Test {
 
 // Simple test case with no filters
 TEST_F(DataframeBytecodeTest, NoFilters) {
-  std::vector<ColumnSpec> col_specs = {
-      {"col1", Id{}, IdSorted{}, NonNull{}},
-      {"col2", Id{}, IdSorted{}, NonNull{}},
-  };
+  std::vector<impl::Column> cols =
+      MakeColumnVector(impl::Column{"col1", impl::Storage::Id{},
+                                    impl::Overlay::NoOverlay{}, IdSorted{}},
+                       impl::Column{"col2", impl::Storage::Id{},
+                                    impl::Overlay::NoOverlay{}, IdSorted{}});
   std::vector<FilterSpec> filters;
-  RunBytecodeTest(col_specs, filters, R"(
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -116,12 +125,13 @@ TEST_F(DataframeBytecodeTest, NoFilters) {
 
 // Test case with a single filter
 TEST_F(DataframeBytecodeTest, SingleFilter) {
-  std::vector<ColumnSpec> col_specs = {
-      {"col1", Id{}, IdSorted{}, NonNull{}},
-      {"col2", Id{}, IdSorted{}, NonNull{}},
-  };
+  std::vector<impl::Column> cols =
+      MakeColumnVector(impl::Column{"col1", impl::Storage::Id{},
+                                    impl::Overlay::NoOverlay{}, IdSorted{}},
+                       impl::Column{"col2", impl::Storage::Id{},
+                                    impl::Overlay::NoOverlay{}, IdSorted{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters, R"(
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
@@ -133,16 +143,20 @@ TEST_F(DataframeBytecodeTest, SingleFilter) {
 // Test case with multiple filters
 TEST_F(DataframeBytecodeTest, MultipleFilters) {
   // Direct initialization of column specs
-  std::vector<ColumnSpec> col_specs = {{"col1", Id{}, IdSorted{}, NonNull{}},
-                                       {"col2", Id{}, IdSorted{}, NonNull{}},
-                                       {"col3", Id{}, IdSorted{}, NonNull{}}};
+  std::vector<impl::Column> cols =
+      MakeColumnVector(impl::Column{"col1", impl::Storage::Id{},
+                                    impl::Overlay::NoOverlay{}, IdSorted{}},
+                       impl::Column{"col2", impl::Storage::Id{},
+                                    impl::Overlay::NoOverlay{}, IdSorted{}},
+                       impl::Column{"col3", impl::Storage::Id{},
+                                    impl::Overlay::NoOverlay{}, IdSorted{}});
 
   // Direct initialization of filter specs
   std::vector<FilterSpec> filters = {
       {0, 0, Eq{}, std::nullopt},  // Filter on column 0
       {1, 1, Eq{}, std::nullopt}   // Filter on column 1
   };
-  RunBytecodeTest(col_specs, filters, R"(
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
@@ -154,11 +168,10 @@ TEST_F(DataframeBytecodeTest, MultipleFilters) {
 }
 
 TEST_F(DataframeBytecodeTest, NumericSortedEq) {
-  std::vector<ColumnSpec> col_specs = {
-      {"col1", Uint32{}, Sorted{}, NonNull{}},
-  };
+  std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
+      "col1", impl::Storage::Uint32{}, impl::Overlay::NoOverlay{}, Sorted{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters, R"(
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     SortedFilter<Uint32, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
@@ -168,82 +181,110 @@ TEST_F(DataframeBytecodeTest, NumericSortedEq) {
 }
 
 TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
-  std::vector<ColumnSpec> col_specs = {
-      {"col1", Uint32{}, Sorted{}, NonNull{}},
-  };
-  std::vector<FilterSpec> filters;
-  filters = {{0, 0, Lt{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters, R"(
-    InitRange: [size=0, dest_register=Register(0)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(2)]
-    SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
-  )");
-  filters = {{0, 0, Le{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters, R"(
-    InitRange: [size=0, dest_register=Register(0)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(3)]
-    SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
-  )");
-  filters = {{0, 0, Gt{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters, R"(
-    InitRange: [size=0, dest_register=Register(0)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
-    SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
-  )");
-  filters = {{0, 0, Ge{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters, R"(
-    InitRange: [size=0, dest_register=Register(0)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(5)]
-    SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
-  )");
+  {
+    std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
+        "col1", impl::Storage::Uint32{}, impl::Overlay::NoOverlay{}, Sorted{}});
+    std::vector<FilterSpec> filters;
+    filters = {{0, 0, Lt{}, std::nullopt}};
+    RunBytecodeTest(cols, filters, R"(
+      InitRange: [size=0, dest_register=Register(0)]
+      CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(2)]
+      SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
+      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+      Iota: [source_register=Register(0), update_register=Register(3)]
+    )");
+  }
+  {
+    std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
+        "col1", impl::Storage::Uint32{}, impl::Overlay::NoOverlay{}, Sorted{}});
+    std::vector<FilterSpec> filters;
+    filters = {{0, 0, Le{}, std::nullopt}};
+    RunBytecodeTest(cols, filters, R"(
+      InitRange: [size=0, dest_register=Register(0)]
+      CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(3)]
+      SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
+      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+      Iota: [source_register=Register(0), update_register=Register(3)]
+    )");
+  }
+  {
+    std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
+        "col1", impl::Storage::Uint32{}, impl::Overlay::NoOverlay{}, Sorted{}});
+    std::vector<FilterSpec> filters;
+    filters = {{0, 0, Gt{}, std::nullopt}};
+    RunBytecodeTest(cols, filters, R"(
+      InitRange: [size=0, dest_register=Register(0)]
+      CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
+      SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+      Iota: [source_register=Register(0), update_register=Register(3)]
+    )");
+  }
+  {
+    std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
+        "col1", impl::Storage::Uint32{}, impl::Overlay::NoOverlay{}, Sorted{}});
+    std::vector<FilterSpec> filters;
+    filters = {{0, 0, Ge{}, std::nullopt}};
+    RunBytecodeTest(cols, filters, R"(
+      InitRange: [size=0, dest_register=Register(0)]
+      CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(5)]
+      SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+      Iota: [source_register=Register(0), update_register=Register(3)]
+    )");
+  }
 }
 
 TEST_F(DataframeBytecodeTest, Numeric) {
-  std::vector<ColumnSpec> col_specs = {
-      {"col1", Uint32{}, Unsorted{}, NonNull{}},
-  };
-  std::vector<FilterSpec> filters;
-  filters = {{0, 0, Eq{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters, R"(
-    InitRange: [size=0, dest_register=Register(0)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
-    NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+  {
+    std::vector<impl::Column> cols =
+        MakeColumnVector(impl::Column{"col1", impl::Storage::Uint32{},
+                                      impl::Overlay::NoOverlay{}, Unsorted{}});
+    std::vector<FilterSpec> filters;
+    filters = {{0, 0, Eq{}, std::nullopt}};
+    RunBytecodeTest(cols, filters, R"(
+      InitRange: [size=0, dest_register=Register(0)]
+      CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
+      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+      Iota: [source_register=Register(0), update_register=Register(3)]
+      NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    )");
+  }
+  {
+    std::vector<impl::Column> cols =
+        MakeColumnVector(impl::Column{"col1", impl::Storage::Uint32{},
+                                      impl::Overlay::NoOverlay{}, Unsorted{}});
+    std::vector<FilterSpec> filters;
+    filters = {{0, 0, Ge{}, std::nullopt}};
+    RunBytecodeTest(cols, filters, R"(
+      InitRange: [size=0, dest_register=Register(0)]
+      CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(5)]
+      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+      Iota: [source_register=Register(0), update_register=Register(3)]
+      NonStringFilter<Uint32, Ge>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )");
-  filters = {{0, 0, Ge{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters, R"(
-    InitRange: [size=0, dest_register=Register(0)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(5)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
-    NonStringFilter<Uint32, Ge>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
-  )");
+  }
 }
 
 TEST_F(DataframeBytecodeTest, SortingOfFilters) {
-  std::vector<ColumnSpec> col_specs = {
-      {"id", Id{}, IdSorted{}, NonNull{}},
-      {"col1", Uint32{}, Sorted{}, NonNull{}},
-      {"col2", Uint32{}, Unsorted{}, NonNull{}},
-      {"col3", String{}, Sorted{}, NonNull{}},
-      {"col4", String{}, Unsorted{}, NonNull{}},
-  };
+  std::vector<impl::Column> cols =
+      MakeColumnVector(impl::Column{"id", impl::Storage::Id{},
+                                    impl::Overlay::NoOverlay{}, IdSorted{}},
+                       impl::Column{"col1", impl::Storage::Uint32{},
+                                    impl::Overlay::NoOverlay{}, Sorted{}},
+                       impl::Column{"col2", impl::Storage::Uint32{},
+                                    impl::Overlay::NoOverlay{}, Unsorted{}},
+                       impl::Column{"col3", impl::Storage::String{},
+                                    impl::Overlay::NoOverlay{}, Sorted{}},
+                       impl::Column{"col4", impl::Storage::String{},
+                                    impl::Overlay::NoOverlay{}, Unsorted{}});
   std::vector<FilterSpec> filters = {
       {0, 0, Le{}, std::nullopt}, {1, 0, Eq{}, std::nullopt},
       {0, 0, Eq{}, std::nullopt}, {4, 0, Le{}, std::nullopt},
       {2, 0, Eq{}, std::nullopt}, {3, 0, Le{}, std::nullopt},
       {3, 0, Eq{}, std::nullopt}, {1, 0, Le{}, std::nullopt},
   };
-  RunBytecodeTest(col_specs, filters, R"(
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
@@ -266,17 +307,16 @@ TEST_F(DataframeBytecodeTest, SortingOfFilters) {
   )");
 }
 
-TEST_F(DataframeBytecodeTest, StringFilterRegex) {
+TEST_F(DataframeBytecodeTest, StringFilter) {
   if constexpr (!regex::IsRegexSupported()) {
     GTEST_SKIP() << "Regex is not supported";
   }
-  std::vector<ColumnSpec> col_specs = {
-      {"col1", String{}, Unsorted{}, NonNull{}},
-  };
+  std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
+      "col1", impl::Storage::String{}, impl::Overlay::NoOverlay{}, Unsorted{}});
   std::vector<FilterSpec> filters = {
       {0, 0, Regex{}, std::nullopt},
   };
-  RunBytecodeTest(col_specs, filters, R"(
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(7)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
@@ -286,13 +326,12 @@ TEST_F(DataframeBytecodeTest, StringFilterRegex) {
 }
 
 TEST_F(DataframeBytecodeTest, StringFilterGlob) {
-  std::vector<ColumnSpec> col_specs = {
-      {"col1", String{}, Unsorted{}, NonNull{}},
-  };
+  std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
+      "col1", impl::Storage::String{}, impl::Overlay::NoOverlay{}, Unsorted{}});
   std::vector<FilterSpec> filters = {
       {0, 0, Glob{}, std::nullopt},
   };
-  RunBytecodeTest(col_specs, filters, R"(
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(6)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
@@ -302,91 +341,111 @@ TEST_F(DataframeBytecodeTest, StringFilterGlob) {
 }
 
 TEST_F(DataframeBytecodeTest, SparseNullFilters) {
-  std::vector<ColumnSpec> col_specs = {
-      {"col_sparse", Uint32{}, Unsorted{}, SparseNull{}},
-  };
-
-  std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters_isnull, R"(
+  {
+    std::vector<impl::Column> cols =
+        MakeColumnVector(impl::Column{"col_sparse", impl::Storage::Uint32{},
+                                      impl::Overlay::SparseNull{}, Unsorted{}});
+    std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
+    RunBytecodeTest(cols, filters_isnull, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     NullFilter<IsNull>: [col=0, update_register=Register(2)]
   )",
-                  /*cols_used=*/0);
+                    /*cols_used=*/0);
+  }
 
-  std::vector<FilterSpec> filters_isnotnull = {
-      {0, 0, IsNotNull{}, std::nullopt},
-  };
-  RunBytecodeTest(col_specs, filters_isnotnull, R"(
+  {
+    std::vector<impl::Column> cols =
+        MakeColumnVector(impl::Column{"col_sparse", impl::Storage::Uint32{},
+                                      impl::Overlay::SparseNull{}, Unsorted{}});
+    std::vector<FilterSpec> filters_isnotnull = {
+        {0, 0, IsNotNull{}, std::nullopt},
+    };
+    RunBytecodeTest(cols, filters_isnotnull, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     NullFilter<IsNotNull>: [col=0, update_register=Register(2)]
   )",
-                  /*cols_used=*/0);
+                    /*cols_used=*/0);
+  }
 }
 
 TEST_F(DataframeBytecodeTest, DenseNullFilters) {
-  // Test IsNull and IsNotNull filters on a DenseNull column
-  std::vector<ColumnSpec> col_specs = {
-      {"col_dense", Uint32{}, Unsorted{}, DenseNull{}},
-  };
+  {
+    std::vector<impl::Column> cols =
+        MakeColumnVector(impl::Column{"col_dense", impl::Storage::Uint32{},
+                                      impl::Overlay::DenseNull{}, Unsorted{}});
 
-  // Test IsNull
-  std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters_isnull, R"(
+    // Test IsNull
+    std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
+    RunBytecodeTest(cols, filters_isnull, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     NullFilter<IsNull>: [col=0, update_register=Register(2)]
   )",
-                  /*cols_used=*/0);
+                    /*cols_used=*/0);
+  }
+  {
+    std::vector<impl::Column> cols =
+        MakeColumnVector(impl::Column{"col_dense", impl::Storage::Uint32{},
+                                      impl::Overlay::DenseNull{}, Unsorted{}});
 
-  // Test IsNotNull
-  std::vector<FilterSpec> filters_isnotnull = {
-      {0, 0, IsNotNull{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters_isnotnull, R"(
+    // Test IsNotNull
+    std::vector<FilterSpec> filters_isnotnull = {
+        {0, 0, IsNotNull{}, std::nullopt}};
+    RunBytecodeTest(cols, filters_isnotnull, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     NullFilter<IsNotNull>: [col=0, update_register=Register(2)]
   )",
-                  /*cols_used=*/0);
+                    /*cols_used=*/0);
+  }
 }
 
 TEST_F(DataframeBytecodeTest, NonNullFilters) {
-  // Test IsNull and IsNotNull filters on a NonNull column
-  std::vector<ColumnSpec> col_specs = {
-      {"col_nonnull", Uint32{}, Unsorted{}, NonNull{}},
-  };
+  {
+    std::vector<impl::Column> cols =
+        MakeColumnVector(impl::Column{"col_nonnull", impl::Storage::Uint32{},
+                                      impl::Overlay::NoOverlay{}, Unsorted{}});
 
-  // Test IsNull: Should result in an empty result set as the column is NonNull
-  std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters_isnull, R"(
-    InitRange: [size=0, dest_register=Register(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
-  )");
+    // Test IsNull: Should result in an empty result set as the column is
+    // NonNull
+    std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
+    RunBytecodeTest(cols, filters_isnull, R"(
+      InitRange: [size=0, dest_register=Register(0)]
+      AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    )");
+  }
 
-  // Test IsNotNull: Should have no effect as the column is already NonNull
-  std::vector<FilterSpec> filters_isnotnull = {
-      {0, 0, IsNotNull{}, std::nullopt}};
-  RunBytecodeTest(col_specs, filters_isnotnull, R"(
-    InitRange: [size=0, dest_register=Register(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
-    Iota: [source_register=Register(0), update_register=Register(2)]
-  )");
+  {
+    std::vector<impl::Column> cols =
+        MakeColumnVector(impl::Column{"col_nonnull", impl::Storage::Uint32{},
+                                      impl::Overlay::NoOverlay{}, Unsorted{}});
+
+    // Test IsNotNull: Should have no effect as the column is already NonNull
+    std::vector<FilterSpec> filters_isnotnull = {
+        {0, 0, IsNotNull{}, std::nullopt}};
+    RunBytecodeTest(cols, filters_isnotnull, R"(
+      InitRange: [size=0, dest_register=Register(0)]
+      AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+      Iota: [source_register=Register(0), update_register=Register(2)]
+    )");
+  }
 }
 
 TEST_F(DataframeBytecodeTest, StandardFilterOnSparseNull) {
   // Test a standard filter (Eq) on a SparseNull column.
   // Expect bytecode to handle nulls first, then apply the filter.
-  std::vector<ColumnSpec> col_specs = {
-      {"col_sparse", Uint32{}, Unsorted{}, SparseNull{}},
-  };
+  std::vector<impl::Column> cols =
+      MakeColumnVector(impl::Column{"col_sparse", impl::Storage::Uint32{},
+                                    impl::Overlay::SparseNull{}, Unsorted{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
 
-  RunBytecodeTest(col_specs, filters, R"(
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
@@ -403,12 +462,13 @@ TEST_F(DataframeBytecodeTest, StandardFilterOnSparseNull) {
 TEST_F(DataframeBytecodeTest, StandardFilterOnDenseNull) {
   // Test a standard filter (Eq) on a DenseNull column.
   // Expect bytecode to handle nulls first, then apply the filter directly.
-  std::vector<ColumnSpec> col_specs = {
-      {"col_dense", Uint32{}, Unsorted{}, DenseNull{}},
-  };
+  std::vector<impl::Column> cols =
+      MakeColumnVector(impl::Column{"col_dense", impl::Storage::Uint32{},
+                                    impl::Overlay::DenseNull{}, Unsorted{}});
+
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
 
-  RunBytecodeTest(col_specs, filters, R"(
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
@@ -421,10 +481,12 @@ TEST_F(DataframeBytecodeTest, StandardFilterOnDenseNull) {
 
 TEST_F(DataframeBytecodeTest, OutputSparseNullColumn) {
   // Test requesting a SparseNull column in the output
-  std::vector<ColumnSpec> col_specs = {
-      {"col_nonnull", Uint32{}, Unsorted{}, NonNull{}},
-      {"col_sparse", Int64{}, Unsorted{}, SparseNull{}},
-  };
+  std::vector<impl::Column> cols =
+      MakeColumnVector(impl::Column{"col_nonnull", impl::Storage::Uint32{},
+                                    impl::Overlay::NoOverlay{}, Unsorted{}},
+                       impl::Column{"col_sparse", impl::Storage::Int64{},
+                                    impl::Overlay::SparseNull{}, Unsorted{}});
+
   std::vector<FilterSpec> filters;  // No filters
 
   // cols_used_bitmap: 0b10 means use column at index 1 (col_sparse)
@@ -436,7 +498,7 @@ TEST_F(DataframeBytecodeTest, OutputSparseNullColumn) {
   // Slot 1: Translated index for col_sparse (or UINT32_MAX for null)
   // Therefore, stride = 2.
   // col_sparse (index 1) maps to offset 1 in the output row.
-  RunBytecodeTest(col_specs, filters, R"(
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -450,10 +512,12 @@ TEST_F(DataframeBytecodeTest, OutputSparseNullColumn) {
 
 TEST_F(DataframeBytecodeTest, OutputDenseNullColumn) {
   // Test requesting a DenseNull column in the output
-  std::vector<ColumnSpec> col_specs = {
-      {"col_nonnull", Uint32{}, Unsorted{}, NonNull{}},
-      {"col_dense", Int64{}, Unsorted{}, DenseNull{}},  // The column we request
-  };
+  std::vector<impl::Column> cols =
+      MakeColumnVector(impl::Column{"col_nonnull", impl::Storage::Uint32{},
+                                    impl::Overlay::NoOverlay{}, Unsorted{}},
+                       impl::Column{"col_dense", impl::Storage::Int64{},
+                                    impl::Overlay::DenseNull{}, Unsorted{}});
+
   std::vector<FilterSpec> filters;  // No filters
 
   // cols_used_bitmap: 0b10 means use column at index 1 (col_dense)
@@ -463,9 +527,9 @@ TEST_F(DataframeBytecodeTest, OutputDenseNullColumn) {
   // needs two slots per row:
   // Slot 0: Original index (copied by StrideCopy)
   // Slot 1: Original index if non-null, else UINT32_MAX (copied by
-  // StrideCopyDenseNullIndices) Therefore, stride = 2. col_dense (index 1) maps
-  // to offset 1 in the output row.
-  RunBytecodeTest(col_specs, filters, R"(
+  // StrideCopyDenseNullIndices) Therefore, stride = 2. col_dense (index 1)
+  // maps to offset 1 in the output row.
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -478,14 +542,17 @@ TEST_F(DataframeBytecodeTest, OutputDenseNullColumn) {
 
 TEST_F(DataframeBytecodeTest, OutputMultipleNullableColumns) {
   // Test requesting both a SparseNull and a DenseNull column
-  std::vector<ColumnSpec> col_specs = {
-      {"col_nonnull", Uint32{}, Unsorted{}, NonNull{}},
-      {"col_sparse", Int64{}, Unsorted{}, SparseNull{}},  // Requested (index 1)
-      {"col_dense", Double{}, Unsorted{}, DenseNull{}},   // Requested (index 2)
-  };
+  std::vector<impl::Column> cols =
+      MakeColumnVector(impl::Column{"col_nonnull", impl::Storage::Uint32{},
+                                    impl::Overlay::NoOverlay{}, Unsorted{}},
+                       impl::Column{"col_sparse", impl::Storage::Int64{},
+                                    impl::Overlay::SparseNull{}, Unsorted{}},
+                       impl::Column{"col_dense", impl::Storage::Double{},
+                                    impl::Overlay::DenseNull{}, Unsorted{}});
   std::vector<FilterSpec> filters;  // No filters
 
-  // cols_used_bitmap: 0b110 means use columns at index 1 (sparse) and 2 (dense)
+  // cols_used_bitmap: 0b110 means use columns at index 1 (sparse) and 2
+  // (dense)
   uint64_t cols_used = 0b110;
 
   // Output needs 3 slots per row:
@@ -495,7 +562,7 @@ TEST_F(DataframeBytecodeTest, OutputMultipleNullableColumns) {
   // Stride = 3.
   // col_sparse (index 1) maps to offset 1.
   // col_dense (index 2) maps to offset 2.
-  RunBytecodeTest(col_specs, filters, R"(
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -509,13 +576,13 @@ TEST_F(DataframeBytecodeTest, OutputMultipleNullableColumns) {
 }
 
 TEST_F(DataframeBytecodeTest, Uint32SetIdSortedEqGeneration) {
-  std::vector<ColumnSpec> col_specs = {
-      {"col", Uint32(), SetIdSorted(), NonNull{}},
-  };
+  std::vector<impl::Column> cols =
+      MakeColumnVector(impl::Column{"col", impl::Storage::Uint32{},
+                                    impl::Overlay::NoOverlay{}, SetIdSorted{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
 
   // Expect the specialized Uint32SetIdSortedEq bytecode for this combination
-  RunBytecodeTest(col_specs, filters, R"(
+  RunBytecodeTest(cols, filters, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     Uint32SetIdSortedEq: [col=0, val_register=Register(1), update_register=Register(0)]
@@ -524,5 +591,4 @@ TEST_F(DataframeBytecodeTest, Uint32SetIdSortedEqGeneration) {
   )");
 }
 
-}  // namespace
 }  // namespace perfetto::trace_processor::dataframe

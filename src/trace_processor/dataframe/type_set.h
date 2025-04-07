@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <variant>
@@ -130,6 +131,18 @@ class TypeSet {
     uint32_t idx = GetTypeIndexUnchecked<T>();
     PERFETTO_CHECK(idx != static_cast<uint32_t>(-1));
     return idx;
+  }
+
+  // Equality operator for TypeSet.
+  constexpr bool operator==(const TypeSet<Ts...>& other) const {
+    return type_idx_ == other.type_idx_;
+  }
+
+  // Returns a string representation of the TypeSet.
+  std::string ToString() const {
+    std::string result = "TypeSet";
+    result += "[" + std::to_string(type_idx_) + "]";
+    return result;
   }
 
   // Gets the type at the same index in a variant as T is in this TypeSet.

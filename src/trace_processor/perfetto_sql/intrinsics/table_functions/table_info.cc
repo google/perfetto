@@ -105,7 +105,7 @@ base::StatusOr<std::unique_ptr<Table>> TableInfo::ComputeTable(
   auto table_name_id = string_pool_->InternString(table_name.c_str());
 
   // Find table
-  const Table* t = engine_->GetTableOrNull(table_name);
+  const Table* t = engine_->GetTableOrNullSlow(table_name);
   if (t) {
     for (auto& row : GetColInfoRows(t->columns(), string_pool_)) {
       row.table_name = table_name_id;

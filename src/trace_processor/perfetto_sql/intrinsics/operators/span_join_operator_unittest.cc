@@ -35,10 +35,10 @@ namespace {
 class SpanJoinOperatorTableTest : public ::testing::Test {
  public:
   SpanJoinOperatorTableTest() {
-    engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+    engine_.RegisterVirtualTableModule<SpanJoinOperatorModule>(
         "span_join",
         std::make_unique<SpanJoinOperatorModule::Context>(&engine_));
-    engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+    engine_.RegisterVirtualTableModule<SpanJoinOperatorModule>(
         "span_left_join",
         std::make_unique<SpanJoinOperatorModule::Context>(&engine_));
   }

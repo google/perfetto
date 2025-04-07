@@ -13,10 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-CREATE VIRTUAL TABLE window_8 USING window;
+CREATE VIRTUAL TABLE window_8 USING __intrinsic_window(81473010031230, 19684693341, 10000000);
 
 CREATE VIRTUAL TABLE span_8 USING span_join(sched PARTITIONED cpu, window_8);
-
-UPDATE window_8 SET window_start = 81473010031230, window_dur = 19684693341, quantum = 10000000 WHERE rowid = 0;
 
 SELECT quantum_ts AS bucket, sum(dur) / cast_double!(10000000) AS utilization FROM span_8 WHERE cpu = 7 AND NOT utid IN (SELECT utid FROM thread WHERE is_idle) GROUP BY quantum_ts;

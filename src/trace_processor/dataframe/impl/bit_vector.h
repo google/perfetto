@@ -51,13 +51,26 @@ struct BitVector {
   // Default constructor creates an empty bit vector.
   BitVector() = default;
 
+  // Movable but not copyable.
+  BitVector(BitVector&&) = default;
+  BitVector& operator=(BitVector&&) = default;
+  BitVector(const BitVector&) = delete;
+  BitVector& operator=(const BitVector&) = delete;
+
   // Allocates a new BitVector with `size` unset bits.
   //
   // size: Size for how many bits to add to the BitVector.
-  // Returns a BitVector with the given size and with all bits set to false.
-  static BitVector CreateWithSize(uint64_t size) {
+  // Returns a BitVector with the given size and with all bits set to `value`.
+  static BitVector CreateWithSize(uint64_t size, bool value = false) {
+    if (size == 0) {
+      return {};
+    }
     auto words = FlexVector<uint64_t>::CreateWithSize((size + 63u) / 64u);
-    memset(words.data(), 0, words.size() * sizeof(uint64_t));
+    memset(words.data(), value ? 0xFF : 0, words.size() * sizeof(uint64_t));
+    // Clear any bits past `size`.
+    if (size % 64u != 0u) {
+      words.back() &= (1ull << (size % 64u)) - 1ull;
+    }
     PERFETTO_DCHECK(size <= words.size() * 64u);
     return BitVector(std::move(words), size);
   }
