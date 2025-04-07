@@ -390,6 +390,8 @@ def CheckIncludePaths(changed_files: List[str]) -> List[str]:
       match = pattern.search(line)
       if not match:
         continue
+      if '// no-include-violation-check' in line:
+        continue
       inc_hdr = match.group(1)
       # Normalize path separators for comparison
       norm_inc_hdr = os.path.normpath(inc_hdr)
