@@ -673,7 +673,14 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
       m('h1', 'Widgets'),
       m(WidgetShowcase, {
         label: 'Button',
-        renderWidget: ({label, icon, rightIcon, showAsGrid, ...rest}) =>
+        renderWidget: ({
+          label,
+          icon,
+          rightIcon,
+          showAsGrid,
+          showInlineWithText,
+          ...rest
+        }) =>
           Boolean(showAsGrid)
             ? m(
                 '',
@@ -698,13 +705,17 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
                   });
                 }),
               )
-            : m(Button, {
-                icon: arg(icon, 'send'),
-                rightIcon: arg(rightIcon, 'arrow_forward'),
-                label: arg(label, 'Button', ''),
-                onclick: () => alert('button pressed'),
-                ...rest,
-              }),
+            : m('', [
+                Boolean(showInlineWithText) && 'Inline',
+                m(Button, {
+                  icon: arg(icon, 'send'),
+                  rightIcon: arg(rightIcon, 'arrow_forward'),
+                  label: arg(label, 'Button', ''),
+                  onclick: () => alert('button pressed'),
+                  ...rest,
+                }),
+                Boolean(showInlineWithText) && 'text',
+              ]),
         initialOpts: {
           label: true,
           icon: true,
@@ -719,6 +730,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
             Object.values(ButtonVariant),
           ),
           showAsGrid: false,
+          showInlineWithText: false,
         },
       }),
       m(WidgetShowcase, {
