@@ -762,6 +762,31 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         },
       }),
       m(WidgetShowcase, {
+        label: 'Anchor',
+        renderWidget: ({icon, showInlineWithText, long}) =>
+          m('', [
+            Boolean(showInlineWithText) && 'Inline',
+            m(
+              Anchor,
+              {
+                icon: arg(icon, 'open_in_new'),
+                href: 'https://perfetto.dev/docs/',
+                target: '_blank',
+              },
+              Boolean(long)
+                ? 'This is some really long text and it will probably overflow the container'
+                : 'Link',
+            ),
+            Boolean(showInlineWithText) && 'text',
+          ]),
+
+        initialOpts: {
+          icon: true,
+          showInlineWithText: false,
+          long: false,
+        },
+      }),
+      m(WidgetShowcase, {
         label: 'Text Input',
         renderWidget: ({placeholder, ...rest}) =>
           m(TextInput, {
@@ -798,22 +823,6 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         initialOpts: {
           header: true,
           content: true,
-        },
-      }),
-      m(WidgetShowcase, {
-        label: 'Anchor',
-        renderWidget: ({icon}) =>
-          m(
-            Anchor,
-            {
-              icon: arg(icon, 'open_in_new'),
-              href: 'https://perfetto.dev/docs/',
-              target: '_blank',
-            },
-            'This is some really long text and it will probably overflow the container',
-          ),
-        initialOpts: {
-          icon: true,
         },
       }),
       m(WidgetShowcase, {

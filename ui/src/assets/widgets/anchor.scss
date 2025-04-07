@@ -21,10 +21,7 @@
   text-decoration: underline;
   text-decoration-color: rgba($pf-primary-background, 0.5);
 
-  & > .material-icons {
-    margin: 0 0 0 0px;
-    font-size: inherit;
-    color: inherit;
+  & > .pf-icon {
     margin-left: 1px;
   }
 
