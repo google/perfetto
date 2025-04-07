@@ -25,8 +25,8 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
-#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "src/base/test/tmp_dir_tree.h"
+#include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
@@ -35,6 +35,7 @@
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/descriptor.gen.h"
 #include "protos/perfetto/trace/ftrace/dpu.gen.h"
 #include "protos/perfetto/trace/ftrace/f2fs.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace.gen.h"
@@ -45,6 +46,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_stats.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 #include "protos/perfetto/trace/ftrace/generic.gen.h"
+#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.gen.h"
 #include "protos/perfetto/trace/ftrace/raw_syscalls.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
@@ -70,24 +72,29 @@ using testing::Property;
 using testing::Return;
 using testing::SizeIs;
 using testing::StartsWith;
+using testing::StrEq;
 
 namespace perfetto {
 namespace {
 
 using FtraceParseStatus = protos::pbzero::FtraceParseStatus;
 
-FtraceDataSourceConfig ConfigForTesting(CompactSchedConfig compact_cfg) {
-  return FtraceDataSourceConfig{/*event_filter=*/EventFilter{},
-                                /*syscall_filter=*/EventFilter{},
-                                compact_cfg,
-                                /*print_filter=*/std::nullopt,
-                                /*atrace_apps=*/{},
-                                /*atrace_categories=*/{},
-                                /*atrace_categories_sdk_optout=*/{},
-                                /*symbolize_ksyms=*/false,
-                                /*buffer_percent=*/50u,
-                                /*syscalls_returning_fd=*/{},
-                                /*debug_ftrace_abi=*/false};
+FtraceDataSourceConfig ConfigForTesting(
+    CompactSchedConfig compact_cfg,
+    bool write_generic_evt_descriptors = false) {
+  return FtraceDataSourceConfig{
+      /*event_filter=*/EventFilter{},
+      /*syscall_filter=*/EventFilter{}, compact_cfg,
+      /*print_filter=*/std::nullopt,
+      /*atrace_apps=*/{},
+      /*atrace_categories=*/{},
+      /*atrace_categories_sdk_optout=*/{},
+      /*symbolize_ksyms=*/false,
+      /*buffer_percent=*/50u,
+      /*syscalls_returning_fd=*/{},
+      /*kprobes=*/
+      base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>{0},
+      /*debug_ftrace_abi=*/false, write_generic_evt_descriptors};
 }
 
 FtraceDataSourceConfig EmptyConfig() {
@@ -415,7 +422,7 @@ class CpuReaderParsePagePayloadTest : public testing::Test {
                      /*ftrace_clock_snapshot=*/nullptr,
                      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED,
                      compact_sched_buf_.get(), ds_config.compact_sched.enabled,
-                     /*last_read_event_ts=*/0);
+                     /*last_read_event_ts=*/0, &generic_pb_descriptors_);
     return &bundler_.value();
   }
 
@@ -442,6 +449,7 @@ class CpuReaderParsePagePayloadTest : public testing::Test {
   FtraceMetadata metadata_;
   std::optional<TraceWriterForTesting> writer_;
   std::unique_ptr<CompactSchedBuffer> compact_sched_buf_;
+  std::map<uint32_t, std::vector<uint8_t>> generic_pb_descriptors_;
   std::optional<CpuReader::Bundler> bundler_;
   uint64_t last_read_event_ts_ = 0;
 };
@@ -800,9 +808,8 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseThreePrint) {
 }
 
 TEST_F(CpuReaderParsePagePayloadTest, ParsePrintWithAndWithoutFilter) {
-  using FtraceEventBundle = protos::gen::FtraceEventBundle;
   using FtraceEvent = protos::gen::FtraceEvent;
-  using PrintFtraceEvent = protos::gen::PrintFtraceEvent;
+  using PFE = protos::gen::PrintFtraceEvent;
 
   const ExamplePage* test_case = &g_three_prints;
 
@@ -828,18 +835,15 @@ TEST_F(CpuReaderParsePagePayloadTest, ParsePrintWithAndWithoutFilter) {
     EXPECT_EQ(status, FtraceParseStatus::FTRACE_STATUS_OK);
 
     auto bundle = GetBundle();
+    const auto& events = bundle.event();
     EXPECT_THAT(
-        bundle,
-        Property(
-            &FtraceEventBundle::event,
-            ElementsAre(
-                Property(&FtraceEvent::print,
-                         Property(&PrintFtraceEvent::buf, "Hello, world!\n")),
-                Property(&FtraceEvent::print,
-                         Property(&PrintFtraceEvent::buf,
-                                  "Good afternoon, world!\n")),
-                Property(&FtraceEvent::print, Property(&PrintFtraceEvent::buf,
-                                                       "Goodbye, world!\n")))));
+        events,
+        ElementsAre(Property(&FtraceEvent::print,
+                             Property(&PFE::buf, "Hello, world!\n")),
+                    Property(&FtraceEvent::print,
+                             Property(&PFE::buf, "Good afternoon, world!\n")),
+                    Property(&FtraceEvent::print,
+                             Property(&PFE::buf, "Goodbye, world!\n"))));
   }
 
   {
@@ -861,15 +865,13 @@ TEST_F(CpuReaderParsePagePayloadTest, ParsePrintWithAndWithoutFilter) {
     EXPECT_EQ(status, FtraceParseStatus::FTRACE_STATUS_OK);
 
     auto bundle = GetBundle();
+    const auto& events = bundle.event();
     EXPECT_THAT(
-        bundle,
-        Property(
-            &FtraceEventBundle::event,
-            ElementsAre(
-                Property(&FtraceEvent::print,
-                         Property(&PrintFtraceEvent::buf, "Hello, world!\n")),
-                Property(&FtraceEvent::print, Property(&PrintFtraceEvent::buf,
-                                                       "Goodbye, world!\n")))));
+        events,
+        ElementsAre(Property(&FtraceEvent::print,
+                             Property(&PFE::buf, "Hello, world!\n")),
+                    Property(&FtraceEvent::print,
+                             Property(&PFE::buf, "Goodbye, world!\n"))));
   }
 }
 
@@ -1260,7 +1262,7 @@ print fmt: "(%lx)", REC->__probe_ip
   ASSERT_NE(ftrace_procfs.get(), nullptr);
   std::unique_ptr<ProtoTranslationTable> table = ProtoTranslationTable::Create(
       ftrace_procfs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
-  table->GetOrCreateKprobeEvent(
+  table->CreateKprobeEvent(
       GroupAndName("perfetto_kprobes", "fuse_file_write_iter"));
 
   auto ftrace_evt_id = static_cast<uint32_t>(table->EventToFtraceId(
@@ -1478,10 +1480,11 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
   auto input = writer.GetCopy();
   auto length = writer.written();
   FtraceMetadata metadata{};
+  base::FlatSet<uint32_t> generic_descriptors_to_write;
 
-  ASSERT_TRUE(CpuReader::ParseEvent(ftrace_event_id, input.get(),
-                                    input.get() + length, &table, &ds_config,
-                                    provider.writer(), &metadata));
+  ASSERT_TRUE(CpuReader::ParseEvent(
+      ftrace_event_id, input.get(), input.get() + length, &table, &ds_config,
+      provider.writer(), &metadata, &generic_descriptors_to_write));
 
   auto event = provider.ParseProto();
   ASSERT_TRUE(event);
@@ -1533,10 +1536,12 @@ TEST(CpuReaderTest, SysEnterEvent) {
 
   BundleProvider bundle_provider(base::GetSysPageSize());
   FtraceMetadata metadata{};
+  base::FlatSet<uint32_t> generic_descriptors_to_write;
 
-  ASSERT_TRUE(CpuReader::ParseEvent(
-      kSysEnterId, input.get(), input.get() + length, table, &ds_config,
-      bundle_provider.writer()->add_event(), &metadata));
+  ASSERT_TRUE(CpuReader::ParseEvent(kSysEnterId, input.get(),
+                                    input.get() + length, table, &ds_config,
+                                    bundle_provider.writer()->add_event(),
+                                    &metadata, &generic_descriptors_to_write));
 
   std::unique_ptr<protos::gen::FtraceEventBundle> a =
       bundle_provider.ParseProto();
@@ -1582,10 +1587,12 @@ TEST(CpuReaderTest, MAYBE_SysExitEvent) {
   auto length = writer.written();
   BundleProvider bundle_provider(base::GetSysPageSize());
   FtraceMetadata metadata{};
+  base::FlatSet<uint32_t> generic_descriptors_to_write;
 
-  ASSERT_TRUE(CpuReader::ParseEvent(
-      kSysExitId, input.get(), input.get() + length, table, &ds_config,
-      bundle_provider.writer()->add_event(), &metadata));
+  ASSERT_TRUE(CpuReader::ParseEvent(kSysExitId, input.get(),
+                                    input.get() + length, table, &ds_config,
+                                    bundle_provider.writer()->add_event(),
+                                    &metadata, &generic_descriptors_to_write));
 
   std::unique_ptr<protos::gen::FtraceEventBundle> a =
       bundle_provider.ParseProto();
@@ -1617,10 +1624,11 @@ TEST(CpuReaderTest, TaskRenameEvent) {
   auto input = writer.GetCopy();
   auto length = writer.written();
   FtraceMetadata metadata{};
+  base::FlatSet<uint32_t> generic_descriptors_to_write;
 
-  ASSERT_TRUE(CpuReader::ParseEvent(kTaskRenameId, input.get(),
-                                    input.get() + length, table, &ds_config,
-                                    bundle_provider.writer(), &metadata));
+  ASSERT_TRUE(CpuReader::ParseEvent(
+      kTaskRenameId, input.get(), input.get() + length, table, &ds_config,
+      bundle_provider.writer(), &metadata, &generic_descriptors_to_write));
   EXPECT_THAT(metadata.rename_pids, Contains(9999));
   EXPECT_THAT(metadata.pids, Contains(9999));
 }
@@ -1651,10 +1659,12 @@ TEST(CpuReaderTest, EventNonZeroTerminated) {
   auto input = writer.GetCopy();
   auto length = writer.written();
   FtraceMetadata metadata{};
+  base::FlatSet<uint32_t> generic_descriptors_to_write;
 
-  ASSERT_TRUE(CpuReader::ParseEvent(
-      kTaskRenameId, input.get(), input.get() + length, table, &ds_config,
-      bundle_provider.writer()->add_event(), &metadata));
+  ASSERT_TRUE(CpuReader::ParseEvent(kTaskRenameId, input.get(),
+                                    input.get() + length, table, &ds_config,
+                                    bundle_provider.writer()->add_event(),
+                                    &metadata, &generic_descriptors_to_write));
   std::unique_ptr<protos::gen::FtraceEventBundle> a =
       bundle_provider.ParseProto();
   ASSERT_NE(a, nullptr);
@@ -2063,154 +2073,6 @@ TEST(CpuReaderTest, TranslateBlockDeviceIDToUserspace) {
                 k64BitKernelBlockDeviceId),
             k64BitUserspaceBlockDeviceId);
 }
-
-// clang-format off
-// # tracer: nop
-// #
-// # entries-in-buffer/entries-written: 1041/238740   #P:8
-// #
-// #                              _-----=> irqs-off
-// #                             / _----=> need-resched
-// #                            | / _---=> hardirq/softirq
-// #                            || / _--=> preempt-depth
-// #                            ||| /     delay
-// #           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
-// #              | |       |   ||||       |         |
-//       android.bg-1668  [000] ...1 174991.234105: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//       android.bg-1668  [000] ...1 174991.234108: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68
-//       android.bg-1668  [000] ...1 174991.234118: ext4_da_write_begin: dev 259,32 ino 2883605 pos 20480 len 4096 flags 0
-//       android.bg-1668  [000] ...1 174991.234126: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
-//       android.bg-1668  [000] ...1 174991.234133: ext4_es_lookup_extent_enter: dev 259,32 ino 2883605 lblk 5
-//       android.bg-1668  [000] ...1 174991.234135: ext4_es_lookup_extent_exit: dev 259,32 ino 2883605 found 1 [5/4294967290) 576460752303423487 H0x10
-//       android.bg-1668  [000] ...2 174991.234140: ext4_da_reserve_space: dev 259,32 ino 2883605 mode 0100600 i_blocks 8 reserved_data_blocks 6 reserved_meta_blocks 0
-//       android.bg-1668  [000] ...1 174991.234142: ext4_es_insert_extent: dev 259,32 ino 2883605 es [5/1) mapped 576460752303423487 status D
-//       android.bg-1668  [000] ...1 174991.234153: ext4_da_write_end: dev 259,32 ino 2883605 pos 20480 len 4096 copied 4096
-//       android.bg-1668  [000] ...1 174991.234158: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//       android.bg-1668  [000] ...1 174991.234160: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68
-//       android.bg-1668  [000] ...1 174991.234170: ext4_da_write_begin: dev 259,32 ino 2883605 pos 24576 len 2968 flags 0
-//       android.bg-1668  [000] ...1 174991.234178: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
-//       android.bg-1668  [000] ...1 174991.234184: ext4_es_lookup_extent_enter: dev 259,32 ino 2883605 lblk 6
-//       android.bg-1668  [000] ...1 174991.234187: ext4_es_lookup_extent_exit: dev 259,32 ino 2883605 found 1 [6/4294967289) 576460752303423487 H0x10
-//       android.bg-1668  [000] ...2 174991.234191: ext4_da_reserve_space: dev 259,32 ino 2883605 mode 0100600 i_blocks 8 reserved_data_blocks 7 reserved_meta_blocks 0
-//       android.bg-1668  [000] ...1 174991.234193: ext4_es_insert_extent: dev 259,32 ino 2883605 es [6/1) mapped 576460752303423487 status D
-//       android.bg-1668  [000] ...1 174991.234203: ext4_da_write_end: dev 259,32 ino 2883605 pos 24576 len 2968 copied 2968
-//       android.bg-1668  [000] ...1 174991.234209: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//       android.bg-1668  [000] ...1 174991.234211: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68
-//       android.bg-1668  [000] ...1 174991.234262: ext4_sync_file_enter: dev 259,32 ino 2883605 parent 2883592 datasync 0
-//       android.bg-1668  [000] ...1 174991.234270: ext4_writepages: dev 259,32 ino 2883605 nr_to_write 9223372036854775807 pages_skipped 0 range_start 0 range_end 9223372036854775807 sync_mode 1 for_kupdate 0 range_cyclic 0 writeback_index 0
-//       android.bg-1668  [000] ...1 174991.234287: ext4_journal_start: dev 259,32 blocks, 10 rsv_blocks, 0 caller ext4_writepages+0x6a4/0x119c
-//       android.bg-1668  [000] ...1 174991.234294: ext4_da_write_pages: dev 259,32 ino 2883605 first_page 0 nr_to_write 9223372036854775807 sync_mode 1
-//       android.bg-1668  [000] ...1 174991.234319: ext4_da_write_pages_extent: dev 259,32 ino 2883605 lblk 0 len 7 flags 0x200
-//       android.bg-1668  [000] ...1 174991.234322: ext4_es_lookup_extent_enter: dev 259,32 ino 2883605 lblk 0
-//       android.bg-1668  [000] ...1 174991.234324: ext4_es_lookup_extent_exit: dev 259,32 ino 2883605 found 1 [0/7) 576460752303423487 D0x10
-//       android.bg-1668  [000] ...1 174991.234328: ext4_ext_map_blocks_enter: dev 259,32 ino 2883605 lblk 0 len 7 flags CREATE|DELALLOC|METADATA_NOFAIL
-//       android.bg-1668  [000] ...1 174991.234341: ext4_request_blocks: dev 259,32 ino 2883605 flags HINT_DATA|DELALLOC_RESV|USE_RESV len 7 lblk 0 goal 11567104 lleft 0 lright 0 pleft 0 pright 0
-//       android.bg-1668  [000] ...1 174991.234394: ext4_mballoc_prealloc: dev 259,32 inode 2883605 orig 353/0/7@0 result 65/25551/7@0
-//       android.bg-1668  [000] ...1 174991.234400: ext4_allocate_blocks: dev 259,32 ino 2883605 flags HINT_DATA|DELALLOC_RESV|USE_RESV len 7 block 2155471 lblk 0 goal 11567104 lleft 0 lright 0 pleft 0 pright 0
-//       android.bg-1668  [000] ...1 174991.234409: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller __ext4_ext_dirty+0x104/0x170
-//       android.bg-1668  [000] ...1 174991.234420: ext4_get_reserved_cluster_alloc: dev 259,32 ino 2883605 lblk 0 len 7
-//       android.bg-1668  [000] ...2 174991.234426: ext4_da_update_reserve_space: dev 259,32 ino 2883605 mode 0100600 i_blocks 8 used_blocks 7 reserved_data_blocks 7 reserved_meta_blocks 0 allocated_meta_blocks 0 quota_claim 1
-//       android.bg-1668  [000] ...1 174991.234434: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_mark_dquot_dirty+0x80/0xd4
-//       android.bg-1668  [000] ...1 174991.234441: ext4_es_lookup_extent_enter: dev 259,32 ino 3 lblk 1
-//       android.bg-1668  [000] ...1 174991.234445: ext4_es_lookup_extent_exit: dev 259,32 ino 3 found 1 [0/2) 9255 W0x10
-//       android.bg-1668  [000] ...1 174991.234456: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_mark_dquot_dirty+0x80/0xd4
-//       android.bg-1668  [000] ...1 174991.234460: ext4_es_lookup_extent_enter: dev 259,32 ino 4 lblk 1
-//       android.bg-1668  [000] ...1 174991.234463: ext4_es_lookup_extent_exit: dev 259,32 ino 4 found 1 [0/2) 9257 W0x10
-//       android.bg-1668  [000] ...1 174991.234471: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//       android.bg-1668  [000] ...1 174991.234474: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_dirty_inode+0x48/0x68
-//       android.bg-1668  [000] ...1 174991.234481: ext4_ext_map_blocks_exit: dev 259,32 ino 2883605 flags CREATE|DELALLOC|METADATA_NOFAIL lblk 0 pblk 2155471 len 7 mflags NM ret 7
-//       android.bg-1668  [000] ...1 174991.234484: ext4_es_insert_extent: dev 259,32 ino 2883605 es [0/7) mapped 2155471 status W
-//       android.bg-1668  [000] ...1 174991.234547: ext4_mark_inode_dirty: dev 259,32 ino 2883605 caller ext4_writepages+0xdc0/0x119c
-//       android.bg-1668  [000] ...1 174991.234604: ext4_journal_start: dev 259,32 blocks, 10 rsv_blocks, 0 caller ext4_writepages+0x6a4/0x119c
-//       android.bg-1668  [000] ...1 174991.234609: ext4_da_write_pages: dev 259,32 ino 2883605 first_page 7 nr_to_write 9223372036854775800 sync_mode 1
-//       android.bg-1668  [000] ...1 174991.234876: ext4_writepages_result: dev 259,32 ino 2883605 ret 0 pages_written 7 pages_skipped 0 sync_mode 1 writeback_index 7
-//    Profile Saver-5504  [000] ...1 175002.711928: ext4_discard_preallocations: dev 259,32 ino 1311176
-//    Profile Saver-5504  [000] ...1 175002.714165: ext4_begin_ordered_truncate: dev 259,32 ino 1311176 new_size 0
-//    Profile Saver-5504  [000] ...1 175002.714172: ext4_journal_start: dev 259,32 blocks, 3 rsv_blocks, 0 caller ext4_setattr+0x5b4/0x788
-//    Profile Saver-5504  [000] ...1 175002.714218: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_setattr+0x65c/0x788
-//    Profile Saver-5504  [000] ...1 175002.714277: ext4_invalidatepage: dev 259,32 ino 1311176 page_index 0 offset 0 length 4096
-//    Profile Saver-5504  [000] ...1 175002.714281: ext4_releasepage: dev 259,32 ino 1311176 page_index 0
-//    Profile Saver-5504  [000] ...1 175002.714295: ext4_invalidatepage: dev 259,32 ino 1311176 page_index 1 offset 0 length 4096
-//    Profile Saver-5504  [000] ...1 175002.714296: ext4_releasepage: dev 259,32 ino 1311176 page_index 1
-//    Profile Saver-5504  [000] ...1 175002.714315: ext4_truncate_enter: dev 259,32 ino 1311176 blocks 24
-//    Profile Saver-5504  [000] ...1 175002.714318: ext4_journal_start: dev 259,32 blocks, 10 rsv_blocks, 0 caller ext4_truncate+0x258/0x4b8
-//    Profile Saver-5504  [000] ...1 175002.714322: ext4_discard_preallocations: dev 259,32 ino 1311176
-//    Profile Saver-5504  [000] ...1 175002.714324: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_ext_truncate+0x24/0xc8
-//    Profile Saver-5504  [000] ...1 175002.714328: ext4_es_remove_extent: dev 259,32 ino 1311176 es [0/4294967295)
-//    Profile Saver-5504  [000] ...1 175002.714335: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_ext_remove_space+0x60/0x1180
-//    Profile Saver-5504  [000] ...1 175002.714338: ext4_ext_remove_space: dev 259,32 ino 1311176 since 0 end 4294967294 depth 0
-//    Profile Saver-5504  [000] ...1 175002.714347: ext4_ext_rm_leaf: dev 259,32 ino 1311176 start_lblk 0 last_extent [0(5276994), 2]partial_cluster 0
-//    Profile Saver-5504  [000] ...1 175002.714351: ext4_remove_blocks: dev 259,32 ino 1311176 extent [0(5276994), 2]from 0 to 1 partial_cluster 0
-//    Profile Saver-5504  [000] ...1 175002.714354: ext4_free_blocks: dev 259,32 ino 1311176 mode 0100600 block 5276994 count 2 flags 1ST_CLUSTER
-//    Profile Saver-5504  [000] ...1 175002.714365: ext4_mballoc_free: dev 259,32 inode 1311176 extent 161/1346/2
-//    Profile Saver-5504  [000] ...1 175002.714382: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_mark_dquot_dirty+0x80/0xd4
-//    Profile Saver-5504  [000] ...1 175002.714391: ext4_es_lookup_extent_enter: dev 259,32 ino 3 lblk 4
-//    Profile Saver-5504  [000] ...1 175002.714394: ext4_es_lookup_extent_exit: dev 259,32 ino 3 found 1 [4/1) 557094 W0x10
-//    Profile Saver-5504  [000] ...1 175002.714402: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_mark_dquot_dirty+0x80/0xd4
-//    Profile Saver-5504  [000] ...1 175002.714404: ext4_es_lookup_extent_enter: dev 259,32 ino 4 lblk 8
-//    Profile Saver-5504  [000] ...1 175002.714406: ext4_es_lookup_extent_exit: dev 259,32 ino 4 found 1 [8/3) 7376914 W0x10
-//    Profile Saver-5504  [000] ...1 175002.714413: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//    Profile Saver-5504  [000] ...1 175002.714414: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
-//    Profile Saver-5504  [000] ...1 175002.714420: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller __ext4_ext_dirty+0x104/0x170
-//    Profile Saver-5504  [000] ...1 175002.714423: ext4_ext_remove_space_done: dev 259,32 ino 1311176 since 0 end 4294967294 depth 0 partial 0 remaining_entries 0
-//    Profile Saver-5504  [000] ...1 175002.714425: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller __ext4_ext_dirty+0x104/0x170
-//    Profile Saver-5504  [000] ...1 175002.714433: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_truncate+0x3c4/0x4b8
-//    Profile Saver-5504  [000] ...1 175002.714436: ext4_truncate_exit: dev 259,32 ino 1311176 blocks 8
-//    Profile Saver-5504  [000] ...1 175002.714437: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//    Profile Saver-5504  [000] ...1 175002.714438: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
-//    Profile Saver-5504  [000] ...1 175002.714462: ext4_da_write_begin: dev 259,32 ino 1311176 pos 0 len 4 flags 0
-//    Profile Saver-5504  [000] ...1 175002.714472: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
-//    Profile Saver-5504  [000] ...1 175002.714477: ext4_es_lookup_extent_enter: dev 259,32 ino 1311176 lblk 0
-//    Profile Saver-5504  [000] ...1 175002.714477: ext4_es_lookup_extent_exit: dev 259,32 ino 1311176 found 0 [0/0) 0
-//    Profile Saver-5504  [000] ...1 175002.714480: ext4_ext_map_blocks_enter: dev 259,32 ino 1311176 lblk 0 len 1 flags
-//    Profile Saver-5504  [000] ...1 175002.714485: ext4_es_find_delayed_extent_range_enter: dev 259,32 ino 1311176 lblk 0
-//    Profile Saver-5504  [000] ...1 175002.714488: ext4_es_find_delayed_extent_range_exit: dev 259,32 ino 1311176 es [0/0) mapped 0 status
-//    Profile Saver-5504  [000] ...1 175002.714490: ext4_es_insert_extent: dev 259,32 ino 1311176 es [0/4294967295) mapped 576460752303423487 status H
-//    Profile Saver-5504  [000] ...1 175002.714495: ext4_ext_map_blocks_exit: dev 259,32 ino 1311176 flags  lblk 0 pblk 4294967296 len 1 mflags  ret 0
-//    Profile Saver-5504  [000] ...2 175002.714501: ext4_da_reserve_space: dev 259,32 ino 1311176 mode 0100600 i_blocks 8 reserved_data_blocks 1 reserved_meta_blocks 0
-//    Profile Saver-5504  [000] ...1 175002.714505: ext4_es_insert_extent: dev 259,32 ino 1311176 es [0/1) mapped 576460752303423487 status D
-//    Profile Saver-5504  [000] ...1 175002.714513: ext4_da_write_end: dev 259,32 ino 1311176 pos 0 len 4 copied 4
-//    Profile Saver-5504  [000] ...1 175002.714519: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//    Profile Saver-5504  [000] ...1 175002.714520: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
-//    Profile Saver-5504  [000] ...1 175002.714527: ext4_da_write_begin: dev 259,32 ino 1311176 pos 4 len 4 flags 0
-//    Profile Saver-5504  [000] ...1 175002.714529: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
-//    Profile Saver-5504  [000] ...1 175002.714531: ext4_da_write_end: dev 259,32 ino 1311176 pos 4 len 4 copied 4
-//    Profile Saver-5504  [000] ...1 175002.714532: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//    Profile Saver-5504  [000] ...1 175002.714532: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
-//    Profile Saver-5504  [000] ...1 175002.715313: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//    Profile Saver-5504  [000] ...1 175002.715322: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
-//    Profile Saver-5504  [000] ...1 175002.723849: ext4_da_write_begin: dev 259,32 ino 1311176 pos 8 len 5 flags 0
-//    Profile Saver-5504  [000] ...1 175002.723862: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
-//    Profile Saver-5504  [000] ...1 175002.723873: ext4_da_write_end: dev 259,32 ino 1311176 pos 8 len 5 copied 5
-//    Profile Saver-5504  [000] ...1 175002.723877: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//    Profile Saver-5504  [000] ...1 175002.723879: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
-//    Profile Saver-5504  [000] ...1 175002.726857: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//    Profile Saver-5504  [000] ...1 175002.726867: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
-//    Profile Saver-5504  [000] ...1 175002.726881: ext4_da_write_begin: dev 259,32 ino 1311176 pos 13 len 4 flags 0
-//    Profile Saver-5504  [000] ...1 175002.726883: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
-//    Profile Saver-5504  [000] ...1 175002.726890: ext4_da_write_end: dev 259,32 ino 1311176 pos 13 len 4 copied 4
-//    Profile Saver-5504  [000] ...1 175002.726892: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//    Profile Saver-5504  [000] ...1 175002.726892: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
-//    Profile Saver-5504  [000] ...1 175002.726900: ext4_da_write_begin: dev 259,32 ino 1311176 pos 17 len 4079 flags 0
-//    Profile Saver-5504  [000] ...1 175002.726901: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
-//    Profile Saver-5504  [000] ...1 175002.726904: ext4_da_write_end: dev 259,32 ino 1311176 pos 17 len 4079 copied 4079
-//    Profile Saver-5504  [000] ...1 175002.726905: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//    Profile Saver-5504  [000] ...1 175002.726906: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
-//    Profile Saver-5504  [000] ...1 175002.726908: ext4_da_write_begin: dev 259,32 ino 1311176 pos 4096 len 2780 flags 0
-//    Profile Saver-5504  [000] ...1 175002.726916: ext4_journal_start: dev 259,32 blocks, 1 rsv_blocks, 0 caller ext4_da_write_begin+0x3d4/0x518
-//    Profile Saver-5504  [000] ...1 175002.726921: ext4_es_lookup_extent_enter: dev 259,32 ino 1311176 lblk 1
-//    Profile Saver-5504  [000] ...1 175002.726924: ext4_es_lookup_extent_exit: dev 259,32 ino 1311176 found 1 [1/4294967294) 576460752303423487 H0x10
-//    Profile Saver-5504  [000] ...2 175002.726931: ext4_da_reserve_space: dev 259,32 ino 1311176 mode 0100600 i_blocks 8 reserved_data_blocks 2 reserved_meta_blocks 0
-//    Profile Saver-5504  [000] ...1 175002.726933: ext4_es_insert_extent: dev 259,32 ino 1311176 es [1/1) mapped 576460752303423487 status D
-//    Profile Saver-5504  [000] ...1 175002.726940: ext4_da_write_end: dev 259,32 ino 1311176 pos 4096 len 2780 copied 2780
-//    Profile Saver-5504  [000] ...1 175002.726941: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//    Profile Saver-5504  [000] ...1 175002.726942: ext4_mark_inode_dirty: dev 259,32 ino 1311176 caller ext4_dirty_inode+0x48/0x68
-//   d.process.acor-27885 [000] ...1 175018.227675: ext4_journal_start: dev 259,32 blocks, 2 rsv_blocks, 0 caller ext4_dirty_inode+0x30/0x68
-//   d.process.acor-27885 [000] ...1 175018.227699: ext4_mark_inode_dirty: dev 259,32 ino 3278189 caller ext4_dirty_inode+0x48/0x68
-//   d.process.acor-27885 [000] ...1 175018.227839: ext4_sync_file_enter: dev 259,32 ino 3278183 parent 3277001 datasync 1
-//   d.process.acor-27885 [000] ...1 175018.227847: ext4_writepages: dev 259,32 ino 3278183 nr_to_write 9223372036854775807 pages_skipped 0 range_start 0 range_end 9223372036854775807 sync_mode 1 for_kupdate 0 range_cyclic 0 writeback_index 2
-//   d.process.acor-27885 [000] ...1 175018.227852: ext4_writepages_result: dev 259,32 ino 3278183 ret 0 pages_written 0 pages_skipped 0 sync_mode 1 writeback_index 2
-// clang-format on
 
 static ExamplePage g_full_page_sched_switch{
     "synthetic",
@@ -3548,7 +3410,6 @@ TEST_F(CpuReaderParsePagePayloadTest, F2fsTruncatePartialNodesOld) {
   FtraceDataSourceConfig ds_config = EmptyConfig();
   auto id = table->EventToFtraceId(
       GroupAndName("f2fs", "f2fs_truncate_partial_nodes"));
-  PERFETTO_LOG("Enabling: %zu", id);
   ds_config.event_filter.AddEnabledEvent(id);
 
   const uint8_t* parse_pos = page.get();
@@ -3705,6 +3566,297 @@ TEST(CpuReaderTest, LastReadEventTimestampWithSplitBundles) {
   EXPECT_TRUE(second_bundle.lost_events());
   EXPECT_EQ(1u, second_bundle.event().size());
   EXPECT_EQ(kSecondPrintTs, second_bundle.previous_bundle_end_timestamp());
+}
+
+// clang-format off
+//        <idle>-0       [000] d..2. 90831.190938: sched_switch: prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=kworker/u32:1 next_pid=94400 next_prio=120
+// kworker/u32:1-94400   [000] d..3. 90831.190942: sched_waking: comm=gnome-terminal- pid=18713 prio=120 target_cpu=005
+// kworker/u32:1-94400   [000] d..2. 90831.190944: sched_switch: prev_comm=kworker/u32:1 prev_pid=94400 prev_prio=120 prev_state=I ==> next_comm=swapper/0 next_pid=0 next_prio=120
+// clang-format on
+
+static ExamplePage g_generic_sched_page{
+    "synthetic_alt",
+    R"(
+    00000000: 5dd3 de48 9c52 0000 b000 0000 0000 0000  ]..H.R..........
+    00000010: 1000 0000 3601 0102 0000 0000 7377 6170  ....6.......swap
+    00000020: 7065 722f 3000 0000 0000 0000 0000 0000  per/0...........
+    00000030: 7800 0000 0000 0000 0000 0000 6b77 6f72  x...........kwor
+    00000040: 6b65 722f 7533 323a 3100 0000 c070 0100  ker/u32:1....p..
+    00000050: 7800 0000 6985 0100 3901 0103 c070 0100  x...i...9....p..
+    00000060: 676e 6f6d 652d 7465 726d 696e 616c 2d00  gnome-terminal-.
+    00000070: 1949 0000 7800 0000 0500 0000 d033 0100  .I..x........3..
+    00000080: 3601 0102 c070 0100 6b77 6f72 6b65 722f  6....p..kworker/
+    00000090: 7533 323a 3100 0000 c070 0100 7800 0000  u32:1....p..x...
+    000000a0: 8000 0000 0000 0000 7377 6170 7065 722f  ........swapper/
+    000000b0: 3000 0000 0000 0000 0000 0000 7800 0000  0...........x...
+    )",
+};
+
+TEST(CpuReaderTest, GenericEventLegacyFormat) {
+  // Test has 2x switch, 1x waking events, and the "synthetic_alt" test tracefs
+  // directory maps these events onto "sched_switch_generic" &
+  // "sched_waking_generic", which will need to be encoded as generic events
+  // since they don't have compile-time protos.
+  const ExamplePage* test_case = &g_generic_sched_page;
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  // There is no FtraceConfigMuxer, so we need to trigger on-demand event
+  // description creation in the table.
+  GroupAndName switch_generic("generic", "sched_switch_generic");
+  GroupAndName waking_generic("generic", "sched_waking_generic");
+  if (!table->GetEvent(switch_generic))
+    table->CreateGenericEvent(switch_generic);
+  if (!table->GetEvent(waking_generic))
+    table->CreateGenericEvent(waking_generic);
+
+  // Build config requesting these two events.
+  auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
+  FtraceMetadata metadata{};
+  FtraceDataSourceConfig ftrace_cfg = EmptyConfig();
+  ftrace_cfg.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(switch_generic));
+  ftrace_cfg.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(waking_generic));
+
+  // Invoke ProcessPagesForDataSource.
+  TraceWriterForTesting trace_writer;
+  base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors;
+  uint64_t last_read_event_ts = 0;
+  bool success = CpuReader::ProcessPagesForDataSource(
+      &trace_writer, &metadata, /*cpu=*/0, &ftrace_cfg, &parse_errors,
+      &last_read_event_ts, page.get(), /*pages_read=*/1,
+      compact_sched_buf.get(), table,
+      /*symbolizer=*/nullptr,
+      /*ftrace_clock_snapshot=*/nullptr,
+      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+
+  EXPECT_TRUE(success);
+
+  //
+  // Assert that we have one bundle with three events, and that they use the
+  // |GenericFtraceEvent| protos.
+  //
+
+  auto bundle = trace_writer.GetOnlyTracePacket().ftrace_events();
+  const auto& events = bundle.event();
+
+  using GFE = protos::gen::GenericFtraceEvent;
+  ASSERT_EQ(events.size(), 3u);
+
+  // first switch
+  const GFE& evt1 = events[0].generic();
+  EXPECT_STREQ(evt1.event_name().c_str(), "sched_switch_generic");
+  EXPECT_THAT(
+      evt1.field(),
+      ElementsAre(
+          AllOf(Property(&GFE::Field::name, StrEq("prev_comm")),
+                Property(&GFE::Field::str_value, StrEq("swapper/0"))),
+          AllOf(Property(&GFE::Field::name, StrEq("prev_pid")),
+                Property(&GFE::Field::int_value, Eq(0))),
+          AllOf(Property(&GFE::Field::name, StrEq("prev_prio")),
+                Property(&GFE::Field::int_value, Eq(120))),
+          AllOf(Property(&GFE::Field::name, StrEq("prev_state")),
+                Property(&GFE::Field::int_value, Eq(0))),  // Runnable
+          AllOf(Property(&GFE::Field::name, StrEq("next_comm")),
+                Property(&GFE::Field::str_value, StrEq("kworker/u32:1"))),
+          AllOf(Property(&GFE::Field::name, StrEq("next_pid")),
+                Property(&GFE::Field::int_value, Eq(94400))),
+          AllOf(Property(&GFE::Field::name, StrEq("next_prio")),
+                Property(&GFE::Field::int_value, Eq(120)))));
+
+  // first waking
+  const GFE& evt2 = events[1].generic();
+  EXPECT_STREQ(evt2.event_name().c_str(), "sched_waking_generic");
+  EXPECT_THAT(
+      evt2.field(),
+      ElementsAre(
+          AllOf(Property(&GFE::Field::name, StrEq("comm")),
+                Property(&GFE::Field::str_value, StrEq("gnome-terminal-"))),
+          AllOf(Property(&GFE::Field::name, StrEq("pid")),
+                Property(&GFE::Field::int_value, Eq(18713))),
+          AllOf(Property(&GFE::Field::name, StrEq("prio")),
+                Property(&GFE::Field::int_value, Eq(120))),
+          AllOf(Property(&GFE::Field::name, StrEq("target_cpu")),
+                Property(&GFE::Field::int_value, Eq(5)))));
+
+  // (skip verifying last switch)
+}
+
+// Like |GenericEventLegacyFormat|, but using self-describing protos.
+TEST(CpuReaderTest, GenericEventSelfDescribingFormat) {
+  // Test has 2x switch, 1x waking events, and the "synthetic_alt" test tracefs
+  // directory maps these events onto "sched_switch_generic" &
+  // "sched_waking_generic", which will need to be encoded as generic events
+  // since they don't have compile-time protos.
+  const ExamplePage* test_case = &g_generic_sched_page;
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  // There is no FtraceConfigMuxer, so we need to trigger on-demand event
+  // description creation in the table.
+  GroupAndName switch_generic("generic", "sched_switch_generic");
+  GroupAndName waking_generic("generic", "sched_waking_generic");
+  if (!table->GetEvent(switch_generic))
+    table->CreateGenericEvent(switch_generic);
+  if (!table->GetEvent(waking_generic))
+    table->CreateGenericEvent(waking_generic);
+
+  // Build config requesting these two events.
+  auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
+  FtraceMetadata metadata{};
+  FtraceDataSourceConfig ftrace_cfg =
+      ConfigForTesting(DisabledCompactSchedConfigForTesting(),
+                       /*write_generic_evt_descriptors=*/true);
+  ftrace_cfg.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(switch_generic));
+  ftrace_cfg.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(waking_generic));
+
+  // Invoke ProcessPagesForDataSource.
+  TraceWriterForTesting trace_writer;
+  base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors;
+  uint64_t last_read_event_ts = 0;
+  bool success = CpuReader::ProcessPagesForDataSource(
+      &trace_writer, &metadata, /*cpu=*/0, &ftrace_cfg, &parse_errors,
+      &last_read_event_ts, page.get(), /*pages_read=*/1,
+      compact_sched_buf.get(), table,
+      /*symbolizer=*/nullptr,
+      /*ftrace_clock_snapshot=*/nullptr,
+      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+
+  EXPECT_TRUE(success);
+
+  //
+  // Verify that there are two descriptors appended to the bundle, one per
+  // uknown event type.
+  //
+
+  protos::gen::FtraceEventBundle bundle =
+      trace_writer.GetOnlyTracePacket().ftrace_events();
+  std::map<std::string, uint32_t> name_to_proto_id;
+  std::map<uint32_t, protos::gen::DescriptorProto> decoded_descriptors;
+  for (const auto& v : bundle.generic_event_descriptors()) {
+    uint32_t proto_field_id = static_cast<uint32_t>(v.field_id());
+    EXPECT_TRUE(table->IsGenericEventProtoId(proto_field_id));
+
+    protos::gen::DescriptorProto dp;
+    dp.ParseFromString(v.descriptor());
+
+    name_to_proto_id[dp.name()] = proto_field_id;
+    decoded_descriptors.emplace(proto_field_id, std::move(dp));
+  }
+
+  EXPECT_EQ(decoded_descriptors.size(), 2u);
+  EXPECT_EQ(name_to_proto_id.count("sched_switch_generic"), 1u);
+  EXPECT_EQ(name_to_proto_id.count("sched_waking_generic"), 1u);
+
+  const protos::gen::DescriptorProto& switch_desc =
+      decoded_descriptors[name_to_proto_id["sched_switch_generic"]];
+
+  // sched_switch_generic descriptor
+  using FDP = protos::gen::FieldDescriptorProto;
+  EXPECT_THAT(switch_desc.field(),
+              ElementsAre(AllOf(Property(&FDP::name, StrEq("prev_comm")),
+                                Property(&FDP::number, Eq(1)),
+                                Property(&FDP::type, Eq(FDP::TYPE_STRING))),
+                          AllOf(Property(&FDP::name, StrEq("prev_pid")),
+                                Property(&FDP::number, Eq(2)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64))),
+                          AllOf(Property(&FDP::name, StrEq("prev_prio")),
+                                Property(&FDP::number, Eq(3)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64))),
+                          AllOf(Property(&FDP::name, StrEq("prev_state")),
+                                Property(&FDP::number, Eq(4)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64))),
+                          AllOf(Property(&FDP::name, StrEq("next_comm")),
+                                Property(&FDP::number, Eq(5)),
+                                Property(&FDP::type, Eq(FDP::TYPE_STRING))),
+                          AllOf(Property(&FDP::name, StrEq("next_pid")),
+                                Property(&FDP::number, Eq(6)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64))),
+                          AllOf(Property(&FDP::name, StrEq("next_prio")),
+                                Property(&FDP::number, Eq(7)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64)))));
+
+  // sched_waking_generic descriptor
+  const protos::gen::DescriptorProto& waking_desc =
+      decoded_descriptors[name_to_proto_id["sched_waking_generic"]];
+  EXPECT_THAT(waking_desc.field(),
+              ElementsAre(AllOf(Property(&FDP::name, StrEq("comm")),
+                                Property(&FDP::number, Eq(1)),
+                                Property(&FDP::type, Eq(FDP::TYPE_STRING))),
+                          AllOf(Property(&FDP::name, StrEq("pid")),
+                                Property(&FDP::number, Eq(2)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64))),
+                          AllOf(Property(&FDP::name, StrEq("prio")),
+                                Property(&FDP::number, Eq(3)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64))),
+                          AllOf(Property(&FDP::name, StrEq("target_cpu")),
+                                Property(&FDP::number, Eq(4)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64)))));
+
+  //
+  // Assert that there are three events, encoded using proto field ids
+  // referenced by the descriptors.
+  //
+  const std::vector<protos::gen::FtraceEvent>& events = bundle.event();
+  ASSERT_EQ(events.size(), 3u);
+
+  // ::gen classes don't expose unknown fields, re-decode the event with
+  // protozero.
+  {
+    auto evt_bytes = events[0].SerializeAsString();
+    protozero::ProtoDecoder evt_dec(evt_bytes);  // FtraceEvent
+    protozero::Field ext =
+        evt_dec.FindField(name_to_proto_id["sched_switch_generic"]);
+    ASSERT_EQ(ext.type(),
+              protozero::proto_utils::ProtoWireType::kLengthDelimited);
+
+    protozero::ProtoDecoder ext_dec(ext.as_bytes());
+    std::vector<protozero::Field> ext_fields;
+    for (auto f = ext_dec.ReadField(); f.valid(); f = ext_dec.ReadField()) {
+      ext_fields.push_back(f);
+    }
+
+    // switch payload
+    EXPECT_THAT(
+        ext_fields,
+        ElementsAre(
+            Property(&protozero::Field::as_std_string, StrEq("swapper/0")),
+            Property(&protozero::Field::as_int64, Eq(0)),
+            Property(&protozero::Field::as_int64, Eq(120)),
+            Property(&protozero::Field::as_int64, Eq(0)),
+            Property(&protozero::Field::as_std_string, StrEq("kworker/u32:1")),
+            Property(&protozero::Field::as_int64, Eq(94400)),
+            Property(&protozero::Field::as_int64, Eq(120))));
+  }
+
+  // decode second event
+  {
+    auto evt_bytes = events[1].SerializeAsString();
+    protozero::ProtoDecoder evt_dec(evt_bytes);  // FtraceEvent
+    protozero::Field ext =
+        evt_dec.FindField(name_to_proto_id["sched_waking_generic"]);
+    ASSERT_EQ(ext.type(),
+              protozero::proto_utils::ProtoWireType::kLengthDelimited);
+
+    protozero::ProtoDecoder ext_dec(ext.as_bytes());
+    std::vector<protozero::Field> ext_fields;
+    for (auto f = ext_dec.ReadField(); f.valid(); f = ext_dec.ReadField()) {
+      ext_fields.push_back(f);
+    }
+
+    // waking payload
+    EXPECT_THAT(ext_fields,
+                ElementsAre(Property(&protozero::Field::as_std_string,
+                                     StrEq("gnome-terminal-")),
+                            Property(&protozero::Field::as_int64, Eq(18713)),
+                            Property(&protozero::Field::as_int64, Eq(120)),
+                            Property(&protozero::Field::as_int64, Eq(5))));
+  }
+
+  // (skip verifying last switch)
 }
 
 }  // namespace

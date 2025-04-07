@@ -50,17 +50,20 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
   memcpy(g_page, data, std::min(size_t(base::GetSysPageSize()), size));
 
   FtraceMetadata metadata{};
-  FtraceDataSourceConfig ds_config{/*event_filter=*/EventFilter{},
-                                   /*syscall_filter=*/EventFilter{},
-                                   DisabledCompactSchedConfigForTesting(),
-                                   /*print_filter=*/std::nullopt,
-                                   /*atrace_apps=*/{},
-                                   /*atrace_categories=*/{},
-                                   /*atrace_categories_prefer_track_event=*/{},
-                                   /*symbolize_ksyms=*/false,
-                                   /*preserve_ftrace_buffer=*/false,
-                                   /*syscalls_returning_fd=*/{},
-                                   /*debug_ftrace_abi=*/false};
+  FtraceDataSourceConfig ds_config{
+      /*event_filter=*/EventFilter{},
+      /*syscall_filter=*/EventFilter{}, DisabledCompactSchedConfigForTesting(),
+      /*print_filter=*/std::nullopt,
+      /*atrace_apps=*/{},
+      /*atrace_categories=*/{},
+      /*atrace_categories_prefer_track_event=*/{},
+      /*symbolize_ksyms=*/false,
+      /*preserve_ftrace_buffer=*/false,
+      /*syscalls_returning_fd=*/{},
+      /*kprobes=*/
+      base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>{0},
+      /*debug_ftrace_abi=*/false,
+      /*write_generic_evt_descriptors=*/false};
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
   ds_config.event_filter.AddEnabledEvent(

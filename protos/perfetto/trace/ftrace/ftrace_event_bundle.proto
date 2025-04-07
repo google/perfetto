@@ -130,6 +130,17 @@ message FtraceEventBundle {
   // Added in: perfetto v47.
   optional uint64 previous_bundle_end_timestamp = 10;
 
+  // Describes the serialised |FtraceEvent| protos for events not known at
+  // compile time, when using the |denser_generic_event_encoding| option.
+  // Addded in: perfetto v50.
+  message GenericEventDescriptor {
+    // submessage id within FtraceEvent described by |descriptor|.
+    optional int32 field_id = 1;
+    // serialised DescriptorProto
+    optional bytes descriptor = 2;
+  }
+  repeated GenericEventDescriptor generic_event_descriptors = 11;
+
   // Written only on debuggable android builds if the config sets
   // |debug_ftrace_abi|. Contains the raw ring buffer tracing page that the
   // implementation could not parse.

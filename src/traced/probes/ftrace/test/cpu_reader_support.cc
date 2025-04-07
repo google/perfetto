@@ -20,38 +20,49 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <memory>
 
+#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/base/test/utils.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 
+// TODO(rsavitski): rename to "cpu_reader_test_utils" or similar.
 namespace perfetto {
-namespace {
 
-std::map<std::string, std::unique_ptr<ProtoTranslationTable>>* g_tables;
-
-}  // namespace
-
+// Caching layer for proto translation tables used in tests
+// Note that this breaks test isolation, but we rarely mutate the tables.
 ProtoTranslationTable* GetTable(const std::string& name) {
-  if (!g_tables)
-    g_tables =
-        new std::map<std::string, std::unique_ptr<ProtoTranslationTable>>();
-  if (!g_tables->count(name)) {
-    std::string path = "src/traced/probes/ftrace/test/data/" + name + "/";
-    struct stat st;
-    if (lstat(path.c_str(), &st) == -1 && errno == ENOENT) {
-      // For OSS fuzz, which does not run in the correct cwd.
-      path = base::GetTestDataPath(path);
-    }
-    FtraceProcfs ftrace(path);
-    auto table = ProtoTranslationTable::Create(&ftrace, GetStaticEventInfo(),
-                                               GetStaticCommonFieldsInfo());
-    if (!table)
-      return nullptr;
-    g_tables->emplace(name, std::move(table));
+  static base::NoDestructor<
+      std::map<std::string, std::unique_ptr<FtraceProcfs>>>
+      g_tracefs;
+  static base::NoDestructor<
+      std::map<std::string, std::unique_ptr<ProtoTranslationTable>>>
+      g_tables;
+
+  // return if cached
+  auto it_table = g_tables.ref().find(name);
+  if (it_table != g_tables.ref().end()) {
+    return it_table->second.get();
   }
-  return g_tables->at(name).get();
+
+  PERFETTO_CHECK(!g_tracefs.ref().count(name));
+  std::string path = "src/traced/probes/ftrace/test/data/" + name + "/";
+  struct stat st {};
+  if (lstat(path.c_str(), &st) == -1 && errno == ENOENT) {
+    // For OSS fuzz, which does not run in the correct cwd.
+    path = base::GetTestDataPath(path);
+  }
+  auto [it, inserted] =
+      g_tracefs.ref().emplace(name, std::make_unique<FtraceProcfs>(path));
+  PERFETTO_CHECK(inserted);
+  auto table = ProtoTranslationTable::Create(
+      it->second.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  PERFETTO_CHECK(table);
+  g_tables.ref().emplace(name, std::move(table));
+
+  return g_tables.ref().at(name).get();
 }
 
 std::unique_ptr<uint8_t[]> PageFromXxd(const std::string& text) {
