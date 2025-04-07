@@ -34,7 +34,7 @@ PROPERTIES = {
     'repository':
         Property(
             kind=str,
-            default='https://github.com/google/perfetto/'
+            default='https://chromium.googlesource.com/external/github.com/google/perfetto'
         ),
 }
 
@@ -175,7 +175,7 @@ def RunSteps(api, repository):
       build_input = api.buildbucket.build_input
       ref = (
           build_input.gitiles_commit.ref
-          if build_input.gitiles_commit else 'refs/heads/main')
+          if build_input.gitiles_commit else 'refs/heads/upstream-main')
       # Fetch tags so `git describe` works.
       api.step('fetch', ['git', 'fetch', '--tags', '--force', repository, ref])
       api.step('checkout', ['git', 'checkout', 'FETCH_HEAD'])
