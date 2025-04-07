@@ -141,7 +141,9 @@ message EnableTracingRequest {
 }
 
 message EnableTracingResponse {
-  oneof state { bool disabled = 1; }
+  oneof state {
+    bool disabled = 1;
+  }
 
   // If present and non-empty tracing was disabled because of an error.
   // Introduced in Android S.

@@ -105,7 +105,7 @@ void DumpAllCpuStats() {
 
 void SetupCtrlCHandler() {
   // Setup signal handler.
-  struct sigaction sa {};
+  struct sigaction sa{};
 
 // Glibc headers for sa_sigaction trigger this.
 #pragma GCC diagnostic push

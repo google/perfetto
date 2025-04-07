@@ -19,12 +19,12 @@ syntax = "proto2";
 package perfetto.protos;
 
 message AndroidDvfsMetric {
-
   message BandStat {
     // Operating frequency
     optional int32 freq_value = 1;
 
-    // Percentage of duration in this operating frequency compared to all frequencies
+    // Percentage of duration in this operating frequency compared to all
+    // frequencies
     optional double percentage = 2;
 
     // Total duration in ns when the state was in this operating frequency

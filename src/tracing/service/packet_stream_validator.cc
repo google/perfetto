@@ -138,7 +138,7 @@ class ProtoFieldParserFSM {
         // Persistent error states.
         return 0;
 
-    }          // switch(state_)
+    }  // switch(state_)
     return 0;  // To keep GCC happy.
   }
 

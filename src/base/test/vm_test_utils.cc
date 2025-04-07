@@ -27,8 +27,8 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <vector>
 
-#include <Windows.h>
 #include <Psapi.h>
+#include <Windows.h>
 #else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <sys/mman.h>
 #include <sys/stat.h>

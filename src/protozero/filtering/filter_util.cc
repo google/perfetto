@@ -249,7 +249,7 @@ void FilterUtil::Dedupe() {
       // Replace with the dupe.
       id_and_field.second.nested_type = it->second;
     }  // for (nested_fields).
-  }    // for (descriptors_).
+  }  // for (descriptors_).
 
   // Remove unreferenced descriptors. We should much rather crash in the case of
   // a logic bug rather than trying to use them but don't emit them.
@@ -380,7 +380,7 @@ std::string FilterUtil::GenerateFilterBytecode() {
         }
         break;
       }  // for (range_len)
-    }    // for (descr.fields)
+    }  // for (descr.fields)
     bytecode_gen.EndMessage();
   }  // for (descriptors)
   return bytecode_gen.Serialize();

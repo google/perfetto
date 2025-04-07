@@ -179,10 +179,8 @@ class ScopedEvent {
   }
 
   template <typename Fn = void(Record*)>
-  static ScopedEvent Create(
-      Category category,
-      const char* event_id,
-      Fn args_fn = [](Record*) {}) {
+  static ScopedEvent
+  Create(Category category, const char* event_id, Fn args_fn = [](Record*) {}) {
     if (PERFETTO_LIKELY((category & g_enabled_categories) == 0))
       return ScopedEvent();
 
