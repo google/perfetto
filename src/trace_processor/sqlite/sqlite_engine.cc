@@ -238,6 +238,14 @@ std::optional<uint32_t> SqliteEngine::GetErrorOffset() const {
   return GetErrorOffsetDb(db_.get());
 }
 
+void* SqliteEngine::SetCommitCallback(CommitCallback callback, void* ctx) {
+  return sqlite3_commit_hook(db_.get(), callback, ctx);
+}
+
+void* SqliteEngine::SetRollbackCallback(RollbackCallback callback, void* ctx) {
+  return sqlite3_rollback_hook(db_.get(), callback, ctx);
+}
+
 SqliteEngine::PreparedStatement::PreparedStatement(ScopedStmt stmt,
                                                    SqlSource source)
     : stmt_(std::move(stmt)),

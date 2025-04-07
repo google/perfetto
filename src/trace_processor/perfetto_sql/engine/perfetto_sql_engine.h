@@ -232,11 +232,14 @@ class PerfettoSqlEngine {
   }
 
   // Find table (Static or Runtime) registered with engine with provided name.
-  const Table* GetTableOrNull(std::string_view name) const {
-    if (const auto* r = GetRuntimeTableOrNull(name); r) {
+  //
+  // This function is O(n) in the number of tables registered with the engine so
+  // should not be called in performance sensitive contexts.
+  const Table* GetTableOrNullSlow(std::string_view name) const {
+    if (const auto* r = GetRuntimeTableOrNullSlow(name); r) {
       return r;
     }
-    return GetStaticTableOrNull(name);
+    return GetStaticTableOrNullSlow(name);
   }
 
  private:
@@ -300,25 +303,40 @@ class PerfettoSqlEngine {
                                  const std::string& key,
                                  const PerfettoSqlParser&);
 
-  // Find table (Static or Runtime) registered with engine with provided name.
-  Table* GetTableOrNull(std::string_view name) {
-    if (auto* maybe_runtime = GetRuntimeTableOrNull(name); maybe_runtime) {
+  // Called when a transaction is committed by SQLite; that is, the result of
+  // running some SQL is considered "perm".
+  //
+  // See https://www.sqlite.org/lang_transaction.html for an explanation of
+  // transactions in SQLite.
+  int OnCommit();
+
+  // Called when a transaction is rolled back by SQLite; that is, the result of
+  // of running some SQL should be discarded and the state of the database
+  // should be restored to the state it was in before the transaction was
+  // started.
+  //
+  // See https://www.sqlite.org/lang_transaction.html for an explanation of
+  // transactions in SQLite.
+  void OnRollback();
+
+  Table* GetTableOrNullSlow(std::string_view name) {
+    if (auto* maybe_runtime = GetRuntimeTableOrNullSlow(name); maybe_runtime) {
       return maybe_runtime;
     }
-    return GetStaticTableOrNull(name);
+    return GetStaticTableOrNullSlow(name);
   }
 
   // Find RuntimeTable registered with engine with provided name.
-  RuntimeTable* GetRuntimeTableOrNull(std::string_view);
+  RuntimeTable* GetRuntimeTableOrNullSlow(std::string_view);
 
   // Find static table registered with engine with provided name.
-  Table* GetStaticTableOrNull(std::string_view);
+  Table* GetStaticTableOrNullSlow(std::string_view);
 
   // Find RuntimeTable registered with engine with provided name.
-  const RuntimeTable* GetRuntimeTableOrNull(std::string_view) const;
+  const RuntimeTable* GetRuntimeTableOrNullSlow(std::string_view) const;
 
   // Find static table registered with engine with provided name.
-  const Table* GetStaticTableOrNull(std::string_view) const;
+  const Table* GetStaticTableOrNullSlow(std::string_view) const;
 
   StringPool* pool_ = nullptr;
   // If true, engine will perform additional consistency checks when e.g.
