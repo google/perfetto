@@ -28,11 +28,36 @@ ShellTransitionsTracker::ShellTransitionsTracker(TraceProcessorContext* context)
 
 ShellTransitionsTracker::~ShellTransitionsTracker() = default;
 
-tables::WindowManagerShellTransitionsTable::Id
-ShellTransitionsTracker::InternTransition(int32_t transition_id) {
-  auto pos = transition_id_to_row_mapping_.find(transition_id);
-  if (pos != transition_id_to_row_mapping_.end()) {
-    return pos->second;
+ArgsTracker::BoundInserter ShellTransitionsTracker::AddArgsTo(int32_t transition_id) {
+  PERFETTO_ELOG("ShellTransitionsTracker#InternTransition %d", transition_id);
+  auto* transition_info = GetOrInsertTransition(transition_id);
+
+  return transition_info->args_tracker.AddArgsTo(transition_info->row_id);
+}
+
+void ShellTransitionsTracker::SetTimestamp(int32_t transition_id, int64_t timestamp_ns) {
+  auto pos = transitions_infos_.find(transition_id);
+  if (pos == transitions_infos_.end()) {
+    PERFETTO_ELOG("Setting timestamp on untracked transition...");
+    context_->storage->IncrementStats(
+        stats::winscope_shell_transitions_parse_errors);
+    return;
+  }
+
+  auto* window_manager_shell_transitions_table =
+    context_->storage->mutable_window_manager_shell_transitions_table();
+  window_manager_shell_transitions_table->FindById(pos->second.row_id).value().set_ts(timestamp_ns);
+}
+
+void ShellTransitionsTracker::Flush() {
+  // The destructor of ArgsTracker will flush the args to the tables.
+  transitions_infos_.clear();
+}
+
+ShellTransitionsTracker::TransitionInfo* ShellTransitionsTracker::GetOrInsertTransition(int32_t transition_id) {
+  auto pos = transitions_infos_.find(transition_id);
+  if (pos != transitions_infos_.end()) {
+    return &pos->second;
   }
 
   auto* window_manager_shell_transitions_table =
@@ -42,9 +67,11 @@ ShellTransitionsTracker::InternTransition(int32_t transition_id) {
   row.transition_id = transition_id;
   auto row_id = window_manager_shell_transitions_table->Insert(row).id;
 
-  transition_id_to_row_mapping_.insert({transition_id, row_id});
+  transitions_infos_.insert({transition_id, TransitionInfo{row_id, ArgsTracker(context_)}});
 
-  return row_id;
+  pos = transitions_infos_.find(transition_id);
+  return &pos->second;
 }
+
 }  // namespace trace_processor
 }  // namespace perfetto

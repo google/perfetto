@@ -1,0 +1,100 @@
+packet {
+  ftrace_events {
+    cpu: 1
+    previous_bundle_end_timestamp: 7527500607990
+    event {
+      timestamp: 7527503966842
+      pid: 20578
+      task_rename {
+        pid: 20578
+        oldcomm: "binder:19699_2"
+        newcomm: "Thread-236"
+        oom_score_adj: -950
+      }
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 3
+  trusted_pid: 688
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    previous_bundle_end_timestamp: 7527490894972
+    event {
+      timestamp: 7527501668984
+      pid: 643
+      print {
+        buf: "C|643|binder_proxies|442\n"
+      }
+    }
+    event {
+      timestamp: 7527503926737
+      pid: 20579
+      task_rename {
+        pid: 20579
+        oldcomm: "binder:19699_2"
+        newcomm: "Thread-237"
+        oom_score_adj: -950
+      }
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 3
+  trusted_pid: 688
+}
+packet {
+  first_packet_on_sequence: true
+  shell_transition {
+    id: 729
+    targets {
+      flags: 1048577
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 6
+  trusted_pid: 932
+  previous_packet_dropped: true
+}
+packet {
+  first_packet_on_sequence: true
+  timestamp: 7527511238900
+  protolog_viewer_config {
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 10
+  trusted_pid: 932
+  previous_packet_dropped: true
+}
+packet {
+  first_packet_on_sequence: true
+  shell_transition {
+    id: 729
+    handler: 2
+  }
+  trusted_uid: 10222
+  trusted_packet_sequence_id: 12
+  trusted_pid: 6295
+  previous_packet_dropped: true
+}
+packet {
+  first_packet_on_sequence: true
+  shell_handler_mappings {
+    mapping {
+      id: 2
+      name: "com.android.wm.shell.recents.RecentsTransitionHandler"
+    }
+    mapping {
+      id: 3
+      name: "com.android.wm.shell.transition.RemoteTransitionHandler"
+    }
+    mapping {
+      id: 1
+      name: "com.android.wm.shell.transition.DefaultTransitionHandler"
+    }
+  }
+  trusted_uid: 10222
+  trusted_packet_sequence_id: 13
+  trusted_pid: 6295
+  previous_packet_dropped: true
+}

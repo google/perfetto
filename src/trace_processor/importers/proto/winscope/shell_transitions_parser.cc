@@ -34,28 +34,25 @@ ShellTransitionsParser::ShellTransitionsParser(TraceProcessorContext* context)
 void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   protos::pbzero::ShellTransition::Decoder transition(blob);
 
-  auto row_id =
-      ShellTransitionsTracker::GetOrCreate(context_)->InternTransition(
-          transition.id());
-
-  auto* window_manager_shell_transitions_table =
-      context_->storage->mutable_window_manager_shell_transitions_table();
-  auto row = window_manager_shell_transitions_table->FindById(row_id).value();
-
-  if (transition.has_dispatch_time_ns()) {
-    row.set_ts(transition.dispatch_time_ns());
-  }
-
-  tables::WindowManagerShellTransitionProtosTable::Row protos;
-  protos.transition_id = transition.id();
-  protos.base64_proto_id = context_->storage->mutable_string_pool()
+  // Store the raw proto and its ID in a separate table to handle
+  // transitions received over multiple packets.
+  tables::WindowManagerShellTransitionProtosTable::Row row;
+  row.transition_id = transition.id();
+  row.base64_proto_id = context_->storage->mutable_string_pool()
                                ->InternString(base::StringView(
                                    base::Base64Encode(blob.data, blob.size)))
                                .raw_id();
   context_->storage->mutable_window_manager_shell_transition_protos_table()
-      ->Insert(protos);
+      ->Insert(row);
 
-  auto inserter = context_->args_tracker->AddArgsTo(row_id);
+  // Track transition args as the come in through different packets
+  auto transition_tracker = ShellTransitionsTracker::GetOrCreate(context_);
+
+  if (transition.has_dispatch_time_ns()) {
+        transition_tracker->SetTimestamp(transition.id(), transition.dispatch_time_ns());
+  }
+
+  auto inserter = transition_tracker->AddArgsTo(transition.id());
   ArgsParser writer(/*timestamp=*/0, inserter, *context_->storage.get());
   base::Status status = args_parser_.ParseMessage(
       blob,
