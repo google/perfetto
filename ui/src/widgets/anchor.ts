@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {HTMLAnchorAttrs} from './common';
+import {Icon} from './icon';
 
 interface AnchorAttrs extends HTMLAnchorAttrs {
   // Optional icon to show at the end of the content.
@@ -24,11 +25,6 @@ export class Anchor implements m.ClassComponent<AnchorAttrs> {
   view({attrs, children}: m.CVnode<AnchorAttrs>) {
     const {icon, ...htmlAttrs} = attrs;
 
-    return m(
-      'a.pf-anchor',
-      htmlAttrs,
-      children,
-      icon && m('i.material-icons', icon),
-    );
+    return m('a.pf-anchor', htmlAttrs, children, icon && m(Icon, {icon}));
   }
 }

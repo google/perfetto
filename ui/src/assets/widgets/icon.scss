@@ -19,6 +19,7 @@
   &.pf-filled {
     @include icon-filled;
   }
-  line-height: 1;
+  line-height: inherit;
   font-size: inherit;
+  vertical-align: bottom;
 }
