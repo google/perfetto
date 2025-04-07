@@ -368,7 +368,7 @@ int DbSqliteModule::Create(sqlite3* db,
     return ret;
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnCreate(argv, std::move(state));
+  res->state = context->manager.OnCreate(argc, argv, std::move(state));
   res->table_name = argv[2];
   *vtab = res.release();
   return SQLITE_OK;
@@ -397,7 +397,7 @@ int DbSqliteModule::Connect(sqlite3* db,
   auto* context = GetContext(ctx);
 
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnConnect(argv);
+  res->state = context->manager.OnConnect(argc, argv);
   res->table_name = argv[2];
 
   auto* state =
