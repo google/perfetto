@@ -96,10 +96,10 @@ class PerfettoSqlEngine {
 
   // Registers a virtual table module with the given name.
   //
-  // |name|:          name of the module in SQL.
-  // |ctx|:           context object for the module. This object *must* outlive
-  //                  the module so should likely be either static or scoped to
-  //                  the lifetime of TraceProcessor.
+  // |name|: name of the module in SQL.
+  // |ctx|:  context object for the module. This object *must* outlive the
+  //         module so should likely be either static or scoped to the lifetime
+  //         of TraceProcessor.
   template <typename Module>
   void RegisterVirtualTableModule(const char* name,
                                   typename Module::Context* ctx) {
@@ -117,9 +117,9 @@ class PerfettoSqlEngine {
 
   // Registers a virtual table module with the given name.
   //
-  // |name|:          name of the module in SQL.
-  // |ctx|:           context object for the module. The lifetime of the context
-  //                  object is managed by SQLite.
+  // |name|: name of the module in SQL.
+  // |ctx|:  context object for the module. The lifetime of the context object
+  //         is managed by SQLite.
   template <typename Module>
   void RegisterVirtualTableModule(
       const char* name,
