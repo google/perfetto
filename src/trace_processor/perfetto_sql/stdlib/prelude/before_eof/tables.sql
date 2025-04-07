@@ -18,6 +18,3 @@ CREATE TABLE _trace_metrics (
   -- The name of the metric.
   name STRING
 );
-
--- Helper table to generate a time-interval.
-CREATE VIRTUAL TABLE window USING window ();

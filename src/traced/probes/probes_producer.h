@@ -26,11 +26,11 @@
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/producer.h"
-#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
-#include "src/traced/probes/filesystem/inode_file_data_source.h"
+#include "src/traced/probes/filesystem/lru_inode_cache.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
+#include "src/traced/probes/probes_data_source.h"
 
 namespace perfetto {
 

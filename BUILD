@@ -1664,6 +1664,7 @@ perfetto_filegroup(
         "src/trace_processor/dataframe/impl/bit_vector.h",
         "src/trace_processor/dataframe/impl/bytecode_core.h",
         "src/trace_processor/dataframe/impl/bytecode_instructions.h",
+        "src/trace_processor/dataframe/impl/bytecode_interpreter.h",
         "src/trace_processor/dataframe/impl/bytecode_registers.h",
         "src/trace_processor/dataframe/impl/flex_vector.h",
         "src/trace_processor/dataframe/impl/query_plan.cc",
@@ -1677,8 +1678,10 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_dataframe_dataframe",
     srcs = [
+        "src/trace_processor/dataframe/cursor.h",
         "src/trace_processor/dataframe/dataframe.cc",
         "src/trace_processor/dataframe/dataframe.h",
+        "src/trace_processor/dataframe/runtime_dataframe_builder.h",
     ],
 )
 
@@ -1688,6 +1691,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/dataframe/specs.h",
         "src/trace_processor/dataframe/type_set.h",
+        "src/trace_processor/dataframe/value_fetcher.h",
     ],
 )
 
@@ -2809,6 +2813,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/engine/created_function.cc",
         "src/trace_processor/perfetto_sql/engine/created_function.h",
+        "src/trace_processor/perfetto_sql/engine/dataframe_module.cc",
+        "src/trace_processor/perfetto_sql/engine/dataframe_module.h",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
@@ -3588,7 +3594,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/sqlite/db_sqlite_table.cc",
         "src/trace_processor/sqlite/db_sqlite_table.h",
-        "src/trace_processor/sqlite/module_lifecycle_manager.h",
+        "src/trace_processor/sqlite/module_state_manager.cc",
+        "src/trace_processor/sqlite/module_state_manager.h",
         "src/trace_processor/sqlite/scoped_db.h",
         "src/trace_processor/sqlite/sql_source.cc",
         "src/trace_processor/sqlite/sql_source.h",
@@ -4467,6 +4474,7 @@ perfetto_android_library(
     srcs = [
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
     ],
     manifest = "src/android_sdk/java/main/AndroidManifest.xml",

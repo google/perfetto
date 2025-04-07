@@ -224,7 +224,7 @@ class Unwinder {
   // objects within libunwindstack, which take up non-trivial amounts of memory.
   //
   // There are two reasons for having this operation:
-  // * over a longer trace, it's desireable to drop heavy state for processes
+  // * over a longer trace, it's desirable to drop heavy state for processes
   //   that haven't been sampled recently.
   // * since libunwindstack's cache is not bounded, it'll tend towards having
   //   state for all processes that are targeted by the profiling config.

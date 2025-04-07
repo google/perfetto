@@ -38,7 +38,7 @@ base::Status FindPackageUid::Begin(Context* context) const {
 base::Status FindPackageUid::Collect(
     const protos::pbzero::TracePacket::Decoder& packet,
     Context* context) const {
-  // If a package has been found in a pervious iteration, stop.
+  // If a package has been found in a previous iteration, stop.
   if (context->package_uid.has_value()) {
     return base::OkStatus();
   }

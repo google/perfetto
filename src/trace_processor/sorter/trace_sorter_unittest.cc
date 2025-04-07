@@ -177,7 +177,7 @@ TEST_F(TraceSorterTest, IncrementalExtraction) {
   context_.sorter->NotifyReadBufferEvent();
 
   // Now that we've seen two flushes, we should be ready to start extracting
-  // data on the next OnReadBufer call (after two flushes as usual).
+  // data on the next OnReadBuffer call (after two flushes as usual).
   context_.sorter->NotifyFlushEvent();
   context_.sorter->NotifyReadBufferEvent();
 

@@ -105,6 +105,8 @@ perfetto_proto_library("testing_messages_@TYPE@") {
     "test/example_proto/upper_import.proto",
   ]
   generate_descriptor = "test_messages.descriptor"
+  generator_visibility =
+      [ "../trace_processor:gen_cc_test_messages_descriptor" ]
   descriptor_root_source = "test/example_proto/test_messages.proto"
   proto_path = perfetto_root_path
 }

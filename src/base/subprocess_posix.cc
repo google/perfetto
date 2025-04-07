@@ -182,7 +182,7 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
   if (!args->exec_cmd)
     _exit(0);
 
-  // If |args[0]| is a path use execv() (which takes a path), othewise use
+  // If |args[0]| is a path use execv() (which takes a path), otherwise use
   // exevp(), which uses the shell and follows PATH.
   if (strchr(args->exec_cmd, '/')) {
     char** env = args->env.empty() ? environ : args->env.data();

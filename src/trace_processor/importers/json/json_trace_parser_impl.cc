@@ -219,7 +219,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
       } else if (phase == 'e') {
         slice_tracker->End(timestamp, track_id, cat_id, name_id, args_inserter);
         // We don't handle tts here as we do in the 'E'
-        // case above as it's not well defined for aysnc slices.
+        // case above as it's not well defined for async slices.
       } else {
         context_->slice_tracker->Scoped(timestamp, track_id, cat_id, name_id, 0,
                                         args_inserter);

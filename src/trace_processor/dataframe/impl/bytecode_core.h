@@ -33,7 +33,6 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
 #include "src/trace_processor/dataframe/impl/types.h"
-#include "src/trace_processor/dataframe/specs.h"
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode {
 
@@ -102,8 +101,8 @@ PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
   return base::StackString<64>("Register(%u)", value.index);
 }
 
-PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(Op value) {
-  return base::StackString<64>("Op(%d)", value.index());
+PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(NonNullOp value) {
+  return base::StackString<64>("NonNullOp(%d)", value.index());
 }
 
 PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
@@ -148,6 +147,7 @@ PERFETTO_NO_INLINE inline std::string BytecodeFieldsFormat(
   };                                                                           \
   using tuple = std::tuple<t1, t2, t3, t4, t5>;                                \
   static constexpr auto kOffsets = MakeOffsetsArray<tuple>();                  \
+  static constexpr auto kNames = std::array{#n1, #n2, #n3, #n4, #n5};          \
                                                                                \
   template <Field N>                                                           \
   const auto& arg() const {                                                    \

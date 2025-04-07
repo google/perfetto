@@ -712,9 +712,9 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
           }
         }  // IsEventEnabled(id)
         ptr = next;
-      }              // case (data_record)
-    }                // switch (event_header.type_or_length)
-  }                  // while (ptr < end)
+      }  // case (data_record)
+    }    // switch (event_header.type_or_length)
+  }      // while (ptr < end)
 
   if (last_written_event_ts)
     *bundle_end_timestamp = last_written_event_ts;
@@ -861,7 +861,7 @@ bool CpuReader::ParseField(const Field& field,
       size_t size = std::min<size_t>(field.ftrace_size, sizeof(n));
       memcpy(base::AssumeLittleEndian(&n),
              reinterpret_cast<const void*>(field_start), size);
-      // Look up the adddress in the printk format map and write it into the
+      // Look up the address in the printk format map and write it into the
       // proto.
       base::StringView name = table->LookupTraceString(n);
       message->AppendBytes(field_id, name.begin(), name.size());

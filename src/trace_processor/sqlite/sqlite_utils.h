@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/util/status_macros.h"  // IWYU pragma: keep
 
 // Analogous to ASSIGN_OR_RETURN macro. Returns an sqlite error.
 #define SQLITE_RETURN_IF_ERROR(vtab, expr)                                  \
@@ -314,7 +315,7 @@ base::StatusOr<std::string> ExtractStringArg(const char* function_name,
 
 // Verifies if |value| has the type represented by |expected_type|.
 // Returns base::OkStatus if it does or an base::ErrStatus with an
-// appropriate error mesage (incorporating |expected_type_str| if specified).
+// appropriate error message (incorporating |expected_type_str| if specified).
 base::Status TypeCheckSqliteValue(sqlite3_value* value,
                                   SqlValue::Type expected_type);
 base::Status TypeCheckSqliteValue(sqlite3_value* value,

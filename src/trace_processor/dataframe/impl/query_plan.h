@@ -30,7 +30,9 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
@@ -39,6 +41,7 @@
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
 
@@ -47,14 +50,13 @@ static constexpr uint32_t kMaxFilters = 16;
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
 struct QueryPlan {
-  // Specification for the bytecode interpreter.
-  // Contains parameters needed to execute the bytecode instructions.
-  struct InterpreterSpec {
+  // Contains various parameters required for execution of this query plan.
+  struct ExecutionParams {
     // Number of filter values used by this query.
     uint32_t filter_value_count = 0;
 
     // Register holding the final filtered indices.
-    bytecode::reg::ReadHandle<Slab<uint32_t>> output_register;
+    bytecode::reg::ReadHandle<Span<uint32_t>> output_register;
 
     // Maps column indices to output offsets.
     std::array<uint32_t, kMaxFilters> col_to_output_offset;
@@ -62,15 +64,15 @@ struct QueryPlan {
     // Number of output indices per row.
     uint32_t output_per_row = 0;
   };
-  static_assert(std::is_trivially_copyable_v<InterpreterSpec>);
-  static_assert(std::is_trivially_destructible_v<InterpreterSpec>);
+  static_assert(std::is_trivially_copyable_v<ExecutionParams>);
+  static_assert(std::is_trivially_destructible_v<ExecutionParams>);
 
   // Serializes the query plan to a Base64-encoded string.
   // This allows plans to be stored or transmitted between processes.
   std::string Serialize() const {
     size_t size = sizeof(size_t) +
                   (bytecode.size() * sizeof(bytecode::Bytecode)) +
-                  sizeof(interpreter_spec);
+                  sizeof(params);
     std::string res(size, '\0');
     char* p = res.data();
     {
@@ -83,8 +85,8 @@ struct QueryPlan {
       p += bytecode.size() * sizeof(bytecode::Bytecode);
     }
     {
-      memcpy(p, &interpreter_spec, sizeof(interpreter_spec));
-      p += sizeof(interpreter_spec);
+      memcpy(p, &params, sizeof(params));
+      p += sizeof(params);
     }
     PERFETTO_CHECK(p == res.data() + res.size());
     return base::Base64Encode(base::StringView(res));
@@ -112,17 +114,14 @@ struct QueryPlan {
       p += bytecode_size * sizeof(bytecode::Bytecode);
     }
     {
-      memcpy(&res.interpreter_spec, p, sizeof(res.interpreter_spec));
-      p += sizeof(res.interpreter_spec);
+      memcpy(&res.params, p, sizeof(res.params));
+      p += sizeof(res.params);
     }
     PERFETTO_CHECK(p == raw_data->data() + raw_data->size());
     return res;
   }
 
-  // Configuration for the bytecode interpreter.
-  InterpreterSpec interpreter_spec;
-
-  // Vector of bytecode instructions to execute.
+  ExecutionParams params;
   bytecode::BytecodeVector bytecode;
 };
 
@@ -132,12 +131,12 @@ struct QueryPlan {
 // needed to execute a query.
 class QueryPlanBuilder {
  public:
-  static QueryPlan Build(uint32_t row_count,
-                         const std::vector<Column>& columns,
-                         std::vector<FilterSpec>& specs,
-                         uint64_t cols_used) {
+  static base::StatusOr<QueryPlan> Build(uint32_t row_count,
+                                         const std::vector<Column>& columns,
+                                         std::vector<FilterSpec>& specs,
+                                         uint64_t cols_used) {
     QueryPlanBuilder builder(row_count, columns);
-    builder.Filter(specs);
+    RETURN_IF_ERROR(builder.Filter(specs));
     builder.Output(cols_used);
     return std::move(builder).Build();
   }
@@ -145,17 +144,19 @@ class QueryPlanBuilder {
  private:
   // Represents register types for holding indices.
   using IndicesReg = std::variant<bytecode::reg::RwHandle<Range>,
-                                  bytecode::reg::RwHandle<Slab<uint32_t>>>;
+                                  bytecode::reg::RwHandle<Span<uint32_t>>>;
 
   // State information for a column during query planning.
-  struct ColumnState {};
+  struct ColumnState {
+    std::optional<bytecode::reg::RwHandle<Slab<uint32_t>>> prefix_popcount;
+  };
 
   // Constructs a builder for the given number of rows and columns.
   QueryPlanBuilder(uint32_t row_count, const std::vector<Column>& columns);
 
   // Adds filter operations to the query plan based on filter specifications.
   // Optimizes the order of filters for efficiency.
-  void Filter(std::vector<FilterSpec>& specs);
+  base::Status Filter(std::vector<FilterSpec>& specs);
 
   // Configures output handling for the filtered rows.
   // |cols_used_bitmap| is a bitmap with bits set for columns that will be
@@ -168,25 +169,34 @@ class QueryPlanBuilder {
   // Processes non-string filter constraints.
   void NonStringConstraint(
       const FilterSpec& c,
-      const NonStringContent& type,
+      const NonStringType& type,
       const NonStringOp& op,
       const bytecode::reg::ReadHandle<CastFilterValueResult>& result);
+
+  // Processes string filter constraints.
+  base::Status StringConstraint(
+      const FilterSpec& c,
+      const StringOp& op,
+      const bytecode::reg::ReadHandle<CastFilterValueResult>& result);
+
+  // Processes null filter constraints.
+  void NullConstraint(const NullOp&, FilterSpec&);
 
   // Attempts to apply optimized filtering on sorted data.
   // Returns true if the optimization was applied.
   bool TrySortedConstraint(
       const FilterSpec& fs,
-      const Content& type,
+      const StorageType& ct,
       const NonNullOp& op,
       const bytecode::reg::RwHandle<CastFilterValueResult>& result);
 
   // Adds overlay translation for handling special column properties like
   // nullability.
-  bytecode::reg::RwHandle<Slab<uint32_t>> MaybeAddOverlayTranslation(
+  bytecode::reg::RwHandle<Span<uint32_t>> MaybeAddOverlayTranslation(
       const FilterSpec& c);
 
   // Ensures indices are stored in a Slab, converting from Range if necessary.
-  PERFETTO_NO_INLINE bytecode::reg::RwHandle<Slab<uint32_t>>
+  PERFETTO_NO_INLINE bytecode::reg::RwHandle<Span<uint32_t>>
   EnsureIndicesAreInSlab();
 
   // Adds a new bytecode instruction of type T to the plan.
@@ -201,6 +211,10 @@ class QueryPlanBuilder {
 
   // Sets the result to an empty set. Use when a filter guarantees no matches.
   void SetGuaranteedToBeEmpty();
+
+  // Returns the prefix popcount register for the given column.
+  bytecode::reg::ReadHandle<Slab<uint32_t>> PrefixPopcountRegisterFor(
+      uint32_t col);
 
   // Maximum number of rows in the query result.
   uint32_t max_row_count_ = 0;

@@ -108,7 +108,7 @@ void SharedMemoryABI::Initialize(uint8_t* start,
                     sizeof(std::atomic<uint16_t>) == sizeof(uint16_t),
                 "Incompatible STL <atomic> implementation");
 
-  // Chec that the kAllChunks(Complete,Free) are consistent with the
+  // Check that the kAllChunks(Complete,Free) are consistent with the
   // ChunkState enum values.
 
   // These must be zero because rely on zero-initialized memory being

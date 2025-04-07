@@ -242,7 +242,7 @@ class TablesCounters(TestSuite):
         out=Csv("""
         "id","arg_set_id"
         1,0
-        15,14
+        17,16
         """))
 
   def test_cpu_counter_track_multi_machine(self):
@@ -291,25 +291,29 @@ class TablesCounters(TestSuite):
         4,"cpu.times.io_wait_ns","[NULL]",0
         5,"cpu.times.irq_ns","[NULL]",0
         6,"cpu.times.softirq_ns","[NULL]",0
-        7,"cpu.times.user_ns","[NULL]",1
-        8,"cpu.times.user_nice_ns","[NULL]",1
-        9,"cpu.times.system_mode_ns","[NULL]",1
-        10,"cpu.times.idle_ns","[NULL]",1
-        11,"cpu.times.io_wait_ns","[NULL]",1
-        12,"cpu.times.irq_ns","[NULL]",1
-        13,"cpu.times.softirq_ns","[NULL]",1
-        14,"cpu.times.user_ns",1,0
-        15,"cpu.times.user_nice_ns",1,0
-        16,"cpu.times.system_mode_ns",1,0
-        17,"cpu.times.idle_ns",1,0
-        18,"cpu.times.io_wait_ns",1,0
-        19,"cpu.times.irq_ns",1,0
-        20,"cpu.times.softirq_ns",1,0
-        21,"cpu.times.user_ns",1,1
-        22,"cpu.times.user_nice_ns",1,1
-        23,"cpu.times.system_mode_ns",1,1
-        24,"cpu.times.idle_ns",1,1
-        25,"cpu.times.io_wait_ns",1,1
-        26,"cpu.times.irq_ns",1,1
-        27,"cpu.times.softirq_ns",1,1
+        7,"cpu.times.steal_ns","[NULL]",0
+        8,"cpu.times.user_ns","[NULL]",1
+        9,"cpu.times.user_nice_ns","[NULL]",1
+        10,"cpu.times.system_mode_ns","[NULL]",1
+        11,"cpu.times.idle_ns","[NULL]",1
+        12,"cpu.times.io_wait_ns","[NULL]",1
+        13,"cpu.times.irq_ns","[NULL]",1
+        14,"cpu.times.softirq_ns","[NULL]",1
+        15,"cpu.times.steal_ns","[NULL]",1
+        16,"cpu.times.user_ns",1,0
+        17,"cpu.times.user_nice_ns",1,0
+        18,"cpu.times.system_mode_ns",1,0
+        19,"cpu.times.idle_ns",1,0
+        20,"cpu.times.io_wait_ns",1,0
+        21,"cpu.times.irq_ns",1,0
+        22,"cpu.times.softirq_ns",1,0
+        23,"cpu.times.steal_ns",1,0
+        24,"cpu.times.user_ns",1,1
+        25,"cpu.times.user_nice_ns",1,1
+        26,"cpu.times.system_mode_ns",1,1
+        27,"cpu.times.idle_ns",1,1
+        28,"cpu.times.io_wait_ns",1,1
+        29,"cpu.times.irq_ns",1,1
+        30,"cpu.times.softirq_ns",1,1
+        31,"cpu.times.steal_ns",1,1
         """))

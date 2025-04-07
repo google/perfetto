@@ -62,8 +62,8 @@ TraceBlob TraceBlob::TakeOwnership(std::unique_ptr<uint8_t[]> buf,
 // static
 TraceBlob TraceBlob::FromMmap(base::ScopedMmap mapped) {
   PERFETTO_CHECK(mapped.IsValid());
-  TraceBlob blob(Ownership::kNullOrMmaped, static_cast<uint8_t*>(mapped.data()),
-                 mapped.length());
+  TraceBlob blob(Ownership::kNullOrMmapped,
+                 static_cast<uint8_t*>(mapped.data()), mapped.length());
   blob.mapping_ = std::make_unique<base::ScopedMmap>(std::move(mapped));
   return blob;
 }
@@ -74,7 +74,7 @@ TraceBlob TraceBlob::FromMmap(void* data, size_t size) {
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   PERFETTO_CHECK(data);
-  TraceBlob blob(Ownership::kNullOrMmaped, static_cast<uint8_t*>(data), size);
+  TraceBlob blob(Ownership::kNullOrMmapped, static_cast<uint8_t*>(data), size);
   blob.mapping_ = std::make_unique<base::ScopedMmap>(
       base::ScopedMmap::InheritMmappedRange(data, size));
   return blob;
@@ -94,7 +94,7 @@ TraceBlob::~TraceBlob() {
       delete[] data_;
       break;
 
-    case Ownership::kNullOrMmaped:
+    case Ownership::kNullOrMmapped:
       if (mapping_) {
         PERFETTO_CHECK(mapping_->reset());
       }
@@ -117,7 +117,7 @@ TraceBlob::TraceBlob(TraceBlob&& other) noexcept
   mapping_ = std::move(other.mapping_);
   other.data_ = nullptr;
   other.size_ = 0;
-  other.ownership_ = Ownership::kNullOrMmaped;
+  other.ownership_ = Ownership::kNullOrMmapped;
   other.mapping_ = nullptr;
 }
 

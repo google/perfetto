@@ -96,7 +96,7 @@ class AndroidLogDataSource : public ProbesDataSource {
   // If parsing fails returns false and leaves the |out_evt| field unset.
   // If parsing succeeds returns true and:
   // - If the event is skipped due to filters, |out_evt| is left unset.
-  // - If a new event is aded to the packet, |out_evt| is set to that.
+  // - If a new event is added to the packet, |out_evt| is set to that.
   bool ParseTextEvent(const char* start,
                       const char* end,
                       protos::pbzero::AndroidLogPacket* packet,
@@ -106,7 +106,7 @@ class AndroidLogDataSource : public ProbesDataSource {
   // If parsing fails returns false and leaves the |out_evt| field unset.
   // If parsing succeeds returns true and:
   // - If the event is skipped due to filters, |out_evt| is left unset.
-  // - If a new event is aded to the packet, |out_evt| is set to that.
+  // - If a new event is added to the packet, |out_evt| is set to that.
   bool ParseBinaryEvent(const char* start,
                         const char* end,
                         protos::pbzero::AndroidLogPacket* packet,

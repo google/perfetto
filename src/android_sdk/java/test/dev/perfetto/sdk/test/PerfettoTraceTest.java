@@ -79,8 +79,7 @@ public class PerfettoTraceTest {
 
   @Before
   public void setUp() {
-    PerfettoTrackEventExtra.memoryCleaner.isDebug = true;
-    PerfettoTrace.register(true);
+    PerfettoTrace.registerWithDebugChecks(true);
     // 'var unused' suppress error-prone warning
     var unused = FOO_CATEGORY.register();
 
