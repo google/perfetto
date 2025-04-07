@@ -88,7 +88,7 @@ public class PerfettoTraceTest {
 
   @Test
   public void testCategoryWithTags() throws Exception {
-    Category category = new Category("MyCatgetory", List.of("MyTag", "MyOtherTag")).register();
+    Category category = new Category("MyCategory", List.of("MyTag", "MyOtherTag")).register();
     TraceConfig traceConfig = getTraceConfig(null, List.of("MyTag"));
 
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
@@ -108,7 +108,7 @@ public class PerfettoTraceTest {
     assertThat(hasTrackEvent).isTrue();
     assertThat(mDebugAnnotationNames).contains("arg");
     assertThat(mEventNames).contains("event");
-    assertThat(mCategoryNames).contains("MyCatgetory");
+    assertThat(mCategoryNames).contains("MyCategory");
   }
 
   @Test
