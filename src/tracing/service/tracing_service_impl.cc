@@ -1732,6 +1732,7 @@ void TracingServiceImpl::ActivateTriggers(
           !tracing_session.received_triggers.empty();
       const TriggerInfo trigger = {static_cast<uint64_t>(now_ns), iter->name(),
                                    producer->name_, producer->uid()};
+      MaybeSnapshotClocksIntoRingBuffer(&tracing_session);
       tracing_session.received_triggers.push_back(trigger);
       switch (trigger_mode) {
         case TraceConfig::TriggerConfig::START_TRACING:
@@ -4117,7 +4118,7 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
 
   SnapshotLifecycleEvent(
       session, protos::pbzero::TracingServiceEvent::kFlushStartedFieldNumber,
-      false /* snapshot_clocks */);
+      /*snapshot_clocks=*/true);
   clone_op.pending_flush_cnt = bufs_groups.size();
   clone_op.clone_started_timestamp_ns = clock_->GetBootTimeNs().count();
   for (const std::set<BufferID>& buf_group : bufs_groups) {
