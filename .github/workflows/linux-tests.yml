@@ -32,22 +32,22 @@ jobs:
       matrix:
         config:
           - name: clang-x86_64-debug
-            PERFETTO_TEST_GN_ARGS: 'is_debug=true is_hermetic_clang=false non_hermetic_clang_stdlib=\"libc++\" enable_perfetto_merged_protos_check=true'
+            PERFETTO_TEST_GN_ARGS: 'is_debug=true is_hermetic_clang=false non_hermetic_clang_stdlib=\"libc++\" enable_perfetto_merged_protos_check=true cc_wrapper=\"ccache\"'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
           - name: clang-x86_64-tsan
-            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_tsan=true'
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_tsan=true cc_wrapper=\"ccache\"'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
           - name: clang-x86_64-msan
-            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_msan=true'
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_msan=true cc_wrapper=\"ccache\"'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
           - name: clang-x86_64-asan_lsan
-            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_asan=true is_lsan=true'
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_asan=true is_lsan=true cc_wrapper=\"ccache\"'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
           - name: clang-x86-release
-            PERFETTO_TEST_GN_ARGS: 'is_debug=false target_cpu=\"x86\"'
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false target_cpu=\"x86\" cc_wrapper=\"ccache\"'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
           - name: gcc8-x86_64-release
-            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_clang=false enable_perfetto_grpc=true cc=\"gcc-8\" cxx=\"g++-8\"'
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_clang=false enable_perfetto_grpc=true cc=\"gcc-8\" cxx=\"g++-8\" cc_wrapper=\"ccache\"'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: '--grpc'
     env:
       PERFETTO_CI_JOB_NAME: ${{ matrix.config.name }}
