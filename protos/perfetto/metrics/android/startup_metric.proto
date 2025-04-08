@@ -381,7 +381,7 @@ message AndroidStartupMetric {
   // Information for the ThreadSections
   message TraceThreadSectionInfo {
     repeated TraceThreadSection thread_section = 1;
-    optional int64 start_timestamp  = 2;
+    optional int64 start_timestamp = 2;
     optional int64 end_timestamp = 3;
   }
 

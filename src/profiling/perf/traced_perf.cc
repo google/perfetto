@@ -19,8 +19,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/tracing/default_socket.h"

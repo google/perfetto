@@ -162,7 +162,7 @@ inline int MkSockType(SockType type) {
 SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
   switch (family) {
     case SockFamily::kUnix: {
-      struct sockaddr_un saddr {};
+      struct sockaddr_un saddr{};
       const size_t name_len = socket_name.size();
       if (name_len + 1 /* for trailing \0 */ >= sizeof(saddr.sun_path)) {
         errno = ENAMETOOLONG;
@@ -196,7 +196,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       auto parts = SplitString(socket_name, ":");
       PERFETTO_CHECK(parts.size() == 2);
       struct addrinfo* addr_info = nullptr;
-      struct addrinfo hints {};
+      struct addrinfo hints{};
       hints.ai_family = AF_INET;
       PERFETTO_CHECK(getaddrinfo(parts[0].c_str(), parts[1].c_str(), &hints,
                                  &addr_info) == 0);
@@ -214,7 +214,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       auto port = SplitString(parts[1], ":");
       PERFETTO_CHECK(port.size() == 1);
       struct addrinfo* addr_info = nullptr;
-      struct addrinfo hints {};
+      struct addrinfo hints{};
       hints.ai_family = AF_INET6;
       PERFETTO_CHECK(getaddrinfo(address[0].c_str(), port[0].c_str(), &hints,
                                  &addr_info) == 0);
@@ -712,7 +712,7 @@ bool UnixSocketRaw::SetTxTimeout(uint32_t timeout_ms) {
   DWORD timeout = timeout_ms;
   ignore_result(tx_timeout_ms_);
 #else
-  struct timeval timeout {};
+  struct timeval timeout{};
   uint32_t timeout_sec = timeout_ms / 1000;
   timeout.tv_sec = static_cast<decltype(timeout.tv_sec)>(timeout_sec);
   timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(
@@ -735,7 +735,7 @@ bool UnixSocketRaw::SetRxTimeout(uint32_t timeout_ms) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   DWORD timeout = timeout_ms;
 #else
-  struct timeval timeout {};
+  struct timeval timeout{};
   uint32_t timeout_sec = timeout_ms / 1000;
   timeout.tv_sec = static_cast<decltype(timeout.tv_sec)>(timeout_sec);
   timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(
@@ -747,7 +747,7 @@ bool UnixSocketRaw::SetRxTimeout(uint32_t timeout_ms) {
 }
 
 std::string UnixSocketRaw::GetSockAddr() const {
-  struct sockaddr_storage stg {};
+  struct sockaddr_storage stg{};
   socklen_t slen = sizeof(stg);
   PERFETTO_CHECK(
       getsockname(*fd_, reinterpret_cast<struct sockaddr*>(&stg), &slen) == 0);

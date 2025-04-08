@@ -344,7 +344,7 @@ std::string RelayService::GetMachineIdHint(
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
     // Mac or iOS, just use stat(2).
     const char* dev_path = "/dev";
-    struct stat stat_buf {};
+    struct stat stat_buf{};
     int rc = PERFETTO_EINTR(stat(dev_path, &stat_buf));
     if (rc == -1)
       return std::string();
@@ -378,7 +378,7 @@ std::string RelayService::GetMachineIdHint(
 #else
     // Android or Linux, use statx(2)
     const char* dev_path = "/dev";
-    struct statx stat_buf {};
+    struct statx stat_buf{};
     auto rc = PERFETTO_EINTR(syscall(__NR_statx, /*dirfd=*/-1, dev_path,
                                      /*flags=*/0, STATX_BTIME, &stat_buf));
     if (rc == -1)

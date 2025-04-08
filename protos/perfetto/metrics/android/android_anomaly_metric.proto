@@ -18,14 +18,13 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Detects outlier scenarios in different Android Systems in a trace. For now, this just
-// detects high binder transaction rates. In the future, there could be others
-// like garbage_collection, CPU, broadcasts, etc.
+// Detects outlier scenarios in different Android Systems in a trace. For now,
+// this just detects high binder transaction rates. In the future, there could
+// be others like garbage_collection, CPU, broadcasts, etc.
 message AndroidAnomalyMetric {
-
   enum Unit {
-      UNIT_UNSPECIFIED = 0;
-      COUNT_PER_SECOND = 1;
+    UNIT_UNSPECIFIED = 0;
+    COUNT_PER_SECOND = 1;
   }
 
   // For anomalies related to a particular process.
@@ -37,11 +36,13 @@ message AndroidAnomalyMetric {
   }
 
   // Binder subsystem outliers with the following aggegations:
-  // 1. Max incoming binder transaction count from each process over a one second sliding window.
-  // 2. Max outgoing binder transaction count from each process over a one second sliding window.
+  // 1. Max incoming binder transaction count from each process over a one
+  // second sliding window.
+  // 2. Max outgoing binder transaction count from each process over a one
+  // second sliding window.
   message Binder {
-      repeated ProcessAnomaly max_incoming_process_count_per_second = 1;
-      repeated ProcessAnomaly max_outgoing_process_count_per_second = 2;
+    repeated ProcessAnomaly max_incoming_process_count_per_second = 1;
+    repeated ProcessAnomaly max_outgoing_process_count_per_second = 2;
   }
 
   optional Binder binder = 1;

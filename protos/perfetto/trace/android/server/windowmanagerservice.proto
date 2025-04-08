@@ -213,7 +213,8 @@ message DisplayContentProto {
   optional bool display_ready = 26;
   optional WindowStateProto input_method_target = 27 [deprecated = true];
   optional WindowStateProto input_method_input_target = 28 [deprecated = true];
-  optional WindowStateProto input_method_control_target = 29 [deprecated = true];
+  optional WindowStateProto input_method_control_target = 29
+      [deprecated = true];
   optional WindowStateProto current_focus = 30 [deprecated = true];
   optional ImeInsetsSourceProviderProto ime_insets_source_provider = 31;
   optional bool can_show_ime = 32 [deprecated = true];

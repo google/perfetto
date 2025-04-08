@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 #include <chrono>
 #include <thread>
 
@@ -23,7 +22,7 @@
 // 2. To test that the amalgmated SDK works, against the perfetto.h source.
 
 #ifdef PERFETTO_AMALGAMATED_SDK_TEST
-#include "perfetto.h"
+#include "perfetto.h"  // no-include-violation-check
 #else
 #include "perfetto/tracing.h"
 #include "protos/perfetto/config/gpu/gpu_counter_config.pbzero.h"

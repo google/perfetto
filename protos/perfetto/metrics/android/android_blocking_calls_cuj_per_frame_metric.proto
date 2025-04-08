@@ -21,12 +21,12 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/android_blocking_call_per_frame.proto";
 import "protos/perfetto/metrics/android/process_metadata.proto";
 
-// Blocking calls per frame inside Android jank CUJs. Shows count and duration for each.
+// Blocking calls per frame inside Android jank CUJs. Shows count and duration
+// for each.
 message AndroidCujBlockingCallsPerFrameMetric {
   repeated Cuj cuj = 1;
 
   message Cuj {
-
     // Name of the CUJ, extracted from the CUJ jank trace marker.
     // For example SHADE_EXPAND_COLLAPSE from J<SHADE_EXPAND_COLLAPSE>.
     optional string name = 1;

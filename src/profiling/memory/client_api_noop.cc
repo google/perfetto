@@ -44,8 +44,8 @@ __attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setDisabledCallback(
   return nullptr;
 }
 
-__attribute__((visibility("default"))) uint32_t AHeapProfile_registerHeap(
-    AHeapInfo*) {
+__attribute__((visibility("default"))) uint32_t
+AHeapProfile_registerHeap(AHeapInfo*) {
   return 0;
 }
 

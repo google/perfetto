@@ -58,7 +58,7 @@ TEST(ClientTest, MAYBE_GetSigaltStackRange) {
   ASSERT_NE(sigaltstack(&altstack, &old_altstack), -1);
 
   struct sigaction oldact;
-  struct sigaction newact {};
+  struct sigaction newact{};
 
   static StackRange stackrange;
   static const char* stackptr;

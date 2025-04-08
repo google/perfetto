@@ -24,16 +24,16 @@ namespace android_internal {
 
 extern "C" {
 
-bool __attribute__((visibility("default")))
-NotifyTraceSessionEnded(bool session_stolen);
+bool __attribute__((visibility("default"))) NotifyTraceSessionEnded(
+    bool session_stolen);
 
-bool __attribute__((visibility("default")))
-ReportTrace(const char* reporter_package_name,
-            const char* reporter_class_name,
-            int owned_trace_fd,
-            int64_t uuid_lsb,
-            int64_t uuid_msb,
-            bool use_pipe_in_framework_for_testing);
+bool __attribute__((visibility("default"))) ReportTrace(
+    const char* reporter_package_name,
+    const char* reporter_class_name,
+    int owned_trace_fd,
+    int64_t uuid_lsb,
+    int64_t uuid_msb,
+    bool use_pipe_in_framework_for_testing);
 
 }  // extern "C"
 
