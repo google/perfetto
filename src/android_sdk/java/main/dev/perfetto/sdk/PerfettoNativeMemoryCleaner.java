@@ -12,44 +12,60 @@ import java.util.Set;
 @SuppressWarnings(
     "AndroidJdkLibsChecker") // Suppress warning about 'java.lang.ref.Cleaner' in google3.
 public class PerfettoNativeMemoryCleaner {
-  // @VisibleForTesting
-  public boolean isDebug = false;
-  public final AllocationStats allocationStats = new AllocationStats();
+  private final AllocationStats mAllocationStats;
+  private final Cleaner mCleaner = SystemCleaner.cleaner();
 
-  private final Cleaner cleaner = SystemCleaner.cleaner();
+  public PerfettoNativeMemoryCleaner() {
+    this(null);
+  }
 
-  public void registerNativeAllocation(Object target, long mPtr, long mFreeFunctionPtr) {
+  public PerfettoNativeMemoryCleaner(AllocationStats allocationStats) {
+    this.mAllocationStats = allocationStats;
+  }
+
+  public void registerNativeAllocation(Object target, long ptr, long freeFunctionPtr) {
     String clsName = target.getClass().getName();
-    if (isDebug) {
-      allocationStats.registerAlloc(clsName);
+    if (mAllocationStats != null) {
+      mAllocationStats.registerAlloc(clsName);
     }
-    cleaner.register(target, new FreeNativeMemoryRunnable(mPtr, mFreeFunctionPtr, clsName));
+    mCleaner.register(
+        target, new FreeNativeMemoryRunnable(ptr, freeFunctionPtr, clsName, mAllocationStats));
+  }
+
+  public final boolean isReportAllocationStats() {
+    return mAllocationStats != null;
   }
 
   @CriticalNative
   private static native void applyNativeFunction(long nativeFunction, long nativePtr);
 
-  final class FreeNativeMemoryRunnable implements Runnable {
+  static final class FreeNativeMemoryRunnable implements Runnable {
     private final long mPtr;
     private final long mFreeFunctionPtr;
-    private final String clsName;
+    private final String mClsName;
+    private final AllocationStats mAllocationStats;
 
-    public FreeNativeMemoryRunnable(long mPtr, long mFreeFunctionPtr, String clsName) {
-      this.mPtr = mPtr;
-      this.mFreeFunctionPtr = mFreeFunctionPtr;
-      this.clsName = clsName;
+    public FreeNativeMemoryRunnable(
+        long ptr, long freeFunctionPtr, String clsName, AllocationStats allocationStats) {
+      this.mPtr = ptr;
+      this.mFreeFunctionPtr = freeFunctionPtr;
+      this.mClsName = clsName;
+      this.mAllocationStats = allocationStats;
     }
 
     @Override
     public void run() {
-      if (isDebug) {
-        allocationStats.registerFree(clsName);
+      if (mAllocationStats != null) {
+        mAllocationStats.registerFree(mClsName);
       }
       applyNativeFunction(mFreeFunctionPtr, mPtr);
     }
   }
 
-  public static class AllocationStats {
+  /**
+   * Holds the count of native memory allocations and de-allocations for each registered class name.
+   */
+  public static final class AllocationStats {
     private final Map<String, Integer> allocCount = new HashMap<>();
     private final Map<String, Integer> freeCount = new HashMap<>();
 

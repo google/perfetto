@@ -40,12 +40,11 @@ public final class PerfettoTrace {
   private static final int PERFETTO_TE_TYPE_COUNTER = 4;
 
   private static boolean sIsDebug = false;
+  private static final PerfettoNativeMemoryCleaner sNativeMemoryCleaner =
+      new PerfettoNativeMemoryCleaner();
 
   /** For fetching the next flow event id in a process. */
   private static final AtomicInteger sFlowEventId = new AtomicInteger();
-
-  private static final PerfettoNativeMemoryCleaner memoryCleaner =
-      new PerfettoNativeMemoryCleaner();
 
   /**
    * Perfetto category a trace event belongs to. Registering a category is not sufficient to capture
@@ -78,7 +77,7 @@ public final class PerfettoTrace {
       mTags = tags;
       mPtr = native_init(name, tags.toArray(new String[0]));
       mExtraPtr = native_get_extra_ptr(mPtr);
-      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
+      sNativeMemoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @FastNative

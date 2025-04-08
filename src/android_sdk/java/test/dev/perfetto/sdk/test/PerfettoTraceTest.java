@@ -17,14 +17,22 @@
 package dev.perfetto.sdk.test;
 
 import static com.google.common.truth.Truth.assertThat;
+import static dev.perfetto.sdk.PerfettoTrace.Category;
 import static perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo.LatencyComponentType.COMPONENT_INPUT_EVENT_LATENCY_BEGIN_RWH;
 import static perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo.LatencyComponentType.COMPONENT_INPUT_EVENT_LATENCY_SCROLL_UPDATE_ORIGINAL;
-import static dev.perfetto.sdk.PerfettoTrace.Category;
 
 import android.os.Process;
 import android.util.ArraySet;
 import android.util.Log;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
+import dev.perfetto.sdk.PerfettoTrace;
+import dev.perfetto.sdk.PerfettoTrackEventBuilder;
+import java.util.List;
+import java.util.Set;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 import perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo;
 import perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo.ComponentInfo;
 import perfetto.protos.DataSourceConfigOuterClass.DataSourceConfig;
@@ -44,14 +52,6 @@ import perfetto.protos.TrackEventConfigOuterClass.TrackEventConfig;
 import perfetto.protos.TrackEventOuterClass.EventCategory;
 import perfetto.protos.TrackEventOuterClass.EventName;
 import perfetto.protos.TrackEventOuterClass.TrackEvent;
-import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
-import dev.perfetto.sdk.PerfettoTrace;
-import dev.perfetto.sdk.PerfettoTrackEventExtra;
-import java.util.List;
-import java.util.Set;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 
 /**
  * This class is used to test the native tracing support. Run this test while tracing on the
@@ -83,6 +83,8 @@ public class PerfettoTraceTest {
     // 'var unused' suppress error-prone warning
     var unused = FOO_CATEGORY.register();
 
+    PerfettoTrackEventBuilder.getsNativeAllocationStats().reset();
+
     mCategoryNames.clear();
     mEventNames.clear();
     mDebugAnnotationNames.clear();
@@ -90,7 +92,7 @@ public class PerfettoTraceTest {
   }
 
   @Test
-  public void testFreeNativeMemoryWhenJavaObjectGCed() throws Exception {
+  public void testFreeNativeMemoryWhenJavaObjectGCed() {
     TraceConfig traceConfig = getTraceConfig(FOO);
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
     for (int i = 0; i < 600_000; i++) {
@@ -107,10 +109,11 @@ public class PerfettoTraceTest {
 
     // We test that the GC triggers 'free native memory' function when the corresponding java
     // objects are garbage collected.
-    AllocationStats allocationStats = PerfettoTrackEventExtra.memoryCleaner.allocationStats;
+    AllocationStats allocationStats = PerfettoTrackEventBuilder.getsNativeAllocationStats();
     String argStringClsName = "dev.perfetto.sdk.PerfettoTrackEventExtra$ArgString";
-    assertThat(allocationStats.getAllocCountForTarget(argStringClsName)).isEqualTo(600000);
-    // Assert that the native memory was freed at least once.
+    assertThat(allocationStats.getAllocCountForTarget(argStringClsName)).isEqualTo(600_000);
+    // Assert that the native memory was freed at least once,
+    // in practice the counter is usually greater than 300_000.
     assertThat(allocationStats.getFreeCountForTarget(argStringClsName)).isGreaterThan(0);
     String allocDebugStats = allocationStats.reportStats();
     Log.d(TAG, "Memory cleaner allocation stats: " + allocDebugStats);
