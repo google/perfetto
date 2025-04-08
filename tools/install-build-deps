@@ -518,7 +518,8 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_DIR = os.path.join(ROOT_DIR, 'ui')
 TOOLS_DIR = os.path.join(ROOT_DIR, 'tools')
 NODE_MODULES_STATUS_FILE = os.path.join(UI_DIR, 'node_modules', '.last_install')
-PYTHON_STATUS_FILE = os.path.join(ROOT_DIR, 'python', 'venv', '.last_install')
+PYTHON_VENV_DIR = os.path.join(ROOT_DIR, '.venv')
+PYTHON_STATUS_FILE = os.path.join(PYTHON_VENV_DIR, '.last_install')
 PYTHON_REQUIREMENTS = os.path.join(ROOT_DIR, 'python', 'requirements.txt')
 TEST_DATA_SCRIPT = os.path.join(TOOLS_DIR, 'test_data')
 
@@ -699,11 +700,10 @@ def CheckPythonVenv():
 
 
 def InstallPythonVenv():
-  venv_dir = os.path.join(ROOT_DIR, 'python', 'venv')
-  venv_pip = os.path.join(venv_dir, 'bin', 'pip3')
+  venv_pip = os.path.join(PYTHON_VENV_DIR, 'bin', 'pip3')
   cur_python_interpreter = sys.executable
   if not os.path.exists(venv_pip):
-    cmd = [cur_python_interpreter, '-m', 'venv', venv_dir]
+    cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
     logging.info(f'Installing python venv {" ".join(cmd)}')
     subprocess.check_call(cmd)
 
