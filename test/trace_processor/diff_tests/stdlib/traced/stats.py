@@ -66,7 +66,9 @@ CLONE_DONE = r"""
         }
         """
 
+
 class TracedStats(TestSuite):
+
   def test_clone_flush_latency(self):
     return DiffTestBlueprint(
         trace=TextProto(BASE_TRACE + CLONE_STARTED + CLONE_DONE),

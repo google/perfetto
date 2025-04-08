@@ -17,6 +17,7 @@ from python.generators.diff_tests.testing import Csv, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
+
 class ParsingSysStats(TestSuite):
 
   def test_cpuidle_stats(self):

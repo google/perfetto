@@ -20,6 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class GraphicsMetrics(TestSuite):
+
   def test_frame_missed_metrics(self):
     return DiffTestBlueprint(
         trace=Path('frame_missed.py'),
