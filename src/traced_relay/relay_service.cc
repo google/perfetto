@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/version.h"
 #include "perfetto/ext/ipc/client.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/ipc/wire_protocol.gen.h"
@@ -86,7 +87,7 @@ void SetSystemInfo(protos::gen::InitRelayRequest* request) {
   base::SystemInfo sys_info = base::GetSystemInfo();
 
   auto* info = request->mutable_system_info();
-  info->set_tracing_service_version(sys_info.tracing_service_version);
+  info->set_tracing_service_version(base::GetVersionString());
 
   if (sys_info.timezone_off_mins.has_value())
     info->set_timezone_off_mins(*sys_info.timezone_off_mins);

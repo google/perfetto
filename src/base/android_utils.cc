@@ -28,7 +28,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/version.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
@@ -69,7 +68,6 @@ std::string GetAndroidProp(const char* name) {
 
 SystemInfo GetSystemInfo() {
   SystemInfo info;
-  info.tracing_service_version = GetVersionString();
 
   info.timezone_off_mins = GetTimezoneOffsetMins();
 

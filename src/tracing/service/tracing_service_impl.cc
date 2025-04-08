@@ -3733,7 +3733,7 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
   auto* info = packet->set_system_info();
 
   base::SystemInfo sys_info = base::GetSystemInfo();
-  info->set_tracing_service_version(sys_info.tracing_service_version);
+  info->set_tracing_service_version(base::GetVersionString());
 
   if (sys_info.timezone_off_mins.has_value())
     info->set_timezone_off_mins(*sys_info.timezone_off_mins);
