@@ -107,6 +107,13 @@ base::Status RedactProcessEvents::OnFtraceEvent(
                            protos::pbzero::FtraceEvent::kTimestampFieldNumber);
   }
 
+  auto pid = decoder.FindField(protos::pbzero::FtraceEvent::kPidFieldNumber);
+
+  if (!pid.valid()) {
+    return base::ErrStatus("RedactProcessEvents: missing pid %d",
+                           protos::pbzero::FtraceEvent::kPidFieldNumber);
+  }
+
   for (auto it = decoder.ReadField(); it.valid(); it = decoder.ReadField()) {
     switch (it.id()) {
       case protos::pbzero::FtraceEvent::kSchedProcessFreeFieldNumber:
@@ -119,7 +126,8 @@ base::Status RedactProcessEvents::OnFtraceEvent(
         break;
       case protos::pbzero::FtraceEvent::kTaskRenameFieldNumber:
         RETURN_IF_ERROR(OnProcessRename(context, ts.as_uint64(), cpu,
-                                        it.as_bytes(), shared_comm, message));
+                                        pid.as_int32(), it.as_bytes(),
+                                        shared_comm, message));
         break;
       case protos::pbzero::FtraceEvent::kPrintFieldNumber:
         RETURN_IF_ERROR(OnPrint(context, ts.as_uint64(), bytes, message));
@@ -253,10 +261,15 @@ base::Status RedactProcessEvents::OnNewTask(
   return base::OkStatus();
 }
 
+// Remove clear contents of RedactProcessEvents messages when the message does
+// not belong to the target package.
+//
+// protos/perfetto/trace/ftrace/task.proto
 base::Status RedactProcessEvents::OnProcessRename(
     const Context& context,
     uint64_t ts,
     int32_t cpu,
+    int32_t pid,
     protozero::ConstBytes bytes,
     std::string* shared_comm,
     protos::pbzero::FtraceEvent* parent_message) const {
@@ -265,64 +278,62 @@ base::Status RedactProcessEvents::OnProcessRename(
 
   protos::pbzero::TaskRenameFtraceEvent::Decoder decoder(bytes);
 
-  if (!decoder.has_pid()) {
-    return base::ErrStatus(
-        "RedactProcessEvents: missing TaskRenameFtraceEvent %d",
-        protos::pbzero::TaskRenameFtraceEvent::kPidFieldNumber);
-  }
-
   if (!decoder.has_newcomm()) {
     return base::ErrStatus(
-        "RedactProcessEvents: missing TaskRenameFtraceEvent %d",
+        "RedactProcessEvents: missing TaskRenameFtraceEvent new comm (field id "
+        "%d)",
         protos::pbzero::TaskRenameFtraceEvent::kNewcommFieldNumber);
   }
 
   if (!decoder.has_oldcomm()) {
     return base::ErrStatus(
-        "RedactProcessEvents: missing TaskRenameFtraceEvent %d",
+        "RedactProcessEvents: missing TaskRenameFtraceEvent old comm (field id "
+        "%d)",
         protos::pbzero::TaskRenameFtraceEvent::kOldcommFieldNumber);
   }
 
   if (!decoder.has_oom_score_adj()) {
     return base::ErrStatus(
-        "RedactProcessEvents: missing TaskRenameFtraceEvent %d",
+        "RedactProcessEvents: missing TaskRenameFtraceEvent oom score (%d)",
         protos::pbzero::TaskRenameFtraceEvent::kOomScoreAdjFieldNumber);
   }
 
-  auto pid = decoder.pid();
   auto new_comm = decoder.newcomm();
   auto old_comm = decoder.oldcomm();
   auto oom_score_adj = decoder.oom_score_adj();
 
+  // The rename task's pid *should* always match the ftrace event's pid. To
+  // support backwards compatibility but assume the ftrace event's pid can be
+  // used, the rename task's pid will be used if it is present, otherwise it'll
+  // use the ftrace event's pid.
+  auto nearest_pid = decoder.has_pid() ? decoder.pid() : pid;
+
   PERFETTO_DCHECK(filter_);
-  if (!filter_->Includes(context, ts, pid)) {
+  if (!filter_->Includes(context, ts, nearest_pid)) {
     return base::OkStatus();
   }
 
   auto* message = parent_message->set_task_rename();
 
-  auto noop_pid = pid;
-
   shared_comm->assign(old_comm.data, old_comm.size);
 
   PERFETTO_DCHECK(modifier_);
-  modifier_->Modify(context, ts, cpu, &noop_pid, shared_comm);
 
-  // Write the old-comm now so shared_comm can be used new-comm.
-  message->set_oldcomm(*shared_comm);
+  // Copy the pid so that, if changed by Modify(), we can test if the pid
+  // changed. The modifier here should not change the pid.
+  auto old_comm_pid = nearest_pid;
+  auto old_comm_string = old_comm.ToStdString();
+  modifier_->Modify(context, ts, cpu, &old_comm_pid, &old_comm_string);
 
-  shared_comm->assign(new_comm.data, new_comm.size);
+  auto new_comm_pid = nearest_pid;
+  auto new_comm_string = new_comm.ToStdString();
+  modifier_->Modify(context, ts, cpu, &new_comm_pid, &new_comm_string);
 
-  PERFETTO_DCHECK(modifier_);
-  modifier_->Modify(context, ts, cpu, &pid, shared_comm);
+  PERFETTO_DCHECK(old_comm_pid == nearest_pid);
+  PERFETTO_DCHECK(new_comm_pid == nearest_pid);
 
-  message->set_newcomm(*shared_comm);
-
-  // Because the same modification is used for each comm, the resulting pids
-  // should be the same.
-  PERFETTO_DCHECK(noop_pid == pid);
-
-  message->set_pid(pid);
+  message->set_oldcomm(old_comm_string);
+  message->set_newcomm(new_comm_string);
   message->set_oom_score_adj(oom_score_adj);
 
   return base::OkStatus();
