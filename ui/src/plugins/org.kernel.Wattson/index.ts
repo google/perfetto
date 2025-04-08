@@ -26,7 +26,7 @@ import {WattsonProcessSelectionAggregator} from './process_aggregator';
 import {WattsonThreadSelectionAggregator} from './thread_aggregator';
 import {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
-import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
+import {createWattsonAggregationToTabAdaptor} from './aggregation_panel';
 
 export default class implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
@@ -85,25 +85,25 @@ export default class implements PerfettoPlugin {
     // NOTE: the registration order matters because the laste two aggregators
     // depend on views created by the first two.
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(
+      createWattsonAggregationToTabAdaptor(
         ctx,
         new WattsonEstimateSelectionAggregator(),
       ),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(
+      createWattsonAggregationToTabAdaptor(
         ctx,
         new WattsonThreadSelectionAggregator(),
       ),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(
+      createWattsonAggregationToTabAdaptor(
         ctx,
         new WattsonProcessSelectionAggregator(),
       ),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(
+      createWattsonAggregationToTabAdaptor(
         ctx,
         new WattsonPackageSelectionAggregator(),
       ),
