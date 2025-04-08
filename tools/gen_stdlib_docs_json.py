@@ -30,13 +30,15 @@ from python.generators.sql_processing.docs_parse import parse_file
 def _summary_desc(s: str) -> str:
   return s.split('. ')[0].replace('\n', ' ')
 
+
 def _long_type_to_table(s: str):
-    pattern = '(?:[A-Z]*)\(([a-z_]*).([a-z_]*)\)'
-    m = re.match(pattern, s)
-    if not m:
-      return (None, None)
-    g = m.groups()
-    return (g[0], g[1])
+  pattern = '(?:[A-Z]*)\(([a-z_]*).([a-z_]*)\)'
+  m = re.match(pattern, s)
+  if not m:
+    return (None, None)
+  g = m.groups()
+  return (g[0], g[1])
+
 
 def main():
   parser = argparse.ArgumentParser()

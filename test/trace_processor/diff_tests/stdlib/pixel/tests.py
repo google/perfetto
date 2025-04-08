@@ -19,6 +19,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class PixelStdlib(TestSuite):
+
   def test_android_camera_frames(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

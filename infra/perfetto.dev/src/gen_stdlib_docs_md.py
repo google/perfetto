@@ -102,9 +102,7 @@ class ModuleMd:
       if not data['cols']:
         continue
 
-      obj_summary = (
-          f'''{_bold(data['name'])}. {data['summary_desc']}\n'''
-      )
+      obj_summary = (f'''{_bold(data['name'])}. {data['summary_desc']}\n''')
       content = [f"{data['type']}"]
       if (data['summary_desc'] != data['desc']):
         content.append(data['desc'])
@@ -112,8 +110,7 @@ class ModuleMd:
       table = [_md_table_header(['Column', 'Type', 'Description'])]
       for info in data['cols']:
         name = info["name"]
-        table.append(
-            f'{name} | {info["type"]} | {_escape(info["desc"])}')
+        table.append(f'{name} | {info["type"]} | {_escape(info["desc"])}')
       content.append('\n\n')
       content.append('\n'.join(table))
 
@@ -128,8 +125,7 @@ class ModuleMd:
       if (d['summary_desc'] != d['desc']):
         content.append(d['desc'])
 
-      content.append(
-          f"Returns {d['return_type']}: {d['return_desc']}\n\n")
+      content.append(f"Returns {d['return_type']}: {d['return_desc']}\n\n")
       if d['args']:
         content.append(_md_table_header(['Argument', 'Type', 'Description']))
         for arg_dict in d['args']:

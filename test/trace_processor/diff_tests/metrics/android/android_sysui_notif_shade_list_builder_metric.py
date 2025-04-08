@@ -49,59 +49,55 @@ modification_child_slice_names = [
 
 
 def add_main_thread_atrace(trace, ts, ts_end, buf, pid):
-    trace.add_atrace_begin(ts=ts, tid=pid, pid=pid, buf=buf)
-    trace.add_atrace_end(ts=ts_end, tid=pid, pid=pid)
+  trace.add_atrace_begin(ts=ts, tid=pid, pid=pid, buf=buf)
+  trace.add_atrace_end(ts=ts_end, tid=pid, pid=pid)
 
 
 # Creates a trace that has the interesting slices that we are querying for
 # A ShadeListBuilder.buildList slice that has one of each of the inflation_child_slice_names
 # A ShadeListBuilder.buildList slice that has one of each of the modification_child_slice_names
 def add_slices(trace, pid):
-    slice_ts = 2_000_000
-    slice_ts = add_slice_with_children(trace, pid, slice_ts, 'ShadeListBuilder.buildList', inflation_child_slice_names)
-    add_slice_with_children(trace, pid, slice_ts, 'ShadeListBuilder.buildList', modification_child_slice_names)
+  slice_ts = 2_000_000
+  slice_ts = add_slice_with_children(trace, pid, slice_ts,
+                                     'ShadeListBuilder.buildList',
+                                     inflation_child_slice_names)
+  add_slice_with_children(trace, pid, slice_ts, 'ShadeListBuilder.buildList',
+                          modification_child_slice_names)
+
 
 # Add a slice with a set of children slices, return the parent slice's end ts
 def add_slice_with_children(trace, pid, current_ts, parent_name, children_list):
-    ts_end = current_ts + parent_slice_idle_dur + len(children_list) * (child_slice_dur + 1)
-    # add the parent slice
+  ts_end = current_ts + parent_slice_idle_dur + len(children_list) * (
+      child_slice_dur + 1)
+  # add the parent slice
+  add_main_thread_atrace(
+      trace, ts=current_ts, ts_end=ts_end, buf=parent_name, pid=pid)
+  current_ts += parent_slice_idle_dur
+  # Add the children
+  for child_name in children_list:
+    ts_child_end = current_ts + child_slice_dur + 1
     add_main_thread_atrace(
-        trace,
-        ts=current_ts,
-        ts_end=ts_end,
-        buf=parent_name,
-        pid=pid)
-    current_ts += parent_slice_idle_dur
-    # Add the children
-    for child_name in children_list:
-        ts_child_end = current_ts + child_slice_dur + 1
-        add_main_thread_atrace(
-            trace,
-            ts=current_ts,
-            ts_end=ts_child_end,
-            buf=child_name,
-            pid=pid)
-        current_ts = ts_child_end
-    return ts_end
+        trace, ts=current_ts, ts_end=ts_child_end, buf=child_name, pid=pid)
+    current_ts = ts_child_end
+  return ts_end
+
 
 def add_process(trace, package_name, uid, pid):
-    trace.add_package_list(ts=0, name=package_name, uid=uid, version_code=1)
-    trace.add_process(
-        pid=pid, ppid=0, cmdline=package_name, uid=uid)
-    trace.add_thread(tid=pid, tgid=pid, cmdline="MainThread", name="MainThread")
+  trace.add_package_list(ts=0, name=package_name, uid=uid, version_code=1)
+  trace.add_process(pid=pid, ppid=0, cmdline=package_name, uid=uid)
+  trace.add_thread(tid=pid, tgid=pid, cmdline="MainThread", name="MainThread")
 
 
 def setup_trace():
-    trace = synth_common.create_trace()
-    trace.add_packet()
-    add_process(trace, package_name="com.android.systemui", uid=10001,
-                pid=SYSUI_PID)
-    trace.add_ftrace_packet(cpu=0)
-    return trace
+  trace = synth_common.create_trace()
+  trace.add_packet()
+  add_process(
+      trace, package_name="com.android.systemui", uid=10001, pid=SYSUI_PID)
+  trace.add_ftrace_packet(cpu=0)
+  return trace
 
 
 trace = setup_trace()
-
 
 add_slices(trace, pid=SYSUI_PID)
 

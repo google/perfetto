@@ -240,5 +240,4 @@ def GenTests(api):
 
   yield (api.test('unofficial') + api.platform.name('linux') +
          api.buildbucket.ci_build(
-             project='perfetto',
-             git_repo='github.com/google/perfetto'))
+             project='perfetto', git_repo='github.com/google/perfetto'))

@@ -199,7 +199,7 @@ class Trace(object):
     self.add_print(ts, tid, 'I|{}|{}'.format(pid, buf))
 
   def add_atrace_instant_for_track(self, ts, tid, pid, track_name, buf):
-        self.add_print(ts, tid, 'N|{}|{}|{}'.format(pid, track_name, buf))
+    self.add_print(ts, tid, 'N|{}|{}|{}'.format(pid, track_name, buf))
 
   def add_process(self, pid, ppid, cmdline, uid=None):
     process = self.packet.process_tree.processes.add()
