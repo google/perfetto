@@ -25,7 +25,6 @@ import "protos/perfetto/metrics/android/cpu_metric.proto";
 // idea about performance and cpu usage when using codec
 // framework
 message AndroidCodecMetrics {
-
   // profile details in messages
   message Detail {
     // was thread_name

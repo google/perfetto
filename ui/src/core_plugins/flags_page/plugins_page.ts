@@ -153,8 +153,8 @@ export class PluginsPage implements m.ClassComponent<PageAttrs> {
       m(
         '.pf-plugins-page__details',
         m('h1', plugin.desc.id),
-        // TODO(stevegolton): If we ever get descriptions on plugins...
-        // m('.pf-plugins-page__description', 'Description...'),
+        plugin.desc.description &&
+          m('.pf-plugins-page__description', plugin.desc.description),
       ),
       m(
         '.pf-plugins-page__controls',

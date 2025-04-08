@@ -413,7 +413,8 @@ class TestIncrementalDataSource
   }
 
   static void SetWillClearIncrementalStateCallback(
-      std::function<void(const DataSourceBase::ClearIncrementalStateArgs&)> cb) {
+      std::function<void(const DataSourceBase::ClearIncrementalStateArgs&)>
+          cb) {
     if (will_clear_incremental_state) {
       delete will_clear_incremental_state;
       will_clear_incremental_state = nullptr;
@@ -1592,11 +1593,12 @@ TEST_P(PerfettoApiTest, ClearIncrementalStateMultipleInstances) {
   ds_cfg->set_name("incr_data_source");
 
   WaitableTestEvent cleared;
-  NiceMock<MockFunction<void(const perfetto::DataSourceBase::ClearIncrementalStateArgs&)>> cb;
-  ON_CALL(cb, Call). WillByDefault([&]{
-    cleared.Notify();
-  });
-  TestIncrementalDataSource::SetWillClearIncrementalStateCallback(cb.AsStdFunction());
+  NiceMock<MockFunction<void(
+      const perfetto::DataSourceBase::ClearIncrementalStateArgs&)>>
+      cb;
+  ON_CALL(cb, Call).WillByDefault([&] { cleared.Notify(); });
+  TestIncrementalDataSource::SetWillClearIncrementalStateCallback(
+      cb.AsStdFunction());
   auto cleanup = MakeCleanup([&] {
     TestIncrementalDataSource::SetWillClearIncrementalStateCallback({});
   });
@@ -2992,7 +2994,9 @@ TEST_P(PerfettoApiTest, TrackEventArgs_MultipleFlows) {
     TRACE_EVENT("foo", "E2", perfetto::Flow::Global(1),
                 perfetto::TerminatingFlow::Global(2));
   }
-  { TRACE_EVENT("foo", "E3", perfetto::TerminatingFlow::Global(3)); }
+  {
+    TRACE_EVENT("foo", "E3", perfetto::TerminatingFlow::Global(3));
+  }
 
   std::vector<char> raw_trace = StopSessionAndReturnBytes(tracing_session);
   EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
@@ -3829,7 +3833,9 @@ TEST_P(PerfettoApiTest, TrackEventArgumentsNotEvaluatedWhenDisabled) {
   };
 
   TRACE_EVENT_BEGIN("test", "DisabledEvent", "arg", ArgumentFunction());
-  { TRACE_EVENT("test", "DisabledScopedEvent", "arg", ArgumentFunction()); }
+  {
+    TRACE_EVENT("test", "DisabledScopedEvent", "arg", ArgumentFunction());
+  }
   perfetto::TrackEvent::Flush();
 
   tracing_session->get()->StopBlocking();
@@ -5075,7 +5081,9 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
   TRACE_EVENT_END2("cat", "LegacyEvent", "arg", "string", "arg2", 0.123f);
 
   // Scoped event.
-  { TRACE_EVENT0("cat", "ScopedLegacyEvent"); }
+  {
+    TRACE_EVENT0("cat", "ScopedLegacyEvent");
+  }
 
   // Event with flow (and disabled category).
   TRACE_EVENT_WITH_FLOW0(TRACE_DISABLED_BY_DEFAULT("cat"), "LegacyFlowEvent",
@@ -5955,8 +5963,12 @@ TEST_P(PerfettoApiTest, ThreadSafetyAnnotation) {
   obj.mutex.Lock();
   TRACE_EVENT_INSTANT("cat", "Instant", "value", obj.value);
   TRACE_EVENT_INSTANT1("cat", "InstantLegacy", 0, "value", obj.value);
-  { TRACE_EVENT("cat", "Scoped", "value", obj.value); }
-  { TRACE_EVENT1("cat", "ScopedLegacy", "value", obj.value); }
+  {
+    TRACE_EVENT("cat", "Scoped", "value", obj.value);
+  }
+  {
+    TRACE_EVENT1("cat", "ScopedLegacy", "value", obj.value);
+  }
   obj.mutex.Unlock();
 
   auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
@@ -6270,7 +6282,9 @@ TEST_P(PerfettoApiTest, StartTracingWhileExecutingTracepoint) {
           auto packet = ctx.NewTracePacket();
           packet->set_for_testing()->set_str("My String");
         }
-        { auto packet = ctx.NewTracePacket(); }
+        {
+          auto packet = ctx.NewTracePacket();
+        }
         tracing.Notify();
       });
       outside_tracing.Notify();
@@ -6332,7 +6346,9 @@ TEST_P(PerfettoApiTest, SystemDisconnect) {
           auto packet = ctx.NewTracePacket();
           packet->set_for_testing()->set_str("New session");
         }
-        { auto packet = ctx.NewTracePacket(); }
+        {
+          auto packet = ctx.NewTracePacket();
+        }
         tracing2.Notify();
       });
       std::this_thread::yield();
@@ -6361,7 +6377,9 @@ TEST_P(PerfettoApiTest, SystemDisconnect) {
       auto packet = ctx.NewTracePacket();
       packet->set_for_testing()->set_str("Content");
     }
-    { auto packet = ctx.NewTracePacket(); }
+    {
+      auto packet = ctx.NewTracePacket();
+    }
   });
 
   data_source->async_stop_closure();
@@ -6475,7 +6493,9 @@ TEST_P(PerfettoApiTest, SystemDisconnectAsyncOnStopRestartTracing) {
           auto packet = ctx.NewTracePacket();
           packet->set_for_testing()->set_str("New session");
         }
-        { auto packet = ctx.NewTracePacket(); }
+        {
+          auto packet = ctx.NewTracePacket();
+        }
         tracing2.Notify();
       });
       std::this_thread::yield();

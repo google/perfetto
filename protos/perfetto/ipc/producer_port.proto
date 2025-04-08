@@ -296,7 +296,9 @@ message GetAsyncCommandResponse {
     optional protos.DataSourceConfig config = 2;
   }
 
-  message StopDataSource { optional uint64 instance_id = 1; }
+  message StopDataSource {
+    optional uint64 instance_id = 1;
+  }
 
   // On Android/Linux/Mac this message also transports the file descriptor for
   // the shared memory buffer (not a proto field).

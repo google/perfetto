@@ -115,9 +115,9 @@ class Extra {
  */
 class Category {
  public:
-  Category(const std::string& name,
-           const std::string& tag,
-           const std::string& severity);
+  explicit Category(const std::string& name);
+
+  Category(const std::string& name, const std::vector<std::string>& tags);
 
   ~Category();
 
@@ -135,8 +135,8 @@ class Category {
   DISALLOW_COPY_AND_ASSIGN(Category);
   PerfettoTeCategory category_;
   const std::string name_;
-  const std::string tag_;
-  const std::string severity_;
+  const std::vector<std::string> tags_;
+  std::vector<const char*> tags_data_;
 };
 
 /**

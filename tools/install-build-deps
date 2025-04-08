@@ -110,34 +110,34 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
     # https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/mac/clang-format.arm64.sha1
     Dependency(
         'third_party/clang-format/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/5553d7a3d912b7d49381ad68c9a56740601a57a0',
-        'e077990b2ea6807f6abc71b4cf1e487719d7e40574baddd2b51187fdcc8db803',
+        'https://storage.googleapis.com/chromium-clang-format/8503422f469ae56cc74f0ea2c03f2d872f4a2303',
+        'dabf93691361e8bd1d07466d67584072ece5c24e2b812c16458b8ff801c33e29',
         'darwin', 'arm64'),
     # From
     # https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/mac/clang-format.x64.sha1
     Dependency(
         'third_party/clang-format/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/87d69aeff220c916b85b5d6d162fa5668aa9d64f',
-        '71179a8788a009cfd589636d50f0eb9f95f58b0cfda4351430bed7c0a48c080b',
+        'https://storage.googleapis.com/chromium-clang-format/7d46d237f9664f41ef46b10c1392dcb559250f25',
+        '0c3c13febeb0495ef0086509c24605ecae9e3d968ff9669d12514b8a55c7824e',
         'darwin', 'x64'),
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/linux64/clang-format.sha1
     Dependency(
         'third_party/clang-format/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/1facab3101fc6da6b9467543f27f0622b966bc19',
-        '5e459118d8ac825452e9e1f2717e4de5a36399dc6cc6aec7ec483ad27a0c927e',
+        'https://storage.googleapis.com/chromium-clang-format/79a7b4e5336339c17b828de10d80611ff0f85961',
+        '889266a51681d55bd4b9e02c9a104fa6ee22ecdfa7e8253532e5ea47e2e4cb4a',
         'linux', 'x64'),
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/win/clang-format.exe.sha1
     Dependency(
         'third_party/clang-format/clang-format.exe',
-        'https://storage.googleapis.com/chromium-clang-format/2e569921b9884daf157021d6ae9e21991cd6cf81',
-        '2227376ada89ea832995b832222b722a27c4d5d8d59e9c4d7842877f99a1e30d',
+        'https://storage.googleapis.com/chromium-clang-format/565cab9c66d61360c27c7d4df5defe1a78ab56d3',
+        '5557943a174e3b67cdc389c10b0ceea2195f318c5c665dd77a427ed01a094557',
         'windows', 'x64'),
 
     # Keep the SHA1 in sync with |clang_format_rev| in chromium //buildtools/DEPS.
     Dependency(
         'buildtools/clang_format/script',
         'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/clang/tools/clang-format.git',
-        'f97059df7f8b205064625cdb5f97b56668a125ef', 'all', 'all'),
+        '37f6e68a107df43b7d7e044fd36a13cbae3413f2', 'all', 'all'),
 
     # Ninja
     Dependency(

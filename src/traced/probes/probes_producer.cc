@@ -636,7 +636,7 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
       }
       metadata->Clear();
     }  // for (FtraceDataSource)
-  }    // for (tracing_session)
+  }  // for (tracing_session)
 }
 
 void ProbesProducer::ConnectWithRetries(const char* socket_name,

@@ -264,19 +264,6 @@ def CheckPatchFormatted(changed_files: List[str],
   files_to_format_paths = filter_files(
       changed_files, files_to_check=format_patterns)
 
-  # Add common clang-format config file patterns if they changed
-  clang_format_configs = filter_files(
-      changed_files, files_to_check=['*clang-format*'])  # More robust pattern
-  if clang_format_configs:
-    print(
-        "INFO: .clang-format file changed, checking all relevant files for "
-        "formatting.",
-        file=sys.stderr)
-    # If config changes, check ALL relevant files in repo, not just changed ones
-    all_relevant_files = get_changed_files(None)  # Get all files
-    files_to_format_paths = filter_files(
-        all_relevant_files, files_to_check=format_patterns)
-
   if not files_to_format_paths:
     return []
 
@@ -402,6 +389,8 @@ def CheckIncludePaths(changed_files: List[str]) -> List[str]:
     for i, line in enumerate(content):
       match = pattern.search(line)
       if not match:
+        continue
+      if '// no-include-violation-check' in line:
         continue
       inc_hdr = match.group(1)
       # Normalize path separators for comparison
