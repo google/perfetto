@@ -76,7 +76,13 @@ SystemInfo GetSystemInfo() {
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
   struct utsname uname_info;
   if (uname(&uname_info) == 0) {
-    info.utsname_info = uname_info;
+    Utsname utsname_info;
+    utsname_info.sysname = uname_info.sysname;
+    utsname_info.version = uname_info.version;
+    utsname_info.machine = uname_info.machine;
+    utsname_info.release = uname_info.release;
+
+    info.utsname_info = utsname_info;
   }
   info.page_size = static_cast<uint32_t>(sysconf(_SC_PAGESIZE));
   info.num_cpus = static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF));

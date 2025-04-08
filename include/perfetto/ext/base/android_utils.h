@@ -40,9 +40,16 @@ std::string GetAndroidProp(const char* name);
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
+struct Utsname {
+  std::string sysname;
+  std::string version;
+  std::string machine;
+  std::string release;
+};
+
 struct SystemInfo {
   std::optional<int32_t> timezone_off_mins;
-  std::optional<struct utsname> utsname_info;
+  std::optional<Utsname> utsname_info;
   std::optional<uint32_t> page_size;
   std::optional<uint32_t> num_cpus;
   std::string android_build_fingerprint;
