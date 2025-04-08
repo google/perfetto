@@ -41,7 +41,7 @@ class Yapf(CodeFormatterBase):
     return filtered
 
   def run_formatter(self, repo_root: str, check_only: bool, files: list[str]):
-    tool = 'python/venv/bin/yapf'
+    tool = '.venv/bin/yapf'
     if not os.path.exists(tool):
       err = f'Cannot find ${tool}\nRun tools/install-build-deps'
       print(err, file=sys.stderr)
