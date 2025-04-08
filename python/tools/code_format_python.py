@@ -23,7 +23,7 @@ def is_python_exec_script(file):
   if not os.path.isfile(file):
     return False
   with open(file, 'r') as f:
-    return f.readline() == '#!/usr/bin/env python3'
+    return f.readline().startswith('#!/usr/bin/env python')
 
 
 class Yapf(CodeFormatterBase):
