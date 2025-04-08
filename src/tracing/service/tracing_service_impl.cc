@@ -1731,8 +1731,7 @@ void TracingServiceImpl::ActivateTriggers(
       const bool triggers_already_received =
           !tracing_session.received_triggers.empty();
       const TriggerInfo trigger = {static_cast<uint64_t>(now_ns), iter->name(),
-                                   producer->name_, producer->uid(),
-                                   iter->stop_delay_ms()};
+                                   producer->name_, producer->uid()};
       MaybeSnapshotClocksIntoRingBuffer(&tracing_session);
       tracing_session.received_triggers.push_back(trigger);
       switch (trigger_mode) {
@@ -3956,7 +3955,6 @@ void TracingServiceImpl::MaybeEmitReceivedTriggers(
     trigger->set_trigger_name(info.trigger_name);
     trigger->set_producer_name(info.producer_name);
     trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
-    trigger->set_stop_delay_ms(info.trigger_delay_mono_ms);
 
     packet->set_timestamp(info.boot_time_ns);
     packet->set_trusted_uid(static_cast<int32_t>(uid_));
