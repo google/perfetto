@@ -125,7 +125,6 @@ def main():
       pathlib.Path(proto_logging_dir).mkdir(parents=True, exist_ok=True)
       call("git", "clone", PROTO_LOGGING_URL, proto_logging_dir)
 
-
     extensions_path = os.path.join(proto_logging_dir, "stats", "atoms")
     extensions = []
     if os.path.isdir(extensions_path):
@@ -136,13 +135,11 @@ def main():
             extensions.append(path)
 
     cmd = [
-      f"--proto_path={PROTOBUF_BUILTINS_DIR}",
-      f"--proto_path={atoms_root}",
-      f"--descriptor_set_out={DESCRIPTOR_PATH}",
-      "--include_imports",
-      ] + extensions + [
-      os.path.join(proto_logging_dir, "stats", "atoms.proto")
-    ]
+        f"--proto_path={PROTOBUF_BUILTINS_DIR}",
+        f"--proto_path={atoms_root}",
+        f"--descriptor_set_out={DESCRIPTOR_PATH}",
+        "--include_imports",
+    ] + extensions + [os.path.join(proto_logging_dir, "stats", "atoms.proto")]
     call(PROTOC_PATH, *cmd)
 
     lines = []

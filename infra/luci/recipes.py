@@ -36,7 +36,6 @@ import urllib.parse as urlparse
 
 from collections import namedtuple
 
-
 # The dependency entry for the recipe_engine in the client repo's recipes.cfg
 #
 # url (str) - the url to the engine repo we want to use.

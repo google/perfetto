@@ -22,13 +22,20 @@ import subprocess
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 AMALGAMATION_MAP = {
-    'python/tools/record_android_trace.py': 'tools/record_android_trace',
-    'python/tools/tracebox.py': 'tools/tracebox',
-    'python/tools/traceconv.py': 'tools/traceconv',
-    'python/tools/trace_processor.py': 'tools/trace_processor',
-    'python/tools/cpu_profile.py': 'tools/cpu_profile',
-    'python/tools/heap_profile.py': 'tools/heap_profile',
-    'python/tools/install_test_reporter_app.py': 'tools/install_test_reporter_app',
+    'python/tools/record_android_trace.py':
+        'tools/record_android_trace',
+    'python/tools/tracebox.py':
+        'tools/tracebox',
+    'python/tools/traceconv.py':
+        'tools/traceconv',
+    'python/tools/trace_processor.py':
+        'tools/trace_processor',
+    'python/tools/cpu_profile.py':
+        'tools/cpu_profile',
+    'python/tools/heap_profile.py':
+        'tools/heap_profile',
+    'python/tools/install_test_reporter_app.py':
+        'tools/install_test_reporter_app',
 }
 
 
@@ -61,8 +68,9 @@ def amalgamate_file(fname, stack=None, done=None, in_progress=None):
       outlines += amalgamate_file(fpath, stack + [fname], done, in_progress)
       outlines.append('\n# ----- Amalgamator: end of %s\n' % fpath)
     elif '__file__' in line and not 'amalgamator:nocheck' in line:
-      logging.fatal('__file__ is not allowed in sources that get amalgamated.'
-                    'In %s on line \"%s\"', fname, line.rstrip())
+      logging.fatal(
+          '__file__ is not allowed in sources that get amalgamated.'
+          'In %s on line \"%s\"', fname, line.rstrip())
       sys.exit(1)
 
     else:
@@ -101,8 +109,8 @@ def amalgamate(src, dst, check_only=False):
 def main():
   check_only = '--check-only' in sys.argv
   logging.basicConfig(
-    format='%(levelname)-8s: %(message)s',
-    level=logging.DEBUG if '-v' in sys.argv else logging.INFO)
+      format='%(levelname)-8s: %(message)s',
+      level=logging.DEBUG if '-v' in sys.argv else logging.INFO)
   os.chdir(ROOT_DIR)  # Make the execution cwd-independent.
   success = True
   for src, dst in AMALGAMATION_MAP.items():

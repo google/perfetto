@@ -43,6 +43,7 @@ def add_async_trace(trace, ts, ts_end, buf, pid, tid):
   trace.add_atrace_async_begin(ts=ts, tid=tid, pid=pid, buf=buf)
   trace.add_atrace_async_end(ts=ts_end, tid=tid, pid=pid, buf=buf)
 
+
 def add_ui_thread_atrace(trace, ts, ts_end, buf, tid, pid):
   trace.add_atrace_begin(ts=ts, tid=tid, pid=pid, buf=buf)
   trace.add_atrace_end(ts=ts_end, tid=tid, pid=pid)
@@ -50,6 +51,7 @@ def add_ui_thread_atrace(trace, ts, ts_end, buf, tid, pid):
 
 def add_instant_event_in_thread(trace, ts, buf, pid, tid):
   trace.add_atrace_instant(ts=ts, tid=tid, pid=pid, buf=buf)
+
 
 def add_render_thread_atrace_begin(trace, ts, buf, rtid, pid):
   trace.add_atrace_begin(ts=ts, tid=rtid, pid=pid, buf=buf)
@@ -68,6 +70,7 @@ def add_frame(trace, vsync, ts_do_frame, ts_end_do_frame, tid, pid):
       tid=tid,
       pid=pid)
 
+
 def add_expected_surface_frame_events(ts, dur, token, pid):
   trace.add_expected_surface_frame_start_event(
       ts=ts,
@@ -77,6 +80,7 @@ def add_expected_surface_frame_events(ts, dur, token, pid):
       pid=pid,
       layer_name='')
   trace.add_frame_end_event(ts=ts + dur, cookie=100000 + token)
+
 
 def add_actual_surface_frame_events(ts, dur, token, layer, pid):
   cookie = token + 1
@@ -94,169 +98,216 @@ def add_actual_surface_frame_events(ts, dur, token, layer, pid):
       layer_name=layer)
   trace.add_frame_end_event(ts=ts + dur, cookie=100002 + cookie)
 
+
 def add_blocking_calls_per_frame_multiple_cuj_instance(trace, cuj_name):
 
   # add a new CUJ in trace.
-  add_async_trace(trace, ts=25_000_000, ts_end=77_000_000, buf=cuj_name, pid=SYSUI_PID, tid=SYSUI_UI_TID)
-  add_async_trace(trace, ts=83_000_000, ts_end=102_000_000, buf=cuj_name, pid=SYSUI_PID, tid=SYSUI_UI_TID)
+  add_async_trace(
+      trace,
+      ts=25_000_000,
+      ts_end=77_000_000,
+      buf=cuj_name,
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID)
+  add_async_trace(
+      trace,
+      ts=83_000_000,
+      ts_end=102_000_000,
+      buf=cuj_name,
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID)
 
-  trace.add_atrace_instant_for_track(ts=25_000_001,
-                                               buf="FT#beginVsync#20",
-                                               pid=SYSUI_PID,
-                                               tid=SYSUI_UI_TID,
-                                               track_name=cuj_name)
+  trace.add_atrace_instant_for_track(
+      ts=25_000_001,
+      buf="FT#beginVsync#20",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_name)
 
-  trace.add_atrace_instant_for_track(ts=25_000_010,
-                                                   buf="FT#layerId#0",
-                                                   pid=SYSUI_PID,
-                                                   tid=SYSUI_UI_TID,
-                                                   track_name=cuj_name)
+  trace.add_atrace_instant_for_track(
+      ts=25_000_010,
+      buf="FT#layerId#0",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_name)
 
-  trace.add_atrace_instant_for_track(ts=76_000_001,
-                                                 buf="FT#endVsync#30",
-                                                 pid=SYSUI_PID,
-                                                 tid=SYSUI_UI_TID,
-                                                 track_name=cuj_name)
+  trace.add_atrace_instant_for_track(
+      ts=76_000_001,
+      buf="FT#endVsync#30",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_name)
 
+  trace.add_atrace_instant_for_track(
+      ts=83_000_001,
+      buf="FT#beginVsync#60",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_name)
 
-  trace.add_atrace_instant_for_track(ts=83_000_001,
-                                               buf="FT#beginVsync#60",
-                                               pid=SYSUI_PID,
-                                               tid=SYSUI_UI_TID,
-                                               track_name=cuj_name)
+  trace.add_atrace_instant_for_track(
+      ts=83_000_010,
+      buf="FT#layerId#2",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_name)
 
-  trace.add_atrace_instant_for_track(ts=83_000_010,
-                                                   buf="FT#layerId#2",
-                                                   pid=SYSUI_PID,
-                                                   tid=SYSUI_UI_TID,
-                                                   track_name=cuj_name)
-
-  trace.add_atrace_instant_for_track(ts=101_000_001,
-                                                 buf="FT#endVsync#70",
-                                                 pid=SYSUI_PID,
-                                                 tid=SYSUI_UI_TID,
-                                                 track_name=cuj_name)
+  trace.add_atrace_instant_for_track(
+      ts=101_000_001,
+      buf="FT#endVsync#70",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_name)
 
   # Add Choreographer#doFrame outside CUJ boundary. This frame will not be considered during
   # metric calculation.
   add_frame(
-          trace,
-          vsync=15,
-          ts_do_frame=9_000_000,
-          ts_end_do_frame=15_000_000,
-          tid=SYSUI_UI_TID,
-          pid=SYSUI_PID)
+      trace,
+      vsync=15,
+      ts_do_frame=9_000_000,
+      ts_end_do_frame=15_000_000,
+      tid=SYSUI_UI_TID,
+      pid=SYSUI_PID)
 
-  add_render_thread_atrace_begin(trace, ts=10_000_000, buf="DrawFrames 15", rtid=SYSUI_RTID, pid=SYSUI_PID)
-  add_render_thread_atrace_end(trace, ts_end=12_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
+  add_render_thread_atrace_begin(
+      trace, ts=10_000_000, buf="DrawFrames 15", rtid=SYSUI_RTID, pid=SYSUI_PID)
+  add_render_thread_atrace_end(
+      trace, ts_end=12_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
 
   # Add Choreographer#doFrame slices within CUJ boundary.
   add_frame(
-        trace,
-        vsync=20,
-        ts_do_frame=26_000_000,
-        ts_end_do_frame=32_000_000,
-        tid=SYSUI_UI_TID,
-        pid=SYSUI_PID)
+      trace,
+      vsync=20,
+      ts_do_frame=26_000_000,
+      ts_end_do_frame=32_000_000,
+      tid=SYSUI_UI_TID,
+      pid=SYSUI_PID)
 
-  add_render_thread_atrace_begin(trace, ts=27_000_000, buf="DrawFrames 20", rtid=SYSUI_RTID, pid=SYSUI_PID)
-  add_render_thread_atrace_end(trace, ts_end=28_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
-
-  add_frame(
-        trace,
-        vsync=22,
-        ts_do_frame=43_000_000,
-        ts_end_do_frame=49_000_000,
-        tid=SYSUI_UI_TID,
-        pid=SYSUI_PID)
-
-  add_render_thread_atrace_begin(trace, ts=44_000_000, buf="DrawFrames 22", rtid=SYSUI_RTID, pid=SYSUI_PID)
-  add_render_thread_atrace_end(trace, ts_end=45_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
+  add_render_thread_atrace_begin(
+      trace, ts=27_000_000, buf="DrawFrames 20", rtid=SYSUI_RTID, pid=SYSUI_PID)
+  add_render_thread_atrace_end(
+      trace, ts_end=28_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
 
   add_frame(
-          trace,
-          vsync=24,
-          ts_do_frame=60_000_000,
-          ts_end_do_frame=65_000_000,
-          tid=SYSUI_UI_TID,
-          pid=SYSUI_PID)
+      trace,
+      vsync=22,
+      ts_do_frame=43_000_000,
+      ts_end_do_frame=49_000_000,
+      tid=SYSUI_UI_TID,
+      pid=SYSUI_PID)
 
-  add_render_thread_atrace_begin(trace, ts=61_000_000, buf="DrawFrames 24", rtid=SYSUI_RTID, pid=SYSUI_PID)
-  add_render_thread_atrace_end(trace, ts_end=62_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
+  add_render_thread_atrace_begin(
+      trace, ts=44_000_000, buf="DrawFrames 22", rtid=SYSUI_RTID, pid=SYSUI_PID)
+  add_render_thread_atrace_end(
+      trace, ts_end=45_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
 
   add_frame(
-          trace,
-          vsync=65,
-          ts_do_frame=84_000_000,
-          ts_end_do_frame=89_000_000,
-          tid=SYSUI_UI_TID,
-          pid=SYSUI_PID)
+      trace,
+      vsync=24,
+      ts_do_frame=60_000_000,
+      ts_end_do_frame=65_000_000,
+      tid=SYSUI_UI_TID,
+      pid=SYSUI_PID)
 
-  add_render_thread_atrace_begin(trace, ts=85_000_000, buf="DrawFrames 65", rtid=SYSUI_RTID, pid=SYSUI_PID)
-  add_render_thread_atrace_end(trace, ts_end=86_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
+  add_render_thread_atrace_begin(
+      trace, ts=61_000_000, buf="DrawFrames 24", rtid=SYSUI_RTID, pid=SYSUI_PID)
+  add_render_thread_atrace_end(
+      trace, ts_end=62_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
+
+  add_frame(
+      trace,
+      vsync=65,
+      ts_do_frame=84_000_000,
+      ts_end_do_frame=89_000_000,
+      tid=SYSUI_UI_TID,
+      pid=SYSUI_PID)
+
+  add_render_thread_atrace_begin(
+      trace, ts=85_000_000, buf="DrawFrames 65", rtid=SYSUI_RTID, pid=SYSUI_PID)
+  add_render_thread_atrace_end(
+      trace, ts_end=86_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
 
   trace.add_atrace_begin(
-          ts=28_000_000, buf="binder transaction", tid=SYSUI_UI_TID, pid=SYSUI_PID)
+      ts=28_000_000, buf="binder transaction", tid=SYSUI_UI_TID, pid=SYSUI_PID)
   trace.add_atrace_end(ts=28_500_000, tid=SYSUI_UI_TID, pid=SYSUI_PID)
 
   trace.add_atrace_begin(
-          ts=30_000_000, buf="animation", tid=SYSUI_UI_TID, pid=SYSUI_PID)
+      ts=30_000_000, buf="animation", tid=SYSUI_UI_TID, pid=SYSUI_PID)
   trace.add_atrace_end(ts=32_000_000, tid=SYSUI_UI_TID, pid=SYSUI_PID)
 
   trace.add_atrace_begin(
-          ts=62_000_000, buf="animation", tid=SYSUI_UI_TID, pid=SYSUI_PID)
+      ts=62_000_000, buf="animation", tid=SYSUI_UI_TID, pid=SYSUI_PID)
   trace.add_atrace_end(ts=64_000_000, tid=SYSUI_UI_TID, pid=SYSUI_PID)
 
   trace.add_atrace_begin(
-          ts=86_000_000, buf="binder transaction", tid=SYSUI_UI_TID, pid=SYSUI_PID)
+      ts=86_000_000, buf="binder transaction", tid=SYSUI_UI_TID, pid=SYSUI_PID)
   trace.add_atrace_end(ts=88_500_000, tid=SYSUI_UI_TID, pid=SYSUI_PID)
 
   # Add expected and actual frames.
-  add_expected_surface_frame_events(ts=10_000_000, dur=16_000_000, token=15, pid=SYSUI_PID)
-  add_actual_surface_frame_events(ts=10_000_000, dur=16_000_000, token=15, layer=LAYER_1, pid=SYSUI_PID)
+  add_expected_surface_frame_events(
+      ts=10_000_000, dur=16_000_000, token=15, pid=SYSUI_PID)
+  add_actual_surface_frame_events(
+      ts=10_000_000, dur=16_000_000, token=15, layer=LAYER_1, pid=SYSUI_PID)
 
-  add_expected_surface_frame_events(ts=27_000_000, dur=16_000_000, token=20, pid=SYSUI_PID)
-  add_actual_surface_frame_events(ts=27_000_000, dur=7_000_000, token=20, layer=LAYER_1, pid=SYSUI_PID)
+  add_expected_surface_frame_events(
+      ts=27_000_000, dur=16_000_000, token=20, pid=SYSUI_PID)
+  add_actual_surface_frame_events(
+      ts=27_000_000, dur=7_000_000, token=20, layer=LAYER_1, pid=SYSUI_PID)
 
-  add_expected_surface_frame_events(ts=44_000_000, dur=16_000_000, token=22, pid=SYSUI_PID)
-  add_actual_surface_frame_events(ts=44_000_000, dur=7_000_000, token=22, layer=LAYER_1, pid=SYSUI_PID)
+  add_expected_surface_frame_events(
+      ts=44_000_000, dur=16_000_000, token=22, pid=SYSUI_PID)
+  add_actual_surface_frame_events(
+      ts=44_000_000, dur=7_000_000, token=22, layer=LAYER_1, pid=SYSUI_PID)
 
-  add_expected_surface_frame_events(ts=61_000_000, dur=16_000_000, token=24, pid=SYSUI_PID)
-  add_actual_surface_frame_events(ts=61_000_000, dur=6_000_000, token=24, layer=LAYER_1, pid=SYSUI_PID)
+  add_expected_surface_frame_events(
+      ts=61_000_000, dur=16_000_000, token=24, pid=SYSUI_PID)
+  add_actual_surface_frame_events(
+      ts=61_000_000, dur=6_000_000, token=24, layer=LAYER_1, pid=SYSUI_PID)
 
-  add_expected_surface_frame_events(ts=85_000_000, dur=16_000_000, token=65, pid=SYSUI_PID)
-  add_actual_surface_frame_events(ts=85_000_000, dur=6_000_000, token=65, layer=LAYER_3, pid=SYSUI_PID)
+  add_expected_surface_frame_events(
+      ts=85_000_000, dur=16_000_000, token=65, pid=SYSUI_PID)
+  add_actual_surface_frame_events(
+      ts=85_000_000, dur=6_000_000, token=65, layer=LAYER_3, pid=SYSUI_PID)
+
 
 def add_blocking_call_crossing_frame_boundary(trace, cuj_name):
 
   # add a new CUJ in trace.
-  add_async_trace(trace, ts=120_000_000, ts_end=145_000_000, buf=cuj_name, pid=LAUNCHER_PID, tid=LAUNCHER_UI_TID)
+  add_async_trace(
+      trace,
+      ts=120_000_000,
+      ts_end=145_000_000,
+      buf=cuj_name,
+      pid=LAUNCHER_PID,
+      tid=LAUNCHER_UI_TID)
 
   add_instant_event_in_thread(
-        trace,
-        ts=120_000_001,
-        buf=cuj_name + "#UIThread",
-        pid=LAUNCHER_PID,
-        tid=LAUNCHER_UI_TID)
+      trace,
+      ts=120_000_001,
+      buf=cuj_name + "#UIThread",
+      pid=LAUNCHER_PID,
+      tid=LAUNCHER_UI_TID)
 
-  trace.add_atrace_instant_for_track(ts=120_000_002,
-                                                 buf="FT#beginVsync#80",
-                                                 pid=LAUNCHER_PID,
-                                                 tid=LAUNCHER_UI_TID,
-                                                 track_name=cuj_name)
+  trace.add_atrace_instant_for_track(
+      ts=120_000_002,
+      buf="FT#beginVsync#80",
+      pid=LAUNCHER_PID,
+      tid=LAUNCHER_UI_TID,
+      track_name=cuj_name)
 
-  trace.add_atrace_instant_for_track(ts=120_000_010,
-                                                 buf="FT#layerId#1",
-                                                 pid=LAUNCHER_PID,
-                                                 tid=LAUNCHER_UI_TID,
-                                                 track_name=cuj_name)
+  trace.add_atrace_instant_for_track(
+      ts=120_000_010,
+      buf="FT#layerId#1",
+      pid=LAUNCHER_PID,
+      tid=LAUNCHER_UI_TID,
+      track_name=cuj_name)
 
-  trace.add_atrace_instant_for_track(ts=144_000_001,
-                                                 buf="FT#endVsync#90",
-                                                 pid=LAUNCHER_PID,
-                                                 tid=LAUNCHER_UI_TID,
-                                                 track_name=cuj_name)
-
+  trace.add_atrace_instant_for_track(
+      ts=144_000_001,
+      buf="FT#endVsync#90",
+      pid=LAUNCHER_PID,
+      tid=LAUNCHER_UI_TID,
+      track_name=cuj_name)
 
   # Add Choreographer#doFrame outside CUJ boundary. This frame will not be considered during
   # metric calculation.
@@ -268,8 +319,14 @@ def add_blocking_call_crossing_frame_boundary(trace, cuj_name):
       tid=LAUNCHER_UI_TID,
       pid=LAUNCHER_PID)
 
-  add_render_thread_atrace_begin(trace, ts=104_000_000, buf="DrawFrames 75", rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
-  add_render_thread_atrace_end(trace, ts_end=105_000_000, rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
+  add_render_thread_atrace_begin(
+      trace,
+      ts=104_000_000,
+      buf="DrawFrames 75",
+      rtid=LAUNCHER_RTID,
+      pid=LAUNCHER_PID)
+  add_render_thread_atrace_end(
+      trace, ts_end=105_000_000, rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
 
   # Add Choreographer#doFrame slices within CUJ boundary.
   add_frame(
@@ -280,49 +337,65 @@ def add_blocking_call_crossing_frame_boundary(trace, cuj_name):
       tid=LAUNCHER_UI_TID,
       pid=LAUNCHER_PID)
 
-  add_render_thread_atrace_begin(trace, ts=121_000_000, buf="DrawFrames 80", rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
-  add_render_thread_atrace_end(trace, ts_end=122_000_000, rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
+  add_render_thread_atrace_begin(
+      trace,
+      ts=121_000_000,
+      buf="DrawFrames 80",
+      rtid=LAUNCHER_RTID,
+      pid=LAUNCHER_PID)
+  add_render_thread_atrace_end(
+      trace, ts_end=122_000_000, rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
 
   add_frame(
-            trace,
-            vsync=82,
-            ts_do_frame=141_000_000,
-            ts_end_do_frame=143_000_000,
-            tid=LAUNCHER_UI_TID,
-            pid=LAUNCHER_PID)
+      trace,
+      vsync=82,
+      ts_do_frame=141_000_000,
+      ts_end_do_frame=143_000_000,
+      tid=LAUNCHER_UI_TID,
+      pid=LAUNCHER_PID)
 
-  add_render_thread_atrace_begin(trace, ts=142_000_000, buf="DrawFrames 82", rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
-  add_render_thread_atrace_end(trace, ts_end=142_500_000, rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
+  add_render_thread_atrace_begin(
+      trace,
+      ts=142_000_000,
+      buf="DrawFrames 82",
+      rtid=LAUNCHER_RTID,
+      pid=LAUNCHER_PID)
+  add_render_thread_atrace_end(
+      trace, ts_end=142_500_000, rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
 
   trace.add_atrace_begin(
-        ts=127_000_000, buf="animation", tid=LAUNCHER_UI_TID, pid=LAUNCHER_PID)
+      ts=127_000_000, buf="animation", tid=LAUNCHER_UI_TID, pid=LAUNCHER_PID)
   trace.add_atrace_end(ts=140_000_000, tid=LAUNCHER_UI_TID, pid=LAUNCHER_PID)
 
   # Add expected and actual frames.
-  add_expected_surface_frame_events(ts=104_000_000, dur=16_000_000, token=75, pid=LAUNCHER_PID)
-  add_actual_surface_frame_events(ts=104_000_000, dur=16_000_000, token=75, layer=LAYER_2, pid=LAUNCHER_PID)
+  add_expected_surface_frame_events(
+      ts=104_000_000, dur=16_000_000, token=75, pid=LAUNCHER_PID)
+  add_actual_surface_frame_events(
+      ts=104_000_000, dur=16_000_000, token=75, layer=LAYER_2, pid=LAUNCHER_PID)
 
-  add_expected_surface_frame_events(ts=121_000_000, dur=16_000_000, token=80, pid=LAUNCHER_PID)
-  add_actual_surface_frame_events(ts=121_000_000, dur=7_000_000, token=80, layer=LAYER_2, pid=LAUNCHER_PID)
+  add_expected_surface_frame_events(
+      ts=121_000_000, dur=16_000_000, token=80, pid=LAUNCHER_PID)
+  add_actual_surface_frame_events(
+      ts=121_000_000, dur=7_000_000, token=80, layer=LAYER_2, pid=LAUNCHER_PID)
 
-  add_expected_surface_frame_events(ts=138_000_000, dur=16_000_000, token=82, pid=LAUNCHER_PID)
-  add_actual_surface_frame_events(ts=138_000_000, dur=6_000_000, token=82, layer=LAYER_2, pid=LAUNCHER_PID)
+  add_expected_surface_frame_events(
+      ts=138_000_000, dur=16_000_000, token=82, pid=LAUNCHER_PID)
+  add_actual_surface_frame_events(
+      ts=138_000_000, dur=6_000_000, token=82, layer=LAYER_2, pid=LAUNCHER_PID)
+
 
 def add_process(trace, package_name, uid, pid):
   trace.add_package_list(ts=0, name=package_name, uid=uid, version_code=1)
   trace.add_process(pid=pid, ppid=pid, cmdline=package_name, uid=uid)
   trace.add_thread(tid=pid, tgid=pid, cmdline="MainThread", name="MainThread")
 
+
 def setup_trace():
   trace = synth_common.create_trace()
   trace.add_packet()
+  add_process(trace, package_name=SYSUI_PACKAGE, uid=SYSUI_UID, pid=SYSUI_PID)
   add_process(
-        trace, package_name=SYSUI_PACKAGE, uid=SYSUI_UID, pid=SYSUI_PID)
-  add_process(
-        trace,
-        package_name=LAUNCHER_PACKAGE,
-        uid=LAUNCHER_UID,
-        pid=LAUNCHER_PID)
+      trace, package_name=LAUNCHER_PACKAGE, uid=LAUNCHER_UID, pid=LAUNCHER_PID)
 
   trace.add_thread(
       tid=SYSUI_UI_TID,
@@ -332,6 +405,7 @@ def setup_trace():
 
   trace.add_ftrace_packet(cpu=0)
   return trace
+
 
 trace = setup_trace()
 add_blocking_calls_per_frame_multiple_cuj_instance(trace, FIRST_CUJ)

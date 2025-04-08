@@ -1415,7 +1415,6 @@ class AndroidStdlib(TestSuite):
         "1ef76b0","android.intent.action.PACKAGE_ADDED","system",2519,"d43f45d",0,91360396877398,107502
         """))
 
-
   def test_binder_breakdown(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),

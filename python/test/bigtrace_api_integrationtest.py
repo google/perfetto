@@ -19,6 +19,7 @@ import unittest
 
 from perfetto.common.exceptions import PerfettoException
 
+
 class BigtraceTest(unittest.TestCase):
 
   @classmethod

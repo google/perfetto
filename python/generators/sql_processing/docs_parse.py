@@ -106,19 +106,22 @@ class AbstractDocParser(ABC):
     columns = self._parse_args_definition(schema) if schema else {}
     for column_name, properties in columns.items():
       if not properties.description:
-        self._error(f'Column "{column_name}" is missing a description. Please add a '
-                    'comment in front of the column definition')
+        self._error(
+            f'Column "{column_name}" is missing a description. Please add a '
+            'comment in front of the column definition')
         continue
 
       upper_arg_type = properties.type.upper()
       if kind is ObjKind.table_function:
         if upper_arg_type not in COLUMN_TYPES:
           self._error(
-              f'Table function column "{column_name}" has unsupported type "{properties.type}".')
+              f'Table function column "{column_name}" has unsupported type "{properties.type}".'
+          )
       elif kind is ObjKind.table_view:
         if upper_arg_type not in COLUMN_TYPES:
           self._error(
-              f'Table/view column "{column_name}" has unsupported type "{properties.type}".')
+              f'Table/view column "{column_name}" has unsupported type "{properties.type}".'
+          )
       else:
         self._error(f'This Perfetto SQL object doesnt support columns".')
 
@@ -227,7 +230,6 @@ class TableViewDocParser(AbstractDocParser):
       return
 
     cols = self._parse_columns(schema, ObjKind.table_view)
-
 
     return TableOrView(
         name=self._parse_name(),
