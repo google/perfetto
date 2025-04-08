@@ -38,6 +38,7 @@ TraceReference = registry.TraceReference
 # response with an error defined
 TraceProcessorException = PerfettoException
 
+
 @dc.dataclass
 class TraceProcessorConfig:
   bin_path: Optional[str]
@@ -188,14 +189,11 @@ class TraceProcessor:
       parsed = p.netloc if p.netloc else p.path
       return TraceProcessorHttp(parsed, protos=self.protos)
 
-    url, self.subprocess = load_shell(self.config.bin_path,
-                                      self.config.unique_port,
-                                      self.config.verbose,
-                                      self.config.ingest_ftrace_in_raw,
-                                      self.config.enable_dev_features,
-                                      self.platform_delegate,
-                                      self.config.load_timeout,
-                                      self.config.extra_flags)
+    url, self.subprocess = load_shell(
+        self.config.bin_path, self.config.unique_port, self.config.verbose,
+        self.config.ingest_ftrace_in_raw, self.config.enable_dev_features,
+        self.platform_delegate, self.config.load_timeout,
+        self.config.extra_flags)
     return TraceProcessorHttp(url, protos=self.protos)
 
   def _parse_trace(self, trace: TraceReference):

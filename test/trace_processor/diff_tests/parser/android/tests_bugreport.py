@@ -20,6 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class AndroidBugreport(TestSuite):
+
   def test_android_bugreport_battery_stats(self):
     return DiffTestBlueprint(
         trace=DataPath('bugreport-crosshatch-SPB5.zip'),
