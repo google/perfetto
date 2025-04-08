@@ -31,10 +31,10 @@ namespace android_internal {
 
 extern "C" {
 
-bool __attribute__((visibility("default")))
-StartIncidentReport(const char* dest_pkg,
-                    const char* dest_class,
-                    int privacy_level);
+bool __attribute__((visibility("default"))) StartIncidentReport(
+    const char* dest_pkg,
+    const char* dest_class,
+    int privacy_level);
 
 }  // extern "C"
 

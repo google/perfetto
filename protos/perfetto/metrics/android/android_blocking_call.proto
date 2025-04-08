@@ -20,24 +20,24 @@ package perfetto.protos;
 
 // Blocking call on the main thread.
 message AndroidBlockingCall {
-    // Name of the blocking call
-    optional string name = 1;
-    // Number of times it happened within the CUJ
-    optional int64 cnt = 2;
-    // Total duration within the CUJ
-    optional int64 total_dur_ms = 3;
-    // Maximal duration within the CUJ
-    optional int64 max_dur_ms = 4;
-    // Minimal duration within the CUJ
-    optional int64 min_dur_ms = 5;
-    // Total duration within the CUJ in nanoseconds
-    optional int64 total_dur_ns = 6;
-    // Maximal duration within the CUJ in nanoseconds
-    optional int64 max_dur_ns = 7;
-    // Minimal duration within the CUJ in nanoseconds
-    optional int64 min_dur_ns = 8;
-    // Avg duration within the CUJ
-    optional int64 avg_dur_ms = 9;
-    // Avg duration within the CUJ in nanoseconds
-    optional int64 avg_dur_ns = 10;
+  // Name of the blocking call
+  optional string name = 1;
+  // Number of times it happened within the CUJ
+  optional int64 cnt = 2;
+  // Total duration within the CUJ
+  optional int64 total_dur_ms = 3;
+  // Maximal duration within the CUJ
+  optional int64 max_dur_ms = 4;
+  // Minimal duration within the CUJ
+  optional int64 min_dur_ms = 5;
+  // Total duration within the CUJ in nanoseconds
+  optional int64 total_dur_ns = 6;
+  // Maximal duration within the CUJ in nanoseconds
+  optional int64 max_dur_ns = 7;
+  // Minimal duration within the CUJ in nanoseconds
+  optional int64 min_dur_ns = 8;
+  // Avg duration within the CUJ
+  optional int64 avg_dur_ms = 9;
+  // Avg duration within the CUJ in nanoseconds
+  optional int64 avg_dur_ns = 10;
 }

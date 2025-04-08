@@ -681,7 +681,7 @@ class TraceBuffer {
   size_t size_to_end() const { return static_cast<size_t>(end() - wptr_); }
 
   base::PagedMemory data_;
-  size_t size_ = 0;            // Size in bytes of |data_|.
+  size_t size_ = 0;  // Size in bytes of |data_|.
 
   // High watermark. The number of bytes (<= |size_|) written into the buffer
   // before the first wraparound. This increases as data is written into the

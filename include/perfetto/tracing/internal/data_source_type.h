@@ -197,8 +197,9 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
       uint32_t instance_index) {
     // Recreate incremental state data if it has been reset by the service.
     if (tls_inst->incremental_state_generation !=
-        static_state()->GetUnsafe(instance_index)->incremental_state_generation.load(
-            std::memory_order_relaxed)) {
+        static_state()
+            ->GetUnsafe(instance_index)
+            ->incremental_state_generation.load(std::memory_order_relaxed)) {
       tls_inst->incremental_state.reset();
       CreateIncrementalState(tls_inst, instance_index);
     }
@@ -217,8 +218,9 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
     tls_inst->incremental_state =
         create_incremental_state_fn_(tls_inst, instance_index, user_arg_);
     tls_inst->incremental_state_generation =
-        static_state()->GetUnsafe(instance_index)->incremental_state_generation.load(
-            std::memory_order_relaxed);
+        static_state()
+            ->GetUnsafe(instance_index)
+            ->incremental_state_generation.load(std::memory_order_relaxed);
   }
 
   void PopulateTlsInst(DataSourceInstanceThreadLocalState* tls_inst,

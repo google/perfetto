@@ -89,8 +89,8 @@ class PERFETTO_EXPORT_COMPONENT TracePacket {
   TracePacket(const TracePacket&) = delete;
   TracePacket& operator=(const TracePacket&) = delete;
 
-  Slices slices_;     // Not owned.
-  size_t size_ = 0;   // SUM(slice.size for slice in slices_).
+  Slices slices_;    // Not owned.
+  size_t size_ = 0;  // SUM(slice.size for slice in slices_).
 
   // Internally we store index+1, and use 0 for the "not set" case.
   uint32_t buffer_index_for_stats_ = 0;

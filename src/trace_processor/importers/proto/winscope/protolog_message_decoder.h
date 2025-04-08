@@ -64,7 +64,8 @@ class ProtoLogMessageDecoder : public Destructible {
 
   static ProtoLogMessageDecoder* GetOrCreate(TraceProcessorContext* context) {
     if (!context->protolog_message_decoder) {
-      context->protolog_message_decoder.reset(new ProtoLogMessageDecoder(context));
+      context->protolog_message_decoder.reset(
+          new ProtoLogMessageDecoder(context));
     }
     return static_cast<ProtoLogMessageDecoder*>(
         context->protolog_message_decoder.get());

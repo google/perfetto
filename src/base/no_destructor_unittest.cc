@@ -34,12 +34,16 @@ class SetFlagOnDestruct {
 
 TEST(NoDestructorTest, DoesNotDestruct) {
   bool destructor_called = false;
-  { SetFlagOnDestruct f(&destructor_called); }
+  {
+    SetFlagOnDestruct f(&destructor_called);
+  }
   ASSERT_TRUE(destructor_called);
 
   // Not destructed when wrapped.
   destructor_called = false;
-  { NoDestructor<SetFlagOnDestruct> f(&destructor_called); }
+  {
+    NoDestructor<SetFlagOnDestruct> f(&destructor_called);
+  }
   ASSERT_FALSE(destructor_called);
 }
 

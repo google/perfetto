@@ -102,15 +102,14 @@ int BusyThreadsMain(int argc, char** argv) {
   uint32_t thread_name_count = 0;
 
   static option long_options[] = {
-    {"background", no_argument, nullptr, 'd'},
-    {"threads", required_argument, nullptr, 't'},
-    {"period_us", required_argument, nullptr, 'p'},
-    {"duty_cycle", required_argument, nullptr, 'c'},
+      {"background", no_argument, nullptr, 'd'},
+      {"threads", required_argument, nullptr, 't'},
+      {"period_us", required_argument, nullptr, 'p'},
+      {"duty_cycle", required_argument, nullptr, 'c'},
 #if PERFETTO_HAVE_PTHREADS
-    {"thread_names", required_argument, nullptr, 'r'},
+      {"thread_names", required_argument, nullptr, 'r'},
 #endif
-    {nullptr, 0, nullptr, 0}
-  };
+      {nullptr, 0, nullptr, 0}};
   int c;
   while ((c = getopt_long(argc, argv, "", long_options, nullptr)) != -1) {
     switch (c) {

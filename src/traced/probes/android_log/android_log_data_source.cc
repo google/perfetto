@@ -449,7 +449,7 @@ bool AndroidLogDataSource::ParseBinaryEvent(
             static_cast<int>(type), fmt->name.c_str(), buf - start, field_num);
         return true;
     }  // switch(type)
-  }    // while(buf < end)
+  }  // while(buf < end)
   return true;
 }
 
