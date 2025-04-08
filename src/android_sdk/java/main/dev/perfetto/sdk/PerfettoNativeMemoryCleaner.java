@@ -64,6 +64,7 @@ public class PerfettoNativeMemoryCleaner {
 
   /**
    * Holds the count of native memory allocations and de-allocations for each registered class name.
+   * Used only in tests.
    */
   public static final class AllocationStats {
     private final Map<String, Integer> allocCount = new HashMap<>();

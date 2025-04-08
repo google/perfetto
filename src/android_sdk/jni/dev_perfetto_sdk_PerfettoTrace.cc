@@ -16,8 +16,8 @@
 #include <android/log.h>
 #include <jni.h>
 
-#include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.h"
 #include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.h"
+#include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.h"
 #include "src/android_sdk/nativehelper/JNIHelp.h"
 #include "src/android_sdk/nativehelper/scoped_utf_chars.h"
 #include "src/android_sdk/nativehelper/utils.h"
