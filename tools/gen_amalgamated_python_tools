@@ -17,6 +17,7 @@ import os
 import sys
 import logging
 import re
+import subprocess
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -90,6 +91,8 @@ def amalgamate(src, dst, check_only=False):
   logging.info('Amalgamating %s -> %s', src, dst)
   with open(dst + '.tmp', 'w', encoding='utf-8') as f:
     f.write(new_content)
+  yapf = os.path.join(ROOT_DIR, 'python', 'venv', 'bin', 'yapf')
+  subprocess.check_call([yapf, '-i', dst + '.tmp'])
   os.chmod(dst + '.tmp', 0o755)
   os.rename(dst + '.tmp', dst)
   return True
