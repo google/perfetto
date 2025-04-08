@@ -52,13 +52,12 @@ def main():
   remap: Dict[str, str] = {}  # {pruned_branch: effective_parent_it_matched}
   branches_to_prune: Set[str] = set()
   all_local_branches = set(get_all_branches())
-  mainline_branches = {'main', 'master', 'develop'}  # Adjust as needed
+  mainline_branches = {'origin/main'}
 
   print("Checking branches against effective parents...")
   for branch in sorted_branches:
     original_parent = parent_graph.get(branch)
     if original_parent is None:
-      print(f"Warning: No parent for branch '{branch}'.", file=sys.stderr)
       continue
     effective_parent = remap.get(original_parent, original_parent)
 
