@@ -71,8 +71,9 @@ SystemInfo GetSystemInfo() {
 
   info.timezone_off_mins = GetTimezoneOffsetMins();
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
   struct utsname uname_info;
   if (uname(&uname_info) == 0) {
     info.utsname_info = uname_info;
