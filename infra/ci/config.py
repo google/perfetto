@@ -58,7 +58,7 @@ GCE_TEMPLATE = 'gh-worker-template'
 GCE_GROUP_NAME = 'gh'
 MAX_VMS_PER_REGION = 8
 NUM_WORKERS_PER_VM = 4
-AUTOSCALER_MIN = 3  # TODO(primiano) put back to 0 once autoscaler is sorted
+AUTOSCALER_MIN = 6  # TODO(primiano) put back to 0 once autoscaler is sorted
 
 GCE_SCOPES = [
     'https://www.googleapis.com/auth/cloud-platform',
