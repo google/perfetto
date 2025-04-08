@@ -306,6 +306,8 @@ base::Status RedactProcessEvents::OnProcessRename(
   // support backwards compatibility but assume the ftrace event's pid can be
   // used, the rename task's pid will be used if it is present, otherwise it'll
   // use the ftrace event's pid.
+  //
+  // https://b.corp.google.com/issues/407810213
   auto nearest_pid = decoder.has_pid() ? decoder.pid() : pid;
 
   PERFETTO_DCHECK(filter_);
