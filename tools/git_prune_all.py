@@ -60,10 +60,9 @@ def main():
     if original_parent is None:
       continue
     effective_parent = remap.get(original_parent, original_parent)
-
-    if not effective_parent or effective_parent in mainline_branches:
+    if not effective_parent:
       continue
-    if effective_parent not in all_local_branches:
+    if effective_parent not in all_local_branches and effective_parent not in mainline_branches:
       continue
 
     diff_cmd = ['diff', '--quiet', effective_parent, branch]
