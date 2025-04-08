@@ -22,37 +22,43 @@ ROOT_DIR = Path(__file__).parent.parent
 FORMAT_SQL = ROOT_DIR / 'tools' / 'format_sql.py'
 STDLIB_PATH = ROOT_DIR / 'src' / 'trace_processor' / 'perfetto_sql' / 'stdlib'
 
+
 def main():
-    parser = argparse.ArgumentParser(description='Format SQL files in the stdlib directory')
-    parser.add_argument('paths',
-                       nargs='*',
-                       help='Optional paths to format (must be within stdlib)')
-    parser.add_argument('--check-only',
-                       action='store_true',
-                       help='Check if files are properly formatted without making changes')
-    parser.add_argument('--verbose',
-                       action='store_true',
-                       help='Print status messages during formatting')
-    args = parser.parse_args()
+  parser = argparse.ArgumentParser(
+      description='Format SQL files in the stdlib directory')
+  parser.add_argument(
+      'paths',
+      nargs='*',
+      help='Optional paths to format (must be within stdlib)')
+  parser.add_argument(
+      '--check-only',
+      action='store_true',
+      help='Check if files are properly formatted without making changes')
+  parser.add_argument(
+      '--verbose',
+      action='store_true',
+      help='Print status messages during formatting')
+  args = parser.parse_args()
 
-    if not STDLIB_PATH.exists():
-        print(f'Error: stdlib directory not found at {STDLIB_PATH}',
-              file=sys.stderr)
-        return 1
+  if not STDLIB_PATH.exists():
+    print(
+        f'Error: stdlib directory not found at {STDLIB_PATH}', file=sys.stderr)
+    return 1
 
-    paths_to_format = [str(STDLIB_PATH)] if not args.paths else args.paths
-    cmd = [str(FORMAT_SQL)] + paths_to_format
-    if args.check_only:
-        cmd.append('--check-only')
-    else:
-        cmd.append('--in-place')
-    if args.verbose:
-        cmd.append('--verbose')
+  paths_to_format = [str(STDLIB_PATH)] if not args.paths else args.paths
+  cmd = [str(FORMAT_SQL)] + paths_to_format
+  if args.check_only:
+    cmd.append('--check-only')
+  else:
+    cmd.append('--in-place')
+  if args.verbose:
+    cmd.append('--verbose')
 
-    try:
-        return subprocess.run(cmd, check=False).returncode
-    except subprocess.CalledProcessError as e:
-        return e.returncode
+  try:
+    return subprocess.run(cmd, check=False).returncode
+  except subprocess.CalledProcessError as e:
+    return e.returncode
+
 
 if __name__ == '__main__':
-    sys.exit(main())
+  sys.exit(main())

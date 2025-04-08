@@ -30,7 +30,6 @@ REPO_URL = 'https://android.googlesource.com/' + GERRIT_PROJECT
 GERRIT_VOTING_ENABLED = True
 LOGLEVEL = 'info'
 
-
 # IDs for the Perfetto CI GitHub app.
 GITHUB_REPO = 'google/perfetto'
 GITHUB_APP_ID = 1184402
@@ -60,7 +59,6 @@ GCE_GROUP_NAME = 'gh'
 MAX_VMS_PER_REGION = 8
 NUM_WORKERS_PER_VM = 4
 AUTOSCALER_MIN = 3  # TODO(primiano) put back to 0 once autoscaler is sorted
-
 
 GCE_SCOPES = [
     'https://www.googleapis.com/auth/cloud-platform',
