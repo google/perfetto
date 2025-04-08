@@ -604,7 +604,7 @@ public final class PerfettoTrackEventBuilder {
   }
 
   // Only used in tests.
-  public static AllocationStats getsNativeAllocationStats() {
+  public static AllocationStats getNativeAllocationStats() {
     return sNativeAllocationStats;
   }
 

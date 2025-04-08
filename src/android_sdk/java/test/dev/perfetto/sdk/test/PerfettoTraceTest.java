@@ -83,7 +83,7 @@ public class PerfettoTraceTest {
     // 'var unused' suppress error-prone warning
     var unused = FOO_CATEGORY.register();
 
-    PerfettoTrackEventBuilder.getsNativeAllocationStats().reset();
+    PerfettoTrackEventBuilder.getNativeAllocationStats().reset();
 
     mCategoryNames.clear();
     mEventNames.clear();
@@ -103,17 +103,25 @@ public class PerfettoTraceTest {
       PerfettoTrace.instant(FOO_CATEGORY, eventName).addArg(nativeStringArgKey, nativeStringValue);
     }
 
+    // Manually trigger GC if creating 600_000 objects was not enough.
+    for (int i = 0; i < 10; i++) {
+      System.runFinalization();
+      System.gc();
+    }
+
     // We ignore the trace content.
     byte[] traceBytes = session.close();
     assertThat(traceBytes).isNotEmpty();
 
     // We test that the GC triggers 'free native memory' function when the corresponding java
     // objects are garbage collected.
-    AllocationStats allocationStats = PerfettoTrackEventBuilder.getsNativeAllocationStats();
+    AllocationStats allocationStats = PerfettoTrackEventBuilder.getNativeAllocationStats();
     String argStringClsName = "dev.perfetto.sdk.PerfettoTrackEventExtra$ArgString";
     assertThat(allocationStats.getAllocCountForTarget(argStringClsName)).isEqualTo(600_000);
-    // Assert that the native memory was freed at least once,
-    // in practice the counter is usually greater than 300_000.
+    // Assert that the native memory was freed at least once.
+    // In practice the counter is usually greater than 300_000 if not manually trigger GC,
+    // and 599_995 (600_000 - dev.perfetto.sdk.PerfettoTrackEventBuilder#DEFAULT_EXTRA_CACHE_SIZE)
+    // if do manually trigger.
     assertThat(allocationStats.getFreeCountForTarget(argStringClsName)).isGreaterThan(0);
     String allocDebugStats = allocationStats.reportStats();
     Log.d(TAG, "Memory cleaner allocation stats: " + allocDebugStats);
