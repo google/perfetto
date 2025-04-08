@@ -18,7 +18,10 @@ import {
   MetricHandler,
 } from './metricUtils';
 import {Trace} from '../../../public/trace';
-import {addJankCUJDebugTrack, addLatencyCUJDebugTrack} from '../../dev.perfetto.AndroidCujs';
+import {
+  addJankCUJDebugTrack,
+  addLatencyCUJDebugTrack,
+} from '../../dev.perfetto.AndroidCujs';
 import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
 class BlockingCallMetricHandler implements MetricHandler {
@@ -65,7 +68,11 @@ class BlockingCallMetricHandler implements MetricHandler {
     // Currently, we try to pin a Jank CUJ track and if that fails we add
     // a Latency CUJ track. We can instead look up a single CUJ table to
     // better determine what to query and pin.
-    const jankCujPinned = await addJankCUJDebugTrack(ctx, jankTrackName, metricData.cujName);
+    const jankCujPinned = await addJankCUJDebugTrack(
+      ctx,
+      jankTrackName,
+      metricData.cujName,
+    );
     if (!jankCujPinned) {
       addLatencyCUJDebugTrack(ctx, latencyTrackName, metricData.cujName);
     }

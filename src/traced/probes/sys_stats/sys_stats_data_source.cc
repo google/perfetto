@@ -494,8 +494,9 @@ void SysStatsDataSource::ReadPsi(protos::pbzero::SysStats* sys_stats) {
         //     some avg10=0.00 avg60=0.00 avg300=0.00 total=0
         if (index == 0) {
           auto resource = token == "some" ? resource_some
-                        : token == "full" ? resource_full
-                                          : PsiSample::PSI_RESOURCE_UNSPECIFIED;
+                          : token == "full"
+                              ? resource_full
+                              : PsiSample::PSI_RESOURCE_UNSPECIFIED;
           psi->set_resource(resource);
         } else if (index == 4) {
           const base::StringView prefix("total=");
@@ -656,7 +657,7 @@ void SysStatsDataSource::ReadStat(protos::pbzero::SysStats* sys_stats) {
     if ((stat_enabled_fields_ & (1 << SysStatsConfig::STAT_CPU_TIMES)) &&
         words.cur_token_size() > 3 && !strncmp(words.cur_token(), "cpu", 3)) {
       long cpu_id = strtol(words.cur_token() + 3, nullptr, 10);
-      std::array<uint64_t, 7> cpu_times{};
+      std::array<uint64_t, 8> cpu_times{};
       for (size_t i = 0; i < cpu_times.size() && words.Next(); i++) {
         cpu_times[i] =
             static_cast<uint64_t>(strtoll(words.cur_token(), nullptr, 10));
@@ -670,6 +671,7 @@ void SysStatsDataSource::ReadStat(protos::pbzero::SysStats* sys_stats) {
       cpu_stat->set_io_wait_ns(cpu_times[4] * ns_per_user_hz_);
       cpu_stat->set_irq_ns(cpu_times[5] * ns_per_user_hz_);
       cpu_stat->set_softirq_ns(cpu_times[6] * ns_per_user_hz_);
+      cpu_stat->set_steal_ns(cpu_times[7] * ns_per_user_hz_);
     }
     // IRQ counters
     else if ((stat_enabled_fields_ & (1 << SysStatsConfig::STAT_IRQ_COUNTS)) &&

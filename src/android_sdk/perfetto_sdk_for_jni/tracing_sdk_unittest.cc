@@ -112,7 +112,7 @@ std::string packet_to_string(const TracePacket& packet) {
 
 TEST(TracingSdkForJniTest, mySimpleTest) {
   sdk_for_jni::register_perfetto(true);
-  sdk_for_jni::Category category("rendering", "", "");
+  sdk_for_jni::Category category("rendering");
   category.register_category();
 
   auto tracing_session = StartTracing();

@@ -106,7 +106,7 @@ bool ReadFileDescriptor(int fd, std::string* out) {
   // Do not override existing data in string.
   size_t i = out->size();
 
-  struct stat buf {};
+  struct stat buf{};
   if (fstat(fd, &buf) != -1) {
     if (buf.st_size > 0)
       out->resize(i + static_cast<size_t>(buf.st_size));
@@ -143,7 +143,7 @@ bool ReadPlatformHandle(PlatformHandle h, std::string* out) {
       out->resize(i);
       const bool is_eof = res && bytes_read == 0;
       auto err = res ? 0 : GetLastError();
-      // The "Broken pipe" error on Windows is slighly different than Unix:
+      // The "Broken pipe" error on Windows is slightly different than Unix:
       // On Unix: a "broken pipe" error can happen only on the writer side. On
       // the reader there is no broken pipe, just a EOF.
       // On windows: the reader also sees a broken pipe error.
@@ -445,7 +445,7 @@ std::optional<uint64_t> GetFileSize(PlatformHandle fd) {
   static_assert(sizeof(decltype(file_size.QuadPart)) <= sizeof(uint64_t));
   return static_cast<uint64_t>(file_size.QuadPart);
 #else
-  struct stat buf {};
+  struct stat buf{};
   if (fstat(fd, &buf) == -1) {
     return std::nullopt;
   }

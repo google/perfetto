@@ -94,8 +94,8 @@ base::Status ReadTraceUnfinalized(
         RETURN_IF_ERROR(tp->Parse(std::move(slice)));
         bytes_read += slice_size;
       }  // while (slices)
-    }    // if (mapped.IsValid())
-  }      // if (use_mmap)
+    }  // if (mapped.IsValid())
+  }  // if (use_mmap)
   if (bytes_read == 0)
     PERFETTO_LOG("Cannot use mmap on this system. Falling back on read()");
 #endif  // PERFETTO_HAS_MMAP()

@@ -123,7 +123,7 @@ class ProtoImporterModule {
   // Called by ProtoTraceReader during the tokenization stage i.e. before
   // sorting. Indicates that sequence with id |packet_sequence_id| has a packet
   // with first_packet_on_sequence = true. This implies that there was no data
-  // loss, including ring buffer overwrittes, on this sequence.
+  // loss, including ring buffer overwrites, on this sequence.
   virtual void OnFirstPacketOnSequence(uint32_t /* packet_sequence_id */) {}
 
   // ParsePacket functions are called by ProtoTraceParser after the sorting

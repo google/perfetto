@@ -321,7 +321,7 @@ TEST(ProtoZeroConformanceTest, EnumToString) {
 TEST(ProtoZeroConformanceTest, DifferentPackages) {
   HeapBuffered<pbtest::DifferentPackages> msg{kChunkSize, kChunkSize};
 
-  // Pupulate fields defined in "protozero.test.protos.subpackage"
+  // Populate fields defined in "protozero.test.protos.subpackage"
   pbtest_subpackage::Message* msgSubpackage = msg->set_subpackage_message();
   msgSubpackage->set_field_int32(1);
   msgSubpackage->set_field_enum(pbtest_subpackage::Enum::A);
@@ -331,7 +331,7 @@ TEST(ProtoZeroConformanceTest, DifferentPackages) {
   msg->set_subpackage_enum(pbtest_subpackage::Enum::B);
   msg->set_subpackage_nested_enum(pbtest_subpackage::Message_NestedEnum::D);
 
-  // Pupulate fields defined in "other_package"
+  // Populate fields defined in "other_package"
   pbtest_otherpackage::Message* msgOtherPackage =
       msg->set_otherpackage_message();
   msgOtherPackage->set_field_int32(11);

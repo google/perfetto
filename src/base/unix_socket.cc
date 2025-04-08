@@ -162,7 +162,7 @@ inline int MkSockType(SockType type) {
 SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
   switch (family) {
     case SockFamily::kUnix: {
-      struct sockaddr_un saddr {};
+      struct sockaddr_un saddr{};
       const size_t name_len = socket_name.size();
       if (name_len + 1 /* for trailing \0 */ >= sizeof(saddr.sun_path)) {
         errno = ENAMETOOLONG;
@@ -185,7 +185,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
           __builtin_offsetof(sockaddr_un, sun_path) + name_len + 1);
 
       // Abstract sockets do NOT require a trailing null terminator (which is
-      // instad mandatory for filesystem sockets). Any byte up to `size`,
+      // instead mandatory for filesystem sockets). Any byte up to `size`,
       // including '\0' will become part of the socket name.
       if (saddr.sun_path[0] == '\0')
         --size;
@@ -196,7 +196,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       auto parts = SplitString(socket_name, ":");
       PERFETTO_CHECK(parts.size() == 2);
       struct addrinfo* addr_info = nullptr;
-      struct addrinfo hints {};
+      struct addrinfo hints{};
       hints.ai_family = AF_INET;
       PERFETTO_CHECK(getaddrinfo(parts[0].c_str(), parts[1].c_str(), &hints,
                                  &addr_info) == 0);
@@ -214,7 +214,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       auto port = SplitString(parts[1], ":");
       PERFETTO_CHECK(port.size() == 1);
       struct addrinfo* addr_info = nullptr;
-      struct addrinfo hints {};
+      struct addrinfo hints{};
       hints.ai_family = AF_INET6;
       PERFETTO_CHECK(getaddrinfo(address[0].c_str(), port[0].c_str(), &hints,
                                  &addr_info) == 0);
@@ -712,7 +712,7 @@ bool UnixSocketRaw::SetTxTimeout(uint32_t timeout_ms) {
   DWORD timeout = timeout_ms;
   ignore_result(tx_timeout_ms_);
 #else
-  struct timeval timeout {};
+  struct timeval timeout{};
   uint32_t timeout_sec = timeout_ms / 1000;
   timeout.tv_sec = static_cast<decltype(timeout.tv_sec)>(timeout_sec);
   timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(
@@ -720,8 +720,8 @@ bool UnixSocketRaw::SetTxTimeout(uint32_t timeout_ms) {
 #endif
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
   if (family() == SockFamily::kVsock) {
-      // QNX doesn't support SO_SNDTIMEO for vsocks.
-      return true;
+    // QNX doesn't support SO_SNDTIMEO for vsocks.
+    return true;
   }
 #endif
 
@@ -735,7 +735,7 @@ bool UnixSocketRaw::SetRxTimeout(uint32_t timeout_ms) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   DWORD timeout = timeout_ms;
 #else
-  struct timeval timeout {};
+  struct timeval timeout{};
   uint32_t timeout_sec = timeout_ms / 1000;
   timeout.tv_sec = static_cast<decltype(timeout.tv_sec)>(timeout_sec);
   timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(
@@ -747,7 +747,7 @@ bool UnixSocketRaw::SetRxTimeout(uint32_t timeout_ms) {
 }
 
 std::string UnixSocketRaw::GetSockAddr() const {
-  struct sockaddr_storage stg {};
+  struct sockaddr_storage stg{};
   socklen_t slen = sizeof(stg);
   PERFETTO_CHECK(
       getsockname(*fd_, reinterpret_cast<struct sockaddr*>(&stg), &slen) == 0);
@@ -1042,7 +1042,7 @@ void UnixSocket::OnEvent() {
       // re-posted immediately. In both cases, not doing a Recv() in
       // OnDataAvailable, leads to something bad (getting stuck on Windows,
       // getting in a hot loop on Linux), so doesn't feel we should worry too
-      // much about this. If we wanted to keep the behavrior consistent, here
+      // much about this. If we wanted to keep the behavior consistent, here
       // we should do something like: `if (sock_raw_)
       // sock_raw_.SetBlocking(false)` (Note that the socket might be closed
       // by the time we come back here, hence the if part).

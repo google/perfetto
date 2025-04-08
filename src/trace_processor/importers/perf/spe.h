@@ -162,8 +162,8 @@ T ToEnum(uint8_t val) {
 // 0 - 4 bytes of payload. The `ShortHeader`, and `ExtendedHeader` hide all the
 // low level bit fiddling details of handling packets. When parsing a stream of
 // SPE records you can just check the first byte in the stream to determine if
-// it belongs to a short or extended header and then use the appropiate class to
-// determine packet type, payload length and packet details. There are other
+// it belongs to a short or extended header and then use the appropriate class
+// to determine packet type, payload length and packet details. There are other
 // helper classes to parse payloads for the different packets.
 
 // Checks if a header bytes is a padding packet. (no payload)

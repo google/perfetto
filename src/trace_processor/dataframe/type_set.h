@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <variant>
@@ -132,14 +133,35 @@ class TypeSet {
     return idx;
   }
 
+  // Equality operator for TypeSet.
+  constexpr bool operator==(const TypeSet<Ts...>& other) const {
+    return type_idx_ == other.type_idx_;
+  }
+
+  // Returns a string representation of the TypeSet.
+  std::string ToString() const {
+    std::string result = "TypeSet";
+    result += "[" + std::to_string(type_idx_) + "]";
+    return result;
+  }
+
   // Gets the type at the same index in a variant as T is in this TypeSet.
   //
   // Useful if you have a std::variant shadowing the schema of the TypeSet and
   // you want to figure out what the type of the variant is matching the type
   // in the TypeSet.
   template <typename T, typename VariantType>
+  struct VariantAtTypeIndexHelper {
+    static_assert(Contains<T>(), "Provided type not allowed in this TypeSet");
+    static_assert(
+        std::variant_size_v<VariantType> == sizeof...(Ts),
+        "VariantType must have the same number of types as the TypeSet");
+    using type =
+        typename std::variant_alternative_t<GetTypeIndex<T>(), VariantType>;
+  };
+  template <typename T, typename VariantType>
   using VariantTypeAtIndex =
-      typename std::variant_alternative_t<GetTypeIndex<T>(), VariantType>;
+      typename VariantAtTypeIndexHelper<T, VariantType>::type;
 
  private:
   // Private constructor used internally

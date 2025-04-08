@@ -158,7 +158,7 @@ class TraceProcessorImpl : public TraceProcessor,
 
   std::vector<metrics::SqlMetricFile> sql_metrics_;
 
-  // Manually registeres SQL packages are stored here, to be able to restore
+  // Manually registers SQL packages are stored here, to be able to restore
   // them when running |RestoreInitialTables()|.
   std::vector<SqlPackage> manually_registered_sql_packages_;
 

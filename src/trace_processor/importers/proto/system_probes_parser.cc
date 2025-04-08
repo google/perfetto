@@ -419,6 +419,8 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
                                          intern_track("irq_ns"));
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.softirq_ns()), intern_track("softirq_ns"));
+    context_->event_tracker->PushCounter(ts, static_cast<double>(ct.steal_ns()),
+                                         intern_track("steal_ns"));
   }
 
   for (auto it = sys_stats.num_irq(); it; ++it) {

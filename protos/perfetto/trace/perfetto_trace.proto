@@ -811,8 +811,8 @@ message SurfaceFlingerLayersConfig {
     MODE_DUMP = 3;
 
     // Default mode (applied by SurfaceFlinger if no mode is specified).
-    // Same as MODE_GENERATED, but triggers the layers snapshots generation only when a bugreport
-    // is taken.
+    // Same as MODE_GENERATED, but triggers the layers snapshots generation only
+    // when a bugreport is taken.
     MODE_GENERATED_BUGREPORT_ONLY = 4;
   }
   optional Mode mode = 1;
@@ -3923,7 +3923,8 @@ message DataSourceConfig {
   optional WindowManagerConfig windowmanager_config = 130 [lazy = true];
 
   // Data source name: org.chromium.system_metrics
-  optional ChromiumSystemMetricsConfig chromium_system_metrics = 131 [lazy = true];
+  optional ChromiumSystemMetricsConfig chromium_system_metrics = 131
+      [lazy = true];
 
   // Data source name: android.kernel_wakelocks
   optional KernelWakelocksConfig kernel_wakelocks_config = 132 [lazy = true];
@@ -5148,18 +5149,17 @@ message AndroidCameraFrameEvent {
   // The number of streams in the capture request.
   optional int32 num_streams = 13;
 
-  // A profiling event corresponding to a single node processing within the camera
-  // pipeline. Intuitively this corresponds to a single stage of processing to
-  // produce a camera frame.
-  // Next ID: 6
+  // A profiling event corresponding to a single node processing within the
+  // camera pipeline. Intuitively this corresponds to a single stage of
+  // processing to produce a camera frame. Next ID: 6
   message CameraNodeProcessingDetails {
     optional int64 node_id = 1;
     // The timestamp at which node processing begins to run.
     optional int64 start_processing_ns = 2;
     // The timestamp at which node processing finishes running.
     optional int64 end_processing_ns = 3;
-    // The delay between inputs becoming ready and the node actually beginning to
-    // run.
+    // The delay between inputs becoming ready and the node actually beginning
+    // to run.
     optional int64 scheduling_latency_ns = 4;
   }
   repeated CameraNodeProcessingDetails node_processing_details = 14;
@@ -5191,10 +5191,10 @@ message AndroidCameraSessionStats {
       // A list of outputs produced by this node.
       repeated int64 output_ids = 3;
 
-      // These fields capture vendor-specific additions to this proto message. In
-      // practice `vendor_data` typically contains a serialized message of the
-      // vendor's design, and `vendor_data_version` is incremented each time there
-      // is a backwards incompatible change made to the message.
+      // These fields capture vendor-specific additions to this proto message.
+      // In practice `vendor_data` typically contains a serialized message of
+      // the vendor's design, and `vendor_data_version` is incremented each time
+      // there is a backwards incompatible change made to the message.
       optional int32 vendor_data_version = 4;
       optional bytes vendor_data = 5;
     }
@@ -5211,10 +5211,10 @@ message AndroidCameraSessionStats {
       optional int64 input_node_id = 3;
       optional int64 input_id = 4;
 
-      // These fields capture vendor-specific additions to this proto message. In
-      // practice `vendor_data` typically contains a serialized message of the
-      // vendor's design, and `vendor_data_version` is incremented each time there
-      // is a backwards incompatible change made to the message.
+      // These fields capture vendor-specific additions to this proto message.
+      // In practice `vendor_data` typically contains a serialized message of
+      // the vendor's design, and `vendor_data_version` is incremented each time
+      // there is a backwards incompatible change made to the message.
       optional int32 vendor_data_version = 5;
       optional bytes vendor_data = 6;
     }
@@ -5390,7 +5390,9 @@ message FrameTimelineEvent {
 
   // FrameEnd just sends the cookie to indicate that the corresponding
   // <display/surface>frame slice's end.
-  message FrameEnd { optional int64 cookie = 1; };
+  message FrameEnd {
+    optional int64 cookie = 1;
+  };
 
   oneof event {
     ExpectedDisplayFrameStart expected_display_frame_start = 1;
@@ -5946,7 +5948,7 @@ enum HwcCompositionType {
   HWC_TYPE_CURSOR = 4;
   // Layer was composited by the device via a sideband stream
   HWC_TYPE_SIDEBAND = 5;
-   // Layer was composited by hardware optimized for display decoration
+  // Layer was composited by hardware optimized for display decoration
   HWC_TYPE_DISPLAY_DECORATION = 6;
 }
 
@@ -12698,7 +12700,6 @@ message ChromeActiveProcesses {
 
 // Begin of protos/perfetto/trace/track_event/chrome_application_state_info.proto
 
-
 // Trace event arguments for application state changes.
 message ChromeApplicationStateInfo {
   // Enum definition taken from:
@@ -14281,7 +14282,6 @@ message BatteryCounters {
 // Begin of protos/perfetto/trace/power/power_rails.proto
 
 message PowerRails {
-
   message RailDescriptor {
     // Index corresponding to the rail
     optional uint32 index = 1;
@@ -14773,7 +14773,9 @@ message PerfSample {
 
   // If set, stack unwinding was incomplete due to an error.
   // Unset values should be treated as UNWIND_ERROR_NONE.
-  oneof optional_unwind_error { Profiling.StackUnwindError unwind_error = 16; };
+  oneof optional_unwind_error {
+    Profiling.StackUnwindError unwind_error = 16;
+  };
 
   // If set, indicates that this message is not a sample, but rather an
   // indication of data loss in the ring buffer allocated for |cpu|. Such data
@@ -15125,6 +15127,9 @@ message SysStats {
 
     // Time spent servicing softirqs.
     optional uint64 softirq_ns = 8;
+
+    // Time spent executing something else on host than this guest.
+    optional uint64 steal_ns = 9;
   }
   // One entry per cpu.
   repeated CpuTimes cpu_stat = 3;

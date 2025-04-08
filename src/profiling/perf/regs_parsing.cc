@@ -103,7 +103,7 @@ uint64_t PerfUserRegsMask(unwindstack::ArchEnum arch) {
 // Adjusts the given architecture enum based on the ABI (as recorded in the perf
 // sample). Note: we do not support 64 bit samples on a 32 bit daemon build, so
 // this only converts from 64 bit to 32 bit architectures.
-// TODO(rsavitski): on riscv64, are 32 bit userspace processes posible?
+// TODO(rsavitski): on riscv64, are 32 bit userspace processes possible?
 unwindstack::ArchEnum ArchForAbi(unwindstack::ArchEnum arch, uint64_t abi) {
   if (arch == unwindstack::ARCH_ARM64 && abi == PERF_SAMPLE_REGS_ABI_32) {
     return unwindstack::ARCH_ARM;

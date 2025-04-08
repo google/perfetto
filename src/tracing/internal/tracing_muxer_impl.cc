@@ -1231,7 +1231,7 @@ static bool MaybeAdoptStartupTracingInDataSource(
             static_cast<internal::BufferId>(cfg.target_buffer());
         internal_state->config.reset(new DataSourceConfig(cfg));
 
-        // TODO(eseckler): Should the data souce config provided by the service
+        // TODO(eseckler): Should the data source config provided by the service
         // be allowed to specify additional interceptors / additional data
         // source params?
 

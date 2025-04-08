@@ -62,14 +62,15 @@ void android_os_PerfettoTrace_register(JNIEnv*,
 static jlong android_os_PerfettoTraceCategory_init(JNIEnv* env,
                                                    jclass,
                                                    jstring name,
-                                                   jstring tag,
-                                                   jstring severity) {
-  ScopedUtfChars name_chars = GET_UTF_OR_RETURN(env, name);
-  ScopedUtfChars tag_chars = GET_UTF_OR_RETURN(env, tag);
-  ScopedUtfChars severity_chars = GET_UTF_OR_RETURN(env, severity);
+                                                   jobjectArray tags) {
+  std::string name_c_str(GET_UTF_OR_RETURN(env, name));
+  std::vector<std::string> tags_c_strs;
+  for (int i = 0; i < env->GetArrayLength(tags); i++) {
+    auto tag = reinterpret_cast<jstring>(env->GetObjectArrayElement(tags, i));
+    tags_c_strs.emplace_back(GET_UTF_OR_RETURN(env, tag));
+  }
 
-  return toJLong(new sdk_for_jni::Category(
-      name_chars.c_str(), tag_chars.c_str(), severity_chars.c_str()));
+  return toJLong(new sdk_for_jni::Category(name_c_str, tags_c_strs));
 }
 
 static jlong android_os_PerfettoTraceCategory_delete() {
@@ -133,7 +134,7 @@ static jbyteArray android_os_PerfettoTrace_stop_session(
 }
 
 static const JNINativeMethod gCategoryMethods[] = {
-    {"native_init", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)J",
+    {"native_init", "(Ljava/lang/String;[Ljava/lang/String;)J",
      (void*)android_os_PerfettoTraceCategory_init},
     {"native_delete", "()J", (void*)android_os_PerfettoTraceCategory_delete},
     {"native_register", "(J)V",

@@ -175,7 +175,7 @@ TEST(MessageFilterTest, Passthrough) {
   // Fill `cfg_filtered`.
   nest = msg->BeginNestedMessage<Message>(/*field_id=*/3);
   nest->AppendVarInt(/*field_id=*/3, 200);  // This should be propagated.
-  nest->AppendVarInt(/*field_id=*/6, 300);  // This shoudl be filtered out.
+  nest->AppendVarInt(/*field_id=*/6, 300);  // This should be filtered out.
   nest->Finalize();
 
   MessageFilter flt;
@@ -248,7 +248,7 @@ TEST(MessageFilterTest, ChangeRoot) {
   MessageFilter flt;
   ASSERT_TRUE(flt.LoadFilterBytecode(bytecode.data(), bytecode.size()));
 
-  // First set the root to field id ".2" (.b). The fliter should happen treating
+  // First set the root to field id ".2" (.b). The filter should happen treating
   // |Nested| as rot, so allowing only field 3 and 4 (Nested2) through.
   {
     flt.SetFilterRoot({2});

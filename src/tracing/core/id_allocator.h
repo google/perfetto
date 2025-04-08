@@ -25,7 +25,7 @@
 
 namespace perfetto {
 
-// Handles assigment of IDs (int types) from a fixed-size pool.
+// Handles assignment of IDs (int types) from a fixed-size pool.
 // Zero is not considered a valid ID.
 // The base class takes always a uint32_t and the derived class casts and checks
 // bounds at compile time. This is to avoid bloating code with different

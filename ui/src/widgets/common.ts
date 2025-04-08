@@ -68,8 +68,11 @@ export interface HTMLLabelAttrs extends HTMLAttrs {
 }
 
 export enum Intent {
-  None = 'none',
-  Primary = 'primary',
+  None = 'None',
+  Primary = 'Primary',
+  Success = 'Success',
+  Danger = 'Danger',
+  Warning = 'Warning',
 }
 
 export function classForIntent(intent: Intent): string | undefined {
@@ -78,6 +81,12 @@ export function classForIntent(intent: Intent): string | undefined {
       return undefined;
     case Intent.Primary:
       return 'pf-intent-primary';
+    case Intent.Success:
+      return 'pf-intent-success';
+    case Intent.Danger:
+      return 'pf-intent-danger';
+    case Intent.Warning:
+      return 'pf-intent-warning';
     default:
       return assertUnreachable(intent);
   }

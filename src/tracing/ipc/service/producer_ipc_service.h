@@ -37,7 +37,7 @@ class Host;
 
 // Implements the Producer port of the IPC service. This class proxies requests
 // and responses between the core service logic (|svc_|) and remote Producer(s)
-// on the IPC socket, through the methods overriddden from ProducerPort.
+// on the IPC socket, through the methods overridden from ProducerPort.
 class ProducerIPCService : public protos::gen::ProducerPort {
  public:
   explicit ProducerIPCService(TracingService* core_service);

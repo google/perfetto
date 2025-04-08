@@ -27,7 +27,7 @@ class OverlayLayer : public DataLayer {
  public:
   ~OverlayLayer() override;
 
-  // Translates the indices separtated by |stride| between |start| and |end|
+  // Translates the indices separated by |stride| between |start| and |end|
   // through this overlay.
   //
   // Implementations should do something like this:

@@ -13234,6 +13234,7 @@ filegroup {
     name: "perfetto_src_trace_processor_dataframe_unittests",
     srcs: [
         "src/trace_processor/dataframe/dataframe_unittest.cc",
+        "src/trace_processor/dataframe/runtime_dataframe_builder_unittest.cc",
         "src/trace_processor/dataframe/type_set_unittest.cc",
     ],
 }
@@ -14223,6 +14224,7 @@ filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_engine_engine",
     srcs: [
         "src/trace_processor/perfetto_sql/engine/created_function.cc",
+        "src/trace_processor/perfetto_sql/engine/dataframe_module.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
         "src/trace_processor/perfetto_sql/engine/table_pointer_module.cc",
@@ -14745,6 +14747,7 @@ filegroup {
     name: "perfetto_src_trace_processor_sqlite_sqlite",
     srcs: [
         "src/trace_processor/sqlite/db_sqlite_table.cc",
+        "src/trace_processor/sqlite/module_state_manager.cc",
         "src/trace_processor/sqlite/sql_source.cc",
         "src/trace_processor/sqlite/sql_stats_table.cc",
         "src/trace_processor/sqlite/sqlite_engine.cc",
@@ -16319,6 +16322,7 @@ android_library {
     name: "perfetto_trace_lib",
     srcs: [
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
     ],
     manifest: "src/android_sdk/java/main/AndroidManifest.xml",

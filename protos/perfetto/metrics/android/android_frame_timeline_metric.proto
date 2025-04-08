@@ -28,10 +28,12 @@ message AndroidFrameTimelineMetric {
     // The count of frames with this jank type
     optional int64 total_count = 2;
 
-    // The count of frames with this jank type and present type = PRESENT_UNSPECIFIED
+    // The count of frames with this jank type and present type =
+    // PRESENT_UNSPECIFIED
     optional int64 present_unspecified_count = 3;
 
-    // The count of frames with this jank type and present type = PRESENT_ON_TIME
+    // The count of frames with this jank type and present type =
+    // PRESENT_ON_TIME
     optional int64 present_on_time_count = 4;
 
     // The count of frames with this jank type and present type = PRESENT_LATE
@@ -40,10 +42,12 @@ message AndroidFrameTimelineMetric {
     // The count of frames with this jank type and present type = PRESENT_EARLY
     optional int64 present_early_count = 6;
 
-    // The count of frames with this jank type and present type = PRESENT_DROPPED
+    // The count of frames with this jank type and present type =
+    // PRESENT_DROPPED
     optional int64 present_dropped_count = 7;
 
-    // The count of frames with this jank type and present type = PRESENT_UNKNOWN
+    // The count of frames with this jank type and present type =
+    // PRESENT_UNKNOWN
     optional int64 present_unknown_count = 8;
   }
 
@@ -84,4 +88,3 @@ message AndroidFrameTimelineMetric {
 
   reserved 1;
 }
-

@@ -84,18 +84,17 @@ message AndroidCameraFrameEvent {
   // The number of streams in the capture request.
   optional int32 num_streams = 13;
 
-  // A profiling event corresponding to a single node processing within the camera
-  // pipeline. Intuitively this corresponds to a single stage of processing to
-  // produce a camera frame.
-  // Next ID: 6
+  // A profiling event corresponding to a single node processing within the
+  // camera pipeline. Intuitively this corresponds to a single stage of
+  // processing to produce a camera frame. Next ID: 6
   message CameraNodeProcessingDetails {
     optional int64 node_id = 1;
     // The timestamp at which node processing begins to run.
     optional int64 start_processing_ns = 2;
     // The timestamp at which node processing finishes running.
     optional int64 end_processing_ns = 3;
-    // The delay between inputs becoming ready and the node actually beginning to
-    // run.
+    // The delay between inputs becoming ready and the node actually beginning
+    // to run.
     optional int64 scheduling_latency_ns = 4;
   }
   repeated CameraNodeProcessingDetails node_processing_details = 14;
@@ -127,10 +126,10 @@ message AndroidCameraSessionStats {
       // A list of outputs produced by this node.
       repeated int64 output_ids = 3;
 
-      // These fields capture vendor-specific additions to this proto message. In
-      // practice `vendor_data` typically contains a serialized message of the
-      // vendor's design, and `vendor_data_version` is incremented each time there
-      // is a backwards incompatible change made to the message.
+      // These fields capture vendor-specific additions to this proto message.
+      // In practice `vendor_data` typically contains a serialized message of
+      // the vendor's design, and `vendor_data_version` is incremented each time
+      // there is a backwards incompatible change made to the message.
       optional int32 vendor_data_version = 4;
       optional bytes vendor_data = 5;
     }
@@ -147,10 +146,10 @@ message AndroidCameraSessionStats {
       optional int64 input_node_id = 3;
       optional int64 input_id = 4;
 
-      // These fields capture vendor-specific additions to this proto message. In
-      // practice `vendor_data` typically contains a serialized message of the
-      // vendor's design, and `vendor_data_version` is incremented each time there
-      // is a backwards incompatible change made to the message.
+      // These fields capture vendor-specific additions to this proto message.
+      // In practice `vendor_data` typically contains a serialized message of
+      // the vendor's design, and `vendor_data_version` is incremented each time
+      // there is a backwards incompatible change made to the message.
       optional int32 vendor_data_version = 5;
       optional bytes vendor_data = 6;
     }

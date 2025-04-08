@@ -229,7 +229,7 @@ class StdlibIntervals(TestSuite):
         """))
 
 
-  def test_remove_overlap(self):
+  def test_interval_merge_overlapping(self):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
@@ -252,7 +252,7 @@ class StdlibIntervals(TestSuite):
               (31, 2)
           )
         SELECT *
-        FROM interval_remove_overlap!(data, 1);
+        FROM interval_merge_overlapping!(data, 1);
         """,
         out=Csv("""
         "ts","dur"
