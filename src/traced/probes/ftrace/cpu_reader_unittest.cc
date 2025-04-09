@@ -25,8 +25,8 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
-#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "src/base/test/tmp_dir_tree.h"
+#include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
@@ -35,6 +35,7 @@
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/descriptor.gen.h"
 #include "protos/perfetto/trace/ftrace/dpu.gen.h"
 #include "protos/perfetto/trace/ftrace/f2fs.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace.gen.h"
@@ -45,6 +46,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_stats.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 #include "protos/perfetto/trace/ftrace/generic.gen.h"
+#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.gen.h"
 #include "protos/perfetto/trace/ftrace/raw_syscalls.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
@@ -70,24 +72,29 @@ using testing::Property;
 using testing::Return;
 using testing::SizeIs;
 using testing::StartsWith;
+using testing::StrEq;
 
 namespace perfetto {
 namespace {
 
 using FtraceParseStatus = protos::pbzero::FtraceParseStatus;
 
-FtraceDataSourceConfig ConfigForTesting(CompactSchedConfig compact_cfg) {
-  return FtraceDataSourceConfig{/*event_filter=*/EventFilter{},
-                                /*syscall_filter=*/EventFilter{},
-                                compact_cfg,
-                                /*print_filter=*/std::nullopt,
-                                /*atrace_apps=*/{},
-                                /*atrace_categories=*/{},
-                                /*atrace_categories_sdk_optout=*/{},
-                                /*symbolize_ksyms=*/false,
-                                /*buffer_percent=*/50u,
-                                /*syscalls_returning_fd=*/{},
-                                /*debug_ftrace_abi=*/false};
+FtraceDataSourceConfig ConfigForTesting(
+    CompactSchedConfig compact_cfg,
+    bool write_generic_evt_descriptors = false) {
+  return FtraceDataSourceConfig{
+      /*event_filter=*/EventFilter{},
+      /*syscall_filter=*/EventFilter{}, compact_cfg,
+      /*print_filter=*/std::nullopt,
+      /*atrace_apps=*/{},
+      /*atrace_categories=*/{},
+      /*atrace_categories_sdk_optout=*/{},
+      /*symbolize_ksyms=*/false,
+      /*buffer_percent=*/50u,
+      /*syscalls_returning_fd=*/{},
+      /*kprobes=*/
+      base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>{0},
+      /*debug_ftrace_abi=*/false, write_generic_evt_descriptors};
 }
 
 FtraceDataSourceConfig EmptyConfig() {
@@ -415,7 +422,7 @@ class CpuReaderParsePagePayloadTest : public testing::Test {
                      /*ftrace_clock_snapshot=*/nullptr,
                      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED,
                      compact_sched_buf_.get(), ds_config.compact_sched.enabled,
-                     /*last_read_event_ts=*/0);
+                     /*last_read_event_ts=*/0, &generic_pb_descriptors_);
     return &bundler_.value();
   }
 
@@ -442,6 +449,7 @@ class CpuReaderParsePagePayloadTest : public testing::Test {
   FtraceMetadata metadata_;
   std::optional<TraceWriterForTesting> writer_;
   std::unique_ptr<CompactSchedBuffer> compact_sched_buf_;
+  base::FlatHashMap<uint32_t, std::vector<uint8_t>> generic_pb_descriptors_;
   std::optional<CpuReader::Bundler> bundler_;
   uint64_t last_read_event_ts_ = 0;
 };
@@ -1254,7 +1262,7 @@ print fmt: "(%lx)", REC->__probe_ip
   ASSERT_NE(ftrace_procfs.get(), nullptr);
   std::unique_ptr<ProtoTranslationTable> table = ProtoTranslationTable::Create(
       ftrace_procfs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
-  table->GetOrCreateKprobeEvent(
+  table->CreateKprobeEvent(
       GroupAndName("perfetto_kprobes", "fuse_file_write_iter"));
 
   auto ftrace_evt_id = static_cast<uint32_t>(table->EventToFtraceId(
@@ -1472,10 +1480,11 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
   auto input = writer.GetCopy();
   auto length = writer.written();
   FtraceMetadata metadata{};
+  base::FlatSet<uint32_t> generic_descriptors_to_write;
 
-  ASSERT_TRUE(CpuReader::ParseEvent(ftrace_event_id, input.get(),
-                                    input.get() + length, &table, &ds_config,
-                                    provider.writer(), &metadata));
+  ASSERT_TRUE(CpuReader::ParseEvent(
+      ftrace_event_id, input.get(), input.get() + length, &table, &ds_config,
+      provider.writer(), &metadata, &generic_descriptors_to_write));
 
   auto event = provider.ParseProto();
   ASSERT_TRUE(event);
@@ -1527,10 +1536,12 @@ TEST(CpuReaderTest, SysEnterEvent) {
 
   BundleProvider bundle_provider(base::GetSysPageSize());
   FtraceMetadata metadata{};
+  base::FlatSet<uint32_t> generic_descriptors_to_write;
 
-  ASSERT_TRUE(CpuReader::ParseEvent(
-      kSysEnterId, input.get(), input.get() + length, table, &ds_config,
-      bundle_provider.writer()->add_event(), &metadata));
+  ASSERT_TRUE(CpuReader::ParseEvent(kSysEnterId, input.get(),
+                                    input.get() + length, table, &ds_config,
+                                    bundle_provider.writer()->add_event(),
+                                    &metadata, &generic_descriptors_to_write));
 
   std::unique_ptr<protos::gen::FtraceEventBundle> a =
       bundle_provider.ParseProto();
@@ -1576,10 +1587,12 @@ TEST(CpuReaderTest, MAYBE_SysExitEvent) {
   auto length = writer.written();
   BundleProvider bundle_provider(base::GetSysPageSize());
   FtraceMetadata metadata{};
+  base::FlatSet<uint32_t> generic_descriptors_to_write;
 
-  ASSERT_TRUE(CpuReader::ParseEvent(
-      kSysExitId, input.get(), input.get() + length, table, &ds_config,
-      bundle_provider.writer()->add_event(), &metadata));
+  ASSERT_TRUE(CpuReader::ParseEvent(kSysExitId, input.get(),
+                                    input.get() + length, table, &ds_config,
+                                    bundle_provider.writer()->add_event(),
+                                    &metadata, &generic_descriptors_to_write));
 
   std::unique_ptr<protos::gen::FtraceEventBundle> a =
       bundle_provider.ParseProto();
@@ -1611,10 +1624,11 @@ TEST(CpuReaderTest, TaskRenameEvent) {
   auto input = writer.GetCopy();
   auto length = writer.written();
   FtraceMetadata metadata{};
+  base::FlatSet<uint32_t> generic_descriptors_to_write;
 
-  ASSERT_TRUE(CpuReader::ParseEvent(kTaskRenameId, input.get(),
-                                    input.get() + length, table, &ds_config,
-                                    bundle_provider.writer(), &metadata));
+  ASSERT_TRUE(CpuReader::ParseEvent(
+      kTaskRenameId, input.get(), input.get() + length, table, &ds_config,
+      bundle_provider.writer(), &metadata, &generic_descriptors_to_write));
   EXPECT_THAT(metadata.rename_pids, Contains(9999));
   EXPECT_THAT(metadata.pids, Contains(9999));
 }
@@ -1645,10 +1659,12 @@ TEST(CpuReaderTest, EventNonZeroTerminated) {
   auto input = writer.GetCopy();
   auto length = writer.written();
   FtraceMetadata metadata{};
+  base::FlatSet<uint32_t> generic_descriptors_to_write;
 
-  ASSERT_TRUE(CpuReader::ParseEvent(
-      kTaskRenameId, input.get(), input.get() + length, table, &ds_config,
-      bundle_provider.writer()->add_event(), &metadata));
+  ASSERT_TRUE(CpuReader::ParseEvent(kTaskRenameId, input.get(),
+                                    input.get() + length, table, &ds_config,
+                                    bundle_provider.writer()->add_event(),
+                                    &metadata, &generic_descriptors_to_write));
   std::unique_ptr<protos::gen::FtraceEventBundle> a =
       bundle_provider.ParseProto();
   ASSERT_NE(a, nullptr);
@@ -3550,6 +3566,297 @@ TEST(CpuReaderTest, LastReadEventTimestampWithSplitBundles) {
   EXPECT_TRUE(second_bundle.lost_events());
   EXPECT_EQ(1u, second_bundle.event().size());
   EXPECT_EQ(kSecondPrintTs, second_bundle.previous_bundle_end_timestamp());
+}
+
+// clang-format off
+//        <idle>-0       [000] d..2. 90831.190938: sched_switch: prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=kworker/u32:1 next_pid=94400 next_prio=120
+// kworker/u32:1-94400   [000] d..3. 90831.190942: sched_waking: comm=gnome-terminal- pid=18713 prio=120 target_cpu=005
+// kworker/u32:1-94400   [000] d..2. 90831.190944: sched_switch: prev_comm=kworker/u32:1 prev_pid=94400 prev_prio=120 prev_state=I ==> next_comm=swapper/0 next_pid=0 next_prio=120
+// clang-format on
+
+static ExamplePage g_generic_sched_page{
+    "synthetic_alt",
+    R"(
+    00000000: 5dd3 de48 9c52 0000 b000 0000 0000 0000  ]..H.R..........
+    00000010: 1000 0000 3601 0102 0000 0000 7377 6170  ....6.......swap
+    00000020: 7065 722f 3000 0000 0000 0000 0000 0000  per/0...........
+    00000030: 7800 0000 0000 0000 0000 0000 6b77 6f72  x...........kwor
+    00000040: 6b65 722f 7533 323a 3100 0000 c070 0100  ker/u32:1....p..
+    00000050: 7800 0000 6985 0100 3901 0103 c070 0100  x...i...9....p..
+    00000060: 676e 6f6d 652d 7465 726d 696e 616c 2d00  gnome-terminal-.
+    00000070: 1949 0000 7800 0000 0500 0000 d033 0100  .I..x........3..
+    00000080: 3601 0102 c070 0100 6b77 6f72 6b65 722f  6....p..kworker/
+    00000090: 7533 323a 3100 0000 c070 0100 7800 0000  u32:1....p..x...
+    000000a0: 8000 0000 0000 0000 7377 6170 7065 722f  ........swapper/
+    000000b0: 3000 0000 0000 0000 0000 0000 7800 0000  0...........x...
+    )",
+};
+
+TEST(CpuReaderTest, GenericEventLegacyFormat) {
+  // Test has 2x switch, 1x waking events, and the "synthetic_alt" test tracefs
+  // directory maps these events onto "sched_switch_generic" &
+  // "sched_waking_generic", which will need to be encoded as generic events
+  // since they don't have compile-time protos.
+  const ExamplePage* test_case = &g_generic_sched_page;
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  // There is no FtraceConfigMuxer, so we need to trigger on-demand event
+  // description creation in the table.
+  GroupAndName switch_generic("generic", "sched_switch_generic");
+  GroupAndName waking_generic("generic", "sched_waking_generic");
+  if (!table->GetEvent(switch_generic))
+    table->CreateGenericEvent(switch_generic);
+  if (!table->GetEvent(waking_generic))
+    table->CreateGenericEvent(waking_generic);
+
+  // Build config requesting these two events.
+  auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
+  FtraceMetadata metadata{};
+  FtraceDataSourceConfig ftrace_cfg = EmptyConfig();
+  ftrace_cfg.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(switch_generic));
+  ftrace_cfg.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(waking_generic));
+
+  // Invoke ProcessPagesForDataSource.
+  TraceWriterForTesting trace_writer;
+  base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors;
+  uint64_t last_read_event_ts = 0;
+  bool success = CpuReader::ProcessPagesForDataSource(
+      &trace_writer, &metadata, /*cpu=*/0, &ftrace_cfg, &parse_errors,
+      &last_read_event_ts, page.get(), /*pages_read=*/1,
+      compact_sched_buf.get(), table,
+      /*symbolizer=*/nullptr,
+      /*ftrace_clock_snapshot=*/nullptr,
+      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+
+  EXPECT_TRUE(success);
+
+  //
+  // Assert that we have one bundle with three events, and that they use the
+  // |GenericFtraceEvent| protos.
+  //
+
+  auto bundle = trace_writer.GetOnlyTracePacket().ftrace_events();
+  const auto& events = bundle.event();
+
+  using GFE = protos::gen::GenericFtraceEvent;
+  ASSERT_EQ(events.size(), 3u);
+
+  // first switch
+  const GFE& evt1 = events[0].generic();
+  EXPECT_STREQ(evt1.event_name().c_str(), "sched_switch_generic");
+  EXPECT_THAT(
+      evt1.field(),
+      ElementsAre(
+          AllOf(Property(&GFE::Field::name, StrEq("prev_comm")),
+                Property(&GFE::Field::str_value, StrEq("swapper/0"))),
+          AllOf(Property(&GFE::Field::name, StrEq("prev_pid")),
+                Property(&GFE::Field::int_value, Eq(0))),
+          AllOf(Property(&GFE::Field::name, StrEq("prev_prio")),
+                Property(&GFE::Field::int_value, Eq(120))),
+          AllOf(Property(&GFE::Field::name, StrEq("prev_state")),
+                Property(&GFE::Field::int_value, Eq(0))),  // Runnable
+          AllOf(Property(&GFE::Field::name, StrEq("next_comm")),
+                Property(&GFE::Field::str_value, StrEq("kworker/u32:1"))),
+          AllOf(Property(&GFE::Field::name, StrEq("next_pid")),
+                Property(&GFE::Field::int_value, Eq(94400))),
+          AllOf(Property(&GFE::Field::name, StrEq("next_prio")),
+                Property(&GFE::Field::int_value, Eq(120)))));
+
+  // first waking
+  const GFE& evt2 = events[1].generic();
+  EXPECT_STREQ(evt2.event_name().c_str(), "sched_waking_generic");
+  EXPECT_THAT(
+      evt2.field(),
+      ElementsAre(
+          AllOf(Property(&GFE::Field::name, StrEq("comm")),
+                Property(&GFE::Field::str_value, StrEq("gnome-terminal-"))),
+          AllOf(Property(&GFE::Field::name, StrEq("pid")),
+                Property(&GFE::Field::int_value, Eq(18713))),
+          AllOf(Property(&GFE::Field::name, StrEq("prio")),
+                Property(&GFE::Field::int_value, Eq(120))),
+          AllOf(Property(&GFE::Field::name, StrEq("target_cpu")),
+                Property(&GFE::Field::int_value, Eq(5)))));
+
+  // (skip verifying last switch)
+}
+
+// Like |GenericEventLegacyFormat|, but using self-describing protos.
+TEST(CpuReaderTest, GenericEventSelfDescribingFormat) {
+  // Test has 2x switch, 1x waking events, and the "synthetic_alt" test tracefs
+  // directory maps these events onto "sched_switch_generic" &
+  // "sched_waking_generic", which will need to be encoded as generic events
+  // since they don't have compile-time protos.
+  const ExamplePage* test_case = &g_generic_sched_page;
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  // There is no FtraceConfigMuxer, so we need to trigger on-demand event
+  // description creation in the table.
+  GroupAndName switch_generic("generic", "sched_switch_generic");
+  GroupAndName waking_generic("generic", "sched_waking_generic");
+  if (!table->GetEvent(switch_generic))
+    table->CreateGenericEvent(switch_generic);
+  if (!table->GetEvent(waking_generic))
+    table->CreateGenericEvent(waking_generic);
+
+  // Build config requesting these two events.
+  auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
+  FtraceMetadata metadata{};
+  FtraceDataSourceConfig ftrace_cfg =
+      ConfigForTesting(DisabledCompactSchedConfigForTesting(),
+                       /*write_generic_evt_descriptors=*/true);
+  ftrace_cfg.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(switch_generic));
+  ftrace_cfg.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(waking_generic));
+
+  // Invoke ProcessPagesForDataSource.
+  TraceWriterForTesting trace_writer;
+  base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors;
+  uint64_t last_read_event_ts = 0;
+  bool success = CpuReader::ProcessPagesForDataSource(
+      &trace_writer, &metadata, /*cpu=*/0, &ftrace_cfg, &parse_errors,
+      &last_read_event_ts, page.get(), /*pages_read=*/1,
+      compact_sched_buf.get(), table,
+      /*symbolizer=*/nullptr,
+      /*ftrace_clock_snapshot=*/nullptr,
+      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+
+  EXPECT_TRUE(success);
+
+  //
+  // Verify that there are two descriptors appended to the bundle, one per
+  // uknown event type.
+  //
+
+  protos::gen::FtraceEventBundle bundle =
+      trace_writer.GetOnlyTracePacket().ftrace_events();
+  std::map<std::string, uint32_t> name_to_proto_id;
+  std::map<uint32_t, protos::gen::DescriptorProto> decoded_descriptors;
+  for (const auto& v : bundle.generic_event_descriptors()) {
+    uint32_t proto_field_id = static_cast<uint32_t>(v.field_id());
+    EXPECT_TRUE(table->IsGenericEventProtoId(proto_field_id));
+
+    protos::gen::DescriptorProto dp;
+    dp.ParseFromString(v.descriptor());
+
+    name_to_proto_id[dp.name()] = proto_field_id;
+    decoded_descriptors.emplace(proto_field_id, std::move(dp));
+  }
+
+  EXPECT_EQ(decoded_descriptors.size(), 2u);
+  EXPECT_EQ(name_to_proto_id.count("sched_switch_generic"), 1u);
+  EXPECT_EQ(name_to_proto_id.count("sched_waking_generic"), 1u);
+
+  const protos::gen::DescriptorProto& switch_desc =
+      decoded_descriptors[name_to_proto_id["sched_switch_generic"]];
+
+  // sched_switch_generic descriptor
+  using FDP = protos::gen::FieldDescriptorProto;
+  EXPECT_THAT(switch_desc.field(),
+              ElementsAre(AllOf(Property(&FDP::name, StrEq("prev_comm")),
+                                Property(&FDP::number, Eq(1)),
+                                Property(&FDP::type, Eq(FDP::TYPE_STRING))),
+                          AllOf(Property(&FDP::name, StrEq("prev_pid")),
+                                Property(&FDP::number, Eq(2)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64))),
+                          AllOf(Property(&FDP::name, StrEq("prev_prio")),
+                                Property(&FDP::number, Eq(3)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64))),
+                          AllOf(Property(&FDP::name, StrEq("prev_state")),
+                                Property(&FDP::number, Eq(4)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64))),
+                          AllOf(Property(&FDP::name, StrEq("next_comm")),
+                                Property(&FDP::number, Eq(5)),
+                                Property(&FDP::type, Eq(FDP::TYPE_STRING))),
+                          AllOf(Property(&FDP::name, StrEq("next_pid")),
+                                Property(&FDP::number, Eq(6)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64))),
+                          AllOf(Property(&FDP::name, StrEq("next_prio")),
+                                Property(&FDP::number, Eq(7)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64)))));
+
+  // sched_waking_generic descriptor
+  const protos::gen::DescriptorProto& waking_desc =
+      decoded_descriptors[name_to_proto_id["sched_waking_generic"]];
+  EXPECT_THAT(waking_desc.field(),
+              ElementsAre(AllOf(Property(&FDP::name, StrEq("comm")),
+                                Property(&FDP::number, Eq(1)),
+                                Property(&FDP::type, Eq(FDP::TYPE_STRING))),
+                          AllOf(Property(&FDP::name, StrEq("pid")),
+                                Property(&FDP::number, Eq(2)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64))),
+                          AllOf(Property(&FDP::name, StrEq("prio")),
+                                Property(&FDP::number, Eq(3)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64))),
+                          AllOf(Property(&FDP::name, StrEq("target_cpu")),
+                                Property(&FDP::number, Eq(4)),
+                                Property(&FDP::type, Eq(FDP::TYPE_INT64)))));
+
+  //
+  // Assert that there are three events, encoded using proto field ids
+  // referenced by the descriptors.
+  //
+  const std::vector<protos::gen::FtraceEvent>& events = bundle.event();
+  ASSERT_EQ(events.size(), 3u);
+
+  // ::gen classes don't expose unknown fields, re-decode the event with
+  // protozero.
+  {
+    auto evt_bytes = events[0].SerializeAsString();
+    protozero::ProtoDecoder evt_dec(evt_bytes);  // FtraceEvent
+    protozero::Field ext =
+        evt_dec.FindField(name_to_proto_id["sched_switch_generic"]);
+    ASSERT_EQ(ext.type(),
+              protozero::proto_utils::ProtoWireType::kLengthDelimited);
+
+    protozero::ProtoDecoder ext_dec(ext.as_bytes());
+    std::vector<protozero::Field> ext_fields;
+    for (auto f = ext_dec.ReadField(); f.valid(); f = ext_dec.ReadField()) {
+      ext_fields.push_back(f);
+    }
+
+    // switch payload
+    EXPECT_THAT(
+        ext_fields,
+        ElementsAre(
+            Property(&protozero::Field::as_std_string, StrEq("swapper/0")),
+            Property(&protozero::Field::as_int64, Eq(0)),
+            Property(&protozero::Field::as_int64, Eq(120)),
+            Property(&protozero::Field::as_int64, Eq(0)),
+            Property(&protozero::Field::as_std_string, StrEq("kworker/u32:1")),
+            Property(&protozero::Field::as_int64, Eq(94400)),
+            Property(&protozero::Field::as_int64, Eq(120))));
+  }
+
+  // decode second event
+  {
+    auto evt_bytes = events[1].SerializeAsString();
+    protozero::ProtoDecoder evt_dec(evt_bytes);  // FtraceEvent
+    protozero::Field ext =
+        evt_dec.FindField(name_to_proto_id["sched_waking_generic"]);
+    ASSERT_EQ(ext.type(),
+              protozero::proto_utils::ProtoWireType::kLengthDelimited);
+
+    protozero::ProtoDecoder ext_dec(ext.as_bytes());
+    std::vector<protozero::Field> ext_fields;
+    for (auto f = ext_dec.ReadField(); f.valid(); f = ext_dec.ReadField()) {
+      ext_fields.push_back(f);
+    }
+
+    // waking payload
+    EXPECT_THAT(ext_fields,
+                ElementsAre(Property(&protozero::Field::as_std_string,
+                                     StrEq("gnome-terminal-")),
+                            Property(&protozero::Field::as_int64, Eq(18713)),
+                            Property(&protozero::Field::as_int64, Eq(120)),
+                            Property(&protozero::Field::as_int64, Eq(5))));
+  }
+
+  // (skip verifying last switch)
 }
 
 }  // namespace
