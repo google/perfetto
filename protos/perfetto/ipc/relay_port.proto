@@ -16,7 +16,7 @@
 
 syntax = "proto2";
 
-import "protos/perfetto/trace/system_info.proto";
+import "protos/perfetto/common/system_info.proto";
 
 package perfetto.protos;
 
