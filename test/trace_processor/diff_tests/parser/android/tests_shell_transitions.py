@@ -113,3 +113,20 @@ class ShellTransitions(TestSuite):
         "COUNT(*)"
         3
         """))
+
+  def test_handles_weird_args_table_issue(self):
+    return DiffTestBlueprint(
+        trace=Path('args_table_issue.textproto'),
+        query="""
+        SELECT
+          args.key, args.display_value
+        FROM
+          window_manager_shell_transitions JOIN args ON window_manager_shell_transitions.arg_set_id = args.arg_set_id
+        ORDER BY args.key;
+        """,
+        out=Csv("""
+        "key","display_value"
+        "handler","2"
+        "id","729"
+        "targets[0].flags","1048577"
+        """))
