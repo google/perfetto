@@ -1017,6 +1017,8 @@ TEST_F(PerfettoCmdlineTest, MultipleTriggersCloneSnapshot) {
   ASSERT_EQ(clone_trigger_packets_2.size(), 1ul);
   EXPECT_EQ(clone_trigger_packets_2[0].clone_snapshot_trigger().trigger_name(),
             "trigger_name_1");
+  EXPECT_EQ(clone_trigger_packets_2[0].clone_snapshot_trigger().stop_delay_ms(),
+            1500u);
 
   // There is no triggers in the second snapshot, but we can compare the
   // "clone_snapshot_trigger" with the trigger saved into the first snapshot.
