@@ -30,12 +30,7 @@ namespace perfetto::trace_processor::dataframe {
 
 base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     std::vector<FilterSpec>& specs,
-    uint64_t cols_used) {
-  if (specs.size() >= impl::kMaxFilters) {
-    return base::ErrStatus(
-        "Too many filters provided on a single dataframe. We only support up "
-        "to 16 filters for performance reasons.");
-  }
+    uint64_t cols_used) const {
   ASSIGN_OR_RETURN(auto plan, impl::QueryPlanBuilder::Build(
                                   row_count_, columns_, specs, cols_used));
   return QueryPlan(std::move(plan));

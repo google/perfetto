@@ -939,7 +939,8 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
 
 void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_ = std::make_unique<PerfettoSqlEngine>(
-      context_.storage->mutable_string_pool(), config_.enable_extra_checks);
+      context_.storage->mutable_string_pool(), &dataframe_shared_storage_,
+      config_.enable_extra_checks);
   sqlite3* db = engine_->sqlite_engine()->db();
   sqlite3_str_split_init(db);
 

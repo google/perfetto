@@ -99,7 +99,7 @@ class Dataframe {
   // Returns:
   //   A StatusOr containing the QueryPlan or an error status.
   base::StatusOr<QueryPlan> PlanQuery(std::vector<FilterSpec>& specs,
-                                      uint64_t cols_used_bitmap);
+                                      uint64_t cols_used_bitmap) const;
 
   // Prepares a cursor for executing the query plan. The template parameter
   // `FilterValueFetcherImpl` is a subclass of `ValueFetcher` that defines the
@@ -112,7 +112,7 @@ class Dataframe {
   //         cursor.
   template <typename FilterValueFetcherImpl>
   void PrepareCursor(QueryPlan plan,
-                     std::optional<Cursor<FilterValueFetcherImpl>>& c) {
+                     std::optional<Cursor<FilterValueFetcherImpl>>& c) const {
     c.emplace(std::move(plan.plan_), columns_.data(), string_pool_);
   }
 
