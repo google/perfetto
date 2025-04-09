@@ -217,6 +217,10 @@ export interface TrackRenderer {
   // event selection. This is called each time the selection is changed (and the
   // selection is relevant to this track).
   detailsPanel?(sel: TrackEventSelection): TrackEventDetailsPanel | undefined;
+
+  // Optional: Returns tooltip content if available. If the return value is
+  // falsy, no tooltip is rendered.
+  renderTooltip?(): m.Children;
 }
 
 // An set of key/value pairs describing a given track. These are used for
