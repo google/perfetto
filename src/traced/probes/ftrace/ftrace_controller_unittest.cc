@@ -20,8 +20,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <memory>
-
 #include "perfetto/ext/base/file_utils.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
@@ -62,13 +60,6 @@ constexpr char kBarEnablePath[] = "/root/events/group/bar/enable";
 
 std::string PageSizeKb() {
   return std::to_string(base::GetSysPageSize() / 1024);
-}
-
-FtraceConfig CreateFtraceConfig(const std::set<std::string>& names) {
-  FtraceConfig config;
-  for (const std::string& name : names)
-    *config.add_ftrace_events() = name;
-  return config;
 }
 
 class MockTaskRunner : public base::TaskRunner {
@@ -678,7 +669,7 @@ TEST(FtraceStatsTest, WriteKprobeStats) {
   stats.kprobe_stats = kprobe_stats;
 
   std::unique_ptr<TraceWriterForTesting> writer =
-      std::make_unique<TraceWriterForTesting>();
+      std::unique_ptr<TraceWriterForTesting>(new TraceWriterForTesting());
   {
     auto packet = writer->NewTracePacket();
     auto* out = packet->set_ftrace_stats();
@@ -692,7 +683,7 @@ TEST(FtraceStatsTest, WriteKprobeStats) {
 }
 
 TEST(FtraceStatsTest, KprobeProfileParseEmpty) {
-  std::string text;
+  std::string text = "";
 
   FtraceStats stats{};
   EXPECT_TRUE(DumpKprobeStats(text, &stats));

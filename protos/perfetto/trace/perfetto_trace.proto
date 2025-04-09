@@ -995,7 +995,7 @@ message EtwConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 33
+// Next id: 31
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1130,12 +1130,6 @@ message FtraceConfig {
   //   need to deal with both cases.
   // For more context: go/rss-stat-throttled.
   optional bool throttle_rss_stat = 15;
-
-  // If true, use self-describing proto messages when writing events not known
-  // at compile time (aka generic events). Each event bundle will have a set of
-  // serialised proto descriptors for events within that bundle.
-  // Added in: perfetto v50.
-  optional bool denser_generic_event_encoding = 32;
 
   // If true, avoid enabling events that aren't statically known by
   // traced_probes. Otherwise, the default is to emit such events as
@@ -11224,9 +11218,6 @@ message FtraceEvent {
   // consider merging with common_preempt_count to avoid extra proto tags.
   optional uint32 common_flags = 5;
 
-  // Range reserved for self-describing messages.
-  reserved 65536 to 131072;
-
   oneof event {
     PrintFtraceEvent print = 3;
     SchedSwitchFtraceEvent sched_switch = 4;
@@ -12062,17 +12053,6 @@ message FtraceEventBundle {
   // oldest bundles can skew the first valid timestamp per cpu significantly.
   // Added in: perfetto v47.
   optional uint64 previous_bundle_end_timestamp = 10;
-
-  // Describes the serialised |FtraceEvent| protos for events not known at
-  // compile time, when using the |denser_generic_event_encoding| option.
-  // Addded in: perfetto v50.
-  message GenericEventDescriptor {
-    // submessage id within FtraceEvent described by |descriptor|.
-    optional int32 field_id = 1;
-    // serialised DescriptorProto
-    optional bytes descriptor = 2;
-  }
-  repeated GenericEventDescriptor generic_event_descriptors = 11;
 
   // Written only on debuggable android builds if the config sets
   // |debug_ftrace_abi|. Contains the raw ring buffer tracing page that the
