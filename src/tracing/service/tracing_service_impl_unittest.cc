@@ -100,6 +100,7 @@ using ::testing::InSequence;
 using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
+using ::testing::IsSupersetOf;
 using ::testing::Mock;
 using ::testing::Ne;
 using ::testing::NiceMock;
@@ -466,7 +467,13 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerDeferredStart) {
   EXPECT_THAT(
       trace,
       HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::START_TRACING));
-  EXPECT_THAT(GetReceivedTriggers(trace), ElementsAre("trigger_name"));
+  EXPECT_THAT(
+      trace,
+      Contains(Property(
+          &protos::gen::TracePacket::trigger,
+          AllOf(
+              Property(&protos::gen::Trigger::trigger_name, Eq("trigger_name")),
+              Property(&protos::gen::Trigger::stop_delay_ms, Eq(1u))))));
 }
 
 // Creates a tracing session with a START_TRACING trigger and checks that the
@@ -938,6 +945,19 @@ TEST_F(TracingServiceImplTest, EmitTriggersWithStopTracingTrigger) {
       HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::STOP_TRACING));
   EXPECT_THAT(GetReceivedTriggers(packets),
               UnorderedElementsAre("trigger_name", "trigger_name_3"));
+
+  EXPECT_THAT(packets,
+              IsSupersetOf(
+                  {Property(&protos::gen::TracePacket::trigger,
+                            AllOf(Property(&protos::gen::Trigger::trigger_name,
+                                           Eq("trigger_name")),
+                                  Property(&protos::gen::Trigger::stop_delay_ms,
+                                           Eq(1u)))),
+                   Property(&protos::gen::TracePacket::trigger,
+                            AllOf(Property(&protos::gen::Trigger::trigger_name,
+                                           Eq("trigger_name_3")),
+                                  Property(&protos::gen::Trigger::stop_delay_ms,
+                                           Eq(30000u))))}));
 }
 
 // Creates a tracing session with a STOP_TRACING trigger and checks that the
