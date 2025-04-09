@@ -40,11 +40,12 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
     OPT_BACKGROUND,
     OPT_RESET_FTRACE,
   };
+	// test tab
 
   bool background = false;
-  bool reset_ftrace = false;
+  bool	reset_ftrace = false;
 
-  static const option long_options[] = {
+  static const option long_options[] = {	
       {"background", no_argument, nullptr, OPT_BACKGROUND},
       {"cleanup-after-crash", no_argument, nullptr, OPT_CLEANUP_AFTER_CRASH},
       {"reset-ftrace", no_argument, nullptr, OPT_RESET_FTRACE},
