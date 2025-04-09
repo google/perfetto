@@ -815,6 +815,36 @@ def CheckAbsolutePathsInGn(changed_files: List[str]) -> List[str]:
   ]
 
 
+def CheckUiImports(changed_files: List[str]) -> List[str]:
+  tool_rel_path = 'tools/check_imports'
+  tool = os.path.join(REPO_ROOT, tool_rel_path)
+  # Use fnmatch patterns
+  files_to_check_list = filter_files(
+      changed_files, files_to_check=['ui/*', tool_rel_path])
+  if not files_to_check_list:
+    return []
+  try:
+    run_command([sys.executable, tool], cwd=REPO_ROOT, stderr=subprocess.STDOUT)
+  except subprocess.CalledProcessError:
+    return [f'Import violations detected in ui/ sources. See {tool_rel_path}']
+  return []
+
+
+def CheckUiRatchet(changed_files: List[str]) -> List[str]:
+  tool_rel_path = 'tools/check_ratchet'
+  tool = os.path.join(REPO_ROOT, tool_rel_path)
+  # Use fnmatch patterns
+  files_to_check_list = filter_files(
+      changed_files, files_to_check=['ui/*', tool_rel_path])
+  if not files_to_check_list:
+    return []
+  try:
+    run_command([sys.executable, tool], cwd=REPO_ROOT, stderr=subprocess.STDOUT)
+  except subprocess.CalledProcessError:
+    return [f'Bad patterns detected in ui/ sources. See {tool_rel_path}']
+  return []
+
+
 def main():
   # 1. Determine files to check
   merge_base = get_merge_base()
@@ -877,6 +907,8 @@ def main():
       (CheckAmalgamatedPythonTools, [changed_files]),
       (CheckChromeStdlib, [changed_files]),  # Checks commit msg
       (CheckAbsolutePathsInGn, [changed_files]),
+      (CheckUiImports, [changed_files]),
+      (CheckUiRatchet, [changed_files]),
   ]
 
   for func, args in checks_to_run:
