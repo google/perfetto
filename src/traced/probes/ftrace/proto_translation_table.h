@@ -33,14 +33,7 @@
 #include "src/traced/probes/ftrace/printk_formats_parser.h"
 
 namespace perfetto {
-
 class FtraceProcfs;
-
-namespace protos {
-namespace pbzero {
-class FtraceEventBundle;
-}  // namespace pbzero
-}  // namespace protos
 
 // Used when reading the config to store the group and name info for the
 // ftrace event.
@@ -105,8 +98,6 @@ class ProtoTranslationTable {
                         CompactSchedEventFormat compact_sched_format,
                         PrintkMap printk_formats);
 
-  size_t largest_id() const { return largest_id_; }
-
   const std::vector<Field>& common_fields() const { return common_fields_; }
 
   const Field* common_pid() const {
@@ -131,7 +122,7 @@ class ProtoTranslationTable {
   }
 
   const Event* GetEventById(size_t id) const {
-    if (id == 0 || id > largest_id_)
+    if (id == 0 || id >= events_.size())
       return nullptr;
     const Event* evt = &events_[id];
     if (!evt->ftrace_event_id)
@@ -154,7 +145,6 @@ class ProtoTranslationTable {
   // usually matches sizeof(void*) in the kernel (which can be != sizeof(void*)
   // of user space on 32bit-user + 64-bit-kernel configurations).
   uint16_t page_header_size_len() const {
-    // TODO(fmayer): Do kernel deepdive to double check this.
     return ftrace_page_header_spec_.size.size;
   }
 
@@ -173,6 +163,8 @@ class ProtoTranslationTable {
 
   // This is for backwards compatibility. If a group is not specified in the
   // config then the first event with that name will be returned.
+  // TODO(rsavitski): the convenience is useful, but would it make more sense to
+  // enable all events with that name?
   const Event* GetEventByName(const std::string& name) const {
     if (!name_to_events_.count(name))
       return nullptr;
@@ -199,15 +191,14 @@ class ProtoTranslationTable {
                                    Event& event);
 
   const FtraceProcfs* ftrace_procfs_;
+  std::set<std::string> interned_strings_;
   std::deque<Event> events_;
-  size_t largest_id_;
   std::map<GroupAndName, const Event*> group_and_name_to_event_;
   std::map<std::string, std::vector<const Event*>> name_to_events_;
   std::map<std::string, std::vector<const Event*>> group_to_events_;
   std::vector<Field> common_fields_;
   std::optional<Field> common_pid_;  // copy of entry in common_fields_
   FtracePageHeaderSpec ftrace_page_header_spec_{};
-  std::set<std::string> interned_strings_;
   CompactSchedEventFormat compact_sched_format_;
   PrintkMap printk_formats_;
 };

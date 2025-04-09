@@ -239,7 +239,6 @@ print fmt: "some format")"));
   auto table = ProtoTranslationTable::Create(&ftrace, std::move(events),
                                              std::move(common_fields));
   PERFETTO_CHECK(table);
-  EXPECT_EQ(table->largest_id(), 42ul);
   EXPECT_EQ(table->EventToFtraceId(GroupAndName("group", "foo")), 42ul);
   EXPECT_EQ(table->EventToFtraceId(GroupAndName("group", "bar")), 0ul);
   EXPECT_FALSE(table->GetEventById(43ul));
@@ -418,7 +417,6 @@ TEST(TranslationTableTest, Getters) {
       ProtoTranslationTable::DefaultPageHeaderSpecForTesting(),
       InvalidCompactSchedEventFormatForTesting(), PrintkMap());
 
-  EXPECT_EQ(table.largest_id(), 100ul);
   EXPECT_EQ(table.EventToFtraceId(GroupAndName("group_one", "foo")), 1ul);
   EXPECT_EQ(table.EventToFtraceId(GroupAndName("group_two", "baz")), 100ul);
   EXPECT_EQ(table.EventToFtraceId(GroupAndName("group_one", "no_such_event")),
@@ -470,10 +468,8 @@ print fmt: "some format")"));
   auto table = ProtoTranslationTable::Create(&ftrace, std::move(events),
                                              std::move(common_fields));
   PERFETTO_CHECK(table);
-  EXPECT_EQ(table->largest_id(), 0ul);
   GroupAndName group_and_name("group", "foo");
   const Event* e = table->GetOrCreateEvent(group_and_name);
-  EXPECT_EQ(table->largest_id(), 42ul);
   EXPECT_EQ(table->EventToFtraceId(group_and_name), 42ul);
 
   // Check getters

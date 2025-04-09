@@ -18,7 +18,6 @@
 
 #include <memory>
 
-#include "ftrace_config_muxer.h"
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
@@ -60,6 +59,13 @@ struct FakeSyscallTable {
 
 std::string PageSizeKb() {
   return std::to_string(base::GetSysPageSize() / 1024);
+}
+
+FtraceConfig CreateFtraceConfig(const std::set<std::string>& names) {
+  FtraceConfig config;
+  for (const std::string& name : names)
+    *config.add_ftrace_events() = name;
+  return config;
 }
 
 class MockFtraceProcfs : public FtraceProcfs {
@@ -1212,28 +1218,6 @@ TEST_F(FtraceConfigMuxerFakeTableTest, PreserveFtraceBufferNotSetBufferSizeKb) {
   ASSERT_TRUE(model_.SetupConfig(id, config));
 }
 
-TEST_F(FtraceConfigMuxerFakeTableTest, KprobeNamesReserved) {
-  FtraceConfig config = CreateFtraceConfig(
-      {"perfetto_kprobes/fuse_file_write_iter",
-       "perfetto_kretprobes/fuse_file_write_iter", "unknown/unknown"});
-
-  ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
-      .WillByDefault(Return("nop"));
-  ON_CALL(ftrace_, ReadFileIntoString("/root/events/enable"))
-      .WillByDefault(Return("0"));
-
-  FtraceSetupErrors errors{};
-  FtraceConfigId id_a = 23;
-  ASSERT_TRUE(model_.SetupConfig(id_a, config, &errors));
-  // These event fail because the names "perfetto_kprobes" and
-  // "perfetto_kretprobes" are used internally by perfetto.
-  EXPECT_THAT(errors.failed_ftrace_events,
-              IsSupersetOf({"perfetto_kprobes/fuse_file_write_iter",
-                            "perfetto_kretprobes/fuse_file_write_iter"}));
-  // This event is just unknown
-  EXPECT_THAT(errors.unknown_ftrace_events, ElementsAre("unknown/unknown"));
-}
-
 // Fixture that constructs a FtraceConfigMuxer with a mock
 // ProtoTranslationTable.
 class FtraceConfigMuxerMockTableTest : public FtraceConfigMuxerTest {
@@ -1329,8 +1313,6 @@ TEST_P(FtraceConfigMuxerMockTableParamTest, AddKprobeEvent) {
   EXPECT_CALL(ftrace_, WriteToFile("/root/events/" + group_name +
                                        "/fuse_file_write_iter/enable",
                                    "1"));
-  EXPECT_CALL(*mock_table_, GetEvent(GroupAndName("power", "cpu_frequency")))
-      .Times(AnyNumber());
 
   static constexpr int kExpectedEventId = 77;
   Event event_to_return_kprobe;

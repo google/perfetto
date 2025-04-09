@@ -47,6 +47,7 @@ namespace perfetto {
 namespace {
 
 using FtraceParseStatus = protos::pbzero::FtraceParseStatus;
+using protos::pbzero::GenericFtraceEvent;
 using protos::pbzero::KprobeEvent;
 
 // If the compact_sched buffer accumulates more unique strings, the reader will
@@ -167,8 +168,6 @@ void SerialiseOffendingPage([[maybe_unused]] CpuReader::Bundler* bundler,
 }
 
 }  // namespace
-
-using protos::pbzero::GenericFtraceEvent;
 
 CpuReader::CpuReader(size_t cpu,
                      base::ScopedFile trace_fd,
@@ -763,7 +762,7 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
   } else if (PERFETTO_UNLIKELY(
                  info.proto_field_id ==
                  protos::pbzero::FtraceEvent::kSysEnterFieldNumber)) {
-    success &= ParseSysEnter(info, start, end, nested, metadata);
+    success &= ParseSysEnter(info, start, end, nested);
   } else if (PERFETTO_UNLIKELY(
                  info.proto_field_id ==
                  protos::pbzero::FtraceEvent::kSysExitFieldNumber)) {
@@ -907,11 +906,11 @@ bool CpuReader::ParseField(const Field& field,
   return false;
 }
 
+// static
 bool CpuReader::ParseSysEnter(const Event& info,
                               const uint8_t* start,
                               const uint8_t* end,
-                              protozero::Message* message,
-                              FtraceMetadata* /* metadata */) {
+                              protozero::Message* message) {
   if (info.fields.size() != 2) {
     PERFETTO_DLOG("Unexpected number of fields for sys_enter");
     return false;
@@ -955,6 +954,7 @@ bool CpuReader::ParseSysEnter(const Event& info,
   return true;
 }
 
+// static
 bool CpuReader::ParseSysExit(const Event& info,
                              const uint8_t* start,
                              const uint8_t* end,
