@@ -124,8 +124,10 @@ def get_changed_files(merge_base: Optional[str]) -> List[str]:
           if not line.startswith(' D')
       ]
 
-      diff_result = run_command(
-          ['git', 'diff', '--name-only', f'{merge_base}...HEAD'])
+      diff_result = run_command([
+          'git', 'diff', '--name-only', '--diff-filter=crd',
+          f'{merge_base}...HEAD'
+      ])
       diff_files = diff_result.stdout.splitlines()
 
       # Combine and make unique, relative to repo root
@@ -866,8 +868,11 @@ def CheckAbsolutePathsInGn(changed_files: List[str]) -> List[str]:
   ]
 
 
+# TODO(primiano): in next CL remove this function an just use
+# tools/format-sources for everything, rather than delegating each language
+# to this presubmit.
 def CheckStdlibFormatting(changed_files: List[str]) -> List[str]:
-  tool_rel_path = 'tools/format_stdlib'
+  tool_rel_path = 'tools/format-sql-sources'
   tool = os.path.join(REPO_ROOT, tool_rel_path)
   # Use fnmatch patterns
   files_to_check_list = filter_files(
@@ -885,7 +890,7 @@ def CheckStdlibFormatting(changed_files: List[str]) -> List[str]:
     return []
 
   try:
-    run_command([sys.executable, tool, '--check-only'], cwd=REPO_ROOT)
+    run_command([tool, '--check-only'], cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
   except subprocess.CalledProcessError:

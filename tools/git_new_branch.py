@@ -30,15 +30,12 @@ def main():
   if not parent_branch:
     parent_branch = get_current_branch()
     if not parent_branch:
-      print("Error: Cannot determine default parent.", file=sys.stderr)
-      sys.exit(1)
-    print(f"Using current branch '{parent_branch}' as parent.")
+      parent_branch = 'origin/main'
+      print(f"Warning: not on branch, using '{parent_branch}' as parent.")
 
   run_git_command(['checkout', '-b', args.new_branch_name, parent_branch])
   run_git_command(
       ['config', f'branch.{args.new_branch_name}.parent', parent_branch])
-  print(f"Set parent of '{args.new_branch_name}' to '{parent_branch}'.")
-  print(f"Created and checked out branch '{args.new_branch_name}'.")
 
 
 if __name__ == "__main__":

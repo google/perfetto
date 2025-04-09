@@ -298,7 +298,6 @@ class TestCaseRunner:
       if not keep_input:
         os.remove(tmp_spec_file.name)
 
-
       return TestResult(
           self.test,
           trace_path,

@@ -135,7 +135,6 @@ SELECT 1;
     self.assertEqual(fn.desc,
                      'This\n is\n\n a\n      very\n\n long\n\n description.')
 
-
   def test_function_name_style(self):
     res = parse_file(
         'foo/bar.sql', f'''
@@ -187,11 +186,10 @@ SELECT 1;
     self.assertEqual(table.name, 'foo_table')
     self.assertEqual(table.desc, 'View comment.')
     self.assertEqual(table.type, 'VIEW')
-    self.assertEqual(
-        table.cols, {
-            'foo': Arg('LONG', 'LONG', 'Foo.'),
-            'bar': Arg('STRING', 'STRING', 'Bar.'),
-        })
+    self.assertEqual(table.cols, {
+        'foo': Arg('LONG', 'LONG', 'Foo.'),
+        'bar': Arg('STRING', 'STRING', 'Bar.'),
+    })
 
   def test_function_with_new_style_docs(self):
     res = parse_file(

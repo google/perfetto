@@ -79,7 +79,7 @@ includes_to_remove = r'^(gtest).*$'
 
 # From //gn:default_config (since "gn desc" doesn't describe configs).
 default_includes = [
-  'include',
+    'include',
 ]
 
 default_cflags = [
@@ -602,9 +602,8 @@ def main():
   if args.check:
     output = os.path.join(tempfile.mkdtemp(), 'perfetto_amalgamated')
 
-  out = gn_utils.prepare_out_directory(args.gn_args,
-                                       args.out,
-                                       system_buildtools=args.system_buildtools)
+  out = gn_utils.prepare_out_directory(
+      args.gn_args, args.out, system_buildtools=args.system_buildtools)
   if not args.quiet:
     print('Building project...')
   try:
@@ -614,8 +613,8 @@ def main():
     # dependencies get generated. However if we are just dumping dependency
     # information this can be skipped, allowing cross-platform operation.
     if not args.dump_deps:
-      gn_utils.build_targets(out, targets,
-                             system_buildtools=args.system_buildtools)
+      gn_utils.build_targets(
+          out, targets, system_buildtools=args.system_buildtools)
     source_deps = gn_utils.compute_source_dependencies(out,
                                                        args.system_buildtools)
     project = AmalgamatedProject(
@@ -639,8 +638,8 @@ def main():
       if not args.quiet:
         sys.stdout.write('Building amalgamated project...')
         sys.stdout.flush()
-      subprocess.check_call(project.get_build_command(output,
-                                                      args.system_buildtools))
+      subprocess.check_call(
+          project.get_build_command(output, args.system_buildtools))
       if not args.quiet:
         print('done')
   finally:
