@@ -1596,6 +1596,16 @@ export const StateActions = {
       Array.from(state.selectedTrackIds),
       Array.from(state.selectedTrackGroupIds));
   },
+
+  setTrackShellWidth(
+    state: StateDraft,
+    args:{newWidth: number},
+  ) {
+    if (isFinite(args.newWidth)) {
+      state.trackShellWidth = Math.max(250, args.newWidth);
+      globals.rafScheduler.scheduleFullRedraw();
+    }
+  },
 };
 
 // When we are on the frontend side, we don't really want to execute the

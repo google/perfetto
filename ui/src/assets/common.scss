@@ -20,7 +20,6 @@
   --sidebar-width: 230px;
   --topbar-height: 44px;
   --monospace-font: "Roboto Mono", monospace;
-  --track-shell-width: 250px;
   --anim-easing: cubic-bezier(0.4, 0, 0.2, 1);
   --selection-stroke-color: #00344596;
   --selection-fill-color: #8398e64d;
@@ -380,7 +379,6 @@ $bottom-tab-padding: 10px;
     grid-template-areas: "title buttons";
     grid-template-columns: 1fr auto;
     align-items: baseline;
-    width: var(--track-shell-width);
     background: var(--main-background-color);
     border-right: 1px solid var(--main-foreground-color);
     overflow: hidden;
@@ -755,7 +753,6 @@ button.query-ctrl {
     align-items: baseline;
     line-height: 1;
     border-right: 1px solid var(--main-foreground-color);
-    width: var(--track-shell-width);
     transition: background-color 0.4s;
     background-color: var(--collapsed-background);
     color: var(--main-foreground-color);
@@ -774,7 +771,7 @@ button.query-ctrl {
       white-space: nowrap;
       text-overflow: ellipsis;
       // Maximum width according to grid-template-columns value for .shell
-      width: calc(var(--track-shell-width) - 56px);
+      width: calc(100% - 56px);
     }
 
     .chip {

@@ -19,6 +19,7 @@ export class DragGestureHandler {
   private clientRect?: DOMRect;
   private pendingMouseDownEvent?: MouseEvent;
   private _isDragging = false;
+  enabled = true;
 
   constructor(
       private element: HTMLElement,
@@ -29,6 +30,9 @@ export class DragGestureHandler {
   }
 
   private onMouseDown(e: MouseEvent) {
+    if (!this.enabled) {
+      return;
+    }
     this._isDragging = true;
     document.body.addEventListener('mousemove', this.boundOnMouseMove);
     document.body.addEventListener('mouseup', this.boundOnMouseUp);

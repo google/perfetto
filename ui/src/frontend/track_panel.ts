@@ -19,7 +19,7 @@ import {Actions, DeferredAction} from '../common/actions';
 import {TrackGroupState, TrackState} from '../common/state';
 import {TPTime} from '../common/time';
 
-import {TRACK_SHELL_WIDTH, getCssStr} from './css_constants';
+import {getCssStr} from './css_constants';
 import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
@@ -28,9 +28,7 @@ import {Panel, PanelSize} from './panel';
 import {verticalScrollToTrack} from './scroll_helper';
 import {SliceRect, Track} from './track';
 import {trackRegistry} from './track_registry';
-import {
-  drawVerticalLineAtTime,
-} from './vertical_line_helper';
+import {drawVerticalLineAtTime} from './vertical_line_helper';
 import {getActiveVsyncData, renderVsyncColumns} from './vsync_helper';
 import {SCROLLING_TRACK_GROUP, getContainingTrackIds} from '../common/state';
 
@@ -58,7 +56,7 @@ export function checkTrackForResizability(
           ) {
           const timelineElement: HTMLDivElement | null = e.currentTarget.closest('div.pan-and-zoom-content');
           timelineElement?.addEventListener('mousedown', resize);
-          e.currentTarget.style.cursor = 'row-resize';
+          e.currentTarget.style.cursor = 'ns-resize';
           return;
       } else if (e.currentTarget instanceof HTMLElement) {
         const timelineElement: HTMLDivElement | null = e.currentTarget.closest('div.pan-and-zoom-content');
@@ -160,6 +158,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     return m(
         `.track-shell[draggable=true]`,
         {
+          style: {width: `${globals.state.trackShellWidth}px`},
           class: `${highlightClass} ${dragClass} ${dropClass} ${globals.state.selectedTrackIds.has(attrs.trackState.id)? 'selected': ''}`,
           onclick: (e: MouseEvent)=>{
             if (!(navigator.userAgent.includes('Mac')? e.metaKey : e.ctrlKey)) {
@@ -289,6 +288,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               ''));
   }
 
+
   resize = (e: MouseEvent): void => {
     e.stopPropagation();
     e.preventDefault();
@@ -303,12 +303,14 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       this.attrs.pinnedCopy);
   };
 
-  onmousemove(e: MouseEvent) {
+  onmousemove(e: PerfettoMouseEvent) {
+    // Vertical Resizing
     if (this.attrs?.track) {
       checkTrackForResizability(e, this.attrs.track, this.resize);
     }
   }
   onmouseleave(e: MouseEvent) {
+    // Vertical Resizing
     if (this.attrs?.track) {
       checkTrackForResizability(e, this.attrs.track, this.resize);
     }
@@ -423,7 +425,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
         {
           onmousemove: (e: PerfettoMouseEvent) => {
             attrs.track.onMouseMove(
-                {x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY});
+                {x: e.layerX - (globals.state.trackShellWidth), y: e.layerY});
             globals.rafScheduler.scheduleRedraw();
           },
           onmouseout: () => {
@@ -456,7 +458,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
             }
             // Returns true if something was selected, so stop propagation.
             if (attrs.track.onMouseClick(
-                    {x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY})) {
+                {x: e.layerX - (globals.state.trackShellWidth), y: e.layerY})) {
               e.stopPropagation();
             }
             globals.rafScheduler.scheduleRedraw();
@@ -600,7 +602,8 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     if (selectedArea.tracks.includes(trackState.id)) {
       ctx.fillStyle = getCssStr('--selection-fill-color');
       ctx.fillRect(
-          visibleTimeScale.tpTimeToPx(selectedArea.start) + TRACK_SHELL_WIDTH,
+          visibleTimeScale.tpTimeToPx(selectedArea.start) +
+            (globals.state.trackShellWidth),
           0,
           visibleTimeScale.durationToPx(selectedAreaDuration),
           size.height);
@@ -613,9 +616,10 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     // If we have vsync data, render columns under the track and
     // under the grid lines painted next
     const vsync = getActiveVsyncData();
+    const trackShellWidth = (globals.state.trackShellWidth);
     if (vsync) {
       ctx.save();
-      ctx.translate(TRACK_SHELL_WIDTH, 0);
+      ctx.translate(trackShellWidth, 0);
       renderVsyncColumns(ctx, size.height, vsync);
       ctx.restore();
     }
@@ -624,8 +628,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
         ctx,
         size.width,
         size.height);
-
-    ctx.translate(TRACK_SHELL_WIDTH, 0);
+    ctx.translate(trackShellWidth, 0);
     if (this.track !== undefined) {
       this.track.render(ctx);
     }

@@ -15,7 +15,6 @@
 // This code can be used in unittests where we can't read CSS variables.
 // Also we cannot have global constructors beacause when the javascript is
 // loaded, the CSS might not be ready yet.
-export let TRACK_SHELL_WIDTH = 100;
 export let SIDEBAR_WIDTH = 100;
 export let TOPBAR_HEIGHT = 48;
 export let SELECTION_STROKE_COLOR = '#00344596';
@@ -25,7 +24,6 @@ export let DEFAULT_DETAILS_CONTENT_HEIGHT = 280;
 export const SELECTED_LOG_ROWS_COLOR = '#D2EFE0';
 
 export function initCssConstants() {
-  TRACK_SHELL_WIDTH = getCssNum('--track-shell-width') || TRACK_SHELL_WIDTH;
   SIDEBAR_WIDTH = getCssNum('--sidebar-width') || SIDEBAR_WIDTH;
   TOPBAR_HEIGHT = getCssNum('--topbar-height') || TOPBAR_HEIGHT;
   SELECTION_STROKE_COLOR =
@@ -45,7 +43,7 @@ export function getCssStr(prop: string): string {
   return window.getComputedStyle(doc).getPropertyValue(prop).trim();
 }
 
-function getCssNum(prop: string): number|undefined {
+export function getCssNum(prop: string): number|undefined {
   const str = getCssStr(prop);
   if (str === undefined) return undefined;
   const match = str.match(/^\W*(\d+)px(|\!important')$/);

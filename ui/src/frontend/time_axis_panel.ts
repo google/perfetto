@@ -19,7 +19,7 @@ import {
   tpTimeToString,
 } from '../common/time';
 
-import {getCssStr, TRACK_SHELL_WIDTH} from './css_constants';
+import {getCssStr} from './css_constants';
 import {globals} from './globals';
 import {
   getMaxMajorTicks,
@@ -41,17 +41,17 @@ export class TimeAxisPanel extends Panel {
 
     const startTime = tpTimeToString(globals.state.traceTime.start);
     ctx.fillText(startTime + ' +', 6, 11);
-
+    const trackShellWidth = (globals.state.trackShellWidth);
     ctx.save();
     ctx.beginPath();
-    ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
+    ctx.rect(trackShellWidth, 0, size.width - trackShellWidth, size.height);
     ctx.clip();
 
     // Draw time axis.
     const span = globals.frontendLocalState.visibleWindow.timestampSpan;
-    if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
-      const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
-      const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
+    if (size.width > trackShellWidth && span.duration > 0n) {
+      const maxMajorTicks = getMaxMajorTicks(size.width - trackShellWidth);
+      const map = timeScaleForVisibleWindow(trackShellWidth, size.width);
       const tickGen =
           new TickGenerator(span, maxMajorTicks, globals.state.traceTime.start);
       for (const {type, time} of tickGen) {
@@ -66,6 +66,6 @@ export class TimeAxisPanel extends Panel {
 
     ctx.restore();
 
-    ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
+    ctx.fillRect(trackShellWidth - 2, 0, 2, size.height);
   }
 }

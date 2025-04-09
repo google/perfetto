@@ -16,7 +16,7 @@ import {assertTrue} from '../base/logging';
 import {Span, tpDurationToSeconds} from '../common/time';
 import {TPDuration, TPTime, TPTimeSpan} from '../common/time';
 
-import {TRACK_SHELL_WIDTH, getCssStr} from './css_constants';
+import {getCssStr} from './css_constants';
 import {globals} from './globals';
 import {TimeScale} from './time_scale';
 
@@ -216,9 +216,10 @@ export function drawGridLines(
 
   const {earliest, latest} = globals.frontendLocalState.visibleWindow;
   const span = new TPTimeSpan(earliest, latest);
-  if (width > TRACK_SHELL_WIDTH && span.duration > 0n) {
-    const maxMajorTicks = getMaxMajorTicks(width - TRACK_SHELL_WIDTH);
-    const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, width);
+  const trackShellWidth = globals.state.trackShellWidth;
+  if (width > trackShellWidth && span.duration > 0n) {
+    const maxMajorTicks = getMaxMajorTicks(width - trackShellWidth);
+    const map = timeScaleForVisibleWindow(trackShellWidth, width);
     for (const {type, time} of new TickGenerator(
              span, maxMajorTicks, globals.state.traceTime.start)) {
       const px = Math.floor(map.tpTimeToPx(time));

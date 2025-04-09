@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {TPTime} from '../common/time';
-import {TRACK_SHELL_WIDTH} from './css_constants';
+import {globals} from './globals';
 import {TimeScale} from './time_scale';
 
 export function drawVerticalLineAtTime(
@@ -23,7 +23,8 @@ export function drawVerticalLineAtTime(
     height: number,
     color: string,
     lineWidth = 2) {
-  const xPos = TRACK_SHELL_WIDTH + Math.floor(timeScale.tpTimeToPx(time));
+  const xPos =
+    (globals.state.trackShellWidth) + Math.floor(timeScale.tpTimeToPx(time));
   drawVerticalLine(ctx, xPos, height, color, lineWidth);
 }
 

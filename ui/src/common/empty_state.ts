@@ -174,5 +174,6 @@ export function createEmptyState(): State {
     pinnedGroupCollapsed: false,
     selectedTrackGroupIds: new Set<string>(),
     selectedTrackIds: new Set<string>(),
+    trackShellWidth: 250,
   };
 }

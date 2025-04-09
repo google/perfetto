@@ -105,6 +105,8 @@ export class PanAndZoomHandler {
   private panAnimation = new Animation(this.onPanAnimationStep.bind(this));
   private zoomAnimation = new Animation(this.onZoomAnimationStep.bind(this));
 
+  private dragGestureHandler: DragGestureHandler;
+
   private element: HTMLElement;
   private page?: HTMLElement;
   private contentOffsetX: number;
@@ -158,7 +160,7 @@ export class PanAndZoomHandler {
     let dragStartX = -1;
     let dragStartY = -1;
     let edit = false;
-    new DragGestureHandler(
+    this.dragGestureHandler = new DragGestureHandler(
         this.element,
         (x, y) => {
           if (this.shiftDown) {
@@ -190,6 +192,13 @@ export class PanAndZoomHandler {
         });
   }
 
+  get dragEnabled():boolean {
+    return this.dragGestureHandler.enabled;
+  }
+
+  set dragEnabled(value: boolean) {
+    this.dragGestureHandler.enabled = value;
+  }
 
   shutdown() {
     document.body.removeEventListener('keydown', this.boundOnKeyDown);
@@ -265,7 +274,7 @@ export class PanAndZoomHandler {
       if (this.editSelection(this.mousePositionX)) {
         this.element.style.cursor = EDITING_RANGE_CURSOR;
       } else {
-        this.element.style.cursor = this.shiftDown ? PAN_CURSOR : DRAG_CURSOR;
+        this.element.style.cursor = this.shiftDown ? PAN_CURSOR : 'unset';
       }
     }
   }

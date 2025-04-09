@@ -639,6 +639,7 @@ export interface State {
   selectedTrackIds: Set<string>;
   selectedTrackGroupIds: Set<string>;
   lastSelectedTrackId?: string;
+  trackShellWidth: number;
 }
 
 export const defaultTraceTime = {

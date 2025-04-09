@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {TPTimeSpan} from '../common/time';
 
-import {getCssStr, TRACK_SHELL_WIDTH} from './css_constants';
+import {getCssStr} from './css_constants';
 import {globals} from './globals';
 import {
   getMaxMajorTicks,
@@ -61,19 +61,19 @@ export class TickmarkPanel extends Panel {
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     this.indicators = [];
     const {visibleTimeScale} = globals.frontendLocalState;
-
+    const trackShellWidth = (globals.state.trackShellWidth);
     ctx.fillStyle = getCssStr('--main-foreground-color');
-    ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
+    ctx.fillRect(trackShellWidth - 2, 0, 2, size.height);
 
     ctx.save();
     ctx.beginPath();
-    ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
+    ctx.rect(trackShellWidth, 0, size.width - trackShellWidth, size.height);
     ctx.clip();
 
     const visibleSpan = globals.frontendLocalState.visibleWindow.timestampSpan;
-    if (size.width > TRACK_SHELL_WIDTH && visibleSpan.duration > 0n) {
-      const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
-      const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
+    if (size.width > trackShellWidth && visibleSpan.duration > 0n) {
+      const maxMajorTicks = getMaxMajorTicks(size.width - trackShellWidth);
+      const map = timeScaleForVisibleWindow(trackShellWidth, size.width);
       for (const {type, time} of new TickGenerator(
                visibleSpan, maxMajorTicks, globals.state.traceTime.start)) {
         const px = Math.floor(map.tpTimeToPx(time));
@@ -92,8 +92,8 @@ export class TickmarkPanel extends Panel {
         continue;
       }
       const rectStart =
-          Math.max(visibleTimeScale.tpTimeToPx(tStart), 0) + TRACK_SHELL_WIDTH;
-      const rectEnd = visibleTimeScale.tpTimeToPx(tEnd) + TRACK_SHELL_WIDTH;
+          Math.max(visibleTimeScale.tpTimeToPx(tStart), 0) + trackShellWidth;
+      const rectEnd = visibleTimeScale.tpTimeToPx(tEnd) + trackShellWidth;
       ctx.fillStyle = '#dcdc3b';
       const x = Math.floor(rectStart);
       const w = Math.ceil(rectEnd - rectStart);
@@ -108,7 +108,7 @@ export class TickmarkPanel extends Panel {
     if (index !== -1) {
       const start = globals.currentSearchResults.tsStarts[index];
       const triangleStart =
-          Math.max(visibleTimeScale.tpTimeToPx(start), 0) + TRACK_SHELL_WIDTH;
+          Math.max(visibleTimeScale.tpTimeToPx(start), 0) + trackShellWidth;
       ctx.fillStyle = getCssStr('--main-foreground-color');
       ctx.strokeStyle = getCssStr('--main-background-color');
       ctx.beginPath();
