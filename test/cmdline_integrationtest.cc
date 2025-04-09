@@ -1032,8 +1032,9 @@ TEST_F(PerfettoCmdlineTest, MultipleTriggersCloneSnapshot) {
   // Assert that all fields of 'clone_snapshot_trigger' equal to the same fields
   // of a 'trigger' (well, except stop_delay_ms, which will be fixed in a future
   // commit).
-  clone_trigger_packets_2[0].mutable_clone_snapshot_trigger()->set_stop_delay_ms(
-      1500);
+  clone_trigger_packets_2[0]
+      .mutable_clone_snapshot_trigger()
+      ->set_stop_delay_ms(1500);
   EXPECT_EQ(clone_trigger_packets_2[0].timestamp(),
             trigger_packet_from_first_snapshot.timestamp());
   EXPECT_EQ(clone_trigger_packets_2[0].clone_snapshot_trigger(),
