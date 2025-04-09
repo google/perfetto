@@ -103,7 +103,7 @@ base::Status CreateQueriesAndComputeMetrics(
     const TraceSummaryOutputSpec& output_spec) {
   for (const auto& query : queries) {
     auto it = processor->ExecuteQuery("CREATE PERFETTO TABLE " +
-                                      query.table_name + " " + query.sql);
+                                      query.table_name + " AS " + query.sql);
     PERFETTO_CHECK(!it.Next());
     if (!it.Status().ok()) {
       return base::ErrStatus("Error while executing shared query %s: %s",
