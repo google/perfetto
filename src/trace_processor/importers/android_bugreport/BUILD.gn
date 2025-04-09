@@ -28,9 +28,7 @@ source_set("android_log_event") {
 }
 
 source_set("android_dumpstate_event") {
-  sources = [
-    "android_dumpstate_event.h",
-  ]
+  sources = [ "android_dumpstate_event.h" ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base:base",
