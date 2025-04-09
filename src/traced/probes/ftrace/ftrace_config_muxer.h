@@ -59,7 +59,10 @@ struct FtraceDataSourceConfig {
       bool symbolize_ksyms_in,
       uint32_t buffer_percent_in,
       base::FlatSet<int64_t> syscalls_returning_fd_in,
-      bool debug_ftrace_abi_in)
+      base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>
+          kprobes_in,
+      bool debug_ftrace_abi_in,
+      bool write_generic_evt_descriptors_in)
       : event_filter(std::move(event_filter_in)),
         syscall_filter(std::move(syscall_filter_in)),
         compact_sched(compact_sched_in),
@@ -71,7 +74,9 @@ struct FtraceDataSourceConfig {
         symbolize_ksyms(symbolize_ksyms_in),
         buffer_percent(buffer_percent_in),
         syscalls_returning_fd(std::move(syscalls_returning_fd_in)),
-        debug_ftrace_abi(debug_ftrace_abi_in) {}
+        kprobes(std::move(kprobes_in)),
+        debug_ftrace_abi(debug_ftrace_abi_in),
+        write_generic_evt_descriptors(write_generic_evt_descriptors_in) {}
 
   // The event filter allows to quickly check if a certain ftrace event with id
   // x is enabled for this data source.
@@ -108,6 +113,9 @@ struct FtraceDataSourceConfig {
   // For development/debugging, serialise raw ring buffer pages if on a
   // debuggable android build.
   const bool debug_ftrace_abi;
+
+  // If true, use the newer format for generic events.
+  const bool write_generic_evt_descriptors;
 };
 
 // Ftrace is a bunch of globally modifiable persistent state.
