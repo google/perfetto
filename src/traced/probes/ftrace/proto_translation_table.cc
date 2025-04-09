@@ -241,6 +241,7 @@ ProtoSchemaType ToGenericProtoField(FtraceFieldType ftrace_type) {
       PERFETTO_DFATAL("Unexpected ftrace field type");
       return ProtoSchemaType::kUnknown;
   }
+  PERFETTO_FATAL("For GCC");
 }
 
 protos::gen::FieldDescriptorProto::Type ToPbDescEnum(ProtoSchemaType v) {
@@ -286,7 +287,8 @@ protos::gen::FieldDescriptorProto::Type ToPbDescEnum(ProtoSchemaType v) {
       PERFETTO_DFATAL("Should never try to map an unknown proto field type.");
       return PB::TYPE_BYTES;
   }
-};
+  PERFETTO_FATAL("For GCC");
+}
 
 }  // namespace
 
