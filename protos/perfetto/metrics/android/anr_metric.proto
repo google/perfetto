@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
- syntax = "proto2";
+syntax = "proto2";
 
- package perfetto.protos;
+package perfetto.protos;
 
- message AndroidAnrMetric {
+message AndroidAnrMetric {
   repeated Anr anr = 1;
 
   // Next id: 12

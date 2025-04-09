@@ -124,8 +124,10 @@ def get_changed_files(merge_base: Optional[str]) -> List[str]:
           if not line.startswith(' D')
       ]
 
-      diff_result = run_command(
-          ['git', 'diff', '--name-only', f'{merge_base}...HEAD'])
+      diff_result = run_command([
+          'git', 'diff', '--name-only', '--diff-filter=crd',
+          f'{merge_base}...HEAD'
+      ])
       diff_files = diff_result.stdout.splitlines()
 
       # Combine and make unique, relative to repo root
@@ -252,83 +254,17 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
   return errors
 
 
-def CheckPatchFormatted(changed_files: List[str],
-                        check_js: bool = True) -> List[str]:
-  errors = []
-  # Determine files to format (apply JS/TS skip logic here)
-  format_patterns = ['*.c', '*.cc', '*.cpp', '*.h', '*.hpp', '*.proto']
-  if check_js:
-    format_patterns.extend(['*.js',
-                            '*.ts'])  # This script originally skipped JS
-
-  files_to_format_paths = filter_files(
-      changed_files, files_to_check=format_patterns)
-
-  # Add common clang-format config file patterns if they changed
-  clang_format_configs = filter_files(
-      changed_files, files_to_check=['*clang-format*'])  # More robust pattern
-  if clang_format_configs:
-    print(
-        "INFO: .clang-format file changed, checking all relevant files for "
-        "formatting.",
-        file=sys.stderr)
-    # If config changes, check ALL relevant files in repo, not just changed ones
-    all_relevant_files = get_changed_files(None)  # Get all files
-    files_to_format_paths = filter_files(
-        all_relevant_files, files_to_check=format_patterns)
-
-  if not files_to_format_paths:
-    return []
-
-  # Get absolute paths for clang-format
-  abs_files_to_format = [
-      os.path.join(REPO_ROOT, f) for f in files_to_format_paths
-  ]
-
+def CheckCodeFormatted() -> List[str]:
+  # NOTE: format-sources does its own invocation of git diff ... to detect
+  # changed file. We use that, rather than passing the list here, to avoid
+  # ending in a situation where run_presubmit fails, but then
+  # tools/format_sources succeeds because they diverge in their diff logic.
+  tool = os.path.join(REPO_ROOT, 'tools/format-sources')
   try:
-    # Use --dry-run or -n, and -Werror to exit with error if changes are needed
-    cmd = ['clang-format', '--dry-run', '-Werror'] + abs_files_to_format
-    run_command(cmd)
-  except FileNotFoundError:
-    errors.append("clang-format not found. Please install or add to PATH.")
-  except subprocess.CalledProcessError as e:
-    # Provide relative paths in error message for clarity
-    changed_files_str = "\n  ".join(files_to_format_paths)
-    errors.append(
-        f"clang-format check failed. Run 'clang-format -i <file>' on affected "
-        f"files:\n---\n{e.stderr}\n---\nAffected files:\n  {changed_files_str}")
-  return errors
-
-
-def CheckGNFormatted(changed_files: List[str]) -> List[str]:
-  errors = []
-  # --- MODIFIED: Removed \ from patterns ---
-  gn_files_paths = filter_files(changed_files, files_to_check=['*.gn', '*.gni'])
-  if not gn_files_paths:
-    return []
-
-  # Get absolute paths for gn format
-  abs_gn_files = [os.path.join(REPO_ROOT, f) for f in gn_files_paths]
-
-  try:
-    # Use --dry-run to check formatting without modifying files
-    # gn format needs to run from the build root usually, but let's try repo
-    # root first
-    cmd = ['tools/gn', 'format', '--dry-run'] + abs_gn_files
-    result = run_command(cmd, cwd=REPO_ROOT)  # Run from repo root
-    # gn format --dry-run prints diff to stdout if changes needed
-    if result.stdout or result.stderr:
-      # Provide relative paths in error message
-      files_str = "\n ".join(gn_files_paths)
-      errors.append(
-          f"GN formatting check failed. Run 'gn format <file>' on these files:"
-          f"\n{result.stdout}{result.stderr}\nAffected files:\n {files_str}")
-  except FileNotFoundError:
-    errors.append("gn not found. Please install or add to PATH.")
-  except subprocess.CalledProcessError as e:
-    # Should be caught by stdout/stderr check above, but just in case
-    errors.append(f"gn format check failed:\n{e.stdout}\n{e.stderr}")
-  return errors
+    run_command([tool, '--quiet', '--check-only'], stderr=subprocess.STDOUT)
+  except subprocess.CalledProcessError:
+    return [f'Please run {tool} to format sources.']
+  return []
 
 
 def CheckIncludeGuards(changed_files: List[str]) -> List[str]:
@@ -402,6 +338,8 @@ def CheckIncludePaths(changed_files: List[str]) -> List[str]:
     for i, line in enumerate(content):
       match = pattern.search(line)
       if not match:
+        continue
+      if '// no-include-violation-check' in line:
         continue
       inc_hdr = match.group(1)
       # Normalize path separators for comparison
@@ -682,34 +620,6 @@ def CheckBannedCpp(changed_files: List[str]) -> List[str]:
   return errors
 
 
-def CheckBadCppPatterns(changed_files: List[str]) -> List[str]:
-  # File Regex (for filtering), Code Regex (for checking), Message tuple
-  # File pattern needs to be fnmatch compatible
-  bad_patterns: List[Tuple[str, str, str]] = [
-      (
-          '*/tracing_service_impl.cc',
-          r'\btrigger_config\(\)',  # fnmatch pattern
-          'Use GetTriggerMode(session->config) rather than .trigger_config()'),
-  ]
-  errors = []
-  comment_pattern = re.compile(r'^\s*//')  # Regex is fine here
-
-  for file_pattern, code_regex_str, message in bad_patterns:
-    # Filter files using fnmatch pattern
-    files_to_check_list = filter_files(
-        changed_files, files_to_check=[file_pattern])
-    for f_path in files_to_check_list:
-      content = read_file_content(f_path)
-      if content:
-        for i, line in enumerate(content):
-          if comment_pattern.search(line):
-            continue  # Skip comments
-          # Check content using re.search
-          if re.search(code_regex_str, line):
-            errors.append(f'{f_path}:{i+1}: {message}')
-  return errors
-
-
 def CheckSqlModules(changed_files: List[str]) -> List[str]:
   if sys.platform == 'win32':
     return []
@@ -905,33 +815,33 @@ def CheckAbsolutePathsInGn(changed_files: List[str]) -> List[str]:
   ]
 
 
-def CheckStdlibFormatting(changed_files: List[str]) -> List[str]:
-  tool_rel_path = 'tools/format_stdlib'
+def CheckUiImports(changed_files: List[str]) -> List[str]:
+  tool_rel_path = 'tools/check_imports'
   tool = os.path.join(REPO_ROOT, tool_rel_path)
   # Use fnmatch patterns
   files_to_check_list = filter_files(
-      changed_files,
-      files_to_check=[
-          'src/trace_processor/perfetto_sql/stdlib/*', tool_rel_path
-      ])
+      changed_files, files_to_check=['ui/*', tool_rel_path])
   if not files_to_check_list:
     return []
-
-  tool_changed = tool_rel_path in [os.path.normpath(f) for f in changed_files]
-  source_files_changed = any(f != tool_rel_path for f in files_to_check_list)
-
-  if not tool_changed and not source_files_changed:
-    return []
-
   try:
-    run_command([sys.executable, tool, '--check-only'], cwd=REPO_ROOT)
-  except FileNotFoundError:
-    return [f"Tool not found: {tool}"]
+    run_command([sys.executable, tool], cwd=REPO_ROOT, stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError:
-    return [
-        f'PerfettoSQL stdlib is not formatted correctly. Run python {tool} to '
-        f'format it.'
-    ]
+    return [f'Import violations detected in ui/ sources. See {tool_rel_path}']
+  return []
+
+
+def CheckUiRatchet(changed_files: List[str]) -> List[str]:
+  tool_rel_path = 'tools/check_ratchet'
+  tool = os.path.join(REPO_ROOT, tool_rel_path)
+  # Use fnmatch patterns
+  files_to_check_list = filter_files(
+      changed_files, files_to_check=['ui/*', tool_rel_path])
+  if not files_to_check_list:
+    return []
+  try:
+    run_command([sys.executable, tool], cwd=REPO_ROOT, stderr=subprocess.STDOUT)
+  except subprocess.CalledProcessError:
+    return [f'Bad patterns detected in ui/ sources. See {tool_rel_path}']
   return []
 
 
@@ -977,10 +887,9 @@ def main():
 
   # Use RunAndReportIfLong for all checks
   checks_to_run = [
+      (CheckCodeFormatted, []),
       (CheckDoNotSubmit, [changed_files]),
       (CheckChangeHasNoTabs, [changed_files]),
-      (CheckPatchFormatted, [changed_files, False]),  # check_js=False
-      (CheckGNFormatted, [changed_files]),
       (CheckIncludeGuards, [changed_files]),
       (CheckIncludeViolations, [changed_files]),
       (CheckIncludePaths, [changed_files]),
@@ -991,7 +900,6 @@ def main():
       (CheckMergedTraceConfigProto, [changed_files]),
       (CheckProtoEventList, [changed_files, merge_base]),  # Needs merge_base
       (CheckBannedCpp, [changed_files]),
-      (CheckBadCppPatterns, [changed_files]),
       (CheckSqlModules, [changed_files]),
       (CheckSqlMetrics, [changed_files]),
       (CheckTestData, [changed_files
@@ -999,7 +907,8 @@ def main():
       (CheckAmalgamatedPythonTools, [changed_files]),
       (CheckChromeStdlib, [changed_files]),  # Checks commit msg
       (CheckAbsolutePathsInGn, [changed_files]),
-      (CheckStdlibFormatting, [changed_files]),
+      (CheckUiImports, [changed_files]),
+      (CheckUiRatchet, [changed_files]),
   ]
 
   for func, args in checks_to_run:

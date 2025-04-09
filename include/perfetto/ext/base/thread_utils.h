@@ -20,8 +20,8 @@
 #include <string>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/base/export.h"
+#include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \

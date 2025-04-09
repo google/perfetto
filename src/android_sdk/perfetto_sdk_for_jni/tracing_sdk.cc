@@ -85,13 +85,15 @@ PerfettoTeHlExtra* const* Extra::get() const {
   return extras_.data();
 }
 
+Category::Category(const std::string& name) : Category(name, {}) {}
+
 Category::Category(const std::string& name,
-                   const std::string& tag,
-                   const std::string& severity)
-    : category_({&perfetto_atomic_false, {}, {}, 0}),
-      name_(name),
-      tag_(tag),
-      severity_(severity) {}
+                   const std::vector<std::string>& tags)
+    : category_({&perfetto_atomic_false, {}, {}, 0}), name_(name), tags_(tags) {
+  for (const auto& tag : tags_) {
+    tags_data_.push_back(tag.data());
+  }
+}
 
 Category::~Category() {
   unregister_category();
@@ -101,13 +103,8 @@ void Category::register_category() {
   if (category_.impl)
     return;
 
-  std::vector<const char*> tags;
-  if (!tag_.empty())
-    tags.push_back(tag_.data());
-  if (!severity_.empty())
-    tags.push_back(severity_.data());
-
-  category_.desc = {name_.c_str(), name_.c_str(), tags.data(), tags.size()};
+  category_.desc = {name_.c_str(), name_.c_str(), tags_data_.data(),
+                    tags_data_.size()};
 
   PerfettoTeCategoryRegister(&category_);
   PerfettoTePublishCategories();

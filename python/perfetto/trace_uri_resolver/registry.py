@@ -73,9 +73,9 @@ class ResolverRegistry:
     return resolver_cls.from_trace_uri(uri)
 
 
-def _merge_metadata(resolver_res: TraceUriResolver.Result,
-                    registry_res: ResolverRegistry.Result
-                   ) -> List[ResolverRegistry.Result]:
+def _merge_metadata(
+    resolver_res: TraceUriResolver.Result,
+    registry_res: ResolverRegistry.Result) -> List[ResolverRegistry.Result]:
   return ResolverRegistry.Result(
       generator=registry_res.generator,
       metadata=util.merge_dicts(resolver_res.metadata, registry_res.metadata))

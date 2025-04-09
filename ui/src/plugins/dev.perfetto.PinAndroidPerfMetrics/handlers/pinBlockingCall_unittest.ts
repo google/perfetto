@@ -69,8 +69,7 @@ const validMetricsTest: {
     expectedOutput: {
       process: 'com.google.android.apps.nexuslauncher',
       cujName: 'TASKBAR_EXPAND::Manually unstashed',
-      blockingCallName:
-        'Handler: android.view.View',
+      blockingCallName: 'Handler: android.view.View',
       aggregation: 'max_dur_per_frame_ns-mean',
     },
   },
@@ -80,8 +79,7 @@ const validMetricsTest: {
     expectedOutput: {
       process: 'com.android.systemui',
       cujName: 'NOTIFICATION_SHADE_EXPAND_COLLAPSE::Collapse',
-      blockingCallName:
-        'input',
+      blockingCallName: 'input',
       aggregation: 'mean_dur_per_frame_ns-max',
     },
   },

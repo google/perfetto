@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <string>
 
 #include "src/trace_processor/dataframe/type_set.h"
 
@@ -35,8 +34,8 @@ struct Double {};
 // Represents values where the value is a string.
 struct String {};
 
-// TypeSet of all possible column value types.
-using ColumnType = TypeSet<Id, Uint32, Int32, Int64, Double, String>;
+// TypeSet of all possible storage value types.
+using StorageType = TypeSet<Id, Uint32, Int32, Int64, Double, String>;
 
 // -----------------------------------------------------------------------------
 // Operation Types
@@ -141,25 +140,6 @@ struct FilterSpec {
   // Output parameter: index for the filter value in query execution.
   // This is populated during query planning.
   std::optional<uint32_t> value_index;
-};
-
-// -----------------------------------------------------------------------------
-// Column Specifications
-// -----------------------------------------------------------------------------
-
-// Describes the properties of a dataframe column.
-struct ColumnSpec {
-  // Column name.
-  std::string name;
-
-  // Type of content stored in the column.
-  ColumnType column_type;
-
-  // Sort order of the column data.
-  SortState sort_state;
-
-  // Whether the column can contain NULL values.
-  Nullability nullability;
 };
 
 }  // namespace perfetto::trace_processor::dataframe

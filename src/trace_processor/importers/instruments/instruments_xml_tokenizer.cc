@@ -59,11 +59,12 @@ std::string MakeTrimmed(const char* chars, int len) {
 //   xctrace export --input /path/to/profile.trace --xpath
 //     '//trace-toc/run/data/table[@schema="os-signpost and
 //        @category="PointsOfInterest"] |
-//      //trace-toc/run/data/table[@schema="time-sample"]'
+//      //trace-toc/run/data/table[@schema="cpu-profile"]'
 //
 // This exports two tables:
 //   1. Points of interest signposts
-//   2. Time samples
+//   2. CPU profile
+// You can also use time-profile instead of cpu-profile if needed.
 //
 // The first is used for clock synchronization -- perfetto emits signpost events
 // during tracing which allow synchronization of the xctrace clock (relative to

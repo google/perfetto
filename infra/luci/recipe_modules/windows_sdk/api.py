@@ -53,7 +53,7 @@ class WindowsSDKApi(recipe_api.RecipeApi):
       path (path): Path to a directory.
       version (str): CIPD instance ID, tag or ref.
     """
-    sdk_dir = self.m.path['cache'].join('windows_sdk')
+    sdk_dir = self.m.path.cache_dir.joinpath('windows_sdk')
     pkgs = self.m.cipd.EnsureFile()
     pkgs.add_package(self._sdk_package, self._sdk_version)
     self.m.cipd.ensure(sdk_dir, pkgs)
@@ -83,7 +83,7 @@ class WindowsSDKApi(recipe_api.RecipeApi):
     filename = 'SetEnv.%s.json' % {32: 'x86', 64: 'x64'}[self.m.platform.bits]
     step_result = self.m.json.read(
         'read %s' % filename,
-        sdk_dir.join('win_sdk', 'bin', filename),
+        sdk_dir / 'win_sdk' / 'bin' / filename,
         step_test_data=lambda: self.m.json.test_api.output({
             'env': {
                 'PATH': [['..', '..', 'win_sdk', 'bin', 'x64']],
@@ -101,7 +101,7 @@ class WindowsSDKApi(recipe_api.RecipeApi):
       results = []
       for value in data[key]:
         assert value[0] == '..' and (value[1] == '..' or value[1] == '..\\')
-        results.append('%s' % sdk_dir.join(*value[2:]))
+        results.append('%s' % sdk_dir.joinpath(*value[2:]))
 
       # PATH is special-cased because we don't want to overwrite other things
       # like C:\Windows\System32. Others are replacements because prepending

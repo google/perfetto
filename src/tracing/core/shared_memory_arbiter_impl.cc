@@ -163,8 +163,8 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
           if (!chunk.is_valid())
             continue;
           if (stall_count > kLogAfterNStalls) {
-            PERFETTO_LOG("Recovered from stall after %d iterations",
-                         stall_count);
+            PERFETTO_DLOG("Recovered from stall after %d iterations",
+                          stall_count);
           }
 
           if (should_commit_synchronously) {
@@ -190,7 +190,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     // All chunks are taken (either kBeingWritten by us or kBeingRead by the
     // Service).
     if (stall_count++ == kLogAfterNStalls) {
-      PERFETTO_LOG("Shared memory buffer overrun! Stalling");
+      PERFETTO_DLOG("Shared memory buffer overrun! Stalling");
     }
 
     if (stall_count == kAssertAtNStalls) {

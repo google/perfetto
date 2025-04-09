@@ -1732,6 +1732,7 @@ void TracingServiceImpl::ActivateTriggers(
           !tracing_session.received_triggers.empty();
       const TriggerInfo trigger = {static_cast<uint64_t>(now_ns), iter->name(),
                                    producer->name_, producer->uid()};
+      MaybeSnapshotClocksIntoRingBuffer(&tracing_session);
       tracing_session.received_triggers.push_back(trigger);
       switch (trigger_mode) {
         case TraceConfig::TriggerConfig::START_TRACING:
@@ -1985,7 +1986,7 @@ void TracingServiceImpl::NotifyFlushDoneForProducer(
         it++;
       }
     }  // for (pending_flushes)
-  }    // for (tracing_session)
+  }  // for (tracing_session)
 }
 
 void TracingServiceImpl::OnFlushTimeout(TracingSessionID tsid,
@@ -2563,7 +2564,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       did_hit_threshold = packets_bytes >= threshold;
       packets.emplace_back(std::move(packet));
     }  // for(packets...)
-  }    // for(buffers...)
+  }  // for(buffers...)
 
   *has_more = did_hit_threshold;
 
@@ -3692,8 +3693,8 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
           wri_stats->add_chunk_payload_histogram_sum(hist.GetBucketSum(i));
         }
       }  // for each sequence (writer).
-    }    // for each buffer.
-  }      // if (!disable_chunk_usage_histograms)
+    }  // for each buffer.
+  }  // if (!disable_chunk_usage_histograms)
 
   return trace_stats;
 }
@@ -4117,7 +4118,7 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
 
   SnapshotLifecycleEvent(
       session, protos::pbzero::TracingServiceEvent::kFlushStartedFieldNumber,
-      false /* snapshot_clocks */);
+      /*snapshot_clocks=*/true);
   clone_op.pending_flush_cnt = bufs_groups.size();
   clone_op.clone_started_timestamp_ns = clock_->GetBootTimeNs().count();
   for (const std::set<BufferID>& buf_group : bufs_groups) {

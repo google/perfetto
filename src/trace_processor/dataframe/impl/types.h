@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <utility>
 #include <variant>
 
@@ -104,23 +105,28 @@ class Storage {
   using Double = FlexVector<double>;
   using String = FlexVector<StringPool::Id>;
 
-  explicit Storage(Storage::Id data) : data_(data) {}
-  explicit Storage(Storage::Uint32 data) : data_(std::move(data)) {}
-  explicit Storage(Storage::Int32 data) : data_(std::move(data)) {}
-  explicit Storage(Storage::Int64 data) : data_(std::move(data)) {}
-  explicit Storage(Storage::Double data) : data_(std::move(data)) {}
-  explicit Storage(Storage::String data) : data_(std::move(data)) {}
+  Storage(Storage::Id data) : type_(dataframe::Id{}), data_(data) {}
+  Storage(Storage::Uint32 data)
+      : type_(dataframe::Uint32{}), data_(std::move(data)) {}
+  Storage(Storage::Int32 data)
+      : type_(dataframe::Int32{}), data_(std::move(data)) {}
+  Storage(Storage::Int64 data)
+      : type_(dataframe::Int64{}), data_(std::move(data)) {}
+  Storage(Storage::Double data)
+      : type_(dataframe::Double{}), data_(std::move(data)) {}
+  Storage(Storage::String data)
+      : type_(dataframe::String{}), data_(std::move(data)) {}
 
   // Type-safe access to storage with unchecked variant access.
   template <typename T>
   auto& unchecked_get() {
-    using U = ColumnType::VariantTypeAtIndex<T, Variant>;
+    using U = StorageType::VariantTypeAtIndex<T, Variant>;
     return base::unchecked_get<U>(data_);
   }
 
   template <typename T>
   const auto& unchecked_get() const {
-    using U = ColumnType::VariantTypeAtIndex<T, Variant>;
+    using U = StorageType::VariantTypeAtIndex<T, Variant>;
     return base::unchecked_get<U>(data_);
   }
 
@@ -135,9 +141,12 @@ class Storage {
     return unchecked_get<T>().data();
   }
 
+  StorageType type() const { return type_; }
+
  private:
   // Variant containing all possible storage representations.
   using Variant = std::variant<Id, Uint32, Int32, Int64, Double, String>;
+  StorageType type_;
   Variant data_;
 };
 
@@ -163,9 +172,11 @@ class Overlay {
     BitVector bit_vector;
   };
 
-  explicit Overlay(NoOverlay n) : data_(n) {}
-  explicit Overlay(SparseNull s) : data_(std::move(s)) {}
-  explicit Overlay(DenseNull d) : data_(std::move(d)) {}
+  Overlay(NoOverlay n) : nullability_(dataframe::NonNull{}), data_(n) {}
+  Overlay(SparseNull s)
+      : nullability_(dataframe::SparseNull{}), data_(std::move(s)) {}
+  Overlay(DenseNull d)
+      : nullability_(dataframe::DenseNull{}), data_(std::move(d)) {}
 
   // Type-safe unchecked access to variant data.
   template <typename T>
@@ -199,18 +210,22 @@ class Overlay {
     }
   }
 
+  Nullability nullability() const { return nullability_; }
+
  private:
   // Variant containing all possible overlay types.
   using Variant = std::variant<NoOverlay, SparseNull, DenseNull>;
+  Nullability nullability_;
   Variant data_;
 };
 
 // Combines column specification with storage implementation.
 // Represents a complete column in the dataframe.
 struct Column {
-  ColumnSpec spec;  // Column specifications (name, type, etc.)
-  Storage storage;  // Physical storage for column data
-  Overlay overlay;  // Optional overlay data for special properties
+  std::string name;
+  Storage storage;
+  Overlay overlay;
+  SortState sort_state;
 };
 
 // Handle for referring to a filter value during query execution.

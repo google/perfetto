@@ -110,13 +110,13 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
         className: classes,
       },
       this.renderIcon(attrs),
+      label || '\u200B', // Zero width space keeps button in-flow
       rightIcon &&
         m(Icon, {
           className: 'pf-right-icon',
           icon: rightIcon,
           filled: iconFilled,
         }),
-      label || '\u200B', // Zero width space keeps button in-flow
     );
   }
 

@@ -19,6 +19,7 @@ source_set("dataframe") {
     "cursor.h",
     "dataframe.cc",
     "dataframe.h",
+    "runtime_dataframe_builder.h",
   ]
   deps = [
     "../../../gn:default_deps",
@@ -48,6 +49,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "dataframe_unittest.cc",
+    "runtime_dataframe_builder_unittest.cc",
     "type_set_unittest.cc",
   ]
   deps = [

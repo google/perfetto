@@ -19,22 +19,18 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
-#include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/dataframe/value_fetcher.h"
 
 namespace perfetto::trace_processor::dataframe {
 
@@ -48,6 +44,14 @@ namespace perfetto::trace_processor::dataframe {
 // - Memory-efficient storage with support for specialized column types
 class Dataframe {
  public:
+  // Defines the properties of a column in the dataframe.
+  struct ColumnSpec {
+    std::string name;
+    StorageType type;
+    Nullability nullability;
+    SortState sort_state;
+  };
+
   // QueryPlan encapsulates an executable, serializable representation of a
   // dataframe query operation. It contains the bytecode instructions and
   // metadata needed to execute a query.
@@ -75,12 +79,6 @@ class Dataframe {
     // The underlying query plan implementation.
     impl::QueryPlan plan_;
   };
-
-  // Creates a dataframe with the specified column specifications.
-  //
-  // StringPool is passed here to allow for efficient storage and lookup
-  // of string column values.
-  Dataframe(const std::vector<ColumnSpec>&, StringPool* string_pool);
 
   // Non-copyable
   Dataframe(const Dataframe&) = delete;
@@ -110,62 +108,40 @@ class Dataframe {
   //
   // Parameters:
   //   plan: The query plan to execute.
-  //   c:    A pointer to the storage for the cursor. The cursor will be
-  //         constructed in-place at the location pointed to by `c`.
+  //   c:    A reference to a std::optional that will be set to the prepared
+  //         cursor.
   template <typename FilterValueFetcherImpl>
-  void PrepareCursor(QueryPlan plan, Cursor<FilterValueFetcherImpl>* c) {
-    new (c) Cursor<FilterValueFetcherImpl>(std::move(plan.plan_),
-                                           columns_.data(), string_pool_);
+  void PrepareCursor(QueryPlan plan,
+                     std::optional<Cursor<FilterValueFetcherImpl>>& c) {
+    c.emplace(std::move(plan.plan_), columns_.data(), string_pool_);
   }
 
-  // Inserts a row into the dataframe.
-  //
-  // TODO(lalitm): this is a temporary function which exists for testing
-  // purposes only. We should remove this function once we have a proper builder
-  // class for dataframe construction.
-  template <typename ValueFetcherImpl>
-  void InsertRow() {
-    static_assert(std::is_base_of_v<ValueFetcher, ValueFetcherImpl>,
-                  "ValueFetcherImpl must inherit from ValueFetcher");
-    for (auto& column : columns_) {
-      switch (column.spec.nullability.index()) {
-        case Nullability::GetTypeIndex<NonNull>():
-          break;
-        case Nullability::GetTypeIndex<SparseNull>():
-        case Nullability::GetTypeIndex<DenseNull>():
-          column.overlay.GetNullBitVector().push_back(true);
-          break;
-        default:
-          PERFETTO_ASSUME(false);
-      }
-      switch (column.spec.column_type.index()) {
-        case ColumnType::GetTypeIndex<Id>():
-          column.storage.unchecked_get<Id>().size++;
-          break;
-        case ColumnType::GetTypeIndex<Uint32>():
-          column.storage.unchecked_get<Uint32>().push_back(0);
-          break;
-        case ColumnType::GetTypeIndex<Int32>():
-          column.storage.unchecked_get<Int32>().push_back(0);
-          break;
-        case ColumnType::GetTypeIndex<Int64>():
-          column.storage.unchecked_get<Int64>().push_back(0);
-          break;
-        case ColumnType::GetTypeIndex<Double>():
-          column.storage.unchecked_get<Double>().push_back(0);
-          break;
-        case ColumnType::GetTypeIndex<String>():
-          column.storage.unchecked_get<String>().push_back(
-              string_pool_->InternString(""));
-          break;
-        default:
-          PERFETTO_FATAL("Invalid column type");
-      }
+  // Creates a vector of ColumnSpec objects that describe the columns in the
+  // dataframe.
+  std::vector<ColumnSpec> CreateColumnSpecs() const {
+    std::vector<ColumnSpec> specs;
+    specs.reserve(columns_.size());
+    for (const auto& col : columns_) {
+      specs.push_back({col.name, col.storage.type(), col.overlay.nullability(),
+                       col.sort_state});
     }
-    row_count_++;
+    return specs;
   }
 
  private:
+  friend class RuntimeDataframeBuilder;
+
+  // TODO(lalitm): remove this once we have a proper static builder for
+  // dataframe.
+  friend class DataframeBytecodeTest;
+
+  Dataframe(std::vector<impl::Column> columns,
+            uint32_t row_count,
+            StringPool* string_pool)
+      : columns_(std::move(columns)),
+        row_count_(row_count),
+        string_pool_(string_pool) {}
+
   // Internal storage for columns in the dataframe.
   std::vector<impl::Column> columns_;
 

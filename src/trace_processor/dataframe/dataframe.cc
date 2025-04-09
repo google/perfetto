@@ -20,68 +20,13 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
-#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
-#include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe {
-namespace {
-
-// Creates appropriate storage for a column based on its specification
-impl::Storage MakeStorage(const ColumnSpec& c) {
-  switch (c.column_type.index()) {
-    case ColumnType::GetTypeIndex<Id>():
-      return impl::Storage{impl::Storage::Id{}};
-    case ColumnType::GetTypeIndex<Uint32>():
-      return impl::Storage{impl::Storage::Uint32{}};
-    case ColumnType::GetTypeIndex<Int32>():
-      return impl::Storage{impl::Storage::Int32{}};
-    case ColumnType::GetTypeIndex<Int64>():
-      return impl::Storage{impl::Storage::Int64{}};
-    case ColumnType::GetTypeIndex<Double>():
-      return impl::Storage{impl::Storage::Double{}};
-    case ColumnType::GetTypeIndex<String>():
-      return impl::Storage{impl::Storage::String{}};
-    default:
-      PERFETTO_FATAL("Unreachable");
-  }
-}
-
-// Creates appropriate overlay for a column based on its specification
-impl::Overlay MakeOverlay(const ColumnSpec& c) {
-  switch (c.nullability.index()) {
-    case Nullability::GetTypeIndex<NonNull>():
-      return impl::Overlay{impl::Overlay::NoOverlay{}};
-    case Nullability::GetTypeIndex<SparseNull>():
-      return impl::Overlay{impl::Overlay::SparseNull{impl::BitVector()}};
-    case Nullability::GetTypeIndex<DenseNull>():
-      return impl::Overlay{impl::Overlay::DenseNull{impl::BitVector()}};
-    default:
-      PERFETTO_FATAL("Unreachable");
-  }
-}
-
-}  // namespace
-
-Dataframe::Dataframe(const std::vector<ColumnSpec>& column_specs,
-                     StringPool* string_pool)
-    : string_pool_(string_pool) {
-  for (const auto& c : column_specs) {
-    columns_.emplace_back(impl::Column{
-        c,
-        MakeStorage(c),
-        MakeOverlay(c),
-    });
-  }
-  base::ignore_result(string_pool_);
-}
 
 base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     std::vector<FilterSpec>& specs,

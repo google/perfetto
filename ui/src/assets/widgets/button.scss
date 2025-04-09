@@ -48,12 +48,10 @@
   min-width: max-content;
 
   & > .pf-left-icon {
-    float: left;
     margin-right: 6px; // Make some room between the icon and label
   }
 
   & > .pf-right-icon {
-    float: right;
     margin-left: 6px; // Make some room between the icon and label
   }
 
@@ -184,4 +182,5 @@
   display: flex;
   flex-direction: row;
   gap: 2px;
+  align-items: baseline;
 }

@@ -167,8 +167,9 @@ bool ParseFtraceEvent(std::string input, FtraceEvent* output) {
   if (!has_id || !has_name || common_fields.empty()) {
     if (output)
       PERFETTO_DLOG("Could not parse format file: %s.\n",
-                    !has_id ? "no ID found"
-                            : !has_name ? "no name found" : "no fields found");
+                    !has_id     ? "no ID found"
+                    : !has_name ? "no name found"
+                                : "no fields found");
     return false;
   }
 

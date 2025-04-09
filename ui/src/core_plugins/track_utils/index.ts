@@ -20,6 +20,14 @@ import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {exists, RequiredField} from '../../base/utils';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
+import {featureFlags} from '../../core/feature_flags';
+
+const dvorakFlag = featureFlags.register({
+  id: 'dvorakKeyboardLayout',
+  defaultValue: false,
+  name: 'Dvorak keyboard layout',
+  description: 'Disables hotkeys to avoid hotkey collisions',
+});
 
 export default class implements PerfettoPlugin {
   static readonly id = 'perfetto.TrackUtils';
@@ -93,7 +101,7 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'perfetto.SelectNextTrackEvent',
       name: 'Select next track event',
-      defaultHotkey: '.',
+      defaultHotkey: !dvorakFlag.get() ? '.' : undefined,
       callback: async () => {
         await selectAdjacentTrackEvent(ctx, 'next');
       },
@@ -102,7 +110,7 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'perfetto.SelectPreviousTrackEvent',
       name: 'Select previous track event',
-      defaultHotkey: ',',
+      defaultHotkey: !dvorakFlag.get() ? ',' : undefined,
       callback: async () => {
         await selectAdjacentTrackEvent(ctx, 'prev');
       },

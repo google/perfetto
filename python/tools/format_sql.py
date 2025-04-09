@@ -20,16 +20,16 @@ import re
 from typing import Dict, List, Tuple, Union
 import typing as t
 
-# Add sqlglot from buildtools to the Python path
-ROOT_DIR = Path(__file__).parent.parent
-SQLGLOT_DIR = ROOT_DIR / 'buildtools' / 'sqlglot'
-sys.path.append(str(SQLGLOT_DIR))
-
-import sqlglot
-from sqlglot.dialects.dialect import rename_func
-from sqlglot import exp
-from sqlglot.dialects.sqlite import SQLite
-from sqlglot.tokens import TokenType
+try:
+  import sqlglot
+  from sqlglot.dialects.dialect import rename_func
+  from sqlglot import exp
+  from sqlglot.dialects.sqlite import SQLite
+  from sqlglot.tokens import TokenType
+except ModuleNotFoundError as e:
+  print('Failed to import sqlglot. Run tools/install-build-deps first.')
+  print('If the error persist, make sure you are using the .venv')
+  raise e
 
 
 class Perfetto(SQLite):
@@ -647,10 +647,6 @@ def check_sql_formatting(paths: List[Union[str, Path]],
 
 def main() -> None:
   """Main entry point."""
-  if not SQLGLOT_DIR.exists():
-    print(f"{SQLGLOT_DIR} does not exist. Run tools/install-build-deps first.")
-    sys.exit(1)
-
   parser = argparse.ArgumentParser(
       description='Format SQL queries with consistent style')
   parser.add_argument(

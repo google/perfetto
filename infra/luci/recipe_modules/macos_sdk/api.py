@@ -89,14 +89,14 @@ class MacOSSDKApi(recipe_api.RecipeApi):
     """Ensures the mac_toolchain tool and MacOS SDK packages are installed.
 
     Returns Path to the installed sdk app bundle."""
-    cache_dir = self.m.path['cache'].join('macos_sdk')
+    cache_dir = self.m.path.cache_dir.joinpath('macos_sdk')
     pkgs = self.m.cipd.EnsureFile()
     pkgs.add_package(self._tool_package, self._tool_version)
     self.m.cipd.ensure(cache_dir, pkgs)
 
-    sdk_dir = cache_dir.join('XCode.app')
+    sdk_dir = cache_dir / 'XCode.app'
     self.m.step('install xcode', [
-        cache_dir.join('mac_toolchain'),
+        cache_dir / 'mac_toolchain',
         'install',
         '-kind',
         'mac',

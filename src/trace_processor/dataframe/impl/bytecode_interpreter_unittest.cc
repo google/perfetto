@@ -303,7 +303,9 @@ TEST_F(BytecodeInterpreterTest, AllocateIndices) {
       "dest_span_register=Register(1)]");
 
   const auto& slab = GetRegister<Slab<uint32_t>>(0);
-  { EXPECT_THAT(slab, SizeIs(132u)); }
+  {
+    EXPECT_THAT(slab, SizeIs(132u));
+  }
   {
     const auto& span = GetRegister<Span<uint32_t>>(1);
     EXPECT_THAT(span, SizeIs(132u));
@@ -721,9 +723,8 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
-  column_.reset(new Column{ColumnSpec{"foo", Uint32(), Sorted(), NonNull()},
-                           Storage{std::move(values)},
-                           Overlay{Overlay::NoOverlay{}}});
+  column_.reset(new impl::Column{"foo", std::move(values), Overlay::NoOverlay{},
+                                 Sorted{}});
   {
     // Test case 1: Value exists in range
     SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
@@ -753,9 +754,8 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32LowerBound) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
-  column_.reset(new Column{ColumnSpec{"foo", Uint32(), Sorted(), NonNull()},
-                           Storage{std::move(values)},
-                           Overlay{Overlay::NoOverlay{}}});
+  column_.reset(new impl::Column{"foo", Storage{std::move(values)},
+                                 Overlay{Overlay::NoOverlay{}}, Sorted{}});
 
   SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
                          Range{3u, 8u});
@@ -775,9 +775,8 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32UpperBound) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
-  column_.reset(new Column{ColumnSpec{"foo", Uint32(), Sorted(), NonNull()},
-                           Storage{std::move(values)},
-                           Overlay{Overlay::NoOverlay{}}});
+  column_.reset(new impl::Column{"foo", std::move(values), Overlay::NoOverlay{},
+                                 Sorted{}});
 
   SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
                          Range{3u, 7u});
@@ -825,9 +824,8 @@ TEST_F(BytecodeInterpreterTest, FilterUint32Eq) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
-  column_.reset(new Column{ColumnSpec{"foo", Uint32(), Unsorted(), NonNull()},
-                           Storage{std::move(values)},
-                           Overlay{Overlay::NoOverlay{}}});
+  column_.reset(new impl::Column{"foo", std::move(values), Overlay::NoOverlay{},
+                                 Unsorted{}});
 
   std::vector<uint32_t> indices_spec = {3, 3, 4, 5, 0, 6, 0};
   {
@@ -876,9 +874,8 @@ TEST_F(BytecodeInterpreterTest, SortedFilterString) {
   // Sorted string data: ["apple", "banana", "banana", "cherry", "date"]
   auto values = CreateFlexVectorForTesting<StringPool::Id>(
       {apple_id, banana_id, banana_id, cherry_id, date_id});
-  column_.reset(new Column{ColumnSpec{"col", String{}, Sorted{}, NonNull{}},
-                           Storage{std::move(values)},
-                           Overlay{Overlay::NoOverlay{}}});
+  column_.reset(new impl::Column{"foo", std::move(values), Overlay::NoOverlay{},
+                                 Sorted{}});
 
   // --- Sub-test for EqualRange (Eq) ---
   {
@@ -930,9 +927,8 @@ TEST_F(BytecodeInterpreterTest, StringFilter) {
   // Index:    0        1      2      3        4       5        6
   auto values = CreateFlexVectorForTesting<StringPool::Id>(
       {cherry_id, apple_id, empty_id, banana_id, apple_id, date_id, durian_id});
-  column_.reset(new Column{ColumnSpec{"col", String{}, Unsorted{}, NonNull{}},
-                           Storage{std::move(values)},
-                           Overlay{Overlay::NoOverlay{}}});
+  column_.reset(new impl::Column{"foo", std::move(values), Overlay::NoOverlay{},
+                                 Unsorted{}});
 
   // Initial indices {0, 1, 2, 3, 4, 5, 6} pointing to the data
   const std::vector<uint32_t> source_indices = {0, 1, 2, 3, 4, 5, 6};
@@ -999,10 +995,10 @@ TEST_F(BytecodeInterpreterTest, NullFilter) {
 
   // Create a dummy column with a DenseNull overlay using the BitVector
   // (SparseNull would work identically for this specific test)
-  column_ = std::make_unique<Column>(Column{
-      ColumnSpec{"col_nullable", Uint32{}, Unsorted{}, DenseNull{}},
+  column_ = std::make_unique<impl::Column>(impl::Column{
+      "foo",
       Storage{Storage::Uint32{}},  // Storage type doesn't matter for NullFilter
-      Overlay{Overlay::DenseNull{std::move(bv)}}});
+      Overlay{Overlay::DenseNull{std::move(bv)}}, Unsorted{}});
 
   std::vector<uint32_t> indices(kNumIndices);
   std::iota(indices.begin(), indices.end(), 0);
@@ -1055,10 +1051,9 @@ TEST_F(BytecodeInterpreterTest, PrefixPopcount) {
   bv.set(160);  // Word 2
   bv.set(200);  // Word 3
 
-  column_ = std::make_unique<Column>(
-      Column{ColumnSpec{"col_nullable", Uint32{}, Unsorted{}, SparseNull{}},
-             Storage{Storage::Uint32{}},  // Storage type doesn't matter
-             Overlay{Overlay::SparseNull{std::move(bv)}}});
+  column_ = std::make_unique<impl::Column>(impl::Column{
+      "foo", Storage{Storage::Uint32{}},  // Storage type doesn't matter
+      Overlay{Overlay::SparseNull{std::move(bv)}}, Unsorted{}});
   SetRegistersAndExecute("PrefixPopcount: [col=0, dest_register=Register(0)]");
 
   const auto& result_slab = GetRegister<Slab<uint32_t>>(0);
@@ -1105,10 +1100,9 @@ TEST_F(BytecodeInterpreterTest, TranslateSparseNullIndices) {
   bv.set(160);  // Word 2
   bv.set(200);  // Word 3
 
-  column_ = std::make_unique<Column>(
-      Column{ColumnSpec{"col_sparse", Uint32{}, Unsorted{}, SparseNull{}},
-             Storage{Storage::Uint32{}},  // Storage type doesn't matter
-             Overlay{Overlay::SparseNull{std::move(bv)}}});
+  column_ = std::make_unique<impl::Column>(impl::Column{
+      "foo", Storage{Storage::Uint32{}},  // Storage type doesn't matter
+      Overlay{Overlay::SparseNull{std::move(bv)}}, Unsorted{}});
 
   // Precomputed PrefixPopcount Slab (from previous test)
   auto popcount_slab = Slab<uint32_t>::Alloc(4);
@@ -1162,10 +1156,9 @@ TEST_F(BytecodeInterpreterTest, StrideTranslateAndCopySparseNullIndices) {
   popcount_slab[3] = 9;
 
   // Create a dummy column with the BitVector (SparseNull overlay)
-  column_ = std::make_unique<Column>(
-      Column{ColumnSpec{"col_sparse", Uint32{}, Unsorted{}, SparseNull{}},
-             Storage{Storage::Uint32{}},  // Storage type doesn't matter
-             Overlay{Overlay::SparseNull{std::move(bv)}}});
+  column_ = std::make_unique<impl::Column>(impl::Column{
+      "foo", Storage{Storage::Uint32{}},  // Storage type doesn't matter
+      Overlay{Overlay::SparseNull{std::move(bv)}}, Unsorted{}});
 
   // Input/Output buffer setup: Stride = 3, Offset for this column = 1
   // We pre-populate offset 0 with the original indices to simulate the state
@@ -1232,10 +1225,9 @@ TEST_F(BytecodeInterpreterTest, StrideCopyDenseNullIndices) {
   bv.set(200);  // Word 3
 
   // Create a dummy column with the BitVector (DenseNull overlay)
-  column_ = std::make_unique<Column>(
-      Column{ColumnSpec{"col_dense", Uint32{}, Unsorted{}, DenseNull{}},
-             Storage{Storage::Uint32{}},  // Storage type doesn't matter
-             Overlay{Overlay::DenseNull{std::move(bv)}}});
+  column_ = std::make_unique<impl::Column>(impl::Column{
+      "foo", Storage{Storage::Uint32{}},  // Storage type doesn't matter
+      Overlay{Overlay::DenseNull{std::move(bv)}}, Unsorted{}});
 
   // Input/Output buffer setup: Stride = 2, Offset for this column = 1
   // Pre-populate offset 0 with the original indices.
@@ -1287,9 +1279,8 @@ TEST_F(BytecodeInterpreterTest, StrideCopyDenseNullIndices) {
 TEST_F(BytecodeInterpreterTest, NonStringFilterInPlace) {
   // Column data: {5, 10, 5, 15, 10, 20}
   auto values = CreateFlexVectorForTesting<uint32_t>({5, 10, 5, 15, 10, 20});
-  column_ = std::make_unique<Column>(
-      Column{ColumnSpec{"col", Uint32{}, Unsorted{}, NonNull{}},
-             Storage{std::move(values)}, Overlay{Overlay::NoOverlay{}}});
+  column_ = std::make_unique<impl::Column>(impl::Column{
+      "foo", std::move(values), Overlay{Overlay::NoOverlay{}}, Unsorted{}});
 
   // Source indices (imagine these are translated storage indices for data
   // lookup).
@@ -1325,9 +1316,8 @@ TEST_F(BytecodeInterpreterTest, Uint32SetIdSortedEq) {
   // 7  7  10
   auto values = CreateFlexVectorForTesting<uint32_t>(
       {0u, 0u, 0u, 3u, 3u, 5u, 5u, 7u, 7u, 7u, 10u});
-  column_ = std::make_unique<Column>(
-      Column{ColumnSpec{"col", Uint32(), SetIdSorted(), NonNull()},
-             Storage{std::move(values)}, Overlay{Overlay::NoOverlay{}}});
+  column_ = std::make_unique<impl::Column>(impl::Column{
+      "foo", std::move(values), Overlay{Overlay::NoOverlay{}}, SetIdSorted{}});
 
   std::string bytecode =
       "Uint32SetIdSortedEq: [col=0, val_register=Register(0), "

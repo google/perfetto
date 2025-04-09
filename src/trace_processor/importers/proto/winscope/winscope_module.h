@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.h"
 #include "src/trace_processor/importers/proto/winscope/viewcapture_parser.h"
+#include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -38,16 +39,18 @@ class WinscopeModule : public ProtoImporterModule {
   explicit WinscopeModule(TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView* packet,
-    int64_t packet_timestamp,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t field_id) override;
+      const protos::pbzero::TracePacket::Decoder& decoder,
+      TraceBlobView* packet,
+      int64_t packet_timestamp,
+      RefPtr<PacketSequenceStateGeneration> state,
+      uint32_t field_id) override;
 
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder&,
                             int64_t ts,
                             const TracePacketData&,
                             uint32_t field_id) override;
+
+  void NotifyEndOfFile() override;
 
  private:
   void ParseWinscopeExtensionsData(protozero::ConstBytes blob,

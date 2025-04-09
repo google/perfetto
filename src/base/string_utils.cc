@@ -38,7 +38,7 @@ namespace base {
 
 // Locale-independant as possible version of strtod.
 double StrToD(const char* nptr, char** endptr) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||           \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   static auto c_locale = newlocale(LC_ALL, "C", nullptr);
@@ -236,7 +236,7 @@ bool WideToUTF8(const std::wstring& source, std::string& output) {
   }
   return true;
 }
-#endif // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 bool UTF8ToWide(const std::string& source, std::wstring& output) {
@@ -254,7 +254,7 @@ bool UTF8ToWide(const std::string& source, std::wstring& output) {
   }
   return true;
 }
-#endif // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...) {
   if (PERFETTO_UNLIKELY(dst_size == 0))

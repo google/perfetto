@@ -20,6 +20,8 @@ name: Enforce 2 collaborator reviews for fork PRs
 on:
   pull_request_review:
     types: [submitted]
+  pull_request_target:
+    types: [synchronize]
 
 permissions:
   pull-requests: read
@@ -38,14 +40,23 @@ jobs:
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           REPO="${{ github.repository }}"
+          LATEST_SHA="${{ github.event.pull_request.head.sha }}"
 
           REVIEWS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/reviews")
 
-          COUNT=$(echo "$REVIEWS" | jq '[.[] | select(.state=="APPROVED" and .author_association=="COLLABORATOR") | .user.login] | unique | length')
+          # Filter to latest commit and valid collaborator approvals
+          COUNT=$(echo "$REVIEWS" | jq --arg sha "$LATEST_SHA" '
+          [group_by(.user.login)[] | last] |
+          map(select(
+            .state == "APPROVED" and
+            .author_association == "COLLABORATOR" and
+            .commit_id == $sha
+          )) |
+          length')
 
-          echo "Collaborator approvals: $COUNT"
+          echo "Collaborator approvals for latest commit ($LATEST_SHA): $COUNT"
           if [ "$COUNT" -lt 2 ]; then
-            echo "❌ PR from fork requires 2 collaborator approvals."
-            exit 1
+          echo "❌ PR from fork requires 2 collaborator approvals on the latest commit."
+          exit 1
           fi

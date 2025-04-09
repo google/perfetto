@@ -32,13 +32,19 @@ TEST(BitVectorTest, DefaultConstructor) {
 }
 
 TEST(BitVectorTest, CreateWithSize) {
-  auto bits = BitVector::CreateWithSize(31);
-
-  EXPECT_EQ(bits.size(), 31u);
-
-  // All bits should be false since we pushed all false values
-  for (size_t i = 0; i < 31; ++i) {
-    EXPECT_FALSE(bits.is_set(i)) << "Bit " << i << " should be unset";
+  {
+    auto bits = BitVector::CreateWithSize(31);
+    EXPECT_EQ(bits.size(), 31u);
+    for (size_t i = 0; i < 31; ++i) {
+      EXPECT_FALSE(bits.is_set(i)) << "Bit " << i << " should be unset";
+    }
+  }
+  {
+    auto bits = BitVector::CreateWithSize(65, true);
+    EXPECT_EQ(bits.size(), 65u);
+    for (size_t i = 0; i < 65; ++i) {
+      EXPECT_TRUE(bits.is_set(i)) << "Bit " << i << " should be set";
+    }
   }
 }
 
