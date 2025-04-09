@@ -22,7 +22,6 @@
 #include <set>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "src/kernel_utils/syscall_table.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
@@ -30,6 +29,8 @@
 #include "src/traced/probes/ftrace/ftrace_print_filter.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+
+#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 
 namespace perfetto {
 
@@ -98,10 +99,10 @@ struct FtraceDataSourceConfig {
   // FtraceConfig.drain_buffer_percent for poll-based reads. Zero if unset.
   const uint32_t buffer_percent;
 
-  // List of syscalls monitored to return a new filedescriptor upon success
+  // Niche: syscall numbers to scan for new file descriptors.
   base::FlatSet<int64_t> syscalls_returning_fd;
 
-  // Keep track of the kprobe type for the given tracefs event id
+  // Keyed by ftrace event id.
   base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType> kprobes;
 
   // For development/debugging, serialise raw ring buffer pages if on a
@@ -133,6 +134,9 @@ class FtraceConfigMuxer {
       std::map<std::string, std::vector<GroupAndName>> vendor_events,
       bool secondary_instance = false);
   virtual ~FtraceConfigMuxer();
+
+  FtraceConfigMuxer(const FtraceConfigMuxer&) = delete;
+  FtraceConfigMuxer& operator=(const FtraceConfigMuxer&) = delete;
 
   // Ask FtraceConfigMuxer to adjust ftrace procfs settings to
   // match the requested config. Returns true on success and false on failure.
@@ -216,9 +220,6 @@ class FtraceConfigMuxer {
     // Set of kprobes that we've installed, to be cleaned up when tracing stops.
     base::FlatSet<GroupAndName> installed_kprobes;
   };
-
-  FtraceConfigMuxer(const FtraceConfigMuxer&) = delete;
-  FtraceConfigMuxer& operator=(const FtraceConfigMuxer&) = delete;
 
   void SetupClock(const FtraceConfig& request);
   void SetupBufferSize(const FtraceConfig& request);

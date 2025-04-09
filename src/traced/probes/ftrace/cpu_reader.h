@@ -338,8 +338,7 @@ class CpuReader {
   static bool ParseSysEnter(const Event& info,
                             const uint8_t* start,
                             const uint8_t* end,
-                            protozero::Message* message,
-                            FtraceMetadata* metadata);
+                            protozero::Message* message);
 
   // Parse a sys_exit event according to the pre-validated expected format
   static bool ParseSysExit(const Event& info,

@@ -713,13 +713,11 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   }
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
-  std::map<GroupAndName, KprobeEvent::KprobeType> events_kprobes =
-      GetFtraceKprobeEvents(request);
 
-  // Vendors can provide a set of extra ftrace categories to be enabled when a
-  // specific atrace category is used (e.g. "gfx" -> ["my_hw/my_custom_event",
-  // "my_hw/my_special_gpu"]). Merge them with the hard coded events for each
-  // categories.
+  // Android: vendors can provide a set of extra ftrace categories to be enabled
+  // when a specific atrace category is used
+  // (e.g. "gfx" -> ["my_hw/my_custom_event", "my_hw/my_special_gpu"]).
+  // Merge them with the hardcoded events for each categories.
   for (const std::string& category : request.atrace_categories()) {
     if (vendor_events_.count(category)) {
       for (const GroupAndName& event : vendor_events_[category]) {
@@ -728,6 +726,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     }
   }
 
+  // Android: update userspace tracing control state if necessary.
   if (RequiresAtrace(request)) {
     if (secondary_instance_) {
       PERFETTO_ELOG(
@@ -744,6 +743,9 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     UpdateAtrace(request, errors ? &errors->atrace_errors : nullptr);
   }
 
+  // Set up and enable kprobe events.
+  std::map<GroupAndName, KprobeEvent::KprobeType> events_kprobes =
+      GetFtraceKprobeEvents(request);
   base::FlatHashMap<uint32_t, KprobeEvent::KprobeType> kprobes;
   for (const auto& [group_and_name, type] : events_kprobes) {
     if (!ValidateKprobeName(group_and_name.name())) {
@@ -752,8 +754,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
         errors->failed_ftrace_events.push_back(group_and_name.ToString());
       continue;
     }
-    // Kprobes events are created after their definition is written in the
-    // kprobe_events file
+    // Create kprobe in the kernel by writing to the tracefs.
     if (!ftrace_->CreateKprobeEvent(
             group_and_name.group(), group_and_name.name(),
             group_and_name.group() == kKretprobeGroup)) {
@@ -779,15 +780,14 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     kprobes[event->ftrace_event_id] = type;
   }
 
+  // Enable ftrace events.
   for (const auto& group_and_name : events) {
+    // Kprobe group is reserved.
     if (group_and_name.group() == kKprobeGroup ||
         group_and_name.group() == kKretprobeGroup) {
-      PERFETTO_DLOG("Can't enable %s, group reserved for kprobes",
-                    group_and_name.ToString().c_str());
-      if (errors)
-        errors->failed_ftrace_events.push_back(group_and_name.ToString());
       continue;
     }
+
     const Event* event = table_->GetOrCreateEvent(group_and_name);
     if (!event) {
       PERFETTO_DLOG("Can't enable %s, event not known",
@@ -811,6 +811,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     EnableFtraceEvent(event, group_and_name, &filter, errors);
   }
 
+  // Syscall tracing via kernel-filtered "raw_syscalls" tracepoint.
   EventFilter syscall_filter = BuildSyscallFilter(filter, request);
   if (!SetSyscallEventFilter(syscall_filter)) {
     PERFETTO_ELOG("Failed to set raw_syscall ftrace filter in SetupConfig");
@@ -829,14 +830,22 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   // steering in the parser), and we don't want to remove functions midway
   // through a trace (but some might get added).
   if (request.enable_function_graph()) {
-    if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionFilters())
+    if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionFilters()) {
+      PERFETTO_PLOG("Failed to clear .../set_ftrace_filter");
       return false;
-    if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionGraphFilters())
+    }
+    if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionGraphFilters()) {
+      PERFETTO_PLOG("Failed to clear .../set_graph_function");
       return false;
-    if (!ftrace_->AppendFunctionFilters(request.function_filters()))
+    }
+    if (!ftrace_->AppendFunctionFilters(request.function_filters())) {
+      PERFETTO_PLOG("Failed to append to .../set_ftrace_filter");
       return false;
-    if (!ftrace_->AppendFunctionGraphFilters(request.function_graph_roots()))
+    }
+    if (!ftrace_->AppendFunctionGraphFilters(request.function_graph_roots())) {
+      PERFETTO_PLOG("Failed to append to .../set_graph_function");
       return false;
+    }
     if (!current_state_.funcgraph_on &&
         !ftrace_->SetCurrentTracer("function_graph")) {
       PERFETTO_LOG(
@@ -846,6 +855,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     }
     current_state_.funcgraph_on = true;
   }
+
   const auto& compact_format = table_->compact_sched_format();
   auto compact_sched = CreateCompactSchedConfig(
       request, filter.IsEventEnabled(compact_format.sched_switch.event_id),
