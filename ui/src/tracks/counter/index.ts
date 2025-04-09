@@ -93,7 +93,7 @@ class CounterTrackController extends TrackController<Config, Data> {
             value,
             delta
           from experimental_counter_dur
-          where track_id = ${this.config.trackId};
+          where track_id = ${this.config.trackId} and value is not null;
         `;
       } else {
         ddl = (counterView) => `
