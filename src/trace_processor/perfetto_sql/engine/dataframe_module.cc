@@ -71,7 +71,6 @@ std::string CreateTableStmt(
     create_stmt += spec.name + " " + ToSqliteCreateTableType(spec.type) + ", ";
   }
   create_stmt += "PRIMARY KEY(id)) WITHOUT ROWID";
-  PERFETTO_ELOG("Create table stmt: %s", create_stmt.c_str());
   return create_stmt;
 }
 
