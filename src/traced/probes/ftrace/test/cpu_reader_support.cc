@@ -49,7 +49,7 @@ ProtoTranslationTable* GetTable(const std::string& name) {
 
   PERFETTO_CHECK(!g_tracefs.ref().count(name));
   std::string path = "src/traced/probes/ftrace/test/data/" + name + "/";
-  struct stat st {};
+  struct stat st{};
   if (lstat(path.c_str(), &st) == -1 && errno == ENOENT) {
     // For OSS fuzz, which does not run in the correct cwd.
     path = base::GetTestDataPath(path);
