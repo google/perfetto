@@ -24,7 +24,6 @@ import sys
 import tempfile
 import time
 
-
 # ----- Amalgamator: begin of python/perfetto/prebuilts/perfetto_prebuilts.py
 # Copyright (C) 2021 The Android Open Source Project
 #
@@ -152,6 +151,7 @@ def run_perfetto_prebuilt(manifest):
   if sys.platform.lower() == 'win32':
     sys.exit(subprocess.check_call([bin_path, *sys.argv[1:]]))
   os.execv(bin_path, [bin_path] + sys.argv[1:])
+
 
 # ----- Amalgamator: end of python/perfetto/prebuilts/perfetto_prebuilts.py
 

@@ -62,6 +62,7 @@ CLEANUP_OLD_DIRS = [
     'buildtools/emsdk',  # Moved to buildtools/{mac,linux64}/emsdk
     'buildtools/test_data',  # Moved to test/data by r.android.com/1539381 .
     'buildtools/d8',  # Removed by r.android.com/1424334 .
+    'buildtools/sqlglot',
 
     # Build tools moved to third_party/ by r.android.com/2327602 .
     'buildtools/mac/clang-format',
@@ -328,10 +329,6 @@ BUILD_DEPS_HOST = [
         'buildtools/open_csd',
         'https://android.googlesource.com/platform/external/OpenCSD.git',
         '0ce01e934f95efb6a216a6efa35af1245151c779', 'all', 'all'),
-
-    # sqlglot for SQL formatting.
-    Dependency('buildtools/sqlglot', 'https://github.com/tobymao/sqlglot.git',
-               'dd1cdb0b91ac597a9cb1f1f517a616c264f5b654', 'all', 'all'),
 ]
 
 # Dependencies required to build code on the host using Bazel build system.
@@ -518,6 +515,9 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_DIR = os.path.join(ROOT_DIR, 'ui')
 TOOLS_DIR = os.path.join(ROOT_DIR, 'tools')
 NODE_MODULES_STATUS_FILE = os.path.join(UI_DIR, 'node_modules', '.last_install')
+PYTHON_VENV_DIR = os.path.join(ROOT_DIR, '.venv')
+PYTHON_STATUS_FILE = os.path.join(PYTHON_VENV_DIR, '.last_install')
+PYTHON_REQUIREMENTS = os.path.join(ROOT_DIR, 'python', 'requirements.txt')
 TEST_DATA_SCRIPT = os.path.join(TOOLS_DIR, 'test_data')
 
 
@@ -684,6 +684,31 @@ def CheckNodeModules():
     actual = f.read()
   expected = HashLocalFile(os.path.join(UI_DIR, 'pnpm-lock.yaml'))
   return expected == actual
+
+
+def CheckPythonVenv():
+  """Returns True if the python venv is up-to-date."""
+  if not os.path.exists(PYTHON_STATUS_FILE):
+    return False
+  with open(PYTHON_STATUS_FILE, 'r') as f:
+    actual = f.read()
+  expected = HashLocalFile(PYTHON_REQUIREMENTS)
+  return expected == actual
+
+
+def InstallPythonVenv():
+  venv_pip = os.path.join(PYTHON_VENV_DIR, 'bin', 'pip3')
+  cur_python_interpreter = sys.executable
+  if not os.path.exists(venv_pip):
+    cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
+    logging.info(f'Installing python venv {" ".join(cmd)}')
+    subprocess.check_call(cmd)
+
+  cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
+  logging.info(f'Updating pythong packages {" ".join(cmd)}')
+  subprocess.check_call(cmd)
+  with open(PYTHON_STATUS_FILE, 'w') as f:
+    f.write(HashLocalFile(PYTHON_REQUIREMENTS))
 
 
 def CheckHashes():
@@ -877,6 +902,13 @@ def Main():
       deps_updated |= not CheckNodeModules()
     else:
       InstallNodeModules(force_clean=nodejs_updated)
+
+  # Check the python venv
+  venv_needs_update = not CheckPythonVenv()
+  if args.check_only:
+    deps_updated |= venv_needs_update
+  elif venv_needs_update:
+    InstallPythonVenv()
 
   # Install the pre-push hook if the .git/hooks directory exists and it's a
   # non check-only invocation.

@@ -277,6 +277,7 @@ def run_perfetto_prebuilt(manifest):
     sys.exit(subprocess.check_call([bin_path, *sys.argv[1:]]))
   os.execv(bin_path, [bin_path] + sys.argv[1:])
 
+
 # ----- Amalgamator: end of python/perfetto/prebuilts/perfetto_prebuilts.py
 
 if __name__ == '__main__':
