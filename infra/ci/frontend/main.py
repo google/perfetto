@@ -21,6 +21,7 @@ import time
 import json
 
 from collections import namedtuple
+from datetime import datetime
 from config import GITHUB_REPO, PROJECT
 from common_utils import SCOPES, get_github_installation_token, req_async, utc_now_iso
 from google.cloud import ndb
@@ -29,7 +30,6 @@ from stackdriver_metrics import STACKDRIVER_METRICS
 STACKDRIVER_API = 'https://monitoring.googleapis.com/v3/projects/%s' % PROJECT
 
 SCOPES.append('https://www.googleapis.com/auth/cloud-platform')
-# SCOPES.append('https://www.googleapis.com/auth/userinfo.email')
 SCOPES.append('https://www.googleapis.com/auth/datastore')
 SCOPES.append('https://www.googleapis.com/auth/monitoring')
 SCOPES.append('https://www.googleapis.com/auth/monitoring.write')
@@ -50,8 +50,9 @@ logging.basicConfig(
     level=logging.DEBUG if os.getenv('VERBOSE') else logging.INFO,
     datefmt=r'%Y-%m-%d %H:%M:%S')
 
+# Cache the GitHub installation token and refresh it every hour.
 _cached_gh_token = None
-_cached_gh_token_expiry = 0  # Epoch timestamp
+_cached_gh_token_expiry = 0
 
 
 def get_cached_github_token():
@@ -142,6 +143,7 @@ async def get_jobs_for_workflow_run(id):
         'status': job.get('status'),
         'conclusion': job.get('conclusion'),
         'created_at': job.get('created_at'),
+        'started_at': job.get('started_at'),
         'updated_at': job.get('updated_at'),
         'completed_at': job.get('completed_at'),
         'runner_id': job.get('runner_id'),
@@ -161,6 +163,7 @@ async def workflow_runs_and_jobs():
       continue
     resp_obj = {
         'id': run.get('id'),
+        'name': run.get('name'),
         'event': run.get('event'),
         'display_title': run.get('display_title'),
         'html_url': run.get('html_url'),
@@ -183,34 +186,63 @@ async def workflow_runs_and_jobs():
 async def update_metrics():
   workflows = await workflow_runs_and_jobs()
   num_pending = 0
+  all_metrics = []
+  # First compute the queue len in a dedicated pass. This is so that if there
+  # is a bug/crash in the metrics computation below, we don't screw up the
+  # autoscaler.
   for w in workflows:
     for j in w.get('jobs', []):
       num_pending += 1 if j['status'] in ('queued', 'in_progress') else 0
-  await write_metrics({'ci_job_queue_len': {'v': num_pending}})
-  return {'ci_job_queue_len': num_pending}
+  queue_len_metric = ('ci_job_queue_len', {'v': num_pending})
+  all_metrics.append(queue_len_metric)
+  await write_metrics([queue_len_metric])
+
+  # Compute the FYI metrics for the dashboard.
+  for w in workflows:
+    j = None
+    metrics = []
+    if w['conclusion'] != 'success':
+      continue
+    datastore_key = 'workflow_%s' % w['id']
+    if was_metric_recorded(datastore_key):
+      continue
+    w_created = datetime.fromisoformat(w['created_at'])
+    w_updated = datetime.fromisoformat(w['updated_at'])
+    metrics += [('ci_cl_completion_time', {
+        'l': {},
+        'v': int((w_updated - w_created).seconds)
+    })]
+    for j in w.get('jobs', []):
+      job_name = j['name']
+      if j['conclusion'] == 'success':
+        j_completed = datetime.fromisoformat(j['completed_at'])
+        j_started = datetime.fromisoformat(j['started_at'])
+        metrics += [('ci_job_run_time', {
+            'l': {
+                'job_type': job_name
+            },
+            'v': int((j_completed - j_started).seconds)
+        }),
+                    ('ci_job_queue_time', {
+                        'l': {
+                            'job_type': job_name
+                        },
+                        'v': int((j_started - w_created).seconds)
+                    })]
+    if len(metrics) > 0:
+      await write_metrics(metrics)
+      mark_metric_as_recorded(datastore_key)
+      all_metrics += metrics
+  return all_metrics
 
 
-class MetricFlag(ndb.Model):
-  updated = ndb.BooleanProperty()
-
-
-def was_metric_updated(metric_key: str) -> bool:
-  with ndb_client.context():
-    key = ndb.Key(MetricFlag, metric_key)
-    entity = key.get()
-    return entity.updated if entity else False
-
-
-def mark_metric_as_updated(metric_key: str):
-  with ndb_client.context():
-    key = ndb.Key(MetricFlag, metric_key)
-    MetricFlag(key=key, updated=True).put()
-
-
-async def write_metrics(metric_dict):
+async def write_metrics(metrics):
+  logging.info(f'Writing {len(metrics)} metrics to Stackdriver')
+  if len(metrics) == 0:
+    return
   now = utc_now_iso()
   desc = {'timeSeries': []}
-  for key, spec in metric_dict.items():
+  for key, spec in metrics:
     desc['timeSeries'] += [{
         'metric': {
             'type': STACKDRIVER_METRICS[key]['type'],
@@ -235,3 +267,23 @@ async def write_metrics(metric_dict):
     msg = str(e)
     if 'written more frequently than the maximum sampling' not in msg:
       logging.error('Metrics update failed: %s', msg)
+
+
+# We use datastore to remember which metrics we computed and pushed to
+# stackdriver. This is to avoid re-emitting metrics for the same job
+# on each periodic poll.
+class MetricFlag(ndb.Model):
+  updated = ndb.BooleanProperty()
+
+
+def was_metric_recorded(metric_key: str) -> bool:
+  with ndb_client.context():
+    key = ndb.Key(MetricFlag, metric_key)
+    entity = key.get()
+    return entity.updated if entity else False
+
+
+def mark_metric_as_recorded(metric_key: str):
+  with ndb_client.context():
+    key = ndb.Key(MetricFlag, metric_key)
+    MetricFlag(key=key, updated=True).put()

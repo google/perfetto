@@ -20,12 +20,14 @@ GOOGLE_CLOUD_PROJECT=perfetto-ci
 
 test: LOGLEVEL=info
 test: static_3p config.py common_utils.py static/config.js
+	gcloud auth application-default login \
+			--impersonate-service-account perfetto-ci@appspot.gserviceaccount.com
 	python3 `which dev_appserver.py` app.yaml \
 		--dev_appserver_log_level ${LOGLEVEL} \
 		--port 8081
 
 deploy: static_3p config.py common_utils.py static/config.js
-	gcloud app deploy -q app.yaml \
+	gcloud app deploy -q app.yaml cron.yaml \
 		--project ${PROJECT} \
 		-v ${GAE_VERSION} \
 		--stop-previous-version

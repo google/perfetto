@@ -14,4 +14,4 @@
 cron:
 - description: "Autoscaler metrics"
   url: /gh/update_metrics
-  schedule: every 5 minutes
+  schedule: every 2 minutes
