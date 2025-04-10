@@ -23,22 +23,28 @@ import {
   VirtualElement,
 } from '@popperjs/core';
 import {classNames} from '../base/classnames';
+import {Point2D, Vector2D} from '../base/geom';
 
 export interface CursorTooltipAttrs extends HTMLAttrs {}
 
 class VElement implements VirtualElement {
-  private x = 0;
-  private y = 0;
+  private pos = new Vector2D({x: 0, y: 0});
 
   getBoundingClientRect() {
-    return new DOMRect(this.x, this.y, 0, 0);
+    return new DOMRect(this.pos.x, this.pos.y, 0, 0);
   }
 
-  setPosition(x: number, y: number) {
-    this.x = x;
-    this.y = y;
+  setPosition(pos: Point2D) {
+    this.pos = new Vector2D(pos);
   }
 }
+
+// Keep track of the mouse position in the document so that the cursor can be
+// initially drawn in the correct place, before it's received any mouse events.
+let globalMousePos: Point2D;
+document.addEventListener('mousemove', (e) => {
+  globalMousePos = new Vector2D({x: e.clientX, y: e.clientY});
+});
 
 /**
  * Provides a little tooltip that's permanently attached to the mouse.
@@ -59,6 +65,7 @@ export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
         ...rest,
         className: classNames('pf-cursor-tooltip', className),
         onContentMount: (portal) => {
+          this.virtualElement.setPosition(globalMousePos);
           this.popper = createPopper(this.virtualElement, portal, {
             placement: 'right-start',
             modifiers: [
@@ -82,7 +89,7 @@ export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
   oncreate(_: m.VnodeDOM<CursorTooltipAttrs>) {
     this.trash.use(
       bindEventListener(document, 'mousemove', (e) => {
-        this.virtualElement.setPosition(e.clientX, e.clientY);
+        this.virtualElement.setPosition({x: e.clientX, y: e.clientY});
         this.popper?.update();
       }),
     );
