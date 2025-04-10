@@ -51,6 +51,8 @@ logging.basicConfig(
 _cached_gh_token = None
 _cached_gh_token_expiry = 0  # Epoch timestamp
 
+HEX_PATTERN = re.compile(r'^[0-9a-fA-F]+$')
+
 
 def get_cached_github_token():
   global _cached_gh_token, _cached_gh_token_expiry
@@ -83,39 +85,6 @@ async def create_stackdriver_metric_definitions():
     await req_async('POST', STACKDRIVER_API + '/metricDescriptors', body=metric)
 
 
-@app.route('/gh/runners')
-async def gh_runners():
-  params = {'per_page': 100}
-  url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runners'
-  return gh_req(url, params=params)
-
-
-@app.route('/gh/jobs')
-async def gh_jobs():
-  params = {'per_page': 100}
-  url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runs'
-  return gh_req(url, params=params)
-
-
-@app.route('/gh/purge_runners')
-async def gh_purge_runners():
-  headers = {
-      'Authorization': f'token {get_github_installation_token()}',
-      'Accept': 'application/vnd.github+json'
-  }
-  js = json.loads(await gh_runners())
-  deleted = 0
-  for r in js.get('runners', []):
-    if r['status'] != 'offline':
-      continue
-    id = str(r['id'])
-    url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runners/${id}'
-    import sys
-    resp = requests.delete(url, headers=headers)
-    deleted += 1 if resp.status_code == 204 else 0
-  return str(deleted)
-
-
 @app.route('/gh/pulls')
 async def gh_pulls():
   url = f'https://api.github.com/repos/{GITHUB_REPO}/pulls'
@@ -130,6 +99,8 @@ async def gh_pulls():
 
 @app.route('/gh/checks/<string:sha>')
 async def gh_checks(sha):
+  if not HEX_PATTERN.fullmatch(sha):
+    flask.abort(400, description="Invalid hex string")
   url = f'https://api.github.com/repos/{GITHUB_REPO}/commits/{sha}/check-runs'
   return gh_req(url)
 
@@ -145,6 +116,61 @@ async def gh_commits_main():
   url = f'https://api.github.com/repos/{GITHUB_REPO}/commits'
   params = {'sha': 'main'}
   return gh_req(url, params=params)
+
+
+@app.route('/gh/runners')
+async def gh_runners():
+  params = {'per_page': 100}
+  url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runners'
+  return gh_req(url, params=params)
+
+
+async def get_jobs_for_workflow_run(id):
+  url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runs/{id}/jobs'
+  resp = gh_req(url, params={'per_page': 100})
+  respj = json.loads(resp)
+  jobs = []
+  for job in respj['jobs']:
+    jobs.append({
+        'id': job.get('id'),
+        'name': job.get('name'),
+        'html_url': job.get('html_url'),
+        'status': job.get('status'),
+        'conclusion': job.get('conclusion'),
+        'created_at': job.get('created_at'),
+        'updated_at': job.get('updated_at'),
+        'completed_at': job.get('completed_at'),
+        'runner_id': job.get('runner_id'),
+        'runner_name': job.get('runner_name'),
+    })
+  return jobs
+
+
+@app.route('/gh/workflows')
+async def workflow_runs_and_jobs():
+  url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runs'
+  resp = gh_req(url, params={'per_page': 100})
+  respj = json.loads(resp)
+  runs = []
+  for run in respj['workflow_runs']:
+    if run.get('name') != 'Perfetto CI':
+      continue
+    resp_obj = {
+        'id': run.get('id'),
+        'event': run.get('event'),
+        'display_title': run.get('display_title'),
+        'html_url': run.get('html_url'),
+        'head_sha': run.get('head_sha'),
+        'status': run.get('status'),
+        'conclusion': run.get('conclusion'),
+        'login': run.get('actor', {}).get('login'),
+        'created_at': run.get('created_at'),
+        'updated_at': run.get('updated_at'),
+        'run_started_at': run.get('run_started_at'),
+        'jobs': await get_jobs_for_workflow_run(run.get('id'))
+    }
+    runs.append(resp_obj)
+  return runs
 
 
 @app.route('/gh/update_metrics')

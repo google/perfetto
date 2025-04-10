@@ -226,6 +226,26 @@ a:hover {
     color: #607d8b;
 }
 
+
+/* Jobs page */
+
+.main-table tr.workflow.in_progress {
+    color: #2a8229;
+}
+
+.main-table tr.workflow.queued {
+    color: #ffa000;
+}
+
+.main-table tr.workflow.completed {
+    color: #999;
+}
+
+.main-table tr.workflow.failure {
+    color: #db4545;
+}
+
+
 .main-table tbody td.align-left {
     text-align: left
 }
