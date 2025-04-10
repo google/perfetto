@@ -14,24 +14,24 @@
  * permissions and limitations under the License.
  */
 
-'use strict';
+"use strict";
 
 // If you add or remove job types, do not forget to fix the colspans below.
 const JOB_TYPES = [
-  { id: 'linux-gcc8-x86_64-release', label: 'rel' },
-  { id: 'linux-clang-x86_64-debug', label: 'dbg' },
-  { id: 'linux-clang-x86_64-tsan', label: 'tsan' },
-  { id: 'linux-clang-x86_64-msan', label: 'msan' },
-  { id: 'linux-clang-x86_64-asan_lsan', label: '{a,l}san' },
-  { id: 'linux-clang-x86-release', label: 'x86 rel' },
-  { id: 'linux-clang-x86_64-libfuzzer', label: 'fuzzer' },
-  { id: 'linux-clang-x86_64-bazel', label: 'bazel' },
-  { id: 'ui-clang-x86_64-release', label: 'rel' },
-  { id: 'android-clang-arm-release', label: 'rel' },
+  { id: "linux-gcc8-x86_64-release", label: "rel" },
+  { id: "linux-clang-x86_64-debug", label: "dbg" },
+  { id: "linux-clang-x86_64-tsan", label: "tsan" },
+  { id: "linux-clang-x86_64-msan", label: "msan" },
+  { id: "linux-clang-x86_64-asan_lsan", label: "{a,l}san" },
+  { id: "linux-clang-x86-release", label: "x86 rel" },
+  { id: "linux-clang-x86_64-libfuzzer", label: "fuzzer" },
+  { id: "linux-clang-x86_64-bazel", label: "bazel" },
+  { id: "ui-clang-x86_64-release", label: "rel" },
+  { id: "android-clang-arm-release", label: "rel" },
 ];
 
 const STATS_LINK =
-    'https://app.google.stackdriver.com/dashboards/5008687313278081798?project=perfetto-ci';
+  "https://app.google.stackdriver.com/dashboards/5008687313278081798?project=perfetto-ci";
 
 const state = {
   // An array of recent CL objects retrieved from Gerrit.
@@ -68,10 +68,11 @@ const state = {
 
   // Lines that will be appended to the terminal on the next redraw() cycle.
   termLines: [
-    'Hover a CL icon to see the log tail.', 'Click on it to load the full log.'
+    "Hover a CL icon to see the log tail.",
+    "Click on it to load the full log.",
   ],
-  termJobId: undefined,  // The job id currently being shown by the terminal.
-  termClear: false,      // If true the next redraw will clear the terminal.
+  termJobId: undefined, // The job id currently being shown by the terminal.
+  termClear: false, // If true the next redraw will clear the terminal.
   redrawPending: false,
 
   // State for the Jobs page. These are arrays of job ids.
@@ -80,14 +81,14 @@ const state = {
   jobsRecent: [],
 
   // Firebase DB listeners (the objects returned by the .ref() operator).
-  realTimeLogRef: undefined,  // Ref for the real-time log streaming.
+  realTimeLogRef: undefined, // Ref for the real-time log streaming.
   workersRef: undefined,
   jobsRunningRef: undefined,
   jobsQueuedRef: undefined,
   jobsRecentRef: undefined,
-  clRefs: {},     // '1234-1' -> Ref subscribed to updates on the given cl.
-  jobRefs: {},    // '....-arm-asan' -> Ref subscribed updates on the given job.
-  branchRefs: {}  // 'main' -> Ref subscribed updates on the given branch.
+  clRefs: {}, // '1234-1' -> Ref subscribed to updates on the given cl.
+  jobRefs: {}, // '....-arm-asan' -> Ref subscribed updates on the given job.
+  branchRefs: {}, // 'main' -> Ref subscribed updates on the given branch.
 };
 
 let term = undefined;
@@ -97,17 +98,17 @@ let searchAddon = undefined;
 function main() {
   firebase.initializeApp({ databaseURL: cfg.DB_ROOT });
 
-  m.route(document.body, '/cls', {
-    '/cls': CLsPageRenderer,
-    '/cls/:cl': CLsPageRenderer,
-    '/logs/:jobId': LogsPageRenderer,
-    '/jobs': JobsPageRenderer,
-    '/jobs/:jobId': JobsPageRenderer,
+  m.route(document.body, "/cls", {
+    "/cls": CLsPageRenderer,
+    "/cls/:cl": CLsPageRenderer,
+    "/logs/:jobId": LogsPageRenderer,
+    "/jobs": JobsPageRenderer,
+    "/jobs/:jobId": JobsPageRenderer,
   });
 
   setInterval(fetchGerritCLs, 15000);
   fetchGerritCLs();
-  fetchCIStatusForBranch('main');
+  fetchCIStatusForBranch("main");
 }
 
 // -----------------------------------------------------------------------------
@@ -115,49 +116,56 @@ function main() {
 // -----------------------------------------------------------------------------
 
 function renderHeader() {
-  const active = id => m.route.get().startsWith(`/${id}`) ? '.active' : '';
-  const logUrl = 'https://goto.google.com/perfetto-ci-logs-';
+  const active = (id) => (m.route.get().startsWith(`/${id}`) ? ".active" : "");
+  const logUrl = "https://goto.google.com/perfetto-ci-logs-";
   const docsUrl =
-      'https://perfetto.dev/docs/design-docs/continuous-integration';
+    "https://perfetto.dev/docs/design-docs/continuous-integration";
   return m(
-      'header', m('a[href=/#!/cls]', m('h1', 'Perfetto ', m('span', 'CI'))),
+    "header",
+    m("a[href=/#!/cls]", m("h1", "Perfetto ", m("span", "CI"))),
+    m(
+      "nav",
+      m(`div${active("cls")}`, m("a[href=/#!/cls]", "CLs")),
+      m(`div${active("jobs")}`, m("a[href=/#!/jobs]", "Jobs")),
       m(
-          'nav',
-          m(`div${active('cls')}`, m('a[href=/#!/cls]', 'CLs')),
-          m(`div${active('jobs')}`, m('a[href=/#!/jobs]', 'Jobs')),
-          m(`div${active('stats')}`,
-            m(`a[href=${STATS_LINK}][target=_blank]`, 'Stats')),
-          m(`div`, m(`a[href=${docsUrl}][target=_blank]`, 'Docs')),
-          m(
-              `div.logs`,
-              'Logs',
-              m('div',
-                m(`a[href=${logUrl}controller][target=_blank]`, 'Controller')),
-              m('div', m(`a[href=${logUrl}workers][target=_blank]`, 'Workers')),
-              m('div',
-                m(`a[href=${logUrl}frontend][target=_blank]`, 'Frontend')),
-              ),
-          ));
+        `div${active("stats")}`,
+        m(`a[href=${STATS_LINK}][target=_blank]`, "Stats"),
+      ),
+      m(`div`, m(`a[href=${docsUrl}][target=_blank]`, "Docs")),
+      m(
+        `div.logs`,
+        "Logs",
+        m("div", m(`a[href=${logUrl}controller][target=_blank]`, "Controller")),
+        m("div", m(`a[href=${logUrl}workers][target=_blank]`, "Workers")),
+        m("div", m(`a[href=${logUrl}frontend][target=_blank]`, "Frontend")),
+      ),
+    ),
+  );
 }
 
 var CLsPageRenderer = {
   view: function (vnode) {
     const allCols = 4 + JOB_TYPES.length;
-    const postsubmitHeader = m('tr',
-      m(`td.header[colspan=${allCols}]`, 'Post-submit')
+    const postsubmitHeader = m(
+      "tr",
+      m(`td.header[colspan=${allCols}]`, "Post-submit"),
     );
 
-    const postsubmitLoadMore = m('tr',
-      m(`td[colspan=${allCols}]`,
-        m('a[href=#]',
-          { onclick: () => state.postsubmitShown += 10 },
-          'Load more'
-        )
-      )
+    const postsubmitLoadMore = m(
+      "tr",
+      m(
+        `td[colspan=${allCols}]`,
+        m(
+          "a[href=#]",
+          { onclick: () => (state.postsubmitShown += 10) },
+          "Load more",
+        ),
+      ),
     );
 
-    const presubmitHeader = m('tr',
-      m(`td.header[colspan=${allCols}]`, 'Pre-submit')
+    const presubmitHeader = m(
+      "tr",
+      m(`td.header[colspan=${allCols}]`, "Pre-submit"),
     );
 
     let branchRows = [];
@@ -175,62 +183,70 @@ var CLsPageRenderer = {
 
     let footer = [];
     if (vnode.attrs.cl) {
-      footer = m('footer',
+      footer = m(
+        "footer",
         `Showing only CL ${vnode.attrs.cl} - `,
-        m(`a[href=#!/cls]`, 'Click here to see all CLs')
+        m(`a[href=#!/cls]`, "Click here to see all CLs"),
       );
     }
 
     return [
       renderHeader(),
-      m('main#cls',
-        m('div.table-scrolling-container',
-          m('table.main-table',
-            m('thead',
-              m('tr',
-                m('td[rowspan=4]', 'Subject'),
-                m('td[rowspan=4]', 'Status'),
-                m('td[rowspan=4]', 'Owner'),
-                m('td[rowspan=4]', 'Updated'),
-                m('td[colspan=10]', 'Bots'),
+      m(
+        "main#cls",
+        m(
+          "div.table-scrolling-container",
+          m(
+            "table.main-table",
+            m(
+              "thead",
+              m(
+                "tr",
+                m("td[rowspan=4]", "Subject"),
+                m("td[rowspan=4]", "Status"),
+                m("td[rowspan=4]", "Owner"),
+                m("td[rowspan=4]", "Updated"),
+                m("td[colspan=10]", "Bots"),
               ),
-              m('tr',
-                m('td[colspan=9]', 'linux'),
-                m('td[colspan=2]', 'android'),
+              m(
+                "tr",
+                m("td[colspan=9]", "linux"),
+                m("td[colspan=2]", "android"),
               ),
-              m('tr',
-                m('td', 'gcc8'),
-                m('td[colspan=7]', 'clang'),
-                m('td[colspan=1]', 'ui'),
-                m('td[colspan=1]', 'clang-arm'),
+              m(
+                "tr",
+                m("td", "gcc8"),
+                m("td[colspan=7]", "clang"),
+                m("td[colspan=1]", "ui"),
+                m("td[colspan=1]", "clang-arm"),
               ),
-              m('tr#cls_header',
-                JOB_TYPES.map(job => m(`td#${job.id}`, job.label))
+              m(
+                "tr#cls_header",
+                JOB_TYPES.map((job) => m(`td#${job.id}`, job.label)),
               ),
             ),
-            m('tbody',
+            m(
+              "tbody",
               postsubmitHeader,
               branchRows,
               postsubmitLoadMore,
               presubmitHeader,
               clRows,
-            )
+            ),
           ),
           footer,
         ),
         m(TermRenderer),
       ),
     ];
-  }
+  },
 };
-
 
 function getLastUpdate(lastUpdate) {
   const lastUpdateMins = Math.ceil((Date.now() - lastUpdate) / 60000);
-  if (lastUpdateMins < 60)
-    return lastUpdateMins + ' mins ago';
+  if (lastUpdateMins < 60) return lastUpdateMins + " mins ago";
   if (lastUpdateMins < 60 * 24)
-    return Math.ceil(lastUpdateMins / 60) + ' hours ago';
+    return Math.ceil(lastUpdateMins / 60) + " hours ago";
   return lastUpdate.toISOString().substr(0, 10);
 }
 
@@ -239,24 +255,32 @@ function renderCLRow(cl) {
   const toggleExpand = () => {
     state.expandCl[cl.num] ^= 1;
     fetchCIJobsForAllPatchsetOfCL(cl.num);
-  }
+  };
   const rows = [];
 
   // Create the row for the latest patchset (as fetched by Gerrit).
-  rows.push(m(`tr.${cl.status}`,
-    m('td',
-      m(`i.material-icons.expand${expanded ? '.expanded' : ''}`,
-        { onclick: toggleExpand },
-        'arrow_right'
+  rows.push(
+    m(
+      `tr.${cl.status}`,
+      m(
+        "td",
+        m(
+          `i.material-icons.expand${expanded ? ".expanded" : ""}`,
+          { onclick: toggleExpand },
+          "arrow_right",
+        ),
+        m(
+          `a[href=${cfg.GERRIT_REVIEW_URL}/+/${cl.num}/${cl.psNum}]`,
+          `${cl.subject}`,
+          m("span.ps", `#${cl.psNum}`),
+        ),
       ),
-      m(`a[href=${cfg.GERRIT_REVIEW_URL}/+/${cl.num}/${cl.psNum}]`,
-        `${cl.subject}`, m('span.ps', `#${cl.psNum}`))
+      m("td", cl.status),
+      m("td", stripEmail(cl.owner || "")),
+      m("td", getLastUpdate(cl.lastUpdate)),
+      JOB_TYPES.map((x) => renderClJobCell(`cls/${cl.num}-${cl.psNum}`, x.id)),
     ),
-    m('td', cl.status),
-    m('td', stripEmail(cl.owner || '')),
-    m('td', getLastUpdate(cl.lastUpdate)),
-    JOB_TYPES.map(x => renderClJobCell(`cls/${cl.num}-${cl.psNum}`, x.id))
-  ));
+  );
 
   // If the usere clicked on the expand button, show also the other patchsets
   // present in the CI DB.
@@ -264,16 +288,23 @@ function renderCLRow(cl) {
     const src = `cls/${cl.num}-${psNum}`;
     const jobs = state.dbJobSets[src];
     if (!jobs) continue;
-    rows.push(m(`tr.nested`,
-      m('td',
-        m(`a[href=${cfg.GERRIT_REVIEW_URL}/+/${cl.num}/${psNum}]`,
-          '  Patchset', m('span.ps', `#${psNum}`))
+    rows.push(
+      m(
+        `tr.nested`,
+        m(
+          "td",
+          m(
+            `a[href=${cfg.GERRIT_REVIEW_URL}/+/${cl.num}/${psNum}]`,
+            "  Patchset",
+            m("span.ps", `#${psNum}`),
+          ),
+        ),
+        m("td", ""),
+        m("td", ""),
+        m("td", ""),
+        JOB_TYPES.map((x) => renderClJobCell(src, x.id)),
       ),
-      m('td', ''),
-      m('td', ''),
-      m('td', ''),
-      JOB_TYPES.map(x => renderClJobCell(src, x.id))
-    ));
+    );
   }
 
   return rows;
@@ -284,18 +315,23 @@ function renderPostsubmitRow(key) {
   console.assert(branch !== undefined);
   const subject = branch.subject;
   let rows = [];
-  rows.push(m(`tr`,
-    m('td',
-      m(`a[href=${cfg.REPO_URL}/+/${branch.rev}]`,
-        subject, m('span.ps', `#${branch.rev.substr(0, 8)}`)
-      )
+  rows.push(
+    m(
+      `tr`,
+      m(
+        "td",
+        m(
+          `a[href=${cfg.REPO_URL}/+/${branch.rev}]`,
+          subject,
+          m("span.ps", `#${branch.rev.substr(0, 8)}`),
+        ),
+      ),
+      m("td", ""),
+      m("td", stripEmail(branch.author)),
+      m("td", getLastUpdate(new Date(branch.time_committed))),
+      JOB_TYPES.map((x) => renderClJobCell(`branches/${key}`, x.id)),
     ),
-    m('td', ''),
-    m('td', stripEmail(branch.author)),
-    m('td', getLastUpdate(new Date(branch.time_committed))),
-    JOB_TYPES.map(x => renderClJobCell(`branches/${key}`, x.id))
-  ));
-
+  );
 
   const allKeys = state.getBranchKeys();
   const curIdx = allKeys.indexOf(key);
@@ -304,23 +340,26 @@ function renderPostsubmitRow(key) {
     const range = `${state.dbBranches[nextKey].rev}..${branch.rev}`;
     const logs = (state.gerritLogs[range] || []).slice(1);
     for (const log of logs) {
-      if (log.parents.length < 2)
-        continue;  // Show only merge commits.
+      if (log.parents.length < 2) continue; // Show only merge commits.
       rows.push(
-        m('tr.nested',
-          m('td',
-            m(`a[href=${cfg.REPO_URL}/+/${log.commit}]`,
-              log.message.split('\n')[0],
-              m('span.ps', `#${log.commit.substr(0, 8)}`)
-            )
+        m(
+          "tr.nested",
+          m(
+            "td",
+            m(
+              `a[href=${cfg.REPO_URL}/+/${log.commit}]`,
+              log.message.split("\n")[0],
+              m("span.ps", `#${log.commit.substr(0, 8)}`),
+            ),
           ),
-          m('td', ''),
-          m('td', stripEmail(log.author.email)),
-          m('td', getLastUpdate(parseGerritTime(log.committer.time))),
-          m(`td[colspan=${JOB_TYPES.length}]`,
-            'No post-submit was run for this revision'
+          m("td", ""),
+          m("td", stripEmail(log.author.email)),
+          m("td", getLastUpdate(parseGerritTime(log.committer.time))),
+          m(
+            `td[colspan=${JOB_TYPES.length}]`,
+            "No post-submit was run for this revision",
           ),
-        )
+        ),
       );
     }
   }
@@ -330,31 +369,32 @@ function renderPostsubmitRow(key) {
 
 function renderJobLink(jobId, jobStatus) {
   const ICON_MAP = {
-    'COMPLETED': 'check_circle',
-    'STARTED': 'hourglass_full',
-    'QUEUED': 'schedule',
-    'FAILED': 'bug_report',
-    'CANCELLED': 'cancel',
-    'INTERRUPTED': 'cancel',
-    'TIMED_OUT': 'notification_important',
+    COMPLETED: "check_circle",
+    STARTED: "hourglass_full",
+    QUEUED: "schedule",
+    FAILED: "bug_report",
+    CANCELLED: "cancel",
+    INTERRUPTED: "cancel",
+    TIMED_OUT: "notification_important",
   };
-  const icon = ICON_MAP[jobStatus] || 'clear';
+  const icon = ICON_MAP[jobStatus] || "clear";
   const eventHandlers = jobId ? { onmouseover: () => showLogTail(jobId) } : {};
-  const logUrl = jobId ? `#!/logs/${jobId}` : '#';
-  return m(`a.${jobStatus}[href=${logUrl}][title=${jobStatus}]`,
+  const logUrl = jobId ? `#!/logs/${jobId}` : "#";
+  return m(
+    `a.${jobStatus}[href=${logUrl}][title=${jobStatus}]`,
     eventHandlers,
-    m(`i.material-icons`, icon)
+    m(`i.material-icons`, icon),
   );
 }
 
 function renderClJobCell(src, jobType) {
-  let jobStatus = 'UNKNOWN';
+  let jobStatus = "UNKNOWN";
   let jobId = undefined;
 
   // To begin with check that the given CL/PS is present in the DB (the
   // AppEngine cron job might have not seen that at all yet).
   // If it is, find the global job id for the given jobType for the passed CL.
-  for (const id of (state.dbJobSets[src] || [])) {
+  for (const id of state.dbJobSets[src] || []) {
     const job = state.dbJobs[id];
     if (job !== undefined && job.type == jobType) {
       // We found the job object that corresponds to jobType for the given CL.
@@ -362,17 +402,17 @@ function renderClJobCell(src, jobType) {
       jobId = id;
     }
   }
-  return m('td.job', renderJobLink(jobId, jobStatus));
+  return m("td.job", renderJobLink(jobId, jobStatus));
 }
 
 const TermRenderer = {
-  oncreate: function(vnode) {
-    console.log('Creating terminal object');
+  oncreate: function (vnode) {
+    console.log("Creating terminal object");
     fitAddon = new FitAddon.FitAddon();
     searchAddon = new SearchAddon.SearchAddon();
     term = new Terminal({
       rows: 6,
-      fontFamily: 'monospace',
+      fontFamily: "monospace",
       fontSize: 12,
       scrollback: 100000,
       disableStdin: true,
@@ -381,38 +421,38 @@ const TermRenderer = {
     term.loadAddon(searchAddon);
     term.open(vnode.dom);
     fitAddon.fit();
-    if (vnode.attrs.focused)
-      term.focus();
+    if (vnode.attrs.focused) term.focus();
   },
-  onremove: function(vnode) {
+  onremove: function (vnode) {
     term.dispose();
     fitAddon.dispose();
     searchAddon.dispose();
   },
-  onupdate: function(vnode) {
+  onupdate: function (vnode) {
     fitAddon.fit();
     if (state.termClear) {
       term.clear();
       state.termClear = false;
     }
     for (const line of state.termLines) {
-      term.write(line + '\r\n');
+      term.write(line + "\r\n");
     }
     state.termLines = [];
   },
-  view: function() {
-    return m('.term-container',
+  view: function () {
+    return m(
+      ".term-container",
       {
         onkeydown: (e) => {
-          if (e.key === 'f' && (e.ctrlKey || e.metaKey)) {
-            document.querySelector('.term-search').select();
+          if (e.key === "f" && (e.ctrlKey || e.metaKey)) {
+            document.querySelector(".term-search").select();
             e.preventDefault();
           }
-        }
+        },
       },
-      m('input[type=text][placeholder=search and press Enter].term-search', {
+      m("input[type=text][placeholder=search and press Enter].term-search", {
         onkeydown: (e) => {
-          if (e.key !== 'Enter') return;
+          if (e.key !== "Enter") return;
           if (e.shiftKey) {
             searchAddon.findNext(e.target.value);
           } else {
@@ -420,10 +460,10 @@ const TermRenderer = {
           }
           e.stopPropagation();
           e.preventDefault();
-        }
-      })
+        },
+      }),
     );
-  }
+  },
 };
 
 const LogsPageRenderer = {
@@ -431,12 +471,9 @@ const LogsPageRenderer = {
     showFullLog(vnode.attrs.jobId);
   },
   view: function () {
-    return [
-      renderHeader(),
-      m(TermRenderer, { focused: true })
-    ];
-  }
-}
+    return [renderHeader(), m(TermRenderer, { focused: true })];
+  },
+};
 
 const JobsPageRenderer = {
   oncreate: function (vnode) {
@@ -445,29 +482,33 @@ const JobsPageRenderer = {
   },
 
   createWorkerTable: function () {
-    const makeWokerRow = workerId => {
+    const makeWokerRow = (workerId) => {
       const worker = state.dbWorker[workerId];
-      if (worker.status === 'TERMINATED') return [];
-      return m('tr',
-        m('td', worker.host),
-        m('td', workerId),
-        m('td', worker.status),
-        m('td', getLastUpdate(new Date(worker.last_update))),
-        m('td', m(`a[href=#!/jobs/${worker.job_id}]`, worker.job_id)),
+      if (worker.status === "TERMINATED") return [];
+      return m(
+        "tr",
+        m("td", worker.host),
+        m("td", workerId),
+        m("td", worker.status),
+        m("td", getLastUpdate(new Date(worker.last_update))),
+        m("td", m(`a[href=#!/jobs/${worker.job_id}]`, worker.job_id)),
       );
     };
-    return m('table.main-table',
-      m('thead',
-        m('tr', m('td[colspan=5]', 'Workers')),
-        m('tr',
-          m('td', 'Host'),
-          m('td', 'Worker'),
-          m('td', 'Status'),
-          m('td', 'Last ping'),
-          m('td', 'Job'),
-        )
+    return m(
+      "table.main-table",
+      m(
+        "thead",
+        m("tr", m("td[colspan=5]", "Workers")),
+        m(
+          "tr",
+          m("td", "Host"),
+          m("td", "Worker"),
+          m("td", "Status"),
+          m("td", "Last ping"),
+          m("td", "Job"),
+        ),
       ),
-      m('tbody', Object.keys(state.dbWorker).map(makeWokerRow))
+      m("tbody", Object.keys(state.dbWorker).map(makeWokerRow)),
     );
   },
 
@@ -479,68 +520,77 @@ const JobsPageRenderer = {
     const makeJobRow = function (jobId) {
       const job = state.dbJobs[jobId] || {};
       let cols = [
-        m('td.job.align-left',
+        m(
+          "td.job.align-left",
           renderJobLink(jobId, job ? job.status : undefined),
-          m(`span.status.${job.status}`, job.status)
-        )
+          m(`span.status.${job.status}`, job.status),
+        ),
       ];
       if (job) {
         const tQ = Date.parse(job.time_queued);
         const tS = Date.parse(job.time_started);
         const tE = Date.parse(job.time_ended) || Date.now();
-        let cell = m('');
+        let cell = m("");
         if (job.src === undefined) {
-          cell = '?';
-        } else if (job.src.startsWith('cls/')) {
-          const cl_and_ps = job.src.substr(4).replace('-', '/');
+          cell = "?";
+        } else if (job.src.startsWith("cls/")) {
+          const cl_and_ps = job.src.substr(4).replace("-", "/");
           const href = `${cfg.GERRIT_REVIEW_URL}/+/${cl_and_ps}`;
           cell = m(`a[href=${href}][target=_blank]`, cl_and_ps);
-        } else if (job.src.startsWith('branches/')) {
-          cell = job.src.substr(9).split('-')[0]
+        } else if (job.src.startsWith("branches/")) {
+          cell = job.src.substr(9).split("-")[0];
         }
-        cols.push(m('td', cell));
-        cols.push(m('td', `${job.type}`));
-        cols.push(m('td', `${job.worker || ''}`));
-        cols.push(m('td', `${job.time_queued}`));
+        cols.push(m("td", cell));
+        cols.push(m("td", `${job.type}`));
+        cols.push(m("td", `${job.worker || ""}`));
+        cols.push(m("td", `${job.time_queued}`));
         cols.push(m(`td[title=Start ${job.time_started}]`, `${tStr(tQ, tS)}`));
         cols.push(m(`td[title=End ${job.time_ended}]`, `${tStr(tS, tE)}`));
       } else {
-        cols.push(m('td[colspan=6]', jobId));
+        cols.push(m("td[colspan=6]", jobId));
       }
-      return m(`tr${vnode.attrs.jobId === jobId ? '.selected' : ''}`, cols)
+      return m(`tr${vnode.attrs.jobId === jobId ? ".selected" : ""}`, cols);
     };
 
-    return m('table.main-table',
-      m('thead',
-        m('tr', m('td[colspan=7]', title)),
+    return m(
+      "table.main-table",
+      m(
+        "thead",
+        m("tr", m("td[colspan=7]", title)),
 
-        m('tr',
-          m('td', 'Status'),
-          m('td', 'CL'),
-          m('td', 'Type'),
-          m('td', 'Worker'),
-          m('td', 'T queued'),
-          m('td', 'Queue time'),
-          m('td', 'Run time'),
-        )
+        m(
+          "tr",
+          m("td", "Status"),
+          m("td", "CL"),
+          m("td", "Type"),
+          m("td", "Worker"),
+          m("td", "T queued"),
+          m("td", "Queue time"),
+          m("td", "Run time"),
+        ),
       ),
-      m('tbody', jobIds.map(makeJobRow))
+      m("tbody", jobIds.map(makeJobRow)),
     );
   },
 
   view: function (vnode) {
     return [
       renderHeader(),
-      m('main',
-        m('.jobs-list',
+      m(
+        "main",
+        m(
+          ".jobs-list",
           this.createWorkerTable(),
-          this.createJobsTable(vnode, 'Queued + Running jobs',
-            state.jobsRunning.concat(state.jobsQueued)),
-          this.createJobsTable(vnode, 'Last 100 jobs', state.jobsRecent),
+          this.createJobsTable(
+            vnode,
+            "Queued + Running jobs",
+            state.jobsRunning.concat(state.jobsQueued),
+          ),
+          this.createJobsTable(vnode, "Last 100 jobs", state.jobsRecent),
         ),
-      )
+      ),
     ];
-  }
+  },
 };
 
 // -----------------------------------------------------------------------------
@@ -554,22 +604,22 @@ function parseGerritTime(str) {
 }
 
 function stripEmail(email) {
-  return email.replace('@google.com', '@');
+  return email.replace("@google.com", "@");
 }
 
 // Fetches the list of CLs from gerrit and updates the state.
 async function fetchGerritCLs() {
-  console.log('Fetching CL list from Gerrit');
-  let uri = '/gerrit/changes/?-age:7days';
-  uri += '+-is:abandoned+branch:main&o=DETAILED_ACCOUNTS&o=CURRENT_REVISION';
+  console.log("Fetching CL list from Gerrit");
+  let uri = "/gerrit/changes/?-age:7days";
+  uri += "+-is:abandoned+branch:main&o=DETAILED_ACCOUNTS&o=CURRENT_REVISION";
   const response = await fetch(uri);
   state.gerritCls = [];
   if (response.status !== 200) {
-    setTimeout(fetchGerritCLs, 3000);  // Retry.
+    setTimeout(fetchGerritCLs, 3000); // Retry.
     return;
   }
 
-  const json = (await response.text());
+  const json = await response.text();
   const cls = [];
   for (const e of JSON.parse(json)) {
     const revHash = Object.keys(e.revisions)[0];
@@ -592,7 +642,7 @@ async function fetchGerritCLs() {
 async function fetchGerritCommit(sha1) {
   const response = await fetch(`/gerrit/commits/${sha1}`);
   console.assert(response.status === 200);
-  const json = (await response.text());
+  const json = await response.text();
   state.gerritCommits[sha1] = JSON.parse(json);
   scheduleRedraw();
 }
@@ -608,10 +658,10 @@ async function fetchGerritLog(first, second) {
 
 // Retrieves the status of a given (CL, PS) in the DB.
 function fetchCIJobsForCLOrBranch(src) {
-  if (src in state.clRefs) return;  // Aslready have a listener for this key.
+  if (src in state.clRefs) return; // Aslready have a listener for this key.
   const ref = firebase.database().ref(`/ci/${src}`);
   state.clRefs[src] = ref;
-  ref.on('value', (e) => {
+  ref.on("value", (e) => {
     const obj = e.val();
     if (!obj) return;
     state.dbJobSets[src] = Object.keys(obj.jobs);
@@ -623,9 +673,9 @@ function fetchCIJobsForCLOrBranch(src) {
 }
 
 function fetchCIJobsForAllPatchsetOfCL(cl) {
-  let ref = firebase.database().ref('/ci/cls').orderByKey();
+  let ref = firebase.database().ref("/ci/cls").orderByKey();
   ref = ref.startAt(`${cl}-0`).endAt(`${cl}-~`);
-  ref.once('value', (e) => {
+  ref.once("value", (e) => {
     const patchsets = e.val() || {};
     for (const clAndPs in patchsets) {
       const jobs = Object.keys(patchsets[clAndPs].jobs);
@@ -639,25 +689,26 @@ function fetchCIJobsForAllPatchsetOfCL(cl) {
 }
 
 function fetchCIStatusForJob(jobId) {
-  if (jobId in state.jobRefs) return;  // Already have a listener for this key.
+  if (jobId in state.jobRefs) return; // Already have a listener for this key.
   const ref = firebase.database().ref(`/ci/jobs/${jobId}`);
   state.jobRefs[jobId] = ref;
-  ref.on('value', (e) => {
+  ref.on("value", (e) => {
     if (e.val()) state.dbJobs[jobId] = e.val();
     scheduleRedraw();
   });
 }
 
 function fetchCIStatusForBranch(branch) {
-  if (branch in state.branchRefs) return;  // Already have a listener.
+  if (branch in state.branchRefs) return; // Already have a listener.
   const db = firebase.database();
-  const ref = db.ref('/ci/branches')
-                  .orderByKey()
-                  .startAt('main')
-                  .endAt('maio')
-                  .limitToLast(20);
+  const ref = db
+    .ref("/ci/branches")
+    .orderByKey()
+    .startAt("main")
+    .endAt("maio")
+    .limitToLast(20);
   state.branchRefs[branch] = ref;
-  ref.on('value', (e) => {
+  ref.on("value", (e) => {
     const resp = e.val();
     if (!resp) return;
     // key looks like 'main-YYYYMMDDHHMMSS', where YMD is the commit datetime.
@@ -677,27 +728,27 @@ function fetchCIStatusForBranch(branch) {
 }
 
 function fetchWorkers() {
-  if (state.workersRef !== undefined) return;  // Aslready have a listener.
-  const ref = firebase.database().ref('/ci/workers');
+  if (state.workersRef !== undefined) return; // Aslready have a listener.
+  const ref = firebase.database().ref("/ci/workers");
   state.workersRef = ref;
-  ref.on('value', (e) => {
+  ref.on("value", (e) => {
     state.dbWorker = e.val() || {};
     scheduleRedraw();
   });
 }
 
 async function showLogTail(jobId) {
-  if (state.termJobId === jobId) return;  // Already on it.
+  if (state.termJobId === jobId) return; // Already on it.
   const TAIL = 20;
   state.termClear = true;
   state.termLines = [
     `Fetching last ${TAIL} lines for ${jobId}.`,
-    `Click on the CI icon to see the full log.`
+    `Click on the CI icon to see the full log.`,
   ];
   state.termJobId = jobId;
   scheduleRedraw();
   const ref = firebase.database().ref(`/ci/logs/${jobId}`);
-  const lines = (await ref.orderByKey().limitToLast(TAIL).once('value')).val();
+  const lines = (await ref.orderByKey().limitToLast(TAIL).once("value")).val();
   if (state.termJobId !== jobId || !lines) return;
   const lastKey = appendLogLinesAndRedraw(lines);
   startRealTimeLogs(jobId, lastKey);
@@ -715,27 +766,26 @@ async function showFullLog(jobId) {
   // Starts a chain of async tasks that fetch the current log lines in batches.
   state.termJobId = jobId;
   const ref = firebase.database().ref(`/ci/logs/${jobId}`).orderByKey();
-  let lastKey = '';
+  let lastKey = "";
   const BATCH = 1000;
-  for (; ;) {
+  for (;;) {
     const batchRef = ref.startAt(`${lastKey}!`).limitToFirst(BATCH);
-    const logs = (await batchRef.once('value')).val();
-    if (!logs)
-      break;
+    const logs = (await batchRef.once("value")).val();
+    if (!logs) break;
     lastKey = appendLogLinesAndRedraw(logs);
   }
 
-  startRealTimeLogs(jobId, lastKey)
+  startRealTimeLogs(jobId, lastKey);
 }
 
 function startRealTimeLogs(jobId, lastLineKey) {
   stopRealTimeLogs();
-  console.log('Starting real-time logs for ', jobId);
+  console.log("Starting real-time logs for ", jobId);
   state.termJobId = jobId;
   let ref = firebase.database().ref(`/ci/logs/${jobId}`);
   ref = ref.orderByKey().startAt(`${lastLineKey}!`);
   state.realTimeLogRef = ref;
-  state.realTimeLogRef.on('child_added', res => {
+  state.realTimeLogRef.on("child_added", (res) => {
     const line = res.val();
     if (state.termJobId !== jobId || !line) return;
     const lines = {};
@@ -757,7 +807,7 @@ function appendLogLinesAndRedraw(lines) {
     const date = new Date(null);
     date.setSeconds(parseInt(key.substr(0, 6), 16) / 1000);
     const timeString = date.toISOString().substr(11, 8);
-    const isErr = lines[key].indexOf('FAILED:') >= 0;
+    const isErr = lines[key].indexOf("FAILED:") >= 0;
     let line = `[${timeString}] ${lines[key]}`;
     if (isErr) line = `\u001b[33m${line}\u001b[0m`;
     state.termLines.push(line);
@@ -769,34 +819,36 @@ function appendLogLinesAndRedraw(lines) {
 async function fetchRecentJobsStatus() {
   const db = firebase.database();
   if (state.jobsQueuedRef === undefined) {
-    state.jobsQueuedRef = db.ref(`/ci/jobs_queued`).on('value', e => {
-      state.jobsQueued = Object.keys(e.val() || {}).sort().reverse();
-      for (const jobId of state.jobsQueued)
-        fetchCIStatusForJob(jobId);
+    state.jobsQueuedRef = db.ref(`/ci/jobs_queued`).on("value", (e) => {
+      state.jobsQueued = Object.keys(e.val() || {})
+        .sort()
+        .reverse();
+      for (const jobId of state.jobsQueued) fetchCIStatusForJob(jobId);
       scheduleRedraw();
     });
   }
 
   if (state.jobsRunningRef === undefined) {
-    state.jobsRunningRef = db.ref(`/ci/jobs_running`).on('value', e => {
-      state.jobsRunning = Object.keys(e.val() || {}).sort().reverse();
-      for (const jobId of state.jobsRunning)
-        fetchCIStatusForJob(jobId);
+    state.jobsRunningRef = db.ref(`/ci/jobs_running`).on("value", (e) => {
+      state.jobsRunning = Object.keys(e.val() || {})
+        .sort()
+        .reverse();
+      for (const jobId of state.jobsRunning) fetchCIStatusForJob(jobId);
       scheduleRedraw();
     });
   }
 
   if (state.jobsRecentRef === undefined) {
     state.jobsRecentRef = db.ref(`/ci/jobs`).orderByKey().limitToLast(100);
-    state.jobsRecentRef.on('value', e => {
-      state.jobsRecent = Object.keys(e.val() || {}).sort().reverse();
-      for (const jobId of state.jobsRecent)
-        fetchCIStatusForJob(jobId);
+    state.jobsRecentRef.on("value", (e) => {
+      state.jobsRecent = Object.keys(e.val() || {})
+        .sort()
+        .reverse();
+      for (const jobId of state.jobsRecent) fetchCIStatusForJob(jobId);
       scheduleRedraw();
     });
   }
 }
-
 
 function scheduleRedraw() {
   if (state.redrawPending) return;
