@@ -427,7 +427,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         CastTestCase{
             "Double",
-            FilterValue{1024l},
+            FilterValue{INT64_C(1024)},
             CastResult::Valid(1024.0),
         },
         CastTestCase{
@@ -467,25 +467,25 @@ INSTANTIATE_TEST_SUITE_P(
         },
         CastTestCase{
             "Double",
-            FilterValue{9223372036854767615},
+            FilterValue{INT64_C(9223372036854767615)},
             CastResult::Valid(9223372036854767616.0),
             dataframe::Ge{},
         },
         CastTestCase{
             "Double",
-            FilterValue{9223372036854767615},
+            FilterValue{INT64_C(9223372036854767615)},
             CastResult::Valid(9223372036854766592.0),
             dataframe::Gt{},
         },
         CastTestCase{
             "Double",
-            FilterValue{9223372036854767615},
+            FilterValue{INT64_C(9223372036854767615)},
             CastResult::Valid(9223372036854767616.0),
             dataframe::Lt{},
         },
         CastTestCase{
             "Double",
-            FilterValue{9223372036854767615},
+            FilterValue{INT64_C(9223372036854767615)},
             CastResult::Valid(9223372036854766592.0),
             dataframe::Le{},
         }),
@@ -497,7 +497,7 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(
         CastTestCase{
             "Id",
-            FilterValue{1024l},
+            FilterValue{INT64_C(1024)},
             CastResult::Valid(CastResult::Id{1024}),
         },
         CastTestCase{
@@ -512,7 +512,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         CastTestCase{
             "Uint32",
-            FilterValue{1024l},
+            FilterValue{INT64_C(1024)},
             CastResult::Valid(uint32_t(1024)),
         },
         CastTestCase{
@@ -622,18 +622,23 @@ INSTANTIATE_TEST_SUITE_P(
         }),
     &CastTestCase::ToString);
 
+const char* kHello = "hello";
+const char* kWorld = "world";
+const char* kTest = "test";
+const char* kRegex = "regex";
+
 INSTANTIATE_TEST_SUITE_P(
     CastToStringSuite,
     BytecodeInterpreterCastTest,
     testing::Values(
         // Strings are directly returned without any conversion.
-        CastTestCase{"String", FilterValue{"hello"}, CastResult::Valid("hello"),
+        CastTestCase{"String", FilterValue{kHello}, CastResult::Valid(kHello),
                      dataframe::Eq{}},
-        CastTestCase{"String", FilterValue{"world"}, CastResult::Valid("world"),
+        CastTestCase{"String", FilterValue{kWorld}, CastResult::Valid(kWorld),
                      dataframe::Ne{}},
-        CastTestCase{"String", FilterValue{"test"}, CastResult::Valid("test"),
+        CastTestCase{"String", FilterValue{kTest}, CastResult::Valid(kTest),
                      dataframe::Glob{}},
-        CastTestCase{"String", FilterValue{"regex"}, CastResult::Valid("regex"),
+        CastTestCase{"String", FilterValue{kRegex}, CastResult::Valid(kRegex),
                      dataframe::Regex{}},
 
         // Nulls always compare false with everything.
@@ -649,22 +654,22 @@ INSTANTIATE_TEST_SUITE_P(
                      dataframe::Regex{}},
 
         // Strings are always greater than integers.
-        CastTestCase{"String", FilterValue{123l}, CastResult::AllMatch(),
-                     dataframe::Eq{}},
-        CastTestCase{"String", FilterValue{123l}, CastResult::AllMatch(),
-                     dataframe::Ne{}},
-        CastTestCase{"String", FilterValue{123l}, CastResult::NoneMatch(),
-                     dataframe::Lt{}},
-        CastTestCase{"String", FilterValue{123l}, CastResult::NoneMatch(),
-                     dataframe::Le{}},
-        CastTestCase{"String", FilterValue{123l}, CastResult::AllMatch(),
-                     dataframe::Gt{}},
-        CastTestCase{"String", FilterValue{123l}, CastResult::AllMatch(),
-                     dataframe::Ge{}},
-        CastTestCase{"String", FilterValue{123l}, CastResult::NoneMatch(),
-                     dataframe::Glob{}},
-        CastTestCase{"String", FilterValue{123l}, CastResult::NoneMatch(),
-                     dataframe::Regex{}},
+        CastTestCase{"String", FilterValue{INT64_C(123)},
+                     CastResult::AllMatch(), dataframe::Eq{}},
+        CastTestCase{"String", FilterValue{INT64_C(123)},
+                     CastResult::AllMatch(), dataframe::Ne{}},
+        CastTestCase{"String", FilterValue{INT64_C(123)},
+                     CastResult::NoneMatch(), dataframe::Lt{}},
+        CastTestCase{"String", FilterValue{INT64_C(123)},
+                     CastResult::NoneMatch(), dataframe::Le{}},
+        CastTestCase{"String", FilterValue{INT64_C(123)},
+                     CastResult::AllMatch(), dataframe::Gt{}},
+        CastTestCase{"String", FilterValue{INT64_C(123)},
+                     CastResult::AllMatch(), dataframe::Ge{}},
+        CastTestCase{"String", FilterValue{INT64_C(123)},
+                     CastResult::NoneMatch(), dataframe::Glob{}},
+        CastTestCase{"String", FilterValue{INT64_C(123)},
+                     CastResult::NoneMatch(), dataframe::Regex{}},
 
         // Strings are also always greater than doubles.
         CastTestCase{"String", FilterValue{123.45}, CastResult::AllMatch(),
