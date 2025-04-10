@@ -30,7 +30,7 @@ class GnFormat(CodeFormatterBase):
       err = f'Cannot find ${tool}\nRun tools/install-build-deps'
       print(err, file=sys.stderr)
       return 127
-    cmd = [tool, 'format'] +  (['--dry-run'] if check_only else []) + files
+    cmd = [tool, 'format'] + (['--dry-run'] if check_only else []) + files
     return self.check_call(cmd)
 
   def print_fix_hint(self):

@@ -20,7 +20,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -30,9 +29,11 @@ namespace perfetto::trace_processor::dataframe {
 
 base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     std::vector<FilterSpec>& specs,
+    const std::vector<SortSpec>& sort_specs,
     uint64_t cols_used) const {
-  ASSIGN_OR_RETURN(auto plan, impl::QueryPlanBuilder::Build(
-                                  row_count_, columns_, specs, cols_used));
+  ASSIGN_OR_RETURN(auto plan,
+                   impl::QueryPlanBuilder::Build(row_count_, columns_, specs,
+                                                 sort_specs, cols_used));
   return QueryPlan(std::move(plan));
 }
 

@@ -40,7 +40,7 @@ declare namespace Wasm {
     mount(type: Wasm.FileSystemType, opts: any, mountpoint: string): any;
     unmount(mountpoint: string): void;
     unlink(mountpoint: string): void;
-    lookupPath(path: string): {path: string, node: Wasm.FileSystemNode};
+    lookupPath(path: string): { path: string; node: Wasm.FileSystemNode };
     filesystems: Wasm.FileSystemTypes;
   }
 
@@ -48,11 +48,11 @@ declare namespace Wasm {
     callMain(args: string[]): void;
     addFunction(f: any, argTypes: string): void;
     ccall(
-        ident: string,
-        returnType: string,
-        argTypes: string[],
-        args: any[],
-        ): number;
+      ident: string,
+      returnType: string,
+      argTypes: string[],
+      args: any[],
+    ): number;
     HEAPU8: Uint8Array;
     FS: FileSystem;
   }
@@ -64,6 +64,6 @@ declare namespace Wasm {
     printErr(s: string): void;
     onRuntimeInitialized(): void;
     onAbort?(): void;
-    wasmBinary ?: ArrayBuffer;
+    wasmBinary?: ArrayBuffer;
   }
 }
