@@ -219,6 +219,80 @@ std::string ReplaceAll(std::string str,
   return str;
 }
 
+bool IsValidUTF8(const std::string& str) {
+  return RemoveInvalidUTF8(str).size() == str.size();
+}
+
+std::string RemoveInvalidUTF8(const std::string& str) {
+  // https://www.rfc-editor.org/rfc/rfc3629.txt
+  std::string result;
+  result.reserve(str.size());
+  for (size_t i = 0; i < str.size();) {
+    unsigned char c = static_cast<unsigned char>(str[i]);
+    size_t numBytes = 0;
+    bool validSequence = true;
+
+    if ((c & 0b10000000) == 0b00000000) {
+      numBytes = 1;
+    } else if ((c & 0b11100000) == 0b11000000) {
+      numBytes = 2;
+    } else if ((c & 0b11110000) == 0b11100000) {
+      numBytes = 3;
+    } else if ((c & 0b11111000) == 0b11110000) {
+      numBytes = 4;
+    } else {
+      validSequence = false;
+      // Skip this byte
+      numBytes = 1;
+    }
+
+    if (validSequence) {
+      // Check if enough bytes are available in the string
+      if (i + numBytes > str.size()) {
+        validSequence = false;
+        numBytes = 1;  // Treat as a single invalid byte for advancement
+      } else {
+        // Check for overlong encodings, surrogates, and out-of-range
+        if (numBytes == 2 && c < 0b11000010) {  // 0xC2
+          validSequence = false;                // Overlong
+        } else if (numBytes == 3) {
+          unsigned char byte2 = static_cast<unsigned char>(str[i + 1]);
+          if ((c == 0b11100000 && byte2 < 0b10100000) ||   // Overlong E0
+              (c == 0b11101101 && byte2 >= 0b10100000)) {  // Surrogate ED
+            validSequence = false;
+          }
+        } else if (numBytes == 4) {
+          unsigned char byte2 = static_cast<unsigned char>(str[i + 1]);
+          if ((c == 0b11110000 && byte2 < 0b10010000) ||  // Overlong F0
+              (c == 0b11110100 && byte2 > 0b10001111)) {  // Out of range F4
+            validSequence = false;
+          }
+        }
+
+        if (validSequence && numBytes > 1) {
+          for (size_t j = 1; j < numBytes; ++j) {
+            unsigned char continuation_byte =
+                static_cast<unsigned char>(str[i + j]);
+            if ((continuation_byte & 0b11000000) != 0b10000000) {
+              validSequence = false;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (validSequence) {
+      for (size_t j = 0; j < numBytes; ++j) {
+        result.push_back(str[i + j]);
+      }
+    }
+
+    i += numBytes;
+  }
+  return result;
+}
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 bool WideToUTF8(const std::wstring& source, std::string& output) {
   if (source.empty() ||
