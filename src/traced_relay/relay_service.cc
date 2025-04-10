@@ -22,12 +22,14 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/version.h"
 #include "perfetto/ext/ipc/client.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/ipc/wire_protocol.gen.h"
@@ -79,6 +81,46 @@ std::string GenerateSetPeerIdentityRequest(int32_t pid,
   set_peer_identity->set_machine_id_hint(machine_id_hint);
 
   return ipc::BufferedFrameDeserializer::Serialize(ipc_frame);
+}
+
+void SetSystemInfo(protos::gen::InitRelayRequest* request) {
+  base::SystemInfo sys_info = base::GetSystemInfo();
+
+  auto* info = request->mutable_system_info();
+  info->set_tracing_service_version(base::GetVersionString());
+
+  if (sys_info.timezone_off_mins.has_value())
+    info->set_timezone_off_mins(*sys_info.timezone_off_mins);
+
+  if (sys_info.utsname_info.has_value()) {
+    auto* utsname_info = info->mutable_utsname();
+    utsname_info->set_sysname(sys_info.utsname_info->sysname);
+    utsname_info->set_version(sys_info.utsname_info->version);
+    utsname_info->set_machine(sys_info.utsname_info->machine);
+    utsname_info->set_release(sys_info.utsname_info->release);
+  }
+
+  if (sys_info.page_size.has_value())
+    info->set_page_size(*sys_info.page_size);
+  if (sys_info.num_cpus.has_value())
+    info->set_num_cpus(*sys_info.num_cpus);
+
+  if (!sys_info.android_build_fingerprint.empty())
+    info->set_android_build_fingerprint(sys_info.android_build_fingerprint);
+  if (!sys_info.android_device_manufacturer.empty())
+    info->set_android_device_manufacturer(sys_info.android_device_manufacturer);
+  if (sys_info.android_sdk_version.has_value())
+    info->set_android_sdk_version(*sys_info.android_sdk_version);
+  if (!sys_info.android_soc_model.empty())
+    info->set_android_soc_model(sys_info.android_soc_model);
+  if (!sys_info.android_guest_soc_model.empty())
+    info->set_android_guest_soc_model(sys_info.android_guest_soc_model);
+  if (!sys_info.android_hardware_revision.empty())
+    info->set_android_hardware_revision(sys_info.android_hardware_revision);
+  if (!sys_info.android_storage_model.empty())
+    info->set_android_storage_model(sys_info.android_storage_model);
+  if (!sys_info.android_ram_model.empty())
+    info->set_android_ram_model(sys_info.android_ram_model);
 }
 
 }  // Anonymous namespace.
@@ -133,12 +175,21 @@ void RelayClient::OnConnect(base::UnixSocket* self, bool connected) {
 }
 
 void RelayClient::OnServiceConnected() {
+  InitRelayRequest();
   phase_ = Phase::PING;
   SendSyncClockRequest();
 }
 
 void RelayClient::OnServiceDisconnected() {
   NotifyError();
+}
+
+void RelayClient::InitRelayRequest() {
+  protos::gen::InitRelayRequest request;
+
+  SetSystemInfo(&request);
+
+  relay_ipc_client_->InitRelay(request);
 }
 
 void RelayClient::SendSyncClockRequest() {
