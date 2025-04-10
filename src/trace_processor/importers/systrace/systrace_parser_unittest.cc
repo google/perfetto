@@ -106,6 +106,9 @@ TEST(SystraceParserTest, SystraceEvent) {
   ASSERT_EQ(ParseSystraceTracePoint("trace_event_clock_sync: realtime_ts=123\n",
                                     &result),
             Result::kUnsupported);
+
+  ASSERT_EQ(ParseSystraceTracePoint("S|123|invalid\xa0\xa1|456", &result),
+            Result::kFailure);
 }
 
 TEST(SystraceParserTest, AsyncTrackEvents) {

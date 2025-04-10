@@ -154,6 +154,9 @@ inline SystraceParseResult ParseSystraceTracePoint(
       break;
   }
   base::StringView str = str_untrimmed.substr(0, len);
+  if (PERFETTO_UNLIKELY(!base::IsValidUTF8(str.ToStdString()))) {
+    return SystraceParseResult::kFailure;
+  }
 
   size_t off = 0;
 
