@@ -35,6 +35,8 @@ class Prettier(CodeFormatterBase):
   def filter_files(self, files):
     # Filter based on extension first.
     filtered = super().filter_files(files)
+    # Filter out changes outside of ui/
+    filtered = [f for f in filtered if f.startswith('ui/')]
     with open('ui/.prettierignore', 'r') as fd:
       ignorelist = fd.read().strip().split('\n')
       filtered = [
@@ -62,6 +64,13 @@ class Eslint(CodeFormatterBase):
 
   def __init__(self):
     super().__init__(name='eslint', exts=['.ts', '.js'])
+
+  def filter_files(self, files):
+    # Filter based on extension first.
+    filtered = super().filter_files(files)
+    # Filter out changes outside of ui/
+    filtered = [f for f in filtered if f.startswith('ui/')]
+    return filtered
 
   def run_formatter(self, repo_root: str, check_only: bool, files: list[str]):
     tool = 'node_modules/.bin/eslint'
