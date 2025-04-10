@@ -149,7 +149,7 @@ async def get_jobs_for_workflow_run(id):
 @app.route('/gh/workflows')
 async def workflow_runs_and_jobs():
   url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runs'
-  resp = gh_req(url, params={'per_page': 100})
+  resp = gh_req(url, params={'per_page': 64})
   respj = json.loads(resp)
   runs = []
   for run in respj['workflow_runs']:
@@ -175,14 +175,11 @@ async def workflow_runs_and_jobs():
 
 @app.route('/gh/update_metrics')
 async def update_metrics():
-  url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runs'
-  resp = gh_req(url, params={'per_page': 100})
-  txt = resp.content.decode('utf-8')
-  respj = json.loads(txt)
+  workflows = await workflow_runs_and_jobs()
   num_pending = 0
-  for w in respj.get('workflow_runs', []):
-    if w['status'] in ('queued', 'in_progress'):
-      num_pending += 1
+  for w in workflows:
+    for j in w.get('jobs', []):
+      num_pending += 1 if j['status'] in ('queued', 'in_progress') else 0
   await write_metrics({'ci_job_queue_len': {'v': num_pending}})
   return str(num_pending)
 
