@@ -32,6 +32,8 @@ import {drawVerticalLineAtTime} from './vertical_line_helper';
 import {getActiveVsyncData, renderVsyncColumns} from './vsync_helper';
 import {SCROLLING_TRACK_GROUP, getContainingTrackIds} from '../common/state';
 
+
+export const EMPTY_IMAGE_DATA = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
 function isPinned(id: string) {
   return globals.state.pinnedTracks.indexOf(id) !== -1;
 }
@@ -123,8 +125,13 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
   private attrs?: TrackShellAttrs;
   private defaultHeight?: number;
 
+  private transparentImage?: HTMLImageElement;
+
   oninit(vnode: m.Vnode<TrackShellAttrs>) {
     this.attrs = vnode.attrs;
+
+    this.transparentImage = new Image();
+    this.transparentImage.src = EMPTY_IMAGE_DATA;
     if (this.attrs) {
       this.defaultHeight =
         this.attrs.track.getHeight() / this.attrs.trackState.scaleFactor;
@@ -322,9 +329,13 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       this.dragging = true;
       e.stopPropagation();
       globals.rafScheduler.scheduleFullRedraw();
-        dataTransfer.effectAllowed = 'move';
-        dataTransfer.setData('perfetto/track/' + this.attrs!.trackState.id, `${this.attrs!.trackState.id}`);
-        dataTransfer.setDragImage(new Image(), 0, 0);
+      dataTransfer.effectAllowed = 'move';
+      dataTransfer.items.clear();
+      dataTransfer.clearData();
+      dataTransfer.setData('perfetto/track/' + this.attrs!.trackState.id, `${this.attrs!.trackState.id}`);
+      if (this.transparentImage) {
+        dataTransfer.setDragImage(this.transparentImage, 0, 0);
+      }
   }
 
   ondragend() {

@@ -34,7 +34,7 @@ import {
 } from './icons';
 import {Panel, PanelSize} from './panel';
 import {Track} from './track';
-import {TrackButton, TrackContent, checkTrackForResizability, resizeTrack} from './track_panel';
+import {EMPTY_IMAGE_DATA, TrackButton, TrackContent, checkTrackForResizability, resizeTrack} from './track_panel';
 import {trackRegistry} from './track_registry';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
 import {getActiveVsyncData, renderVsyncColumns} from './vsync_helper';
@@ -51,6 +51,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
   private summaryTrack: Track|undefined;
   private dragging = false;
   private dropping: 'before'|'after'|undefined = undefined;
+  private transparentImage?:HTMLImageElement;
   // private overFlown = false;
 
   // Caches the last state.trackGroups[this.trackGroupId].
@@ -62,6 +63,9 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
   constructor(protected attrs: m.CVnode<Attrs>) {
     super();
+
+    this.transparentImage =new Image();
+    this.transparentImage.src = EMPTY_IMAGE_DATA;
     this.trackGroupId = attrs.attrs.trackGroupId;
     const trackCreator = trackRegistry.get(this.summaryTrackState.kind);
     const engineId = this.summaryTrackState.engineId;
@@ -264,8 +268,12 @@ export class TrackGroupPanel extends Panel<Attrs> {
       e.stopPropagation();
       globals.rafScheduler.scheduleFullRedraw();
       dataTransfer.effectAllowed = 'move';
+      dataTransfer.items.clear();
+      dataTransfer.clearData();
       dataTransfer.setData('perfetto/track/' + this.trackGroupId, `${this.trackGroupId}`);
-      dataTransfer.setDragImage(new Image(), 0, 0);
+      if (this.transparentImage) {
+        dataTransfer.setDragImage(this.transparentImage, 0, 0);
+      }
   }
 
   ondragend() {
