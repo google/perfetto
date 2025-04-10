@@ -660,10 +660,7 @@ export abstract class BaseSliceTrack<
   }
 
   renderTooltip() {
-    return (
-      this.hoverTooltip &&
-      m('.pf-track__tooltip', [this.hoverTooltip.map((line) => m('', line))])
-    );
+    return this.hoverTooltip && [this.hoverTooltip.map((line) => m('', line))];
   }
 
   // This method figures out if the visible window is outside the bounds of
