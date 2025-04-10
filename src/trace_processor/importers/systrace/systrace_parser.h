@@ -154,10 +154,6 @@ inline SystraceParseResult ParseSystraceTracePoint(
       break;
   }
   base::StringView str = str_untrimmed.substr(0, len);
-  if (PERFETTO_UNLIKELY(!base::IsValidUTF8(str.ToStdString()))) {
-    return SystraceParseResult::kFailure;
-  }
-
   size_t off = 0;
 
   // This function reads the next field up to the next '|', '\0' or end(). It
@@ -327,6 +323,7 @@ class SystraceParser : public Destructible {
   const StringId cookie_id_;
   const StringId utid_id_;
   const StringId end_utid_id_;
+  std::string temp_string_utf8_;
 };
 
 }  // namespace trace_processor

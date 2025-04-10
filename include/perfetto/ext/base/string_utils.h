@@ -193,8 +193,7 @@ std::string Uint64ToHexStringNoPrefix(uint64_t number);
 std::string ReplaceAll(std::string str,
                        const std::string& to_replace,
                        const std::string& replacement);
-std::string RemoveInvalidUTF8(const std::string& str);
-bool IsValidUTF8(const std::string& str);
+void RemoveInvalidUTF8(base::StringView str, std::string& output);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 bool WideToUTF8(const std::wstring& source, std::string& output);

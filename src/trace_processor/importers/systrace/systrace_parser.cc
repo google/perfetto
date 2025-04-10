@@ -51,8 +51,8 @@ void SystraceParser::ParsePrintEvent(int64_t ts,
                                      uint32_t pid,
                                      base::StringView event) {
   systrace_utils::SystraceTracePoint point{};
-  std::string tmp = base::RemoveInvalidUTF8(event.ToStdString());
-  switch (ParseSystraceTracePoint(tmp.c_str(), &point)) {
+  base::RemoveInvalidUTF8(event, temp_string_utf8_);
+  switch (ParseSystraceTracePoint(temp_string_utf8_.c_str(), &point)) {
     case systrace_utils::SystraceParseResult::kSuccess:
       ParseSystracePoint(ts, pid, point);
       break;
