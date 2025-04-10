@@ -14,19 +14,19 @@
 
 // Generation of reference from protos
 
-'use strict';
+"use strict";
 
-const fs = require('fs');
-const argv = require('yargs').argv
+const fs = require("fs");
+const argv = require("yargs").argv;
 
 // Removes \n due to 80col wrapping and preserves only end-of-sentence line
 // breaks.
 // TODO dedupe, this is copied from the other gen_proto file.
 function singleLineComment(comment) {
-  comment = comment || '';
+  comment = comment || "";
   comment = comment.trim();
-  comment = comment.replace(/\.\n/g, '<br>');
-  comment = comment.replace(/\n/g, ' ');
+  comment = comment.replace(/\.\n/g, "<br>");
+  comment = comment.replace(/\n/g, " ");
   return comment;
 }
 
@@ -39,29 +39,30 @@ function trimQuotes(s) {
   if (m === null) {
     return null;
   }
-  return m[1]
+  return m[1];
 }
 
 function parseTablesInCppFile(filePath) {
-  const hdr = fs.readFileSync(filePath, 'UTF8');
-  const regex = /^\s*F\(([\s\S]*?)\),\s*\\/mg;
+  const hdr = fs.readFileSync(filePath, "UTF8");
+  const regex = /^\s*F\(([\s\S]*?)\),\s*\\/gm;
   let match;
   let table = [];
   while ((match = regex.exec(hdr)) !== null) {
     let def = match[1];
-    let s = def.split(',').map(s => s.trim());
+    let s = def.split(",").map((s) => s.trim());
     table.push({
       name: s[0],
       cardinality: s[1],
       type: s[2],
       scope: s[3],
-      comment: s[4] === undefined ? undefined :
-                                    s[4].split('\n').map(trimQuotes).join(' '),
+      comment:
+        s[4] === undefined
+          ? undefined
+          : s[4].split("\n").map(trimQuotes).join(" "),
     });
   }
   return table;
 }
-
 
 function tableToMarkdown(table) {
   let md = `# Trace Processor Stats\n\n`;
@@ -70,22 +71,22 @@ function tableToMarkdown(table) {
   for (const col of table) {
     md += `<tr id="${col.name}"><td>${col.name}</td>
     <td>${col.cardinality}</td><td>${col.type}</td><td>${col.scope}</td>
-    <td>${singleLineComment(col.comment)} </td></tr>\n`
+    <td>${singleLineComment(col.comment)} </td></tr>\n`;
   }
-  md += '</table>\n\n';
+  md += "</table>\n\n";
   return md;
 }
 
 function main() {
-  const inFile = argv['i'];
-  const outFile = argv['o'];
+  const inFile = argv["i"];
+  const outFile = argv["o"];
   if (!inFile) {
-    console.error('Usage: -i hdr1.h -i hdr2.h -[-o out.md]');
+    console.error("Usage: -i hdr1.h -i hdr2.h -[-o out.md]");
     process.exit(1);
   }
 
   // Can be either a string (-i single) or an array (-i one -i two).
-  const inFiles = (inFile instanceof Array) ? inFile : [inFile];
+  const inFiles = inFile instanceof Array ? inFile : [inFile];
 
   const table = Array.prototype.concat(...inFiles.map(parseTablesInCppFile));
   const md = tableToMarkdown(table);

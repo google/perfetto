@@ -150,7 +150,8 @@ h3 {
 #search {
   position: relative;
   flex-grow: 0;
-  transition: flex-grow cubic-bezier(1, 0.01, 1, 1) var(--anim-time),
+  transition:
+    flex-grow cubic-bezier(1, 0.01, 1, 1) var(--anim-time),
     background-color ease var(--anim-time);
   padding: 0;
   &::before {
@@ -166,7 +167,9 @@ h3 {
     background-color: rgba(255, 255, 255, 0.8);
     backdrop-filter: blur(3px);
     opacity: 0;
-    transition: opacity ease var(--anim-time), visibility 0s;
+    transition:
+      opacity ease var(--anim-time),
+      visibility 0s;
   }
   &:focus-within {
     flex-grow: 1000;
@@ -502,7 +505,8 @@ h3 {
       // border: 1px solid #eee;
       font-family: "Source Sans Pro", sans-serif;
       color: #111111;
-      transition: filter var(--anim-ease) var(--anim-time),
+      transition:
+        filter var(--anim-ease) var(--anim-time),
         background-color var(--anim-ease) var(--anim-time),
         transform var(--anim-ease) var(--anim-time),
         box-shadow linear var(--anim-time);
@@ -574,7 +578,8 @@ h3 {
       text-decoration: none;
       line-height: 24px;
       display: flex;
-      transition: background-color var(--anim-ease) var(--anim-time),
+      transition:
+        background-color var(--anim-ease) var(--anim-time),
         visibility linear var(--anim-time);
       border-radius: 0 10px 10px 0;
       -webkit-tap-highlight-color: transparent;
@@ -632,7 +637,8 @@ h3 {
             color: #666;
           }
           > ul {
-            transition: max-height var(--anim-ease) var(--anim-time),
+            transition:
+              max-height var(--anim-ease) var(--anim-time),
               opacity var(--anim-ease) var(--anim-time);
             opacity: 1;
           }
@@ -679,7 +685,8 @@ h3 {
     -webkit-font-smoothing: antialiased;
     color: #4a4a4a;
     position: relative;
-    box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.1),
+    box-shadow:
+      0 1px 2px 0 rgba(60, 64, 67, 0.1),
       0 1px 3px 1px rgba(60, 64, 67, 0.15);
     overflow: hidden;
 
@@ -860,7 +867,8 @@ h3 {
       margin-right: auto;
       width: 90%;
       border-left: 3px solid transparent;
-      box-shadow: 0 0.2rem 0.5rem rgba(0, 0, 0, 0.05),
+      box-shadow:
+        0 0.2rem 0.5rem rgba(0, 0, 0, 0.05),
         0 0 0.05rem rgba(0, 0, 0, 0.1);
 
       &:before {
@@ -987,7 +995,8 @@ h3 {
       height: 100vh;
       overflow-y: auto;
       top: var(--site-header-height);
-      transition: transform var(--anim-ease) var(--anim-time),
+      transition:
+        transform var(--anim-ease) var(--anim-time),
         box-shadow var(--anim-ease) var(--anim-time),
         visibility ease var(--anim-time);
       transform: translateX(calc(-1 * var(--nav-width-mobile)));
