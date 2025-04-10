@@ -77,7 +77,7 @@ export function createAndroidLogTrack(trace: Trace, uri: string) {
     colorizer: (row) => DEPTH_TO_COLOR[row.depth],
     // It would be nice to show the message on the tooltip too, but loading a
     // message for each event may balloon memory, so we just show the tag.
-    tooltip: (row) => (row.tag === null ? [] : [row.tag]),
+    tooltip: (slice) => slice.row.tag,
     // All log events are instant events, render them as a little box rather
     // than the default chevron.
     instantStyle: {

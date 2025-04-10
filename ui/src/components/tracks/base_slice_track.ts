@@ -204,9 +204,6 @@ export abstract class BaseSliceTrack<
   private charWidth = -1;
   protected hoveredSlice?: SliceT;
 
-  // Bunch of lines to render on the tooltip.
-  private hoverTooltip?: string[];
-
   private maxDataDepth = 0;
 
   // Computed layout.
@@ -251,6 +248,12 @@ export abstract class BaseSliceTrack<
   // TODO(stevegolton): If we merge BST with DST, this abstraction can be
   // avoided.
   abstract getJoinSqlSource(): string;
+
+  // Override me if you want to define what is rendered on the tooltip. Called
+  // every DOM render cycle. The raw slice data is passed to this function
+  protected renderTooltipForSlice(_: SliceT): m.Children {
+    return undefined;
+  }
 
   onSliceOver(_args: OnSliceOverArgs<SliceT>): void {}
   onSliceOut(_args: OnSliceOutArgs<SliceT>): void {}
@@ -660,7 +663,11 @@ export abstract class BaseSliceTrack<
   }
 
   renderTooltip() {
-    return this.hoverTooltip && [this.hoverTooltip.map((line) => m('', line))];
+    const hoveredSlice = this.hoveredSlice;
+    if (hoveredSlice) {
+      return this.renderTooltipForSlice(hoveredSlice);
+    }
+    return undefined;
   }
 
   // This method figures out if the visible window is outside the bounds of
@@ -839,12 +846,10 @@ export abstract class BaseSliceTrack<
     if (this.hoveredSlice === undefined) {
       this.trace.timeline.highlightedSliceId = undefined;
       this.onSliceOut({slice: assertExists(lastHoveredSlice)});
-      this.hoverTooltip = undefined;
     } else {
       const args: OnSliceOverArgs<SliceT> = {slice: this.hoveredSlice};
       this.trace.timeline.highlightedSliceId = this.hoveredSlice.id;
       this.onSliceOver(args);
-      this.hoverTooltip = args.tooltip;
     }
   }
 
