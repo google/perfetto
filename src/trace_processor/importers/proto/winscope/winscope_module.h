@@ -24,10 +24,10 @@
 #include "src/trace_processor/importers/proto/winscope/android_input_event_parser.h"
 #include "src/trace_processor/importers/proto/winscope/protolog_parser.h"
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_parser.h"
+#include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.h"
 #include "src/trace_processor/importers/proto/winscope/viewcapture_parser.h"
-#include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 

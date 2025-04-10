@@ -14,27 +14,26 @@
  * limitations under the License.
  */
 
-#include "shell_transitions_tracker.h"
-#include "perfetto/ext/base/crash_keys.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto {
 namespace trace_processor {
+
 ShellTransitionsTracker::ShellTransitionsTracker(TraceProcessorContext* context)
     : context_(context) {}
 
 ShellTransitionsTracker::~ShellTransitionsTracker() = default;
 
-ArgsTracker::BoundInserter ShellTransitionsTracker::AddArgsTo(int32_t transition_id) {
+ArgsTracker::BoundInserter ShellTransitionsTracker::AddArgsTo(
+    int32_t transition_id) {
   auto* transition_info = GetOrInsertTransition(transition_id);
 
   return transition_info->args_tracker.AddArgsTo(transition_info->row_id);
 }
 
-void ShellTransitionsTracker::SetTimestamp(int32_t transition_id, int64_t timestamp_ns) {
+void ShellTransitionsTracker::SetTimestamp(int32_t transition_id,
+                                           int64_t timestamp_ns) {
   auto pos = transitions_infos_.find(transition_id);
   if (pos == transitions_infos_.end()) {
     context_->storage->IncrementStats(
@@ -43,8 +42,10 @@ void ShellTransitionsTracker::SetTimestamp(int32_t transition_id, int64_t timest
   }
 
   auto* window_manager_shell_transitions_table =
-    context_->storage->mutable_window_manager_shell_transitions_table();
-  window_manager_shell_transitions_table->FindById(pos->second.row_id).value().set_ts(timestamp_ns);
+      context_->storage->mutable_window_manager_shell_transitions_table();
+  window_manager_shell_transitions_table->FindById(pos->second.row_id)
+      .value()
+      .set_ts(timestamp_ns);
 }
 
 void ShellTransitionsTracker::Flush() {
@@ -52,7 +53,8 @@ void ShellTransitionsTracker::Flush() {
   transitions_infos_.clear();
 }
 
-ShellTransitionsTracker::TransitionInfo* ShellTransitionsTracker::GetOrInsertTransition(int32_t transition_id) {
+ShellTransitionsTracker::TransitionInfo*
+ShellTransitionsTracker::GetOrInsertTransition(int32_t transition_id) {
   auto pos = transitions_infos_.find(transition_id);
   if (pos != transitions_infos_.end()) {
     return &pos->second;
@@ -65,7 +67,8 @@ ShellTransitionsTracker::TransitionInfo* ShellTransitionsTracker::GetOrInsertTra
   row.transition_id = transition_id;
   auto row_id = window_manager_shell_transitions_table->Insert(row).id;
 
-  transitions_infos_.insert({transition_id, TransitionInfo{row_id, ArgsTracker(context_)}});
+  transitions_infos_.insert(
+      {transition_id, TransitionInfo{row_id, ArgsTracker(context_)}});
 
   pos = transitions_infos_.find(transition_id);
   return &pos->second;
