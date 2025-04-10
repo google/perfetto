@@ -91,6 +91,17 @@ struct UpperBound {};
 using EqualRangeLowerBoundUpperBound =
     TypeSet<EqualRange, LowerBound, UpperBound>;
 
+// Type tag indicating nulls should be placed at the start during
+// partitioning/sorting.
+struct NullsAtStart {};
+
+// Type tag indicating nulls should be placed at the end during
+// partitioning/sorting.
+struct NullsAtEnd {};
+
+// TypeSet defining the possible placement locations for nulls.
+using NullsLocation = TypeSet<NullsAtStart, NullsAtEnd>;
+
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.
 class Storage {
@@ -98,6 +109,8 @@ class Storage {
   // Storage representation for Id columns.
   struct Id {
     uint32_t size;  // Number of rows in the column
+
+    static const void* data() { return nullptr; }
   };
   using Uint32 = FlexVector<uint32_t>;
   using Int32 = FlexVector<int32_t>;

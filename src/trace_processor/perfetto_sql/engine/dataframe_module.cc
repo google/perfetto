@@ -39,12 +39,28 @@ namespace perfetto::trace_processor {
 
 namespace {
 
-dataframe::Op SqliteOpToDataframeOp(int op) {
+std::optional<dataframe::Op> SqliteOpToDataframeOp(int op) {
   switch (op) {
     case SQLITE_INDEX_CONSTRAINT_EQ:
       return dataframe::Eq();
+    case SQLITE_INDEX_CONSTRAINT_NE:
+      return dataframe::Ne();
+    case SQLITE_INDEX_CONSTRAINT_LT:
+      return dataframe::Lt();
+    case SQLITE_INDEX_CONSTRAINT_LE:
+      return dataframe::Le();
+    case SQLITE_INDEX_CONSTRAINT_GT:
+      return dataframe::Gt();
+    case SQLITE_INDEX_CONSTRAINT_GE:
+      return dataframe::Ge();
+    case SQLITE_INDEX_CONSTRAINT_GLOB:
+      return dataframe::Glob();
+    case SQLITE_INDEX_CONSTRAINT_ISNULL:
+      return dataframe::IsNull();
+    case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
+      return dataframe::IsNotNull();
     default:
-      PERFETTO_FATAL("Unimplemented");
+      return std::nullopt;
   }
 }
 
@@ -154,15 +170,31 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
     if (!info->aConstraint[i].usable) {
       continue;
     }
+    auto df_op = SqliteOpToDataframeOp(info->aConstraint[i].op);
+    if (!df_op) {
+      continue;
+    }
     filter_specs.emplace_back(dataframe::FilterSpec{
         static_cast<uint32_t>(info->aConstraint[i].iColumn),
         static_cast<uint32_t>(i),
-        SqliteOpToDataframeOp(info->aConstraint[i].op),
+        *df_op,
         std::nullopt,
     });
   }
-  SQLITE_ASSIGN_OR_RETURN(tab, auto plan,
-                          v->dataframe->PlanQuery(filter_specs, info->colUsed));
+
+  std::vector<dataframe::SortSpec> sort_specs;
+  sort_specs.reserve(static_cast<size_t>(info->nOrderBy));
+  for (int i = 0; i < info->nOrderBy; ++i) {
+    sort_specs.emplace_back(dataframe::SortSpec{
+        static_cast<uint32_t>(info->aOrderBy[i].iColumn),
+        info->aOrderBy[i].desc ? dataframe::SortDirection::kDescending
+                               : dataframe::SortDirection::kAscending});
+  }
+  info->orderByConsumed = true;
+
+  SQLITE_ASSIGN_OR_RETURN(
+      tab, auto plan,
+      v->dataframe->PlanQuery(filter_specs, sort_specs, info->colUsed));
   for (const auto& c : filter_specs) {
     if (auto value_index = c.value_index; value_index) {
       info->aConstraintUsage[c.source_index].argvIndex =

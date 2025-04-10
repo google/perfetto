@@ -252,6 +252,25 @@ Bytecode ParseBytecode(const std::string& bytecode_str) {
   return bc;
 }
 
+template <typename T, typename U>
+Column CreateNonNullUnsortedColumn(std::string name,
+                                   std::initializer_list<U> data,
+                                   StringPool* pool = nullptr) {
+  impl::FlexVector<T> vec;
+  if constexpr (std::is_same_v<T, StringPool::Id>) {
+    PERFETTO_CHECK(pool);
+    for (const auto& str_like : data) {
+      vec.push_back(pool->InternString(str_like));
+    }
+  } else {
+    for (const U& val : data) {
+      vec.push_back(val);
+    }
+  }
+  return impl::Column{std::move(name), impl::Storage{std::move(vec)},
+                      impl::Overlay::NoOverlay{}, Unsorted{}};
+}
+
 template <typename T>
 FlexVector<T> CreateFlexVectorForTesting(std::initializer_list<T> values) {
   FlexVector<T> vec;
@@ -264,16 +283,21 @@ FlexVector<T> CreateFlexVectorForTesting(std::initializer_list<T> values) {
 class BytecodeInterpreterTest : public testing::Test {
  protected:
   template <typename... Ts>
-  void SetRegistersAndExecute(const std::string& bytecode, Ts... value) {
+  void SetRegistersAndExecute(const std::string& bytecode_str, Ts... value) {
     BytecodeVector bytecode_vector;
-    bytecode_vector.emplace_back(ParseBytecode(bytecode));
-    interpreter_ = std::make_unique<Interpreter<Fetcher>>(
-        std::move(bytecode_vector), column_.get(), &spool_);
+    bytecode_vector.emplace_back(ParseBytecode(bytecode_str));
+    SetupInterpreterWithBytecode(std::move(bytecode_vector));
+
     uint32_t i = 0;
     (interpreter_->SetRegisterValueForTesting(reg::WriteHandle<Ts>(i++),
                                               std::move(value)),
      ...);
     interpreter_->Execute(fetcher_);
+  }
+
+  void SetupInterpreterWithBytecode(BytecodeVector bytecode) {
+    interpreter_ = std::make_unique<Interpreter<Fetcher>>(
+        std::move(bytecode), columns_vec_.data(), &spool_);
   }
 
   template <typename T>
@@ -285,7 +309,7 @@ class BytecodeInterpreterTest : public testing::Test {
 
   Fetcher fetcher_;
   StringPool spool_;
-  std::unique_ptr<Column> column_;
+  std::vector<Column> columns_vec_;
   std::unique_ptr<Interpreter<Fetcher>> interpreter_;
 };
 
@@ -723,8 +747,8 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
-  column_.reset(new impl::Column{"foo", std::move(values), Overlay::NoOverlay{},
-                                 Sorted{}});
+  columns_vec_.emplace_back(
+      impl::Column{"foo", std::move(values), Overlay::NoOverlay{}, Sorted{}});
   {
     // Test case 1: Value exists in range
     SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
@@ -754,8 +778,9 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32LowerBound) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
-  column_.reset(new impl::Column{"foo", Storage{std::move(values)},
-                                 Overlay{Overlay::NoOverlay{}}, Sorted{}});
+  columns_vec_.emplace_back(impl::Column{"foo", Storage{std::move(values)},
+                                         Overlay{Overlay::NoOverlay{}},
+                                         Sorted{}});
 
   SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
                          Range{3u, 8u});
@@ -775,8 +800,8 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32UpperBound) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
-  column_.reset(new impl::Column{"foo", std::move(values), Overlay::NoOverlay{},
-                                 Sorted{}});
+  columns_vec_.emplace_back(
+      impl::Column{"foo", std::move(values), Overlay::NoOverlay{}, Sorted{}});
 
   SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
                          Range{3u, 7u});
@@ -824,8 +849,8 @@ TEST_F(BytecodeInterpreterTest, FilterUint32Eq) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
-  column_.reset(new impl::Column{"foo", std::move(values), Overlay::NoOverlay{},
-                                 Unsorted{}});
+  columns_vec_.emplace_back(
+      impl::Column{"foo", std::move(values), Overlay::NoOverlay{}, Unsorted{}});
 
   std::vector<uint32_t> indices_spec = {3, 3, 4, 5, 0, 6, 0};
   {
@@ -874,8 +899,8 @@ TEST_F(BytecodeInterpreterTest, SortedFilterString) {
   // Sorted string data: ["apple", "banana", "banana", "cherry", "date"]
   auto values = CreateFlexVectorForTesting<StringPool::Id>(
       {apple_id, banana_id, banana_id, cherry_id, date_id});
-  column_.reset(new impl::Column{"foo", std::move(values), Overlay::NoOverlay{},
-                                 Sorted{}});
+  columns_vec_.emplace_back(
+      impl::Column{"foo", std::move(values), Overlay::NoOverlay{}, Sorted{}});
 
   // --- Sub-test for EqualRange (Eq) ---
   {
@@ -927,8 +952,8 @@ TEST_F(BytecodeInterpreterTest, StringFilter) {
   // Index:    0        1      2      3        4       5        6
   auto values = CreateFlexVectorForTesting<StringPool::Id>(
       {cherry_id, apple_id, empty_id, banana_id, apple_id, date_id, durian_id});
-  column_.reset(new impl::Column{"foo", std::move(values), Overlay::NoOverlay{},
-                                 Unsorted{}});
+  columns_vec_.emplace_back(
+      impl::Column{"foo", std::move(values), Overlay::NoOverlay{}, Unsorted{}});
 
   // Initial indices {0, 1, 2, 3, 4, 5, 6} pointing to the data
   const std::vector<uint32_t> source_indices = {0, 1, 2, 3, 4, 5, 6};
@@ -995,7 +1020,7 @@ TEST_F(BytecodeInterpreterTest, NullFilter) {
 
   // Create a dummy column with a DenseNull overlay using the BitVector
   // (SparseNull would work identically for this specific test)
-  column_ = std::make_unique<impl::Column>(impl::Column{
+  columns_vec_.emplace_back(impl::Column{
       "foo",
       Storage{Storage::Uint32{}},  // Storage type doesn't matter for NullFilter
       Overlay{Overlay::DenseNull{std::move(bv)}}, Unsorted{}});
@@ -1051,7 +1076,7 @@ TEST_F(BytecodeInterpreterTest, PrefixPopcount) {
   bv.set(160);  // Word 2
   bv.set(200);  // Word 3
 
-  column_ = std::make_unique<impl::Column>(impl::Column{
+  columns_vec_.emplace_back(impl::Column{
       "foo", Storage{Storage::Uint32{}},  // Storage type doesn't matter
       Overlay{Overlay::SparseNull{std::move(bv)}}, Unsorted{}});
   SetRegistersAndExecute("PrefixPopcount: [col=0, dest_register=Register(0)]");
@@ -1100,7 +1125,7 @@ TEST_F(BytecodeInterpreterTest, TranslateSparseNullIndices) {
   bv.set(160);  // Word 2
   bv.set(200);  // Word 3
 
-  column_ = std::make_unique<impl::Column>(impl::Column{
+  columns_vec_.emplace_back(impl::Column{
       "foo", Storage{Storage::Uint32{}},  // Storage type doesn't matter
       Overlay{Overlay::SparseNull{std::move(bv)}}, Unsorted{}});
 
@@ -1156,7 +1181,7 @@ TEST_F(BytecodeInterpreterTest, StrideTranslateAndCopySparseNullIndices) {
   popcount_slab[3] = 9;
 
   // Create a dummy column with the BitVector (SparseNull overlay)
-  column_ = std::make_unique<impl::Column>(impl::Column{
+  columns_vec_.emplace_back(impl::Column{
       "foo", Storage{Storage::Uint32{}},  // Storage type doesn't matter
       Overlay{Overlay::SparseNull{std::move(bv)}}, Unsorted{}});
 
@@ -1225,7 +1250,7 @@ TEST_F(BytecodeInterpreterTest, StrideCopyDenseNullIndices) {
   bv.set(200);  // Word 3
 
   // Create a dummy column with the BitVector (DenseNull overlay)
-  column_ = std::make_unique<impl::Column>(impl::Column{
+  columns_vec_.emplace_back(impl::Column{
       "foo", Storage{Storage::Uint32{}},  // Storage type doesn't matter
       Overlay{Overlay::DenseNull{std::move(bv)}}, Unsorted{}});
 
@@ -1279,7 +1304,7 @@ TEST_F(BytecodeInterpreterTest, StrideCopyDenseNullIndices) {
 TEST_F(BytecodeInterpreterTest, NonStringFilterInPlace) {
   // Column data: {5, 10, 5, 15, 10, 20}
   auto values = CreateFlexVectorForTesting<uint32_t>({5, 10, 5, 15, 10, 20});
-  column_ = std::make_unique<impl::Column>(impl::Column{
+  columns_vec_.emplace_back(impl::Column{
       "foo", std::move(values), Overlay{Overlay::NoOverlay{}}, Unsorted{}});
 
   // Source indices (imagine these are translated storage indices for data
@@ -1316,7 +1341,7 @@ TEST_F(BytecodeInterpreterTest, Uint32SetIdSortedEq) {
   // 7  7  10
   auto values = CreateFlexVectorForTesting<uint32_t>(
       {0u, 0u, 0u, 3u, 3u, 5u, 5u, 7u, 7u, 7u, 10u});
-  column_ = std::make_unique<impl::Column>(impl::Column{
+  columns_vec_.emplace_back(impl::Column{
       "foo", std::move(values), Overlay{Overlay::NoOverlay{}}, SetIdSorted{}});
 
   std::string bytecode =
@@ -1386,6 +1411,157 @@ TEST_F(BytecodeInterpreterTest, Uint32SetIdSortedEq) {
     EXPECT_EQ(result.b, full_range.b);
     EXPECT_EQ(result.e, full_range.e);
   }
+}
+
+TEST_F(BytecodeInterpreterTest, ExecuteSortUint32Asc) {
+  columns_vec_.emplace_back(
+      CreateNonNullUnsortedColumn<uint32_t>("col", {50u, 10u, 30u, 20u, 40u}));
+
+  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4};
+  SetRegistersAndExecute(
+      "StableSortIndices<Uint32>: [col=0, direction=SortDirection(0), "
+      "update_register=Register(0)]",
+      GetSpan(initial_indices));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 2, 4, 0));
+}
+
+TEST_F(BytecodeInterpreterTest, ExecuteSortDoubleDesc) {
+  columns_vec_.emplace_back(
+      CreateNonNullUnsortedColumn<double>("col", {1.1, 5.5, 2.2, 4.4, 3.3}));
+
+  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4};
+  SetRegistersAndExecute(
+      "StableSortIndices<Double>: [col=0, direction=SortDirection(1), "
+      "update_register=Register(0)]",
+      GetSpan(initial_indices));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 4, 2, 0));
+}
+
+TEST_F(BytecodeInterpreterTest, ExecuteSortStringAsc) {
+  columns_vec_.clear();
+  columns_vec_.emplace_back(CreateNonNullUnsortedColumn<StringPool::Id>(
+      "col", {"banana", "apple", "cherry", "date"}, &spool_));
+
+  std::vector<uint32_t> initial_indices = {0, 1, 2, 3};
+  SetRegistersAndExecute(
+      "StableSortIndices<String>: [col=0, direction=SortDirection(0), "
+      "update_register=Register(0)]",
+      GetSpan(initial_indices));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 0, 2, 3));
+}
+
+TEST_F(BytecodeInterpreterTest, ExecuteSortIdAsc) {
+  columns_vec_.emplace_back(
+      impl::Column{"id_col", impl::Storage{impl::Storage::Id{5}},
+                   impl::Overlay::NoOverlay{}, IdSorted{}});
+
+  std::vector<uint32_t> initial_indices = {3, 0, 4, 1, 2};
+  SetRegistersAndExecute(
+      "StableSortIndices<Id>: [col=0, direction=SortDirection(0), "
+      "update_register=Register(0)]",
+      GetSpan(initial_indices));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 1, 2, 3, 4));
+}
+
+TEST_F(BytecodeInterpreterTest, ExecuteStableSort) {
+  columns_vec_.emplace_back(
+      CreateNonNullUnsortedColumn<int64_t>("col_I", {10, 20, 10, 20, 10}));
+  columns_vec_.emplace_back(CreateNonNullUnsortedColumn<StringPool::Id>(
+      "col_S", {"c", "e", "a", "d", "b"}, &spool_));
+
+  BytecodeVector bytecode;
+  bytecode.emplace_back(ParseBytecode(
+      "StableSortIndices<String>: [col=1, direction=SortDirection(1), "
+      "update_register=Register(0)]"));
+  bytecode.emplace_back(ParseBytecode(
+      "StableSortIndices<Int64>: [col=0, direction=SortDirection(0), "
+      "update_register=Register(0)]"));
+
+  SetupInterpreterWithBytecode(std::move(bytecode));
+
+  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4};
+  interpreter_->SetRegisterValueForTesting(reg::WriteHandle<Span<uint32_t>>(0),
+                                           GetSpan(initial_indices));
+
+  interpreter_->Execute(fetcher_);
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 4, 2, 1, 3));
+}
+
+TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionNullsAtStart) {
+  auto data_vec = CreateFlexVectorForTesting<uint32_t>({100, 300, 400, 600});
+  auto bv = BitVector::CreateWithSize(7);
+  bv.set(1);
+  bv.set(3);
+  bv.set(4);
+  bv.set(6);
+  columns_vec_.push_back(impl::Column{
+      "col", impl::Storage{std::move(data_vec)},
+      impl::Overlay{impl::Overlay::SparseNull{std::move(bv)}}, Unsorted{}});
+
+  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4, 5, 6};
+  SetRegistersAndExecute(
+      "NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(0), "
+      "partition_register=Register(0), dest_non_null_register=Register(1)]",
+      GetSpan(initial_indices), impl::Span<uint32_t>{nullptr, nullptr});
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 2, 5, 1, 3, 4, 6));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre(1, 3, 4, 6));
+}
+
+TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionNullsAtEnd) {
+  auto data_vec = CreateFlexVectorForTesting<uint32_t>({100, 300, 400, 600});
+  auto bv = BitVector::CreateWithSize(7);
+  bv.set(1);
+  bv.set(3);
+  bv.set(4);
+  bv.set(6);
+  columns_vec_.push_back(impl::Column{
+      "col", impl::Storage{std::move(data_vec)},
+      impl::Overlay{impl::Overlay::SparseNull{std::move(bv)}}, Unsorted{}});
+
+  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4, 5, 6};
+  SetRegistersAndExecute(
+      "NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(1), "
+      "partition_register=Register(0), dest_non_null_register=Register(1)]",
+      GetSpan(initial_indices), impl::Span<uint32_t>{nullptr, nullptr});
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 4, 6, 0, 2, 5));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre(1, 3, 4, 6));
+}
+
+TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionAllNulls) {
+  auto data_vec = CreateFlexVectorForTesting<uint32_t>({});
+  auto bv = BitVector::CreateWithSize(3);
+  columns_vec_.push_back(impl::Column{
+      "col", impl::Storage{std::move(data_vec)},
+      impl::Overlay{impl::Overlay::SparseNull{std::move(bv)}}, Unsorted{}});
+
+  std::vector<uint32_t> initial_indices = {0, 1, 2};
+  SetRegistersAndExecute(
+      "NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(0), "
+      "partition_register=Register(0), dest_non_null_register=Register(1)]",
+      GetSpan(initial_indices), impl::Span<uint32_t>{nullptr, nullptr});
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 1, 2));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre());
+}
+
+TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionEmptyInput) {
+  auto data_vec = CreateFlexVectorForTesting<uint32_t>({});
+  auto bv = BitVector::CreateWithSize(0);
+  columns_vec_.push_back(impl::Column{
+      "col", impl::Storage{std::move(data_vec)},
+      impl::Overlay{impl::Overlay::SparseNull{std::move(bv)}}, Unsorted{}});
+
+  std::vector<uint32_t> initial_indices = {};
+  SetRegistersAndExecute(
+      "NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(0), "
+      "partition_register=Register(0), dest_non_null_register=Register(1)]",
+      GetSpan(initial_indices), impl::Span<uint32_t>{nullptr, nullptr});
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre());
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre());
 }
 
 }  // namespace
