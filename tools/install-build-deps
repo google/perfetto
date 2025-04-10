@@ -516,6 +516,9 @@ UI_DIR = os.path.join(ROOT_DIR, 'ui')
 TOOLS_DIR = os.path.join(ROOT_DIR, 'tools')
 NODE_MODULES_STATUS_FILE = os.path.join(UI_DIR, 'node_modules', '.last_install')
 PYTHON_VENV_DIR = os.path.join(ROOT_DIR, '.venv')
+PYTHON_VENV_BIN_DIR = os.path.join(
+    PYTHON_VENV_DIR, 'bin') if sys.platform != 'win32' else os.path.join(
+        PYTHON_VENV_DIR, 'Scripts')
 PYTHON_STATUS_FILE = os.path.join(PYTHON_VENV_DIR, '.last_install')
 PYTHON_REQUIREMENTS = os.path.join(ROOT_DIR, 'python', 'requirements.txt')
 TEST_DATA_SCRIPT = os.path.join(TOOLS_DIR, 'test_data')
@@ -697,7 +700,7 @@ def CheckPythonVenv():
 
 
 def InstallPythonVenv():
-  venv_pip = os.path.join(PYTHON_VENV_DIR, 'bin', 'pip3')
+  venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
   cur_python_interpreter = sys.executable
   if not os.path.exists(venv_pip):
     cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
@@ -911,13 +914,15 @@ def Main():
     InstallPythonVenv()
 
   # Install the pre-push hook if the .git/hooks directory exists and it's a
-  # non check-only invocation.
-  git_hook_dir = os.path.join(ROOT_DIR, '.git', 'hooks')
-  if not args.check_only and os.path.exists(git_hook_dir):
-    git_hook_path = os.path.join(git_hook_dir, 'pre-push')
-    if not os.path.exists(git_hook_path):
-      tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'run_presubmit')
-      os.symlink(tools_hook_path, git_hook_path)
+  # non check-only invocation. Not on windows (symlinks are not supported
+  # there).
+  if sys.platform != 'win32':
+    git_hook_dir = os.path.join(ROOT_DIR, '.git', 'hooks')
+    if not args.check_only and os.path.exists(git_hook_dir):
+      git_hook_path = os.path.join(git_hook_dir, 'pre-push')
+      if not os.path.exists(git_hook_path):
+        tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'run_presubmit')
+        os.symlink(tools_hook_path, git_hook_path)
 
   cur_python_interpreter = sys.executable
   test_data_synced = 0 == subprocess.call([
