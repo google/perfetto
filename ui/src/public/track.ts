@@ -266,6 +266,9 @@ interface WellKnownTrackTags {
 
   // Group name, used as a hint to ask track decider to put this in a group
   groupName: string;
+
+  // Track type, used for filtering
+  type: string;
 }
 
 export interface Slice {
