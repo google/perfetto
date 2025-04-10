@@ -23,11 +23,8 @@ import json
 from collections import namedtuple
 from config import GITHUB_REPO, PROJECT
 from common_utils import SCOPES, get_github_installation_token, req_async, utc_now_iso
+from google.cloud import ndb
 from stackdriver_metrics import STACKDRIVER_METRICS
-''' Makes anonymous GET-only requests to Gerrit.
-
-Solves the lack of CORS headers from AOSP gerrit.
-'''
 
 STACKDRIVER_API = 'https://monitoring.googleapis.com/v3/projects/%s' % PROJECT
 
@@ -37,11 +34,16 @@ SCOPES.append('https://www.googleapis.com/auth/datastore')
 SCOPES.append('https://www.googleapis.com/auth/monitoring')
 SCOPES.append('https://www.googleapis.com/auth/monitoring.write')
 
-HASH_RE = re.compile('^[a-f0-9]+$')
+HASH_RE = re.compile(r'^[a-f0-9]+$')
+JOB_TYPE_RE = re.compile(r'^([\w-]+)\s*\/\s*[\w-]+(?:\s*\(\s*([^,\s)]+))?')
+HEX_RE = re.compile(r'^[0-9a-fA-F]+$')
+
 CACHE_TTL = 3600  # 1 h
 CacheEntry = namedtuple('CacheEntry', ['contents', 'expiration'])
 
 app = flask.Flask(__name__)
+
+ndb_client = ndb.Client()
 
 logging.basicConfig(
     format='%(levelname)-8s %(asctime)s %(message)s',
@@ -50,8 +52,6 @@ logging.basicConfig(
 
 _cached_gh_token = None
 _cached_gh_token_expiry = 0  # Epoch timestamp
-
-HEX_PATTERN = re.compile(r'^[0-9a-fA-F]+$')
 
 
 def get_cached_github_token():
@@ -99,7 +99,7 @@ async def gh_pulls():
 
 @app.route('/gh/checks/<string:sha>')
 async def gh_checks(sha):
-  if not HEX_PATTERN.fullmatch(sha):
+  if not HEX_RE.fullmatch(sha):
     flask.abort(400, description="Invalid hex string")
   url = f'https://api.github.com/repos/{GITHUB_REPO}/commits/{sha}/check-runs'
   return gh_req(url)
@@ -131,9 +131,13 @@ async def get_jobs_for_workflow_run(id):
   respj = json.loads(resp)
   jobs = []
   for job in respj['jobs']:
+    job_name = job.get('name', '')
+    m = JOB_TYPE_RE.match(job_name)
+    if m:
+      job_name = m[1] + (f'/{m[2]}' if m[2] else '')
     jobs.append({
         'id': job.get('id'),
-        'name': job.get('name'),
+        'name': job_name,
         'html_url': job.get('html_url'),
         'status': job.get('status'),
         'conclusion': job.get('conclusion'),
@@ -163,7 +167,9 @@ async def workflow_runs_and_jobs():
         'head_sha': run.get('head_sha'),
         'status': run.get('status'),
         'conclusion': run.get('conclusion'),
-        'login': run.get('actor', {}).get('login'),
+        'actor': {
+            'login': run.get('actor', {}).get('login')
+        },
         'created_at': run.get('created_at'),
         'updated_at': run.get('updated_at'),
         'run_started_at': run.get('run_started_at'),
@@ -181,7 +187,24 @@ async def update_metrics():
     for j in w.get('jobs', []):
       num_pending += 1 if j['status'] in ('queued', 'in_progress') else 0
   await write_metrics({'ci_job_queue_len': {'v': num_pending}})
-  return str(num_pending)
+  return {'ci_job_queue_len': num_pending}
+
+
+class MetricFlag(ndb.Model):
+  updated = ndb.BooleanProperty()
+
+
+def was_metric_updated(metric_key: str) -> bool:
+  with ndb_client.context():
+    key = ndb.Key(MetricFlag, metric_key)
+    entity = key.get()
+    return entity.updated if entity else False
+
+
+def mark_metric_as_updated(metric_key: str):
+  with ndb_client.context():
+    key = ndb.Key(MetricFlag, metric_key)
+    MetricFlag(key=key, updated=True).put()
 
 
 async def write_metrics(metric_dict):

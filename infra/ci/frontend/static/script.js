@@ -356,7 +356,7 @@ const JobsPageRenderer = {
           m("td", wkf.event),
           m("td", ""),
           m("td", wkf.status, wkf.conclusion && ` [${wkf.conclusion}]`),
-          m("td", wkf.login),
+          m("td", wkf.actor.login),
           m("td", wkf.display_title),
           m("td", getLastUpdate(parseGhTime(wkf.created_at))),
           m("td", getLastUpdate(parseGhTime(wkf.updated_at))),
