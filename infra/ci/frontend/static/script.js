@@ -103,7 +103,7 @@ function renderHeader() {
       m(
         `div.logs`,
         "Logs",
-        m("div", m(`a[href=${logUrl}controller][target=_blank]`, "Controller")),
+        m("div", m(`a[href=${logUrl}workers][target=_blank]`, "Workers")),
         m("div", m(`a[href=${logUrl}frontend][target=_blank]`, "Frontend")),
       ),
     ),
