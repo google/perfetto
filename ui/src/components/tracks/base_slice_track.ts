@@ -12,29 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+import {drawIncompleteSlice} from '../../base/canvas_utils';
+import {colorCompare} from '../../base/color';
+import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {VerticalBounds} from '../../base/geom';
 import {assertExists} from '../../base/logging';
 import {clamp, floatEqual} from '../../base/math_utils';
+import {cropText} from '../../base/string_utils';
 import {Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {
-  drawIncompleteSlice,
-  drawTrackHoverTooltip,
-} from '../../base/canvas_utils';
-import {cropText} from '../../base/string_utils';
-import {colorCompare} from '../../base/color';
-import {UNEXPECTED_PINK} from '../colorizer';
+import {uuidv4Sql} from '../../base/uuid';
 import {featureFlags} from '../../core/feature_flags';
 import {raf} from '../../core/raf_scheduler';
-import {TrackRenderer} from '../../public/track';
-import {Slice} from '../../public/track';
+import {Trace} from '../../public/trace';
+import {
+  Slice,
+  TrackMouseEvent,
+  TrackRenderContext,
+  TrackRenderer,
+} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
+import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
-import {uuidv4Sql} from '../../base/uuid';
-import {AsyncDisposableStack} from '../../base/disposable_stack';
-import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
-import {Point2D, VerticalBounds} from '../../base/geom';
-import {Trace} from '../../public/trace';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -201,9 +202,11 @@ export abstract class BaseSliceTrack<
   private extraSqlColumns: string[];
 
   private charWidth = -1;
-  private hoverPos?: Point2D;
   protected hoveredSlice?: SliceT;
-  private hoverTooltip: string[] = [];
+
+  // Bunch of lines to render on the tooltip.
+  private hoverTooltip?: string[];
+
   private maxDataDepth = 0;
 
   // Computed layout.
@@ -650,24 +653,14 @@ export abstract class BaseSliceTrack<
     // have some abstraction for that arrow (ideally the same we'd use for
     // flows).
     this.drawSchedLatencyArrow(ctx, this.selectedSlice);
-
-    // If a slice is hovered, draw the tooltip.
-    const tooltip = this.hoverTooltip;
-    if (
-      this.hoveredSlice !== undefined &&
-      tooltip.length > 0 &&
-      this.hoverPos !== undefined
-    ) {
-      if (tooltip.length === 1) {
-        drawTrackHoverTooltip(ctx, this.hoverPos, size, tooltip[0]);
-      } else {
-        drawTrackHoverTooltip(ctx, this.hoverPos, size, tooltip[0], tooltip[1]);
-      }
-    } // if (hoveredSlice)
   }
 
   async onDestroy(): Promise<void> {
     await this.trash.asyncDispose();
+  }
+
+  renderTooltip() {
+    return this.hoverTooltip && [this.hoverTooltip.map((line) => m('', line))];
   }
 
   // This method figures out if the visible window is outside the bounds of
@@ -826,15 +819,9 @@ export abstract class BaseSliceTrack<
   }
 
   onMouseMove(event: TrackMouseEvent): void {
-    const {x, y} = event;
-    this.hoverPos = {x, y};
     this.updateHoveredSlice(this.findSlice(event));
 
-    // We need to do a full redraw in order to update the hovered slice properly
-    // due to the way this system is plumbed together right now, despite the
-    // fact that changing the hovered slice SHOULD only require a canvas redraw.
-    //
-    // TODO(stevegolton): Fix this.
+    // Maybe do this in the caller?
     this.trace.raf.scheduleFullRedraw();
   }
 
@@ -852,13 +839,12 @@ export abstract class BaseSliceTrack<
     if (this.hoveredSlice === undefined) {
       this.trace.timeline.highlightedSliceId = undefined;
       this.onSliceOut({slice: assertExists(lastHoveredSlice)});
-      this.hoverTooltip = [];
-      this.hoverPos = undefined;
+      this.hoverTooltip = undefined;
     } else {
       const args: OnSliceOverArgs<SliceT> = {slice: this.hoveredSlice};
       this.trace.timeline.highlightedSliceId = this.hoveredSlice.id;
       this.onSliceOver(args);
-      this.hoverTooltip = args.tooltip || [];
+      this.hoverTooltip = args.tooltip;
     }
   }
 

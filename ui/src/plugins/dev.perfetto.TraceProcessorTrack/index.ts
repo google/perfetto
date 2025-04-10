@@ -127,6 +127,7 @@ export default class implements PerfettoPlugin {
         tags: {
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
+          type: type,
           upid: upid ?? undefined,
           utid: utid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),
@@ -252,6 +253,7 @@ export default class implements PerfettoPlugin {
         tags: {
           kind: SLICE_TRACK_KIND,
           trackIds: trackIds,
+          type: type,
           upid: upid ?? undefined,
           utid: utid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),

@@ -86,3 +86,10 @@
     font-size: 11px;
   }
 }
+
+// Just make the tooltip font a bit smaller, which helps keep the style in line
+// with the tracks.
+.pf-track__tooltip {
+  font-size: 14px;
+  opacity: 0.8;
+}
