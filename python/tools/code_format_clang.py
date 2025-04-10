@@ -24,7 +24,7 @@ class ClangFormat(CodeFormatterBase):
   def __init__(self):
     super().__init__(
         name='clang-format',
-        exts=['.cc', '.cpp', '.c', '.h', '.inc', '.java', '.proto'])
+        exts=['.cc', '.cpp', '.c', '.h', '.inc', '.proto'])
 
   def run_formatter(self, repo_root: str, check_only: bool, files: list[str]):
     tool = 'third_party/clang-format/clang-format'
