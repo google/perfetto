@@ -482,6 +482,73 @@ class Interpreter {
         update.b, update.e, update.b);
   }
 
+  PERFETTO_ALWAYS_INLINE void NullIndicesStablePartition(
+      const bytecode::NullIndicesStablePartition& partition) {
+    using B = bytecode::NullIndicesStablePartition;
+
+    const auto& column = columns_[partition.arg<B::col>()];
+    const auto& location = partition.arg<B::nulls_location>();
+    const auto& overlay = column.overlay;
+    auto& update = ReadFromRegister(partition.arg<B::partition_register>());
+    const auto& dest = partition.arg<B::dest_non_null_register>();
+
+    const auto& bit_vector = overlay.GetNullBitVector();
+    auto* partition_ptr = std::stable_partition(
+        update.b, update.e, [&](uint32_t i) { return !bit_vector.is_set(i); });
+    if (PERFETTO_UNLIKELY(location.Is<NullsAtEnd>())) {
+      auto non_null_size = static_cast<uint32_t>(update.e - partition_ptr);
+      std::rotate(update.b, partition_ptr, update.e);
+      WriteToRegister(dest, Span<uint32_t>{update.b, update.b + non_null_size});
+    } else {
+      WriteToRegister(dest, Span<uint32_t>(partition_ptr, update.e));
+    }
+  }
+
+  template <typename T>
+  PERFETTO_ALWAYS_INLINE void StableSortIndices(
+      const bytecode::StableSortIndices<T>& sort_op) {
+    using B = bytecode::StableSortIndicesBase;
+
+    auto& indices_to_sort =
+        ReadFromRegister(sort_op.template arg<B::update_register>());
+    uint32_t col_idx = sort_op.template arg<B::col>();
+    SortDirection direction = sort_op.template arg<B::direction>();
+    const auto* data = columns_[col_idx].storage.template unchecked_data<T>();
+    if (direction == SortDirection::kAscending) {
+      auto asc_comparator = [&](uint32_t idx_a, uint32_t idx_b) {
+        if constexpr (std::is_same_v<T, Id>) {
+          base::ignore_result(data);
+          return idx_a < idx_b;
+        } else if constexpr (std::is_same_v<T, String>) {
+          const auto& value_a = data[idx_a];
+          const auto& value_b = data[idx_b];
+          return string_pool_->Get(value_a) < string_pool_->Get(value_b);
+        } else {
+          const auto& value_a = data[idx_a];
+          const auto& value_b = data[idx_b];
+          return value_a < value_b;
+        }
+      };
+      std::stable_sort(indices_to_sort.b, indices_to_sort.e, asc_comparator);
+    } else {  // kDescending
+      auto desc_comparator = [&](uint32_t idx_a, uint32_t idx_b) {
+        if constexpr (std::is_same_v<T, Id>) {
+          base::ignore_result(data);
+          return idx_a > idx_b;
+        } else if constexpr (std::is_same_v<T, String>) {
+          const auto& value_a = data[idx_a];
+          const auto& value_b = data[idx_b];
+          return string_pool_->Get(value_a) > string_pool_->Get(value_b);
+        } else {
+          const auto& value_a = data[idx_a];
+          const auto& value_b = data[idx_b];
+          return value_a > value_b;
+        }
+      };
+      std::stable_sort(indices_to_sort.b, indices_to_sort.e, desc_comparator);
+    }
+  }
+
   PERFETTO_ALWAYS_INLINE void StrideCopy(
       const bytecode::StrideCopy& stride_copy) {
     using B = bytecode::StrideCopy;
