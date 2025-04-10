@@ -97,16 +97,16 @@ function renderHeader() {
       m(`div${active("jobs")}`, m("a[href=/#!/jobs]", "Jobs")),
       m(
         `div${active("stats")}`,
-        m(`a[href=${STATS_LINK}][target=_blank]`, "Stats")
+        m(`a[href=${STATS_LINK}][target=_blank]`, "Stats"),
       ),
       m(`div`, m(`a[href=${docsUrl}][target=_blank]`, "Docs")),
       m(
         `div.logs`,
         "Logs",
         m("div", m(`a[href=${logUrl}controller][target=_blank]`, "Controller")),
-        m("div", m(`a[href=${logUrl}frontend][target=_blank]`, "Frontend"))
-      )
-    )
+        m("div", m(`a[href=${logUrl}frontend][target=_blank]`, "Frontend")),
+      ),
+    ),
   );
 }
 
@@ -115,7 +115,7 @@ var CLsPageRenderer = {
     const allCols = 4 + JOB_TYPES.length;
     const postsubmitHeader = m(
       "tr",
-      m(`td.header[colspan=${allCols}]`, "Post-submit")
+      m(`td.header[colspan=${allCols}]`, "Post-submit"),
     );
 
     const postsubmitLoadMore = m(
@@ -130,14 +130,14 @@ var CLsPageRenderer = {
               getMainCommits();
             },
           },
-          "Load more"
-        )
-      )
+          "Load more",
+        ),
+      ),
     );
 
     const presubmitHeader = m(
       "tr",
-      m(`td.header[colspan=${allCols}]`, "Pre-submit")
+      m(`td.header[colspan=${allCols}]`, "Pre-submit"),
     );
 
     let branchRows = [];
@@ -161,7 +161,7 @@ var CLsPageRenderer = {
       footer = m(
         "footer",
         `Showing only CL ${vnode.attrs.cl} - `,
-        m(`a[href=#!/cls]`, "Click here to see all CLs")
+        m(`a[href=#!/cls]`, "Click here to see all CLs"),
       );
     }
 
@@ -179,13 +179,13 @@ var CLsPageRenderer = {
               m("td[rowspan=4]", "Status"),
               m("td[rowspan=4]", "Owner"),
               m("td[rowspan=4]", "Updated"),
-              m("td[colspan=11]", "Bots")
+              m("td[colspan=11]", "Bots"),
             ),
             m(
               "tr",
               m("td[colspan=9]", "linux"),
               m("td[colspan=1]", "android"),
-              m("td", "RC")
+              m("td", "RC"),
             ),
             m(
               "tr",
@@ -193,12 +193,12 @@ var CLsPageRenderer = {
               m("td[colspan=7]", "clang"),
               m("td[colspan=1]", "ui"),
               m("td[colspan=1]", "clang-arm"),
-              m("td[colspan=1]", "RC")
+              m("td[colspan=1]", "RC"),
             ),
             m(
               "tr#cls_header",
-              JOB_TYPES.map((job) => m(`td#${job.id}`, job.label))
-            )
+              JOB_TYPES.map((job) => m(`td#${job.id}`, job.label)),
+            ),
           ),
           m(
             "tbody",
@@ -206,17 +206,17 @@ var CLsPageRenderer = {
             branchRows,
             postsubmitLoadMore,
             presubmitHeader,
-            clRows
-          )
+            clRows,
+          ),
         ),
-        footer
+        footer,
       ),
     ];
   },
 };
 
 function getLastUpdate(lastUpdate) {
-  if (lastUpdate === undefined) return '';
+  if (lastUpdate === undefined) return "";
   const lastUpdateMins = Math.ceil((Date.now() - lastUpdate) / 60000);
   if (lastUpdateMins < 60) return lastUpdateMins + " mins ago";
   if (lastUpdateMins < 60 * 24)
@@ -243,23 +243,22 @@ function renderCLRow(cl) {
         m(
           `i.material-icons.expand${expanded ? ".expanded" : ""}`,
           { onclick: toggleExpand },
-          "arrow_right"
+          "arrow_right",
         ),
         m(
           `a[href=${cl.url}]`,
           `${cl.subject}`,
-          cl.num && m("span.ps", `#${cl.num}`)
-        )
+          cl.num && m("span.ps", `#${cl.num}`),
+        ),
       ),
       m("td", cl.status),
       m("td", cl.owner),
       m("td", getLastUpdate(cl.lastUpdate)),
-      JOB_TYPES.map((x) => renderClJobCell(cl.id, x.id))
-    )
+      JOB_TYPES.map((x) => renderClJobCell(cl.id, x.id)),
+    ),
   );
 
-  // If the usere clicked on the expand button, show also the other patchsets
-  // present in the CI DB.
+  // If the usere clicked on the expand button, show also the other patchsets.
   if (state.expandCl[cl.id]) {
     for (const ps of state.patchsets[cl.id] ?? []) {
       rows.push(
@@ -269,8 +268,8 @@ function renderCLRow(cl) {
           m("td", ""),
           m("td", ""),
           m("td", ""),
-          JOB_TYPES.map((x) => renderClJobCell(ps.id, x.id))
-        )
+          JOB_TYPES.map((x) => renderClJobCell(ps.id, x.id)),
+        ),
       );
     }
   }
@@ -290,7 +289,7 @@ function renderJobLink(jobStatus, url) {
   const icon = ICON_MAP[jobStatus] || "clear";
   return m(
     `a.${jobStatus}[href=${url}][title=${jobStatus}][target=_blank]`,
-    m(`i.material-icons`, icon)
+    m(`i.material-icons`, icon),
   );
 }
 
@@ -316,7 +315,7 @@ const JobsPageRenderer = {
         { className: runner.status },
         m("td", runner.id),
         m("td", runner.name),
-        m("td", runner.status)
+        m("td", runner.status),
       );
     };
 
@@ -325,9 +324,9 @@ const JobsPageRenderer = {
       m(
         "thead",
         m("tr", m("td[colspan=3]", "Workers")),
-        m("tr", m("td", "ID"), m("td", "Worker"), m("td", "Status"))
+        m("tr", m("td", "ID"), m("td", "Worker"), m("td", "Status")),
       ),
-      m("tbody", state.runners.map(makeWokerRow))
+      m("tbody", state.runners.map(makeWokerRow)),
     );
   },
 
@@ -360,7 +359,7 @@ const JobsPageRenderer = {
           m("td", wkf.display_title),
           m("td", getLastUpdate(parseGhTime(wkf.created_at))),
           m("td", getLastUpdate(parseGhTime(wkf.updated_at))),
-          m("td", ''),
+          m("td", ""),
         ),
       ].concat(wkf.jobs.map(makeJobRow));
     };
@@ -381,12 +380,12 @@ const JobsPageRenderer = {
           m("td", "Created"),
           m("td", "Updated"),
           m("td", "Completed"),
-        )
+        ),
       ),
       m(
         "tbody",
-        state.workflowRuns.sort((a, b) => b.id - a.id).map(makeWorkflowRow)
-      )
+        state.workflowRuns.sort((a, b) => b.id - a.id).map(makeWorkflowRow),
+      ),
     );
   },
 
@@ -395,7 +394,7 @@ const JobsPageRenderer = {
       renderHeader(),
       m(
         "main",
-        m(".jobs-list", this.createWorkerTable(), this.createJobsTable())
+        m(".jobs-list", this.createWorkerTable(), this.createJobsTable()),
       ),
     ];
   },
@@ -406,8 +405,7 @@ const JobsPageRenderer = {
 // -----------------------------------------------------------------------------
 
 function parseGhTime(str) {
-  if (str === null || str === undefined)
-    return undefined;
+  if (str === null || str === undefined) return undefined;
   // Gerrit timestamps are UTC (as per public docs) but obviously they are not
   // encoded in ISO format.
   return new Date(str);
@@ -489,7 +487,7 @@ async function fetchChecksForPR(id, commitHash) {
     // bazel / bazel
     // We want in output: 'linux/gcc8-x86_64-release' or 'bazel'.
     const m = check.name.match(
-      /^([\w-]+)\s*\/\s*[\w-]+(?:\s*\(\s*([^,\s)]+))?/
+      /^([\w-]+)\s*\/\s*[\w-]+(?:\s*\(\s*([^,\s)]+))?/,
     );
     if (!m) continue;
     const name = m[1] + (m[2] ? `/${m[2]}` : "");
