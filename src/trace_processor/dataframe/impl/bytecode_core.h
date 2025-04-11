@@ -41,7 +41,7 @@ namespace perfetto::trace_processor::dataframe::impl::bytecode {
 // code and fixed-size buffer for arguments.
 struct Bytecode {
   uint32_t option;                      // Opcode determining instruction type
-  std::array<uint8_t, 28> args_buffer;  // Storage for instruction arguments
+  std::array<uint8_t, 44> args_buffer;  // Storage for instruction arguments
 
  protected:
   // Helper for generating the offsets array for instruction arguments.
@@ -66,7 +66,7 @@ struct Bytecode {
   }
 };
 static_assert(std::is_trivially_copyable_v<Bytecode>);
-static_assert(sizeof(Bytecode) <= 32);
+static_assert(sizeof(Bytecode) <= 48);
 
 // Bytecode with one template parameter for dispatching.
 template <typename TypeSet1>
@@ -148,18 +148,13 @@ PERFETTO_NO_INLINE inline std::string BytecodeFieldsFormat(
 }
 
 // Macro to define bytecode instruction with 5 fields.
-#define PERFETTO_DATAFRAME_BYTECODE_IMPL_5(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
-                                           n5)                                 \
-  enum Field : uint8_t {                                                       \
-    n1 = 0,                                                                    \
-    n2,                                                                        \
-    n3,                                                                        \
-    n4,                                                                        \
-    n5,                                                                        \
-  };                                                                           \
-  using tuple = std::tuple<t1, t2, t3, t4, t5>;                                \
+#define PERFETTO_DATAFRAME_BYTECODE_IMPL_7(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
+                                           n5, t6, n6, t7, n7)                 \
+  enum Field : uint8_t { n1 = 0, n2, n3, n4, n5, n6, n7 };                     \
+  using tuple = std::tuple<t1, t2, t3, t4, t5, t6, t7>;                        \
   static constexpr auto kOffsets = MakeOffsetsArray<tuple>();                  \
-  static constexpr auto kNames = std::array{#n1, #n2, #n3, #n4, #n5};          \
+  static constexpr auto kNames =                                               \
+      std::array{#n1, #n2, #n3, #n4, #n5, #n6, #n7};                           \
                                                                                \
   template <Field N>                                                           \
   const auto& arg() const {                                                    \
@@ -178,11 +173,23 @@ PERFETTO_NO_INLINE inline std::string BytecodeFieldsFormat(
     BytecodeFieldToString(#n3, ArgToString(arg<n3>()).c_str(), fields);        \
     BytecodeFieldToString(#n4, ArgToString(arg<n4>()).c_str(), fields);        \
     BytecodeFieldToString(#n5, ArgToString(arg<n5>()).c_str(), fields);        \
+    BytecodeFieldToString(#n6, ArgToString(arg<n6>()).c_str(), fields);        \
+    BytecodeFieldToString(#n7, ArgToString(arg<n7>()).c_str(), fields);        \
     return BytecodeFieldsFormat(fields);                                       \
   }                                                                            \
   static void UnusedForWarningSuppresssion()
 
 // Simplified macros that add padding fields automatically.
+#define PERFETTO_DATAFRAME_BYTECODE_IMPL_6(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
+                                           n5, t6, n6)                         \
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(t1, n1, t2, n2, t3, n3, t4, n4, t5, n5,   \
+                                     t6, n6, uint32_t, pad7)
+
+#define PERFETTO_DATAFRAME_BYTECODE_IMPL_5(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
+                                           n5)                                 \
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_6(t1, n1, t2, n2, t3, n3, t4, n4, t5, n5,   \
+                                     uint32_t, pad6)
+
 #define PERFETTO_DATAFRAME_BYTECODE_IMPL_4(t1, n1, t2, n2, t3, n3, t4, n4)     \
   PERFETTO_DATAFRAME_BYTECODE_IMPL_5(t1, n1, t2, n2, t3, n3, t4, n4, uint32_t, \
                                      pad5)

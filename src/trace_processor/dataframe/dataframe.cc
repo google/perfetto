@@ -29,11 +29,12 @@ namespace perfetto::trace_processor::dataframe {
 
 base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     std::vector<FilterSpec>& specs,
+    const std::vector<DistinctSpec>& distinct_specs,
     const std::vector<SortSpec>& sort_specs,
     uint64_t cols_used) const {
-  ASSIGN_OR_RETURN(auto plan,
-                   impl::QueryPlanBuilder::Build(row_count_, columns_, specs,
-                                                 sort_specs, cols_used));
+  ASSIGN_OR_RETURN(auto plan, impl::QueryPlanBuilder::Build(
+                                  row_count_, columns_, specs, distinct_specs,
+                                  sort_specs, cols_used));
   return QueryPlan(std::move(plan));
 }
 

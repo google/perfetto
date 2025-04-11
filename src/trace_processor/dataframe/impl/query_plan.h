@@ -135,10 +135,12 @@ class QueryPlanBuilder {
       uint32_t row_count,
       const std::vector<Column>& columns,
       std::vector<FilterSpec>& specs,
+      const std::vector<DistinctSpec>& distinct,
       const std::vector<SortSpec>& sort_specs,
       uint64_t cols_used) {
     QueryPlanBuilder builder(row_count, columns);
     RETURN_IF_ERROR(builder.Filter(specs));
+    builder.Distinct(distinct);
     builder.Sort(sort_specs);
     builder.Output(cols_used);
     return std::move(builder).Build();
@@ -161,8 +163,13 @@ class QueryPlanBuilder {
   // Optimizes the order of filters for efficiency.
   base::Status Filter(std::vector<FilterSpec>& specs);
 
+  // Adds distinct operations to the query plan based on distinct
+  // specifications. Distinct are applied after filters, in reverse order of
+  // specification.
+  void Distinct(const std::vector<DistinctSpec>& distinct_specs);
+
   // Adds sort operations to the query plan based on sort specifications.
-  // Sorts are applied after filters, in reverse order of specification.
+  // Sorts are applied after filters and disinct.
   void Sort(const std::vector<SortSpec>& sort_specs);
 
   // Configures output handling for the filtered rows.

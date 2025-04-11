@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/dataframe/dataframe.h"
@@ -182,19 +183,47 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
     });
   }
 
+  bool should_sort_using_order_by = true;
+  std::vector<dataframe::DistinctSpec> distinct_specs;
+  if (info->nOrderBy > 0) {
+    int vtab_distinct = sqlite3_vtab_distinct(info);
+    switch (vtab_distinct) {
+      case 0: /* normal sorting */
+      // TODO(lalitm): add special handling for group by.
+      case 1: /* group by */
+        break;
+      case 2: /* distinct */
+      case 3: /* distinct + order by */ {
+        uint64_t cols_used_it = info->colUsed;
+        for (uint32_t i = 0; i < 64; ++i) {
+          if (cols_used_it & 1u) {
+            distinct_specs.push_back(dataframe::DistinctSpec{i});
+          }
+          cols_used_it >>= 1;
+        }
+        should_sort_using_order_by = (vtab_distinct == 3);
+        break;
+      }
+      default:
+        PERFETTO_FATAL("Unreacable");
+    }
+  }
+
   std::vector<dataframe::SortSpec> sort_specs;
-  sort_specs.reserve(static_cast<size_t>(info->nOrderBy));
-  for (int i = 0; i < info->nOrderBy; ++i) {
-    sort_specs.emplace_back(dataframe::SortSpec{
-        static_cast<uint32_t>(info->aOrderBy[i].iColumn),
-        info->aOrderBy[i].desc ? dataframe::SortDirection::kDescending
-                               : dataframe::SortDirection::kAscending});
+  if (should_sort_using_order_by) {
+    sort_specs.reserve(static_cast<size_t>(info->nOrderBy));
+    for (int i = 0; i < info->nOrderBy; ++i) {
+      sort_specs.emplace_back(dataframe::SortSpec{
+          static_cast<uint32_t>(info->aOrderBy[i].iColumn),
+          info->aOrderBy[i].desc ? dataframe::SortDirection::kDescending
+                                 : dataframe::SortDirection::kAscending});
+    }
   }
   info->orderByConsumed = true;
 
-  SQLITE_ASSIGN_OR_RETURN(
-      tab, auto plan,
-      v->dataframe->PlanQuery(filter_specs, sort_specs, info->colUsed));
+  SQLITE_ASSIGN_OR_RETURN(tab, auto plan,
+                          v->dataframe->PlanQuery(filter_specs, distinct_specs,
+                                                  sort_specs, info->colUsed));
   for (const auto& c : filter_specs) {
     if (auto value_index = c.value_index; value_index) {
       info->aConstraintUsage[c.source_index].argvIndex =
