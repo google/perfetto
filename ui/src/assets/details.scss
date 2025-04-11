@@ -418,12 +418,11 @@
     position: sticky;
     top: 0;
     z-index: 1;
-    background-color: white;
-    color: #3c4b5d;
     padding: 5px;
     display: grid;
     grid-template-columns: auto auto;
     justify-content: space-between;
+    background-color: var(--main-background-color);
   }
 
   .log-rows-label {
@@ -440,6 +439,10 @@
       padding-right: 0.35rem;
     }
 
+    select {
+      color: var(--main-foreground-color);
+      background-color: var(--main-background-color);
+    }
     .tag-container {
       height: auto;
       min-height: 34px;
@@ -477,6 +480,8 @@
 
       .chip-input {
         margin-left: 5px;
+        color: var(--main-foreground-color);
+        background-color: var(--main-background-color);
       }
     }
 
@@ -523,16 +528,16 @@
       width: 100%;
       height: 20px;
       line-height: 20px;
-      background-color: hsl(214, 22%, 100%);
+      background-color: var(--main-background-color);
 
       &.D {
-        color: hsl(122, 20%, 40%);
+        color: hsl(122, 40%, 50%);
       }
       &.V {
-        color: hsl(122, 20%, 30%);
+        color: hsl(122, 40%, 40%);
       }
       &.I {
-        color: hsl(0, 0%, 20%);
+        color: var(--main-foreground-color);
       }
       &.W {
         color: hsl(45, 60%, 45%);
@@ -547,7 +552,7 @@
         color: #aaa;
       }
       &:nth-child(even) {
-        background-color: hsl(214, 22%, 95%);
+        background-color: var(--alt-background-color);
       }
       &:hover {
         color: var(--main-background-color);
@@ -582,7 +587,7 @@
         }
         // 2.Level
         &:nth-child(2) {
-          width: 4rem;
+          width: 5rem;
         }
         // 3.Tag
         &:nth-child(3) {
@@ -596,14 +601,14 @@
           }
           // 5.Message - a long string, will take most of the display space.
           &:nth-child(5) {
-            width: calc(100% - 42rem);
+            width: calc(100% - 43rem);
           }
         }
 
         &.no-process {
           // 4.Message - a long string, will take most of the display space.
           &:nth-child(4) {
-            width: calc(100% - 24rem);
+            width: calc(100% - 25rem);
           }
         }
 
