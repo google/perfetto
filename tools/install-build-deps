@@ -771,6 +771,10 @@ def Main():
   parser.add_argument(
       '--no-toolchain', help='Do not download toolchain', action='store_true')
   parser.add_argument(
+      '--no-dev-tools',
+      help='Some tools are required exclusively when changing the source code (they are not required when just building it, e.g. in CI). Do not install those tools',
+      action='store_true')
+  parser.add_argument(
       '--build-os',
       default=system().lower(),
       choices=['windows', 'darwin', 'linux'],
@@ -906,12 +910,13 @@ def Main():
     else:
       InstallNodeModules(force_clean=nodejs_updated)
 
-  # Check the python venv
-  venv_needs_update = not CheckPythonVenv()
-  if args.check_only:
-    deps_updated |= venv_needs_update
-  elif venv_needs_update:
-    InstallPythonVenv()
+  if not args.no_dev_tools:
+    # Check the python venv
+    venv_needs_update = not CheckPythonVenv()
+    if args.check_only:
+      deps_updated |= venv_needs_update
+    elif venv_needs_update:
+      InstallPythonVenv()
 
   # Install the pre-push hook if the .git/hooks directory exists and it's a
   # non check-only invocation. Not on windows (symlinks are not supported
