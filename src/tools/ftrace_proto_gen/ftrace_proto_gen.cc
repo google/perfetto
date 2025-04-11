@@ -128,6 +128,9 @@ void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_eventlist,
   // consider merging with common_preempt_count to avoid extra proto tags.
   optional uint32 common_flags = 5;
 
+  // Range reserved for self-describing messages.
+  reserved 65536 to 131072;
+
   oneof event {
 )";
 
