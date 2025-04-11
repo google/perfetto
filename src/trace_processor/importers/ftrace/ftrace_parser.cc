@@ -1344,11 +1344,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseKprobe(ts, pid, fld_bytes);
         break;
       }
-      // TODO(b/407000648): Re-enable once param_set_value_cpm timestamp is
-      // fixed. case FtraceEvent::kParamSetValueCpmFieldNumber: {
-      //   ParseParamSetValueCpm(fld_bytes);
-      //   break;
-      // }
+      case FtraceEvent::kParamSetValueCpmFieldNumber: {
+        ParseParamSetValueCpm(fld_bytes);
+        break;
+      }
       case FtraceEvent::kBlockIoStartFieldNumber: {
         ParseBlockIoStart(ts, fld_bytes);
         break;
