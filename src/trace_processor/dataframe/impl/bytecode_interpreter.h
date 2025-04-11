@@ -785,6 +785,24 @@ class Interpreter {
     indices.e = write_ptr;
   }
 
+  PERFETTO_ALWAYS_INLINE void LimitOffsetIndices(
+      const bytecode::LimitOffsetIndices& bytecode) {
+    using B = bytecode::LimitOffsetIndices;
+    uint32_t offset_value = bytecode.arg<B::offset_value>();
+    uint32_t limit_value = bytecode.arg<B::limit_value>();
+    auto& span = ReadFromRegister(bytecode.arg<B::update_register>());
+
+    // Apply offset
+    auto original_size = static_cast<uint32_t>(span.size());
+    uint32_t actual_offset = std::min(offset_value, original_size);
+    span.b += actual_offset;
+
+    // Apply limit
+    auto size_after_offset = static_cast<uint32_t>(span.size());
+    uint32_t actual_limit = std::min(limit_value, size_after_offset);
+    span.e = span.b + actual_limit;
+  }
+
   template <typename Op>
   PERFETTO_ALWAYS_INLINE uint32_t* FilterStringOp(const StringPool::Id* data,
                                                   const uint32_t* begin,

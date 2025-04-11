@@ -359,6 +359,19 @@ struct Distinct : Bytecode {
                                      indices_register);
 };
 
+// Applies an offset to the indices span and limits the rows.
+// Modifies the span referenced by `update_register` in place.
+//
+// Note: `limit_value` = UINT32_MAX means no limit.
+struct LimitOffsetIndices : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
+                                     offset_value,
+                                     uint32_t,
+                                     limit_value,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+
 // List of all bytecode instruction types for variant definition.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X)  \
   X(InitRange)                               \
@@ -439,7 +452,8 @@ struct Distinct : Bytecode {
   X(CopyToRowLayoutNonNull)                  \
   X(CopyToRowLayoutDenseNull)                \
   X(CopyToRowLayoutSparseNull)               \
-  X(Distinct)
+  X(Distinct)                                \
+  X(LimitOffsetIndices)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 
