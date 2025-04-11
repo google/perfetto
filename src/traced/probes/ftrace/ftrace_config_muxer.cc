@@ -26,6 +26,7 @@
 #include <iterator>
 #include <limits>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
@@ -764,9 +765,13 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
         errors->failed_ftrace_events.push_back(group_and_name.ToString());
       continue;
     }
-
-    const Event* event = table_->GetOrCreateKprobeEvent(group_and_name);
+    // Create the mapping in ProtoTranslationTable.
+    const Event* event = table_->GetEvent(group_and_name);
     if (!event) {
+      event = table_->CreateKprobeEvent(group_and_name);
+    }
+    if (!event || event->proto_field_id !=
+                      protos::pbzero::FtraceEvent::kKprobeEventFieldNumber) {
       ftrace_->RemoveKprobeEvent(group_and_name.group(), group_and_name.name());
 
       PERFETTO_ELOG("Can't enable kprobe %s",
@@ -788,23 +793,26 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
       continue;
     }
 
-    const Event* event = table_->GetOrCreateEvent(group_and_name);
+    const Event* event = table_->GetEvent(group_and_name);
+    // If it's neither known at compile-time nor already created, create a
+    // generic proto description.
+    if (!event) {
+      event = table_->CreateGenericEvent(group_and_name);
+    }
+    // Niche option to skip such generic events (still creating the entry helps
+    // distinguish skipped vs unknown events).
+    if (request.disable_generic_events() && event &&
+        table_->IsGenericEventProtoId(event->proto_field_id)) {
+      if (errors)
+        errors->failed_ftrace_events.push_back(group_and_name.ToString());
+      continue;
+    }
+    // Skip, event doesn't exist or is inaccessible.
     if (!event) {
       PERFETTO_DLOG("Can't enable %s, event not known",
                     group_and_name.ToString().c_str());
       if (errors)
         errors->unknown_ftrace_events.push_back(group_and_name.ToString());
-      continue;
-    }
-
-    // Niche option to skip events that are in the config, but don't have a
-    // dedicated proto for the event in perfetto. Otherwise such events will be
-    // encoded as GenericFtraceEvent.
-    if (request.disable_generic_events() &&
-        event->proto_field_id ==
-            protos::pbzero::FtraceEvent::kGenericFieldNumber) {
-      if (errors)
-        errors->failed_ftrace_events.push_back(group_and_name.ToString());
       continue;
     }
 
@@ -881,17 +889,15 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   std::vector<std::string> categories(request.atrace_categories());
   std::vector<std::string> categories_sdk_optout = Subtract(
       request.atrace_categories(), request.atrace_categories_prefer_sdk());
-  auto [it, inserted] = ds_configs_.emplace(
+  ds_configs_.emplace(
       std::piecewise_construct, std::forward_as_tuple(id),
       std::forward_as_tuple(
           std::move(filter), std::move(syscall_filter), compact_sched,
           std::move(ftrace_print_filter), std::move(apps),
           std::move(categories), std::move(categories_sdk_optout),
           request.symbolize_ksyms(), request.drain_buffer_percent(),
-          GetSyscallsReturningFds(syscalls_), request.debug_ftrace_abi()));
-  if (inserted) {
-    it->second.kprobes = std::move(kprobes);
-  }
+          GetSyscallsReturningFds(syscalls_), std::move(kprobes),
+          request.debug_ftrace_abi(), request.denser_generic_event_encoding()));
   return true;
 }
 
