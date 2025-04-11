@@ -230,7 +230,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
         break;
       }
       default:
-        PERFETTO_FATAL("Unreacable");
+        PERFETTO_FATAL("Unreachable");
     }
   }
 

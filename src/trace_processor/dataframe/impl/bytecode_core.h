@@ -41,7 +41,7 @@ namespace perfetto::trace_processor::dataframe::impl::bytecode {
 // code and fixed-size buffer for arguments.
 struct Bytecode {
   uint32_t option;                      // Opcode determining instruction type
-  std::array<uint8_t, 44> args_buffer;  // Storage for instruction arguments
+  std::array<uint8_t, 28> args_buffer;  // Storage for instruction arguments
 
  protected:
   // Helper for generating the offsets array for instruction arguments.
@@ -66,7 +66,7 @@ struct Bytecode {
   }
 };
 static_assert(std::is_trivially_copyable_v<Bytecode>);
-static_assert(sizeof(Bytecode) <= 48);
+static_assert(sizeof(Bytecode) <= 32);
 
 // Bytecode with one template parameter for dispatching.
 template <typename TypeSet1>
