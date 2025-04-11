@@ -95,6 +95,7 @@ HeapGraphClassTable::~HeapGraphClassTable() = default;
 HeapGraphReferenceTable::~HeapGraphReferenceTable() = default;
 VulkanMemoryAllocationsTable::~VulkanMemoryAllocationsTable() = default;
 PackageListTable::~PackageListTable() = default;
+UserListTable::~UserListTable() = default;
 ProfilerSmapsTable::~ProfilerSmapsTable() = default;
 GpuCounterGroupTable::~GpuCounterGroupTable() = default;
 
