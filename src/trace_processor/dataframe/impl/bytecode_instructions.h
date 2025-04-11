@@ -359,9 +359,10 @@ struct Distinct : Bytecode {
                                      indices_register);
 };
 
-// Limits the number of indices in a span and applies an offset.
+// Applies an offset to the indices span and limits the rows.
 // Modifies the span referenced by `update_register` in place.
-// `limit_value` = UINT32_MAX means no limit.
+//
+// Note: `limit_value` = UINT32_MAX means no limit.
 struct LimitOffsetIndices : Bytecode {
   PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
                                      offset_value,
