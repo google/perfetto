@@ -103,6 +103,15 @@ struct NullsAtEnd {};
 // TypeSet defining the possible placement locations for nulls.
 using NullsLocation = TypeSet<NullsAtStart, NullsAtEnd>;
 
+// Type tag for finding the minimum value.
+struct MinOp {};
+
+// Type tag for finding the maximum value.
+struct MaxOp {};
+
+// TypeSet combining Min and Max operations.
+using MinMaxOp = TypeSet<MinOp, MaxOp>;
+
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.
 class Storage {

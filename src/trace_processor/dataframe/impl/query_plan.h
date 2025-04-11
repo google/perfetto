@@ -142,8 +142,13 @@ class QueryPlanBuilder {
     QueryPlanBuilder builder(row_count, columns);
     RETURN_IF_ERROR(builder.Filter(specs));
     builder.Distinct(distinct);
-    builder.Sort(sort_specs);
-    builder.Output(limit_spec, cols_used);
+    if (builder.CanUseMinMaxOptimization(sort_specs, limit_spec)) {
+      builder.MinMax(sort_specs[0]);
+      builder.Output({}, cols_used);
+    } else {
+      builder.Sort(sort_specs);
+      builder.Output(limit_spec, cols_used);
+    }
     return std::move(builder).Build();
   }
 
@@ -168,6 +173,10 @@ class QueryPlanBuilder {
   // specifications. Distinct are applied after filters, in reverse order of
   // specification.
   void Distinct(const std::vector<DistinctSpec>& distinct_specs);
+
+  // Adds min/max operations to the query plan given a single column which
+  // should be sorted on.
+  void MinMax(const SortSpec& spec);
 
   // Adds sort operations to the query plan based on sort specifications.
   // Sorts are applied after filters and disinct.
@@ -230,6 +239,8 @@ class QueryPlanBuilder {
   // Returns the prefix popcount register for the given column.
   bytecode::reg::ReadHandle<Slab<uint32_t>> PrefixPopcountRegisterFor(
       uint32_t col);
+
+  bool CanUseMinMaxOptimization(const std::vector<SortSpec>&, const LimitSpec&);
 
   // Maximum number of rows in the query result.
   uint32_t max_row_count_ = 0;

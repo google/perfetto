@@ -803,6 +803,48 @@ class Interpreter {
     span.e = span.b + actual_limit;
   }
 
+  template <typename T, typename Op>
+  PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
+      const bytecode::FindMinMaxIndex<T, Op>& bytecode) {
+    using B = bytecode::FindMinMaxIndexBase;  // Use base for arg names
+    uint32_t col = bytecode.template arg<B::col>();
+    auto& indices =
+        ReadFromRegister(bytecode.template arg<B::update_register>());
+    if (indices.empty()) {
+      return;
+    }
+
+    const auto* data = columns_[col].storage.template unchecked_data<T>();
+    auto get_value = [&](uint32_t idx) {
+      if constexpr (std::is_same_v<T, Id>) {
+        base::ignore_result(data);
+        return idx;
+      } else if constexpr (std::is_same_v<T, String>) {
+        return string_pool_->Get(data[idx]);
+      } else {
+        return data[idx];
+      }
+    };
+    uint32_t best_idx = *indices.b;
+    auto best_val = get_value(best_idx);
+    for (const uint32_t* it = indices.b + 1; it != indices.e; ++it) {
+      uint32_t current_idx = *it;
+      auto current_val = get_value(current_idx);
+      bool current_is_better;
+      if constexpr (std::is_same_v<Op, MinOp>) {
+        current_is_better = current_val < best_val;
+      } else {
+        current_is_better = current_val > best_val;
+      }
+      if (current_is_better) {
+        best_idx = current_idx;
+        best_val = current_val;
+      }
+    }
+    *indices.b = best_idx;
+    indices.e = indices.b + 1;
+  }
+
   template <typename Op>
   PERFETTO_ALWAYS_INLINE uint32_t* FilterStringOp(const StringPool::Id* data,
                                                   const uint32_t* begin,
