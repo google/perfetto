@@ -33,6 +33,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -67,7 +68,9 @@ class PerfettoSqlEngine {
     ExecutionStats stats;
   };
 
-  PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks);
+  PerfettoSqlEngine(StringPool* pool,
+                    DataframeSharedStorage* storage,
+                    bool enable_extra_checks);
 
   // Executes all the statements in |sql| and returns a |ExecutionResult|
   // object. The metadata will reference all the statements executed and the
@@ -306,6 +309,12 @@ class PerfettoSqlEngine {
 
   base::Status ExecuteDropIndex(const PerfettoSqlParser::DropIndex&);
 
+  base::Status ExecuteCreateTableUsingDataframe(
+      const PerfettoSqlParser::CreateTable& create_table,
+      SqliteEngine::PreparedStatement stmt,
+      std::vector<std::string> column_names,
+      const std::vector<sql_argument::ArgumentDefinition>& effective_schema);
+
   base::Status ExecuteCreateTableUsingRuntimeTable(
       const PerfettoSqlParser::CreateTable& create_table,
       SqliteEngine::PreparedStatement stmt,
@@ -386,9 +395,19 @@ class PerfettoSqlEngine {
 
   StringPool* pool_ = nullptr;
 
+  // Storage for shared Dataframe objects.
+  //
+  // Note that this class can be shared between multiple PerfettoSqlEngine
+  // instances which are operating on different threads.
+  DataframeSharedStorage* dataframe_shared_storage_;
+
   // If true, engine will perform additional consistency checks when e.g.
   // creating tables and views.
   const bool enable_extra_checks_;
+
+  // A stack which keeps track of the modules which are being included. Used to
+  // know when dataframes should be shared.
+  std::vector<std::string> module_include_stack_;
 
   uint64_t static_function_count_ = 0;
   uint64_t static_aggregate_function_count_ = 0;

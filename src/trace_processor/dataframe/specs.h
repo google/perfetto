@@ -129,7 +129,7 @@ using Nullability = TypeSet<NonNull, SparseNull, DenseNull>;
 // This is used to generate query plans for filtering rows.
 struct FilterSpec {
   // Index of the column in the dataframe to filter.
-  uint32_t column_index;
+  uint32_t col;
 
   // Original index from the client query (used for tracking).
   uint32_t source_index;
@@ -140,6 +140,25 @@ struct FilterSpec {
   // Output parameter: index for the filter value in query execution.
   // This is populated during query planning.
   std::optional<uint32_t> value_index;
+};
+
+// -----------------------------------------------------------------------------
+// Sort Specifications
+// -----------------------------------------------------------------------------
+
+// Defines the direction for sorting.
+enum class SortDirection : uint32_t {
+  kAscending,
+  kDescending,
+};
+
+// Specifies a sort operation to be applied to the dataframe rows.
+struct SortSpec {
+  // Index of the column in the dataframe to sort by.
+  uint32_t col;
+
+  // Direction of the sort (ascending or descending).
+  SortDirection direction;
 };
 
 }  // namespace perfetto::trace_processor::dataframe

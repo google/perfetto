@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_ANDROID_UTILS_H_
 #define INCLUDE_PERFETTO_EXT_BASE_ANDROID_UTILS_H_
 
+#include <optional>
 #include <string>
 
 #include "perfetto/base/build_config.h"
@@ -32,6 +33,31 @@ namespace base {
 std::string GetAndroidProp(const char* name);
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
+struct Utsname {
+  std::string sysname;
+  std::string version;
+  std::string machine;
+  std::string release;
+};
+
+struct SystemInfo {
+  std::optional<int32_t> timezone_off_mins;
+  std::optional<Utsname> utsname_info;
+  std::optional<uint32_t> page_size;
+  std::optional<uint32_t> num_cpus;
+  std::string android_build_fingerprint;
+  std::string android_device_manufacturer;
+  std::optional<uint64_t> android_sdk_version;
+  std::string android_soc_model;
+  std::string android_guest_soc_model;
+  std::string android_hardware_revision;
+  std::string android_storage_model;
+  std::string android_ram_model;
+};
+
+// Returns the device's system information.
+SystemInfo GetSystemInfo();
 
 }  // namespace base
 }  // namespace perfetto

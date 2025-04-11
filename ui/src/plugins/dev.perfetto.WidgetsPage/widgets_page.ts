@@ -61,6 +61,7 @@ import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {SplitPanel} from '../../widgets/split_panel';
 import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
 import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
+import {CursorTooltip} from '../../widgets/cursor_tooltip';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -1022,6 +1023,11 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         },
       }),
       m(WidgetShowcase, {
+        label: 'CursorTooltip',
+        description: 'A tooltip that follows the mouse around.',
+        renderWidget: () => m(CursorTooltipShowcase),
+      }),
+      m(WidgetShowcase, {
         label: 'Spinner',
         description: `Simple spinner, rotates forever.
             Width and height match the font size.`,
@@ -1559,6 +1565,32 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
       }),
     );
   }
+}
+
+function CursorTooltipShowcase() {
+  let show = false;
+  return {
+    view() {
+      return m(
+        '',
+        {
+          style: {
+            width: '150px',
+            height: '150px',
+            border: '1px dashed gray',
+            userSelect: 'none',
+            color: 'gray',
+            textAlign: 'center',
+            lineHeight: '150px',
+          },
+          onmouseover: () => (show = true),
+          onmouseout: () => (show = false),
+        },
+        'Hover here...',
+        show && m(CursorTooltip, 'Hi!'),
+      );
+    },
+  };
 }
 
 class ModalShowcase implements m.ClassComponent {

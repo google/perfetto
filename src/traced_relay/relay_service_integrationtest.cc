@@ -293,7 +293,7 @@ TEST(TracedRelayIntegrationTest, RelayClient) {
   trace_config.add_buffers()->set_size_kb(1024);
   trace_config.set_duration_ms(200);
 
-  // // Enable the producer.
+  // Enable the producer.
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("perfetto.FakeProducer");
   ds_config->set_target_buffer(0);
@@ -304,21 +304,27 @@ TEST(TracedRelayIntegrationTest, RelayClient) {
   helper.ReadData();
   helper.WaitForReadData();
 
-  const auto& packets = helper.trace();
+  const auto& packets = helper.full_trace();
 
+  std::map<uint32_t, size_t> system_info_counts;  // machine ID => count.
   bool clock_sync_packet_seen = false;
   for (auto& packet : packets) {
-    if (!packet.has_remote_clock_sync())
-      continue;
-    clock_sync_packet_seen = true;
+    if (packet.has_system_info()) {
+      system_info_counts[packet.machine_id()]++;
+    } else if (packet.has_remote_clock_sync()) {
+      clock_sync_packet_seen = true;
 
-    auto& synced_clocks = packet.remote_clock_sync().synced_clocks();
-    ASSERT_FALSE(synced_clocks.empty());
-    for (auto& clock_offset : synced_clocks) {
-      ASSERT_TRUE(clock_offset.has_client_clocks());
-      ASSERT_TRUE(clock_offset.has_host_clocks());
+      auto& synced_clocks = packet.remote_clock_sync().synced_clocks();
+      ASSERT_FALSE(synced_clocks.empty());
+      for (auto& clock_offset : synced_clocks) {
+        ASSERT_TRUE(clock_offset.has_client_clocks());
+        ASSERT_TRUE(clock_offset.has_host_clocks());
+      }
     }
   }
+  ASSERT_EQ(system_info_counts.size(), 2u);
+  ASSERT_EQ(system_info_counts.begin()->second, 1u);
+  ASSERT_EQ(system_info_counts.rbegin()->second, 1u);
   ASSERT_TRUE(clock_sync_packet_seen);
 }
 

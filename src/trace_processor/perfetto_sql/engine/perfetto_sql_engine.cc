@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -38,10 +39,14 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/runtime_dataframe_builder.h"
+#include "src/trace_processor/dataframe/value_fetcher.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
@@ -86,6 +91,28 @@
 //   which might be present inside.
 namespace perfetto::trace_processor {
 namespace {
+
+struct SqliteStmtValueFetcher : public dataframe::ValueFetcher {
+  using Type = int;
+  static constexpr Type kInt64 = SQLITE_INTEGER;
+  static constexpr Type kDouble = SQLITE_FLOAT;
+  static constexpr Type kString = SQLITE_TEXT;
+  static constexpr Type kNull = SQLITE_NULL;
+
+  int64_t GetInt64Value(uint32_t i) const {
+    return sqlite3_column_int64(stmt_, int(i));
+  }
+  double GetDoubleValue(uint32_t i) const {
+    return sqlite3_column_double(stmt_, int(i));
+  }
+  const char* GetStringValue(uint32_t i) const {
+    return reinterpret_cast<const char*>(sqlite3_column_text(stmt_, int(i)));
+  }
+  Type GetValueType(uint32_t i) const {
+    return static_cast<Type>(sqlite3_column_type(stmt_, int(i)));
+  }
+  sqlite3_stmt* stmt_;
+};
 
 void IncrementCountForStmt(const SqliteEngine::PreparedStatement& p_stmt,
                            PerfettoSqlEngine::ExecutionStats* res) {
@@ -277,8 +304,11 @@ std::string GetTokenNamesAllowedInMacro() {
 
 }  // namespace
 
-PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks)
+PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
+                                     DataframeSharedStorage* storage,
+                                     bool enable_extra_checks)
     : pool_(pool),
+      dataframe_shared_storage_(storage),
       enable_extra_checks_(enable_extra_checks),
       engine_(new SqliteEngine()) {
   // Initialize `perfetto_tables` table, which will contain the names of all of
@@ -325,8 +355,10 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks)
                                                std::move(ctx));
   }
   {
+    auto ctx =
+        std::make_unique<DataframeModule::Context>(dataframe_shared_storage_);
     RegisterVirtualTableModule<DataframeModule>("__intrinsic_dataframe",
-                                                nullptr);
+                                                std::move(ctx));
   }
 }
 
@@ -675,8 +707,68 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
   ASSIGN_OR_RETURN(auto effective_schema, ValidateAndGetEffectiveSchema(
                                               column_names, create_table.schema,
                                               "CREATE PERFETTO TABLE"));
-  return ExecuteCreateTableUsingRuntimeTable(create_table, std::move(stmt),
-                                             column_names, effective_schema);
+  if (create_table.implementation ==
+      PerfettoSqlParser::CreateTable::kRuntimeTable) {
+    return ExecuteCreateTableUsingRuntimeTable(create_table, std::move(stmt),
+                                               column_names, effective_schema);
+  }
+  return ExecuteCreateTableUsingDataframe(
+      create_table, std::move(stmt), std::move(column_names), effective_schema);
+}
+
+base::Status PerfettoSqlEngine::ExecuteCreateTableUsingDataframe(
+    const PerfettoSqlParser::CreateTable& create_table,
+    SqliteEngine::PreparedStatement prepared_stmt,
+    std::vector<std::string> column_names,
+    const std::vector<sql_argument::ArgumentDefinition>&) {
+  DataframeSharedStorage::Tag tag;
+  if (module_include_stack_.empty()) {
+    tag = DataframeSharedStorage::MakeUniqueTag();
+  } else {
+    tag = DataframeSharedStorage::MakeTagForSqlModuleTable(
+        module_include_stack_.back(), create_table.name);
+  }
+  auto df = dataframe_shared_storage_->Find(tag);
+  if (!df) {
+    int res;
+    auto* stmt = prepared_stmt.sqlite_stmt();
+    SqliteStmtValueFetcher fetcher{{}, stmt};
+    dataframe::RuntimeDataframeBuilder builder(std::move(column_names), pool_);
+    for (res = sqlite3_step(stmt); res == SQLITE_ROW;
+         res = sqlite3_step(stmt)) {
+      builder.AddRow(&fetcher);
+    }
+    static const char* err_tag = "CREATE PERFETTO TABLE";
+    if (res != SQLITE_DONE) {
+      return base::ErrStatus(
+          "%s: SQLite error while creating body for table '%s': %s", err_tag,
+          create_table.name.c_str(), sqlite3_errmsg(engine_->db()));
+    }
+    ASSIGN_OR_RETURN(auto table, std::move(builder).Build());
+    df = dataframe_shared_storage_->Insert(
+        tag, std::make_unique<dataframe::Dataframe>(std::move(table)));
+  }
+  base::StackString<1024> drop("DROP TABLE IF EXISTS %s;",
+                               create_table.name.c_str());
+  base::StackString<1024> sql_str(
+      "SAVEPOINT create_table_using_dataframe; %s "
+      "CREATE VIRTUAL TABLE %s USING __intrinsic_dataframe(%" PRIu64
+      "); "
+      "RELEASE SAVEPOINT create_table_using_dataframe",
+      create_table.replace ? drop.c_str() : "", create_table.name.c_str(),
+      tag.hash);
+
+  auto exec_res = Execute(
+      SqlSource::FromTraceProcessorImplementation(sql_str.ToStdString()));
+  if (!exec_res.ok()) {
+    auto rollback_res = Execute(SqlSource::FromTraceProcessorImplementation(
+        "ROLLBACK TO create_table_using_dataframe; "
+        "RELEASE create_table_using_dataframe;"));
+    // Failing a rollback/release is pretty catastrophic as we have no idea what
+    // state the database is in anymore.
+    PERFETTO_CHECK(rollback_res.ok());
+  }
+  return exec_res.status();
 }
 
 base::Status PerfettoSqlEngine::ExecuteCreateTableUsingRuntimeTable(
@@ -902,7 +994,11 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
     return base::OkStatus();
   }
 
+  module_include_stack_.push_back(key);
   auto it = Execute(SqlSource::FromModuleInclude(file.sql, key));
+  PERFETTO_CHECK(module_include_stack_.size() > 0);
+  PERFETTO_CHECK(module_include_stack_.back() == key);
+  module_include_stack_.pop_back();
   if (!it.status().ok()) {
     return base::ErrStatus("%s%s",
                            parser.statement_sql().AsTraceback(0).c_str(),

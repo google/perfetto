@@ -34,6 +34,7 @@ class CodeFormatterBase:
   def create_argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--check-only', action='store_true')
+    parser.add_argument('--quiet', action='store_true')
     parser.add_argument('--upstream', type=str, default=None)
     parser.add_argument(
         '--all',
@@ -107,7 +108,8 @@ def run_code_formatters(formatters: list[CodeFormatterBase]):
   files = CodeFormatterBase.build_file_list(args)
   for formatter in formatters:
     files_to_check = formatter.filter_files(files)
-    print(f'{formatter.name}: Formatting {len(files_to_check)} files')
+    if not args.quiet:
+      print(f'{formatter.name}: Formatting {len(files_to_check)} files')
     if len(files_to_check) == 0:
       continue
     res = formatter.run_formatter(ROOT_DIR, args.check_only, files_to_check)

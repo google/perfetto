@@ -59,6 +59,8 @@ class TraceConfig;
 class TraceStats;
 class TracingServiceCapabilities;
 class TracingServiceState;
+class InitRelayRequest;
+class InitRelayResponse;
 class SyncClockRequest;
 class SyncClockResponse;
 
@@ -75,6 +77,8 @@ using TraceStats = ::perfetto::protos::gen::TraceStats;
 using TracingServiceCapabilities =
     ::perfetto::protos::gen::TracingServiceCapabilities;
 using TracingServiceState = ::perfetto::protos::gen::TracingServiceState;
+using InitRelayRequest = ::perfetto::protos::gen::InitRelayRequest;
+using InitRelayResponse = ::perfetto::protos::gen::InitRelayResponse;
 using SyncClockRequest = ::perfetto::protos::gen::SyncClockRequest;
 using SyncClockResponse = ::perfetto::protos::gen::SyncClockResponse;
 

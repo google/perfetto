@@ -22,6 +22,7 @@ source_set("engine") {
     "created_function.h",
     "dataframe_module.cc",
     "dataframe_module.h",
+    "dataframe_shared_storage.h",
     "perfetto_sql_engine.cc",
     "perfetto_sql_engine.h",
     "runtime_table_function.cc",
@@ -63,7 +64,9 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:sqlite",
     "../../../base",
     "../..//tables:tables_python",
+    "../../containers",
     "../../perfetto_sql/intrinsics/table_functions:interface",
     "../../sqlite",
+    "../../util:stdlib",
   ]
 }

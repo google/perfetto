@@ -45,7 +45,7 @@
 
 namespace perfetto::trace_processor::dataframe::impl {
 
-static constexpr uint32_t kMaxFilters = 16;
+static constexpr uint32_t kMaxColumns = 64;
 
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
@@ -59,7 +59,7 @@ struct QueryPlan {
     bytecode::reg::ReadHandle<Span<uint32_t>> output_register;
 
     // Maps column indices to output offsets.
-    std::array<uint32_t, kMaxFilters> col_to_output_offset;
+    std::array<uint32_t, kMaxColumns> col_to_output_offset;
 
     // Number of output indices per row.
     uint32_t output_per_row = 0;
@@ -131,12 +131,15 @@ struct QueryPlan {
 // needed to execute a query.
 class QueryPlanBuilder {
  public:
-  static base::StatusOr<QueryPlan> Build(uint32_t row_count,
-                                         const std::vector<Column>& columns,
-                                         std::vector<FilterSpec>& specs,
-                                         uint64_t cols_used) {
+  static base::StatusOr<QueryPlan> Build(
+      uint32_t row_count,
+      const std::vector<Column>& columns,
+      std::vector<FilterSpec>& specs,
+      const std::vector<SortSpec>& sort_specs,
+      uint64_t cols_used) {
     QueryPlanBuilder builder(row_count, columns);
     RETURN_IF_ERROR(builder.Filter(specs));
+    builder.Sort(sort_specs);
     builder.Output(cols_used);
     return std::move(builder).Build();
   }
@@ -157,6 +160,10 @@ class QueryPlanBuilder {
   // Adds filter operations to the query plan based on filter specifications.
   // Optimizes the order of filters for efficiency.
   base::Status Filter(std::vector<FilterSpec>& specs);
+
+  // Adds sort operations to the query plan based on sort specifications.
+  // Sorts are applied after filters, in reverse order of specification.
+  void Sort(const std::vector<SortSpec>& sort_specs);
 
   // Configures output handling for the filtered rows.
   // |cols_used_bitmap| is a bitmap with bits set for columns that will be

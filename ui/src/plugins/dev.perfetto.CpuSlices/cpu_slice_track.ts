@@ -19,10 +19,10 @@ import {Duration, duration, Time, time} from '../../base/time';
 import {
   drawDoubleHeadedArrow,
   drawIncompleteSlice,
-  drawTrackHoverTooltip,
 } from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../base/color';
+import m from 'mithril';
 import {colorForThread} from '../../components/colorizer';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
@@ -195,6 +195,29 @@ export class CpuSliceTrack implements TrackRenderer {
 
   getHeight(): number {
     return TRACK_HEIGHT;
+  }
+
+  renderTooltip(): m.Children {
+    if (
+      this.utidHoveredInThisTrack === undefined ||
+      this.mousePos === undefined
+    ) {
+      return undefined;
+    }
+
+    const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
+    if (!hoveredThread) {
+      return undefined;
+    }
+
+    const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+
+    if (hoveredThread.pid !== undefined) {
+      const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
+      return m('.tooltip', [m('div', pidText), m('div', tidText)]);
+    } else {
+      return m('.tooltip', tidText);
+    }
   }
 
   render(trackCtx: TrackRenderContext): void {
@@ -408,22 +431,6 @@ export class CpuSliceTrack implements TrackRenderer {
         ctx.fill();
         ctx.closePath();
       }
-
-      if (this.utidHoveredInThisTrack !== undefined) {
-        const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
-        if (hoveredThread && this.mousePos !== undefined) {
-          const tidText = `T: ${hoveredThread.threadName}
-          [${hoveredThread.tid}]`;
-          // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-          if (hoveredThread.pid) {
-            const pidText = `P: ${hoveredThread.procName}
-            [${hoveredThread.pid}]`;
-            drawTrackHoverTooltip(ctx, this.mousePos, size, pidText, tidText);
-          } else {
-            drawTrackHoverTooltip(ctx, this.mousePos, size, tidText);
-          }
-        }
-      }
     }
   }
 
@@ -455,6 +462,9 @@ export class CpuSliceTrack implements TrackRenderer {
     const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     this.trace.timeline.hoveredUtid = hoveredUtid;
     this.trace.timeline.hoveredPid = hoveredPid;
+
+    // Trigger redraw to update tooltip
+    m.redraw();
   }
 
   onMouseOut() {

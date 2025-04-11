@@ -127,15 +127,15 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
   // Sort filters by efficiency (most selective/cheapest first)
   std::stable_sort(specs.begin(), specs.end(),
                    [this](const FilterSpec& a, const FilterSpec& b) {
-                     const auto& a_col = columns_[a.column_index];
-                     const auto& b_col = columns_[b.column_index];
+                     const auto& a_col = columns_[a.col];
+                     const auto& b_col = columns_[b.col];
                      return FilterPreference(a, a_col) <
                             FilterPreference(b, b_col);
                    });
 
   // Apply each filter in the optimized order
   for (FilterSpec& c : specs) {
-    const Column& col = columns_[c.column_index];
+    const Column& col = columns_[c.col];
     StorageType ct = col.storage.type();
 
     // Get the non-null operation (all our ops are non-null at this point)
@@ -179,6 +179,96 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
   return base::OkStatus();
 }
 
+// Adds sort operations bytecode to the plan.
+void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
+  if (sort_specs.empty()) {
+    return;
+  }
+
+  // As our data is columnar, it's always more efficient to sort one column
+  // at a time rather than try and sort lexiographically all at once.
+  // To preserve correctness, we need to stably sort the index vector once
+  // for each order by in *reverse* order. Reverse order is important as it
+  // preserves the lexiographical property.
+  //
+  // For example, suppose we have the following:
+  // Table {
+  //   Column x;
+  //   Column y
+  //   Column z;
+  // }
+  //
+  // Then, to sort "y asc, x desc", we could do one of two things:
+  //  1) sort the index vector all at once and on each index, we compare
+  //     y then z. This is slow as the data is columnar and we need to
+  //     repeatedly branch inside each column.
+  //  2) we can stably sort first on x desc and then sort on y asc. This will
+  //     first put all the x in the correct order such that when we sort on
+  //     y asc, we will have the correct order of x where y is the same (since
+  //     the sort is stable).
+  //
+  // TODO(lalitm): it is possible that we could sort the last constraint (i.e.
+  // the first constraint in the below loop) in a non-stable way. However,
+  // this is more subtle than it appears as we would then need special
+  // handling where there are order bys on a column which is already sorted
+  // (e.g. ts, id). Investigate whether the performance gains from this are
+  // worthwhile. This also needs changes to the constraint modification logic
+  // in DbSqliteTable which currently eliminates constraints on sorted
+  // columns.
+  bytecode::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
+  for (auto it = sort_specs.rbegin(); it != sort_specs.rend(); ++it) {
+    const SortSpec& sort_spec = *it;
+    const Column& sort_col = columns_[sort_spec.col];
+    StorageType sort_col_type = sort_col.storage.type();
+
+    uint32_t nullability_type_index = sort_col.overlay.nullability().index();
+    bytecode::reg::RwHandle<Span<uint32_t>> sort_indices;
+    switch (nullability_type_index) {
+      case Nullability::GetTypeIndex<SparseNull>():
+      case Nullability::GetTypeIndex<DenseNull>(): {
+        sort_indices =
+            bytecode::reg::RwHandle<Span<uint32_t>>{register_count_++};
+
+        using B = bytecode::NullIndicesStablePartition;
+        B& bc = AddOpcode<B>();
+        bc.arg<B::col>() = sort_spec.col;
+        bc.arg<B::nulls_location>() = it->direction == SortDirection::kAscending
+                                          ? NullsLocation{NullsAtStart{}}
+                                          : NullsLocation{NullsAtEnd{}};
+        bc.arg<B::partition_register>() = indices;
+        bc.arg<B::dest_non_null_register>() = sort_indices;
+
+        // If in sparse mode, we also need to translate all the indices.
+        if (nullability_type_index == Nullability::GetTypeIndex<SparseNull>()) {
+          auto popcount_reg = PrefixPopcountRegisterFor(sort_spec.col);
+          {
+            using BI = bytecode::TranslateSparseNullIndices;
+            auto& bi = AddOpcode<BI>();
+            bi.arg<BI::col>() = sort_spec.col;
+            bi.arg<BI::popcount_register>() = popcount_reg;
+            bi.arg<BI::source_register>() = sort_indices;
+            bi.arg<BI::update_register>() = sort_indices;
+          }
+        }
+        break;
+      }
+      case Nullability::GetTypeIndex<NonNull>():
+        sort_indices = indices;
+        break;
+      default:
+        PERFETTO_FATAL("Unreachable");
+    }
+    using B = bytecode::StableSortIndicesBase;
+    {
+      auto& bc = AddOpcode<B>(
+          bytecode::Index<bytecode::StableSortIndices>(sort_col_type));
+      bc.arg<B::col>() = sort_spec.col;
+      bc.arg<B::direction>() = sort_spec.direction;
+      bc.arg<B::update_register>() = sort_indices;
+    }
+  }
+}
+
 void QueryPlanBuilder::Output(uint64_t cols_used) {
   // Structure to track column and offset pairs
   struct ColAndOffset {
@@ -211,7 +301,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
   }
 
   auto in_memory_indices = EnsureIndicesAreInSlab();
-  bytecode::reg::RwHandle<Span<uint32_t>> storage_indices_register;
+  bytecode::reg::RwHandle<Span<uint32_t>> storage_update_register;
   if (plan_.params.output_per_row > 1) {
     bytecode::reg::RwHandle<Slab<uint32_t>> slab_register{register_count_++};
     bytecode::reg::RwHandle<Span<uint32_t>> span_register{register_count_++};
@@ -228,7 +318,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
       bc.arg<B::source_register>() = in_memory_indices;
       bc.arg<B::update_register>() = span_register;
       bc.arg<B::stride>() = plan_.params.output_per_row;
-      storage_indices_register = span_register;
+      storage_update_register = span_register;
     }
     for (auto [col, offset] : null_cols) {
       const auto& c = columns_[col];
@@ -237,7 +327,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
           using B = bytecode::StrideTranslateAndCopySparseNullIndices;
           auto reg = PrefixPopcountRegisterFor(col);
           auto& bc = AddOpcode<B>();
-          bc.arg<B::update_register>() = storage_indices_register;
+          bc.arg<B::update_register>() = storage_update_register;
           bc.arg<B::popcount_register>() = {reg};
           bc.arg<B::col>() = col;
           bc.arg<B::offset>() = offset;
@@ -247,7 +337,7 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
         case Nullability::GetTypeIndex<DenseNull>(): {
           using B = bytecode::StrideCopyDenseNullIndices;
           auto& bc = AddOpcode<B>();
-          bc.arg<B::update_register>() = storage_indices_register;
+          bc.arg<B::update_register>() = storage_update_register;
           bc.arg<B::col>() = col;
           bc.arg<B::offset>() = offset;
           bc.arg<B::stride>() = plan_.params.output_per_row;
@@ -260,9 +350,9 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
     }
   } else {
     PERFETTO_CHECK(null_cols.empty());
-    storage_indices_register = in_memory_indices;
+    storage_update_register = in_memory_indices;
   }
-  plan_.params.output_register = storage_indices_register;
+  plan_.params.output_register = storage_update_register;
 }
 
 QueryPlan QueryPlanBuilder::Build() && {
@@ -278,7 +368,7 @@ void QueryPlanBuilder::NonStringConstraint(
   {
     using B = bytecode::NonStringFilterBase;
     B& bc = AddOpcode<B>(bytecode::Index<bytecode::NonStringFilter>(type, op));
-    bc.arg<B::col>() = c.column_index;
+    bc.arg<B::col>() = c.col;
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
     bc.arg<B::update_register>() = EnsureIndicesAreInSlab();
@@ -299,7 +389,7 @@ base::Status QueryPlanBuilder::StringConstraint(
   {
     using B = bytecode::StringFilterBase;
     B& bc = AddOpcode<B>(bytecode::Index<bytecode::StringFilter>(op));
-    bc.arg<B::col>() = c.column_index;
+    bc.arg<B::col>() = c.col;
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
     bc.arg<B::update_register>() = EnsureIndicesAreInSlab();
@@ -312,7 +402,7 @@ void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
   // the caller (i.e. SQLite) knows that we are able to handle the constraint.
   c.value_index = plan_.params.filter_value_count++;
 
-  const auto& col = columns_[c.column_index];
+  const auto& col = columns_[c.col];
   uint32_t nullability_type_index = col.overlay.nullability().index();
   switch (nullability_type_index) {
     case Nullability::GetTypeIndex<SparseNull>():
@@ -321,7 +411,7 @@ void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
       {
         using B = bytecode::NullFilterBase;
         B& bc = AddOpcode<B>(bytecode::Index<bytecode::NullFilter>(op));
-        bc.arg<B::col>() = c.column_index;
+        bc.arg<B::col>() = c.col;
         bc.arg<B::update_register>() = indices;
       }
       break;
@@ -343,7 +433,7 @@ bool QueryPlanBuilder::TrySortedConstraint(
     const StorageType& ct,
     const NonNullOp& op,
     const bytecode::reg::RwHandle<CastFilterValueResult>& result) {
-  const auto& col = columns_[fs.column_index];
+  const auto& col = columns_[fs.col];
   const auto& nullability = col.overlay.nullability();
   if (!nullability.Is<NonNull>() || col.sort_state.Is<Unsorted>()) {
     return false;
@@ -373,7 +463,7 @@ bool QueryPlanBuilder::TrySortedConstraint(
     using B = bytecode::SortedFilterBase;
     auto& bc =
         AddOpcode<B>(bytecode::Index<bytecode::SortedFilter>(ct, erlbub));
-    bc.arg<B::col>() = fs.column_index;
+    bc.arg<B::col>() = fs.col;
     bc.arg<B::val_register>() = result;
     bc.arg<B::update_register>() = reg;
     bc.arg<B::write_result_to>() = bound;
@@ -384,7 +474,7 @@ bool QueryPlanBuilder::TrySortedConstraint(
 bytecode::reg::RwHandle<Span<uint32_t>>
 QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
   bytecode::reg::RwHandle<Span<uint32_t>> main = EnsureIndicesAreInSlab();
-  const auto& col = columns_[c.column_index];
+  const auto& col = columns_[c.col];
   uint32_t nullability_type_index = col.overlay.nullability().index();
   switch (nullability_type_index) {
     case Nullability::GetTypeIndex<SparseNull>(): {
@@ -393,7 +483,7 @@ QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
       {
         using B = bytecode::NullFilter<IsNotNull>;
         bytecode::NullFilterBase& bc = AddOpcode<B>();
-        bc.arg<B::col>() = c.column_index;
+        bc.arg<B::col>() = c.col;
         bc.arg<B::update_register>() = main;
       }
       {
@@ -403,11 +493,11 @@ QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
         bc.arg<B::dest_slab_register>() = scratch_slab;
         bc.arg<B::dest_span_register>() = scratch_span;
       }
-      auto popcount_reg = PrefixPopcountRegisterFor(c.column_index);
+      auto popcount_reg = PrefixPopcountRegisterFor(c.col);
       {
         using B = bytecode::TranslateSparseNullIndices;
         auto& bc = AddOpcode<B>();
-        bc.arg<B::col>() = c.column_index;
+        bc.arg<B::col>() = c.col;
         bc.arg<B::popcount_register>() = popcount_reg;
         bc.arg<B::source_register>() = main;
         bc.arg<B::update_register>() = scratch_span;
@@ -417,7 +507,7 @@ QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
     case Nullability::GetTypeIndex<DenseNull>(): {
       using B = bytecode::NullFilter<IsNotNull>;
       bytecode::NullFilterBase& bc = AddOpcode<B>();
-      bc.arg<B::col>() = c.column_index;
+      bc.arg<B::col>() = c.col;
       bc.arg<B::update_register>() = main;
       return main;
     }
