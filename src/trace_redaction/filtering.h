@@ -53,6 +53,15 @@ class AllowAll : public PidFilter, public FtraceEventFilter {
   bool Includes(const Context& context, protozero::Field event) const override;
 };
 
+class MatchesPid : public PidFilter {
+ public:
+  explicit MatchesPid(int32_t pid);
+  bool Includes(const Context&, uint64_t, int32_t pid) const override;
+
+ private:
+  int32_t pid_;
+};
+
 }  // namespace perfetto::trace_redaction
 
 #endif  // SRC_TRACE_REDACTION_FILTERING_H_
