@@ -5633,7 +5633,7 @@ TEST_F(TracingServiceImplTest, CloneSnapshotTriggerProducesEvent) {
   EXPECT_EQ(trigger_hit_event.producer_name(), kMockProducerName);
   EXPECT_EQ(trigger_hit_event.producer_uid(), kMockProducerUid);
   EXPECT_GT(trigger_hit_event.boot_time_ns(), 0ul);
-  EXPECT_EQ(trigger_hit_event.trigger_delay_mono_ms(), 1u);
+  EXPECT_EQ(trigger_hit_event.trigger_delay_ms(), 1u);
 
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("ds_1");
@@ -5690,7 +5690,7 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
     args.clone_trigger_producer_name = kCloneTriggerProducerName;
     args.clone_trigger_trusted_producer_uid = kCloneTriggerProducerUid;
     args.clone_trigger_boot_time_ns = kCloneTriggerTimestamp;
-    args.clone_trigger_delay_mono_ms = kCloneTriggerDelayMs;
+    args.clone_trigger_delay_ms = kCloneTriggerDelayMs;
     consumer2->endpoint()->CloneSession(args);
     // CloneSession() will implicitly issue a flush. Linearize with that.
     producer->ExpectFlush(writer.get());

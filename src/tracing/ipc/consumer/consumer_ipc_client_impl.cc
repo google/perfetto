@@ -492,8 +492,8 @@ void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
   if (args.clone_trigger_boot_time_ns != 0) {
     req.set_clone_trigger_boot_time_ns(args.clone_trigger_boot_time_ns);
   }
-  if (args.clone_trigger_delay_mono_ms != 0) {
-    req.set_clone_trigger_delay_mono_ms(args.clone_trigger_delay_mono_ms);
+  if (args.clone_trigger_delay_ms != 0) {
+    req.set_clone_trigger_delay_ms(args.clone_trigger_delay_ms);
   }
   ipc::Deferred<protos::gen::CloneSessionResponse> async_response;
   auto weak_this = weak_ptr_factory_.GetWeakPtr();

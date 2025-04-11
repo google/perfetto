@@ -352,8 +352,8 @@ void ConsumerIPCService::CloneSession(
   if (req.has_clone_trigger_boot_time_ns()) {
     args.clone_trigger_boot_time_ns = req.clone_trigger_boot_time_ns();
   }
-  if (req.has_clone_trigger_delay_mono_ms()) {
-    args.clone_trigger_delay_mono_ms = req.clone_trigger_delay_mono_ms();
+  if (req.has_clone_trigger_delay_ms()) {
+    args.clone_trigger_delay_ms = req.clone_trigger_delay_ms();
   }
   remote_consumer->service_endpoint->CloneSession(std::move(args));
 }
