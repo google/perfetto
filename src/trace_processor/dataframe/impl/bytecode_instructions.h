@@ -372,6 +372,19 @@ struct LimitOffsetIndices : Bytecode {
                                      update_register);
 };
 
+// Finds the min/max for a single column.
+struct FindMinMaxIndexBase : TemplatedBytecode2<StorageType, MinMaxOp> {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
+                                     col,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+template <typename T, typename Op>
+struct FindMinMaxIndex : FindMinMaxIndexBase {
+  static_assert(TS1::Contains<T>());
+  static_assert(TS2::Contains<Op>());
+};
+
 // List of all bytecode instruction types for variant definition.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X)  \
   X(InitRange)                               \
@@ -453,7 +466,19 @@ struct LimitOffsetIndices : Bytecode {
   X(CopyToRowLayoutDenseNull)                \
   X(CopyToRowLayoutSparseNull)               \
   X(Distinct)                                \
-  X(LimitOffsetIndices)
+  X(LimitOffsetIndices)                      \
+  X(FindMinMaxIndex<Id, MinOp>)              \
+  X(FindMinMaxIndex<Id, MaxOp>)              \
+  X(FindMinMaxIndex<Uint32, MinOp>)          \
+  X(FindMinMaxIndex<Uint32, MaxOp>)          \
+  X(FindMinMaxIndex<Int32, MinOp>)           \
+  X(FindMinMaxIndex<Int32, MaxOp>)           \
+  X(FindMinMaxIndex<Int64, MinOp>)           \
+  X(FindMinMaxIndex<Int64, MaxOp>)           \
+  X(FindMinMaxIndex<Double, MinOp>)          \
+  X(FindMinMaxIndex<Double, MaxOp>)          \
+  X(FindMinMaxIndex<String, MinOp>)          \
+  X(FindMinMaxIndex<String, MaxOp>)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 

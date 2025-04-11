@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -758,6 +759,57 @@ TEST_F(DataframeBytecodeTest, LimitOffsetPlacement) {
     StrideTranslateAndCopySparseNullIndices: [col=1, popcount_register=Register(6), update_register=Register(5), offset=1, stride=2]
   )",
                   /*cols_used=*/2);  // Request col_sparse output
+}
+
+TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationApplied) {
+  std::vector<impl::Column> cols =
+      MakeColumnVector(impl::Column{"col_A", impl::Storage::Uint32{},
+                                    impl::Overlay::NoOverlay{}, Unsorted{}});
+  std::vector<FilterSpec> filters;
+  std::vector<DistinctSpec> distinct_specs;
+  std::vector<SortSpec> sort_specs = {{0, SortDirection::kAscending}};
+  LimitSpec limit_spec;
+  limit_spec.limit = 1;
+
+  std::string expected_bytecode = R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    FindMinMaxIndex<Uint32, MinOp>: [col=0, update_register=Register(2)]
+  )";
+
+  RunBytecodeTest(cols, filters, distinct_specs, sort_specs, limit_spec,
+                  expected_bytecode, /*cols_used=*/1);
+}
+
+TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
+  auto bv = impl::BitVector::CreateWithSize(0);
+  std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
+      "col_A", impl::Storage::Uint32{},
+      impl::Overlay{impl::Overlay::SparseNull{std::move(bv)}}, Unsorted{}});
+
+  std::vector<FilterSpec> filters;
+  std::vector<DistinctSpec> distinct_specs;
+  std::vector<SortSpec> sort_specs = {{0, SortDirection::kAscending}};
+  LimitSpec limit_spec;
+  limit_spec.limit = 1;
+
+  std::string expected_bytecode = R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(0), partition_register=Register(2), dest_non_null_register=Register(3)]
+    PrefixPopcount: [col=0, dest_register=Register(4)]
+    TranslateSparseNullIndices: [col=0, popcount_register=Register(4), source_register=Register(3), update_register=Register(3)]
+    StableSortIndices<Uint32>: [col=0, direction=SortDirection(0), update_register=Register(3)]
+    LimitOffsetIndices: [offset_value=0, limit_value=1, update_register=Register(2)]
+    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
+    StrideCopy: [source_register=Register(2), update_register=Register(6), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(4), update_register=Register(6), offset=1, stride=2]
+  )";
+
+  RunBytecodeTest(cols, filters, distinct_specs, sort_specs, limit_spec,
+                  expected_bytecode, /*cols_used=*/1);
 }
 
 }  // namespace perfetto::trace_processor::dataframe

@@ -365,6 +365,26 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
   }
 }
 
+void QueryPlanBuilder::MinMax(const SortSpec& sort_spec) {
+  uint32_t col_idx = sort_spec.col;
+  const auto& col = columns_[col_idx];
+  StorageType storage_type = col.storage.type();
+
+  MinMaxOp mmop = sort_spec.direction == SortDirection::kAscending
+                      ? MinMaxOp(MinOp{})
+                      : MinMaxOp(MaxOp{});
+
+  auto indices = EnsureIndicesAreInSlab();
+  using B = bytecode::FindMinMaxIndexBase;
+  auto& op = AddOpcode<B>(
+      bytecode::Index<bytecode::FindMinMaxIndex>(storage_type, mmop));
+  op.arg<B::update_register>() = indices;
+  op.arg<B::col>() = col_idx;
+
+  // After the min/max, we'll have exactly one value.
+  max_row_count_ = 1;
+}
+
 void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
   // Structure to track column and offset pairs
   struct ColAndOffset {
@@ -699,6 +719,14 @@ QueryPlanBuilder::PrefixPopcountRegisterFor(uint32_t col) {
     }
   }
   return *reg;
+}
+
+bool QueryPlanBuilder::CanUseMinMaxOptimization(
+    const std::vector<SortSpec>& sort_specs,
+    const LimitSpec& limit_spec) {
+  return sort_specs.size() == 1 &&
+         columns_[sort_specs[0].col].overlay.nullability().Is<NonNull>() &&
+         limit_spec.limit == 1 && limit_spec.offset.value_or(0) == 0;
 }
 
 }  // namespace perfetto::trace_processor::dataframe::impl

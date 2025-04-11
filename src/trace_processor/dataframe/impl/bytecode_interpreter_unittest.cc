@@ -2045,5 +2045,50 @@ TEST_F(BytecodeInterpreterTest, LimitOffsetIndicesOffsetMakesEmpty) {
   EXPECT_TRUE(GetRegister<Span<uint32_t>>(0).empty());
 }
 
+TEST_F(BytecodeInterpreterTest, FindMinMaxIndexUint32) {
+  columns_vec_.emplace_back(
+      CreateNonNullUnsortedColumn<uint32_t>("col", {50u, 10u, 30u, 20u, 40u}));
+
+  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4};
+  {
+    std::vector<uint32_t> indices = initial_indices;
+    std::string bytecode =
+        "FindMinMaxIndex<Uint32, MinOp>: [col=0, update_register=Register(0)]";
+    SetRegistersAndExecute(bytecode, GetSpan(indices));
+    // Expected result: Span containing only index 1 (where value 10u is)
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1u));
+  }
+  {
+    // Use a fresh copy for testing MaxOp
+    std::vector<uint32_t> indices = initial_indices;
+    std::string bytecode =
+        "FindMinMaxIndex<Uint32, MaxOp>: [col=0, update_register=Register(0)]";
+    SetRegistersAndExecute(bytecode, GetSpan(indices));
+    // Expected result: Span containing only index 0 (where value 50u is)
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0u));
+  }
+}
+
+TEST_F(BytecodeInterpreterTest, FindMinMaxIndexString) {
+  columns_vec_.emplace_back(CreateNonNullUnsortedColumn<StringPool::Id>(
+      "col_str", {"banana", "apple", "cherry", "date", "apricot"}, &spool_));
+
+  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4};
+  {
+    std::vector<uint32_t> indices = initial_indices;
+    std::string bytecode =
+        "FindMinMaxIndex<String, MinOp>: [col=0, update_register=Register(0)]";
+    SetRegistersAndExecute(bytecode, GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1u));
+  }
+  {
+    std::vector<uint32_t> indices = initial_indices;
+    std::string bytecode =
+        "FindMinMaxIndex<String, MaxOp>: [col=0, update_register=Register(0)]";
+    SetRegistersAndExecute(bytecode, GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(3u));
+  }
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::dataframe::impl::bytecode
