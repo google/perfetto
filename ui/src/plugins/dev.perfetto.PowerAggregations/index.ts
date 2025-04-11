@@ -25,7 +25,11 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(ctx, new PowerCounterSelectionAggregator()),
+      createAggregationToTabAdaptor(
+        ctx,
+        new PowerCounterSelectionAggregator(),
+        200,
+      ),
     );
   }
 }
