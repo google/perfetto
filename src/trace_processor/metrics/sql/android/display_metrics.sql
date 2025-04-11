@@ -26,12 +26,28 @@ SELECT CASE WHEN COUNT(name) > 0 THEN 1 ELSE 0 END AS logs_found
 FROM counters
 WHERE name = 'SAME_FRAME' AND value = 0;
 
+DROP VIEW IF EXISTS dpu_underrun_detail;
+CREATE PERFETTO VIEW dpu_underrun_detail AS
+SELECT *
+FROM (
+  SELECT track.name, COUNT(*) AS dpu_underrun_count
+  FROM slices
+  JOIN track ON track.id = slices.track_id
+  WHERE slices.name = "disp_dpu_underrun"
+  GROUP BY track.name
+);
+
 DROP VIEW IF EXISTS dpu_underrun;
 CREATE PERFETTO VIEW dpu_underrun AS
-SELECT COUNT(name) AS total_dpu_underrun_count
+SELECT COUNT(name) AS total_dpu_underrun_count, 'old' AS source
 FROM counters
 WHERE name = 'DPU_UNDERRUN'
-  AND value = 1;
+  AND value = 1
+UNION ALL
+  SELECT SUM(dpu_underrun_count) AS total_dpu_underrun_count, 'new' as source
+  FROM dpu_underrun_detail
+
+;
 
 DROP VIEW IF EXISTS non_repeated_panel_fps;
 CREATE PERFETTO VIEW non_repeated_panel_fps AS
@@ -75,8 +91,22 @@ SELECT AndroidDisplayMetrics(
     FROM same_frame),
   'duplicate_frames_logged', (SELECT logs_found
     FROM duplicate_frames_logged),
-  'total_dpu_underrun_count', (SELECT total_dpu_underrun_count
-    FROM dpu_underrun),
+  'dpu_state', (
+    SELECT AndroidDisplayMetrics_DpuState(
+      'total_dpu_underrun_count', (SELECT MAX(total_dpu_underrun_count)
+        FROM dpu_underrun),
+      'dpu_underrun_detail', (
+        SELECT RepeatedField(metric)
+        FROM (
+          SELECT AndroidDisplayMetrics_DpuUnderrunDetail (
+            'name', name,
+            'dpu_underrun_count', dpu_underrun_count
+          ) AS metric
+          FROM dpu_underrun_detail
+        )
+      )
+    )
+  ),
   'refresh_rate_switches', (SELECT COUNT(*) FROM panel_fps_spans),
   'refresh_rate_stats', (
     SELECT RepeatedField(metric)
