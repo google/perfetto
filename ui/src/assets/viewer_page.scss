@@ -86,3 +86,10 @@
     font-size: 11px;
   }
 }
+
+.pf-track__tooltip {
+  font-size: 14px; // Slightly smaller font - to match tracks.
+  opacity: 0.8;
+  font-weight: 300;
+  max-width: 500px; // Limit how wide the tooltip can be - keeps it readable.
+}

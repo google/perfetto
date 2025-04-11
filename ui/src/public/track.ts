@@ -217,6 +217,10 @@ export interface TrackRenderer {
   // event selection. This is called each time the selection is changed (and the
   // selection is relevant to this track).
   detailsPanel?(sel: TrackEventSelection): TrackEventDetailsPanel | undefined;
+
+  // Optional: Returns tooltip content if available. If the return value is
+  // falsy, no tooltip is rendered.
+  renderTooltip?(): m.Children;
 }
 
 // An set of key/value pairs describing a given track. These are used for
@@ -262,6 +266,9 @@ interface WellKnownTrackTags {
 
   // Group name, used as a hint to ask track decider to put this in a group
   groupName: string;
+
+  // Track type, used for filtering
+  type: string;
 }
 
 export interface Slice {

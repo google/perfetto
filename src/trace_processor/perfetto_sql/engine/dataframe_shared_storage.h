@@ -74,7 +74,7 @@ class DataframeSharedStorage {
   //
   // Returns nullptr if no such dataframe exists.
   std::shared_ptr<const dataframe::Dataframe> Find(Tag tag) {
-    std::lock_guard mu(mutex_);
+    std::lock_guard<std::mutex> mu(mutex_);
     auto* it = dataframes_.Find(tag.hash);
     if (!it) {
       return nullptr;
@@ -92,7 +92,7 @@ class DataframeSharedStorage {
       Tag tag,
       std::unique_ptr<dataframe::Dataframe> df) {
     std::shared_ptr<dataframe::Dataframe> shared_df(std::move(df));
-    std::lock_guard mu(mutex_);
+    std::lock_guard<std::mutex> mu(mutex_);
     auto [it, inserted] = dataframes_.Insert(tag.hash, shared_df);
     if (inserted) {
       return shared_df;

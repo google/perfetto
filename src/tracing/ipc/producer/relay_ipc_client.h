@@ -57,6 +57,7 @@ class RelayIPCClient : public ipc::ServiceProxy::EventListener {
                  base::TaskRunner*);
   ~RelayIPCClient() override;
 
+  void InitRelay(const InitRelayRequest&);
   void SyncClock(const SyncClockRequest&);
 
   // ipc::ServiceProxy::EventListener implementation.

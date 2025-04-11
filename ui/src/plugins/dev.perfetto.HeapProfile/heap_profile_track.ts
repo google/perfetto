@@ -51,8 +51,6 @@ export function createHeapProfileTrack(
         ts,
       );
     },
-    tooltip: (row) => {
-      return [row.type];
-    },
+    tooltip: (slice) => slice.row.type,
   });
 }

@@ -247,6 +247,43 @@ struct StrideCopyDenseNullIndices : Bytecode {
                                      stride);
 };
 
+// Base class for sort operations. Performs a stable sort on the
+// `update_register` based on the data in the specified `col`
+// and the given `direction`. The template parameter T defines the data type
+// of the column being used for comparison.
+struct StableSortIndicesBase : TemplatedBytecode1<StorageType> {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
+                                     col,
+                                     SortDirection,
+                                     direction,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+
+// Specialized sort operation for a specific column data type T.
+template <typename T>
+struct StableSortIndices : StableSortIndicesBase {
+  static_assert(TS1::Contains<T>());
+};
+
+// Partitions the indices in |partition_register| based on the nullability
+// of the corresponding values in column |col|. Nulls are grouped based on
+// |nulls_location| (either start or end, preserving relative order).
+//
+// The resulting sub-span containing only the non-null indices is written
+// to |dest_non_null_register|. The original |partition_register| is modified
+// in-place to reflect the partitioning.
+struct NullIndicesStablePartition : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
+                                     col,
+                                     NullsLocation,
+                                     nulls_location,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     partition_register,
+                                     reg::WriteHandle<Span<uint32_t>>,
+                                     dest_non_null_register);
+};
+
 // List of all bytecode instruction types for variant definition.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X)  \
   X(InitRange)                               \
@@ -311,6 +348,13 @@ struct StrideCopyDenseNullIndices : Bytecode {
   X(StringFilter<Regex>)                     \
   X(NullFilter<IsNotNull>)                   \
   X(NullFilter<IsNull>)                      \
+  X(StableSortIndices<Id>)                   \
+  X(StableSortIndices<Uint32>)               \
+  X(StableSortIndices<Int32>)                \
+  X(StableSortIndices<Int64>)                \
+  X(StableSortIndices<Double>)               \
+  X(StableSortIndices<String>)               \
+  X(NullIndicesStablePartition)              \
   X(StrideCopy)                              \
   X(StrideTranslateAndCopySparseNullIndices) \
   X(StrideCopyDenseNullIndices)              \

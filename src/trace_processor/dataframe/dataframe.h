@@ -92,13 +92,15 @@ class Dataframe {
   // and column selection.
   //
   // Parameters:
-  //   specs:            Filter predicates to apply to the data.
+  //   filter_specs:     Filter predicates to apply to the data.
+  //   sort_specs:       Sort specifications defining the desired row order.
   //   cols_used_bitmap: Bitmap where each bit corresponds to a column that may
   //                     be requested. Only columns with set bits can be
   //                     fetched.
   // Returns:
   //   A StatusOr containing the QueryPlan or an error status.
-  base::StatusOr<QueryPlan> PlanQuery(std::vector<FilterSpec>& specs,
+  base::StatusOr<QueryPlan> PlanQuery(std::vector<FilterSpec>& filter_specs,
+                                      const std::vector<SortSpec>& sort_specs,
                                       uint64_t cols_used_bitmap) const;
 
   // Prepares a cursor for executing the query plan. The template parameter

@@ -39,9 +39,9 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   tables::WindowManagerShellTransitionProtosTable::Row row;
   row.transition_id = transition.id();
   row.base64_proto_id = context_->storage->mutable_string_pool()
-                               ->InternString(base::StringView(
-                                   base::Base64Encode(blob.data, blob.size)))
-                               .raw_id();
+                            ->InternString(base::StringView(
+                                base::Base64Encode(blob.data, blob.size)))
+                            .raw_id();
   context_->storage->mutable_window_manager_shell_transition_protos_table()
       ->Insert(row);
 
@@ -49,7 +49,8 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   auto transition_tracker = ShellTransitionsTracker::GetOrCreate(context_);
 
   if (transition.has_dispatch_time_ns()) {
-        transition_tracker->SetTimestamp(transition.id(), transition.dispatch_time_ns());
+    transition_tracker->SetTimestamp(transition.id(),
+                                     transition.dispatch_time_ns());
   }
 
   auto inserter = transition_tracker->AddArgsTo(transition.id());

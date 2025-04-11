@@ -32,6 +32,7 @@ perfetto_proto_library("@TYPE@") {
     "perf_events.proto",
     "protolog_common.proto",
     "sys_stats_counters.proto",
+    "system_info.proto",
     "trace_stats.proto",
     "tracing_service_capabilities.proto",
     "tracing_service_state.proto",

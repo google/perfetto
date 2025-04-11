@@ -76,6 +76,8 @@ export interface TrackViewAttrs {
   readonly depth: number;
   readonly stickyTop: number;
   readonly collapsible: boolean;
+  onTrackMouseOver(): void;
+  onTrackMouseOut(): void;
 }
 
 /**
@@ -178,10 +180,12 @@ export class TrackView {
             timescale,
           });
           raf.scheduleCanvasRedraw();
+          attrs.onTrackMouseOver();
         },
         onTrackContentMouseOut: () => {
           renderer?.track.onMouseOut?.();
           raf.scheduleCanvasRedraw();
+          attrs.onTrackMouseOut();
         },
         onTrackContentClick: (pos, bounds) => {
           const timescale = this.getTimescaleForBounds(bounds);
