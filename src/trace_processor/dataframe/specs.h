@@ -171,6 +171,16 @@ struct SortSpec {
   SortDirection direction;
 };
 
+// -----------------------------------------------------------------------------
+// Limit Specification
+// -----------------------------------------------------------------------------
+
+// Specifies limit and offset parameters for a query.
+struct LimitSpec {
+  std::optional<uint32_t> limit;
+  std::optional<uint32_t> offset;
+};
+
 }  // namespace perfetto::trace_processor::dataframe
 
 #endif  // SRC_TRACE_PROCESSOR_DATAFRAME_SPECS_H_

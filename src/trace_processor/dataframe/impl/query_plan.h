@@ -137,12 +137,13 @@ class QueryPlanBuilder {
       std::vector<FilterSpec>& specs,
       const std::vector<DistinctSpec>& distinct,
       const std::vector<SortSpec>& sort_specs,
+      const LimitSpec& limit_spec,
       uint64_t cols_used) {
     QueryPlanBuilder builder(row_count, columns);
     RETURN_IF_ERROR(builder.Filter(specs));
     builder.Distinct(distinct);
     builder.Sort(sort_specs);
-    builder.Output(cols_used);
+    builder.Output(limit_spec, cols_used);
     return std::move(builder).Build();
   }
 
@@ -175,7 +176,7 @@ class QueryPlanBuilder {
   // Configures output handling for the filtered rows.
   // |cols_used_bitmap| is a bitmap with bits set for columns that will be
   // accessed.
-  void Output(uint64_t cols_used_bitmap);
+  void Output(const LimitSpec&, uint64_t cols_used_bitmap);
 
   // Finalizes and returns the built query plan.
   QueryPlan Build() &&;

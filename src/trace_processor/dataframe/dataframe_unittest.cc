@@ -95,15 +95,16 @@ class DataframeBytecodeTest : public ::testing::Test {
                        std::vector<FilterSpec>& filters,
                        const std::vector<DistinctSpec>& distinct_specs,
                        const std::vector<SortSpec>& sort_specs,
+                       LimitSpec limit_spec,
                        const std::string& expected_bytecode,
                        uint64_t cols_used = 0xFFFFFFFF) {
     // Sanitize cols_used to ensure it only references valid columns.
     PERFETTO_CHECK(cols.size() < 64);
     uint64_t sanitized_cols_used = cols_used & ((1ull << cols.size()) - 1ull);
     Dataframe df(std::move(cols), 0, &string_pool_);
-    ASSERT_OK_AND_ASSIGN(
-        Dataframe::QueryPlan plan,
-        df.PlanQuery(filters, distinct_specs, sort_specs, sanitized_cols_used));
+    ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
+                         df.PlanQuery(filters, distinct_specs, sort_specs,
+                                      limit_spec, sanitized_cols_used));
     EXPECT_THAT(FormatBytecode(plan),
                 EqualsIgnoringWhitespace(expected_bytecode));
   }
@@ -119,7 +120,7 @@ TEST_F(DataframeBytecodeTest, NoFilters) {
                        impl::Column{"col2", impl::Storage::Id{},
                                     impl::Overlay::NoOverlay{}, IdSorted{}});
   std::vector<FilterSpec> filters;
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -134,7 +135,7 @@ TEST_F(DataframeBytecodeTest, SingleFilter) {
                        impl::Column{"col2", impl::Storage::Id{},
                                     impl::Overlay::NoOverlay{}, IdSorted{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
@@ -159,7 +160,7 @@ TEST_F(DataframeBytecodeTest, MultipleFilters) {
       {0, 0, Eq{}, std::nullopt},  // Filter on column 0
       {1, 1, Eq{}, std::nullopt}   // Filter on column 1
   };
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
@@ -174,7 +175,7 @@ TEST_F(DataframeBytecodeTest, NumericSortedEq) {
   std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
       "col1", impl::Storage::Uint32{}, impl::Overlay::NoOverlay{}, Sorted{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     SortedFilter<Uint32, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
@@ -189,7 +190,7 @@ TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
         "col1", impl::Storage::Uint32{}, impl::Overlay::NoOverlay{}, Sorted{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Lt{}, std::nullopt}};
-    RunBytecodeTest(cols, filters, {}, {}, R"(
+    RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(2)]
       SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
@@ -202,7 +203,7 @@ TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
         "col1", impl::Storage::Uint32{}, impl::Overlay::NoOverlay{}, Sorted{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Le{}, std::nullopt}};
-    RunBytecodeTest(cols, filters, {}, {}, R"(
+    RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(3)]
       SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
@@ -215,7 +216,7 @@ TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
         "col1", impl::Storage::Uint32{}, impl::Overlay::NoOverlay{}, Sorted{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Gt{}, std::nullopt}};
-    RunBytecodeTest(cols, filters, {}, {}, R"(
+    RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
       SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
@@ -228,7 +229,7 @@ TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
         "col1", impl::Storage::Uint32{}, impl::Overlay::NoOverlay{}, Sorted{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Ge{}, std::nullopt}};
-    RunBytecodeTest(cols, filters, {}, {}, R"(
+    RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(5)]
       SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
@@ -245,7 +246,7 @@ TEST_F(DataframeBytecodeTest, Numeric) {
                                       impl::Overlay::NoOverlay{}, Unsorted{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Eq{}, std::nullopt}};
-    RunBytecodeTest(cols, filters, {}, {}, R"(
+    RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
       AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
@@ -259,7 +260,7 @@ TEST_F(DataframeBytecodeTest, Numeric) {
                                       impl::Overlay::NoOverlay{}, Unsorted{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Ge{}, std::nullopt}};
-    RunBytecodeTest(cols, filters, {}, {}, R"(
+    RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(5)]
       AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
@@ -287,7 +288,7 @@ TEST_F(DataframeBytecodeTest, SortingOfFilters) {
       {2, 0, Eq{}, std::nullopt}, {3, 0, Le{}, std::nullopt},
       {3, 0, Eq{}, std::nullopt}, {1, 0, Le{}, std::nullopt},
   };
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
@@ -319,7 +320,7 @@ TEST_F(DataframeBytecodeTest, StringFilter) {
   std::vector<FilterSpec> filters = {
       {0, 0, Regex{}, std::nullopt},
   };
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(7)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
@@ -334,7 +335,7 @@ TEST_F(DataframeBytecodeTest, StringFilterGlob) {
   std::vector<FilterSpec> filters = {
       {0, 0, Glob{}, std::nullopt},
   };
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(6)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
@@ -349,7 +350,7 @@ TEST_F(DataframeBytecodeTest, SparseNullFilters) {
         MakeColumnVector(impl::Column{"col_sparse", impl::Storage::Uint32{},
                                       impl::Overlay::SparseNull{}, Unsorted{}});
     std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
-    RunBytecodeTest(cols, filters_isnull, {}, {}, R"(
+    RunBytecodeTest(cols, filters_isnull, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -365,7 +366,7 @@ TEST_F(DataframeBytecodeTest, SparseNullFilters) {
     std::vector<FilterSpec> filters_isnotnull = {
         {0, 0, IsNotNull{}, std::nullopt},
     };
-    RunBytecodeTest(cols, filters_isnotnull, {}, {}, R"(
+    RunBytecodeTest(cols, filters_isnotnull, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -383,7 +384,7 @@ TEST_F(DataframeBytecodeTest, DenseNullFilters) {
 
     // Test IsNull
     std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
-    RunBytecodeTest(cols, filters_isnull, {}, {}, R"(
+    RunBytecodeTest(cols, filters_isnull, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -399,7 +400,7 @@ TEST_F(DataframeBytecodeTest, DenseNullFilters) {
     // Test IsNotNull
     std::vector<FilterSpec> filters_isnotnull = {
         {0, 0, IsNotNull{}, std::nullopt}};
-    RunBytecodeTest(cols, filters_isnotnull, {}, {}, R"(
+    RunBytecodeTest(cols, filters_isnotnull, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -418,7 +419,7 @@ TEST_F(DataframeBytecodeTest, NonNullFilters) {
     // Test IsNull: Should result in an empty result set as the column is
     // NonNull
     std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
-    RunBytecodeTest(cols, filters_isnull, {}, {}, R"(
+    RunBytecodeTest(cols, filters_isnull, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     )");
@@ -432,7 +433,7 @@ TEST_F(DataframeBytecodeTest, NonNullFilters) {
     // Test IsNotNull: Should have no effect as the column is already NonNull
     std::vector<FilterSpec> filters_isnotnull = {
         {0, 0, IsNotNull{}, std::nullopt}};
-    RunBytecodeTest(cols, filters_isnotnull, {}, {}, R"(
+    RunBytecodeTest(cols, filters_isnotnull, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
       Iota: [source_register=Register(0), update_register=Register(2)]
@@ -448,7 +449,7 @@ TEST_F(DataframeBytecodeTest, StandardFilterOnSparseNull) {
                                     impl::Overlay::SparseNull{}, Unsorted{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
 
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
@@ -471,7 +472,7 @@ TEST_F(DataframeBytecodeTest, StandardFilterOnDenseNull) {
 
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
 
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
@@ -501,7 +502,7 @@ TEST_F(DataframeBytecodeTest, OutputSparseNullColumn) {
   // Slot 1: Translated index for col_sparse (or UINT32_MAX for null)
   // Therefore, stride = 2.
   // col_sparse (index 1) maps to offset 1 in the output row.
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -532,7 +533,7 @@ TEST_F(DataframeBytecodeTest, OutputDenseNullColumn) {
   // Slot 1: Original index if non-null, else UINT32_MAX (copied by
   // StrideCopyDenseNullIndices) Therefore, stride = 2. col_dense (index 1)
   // maps to offset 1 in the output row.
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -565,7 +566,7 @@ TEST_F(DataframeBytecodeTest, OutputMultipleNullableColumns) {
   // Stride = 3.
   // col_sparse (index 1) maps to offset 1.
   // col_dense (index 2) maps to offset 2.
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -585,7 +586,7 @@ TEST_F(DataframeBytecodeTest, Uint32SetIdSortedEqGeneration) {
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
 
   // Expect the specialized Uint32SetIdSortedEq bytecode for this combination
-  RunBytecodeTest(cols, filters, {}, {}, R"(
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     Uint32SetIdSortedEq: [col=0, val_register=Register(1), update_register=Register(0)]
@@ -601,7 +602,7 @@ TEST_F(DataframeBytecodeTest, SortSingleUint32Asc) {
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
   // Expect direction=SortDirection(0) and StableSortIndices
-  RunBytecodeTest(cols, filters, {}, sorts, R"(
+  RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -618,7 +619,7 @@ TEST_F(DataframeBytecodeTest, SortSingleStringDesc) {
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending}};
   // Expect direction=SortDirection(1) and StableSortIndices
-  RunBytecodeTest(cols, filters, {}, sorts, R"(
+  RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -639,7 +640,7 @@ TEST_F(DataframeBytecodeTest, SortMultiColumnStable) {
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending},
                                  {1, SortDirection::kAscending}};
   // Expect direction=SortDirection(...) and StableSortIndices
-  RunBytecodeTest(cols, filters, {}, sorts, R"(
+  RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -659,7 +660,7 @@ TEST_F(DataframeBytecodeTest, SortWithFilter) {
   std::vector<FilterSpec> filters = {{0, 0, Gt{}, std::nullopt}};
   std::vector<SortSpec> sorts = {{1, SortDirection::kAscending}};
   // Expect direction=SortDirection(0) and StableSortIndices
-  RunBytecodeTest(cols, filters, {}, sorts, R"(
+  RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
     SortedFilter<Id, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
@@ -679,7 +680,7 @@ TEST_F(DataframeBytecodeTest, SortNullableColumn) {
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending}};
   // Expect direction=SortDirection(1) and StableSortIndices
   // Also check the output bytecode which was generated when cols_used=1
-  RunBytecodeTest(cols, filters, {}, sorts, R"(
+  RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
@@ -704,7 +705,6 @@ TEST_F(DataframeBytecodeTest, PlanQuery_DistinctTwoNonNullCols) {
 
   std::vector<FilterSpec> filters;
   std::vector<DistinctSpec> distinct_specs = {{0}, {1}};
-  std::vector<SortSpec> sorts;
   uint64_t cols_used = 0b11;
 
   uint16_t int_size = sizeof(int32_t);
@@ -728,8 +728,36 @@ TEST_F(DataframeBytecodeTest, PlanQuery_DistinctTwoNonNullCols) {
           static_cast<uint32_t>(stride))
           .ToStdString();
 
-  RunBytecodeTest(cols, filters, distinct_specs, sorts, expected_bytecode,
+  RunBytecodeTest(cols, filters, distinct_specs, {}, {}, expected_bytecode,
                   cols_used);
+}
+
+TEST_F(DataframeBytecodeTest, LimitOffsetPlacement) {
+  std::vector<impl::Column> cols =
+      MakeColumnVector(impl::Column{"col_filter", impl::Storage::Uint32{},
+                                    impl::Overlay::NoOverlay{}, Unsorted{}},
+                       impl::Column{"col_sparse", impl::Storage::Int64{},
+                                    impl::Overlay::SparseNull{}, Unsorted{}});
+
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+  LimitSpec spec;
+  spec.offset = 2;
+  spec.limit = 10;
+
+  // cols_used=2 requests the sparse null column (index 1)
+  RunBytecodeTest(cols, filters, {}, {}, spec, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+    NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    LimitOffsetIndices: [offset_value=2, limit_value=10, update_register=Register(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(4), dest_span_register=Register(5)]
+    StrideCopy: [source_register=Register(3), update_register=Register(5), stride=2]
+    PrefixPopcount: [col=1, dest_register=Register(6)]
+    StrideTranslateAndCopySparseNullIndices: [col=1, popcount_register=Register(6), update_register=Register(5), offset=1, stride=2]
+  )",
+                  /*cols_used=*/2);  // Request col_sparse output
 }
 
 }  // namespace perfetto::trace_processor::dataframe

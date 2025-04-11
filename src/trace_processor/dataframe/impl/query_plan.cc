@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -364,7 +365,7 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
   }
 }
 
-void QueryPlanBuilder::Output(uint64_t cols_used) {
+void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
   // Structure to track column and offset pairs
   struct ColAndOffset {
     uint32_t col;
@@ -396,6 +397,24 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
   }
 
   auto in_memory_indices = EnsureIndicesAreInSlab();
+  if (limit.limit || limit.offset) {
+    auto o = limit.offset.value_or(0);
+    auto l = limit.limit.value_or(std::numeric_limits<uint32_t>::max());
+
+    // Offset will cut out `o` rows from the start of indices.
+    uint32_t remove_from_start = std::min(max_row_count_, o);
+    max_row_count_ -= remove_from_start;
+
+    // Limit will only preserve at most `l` rows.
+    max_row_count_ = std::min(l, max_row_count_);
+
+    using B = bytecode::LimitOffsetIndices;
+    auto& bc = AddOpcode<B>();
+    bc.arg<B::offset_value>() = o;
+    bc.arg<B::limit_value>() = l;
+    bc.arg<B::update_register>() = in_memory_indices;
+  }
+
   bytecode::reg::RwHandle<Span<uint32_t>> storage_update_register;
   if (plan_.params.output_per_row > 1) {
     bytecode::reg::RwHandle<Slab<uint32_t>> slab_register{register_count_++};

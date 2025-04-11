@@ -2004,5 +2004,46 @@ TEST_F(BytecodeInterpreterTest, Distinct_OneNonNullCol_SimpleDuplicates) {
   EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 1, 3));
 }
 
+TEST_F(BytecodeInterpreterTest, LimitOffsetIndicesCombined) {
+  std::vector<uint32_t> initial_indices(20);
+  std::iota(initial_indices.begin(), initial_indices.end(), 0);
+
+  // Apply offset=5, limit=10
+  std::string bytecode =
+      "LimitOffsetIndices: [offset_value=5, limit_value=10, "
+      "update_register=Register(0)]";
+
+  SetRegistersAndExecute(bytecode, GetSpan(initial_indices));
+
+  // Expected result: Indices 5, 6, ..., 14 (size 10)
+  const auto& result_span = GetRegister<Span<uint32_t>>(0);
+  std::vector<uint32_t> expected_result(10);
+  std::iota(expected_result.begin(), expected_result.end(), 5);
+  EXPECT_THAT(result_span, ElementsAreArray(expected_result));
+}
+
+TEST_F(BytecodeInterpreterTest, LimitOffsetIndicesOffsetMakesEmpty) {
+  std::vector<uint32_t> initial_indices(10);
+  std::iota(initial_indices.begin(), initial_indices.end(), 0);
+
+  std::string bytecode =
+      "LimitOffsetIndices: [offset_value=10, limit_value=5, "
+      "update_register=Register(0)]";
+
+  SetRegistersAndExecute(bytecode, GetSpan(initial_indices));
+
+  // Expected result: Empty span
+  EXPECT_TRUE(GetRegister<Span<uint32_t>>(0).empty());
+
+  // Test offset > size as well
+  initial_indices.assign(10, 0);
+  std::iota(initial_indices.begin(), initial_indices.end(), 0);
+  bytecode =
+      "LimitOffsetIndices: [offset_value=15, limit_value=5, "
+      "update_register=Register(0)]";
+  SetRegistersAndExecute(bytecode, GetSpan(initial_indices));
+  EXPECT_TRUE(GetRegister<Span<uint32_t>>(0).empty());
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::dataframe::impl::bytecode
