@@ -143,6 +143,16 @@ struct FilterSpec {
 };
 
 // -----------------------------------------------------------------------------
+// Distinct Specifications
+// -----------------------------------------------------------------------------
+
+// Specifies a distinct operation to be applied to the dataframe rows.
+struct DistinctSpec {
+  // Index of the column in the dataframe to perform a distinct on.
+  uint32_t col;
+};
+
+// -----------------------------------------------------------------------------
 // Sort Specifications
 // -----------------------------------------------------------------------------
 

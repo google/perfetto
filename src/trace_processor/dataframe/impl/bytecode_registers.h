@@ -96,7 +96,8 @@ using Value = std::variant<Empty,
                            Range,
                            Slab<uint32_t>,
                            Span<uint32_t>,
-                           CastFilterValueResult>;
+                           CastFilterValueResult,
+                           Slab<uint8_t>>;
 
 }  // namespace perfetto::trace_processor::dataframe::impl::bytecode::reg
 

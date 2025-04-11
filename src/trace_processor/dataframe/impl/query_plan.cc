@@ -105,6 +105,24 @@ std::pair<BoundModifier, EqualRangeLowerBoundUpperBound> GetSortedFilterArgs(
   }
 }
 
+// Helper to get byte size of storage types for layout calculation.
+// Returns 0 for Id type as it's handled specially.
+inline uint8_t GetDataSize(StorageType type) {
+  switch (type.index()) {
+    case StorageType::GetTypeIndex<Id>():
+    case StorageType::GetTypeIndex<Uint32>():
+    case StorageType::GetTypeIndex<Int32>():
+    case StorageType::GetTypeIndex<String>():
+      return sizeof(uint32_t);
+    case StorageType::GetTypeIndex<Int64>():
+      return sizeof(int64_t);
+    case StorageType::GetTypeIndex<Double>():
+      return sizeof(double);
+    default:
+      PERFETTO_FATAL("Invalid storage type");
+  }
+}
+
 }  // namespace
 
 QueryPlanBuilder::QueryPlanBuilder(uint32_t row_count,
@@ -179,7 +197,84 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
   return base::OkStatus();
 }
 
-// Adds sort operations bytecode to the plan.
+void QueryPlanBuilder::Distinct(
+    const std::vector<DistinctSpec>& distinct_specs) {
+  if (distinct_specs.empty()) {
+    return;
+  }
+  bytecode::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
+  uint16_t total_row_stride = 0;
+  for (const auto& spec : distinct_specs) {
+    const Column& col = columns_[spec.col];
+    bool is_nullable = !col.overlay.nullability().Is<NonNull>();
+    total_row_stride +=
+        (is_nullable ? 1u : 0u) + GetDataSize(col.storage.type());
+  }
+
+  uint32_t buffer_size = max_row_count_ * total_row_stride;
+  bytecode::reg::RwHandle<Slab<uint8_t>> buffer_reg{register_count_++};
+  {
+    using B = bytecode::AllocateRowLayoutBuffer;
+    auto& bc = AddOpcode<B>();
+    bc.arg<B::buffer_size>() = buffer_size;
+    bc.arg<B::dest_buffer_register>() = buffer_reg;
+  }
+  uint16_t current_offset = 0;
+  for (const auto& spec : distinct_specs) {
+    const Column& col = columns_[spec.col];
+    const auto& nullability = col.overlay.nullability();
+    uint8_t data_size = GetDataSize(col.storage.type());
+    switch (nullability.index()) {
+      case Nullability::GetTypeIndex<NonNull>(): {
+        using B = bytecode::CopyToRowLayoutNonNull;
+        auto& bc = AddOpcode<B>();
+        bc.arg<B::col>() = spec.col;
+        bc.arg<B::source_indices_register>() = indices;
+        bc.arg<B::dest_buffer_register>() = buffer_reg;
+        bc.arg<B::row_layout_offset>() = current_offset;
+        bc.arg<B::row_layout_stride>() = total_row_stride;
+        bc.arg<B::copy_size>() = data_size;
+        break;
+      }
+      case Nullability::GetTypeIndex<DenseNull>(): {
+        using B = bytecode::CopyToRowLayoutDenseNull;
+        auto& bc = AddOpcode<B>();
+        bc.arg<B::col>() = spec.col;
+        bc.arg<B::source_indices_register>() = indices;
+        bc.arg<B::dest_buffer_register>() = buffer_reg;
+        bc.arg<B::row_layout_offset>() = current_offset;
+        bc.arg<B::row_layout_stride>() = total_row_stride;
+        bc.arg<B::copy_size>() = data_size;
+        break;
+      }
+      case Nullability::GetTypeIndex<SparseNull>(): {
+        auto popcount_reg = PrefixPopcountRegisterFor(spec.col);
+        using B = bytecode::CopyToRowLayoutSparseNull;
+        auto& bc = AddOpcode<B>();
+        bc.arg<B::col>() = spec.col;
+        bc.arg<B::source_indices_register>() = indices;
+        bc.arg<B::dest_buffer_register>() = buffer_reg;
+        bc.arg<B::row_layout_offset>() = current_offset;
+        bc.arg<B::row_layout_stride>() = total_row_stride;
+        bc.arg<B::copy_size>() = data_size;
+        bc.arg<B::popcount_register>() = popcount_reg;
+        break;
+      }
+      default:
+        PERFETTO_FATAL("Unreachable");
+    }
+    current_offset += (nullability.Is<NonNull>() ? 0u : 1u) + data_size;
+  }
+  PERFETTO_CHECK(current_offset == total_row_stride);
+  {
+    using B = bytecode::Distinct;
+    auto& bc = AddOpcode<B>();
+    bc.arg<B::buffer_register>() = buffer_reg;
+    bc.arg<B::total_row_stride>() = total_row_stride;
+    bc.arg<B::indices_register>() = indices;
+  }
+}
+
 void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
   if (sort_specs.empty()) {
     return;
