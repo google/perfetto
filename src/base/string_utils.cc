@@ -219,11 +219,11 @@ std::string ReplaceAll(std::string str,
   return str;
 }
 
-bool RemoveInvalidUTF8AndCheckASCII(base::StringView str, std::string& output) {
-  bool isASCII = std::all_of(str.begin(), str.end(), [](char c) {
+bool CheckASCIIAndRemoveInvalidUTF8(base::StringView str, std::string& output) {
+  bool is_ascii = std::all_of(str.begin(), str.end(), [](char c) {
     return (static_cast<unsigned char>(c) & 0b10000000) == 0b00000000;
   });
-  if (isASCII) {
+  if (is_ascii) {
     return true;
   }
 
@@ -232,52 +232,52 @@ bool RemoveInvalidUTF8AndCheckASCII(base::StringView str, std::string& output) {
   output.reserve(str.size());
   for (size_t i = 0; i < str.size();) {
     unsigned char c = static_cast<unsigned char>(str.data()[i]);
-    size_t numBytes = 0;
-    bool validSequence = true;
+    size_t num_bytes = 0;
+    bool valid_sequence = true;
 
     if ((c & 0b10000000) == 0b00000000) {
-      numBytes = 1;
+      num_bytes = 1;
     } else if ((c & 0b11100000) == 0b11000000) {
-      numBytes = 2;
+      num_bytes = 2;
     } else if ((c & 0b11110000) == 0b11100000) {
-      numBytes = 3;
+      num_bytes = 3;
     } else if ((c & 0b11111000) == 0b11110000) {
-      numBytes = 4;
+      num_bytes = 4;
     } else {
-      validSequence = false;
+      valid_sequence = false;
       // Skip this byte
-      numBytes = 1;
+      num_bytes = 1;
     }
 
-    if (validSequence) {
+    if (valid_sequence) {
       // Check if enough bytes are available in the string
-      if (i + numBytes > str.size()) {
-        validSequence = false;
-        numBytes = 1;  // Treat as a single invalid byte for advancement
+      if (i + num_bytes > str.size()) {
+        valid_sequence = false;
+        num_bytes = 1;  // Treat as a single invalid byte for advancement
       } else {
         // Check for overlong encodings, surrogates, and out-of-range
-        if (numBytes == 2 && c < 0b11000010) {  // 0xC2
-          validSequence = false;                // Overlong
-        } else if (numBytes == 3) {
+        if (num_bytes == 2 && c < 0b11000010) {  // 0xC2
+          valid_sequence = false;                // Overlong
+        } else if (num_bytes == 3) {
           unsigned char byte2 = static_cast<unsigned char>(str.data()[i + 1]);
           if ((c == 0b11100000 && byte2 < 0b10100000) ||   // Overlong E0
               (c == 0b11101101 && byte2 >= 0b10100000)) {  // Surrogate ED
-            validSequence = false;
+            valid_sequence = false;
           }
-        } else if (numBytes == 4) {
+        } else if (num_bytes == 4) {
           unsigned char byte2 = static_cast<unsigned char>(str.data()[i + 1]);
           if ((c == 0b11110000 && byte2 < 0b10010000) ||  // Overlong F0
               (c == 0b11110100 && byte2 > 0b10001111)) {  // Out of range F4
-            validSequence = false;
+            valid_sequence = false;
           }
         }
 
-        if (validSequence && numBytes > 1) {
-          for (size_t j = 1; j < numBytes; ++j) {
+        if (valid_sequence && num_bytes > 1) {
+          for (size_t j = 1; j < num_bytes; ++j) {
             unsigned char continuation_byte =
                 static_cast<unsigned char>(str.data()[i + j]);
             if ((continuation_byte & 0b11000000) != 0b10000000) {
-              validSequence = false;
+              valid_sequence = false;
               break;
             }
           }
@@ -285,13 +285,13 @@ bool RemoveInvalidUTF8AndCheckASCII(base::StringView str, std::string& output) {
       }
     }
 
-    if (validSequence) {
-      for (size_t j = 0; j < numBytes; ++j) {
+    if (valid_sequence) {
+      for (size_t j = 0; j < num_bytes; ++j) {
         output.push_back(str.data()[i + j]);
       }
     }
 
-    i += numBytes;
+    i += num_bytes;
   }
   return false;
 }

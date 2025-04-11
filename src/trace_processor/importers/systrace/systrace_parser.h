@@ -323,6 +323,7 @@ class SystraceParser : public Destructible {
   const StringId cookie_id_;
   const StringId utid_id_;
   const StringId end_utid_id_;
+  // temp string used to store trace events after removing non UTF-8 chars
   std::string temp_string_utf8_;
 };
 
