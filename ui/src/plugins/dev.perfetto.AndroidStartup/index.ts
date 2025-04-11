@@ -18,6 +18,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
 import {optimizationsTrack} from './optimizations';
+import {slowInsightsTrack} from './slowInsights';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidStartup';
@@ -63,6 +64,10 @@ export default class implements PerfettoPlugin {
     trackNode.addChildLast(trackBreakdownNode);
     if (!!optimizations) {
       trackNode.addChildLast(optimizations);
+    }
+    const slowInsights = await slowInsightsTrack(ctx);
+    if (!!slowInsights) {
+      trackNode.addChildLast(slowInsights);
     }
   }
 
