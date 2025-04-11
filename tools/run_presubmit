@@ -244,7 +244,9 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
   #               c++ files are already handled by clang-format.
   files_to_check_list = filter_files(
       changed_files,
-      files_to_skip=['*.cc', '*.h', '*.pb', '*.png', '*.jpg', '*/test/data/*'])
+      files_to_skip=[
+          '*.cc', '*.h', '*.pb', '*.png', '*.jpg', '*/test/data/*', 'Makefile'
+      ])
 
   for f_path in files_to_check_list:
     content = read_file_content(f_path)

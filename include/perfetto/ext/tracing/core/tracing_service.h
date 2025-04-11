@@ -324,6 +324,8 @@ class PERFETTO_EXPORT_COMPONENT RelayEndpoint {
   };
 
   enum class SyncMode : uint32_t { PING = 1, UPDATE = 2 };
+
+  virtual void CacheSystemInfo(std::vector<uint8_t> serialized_system_info) = 0;
   virtual void SyncClocks(SyncMode sync_mode,
                           base::ClockSnapshotVector client_clocks,
                           base::ClockSnapshotVector host_clocks) = 0;

@@ -87,9 +87,9 @@
   }
 }
 
-// Just make the tooltip font a bit smaller, which helps keep the style in line
-// with the tracks.
 .pf-track__tooltip {
-  font-size: 14px;
+  font-size: 14px; // Slightly smaller font - to match tracks.
   opacity: 0.8;
+  font-weight: 300;
+  max-width: 500px; // Limit how wide the tooltip can be - keeps it readable.
 }

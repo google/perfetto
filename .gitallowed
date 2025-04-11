@@ -1,0 +1,4 @@
+# This is to suppress the "You are leaking API keys" hook.
+# the perfetto.dev website uses an old-school API key for custom search
+# which can't be really made secret as it is used by the client-side JS.
+infra/perfetto.dev/src/assets/script.js

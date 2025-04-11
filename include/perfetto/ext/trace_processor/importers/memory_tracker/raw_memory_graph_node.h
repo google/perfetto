@@ -102,16 +102,21 @@ class PERFETTO_EXPORT_COMPONENT RawMemoryGraphNode {
       std::vector<RawMemoryGraphNode::MemoryNodeEntry>&& entries);
 
   // Standard attribute |name|s for the AddScalar and AddString() methods.
-  static constexpr char kNameSize[]= "size";         // To represent allocated space.
-  static constexpr char kNameObjectCount[]= "object_count";  // To represent number of objects.
+  static constexpr char kNameSize[] = "size";  // To represent allocated space.
+  static constexpr char kNameObjectCount[] =
+      "object_count";  // To represent number of objects.
 
   // Standard attribute |unit|s for the AddScalar and AddString() methods.
-  static constexpr char kUnitsBytes[] = "bytes";    // Unit name to represent bytes.
-  static constexpr char kUnitsObjects[] = "objects";  // Unit name to represent #objects.
+  static constexpr char kUnitsBytes[] =
+      "bytes";  // Unit name to represent bytes.
+  static constexpr char kUnitsObjects[] =
+      "objects";  // Unit name to represent #objects.
 
   // Constants used only internally and by tests.
-  static constexpr char kTypeScalar[] = "scalar";  // Type name for scalar attributes.
-  static constexpr char kTypeString[] = "string";  // Type name for string attributes.
+  static constexpr char kTypeScalar[] =
+      "scalar";  // Type name for scalar attributes.
+  static constexpr char kTypeString[] =
+      "string";  // Type name for string attributes.
 
   // |id| is an optional global node identifier, unique across all processes
   // within the scope of a global node.

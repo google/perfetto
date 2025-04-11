@@ -55,10 +55,10 @@
 #include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/common/system_info.pbzero.h"
 #include "protos/perfetto/trace/ps/process_stats.pbzero.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
-#include "protos/perfetto/trace/system_info.pbzero.h"
 #include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
 
 namespace perfetto::trace_processor {
