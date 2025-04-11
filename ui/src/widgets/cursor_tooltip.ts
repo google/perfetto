@@ -67,12 +67,12 @@ export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
         onContentMount: (portal) => {
           this.virtualElement.setPosition(globalMousePos);
           this.popper = createPopper(this.virtualElement, portal, {
-            placement: 'right-start',
+            placement: 'right',
             modifiers: [
               {
                 name: 'offset',
                 options: {
-                  offset: [8, 8], // Shift away from cursor
+                  offset: [0, 8], // Shift away from cursor
                 },
               },
             ],
