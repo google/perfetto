@@ -219,7 +219,14 @@ std::string ReplaceAll(std::string str,
   return str;
 }
 
-void RemoveInvalidUTF8(base::StringView str, std::string& output) {
+bool RemoveInvalidUTF8AndCheckASCII(base::StringView str, std::string& output) {
+  bool isASCII = std::all_of(str.begin(), str.end(), [](char c) {
+    return (static_cast<unsigned char>(c) & 0b10000000) == 0b00000000;
+  });
+  if (isASCII) {
+    return true;
+  }
+
   // https://www.rfc-editor.org/rfc/rfc3629.txt
   output.clear();
   output.reserve(str.size());
@@ -286,6 +293,7 @@ void RemoveInvalidUTF8(base::StringView str, std::string& output) {
 
     i += numBytes;
   }
+  return false;
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
