@@ -67,7 +67,6 @@ perfetto_unittest_source_set("unittests") {
     "cpu_stats_parser_unittest.cc",
     "event_info_unittest.cc",
     "ftrace_config_muxer_unittest.cc",
-    "ftrace_config_unittest.cc",
     "ftrace_controller_unittest.cc",
     "ftrace_print_filter_unittest.cc",
     "ftrace_procfs_unittest.cc",

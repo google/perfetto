@@ -15569,7 +15569,6 @@ filegroup {
         "src/traced/probes/ftrace/cpu_stats_parser_unittest.cc",
         "src/traced/probes/ftrace/event_info_unittest.cc",
         "src/traced/probes/ftrace/ftrace_config_muxer_unittest.cc",
-        "src/traced/probes/ftrace/ftrace_config_unittest.cc",
         "src/traced/probes/ftrace/ftrace_controller_unittest.cc",
         "src/traced/probes/ftrace/ftrace_print_filter_unittest.cc",
         "src/traced/probes/ftrace/ftrace_procfs_unittest.cc",

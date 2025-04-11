@@ -522,7 +522,6 @@ ProtoTranslationTable::ProtoTranslationTable(
     PrintkMap printk_formats)
     : ftrace_procfs_(ftrace_procfs),
       events_(BuildEventsDeque(events)),
-      largest_id_(events_.size() - 1),
       common_fields_(std::move(common_fields)),
       ftrace_page_header_spec_(std::move(ftrace_page_header_spec)),
       compact_sched_format_(std::move(compact_sched_format)),
@@ -549,30 +548,28 @@ const Event* ProtoTranslationTable::CreateEventWithProtoId(
                                                          group_and_name.name());
   if (contents.empty())
     return nullptr;
-  FtraceEvent ftrace_event = {};
-  ParseFtraceEvent(contents, &ftrace_event);
+  FtraceEvent tracefs_event = {};
+  ParseFtraceEvent(contents, &tracefs_event);
 
-  // Ensure events vector is large enough
-  if (ftrace_event.id > largest_id_) {
-    events_.resize(ftrace_event.id + 1);
-    largest_id_ = ftrace_event.id;
+  if (tracefs_event.id >= events_.size()) {
+    events_.resize(tracefs_event.id + 1);
   }
 
   // Set known event variables
-  Event* e = &events_.at(ftrace_event.id);
-  e->ftrace_event_id = ftrace_event.id;
+  Event* e = &events_.at(tracefs_event.id);
+  e->ftrace_event_id = tracefs_event.id;
   e->proto_field_id = proto_field_id;
   e->name = InternString(group_and_name.name());
   e->group = InternString(group_and_name.group());
 
   // Calculate size of common fields.
-  for (const FtraceEvent::Field& ftrace_field : ftrace_event.common_fields) {
+  for (const FtraceEvent::Field& ftrace_field : tracefs_event.common_fields) {
     uint16_t field_end = ftrace_field.offset + ftrace_field.size;
     e->size = std::max(field_end, e->size);
   }
 
   // For every field in the ftrace event, make a field in the generic event.
-  for (const FtraceEvent::Field& ftrace_field : ftrace_event.fields)
+  for (const FtraceEvent::Field& ftrace_field : tracefs_event.fields)
     e->size = std::max(CreateGenericEventField(ftrace_field, *e), e->size);
 
   group_and_name_to_event_[group_and_name] = &events_.at(e->ftrace_event_id);
