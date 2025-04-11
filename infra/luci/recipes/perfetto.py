@@ -194,7 +194,10 @@ def RunSteps(api, repository):
     elif api.platform.is_linux:
       # Pull the cross-toolchains for building for linux-arm{,64}.
       extra_args += ['--linux-arm']
-    api.step('build-deps', ['python3', 'tools/install-build-deps'] + extra_args)
+    api.step('build-deps', [
+        'python3' if not api.platform.is_win else 'python',
+        'tools/install-build-deps'
+    ] + extra_args)
 
   if api.platform.is_win:
     BuildForPlatform(api, ctx, 'windows-amd64')
