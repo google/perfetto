@@ -219,7 +219,7 @@ std::string ReplaceAll(std::string str,
   return str;
 }
 
-bool CheckASCIIAndRemoveInvalidUTF8(base::StringView str, std::string& output) {
+bool CheckAsciiAndRemoveInvalidUTF8(base::StringView str, std::string& output) {
   bool is_ascii = std::all_of(str.begin(), str.end(), [](char c) {
     return (static_cast<unsigned char>(c) & 0b10000000) == 0b00000000;
   });

@@ -200,7 +200,7 @@ std::string ReplaceAll(std::string str,
 // If `str` contains non-ASCII characters, the function returns false,
 // removes invalid UTF-8 characters from `str`, and stores the result in
 // `output`.
-bool CheckASCIIAndRemoveInvalidUTF8(base::StringView str, std::string& output);
+bool CheckAsciiAndRemoveInvalidUTF8(base::StringView str, std::string& output);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 bool WideToUTF8(const std::wstring& source, std::string& output);

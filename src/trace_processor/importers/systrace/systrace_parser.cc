@@ -51,8 +51,10 @@ void SystraceParser::ParsePrintEvent(int64_t ts,
                                      uint32_t pid,
                                      base::StringView event) {
   systrace_utils::SystraceTracePoint point{};
-  bool isASCII = base::CheckASCIIAndRemoveInvalidUTF8(event, temp_string_utf8_);
-  base::StringView event_utf8 = isASCII ? event : temp_string_utf8_.c_str();
+  bool is_ascii =
+      base::CheckAsciiAndRemoveInvalidUTF8(event, temp_string_utf8_);
+  base::StringView event_utf8 =
+      is_ascii ? event : base::StringView(temp_string_utf8_);
   switch (ParseSystraceTracePoint(event_utf8, &point)) {
     case systrace_utils::SystraceParseResult::kSuccess:
       ParseSystracePoint(ts, pid, point);
