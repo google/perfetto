@@ -28,7 +28,7 @@ some sanitizers. Propagates the test return code to the host, exiting with
 """
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ADB_PATH = os.path.join(ROOT_DIR, 'buildtools/android_sdk/platform-tools/adb')
+ADB_PATH = 'adb'  #os.path.join(ROOT_DIR, 'buildtools/android_sdk/platform-tools/adb')
 
 
 def RetryOn(exc_type=(), returns_falsy=False, retries=5):
@@ -138,9 +138,9 @@ def Main():
   assert os.path.exists(test_bin)
 
   print('Waiting for device ...')
-  AdbCall('wait-for-device')
+  # AdbCall('wait-for-device')
   # WaitForBootCompletion()
-  AdbCall('root')
+  # AdbCall('root')
   AdbCall('wait-for-device')
 
   target_dir = '/data/local/tmp/perfetto_tests'
