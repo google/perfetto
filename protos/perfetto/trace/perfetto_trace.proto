@@ -12134,10 +12134,10 @@ message FtraceEventBundle {
   // compile time, when using the |denser_generic_event_encoding| option.
   // Addded in: perfetto v50.
   message GenericEventDescriptor {
-    // submessage id within FtraceEvent described by |descriptor|.
+    // submessage id within FtraceEvent described by |event_descriptor|.
     optional int32 field_id = 1;
     // serialised DescriptorProto
-    optional bytes descriptor = 2;
+    optional bytes event_descriptor = 2;
   }
   repeated GenericEventDescriptor generic_event_descriptors = 11;
 

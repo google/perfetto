@@ -3741,7 +3741,7 @@ TEST(CpuReaderTest, GenericEventSelfDescribingFormat) {
     EXPECT_TRUE(table->IsGenericEventProtoId(proto_field_id));
 
     protos::gen::DescriptorProto dp;
-    dp.ParseFromString(v.descriptor());
+    dp.ParseFromString(v.event_descriptor());
 
     name_to_proto_id[dp.name()] = proto_field_id;
     decoded_descriptors.emplace(proto_field_id, std::move(dp));

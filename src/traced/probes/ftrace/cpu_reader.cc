@@ -363,7 +363,7 @@ void CpuReader::Bundler::WriteGenericEventDescriptors() {
     if (pb_descriptor) {
       auto* g = bundle_->add_generic_event_descriptors();
       g->set_field_id(static_cast<int32_t>(proto_id));
-      g->set_descriptor(pb_descriptor->data(), pb_descriptor->size());
+      g->set_event_descriptor(pb_descriptor->data(), pb_descriptor->size());
     }
   }
 }
