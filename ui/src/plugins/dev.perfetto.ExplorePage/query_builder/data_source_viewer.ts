@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {PageWithTraceAttrs} from '../../../public/page';
 import {TextParagraph} from '../../../widgets/text_paragraph';
 import {QueryTable} from '../../../components/query_table/query_table';
 import {runQueryForQueryTable} from '../../../components/query_table/queries';
@@ -29,8 +28,10 @@ import protos from '../../../protos';
 import {copyToClipboard} from '../../../base/clipboard';
 import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
+import {Trace} from '../../../public/trace';
 
-export interface DataSourceAttrs extends PageWithTraceAttrs {
+export interface DataSourceAttrs {
+  readonly trace: Trace;
   readonly queryNode: QueryNode;
 }
 

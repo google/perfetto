@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {assertTrue} from '../base/logging';
 import {RouteArgs, ROUTE_SCHEMA} from '../public/route_schema';
-import {PageAttrs} from '../public/page';
 
 export const ROUTE_PREFIX = '#!';
 
@@ -48,10 +47,6 @@ export interface Route {
   subpage: string;
   fragment: string;
   args: RouteArgs;
-}
-
-export interface RoutesMap {
-  [key: string]: m.ComponentTypes<PageAttrs>;
 }
 
 // This router does two things:

@@ -42,7 +42,6 @@ import {TextInput} from '../../widgets/text_input';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../../widgets/tree';
 import {VegaView} from '../../components/widgets/vega_view';
-import {PageAttrs} from '../../public/page';
 import {TableShowcase} from './table_showcase';
 import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
 import {Intent} from '../../widgets/common';
@@ -667,7 +666,7 @@ function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
   };
 }
 
-export class WidgetsPage implements m.ClassComponent<PageAttrs> {
+export class WidgetsPage implements m.ClassComponent {
   view() {
     return m(
       '.widgets-page',
