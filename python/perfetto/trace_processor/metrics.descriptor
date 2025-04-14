@@ -499,15 +499,16 @@ numThreadsK
 cameraserver_rss_val (RcameraserverRssVal
 dma_val (RdmaVal
 value (Rvalue
-í
-5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"¢
+Æ
+5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"û
 AndroidDisplayMetrics4
 total_duplicate_frames (RtotalDuplicateFrames6
-duplicate_frames_logged (RduplicateFramesLogged7
-total_dpu_underrun_count (RtotalDpuUnderrunCount2
+duplicate_frames_logged (RduplicateFramesLogged;
+total_dpu_underrun_count (BRtotalDpuUnderrunCount2
 refresh_rate_switches (RrefreshRateSwitchesd
 refresh_rate_stats (26.perfetto.protos.AndroidDisplayMetrics.RefreshRateStatRrefreshRateStatse
-update_power_state (27.perfetto.protos.AndroidDisplayMetrics.UpdatePowerStateRupdatePowerState‘
+update_power_state (27.perfetto.protos.AndroidDisplayMetrics.UpdatePowerStateRupdatePowerStateL
+	dpu_state (2/.perfetto.protos.AndroidDisplayMetrics.DpuStateRdpuState‘
 RefreshRateStat(
 refresh_rate_fps (RrefreshRateFps
 count (Rcount 
@@ -516,7 +517,13 @@ totalDurMs
 
 avg_dur_ms (RavgDurMsM
 UpdatePowerState3
-avg_runtime_micro_secs (RavgRuntimeMicroSecsJ
+avg_runtime_micro_secs (RavgRuntimeMicroSecsJU
+DpuUnderrunDetail
+name (	Rname,
+dpu_underrun_count (RdpuUnderrunCount­
+DpuState7
+total_dpu_underrun_count (RtotalDpuUnderrunCounth
+dpu_underrun_detail (28.perfetto.protos.AndroidDisplayMetrics.DpuUnderrunDetailRdpuUnderrunDetail
 á
 5protos/perfetto/metrics/android/dma_heap_metric.protoperfetto.protos"–
 AndroidDmaHeapMetric$

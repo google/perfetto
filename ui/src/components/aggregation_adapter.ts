@@ -30,11 +30,12 @@ import {SelectionAggregationManager} from './selection_aggregation_manager';
 export function createAggregationToTabAdaptor(
   trace: Trace,
   aggregator: AreaSelectionAggregator,
+  tabPriorityOverride?: number,
 ): AreaSelectionTab {
   const schemaSpecificity =
     (aggregator.schema && Object.keys(aggregator.schema).length) ?? 0;
   const kindRating = aggregator.trackKind === undefined ? 0 : 100;
-  const priority = kindRating + schemaSpecificity;
+  const priority = tabPriorityOverride ?? kindRating + schemaSpecificity;
   const aggMan = new SelectionAggregationManager(trace.engine, aggregator);
   let currentSelection: AreaSelection | undefined;
 

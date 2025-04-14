@@ -1,27 +1,34 @@
-# Writing TrackEvent Protos Synthetically
+# Writing synthetic traces using TrackEvent protobufs
 
 This page acts as a reference guide to synthetically generate TrackEvent,
 Perfetto's native protobuf based tracing format. This allows using Perfetto's
-analysis and visualization without using collecting traces using the Perfetto
-SDK.
+analysis and visualization without collecting traces using the Perfetto SDK.
 
-TrackEvent protos can be manually written using the
-[official protobuf library](https://protobuf.dev/reference/) or any other
-protobuf-compatible library. To be language-agnostic, the rest of this page will
-show examples using the
-[text format](https://protobuf.dev/reference/protobuf/textformat-spec/)
+TrackEvent protos can be written using the [official protobuf
+library](https://protobuf.dev/reference/) or any other protobuf-compatible
+library. To be language-agnostic, the rest of this page will show examples using
+the [text format](https://protobuf.dev/reference/protobuf/textformat-spec/)
 representation of protobufs.
 
 The root container of the protobuf-based traces is the
-[Trace](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/protos/perfetto/trace/trace.proto)
-message which itself is simply a repeated field of
-[TracePacket](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/protos/perfetto/trace/trace_packet.proto)
-messages.
+[Trace](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/trace.proto)
+message, which is simply a repeated field of
+[TracePacket](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/trace_packet.proto)
+messages. The submessage used for synthetic traces is the
+[TrackEvent](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/track_event/track_event.proto?q=class:TrackEvent).
+
+To tinker with the textproto examples below, you can build or install `protoc`
+and invoke it as following from a perfetto checkout (but to reiterate, a tracing
+tool should write binary protos directly):
+```bash
+protoc --encode=perfetto.protos.Trace protos/perfetto/trace/perfetto_trace.proto < /tmp/input.txtpb > /tmp/output.pftrace
+```
 
 ## Thread-scoped (sync) slices
 
-NOTE: in the legacy JSON tracing format, this section correspond to B/E/I/X
-events with the associated M (metadata) events.
+NOTE: in the [legacy JSON tracing format](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview),
+this section correspond to B/E/I/X events with the associated M (metadata)
+events.
 
 Thread scoped slices are used to trace execution of functions on a single
 thread. As only one function runs on a single thread over time, this requires
@@ -80,6 +87,7 @@ packet {
   track_event {
     type: TYPE_INSTANT
     track_uuid: 49083589894
+    name: "My instantaneous event"
   }
   trusted_packet_sequence_id: 3903809
 }
@@ -509,7 +517,7 @@ gurantee. The UI reserves the right to change the ordering as it sees fit.
 
 ## Flows
 
-NOTE: in the legacy JSON tracing format, this section correspond to s/t/f
+NOTE: in the legacy JSON tracing format, this section corresponds to s/t/f
 events.
 
 Flows allow connecting any number of slices with arrows. The semantic meaning of

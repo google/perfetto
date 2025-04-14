@@ -46,23 +46,27 @@ struct RwHandle : HandleBase {
   RwHandle() = default;
   explicit RwHandle(uint32_t _index) : HandleBase{_index} {}
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
   static constexpr bool VerifyPreconditions() {
     static_assert(std::is_trivial_v<RwHandle<T>>);
     static_assert(sizeof(RwHandle<T>) == sizeof(uint32_t));
     return true;
   }
   static constexpr bool kPreconditions = VerifyPreconditions();
+#endif
 };
 
 // Handle for read-only registers of type T.
 template <typename T>
 struct ReadHandle : HandleBase {
+#if !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
   static constexpr bool VerifyPreconditions() {
     static_assert(std::is_trivial_v<ReadHandle<T>>);
     static_assert(sizeof(ReadHandle<T>) == sizeof(uint32_t));
     return true;
   }
   static constexpr bool kPreconditions = VerifyPreconditions();
+#endif
   ReadHandle() = default;
   ReadHandle(RwHandle<T> _index) : HandleBase{_index.index} {}
   explicit ReadHandle(uint32_t _index) : HandleBase{_index} {}
@@ -71,12 +75,14 @@ struct ReadHandle : HandleBase {
 // Handle for write-only registers of type T.
 template <typename T>
 struct WriteHandle : HandleBase {
+#if !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
   static constexpr bool VerifyPreconditions() {
     static_assert(std::is_trivial_v<WriteHandle<T>>);
     static_assert(sizeof(WriteHandle<T>) == sizeof(uint32_t));
     return true;
   }
   static constexpr bool kPreconditions = VerifyPreconditions();
+#endif
   WriteHandle() = default;
   WriteHandle(RwHandle<T> _index) : HandleBase{_index.index} {}
   explicit WriteHandle(uint32_t _index) : HandleBase{_index} {}
@@ -90,7 +96,8 @@ using Value = std::variant<Empty,
                            Range,
                            Slab<uint32_t>,
                            Span<uint32_t>,
-                           CastFilterValueResult>;
+                           CastFilterValueResult,
+                           Slab<uint8_t>>;
 
 }  // namespace perfetto::trace_processor::dataframe::impl::bytecode::reg
 

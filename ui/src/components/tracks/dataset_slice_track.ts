@@ -29,12 +29,12 @@ import {
   BASE_ROW,
   BaseRow,
   BaseSliceTrack,
-  OnSliceOverArgs,
   SLICE_FLAGS_INCOMPLETE,
   SLICE_FLAGS_INSTANT,
   SliceLayout,
 } from './base_slice_track';
 import {Point2D, Size2D} from '../../base/geom';
+import {exists} from '../../base/utils';
 
 export interface InstantStyle {
   /**
@@ -156,9 +156,9 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
 
   /**
    * An optional function to override the tooltip content for each event. If
-   * omitted, the title & slice duration will be used.
+   * omitted, the title will be used instead.
    */
-  tooltip?(row: T): string[];
+  tooltip?(slice: SliceWithRow<T>): m.Children;
 
   /**
    * An optional callback to customize the details panel for events on this
@@ -223,7 +223,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     this.rootTableName = attrs.rootTableName;
   }
 
-  rowToSlice(row: BaseRow & T): SliceWithRow<T> {
+  override rowToSlice(row: BaseRow & T): SliceWithRow<T> {
     const slice = this.rowToSliceBase(row);
     const title = this.getTitle(row);
     const color = this.getColor(row, title);
@@ -360,26 +360,10 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     return this.attrs.shellButtons?.();
   }
 
-  onSliceOver(args: OnSliceOverArgs<SliceWithRow<T>>) {
-    const {title, dur, flags} = args.slice;
-    let duration;
-    if (flags & SLICE_FLAGS_INCOMPLETE) {
-      duration = 'Incomplete';
-    } else if (flags & SLICE_FLAGS_INSTANT) {
-      duration = 'Instant';
-    } else {
-      duration = formatDuration(this.trace, dur);
-    }
-    if (title) {
-      args.tooltip = [`${title} - [${duration}]`];
-    } else {
-      args.tooltip = [`[${duration}]`];
-    }
-
-    args.tooltip = this.attrs.tooltip?.(args.slice.row) ?? args.tooltip;
+  override renderTooltipForSlice(slice: SliceWithRow<T>): m.Children {
+    return this.attrs.tooltip?.(slice) ?? renderTooltip(this.trace, slice);
   }
 
-  // Override the drawChevron function.
   protected override drawChevron(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -396,5 +380,34 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     } else {
       super.drawChevron(ctx, x, y, h);
     }
+  }
+}
+
+// Most tooltips follow a predictable formula. This function extracts the
+// duration and title from the slice and formats them in a standard way,
+// allowing some optional overrides to be passed.
+export function renderTooltip<T>(
+  trace: Trace,
+  slice: SliceWithRow<T>,
+  opts: {readonly title?: string; readonly extras?: m.Children} = {},
+) {
+  const durationFormatted = formatDurationForTooltip(trace, slice);
+  const {title = slice.title, extras} = opts;
+
+  return [
+    m('', exists(durationFormatted) && m('b', durationFormatted), ' ', title),
+    extras,
+  ];
+}
+
+// Given a slice, format the duration of the slice for a tooltip.
+function formatDurationForTooltip(trace: Trace, slice: Slice) {
+  const {dur, flags} = slice;
+  if (flags & SLICE_FLAGS_INCOMPLETE) {
+    return '[Incomplete]';
+  } else if (flags & SLICE_FLAGS_INSTANT) {
+    return undefined;
+  } else {
+    return formatDuration(trace, dur);
   }
 }

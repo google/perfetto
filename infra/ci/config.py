@@ -21,15 +21,6 @@ makefile dumps of the variables. This is so all vars can live in one place.
 import os
 import sys
 
-# Gerrit config
-GERRIT_HOST = 'android-review.googlesource.com'
-GERRIT_PROJECT = 'platform/external/perfetto'
-GERRIT_REVIEW_URL = ('https://android-review.googlesource.com/c/' +
-                     GERRIT_PROJECT)
-REPO_URL = 'https://android.googlesource.com/' + GERRIT_PROJECT
-GERRIT_VOTING_ENABLED = True
-LOGLEVEL = 'info'
-
 # IDs for the Perfetto CI GitHub app.
 GITHUB_REPO = 'google/perfetto'
 GITHUB_APP_ID = 1184402
@@ -39,8 +30,6 @@ GITHUB_APP_INSTALLATION_ID = 62928975
 PROJECT = 'perfetto-ci'
 
 GAE_VERSION = 'prod'
-DB_ROOT = 'https://%s.firebaseio.com' % PROJECT
-DB = DB_ROOT + '/ci'
 SANDBOX_IMG = 'us-docker.pkg.dev/%s/containers/gh-sandbox' % PROJECT
 WORKER_IMG = 'us-docker.pkg.dev/%s/containers/gh-worker' % PROJECT
 CI_SITE = 'https://ci.perfetto.dev'
@@ -58,7 +47,7 @@ GCE_TEMPLATE = 'gh-worker-template'
 GCE_GROUP_NAME = 'gh'
 MAX_VMS_PER_REGION = 8
 NUM_WORKERS_PER_VM = 4
-AUTOSCALER_MIN = 3  # TODO(primiano) put back to 0 once autoscaler is sorted
+AUTOSCALER_MIN = 0
 
 GCE_SCOPES = [
     'https://www.googleapis.com/auth/cloud-platform',
@@ -71,9 +60,6 @@ GCE_SCOPES = [
 ]
 
 SANDBOX_SVC_ACCOUNT = 'gce-ci-sandbox@perfetto-ci.iam.gserviceaccount.com'
-
-# TODO(primiano) remove this after dismantling old ci.
-JOB_CONFIGS = {}
 
 if __name__ == '__main__':
   import os

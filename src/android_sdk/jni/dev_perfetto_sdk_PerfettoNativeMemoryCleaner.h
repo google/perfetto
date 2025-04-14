@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,17 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/ftrace_config_utils.h"
+#ifndef SRC_ANDROID_SDK_JNI_DEV_PERFETTO_SDK_PERFETTONATIVEMEMORYCLEANER_H_
+#define SRC_ANDROID_SDK_JNI_DEV_PERFETTO_SDK_PERFETTONATIVEMEMORYCLEANER_H_
 
-#include "test/gtest_and_gmock.h"
-
-using testing::Contains;
+#include <jni.h>
 
 namespace perfetto {
-namespace {
+namespace jni {
 
-TEST(ConfigTest, CreateFtraceConfig) {
-  FtraceConfig config = CreateFtraceConfig({
-      "aaa",
-      "bbb",
-  });
+int register_android_os_PerfettoNativeMemoryCleaner(JNIEnv* env);
 
-  EXPECT_THAT(config.ftrace_events(), Contains("aaa"));
-  EXPECT_THAT(config.ftrace_events(), Contains("bbb"));
-}
-
-}  // namespace
+}  // namespace jni
 }  // namespace perfetto
+
+#endif  // SRC_ANDROID_SDK_JNI_DEV_PERFETTO_SDK_PERFETTONATIVEMEMORYCLEANER_H_

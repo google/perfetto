@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
@@ -102,6 +103,15 @@ struct NullsAtEnd {};
 // TypeSet defining the possible placement locations for nulls.
 using NullsLocation = TypeSet<NullsAtStart, NullsAtEnd>;
 
+// Type tag for finding the minimum value.
+struct MinOp {};
+
+// Type tag for finding the maximum value.
+struct MaxOp {};
+
+// TypeSet combining Min and Max operations.
+using MinMaxOp = TypeSet<MinOp, MaxOp>;
+
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.
 class Storage {
@@ -152,6 +162,32 @@ class Storage {
   template <typename T>
   const auto* unchecked_data() const {
     return unchecked_get<T>().data();
+  }
+
+  // Returns a raw byte pointer to the underlying data.
+  // Returns nullptr if the storage type is Id (which has no buffer).
+  const uint8_t* byte_data() const {
+    switch (type_.index()) {
+      case StorageType::GetTypeIndex<dataframe::Id>():
+        return nullptr;
+      case StorageType::GetTypeIndex<dataframe::Uint32>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::Uint32>(data_).data());
+      case StorageType::GetTypeIndex<dataframe::Int32>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::Int32>(data_).data());
+      case StorageType::GetTypeIndex<dataframe::Int64>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::Int64>(data_).data());
+      case StorageType::GetTypeIndex<dataframe::Double>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::Double>(data_).data());
+      case StorageType::GetTypeIndex<dataframe::String>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::String>(data_).data());
+      default:
+        PERFETTO_FATAL("Should not reach here");
+    }
   }
 
   StorageType type() const { return type_; }

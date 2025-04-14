@@ -284,6 +284,107 @@ struct NullIndicesStablePartition : Bytecode {
                                      dest_non_null_register);
 };
 
+// Allocates a buffer for row layout storage.
+struct AllocateRowLayoutBuffer : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
+                                     buffer_size,
+                                     reg::WriteHandle<Slab<uint8_t>>,
+                                     dest_buffer_register);
+};
+
+// Copies data for a non-null column into the row layout buffer.
+struct CopyToRowLayoutNonNull : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(uint32_t,
+                                     col,
+                                     reg::ReadHandle<Span<uint32_t>>,
+                                     source_indices_register,
+                                     reg::RwHandle<Slab<uint8_t>>,
+                                     dest_buffer_register,
+                                     uint32_t,
+                                     pad,
+                                     uint16_t,
+                                     row_layout_offset,
+                                     uint16_t,
+                                     row_layout_stride,
+                                     uint16_t,
+                                     copy_size);
+};
+
+// Copies data for a DenseNull column into the row layout buffer,
+// writing the null flag first at copy_params.offset.
+struct CopyToRowLayoutDenseNull : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(uint32_t,
+                                     col,
+                                     reg::ReadHandle<Span<uint32_t>>,
+                                     source_indices_register,
+                                     reg::RwHandle<Slab<uint8_t>>,
+                                     dest_buffer_register,
+                                     uint32_t,
+                                     pad,
+                                     uint16_t,
+                                     row_layout_offset,
+                                     uint16_t,
+                                     row_layout_stride,
+                                     uint16_t,
+                                     copy_size);
+};
+
+// Copies data for a SparseNull column into the row layout buffer,
+// writing the null flag first at copy_params.offset. Requires popcount.
+struct CopyToRowLayoutSparseNull : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(uint32_t,
+                                     col,
+                                     reg::ReadHandle<Span<uint32_t>>,
+                                     source_indices_register,
+                                     reg::RwHandle<Slab<uint8_t>>,
+                                     dest_buffer_register,
+                                     reg::ReadHandle<Slab<uint32_t>>,
+                                     popcount_register,
+                                     uint16_t,
+                                     row_layout_offset,
+                                     uint16_t,
+                                     row_layout_stride,
+                                     uint16_t,
+                                     copy_size);
+};
+
+// Performs distinct operation on row layout buffer using opaque byte
+// comparison.
+struct Distinct : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(reg::ReadHandle<Slab<uint8_t>>,
+                                     buffer_register,
+                                     uint32_t,
+                                     total_row_stride,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     indices_register);
+};
+
+// Applies an offset to the indices span and limits the rows.
+// Modifies the span referenced by `update_register` in place.
+//
+// Note: `limit_value` = UINT32_MAX means no limit.
+struct LimitOffsetIndices : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
+                                     offset_value,
+                                     uint32_t,
+                                     limit_value,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+
+// Finds the min/max for a single column.
+struct FindMinMaxIndexBase : TemplatedBytecode2<StorageType, MinMaxOp> {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
+                                     col,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+template <typename T, typename Op>
+struct FindMinMaxIndex : FindMinMaxIndexBase {
+  static_assert(TS1::Contains<T>());
+  static_assert(TS2::Contains<Op>());
+};
+
 // List of all bytecode instruction types for variant definition.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X)  \
   X(InitRange)                               \
@@ -359,7 +460,25 @@ struct NullIndicesStablePartition : Bytecode {
   X(StrideTranslateAndCopySparseNullIndices) \
   X(StrideCopyDenseNullIndices)              \
   X(PrefixPopcount)                          \
-  X(TranslateSparseNullIndices)
+  X(TranslateSparseNullIndices)              \
+  X(AllocateRowLayoutBuffer)                 \
+  X(CopyToRowLayoutNonNull)                  \
+  X(CopyToRowLayoutDenseNull)                \
+  X(CopyToRowLayoutSparseNull)               \
+  X(Distinct)                                \
+  X(LimitOffsetIndices)                      \
+  X(FindMinMaxIndex<Id, MinOp>)              \
+  X(FindMinMaxIndex<Id, MaxOp>)              \
+  X(FindMinMaxIndex<Uint32, MinOp>)          \
+  X(FindMinMaxIndex<Uint32, MaxOp>)          \
+  X(FindMinMaxIndex<Int32, MinOp>)           \
+  X(FindMinMaxIndex<Int32, MaxOp>)           \
+  X(FindMinMaxIndex<Int64, MinOp>)           \
+  X(FindMinMaxIndex<Int64, MaxOp>)           \
+  X(FindMinMaxIndex<Double, MinOp>)          \
+  X(FindMinMaxIndex<Double, MaxOp>)          \
+  X(FindMinMaxIndex<String, MinOp>)          \
+  X(FindMinMaxIndex<String, MaxOp>)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 

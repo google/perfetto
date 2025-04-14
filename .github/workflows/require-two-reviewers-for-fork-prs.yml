@@ -35,7 +35,7 @@ jobs:
         run: |
           echo "is_fork=${{ github.event.pull_request.head.repo.full_name != github.repository }}" >> $GITHUB_ENV
 
-      - name: Fetch approved reviews by collaborators
+      - name: Fetch approved reviews
         if: env.is_fork == 'true'
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
@@ -50,12 +50,12 @@ jobs:
           [group_by(.user.login)[] | last] |
           map(select(
             .state == "APPROVED" and
-            .author_association == "COLLABORATOR" and
+            (.author_association == "COLLABORATOR" or .author_association == "MEMBER") and
             .commit_id == $sha
           )) |
           length')
 
-          echo "Collaborator approvals for latest commit ($LATEST_SHA): $COUNT"
+          echo "Collaborator/member approvals for latest commit ($LATEST_SHA): $COUNT"
           if [ "$COUNT" -lt 2 ]; then
           echo "❌ PR from fork requires 2 collaborator approvals on the latest commit."
           exit 1
