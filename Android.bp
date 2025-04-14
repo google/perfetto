@@ -1580,7 +1580,7 @@ filegroup {
         "protos/perfetto/config/statsd/statsd_tracing_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/sys_stats/sys_stats_config.proto",
-        "protos/perfetto/config/system_info/system_info.proto",
+        "protos/perfetto/config/system_info/system_info_config.proto",
         "protos/perfetto/config/test_config.proto",
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
@@ -1647,7 +1647,7 @@ java_library {
         "protos/perfetto/config/statsd/statsd_tracing_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/sys_stats/sys_stats_config.proto",
-        "protos/perfetto/config/system_info/system_info.proto",
+        "protos/perfetto/config/system_info/system_info_config.proto",
         "protos/perfetto/config/test_config.proto",
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
@@ -3091,7 +3091,7 @@ filegroup {
         "protos/perfetto/config/statsd/statsd_tracing_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/sys_stats/sys_stats_config.proto",
-        "protos/perfetto/config/system_info/system_info.proto",
+        "protos/perfetto/config/system_info/system_info_config.proto",
         "protos/perfetto/config/test_config.proto",
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
@@ -4091,7 +4091,7 @@ genrule {
         "protos/perfetto/config/statsd/statsd_tracing_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/sys_stats/sys_stats_config.proto",
-        "protos/perfetto/config/system_info/system_info.proto",
+        "protos/perfetto/config/system_info/system_info_config.proto",
         "protos/perfetto/config/test_config.proto",
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
@@ -5440,7 +5440,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_config_system_info_cpp",
     srcs: [
-        "protos/perfetto/config/system_info/system_info.proto",
+        "protos/perfetto/config/system_info/system_info_config.proto",
     ],
 }
 
@@ -5457,7 +5457,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_system_info_cpp)",
     out: [
-        "external/perfetto/protos/perfetto/config/system_info/system_info.gen.cc",
+        "external/perfetto/protos/perfetto/config/system_info/system_info_config.gen.cc",
     ],
 }
 
@@ -5474,7 +5474,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_system_info_cpp)",
     out: [
-        "external/perfetto/protos/perfetto/config/system_info/system_info.gen.h",
+        "external/perfetto/protos/perfetto/config/system_info/system_info_config.gen.h",
     ],
     export_include_dirs: [
         ".",
@@ -5486,7 +5486,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_config_system_info_lite",
     srcs: [
-        "protos/perfetto/config/system_info/system_info.proto",
+        "protos/perfetto/config/system_info/system_info_config.proto",
     ],
 }
 
@@ -5502,7 +5502,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_system_info_lite)",
     out: [
-        "external/perfetto/protos/perfetto/config/system_info/system_info.pb.cc",
+        "external/perfetto/protos/perfetto/config/system_info/system_info_config.pb.cc",
     ],
 }
 
@@ -5518,7 +5518,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_system_info_lite)",
     out: [
-        "external/perfetto/protos/perfetto/config/system_info/system_info.pb.h",
+        "external/perfetto/protos/perfetto/config/system_info/system_info_config.pb.h",
     ],
     export_include_dirs: [
         ".",
@@ -5530,7 +5530,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_config_system_info_zero",
     srcs: [
-        "protos/perfetto/config/system_info/system_info.proto",
+        "protos/perfetto/config/system_info/system_info_config.proto",
     ],
 }
 
@@ -5547,7 +5547,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_system_info_zero)",
     out: [
-        "external/perfetto/protos/perfetto/config/system_info/system_info.pbzero.cc",
+        "external/perfetto/protos/perfetto/config/system_info/system_info_config.pbzero.cc",
     ],
 }
 
@@ -5564,7 +5564,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_system_info_zero)",
     out: [
-        "external/perfetto/protos/perfetto/config/system_info/system_info.pbzero.h",
+        "external/perfetto/protos/perfetto/config/system_info/system_info_config.pbzero.h",
     ],
     export_include_dirs: [
         ".",
@@ -7481,7 +7481,7 @@ genrule {
         "protos/perfetto/config/statsd/statsd_tracing_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/sys_stats/sys_stats_config.proto",
-        "protos/perfetto/config/system_info/system_info.proto",
+        "protos/perfetto/config/system_info/system_info_config.proto",
         "protos/perfetto/config/test_config.proto",
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
@@ -16139,7 +16139,7 @@ java_library {
         "protos/perfetto/config/statsd/statsd_tracing_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/sys_stats/sys_stats_config.proto",
-        "protos/perfetto/config/system_info/system_info.proto",
+        "protos/perfetto/config/system_info/system_info_config.proto",
         "protos/perfetto/config/test_config.proto",
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",

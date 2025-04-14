@@ -3623,7 +3623,7 @@ message SysStatsConfig {
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
 
-// Begin of protos/perfetto/config/system_info/system_info.proto
+// Begin of protos/perfetto/config/system_info/system_info_config.proto
 
 // This data-source does a one-off recording of system information when
 // the trace starts.
@@ -3633,7 +3633,7 @@ message SysStatsConfig {
 // datasource has no configuration options at present.
 message SystemInfoConfig {}
 
-// End of protos/perfetto/config/system_info/system_info.proto
+// End of protos/perfetto/config/system_info/system_info_config.proto
 
 // Begin of protos/perfetto/config/test_config.proto
 
