@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
 import {PerfettoPlugin} from '../../public/plugin';
 import {FlagsPage} from './flags_page';
@@ -24,8 +25,7 @@ export default class implements PerfettoPlugin {
     // Flags page
     app.pages.registerPage({
       route: '/flags',
-      page: FlagsPage,
-      traceless: true,
+      render: (subpage) => m(FlagsPage, {subpage}),
     });
     app.sidebar.addMenuItem({
       section: 'support',
@@ -35,11 +35,10 @@ export default class implements PerfettoPlugin {
       icon: 'emoji_flags',
     });
 
-    // Plugins page.
+    // Plugins page
     app.pages.registerPage({
       route: '/plugins',
-      page: PluginsPage,
-      traceless: true,
+      render: () => m(PluginsPage),
     });
     app.sidebar.addMenuItem({
       section: 'support',

@@ -18,7 +18,6 @@ import {assertUnreachable} from '../../base/logging';
 import {exists} from '../../base/utils';
 import {AppImpl} from '../../core/app_impl';
 import {PluginWrapper} from '../../core/plugin_manager';
-import {PageAttrs} from '../../public/page';
 import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
 import {Card, CardList} from '../../widgets/card';
 import {Chip} from '../../widgets/chip';
@@ -75,7 +74,7 @@ function sortText(sortOrder: SortOrder) {
   }
 }
 
-export class PluginsPage implements m.ClassComponent<PageAttrs> {
+export class PluginsPage implements m.ClassComponent {
   view() {
     const pluginManager = AppImpl.instance.plugins;
     const registeredPlugins = pluginManager.getAllPlugins();

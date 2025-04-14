@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {PageWithTraceAttrs} from '../../../public/page';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
 import {ColumnControllerRow} from './column_controller';
@@ -24,6 +23,7 @@ import {DataSourceViewer} from './data_source_viewer';
 import {PopupMenu} from '../../../widgets/menu';
 import {Icons} from '../../../base/semantic_icons';
 import {Intent} from '../../../widgets/common';
+import {Trace} from '../../../public/trace';
 
 export interface QueryBuilderTable {
   name: string;
@@ -32,7 +32,9 @@ export interface QueryBuilderTable {
   sql: string;
 }
 
-export interface QueryBuilderAttrs extends PageWithTraceAttrs {
+export interface QueryBuilderAttrs {
+  readonly trace: Trace;
+
   readonly sqlModules: SqlModules;
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
