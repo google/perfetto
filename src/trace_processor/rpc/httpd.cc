@@ -98,8 +98,9 @@ Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance)
       http_srv_(&task_runner_, this) {}
 Httpd::~Httpd() = default;
 
-void Httpd::Run(const std::string &listen_ip, int port) {
-  PERFETTO_ILOG("[HTTP] Starting RPC server on ip=%s  port=%d", listen_ip.c_str(), port);
+void Httpd::Run(const std::string& listen_ip, int port) {
+  PERFETTO_ILOG("[HTTP] Starting RPC server on ip=%s  port=%d",
+                listen_ip.c_str(), port);
   PERFETTO_LOG(
       "[HTTP] This server can be used by reloading https://ui.perfetto.dev and "
       "clicking on YES on the \"Trace Processor native acceleration\" dialog "
@@ -261,7 +262,7 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 }  // namespace
 
 void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
-                        const std::string& listen_ip,
+                      const std::string& listen_ip,
                       const std::string& port_number) {
   Httpd srv(std::move(preloaded_instance));
   std::optional<int> port_opt = base::StringToInt32(port_number);

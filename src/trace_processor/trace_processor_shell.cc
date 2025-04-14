@@ -1035,7 +1035,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
-
     if (option == OPT_STDIOD) {
       command_line_options.enable_stdiod = true;
       continue;
