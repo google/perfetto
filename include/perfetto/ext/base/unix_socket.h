@@ -83,6 +83,16 @@ enum class SockPeerCredMode {
 // - vsock://-1:3000 : for VM sockets.
 SockFamily GetSockFamily(const char* addr);
 
+struct NetAddrInfo {
+  NetAddrInfo(const std::string& ip_port, SockFamily family, SockType type)
+      : ip_port_(ip_port), family_(family), type_(type) {}
+  std::string ip_port_;
+  SockFamily family_;
+  SockType type_;
+};
+std::vector<NetAddrInfo> GetNetAddrInfo(const std::string& ip,
+                                        const std::string& port);
+
 // Returns whether inter-process shared memory is supported for the socket.
 inline bool SockShmemSupported(SockFamily sock_family) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

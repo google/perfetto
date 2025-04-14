@@ -73,6 +73,38 @@ void HttpServer::Start(int port) {
   }
 }
 
+void HttpServer::Start(const std::string& listen_ip, int port) {
+  std::string ip = listen_ip;
+  if (listen_ip.empty()) {
+    ip = "0.0.0.0";
+  }
+  std::string port_str = std::to_string(port);
+  std::vector<NetAddrInfo> addr_infos = GetNetAddrInfo(ip, port_str);
+  for (NetAddrInfo& info : addr_infos) {
+    if (info.family_ == SockFamily::kInet) {
+      PERFETTO_ILOG("[HTTP] Starting HTTP server on %s", info.ip_port_.c_str());
+      sock4_ = UnixSocket::Listen(info.ip_port_, this, task_runner_,
+                                  SockFamily::kInet, SockType::kStream);
+      bool ipv4_listening = sock4_ && sock4_->is_listening();
+      if (!ipv4_listening) {
+        PERFETTO_PLOG("Failed to listen on IPv4 socket: \"%s\"",
+                      info.ip_port_.c_str());
+        sock4_.reset();
+      }
+    } else if (info.family_ == SockFamily::kInet6) {
+      PERFETTO_ILOG("[HTTP] Starting HTTP server on %s", info.ip_port_.c_str());
+      sock6_ = UnixSocket::Listen(info.ip_port_, this, task_runner_,
+                                  SockFamily::kInet6, SockType::kStream);
+      bool ipv6_listening = sock6_ && sock6_->is_listening();
+      if (!ipv6_listening) {
+        PERFETTO_PLOG("Failed to listen on IPv6 socket: \"%s\"",
+                      info.ip_port_.c_str());
+        sock6_.reset();
+      }
+    }
+  }
+}
+
 void HttpServer::AddAllowedOrigin(const std::string& origin) {
   allowed_origins_.emplace_back(origin);
 }
