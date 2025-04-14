@@ -469,11 +469,13 @@ namespace perfetto::trace_processor::stats {
       "An invalid Mali GPU MCU state ID was detected."),                       \
   F(pixel_modem_negative_timestamp,       kSingle,  kError,   kAnalysis,       \
       "A negative timestamp was received from a Pixel modem event."),          \
-  F(legacy_v8_cpu_profile_invalid_callsite, kSingle,  kInfo,  kAnalysis,       \
-      "Indicates a callsite in legacy v8 CPU profiling is invalid."),          \
-  F(legacy_v8_cpu_profile_invalid_sample, kSingle,  kError,  kAnalysis,        \
+  F(legacy_v8_cpu_profile_invalid_callsite, kSingle, kError,  kTrace,          \
+      "Indicates a callsite in legacy v8 CPU profiling is invalid. This is "   \
+      "a sign that the trace is malformed."),                                  \
+  F(legacy_v8_cpu_profile_invalid_sample, kSingle,  kError,  kTrace,           \
       "Indicates a sample in legacy v8 CPU profile is invalid. This will "     \
-      "cause CPU samples to be missing in the UI."),                           \
+      "cause CPU samples to be missing in the UI. This is a sign that the "    \
+      "trace is malformed."),                                                  \
   F(config_write_into_file_no_flush,      kSingle,  kError,  kTrace,           \
       "The trace was collected with the `write_into_file` option set but "     \
       "*without* `flush_period_ms` being set. This will cause the trace to "   \
