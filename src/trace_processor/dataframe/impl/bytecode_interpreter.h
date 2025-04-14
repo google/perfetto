@@ -1088,12 +1088,14 @@ class Interpreter {
       // We use the constants directly instead of using numeric_limits for
       // int64_t as the casts introduces rounding in the doubles as a double
       // cannot exactly represent int64::max().
-      constexpr double kMin = std::is_same_v<T, int64_t>
-                                  ? -9223372036854775808.0
-                                  : std::numeric_limits<T>::min();
-      constexpr double kMax = std::is_same_v<T, int64_t>
-                                  ? 9223372036854775808.0
-                                  : std::numeric_limits<T>::max();
+      constexpr double kMin =
+          std::is_same_v<T, int64_t>
+              ? -9223372036854775808.0
+              : static_cast<double>(std::numeric_limits<T>::min());
+      constexpr double kMax =
+          std::is_same_v<T, int64_t>
+              ? 9223372036854775808.0
+              : static_cast<double>(std::numeric_limits<T>::max());
 
       // NaNs always compare false to any value (including other NaNs),
       // regardless of the operator.

@@ -39,7 +39,7 @@ struct CellCallback {
   void OnCell(int64_t);
   void OnCell(double);
   void OnCell(NullTermStringView);
-  void OnCell(nullptr_t);
+  void OnCell(std::nullptr_t);
   void OnCell(uint32_t);
   void OnCell(int32_t);
 };
