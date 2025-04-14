@@ -72,6 +72,17 @@ class Dataframe {
     // Returns the underlying implementation for testing purposes.
     const impl::QueryPlan& GetImplForTesting() const { return plan_; }
 
+    // The maximum number of rows it's possible for this query plan to return.
+    uint32_t max_row_count() const { return plan_.params.max_row_count; }
+
+    // The number of rows this query plan estimates it will return.
+    uint32_t estimated_row_count() const {
+      return plan_.params.estimated_row_count;
+    }
+
+    // An estimate for the cost of executing the query plan.
+    double estimated_cost() const { return plan_.params.estimated_cost; }
+
    private:
     friend class Dataframe;
     // Constructs a QueryPlan from its implementation.
