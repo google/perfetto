@@ -36,6 +36,7 @@ import {
 import {TrackGroupAttrs} from './viewer_page';
 import {trackRegistry} from './track_registry';
 import {SCROLLING_TRACK_GROUP} from '../common/state';
+import { TrackPanel } from './track_panel';
 
 // If the panel container scrolls, the backing canvas height is
 // SCROLLING_CANVAS_OVERDRAW_FACTOR * parent container height.
@@ -462,7 +463,17 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
         throw new Error('Vnode passed to panel container is not a panel');
       }
 
-      flowEventsRendererArgs.registerPanel(panel, yStartOnCanvas, panelHeight);
+      // this.panelInfos is cached information and is updated in
+      // oncreate and onupdate
+      // some clients may prevent updates, so the cache might be outdated
+      // -> sanity check args before registering a new panel
+      if (panel.state instanceof TrackPanel && panel.attrs.id !== undefined &&
+        globals.state.tracks[panel.attrs.id] === undefined) {
+        // only register track panels if the track still exists -> no op
+      } else {
+        flowEventsRendererArgs.registerPanel(panel, yStartOnCanvas,
+          panelHeight);
+      }
 
       if (!this.overlapsCanvas(yStartOnCanvas, yStartOnCanvas + panelHeight)) {
         panelYStart += panelHeight;
