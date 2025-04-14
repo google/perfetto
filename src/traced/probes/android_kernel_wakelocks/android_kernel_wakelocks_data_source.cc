@@ -173,10 +173,10 @@ void AndroidKernelWakelocksDataSource::WriteKernelWakelocks() {
     uint64_t last_value = info->last_value;
 
     if (total == 0) {
-      error_flags &= kKernelWakelockErrorZeroValue;
+      error_flags |= kKernelWakelockErrorZeroValue;
       continue;
     } else if (total < last_value) {
-      error_flags &= kKernelWakelockErrorNonMonotonicValue;
+      error_flags |= kKernelWakelockErrorNonMonotonicValue;
       continue;
     }
     if (total != last_value) {
