@@ -59,7 +59,7 @@ using testing::IsEmpty;
 using testing::SizeIs;
 using testing::UnorderedElementsAre;
 
-using FilterValue = std::variant<int64_t, double, const char*, nullptr_t>;
+using FilterValue = std::variant<int64_t, double, const char*, std::nullptr_t>;
 
 struct Fetcher : ValueFetcher {
   using Type = size_t;
@@ -67,7 +67,8 @@ struct Fetcher : ValueFetcher {
   static constexpr Type kDouble = base::variant_index<FilterValue, double>();
   static constexpr Type kString =
       base::variant_index<FilterValue, const char*>();
-  static constexpr Type kNull = base::variant_index<FilterValue, nullptr_t>();
+  static constexpr Type kNull =
+      base::variant_index<FilterValue, std::nullptr_t>();
 
   // Fetches an int64_t value at the given index.
   int64_t GetInt64Value(uint32_t idx) const {
@@ -99,7 +100,7 @@ std::string FixNegativeAndDecimal(const std::string& str) {
 
 std::string ValToString(const FilterValue& value) {
   switch (value.index()) {
-    case base::variant_index<FilterValue, nullptr_t>():
+    case base::variant_index<FilterValue, std::nullptr_t>():
       return "nullptr";
     case base::variant_index<FilterValue, int64_t>(): {
       auto res = base::unchecked_get<int64_t>(value);
