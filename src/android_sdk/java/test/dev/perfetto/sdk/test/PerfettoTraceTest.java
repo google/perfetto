@@ -153,43 +153,6 @@ public class PerfettoTraceTest {
   }
 
   @Test
-  public void testDisabledCategory() throws Exception {
-    class DisabledCategory extends Category {
-      public DisabledCategory(String name) {
-        super(name);
-      }
-
-      @Override
-      public boolean isEnabled() {
-         return false;
-      }
-    }
-
-    Category myCategory = new DisabledCategory("MyCategory");
-
-    TraceConfig traceConfig = getTraceConfig(myCategory.getName());
-
-    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
-    PerfettoTrace.instant(myCategory, "event").addArg("arg", 42).emit();
-
-    byte[] traceBytes = session.close();
-    Trace trace = Trace.parseFrom(traceBytes);
-
-    boolean hasTrackEvent = false;
-    for (TracePacket packet : trace.getPacketList()) {
-      if (packet.hasTrackEvent()) {
-        hasTrackEvent = true;
-      }
-      collectInternedData(packet);
-    }
-
-    assertThat(hasTrackEvent).isFalse();
-    assertThat(mDebugAnnotationNames).doesNotContain("arg");
-    assertThat(mEventNames).doesNotContain("event");
-    assertThat(mCategoryNames).doesNotContain("MyCategory");
-  }
-
-  @Test
   public void testDebugAnnotations() throws Exception {
     TraceConfig traceConfig = getTraceConfig(FOO);
 
@@ -665,8 +628,45 @@ public class PerfettoTraceTest {
     assertThat(hasTrackEvent).isTrue();
     assertThat(mCategoryNames).contains(BAR);
 
-    assertThat(mDebugAnnotationNames).contains("after");
-    assertThat(mDebugAnnotationNames).doesNotContain("before");
+    assertThat(mDebugAnnotationNames).containsExactly("after");
+  }
+
+  @Test
+  public void testDisabledCategory() throws Exception {
+    class DisabledCategory extends Category {
+      public DisabledCategory(String name) {
+        super(name);
+      }
+
+      @Override
+      public boolean isEnabled() {
+        return false;
+      }
+    }
+
+    Category disabledFooCategory = new DisabledCategory(FOO);
+
+    TraceConfig traceConfig = getTraceConfig(FOO);
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.instant(disabledFooCategory, "disabledEvent").addArg("disabledArg", 1).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "event").addArg("arg", 1).emit();
+
+    byte[] traceBytes = session.close();
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    boolean hasTrackEvent = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackEvent()) {
+        hasTrackEvent = true;
+      }
+      collectInternedData(packet);
+    }
+
+    assertThat(hasTrackEvent).isTrue();
+    assertThat(mCategoryNames).contains(FOO);
+    assertThat(mEventNames).containsExactly("event");
+    assertThat(mDebugAnnotationNames).containsExactly("arg");
   }
 
   private TrackEvent getTrackEvent(Trace trace, int idx) {
