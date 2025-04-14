@@ -137,7 +137,7 @@
   },
   {
     "cmd": [
-      "python",
+      "python3",
       "tools/install-build-deps"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
