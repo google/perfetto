@@ -5600,7 +5600,7 @@ perfetto_cc_protocpp_library(
 perfetto_proto_library(
     name = "protos_perfetto_config_system_info_protos",
     srcs = [
-        "protos/perfetto/config/system_info/system_info.proto",
+        "protos/perfetto/config/system_info/system_info_config.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
