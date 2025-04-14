@@ -153,6 +153,43 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testDisabledCategory() throws Exception {
+    class DisabledCategory extends Category {
+      public DisabledCategory(String name) {
+        super(name);
+      }
+
+      @Override
+      public boolean isEnabled() {
+         return false;
+      }
+    }
+
+    Category myCategory = new DisabledCategory("MyCategory");
+
+    TraceConfig traceConfig = getTraceConfig(myCategory.getName());
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+    PerfettoTrace.instant(myCategory, "event").addArg("arg", 42).emit();
+
+    byte[] traceBytes = session.close();
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    boolean hasTrackEvent = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackEvent()) {
+        hasTrackEvent = true;
+      }
+      collectInternedData(packet);
+    }
+
+    assertThat(hasTrackEvent).isFalse();
+    assertThat(mDebugAnnotationNames).doesNotContain("arg");
+    assertThat(mEventNames).doesNotContain("event");
+    assertThat(mCategoryNames).doesNotContain("MyCategory");
+  }
+
+  @Test
   public void testDebugAnnotations() throws Exception {
     TraceConfig traceConfig = getTraceConfig(FOO);
 
