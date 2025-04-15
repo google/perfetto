@@ -705,7 +705,7 @@ struct CommandLineOptions {
 
   std::string query_file_path;
   std::string query_string;
-  std::string sql_module_path;
+  std::vector<std::string> sql_module_paths;
   std::vector<std::string> override_sql_module_paths;
 
   bool summary = false;
@@ -774,11 +774,13 @@ PerfettoSQL:
                                       If used with --run-metrics, the query is
                                       executed after the selected metrics and
                                       the metrics output is suppressed.
- --add-sql-module PACKAGE_PATH         Files from the directory will be treated
+ --add-sql-module PACKAGE_PATH
+ --add-sql-package PACKAGE_PATH       Files from the directory will be treated
                                       as a new SQL package and can be used for
                                       INCLUDE PERFETTO MODULE statements. The
                                       name of the directory is the module name.
- --override-sql-module PACKAGE_PATH   Will override trace processor package with
+ --override-sql-module PACKAGE_PATH
+ --override-sql-package PACKAGE_PATH  Will override trace processor package with
                                       passed contents. The outer directory will
                                       specify the package name.
 
@@ -899,8 +901,8 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_FORCE_FULL_SORT,
     OPT_NO_FTRACE_RAW,
 
-    OPT_ADD_SQL_MODULE,
-    OPT_OVERRIDE_SQL_MODULE,
+    OPT_ADD_SQL_PACKAGE,
+    OPT_OVERRIDE_SQL_PACKAGE,
 
     OPT_SUMMARY,
     OPT_SUMMARY_METRICS_V2,
@@ -939,9 +941,12 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
       {"query-file", required_argument, nullptr, 'q'},
       {"query-string", required_argument, nullptr, 'Q'},
-      {"add-sql-module", required_argument, nullptr, OPT_ADD_SQL_MODULE},
+      {"add-sql-module", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
+      {"add-sql-package", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
       {"override-sql-module", required_argument, nullptr,
-       OPT_OVERRIDE_SQL_MODULE},
+       OPT_OVERRIDE_SQL_PACKAGE},
+      {"override-sql-package", required_argument, nullptr,
+       OPT_OVERRIDE_SQL_PACKAGE},
 
       {"summary", no_argument, nullptr, OPT_SUMMARY},
       {"summary-metrics-v2", required_argument, nullptr,
@@ -1088,12 +1093,12 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
-    if (option == OPT_ADD_SQL_MODULE) {
-      command_line_options.sql_module_path = optarg;
+    if (option == OPT_ADD_SQL_PACKAGE) {
+      command_line_options.sql_module_paths.emplace_back(optarg);
       continue;
     }
 
-    if (option == OPT_OVERRIDE_SQL_MODULE) {
+    if (option == OPT_OVERRIDE_SQL_PACKAGE) {
       command_line_options.override_sql_module_paths.emplace_back(optarg);
       continue;
     }
@@ -1718,10 +1723,13 @@ base::Status MaybeUpdateSqlModules(const CommandLineOptions& options) {
     }
   }
 
-  if (!options.sql_module_path.empty()) {
-    auto status = IncludeSqlModule(options.sql_module_path, false);
-    if (!status.ok())
-      return base::ErrStatus("Couldn't add SQL module: %s", status.c_message());
+  if (!options.sql_module_paths.empty()) {
+    for (const auto& add_sql_module_path : options.sql_module_paths) {
+      auto status = IncludeSqlModule(add_sql_module_path, false);
+      if (!status.ok())
+        return base::ErrStatus("Couldn't add SQL module: %s",
+                               status.c_message());
+    }
   }
   return base::OkStatus();
 }
