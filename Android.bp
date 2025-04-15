@@ -5452,7 +5452,6 @@ filegroup {
 genrule {
     name: "perfetto_protos_perfetto_config_system_info_cpp_gen",
     srcs: [
-        ":perfetto_protos_perfetto_common_cpp",
         ":perfetto_protos_perfetto_config_system_info_cpp",
     ],
     tools: [
@@ -5469,7 +5468,6 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
     srcs: [
-        ":perfetto_protos_perfetto_common_cpp",
         ":perfetto_protos_perfetto_config_system_info_cpp",
     ],
     tools: [
@@ -5498,7 +5496,6 @@ filegroup {
 genrule {
     name: "perfetto_protos_perfetto_config_system_info_lite_gen",
     srcs: [
-        ":perfetto_protos_perfetto_common_lite",
         ":perfetto_protos_perfetto_config_system_info_lite",
     ],
     tools: [
@@ -5514,7 +5511,6 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_config_system_info_lite_gen_headers",
     srcs: [
-        ":perfetto_protos_perfetto_common_lite",
         ":perfetto_protos_perfetto_config_system_info_lite",
     ],
     tools: [
@@ -5542,7 +5538,6 @@ filegroup {
 genrule {
     name: "perfetto_protos_perfetto_config_system_info_zero_gen",
     srcs: [
-        ":perfetto_protos_perfetto_common_zero",
         ":perfetto_protos_perfetto_config_system_info_zero",
     ],
     tools: [
@@ -5559,7 +5554,6 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
     srcs: [
-        ":perfetto_protos_perfetto_common_zero",
         ":perfetto_protos_perfetto_config_system_info_zero",
     ],
     tools: [
