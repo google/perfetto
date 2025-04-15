@@ -41,7 +41,6 @@
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/dataframe/type_set.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
@@ -198,30 +197,6 @@ class QueryPlanBuilder {
                                         ZeroRowCount,
                                         LimitOffsetRowCount>;
 
-  // Indicates that the bytecode has a fixed cost.
-  struct FixedCost {
-    double cost;
-  };
-
-  // Indicates that the bytecode has `cost` multiplied by `log2(estimated row
-  // count)`.
-  struct LogPerRowCost {
-    double cost;
-  };
-
-  // Indicates that the bytecode has `cost` multiplied by `estimated row count`.
-  struct LinearPerRowCost {
-    double cost;
-  };
-
-  // Indicates that the bytecode has `cost` multiplied by `log2(estimated row
-  // count) * estimated row count`.
-  struct LogLinearPerRowCost {
-    double cost;
-  };
-  using Cost = std::
-      variant<FixedCost, LogPerRowCost, LinearPerRowCost, LogLinearPerRowCost>;
-
   // State information for a column during query planning.
   struct ColumnState {
     std::optional<bytecode::reg::RwHandle<Slab<uint32_t>>> prefix_popcount;
@@ -290,19 +265,25 @@ class QueryPlanBuilder {
 
   // Adds a new bytecode instruction of type T to the plan.
   template <typename T>
-  T& AddOpcode(RowCountModifier rc, Cost cost) {
-    return AddOpcode<T>(bytecode::Index<T>(), rc, cost);
+  T& AddOpcode(RowCountModifier rc) {
+    return AddOpcode<T>(bytecode::Index<T>(), rc, T::kCost);
   }
 
   // Adds a new bytecode instruction of type T with the given option value.
   template <typename T>
-  T& AddOpcode(uint32_t option, RowCountModifier rc, Cost cost) {
+  T& AddOpcode(uint32_t option, RowCountModifier rc) {
+    return static_cast<T&>(AddRawOpcode(option, rc, T::kCost));
+  }
+
+  // Adds a new bytecode instruction of type T with the given option value.
+  template <typename T>
+  T& AddOpcode(uint32_t option, RowCountModifier rc, bytecode::Cost cost) {
     return static_cast<T&>(AddRawOpcode(option, rc, cost));
   }
 
   PERFETTO_NO_INLINE bytecode::Bytecode& AddRawOpcode(uint32_t option,
                                                       RowCountModifier rc,
-                                                      Cost cost);
+                                                      bytecode::Cost cost);
 
   // Sets the result to an empty set. Use when a filter guarantees no matches.
   void SetGuaranteedToBeEmpty();
