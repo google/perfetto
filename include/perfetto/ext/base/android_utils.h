@@ -55,6 +55,7 @@ struct SystemInfo {
   std::string android_hardware_revision;
   std::string android_storage_model;
   std::string android_ram_model;
+  std::string android_serial_console;
 };
 
 // Returns the device's system information.

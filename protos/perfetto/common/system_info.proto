@@ -54,6 +54,9 @@ message SystemInfo {
   // versions.
   optional string android_ram_model = 12;
 
+  // The serial console information from android device.
+  optional string android_serial_console = 15;
+
   // The version of traced (the same returned by `traced --version`).
   // This is a human readable string with and its format varies depending on
   // the build system and the repo (standalone vs AOSP).

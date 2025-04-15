@@ -16,50 +16,50 @@ import m from 'mithril';
 import {HTMLAttrs} from './common';
 import {assertExists} from '../base/logging';
 
-export interface SettingsPageAttrs extends HTMLAttrs {
+export interface SettingsShellAttrs extends HTMLAttrs {
   readonly title: string;
   readonly stickyHeaderContent?: m.Children;
 }
 
-export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
+export class SettingsShell implements m.ClassComponent<SettingsShellAttrs> {
   private observer?: IntersectionObserver;
 
-  view(vnode: m.Vnode<SettingsPageAttrs>) {
+  view(vnode: m.Vnode<SettingsShellAttrs>) {
     const {
       title,
       stickyHeaderContent: headerContent,
       ...htmlAttrs
     } = vnode.attrs;
     return m(
-      '.pf-settings-page',
+      '.pf-settings-shell',
       htmlAttrs,
       m(
-        '.pf-settings-page__title',
-        m('.pf-settings-page__centred', m('h1', title)),
+        '.pf-settings-shell__title',
+        m('.pf-settings-shell__centred', m('h1', title)),
       ),
       m(
-        '.pf-settings-page__header',
-        m('.pf-settings-page__centred', headerContent),
+        '.pf-settings-shell__header',
+        m('.pf-settings-shell__centred', headerContent),
       ),
       m(
-        '.pf-settings-page__content',
-        m('.pf-settings-page__centred', vnode.children),
+        '.pf-settings-shell__content',
+        m('.pf-settings-shell__centred', vnode.children),
       ),
     );
   }
 
-  oncreate(vnode: m.VnodeDOM<SettingsPageAttrs, this>) {
+  oncreate(vnode: m.VnodeDOM<SettingsShellAttrs, this>) {
     const canary = assertExists(
-      vnode.dom.querySelector('.pf-settings-page__title'),
+      vnode.dom.querySelector('.pf-settings-shell__title'),
     );
     const header = assertExists(
-      vnode.dom.querySelector('.pf-settings-page__header'),
+      vnode.dom.querySelector('.pf-settings-shell__header'),
     );
 
     this.observer = new IntersectionObserver(
       ([entry]) => {
         header.classList.toggle(
-          'pf-settings-page__header--stuck',
+          'pf-settings-shell__header--stuck',
           !entry.isIntersecting,
         );
       },
