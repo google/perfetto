@@ -169,6 +169,9 @@ class HttpServer : public UnixSocket::EventListener {
   void HandleCorsPreflightRequest(const HttpRequest&);
   bool IsOriginAllowed(StringView);
 
+  void ListenOnIpV4(const std::string& ip_addr);
+  void ListenOnIpV6(const std::string& ip_addr);
+
   // UnixSocket::EventListener implementation.
   void OnNewIncomingConnection(UnixSocket*,
                                std::unique_ptr<UnixSocket>) override;

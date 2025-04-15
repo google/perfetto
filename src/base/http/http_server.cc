@@ -56,19 +56,26 @@ void HttpServer::Start(int port) {
   std::string ipv4_addr = "127.0.0.1:" + std::to_string(port);
   std::string ipv6_addr = "[::1]:" + std::to_string(port);
 
-  sock4_ = UnixSocket::Listen(ipv4_addr, this, task_runner_, SockFamily::kInet,
+  ListenOnIpV4(ipv4_addr);
+  ListenOnIpV6(ipv6_addr);
+}
+
+void HttpServer::ListenOnIpV4(const std::string& ip_addr) {
+  sock4_ = UnixSocket::Listen(ip_addr, this, task_runner_, SockFamily::kInet,
                               SockType::kStream);
   bool ipv4_listening = sock4_ && sock4_->is_listening();
   if (!ipv4_listening) {
-    PERFETTO_PLOG("Failed to listen on IPv4 socket: \"%s\"", ipv4_addr.c_str());
+    PERFETTO_PLOG("Failed to listen on IPv4 socket: \"%s\"", ip_addr.c_str());
     sock4_.reset();
   }
+}
 
-  sock6_ = UnixSocket::Listen(ipv6_addr, this, task_runner_, SockFamily::kInet6,
+void HttpServer::ListenOnIpV6(const std::string& ip_addr) {
+  sock6_ = UnixSocket::Listen(ip_addr, this, task_runner_, SockFamily::kInet6,
                               SockType::kStream);
   bool ipv6_listening = sock6_ && sock6_->is_listening();
   if (!ipv6_listening) {
-    PERFETTO_PLOG("Failed to listen on IPv6 socket: \"%s\"", ipv6_addr.c_str());
+    PERFETTO_PLOG("Failed to listen on IPv6 socket: \"%s\"", ip_addr.c_str());
     sock6_.reset();
   }
 }
@@ -83,24 +90,10 @@ void HttpServer::Start(const std::string& listen_ip, int port) {
   for (NetAddrInfo& info : addr_infos) {
     if (info.family_ == SockFamily::kInet) {
       PERFETTO_ILOG("[HTTP] Starting HTTP server on %s", info.ip_port_.c_str());
-      sock4_ = UnixSocket::Listen(info.ip_port_, this, task_runner_,
-                                  SockFamily::kInet, SockType::kStream);
-      bool ipv4_listening = sock4_ && sock4_->is_listening();
-      if (!ipv4_listening) {
-        PERFETTO_PLOG("Failed to listen on IPv4 socket: \"%s\"",
-                      info.ip_port_.c_str());
-        sock4_.reset();
-      }
+      ListenOnIpV4(info.ip_port_);
     } else if (info.family_ == SockFamily::kInet6) {
       PERFETTO_ILOG("[HTTP] Starting HTTP server on %s", info.ip_port_.c_str());
-      sock6_ = UnixSocket::Listen(info.ip_port_, this, task_runner_,
-                                  SockFamily::kInet6, SockType::kStream);
-      bool ipv6_listening = sock6_ && sock6_->is_listening();
-      if (!ipv6_listening) {
-        PERFETTO_PLOG("Failed to listen on IPv6 socket: \"%s\"",
-                      info.ip_port_.c_str());
-        sock6_.reset();
-      }
+      ListenOnIpV6(info.ip_port_);
     }
   }
 }
