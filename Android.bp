@@ -16765,7 +16765,6 @@ cc_test {
         "libexpat",
         "libicu",
         "liblog",
-        "libperfetto_c",
         "libprocinfo",
         "libprotobuf-cpp-full",
         "libprotobuf-cpp-lite",

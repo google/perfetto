@@ -9,10 +9,7 @@ source_set("perfetto_sdk_for_jni_public") {
 
 source_set("perfetto_sdk_for_jni") {
   sources = [ "tracing_sdk.cc" ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../shared_lib:libperfetto_c",
-  ]
+  deps = [ "../../../gn:default_deps" ]
   public_deps = [ ":perfetto_sdk_for_jni_public" ]
 }
 
@@ -26,6 +23,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../protos/perfetto/trace/interned_data:cpp",
     "../../../protos/perfetto/trace/track_event:cpp",
     "../../../src/base:base",
+    "../../shared_lib:shared_lib",
     "../../shared_lib/test:utils",
   ]
   sources = [ "tracing_sdk_unittest.cc" ]
