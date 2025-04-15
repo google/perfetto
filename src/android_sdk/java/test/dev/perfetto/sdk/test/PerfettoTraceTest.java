@@ -644,9 +644,9 @@ public class PerfettoTraceTest {
       }
     }
 
-    Category disabledFooCategory = new DisabledCategory(FOO);
+    Category disabledFooCategory = new DisabledCategory("DisabledFoo");
 
-    TraceConfig traceConfig = getTraceConfig(FOO);
+    TraceConfig traceConfig = getTraceConfig(List.of(FOO, "DisabledFoo"));
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
     PerfettoTrace.instant(disabledFooCategory, "disabledEvent").addArg("disabledArg", 1).emit();
@@ -664,7 +664,7 @@ public class PerfettoTraceTest {
     }
 
     assertThat(hasTrackEvent).isTrue();
-    assertThat(mCategoryNames).contains(FOO);
+    assertThat(mCategoryNames).containsExactly(FOO);
     assertThat(mEventNames).containsExactly("event");
     assertThat(mDebugAnnotationNames).containsExactly("arg");
   }
@@ -682,11 +682,13 @@ public class PerfettoTraceTest {
     return null;
   }
 
-  private TraceConfig getTraceConfig(String enableCategory, List<String> enableTags) {
+  private TraceConfig getTraceConfig(List<String> enableCategories, List<String> enableTags) {
     BufferConfig bufferConfig = BufferConfig.newBuilder().setSizeKb(1024).build();
     TrackEventConfig.Builder trackEventConfigBuilder = TrackEventConfig.newBuilder();
-    if (enableCategory != null) {
-      trackEventConfigBuilder.addEnabledCategories(enableCategory);
+    if (enableCategories != null) {
+      for (String category : enableCategories) {
+        trackEventConfigBuilder.addEnabledCategories(category);
+      }
     }
     if (enableTags != null) {
       for (String tag : enableTags) {
@@ -707,7 +709,11 @@ public class PerfettoTraceTest {
   }
 
   private TraceConfig getTraceConfig(String enableCategory) {
-    return getTraceConfig(enableCategory, null);
+    return getTraceConfig(List.of(enableCategory));
+  }
+
+  private TraceConfig getTraceConfig(List<String> enableCategories) {
+    return getTraceConfig(enableCategories, null);
   }
 
   private TraceConfig getTriggerTraceConfig(String cat, String triggerName) {
