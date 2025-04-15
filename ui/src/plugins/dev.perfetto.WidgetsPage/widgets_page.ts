@@ -788,14 +788,16 @@ export class WidgetsPage implements m.ClassComponent {
       }),
       m(WidgetShowcase, {
         label: 'Text Input',
-        renderWidget: ({placeholder, ...rest}) =>
+        renderWidget: ({placeholder, leftIcon, ...rest}) =>
           m(TextInput, {
             placeholder: arg(placeholder, 'Placeholder...', ''),
+            leftIcon: arg(leftIcon, 'search'),
             ...rest,
           }),
         initialOpts: {
           placeholder: true,
           disabled: false,
+          leftIcon: true,
         },
       }),
       m(WidgetShowcase, {
