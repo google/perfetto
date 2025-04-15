@@ -22,7 +22,7 @@
 namespace perfetto {
 namespace jni {
 
-int register_android_os_PerfettoNativeMemoryCleaner(JNIEnv* env);
+int register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(JNIEnv* env);
 
 }  // namespace jni
 }  // namespace perfetto
