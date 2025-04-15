@@ -16,7 +16,6 @@ import m from 'mithril';
 import {channelChanged, getNextChannel, setChannel} from '../core/channels';
 import {Anchor} from '../widgets/anchor';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
-import {PageAttrs} from '../public/page';
 import {assetSrc} from '../base/assets';
 
 export class Hints implements m.ClassComponent {
@@ -66,7 +65,7 @@ export class Hints implements m.ClassComponent {
   }
 }
 
-export class HomePage implements m.ClassComponent<PageAttrs> {
+export class HomePage implements m.ClassComponent {
   view() {
     return m(
       '.page.home-page',

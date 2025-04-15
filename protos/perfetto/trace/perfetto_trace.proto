@@ -3623,7 +3623,7 @@ message SysStatsConfig {
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
 
-// Begin of protos/perfetto/config/system_info/system_info.proto
+// Begin of protos/perfetto/config/system_info/system_info_config.proto
 
 // This data-source does a one-off recording of system information when
 // the trace starts.
@@ -3633,7 +3633,7 @@ message SysStatsConfig {
 // datasource has no configuration options at present.
 message SystemInfoConfig {}
 
-// End of protos/perfetto/config/system_info/system_info.proto
+// End of protos/perfetto/config/system_info/system_info_config.proto
 
 // Begin of protos/perfetto/config/test_config.proto
 
@@ -5574,6 +5574,8 @@ message KernelWakelockData {
   // the wakelock has been held.
   // If not, it's a delta from the last time we saw it.
   repeated uint64 time_held_millis = 3 [packed = true];
+
+  optional uint64 error_flags = 4;
 }
 
 // End of protos/perfetto/trace/android/kernel_wakelock_data.proto

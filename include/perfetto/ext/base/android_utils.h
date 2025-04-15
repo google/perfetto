@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_ANDROID_UTILS_H_
 #define INCLUDE_PERFETTO_EXT_BASE_ANDROID_UTILS_H_
 
+#include <cstdint>
 #include <optional>
 #include <string>
 

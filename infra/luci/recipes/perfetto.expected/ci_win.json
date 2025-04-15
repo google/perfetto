@@ -137,8 +137,9 @@
   },
   {
     "cmd": [
-      "python",
-      "tools/install-build-deps"
+      "python3",
+      "tools/install-build-deps",
+      "--no-dev-tools"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,

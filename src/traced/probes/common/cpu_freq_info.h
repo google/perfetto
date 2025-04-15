@@ -17,6 +17,7 @@
 #ifndef SRC_TRACED_PROBES_COMMON_CPU_FREQ_INFO_H_
 #define SRC_TRACED_PROBES_COMMON_CPU_FREQ_INFO_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,48 +14,76 @@
 
 @import "theme";
 
-.pf-text-input {
-  display: inline-flex; // Align items inline
-  align-items: center; // Center items vertically
-  line-height: 1;
+.pf-multiselect-input {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
   font-family: $pf-font;
   font-size: inherit;
+  outline: none; // Disable the default outline
+  border: none; // Disable the default border
   border-bottom: solid 1px $pf-minimal-foreground; // Thin underline
   background: none;
-  padding: 1px 2px;
   transition:
     border $pf-anim-timing,
     box-shadow $pf-anim-timing,
     background $pf-anim-timing;
-  gap: 4px;
-
-  &__input {
-    font-family: $pf-font;
-    font-size: inherit;
-    line-height: inherit;
-    padding: 0;
-    margin: 0;
-    color: inherit;
-
-    outline: none; // Disable the default outline
-    border: none; // Disable the default border
-    background: none;
-  }
-
-  &__left-icon {
-    line-height: inherit;
-    margin-inline: 2px;
-  }
 
   // Round only the top corners to avoid rounding the edges of the underline
   border-radius: $pf-border-radius $pf-border-radius 0 0;
+
+  input {
+    outline: none;
+    border: none;
+    background: none;
+    font-family: inherit;
+    font-size: inherit;
+    flex-grow: 1;
+  }
+
+  i {
+    cursor: pointer;
+    font-size: smaller;
+    margin-left: 2px;
+  }
+
+  &__tag {
+    border-radius: $pf-border-radius;
+    background: $pf-primary-background;
+    margin-right: 2px;
+    color: $pf-primary-foreground;
+    padding-inline: 4px;
+    white-space: nowrap;
+  }
+
+  &__popup {
+    max-height: 300px;
+    overflow-y: auto;
+    font-family: $pf-font;
+  }
+
+  &__scroller {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__option-row {
+    overflow: hidden;
+    cursor: pointer;
+    border-radius: 2px;
+
+    &--selected {
+      background: lightgray;
+    }
+  }
 
   // The gentle hover effect indicates this component is interactive
   &:hover {
     background: $pf-minimal-background-hover;
   }
 
-  &:has(.pf-text-input__input:focus) {
+  &:focus-within {
     background: $pf-minimal-background-hover;
     border-bottom: solid 1px $pf-primary-background;
 
@@ -63,12 +91,5 @@
     // This is the same technique used by materializecss:
     // See https://materializecss.com/text-inputs.html
     box-shadow: 0 1px 0 $pf-primary-background;
-  }
-
-  &:has(.pf-text-input__input[disabled]) {
-    border-bottom-color: $pf-minimal-foreground-disabled;
-    color: $pf-minimal-foreground-disabled;
-    background: $pf-minimal-background-disabled;
-    cursor: not-allowed;
   }
 }

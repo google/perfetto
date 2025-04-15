@@ -111,7 +111,7 @@ packet {
 
 ## Process-scoped (async) slices
 
-NOTE: in the legacy JSON tracing format, this section corresponds to B/E/N
+NOTE: in the legacy JSON tracing format, this section corresponds to b/e/n
 events with the associated M (metadata) events.
 
 Process-scoped slices are useful to trace execution of a "piece of work" across
@@ -517,7 +517,7 @@ gurantee. The UI reserves the right to change the ordering as it sees fit.
 
 ## Flows
 
-NOTE: in the legacy JSON tracing format, this section corresponds to S/T/F
+NOTE: in the legacy JSON tracing format, this section corresponds to s/t/f
 events.
 
 Flows allow connecting any number of slices with arrows. The semantic meaning of

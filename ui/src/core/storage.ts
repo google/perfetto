@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
-export class InsightsPage implements m.ClassComponent {
-  view() {
-    return m('.insights-page');
-  }
+export interface Storage {
+  load(): Record<string, unknown>;
+  save(o: Record<string, unknown>): void;
 }

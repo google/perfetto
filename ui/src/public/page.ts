@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from './trace';
 
 /**
  * Allows to register custom page endpoints that response to given routes, e.g.
@@ -34,38 +33,24 @@ export interface PageManager {
   registerPage(pageHandler: PageHandler): Disposable;
 }
 
-/**
- * Mithril attrs for pages that don't require a Trace object. These pages are
- * always accessible, even before a trace is loaded.
- */
-export interface PageAttrs {
-  subpage?: string;
-  trace?: Trace;
-}
+export interface PageHandler {
+  /**
+   * The route path this page handler responds to (e.g., '/', '/viewer').
+   * This will be used to match the URL path when routing requests.
+   */
+  readonly route: string;
 
-/**
- * Mithril attrs for pages that require a Trace object. These pages are
- * reachable only after a trace is loaded. Trying to access the route without a
- * trace loaded results in the HomePage (route: '/') to be displayed instead.
- */
-export interface PageWithTraceAttrs extends PageAttrs {
-  trace: Trace;
-}
+  /**
+   * The ID of the plugin that registered this page handler.
+   * This field is automatically populated by the internal implementation.
+   */
+  readonly pluginId?: string;
 
-export type PageHandler<PWT = m.ComponentTypes<PageWithTraceAttrs>> = {
-  route: string; // e.g. '/' (default route), '/viewer'
-  pluginId?: string; // Not needed, the internal impl will fill it.
-} & (
-  | {
-      // If true, the route will be available even when there is no trace
-      // loaded. The component needs to deal with a possibly undefined attr.
-      traceless: true;
-      page: m.ComponentTypes<PageAttrs>;
-    }
-  | {
-      // If is omitted, the route will be available only when a trace is loaded.
-      // The component is guarranteed to get a defined Trace in its attrs.
-      traceless?: false;
-      page: PWT;
-    }
-);
+  /**
+   * Renders the page content.
+   * Called during each Mithril render cycle.
+   *
+   * @param subpage Optional subpage path segment after the main route
+   */
+  readonly render: (subpage: string | undefined) => m.Children;
+}
