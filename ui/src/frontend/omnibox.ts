@@ -185,6 +185,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
             class: extraClasses,
           },
           m('input', {
+            spellcheck: false,
             ref: inputRef,
             value,
             placeholder,
