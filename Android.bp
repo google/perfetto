@@ -12448,7 +12448,7 @@ filegroup {
         "src/protovm/parser.cc",
         "src/protovm/ro_cursor.cc",
         "src/protovm/rw_proto.cc",
-        "src/protovm/scalar.cc",
+        "src/protovm/rw_proto_cursor.cc",
         "src/protovm/vm.cc",
     ],
 }
@@ -12499,10 +12499,11 @@ genrule {
 filegroup {
     name: "perfetto_src_protovm_unittests",
     srcs: [
-        "src/protovm/test/free_list_allocator_unittest.cc",
+        "src/protovm/test/allocator_unittest.cc",
         "src/protovm/test/parser_unittest.cc",
         "src/protovm/test/ro_cursor_unittest.cc",
         "src/protovm/test/rw_proto_unittest.cc",
+        "src/protovm/test/slab_allocator_unittest.cc",
         "src/protovm/test/utils.cc",
         "src/protovm/test/vm_unittest.cc",
     ],
