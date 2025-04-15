@@ -18,11 +18,8 @@
 // into issues with initialization order which will be a pain.
 import {z} from 'zod';
 import {Flag, FlagSettings, OverrideState} from '../public/feature_flag';
-
-export interface FlagStore {
-  load(): object;
-  save(o: object): void;
-}
+import {LocalStorage} from './local_storage';
+import {Storage} from './storage';
 
 // Stored state for a number of flags.
 interface FlagOverrides {
@@ -30,11 +27,11 @@ interface FlagOverrides {
 }
 
 class Flags {
-  private store: FlagStore;
+  private store: Storage;
   private flags: Map<string, FlagImpl>;
   private overrides: FlagOverrides;
 
-  constructor(store: FlagStore) {
+  constructor(store: Storage) {
     this.store = store;
     this.flags = new Map();
     this.overrides = {};
@@ -156,28 +153,5 @@ class FlagImpl implements Flag {
   }
 }
 
-class LocalStorageStore implements FlagStore {
-  static KEY = 'perfettoFeatureFlags';
-
-  load(): object {
-    const s = localStorage.getItem(LocalStorageStore.KEY);
-    let parsed: object;
-    try {
-      parsed = JSON.parse(s ?? '{}');
-    } catch (e) {
-      return {};
-    }
-    if (typeof parsed !== 'object' || parsed === null) {
-      return {};
-    }
-    return parsed;
-  }
-
-  save(o: object): void {
-    const s = JSON.stringify(o);
-    localStorage.setItem(LocalStorageStore.KEY, s);
-  }
-}
-
 export const FlagsForTesting = Flags;
-export const featureFlags = new Flags(new LocalStorageStore());
+export const featureFlags = new Flags(new LocalStorage('perfettoFeatureFlags'));
