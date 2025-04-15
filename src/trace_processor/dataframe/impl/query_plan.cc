@@ -139,7 +139,7 @@ QueryPlanBuilder::QueryPlanBuilder(uint32_t row_count,
   bytecode::reg::RwHandle<Range> range{register_count_++};
   {
     using B = bytecode::InitRange;
-    auto& ir = AddOpcode<B>(UnchangedRowCount{}, FixedCost{5});
+    auto& ir = AddOpcode<B>(UnchangedRowCount{});
     ir.arg<B::size>() = row_count;
     ir.arg<B::dest_register>() = range;
   }
@@ -173,7 +173,7 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
     {
       using B = bytecode::CastFilterValueBase;
       auto& bc = AddOpcode<B>(bytecode::Index<bytecode::CastFilterValue>(ct),
-                              UnchangedRowCount{}, FixedCost{5});
+                              UnchangedRowCount{});
       bc.arg<B::fval_handle>() = {plan_.params.filter_value_count};
       bc.arg<B::write_register>() = value_reg;
       bc.arg<B::op>() = *non_null_op;
@@ -221,7 +221,7 @@ void QueryPlanBuilder::Distinct(
   bytecode::reg::RwHandle<Slab<uint8_t>> buffer_reg{register_count_++};
   {
     using B = bytecode::AllocateRowLayoutBuffer;
-    auto& bc = AddOpcode<B>(UnchangedRowCount{}, FixedCost{10});
+    auto& bc = AddOpcode<B>(UnchangedRowCount{});
     bc.arg<B::buffer_size>() = buffer_size;
     bc.arg<B::dest_buffer_register>() = buffer_reg;
   }
@@ -233,7 +233,7 @@ void QueryPlanBuilder::Distinct(
     switch (nullability.index()) {
       case Nullability::GetTypeIndex<NonNull>(): {
         using B = bytecode::CopyToRowLayoutNonNull;
-        auto& bc = AddOpcode<B>(UnchangedRowCount{}, LinearPerRowCost{5});
+        auto& bc = AddOpcode<B>(UnchangedRowCount{});
         bc.arg<B::col>() = spec.col;
         bc.arg<B::source_indices_register>() = indices;
         bc.arg<B::dest_buffer_register>() = buffer_reg;
@@ -244,7 +244,7 @@ void QueryPlanBuilder::Distinct(
       }
       case Nullability::GetTypeIndex<DenseNull>(): {
         using B = bytecode::CopyToRowLayoutDenseNull;
-        auto& bc = AddOpcode<B>(UnchangedRowCount{}, LinearPerRowCost{5});
+        auto& bc = AddOpcode<B>(UnchangedRowCount{});
         bc.arg<B::col>() = spec.col;
         bc.arg<B::source_indices_register>() = indices;
         bc.arg<B::dest_buffer_register>() = buffer_reg;
@@ -256,7 +256,7 @@ void QueryPlanBuilder::Distinct(
       case Nullability::GetTypeIndex<SparseNull>(): {
         auto popcount_reg = PrefixPopcountRegisterFor(spec.col);
         using B = bytecode::CopyToRowLayoutSparseNull;
-        auto& bc = AddOpcode<B>(UnchangedRowCount{}, LinearPerRowCost{5});
+        auto& bc = AddOpcode<B>(UnchangedRowCount{});
         bc.arg<B::col>() = spec.col;
         bc.arg<B::source_indices_register>() = indices;
         bc.arg<B::dest_buffer_register>() = buffer_reg;
@@ -274,7 +274,7 @@ void QueryPlanBuilder::Distinct(
   PERFETTO_CHECK(current_offset == total_row_stride);
   {
     using B = bytecode::Distinct;
-    auto& bc = AddOpcode<B>(DoubleLog2RowCount{}, LinearPerRowCost{7});
+    auto& bc = AddOpcode<B>(DoubleLog2RowCount{});
     bc.arg<B::buffer_register>() = buffer_reg;
     bc.arg<B::total_row_stride>() = total_row_stride;
     bc.arg<B::indices_register>() = indices;
@@ -331,7 +331,7 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
             bytecode::reg::RwHandle<Span<uint32_t>>{register_count_++};
 
         using B = bytecode::NullIndicesStablePartition;
-        B& bc = AddOpcode<B>(UnchangedRowCount{}, LinearPerRowCost{20});
+        B& bc = AddOpcode<B>(UnchangedRowCount{});
         bc.arg<B::col>() = sort_spec.col;
         bc.arg<B::nulls_location>() = it->direction == SortDirection::kAscending
                                           ? NullsLocation{NullsAtStart{}}
@@ -344,7 +344,7 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
           auto popcount_reg = PrefixPopcountRegisterFor(sort_spec.col);
           {
             using BI = bytecode::TranslateSparseNullIndices;
-            auto& bi = AddOpcode<BI>(UnchangedRowCount{}, LinearPerRowCost{10});
+            auto& bi = AddOpcode<BI>(UnchangedRowCount{});
             bi.arg<BI::col>() = sort_spec.col;
             bi.arg<BI::popcount_register>() = popcount_reg;
             bi.arg<BI::source_register>() = sort_indices;
@@ -363,7 +363,7 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
     {
       auto& bc = AddOpcode<B>(
           bytecode::Index<bytecode::StableSortIndices>(sort_col_type),
-          UnchangedRowCount{}, LogLinearPerRowCost{20});
+          UnchangedRowCount{});
       bc.arg<B::col>() = sort_spec.col;
       bc.arg<B::direction>() = sort_spec.direction;
       bc.arg<B::update_register>() = sort_indices;
@@ -384,7 +384,7 @@ void QueryPlanBuilder::MinMax(const SortSpec& sort_spec) {
   using B = bytecode::FindMinMaxIndexBase;
   auto& op = AddOpcode<B>(
       bytecode::Index<bytecode::FindMinMaxIndex>(storage_type, mmop),
-      OneRowCount{}, LinearPerRowCost{2});
+      OneRowCount{});
   op.arg<B::update_register>() = indices;
   op.arg<B::col>() = col_idx;
 }
@@ -425,7 +425,7 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
     auto o = limit.offset.value_or(0);
     auto l = limit.limit.value_or(std::numeric_limits<uint32_t>::max());
     using B = bytecode::LimitOffsetIndices;
-    auto& bc = AddOpcode<B>(LimitOffsetRowCount{l, o}, FixedCost{double(l)});
+    auto& bc = AddOpcode<B>(LimitOffsetRowCount{l, o});
     bc.arg<B::offset_value>() = o;
     bc.arg<B::limit_value>() = l;
     bc.arg<B::update_register>() = in_memory_indices;
@@ -437,7 +437,7 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
     bytecode::reg::RwHandle<Span<uint32_t>> span_register{register_count_++};
     {
       using B = bytecode::AllocateIndices;
-      auto& bc = AddOpcode<B>(UnchangedRowCount{}, FixedCost{30});
+      auto& bc = AddOpcode<B>(UnchangedRowCount{});
       bc.arg<B::size>() =
           plan_.params.max_row_count * plan_.params.output_per_row;
       bc.arg<B::dest_slab_register>() = slab_register;
@@ -445,7 +445,7 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
     }
     {
       using B = bytecode::StrideCopy;
-      auto& bc = AddOpcode<B>(UnchangedRowCount{}, LinearPerRowCost{15});
+      auto& bc = AddOpcode<B>(UnchangedRowCount{});
       bc.arg<B::source_register>() = in_memory_indices;
       bc.arg<B::update_register>() = span_register;
       bc.arg<B::stride>() = plan_.params.output_per_row;
@@ -457,7 +457,7 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
         case Nullability::GetTypeIndex<SparseNull>(): {
           using B = bytecode::StrideTranslateAndCopySparseNullIndices;
           auto reg = PrefixPopcountRegisterFor(col);
-          auto& bc = AddOpcode<B>(UnchangedRowCount{}, LinearPerRowCost{10});
+          auto& bc = AddOpcode<B>(UnchangedRowCount{});
           bc.arg<B::update_register>() = storage_update_register;
           bc.arg<B::popcount_register>() = {reg};
           bc.arg<B::col>() = col;
@@ -467,7 +467,7 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
         }
         case Nullability::GetTypeIndex<DenseNull>(): {
           using B = bytecode::StrideCopyDenseNullIndices;
-          auto& bc = AddOpcode<B>(UnchangedRowCount{}, LinearPerRowCost{5});
+          auto& bc = AddOpcode<B>(UnchangedRowCount{});
           bc.arg<B::update_register>() = storage_update_register;
           bc.arg<B::col>() = col;
           bc.arg<B::offset>() = offset;
@@ -500,8 +500,7 @@ void QueryPlanBuilder::NonStringConstraint(
     using B = bytecode::NonStringFilterBase;
     B& bc = AddOpcode<B>(bytecode::Index<bytecode::NonStringFilter>(type, op),
                          op.Is<Eq>() ? RowCountModifier{DoubleLog2RowCount{}}
-                                     : RowCountModifier{Div2RowCount{}},
-                         LinearPerRowCost{5});
+                                     : RowCountModifier{Div2RowCount{}});
     bc.arg<B::col>() = c.col;
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
@@ -524,8 +523,7 @@ base::Status QueryPlanBuilder::StringConstraint(
     using B = bytecode::StringFilterBase;
     B& bc = AddOpcode<B>(bytecode::Index<bytecode::StringFilter>(op),
                          op.Is<Eq>() ? RowCountModifier{DoubleLog2RowCount{}}
-                                     : RowCountModifier{Div2RowCount{}},
-                         LinearPerRowCost{15});
+                                     : RowCountModifier{Div2RowCount{}});
     bc.arg<B::col>() = c.col;
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
@@ -548,7 +546,7 @@ void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
       {
         using B = bytecode::NullFilterBase;
         B& bc = AddOpcode<B>(bytecode::Index<bytecode::NullFilter>(op),
-                             DoubleLog2RowCount{}, LinearPerRowCost{5});
+                             DoubleLog2RowCount{});
         bc.arg<B::col>() = c.col;
         bc.arg<B::update_register>() = indices;
       }
@@ -591,8 +589,7 @@ bool QueryPlanBuilder::TrySortedConstraint(
   // Handle set id equality with a specialized opcode.
   if (ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() && op.Is<Eq>()) {
     using B = bytecode::Uint32SetIdSortedEq;
-    auto& bc =
-        AddOpcode<B>(RowCountModifier{DoubleLog2RowCount{}}, FixedCost{100});
+    auto& bc = AddOpcode<B>(RowCountModifier{DoubleLog2RowCount{}});
     bc.arg<B::val_register>() = result;
     bc.arg<B::update_register>() = reg;
     return true;
@@ -600,25 +597,22 @@ bool QueryPlanBuilder::TrySortedConstraint(
   const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
 
   RowCountModifier modifier;
-  Cost cost;
   if (ct.Is<Id>()) {
     if (op.Is<Eq>()) {
       modifier = OneRowCount{};
     } else {
       modifier = DoubleLog2RowCount{};
     }
-    cost = FixedCost{20};
   } else if (op.Is<Eq>()) {
     modifier = DoubleLog2RowCount{};
-    cost = LogPerRowCost{};
   } else {
     modifier = Div2RowCount{};
-    cost = LogPerRowCost{};
   }
   {
     using B = bytecode::SortedFilterBase;
-    auto& bc = AddOpcode<B>(bytecode::Index<bytecode::SortedFilter>(ct, erlbub),
-                            modifier, cost);
+    auto& bc =
+        AddOpcode<B>(bytecode::Index<bytecode::SortedFilter>(ct, erlbub),
+                     modifier, bytecode::SortedFilterBase::EstimateCost(ct));
     bc.arg<B::col>() = fs.col;
     bc.arg<B::val_register>() = result;
     bc.arg<B::update_register>() = reg;
@@ -638,14 +632,13 @@ QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
       bytecode::reg::RwHandle<Span<uint32_t>> scratch_span{register_count_++};
       {
         using B = bytecode::NullFilter<IsNotNull>;
-        bytecode::NullFilterBase& bc =
-            AddOpcode<B>(DoubleLog2RowCount{}, LinearPerRowCost{5});
+        bytecode::NullFilterBase& bc = AddOpcode<B>(DoubleLog2RowCount{});
         bc.arg<B::col>() = c.col;
         bc.arg<B::update_register>() = main;
       }
       {
         using B = bytecode::AllocateIndices;
-        auto& bc = AddOpcode<B>(UnchangedRowCount{}, FixedCost{30});
+        auto& bc = AddOpcode<B>(UnchangedRowCount{});
         bc.arg<B::size>() = plan_.params.max_row_count;
         bc.arg<B::dest_slab_register>() = scratch_slab;
         bc.arg<B::dest_span_register>() = scratch_span;
@@ -653,7 +646,7 @@ QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
       auto popcount_reg = PrefixPopcountRegisterFor(c.col);
       {
         using B = bytecode::TranslateSparseNullIndices;
-        auto& bc = AddOpcode<B>(UnchangedRowCount{}, LinearPerRowCost{10});
+        auto& bc = AddOpcode<B>(UnchangedRowCount{});
         bc.arg<B::col>() = c.col;
         bc.arg<B::popcount_register>() = popcount_reg;
         bc.arg<B::source_register>() = main;
@@ -663,8 +656,7 @@ QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
     }
     case Nullability::GetTypeIndex<DenseNull>(): {
       using B = bytecode::NullFilter<IsNotNull>;
-      bytecode::NullFilterBase& bc =
-          AddOpcode<B>(DoubleLog2RowCount{}, LinearPerRowCost{5});
+      bytecode::NullFilterBase& bc = AddOpcode<B>(DoubleLog2RowCount{});
       bc.arg<B::col>() = c.col;
       bc.arg<B::update_register>() = main;
       return main;
@@ -693,14 +685,14 @@ QueryPlanBuilder::EnsureIndicesAreInSlab() {
   SpanReg span_reg{register_count_++};
   {
     using B = bytecode::AllocateIndices;
-    auto& bc = AddOpcode<B>(UnchangedRowCount{}, FixedCost{30});
+    auto& bc = AddOpcode<B>(UnchangedRowCount{});
     bc.arg<B::size>() = plan_.params.max_row_count;
     bc.arg<B::dest_slab_register>() = slab_reg;
     bc.arg<B::dest_span_register>() = span_reg;
   }
   {
     using B = bytecode::Iota;
-    auto& bc = AddOpcode<B>(UnchangedRowCount{}, LinearPerRowCost{10});
+    auto& bc = AddOpcode<B>(UnchangedRowCount{});
     bc.arg<B::source_register>() = range_reg;
     bc.arg<B::update_register>() = span_reg;
   }
@@ -711,29 +703,32 @@ QueryPlanBuilder::EnsureIndicesAreInSlab() {
 PERFETTO_NO_INLINE bytecode::Bytecode& QueryPlanBuilder::AddRawOpcode(
     uint32_t option,
     RowCountModifier rc,
-    Cost cost) {
+    bytecode::Cost cost) {
   switch (cost.index()) {
-    case base::variant_index<Cost, FixedCost>(): {
-      const auto& c = base::unchecked_get<FixedCost>(cost);
+    case base::variant_index<bytecode::Cost, bytecode::FixedCost>(): {
+      const auto& c = base::unchecked_get<bytecode::FixedCost>(cost);
       plan_.params.estimated_cost += c.cost;
       break;
     }
-    case base::variant_index<Cost, LogPerRowCost>(): {
-      const auto& c = base::unchecked_get<LogPerRowCost>(cost);
+    case base::variant_index<bytecode::Cost, bytecode::LogPerRowCost>(): {
+      const auto& c = base::unchecked_get<bytecode::LogPerRowCost>(cost);
       plan_.params.estimated_cost += c.cost * log2(plan_.params.estimated_cost);
       break;
     }
-    case base::variant_index<Cost, LinearPerRowCost>(): {
-      const auto& c = base::unchecked_get<LinearPerRowCost>(cost);
+    case base::variant_index<bytecode::Cost, bytecode::LinearPerRowCost>(): {
+      const auto& c = base::unchecked_get<bytecode::LinearPerRowCost>(cost);
       plan_.params.estimated_cost += c.cost * plan_.params.estimated_cost;
       break;
     }
-    case base::variant_index<Cost, LogLinearPerRowCost>(): {
-      const auto& c = base::unchecked_get<LogLinearPerRowCost>(cost);
+    case base::variant_index<bytecode::Cost, bytecode::LogLinearPerRowCost>(): {
+      const auto& c = base::unchecked_get<bytecode::LogLinearPerRowCost>(cost);
       plan_.params.estimated_cost += c.cost * plan_.params.estimated_cost *
                                      log2(plan_.params.estimated_cost);
       break;
     }
+    case base::variant_index<bytecode::Cost,
+                             bytecode::PostOperationLinearPerRowCost>():
+      break;
     default:
       PERFETTO_FATAL("Unknown cost type");
   }
@@ -782,6 +777,15 @@ PERFETTO_NO_INLINE bytecode::Bytecode& QueryPlanBuilder::AddRawOpcode(
     default:
       PERFETTO_FATAL("Unknown row count modifier type");
   }
+  // Handle all the cost types which need to be calculated *post* the row
+  // estimate update.
+  if (cost.index() ==
+      base::variant_index<bytecode::Cost,
+                          bytecode::PostOperationLinearPerRowCost>()) {
+    const auto& c =
+        base::unchecked_get<bytecode::PostOperationLinearPerRowCost>(cost);
+    plan_.params.estimated_cost += c.cost * plan_.params.estimated_cost;
+  }
   plan_.bytecode.emplace_back();
   plan_.bytecode.back().option = option;
   return plan_.bytecode.back();
@@ -792,7 +796,7 @@ void QueryPlanBuilder::SetGuaranteedToBeEmpty() {
   bytecode::reg::RwHandle<Span<uint32_t>> span_reg{register_count_++};
   {
     using B = bytecode::AllocateIndices;
-    auto& bc = AddOpcode<B>(ZeroRowCount{}, FixedCost{1});
+    auto& bc = AddOpcode<B>(ZeroRowCount{});
     bc.arg<B::size>() = 0;
     bc.arg<B::dest_slab_register>() = slab_reg;
     bc.arg<B::dest_span_register>() = span_reg;
@@ -807,7 +811,7 @@ QueryPlanBuilder::PrefixPopcountRegisterFor(uint32_t col) {
     reg = bytecode::reg::RwHandle<Slab<uint32_t>>{register_count_++};
     {
       using B = bytecode::PrefixPopcount;
-      auto& bc = AddOpcode<B>(UnchangedRowCount{}, LinearPerRowCost{20});
+      auto& bc = AddOpcode<B>(UnchangedRowCount{});
       bc.arg<B::col>() = col;
       bc.arg<B::dest_register>() = *reg;
     }
