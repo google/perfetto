@@ -23,7 +23,7 @@ import {Card, CardList} from '../../widgets/card';
 import {Chip} from '../../widgets/chip';
 import {Intent} from '../../widgets/common';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
-import {SettingsPage} from '../../widgets/settings_page';
+import {SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
 
 enum SortOrder {
@@ -86,7 +86,7 @@ export class PluginsPage implements m.ClassComponent {
     });
     const sorted = sortPlugins(registeredPlugins);
     return m(
-      SettingsPage,
+      SettingsShell,
       {
         title: 'Plugins',
         stickyHeaderContent: m(
