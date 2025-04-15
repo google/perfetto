@@ -1,8 +1,22 @@
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import {AsyncLimiter} from '../base/async_limiter';
 import {sqliteString} from '../base/string_utils';
 import {Time} from '../base/time';
 import {exists} from '../base/utils';
-import {ResultStepEventHandler} from '../public/search'; // Added SearchResult import
+import {ResultStepEventHandler} from '../public/search';
 import {
   ANDROID_LOGS_TRACK_KIND,
   CPU_SLICE_TRACK_KIND,
@@ -77,16 +91,11 @@ export class SearchManagerImpl {
     if (text !== '') {
       this._searchInProgress = true;
       this._limiter.schedule(async () => {
-        const startTime = performance.now();
         if (DATASET_SEARCH.get()) {
           await this.executeDatasetSearch();
         } else {
           await this.executeSearch();
         }
-        const timeTaken = performance.now() - startTime;
-        console.log(
-          `Search returned ${this._results?.eventIds.length} results in ${timeTaken}ms`,
-        );
         this._searchInProgress = false;
         raf.scheduleFullRedraw();
       });
@@ -157,7 +166,6 @@ export class SearchManagerImpl {
     return this._searchInProgress;
   }
 
-  // --- Legacy Search Method ---
   private async executeSearch() {
     const search = this._searchText;
     const searchLiteral = escapeSearchQuery(this._searchText);
@@ -388,8 +396,5 @@ export class SearchManagerImpl {
     } else {
       this._resultIndex = -1;
     }
-
-    // Trigger redraw if needed (assuming _searchInProgress was handled outside)
-    raf.scheduleFullRedraw();
   }
 }
