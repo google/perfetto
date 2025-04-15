@@ -15,7 +15,6 @@
 import m from 'mithril';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
-import {PageWithTraceAttrs} from '../../public/page';
 import {DataVisualiser} from './data_visualiser/data_visualiser';
 import {QueryBuilder} from './query_builder/builder';
 import {Button, ButtonVariant} from '../../widgets/button';
@@ -41,6 +40,7 @@ import {
   SqlSourceAttrs,
   SqlSourceNode,
 } from './query_builder/sources/sql_source';
+import {Trace} from '../../public/trace';
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
@@ -59,7 +59,8 @@ export const ExplorePageModeToLabel: Record<ExplorePageModes, string> = {
   [ExplorePageModes.DATA_VISUALISER]: 'Visualise Data',
 };
 
-interface ExplorePageAttrs extends PageWithTraceAttrs {
+interface ExplorePageAttrs {
+  readonly trace: Trace;
   readonly sqlModulesPlugin: SqlModulesPlugin;
   readonly state: ExplorePageState;
 }

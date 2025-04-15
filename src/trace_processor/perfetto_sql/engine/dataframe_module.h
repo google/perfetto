@@ -81,7 +81,7 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     void OnCell(NullTermStringView v) const {
       sqlite::result::StaticString(ctx, v.data());
     }
-    void OnCell(nullptr_t) const { sqlite::result::Null(ctx); }
+    void OnCell(std::nullptr_t) const { sqlite::result::Null(ctx); }
     void OnCell(uint32_t v) const { sqlite::result::Long(ctx, v); }
     void OnCell(int32_t v) const { sqlite::result::Long(ctx, v); }
     sqlite3_context* ctx;

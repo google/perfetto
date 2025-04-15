@@ -29,9 +29,9 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_utils.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
 #include <sys/utsname.h>
 #include <unistd.h>
 #endif
@@ -126,6 +126,11 @@ SystemInfo GetSystemInfo() {
   info.android_ram_model = GetAndroidProp("ro.boot.hardware.ddr");
   if (info.android_ram_model.empty()) {
     PERFETTO_ELOG("Unable to read ro.boot.hardware.ddr");
+  }
+
+  info.android_serial_console = GetAndroidProp("init.svc.console");
+  if (info.android_serial_console.empty()) {
+    PERFETTO_ELOG("Unable to read init.svc.console");
   }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 

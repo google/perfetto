@@ -508,9 +508,12 @@ config("android_liblog") {
 
 # Checks that tools/install-build-deps has been run since it last changed.
 perfetto_check_build_deps("check_build_deps") {
-  args = []
+  args = [ "--no-dev-tools" ]
 }
 
 perfetto_check_build_deps("check_build_deps_android") {
-  args = [ "--android" ]
+  args = [
+    "--no-dev-tools",
+    "--android",
+  ]
 }

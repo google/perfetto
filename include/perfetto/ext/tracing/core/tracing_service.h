@@ -224,6 +224,9 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
     // If not zero, this is stored in the trace as timestamp of the trigger that
     // caused the clone.
     uint64_t clone_trigger_boot_time_ns = 0;
+    // If not zero, this is stored in the trace as the configured delay (in
+    // milliseconds) of the trigger that caused the clone.
+    uint64_t clone_trigger_delay_ms = 0;
   };
   virtual void CloneSession(CloneSessionArgs) = 0;
 

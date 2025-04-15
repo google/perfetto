@@ -3767,6 +3767,8 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
     info->set_android_storage_model(sys_info.android_storage_model);
   if (!sys_info.android_ram_model.empty())
     info->set_android_ram_model(sys_info.android_ram_model);
+  if (!sys_info.android_serial_console.empty())
+    info->set_android_serial_console(sys_info.android_serial_console);
 
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
@@ -3929,6 +3931,7 @@ void TracingServiceImpl::MaybeEmitCloneTrigger(
     trigger->set_trigger_name(info.trigger_name);
     trigger->set_producer_name(info.producer_name);
     trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
+    trigger->set_stop_delay_ms(info.trigger_delay_ms);
 
     packet->set_timestamp(info.boot_time_ns);
     packet->set_trusted_uid(static_cast<int32_t>(uid_));
@@ -3950,7 +3953,7 @@ void TracingServiceImpl::MaybeEmitReceivedTriggers(
     trigger->set_trigger_name(info.trigger_name);
     trigger->set_producer_name(info.producer_name);
     trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
-    trigger->set_stop_delay_ms(info.trigger_delay_mono_ms);
+    trigger->set_stop_delay_ms(info.trigger_delay_ms);
 
     packet->set_timestamp(info.boot_time_ns);
     packet->set_trusted_uid(static_cast<int32_t>(uid_));
@@ -4090,10 +4093,10 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
   clone_op.weak_consumer = weak_consumer;
   clone_op.skip_trace_filter = args.skip_trace_filter;
   if (!args.clone_trigger_name.empty()) {
-    clone_op.clone_trigger = {args.clone_trigger_boot_time_ns,
-                              args.clone_trigger_name,
-                              args.clone_trigger_producer_name,
-                              args.clone_trigger_trusted_producer_uid};
+    clone_op.clone_trigger = {
+        args.clone_trigger_boot_time_ns, args.clone_trigger_name,
+        args.clone_trigger_producer_name,
+        args.clone_trigger_trusted_producer_uid, args.clone_trigger_delay_ms};
   }
 
   // Issue separate flush requests for separate buffer groups. The buffer marked
@@ -4598,6 +4601,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::NotifyCloneSnapshotTrigger(
   clone_trig->set_producer_name(trigger.producer_name);
   clone_trig->set_producer_uid(static_cast<uint32_t>(trigger.producer_uid));
   clone_trig->set_boot_time_ns(trigger.boot_time_ns);
+  clone_trig->set_trigger_delay_ms(trigger.trigger_delay_ms);
 }
 
 ObservableEvents*

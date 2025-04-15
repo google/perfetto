@@ -135,12 +135,20 @@ class QueryPlanBuilder {
       uint32_t row_count,
       const std::vector<Column>& columns,
       std::vector<FilterSpec>& specs,
+      const std::vector<DistinctSpec>& distinct,
       const std::vector<SortSpec>& sort_specs,
+      const LimitSpec& limit_spec,
       uint64_t cols_used) {
     QueryPlanBuilder builder(row_count, columns);
     RETURN_IF_ERROR(builder.Filter(specs));
-    builder.Sort(sort_specs);
-    builder.Output(cols_used);
+    builder.Distinct(distinct);
+    if (builder.CanUseMinMaxOptimization(sort_specs, limit_spec)) {
+      builder.MinMax(sort_specs[0]);
+      builder.Output({}, cols_used);
+    } else {
+      builder.Sort(sort_specs);
+      builder.Output(limit_spec, cols_used);
+    }
     return std::move(builder).Build();
   }
 
@@ -161,14 +169,23 @@ class QueryPlanBuilder {
   // Optimizes the order of filters for efficiency.
   base::Status Filter(std::vector<FilterSpec>& specs);
 
+  // Adds distinct operations to the query plan based on distinct
+  // specifications. Distinct are applied after filters, in reverse order of
+  // specification.
+  void Distinct(const std::vector<DistinctSpec>& distinct_specs);
+
+  // Adds min/max operations to the query plan given a single column which
+  // should be sorted on.
+  void MinMax(const SortSpec& spec);
+
   // Adds sort operations to the query plan based on sort specifications.
-  // Sorts are applied after filters, in reverse order of specification.
+  // Sorts are applied after filters and disinct.
   void Sort(const std::vector<SortSpec>& sort_specs);
 
   // Configures output handling for the filtered rows.
   // |cols_used_bitmap| is a bitmap with bits set for columns that will be
   // accessed.
-  void Output(uint64_t cols_used_bitmap);
+  void Output(const LimitSpec&, uint64_t cols_used_bitmap);
 
   // Finalizes and returns the built query plan.
   QueryPlan Build() &&;
@@ -222,6 +239,8 @@ class QueryPlanBuilder {
   // Returns the prefix popcount register for the given column.
   bytecode::reg::ReadHandle<Slab<uint32_t>> PrefixPopcountRegisterFor(
       uint32_t col);
+
+  bool CanUseMinMaxOptimization(const std::vector<SortSpec>&, const LimitSpec&);
 
   // Maximum number of rows in the query result.
   uint32_t max_row_count_ = 0;

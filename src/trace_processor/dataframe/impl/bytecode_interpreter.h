@@ -22,11 +22,14 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+
 #include <functional>
 #include <limits>
 #include <numeric>
 #include <optional>
+#include <string_view>
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 
@@ -637,6 +640,211 @@ class Interpreter {
     }
   }
 
+  PERFETTO_ALWAYS_INLINE void AllocateRowLayoutBuffer(
+      const bytecode::AllocateRowLayoutBuffer& bytecode) {
+    using B = bytecode::AllocateRowLayoutBuffer;
+    uint32_t size = bytecode.arg<B::buffer_size>();
+    auto dest_reg = bytecode.arg<B::dest_buffer_register>();
+    // Return early if buffer already allocated.
+    if (MaybeReadFromRegister(dest_reg)) {
+      return;
+    }
+    WriteToRegister(dest_reg, Slab<uint8_t>::Alloc(size));
+  }
+
+  PERFETTO_ALWAYS_INLINE void CopyToRowLayoutNonNull(
+      const bytecode::CopyToRowLayoutNonNull& bytecode) {
+    using B = bytecode::CopyToRowLayoutNonNull;
+    uint32_t col_idx = bytecode.arg<B::col>();
+    const auto& source =
+        ReadFromRegister(bytecode.arg<B::source_indices_register>());
+    auto& dest_buffer =
+        ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
+    uint32_t stride = bytecode.arg<B::row_layout_stride>();
+    uint32_t offset = bytecode.arg<B::row_layout_offset>();
+    uint32_t copy_size = bytecode.arg<B::copy_size>();
+
+    uint8_t* dest_addr = dest_buffer.data() + offset;
+    const auto& storage = columns_[col_idx].storage;
+    const uint8_t* source_base = storage.byte_data();
+
+    for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
+      // If the pointer is null, then use the index directly as the
+      // value we need to copy.
+      const uint8_t* source_addr = source_base
+                                       ? source_base + (*ptr * copy_size)
+                                       : reinterpret_cast<uint8_t*>(ptr);
+      // TODO(lalitm): consider branching over the size to help the
+      // compiler figure out more optimized copy loops.
+      memcpy(dest_addr, source_addr, copy_size);
+      dest_addr += stride;
+    }
+  }
+
+  PERFETTO_ALWAYS_INLINE void CopyToRowLayoutDenseNull(
+      const bytecode::CopyToRowLayoutDenseNull& bytecode) {
+    using B = bytecode::CopyToRowLayoutDenseNull;
+    uint32_t col_idx = bytecode.arg<B::col>();
+    const auto& source =
+        ReadFromRegister(bytecode.arg<B::source_indices_register>());
+    auto& dest_buffer =
+        ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
+    uint32_t stride = bytecode.arg<B::row_layout_stride>();
+    uint32_t offset = bytecode.arg<B::row_layout_offset>();
+    uint32_t copy_size = bytecode.arg<B::copy_size>();
+
+    uint8_t* dest_addr = dest_buffer.data() + offset;
+    const auto& col = columns_[col_idx];
+    const auto& storage = col.storage;
+    const auto& bv = col.overlay.GetNullBitVector();
+    const uint8_t* source_base = storage.byte_data();
+
+    for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
+      // If the pointer is null, then use the index directly as the
+      // value we need to copy.
+      bool is_non_null = bv.is_set(*ptr);
+      *dest_addr = static_cast<uint8_t>(is_non_null);
+      if (is_non_null) {
+        const uint8_t* source_addr =
+            source_base ? source_base + (*ptr * copy_size)
+                        : reinterpret_cast<const uint8_t*>(ptr);
+
+        // TODO(lalitm): consider branching over the size to help the
+        // compiler figure out more optimized copy loops.
+        memcpy(dest_addr + 1, source_addr, copy_size);
+      } else {
+        memset(dest_addr + 1, 0, copy_size);
+      }
+      dest_addr += stride;
+    }
+  }
+
+  PERFETTO_ALWAYS_INLINE void CopyToRowLayoutSparseNull(
+      const bytecode::CopyToRowLayoutSparseNull& bytecode) {
+    using B = bytecode::CopyToRowLayoutSparseNull;
+    uint32_t col_idx = bytecode.arg<B::col>();
+    const auto& source =
+        ReadFromRegister(bytecode.arg<B::source_indices_register>());
+    auto& dest_buffer =
+        ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
+    const auto& popcount_slab =
+        ReadFromRegister(bytecode.arg<B::popcount_register>());
+    uint32_t stride = bytecode.arg<B::row_layout_stride>();
+    uint32_t offset = bytecode.arg<B::row_layout_offset>();
+    uint32_t copy_size = bytecode.arg<B::copy_size>();
+
+    uint8_t* dest_addr = dest_buffer.data() + offset;
+    const auto& col = columns_[col_idx];
+    const auto& storage = col.storage;
+    const auto& bv = col.overlay.GetNullBitVector();
+    const uint8_t* source_base = storage.byte_data();
+
+    for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
+      bool is_non_null = bv.is_set(*ptr);
+      *dest_addr = static_cast<uint8_t>(is_non_null);
+      if (is_non_null) {
+        auto storage_idx = static_cast<uint32_t>(
+            popcount_slab[*ptr / 64] + bv.count_set_bits_until_in_word(*ptr));
+
+        // If the pointer is null, then use the index directly as the
+        // value we need to copy.
+        const uint8_t* source_addr =
+            source_base ? source_base + (storage_idx * copy_size)
+                        : reinterpret_cast<const uint8_t*>(&storage_idx);
+
+        // TODO(lalitm): consider branching over the size to help the
+        // compiler figure out more optimized copy loops.
+        memcpy(dest_addr + 1, source_addr, copy_size);
+      } else {
+        memset(dest_addr + 1, 0, copy_size);
+      }
+      dest_addr += stride;
+    }
+  }
+
+  PERFETTO_ALWAYS_INLINE void Distinct(const bytecode::Distinct& bytecode) {
+    using B = bytecode::Distinct;
+    auto& indices = ReadFromRegister(bytecode.arg<B::indices_register>());
+    if (indices.empty()) {
+      return;
+    }
+
+    const auto& buffer = ReadFromRegister(bytecode.arg<B::buffer_register>());
+    uint32_t stride = bytecode.arg<B::total_row_stride>();
+    const uint8_t* row_ptr = buffer.data();
+
+    std::unordered_set<std::string_view> seen_rows;
+    seen_rows.reserve(indices.size());
+    uint32_t* write_ptr = indices.b;
+    for (const uint32_t* it = indices.b; it != indices.e; ++it) {
+      std::string_view row_view(reinterpret_cast<const char*>(row_ptr), stride);
+      *write_ptr = *it;
+      write_ptr += seen_rows.insert(row_view).second;
+      row_ptr += stride;
+    }
+    indices.e = write_ptr;
+  }
+
+  PERFETTO_ALWAYS_INLINE void LimitOffsetIndices(
+      const bytecode::LimitOffsetIndices& bytecode) {
+    using B = bytecode::LimitOffsetIndices;
+    uint32_t offset_value = bytecode.arg<B::offset_value>();
+    uint32_t limit_value = bytecode.arg<B::limit_value>();
+    auto& span = ReadFromRegister(bytecode.arg<B::update_register>());
+
+    // Apply offset
+    auto original_size = static_cast<uint32_t>(span.size());
+    uint32_t actual_offset = std::min(offset_value, original_size);
+    span.b += actual_offset;
+
+    // Apply limit
+    auto size_after_offset = static_cast<uint32_t>(span.size());
+    uint32_t actual_limit = std::min(limit_value, size_after_offset);
+    span.e = span.b + actual_limit;
+  }
+
+  template <typename T, typename Op>
+  PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
+      const bytecode::FindMinMaxIndex<T, Op>& bytecode) {
+    using B = bytecode::FindMinMaxIndexBase;  // Use base for arg names
+    uint32_t col = bytecode.template arg<B::col>();
+    auto& indices =
+        ReadFromRegister(bytecode.template arg<B::update_register>());
+    if (indices.empty()) {
+      return;
+    }
+
+    const auto* data = columns_[col].storage.template unchecked_data<T>();
+    auto get_value = [&](uint32_t idx) {
+      if constexpr (std::is_same_v<T, Id>) {
+        base::ignore_result(data);
+        return idx;
+      } else if constexpr (std::is_same_v<T, String>) {
+        return string_pool_->Get(data[idx]);
+      } else {
+        return data[idx];
+      }
+    };
+    uint32_t best_idx = *indices.b;
+    auto best_val = get_value(best_idx);
+    for (const uint32_t* it = indices.b + 1; it != indices.e; ++it) {
+      uint32_t current_idx = *it;
+      auto current_val = get_value(current_idx);
+      bool current_is_better;
+      if constexpr (std::is_same_v<Op, MinOp>) {
+        current_is_better = current_val < best_val;
+      } else {
+        current_is_better = current_val > best_val;
+      }
+      if (current_is_better) {
+        best_idx = current_idx;
+        best_val = current_val;
+      }
+    }
+    *indices.b = best_idx;
+    indices.e = indices.b + 1;
+  }
+
   template <typename Op>
   PERFETTO_ALWAYS_INLINE uint32_t* FilterStringOp(const StringPool::Id* data,
                                                   const uint32_t* begin,
@@ -880,12 +1088,14 @@ class Interpreter {
       // We use the constants directly instead of using numeric_limits for
       // int64_t as the casts introduces rounding in the doubles as a double
       // cannot exactly represent int64::max().
-      constexpr double kMin = std::is_same_v<T, int64_t>
-                                  ? -9223372036854775808.0
-                                  : std::numeric_limits<T>::min();
-      constexpr double kMax = std::is_same_v<T, int64_t>
-                                  ? 9223372036854775808.0
-                                  : std::numeric_limits<T>::max();
+      constexpr double kMin =
+          std::is_same_v<T, int64_t>
+              ? -9223372036854775808.0
+              : static_cast<double>(std::numeric_limits<T>::min());
+      constexpr double kMax =
+          std::is_same_v<T, int64_t>
+              ? 9223372036854775808.0
+              : static_cast<double>(std::numeric_limits<T>::max());
 
       // NaNs always compare false to any value (including other NaNs),
       // regardless of the operator.

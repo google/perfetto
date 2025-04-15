@@ -19,6 +19,7 @@
 #include <sqlite3.h>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,12 +27,14 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
@@ -165,12 +168,35 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   auto* v = GetVtab(tab);
 
   std::vector<dataframe::FilterSpec> filter_specs;
+  dataframe::LimitSpec limit_spec;
   filter_specs.reserve(static_cast<size_t>(info->nConstraint));
   for (int i = 0; i < info->nConstraint; ++i) {
     if (!info->aConstraint[i].usable) {
       continue;
     }
-    auto df_op = SqliteOpToDataframeOp(info->aConstraint[i].op);
+    sqlite3_value* rhs;
+    int ret = sqlite3_vtab_rhs_value(info, i, &rhs);
+    PERFETTO_CHECK(ret == SQLITE_OK || ret == SQLITE_NOTFOUND);
+
+    int op = info->aConstraint[i].op;
+
+    // Special handling for limit/offset values when we have a constant value.
+    bool is_limit_offset = op == SQLITE_INDEX_CONSTRAINT_LIMIT ||
+                           op == SQLITE_INDEX_CONSTRAINT_OFFSET;
+    if (is_limit_offset && rhs &&
+        sqlite::value::Type(rhs) == sqlite::Type::kInteger) {
+      int64_t value = sqlite::value::Int64(rhs);
+      if (value >= 0 && value <= std::numeric_limits<uint32_t>::max()) {
+        auto cast = static_cast<uint32_t>(value);
+        if (op == SQLITE_INDEX_CONSTRAINT_LIMIT) {
+          limit_spec.limit = cast;
+        } else {
+          PERFETTO_DCHECK(op == SQLITE_INDEX_CONSTRAINT_OFFSET);
+          limit_spec.offset = cast;
+        }
+      }
+    }
+    auto df_op = SqliteOpToDataframeOp(op);
     if (!df_op) {
       continue;
     }
@@ -182,19 +208,48 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
     });
   }
 
+  bool should_sort_using_order_by = true;
+  std::vector<dataframe::DistinctSpec> distinct_specs;
+  if (info->nOrderBy > 0) {
+    int vtab_distinct = sqlite3_vtab_distinct(info);
+    switch (vtab_distinct) {
+      case 0: /* normal sorting */
+      // TODO(lalitm): add special handling for group by.
+      case 1: /* group by */
+        break;
+      case 2: /* distinct */
+      case 3: /* distinct + order by */ {
+        uint64_t cols_used_it = info->colUsed;
+        for (uint32_t i = 0; i < 64; ++i) {
+          if (cols_used_it & 1u) {
+            distinct_specs.push_back(dataframe::DistinctSpec{i});
+          }
+          cols_used_it >>= 1;
+        }
+        should_sort_using_order_by = (vtab_distinct == 3);
+        break;
+      }
+      default:
+        PERFETTO_FATAL("Unreachable");
+    }
+  }
+
   std::vector<dataframe::SortSpec> sort_specs;
-  sort_specs.reserve(static_cast<size_t>(info->nOrderBy));
-  for (int i = 0; i < info->nOrderBy; ++i) {
-    sort_specs.emplace_back(dataframe::SortSpec{
-        static_cast<uint32_t>(info->aOrderBy[i].iColumn),
-        info->aOrderBy[i].desc ? dataframe::SortDirection::kDescending
-                               : dataframe::SortDirection::kAscending});
+  if (should_sort_using_order_by) {
+    sort_specs.reserve(static_cast<size_t>(info->nOrderBy));
+    for (int i = 0; i < info->nOrderBy; ++i) {
+      sort_specs.emplace_back(dataframe::SortSpec{
+          static_cast<uint32_t>(info->aOrderBy[i].iColumn),
+          info->aOrderBy[i].desc ? dataframe::SortDirection::kDescending
+                                 : dataframe::SortDirection::kAscending});
+    }
   }
   info->orderByConsumed = true;
 
   SQLITE_ASSIGN_OR_RETURN(
       tab, auto plan,
-      v->dataframe->PlanQuery(filter_specs, sort_specs, info->colUsed));
+      v->dataframe->PlanQuery(filter_specs, distinct_specs, sort_specs,
+                              limit_spec, info->colUsed));
   for (const auto& c : filter_specs) {
     if (auto value_index = c.value_index; value_index) {
       info->aConstraintUsage[c.source_index].argvIndex =

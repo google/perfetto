@@ -42,7 +42,6 @@ import {TextInput} from '../../widgets/text_input';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../../widgets/tree';
 import {VegaView} from '../../components/widgets/vega_view';
-import {PageAttrs} from '../../public/page';
 import {TableShowcase} from './table_showcase';
 import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
 import {Intent} from '../../widgets/common';
@@ -62,6 +61,7 @@ import {SplitPanel} from '../../widgets/split_panel';
 import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
 import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
+import {MultiselectInput} from '../../widgets/multiselect_input';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -667,7 +667,7 @@ function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
   };
 }
 
-export class WidgetsPage implements m.ClassComponent<PageAttrs> {
+export class WidgetsPage implements m.ClassComponent {
   view() {
     return m(
       '.widgets-page',
@@ -789,14 +789,16 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
       }),
       m(WidgetShowcase, {
         label: 'Text Input',
-        renderWidget: ({placeholder, ...rest}) =>
+        renderWidget: ({placeholder, leftIcon, ...rest}) =>
           m(TextInput, {
             placeholder: arg(placeholder, 'Placeholder...', ''),
+            leftIcon: arg(leftIcon, 'search'),
             ...rest,
           }),
         initialOpts: {
           placeholder: true,
           disabled: false,
+          leftIcon: true,
         },
       }),
       m(WidgetShowcase, {
@@ -943,6 +945,13 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           icon: true,
           showNumSelected: true,
           repeatCheckedItemsAtTop: false,
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'MultiselectInput',
+        description: `Tag input with options`,
+        renderWidget: () => {
+          return m(MultiselectInputDemo);
         },
       }),
       m(WidgetShowcase, {
@@ -1589,6 +1598,34 @@ function CursorTooltipShowcase() {
         'Hover here...',
         show && m(CursorTooltip, 'Hi!'),
       );
+    },
+  };
+}
+
+function MultiselectInputDemo() {
+  const options = [
+    'foo',
+    'bar',
+    'baz',
+    'qux',
+    'quux',
+    'corge',
+    'grault',
+    'garply',
+    'waldo',
+    'fred',
+  ];
+  let selectedOptions: string[] = [];
+  return {
+    view() {
+      return m(MultiselectInput, {
+        options: options.map((o) => ({key: o, label: o})),
+        selectedOptions,
+        onOptionAdd: (key) => selectedOptions.push(key),
+        onOptionRemove: (key) => {
+          selectedOptions = selectedOptions.filter((x) => x !== key);
+        },
+      });
     },
   };
 }

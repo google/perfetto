@@ -52,6 +52,7 @@ import {PostedTrace} from './trace_source';
 import {PerfManager} from './perf_manager';
 import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
+import {SettingsManager} from '../public/settings';
 
 /**
  * Handles the per-trace state of the UI
@@ -445,6 +446,10 @@ export class TraceImpl implements Trace {
   // Nothing other than AppImpl should ever refer to this, hence the __ name.
   get __traceCtxForApp() {
     return this.traceCtx;
+  }
+
+  get settings(): SettingsManager {
+    return this.appImpl.settings;
   }
 }
 

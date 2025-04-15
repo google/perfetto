@@ -325,6 +325,7 @@ perfetto_cc_binary(
 perfetto_cc_library(
     name = "trace_processor_rpc",
     srcs = [
+        ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
@@ -685,6 +686,7 @@ perfetto_cc_library(
             ":src_android_internal_headers",
             ":src_android_internal_lazy_library_loader",
             ":src_kallsyms_kallsyms",
+            ":src_kernel_utils_kernel_wakelock_errors",
             ":src_kernel_utils_syscall_table",
             ":src_protozero_proto_ring_buffer",
             ":src_traced_probes_android_game_intervention_list_android_game_intervention_list",
@@ -1285,6 +1287,8 @@ perfetto_cc_library(
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
         "src/base/getopt_compat.cc",
+        "src/base/intrusive_tree.cc",
+        "src/base/intrusive_tree.h",
         "src/base/log_ring_buffer.h",
         "src/base/logging.cc",
         "src/base/metatrace.cc",
@@ -1425,6 +1429,14 @@ perfetto_filegroup(
         "src/kallsyms/kernel_symbol_map.h",
         "src/kallsyms/lazy_kernel_symbolizer.cc",
         "src/kallsyms/lazy_kernel_symbolizer.h",
+    ],
+)
+
+# GN target: //src/kernel_utils:kernel_wakelock_errors
+perfetto_filegroup(
+    name = "src_kernel_utils_kernel_wakelock_errors",
+    srcs = [
+        "src/kernel_utils/kernel_wakelock_errors.h",
     ],
 )
 
@@ -5591,7 +5603,6 @@ perfetto_cc_protozero_library(
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_system_info_cpp",
     deps = [
-        ":protos_perfetto_common_cpp",
         ":protos_perfetto_config_system_info_protos",
     ],
 )
@@ -5600,13 +5611,10 @@ perfetto_cc_protocpp_library(
 perfetto_proto_library(
     name = "protos_perfetto_config_system_info_protos",
     srcs = [
-        "protos/perfetto/config/system_info/system_info.proto",
+        "protos/perfetto/config/system_info/system_info_config.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
-    ],
-    deps = [
-        ":protos_perfetto_common_protos",
     ],
 )
 
@@ -5614,7 +5622,6 @@ perfetto_proto_library(
 perfetto_cc_protozero_library(
     name = "protos_perfetto_config_system_info_zero",
     deps = [
-        ":protos_perfetto_common_zero",
         ":protos_perfetto_config_system_info_protos",
     ],
 )
@@ -7257,6 +7264,7 @@ perfetto_cc_binary(
 perfetto_cc_library(
     name = "trace_processor",
     srcs = [
+        ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_dataframe_dataframe",
@@ -7479,6 +7487,7 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
+        ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_profiling_deobfuscator",
         ":src_profiling_symbolizer_symbolize_database",
@@ -7694,6 +7703,7 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
+        ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_profiling_deobfuscator",
         ":src_profiling_symbolizer_symbolize_database",

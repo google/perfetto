@@ -941,6 +941,13 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
             context_->storage->InternString(packet.android_ram_model())));
   }
 
+  if (packet.has_android_serial_console()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::android_serial_console,
+        Variadic::String(
+            context_->storage->InternString(packet.android_serial_console())));
+  }
+
   page_size_ = packet.page_size();
   if (!page_size_) {
     page_size_ = 4096;

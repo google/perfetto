@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -105,6 +106,24 @@ std::pair<BoundModifier, EqualRangeLowerBoundUpperBound> GetSortedFilterArgs(
   }
 }
 
+// Helper to get byte size of storage types for layout calculation.
+// Returns 0 for Id type as it's handled specially.
+inline uint8_t GetDataSize(StorageType type) {
+  switch (type.index()) {
+    case StorageType::GetTypeIndex<Id>():
+    case StorageType::GetTypeIndex<Uint32>():
+    case StorageType::GetTypeIndex<Int32>():
+    case StorageType::GetTypeIndex<String>():
+      return sizeof(uint32_t);
+    case StorageType::GetTypeIndex<Int64>():
+      return sizeof(int64_t);
+    case StorageType::GetTypeIndex<Double>():
+      return sizeof(double);
+    default:
+      PERFETTO_FATAL("Invalid storage type");
+  }
+}
+
 }  // namespace
 
 QueryPlanBuilder::QueryPlanBuilder(uint32_t row_count,
@@ -179,7 +198,84 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
   return base::OkStatus();
 }
 
-// Adds sort operations bytecode to the plan.
+void QueryPlanBuilder::Distinct(
+    const std::vector<DistinctSpec>& distinct_specs) {
+  if (distinct_specs.empty()) {
+    return;
+  }
+  bytecode::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
+  uint16_t total_row_stride = 0;
+  for (const auto& spec : distinct_specs) {
+    const Column& col = columns_[spec.col];
+    bool is_nullable = !col.overlay.nullability().Is<NonNull>();
+    total_row_stride +=
+        (is_nullable ? 1u : 0u) + GetDataSize(col.storage.type());
+  }
+
+  uint32_t buffer_size = max_row_count_ * total_row_stride;
+  bytecode::reg::RwHandle<Slab<uint8_t>> buffer_reg{register_count_++};
+  {
+    using B = bytecode::AllocateRowLayoutBuffer;
+    auto& bc = AddOpcode<B>();
+    bc.arg<B::buffer_size>() = buffer_size;
+    bc.arg<B::dest_buffer_register>() = buffer_reg;
+  }
+  uint16_t current_offset = 0;
+  for (const auto& spec : distinct_specs) {
+    const Column& col = columns_[spec.col];
+    const auto& nullability = col.overlay.nullability();
+    uint8_t data_size = GetDataSize(col.storage.type());
+    switch (nullability.index()) {
+      case Nullability::GetTypeIndex<NonNull>(): {
+        using B = bytecode::CopyToRowLayoutNonNull;
+        auto& bc = AddOpcode<B>();
+        bc.arg<B::col>() = spec.col;
+        bc.arg<B::source_indices_register>() = indices;
+        bc.arg<B::dest_buffer_register>() = buffer_reg;
+        bc.arg<B::row_layout_offset>() = current_offset;
+        bc.arg<B::row_layout_stride>() = total_row_stride;
+        bc.arg<B::copy_size>() = data_size;
+        break;
+      }
+      case Nullability::GetTypeIndex<DenseNull>(): {
+        using B = bytecode::CopyToRowLayoutDenseNull;
+        auto& bc = AddOpcode<B>();
+        bc.arg<B::col>() = spec.col;
+        bc.arg<B::source_indices_register>() = indices;
+        bc.arg<B::dest_buffer_register>() = buffer_reg;
+        bc.arg<B::row_layout_offset>() = current_offset;
+        bc.arg<B::row_layout_stride>() = total_row_stride;
+        bc.arg<B::copy_size>() = data_size;
+        break;
+      }
+      case Nullability::GetTypeIndex<SparseNull>(): {
+        auto popcount_reg = PrefixPopcountRegisterFor(spec.col);
+        using B = bytecode::CopyToRowLayoutSparseNull;
+        auto& bc = AddOpcode<B>();
+        bc.arg<B::col>() = spec.col;
+        bc.arg<B::source_indices_register>() = indices;
+        bc.arg<B::dest_buffer_register>() = buffer_reg;
+        bc.arg<B::row_layout_offset>() = current_offset;
+        bc.arg<B::row_layout_stride>() = total_row_stride;
+        bc.arg<B::copy_size>() = data_size;
+        bc.arg<B::popcount_register>() = popcount_reg;
+        break;
+      }
+      default:
+        PERFETTO_FATAL("Unreachable");
+    }
+    current_offset += (nullability.Is<NonNull>() ? 0u : 1u) + data_size;
+  }
+  PERFETTO_CHECK(current_offset == total_row_stride);
+  {
+    using B = bytecode::Distinct;
+    auto& bc = AddOpcode<B>();
+    bc.arg<B::buffer_register>() = buffer_reg;
+    bc.arg<B::total_row_stride>() = total_row_stride;
+    bc.arg<B::indices_register>() = indices;
+  }
+}
+
 void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
   if (sort_specs.empty()) {
     return;
@@ -269,7 +365,27 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
   }
 }
 
-void QueryPlanBuilder::Output(uint64_t cols_used) {
+void QueryPlanBuilder::MinMax(const SortSpec& sort_spec) {
+  uint32_t col_idx = sort_spec.col;
+  const auto& col = columns_[col_idx];
+  StorageType storage_type = col.storage.type();
+
+  MinMaxOp mmop = sort_spec.direction == SortDirection::kAscending
+                      ? MinMaxOp(MinOp{})
+                      : MinMaxOp(MaxOp{});
+
+  auto indices = EnsureIndicesAreInSlab();
+  using B = bytecode::FindMinMaxIndexBase;
+  auto& op = AddOpcode<B>(
+      bytecode::Index<bytecode::FindMinMaxIndex>(storage_type, mmop));
+  op.arg<B::update_register>() = indices;
+  op.arg<B::col>() = col_idx;
+
+  // After the min/max, we'll have exactly one value.
+  max_row_count_ = 1;
+}
+
+void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
   // Structure to track column and offset pairs
   struct ColAndOffset {
     uint32_t col;
@@ -301,6 +417,24 @@ void QueryPlanBuilder::Output(uint64_t cols_used) {
   }
 
   auto in_memory_indices = EnsureIndicesAreInSlab();
+  if (limit.limit || limit.offset) {
+    auto o = limit.offset.value_or(0);
+    auto l = limit.limit.value_or(std::numeric_limits<uint32_t>::max());
+
+    // Offset will cut out `o` rows from the start of indices.
+    uint32_t remove_from_start = std::min(max_row_count_, o);
+    max_row_count_ -= remove_from_start;
+
+    // Limit will only preserve at most `l` rows.
+    max_row_count_ = std::min(l, max_row_count_);
+
+    using B = bytecode::LimitOffsetIndices;
+    auto& bc = AddOpcode<B>();
+    bc.arg<B::offset_value>() = o;
+    bc.arg<B::limit_value>() = l;
+    bc.arg<B::update_register>() = in_memory_indices;
+  }
+
   bytecode::reg::RwHandle<Span<uint32_t>> storage_update_register;
   if (plan_.params.output_per_row > 1) {
     bytecode::reg::RwHandle<Slab<uint32_t>> slab_register{register_count_++};
@@ -585,6 +719,14 @@ QueryPlanBuilder::PrefixPopcountRegisterFor(uint32_t col) {
     }
   }
   return *reg;
+}
+
+bool QueryPlanBuilder::CanUseMinMaxOptimization(
+    const std::vector<SortSpec>& sort_specs,
+    const LimitSpec& limit_spec) {
+  return sort_specs.size() == 1 &&
+         columns_[sort_specs[0].col].overlay.nullability().Is<NonNull>() &&
+         limit_spec.limit == 1 && limit_spec.offset.value_or(0) == 0;
 }
 
 }  // namespace perfetto::trace_processor::dataframe::impl

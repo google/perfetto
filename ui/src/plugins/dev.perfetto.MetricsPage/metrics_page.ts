@@ -20,7 +20,6 @@ import {STR} from '../../trace_processor/query_result';
 import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
 import {VegaView} from '../../components/widgets/vega_view';
-import {PageWithTraceAttrs} from '../../public/page';
 import {assertExists} from '../../base/logging';
 import {Trace} from '../../public/trace';
 
@@ -229,10 +228,14 @@ class MetricVizView implements m.ClassComponent<MetricVizViewAttrs> {
   }
 }
 
-export class MetricsPage implements m.ClassComponent<PageWithTraceAttrs> {
+export interface MetricsPageAttrs {
+  readonly trace: Trace;
+}
+
+export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
   private controller?: MetricsController;
 
-  oninit({attrs}: m.Vnode<PageWithTraceAttrs>) {
+  oninit({attrs}: m.Vnode<MetricsPageAttrs>) {
     this.controller = new MetricsController(attrs.trace);
   }
 

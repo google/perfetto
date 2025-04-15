@@ -143,6 +143,16 @@ struct FilterSpec {
 };
 
 // -----------------------------------------------------------------------------
+// Distinct Specifications
+// -----------------------------------------------------------------------------
+
+// Specifies a distinct operation to be applied to the dataframe rows.
+struct DistinctSpec {
+  // Index of the column in the dataframe to perform a distinct on.
+  uint32_t col;
+};
+
+// -----------------------------------------------------------------------------
 // Sort Specifications
 // -----------------------------------------------------------------------------
 
@@ -159,6 +169,16 @@ struct SortSpec {
 
   // Direction of the sort (ascending or descending).
   SortDirection direction;
+};
+
+// -----------------------------------------------------------------------------
+// Limit Specification
+// -----------------------------------------------------------------------------
+
+// Specifies limit and offset parameters for a query.
+struct LimitSpec {
+  std::optional<uint32_t> limit;
+  std::optional<uint32_t> offset;
 };
 
 }  // namespace perfetto::trace_processor::dataframe

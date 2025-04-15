@@ -15,30 +15,18 @@
 import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {Registry} from '../base/registry';
-import {PageAttrs, PageHandler, PageWithTraceAttrs} from '../public/page';
+import {PageHandler} from '../public/page';
 import {Router} from './router';
-import {TraceImpl} from './trace_impl';
 import {Gate} from '../base/mithril_utils';
 
-export interface PageWithTraceImplAttrs extends PageAttrs {
-  trace: TraceImpl;
-}
-
-// This is to allow internal core classes to get a TraceImpl injected rather
-// than just a Trace.
-type PageHandlerInternal = PageHandler<
-  | m.ComponentTypes<PageWithTraceAttrs>
-  | m.ComponentTypes<PageWithTraceImplAttrs>
->;
-
 export class PageManagerImpl {
-  private readonly registry = new Registry<PageHandlerInternal>((x) => x.route);
+  private readonly registry = new Registry<PageHandler>((x) => x.route);
   private readonly previousPages = new Map<
     string,
     {page: string; subpage: string}
   >();
 
-  registerPage(pageHandler: PageHandlerInternal): Disposable {
+  registerPage(pageHandler: PageHandler): Disposable {
     assertTrue(/^\/\w*$/.exec(pageHandler.route) !== null);
     // The pluginId is injected by the proxy in AppImpl / TraceImpl. If this is
     // undefined somebody (tests) managed to call this method without proxy.
@@ -47,7 +35,7 @@ export class PageManagerImpl {
   }
 
   // Called by index.ts upon the main frame redraw callback.
-  renderPageForCurrentRoute(trace: TraceImpl | undefined): m.Children {
+  renderPageForCurrentRoute(): m.Children {
     const route = Router.parseFragment(location.hash);
     this.previousPages.set(route.page, {
       page: route.page,
@@ -61,12 +49,11 @@ export class PageManagerImpl {
     // such as the viewer page.
     return Array.from(this.previousPages.entries())
       .map(([key, {page, subpage}]) => {
-        const maybeRenderedPage = this.renderPageForRoute(trace, page, subpage);
+        const maybeRenderedPage = this.renderPageForRoute(page, subpage);
         // If either the route doesn't exist or requires a trace but the trace
         // is not loaded, fall back on the default route.
         const renderedPage =
-          maybeRenderedPage ??
-          assertExists(this.renderPageForRoute(trace, '/', ''));
+          maybeRenderedPage ?? assertExists(this.renderPageForRoute('/', ''));
         return [key, renderedPage];
       })
       .map(([key, page]) => {
@@ -76,27 +63,11 @@ export class PageManagerImpl {
 
   // Will return undefined if either: (1) the route does not exist; (2) the
   // route exists, it requires a trace, but there is no trace loaded.
-  private renderPageForRoute(
-    coreTrace: TraceImpl | undefined,
-    page: string,
-    subpage: string,
-  ) {
+  private renderPageForRoute(page: string, subpage: string) {
     const handler = this.registry.tryGet(page);
     if (handler === undefined) {
       return undefined;
     }
-    const pluginId = assertExists(handler?.pluginId);
-    const trace = coreTrace?.forkForPlugin(pluginId);
-    const traceRequired = !handler?.traceless;
-    if (traceRequired && trace === undefined) {
-      return undefined;
-    }
-    if (traceRequired) {
-      return m(handler.page as m.ComponentTypes<PageWithTraceImplAttrs>, {
-        subpage,
-        trace: assertExists(trace),
-      });
-    }
-    return m(handler.page, {subpage, trace});
+    return handler.render(subpage);
   }
 }

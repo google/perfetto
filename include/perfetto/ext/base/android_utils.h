@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_ANDROID_UTILS_H_
 #define INCLUDE_PERFETTO_EXT_BASE_ANDROID_UTILS_H_
 
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -54,6 +55,7 @@ struct SystemInfo {
   std::string android_hardware_revision;
   std::string android_storage_model;
   std::string android_ram_model;
+  std::string android_serial_console;
 };
 
 // Returns the device's system information.
