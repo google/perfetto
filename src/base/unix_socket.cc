@@ -257,7 +257,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
   PERFETTO_CHECK(false);  // For GCC.
 }
 
-ScopedSocketHandle CreateSocketHandle(SockFamily family, SockType type) {
+void InitWinSockOnce() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   static bool init_winsock_once = [] {
     WSADATA ignored{};
@@ -265,10 +265,14 @@ ScopedSocketHandle CreateSocketHandle(SockFamily family, SockType type) {
   }();
   PERFETTO_CHECK(init_winsock_once);
 #endif
+}
+
+ScopedSocketHandle CreateSocketHandle(SockFamily family, SockType type) {
+  InitWinSockOnce();
   return ScopedSocketHandle(socket(MkSockFamily(family), MkSockType(type), 0));
 }
 
-std::string addrinfo_to_ip_str(const struct addrinfo* addrinfo_ptr) {
+std::string AddrinfoToIpStr(const struct addrinfo* addrinfo_ptr) {
   PERFETTO_CHECK(addrinfo_ptr && addrinfo_ptr->ai_addr);
   PERFETTO_CHECK((addrinfo_ptr->ai_family == AF_INET) ||
                  (addrinfo_ptr->ai_family == AF_INET6));
@@ -289,6 +293,7 @@ std::string addrinfo_to_ip_str(const struct addrinfo* addrinfo_ptr) {
                            sizeof(ip_str_buffer)) != NULL);
   return std::string(ip_str_buffer);
 }
+
 }  // namespace
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -322,6 +327,7 @@ SockFamily GetSockFamily(const char* addr) {
 
 std::vector<NetAddrInfo> GetNetAddrInfo(const std::string& ip,
                                         const std::string& port) {
+  InitWinSockOnce();
   struct addrinfo hints, *serv_info, *p;
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_UNSPEC;
@@ -332,11 +338,11 @@ std::vector<NetAddrInfo> GetNetAddrInfo(const std::string& ip,
   std::vector<NetAddrInfo> res;
   for (p = serv_info; p != NULL; p = p->ai_next) {
     if (p->ai_family == AF_INET) {
-      std::string ip_str = addrinfo_to_ip_str(p);
+      std::string ip_str = AddrinfoToIpStr(p);
       std::string ip_port = ip_str + ":" + port;
       res.emplace_back(ip_port, SockFamily::kInet, SockType::kStream);
     } else if (p->ai_family == AF_INET6) {
-      std::string ip_str = addrinfo_to_ip_str(p);
+      std::string ip_str = AddrinfoToIpStr(p);
       std::string ip_port = "[" + ip_str + "]:" + port;
       res.emplace_back(ip_port, SockFamily::kInet6, SockType::kStream);
     }
