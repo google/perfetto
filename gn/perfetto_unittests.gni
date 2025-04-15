@@ -26,6 +26,7 @@ perfetto_unittests_targets = [
   "src/tracing:unittests",
   "src/profiling:unittests",
   "src/profiling/symbolizer:unittests",
+  "src/protovm:unittests",
 ]
 
 if ((is_linux || is_android) && !perfetto_build_with_embedder) {
