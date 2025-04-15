@@ -18,13 +18,13 @@
   &__header {
     position: sticky;
     top: 0;
-    padding-bottom: 6px;
-    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-top: 12px;
     z-index: 1;
     background-color: white;
 
     &--stuck {
-      box-shadow: 0px 1px 2px 1px #00000026;
+      box-shadow: 0px 2px 5px #00000026;
     }
   }
 
