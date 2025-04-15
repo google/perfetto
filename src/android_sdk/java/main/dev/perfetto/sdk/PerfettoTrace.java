@@ -50,7 +50,7 @@ public final class PerfettoTrace {
    * Perfetto category a trace event belongs to. Registering a category is not sufficient to capture
    * events within the category, it must also be enabled in the trace config.
    */
-  public static final class Category implements PerfettoTrackEventExtra.PerfettoPointer {
+  public static class Category implements PerfettoTrackEventExtra.PerfettoPointer {
     private final long mPtr;
     private final long mExtraPtr;
     private final String mName;
