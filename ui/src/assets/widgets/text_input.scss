@@ -15,16 +15,37 @@
 @import "theme";
 
 .pf-text-input {
+  display: inline-flex; // Align items inline
+  align-items: center; // Center items vertically
+  line-height: 1;
   font-family: $pf-font;
   font-size: inherit;
-  outline: none; // Disable the default outline
-  border: none; // Disable the default border
   border-bottom: solid 1px $pf-minimal-foreground; // Thin underline
   background: none;
+  padding: 1px 2px;
   transition:
     border $pf-anim-timing,
     box-shadow $pf-anim-timing,
     background $pf-anim-timing;
+  gap: 4px;
+
+  &__input {
+    font-family: $pf-font;
+    font-size: inherit;
+    line-height: inherit;
+    padding: 0;
+    margin: 0;
+    color: inherit;
+
+    outline: none; // Disable the default outline
+    border: none; // Disable the default border
+    background: none;
+  }
+
+  &__left-icon {
+    line-height: inherit;
+    margin-inline: 2px;
+  }
 
   // Round only the top corners to avoid rounding the edges of the underline
   border-radius: $pf-border-radius $pf-border-radius 0 0;
@@ -34,7 +55,7 @@
     background: $pf-minimal-background-hover;
   }
 
-  &:focus {
+  &:has(.pf-text-input__input:focus) {
     background: $pf-minimal-background-hover;
     border-bottom: solid 1px $pf-primary-background;
 
@@ -44,7 +65,7 @@
     box-shadow: 0 1px 0 $pf-primary-background;
   }
 
-  &[disabled] {
+  &:has(.pf-text-input__input[disabled]) {
     border-bottom-color: $pf-minimal-foreground-disabled;
     color: $pf-minimal-foreground-disabled;
     background: $pf-minimal-background-disabled;
