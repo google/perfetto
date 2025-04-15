@@ -5452,7 +5452,6 @@ filegroup {
 genrule {
     name: "perfetto_protos_perfetto_config_system_info_cpp_gen",
     srcs: [
-        ":perfetto_protos_perfetto_common_cpp",
         ":perfetto_protos_perfetto_config_system_info_cpp",
     ],
     tools: [
@@ -5469,7 +5468,6 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
     srcs: [
-        ":perfetto_protos_perfetto_common_cpp",
         ":perfetto_protos_perfetto_config_system_info_cpp",
     ],
     tools: [
@@ -5498,7 +5496,6 @@ filegroup {
 genrule {
     name: "perfetto_protos_perfetto_config_system_info_lite_gen",
     srcs: [
-        ":perfetto_protos_perfetto_common_lite",
         ":perfetto_protos_perfetto_config_system_info_lite",
     ],
     tools: [
@@ -5514,7 +5511,6 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_config_system_info_lite_gen_headers",
     srcs: [
-        ":perfetto_protos_perfetto_common_lite",
         ":perfetto_protos_perfetto_config_system_info_lite",
     ],
     tools: [
@@ -5542,7 +5538,6 @@ filegroup {
 genrule {
     name: "perfetto_protos_perfetto_config_system_info_zero_gen",
     srcs: [
-        ":perfetto_protos_perfetto_common_zero",
         ":perfetto_protos_perfetto_config_system_info_zero",
     ],
     tools: [
@@ -5559,7 +5554,6 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
     srcs: [
-        ":perfetto_protos_perfetto_common_zero",
         ":perfetto_protos_perfetto_config_system_info_zero",
     ],
     tools: [
@@ -11738,6 +11732,7 @@ filegroup {
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
         "src/base/getopt_compat.cc",
+        "src/base/intrusive_tree.cc",
         "src/base/logging.cc",
         "src/base/metatrace.cc",
         "src/base/paged_memory.cc",
@@ -11837,6 +11832,7 @@ filegroup {
         "src/base/flat_set_unittest.cc",
         "src/base/getopt_compat_unittest.cc",
         "src/base/hash_unittest.cc",
+        "src/base/intrusive_tree_unittest.cc",
         "src/base/logging_unittest.cc",
         "src/base/metatrace_unittest.cc",
         "src/base/no_destructor_unittest.cc",

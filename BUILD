@@ -1287,6 +1287,8 @@ perfetto_cc_library(
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
         "src/base/getopt_compat.cc",
+        "src/base/intrusive_tree.cc",
+        "src/base/intrusive_tree.h",
         "src/base/log_ring_buffer.h",
         "src/base/logging.cc",
         "src/base/metatrace.cc",
@@ -5601,7 +5603,6 @@ perfetto_cc_protozero_library(
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_system_info_cpp",
     deps = [
-        ":protos_perfetto_common_cpp",
         ":protos_perfetto_config_system_info_protos",
     ],
 )
@@ -5615,16 +5616,12 @@ perfetto_proto_library(
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
     ],
-    deps = [
-        ":protos_perfetto_common_protos",
-    ],
 )
 
 # GN target: //protos/perfetto/config/system_info:zero
 perfetto_cc_protozero_library(
     name = "protos_perfetto_config_system_info_zero",
     deps = [
-        ":protos_perfetto_common_zero",
         ":protos_perfetto_config_system_info_protos",
     ],
 )
