@@ -1160,6 +1160,12 @@ cc_library_static {
 cc_library_shared {
     name: "libperfetto_jni_lib",
     srcs: [
+        ":perfetto_include_perfetto_public_abi_base",
+        ":perfetto_include_perfetto_public_abi_public",
+        ":perfetto_include_perfetto_public_base",
+        ":perfetto_include_perfetto_public_protos_protos",
+        ":perfetto_include_perfetto_public_protozero",
+        ":perfetto_include_perfetto_public_public",
         ":perfetto_src_android_sdk_jni_libperfetto_jni_src",
         ":perfetto_src_android_sdk_nativehelper_nativehelper",
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",

@@ -9,7 +9,15 @@ source_set("perfetto_sdk_for_jni_public") {
 
 source_set("perfetto_sdk_for_jni") {
   sources = [ "tracing_sdk.cc" ]
-  deps = [ "../../../gn:default_deps" ]
+  deps = [
+    "../../../gn:default_deps",
+
+    # We want to static link 'shared_lib:shared_lib' in unittests and
+    # dynamic link 'shared_lib:libperfetto_c' in 'libperfetto_jni', so we
+    # add public header dependncy here to not break compilation.
+    "../../../include/perfetto/public:public",
+    "../../../include/perfetto/public/abi:public",
+  ]
   public_deps = [ ":perfetto_sdk_for_jni_public" ]
 }
 

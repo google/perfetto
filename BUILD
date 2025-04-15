@@ -4545,6 +4545,14 @@ perfetto_android_jni_library(
     linkopts = [
         "-llog",
     ],
+    hdrs = [
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_abi_public",
+        ":include_perfetto_public_base",
+        ":include_perfetto_public_protos_protos",
+        ":include_perfetto_public_protozero",
+        ":include_perfetto_public_public",
+    ],
     deps = [
         ":libperfetto_c",
     ],
