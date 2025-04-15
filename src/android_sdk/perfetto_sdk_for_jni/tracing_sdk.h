@@ -19,11 +19,12 @@
 
 #include <stdint.h>
 
+#include <sys/types.h>
+
 #include <optional>
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/sys_types.h"  // for pid_t
 #include "perfetto/public/tracing_session.h"
 #include "perfetto/public/track_event.h"
 

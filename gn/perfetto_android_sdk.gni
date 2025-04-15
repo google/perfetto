@@ -21,6 +21,7 @@ template("perfetto_android_jni_library") {
   _vars_to_forward = [
     "sources",
     "deps",
+    "assert_no_deps",
     "binary_name",
     "bazel_linkopts",
     "testonly",
