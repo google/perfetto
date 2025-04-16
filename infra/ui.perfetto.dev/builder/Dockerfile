@@ -22,7 +22,7 @@ RUN set -ex; \
     export DEBIAN_FRONTEND=noninteractive; \
     apt-get update; \
     apt-get -y install python3 python3-distutils python3-pip git curl tar tini \
-            pkg-config zip libc-dev python3-protobuf python3-crcmod; \
+        pkg-config zip libc-dev python3-protobuf python3-crcmod python3-venv; \
     mkdir -p /builder && \
     curl -s -o - https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz | tar -zx -C /builder; \
     /builder/google-cloud-sdk/install.sh \
