@@ -490,6 +490,7 @@ async function downloadPprof(trace: Trace, upid: number, ts: time) {
       title: 'Download not supported',
       content: m('div', 'This trace file does not support downloads'),
     });
+    return;
   }
   const blob = await trace.getTraceFile();
   convertTraceToPprofAndDownload(blob, pid.firstRow({pid: NUM}).pid, ts);

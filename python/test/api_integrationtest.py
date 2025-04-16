@@ -294,14 +294,14 @@ class TestApi(unittest.TestCase):
 
   def test_extra_flags(self):
     with tempfile.TemporaryDirectory() as temp_dir:
-      test_module_dir = os.path.join(temp_dir, 'ext')
-      os.makedirs(test_module_dir)
-      test_module = os.path.join(test_module_dir, 'module.sql')
+      test_package_dir = os.path.join(temp_dir, 'ext')
+      os.makedirs(test_package_dir)
+      test_module = os.path.join(test_package_dir, 'module.sql')
       with open(test_module, 'w') as f:
         f.write('CREATE TABLE test_table AS SELECT 123 AS test_value\n')
       config = TraceProcessorConfig(
           bin_path=os.environ["SHELL_PATH"],
-          extra_flags=['--add-sql-module', test_module_dir])
+          extra_flags=['--add-sql-package', test_package_dir])
       with TraceProcessor(trace=io.BytesIO(b''), config=config) as tp:
         qr_iterator = tp.query(
             'SELECT IMPORT("ext.module"); SELECT test_value FROM test_table')
