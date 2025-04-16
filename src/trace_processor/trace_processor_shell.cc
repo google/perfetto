@@ -774,12 +774,10 @@ PerfettoSQL:
                                       If used with --run-metrics, the query is
                                       executed after the selected metrics and
                                       the metrics output is suppressed.
- --add-sql-module PACKAGE_PATH
  --add-sql-package PACKAGE_PATH       Files from the directory will be treated
                                       as a new SQL package and can be used for
                                       INCLUDE PERFETTO MODULE statements. The
                                       name of the directory is the module name.
- --override-sql-module PACKAGE_PATH
  --override-sql-package PACKAGE_PATH  Will override trace processor package with
                                       passed contents. The outer directory will
                                       specify the package name.
@@ -863,6 +861,12 @@ Advanced:
                                       passed contents. The outer directory will
                                       be ignored. Only allowed when --dev is
                                       specified.
+ --add-sql-module PACKAGE_PATH        Alias for --add-sql-package, kept for
+                                      backwards compatibility. Prefer
+                                      --add-sql-package.
+ --override-sql-module PACKAGE_PATH   Alias for --override-sql-package, kept for
+                                      backwards compatibility. Prefer
+                                      --override-sql-package.
 
 Metrics (v1):
 
@@ -1342,7 +1346,7 @@ base::Status ParseMetricExtensionPaths(
   return CheckForDuplicateMetricExtension(metric_extensions);
 }
 
-base::Status IncludeSqlModule(std::string root, bool allow_override) {
+base::Status IncludeSqlPackage(std::string root, bool allow_override) {
   // Remove trailing slash
   if (root.back() == '/')
     root = root.substr(0, root.length() - 1);
@@ -1716,7 +1720,7 @@ base::Status MaybeUpdateSqlModules(const CommandLineOptions& options) {
   if (!options.override_sql_module_paths.empty()) {
     for (const auto& override_sql_module_path :
          options.override_sql_module_paths) {
-      auto status = IncludeSqlModule(override_sql_module_path, true);
+      auto status = IncludeSqlPackage(override_sql_module_path, true);
       if (!status.ok())
         return base::ErrStatus("Couldn't override stdlib module: %s",
                                status.c_message());
@@ -1725,7 +1729,7 @@ base::Status MaybeUpdateSqlModules(const CommandLineOptions& options) {
 
   if (!options.sql_module_paths.empty()) {
     for (const auto& add_sql_module_path : options.sql_module_paths) {
-      auto status = IncludeSqlModule(add_sql_module_path, false);
+      auto status = IncludeSqlPackage(add_sql_module_path, false);
       if (!status.ok())
         return base::ErrStatus("Couldn't add SQL module: %s",
                                status.c_message());
