@@ -39,6 +39,7 @@
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
+#include "src/trace_processor/dataframe/impl/static_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -142,7 +143,7 @@ class QueryPlanBuilder {
  public:
   static base::StatusOr<QueryPlan> Build(
       uint32_t row_count,
-      const std::vector<Column>& columns,
+      const FixedVector<Column, kMaxColumns>& columns,
       std::vector<FilterSpec>& specs,
       const std::vector<DistinctSpec>& distinct,
       const std::vector<SortSpec>& sort_specs,
@@ -203,7 +204,8 @@ class QueryPlanBuilder {
   };
 
   // Constructs a builder for the given number of rows and columns.
-  QueryPlanBuilder(uint32_t row_count, const std::vector<Column>& columns);
+  QueryPlanBuilder(uint32_t row_count,
+                   const FixedVector<Column, kMaxColumns>& columns);
 
   // Adds filter operations to the query plan based on filter specifications.
   // Optimizes the order of filters for efficiency.
@@ -295,13 +297,13 @@ class QueryPlanBuilder {
   bool CanUseMinMaxOptimization(const std::vector<SortSpec>&, const LimitSpec&);
 
   // Reference to the columns being queried.
-  const std::vector<Column>& columns_;
+  const FixedVector<Column, kMaxColumns>& columns_;
 
   // The query plan being built.
   QueryPlan plan_;
 
   // State information for each column during planning.
-  std::vector<ColumnState> column_states_;
+  FixedVector<ColumnState, kMaxColumns> column_states_;
 
   // Number of registers allocated so far.
   uint32_t register_count_ = 0;

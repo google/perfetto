@@ -29,6 +29,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
+#include "src/trace_processor/dataframe/impl/static_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 
@@ -139,9 +140,10 @@ class Dataframe {
   std::vector<ColumnSpec> CreateColumnSpecs() const {
     std::vector<ColumnSpec> specs;
     specs.reserve(columns_.size());
-    for (const auto& col : columns_) {
-      specs.push_back({col.name, col.storage.type(), col.overlay.nullability(),
-                       col.sort_state});
+    for (uint32_t i = 0; i < columns_.size(); ++i) {
+      const auto& col = columns_[i];
+      specs.push_back({column_names_[i], col.storage.type(),
+                       col.null_storage.nullability(), col.sort_state});
     }
     return specs;
   }
@@ -153,15 +155,20 @@ class Dataframe {
   // dataframe.
   friend class DataframeBytecodeTest;
 
-  Dataframe(std::vector<impl::Column> columns,
+  Dataframe(impl::FixedVector<std::string, impl::kMaxColumns> column_names,
+            impl::FixedVector<impl::Column, impl::kMaxColumns> columns,
             uint32_t row_count,
             StringPool* string_pool)
-      : columns_(std::move(columns)),
+      : column_names_(std::move(column_names)),
+        columns_(std::move(columns)),
         row_count_(row_count),
         string_pool_(string_pool) {}
 
+  // The names of all columns.
+  impl::FixedVector<std::string, impl::kMaxColumns> column_names_;
+
   // Internal storage for columns in the dataframe.
-  std::vector<impl::Column> columns_;
+  impl::FixedVector<impl::Column, impl::kMaxColumns> columns_;
 
   // Number of rows in the dataframe.
   uint32_t row_count_ = 0;
