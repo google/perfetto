@@ -38,6 +38,12 @@ import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import {featureFlags} from './feature_flags';
 import {Raf} from '../public/raf';
 import {AsyncLimiter} from '../base/async_limiter';
+import {
+  PERFETTO_SETTINGS_STORAGE_KEY,
+  SettingsManagerImpl,
+} from './settings_manager';
+import {SettingsManager} from '../public/settings';
+import {LocalStorage} from './local_storage';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
@@ -74,6 +80,9 @@ export class AppContext {
   readonly embeddedMode: boolean;
   readonly testingMode: boolean;
   readonly openTraceAsyncLimiter = new AsyncLimiter();
+  readonly settingsManager = new SettingsManagerImpl(
+    new LocalStorage(PERFETTO_SETTINGS_STORAGE_KEY),
+  );
 
   // This is normally empty and is injected with extra google-internal packages
   // via is_internal_user.js
@@ -247,6 +256,10 @@ export class AppImpl implements App {
 
   get initialRouteArgs(): RouteArgs {
     return this.appCtx.initialRouteArgs;
+  }
+
+  get settings(): SettingsManager {
+    return this.appCtx.settingsManager;
   }
 
   get featureFlags(): FeatureFlagManager {

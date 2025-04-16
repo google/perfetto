@@ -61,6 +61,7 @@ import {SplitPanel} from '../../widgets/split_panel';
 import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
 import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
+import {MultiselectInput} from '../../widgets/multiselect_input';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -788,14 +789,16 @@ export class WidgetsPage implements m.ClassComponent {
       }),
       m(WidgetShowcase, {
         label: 'Text Input',
-        renderWidget: ({placeholder, ...rest}) =>
+        renderWidget: ({placeholder, leftIcon, ...rest}) =>
           m(TextInput, {
             placeholder: arg(placeholder, 'Placeholder...', ''),
+            leftIcon: arg(leftIcon, 'search'),
             ...rest,
           }),
         initialOpts: {
           placeholder: true,
           disabled: false,
+          leftIcon: true,
         },
       }),
       m(WidgetShowcase, {
@@ -942,6 +945,13 @@ export class WidgetsPage implements m.ClassComponent {
           icon: true,
           showNumSelected: true,
           repeatCheckedItemsAtTop: false,
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'MultiselectInput',
+        description: `Tag input with options`,
+        renderWidget: () => {
+          return m(MultiselectInputDemo);
         },
       }),
       m(WidgetShowcase, {
@@ -1588,6 +1598,34 @@ function CursorTooltipShowcase() {
         'Hover here...',
         show && m(CursorTooltip, 'Hi!'),
       );
+    },
+  };
+}
+
+function MultiselectInputDemo() {
+  const options = [
+    'foo',
+    'bar',
+    'baz',
+    'qux',
+    'quux',
+    'corge',
+    'grault',
+    'garply',
+    'waldo',
+    'fred',
+  ];
+  let selectedOptions: string[] = [];
+  return {
+    view() {
+      return m(MultiselectInput, {
+        options: options.map((o) => ({key: o, label: o})),
+        selectedOptions,
+        onOptionAdd: (key) => selectedOptions.push(key),
+        onOptionRemove: (key) => {
+          selectedOptions = selectedOptions.filter((x) => x !== key);
+        },
+      });
     },
   };
 }

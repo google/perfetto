@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -44,12 +45,14 @@ class LegacyV8CpuProfileTracker {
 
   // Adds the callsite with for the given session and pid and given raw callsite
   // id.
-  base::Status AddCallsite(uint64_t session_id,
-                           uint32_t pid,
-                           uint32_t raw_callsite_id,
-                           std::optional<uint32_t> parent_raw_callsite_id,
-                           base::StringView script_url,
-                           base::StringView function_name);
+  base::Status AddCallsite(
+      uint64_t session_id,
+      uint32_t pid,
+      uint32_t raw_callsite_id,
+      std::optional<uint32_t> parent_raw_callsite_id,
+      base::StringView script_url,
+      base::StringView function_name,
+      const std::vector<uint32_t>& raw_children_callsite_ids);
 
   // Increments the current timestamp for the given session and pid by
   // |delta_ts| and returns the resulting full timestamp.
@@ -69,6 +72,7 @@ class LegacyV8CpuProfileTracker {
   struct State {
     int64_t ts;
     base::FlatHashMap<uint32_t, CallsiteId> callsites;
+    base::FlatHashMap<uint32_t, uint32_t> callsite_inferred_parents;
     DummyMemoryMapping* mapping;
   };
   struct Hasher {

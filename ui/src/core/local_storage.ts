@@ -12,32 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-settings-page {
-  overflow: auto;
+import {Storage} from './storage';
 
-  &__header {
-    position: sticky;
-    top: 0;
-    padding-bottom: 6px;
-    padding-top: 10px;
-    z-index: 1;
-    background-color: white;
+export class LocalStorage implements Storage {
+  constructor(private readonly key: string) {}
 
-    &--stuck {
-      box-shadow: 0px 1px 2px 1px #00000026;
+  load(): Record<string, unknown> {
+    const s = localStorage.getItem(this.key);
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(s ?? '{}');
+    } catch (e) {
+      return {};
     }
+    if (typeof parsed !== 'object' || parsed === null) {
+      return {};
+    }
+    return parsed;
   }
 
-  &__centred {
-    width: 700px;
-    margin-inline: auto;
-  }
-
-  &__title {
-    font-size: 18px;
-    font-weight: 500;
-    padding-bottom: 12px;
-    padding-top: 24px;
-    text-transform: uppercase;
+  save(o: Record<string, unknown>): void {
+    const s = JSON.stringify(o);
+    localStorage.setItem(this.key, s);
   }
 }

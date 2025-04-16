@@ -628,8 +628,45 @@ public class PerfettoTraceTest {
     assertThat(hasTrackEvent).isTrue();
     assertThat(mCategoryNames).contains(BAR);
 
-    assertThat(mDebugAnnotationNames).contains("after");
-    assertThat(mDebugAnnotationNames).doesNotContain("before");
+    assertThat(mDebugAnnotationNames).containsExactly("after");
+  }
+
+  @Test
+  public void testDisabledCategory() throws Exception {
+    class DisabledCategory extends Category {
+      public DisabledCategory(String name) {
+        super(name);
+      }
+
+      @Override
+      public boolean isEnabled() {
+        return false;
+      }
+    }
+
+    Category disabledFooCategory = new DisabledCategory("DisabledFoo");
+
+    TraceConfig traceConfig = getTraceConfig(List.of(FOO, "DisabledFoo"));
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.instant(disabledFooCategory, "disabledEvent").addArg("disabledArg", 1).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "event").addArg("arg", 1).emit();
+
+    byte[] traceBytes = session.close();
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    boolean hasTrackEvent = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackEvent()) {
+        hasTrackEvent = true;
+      }
+      collectInternedData(packet);
+    }
+
+    assertThat(hasTrackEvent).isTrue();
+    assertThat(mCategoryNames).containsExactly(FOO);
+    assertThat(mEventNames).containsExactly("event");
+    assertThat(mDebugAnnotationNames).containsExactly("arg");
   }
 
   private TrackEvent getTrackEvent(Trace trace, int idx) {
@@ -645,11 +682,13 @@ public class PerfettoTraceTest {
     return null;
   }
 
-  private TraceConfig getTraceConfig(String enableCategory, List<String> enableTags) {
+  private TraceConfig getTraceConfig(List<String> enableCategories, List<String> enableTags) {
     BufferConfig bufferConfig = BufferConfig.newBuilder().setSizeKb(1024).build();
     TrackEventConfig.Builder trackEventConfigBuilder = TrackEventConfig.newBuilder();
-    if (enableCategory != null) {
-      trackEventConfigBuilder.addEnabledCategories(enableCategory);
+    if (enableCategories != null) {
+      for (String category : enableCategories) {
+        trackEventConfigBuilder.addEnabledCategories(category);
+      }
     }
     if (enableTags != null) {
       for (String tag : enableTags) {
@@ -670,7 +709,11 @@ public class PerfettoTraceTest {
   }
 
   private TraceConfig getTraceConfig(String enableCategory) {
-    return getTraceConfig(enableCategory, null);
+    return getTraceConfig(List.of(enableCategory));
+  }
+
+  private TraceConfig getTraceConfig(List<String> enableCategories) {
+    return getTraceConfig(enableCategories, null);
   }
 
   private TraceConfig getTriggerTraceConfig(String cat, String triggerName) {

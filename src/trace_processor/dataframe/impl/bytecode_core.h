@@ -25,6 +25,7 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -67,6 +68,42 @@ struct Bytecode {
 };
 static_assert(std::is_trivially_copyable_v<Bytecode>);
 static_assert(sizeof(Bytecode) <= 32);
+
+// Indicates that the bytecode has a fixed cost.
+struct FixedCost {
+  double cost;
+};
+
+// Indicates that the bytecode has `cost` multiplied by `log2(estimated row
+// count)`.
+struct LogPerRowCost {
+  double cost;
+};
+
+// Indicates that the bytecode has `cost` multiplied by `estimated row count`.
+struct LinearPerRowCost {
+  double cost;
+};
+
+// Indicates that the bytecode has `cost` multiplied by `log2(estimated row
+// count) * estimated row count`.
+struct LogLinearPerRowCost {
+  double cost;
+};
+
+// Indicates that the bytecode has `cost` multiplied by the `estimated row
+// count` *after* the operation completes (as opposed to `LinearPerRowCost`
+// which is *before* the operation completes).
+struct PostOperationLinearPerRowCost {
+  double cost;
+};
+
+// A variant used to specify the cost of a bytecode operation.
+using Cost = std::variant<FixedCost,
+                          LogPerRowCost,
+                          LinearPerRowCost,
+                          LogLinearPerRowCost,
+                          PostOperationLinearPerRowCost>;
 
 // Bytecode with one template parameter for dispatching.
 template <typename TypeSet1>
