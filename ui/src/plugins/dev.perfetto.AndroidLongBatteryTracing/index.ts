@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {z} from 'zod';
+import {App} from '../../public/app';
 import {Trace} from '../../public/trace';
+import {Setting} from '../../public/settings';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
@@ -833,9 +836,22 @@ const BT_ACTIVITY = `
   from step2
 `;
 
+let ignoreAllowlist: Setting<boolean> | undefined;
+
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidLongBatteryTracing';
   private readonly groups = new Map<string, TrackNode>();
+
+  static onActivate(app: App) {
+    ignoreAllowlist = app.settings.register({
+      id: 'dev.perfetto.AndroidLongBatteryTracing#ignoreAllowlist',
+      name: 'Ignore AndroidLongBatteryTracing Session Allowlist',
+      description:
+        'When true, the AndroidLongBatteryTracing plugin will run regardless of session type. This may result in partial or misleading data.',
+      schema: z.boolean(),
+      defaultValue: false,
+    });
+  }
 
   private addTrack(ctx: Trace, track: TrackNode, groupName?: string): void {
     if (groupName) {
@@ -1705,7 +1721,10 @@ export default class implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    if (await this.isAllowListedTrace(ctx.engine)) {
+    if (
+      (await this.isAllowListedTrace(ctx.engine)) ||
+      ignoreAllowlist?.get() === true
+    ) {
       await this.addTracks(ctx);
     }
   }
