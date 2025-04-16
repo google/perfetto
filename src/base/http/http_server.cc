@@ -81,10 +81,7 @@ void HttpServer::ListenOnIpV6(const std::string& ip_addr) {
 }
 
 void HttpServer::Start(const std::string& listen_ip, int port) {
-  std::string ip = listen_ip;
-  if (listen_ip.empty()) {
-    ip = "0.0.0.0";
-  }
+  std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   std::string port_str = std::to_string(port);
   std::vector<NetAddrInfo> addr_infos = GetNetAddrInfo(ip, port_str);
   for (NetAddrInfo& info : addr_infos) {

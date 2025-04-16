@@ -751,7 +751,7 @@ General purpose:
 Behavioural:
  -D, --httpd                          Enables the HTTP RPC server.
  --http-port PORT                     Specify what port to run HTTP RPC server.
- --http-ip ip                         Specify what ip address to run HTTP RPC server.
+ --http-ip-address ip                 Specify what ip address to run HTTP RPC server.
  --stdiod                             Enables the stdio RPC server.
  -i, --interactive                    Starts interactive mode even after
                                       executing some other commands (-q, -Q,
