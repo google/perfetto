@@ -87,7 +87,7 @@ class TypeSet {
   uint32_t index() const { return type_idx_; }
 
   template <typename T>
-  bool Is() const {
+  constexpr bool Is() const {
     return type_idx_ == GetTypeIndex<T>();
   }
 
