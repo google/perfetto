@@ -934,7 +934,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
       {"httpd", no_argument, nullptr, 'D'},
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
-      {"http-ip", required_argument, nullptr, OPT_HTTP_IP},
+      {"http-ip-address", required_argument, nullptr, OPT_HTTP_IP},
       {"stdiod", no_argument, nullptr, OPT_STDIOD},
       {"interactive", no_argument, nullptr, 'i'},
 
