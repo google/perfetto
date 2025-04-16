@@ -22,7 +22,7 @@
 namespace perfetto {
 namespace jni {
 
-int register_android_os_PerfettoTrackEventExtra(JNIEnv* env);
+int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env);
 
 }  // namespace jni
 }  // namespace perfetto
