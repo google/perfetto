@@ -15,7 +15,7 @@
 import {Time} from '../../base/time';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {Trace} from '../../public/trace';
-import {SourceDataset} from '../../trace_processor/dataset';
+import {PartitionedDataset, SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {
   HeapProfileFlamegraphDetailsPanel,
@@ -25,21 +25,26 @@ import {
 export function createHeapProfileTrack(
   trace: Trace,
   uri: string,
-  tableName: string,
+  sourceDataset: SourceDataset<{
+    id: number;
+    ts: bigint;
+    type: string;
+    upid: number;
+  }>,
   upid: number,
   heapProfileIsIncomplete: boolean,
 ) {
   return new DatasetSliceTrack({
     trace,
     uri,
-    dataset: new SourceDataset({
-      src: tableName,
+    dataset: new PartitionedDataset({
+      base: sourceDataset,
       schema: {
         ts: LONG,
         type: STR,
         id: NUM,
       },
-      filter: {
+      partition: {
         col: 'upid',
         eq: upid,
       },

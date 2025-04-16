@@ -23,8 +23,20 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
-import {SourceDataset} from '../../trace_processor/dataset';
+import {PartitionedDataset, SourceDataset} from '../../trace_processor/dataset';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
+
+const gpuSliceTable = new SourceDataset({
+  src: 'gpu_slice',
+  schema: {
+    id: NUM,
+    name: STR,
+    ts: LONG,
+    dur: LONG,
+    depth: NUM,
+    upid: NUM,
+  },
+});
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.GpuByProcess';
@@ -65,8 +77,8 @@ export default class implements PerfettoPlugin {
         track: new DatasetSliceTrack({
           trace: ctx,
           uri,
-          dataset: new SourceDataset({
-            src: 'gpu_slice',
+          dataset: new PartitionedDataset({
+            base: gpuSliceTable,
             schema: {
               id: NUM,
               name: STR,
@@ -75,7 +87,7 @@ export default class implements PerfettoPlugin {
               depth: NUM,
               upid: NUM,
             },
-            filter: {
+            partition: {
               col: 'upid',
               eq: upid,
             },

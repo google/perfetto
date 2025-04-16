@@ -182,7 +182,7 @@ export class SelectionAggregationManager {
       );
 
     if (filteredDatasets.length === 0) return undefined;
-    return new UnionDataset(filteredDatasets).optimize();
+    return new UnionDataset(filteredDatasets);
   }
 
   private async getSum(tableName: string, def: ColumnDef): Promise<string> {

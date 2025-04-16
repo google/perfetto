@@ -86,11 +86,11 @@ export async function createVisualizedArgsTrack({
         name: STR,
         thread_dur: LONG_NULL,
       },
-      src: viewName,
-      filter: {
-        col: 'track_id',
-        eq: trackId,
-      },
+      src: `
+        SELECT *
+        FROM ${viewName}
+        WHERE track_id = ${trackId}
+      `,
     }),
     initialMaxDepth: maxDepth,
     detailsPanel: () => new ThreadSliceDetailsPanel(trace),

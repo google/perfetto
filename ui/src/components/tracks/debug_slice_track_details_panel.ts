@@ -39,6 +39,7 @@ import {sliceRef} from '../widgets/slice';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {SqlRef} from '../../widgets/sql_ref';
+import {Dataset} from '../../trace_processor/dataset';
 
 export const ARG_PREFIX = 'arg_';
 
@@ -84,7 +85,12 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
 
   constructor(
     private readonly trace: Trace,
-    private readonly tableName: string,
+    private readonly dataset: Dataset<{
+      id: number;
+      ts: bigint;
+      dur: bigint;
+      name: string;
+    }>,
     private readonly eventId: number,
   ) {}
 
@@ -183,7 +189,7 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
 
   async load() {
     const queryResult = await this.trace.engine.query(
-      `select * from ${this.tableName} where id = ${this.eventId}`,
+      `select * from (${this.dataset.query()}) where id = ${this.eventId}`,
     );
     const row = queryResult.firstRow({
       ts: LONG,
@@ -231,7 +237,7 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
       'Name': this.data['name'] as string,
       'Start time': m(Timestamp, {ts: timeFromSql(this.data['ts'])}),
       'Duration': m(DurationWidget, {dur: durationFromSql(this.data['dur'])}),
-      'SQL ID': m(SqlRef, {table: this.tableName, id: this.eventId}),
+      'SQL ID': m(SqlRef, {table: this.dataset.query(), id: this.eventId}),
     });
     details.push(this.renderThreadStateInfo());
     details.push(this.renderSliceInfo());

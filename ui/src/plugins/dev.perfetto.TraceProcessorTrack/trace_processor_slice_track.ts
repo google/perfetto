@@ -22,7 +22,7 @@ import {
 } from '../../components/tracks/dataset_slice_track';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
-import {SourceDataset} from '../../trace_processor/dataset';
+import {PartitionedDataset, SourceDataset} from '../../trace_processor/dataset';
 import {
   LONG,
   LONG_NULL,
@@ -31,12 +31,36 @@ import {
 } from '../../trace_processor/query_result';
 import m from 'mithril';
 
+const schema = {
+  id: NUM,
+  ts: LONG,
+  dur: LONG,
+  name: STR_NULL,
+  depth: NUM,
+  thread_dur: LONG_NULL,
+  category: STR_NULL,
+  track_id: NUM,
+};
+type BaseDatasetType = typeof schema;
+
+const trackDatasetSchema = {
+  id: NUM,
+  ts: LONG,
+  dur: LONG,
+  name: STR_NULL,
+  depth: NUM,
+  thread_dur: LONG_NULL,
+  category: STR_NULL,
+};
+type TrackDatasetType = typeof trackDatasetSchema;
+
 export interface TraceProcessorSliceTrackAttrs {
   readonly trace: Trace;
   readonly uri: string;
   readonly maxDepth?: number;
   readonly trackIds: ReadonlyArray<number>;
   readonly detailsPanel?: (row: {id: number}) => TrackEventDetailsPanel;
+  readonly sliceTable?: SourceDataset<BaseDatasetType>;
 }
 
 export function createTraceProcessorSliceTrack({
@@ -45,26 +69,12 @@ export function createTraceProcessorSliceTrack({
   maxDepth,
   trackIds,
   detailsPanel,
+  sliceTable,
 }: TraceProcessorSliceTrackAttrs) {
   return new DatasetSliceTrack({
     trace,
     uri,
-    dataset: new SourceDataset({
-      schema: {
-        id: NUM,
-        ts: LONG,
-        dur: LONG,
-        name: STR_NULL,
-        depth: NUM,
-        thread_dur: LONG_NULL,
-        category: STR_NULL,
-      },
-      src: 'slice',
-      filter: {
-        col: 'track_id',
-        in: trackIds,
-      },
-    }),
+    dataset: makeDataset(sliceTable, trackIds),
     sliceName: (row) => (row.name === null ? '[null]' : row.name),
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
@@ -87,6 +97,38 @@ export function createTraceProcessorSliceTrack({
       ? (row) => detailsPanel(row)
       : () => new ThreadSliceDetailsPanel(trace),
   });
+}
+
+function makeDataset(
+  sliceTable: SourceDataset<BaseDatasetType> | undefined,
+  trackIds: ReadonlyArray<number>,
+):
+  | PartitionedDataset<TrackDatasetType, BaseDatasetType>
+  | SourceDataset<TrackDatasetType> {
+  return sliceTable
+    ? new PartitionedDataset({
+        base: sliceTable,
+        partition: {
+          col: 'track_id',
+          in: trackIds,
+        },
+        schema: trackDatasetSchema,
+      })
+    : new SourceDataset({
+        src: `
+          SELECT
+            id,
+            ts,
+            dur,
+            name,
+            depth,
+            thread_dur,
+            category
+          FROM slice
+          WHERE track_id IN (${trackIds.join(',')})
+        `,
+        schema: trackDatasetSchema,
+      });
 }
 
 function getDepthProvider(trackIds: ReadonlyArray<number>) {

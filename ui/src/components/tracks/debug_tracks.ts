@@ -14,9 +14,19 @@
 
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {SourceDataset} from '../../trace_processor/dataset';
+import {
+  DatasetSchema,
+  PartitionedDataset,
+  SourceDataset,
+} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  SqlValue,
+  STR,
+  UNKNOWN,
+} from '../../trace_processor/query_result';
 import {
   createPerfettoTable,
   sqlValueToReadableString,
@@ -80,29 +90,67 @@ export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
   const titleBase = args.title?.trim() || `Debug Slice Track ${tableId}`;
   const uriBase = `debug.track${tableId}`;
 
-  // Create a table for this query before doing anything
-  await createTableForSliceTrack(
-    args.trace.engine,
-    tableName,
-    args.data,
-    args.columns,
-    args.argColumns,
-    args.pivotOn,
-  );
-
   if (args.pivotOn) {
+    // If we are pivoting, create a table with the pivot column
+    const sourceDatasetWithPivot = await createTableForSliceTrack(
+      args.trace.engine,
+      tableName,
+      args.data,
+      args.columns,
+      args.argColumns,
+      args.pivotOn,
+    );
+
     await addPivotedSliceTracks(
       args.trace,
-      tableName,
+      sourceDatasetWithPivot,
       titleBase,
       uriBase,
       args.pivotOn,
     );
   } else {
-    addSingleSliceTrack(args.trace, tableName, titleBase, uriBase);
+    const sourceDataset = await createTableForSliceTrack(
+      args.trace.engine,
+      tableName,
+      args.data,
+      args.columns,
+      args.argColumns,
+    );
+
+    addSingleSliceTrack(args.trace, sourceDataset, titleBase, uriBase);
   }
 }
 
+type BaseSliceTrackSchema = {
+  id: number;
+  ts: bigint;
+  dur: bigint;
+  name: string;
+} & DatasetSchema;
+
+// If we pass a pivot column, the resulting dataset will have it in its schema.
+// If not, just the base schema will be provided.
+function createTableForSliceTrack(
+  engine: Engine,
+  tableName: string,
+  data: SqlDataSource,
+  columns?: Partial<SliceColumnMapping>,
+  argColumns?: string[],
+): Promise<SourceDataset<BaseSliceTrackSchema>>;
+function createTableForSliceTrack(
+  engine: Engine,
+  tableName: string,
+  data: SqlDataSource,
+  columns?: Partial<SliceColumnMapping>,
+  argColumns?: string[],
+  pivotCol?: string,
+): Promise<
+  SourceDataset<
+    BaseSliceTrackSchema & {
+      pivot: SqlValue;
+    }
+  >
+>;
 async function createTableForSliceTrack(
   engine: Engine,
   tableName: string,
@@ -146,19 +194,42 @@ async function createTableForSliceTrack(
     order by ts
   `;
 
-  return await createPerfettoTable(engine, tableName, query);
+  await createPerfettoTable(engine, tableName, query);
+
+  const schema: {[key: string]: SqlValue} = {
+    id: NUM,
+    ts: LONG,
+    dur: LONG,
+    name: STR,
+  };
+
+  // If we have a pivot column, add a 'pivot' column to the schema
+  if (pivotCol) {
+    schema['pivot'] = UNKNOWN;
+  }
+
+  return new SourceDataset({
+    schema: schema,
+    src: tableName,
+  });
 }
 
 async function addPivotedSliceTracks(
   trace: Trace,
-  tableName: string,
+  dataset: SourceDataset<{
+    id: number;
+    ts: bigint;
+    dur: bigint;
+    name: string;
+    pivot: SqlValue;
+  }>,
   titleBase: string,
   uriBase: string,
   pivotColName: string,
 ) {
   const result = await trace.engine.query(`
     SELECT DISTINCT pivot
-    FROM ${tableName}
+    FROM (${dataset.query()})
     ORDER BY pivot
   `);
 
@@ -174,21 +245,21 @@ async function addPivotedSliceTracks(
       track: new DatasetSliceTrack({
         trace,
         uri,
-        dataset: new SourceDataset({
+        dataset: new PartitionedDataset({
+          base: dataset,
           schema: {
             id: NUM,
             ts: LONG,
             dur: LONG,
             name: STR,
           },
-          src: tableName,
-          filter: {
+          partition: {
             col: 'pivot',
             eq: pivotValue,
           },
         }),
         detailsPanel: (row) => {
-          return new DebugSliceTrackDetailsPanel(trace, tableName, row.id);
+          return new DebugSliceTrackDetailsPanel(trace, dataset, row.id);
         },
       }),
     });
@@ -200,7 +271,7 @@ async function addPivotedSliceTracks(
 
 function addSingleSliceTrack(
   trace: Trace,
-  tableName: string,
+  dataset: SourceDataset<{id: number; ts: bigint; dur: bigint; name: string}>,
   title: string,
   uri: string,
 ) {
@@ -210,17 +281,9 @@ function addSingleSliceTrack(
     track: new DatasetSliceTrack({
       trace,
       uri,
-      dataset: new SourceDataset({
-        schema: {
-          id: NUM,
-          ts: LONG,
-          dur: LONG,
-          name: STR,
-        },
-        src: tableName,
-      }),
+      dataset,
       detailsPanel: (row) => {
-        return new DebugSliceTrackDetailsPanel(trace, tableName, row.id);
+        return new DebugSliceTrackDetailsPanel(trace, dataset, row.id);
       },
     }),
   });

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {LONG, NUM} from '../../trace_processor/query_result';
+import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {getColorForSample} from '../../components/colorizer';
 import {
   metricsFromTableOrSubquery,
@@ -25,9 +25,31 @@ import {Time, time} from '../../base/time';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {Trace} from '../../public/trace';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
-import {SourceDataset} from '../../trace_processor/dataset';
+import {PartitionedDataset, SourceDataset} from '../../trace_processor/dataset';
 
 // TODO(stevegolton): Dedupe this file with instrument_samples_profile_track.ts
+
+const perfSampleTable = new SourceDataset({
+  schema: {
+    id: NUM,
+    ts: LONG,
+    callsiteId: NUM,
+    utid: NUM,
+    upid: NUM_NULL,
+  },
+  src: `
+    SELECT
+      p.id,
+      ts,
+      callsite_id as callsiteId,
+      utid,
+      upid
+    FROM perf_sample p
+    LEFT JOIN thread using (utid)
+    WHERE callsite_id IS NOT NULL
+    ORDER BY ts
+  `,
+});
 
 export function createProcessPerfSamplesProfileTrack(
   trace: Trace,
@@ -37,24 +59,14 @@ export function createProcessPerfSamplesProfileTrack(
   return new DatasetSliceTrack({
     trace,
     uri,
-    dataset: new SourceDataset({
+    dataset: new PartitionedDataset({
+      base: perfSampleTable,
       schema: {
         id: NUM,
         ts: LONG,
         callsiteId: NUM,
       },
-      src: `
-       SELECT
-          p.id,
-          ts,
-          callsite_id as callsiteId,
-          upid
-        FROM perf_sample p
-        JOIN thread using (utid)
-        WHERE callsite_id IS NOT NULL
-        ORDER BY ts
-      `,
-      filter: {
+      partition: {
         col: 'upid',
         eq: upid,
       },
@@ -126,23 +138,14 @@ export function createThreadPerfSamplesProfileTrack(
   return new DatasetSliceTrack({
     trace,
     uri,
-    dataset: new SourceDataset({
+    dataset: new PartitionedDataset({
+      base: perfSampleTable,
       schema: {
         id: NUM,
         ts: LONG,
         callsiteId: NUM,
       },
-      src: `
-        SELECT
-          p.id,
-          ts,
-          callsite_id as callsiteId,
-          utid
-        FROM perf_sample p
-        WHERE callsite_id IS NOT NULL
-        ORDER BY ts
-      `,
-      filter: {
+      partition: {
         col: 'utid',
         eq: utid,
       },

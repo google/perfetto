@@ -20,7 +20,12 @@ import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {Slice} from '../../public/track';
-import {DatasetSchema, SourceDataset} from '../../trace_processor/dataset';
+import {
+  SourceDataset,
+  DatasetSchema,
+  PartitionedDataset,
+  Dataset,
+} from '../../trace_processor/dataset';
 import {ColumnType, LONG, NUM} from '../../trace_processor/query_result';
 import {getColorForSlice} from '../colorizer';
 import {generateSqlWithInternalLayout} from '../sql_utils/layout';
@@ -93,7 +98,7 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
    * - `depth` (NUM): Depth of each event, used for vertical arrangement. Higher
    *   depth values are rendered lower down on the track.
    */
-  readonly dataset: SourceDataset<T>;
+  readonly dataset: SourceDataset<T> | PartitionedDataset<T, T>;
 
   /**
    * An optional initial estimate for the maximum depth value. Helps minimize
@@ -139,7 +144,7 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
    * - dur: LONG
    * - depth: NUM
    */
-  queryGenerator?(dataset: SourceDataset): string;
+  queryGenerator?(dataset: Dataset<T>): string;
 
   /**
    * An optional function to override the color scheme for each event.
@@ -244,7 +249,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
   }
 
   // Generate a query to use for generating slices to be rendered
-  private generateRenderQuery(dataset: SourceDataset<T>) {
+  private generateRenderQuery(dataset: Dataset<T>) {
     if (dataset.implements({dur: LONG, depth: NUM})) {
       // Both depth and dur provided, we can use the dataset as-is.
       return dataset.query();
@@ -299,8 +304,13 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     // In conclusion, if the dataset source has a dur column present (ts, and id
     // are mandatory), then we can take a shortcut and just use this much
     // simpler query to join on.
-    if (this.attrs.dataset.implements({dur: LONG})) {
-      return this.attrs.dataset.src;
+    const dataset = this.attrs.dataset;
+    if (dataset.implements({dur: LONG})) {
+      if (dataset instanceof SourceDataset) {
+        return dataset.src;
+      } else {
+        return dataset.base.src;
+      }
     } else {
       return this.sqlSource;
     }

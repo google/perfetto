@@ -21,13 +21,13 @@ import {MenuItem, PopupMenu} from './menu';
 // This widget provides common styling and popup menu options for a SQL row,
 // given a table name and an ID.
 export interface SqlRefAttrs {
-  // The name of the table our row lives in.
-  table: string;
+  // The table or query our row lives in.
+  readonly table: string;
   // The ID of our row.
   // If not provided, `table[Unknown]` is shown with no popup menu.
-  id?: number | bigint;
+  readonly id?: number | bigint;
   // Optional additional popup menu items.
-  additionalMenuItems?: m.Children;
+  readonly additionalMenuItems?: m.Children;
 }
 
 export class SqlRef implements m.ClassComponent<SqlRefAttrs> {
@@ -37,7 +37,7 @@ export class SqlRef implements m.ClassComponent<SqlRefAttrs> {
       return m(
         PopupMenu,
         {
-          trigger: m(Anchor, {icon: Icons.ContextMenu}, `${table}[${id}]`),
+          trigger: m(Anchor, {icon: Icons.ContextMenu}, `(${table})[${id}]`),
         },
         m(MenuItem, {
           label: 'Copy ID',
@@ -48,12 +48,12 @@ export class SqlRef implements m.ClassComponent<SqlRefAttrs> {
           label: 'Copy SQL query',
           icon: 'file_copy',
           onclick: () =>
-            copyToClipboard(`select * from ${table} where id=${id}`),
+            copyToClipboard(`SELECT * FROM (${table}) where id=${id}`),
         }),
         additionalMenuItems,
       );
     } else {
-      return `${table}[Unknown]`;
+      return `(${table})[Unknown]`;
     }
   }
 }

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {duration, time, TimeSpan} from '../base/time';
-import {Dataset, DatasetSchema} from '../trace_processor/dataset';
+import {DatasetSchema, Dataset} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {ColumnDef, Sorting, ThreadStateExtra} from './aggregation';
 import {Track} from './track';

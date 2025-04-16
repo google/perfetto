@@ -23,7 +23,7 @@ import {
 } from '../public/selection';
 import {TimeSpan} from '../base/time';
 import {raf} from './raf_scheduler';
-import {exists, getOrCreate} from '../base/utils';
+import {exists} from '../base/utils';
 import {TrackManagerImpl} from './track_manager';
 import {Engine} from '../trace_processor/engine';
 import {ScrollHelper} from './scroll_helper';
@@ -33,9 +33,8 @@ import {AsyncLimiter} from '../base/async_limiter';
 import m from 'mithril';
 import {SerializedSelection} from './state_serialization_schema';
 import {showModal} from '../widgets/modal';
-import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
-import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
-import {Track} from '../public/track';
+import {buildTrackGroups} from './dataset_search';
+import {NUM} from '../trace_processor/query_result';
 
 interface SelectionDetailsPanel {
   isLoading: boolean;
@@ -227,80 +226,49 @@ export class SelectionManagerImpl implements SelectionManager {
     sqlTableName: string,
     id: number,
   ): Promise<{eventId: number; trackUri: string} | undefined> {
-    // This function:
-    // 1. Find the list of tracks whose rootTableName is the same as the one we
-    //    are looking for
-    // 2. Groups them by their filter column - i.e. utid, cpu, or track_id.
-    // 3. Builds a map of which of these column values match which track.
-    // 4. Run one query per group, reading out the filter column value, and
-    //    looking up the originating track in the map.
-    // One flaw of this approach is that.
-    const groups = new Map<string, [SourceDataset, Track][]>();
-    const tracksWithNoFilter: [SourceDataset, Track][] = [];
-
-    this.trackManager
+    // Find all the tracks whose root table = sqlTableName
+    const tracks = this.trackManager
       .getAllTracks()
-      .filter((track) => track.track.rootTableName === sqlTableName)
-      .map((track) => {
-        const dataset = track.track.getDataset?.();
-        if (!dataset) return undefined;
-        return [dataset, track] as const;
-      })
-      .filter(exists)
-      .filter(([dataset]) => dataset.implements({id: NUM}))
-      .forEach(([dataset, track]) => {
-        const col = dataset.filter?.col;
-        if (col) {
-          const existingGroup = getOrCreate(groups, col, () => []);
-          existingGroup.push([dataset, track]);
-        } else {
-          tracksWithNoFilter.push([dataset, track]);
+      .filter((track) => track.track.rootTableName === sqlTableName);
+
+    const trackGroups = buildTrackGroups(tracks);
+
+    // For each track group, if the base dataset implements {id: NUM}, then we
+    // can use it
+    for (const [base, group] of trackGroups) {
+      if (base.implements({id: NUM})) {
+        const partitionCols = Array.from(group.partitioned.keys());
+        const query = `
+          SELECT
+            ${partitionCols.join(',')}
+          FROM (${base.query()})
+          WHERE id = ${id}
+        `;
+        const result = await this.engine.query(query);
+        const partitionColSchema = Object.fromEntries(
+          partitionCols.map((key) => [key, base.schema[key]]),
+        );
+        const iter = result.iter(partitionColSchema);
+        for (; iter.valid(); iter.next()) {
+          // Find the track that matches this partition
+          // Add results for matching partitioned tracks
+          for (const colName of partitionCols) {
+            const partitionValue = iter.get(colName);
+            const tracks = group.partitioned.get(colName)?.get(partitionValue);
+
+            if (tracks) {
+              for (const track of tracks) {
+                return {eventId: id, trackUri: track.uri};
+              }
+            }
+          }
+
+          // Add results for non-partitioned tracks (they match any row from the
+          // source)
+          for (const track of group.nonPartitioned) {
+            return {eventId: id, trackUri: track.uri};
+          }
         }
-      });
-
-    // Run one query per no-filter track. This is the only way we can reliably
-    // keep track of which track the event belonged to.
-    for (const [dataset, track] of tracksWithNoFilter) {
-      const query = `select id from (${dataset.query()}) where id = ${id}`;
-      const result = await this.engine.query(query);
-      if (result.numRows() > 0) {
-        return {eventId: id, trackUri: track.uri};
-      }
-    }
-
-    for (const [colName, values] of groups) {
-      // Build a map of the values -> track uri
-      const map = new Map<SqlValue, string>();
-      values.forEach(([dataset, track]) => {
-        const filter = dataset.filter;
-        if (filter) {
-          if ('eq' in filter) map.set(filter.eq, track.uri);
-          if ('in' in filter) filter.in.forEach((v) => map.set(v, track.uri));
-        }
-      });
-
-      const datasets = values.map(([dataset]) => dataset);
-      const union = new UnionDataset(datasets).optimize();
-
-      // Make sure to include the filter value in the schema.
-      const schema = {...union.schema, [colName]: UNKNOWN};
-      const query = `select * from (${union.query(schema)}) where id = ${id}`;
-      const result = await this.engine.query(query);
-
-      const row = result.iter(union.schema);
-      const value = row.get(colName);
-
-      let trackUri = map.get(value);
-
-      // If that didn't work, try converting the value to a number if it's a
-      // bigint. Unless specified as a NUM type, any integers on the wire will
-      // be parsed as a bigint to avoid losing precision.
-      if (trackUri === undefined && typeof value === 'bigint') {
-        trackUri = map.get(Number(value));
-      }
-
-      if (trackUri) {
-        return {eventId: id, trackUri};
       }
     }
 
