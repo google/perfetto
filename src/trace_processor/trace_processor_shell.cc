@@ -705,8 +705,8 @@ struct CommandLineOptions {
 
   std::string query_file_path;
   std::string query_string;
-  std::vector<std::string> sql_module_paths;
-  std::vector<std::string> override_sql_module_paths;
+  std::vector<std::string> sql_package_paths;
+  std::vector<std::string> override_sql_package_paths;
 
   bool summary = false;
   std::string summary_metrics_v2;
@@ -777,7 +777,7 @@ PerfettoSQL:
  --add-sql-package PACKAGE_PATH       Files from the directory will be treated
                                       as a new SQL package and can be used for
                                       INCLUDE PERFETTO MODULE statements. The
-                                      name of the directory is the module name.
+                                      name of the directory is the package name.
  --override-sql-package PACKAGE_PATH  Will override trace processor package with
                                       passed contents. The outer directory will
                                       specify the package name.
@@ -1098,12 +1098,12 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     }
 
     if (option == OPT_ADD_SQL_PACKAGE) {
-      command_line_options.sql_module_paths.emplace_back(optarg);
+      command_line_options.sql_package_paths.emplace_back(optarg);
       continue;
     }
 
     if (option == OPT_OVERRIDE_SQL_PACKAGE) {
-      command_line_options.override_sql_module_paths.emplace_back(optarg);
+      command_line_options.override_sql_package_paths.emplace_back(optarg);
       continue;
     }
 
@@ -1354,14 +1354,14 @@ base::Status IncludeSqlPackage(std::string root, bool allow_override) {
   if (!base::FileExists(root))
     return base::ErrStatus("Directory %s does not exist.", root.c_str());
 
-  // Get module name
+  // Get package name
   size_t last_slash = root.rfind('/');
   if ((last_slash == std::string::npos) ||
       (root.find('.') != std::string::npos))
-    return base::ErrStatus("Module path must point to the directory: %s",
+    return base::ErrStatus("Package path must point to the directory: %s",
                            root.c_str());
 
-  std::string module_name = root.substr(last_slash + 1);
+  std::string package_name = root.substr(last_slash + 1);
 
   std::vector<std::string> paths;
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
@@ -1376,8 +1376,8 @@ base::Status IncludeSqlPackage(std::string root, bool allow_override) {
       return base::ErrStatus("Cannot read file %s", filename.c_str());
 
     std::string import_key =
-        module_name + "." + sql_modules::GetIncludeKey(path);
-    modules.Insert(module_name, {})
+        package_name + "." + sql_modules::GetIncludeKey(path);
+    modules.Insert(package_name, {})
         .first->push_back({import_key, file_contents});
   }
   for (auto module_it = modules.GetIterator(); module_it; ++module_it) {
@@ -1706,7 +1706,7 @@ base::Status MaybeWriteMetatrace(const std::string& metatrace_path) {
   return base::OkStatus();
 }
 
-base::Status MaybeUpdateSqlModules(const CommandLineOptions& options) {
+base::Status MaybeUpdateSqlPackages(const CommandLineOptions& options) {
   if (!options.override_stdlib_path.empty()) {
     if (!options.dev)
       return base::ErrStatus("Overriding stdlib requires --dev flag");
@@ -1717,21 +1717,21 @@ base::Status MaybeUpdateSqlModules(const CommandLineOptions& options) {
                              status.c_message());
   }
 
-  if (!options.override_sql_module_paths.empty()) {
-    for (const auto& override_sql_module_path :
-         options.override_sql_module_paths) {
-      auto status = IncludeSqlPackage(override_sql_module_path, true);
+  if (!options.override_sql_package_paths.empty()) {
+    for (const auto& override_sql_package_path :
+         options.override_sql_package_paths) {
+      auto status = IncludeSqlPackage(override_sql_package_path, true);
       if (!status.ok())
-        return base::ErrStatus("Couldn't override stdlib module: %s",
+        return base::ErrStatus("Couldn't override stdlib package: %s",
                                status.c_message());
     }
   }
 
-  if (!options.sql_module_paths.empty()) {
-    for (const auto& add_sql_module_path : options.sql_module_paths) {
-      auto status = IncludeSqlPackage(add_sql_module_path, false);
+  if (!options.sql_package_paths.empty()) {
+    for (const auto& add_sql_package_path : options.sql_package_paths) {
+      auto status = IncludeSqlPackage(add_sql_package_path, false);
       if (!status.ok())
-        return base::ErrStatus("Couldn't add SQL module: %s",
+        return base::ErrStatus("Couldn't add SQL package: %s",
                                status.c_message());
     }
   }
@@ -1826,7 +1826,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
   g_tp = tp.get();
 
-  RETURN_IF_ERROR(MaybeUpdateSqlModules(options));
+  RETURN_IF_ERROR(MaybeUpdateSqlPackages(options));
 
   // Enable metatracing as soon as possible.
   if (!options.metatrace_path.empty()) {
