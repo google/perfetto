@@ -2711,6 +2711,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/chrome/chrome_performance_mark_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_reliable_range.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_v3.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_slice_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_stack_samples_for_task.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_study_hashes.sql",

@@ -30,6 +30,7 @@ from diff_tests.metrics.camera.tests import Camera
 from diff_tests.metrics.chrome.tests import ChromeMetrics
 from diff_tests.metrics.chrome.tests_args import ChromeArgs
 from diff_tests.metrics.chrome.tests_processes import ChromeProcesses
+from diff_tests.metrics.chrome.tests_scroll_jank import ChromeScrollJankMetrics
 from diff_tests.metrics.codecs.tests import Codecs
 from diff_tests.metrics.common.tests import CloneDurationMetrics
 from diff_tests.metrics.frame_timeline.tests import FrameTimeline
@@ -238,6 +239,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       ChromeArgs,
       ChromeMetrics,
       ChromeProcesses,
+      ChromeScrollJankMetrics,
       Codecs,
       FrameTimeline,
       GraphicsMetrics,
