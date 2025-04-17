@@ -69,6 +69,16 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_DataSourceConfig, SessionInitiator){
                                   SESSION_INITIATOR_TRUSTED_SYSTEM) = 1,
 };
 
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_DataSourceConfig,
+                        BufferExhaustedPolicy){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_DataSourceConfig,
+                                  BUFFER_EXHAUSTED_DROP) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_DataSourceConfig,
+                                  BUFFER_EXHAUSTED_STALL) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_DataSourceConfig,
+                                  BUFFER_EXHAUSTED_STALL_THEN_DROP) = 2,
+};
+
 PERFETTO_PB_MSG(perfetto_protos_DataSourceConfig);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   STRING,
@@ -110,6 +120,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   uint64_t,
                   tracing_session_id,
                   4);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  VARINT,
+                  enum perfetto_protos_DataSourceConfig_BufferExhaustedPolicy,
+                  buffer_exhausted_policy,
+                  9);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_FtraceConfig,

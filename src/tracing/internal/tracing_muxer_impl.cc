@@ -161,6 +161,18 @@ struct CompareBackendByType {
   }
 };
 
+BufferExhaustedPolicy ParseBufferExhaustedPolicy(const DataSourceConfig& cfg) {
+  switch (cfg.buffer_exhausted_policy()) {
+    case DataSourceConfig::BUFFER_EXHAUSTED_DROP:
+      return BufferExhaustedPolicy::kDrop;
+    case DataSourceConfig::BUFFER_EXHAUSTED_STALL:
+      return BufferExhaustedPolicy::kStall;
+    case DataSourceConfig::BUFFER_EXHAUSTED_STALL_THEN_DROP:
+      return BufferExhaustedPolicy::kStallThenDrop;
+  }
+  return BufferExhaustedPolicy::kDrop;
+}
+
 }  // namespace
 
 // ----- Begin of TracingMuxerImpl::ProducerImpl
@@ -1229,6 +1241,8 @@ static bool MaybeAdoptStartupTracingInDataSource(
         internal_state->data_source_instance_id = instance_id;
         internal_state->buffer_id =
             static_cast<internal::BufferId>(cfg.target_buffer());
+        internal_state->buf_policy_from_config =
+            ParseBufferExhaustedPolicy(cfg);
         internal_state->config.reset(new DataSourceConfig(cfg));
 
         // TODO(eseckler): Should the data source config provided by the service
@@ -1350,6 +1364,7 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     internal_state->data_source_instance_id = instance_id;
     internal_state->buffer_id =
         static_cast<internal::BufferId>(cfg.target_buffer());
+    internal_state->buf_policy_from_config = ParseBufferExhaustedPolicy(cfg);
     internal_state->config.reset(new DataSourceConfig(cfg));
     internal_state->startup_session_id = startup_session_id;
     internal_state->data_source = rds.factory();
