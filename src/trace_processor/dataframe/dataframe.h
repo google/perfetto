@@ -165,9 +165,11 @@ class Dataframe {
         string_pool_(string_pool) {}
 
   // The names of all columns.
+  // `column_names_` and `columns_` should always have the same size.
   impl::FixedVector<std::string, impl::kMaxColumns> column_names_;
 
   // Internal storage for columns in the dataframe.
+  // `column_names_` and `columns_` should always have the same size.
   impl::FixedVector<impl::Column, impl::kMaxColumns> columns_;
 
   // Number of rows in the dataframe.

@@ -101,7 +101,7 @@ class RuntimeDataframeBuilder {
   //         valid for the lifetime of the builder and the resulting
   //         Dataframe.
   RuntimeDataframeBuilder(std::vector<std::string> names, StringPool* pool)
-      : string_pool_(pool), column_state_(names.size()) {
+      : string_pool_(pool), column_states_(names.size()) {
     for (auto& name : names) {
       column_names_.emplace_back(std::move(name));
     }
@@ -149,7 +149,7 @@ class RuntimeDataframeBuilder {
     PERFETTO_CHECK(current_status_.ok());
 
     for (uint32_t i = 0; i < column_names_.size(); ++i) {
-      ColumnState& state = column_state_[i];
+      ColumnState& state = column_states_[i];
       typename ValueFetcherImpl::Type fetched_type = fetcher->GetValueType(i);
       switch (fetched_type) {
         case ValueFetcherImpl::kInt64: {
@@ -210,7 +210,7 @@ class RuntimeDataframeBuilder {
     RETURN_IF_ERROR(current_status_);
     impl::FixedVector<impl::Column, impl::kMaxColumns> columns;
     for (uint32_t i = 0; i < column_names_.size(); ++i) {
-      auto& state = column_state_[i];
+      auto& state = column_states_[i];
       switch (state.data.index()) {
         case base::variant_index<DataVariant, std::nullopt_t>():
           columns.emplace_back(impl::Column{
@@ -416,7 +416,7 @@ class RuntimeDataframeBuilder {
   StringPool* string_pool_;
   uint32_t row_count_ = 0;
   impl::FixedVector<std::string, impl::kMaxColumns> column_names_;
-  impl::FixedVector<ColumnState, impl::kMaxColumns> column_state_;
+  impl::FixedVector<ColumnState, impl::kMaxColumns> column_states_;
   base::Status current_status_ = base::OkStatus();
 };
 
