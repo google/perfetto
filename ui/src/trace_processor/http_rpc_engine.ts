@@ -88,8 +88,8 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   private onWebsocketMessage(e: MessageEvent) {
-    const blob = assertExists(e.data as Blob)
-    this.queue.push(blob)
+    const blob = assertExists(e.data as Blob);
+    this.queue.push(blob);
     this.processQueue();
   }
 
@@ -97,10 +97,10 @@ export class HttpRpcEngine extends EngineBase {
     if (this.isProcessing) return;
     this.isProcessing = true;
     while (this.queue.length > 0) {
-        const blob = this.queue.shift();
-        if (!blob) continue;
-        const buf = await blob.arrayBuffer()
-        super.onRpcResponseBytes(new Uint8Array(buf));
+      const blob = this.queue.shift();
+      if (!blob) continue;
+      const buf = await blob.arrayBuffer();
+      super.onRpcResponseBytes(new Uint8Array(buf));
     }
     this.isProcessing = false;
   }
