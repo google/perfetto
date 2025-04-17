@@ -213,11 +213,15 @@ class NullStorage {
 
   // Used for nullable columns where nulls do *not* reserve a slot in `Storage`.
   struct SparseNull {
+    // 1 = non-null element in storage.
+    // 0 = null with no corresponding entry in storage.
     BitVector bit_vector;
   };
 
   // Used for nullable columns where nulls reserve a slot in `Storage`.
   struct DenseNull {
+    // 1 = non-null element in storage.
+    // 0 = null with entry in storage with unspecified value
     BitVector bit_vector;
   };
 

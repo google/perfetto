@@ -28,13 +28,13 @@ namespace perfetto::trace_processor::dataframe::impl {
 // A hybrid class between std::vector and std::array.
 //
 // This class has a fixed inline memory for storing elements (similar to
-// std::array) but has a variable size mark that only part of the array is used.
+// std::array) but has a variable size.
 //
 // Name is inspired by boost::container:fixed_vector.
 template <typename T, size_t kCapacity>
 class FixedVector {
  public:
-  static_assert(kCapacity > 0, "Cannot have empty FixedVector");
+  static_assert(kCapacity > 0, "Cannot have zero capcity FixedVector");
 
   constexpr FixedVector() = default;
 
