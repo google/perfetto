@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {App} from '../../public/app';
 import {Trace} from '../../public/trace';
-import {Setting} from '../../public/settings';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
@@ -836,26 +834,9 @@ const BT_ACTIVITY = `
   from step2
 `;
 
-let enableAllowlist: Setting<boolean> | undefined;
-
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidLongBatteryTracing';
   private readonly groups = new Map<string, TrackNode>();
-
-  static onActivate(app: App) {
-    enableAllowlist = app.settings.register({
-      id: 'dev.perfetto.AndroidLongBatteryTracing#enableAllowlist',
-      name: 'Enable AndroidLongBatteryTracing Session Allowlist',
-      description:
-        'When true, the AndroidLongBatteryTracing plugin first checks ' +
-        'whether the trace has sufficient information, disabling itself on ' +
-        'traces that do not. Disabling this setting can cause the plugin ' +
-        'to report partial or misleading information.',
-      schema: z.boolean(),
-      defaultValue: true,
-      requiresReload: true,
-    });
-  }
 
   private addTrack(ctx: Trace, track: TrackNode, groupName?: string): void {
     if (groupName) {
@@ -1725,10 +1706,20 @@ export default class implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    if (
-      enableAllowlist?.get() === false ||
-      (await this.isAllowListedTrace(ctx.engine))
-    ) {
+    const enableAllowlist = ctx.settings.register({
+      id: 'dev.perfetto.AndroidLongBatteryTracing#enableAllowlist',
+      name: 'Enable AndroidLongBatteryTracing Session Allowlist',
+      description:
+        'When true, the AndroidLongBatteryTracing plugin first checks ' +
+        'whether the trace has sufficient information, disabling itself on ' +
+        'traces that do not. Disabling this setting can cause the plugin ' +
+        'to report partial or misleading information.',
+      schema: z.boolean(),
+      defaultValue: true,
+      requiresReload: true,
+    });
+
+    if (!enableAllowlist.get() || (await this.isAllowListedTrace(ctx.engine))) {
       await this.addTracks(ctx);
     }
   }
