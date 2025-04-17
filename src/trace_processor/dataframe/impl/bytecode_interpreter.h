@@ -919,7 +919,7 @@ class Interpreter {
     auto matches =
         BitVector::CreateWithSize(string_pool_->MaxSmallStringId().raw_id());
     PERFETTO_DCHECK(!string_pool_->HasLargeString());
-    for (auto it = string_pool_->CreateIterator(); it; ++it) {
+    for (auto it = string_pool_->CreateSmallStringIterator(); it; ++it) {
       auto id = it.StringId();
       matches.change_assume_unset(id.raw_id(),
                                   matcher.Matches(string_pool_->Get(id)));
