@@ -26,6 +26,7 @@
 #include <mutex>
 
 // No perfetto headers (other than tracing/api and protozero) should be here.
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/trace_writer_base.h"
@@ -113,6 +114,11 @@ struct DataSourceState {
   // Whether this data source instance should call NotifyDataSourceStopped()
   // when it's stopped.
   bool will_notify_on_stop = false;
+
+  // The consumer wanted behavior when a TraceWriter runs out of space in the
+  // shared memory buffer. This is honored only when the data source is
+  // registered with BufferExhaustedPolicy::kConfigured.
+  BufferExhaustedPolicy buf_policy_from_config = BufferExhaustedPolicy::kDrop;
 
   // Incremented whenever incremental state should be reset for this instance of
   // this data source.

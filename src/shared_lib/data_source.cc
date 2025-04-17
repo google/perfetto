@@ -324,6 +324,10 @@ bool PerfettoDsSetBufferExhaustedPolicy(struct PerfettoDsImpl* ds_impl,
       ds_impl->buffer_exhausted_policy =
           perfetto::BufferExhaustedPolicy::kStallThenDrop;
       return true;
+    case PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_CONFIGURABLE:
+      ds_impl->buffer_exhausted_policy =
+          perfetto::BufferExhaustedPolicy::kConfigurable;
+      return true;
   }
   return false;
 }
