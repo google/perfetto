@@ -26,7 +26,7 @@ namespace jni {
 typedef void (*FreeFunction)(void*);
 // Copied from
 // https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/jni/platform/host/HostRuntime.cpp;l=56;drc=9a629e24776b648be56188aa3364e7d3953dae11
-static void android_os_PerfettoTrackEventExtra_applyNativeFunction(
+static void dev_perfetto_sdk_PerfettoTrackEventExtra_applyNativeFunction(
     jlong freeFunction,
     jlong ptr) {
   void* nativePtr = reinterpret_cast<void*>(static_cast<uintptr_t>(ptr));
@@ -37,13 +37,13 @@ static void android_os_PerfettoTrackEventExtra_applyNativeFunction(
 
 static const JNINativeMethod gNativeMemoryCleanerMethods[] = {
     {"applyNativeFunction", "(JJ)V",
-     (void*)android_os_PerfettoTrackEventExtra_applyNativeFunction}};
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_applyNativeFunction}};
 
 #define LOG_ALWAYS_FATAL_IF(cond, fmt) \
   if (cond)                            \
     __android_log_assert(nullptr, "PerfettoJNI", fmt);
 
-int register_android_os_PerfettoNativeMemoryCleaner(JNIEnv* env) {
+int register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(JNIEnv* env) {
   int res = jniRegisterNativeMethods(
       env, "dev/perfetto/sdk/PerfettoNativeMemoryCleaner",
       gNativeMemoryCleanerMethods, NELEM(gNativeMemoryCleanerMethods));

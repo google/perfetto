@@ -13074,7 +13074,13 @@ message ChromeContentSettingsEventInfo {
 
 // Begin of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
 
+// DEPRECATED. Only kept for backwards compatibility. Use |ChromeFrameReporter2|
+// in
+// https://source.chromium.org/chromium/chromium/src/+/main:base/tracing/protos/chrome_track_event.proto
+// instead.
 message ChromeFrameReporter {
+  option deprecated = true;
+
   enum State {
     // The frame did not have any updates to present.
     STATE_NO_UPDATE_DESIRED = 0;
@@ -13678,7 +13684,11 @@ message TrackEvent {
   optional ChromeLegacyIpc chrome_legacy_ipc = 27;
   optional ChromeHistogramSample chrome_histogram_sample = 28;
   optional ChromeLatencyInfo chrome_latency_info = 29;
-  optional ChromeFrameReporter chrome_frame_reporter = 32;
+  // DEPRECATED. Only kept for backwards compatibility. Use the
+  // |ChromeTrackEvent.frame_reporter| extension in
+  // https://source.chromium.org/chromium/chromium/src/+/main:base/tracing/protos/chrome_track_event.proto
+  // instead.
+  optional ChromeFrameReporter chrome_frame_reporter = 32 [deprecated = true];
   optional ChromeApplicationStateInfo chrome_application_state_info = 39;
   optional ChromeRendererSchedulerState chrome_renderer_scheduler_state = 40;
   optional ChromeWindowHandleEventInfo chrome_window_handle_event_info = 41;

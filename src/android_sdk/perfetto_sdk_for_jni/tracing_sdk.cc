@@ -16,10 +16,11 @@
 
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
 
+#include <sys/types.h>
+
 #include <cstdarg>
 #include <mutex>
 
-#include "perfetto/ext/base/sys_types.h"  // for pid_t
 #include "perfetto/public/abi/producer_abi.h"
 #include "perfetto/public/producer.h"
 #include "perfetto/public/te_macros.h"

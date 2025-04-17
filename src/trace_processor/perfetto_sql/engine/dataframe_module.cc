@@ -259,6 +259,11 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   }
   info->idxStr = sqlite3_mprintf("%s", std::move(plan).Serialize().data());
   info->needToFreeIdxStr = true;
+  info->estimatedCost = plan.estimated_cost();
+  info->estimatedRows = plan.estimated_row_count();
+  if (plan.max_row_count() <= 1) {
+    info->idxFlags |= SQLITE_INDEX_SCAN_UNIQUE;
+  }
   return SQLITE_OK;
 }
 

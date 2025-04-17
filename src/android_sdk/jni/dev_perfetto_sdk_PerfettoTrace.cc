@@ -37,33 +37,33 @@ inline static jlong toJLong(T* ptr) {
   return static_cast<jlong>(reinterpret_cast<uintptr_t>(ptr));
 }
 
-static jlong android_os_PerfettoTrace_get_process_track_uuid() {
+static jlong dev_perfetto_sdk_PerfettoTrace_get_process_track_uuid() {
   return sdk_for_jni::get_process_track_uuid();
 }
 
-static jlong android_os_PerfettoTrace_get_thread_track_uuid(jlong tid) {
+static jlong dev_perfetto_sdk_PerfettoTrace_get_thread_track_uuid(jlong tid) {
   return sdk_for_jni::get_thread_track_uuid(tid);
 }
 
-static void android_os_PerfettoTrace_activate_trigger(JNIEnv* env,
-                                                      jclass,
-                                                      jstring name,
-                                                      jint ttl_ms) {
+static void dev_perfetto_sdk_PerfettoTrace_activate_trigger(JNIEnv* env,
+                                                            jclass,
+                                                            jstring name,
+                                                            jint ttl_ms) {
   ScopedUtfChars name_chars = GET_UTF_OR_RETURN_VOID(env, name);
   sdk_for_jni::activate_trigger(name_chars.c_str(),
                                 static_cast<uint32_t>(ttl_ms));
 }
 
-void android_os_PerfettoTrace_register(JNIEnv*,
-                                       jclass,
-                                       bool is_backend_in_process) {
+void dev_perfetto_sdk_PerfettoTrace_register(JNIEnv*,
+                                             jclass,
+                                             bool is_backend_in_process) {
   sdk_for_jni::register_perfetto(is_backend_in_process);
 }
 
-static jlong android_os_PerfettoTraceCategory_init(JNIEnv* env,
-                                                   jclass,
-                                                   jstring name,
-                                                   jobjectArray tags) {
+static jlong dev_perfetto_sdk_PerfettoTraceCategory_init(JNIEnv* env,
+                                                         jclass,
+                                                         jstring name,
+                                                         jobjectArray tags) {
   std::string name_c_str(GET_UTF_OR_RETURN(env, name));
   std::vector<std::string> tags_c_strs;
   for (int i = 0; i < env->GetArrayLength(tags); i++) {
@@ -74,31 +74,31 @@ static jlong android_os_PerfettoTraceCategory_init(JNIEnv* env,
   return toJLong(new sdk_for_jni::Category(name_c_str, tags_c_strs));
 }
 
-static jlong android_os_PerfettoTraceCategory_delete() {
+static jlong dev_perfetto_sdk_PerfettoTraceCategory_delete() {
   return toJLong(&sdk_for_jni::Category::delete_category);
 }
 
-static void android_os_PerfettoTraceCategory_register(jlong ptr) {
+static void dev_perfetto_sdk_PerfettoTraceCategory_register(jlong ptr) {
   auto* category = toPointer<sdk_for_jni::Category>(ptr);
   category->register_category();
 }
 
-static void android_os_PerfettoTraceCategory_unregister(jlong ptr) {
+static void dev_perfetto_sdk_PerfettoTraceCategory_unregister(jlong ptr) {
   auto* category = toPointer<sdk_for_jni::Category>(ptr);
   category->unregister_category();
 }
 
-static jboolean android_os_PerfettoTraceCategory_is_enabled(jlong ptr) {
+static jboolean dev_perfetto_sdk_PerfettoTraceCategory_is_enabled(jlong ptr) {
   auto* category = toPointer<sdk_for_jni::Category>(ptr);
   return category->is_category_enabled();
 }
 
-static jlong android_os_PerfettoTraceCategory_get_extra_ptr(jlong ptr) {
+static jlong dev_perfetto_sdk_PerfettoTraceCategory_get_extra_ptr(jlong ptr) {
   auto* category = toPointer<sdk_for_jni::Category>(ptr);
   return toJLong(category->get());
 }
 
-static jlong android_os_PerfettoTrace_start_session(
+static jlong dev_perfetto_sdk_PerfettoTrace_start_session(
     JNIEnv* env,
     jclass /* obj */,
     jboolean is_backend_in_process,
@@ -115,7 +115,7 @@ static jlong android_os_PerfettoTrace_start_session(
   return reinterpret_cast<long>(session);
 }
 
-static jbyteArray android_os_PerfettoTrace_stop_session(
+static jbyteArray dev_perfetto_sdk_PerfettoTrace_stop_session(
     [[maybe_unused]] JNIEnv* env,
     jclass /* obj */,
     jlong ptr) {
@@ -136,36 +136,37 @@ static jbyteArray android_os_PerfettoTrace_stop_session(
 
 static const JNINativeMethod gCategoryMethods[] = {
     {"native_init", "(Ljava/lang/String;[Ljava/lang/String;)J",
-     (void*)android_os_PerfettoTraceCategory_init},
-    {"native_delete", "()J", (void*)android_os_PerfettoTraceCategory_delete},
+     (void*)dev_perfetto_sdk_PerfettoTraceCategory_init},
+    {"native_delete", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTraceCategory_delete},
     {"native_register", "(J)V",
-     (void*)android_os_PerfettoTraceCategory_register},
+     (void*)dev_perfetto_sdk_PerfettoTraceCategory_register},
     {"native_unregister", "(J)V",
-     (void*)android_os_PerfettoTraceCategory_unregister},
+     (void*)dev_perfetto_sdk_PerfettoTraceCategory_unregister},
     {"native_is_enabled", "(J)Z",
-     (void*)android_os_PerfettoTraceCategory_is_enabled},
+     (void*)dev_perfetto_sdk_PerfettoTraceCategory_is_enabled},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTraceCategory_get_extra_ptr},
+     (void*)dev_perfetto_sdk_PerfettoTraceCategory_get_extra_ptr},
 };
 
 static const JNINativeMethod gTraceMethods[] = {
     {"native_get_process_track_uuid", "()J",
-     (void*)android_os_PerfettoTrace_get_process_track_uuid},
+     (void*)dev_perfetto_sdk_PerfettoTrace_get_process_track_uuid},
     {"native_get_thread_track_uuid", "(J)J",
-     (void*)android_os_PerfettoTrace_get_thread_track_uuid},
+     (void*)dev_perfetto_sdk_PerfettoTrace_get_thread_track_uuid},
     {"native_activate_trigger", "(Ljava/lang/String;I)V",
-     (void*)android_os_PerfettoTrace_activate_trigger},
-    {"native_register", "(Z)V", (void*)android_os_PerfettoTrace_register},
+     (void*)dev_perfetto_sdk_PerfettoTrace_activate_trigger},
+    {"native_register", "(Z)V", (void*)dev_perfetto_sdk_PerfettoTrace_register},
     {"native_start_session", "(Z[B)J",
-     (void*)android_os_PerfettoTrace_start_session},
+     (void*)dev_perfetto_sdk_PerfettoTrace_start_session},
     {"native_stop_session", "(J)[B",
-     (void*)android_os_PerfettoTrace_stop_session}};
+     (void*)dev_perfetto_sdk_PerfettoTrace_stop_session}};
 
 #define LOG_ALWAYS_FATAL_IF(cond, fmt) \
   if (cond)                            \
     __android_log_assert(nullptr, "PerfettoJNI", fmt);
 
-int register_android_os_PerfettoTrace(JNIEnv* env) {
+int register_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
   int res = jniRegisterNativeMethods(env, "dev/perfetto/sdk/PerfettoTrace",
                                      gTraceMethods, NELEM(gTraceMethods));
   LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register perfetto native methods.");
@@ -188,9 +189,9 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
     return JNI_ERR;
   }
 
-  perfetto::jni::register_android_os_PerfettoTrace(env);
-  perfetto::jni::register_android_os_PerfettoTrackEventExtra(env);
-  perfetto::jni::register_android_os_PerfettoNativeMemoryCleaner(env);
+  perfetto::jni::register_dev_perfetto_sdk_PerfettoTrace(env);
+  perfetto::jni::register_dev_perfetto_sdk_PerfettoTrackEventExtra(env);
+  perfetto::jni::register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(env);
 
   return JNI_VERSION_1_6;
 }
