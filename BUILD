@@ -1682,6 +1682,7 @@ perfetto_filegroup(
         "src/trace_processor/dataframe/impl/query_plan.cc",
         "src/trace_processor/dataframe/impl/query_plan.h",
         "src/trace_processor/dataframe/impl/slab.h",
+        "src/trace_processor/dataframe/impl/static_vector.h",
         "src/trace_processor/dataframe/impl/types.h",
     ],
 )
