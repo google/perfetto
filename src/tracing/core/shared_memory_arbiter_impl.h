@@ -165,7 +165,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // See include/perfetto/tracing/core/shared_memory_arbiter.h for comments.
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
-      BufferExhaustedPolicy = BufferExhaustedPolicy::kDefault) override;
+      BufferExhaustedPolicy) override;
   std::unique_ptr<TraceWriter> CreateStartupTraceWriter(
       uint16_t target_buffer_reservation_id) override;
   void BindToProducerEndpoint(TracingService::ProducerEndpoint*,

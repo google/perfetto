@@ -35,8 +35,7 @@ enum class BufferExhaustedPolicy {
   // succeeds again.
   kDrop,
 
-  // TODO(eseckler): Switch to kDrop by default and change the Android code to
-  // explicitly request kStall instead.
+  // Deprecated alias. Do not use.
   kDefault = kStall
 };
 
