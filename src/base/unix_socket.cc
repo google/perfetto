@@ -328,7 +328,9 @@ SockFamily GetSockFamily(const char* addr) {
 std::vector<NetAddrInfo> GetNetAddrInfo(const std::string& ip,
                                         const std::string& port) {
   InitWinSockOnce();
-  struct addrinfo hints, *serv_info, *p;
+  struct addrinfo hints;
+  struct addrinfo* serv_info;
+  struct addrinfo* p;
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
@@ -336,7 +338,7 @@ std::vector<NetAddrInfo> GetNetAddrInfo(const std::string& ip,
   PERFETTO_CHECK(getaddrinfo(ip.c_str(), port.c_str(), &hints, &serv_info) ==
                  0);
   std::vector<NetAddrInfo> res;
-  for (p = serv_info; p != NULL; p = p->ai_next) {
+  for (p = serv_info; p != nullptr; p = p->ai_next) {
     if (p->ai_family == AF_INET) {
       std::string ip_str = AddrinfoToIpStr(p);
       std::string ip_port = ip_str + ":" + port;

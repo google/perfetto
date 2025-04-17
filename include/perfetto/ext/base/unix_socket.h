@@ -86,11 +86,11 @@ SockFamily GetSockFamily(const char* addr);
 // NetAddrInfo is a wrapper for a full address and it's family
 // and type.
 struct NetAddrInfo {
-  NetAddrInfo(const std::string& ip_port, SockFamily family, SockType type)
-      : ip_port_(ip_port), family_(family), type_(type) {}
-  std::string ip_port_;  // full address with ip and port
-  SockFamily family_;    // socket family
-  SockType type_;        // socket type
+  NetAddrInfo(std::string _ip_port, SockFamily _family, SockType _type)
+      : ip_port(std::move(_ip_port)), family(_family), type(_type) {}
+  std::string ip_port;  // full address with ip and port
+  SockFamily family;    // socket family
+  SockType type;        // socket type
 };
 
 // Returns a list of NetAddrInfo from ip and port which
