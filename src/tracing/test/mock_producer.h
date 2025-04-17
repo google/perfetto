@@ -76,7 +76,7 @@ class MockProducer : public Producer {
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       const std::string& data_source_name,
       BufferExhaustedPolicy buffer_exhausted_policy =
-          BufferExhaustedPolicy::kDefault);
+          BufferExhaustedPolicy::kStall);
 
   // Expect a flush. Flushes |writer_to_flush| if non-null. If |reply| is true,
   // replies to the flush request, otherwise ignores it and doesn't reply.
