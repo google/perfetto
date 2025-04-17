@@ -37,6 +37,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/public/compiler.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "src/profiling/common/callstack_trie.h"
@@ -489,7 +490,8 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   }
 
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  auto writer = endpoint_->CreateTraceWriter(buffer_id);
+  auto writer =
+      endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall);
 
   // Construct the data source instance.
   std::map<DataSourceInstanceID, DataSourceState>::iterator ds_it;
@@ -1275,7 +1277,8 @@ std::optional<ProcessSharding> PerfProducer::GetOrChooseCallstackProcessShard(
 
 void PerfProducer::StartMetatraceSource(DataSourceInstanceID ds_id,
                                         BufferID target_buffer) {
-  auto writer = endpoint_->CreateTraceWriter(target_buffer);
+  auto writer = endpoint_->CreateTraceWriter(target_buffer,
+                                             BufferExhaustedPolicy::kStall);
 
   auto it_and_inserted = metatrace_writers_.emplace(
       std::piecewise_construct, std::make_tuple(ds_id), std::make_tuple());

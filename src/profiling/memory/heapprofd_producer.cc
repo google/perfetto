@@ -37,6 +37,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
@@ -346,7 +347,8 @@ void HeapprofdProducer::OnTracingSetup() {}
 
 void HeapprofdProducer::WriteRejectedConcurrentSession(BufferID buffer_id,
                                                        pid_t pid) {
-  auto trace_writer = endpoint_->CreateTraceWriter(buffer_id);
+  auto trace_writer =
+      endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall);
   auto trace_packet = trace_writer->NewTracePacket();
   trace_packet->set_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
@@ -426,7 +428,8 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   }
 
   auto buffer_id = static_cast<BufferID>(ds_config.target_buffer());
-  DataSource data_source(endpoint_->CreateTraceWriter(buffer_id));
+  DataSource data_source(
+      endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall));
   data_source.id = id;
   auto& cli_config = data_source.client_configuration;
   if (!HeapprofdConfigToClientConfiguration(heapprofd_config, &cli_config))
