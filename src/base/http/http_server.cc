@@ -17,16 +17,27 @@
 
 #include <cinttypes>
 
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <initializer_list>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/http/sha1.h"
+#include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/unix_socket.h"
 
-namespace perfetto {
-namespace base {
+namespace perfetto::base {
 
 namespace {
 constexpr size_t kMaxPayloadSize = 64 * 1024 * 1024;
@@ -52,15 +63,8 @@ HttpServer::HttpServer(TaskRunner* task_runner, HttpRequestHandler* req_handler)
     : task_runner_(task_runner), req_handler_(req_handler) {}
 HttpServer::~HttpServer() = default;
 
-void HttpServer::Start(int port) {
-  std::string ipv4_addr = "127.0.0.1:" + std::to_string(port);
-  std::string ipv6_addr = "[::1]:" + std::to_string(port);
-
-  ListenOnIpV4(ipv4_addr);
-  ListenOnIpV6(ipv6_addr);
-}
-
 void HttpServer::ListenOnIpV4(const std::string& ip_addr) {
+  PERFETTO_LOG("[HTTP] Starting HTTP server on %s", ip_addr.c_str());
   sock4_ = UnixSocket::Listen(ip_addr, this, task_runner_, SockFamily::kInet,
                               SockType::kStream);
   bool ipv4_listening = sock4_ && sock4_->is_listening();
@@ -71,6 +75,7 @@ void HttpServer::ListenOnIpV4(const std::string& ip_addr) {
 }
 
 void HttpServer::ListenOnIpV6(const std::string& ip_addr) {
+  PERFETTO_LOG("[HTTP] Starting HTTP server on %s", ip_addr.c_str());
   sock6_ = UnixSocket::Listen(ip_addr, this, task_runner_, SockFamily::kInet6,
                               SockType::kStream);
   bool ipv6_listening = sock6_ && sock6_->is_listening();
@@ -81,15 +86,20 @@ void HttpServer::ListenOnIpV6(const std::string& ip_addr) {
 }
 
 void HttpServer::Start(const std::string& listen_ip, int port) {
-  std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
+  // TODO(lalitm, 411365664): in some places where we run, it seems like we can
+  // have trouble with resolving "localhost" with getaddrinfo. Hardcode the
+  // "localhost" -> IP binding until we figure out why.
+  if (listen_ip == "localhost") {
+    ListenOnIpV4("127.0.0.1:" + std::to_string(port));
+    ListenOnIpV6("[::1]:" + std::to_string(port));
+    return;
+  }
   std::string port_str = std::to_string(port);
-  std::vector<NetAddrInfo> addr_infos = GetNetAddrInfo(ip, port_str);
+  std::vector<NetAddrInfo> addr_infos = GetNetAddrInfo(listen_ip, port_str);
   for (NetAddrInfo& info : addr_infos) {
     if (info.family_ == SockFamily::kInet) {
-      PERFETTO_ILOG("[HTTP] Starting HTTP server on %s", info.ip_port_.c_str());
       ListenOnIpV4(info.ip_port_);
     } else if (info.family_ == SockFamily::kInet6) {
-      PERFETTO_ILOG("[HTTP] Starting HTTP server on %s", info.ip_port_.c_str());
       ListenOnIpV6(info.ip_port_);
     }
   }
@@ -592,5 +602,4 @@ HttpRequestHandler::~HttpRequestHandler() = default;
 void HttpRequestHandler::OnWebsocketMessage(const WebsocketMessage&) {}
 void HttpRequestHandler::OnHttpConnectionClosed(HttpServerConnection*) {}
 
-}  // namespace base
-}  // namespace perfetto
+}  // namespace perfetto::base
