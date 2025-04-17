@@ -141,7 +141,7 @@ TEST_P(SharedMemoryArbiterImplTest, BatchCommits) {
   // Batching period is 0s - chunks are being committed as soon as they are
   // returned.
   SharedMemoryABI::Chunk chunk =
-      arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDefault);
+      arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kStall);
   ASSERT_TRUE(chunk.is_valid());
   EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _)).Times(1);
   PatchList ignored;
@@ -159,7 +159,7 @@ TEST_P(SharedMemoryArbiterImplTest, BatchCommits) {
 
   // First chunk that will be batched. CommitData should not be called
   // immediately this time.
-  chunk = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDefault);
+  chunk = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kStall);
   ASSERT_TRUE(chunk.is_valid());
   EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _)).Times(0);
   // We'll pretend that the chunk needs patching. This is done in order to
@@ -175,7 +175,7 @@ TEST_P(SharedMemoryArbiterImplTest, BatchCommits) {
 
   // Add a second chunk to the batch. This should also not trigger an immediate
   // call to CommitData.
-  chunk = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDefault);
+  chunk = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kStall);
   ASSERT_TRUE(chunk.is_valid());
   EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _)).Times(0);
   arbiter_->ReturnCompletedChunk(std::move(chunk), 2, &ignored);
@@ -225,7 +225,7 @@ TEST_P(SharedMemoryArbiterImplTest, UseShmemEmulation) {
 
   // Test returning a completed chunk.
   SharedMemoryABI::Chunk chunk =
-      arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDefault);
+      arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kStall);
   std::tie(page_idx, chunk_idx) = abi->GetPageAndChunkIndex(chunk);
   ASSERT_TRUE(chunk.is_valid());
   EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _)).Times(1);
@@ -243,7 +243,7 @@ TEST_P(SharedMemoryArbiterImplTest, UseShmemEmulation) {
   arbiter_->SetDirectSMBPatchingSupportedByService();
   ASSERT_TRUE(arbiter_->EnableDirectSMBPatching());
 
-  chunk = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDefault);
+  chunk = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kStall);
   std::tie(page_idx, chunk_idx) = abi->GetPageAndChunkIndex(chunk);
   ASSERT_TRUE(chunk.is_valid());
   EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
