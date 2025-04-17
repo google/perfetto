@@ -32,6 +32,8 @@ export class HttpRpcEngine extends EngineBase {
   private websocket?: WebSocket;
   private connected = false;
   private disposed = false;
+  private queue: Blob[] = [];
+  private isProcessing = false;
 
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
@@ -86,11 +88,21 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   private onWebsocketMessage(e: MessageEvent) {
-    assertExists(e.data as Blob)
-      .arrayBuffer()
-      .then((buf) => {
+    const blob = assertExists(e.data as Blob)
+    this.queue.push(blob)
+    this.processQueue();
+  }
+
+  private async processQueue() {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+    while (this.queue.length > 0) {
+        const blob = this.queue.shift();
+        if (!blob) continue;
+        const buf = await blob.arrayBuffer()
         super.onRpcResponseBytes(new Uint8Array(buf));
-      });
+    }
+    this.isProcessing = false;
   }
 
   static async checkConnection(): Promise<HttpRpcState> {

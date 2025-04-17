@@ -221,9 +221,20 @@ size_t HttpServer::ParseOneHttpRequest(HttpServerConnection* conn) {
         if (IsOriginAllowed(hdr_value))
           conn->origin_allowed_ = hdr_value.ToStdString();
       } else if (hdr_name.CaseInsensitiveEq("connection")) {
-        conn->keepalive_ = hdr_value.CaseInsensitiveEq("keep-alive");
-        http_req.is_websocket_handshake =
-            hdr_value.CaseInsensitiveEq("upgrade");
+        size_t semicolon = hdr_value.find(',');
+        if (semicolon == StringView::npos) {
+          conn->keepalive_ = hdr_value.CaseInsensitiveEq("keep-alive");
+          http_req.is_websocket_handshake =
+              hdr_value.CaseInsensitiveEq("upgrade");
+        } else {
+          auto first = hdr_value.substr(0, semicolon);
+          auto second = hdr_value.substr(semicolon + 2);
+          http_req.is_websocket_handshake =
+              first.CaseInsensitiveEq("upgrade") ||
+              second.CaseInsensitiveEq("upgrade");
+          conn->keepalive_ = first.CaseInsensitiveEq("keep-alive") ||
+                             second.CaseInsensitiveEq("keep-alive");
+        }
       }
     }
   }
