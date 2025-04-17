@@ -114,8 +114,7 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
   // DataSourceConfig.target_buffer().
   virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
-      BufferExhaustedPolicy buffer_exhausted_policy =
-          BufferExhaustedPolicy::kDefault) = 0;
+      BufferExhaustedPolicy buffer_exhausted_policy) = 0;
 
   // TODO(eseckler): Also expose CreateStartupTraceWriter() ?
 
