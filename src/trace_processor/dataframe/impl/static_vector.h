@@ -20,7 +20,9 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <memory>
 #include <type_traits>
+
 #include "perfetto/base/logging.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
