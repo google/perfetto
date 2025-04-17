@@ -1,5 +1,18 @@
 Unreleased:
   Tracing service and probes:
+    *
+  SQL Standard library:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v50.0 - 2025-04-17:
+  Tracing service and probes:
     * Removed mm_events support as it is no longer maintained.
   SQL Standard library:
     *
@@ -9,8 +22,36 @@ Unreleased:
       This is often useful for ad-hoc queries on Android or Linux traces.
     * Removed `slices.slices` module and `_slice_with_thread_and_process_info`
       view. This is replaced by `thread_or_process_slice` (see above).
+    * Fixed io_wait arg name conversion in traceconv.
   UI:
-    *
+    * Added basic syntax highlighting support to the query page.
+    * Retain DOM state between page changes - this fixes a bug where the scroll
+      position is lost when switching between pages.
+    * Added a plugin-able settings page - a place to put user-facing.
+      configuration options which are more complex than a simple boolean. Flags
+      should still be used for experimental features and feature flags.
+    * Added paging to query results and remove arbitrary 10,000 row limit. This
+      fixes a bug where selecting too many slices (e.g. `select * from slice`)
+      can tank UI performance.
+    * Added options to bulk-copy tracks to a new workspace.
+    * Allow workspace tracks to be reordered (drag-n-drop).
+    * Render slice hover tooltips to the DOM instead of canvas, which allows
+      them to be larger and more customizable.
+    * Add subsystem to pass URL args directly to plugins.
+    * Added plugin-able track filters, including filter by process and thread.
+    * Make android logs selectable, add hover-tooltips, and allow them to be
+      selected when iterating search results.
+    * Add flag to work around hotkey collisions on dvorak.
+    * Fix bug in search where search results could not be iterated through.
+    * Fix bug where to "go to next slice" hotkey was not working on AZERTY.
+    * Fix bug where created pivoted debug tracks would sometimes be very slow.
+    * Fix bug where tracks can get hidden behind sticky headers.
+    * Fix crash when marking DNF slices.
+    * Fix bug where viewer page didn't scroll back up to the top of the track
+      group when a group is collapsed.
+    * Small consistency tweaks to styling.
+    * Stretch overview timeline to fill screen horizontally to avoid superfluous
+      whitespace.
   SDK:
     * Added `TraceWriter::drop_count` function for determining the number of
       of times the writer started dropping data due to exhaustion of the shared
