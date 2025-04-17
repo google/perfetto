@@ -24,6 +24,7 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/core/patch_list.h"
@@ -288,7 +289,8 @@ TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
     std::map<WriterID, std::unique_ptr<TraceWriter>> writers;
 
     for (size_t i = 0; i < kMaxWriterID; i++) {
-      std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(1);
+      std::unique_ptr<TraceWriter> writer =
+          arbiter_->CreateTraceWriter(1, BufferExhaustedPolicy::kStall);
       ASSERT_TRUE(writer);
       WriterID writer_id = writer->writer_id();
       ASSERT_TRUE(writers.emplace(writer_id, std::move(writer)).second);
@@ -296,7 +298,9 @@ TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
 
     // A further call should return a null impl of trace writer as we exhausted
     // writer IDs.
-    ASSERT_EQ(arbiter_->CreateTraceWriter(1)->writer_id(), 0);
+    ASSERT_EQ(arbiter_->CreateTraceWriter(1, BufferExhaustedPolicy::kStall)
+                  ->writer_id(),
+              0);
   }
 
   // This should run the Register/UnregisterTraceWriter tasks enqueued by the
@@ -311,13 +315,15 @@ TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
 }
 
 TEST_P(SharedMemoryArbiterImplTest, Shutdown) {
-  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(1);
+  std::unique_ptr<TraceWriter> writer =
+      arbiter_->CreateTraceWriter(1, BufferExhaustedPolicy::kStall);
   EXPECT_TRUE(writer);
   EXPECT_FALSE(arbiter_->TryShutdown());
 
   // We still get a valid trace writer after shutdown, but it's a null one
   // that's not connected to the arbiter.
-  std::unique_ptr<TraceWriter> writer2 = arbiter_->CreateTraceWriter(2);
+  std::unique_ptr<TraceWriter> writer2 =
+      arbiter_->CreateTraceWriter(2, BufferExhaustedPolicy::kStall);
   EXPECT_TRUE(writer2);
   EXPECT_EQ(writer2->writer_id(), 0);
 
