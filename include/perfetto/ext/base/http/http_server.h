@@ -160,7 +160,6 @@ class HttpServer : public UnixSocket::EventListener {
   HttpServer(TaskRunner*, HttpRequestHandler*);
   ~HttpServer() override;
   void Start(int port);
-  void Start(const std::string& listen_ip, int port);
   void AddAllowedOrigin(const std::string&);
 
  private:
@@ -168,9 +167,6 @@ class HttpServer : public UnixSocket::EventListener {
   size_t ParseOneWebsocketFrame(HttpServerConnection*);
   void HandleCorsPreflightRequest(const HttpRequest&);
   bool IsOriginAllowed(StringView);
-
-  void ListenOnIpV4(const std::string& ip_addr);
-  void ListenOnIpV6(const std::string& ip_addr);
 
   // UnixSocket::EventListener implementation.
   void OnNewIncomingConnection(UnixSocket*,
