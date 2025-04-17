@@ -19,6 +19,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -105,9 +106,11 @@ class DataframeBytecodeTest : public ::testing::Test {
     PERFETTO_CHECK(cols.size() < 64);
     uint64_t sanitized_cols_used = cols_used & ((1ull << cols.size()) - 1ull);
 
-    impl::FixedVector<impl::Column, impl::kMaxColumns> col_fixed_vec;
+    impl::FixedVector<std::shared_ptr<impl::Column>, impl::kMaxColumns>
+        col_fixed_vec;
     for (auto& col : cols) {
-      col_fixed_vec.emplace_back(std::move(col));
+      col_fixed_vec.emplace_back(
+          std::make_shared<impl::Column>(std::move(col)));
     }
     impl::FixedVector<std::string, impl::kMaxColumns> col_names(
         col_fixed_vec.size());

@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -132,7 +133,7 @@ class Dataframe {
   template <typename FilterValueFetcherImpl>
   void PrepareCursor(QueryPlan plan,
                      std::optional<Cursor<FilterValueFetcherImpl>>& c) const {
-    c.emplace(std::move(plan.plan_), columns_.data(), string_pool_);
+    c.emplace(std::move(plan.plan_), columns_, string_pool_);
   }
 
   // Creates a vector of ColumnSpec objects that describe the columns in the
@@ -142,8 +143,8 @@ class Dataframe {
     specs.reserve(columns_.size());
     for (uint32_t i = 0; i < columns_.size(); ++i) {
       const auto& col = columns_[i];
-      specs.push_back({column_names_[i], col.storage.type(),
-                       col.null_storage.nullability(), col.sort_state});
+      specs.push_back({column_names_[i], col->storage.type(),
+                       col->null_storage.nullability(), col->sort_state});
     }
     return specs;
   }
@@ -156,7 +157,8 @@ class Dataframe {
   friend class DataframeBytecodeTest;
 
   Dataframe(impl::FixedVector<std::string, impl::kMaxColumns> column_names,
-            impl::FixedVector<impl::Column, impl::kMaxColumns> columns,
+            impl::FixedVector<std::shared_ptr<impl::Column>, impl::kMaxColumns>
+                columns,
             uint32_t row_count,
             StringPool* string_pool)
       : column_names_(std::move(column_names)),
@@ -169,8 +171,12 @@ class Dataframe {
   impl::FixedVector<std::string, impl::kMaxColumns> column_names_;
 
   // Internal storage for columns in the dataframe.
+<<<<<<< HEAD
+  impl::FixedVector<std::shared_ptr<impl::Column>, impl::kMaxColumns> columns_;
+=======
   // `column_names_` and `columns_` should always have the same size.
   impl::FixedVector<impl::Column, impl::kMaxColumns> columns_;
+>>>>>>> dev/lalit/df-1
 
   // Number of rows in the dataframe.
   uint32_t row_count_ = 0;

@@ -24,11 +24,10 @@
 #include <utility>
 
 #include "src/trace_processor/containers/null_term_string_view.h"
-#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/dataframe_shared_storage.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -50,9 +49,10 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     std::shared_ptr<const dataframe::Dataframe> dataframe;
   };
   struct Context : sqlite::ModuleStateManager<DataframeModule> {
-    explicit Context(DataframeSharedStorage* _dataframe_shared_storage)
+    explicit Context(
+        dataframe::DataframeSharedStorage* _dataframe_shared_storage)
         : dataframe_shared_storage(_dataframe_shared_storage) {}
-    DataframeSharedStorage* dataframe_shared_storage;
+    dataframe::DataframeSharedStorage* dataframe_shared_storage;
   };
   struct SqliteValueFetcher : dataframe::ValueFetcher {
     using Type = sqlite::Type;

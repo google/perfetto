@@ -19,6 +19,7 @@ source_set("dataframe") {
     "cursor.h",
     "dataframe.cc",
     "dataframe.h",
+    "dataframe_shared_storage.h",
     "runtime_dataframe_builder.h",
   ]
   deps = [

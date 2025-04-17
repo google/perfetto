@@ -40,13 +40,13 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/dataframe_shared_storage.h"
 #include "src/trace_processor/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
@@ -61,8 +61,6 @@
 #include "src/trace_processor/util/sql_argument.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/status_macros.h"
-
-#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 
 // Implementation details
 // ----------------------
@@ -305,7 +303,7 @@ std::string GetTokenNamesAllowedInMacro() {
 }  // namespace
 
 PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
-                                     DataframeSharedStorage* storage,
+                                     dataframe::DataframeSharedStorage* storage,
                                      bool enable_extra_checks)
     : pool_(pool),
       dataframe_shared_storage_(storage),
@@ -721,11 +719,11 @@ base::Status PerfettoSqlEngine::ExecuteCreateTableUsingDataframe(
     SqliteEngine::PreparedStatement prepared_stmt,
     std::vector<std::string> column_names,
     const std::vector<sql_argument::ArgumentDefinition>&) {
-  DataframeSharedStorage::Tag tag;
+  dataframe::DataframeSharedStorage::Tag tag;
   if (module_include_stack_.empty()) {
-    tag = DataframeSharedStorage::MakeUniqueTag();
+    tag = dataframe::DataframeSharedStorage::MakeUniqueTag();
   } else {
-    tag = DataframeSharedStorage::MakeTagForSqlModuleTable(
+    tag = dataframe::DataframeSharedStorage::MakeTagForSqlModuleTable(
         module_include_stack_.back(), create_table.name);
   }
   auto df = dataframe_shared_storage_->Find(tag);
