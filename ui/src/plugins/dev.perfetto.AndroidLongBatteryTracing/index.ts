@@ -836,20 +836,24 @@ const BT_ACTIVITY = `
   from step2
 `;
 
-let ignoreAllowlist: Setting<boolean> | undefined;
+let enableAllowlist: Setting<boolean> | undefined;
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidLongBatteryTracing';
   private readonly groups = new Map<string, TrackNode>();
 
   static onActivate(app: App) {
-    ignoreAllowlist = app.settings.register({
-      id: 'dev.perfetto.AndroidLongBatteryTracing#ignoreAllowlist',
-      name: 'Ignore AndroidLongBatteryTracing Session Allowlist',
+    enableAllowlist = app.settings.register({
+      id: 'dev.perfetto.AndroidLongBatteryTracing#enableAllowlist',
+      name: 'Enable AndroidLongBatteryTracing Session Allowlist',
       description:
-        'When true, the AndroidLongBatteryTracing plugin will run regardless of session type. This may result in partial or misleading data.',
+        'When true, the AndroidLongBatteryTracing plugin first checks ' +
+        'whether the trace has sufficient information, disabling itself on ' +
+        'traces that do not. Disabling this setting can cause the plugin ' +
+        'to report partial or misleading information.',
       schema: z.boolean(),
-      defaultValue: false,
+      defaultValue: true,
+      requiresReload: true,
     });
   }
 
@@ -1722,8 +1726,8 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     if (
-      (await this.isAllowListedTrace(ctx.engine)) ||
-      ignoreAllowlist?.get() === true
+      enableAllowlist?.get() === false ||
+      (await this.isAllowListedTrace(ctx.engine))
     ) {
       await this.addTracks(ctx);
     }
