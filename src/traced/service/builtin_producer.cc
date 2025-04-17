@@ -28,6 +28,7 @@
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "src/tracing/service/metatrace_writer.h"
@@ -227,7 +228,8 @@ void BuiltinProducer::StartDataSource(DataSourceInstanceID ds_id,
   // enabling metatrace early (relative to producers that are notified via IPC).
   if (ds_config.name() == MetatraceWriter::kDataSourceName) {
     auto writer = endpoint_->CreateTraceWriter(
-        static_cast<BufferID>(ds_config.target_buffer()));
+        static_cast<BufferID>(ds_config.target_buffer()),
+        BufferExhaustedPolicy::kStall);
 
     auto it_and_inserted = metatrace_.writers.emplace(
         std::piecewise_construct, std::make_tuple(ds_id), std::make_tuple());
