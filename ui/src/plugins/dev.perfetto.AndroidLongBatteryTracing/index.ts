@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {z} from 'zod';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
@@ -1705,7 +1706,20 @@ export default class implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    if (await this.isAllowListedTrace(ctx.engine)) {
+    const enableAllowlist = ctx.settings.register({
+      id: 'dev.perfetto.AndroidLongBatteryTracing#enableAllowlist',
+      name: 'Enable AndroidLongBatteryTracing Session Allowlist',
+      description:
+        'When true, the AndroidLongBatteryTracing plugin first checks ' +
+        'whether the trace has sufficient information, disabling itself on ' +
+        'traces that do not. Disabling this setting can cause the plugin ' +
+        'to report partial or misleading information.',
+      schema: z.boolean(),
+      defaultValue: true,
+      requiresReload: true,
+    });
+
+    if (!enableAllowlist.get() || (await this.isAllowListedTrace(ctx.engine))) {
       await this.addTracks(ctx);
     }
   }
