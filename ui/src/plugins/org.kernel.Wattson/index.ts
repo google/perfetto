@@ -16,21 +16,21 @@ import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../components/tracks/base_counter_track';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
 import {
   CPUSS_ESTIMATE_TRACK_KIND,
   SLICE_TRACK_KIND,
 } from '../../public/track_kinds';
+import {createWattsonAggregationToTabAdaptor} from './aggregation_panel';
+import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {Engine} from '../../trace_processor/engine';
+import {NUM} from '../../trace_processor/query_result';
+import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
 import {WattsonPackageSelectionAggregator} from './package_aggregator';
 import {WattsonProcessSelectionAggregator} from './process_aggregator';
 import {WattsonThreadSelectionAggregator} from './thread_aggregator';
-import {Engine} from '../../trace_processor/engine';
-import {NUM} from '../../trace_processor/query_result';
-import {createWattsonAggregationToTabAdaptor} from './aggregation_panel';
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
