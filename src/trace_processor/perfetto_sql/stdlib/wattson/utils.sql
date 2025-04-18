@@ -29,3 +29,15 @@ WHERE
   name IN ('wattson_start', 'wattson_stop')
 HAVING
   ts IS NOT NULL;
+
+-- Helper macro for using Perfetto table with interval intersect
+CREATE PERFETTO MACRO _ii_subquery(
+    tab TableOrSubquery
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT
+    _auto_id AS id,
+    *
+  FROM $tab
+);

@@ -17,6 +17,7 @@
 -- and subrails as well as the hierarchical power estimates of each rail
 
 INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.utils;
 
 -- The most basic rail components that form the "building blocks" from which all
 -- other rails and components are derived. Average power over the entire trace
