@@ -27,7 +27,7 @@ This contains classes to: (i) use tracing; (ii) extend the tracing internals
 (i.e. implement the Platform).
 
 Rules:
-- This directory should contain only .h files and no .cc files.
+- This directory should contain only .h files and no .cc files for proper implementation.
 - Corresponding .cc files go into `src/`.
 - .h files in here can depend only on `include/perfetto/` but not on
   `include/perfetto/ext/`,
