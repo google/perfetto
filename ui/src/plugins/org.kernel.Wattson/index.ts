@@ -18,7 +18,10 @@ import {
 } from '../../components/tracks/base_counter_track';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
+import {
+  CPUSS_ESTIMATE_TRACK_KIND,
+  SLICE_TRACK_KIND,
+} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
 import {WattsonPackageSelectionAggregator} from './package_aggregator';
@@ -27,6 +30,7 @@ import {WattsonThreadSelectionAggregator} from './thread_aggregator';
 import {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
 import {createWattsonAggregationToTabAdaptor} from './aggregation_panel';
+import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
@@ -46,6 +50,32 @@ export default class implements PerfettoPlugin {
     const ucpus = new Set<number>();
     for (const it = queryRes.iter({ucpu: NUM}); it.valid(); it.next()) {
       ucpus.add(it.ucpu);
+    }
+
+    // Add Wattson markers window track if markers are present
+    const checkValue = await ctx.engine.query(`
+        INCLUDE PERFETTO MODULE wattson.utils;
+        SELECT COUNT(*) as numRows from _wattson_markers_window
+    `);
+    if (checkValue.firstRow({numRows: NUM}).numRows > 0) {
+      const uri = `/wattson/markers_window`;
+      const title = `Wattson markers window`;
+      const track = await createQuerySliceTrack({
+        trace: ctx,
+        uri,
+        data: {
+          sqlSource: `SELECT ts, dur, name FROM _wattson_markers_window`,
+        },
+      });
+      ctx.tracks.registerTrack({
+        uri,
+        title,
+        tags: {
+          kind: SLICE_TRACK_KIND,
+        },
+        track,
+      });
+      group.addChildInOrder(new TrackNode({uri, title}));
     }
 
     // CPUs estimate as part of CPU subsystem
