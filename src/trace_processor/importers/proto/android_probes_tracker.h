@@ -66,6 +66,17 @@ class AndroidProbesTracker : public Destructible {
     seen_packages_.emplace(std::move(package_name));
   }
 
+
+  // TODO: replace with uid
+  bool ShouldInsertUser(const std::string& user_name) const {
+    auto it = seen_users_.find(user_name);
+    return it == seen_users_.end();
+  }
+
+  void InsertedUser(std::string user_name) {
+    seen_users_.emplace(std::move(user_name));
+  }
+
   std::optional<TrackId> GetPowerRailTrack(uint32_t index) {
     if (index >= power_rail_tracks_.size())
       return std::nullopt;
@@ -141,6 +152,7 @@ class AndroidProbesTracker : public Destructible {
  private:
   TraceStorage* storage_;
   std::set<std::string> seen_packages_;
+  std::set<std::string> seen_users_;
   std::vector<TrackId> power_rail_tracks_;
   std::unordered_map<int32_t, EnergyConsumerSpecs> energy_consumer_descriptors_;
   std::unordered_map<uint64_t, EntityStateDescriptor> entity_state_descriptors_;

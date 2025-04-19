@@ -1148,6 +1148,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_stack_profile_mapping_table());
   RegisterStaticTable(storage->mutable_stack_profile_frame_table());
   RegisterStaticTable(storage->mutable_package_list_table());
+  RegisterStaticTable(storage->mutable_user_list_table());
   RegisterStaticTable(storage->mutable_profiler_smaps_table());
 
   RegisterStaticTable(storage->mutable_android_log_table());

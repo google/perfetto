@@ -48,6 +48,7 @@
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/bluetooth_trace.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
+#include "protos/perfetto/trace/android/user_list.pbzero.h"
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
@@ -137,6 +138,7 @@ AndroidProbesModule::AndroidProbesModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kEntityStateResidencyFieldNumber, context);
   RegisterForField(TracePacket::kAndroidLogFieldNumber, context);
   RegisterForField(TracePacket::kPackagesListFieldNumber, context);
+  RegisterForField(TracePacket::kUserListFieldNumber, context);
   RegisterForField(TracePacket::kAndroidGameInterventionListFieldNumber,
                    context);
   RegisterForField(TracePacket::kInitialDisplayStateFieldNumber, context);
@@ -160,6 +162,9 @@ ModuleResult AndroidProbesModule::TokenizePacket(
   }
   if (field_id == TracePacket::kPackagesListFieldNumber) {
     return ParseAndroidPackagesList(decoder.packages_list());
+  }
+  if (field_id == TracePacket::kUserListFieldNumber) {
+    return ParseAndroidUserList(decoder.user_list());
   }
   if (field_id == TracePacket::kEntityStateResidencyFieldNumber) {
     ParseEntityStateDescriptor(decoder.entity_state_residency());
@@ -348,6 +353,30 @@ ModuleResult AndroidProbesModule::ParseAndroidPackagesList(
     tracker->InsertedPackage(std::move(pkg_name));
   }
   return ModuleResult::Handled();
+}
+
+
+ModuleResult AndroidProbesModule::ParseAndroidUserList(
+  protozero::ConstBytes blob) {
+protos::pbzero::UserList::Decoder usr_list(blob.data, blob.size);
+context_->storage->SetStats(stats::user_list_has_read_errors,
+  usr_list.read_error());
+context_->storage->SetStats(stats::user_list_has_parse_errors,
+  usr_list.parse_error());
+
+AndroidProbesTracker* tracker = AndroidProbesTracker::GetOrCreate(context_);
+for (auto it = usr_list.users(); it; ++it) {
+  protos::pbzero::UserList_UserInfo::Decoder usr(*it);
+  std::string usr_name = usr.name().ToStdString();
+  if (!tracker->ShouldInsertUser(usr_name)) {
+    continue;
+  }
+  context_->storage->mutable_user_list_table()->Insert(
+      {context_->storage->InternString(usr.name()),
+       static_cast<int64_t>(usr.uid())});
+  tracker->InsertedUser(std::move(usr_name));
+}
+return ModuleResult::Handled();
 }
 
 void AndroidProbesModule::ParseEntityStateDescriptor(
