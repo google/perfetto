@@ -31,9 +31,9 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/dataframe_shared_storage.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -69,7 +69,7 @@ class PerfettoSqlEngine {
   };
 
   PerfettoSqlEngine(StringPool* pool,
-                    DataframeSharedStorage* storage,
+                    dataframe::DataframeSharedStorage* storage,
                     bool enable_extra_checks);
 
   // Executes all the statements in |sql| and returns a |ExecutionResult|
@@ -399,7 +399,7 @@ class PerfettoSqlEngine {
   //
   // Note that this class can be shared between multiple PerfettoSqlEngine
   // instances which are operating on different threads.
-  DataframeSharedStorage* dataframe_shared_storage_;
+  dataframe::DataframeSharedStorage* dataframe_shared_storage_;
 
   // If true, engine will perform additional consistency checks when e.g.
   // creating tables and views.

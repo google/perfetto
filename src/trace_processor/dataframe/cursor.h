@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <utility>
 
 #include "perfetto/base/logging.h"
@@ -28,6 +29,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bytecode_interpreter.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
+#include "src/trace_processor/dataframe/impl/static_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
@@ -54,12 +56,17 @@ class Cursor {
 
   // Constructs a cursor from a query plan and dataframe columns.
   Cursor(impl::QueryPlan plan,
-         const impl::Column* columns,
+         const impl::FixedVector<std::shared_ptr<impl::Column>,
+                                 impl::kMaxColumns>& columns,
          const StringPool* pool)
       : interpreter_(std::move(plan.bytecode), columns, pool),
         params_(plan.params),
-        columns_(columns),
-        pool_(pool) {}
+        pool_(pool) {
+    for (const auto& col : columns) {
+      column_info_for_cell_.emplace_back(
+          ColumnInfoForCell{col->storage.byte_data(), col->storage.type()});
+    }
+  }
 
   // Executes the query and prepares the cursor for iteration.
   // This initializes the cursor's position to the first row of results.
@@ -100,31 +107,36 @@ class Cursor {
                                    CellCallbackImpl& cell_callback_impl) {
     static_assert(std::is_base_of_v<CellCallback, CellCallbackImpl>,
                   "CellCallbackImpl must be a subclass of CellCallback");
-    const impl::Column& c = columns_[col];
+    const ColumnInfoForCell& c = column_info_for_cell_[col];
     uint32_t idx = pos_[params_.col_to_output_offset[col]];
     if (idx == std::numeric_limits<uint32_t>::max()) {
       cell_callback_impl.OnCell(nullptr);
       return;
     }
-    switch (c.storage.type().index()) {
+    switch (c.type.index()) {
       case StorageType::GetTypeIndex<Id>():
         cell_callback_impl.OnCell(idx);
         break;
       case StorageType::GetTypeIndex<Uint32>():
-        cell_callback_impl.OnCell(c.storage.unchecked_data<Uint32>()[idx]);
+        cell_callback_impl.OnCell(impl::Storage::CastByteDataPointer<Uint32>(
+            c.storage_byte_data_ptr)[idx]);
         break;
       case StorageType::GetTypeIndex<Int32>():
-        cell_callback_impl.OnCell(c.storage.unchecked_data<Int32>()[idx]);
+        cell_callback_impl.OnCell(impl::Storage::CastByteDataPointer<Int32>(
+            c.storage_byte_data_ptr)[idx]);
         break;
       case StorageType::GetTypeIndex<Int64>():
-        cell_callback_impl.OnCell(c.storage.unchecked_data<Int64>()[idx]);
+        cell_callback_impl.OnCell(impl::Storage::CastByteDataPointer<Int64>(
+            c.storage_byte_data_ptr)[idx]);
         break;
       case StorageType::GetTypeIndex<Double>():
-        cell_callback_impl.OnCell(c.storage.unchecked_data<Double>()[idx]);
+        cell_callback_impl.OnCell(impl::Storage::CastByteDataPointer<Double>(
+            c.storage_byte_data_ptr)[idx]);
         break;
       case StorageType::GetTypeIndex<String>():
         cell_callback_impl.OnCell(
-            pool_->Get(c.storage.unchecked_data<String>()[idx]));
+            pool_->Get(impl::Storage::CastByteDataPointer<String>(
+                c.storage_byte_data_ptr)[idx]));
         break;
       default:
         PERFETTO_FATAL("Invalid storage spec");
@@ -132,12 +144,21 @@ class Cursor {
   }
 
  private:
+  // Contains all the information required by `Cell`. We make a copy of this and
+  // centralize it to make execution as fast as possible: Cell is an *extremely*
+  // hot path in trace processor so it's important that all the data needed by
+  // it is co-located as much as possible.
+  struct ColumnInfoForCell {
+    const uint8_t* storage_byte_data_ptr;
+    StorageType type;
+  };
+
   // Bytecode interpreter that executes the query.
   impl::bytecode::Interpreter<FilterValueFetcherImpl> interpreter_;
   // Parameters for query execution.
   impl::QueryPlan::ExecutionParams params_;
   // Pointer to the dataframe columns.
-  const impl::Column* columns_;
+  impl::FixedVector<ColumnInfoForCell, impl::kMaxColumns> column_info_for_cell_;
   // String pool for string values.
   const StringPool* pool_;
 

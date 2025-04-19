@@ -140,30 +140,6 @@ class Storage {
   Storage(Storage::String data)
       : type_(dataframe::String{}), data_(std::move(data)) {}
 
-  // Type-safe access to storage with unchecked variant access.
-  template <typename T>
-  auto& unchecked_get() {
-    using U = StorageType::VariantTypeAtIndex<T, Variant>;
-    return base::unchecked_get<U>(data_);
-  }
-
-  template <typename T>
-  const auto& unchecked_get() const {
-    using U = StorageType::VariantTypeAtIndex<T, Variant>;
-    return base::unchecked_get<U>(data_);
-  }
-
-  // Get raw pointer to storage data for a specific type.
-  template <typename T>
-  auto* unchecked_data() {
-    return unchecked_get<T>().data();
-  }
-
-  template <typename T>
-  const auto* unchecked_data() const {
-    return unchecked_get<T>().data();
-  }
-
   // Returns a raw byte pointer to the underlying data.
   // Returns nullptr if the storage type is Id (which has no buffer).
   const uint8_t* byte_data() const {
@@ -186,8 +162,14 @@ class Storage {
         return reinterpret_cast<const uint8_t*>(
             base::unchecked_get<Storage::String>(data_).data());
       default:
-        PERFETTO_FATAL("Should not reach here");
+        PERFETTO_FATAL("Should not reach here %u", type_.index());
     }
+  }
+
+  template <typename T>
+  static auto* CastByteDataPointer(const uint8_t* ptr) {
+    using U = StorageType::VariantTypeAtIndex<T, DataVariant>;
+    return reinterpret_cast<const U*>(ptr);
   }
 
   StorageType type() const { return type_; }
@@ -195,6 +177,8 @@ class Storage {
  private:
   // Variant containing all possible storage representations.
   using Variant = std::variant<Id, Uint32, Int32, Int64, Double, String>;
+  using DataVariant = std::
+      variant<nullptr_t, uint32_t, int32_t, int64_t, double, StringPool::Id>;
   StorageType type_;
   Variant data_;
 };
@@ -231,33 +215,14 @@ class NullStorage {
   NullStorage(DenseNull d)
       : nullability_(dataframe::DenseNull{}), data_(std::move(d)) {}
 
-  // Type-safe unchecked access to variant data.
-  template <typename T>
-  T& unchecked_get() {
-    return base::unchecked_get<T>(data_);
-  }
-
-  template <typename T>
-  const T& unchecked_get() const {
-    return base::unchecked_get<T>(data_);
-  }
-
-  BitVector& GetNullBitVector() {
+  const BitVector* GetNullBitVector() const {
     switch (data_.index()) {
+      case TypeIndex<NonNull>():
+        return nullptr;
       case TypeIndex<SparseNull>():
-        return unchecked_get<SparseNull>().bit_vector;
+        return &base::unchecked_get<SparseNull>(data_).bit_vector;
       case TypeIndex<DenseNull>():
-        return unchecked_get<DenseNull>().bit_vector;
-      default:
-        PERFETTO_FATAL("Unsupported overlay type");
-    }
-  }
-  const BitVector& GetNullBitVector() const {
-    switch (data_.index()) {
-      case TypeIndex<SparseNull>():
-        return unchecked_get<SparseNull>().bit_vector;
-      case TypeIndex<DenseNull>():
-        return unchecked_get<DenseNull>().bit_vector;
+        return &base::unchecked_get<DenseNull>(data_).bit_vector;
       default:
         PERFETTO_FATAL("Unsupported overlay type");
     }

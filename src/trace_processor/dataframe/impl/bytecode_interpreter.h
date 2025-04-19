@@ -25,6 +25,7 @@
 
 #include <functional>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <optional>
 #include <string_view>
@@ -43,7 +44,9 @@
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
+#include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
+#include "src/trace_processor/dataframe/impl/static_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
@@ -150,12 +153,17 @@ class Interpreter {
   static_assert(std::is_base_of_v<ValueFetcher, FilterValueFetcherImpl>,
                 "FilterValueFetcherImpl must be a subclass of ValueFetcher");
 
-  Interpreter(BytecodeVector bytecode,
-              const Column* columns,
-              const StringPool* string_pool)
-      : bytecode_(std::move(bytecode)),
-        columns_(columns),
-        string_pool_(string_pool) {}
+  Interpreter(
+      BytecodeVector bytecode,
+      const FixedVector<std::shared_ptr<impl::Column>, kMaxColumns>& columns,
+      const StringPool* string_pool)
+      : bytecode_(std::move(bytecode)), string_pool_(string_pool) {
+    for (const auto& column : columns) {
+      column_info_.emplace_back(
+          ColumnInfoForInterpreter{column->storage.byte_data(),
+                                   column->null_storage.GetNullBitVector()});
+    }
+  }
 
   // Not movable because it's a very large object and the move cost would be
   // high. Prefer constructing in place.
@@ -202,8 +210,6 @@ class Interpreter {
   void SetRegisterValueForTesting(reg::WriteHandle<T> reg, T value) {
     WriteToRegister(reg, std::move(value));
   }
-
-  const Column* columns() const { return columns_; }
 
  private:
   PERFETTO_ALWAYS_INLINE void InitRange(const bytecode::InitRange& init) {
@@ -320,13 +326,11 @@ class Interpreter {
       }
     } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
       BoundModifier bound_modifier = f.arg<B::write_result_to>();
-      const auto* data =
-          columns_[f.arg<B::col>()].storage.template unchecked_data<T>();
+      const auto* data = GetStorageDataPtr<T>(f.arg<B::col>());
       SortedIntegerOrDoubleFilter<RangeOp>(data, val, bound_modifier, update);
     } else if constexpr (std::is_same_v<T, String>) {
       BoundModifier bound_modifier = f.arg<B::write_result_to>();
-      const auto* data =
-          columns_[f.arg<B::col>()].storage.template unchecked_data<String>();
+      const auto* data = GetStorageDataPtr<T>(f.arg<B::col>());
       SortedStringFilter<RangeOp>(data, val, bound_modifier, update);
     } else {
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
@@ -346,8 +350,7 @@ class Interpreter {
     using ValueType =
         StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
     auto val = base::unchecked_get<ValueType>(cast_result.value);
-    const auto& col = columns_[bytecode.arg<B::col>()];
-    const auto* storage = col.storage.template unchecked_data<Uint32>();
+    const auto* storage = GetStorageDataPtr<Uint32>(bytecode.arg<B::col>());
     const auto* start =
         std::clamp(storage + val, storage + update.b, storage + update.e);
     update.b = static_cast<uint32_t>(start - storage);
@@ -447,8 +450,7 @@ class Interpreter {
           base::unchecked_get<M>(value.value).value,
           comparators::IntegerOrDoubleComparator<uint32_t, Op>());
     } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
-      const auto* data =
-          columns_[nf.arg<B::col>()].storage.template unchecked_data<T>();
+      const auto* data = GetStorageDataPtr<T>(nf.arg<B::col>());
       update.e = Filter(data, source.b, source.e, update.b,
                         base::unchecked_get<M>(value.value),
                         comparators::IntegerOrDoubleComparator<M, Op>());
@@ -468,8 +470,7 @@ class Interpreter {
     }
     const char* val = base::unchecked_get<const char*>(filter_value.value);
     const auto& source = ReadFromRegister(sf.arg<B::source_register>());
-    const StringPool::Id* ptr =
-        columns_[sf.arg<B::col>()].storage.template unchecked_data<String>();
+    const StringPool::Id* ptr = GetStorageDataPtr<String>(sf.arg<B::col>());
     update.e = FilterStringOp<Op>(ptr, source.b, source.e, update.b, val);
   }
 
@@ -477,25 +478,21 @@ class Interpreter {
   PERFETTO_ALWAYS_INLINE void NullFilter(
       const bytecode::NullFilterBase& filter) {
     using B = bytecode::NullFilterBase;
-    const auto& column = columns_[filter.arg<B::col>()];
-    const auto& overlay = column.null_storage;
     auto& update = ReadFromRegister(filter.arg<B::update_register>());
     static constexpr bool kInvert = std::is_same_v<NullOp, IsNull>;
-    update.e = overlay.GetNullBitVector().template PackLeft<kInvert>(
-        update.b, update.e, update.b);
+    const BitVector& null_bv = GetNullBitVector(filter.arg<B::col>());
+    update.e = null_bv.template PackLeft<kInvert>(update.b, update.e, update.b);
   }
 
   PERFETTO_ALWAYS_INLINE void NullIndicesStablePartition(
       const bytecode::NullIndicesStablePartition& partition) {
     using B = bytecode::NullIndicesStablePartition;
 
-    const auto& column = columns_[partition.arg<B::col>()];
     const auto& location = partition.arg<B::nulls_location>();
-    const auto& overlay = column.null_storage;
     auto& update = ReadFromRegister(partition.arg<B::partition_register>());
     const auto& dest = partition.arg<B::dest_non_null_register>();
 
-    const auto& bit_vector = overlay.GetNullBitVector();
+    const BitVector& bit_vector = GetNullBitVector(partition.arg<B::col>());
     auto* partition_ptr = std::stable_partition(
         update.b, update.e, [&](uint32_t i) { return !bit_vector.is_set(i); });
     if (PERFETTO_UNLIKELY(location.Is<NullsAtEnd>())) {
@@ -509,14 +506,12 @@ class Interpreter {
 
   template <typename T>
   PERFETTO_ALWAYS_INLINE void StableSortIndices(
-      const bytecode::StableSortIndices<T>& sort_op) {
+      const bytecode::StableSortIndicesBase& sort_op) {
     using B = bytecode::StableSortIndicesBase;
 
-    auto& indices_to_sort =
-        ReadFromRegister(sort_op.template arg<B::update_register>());
-    uint32_t col_idx = sort_op.template arg<B::col>();
-    SortDirection direction = sort_op.template arg<B::direction>();
-    const auto* data = columns_[col_idx].storage.template unchecked_data<T>();
+    auto& indices_to_sort = ReadFromRegister(sort_op.arg<B::update_register>());
+    SortDirection direction = sort_op.arg<B::direction>();
+    const auto* data = GetStorageDataPtr<T>(sort_op.arg<B::col>());
     if (direction == SortDirection::kAscending) {
       auto asc_comparator = [&](uint32_t idx_a, uint32_t idx_b) {
         if constexpr (std::is_same_v<T, Id>) {
@@ -576,16 +571,14 @@ class Interpreter {
     if (MaybeReadFromRegister<Slab<uint32_t>>(dest_register)) {
       return;
     }
-    const auto& overlay = columns_[popcount.arg<B::col>()].null_storage;
-    WriteToRegister(dest_register, overlay.GetNullBitVector().PrefixPopcount());
+    WriteToRegister(dest_register,
+                    GetNullBitVector(popcount.arg<B::col>()).PrefixPopcount());
   }
 
   PERFETTO_ALWAYS_INLINE void TranslateSparseNullIndices(
       const bytecode::TranslateSparseNullIndices& bytecode) {
     using B = bytecode::TranslateSparseNullIndices;
-    const auto& overlay = columns_[bytecode.arg<B::col>()].null_storage;
-    const auto& bv =
-        overlay.template unchecked_get<NullStorage::SparseNull>().bit_vector;
+    const auto& bv = GetNullBitVector(bytecode.arg<B::col>());
 
     const auto& source = ReadFromRegister(bytecode.arg<B::source_register>());
     auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
@@ -605,9 +598,7 @@ class Interpreter {
   PERFETTO_ALWAYS_INLINE void StrideTranslateAndCopySparseNullIndices(
       const bytecode::StrideTranslateAndCopySparseNullIndices& bytecode) {
     using B = bytecode::StrideTranslateAndCopySparseNullIndices;
-    const auto& overlay = columns_[bytecode.arg<B::col>()].null_storage;
-    const auto& bv =
-        overlay.template unchecked_get<NullStorage::SparseNull>().bit_vector;
+    const auto& bv = GetNullBitVector(bytecode.arg<B::col>());
 
     auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
     uint32_t stride = bytecode.arg<B::stride>();
@@ -628,9 +619,7 @@ class Interpreter {
   PERFETTO_ALWAYS_INLINE void StrideCopyDenseNullIndices(
       const bytecode::StrideCopyDenseNullIndices& bytecode) {
     using B = bytecode::StrideCopyDenseNullIndices;
-    const auto& overlay = columns_[bytecode.arg<B::col>()].null_storage;
-    const auto& bv =
-        overlay.template unchecked_get<NullStorage::DenseNull>().bit_vector;
+    const auto& bv = GetNullBitVector(bytecode.arg<B::col>());
 
     auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
     uint32_t stride = bytecode.arg<B::stride>();
@@ -655,18 +644,17 @@ class Interpreter {
   PERFETTO_ALWAYS_INLINE void CopyToRowLayoutNonNull(
       const bytecode::CopyToRowLayoutNonNull& bytecode) {
     using B = bytecode::CopyToRowLayoutNonNull;
-    uint32_t col_idx = bytecode.arg<B::col>();
     const auto& source =
         ReadFromRegister(bytecode.arg<B::source_indices_register>());
     auto& dest_buffer =
         ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
     uint32_t stride = bytecode.arg<B::row_layout_stride>();
     uint32_t offset = bytecode.arg<B::row_layout_offset>();
-    uint32_t copy_size = bytecode.arg<B::copy_size>();
+    size_t copy_size = bytecode.arg<B::copy_size>();
 
     uint8_t* dest_addr = dest_buffer.data() + offset;
-    const auto& storage = columns_[col_idx].storage;
-    const uint8_t* source_base = storage.byte_data();
+    const uint8_t* source_base =
+        column_info_[bytecode.arg<B::col>()].storage_byte_data_ptr;
 
     for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
       // If the pointer is null, then use the index directly as the
@@ -691,13 +679,11 @@ class Interpreter {
         ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
     uint32_t stride = bytecode.arg<B::row_layout_stride>();
     uint32_t offset = bytecode.arg<B::row_layout_offset>();
-    uint32_t copy_size = bytecode.arg<B::copy_size>();
+    size_t copy_size = bytecode.arg<B::copy_size>();
 
     uint8_t* dest_addr = dest_buffer.data() + offset;
-    const auto& col = columns_[col_idx];
-    const auto& storage = col.storage;
-    const auto& bv = col.null_storage.GetNullBitVector();
-    const uint8_t* source_base = storage.byte_data();
+    const auto& bv = GetNullBitVector(col_idx);
+    const uint8_t* source_base = column_info_[col_idx].storage_byte_data_ptr;
 
     for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
       // If the pointer is null, then use the index directly as the
@@ -731,13 +717,11 @@ class Interpreter {
         ReadFromRegister(bytecode.arg<B::popcount_register>());
     uint32_t stride = bytecode.arg<B::row_layout_stride>();
     uint32_t offset = bytecode.arg<B::row_layout_offset>();
-    uint32_t copy_size = bytecode.arg<B::copy_size>();
+    size_t copy_size = bytecode.arg<B::copy_size>();
 
     uint8_t* dest_addr = dest_buffer.data() + offset;
-    const auto& col = columns_[col_idx];
-    const auto& storage = col.storage;
-    const auto& bv = col.null_storage.GetNullBitVector();
-    const uint8_t* source_base = storage.byte_data();
+    const auto& bv = GetNullBitVector(col_idx);
+    const uint8_t* source_base = column_info_[col_idx].storage_byte_data_ptr;
 
     for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
       bool is_non_null = bv.is_set(*ptr);
@@ -805,16 +789,13 @@ class Interpreter {
 
   template <typename T, typename Op>
   PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
-      const bytecode::FindMinMaxIndex<T, Op>& bytecode) {
-    using B = bytecode::FindMinMaxIndexBase;  // Use base for arg names
-    uint32_t col = bytecode.template arg<B::col>();
-    auto& indices =
-        ReadFromRegister(bytecode.template arg<B::update_register>());
+      const bytecode::FindMinMaxIndexBase& bytecode) {
+    using B = bytecode::FindMinMaxIndexBase;
+    auto& indices = ReadFromRegister(bytecode.arg<B::update_register>());
     if (indices.empty()) {
       return;
     }
-
-    const auto* data = columns_[col].storage.template unchecked_data<T>();
+    const auto* data = GetStorageDataPtr<T>(bytecode.arg<B::col>());
     auto get_value = [&](uint32_t idx) {
       if constexpr (std::is_same_v<T, Id>) {
         base::ignore_result(data);
@@ -1308,15 +1289,32 @@ class Interpreter {
     registers_[r.index] = std::move(value);
   }
 
+  template <typename T>
+  const auto* GetStorageDataPtr(uint32_t i) {
+    return Storage::CastByteDataPointer<T>(
+        column_info_[i].storage_byte_data_ptr);
+  }
+
+  const BitVector& GetNullBitVector(uint32_t i) {
+    return *column_info_[i].null_storage_bv;
+  }
+
   // The sequence of bytecode instructions to execute
   BytecodeVector bytecode_;
+
   // Register file holding intermediate values
   std::array<reg::Value, reg::kMaxRegisters> registers_;
 
+  // The data from inside a column which is required for the interpreter.
+  struct ColumnInfoForInterpreter {
+    const uint8_t* storage_byte_data_ptr;
+    const BitVector* null_storage_bv;
+  };
+  FixedVector<ColumnInfoForInterpreter, kMaxColumns> column_info_;
+
   // Pointer to the source for filter values.
   FilterValueFetcherImpl* filter_value_fetcher_;
-  // Pointer to the data columns being processed
-  const Column* columns_;
+
   // Pointer to the string pool (for string operations)
   const StringPool* string_pool_;
 };

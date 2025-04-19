@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -143,7 +144,7 @@ class QueryPlanBuilder {
  public:
   static base::StatusOr<QueryPlan> Build(
       uint32_t row_count,
-      const FixedVector<Column, kMaxColumns>& columns,
+      const FixedVector<std::shared_ptr<Column>, kMaxColumns>& columns,
       std::vector<FilterSpec>& specs,
       const std::vector<DistinctSpec>& distinct,
       const std::vector<SortSpec>& sort_specs,
@@ -204,8 +205,9 @@ class QueryPlanBuilder {
   };
 
   // Constructs a builder for the given number of rows and columns.
-  QueryPlanBuilder(uint32_t row_count,
-                   const FixedVector<Column, kMaxColumns>& columns);
+  QueryPlanBuilder(
+      uint32_t row_count,
+      const FixedVector<std::shared_ptr<Column>, kMaxColumns>& columns);
 
   // Adds filter operations to the query plan based on filter specifications.
   // Optimizes the order of filters for efficiency.
@@ -297,7 +299,7 @@ class QueryPlanBuilder {
   bool CanUseMinMaxOptimization(const std::vector<SortSpec>&, const LimitSpec&);
 
   // Reference to the columns being queried.
-  const FixedVector<Column, kMaxColumns>& columns_;
+  const FixedVector<std::shared_ptr<Column>, kMaxColumns>& columns_;
 
   // The query plan being built.
   QueryPlan plan_;

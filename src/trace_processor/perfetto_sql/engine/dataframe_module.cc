@@ -27,12 +27,11 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/dataframe_shared_storage.h"
 #include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
@@ -110,7 +109,7 @@ int DataframeModule::Create(sqlite3* db,
 
   auto* ctx = GetContext(raw_ctx);
   auto table = ctx->dataframe_shared_storage->Find(
-      DataframeSharedStorage::Tag{*tag_hash});
+      dataframe::DataframeSharedStorage::Tag{*tag_hash});
   PERFETTO_CHECK(table);
 
   std::string create_stmt = CreateTableStmt(table->CreateColumnSpecs());

@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -131,8 +132,13 @@ inline uint8_t GetDataSize(StorageType type) {
 
 QueryPlanBuilder::QueryPlanBuilder(
     uint32_t row_count,
+<<<<<<< HEAD
+    const FixedVector<std::shared_ptr<Column>, kMaxColumns>& columns)
+    : columns_(columns), column_states_(columns.size()) {
+=======
     const FixedVector<Column, kMaxColumns>& columns)
     : columns_(columns), column_statess_(columns.size()) {
+>>>>>>> dev/lalit/df-1
   // Setup the maximum and estimated row counts.
   plan_.params.max_row_count = row_count;
   plan_.params.estimated_row_count = row_count;
@@ -154,13 +160,13 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
                    [this](const FilterSpec& a, const FilterSpec& b) {
                      const auto& a_col = columns_[a.col];
                      const auto& b_col = columns_[b.col];
-                     return FilterPreference(a, a_col) <
-                            FilterPreference(b, b_col);
+                     return FilterPreference(a, *a_col) <
+                            FilterPreference(b, *b_col);
                    });
 
   // Apply each filter in the optimized order
   for (FilterSpec& c : specs) {
-    const Column& col = columns_[c.col];
+    const Column& col = *columns_[c.col];
     StorageType ct = col.storage.type();
 
     // Get the non-null operation (all our ops are non-null at this point)
@@ -213,7 +219,7 @@ void QueryPlanBuilder::Distinct(
   bytecode::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
   uint16_t total_row_stride = 0;
   for (const auto& spec : distinct_specs) {
-    const Column& col = columns_[spec.col];
+    const Column& col = *columns_[spec.col];
     bool is_nullable = !col.null_storage.nullability().Is<NonNull>();
     total_row_stride +=
         (is_nullable ? 1u : 0u) + GetDataSize(col.storage.type());
@@ -229,7 +235,7 @@ void QueryPlanBuilder::Distinct(
   }
   uint16_t current_offset = 0;
   for (const auto& spec : distinct_specs) {
-    const Column& col = columns_[spec.col];
+    const Column& col = *columns_[spec.col];
     const auto& nullability = col.null_storage.nullability();
     uint8_t data_size = GetDataSize(col.storage.type());
     switch (nullability.index()) {
@@ -321,7 +327,7 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
   bytecode::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
   for (auto it = sort_specs.rbegin(); it != sort_specs.rend(); ++it) {
     const SortSpec& sort_spec = *it;
-    const Column& sort_col = columns_[sort_spec.col];
+    const Column& sort_col = *columns_[sort_spec.col];
     StorageType sort_col_type = sort_col.storage.type();
 
     uint32_t nullability_type_index =
@@ -376,7 +382,7 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
 
 void QueryPlanBuilder::MinMax(const SortSpec& sort_spec) {
   uint32_t col_idx = sort_spec.col;
-  const auto& col = columns_[col_idx];
+  const auto& col = *columns_[col_idx];
   StorageType storage_type = col.storage.type();
 
   MinMaxOp mmop = sort_spec.direction == SortDirection::kAscending
@@ -407,7 +413,7 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
     if ((cols_used & 1u) == 0) {
       continue;
     }
-    const auto& col = columns_[i];
+    const auto& col = *columns_[i];
     switch (col.null_storage.nullability().index()) {
       case Nullability::GetTypeIndex<SparseNull>():
       case Nullability::GetTypeIndex<DenseNull>():
@@ -455,7 +461,7 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
       storage_update_register = span_register;
     }
     for (auto [col, offset] : null_cols) {
-      const auto& c = columns_[col];
+      const auto& c = *columns_[col];
       switch (c.null_storage.nullability().index()) {
         case Nullability::GetTypeIndex<SparseNull>(): {
           using B = bytecode::StrideTranslateAndCopySparseNullIndices;
@@ -540,7 +546,7 @@ void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
   // the caller (i.e. SQLite) knows that we are able to handle the constraint.
   c.value_index = plan_.params.filter_value_count++;
 
-  const auto& col = columns_[c.col];
+  const auto& col = *columns_[c.col];
   uint32_t nullability_type_index = col.null_storage.nullability().index();
   switch (nullability_type_index) {
     case Nullability::GetTypeIndex<SparseNull>():
@@ -572,7 +578,7 @@ bool QueryPlanBuilder::TrySortedConstraint(
     const StorageType& ct,
     const NonNullOp& op,
     const bytecode::reg::RwHandle<CastFilterValueResult>& result) {
-  const auto& col = columns_[fs.col];
+  const auto& col = *columns_[fs.col];
   const auto& nullability = col.null_storage.nullability();
   if (!nullability.Is<NonNull>() || col.sort_state.Is<Unsorted>()) {
     return false;
@@ -627,7 +633,7 @@ bool QueryPlanBuilder::TrySortedConstraint(
 bytecode::reg::RwHandle<Span<uint32_t>>
 QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
   bytecode::reg::RwHandle<Span<uint32_t>> main = EnsureIndicesAreInSlab();
-  const auto& col = columns_[c.col];
+  const auto& col = *columns_[c.col];
   uint32_t nullability_type_index = col.null_storage.nullability().index();
   switch (nullability_type_index) {
     case Nullability::GetTypeIndex<SparseNull>(): {
@@ -826,7 +832,9 @@ bool QueryPlanBuilder::CanUseMinMaxOptimization(
     const std::vector<SortSpec>& sort_specs,
     const LimitSpec& limit_spec) {
   return sort_specs.size() == 1 &&
-         columns_[sort_specs[0].col].null_storage.nullability().Is<NonNull>() &&
+         columns_[sort_specs[0].col]
+             ->null_storage.nullability()
+             .Is<NonNull>() &&
          limit_spec.limit == 1 && limit_spec.offset.value_or(0) == 0;
 }
 

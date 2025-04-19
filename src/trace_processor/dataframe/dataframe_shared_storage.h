@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_SHARED_STORAGE_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_SHARED_STORAGE_H_
+#ifndef SRC_TRACE_PROCESSOR_DATAFRAME_DATAFRAME_SHARED_STORAGE_H_
+#define SRC_TRACE_PROCESSOR_DATAFRAME_DATAFRAME_SHARED_STORAGE_H_
 
 #include <cstdint>
 #include <memory>
@@ -29,7 +29,7 @@
 #include "perfetto/ext/base/uuid.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto::trace_processor::dataframe {
 
 // Shared storage for Dataframe objects.
 //
@@ -73,7 +73,7 @@ class DataframeSharedStorage {
   // Checks whether a dataframe with the given tag has already been created.
   //
   // Returns nullptr if no such dataframe exists.
-  std::shared_ptr<const dataframe::Dataframe> Find(Tag tag) {
+  std::shared_ptr<const Dataframe> Find(Tag tag) {
     std::lock_guard<std::mutex> mu(mutex_);
     auto* it = dataframes_.Find(tag.hash);
     if (!it) {
@@ -88,16 +88,15 @@ class DataframeSharedStorage {
   // Returns the dataframe which is now owned by the shared storage. This might
   // be the same dataframe which was passed in as the argument or it might be a
   // a dataframe which is already stored in the shared storage.
-  std::shared_ptr<const dataframe::Dataframe> Insert(
-      Tag tag,
-      std::unique_ptr<dataframe::Dataframe> df) {
-    std::shared_ptr<dataframe::Dataframe> shared_df(std::move(df));
+  std::shared_ptr<const Dataframe> Insert(Tag tag,
+                                          std::unique_ptr<Dataframe> df) {
+    std::shared_ptr<Dataframe> shared_df(std::move(df));
     std::lock_guard<std::mutex> mu(mutex_);
     auto [it, inserted] = dataframes_.Insert(tag.hash, shared_df);
     if (inserted) {
       return shared_df;
     }
-    std::shared_ptr<dataframe::Dataframe> existing_shared_df = it->lock();
+    std::shared_ptr<Dataframe> existing_shared_df = it->lock();
     if (existing_shared_df) {
       return existing_shared_df;
     }
@@ -120,13 +119,13 @@ class DataframeSharedStorage {
 
  private:
   using DataframeMap = base::FlatHashMap<uint64_t,
-                                         std::weak_ptr<dataframe::Dataframe>,
+                                         std::weak_ptr<Dataframe>,
                                          base::AlreadyHashed<uint64_t>>;
 
   std::mutex mutex_;
   DataframeMap dataframes_ PERFETTO_GUARDED_BY(mutex_);
 };
 
-}  // namespace perfetto::trace_processor
+}  // namespace perfetto::trace_processor::dataframe
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_SHARED_STORAGE_H_
+#endif  // SRC_TRACE_PROCESSOR_DATAFRAME_DATAFRAME_SHARED_STORAGE_H_
