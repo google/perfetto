@@ -478,7 +478,7 @@ class Interpreter {
       const bytecode::NullFilterBase& filter) {
     using B = bytecode::NullFilterBase;
     const auto& column = columns_[filter.arg<B::col>()];
-    const auto& overlay = column.overlay;
+    const auto& overlay = column.null_storage;
     auto& update = ReadFromRegister(filter.arg<B::update_register>());
     static constexpr bool kInvert = std::is_same_v<NullOp, IsNull>;
     update.e = overlay.GetNullBitVector().template PackLeft<kInvert>(
@@ -491,7 +491,7 @@ class Interpreter {
 
     const auto& column = columns_[partition.arg<B::col>()];
     const auto& location = partition.arg<B::nulls_location>();
-    const auto& overlay = column.overlay;
+    const auto& overlay = column.null_storage;
     auto& update = ReadFromRegister(partition.arg<B::partition_register>());
     const auto& dest = partition.arg<B::dest_non_null_register>();
 
@@ -576,16 +576,16 @@ class Interpreter {
     if (MaybeReadFromRegister<Slab<uint32_t>>(dest_register)) {
       return;
     }
-    const auto& overlay = columns_[popcount.arg<B::col>()].overlay;
+    const auto& overlay = columns_[popcount.arg<B::col>()].null_storage;
     WriteToRegister(dest_register, overlay.GetNullBitVector().PrefixPopcount());
   }
 
   PERFETTO_ALWAYS_INLINE void TranslateSparseNullIndices(
       const bytecode::TranslateSparseNullIndices& bytecode) {
     using B = bytecode::TranslateSparseNullIndices;
-    const auto& overlay = columns_[bytecode.arg<B::col>()].overlay;
+    const auto& overlay = columns_[bytecode.arg<B::col>()].null_storage;
     const auto& bv =
-        overlay.template unchecked_get<Overlay::SparseNull>().bit_vector;
+        overlay.template unchecked_get<NullStorage::SparseNull>().bit_vector;
 
     const auto& source = ReadFromRegister(bytecode.arg<B::source_register>());
     auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
@@ -605,9 +605,9 @@ class Interpreter {
   PERFETTO_ALWAYS_INLINE void StrideTranslateAndCopySparseNullIndices(
       const bytecode::StrideTranslateAndCopySparseNullIndices& bytecode) {
     using B = bytecode::StrideTranslateAndCopySparseNullIndices;
-    const auto& overlay = columns_[bytecode.arg<B::col>()].overlay;
+    const auto& overlay = columns_[bytecode.arg<B::col>()].null_storage;
     const auto& bv =
-        overlay.template unchecked_get<Overlay::SparseNull>().bit_vector;
+        overlay.template unchecked_get<NullStorage::SparseNull>().bit_vector;
 
     auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
     uint32_t stride = bytecode.arg<B::stride>();
@@ -628,9 +628,9 @@ class Interpreter {
   PERFETTO_ALWAYS_INLINE void StrideCopyDenseNullIndices(
       const bytecode::StrideCopyDenseNullIndices& bytecode) {
     using B = bytecode::StrideCopyDenseNullIndices;
-    const auto& overlay = columns_[bytecode.arg<B::col>()].overlay;
+    const auto& overlay = columns_[bytecode.arg<B::col>()].null_storage;
     const auto& bv =
-        overlay.template unchecked_get<Overlay::DenseNull>().bit_vector;
+        overlay.template unchecked_get<NullStorage::DenseNull>().bit_vector;
 
     auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
     uint32_t stride = bytecode.arg<B::stride>();
@@ -696,7 +696,7 @@ class Interpreter {
     uint8_t* dest_addr = dest_buffer.data() + offset;
     const auto& col = columns_[col_idx];
     const auto& storage = col.storage;
-    const auto& bv = col.overlay.GetNullBitVector();
+    const auto& bv = col.null_storage.GetNullBitVector();
     const uint8_t* source_base = storage.byte_data();
 
     for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
@@ -736,7 +736,7 @@ class Interpreter {
     uint8_t* dest_addr = dest_buffer.data() + offset;
     const auto& col = columns_[col_idx];
     const auto& storage = col.storage;
-    const auto& bv = col.overlay.GetNullBitVector();
+    const auto& bv = col.null_storage.GetNullBitVector();
     const uint8_t* source_base = storage.byte_data();
 
     for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
@@ -919,7 +919,7 @@ class Interpreter {
     auto matches =
         BitVector::CreateWithSize(string_pool_->MaxSmallStringId().raw_id());
     PERFETTO_DCHECK(!string_pool_->HasLargeString());
-    for (auto it = string_pool_->CreateIterator(); it; ++it) {
+    for (auto it = string_pool_->CreateSmallStringIterator(); it; ++it) {
       auto id = it.StringId();
       matches.change_assume_unset(id.raw_id(),
                                   matcher.Matches(string_pool_->Get(id)));

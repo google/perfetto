@@ -697,7 +697,6 @@ struct CommandLineOptions {
 
   bool enable_httpd = false;
   std::string port_number;
-  std::string listen_ip;
   bool enable_stdiod = false;
   bool launch_shell = false;
 
@@ -751,7 +750,6 @@ General purpose:
 Behavioural:
  -D, --httpd                          Enables the HTTP RPC server.
  --http-port PORT                     Specify what port to run HTTP RPC server.
- --http-ip-address ip                 Specify what ip address to run HTTP RPC server.
  --stdiod                             Enables the stdio RPC server.
  -i, --interactive                    Starts interactive mode even after
                                       executing some other commands (-q, -Q,
@@ -902,7 +900,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   CommandLineOptions command_line_options;
   enum LongOption {
     OPT_HTTP_PORT = 1000,
-    OPT_HTTP_IP,
     OPT_STDIOD,
 
     OPT_FORCE_FULL_SORT,
@@ -940,7 +937,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
       {"httpd", no_argument, nullptr, 'D'},
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
-      {"http-ip-address", required_argument, nullptr, OPT_HTTP_IP},
       {"stdiod", no_argument, nullptr, OPT_STDIOD},
       {"interactive", no_argument, nullptr, 'i'},
 
@@ -1036,11 +1032,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_HTTP_PORT) {
       command_line_options.port_number = optarg;
-      continue;
-    }
-
-    if (option == OPT_HTTP_IP) {
-      command_line_options.listen_ip = optarg;
       continue;
     }
 
@@ -1986,7 +1977,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-    RunHttpRPCServer(std::move(tp), options.listen_ip, options.port_number);
+    RunHttpRPCServer(std::move(tp), options.port_number);
     PERFETTO_FATAL("Should never return");
 #else
     PERFETTO_FATAL("HTTP not available");

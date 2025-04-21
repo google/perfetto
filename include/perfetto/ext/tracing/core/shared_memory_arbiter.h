@@ -55,8 +55,7 @@ class PERFETTO_EXPORT_COMPONENT SharedMemoryArbiter {
   // only BufferExhaustedPolicy::kDrop is supported.
   virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
-      BufferExhaustedPolicy buffer_exhausted_policy =
-          BufferExhaustedPolicy::kDefault) = 0;
+      BufferExhaustedPolicy buffer_exhausted_policy) = 0;
 
   // Creates a TraceWriter that will commit to the target buffer with the given
   // reservation ID (creating a new reservation for this ID if none exists yet).

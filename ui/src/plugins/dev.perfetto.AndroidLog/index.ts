@@ -59,6 +59,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
+        description: 'Android log messages',
         tags: {kind: ANDROID_LOGS_TRACK_KIND},
         track: createAndroidLogTrack(ctx, uri),
       });
