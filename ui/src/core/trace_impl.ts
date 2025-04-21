@@ -52,7 +52,8 @@ import {PostedTrace} from './trace_source';
 import {PerfManager} from './perf_manager';
 import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
-import {SettingsManager} from '../public/settings';
+import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
+import {SettingsManagerImpl} from './settings_manager';
 
 /**
  * Handles the per-trace state of the UI
@@ -183,6 +184,7 @@ export class TraceImpl implements Trace {
   private readonly commandMgrProxy: CommandManagerImpl;
   private readonly sidebarProxy: SidebarManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
+  private readonly settingsProxy: SettingsManagerImpl;
 
   // This is called by TraceController when loading a new trace, soon after the
   // engine has been set up. It obtains a new TraceImpl for the core. From that
@@ -248,6 +250,14 @@ export class TraceImpl implements Trace {
         });
         traceUnloadTrash.use(disposable);
         return disposable;
+      },
+    });
+
+    this.settingsProxy = createProxy(ctx.appCtx.settingsManager, {
+      register<T>(setting: SettingDescriptor<T>): Setting<T> {
+        const settingInstance = ctx.appCtx.settingsManager.register(setting);
+        traceUnloadTrash.use(settingInstance);
+        return settingInstance;
       },
     });
 
@@ -449,7 +459,7 @@ export class TraceImpl implements Trace {
   }
 
   get settings(): SettingsManager {
-    return this.appImpl.settings;
+    return this.settingsProxy;
   }
 }
 

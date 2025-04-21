@@ -56,7 +56,7 @@ export interface SettingDescriptor<T> {
  * with the setting's value and state.
  * @template T The type of the setting's value.
  */
-export interface Setting<T> extends SettingDescriptor<T> {
+export interface Setting<T> extends SettingDescriptor<T>, Disposable {
   // Returns true if this settings is currently set to the default value.
   readonly isDefault: boolean;
   // Get the current value of the setting.
