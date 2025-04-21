@@ -40,17 +40,6 @@ class FixedVector {
 
   constexpr FixedVector() = default;
 
-  // Only available if T is default constructible.
-  template <typename U = T,
-            typename = std::enable_if_t<std::is_default_constructible_v<U>>>
-  explicit FixedVector(std::size_t count) {
-    PERFETTO_DCHECK(count <= kCapacity);
-    for (std::size_t i = 0; i < count; ++i) {
-      new (get_ptr(i)) T();
-    }
-    size_ = count;
-  }
-
   ~FixedVector() { destroy_all(); }
 
   FixedVector(const FixedVector& other) {
