@@ -43,7 +43,7 @@ SELECT
   SUM(ii.dur * ss.cpu7_mw) / SUM(ii.dur) as cpu7_mw,
   SUM(ii.dur * ss.dsu_scu_mw) / SUM(ii.dur) as dsu_scu_mw,
   SUM(ii.dur) as period_dur,
-  w.period_id
+  ii.id_0 as period_id
 FROM _interval_intersect!(
   (
     (SELECT period_id AS id, * FROM {{window_table}}),
@@ -51,9 +51,8 @@ FROM _interval_intersect!(
   ),
   ()
 ) ii
-JOIN {{window_table}} AS w ON w.period_id = id_0
 JOIN _system_state_mw AS ss ON ss._auto_id = id_1
-GROUP BY w.period_id;
+GROUP BY period_id;
 
 -- Macro that filters out CPUs that are unrelated to the policy of the table
 -- passed in, and does some bookkeeping to put data in expected format
