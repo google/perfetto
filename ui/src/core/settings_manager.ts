@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {Registry} from '../base/registry';
 import {
   Setting,
   SettingDescriptor,
@@ -75,10 +74,15 @@ class SettingImpl<T> implements Setting<T> {
   reset(): void {
     this.manager.clearStoredValue(this.id);
   }
+
+  [Symbol.dispose](): void {
+    // Use the stored disposable if available
+    this.manager.unregister(this.id);
+  }
 }
 
 export class SettingsManagerImpl implements SettingsManager {
-  private readonly registry = new Registry<SettingImpl<unknown>>((s) => s.id);
+  private readonly registry = new Map<string, SettingImpl<unknown>>();
   private currentStoredValues: Record<string, unknown> = {};
   private readonly store: Storage;
 
@@ -98,6 +102,10 @@ export class SettingsManagerImpl implements SettingsManager {
       this.save();
     }
 
+    if (this.registry.has(setting.id)) {
+      throw new Error(`Setting with id "${setting.id}" already registered.`);
+    }
+
     const settingImpl = new SettingImpl<T>(
       this,
       setting.id,
@@ -109,9 +117,13 @@ export class SettingsManagerImpl implements SettingsManager {
       setting.render,
     );
 
-    this.registry.register(settingImpl as SettingImpl<unknown>);
+    this.registry.set(setting.id, settingImpl as SettingImpl<unknown>);
 
     return settingImpl;
+  }
+
+  unregister(id: string): void {
+    this.registry.delete(id);
   }
 
   resetAll(): void {
