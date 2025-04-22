@@ -81,7 +81,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       m(MenuItem, {
         label: 'Edit',
         onclick: async () => {
-          const attrsCopy = node.getState();
+          const attrsCopy = node.getStateCopy();
           switch (node.type) {
             case NodeType.kStdlibTable:
               createModal(
@@ -290,7 +290,7 @@ function addSourcePopupMenu(attrs: ExplorePageAttrs): m.Children {
 }
 
 function cloneQueryNode(node: QueryNode): QueryNode {
-  const attrsCopy = node.getState();
+  const attrsCopy = node.getStateCopy();
   switch (node.type) {
     case NodeType.kStdlibTable:
       return new StdlibTableNode(attrsCopy as StdlibTableAttrs);
