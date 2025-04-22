@@ -141,9 +141,10 @@ message FtraceEventBundle {
   }
   repeated GenericEventDescriptor generic_event_descriptors = 11;
 
-  // Written only on debuggable android builds if the config sets
-  // |debug_ftrace_abi|. Contains the raw ring buffer tracing page that the
-  // implementation could not parse.
+  // Written only on android builds if the config sets |debug_ftrace_abi|.
+  // Contains the raw ring buffer tracing page that the implementation could
+  // not parse.
+  // Addded in: perfetto v50.
   optional bytes broken_abi_trace_page = 512;
 }
 
