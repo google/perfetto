@@ -1363,6 +1363,7 @@ cc_binary {
     ],
     required: [
         "perfetto_persistent_cfg.pbtxt",
+        "perfetto_prev_boot_dump.pbtxt",
     ],
 }
 
@@ -1418,6 +1419,7 @@ filegroup {
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
+        "protos/perfetto/config/ftrace/frozen_ftrace_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
         "protos/perfetto/config/gpu/gpu_renderstages_config.proto",
@@ -1485,6 +1487,7 @@ java_library {
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
+        "protos/perfetto/config/ftrace/frozen_ftrace_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
         "protos/perfetto/config/gpu/gpu_renderstages_config.proto",
@@ -2932,6 +2935,7 @@ filegroup {
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
+        "protos/perfetto/config/ftrace/frozen_ftrace_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
         "protos/perfetto/config/gpu/gpu_renderstages_config.proto",
@@ -3932,6 +3936,7 @@ genrule {
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
+        "protos/perfetto/config/ftrace/frozen_ftrace_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
         "protos/perfetto/config/gpu/gpu_renderstages_config.proto",
@@ -3966,6 +3971,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_config_ftrace_cpp",
     srcs: [
+        "protos/perfetto/config/ftrace/frozen_ftrace_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
     ],
 }
@@ -3982,6 +3988,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_ftrace_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/config/ftrace/frozen_ftrace_config.gen.cc",
         "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.gen.cc",
     ],
 }
@@ -3998,6 +4005,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_ftrace_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/config/ftrace/frozen_ftrace_config.gen.h",
         "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.gen.h",
     ],
     export_include_dirs: [
@@ -4010,6 +4018,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_config_ftrace_lite",
     srcs: [
+        "protos/perfetto/config/ftrace/frozen_ftrace_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
     ],
 }
@@ -4025,6 +4034,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_ftrace_lite)",
     out: [
+        "external/perfetto/protos/perfetto/config/ftrace/frozen_ftrace_config.pb.cc",
         "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.pb.cc",
     ],
 }
@@ -4040,6 +4050,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_ftrace_lite)",
     out: [
+        "external/perfetto/protos/perfetto/config/ftrace/frozen_ftrace_config.pb.h",
         "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.pb.h",
     ],
     export_include_dirs: [
@@ -4052,6 +4063,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_config_ftrace_zero",
     srcs: [
+        "protos/perfetto/config/ftrace/frozen_ftrace_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
     ],
 }
@@ -4068,6 +4080,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_ftrace_zero)",
     out: [
+        "external/perfetto/protos/perfetto/config/ftrace/frozen_ftrace_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.pbzero.cc",
     ],
 }
@@ -4084,6 +4097,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_ftrace_zero)",
     out: [
+        "external/perfetto/protos/perfetto/config/ftrace/frozen_ftrace_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.pbzero.h",
     ],
     export_include_dirs: [
@@ -7316,6 +7330,7 @@ genrule {
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
+        "protos/perfetto/config/ftrace/frozen_ftrace_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
         "protos/perfetto/config/gpu/gpu_renderstages_config.proto",
@@ -15254,6 +15269,8 @@ filegroup {
         "src/traced/probes/ftrace/cpu_stats_parser.cc",
         "src/traced/probes/ftrace/event_info.cc",
         "src/traced/probes/ftrace/event_info_constants.cc",
+        "src/traced/probes/ftrace/frozen_ftrace_data_source.cc",
+        "src/traced/probes/ftrace/frozen_ftrace_procfs.cc",
         "src/traced/probes/ftrace/ftrace_config_muxer.cc",
         "src/traced/probes/ftrace/ftrace_config_utils.cc",
         "src/traced/probes/ftrace/ftrace_controller.cc",
@@ -15982,6 +15999,7 @@ java_library {
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
+        "protos/perfetto/config/ftrace/frozen_ftrace_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
         "protos/perfetto/config/gpu/gpu_renderstages_config.proto",
@@ -18826,6 +18844,13 @@ prebuilt_etc {
     filename: "persistent_cfg.pbtxt",
     sub_dir: "perfetto",
     src: "persistent_cfg.pbtxt",
+}
+
+prebuilt_etc {
+    name: "perfetto_prev_boot_dump.pbtxt",
+    filename: "prev_boot_dump.pbtxt",
+    sub_dir: "perfetto",
+    src: "prev_boot_dump.pbtxt",
 }
 
 phony {

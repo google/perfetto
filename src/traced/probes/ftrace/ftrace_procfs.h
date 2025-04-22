@@ -75,7 +75,6 @@ class FtraceProcfs {
   bool DisableAllEvents();
 
   // Read the format for event with the given |group| and |name|.
-  // virtual for testing.
   virtual std::string ReadEventFormat(const std::string& group,
                                       const std::string& name) const;
 
@@ -135,6 +134,9 @@ class FtraceProcfs {
   // by the number of CPUs.
   bool SetCpuBufferSizeInPages(size_t pages);
 
+  // Returns the current per-cpu buffer size in pages.
+  size_t GetCpuBufferSizeInPages();
+
   // Returns the number of CPUs.
   // This will match the number of tracing/per_cpu/cpuXX directories.
   size_t virtual NumberOfCpus() const;
@@ -165,7 +167,7 @@ class FtraceProcfs {
   bool SetClock(const std::string& clock_name);
 
   // Get the currently set clock.
-  std::string GetClock();
+  virtual std::string GetClock();
 
   // Get all the available clocks.
   std::set<std::string> AvailableClocks();
@@ -190,7 +192,7 @@ class FtraceProcfs {
   std::string GetRootPath() const { return root_; }
 
  protected:
-  // virtual and protected for testing.
+  // virtual and protected
   virtual bool WriteToFile(const std::string& path, const std::string& str);
   virtual bool AppendToFile(const std::string& path, const std::string& str);
   virtual bool ClearFile(const std::string& path);
@@ -198,10 +200,10 @@ class FtraceProcfs {
   virtual char ReadOneCharFromFile(const std::string& path);
   virtual std::string ReadFileIntoString(const std::string& path) const;
 
- private:
   // Checks the trace file is present at the given root path.
   static bool CheckRootPath(const std::string& root);
 
+ private:
   bool WriteNumberToFile(const std::string& path, size_t value);
 
   const std::string root_;

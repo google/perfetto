@@ -1,0 +1,16 @@
+buffers {
+      size_kb: 65536
+      fill_policy: DISCARD
+}
+
+data_sources {
+ config {
+   name: "linux.frozen_ftrace"
+   frozen_ftrace_config {
+     instance_name: "boot_mapped"
+     event_format_path: "/data/misc/perfetto-data/events"
+    }
+  }
+}
+
+duration_ms: 1000

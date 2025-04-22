@@ -463,6 +463,17 @@ bool FtraceProcfs::SetCpuBufferSizeInPages(size_t pages) {
   return WriteNumberToFile(path, pages * (base::GetSysPageSize() / 1024ul));
 }
 
+size_t FtraceProcfs::GetCpuBufferSizeInPages() {
+  std::string path = root_ + "buffer_size_kb";
+  auto str = ReadFileIntoString(path);
+
+  if (str.size() && str[str.size() - 1] == '\n')
+    str.resize(str.size() - 1);
+
+  std::optional<uint32_t> size_kb = base::StringToUInt32(str);
+  return size_kb.value_or(0) / (base::GetSysPageSize() / 1024ul);
+}
+
 bool FtraceProcfs::GetTracingOn() {
   std::string path = root_ + "tracing_on";
   char tracing_on = ReadOneCharFromFile(path);

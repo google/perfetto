@@ -1,0 +1,208 @@
+/*
+ * Copyright (C) 2025 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/traced/probes/ftrace/frozen_ftrace_data_source.h"
+
+#include <memory>
+
+#include "perfetto/base/task_runner.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/tracing/core/data_source_config.h"
+#include "src/kernel_utils/syscall_table.h"
+#include "src/traced/probes/ftrace/compact_sched.h"
+#include "src/traced/probes/ftrace/cpu_stats_parser.h"
+#include "src/traced/probes/ftrace/event_info.h"
+#include "src/traced/probes/ftrace/frozen_ftrace_procfs.h"
+#include "src/traced/probes/ftrace/ftrace_config_muxer.h"
+#include "src/traced/probes/ftrace/proto_translation_table.h"
+
+#include "protos/perfetto/config/ftrace/frozen_ftrace_config.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+
+using perfetto::protos::pbzero::FrozenFtraceConfig;
+
+namespace perfetto {
+
+// static
+const ProbesDataSource::Descriptor FrozenFtraceDataSource::descriptor = {
+    /*name*/ "linux.frozen_ftrace",
+    /*flags*/ Descriptor::kFlagsNone,
+    /*fill_descriptor_func*/ nullptr,
+};
+
+FrozenFtraceDataSource::~FrozenFtraceDataSource() = default;
+
+FrozenFtraceDataSource::FrozenFtraceDataSource(
+    base::TaskRunner* task_runner,
+    const DataSourceConfig& ds_config,
+    TracingSessionID session_id,
+    std::unique_ptr<TraceWriter> writer)
+    : ProbesDataSource(session_id, &descriptor),
+      task_runner_(task_runner),
+      writer_(std::move(writer)),
+      weak_factory_(this) {
+  // This should check the required parameters.
+  ds_config_.ParseFromString(ds_config.frozen_ftrace_config_raw());
+}
+
+void FrozenFtraceDataSource::Start() {
+  parsing_mem_.AllocateIfNeeded();
+
+  tracefs_ = FrozenFtraceProcfs::CreateGuessingMountPoint(
+      ds_config_.instance_name(), ds_config_.event_format_path());
+  if (!tracefs_)
+    return;
+
+  // The "format" files under |ds_config_.event_format_path()| are used
+  // via |tracefs_|.
+  // NB: regardless, it cannot be an arbitrary path from the config, as the
+  // format parser is not written to be durable against untrusted inputs.
+  translation_table_ = ProtoTranslationTable::Create(
+      tracefs_.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  if (!translation_table_) {
+    PERFETTO_ELOG("Failed to create translation table.");
+    return;
+  }
+
+  // Assumes the same core count as currently. If not, the previous boot
+  // data is cleared because of the failure of buffer metadata validation.
+  size_t num_cpus = tracefs_->NumberOfCpus();
+
+  // TODO: assumes the tracefs instance is using CLOCK_BOOTTIME (encoded as
+  // unspecified since it's the implicit default). However, UNLESS it was
+  // a counter or x86_tsc, the timestamp should be recorded in nano seconds.
+  // So we don't need to care of it so much. See b/411014640.
+  // After kernel fixed this issue, FtraceProcfs::GetClock() will work.
+  const auto ftrace_clock =
+      protos::pbzero::FtraceClock::FTRACE_CLOCK_UNSPECIFIED;
+
+  // To avoid reading pages more than expected, record remaining pages.
+  size_t initial_page_quota = tracefs_->GetCpuBufferSizeInPages() + 1;
+
+  PERFETTO_CHECK(cpu_readers_.empty());
+  cpu_readers_.reserve(num_cpus);
+  for (size_t cpu = 0; cpu < num_cpus; cpu++) {
+    // TODO: the two nullptrs are ok, the implementation treats those pointers
+    // as nullable. We may factor them out of the contructor in the future.
+    cpu_readers_.emplace_back(cpu, tracefs_->OpenPipeForCpu(cpu),
+                              translation_table_.get(),
+                              /*symbolizer=*/nullptr, ftrace_clock,
+                              /*ftrace_clock_snapshot=*/nullptr);
+
+    cpu_page_quota_.push_back(initial_page_quota);
+  }
+  if (cpu_readers_.empty())
+    return;
+
+  // Enable all events in the translation table and all syscalls because
+  // the previous boot trace data may record any events.
+  EventFilter event_filter;
+  for (const auto& event : translation_table_->events()) {
+    event_filter.AddEnabledEvent(event.ftrace_event_id);
+  }
+
+  SyscallTable syscalls = SyscallTable::FromCurrentArch();
+  EventFilter syscall_filter;
+  for (size_t i = 0; i < kMaxSyscalls; i++) {
+    if (syscalls.GetById(i))
+      syscall_filter.AddEnabledEvent(i);
+  }
+
+  parsing_config_ =
+      std::unique_ptr<FtraceDataSourceConfig>(new FtraceDataSourceConfig(
+          /*event_filter=*/std::move(event_filter),
+          /*syscall_filter=*/std::move(syscall_filter),
+          /*compact_sched_in=*/CompactSchedConfig{false},
+          /*print_filter=*/std::nullopt,
+          /*atrace_apps=*/{},
+          /*atrace_categories=*/{},
+          /*atrace_categories_sdk_optout=*/{},
+          /*symbolize_ksyms=*/false,
+          /*buffer_percent=*/0u,
+          /*syscalls_returning_fd=*/{},
+          /*kprobes=*/
+          base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>{
+              0},
+          /*debug_ftrace_abi=*/false,
+          /*write_generic_evt_descriptors=*/false));
+
+  // For serialising pre-existing ftrace data, emit a special packet so that
+  // trace_processor doesn't filter out data before start-of-trace.
+  auto stats_packet = writer_->NewTracePacket();
+  auto* stats = stats_packet->set_ftrace_stats();
+  stats->set_phase(protos::pbzero::FtraceStats::Phase::START_OF_TRACE);
+  stats->set_preserve_ftrace_buffer(true);
+
+  // Start the reader tasks, which will self-repost until the existing raw
+  // buffer pages have been parsed. The work is split into tasks to let other
+  // ipc/tasks to run inbetween.
+  task_runner_->PostTask([weak_this = weak_factory_.GetWeakPtr()] {
+    if (weak_this)
+      weak_this->ReadTask();
+  });
+}
+
+void FrozenFtraceDataSource::ReadTask() {
+  // For the previous boot trace data, we don't have any metadata.
+  FtraceMetadata metadata{};
+
+  bool all_cpus_done = true;
+  for (size_t i = 0; i < cpu_readers_.size(); i++) {
+    size_t max_pages = cpu_page_quota_[i];
+    if (max_pages == 0)
+      continue;
+
+    size_t pages_read = cpu_readers_[i].ReadFrozen(
+        &parsing_mem_, max_pages, parsing_config_.get(), &metadata,
+        &parse_errors_, mutable_cpu_end_timestamp(i), writer_.get());
+    PERFETTO_DCHECK(pages_read <= max_pages);
+
+    if (pages_read != 0) {
+      all_cpus_done = false;
+    }
+    cpu_page_quota_[i] -= pages_read;
+  }
+
+  // More work to do, repost the task at the end of the queue.
+  if (!all_cpus_done) {
+    task_runner_->PostTask([weak_this = weak_factory_.GetWeakPtr()] {
+      if (weak_this)
+        weak_this->ReadTask();
+    });
+    return;
+  }
+
+  // Finished. Write the end of trace packet.
+  {
+    FtraceStats stats_after{};
+    DumpAllCpuStats(tracefs_.get(), &stats_after);
+    auto after_packet = writer_->NewTracePacket();
+    auto out = after_packet->set_ftrace_stats();
+    out->set_phase(protos::pbzero::FtraceStats::Phase::END_OF_TRACE);
+    stats_after.Write(out);
+    for (auto error : parse_errors_) {
+      out->add_ftrace_parse_errors(error);
+    }
+  }
+}
+
+void FrozenFtraceDataSource::Flush(FlushRequestID,
+                                   std::function<void()> callback) {
+  writer_->Flush(std::move(callback));
+}
+
+}  // namespace perfetto

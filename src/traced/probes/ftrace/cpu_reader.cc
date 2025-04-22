@@ -139,14 +139,13 @@ bool SetBlocking(int fd, bool is_blocking) {
   return fcntl(fd, F_SETFL, flags) == 0;
 }
 
-void SetParseError(const std::set<FtraceDataSource*>& started_data_sources,
-                   size_t cpu,
-                   FtraceParseStatus status) {
+void SetParseError(
+    base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
+    size_t cpu,
+    FtraceParseStatus status) {
   PERFETTO_DPLOG("[cpu%zu]: unexpected ftrace read error: %s", cpu,
                  protos::pbzero::FtraceParseStatus_Name(status));
-  for (FtraceDataSource* data_source : started_data_sources) {
-    data_source->mutable_parse_errors()->insert(status);
-  }
+  parse_errors->insert(status);
 }
 
 void WriteAndSetParseError(CpuReader::Bundler* bundler,
@@ -204,8 +203,7 @@ size_t CpuReader::ReadCycle(
     size_t batch_pages = std::min(parsing_bufs->ftrace_data_buf_pages(),
                                   max_pages - total_pages_read);
     size_t pages_read = ReadAndProcessBatch(
-        parsing_bufs->ftrace_data_buf(), batch_pages, is_first_batch,
-        parsing_bufs->compact_sched_buf(), started_data_sources);
+        parsing_bufs, batch_pages, is_first_batch, started_data_sources);
 
     PERFETTO_DCHECK(pages_read <= batch_pages);
     total_pages_read += pages_read;
@@ -228,12 +226,66 @@ size_t CpuReader::ReadCycle(
 // this reading span). Makes it easier to estimate the read/parse ratio when
 // looking at the trace in the UI.
 size_t CpuReader::ReadAndProcessBatch(
-    uint8_t* parsing_buf,
+    ParsingBuffers* parsing_bufs,
     size_t max_pages,
     bool first_batch_in_cycle,
-    CompactSchedBuffer* compact_sched_buf,
     const std::set<FtraceDataSource*>& started_data_sources) {
+  base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors;
+  size_t pages_read =
+      ReadBatch(parsing_bufs, max_pages, first_batch_in_cycle, &parse_errors);
+
+  // copy errors in each data source.
+  for (protos::pbzero::FtraceParseStatus status : parse_errors) {
+    for (FtraceDataSource* data_source : started_data_sources) {
+      data_source->mutable_parse_errors()->insert(status);
+    }
+  }
+
+  // Parse the pages and write to the trace for all relevant data sources.
+  if (pages_read == 0)
+    return pages_read;
+
+  for (FtraceDataSource* data_source : started_data_sources) {
+    ProcessBatch(data_source->trace_writer(), data_source->mutable_metadata(),
+                 data_source->parsing_config(),
+                 data_source->mutable_parse_errors(),
+                 data_source->mutable_bundle_end_timestamp(cpu_), parsing_bufs,
+                 pages_read);
+  }
+  return pages_read;
+}
+
+size_t CpuReader::ReadFrozen(
+    ParsingBuffers* parsing_bufs,
+    size_t max_pages,
+    const FtraceDataSourceConfig* parsing_config,
+    FtraceMetadata* metadata,
+    base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
+    uint64_t* end_timestamp,
+    TraceWriter* trace_writer) {
+  PERFETTO_CHECK(max_pages > 0);
+  size_t pages_read = ReadBatch(parsing_bufs, max_pages, false, parse_errors);
+  if (pages_read == 0)
+    return 0;
+  bool write_ok =
+      ProcessBatch(trace_writer, metadata, parsing_config, parse_errors,
+                   end_timestamp, parsing_bufs, pages_read);
+  if (!write_ok) {
+    PERFETTO_ELOG("Unexpected write error occured on cpu %d.", int(cpu_));
+  }
+  return pages_read;
+}
+
+size_t CpuReader::ReadBatch(
+    ParsingBuffers* parsing_bufs,
+    size_t max_pages,
+    bool first_batch_in_cycle,
+    base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors) {
+  // Since caller may not know how many pages are allocated in the
+  // parsing_bufs, this will shrink the max_pages to parsing_bufs pages.
+  max_pages = std::min(parsing_bufs->ftrace_data_buf_pages(), max_pages);
   const uint32_t sys_page_size = base::GetSysPageSize();
+  uint8_t* parsing_buf = parsing_bufs->ftrace_data_buf();
   size_t pages_read = 0;
   {
     metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
@@ -248,7 +300,7 @@ size_t CpuReader::ReadAndProcessBatch(
         // ENODEV: the cpu is offline (b/145583318).
         if (errno != EAGAIN && errno != ENOMEM && errno != EBUSY &&
             errno != ENODEV) {
-          SetParseError(started_data_sources, cpu_,
+          SetParseError(parse_errors, cpu_,
                         FtraceParseStatus::FTRACE_STATUS_UNEXPECTED_READ_ERROR);
         }
         break;  // stop reading regardless of errno
@@ -267,7 +319,7 @@ size_t CpuReader::ReadAndProcessBatch(
         break;
       }
       if (res != static_cast<ssize_t>(sys_page_size)) {
-        SetParseError(started_data_sources, cpu_,
+        SetParseError(parse_errors, cpu_,
                       FtraceParseStatus::FTRACE_STATUS_PARTIAL_PAGE_READ);
         break;
       }
@@ -309,20 +361,22 @@ size_t CpuReader::ReadAndProcessBatch(
       }
     }
   }  // end of metatrace::FTRACE_CPU_READ_BATCH
-
-  // Parse the pages and write to the trace for all relevant data sources.
-  if (pages_read == 0)
-    return pages_read;
-
-  for (FtraceDataSource* data_source : started_data_sources) {
-    ProcessPagesForDataSource(
-        data_source->trace_writer(), data_source->mutable_metadata(), cpu_,
-        data_source->parsing_config(), data_source->mutable_parse_errors(),
-        data_source->mutable_bundle_end_timestamp(cpu_), parsing_buf,
-        pages_read, compact_sched_buf, table_, symbolizer_,
-        ftrace_clock_snapshot_, ftrace_clock_);
-  }
   return pages_read;
+}
+
+bool CpuReader::ProcessBatch(
+    TraceWriter* writer,
+    FtraceMetadata* metadata,
+    const FtraceDataSourceConfig* ds_config,
+    base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
+    uint64_t* end_timestamp,
+    ParsingBuffers* parsing_bufs,
+    size_t pages_read) {
+  return ProcessPagesForDataSource(
+      writer, metadata, cpu_, ds_config, parse_errors, end_timestamp,
+      parsing_bufs->ftrace_data_buf(), pages_read,
+      parsing_bufs->compact_sched_buf(), table_, symbolizer_,
+      ftrace_clock_snapshot_, ftrace_clock_);
 }
 
 void CpuReader::Bundler::StartNewPacket(
