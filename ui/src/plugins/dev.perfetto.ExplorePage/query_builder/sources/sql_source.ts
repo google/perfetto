@@ -57,7 +57,7 @@ export class SqlSourceNode implements QueryNode {
     this.finalCols = createFinalColumns(this);
   }
 
-  getState(): QueryNodeState {
+  getStateCopy(): QueryNodeState {
     const newState: SqlSourceAttrs = {
       sql: this.state.sql,
       sqlColumns: this.state.sqlColumns,
