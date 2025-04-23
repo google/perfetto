@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_DATAFRAME_RUNTIME_DATAFRAME_BUILDER_H_
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -101,7 +102,10 @@ class RuntimeDataframeBuilder {
   //         valid for the lifetime of the builder and the resulting
   //         Dataframe.
   RuntimeDataframeBuilder(std::vector<std::string> names, StringPool* pool)
-      : string_pool_(pool), column_states_(names.size()) {
+      : string_pool_(pool) {
+    for (uint32_t i = 0; i < names.size(); ++i) {
+      column_states_.emplace_back();
+    }
     for (auto& name : names) {
       column_names_.emplace_back(std::move(name));
     }

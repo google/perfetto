@@ -30,5 +30,6 @@ perfetto_sql_source_set("wattson") {
     "curves/w_dsu_dependence.sql",
     "device_infos.sql",
     "system_state.sql",
+    "utils.sql",
   ]
 }
