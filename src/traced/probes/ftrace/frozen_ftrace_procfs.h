@@ -36,7 +36,7 @@ class FrozenFtraceProcfs : public FtraceProcfs {
   // for events saved in the previous boot.
   static std::unique_ptr<FrozenFtraceProcfs> CreateGuessingMountPoint(
       const std::string& instance_name,
-      const std::string& event_format_path);
+      const std::string& event_format_path = "");
 
   explicit FrozenFtraceProcfs(const std::string& root,
                               const std::string& event_format_path);

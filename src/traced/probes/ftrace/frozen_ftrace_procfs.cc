@@ -46,9 +46,13 @@ FrozenFtraceProcfs::CreateGuessingMountPoint(
     const std::string& event_format_path) {
   std::unique_ptr<FrozenFtraceProcfs> tracefs = nullptr;
 
-  if (!IsDirectory(event_format_path)) {
-    PERFETTO_ELOG("%s is not a directory.", event_format_path.c_str());
-    return nullptr;
+  std::string epath = event_format_path;
+
+  if (!epath.empty()) {
+    if (!IsDirectory(epath)) {
+      PERFETTO_ELOG("%s is not a directory.", epath.c_str());
+      return nullptr;
+    }
   }
 
   size_t index = 0;
@@ -63,8 +67,12 @@ FrozenFtraceProcfs::CreateGuessingMountPoint(
           path.c_str());
       continue;
     }
+
+    if (epath.empty())
+      epath = path + "events/";
+
     tracefs = std::unique_ptr<FrozenFtraceProcfs>(
-        new FrozenFtraceProcfs(path, event_format_path));
+        new FrozenFtraceProcfs(path, epath));
   }
   return tracefs;
 }

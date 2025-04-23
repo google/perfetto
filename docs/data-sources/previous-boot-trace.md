@@ -43,15 +43,6 @@ long-time backend session. What you need are;
 
 And run the perfetto command with `--background` option.
 
-For preparing the next analysis, please backup your event format files
-like;
-
-```
-sudo tar czf /var/log/ftrace-events.tar.gz \
-      -C /sys/kernel/tracing/instances/boot_mapped \
-      events/
-```
-
 Once you have done it, prepare for a crash.
 
 ### Read out the data after crash
@@ -59,13 +50,7 @@ Once you have done it, prepare for a crash.
 After the system crash, you will see the `boot_mapped` instance, which
 should keep the trace data recorded in the last seconds.
 
-At first, extract the event format files from the archive;
-
-```
-sudo tar xf /var/log/ftrace-events.tar.gz -C /tmp/
-```
-
-Then, run the perfetto with `"linux.frozen_ftrace"` data source like;
+Run the perfetto with `"linux.frozen_ftrace"` data source like;
 
 ```
 buffers {
@@ -78,7 +63,6 @@ data_sources {
    name: "linux.frozen_ftrace"
    frozen_ftrace_config {
      instance_name: "boot_mapped"
-     event_format_path: "/tmp/events"
     }
   }
 }

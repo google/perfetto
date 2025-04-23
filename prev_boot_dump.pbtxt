@@ -8,7 +8,6 @@ data_sources {
    name: "linux.frozen_ftrace"
    frozen_ftrace_config {
      instance_name: "boot_mapped"
-     event_format_path: "/data/misc/perfetto-data/events"
     }
   }
 }

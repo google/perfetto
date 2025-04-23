@@ -205,16 +205,6 @@ on perfetto_maybe_trace_dump_on_boot && property:persist.debug.perfetto.prev_boo
 
     rm /data/misc/perfetto-traces/bugreport/prev_boot_dump.trace
 
-    # Make a place to extract previous boot events.
-    mkdir /data/misc/perfetto-data/ 0770 root shell
-
-    # Overwrite previous boot event format files
-    exec - root shell -- /system/bin/tar -xf /data/misc/perfetto-data/perfetto_event_files.tgz -C /data/misc/perfetto-data/
-
-    # Update the current event format files.
-    rm /data/misc/perfetto-data/perfetto_event_files.tgz
-    exec - root shell readtracefs -- /system/bin/tar -czf /data/misc/perfetto-data/perfetto_event_files.tgz -C /sys/kernel/tracing/instances/boot_mapped events
-
     wait_for_prop sys.trace.traced_started 1
     start perfetto_prev_boot_dump_for_bugreport
 
