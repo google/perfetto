@@ -303,7 +303,7 @@ class QueryPlanBuilder {
   QueryPlan plan_;
 
   // State information for each column during planning.
-  FixedVector<ColumnState, kMaxColumns> column_statess_;
+  FixedVector<ColumnState, kMaxColumns> column_states_;
 
   // Number of registers allocated so far.
   uint32_t register_count_ = 0;

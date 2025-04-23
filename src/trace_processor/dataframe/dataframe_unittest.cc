@@ -105,12 +105,14 @@ class DataframeBytecodeTest : public ::testing::Test {
     PERFETTO_CHECK(cols.size() < 64);
     uint64_t sanitized_cols_used = cols_used & ((1ull << cols.size()) - 1ull);
 
+    impl::FixedVector<std::string, impl::kMaxColumns> col_names;
+    for (uint32_t i = 0; i < cols.size(); ++i) {
+      col_names.emplace_back("col" + std::to_string(i));
+    }
     impl::FixedVector<impl::Column, impl::kMaxColumns> col_fixed_vec;
     for (auto& col : cols) {
       col_fixed_vec.emplace_back(std::move(col));
     }
-    impl::FixedVector<std::string, impl::kMaxColumns> col_names(
-        col_fixed_vec.size());
     Dataframe df(std::move(col_names), std::move(col_fixed_vec), 0,
                  &string_pool_);
     ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,

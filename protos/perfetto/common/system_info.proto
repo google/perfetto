@@ -25,7 +25,7 @@ message Utsname {
   optional string machine = 4;
 }
 
-// Next id: 15;
+// Next id: 16
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;

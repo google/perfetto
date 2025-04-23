@@ -14,15 +14,16 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.utils;
 
 DROP VIEW IF EXISTS _wattson_period_windows;
 CREATE PERFETTO VIEW _wattson_period_windows AS
 SELECT
   -- Requirement is there is exactly one pair of start/stop
-  (SELECT ts FROM slice WHERE name == 'wattson_start') as ts,
-  (SELECT ts FROM slice WHERE name == 'wattson_stop')
-  - (SELECT ts FROM slice WHERE name == 'wattson_start') as dur,
-  1 as period_id;
+  ts,
+  dur,
+  1 as period_id
+FROM _wattson_markers_window;
 
 SELECT RUN_METRIC(
   'android/wattson_rail_relations.sql',
