@@ -67,5 +67,5 @@ data_sources {
   }
 }
 
-duration_ms: 1000
+duration_ms: 5000
 ```
