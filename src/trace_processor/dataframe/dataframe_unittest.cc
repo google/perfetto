@@ -19,6 +19,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -113,11 +114,11 @@ class DataframeBytecodeTest : public ::testing::Test {
     for (auto& col : cols) {
       col_fixed_vec.emplace_back(std::move(col));
     }
-    Dataframe df(std::move(col_names), std::move(col_fixed_vec), 0,
-                 &string_pool_);
+    std::unique_ptr<Dataframe> df(new Dataframe(
+        std::move(col_names), std::move(col_fixed_vec), 0, &string_pool_));
     ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
-                         df.PlanQuery(filters, distinct_specs, sort_specs,
-                                      limit_spec, sanitized_cols_used));
+                         df->PlanQuery(filters, distinct_specs, sort_specs,
+                                       limit_spec, sanitized_cols_used));
     EXPECT_THAT(FormatBytecode(plan),
                 EqualsIgnoringWhitespace(expected_bytecode));
   }
