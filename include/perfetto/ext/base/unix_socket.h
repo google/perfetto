@@ -74,7 +74,7 @@ enum class SockPeerCredMode {
 #endif
 };
 
-// Returns the socket family from the full addres that perfetto uses.
+// Returns the socket family from the full address that perfetto uses.
 // Addr can be:
 // - /path/to/socket : for linked AF_UNIX sockets.
 // - @abstract_name  : for abstract AF_UNIX sockets.
@@ -82,6 +82,25 @@ enum class SockPeerCredMode {
 // - [::1]:8080      : for Inet6 sockets.
 // - vsock://-1:3000 : for VM sockets.
 SockFamily GetSockFamily(const char* addr);
+
+// NetAddrInfo is a wrapper for a full address and it's family
+// and type.
+struct NetAddrInfo {
+  NetAddrInfo(std::string _ip_port, SockFamily _family, SockType _type)
+      : ip_port(std::move(_ip_port)), family(_family), type(_type) {}
+  std::string ip_port;  // full address with ip and port
+  SockFamily family;    // socket family
+  SockType type;        // socket type
+};
+
+// Returns a list of NetAddrInfo from ip and port which
+// ip can be an ipv4 or an ipv6 or a domain.
+// 127.0.0.1    : ipv4 address
+// localhost    : domain
+// ::1          : ipv6 address
+// port is a normal tcp port as string.
+std::vector<NetAddrInfo> GetNetAddrInfo(const std::string& ip,
+                                        const std::string& port);
 
 // Returns whether inter-process shared memory is supported for the socket.
 inline bool SockShmemSupported(SockFamily sock_family) {
