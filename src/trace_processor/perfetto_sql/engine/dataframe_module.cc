@@ -27,12 +27,9 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
@@ -100,28 +97,22 @@ int DataframeModule::Create(sqlite3* db,
                             int argc,
                             const char* const* argv,
                             sqlite3_vtab** vtab,
-                            char**) {
-  // SQLite automatically should provide the first three arguments. And the
-  // fourth argument should be the tag hash of the dataframe from the engine.
-  PERFETTO_CHECK(argc == 4);
-
-  std::optional<uint64_t> tag_hash = base::CStringToUInt64(argv[3]);
-  PERFETTO_CHECK(tag_hash);
+                            char** err) {
+  PERFETTO_CHECK(argc == 3);
 
   auto* ctx = GetContext(raw_ctx);
-  auto table = ctx->dataframe_shared_storage->Find(
-      DataframeSharedStorage::Tag{*tag_hash});
-  PERFETTO_CHECK(table);
+  auto create_state = std::move(ctx->temporary_create_state);
+  PERFETTO_CHECK(create_state);
 
-  std::string create_stmt = CreateTableStmt(table->CreateColumnSpecs());
+  std::string create_stmt =
+      CreateTableStmt(create_state->dataframe->CreateColumnSpecs());
   if (int r = sqlite3_declare_vtab(db, create_stmt.c_str()); r != SQLITE_OK) {
+    *err = sqlite3_mprintf("failed to declare vtab %s", create_stmt.c_str());
     return r;
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->dataframe = table.get();
-  auto* state =
-      ctx->OnCreate(argc, argv, std::make_unique<State>(std::move(table)));
-  res->state = state;
+  res->dataframe = create_state->dataframe.get();
+  res->state = ctx->OnCreate(argc, argv, std::move(create_state));
   *vtab = res.release();
   return SQLITE_OK;
 }
@@ -138,10 +129,7 @@ int DataframeModule::Connect(sqlite3* db,
                              const char* const* argv,
                              sqlite3_vtab** vtab,
                              char**) {
-  // SQLite automatically should provide the first three arguments. And the
-  // fourth argument should be the type of the tag of the dataframe which the
-  // engine should always provide.
-  PERFETTO_CHECK(argc >= 4);
+  PERFETTO_CHECK(argc == 3);
 
   auto* vtab_state = GetContext(raw_ctx)->OnConnect(argc, argv);
   auto* state =
@@ -160,7 +148,6 @@ int DataframeModule::Connect(sqlite3* db,
 
 int DataframeModule::Disconnect(sqlite3_vtab* vtab) {
   std::unique_ptr<Vtab> v(GetVtab(vtab));
-  sqlite::ModuleStateManager<DataframeModule>::OnDisconnect(v->state);
   return SQLITE_OK;
 }
 
