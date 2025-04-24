@@ -103,12 +103,30 @@ export interface VegaViewData {
   [name: string]: any;
 }
 
+type VegaSignalListenerHandler = (args: {
+  view: vega.View;
+  name: string;
+  value: vega.SignalValue;
+}) => void;
+type VegaEventListenerHandler = (args: {
+  view: vega.View;
+  event: vega.ScenegraphEvent;
+  item?: vega.Item | null;
+}) => void;
+
 interface VegaViewAttrs {
   spec: string;
   data: VegaViewData;
   engine?: Engine;
-  onPointSelection?: (item: vega.Item) => void;
-  onIntervalSelection?: (value: vega.SignalValue) => void;
+  signalHandlers?: {
+    readonly name: string;
+    readonly handler: VegaSignalListenerHandler;
+  }[];
+  eventHandlers?: {
+    readonly name: string;
+    readonly handler: VegaEventListenerHandler;
+  }[];
+  onViewDestroyed?: () => void;
 }
 
 // VegaWrapper is in exactly one of these states:
@@ -191,8 +209,15 @@ class VegaWrapper {
   private _error?: string;
   private _engine?: Engine;
 
-  private _onPointSelection?: (item: vega.Item) => void;
-  private _onIntervalSelection?: (value: vega.SignalValue) => void;
+  private _signalHandlers?: {
+    readonly name: string;
+    readonly handler: vega.SignalListenerHandler;
+  }[];
+  private _eventHandlers?: {
+    readonly name: string;
+    readonly handler: vega.EventListenerHandler;
+  }[];
+  private _onViewDestroyed?: () => void;
 
   constructor(dom: Element) {
     this.dom = dom;
@@ -226,12 +251,49 @@ class VegaWrapper {
     this._engine = engine;
   }
 
-  set onPointSelection(cb: ((item: vega.Item) => void) | undefined) {
-    this._onPointSelection = cb;
+  set signalHandlers(
+    handlers: {
+      readonly name: string;
+      readonly handler: VegaSignalListenerHandler;
+    }[],
+  ) {
+    for (const {name, handler} of this._signalHandlers ?? []) {
+      this.view?.removeSignalListener(name, handler);
+    }
+    this._signalHandlers = handlers.map(({name, handler}) => {
+      return {
+        name,
+        handler: (name2, value) =>
+          handler({view: this.view!, name: name2, value}),
+      };
+    });
+    for (const {name, handler} of this._signalHandlers) {
+      this.view?.addSignalListener(name, handler);
+    }
   }
 
-  set onIntervalSelection(cb: ((value: vega.SignalValue) => void) | undefined) {
-    this._onIntervalSelection = cb;
+  set eventHandlers(
+    handlers: {
+      readonly name: string;
+      readonly handler: VegaEventListenerHandler;
+    }[],
+  ) {
+    for (const {name, handler} of this._eventHandlers ?? []) {
+      this.view?.removeEventListener(name, handler);
+    }
+    this._eventHandlers = handlers.map(({name, handler}) => {
+      return {
+        name,
+        handler: (event, item) => handler({view: this.view!, event, item}),
+      };
+    });
+    for (const {name, handler} of this._eventHandlers) {
+      this.view?.addEventListener(name, handler);
+    }
+  }
+
+  set onViewDestroyed(handler: (() => void) | undefined) {
+    this._onViewDestroyed = handler;
   }
 
   onResize() {
@@ -251,6 +313,7 @@ class VegaWrapper {
 
     // Destroy existing view if needed:
     if (this.view) {
+      this._onViewDestroyed?.();
       this.view.finalize();
       this.view = undefined;
     }
@@ -285,26 +348,13 @@ class VegaWrapper {
         this.view.data(key, value);
       }
 
-      // Attaching event listeners for Vega-Lite
-      // selection interactions only (interval and point selection)
-      // Both will trigger a pointerup event
       if (isVegaLite(this._spec)) {
-        this.view.addEventListener('pointerup', (_, item) => {
-          if (item) {
-            if (
-              this.view?.signal(VegaLiteSelectionTypes.INTERVAL) !==
-                undefined &&
-              Object.values(this.view?.signal(VegaLiteSelectionTypes.INTERVAL))
-                .length > 0
-            ) {
-              this._onIntervalSelection?.(
-                this.view?.signal(VegaLiteSelectionTypes.INTERVAL),
-              );
-            } else {
-              this._onPointSelection?.(item);
-            }
-          }
-        });
+        for (const {name, handler} of this._signalHandlers ?? []) {
+          this.view.addSignalListener(name, handler);
+        }
+        for (const {name, handler} of this._eventHandlers ?? []) {
+          this.view.addEventListener(name, handler);
+        }
       }
 
       const pending = this.view.runAsync();
@@ -359,10 +409,9 @@ export class VegaView implements m.ClassComponent<VegaViewAttrs> {
     wrapper.spec = attrs.spec;
     wrapper.data = attrs.data;
     wrapper.engine = attrs.engine;
-
-    // Chart interactivity handlers
-    wrapper.onPointSelection = attrs.onPointSelection;
-    wrapper.onIntervalSelection = attrs.onIntervalSelection;
+    wrapper.signalHandlers = attrs.signalHandlers ?? [];
+    wrapper.eventHandlers = attrs.eventHandlers ?? [];
+    wrapper.onViewDestroyed = attrs.onViewDestroyed;
 
     this.wrapper = wrapper;
     this.resize = new SimpleResizeObserver(dom, () => {
@@ -375,6 +424,9 @@ export class VegaView implements m.ClassComponent<VegaViewAttrs> {
       this.wrapper.spec = attrs.spec;
       this.wrapper.data = attrs.data;
       this.wrapper.engine = attrs.engine;
+      this.wrapper.signalHandlers = attrs.signalHandlers ?? [];
+      this.wrapper.eventHandlers = attrs.eventHandlers ?? [];
+      this.wrapper.onViewDestroyed = attrs.onViewDestroyed;
     }
   }
 
