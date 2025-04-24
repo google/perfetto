@@ -428,11 +428,11 @@ class CpuReader {
   // See comment on ftrace_controller.cc:kMaxParsingWorkingSetPages for
   // rationale behind the batching.
   size_t ReadAndProcessBatch(
-    uint8_t* parsing_buf,
-    size_t max_pages,
-    bool first_batch_in_cycle,
-    CompactSchedBuffer* compact_sched_buf,
-    const std::set<FtraceDataSource*>& started_data_sources);
+      uint8_t* parsing_buf,
+      size_t max_pages,
+      bool first_batch_in_cycle,
+      CompactSchedBuffer* compact_sched_buf,
+      const std::set<FtraceDataSource*>& started_data_sources);
 
   size_t cpu_;
   const ProtoTranslationTable* table_;

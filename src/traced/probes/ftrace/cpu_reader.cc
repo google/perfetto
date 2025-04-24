@@ -1168,8 +1168,9 @@ size_t CpuReader::ReadFrozen(
       // Expected:
       // * EAGAIN: no data (since we're in non-blocking mode).
       if (errno != EAGAIN)
-        SetParseErrorOne(parse_errors, cpu_,
-                         FtraceParseStatus::FTRACE_STATUS_UNEXPECTED_READ_ERROR);
+        SetParseErrorOne(
+            parse_errors, cpu_,
+            FtraceParseStatus::FTRACE_STATUS_UNEXPECTED_READ_ERROR);
       break;
     }
     if (res != static_cast<ssize_t>(sys_page_size)) {
@@ -1192,11 +1193,11 @@ size_t CpuReader::ReadFrozen(
 
   // Convert events and serialise the protos. We don't handle the failure
   // here, because appropriate errors are recorded in |parsing_errors|.
-  ProcessPagesForDataSource(
-      trace_writer, metadata, cpu_, parsing_config, parse_errors,
-      &bundle_end_timestamp, parsing_buf, pages_read,
-      parsing_bufs->compact_sched_buf(), table_, symbolizer_,
-      ftrace_clock_snapshot_, ftrace_clock_);
+  ProcessPagesForDataSource(trace_writer, metadata, cpu_, parsing_config,
+                            parse_errors, &bundle_end_timestamp, parsing_buf,
+                            pages_read, parsing_bufs->compact_sched_buf(),
+                            table_, symbolizer_, ftrace_clock_snapshot_,
+                            ftrace_clock_);
 
   return pages_read;
 }

@@ -25,8 +25,8 @@
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/event_info.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
+#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
@@ -152,8 +152,8 @@ void FrozenFtraceDataSource::Start() {
 void FrozenFtraceDataSource::ReadTask() {
   bool all_cpus_done = true;
   for (size_t i = 0; i < cpu_readers_.size(); i++) {
-    size_t max_pages = std::min<size_t>(kFrozenFtraceMaxReadPages,
-                                        cpu_page_quota_[i]);
+    size_t max_pages =
+        std::min<size_t>(kFrozenFtraceMaxReadPages, cpu_page_quota_[i]);
     if (max_pages == 0)
       continue;
 
