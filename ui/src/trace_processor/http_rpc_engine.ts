@@ -33,7 +33,7 @@ export class HttpRpcEngine extends EngineBase {
   private connected = false;
   private disposed = false;
   private queue: Blob[] = [];
-  private isProcessing = false;
+  private isProcessingQueue = false;
 
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
@@ -94,15 +94,15 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   private async processQueue() {
-    if (this.isProcessing) return;
-    this.isProcessing = true;
+    if (this.isProcessingQueue) return;
+    this.isProcessingQueue = true;
     while (this.queue.length > 0) {
       const blob = this.queue.shift();
       if (!blob) continue;
       const buf = await blob.arrayBuffer();
       super.onRpcResponseBytes(new Uint8Array(buf));
     }
-    this.isProcessing = false;
+    this.isProcessingQueue = false;
   }
 
   static async checkConnection(): Promise<HttpRpcState> {
