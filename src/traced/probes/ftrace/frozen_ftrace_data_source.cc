@@ -25,7 +25,7 @@
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/event_info.h"
-#include "src/traced/probes/ftrace/frozen_ftrace_procfs.h"
+#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
@@ -62,15 +62,11 @@ FrozenFtraceDataSource::FrozenFtraceDataSource(
 void FrozenFtraceDataSource::Start() {
   parsing_mem_.AllocateIfNeeded();
 
-  tracefs_ = FrozenFtraceProcfs::CreateGuessingMountPoint(
-      ds_config_.instance_name(), ds_config_.event_format_path());
+  tracefs_ = FtraceProcfs::CreateGuessingMountPoint(
+      "instances/" + ds_config_.instance_name() + "/");
   if (!tracefs_)
     return;
 
-  // The "format" files under |ds_config_.event_format_path()| are used
-  // via |tracefs_|.
-  // NB: regardless, it cannot be an arbitrary path from the config, as the
-  // format parser is not written to be durable against untrusted inputs.
   translation_table_ = ProtoTranslationTable::Create(
       tracefs_.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
   if (!translation_table_) {
@@ -82,11 +78,9 @@ void FrozenFtraceDataSource::Start() {
   // data is cleared because of the failure of buffer metadata validation.
   size_t num_cpus = tracefs_->NumberOfCpus();
 
-  // TODO: assumes the tracefs instance is using CLOCK_BOOTTIME (encoded as
-  // unspecified since it's the implicit default). However, UNLESS it was
-  // a counter or x86_tsc, the timestamp should be recorded in nano seconds.
-  // So we don't need to care of it so much. See b/411014640.
-  // After kernel fixed this issue, FtraceProcfs::GetClock() will work.
+  // This assumes that the clock is CLOCK_BOOTTIME, but anyway the clock
+  // is not matter because this is not a live trace. We already don't
+  // know the absolute time in the previous boot.
   const auto ftrace_clock =
       protos::pbzero::FtraceClock::FTRACE_CLOCK_UNSPECIFIED;
 
@@ -157,17 +151,15 @@ void FrozenFtraceDataSource::Start() {
 }
 
 void FrozenFtraceDataSource::ReadTask() {
-  // For the previous boot trace data, we don't have any metadata.
-  FtraceMetadata metadata{};
-
   bool all_cpus_done = true;
   for (size_t i = 0; i < cpu_readers_.size(); i++) {
-    size_t max_pages = cpu_page_quota_[i];
+    size_t max_pages = std::min<size_t>(kFrozenFtraceMaxReadPages,
+                                        cpu_page_quota_[i]);
     if (max_pages == 0)
       continue;
 
     size_t pages_read = cpu_readers_[i].ReadFrozen(
-        &parsing_mem_, max_pages, parsing_config_.get(), &metadata,
+        &parsing_mem_, max_pages, parsing_config_.get(), &metadata_,
         &parse_errors_, mutable_cpu_end_timestamp(i), writer_.get());
     PERFETTO_DCHECK(pages_read <= max_pages);
 

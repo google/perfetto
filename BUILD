@@ -4145,8 +4145,6 @@ perfetto_filegroup(
         "src/traced/probes/ftrace/event_info_constants.h",
         "src/traced/probes/ftrace/frozen_ftrace_data_source.cc",
         "src/traced/probes/ftrace/frozen_ftrace_data_source.h",
-        "src/traced/probes/ftrace/frozen_ftrace_procfs.cc",
-        "src/traced/probes/ftrace/frozen_ftrace_procfs.h",
         "src/traced/probes/ftrace/ftrace_config_muxer.cc",
         "src/traced/probes/ftrace/ftrace_config_muxer.h",
         "src/traced/probes/ftrace/ftrace_config_utils.cc",

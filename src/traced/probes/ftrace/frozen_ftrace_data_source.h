@@ -28,7 +28,7 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
-#include "src/traced/probes/ftrace/frozen_ftrace_procfs.h"
+#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
 #include "src/traced/probes/probes_data_source.h"
 
@@ -36,7 +36,6 @@
 
 namespace perfetto {
 struct FtraceDataSourceConfig;
-class FrozenFtraceProcfs;
 class ProtoTranslationTable;
 
 namespace base {
@@ -74,18 +73,25 @@ class FrozenFtraceDataSource : public ProbesDataSource {
  private:
   void ReadTask();
 
+  // This is the maximum number of pages reading at once from
+  // per-cpu buffer. To prevent blocking other services, keep
+  // it small enough.
+  static constexpr size_t kFrozenFtraceMaxReadPages = 32;
+
   base::TaskRunner* const task_runner_;
   std::unique_ptr<TraceWriter> writer_;
 
   protos::gen::FrozenFtraceConfig ds_config_;
 
-  std::unique_ptr<FrozenFtraceProcfs> tracefs_;
+  std::unique_ptr<FtraceProcfs> tracefs_;
   std::unique_ptr<ProtoTranslationTable> translation_table_;
   std::unique_ptr<FtraceDataSourceConfig> parsing_config_;
   CpuReader::ParsingBuffers parsing_mem_;
   std::vector<CpuReader> cpu_readers_;
 
   std::vector<size_t> cpu_page_quota_;
+  // Storing parsed metadata (e.g. pid)
+  FtraceMetadata metadata_;
 
   base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors_;
   std::vector<uint64_t> bundle_end_ts_by_cpu_;

@@ -15271,7 +15271,6 @@ filegroup {
         "src/traced/probes/ftrace/event_info.cc",
         "src/traced/probes/ftrace/event_info_constants.cc",
         "src/traced/probes/ftrace/frozen_ftrace_data_source.cc",
-        "src/traced/probes/ftrace/frozen_ftrace_procfs.cc",
         "src/traced/probes/ftrace/ftrace_config_muxer.cc",
         "src/traced/probes/ftrace/ftrace_config_utils.cc",
         "src/traced/probes/ftrace/ftrace_controller.cc",
