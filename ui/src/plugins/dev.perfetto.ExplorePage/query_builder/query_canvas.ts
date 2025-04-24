@@ -40,15 +40,14 @@ interface NodeBoxAttrs {
 class NodeBox implements m.ClassComponent<NodeBoxAttrs> {
   view({attrs}: m.CVnode<NodeBoxAttrs>) {
     const {node, isSelected, layout, onNodeSelected, onNodeDragStart} = attrs;
+    const conditionalClasses = `${isSelected ? 'selected' : ''} ${
+      !node.validate() ? 'invalid' : ''
+    }`.trim();
     return m(
-      '.node-box',
+      '.node-box', // Base class
       {
+        class: conditionalClasses, // Apply conditional classes here
         style: {
-          border: isSelected ? '2px solid yellow' : '2px solid blue',
-          borderRadius: '5px',
-          padding: '10px',
-          cursor: 'grab',
-          backgroundColor: 'lightblue',
           position: 'absolute',
           left: `${layout.x || 10}px`,
           top: `${layout.y || 10}px`,
@@ -150,29 +149,14 @@ export class QueryCanvas implements m.ClassComponent<QueryCanvasAttrs> {
       // Render the centered "Add" button if no nodes exist
       nodes.push(
         m(
-          '',
-          {
-            style: {
-              position: 'absolute',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
-            },
-          },
+          '.query-canvas-add-button-container',
           m(
             PopupMenu,
             {
               trigger: m(Button, {
                 icon: Icons.Add,
                 intent: Intent.Primary,
-                style: {
-                  height: '100px',
-                  width: '100px',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  fontSize: '48px',
-                },
+                style: {},
               }),
             },
             addSourcePopupMenu(),
@@ -206,12 +190,7 @@ export class QueryCanvas implements m.ClassComponent<QueryCanvasAttrs> {
     return m(
       '.query-canvas-container',
       {
-        style: {
-          position: 'relative', // Absolute positioning of NodeBoxes
-          height: '800px',
-          backgroundColor: 'lightgray',
-          overflow: 'auto', // Required for scroll functionality
-        },
+        // Styles are now in SCSS
       },
       nodes,
     );
