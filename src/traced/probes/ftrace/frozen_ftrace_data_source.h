@@ -23,7 +23,6 @@
 
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/weak_ptr.h"
-#include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/forward_decls.h"

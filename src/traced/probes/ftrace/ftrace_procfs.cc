@@ -471,6 +471,9 @@ size_t FtraceProcfs::GetCpuBufferSizeInPages() {
     str.resize(str.size() - 1);
 
   std::optional<uint32_t> size_kb = base::StringToUInt32(str);
+  // For the root instance, before starting tracing, the buffer_size_kb
+  // returns something like "7 (expanded: 1408)". In that case this
+  // returns 0. This becomes a number after starting trace.
   return size_kb.value_or(0) / (base::GetSysPageSize() / 1024ul);
 }
 

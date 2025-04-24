@@ -29,7 +29,6 @@
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
-#include "protos/perfetto/config/ftrace/frozen_ftrace_config.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
