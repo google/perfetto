@@ -32,8 +32,6 @@
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-using perfetto::protos::pbzero::FrozenFtraceConfig;
-
 namespace perfetto {
 
 // static
