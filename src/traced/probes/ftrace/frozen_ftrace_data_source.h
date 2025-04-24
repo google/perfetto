@@ -64,12 +64,6 @@ class FrozenFtraceDataSource : public ProbesDataSource {
     return weak_factory_.GetWeakPtr();
   }
 
-  uint64_t* mutable_cpu_end_timestamp(size_t cpu) {
-    if (cpu >= bundle_end_ts_by_cpu_.size())
-      bundle_end_ts_by_cpu_.resize(cpu + 1);
-    return &bundle_end_ts_by_cpu_[cpu];
-  }
-
  private:
   void ReadTask();
 
@@ -94,7 +88,6 @@ class FrozenFtraceDataSource : public ProbesDataSource {
   FtraceMetadata metadata_;
 
   base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors_;
-  std::vector<uint64_t> bundle_end_ts_by_cpu_;
 
   base::WeakPtrFactory<FrozenFtraceDataSource> weak_factory_;  // Keep last.
 };

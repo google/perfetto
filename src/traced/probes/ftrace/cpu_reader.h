@@ -220,7 +220,6 @@ class CpuReader {
       const FtraceDataSourceConfig* parsing_config,
       FtraceMetadata* metadata,
       base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
-      uint64_t* end_timestamp,
       TraceWriter* trace_writer);
 
   template <typename T>
@@ -429,29 +428,11 @@ class CpuReader {
   // See comment on ftrace_controller.cc:kMaxParsingWorkingSetPages for
   // rationale behind the batching.
   size_t ReadAndProcessBatch(
-      ParsingBuffers* parsing_bufs,
-      size_t max_pages,
-      bool first_batch_in_cycle,
-      const std::set<FtraceDataSource*>& started_data_sources);
-
-  // Read at most |max_pages| of ftrace data and parse it. Returns number of
-  // pages read.
-  size_t ReadBatch(
-      ParsingBuffers* parsing_bufs,
-      size_t max_pages,
-      bool first_batch_in_cycle,
-      base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors);
-
-  // Write the |page_read| pages parsed data into |writer|. Return true if
-  // succeeded. Also write the end-time into end_timestamp.
-  bool ProcessBatch(
-      TraceWriter* writer,
-      FtraceMetadata* metadata,
-      const FtraceDataSourceConfig* ds_config,
-      base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
-      uint64_t* end_timestamp,
-      ParsingBuffers* parsing_bufs,
-      size_t pages_read);
+    uint8_t* parsing_buf,
+    size_t max_pages,
+    bool first_batch_in_cycle,
+    CompactSchedBuffer* compact_sched_buf,
+    const std::set<FtraceDataSource*>& started_data_sources);
 
   size_t cpu_;
   const ProtoTranslationTable* table_;

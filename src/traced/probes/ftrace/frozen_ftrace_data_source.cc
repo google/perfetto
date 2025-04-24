@@ -160,7 +160,7 @@ void FrozenFtraceDataSource::ReadTask() {
 
     size_t pages_read = cpu_readers_[i].ReadFrozen(
         &parsing_mem_, max_pages, parsing_config_.get(), &metadata_,
-        &parse_errors_, mutable_cpu_end_timestamp(i), writer_.get());
+        &parse_errors_, writer_.get());
     PERFETTO_DCHECK(pages_read <= max_pages);
 
     if (pages_read != 0) {
