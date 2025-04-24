@@ -193,27 +193,3 @@ service perfetto_persistent_sysui_tracing_for_bugreport /system/bin/perfetto -c 
     restart_period 60
     user nobody
     group nobody
-
-##############################################################################
-# perfetto_prev_boot_dump_for_bugreport - Dump the previous boot tracing data
-# from the ftrace persistent ring buffer.
-##############################################################################
-
-on perfetto_maybe_trace_dump_on_boot && property:persist.debug.perfetto.prev_boot_dump=1 && property:persist.traced.enable=1
-    # If there is no "boot_mapped" instance, make it.
-    mkdir /sys/kernel/tracing/instances/boot_mapped 0770 root shell
-
-    rm /data/misc/perfetto-traces/bugreport/prev_boot_dump.trace
-
-    wait_for_prop sys.trace.traced_started 1
-    start perfetto_prev_boot_dump_for_bugreport
-
-on property:ro.persistent_properties.ready=true
-    trigger perfetto_maybe_trace_dump_on_boot
-
-service perfetto_prev_boot_dump_for_bugreport /system/bin/perfetto -c /system/etc/perfetto/prev_boot_dump.pbtxt --txt -o /data/misc/perfetto-traces/bugreport/prev_boot_dump.trace
-    disabled
-    gentle_kill
-    oneshot
-    user shell
-    group nobody
