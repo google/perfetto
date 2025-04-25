@@ -18,10 +18,6 @@ import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
-import {
-  setDurationPrecision,
-  setTimestampFormat,
-} from '../core/timestamp_format';
 import {Command} from '../public/command';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
@@ -141,7 +137,7 @@ export class UiMainPerTrace implements m.ClassComponent {
             ],
             getName: (x) => x.name,
           });
-          result && setTimestampFormat(result.format);
+          result && (trace.timeline.timestampFormat = result.format);
         },
       },
       {
@@ -159,7 +155,7 @@ export class UiMainPerTrace implements m.ClassComponent {
               getName: (x) => x.name,
             },
           );
-          result && setDurationPrecision(result.format);
+          result && (trace.timeline.durationPrecision = result.format);
         },
       },
       {
