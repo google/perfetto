@@ -290,6 +290,9 @@ class ProtoTraceParserTest : public ::testing::Test {
         std::make_unique<ProtoTraceReader>(&context_));
     auto status = context_.chunk_readers.back()->Parse(TraceBlobView(
         TraceBlob::TakeOwnership(std::move(raw_trace), trace_bytes.size())));
+    if (status.ok()) {
+      status = context_.chunk_readers.back()->NotifyEndOfFile();
+    }
 
     ResetTraceBuffers();
     return status;
@@ -2416,6 +2419,48 @@ TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButWithoutClockSnapshot) {
   // Metadata should have created a raw event.
   const auto& raw_table = storage_->chrome_raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
+}
+
+TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButDelayedClockSnapshot) {
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_timestamp(1010);
+    packet->set_timestamp_clock_id(3);
+    packet->set_trusted_packet_sequence_id(1);
+    auto* event = packet->set_track_event();
+    event->add_category_iids(1);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN);
+  }
+
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(0);
+    auto* clock_snapshot = packet->set_clock_snapshot();
+    auto* clock_boot = clock_snapshot->add_clocks();
+    clock_boot->set_clock_id(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
+    clock_boot->set_timestamp(10000000);
+    auto* clock_monotonic = clock_snapshot->add_clocks();
+    clock_monotonic->set_clock_id(3);
+    clock_monotonic->set_timestamp(1000);
+  }
+
+  Tokenize();
+
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
+
+  tables::ThreadTable::Row row(16);
+  row.upid = 1u;
+  storage_->mutable_thread_table()->Insert(row);
+
+  constexpr TrackId track{0u};
+
+  context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->slice_table().row_count(), 1u);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->ts(), 10000010);
+  EXPECT_EQ(rr_0->track_id(), track);
 }
 
 TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {

@@ -13,6 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- sqlformat file off
+-- The case sensitivity of this file matters so don't format it which
+-- changes sensitivity.
+
 INCLUDE PERFETTO MODULE graphs.scan;
 
 CREATE PERFETTO MACRO _viz_flamegraph_hash_coalesce(col ColumnName)

@@ -23,6 +23,7 @@ import {
   FrameSelectionAggregator,
 } from './frame_selection_aggregator';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
+import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
 
 // Build a standardized URI for a frames track
 function makeUri(upid: number, kind: 'expected_frames' | 'actual_frames') {
@@ -36,8 +37,8 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.addExpectedFrames(ctx);
     this.addActualFrames(ctx);
-    ctx.selection.registerAreaSelectionAggregator(
-      new FrameSelectionAggregator(),
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationToTabAdaptor(ctx, new FrameSelectionAggregator()),
     );
   }
 

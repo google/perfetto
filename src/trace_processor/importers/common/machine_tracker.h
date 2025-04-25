@@ -26,7 +26,7 @@ namespace perfetto::trace_processor {
 // Tracks information in the machine table.
 class MachineTracker {
  public:
-  MachineTracker(TraceProcessorContext* contex, uint32_t raw_machine_id);
+  MachineTracker(TraceProcessorContext* context, uint32_t raw_machine_id);
   ~MachineTracker();
 
   std::optional<MachineId> machine_id() const { return machine_id_; }

@@ -37,7 +37,7 @@ FlowTracker::~FlowTracker() = default;
 /* TODO: if we report a flow event earlier that a corresponding slice then
   flow event would not be added, and it will increase "flow_no_enclosing_slice"
   In catapult, it was possible to report a flow after an enclosing slice if
-  timestamps were equal. But because of our seqential processing of a trace
+  timestamps were equal. But because of our sequential processing of a trace
   it is a bit tricky to make it here.
   We suspect that this case is too rare or impossible */
 void FlowTracker::Begin(TrackId track_id, FlowId flow_id) {

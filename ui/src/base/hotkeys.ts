@@ -126,6 +126,8 @@ const shiftExceptions = [
   '!',
   '[',
   ']',
+  '.',
+  ',',
 ];
 
 const macModifierStrings: ReadonlyMap<Modifier, string> = new Map<

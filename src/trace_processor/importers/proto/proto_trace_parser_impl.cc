@@ -283,7 +283,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       interned.emplace_back(key, value);
     }
 
-    // We stable sort insted of sorting here to avoid changing the order of the
+    // We stable sort instead of sorting here to avoid changing the order of the
     // args in arrays.
     std::stable_sort(interned.begin(), interned.end(),
                      [](const Arg& a, const Arg& b) {

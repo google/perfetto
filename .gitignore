@@ -1,9 +1,11 @@
+.aider*
 .android_config
 .cache
 .ccls
 .ccls-cache
 .clangd
 .cproject
+.cursor*
 .deps_sha1
 .DS_Store
 .env
@@ -15,6 +17,7 @@
 .project
 .recipe_deps/
 .settings/
+.venv
 .vscode
 *.code-workspace
 *.iml

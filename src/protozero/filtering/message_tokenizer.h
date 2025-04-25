@@ -148,7 +148,7 @@ class MessageTokenizer {
       }
 
       case kFixedIntValue:
-        // Unreacheable because of the if before the switch.
+        // Unreachable because of the if before the switch.
         PERFETTO_DCHECK(false);
         break;
 

@@ -20,6 +20,14 @@ import {EmptyState} from '../../widgets/empty_state';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
+import {
+  AreaSelection,
+  NoteSelection,
+  TrackSelection,
+} from '../../public/selection';
+import {assertUnreachable} from '../../base/logging';
+import {Button, ButtonBar} from '../../widgets/button';
+import {NoteEditor} from '../note_editor';
 
 export interface CurrentSelectionTabAttrs {
   readonly trace: TraceImpl;
@@ -29,9 +37,10 @@ export class CurrentSelectionTab
   implements m.ClassComponent<CurrentSelectionTabAttrs>
 {
   private readonly fadeContext = new FadeContext();
+  private currentAreaSubTabId?: string;
 
   view({attrs}: m.Vnode<CurrentSelectionTabAttrs>): m.Children {
-    const section = this.renderCSTabContent(attrs.trace);
+    const section = this.renderCurrentSelectionTabContent(attrs.trace);
     if (section.isLoading) {
       return m(FadeIn, section.content);
     } else {
@@ -39,70 +48,107 @@ export class CurrentSelectionTab
     }
   }
 
-  private renderCSTabContent(trace: TraceImpl): {
-    isLoading: boolean;
-    content: m.Children;
-  } {
-    const currentSelection = trace.selection.selection;
+  private renderCurrentSelectionTabContent(trace: TraceImpl) {
+    const selection = trace.selection.selection;
+    const selectionKind = selection.kind;
 
-    switch (currentSelection.kind) {
+    switch (selectionKind) {
       case 'empty':
-        return {
-          isLoading: false,
-          content: m(
-            EmptyState,
-            {
-              className: 'pf-noselection',
-              title: 'Nothing selected',
-            },
-            'Selection details will appear here',
-          ),
-        };
+        return this.renderEmptySelection('Nothing selected');
       case 'track':
-        return {
-          isLoading: false,
-          content: this.renderTrackDetailsPanel(
-            trace,
-            currentSelection.trackUri,
-          ),
-        };
+        return this.renderTrackSelection(trace, selection);
       case 'track_event':
-        const detailsPanel = trace.selection.getDetailsPanelForSelection();
-        if (detailsPanel) {
-          return {
-            isLoading: detailsPanel.isLoading,
-            content: detailsPanel.render(),
-          };
-        }
-        break;
+        return this.renderTrackEventSelection(trace);
+      case 'area':
+        return this.renderAreaSelection(trace, selection);
+      case 'note':
+        return this.renderNoteSelection(trace, selection);
+      default:
+        assertUnreachable(selectionKind);
     }
+  }
 
-    // Get the first "truthy" details panel
-    const panel = trace.tabs.detailsPanels
-      .map((dp) => {
-        return {
-          content: dp.render(currentSelection),
-          isLoading: dp.isLoading?.() ?? false,
-        };
-      })
-      .find(({content}) => content);
+  private renderEmptySelection(message: string) {
+    return {
+      isLoading: false,
+      content: m(EmptyState, {
+        className: 'pf-noselection',
+        title: message,
+      }),
+    };
+  }
 
-    if (panel) {
-      return panel;
+  private renderTrackSelection(trace: TraceImpl, selection: TrackSelection) {
+    return {
+      isLoading: false,
+      content: this.renderTrackDetailsPanel(trace, selection.trackUri),
+    };
+  }
+
+  private renderTrackEventSelection(trace: TraceImpl) {
+    // The selection panel has already loaded the details panel for us... let's
+    // hope it's the right one!
+    const detailsPanel = trace.selection.getDetailsPanelForSelection();
+    if (detailsPanel) {
+      return {
+        isLoading: detailsPanel.isLoading,
+        content: detailsPanel.render(),
+      };
     } else {
       return {
-        isLoading: false,
-        content: m(
-          EmptyState,
-          {
-            className: 'pf-noselection',
-            title: 'No details available',
-            icon: 'warning',
-          },
-          `Selection kind: '${currentSelection.kind}'`,
-        ),
+        isLoading: true,
+        content: 'Loading...',
       };
     }
+  }
+
+  private renderAreaSelection(trace: TraceImpl, selection: AreaSelection) {
+    const tabs = trace.selection.areaSelectionTabs.sort(
+      (a, b) => (b.priority ?? 0) - (a.priority ?? 0),
+    );
+
+    const renderedTabs = tabs
+      .map((tab) => [tab, tab.render(selection)] as const)
+      .filter(([_, content]) => content !== undefined);
+
+    if (renderedTabs.length === 0) {
+      return this.renderEmptySelection('No details available for selection');
+    }
+
+    // Find the active tab or just pick the first one if that selected tab is
+    // not available.
+    const [activeTab, tabContent] =
+      renderedTabs.find(([tab]) => tab.id === this.currentAreaSubTabId) ??
+      renderedTabs[0];
+
+    return {
+      isLoading: tabContent?.isLoading ?? false,
+      content: m(
+        DetailsShell,
+        {
+          title: 'Area Selection',
+          description: m(
+            ButtonBar,
+            renderedTabs.map(([tab]) =>
+              m(Button, {
+                label: tab.name,
+                key: tab.id,
+                active: activeTab === tab,
+                onclick: () => (this.currentAreaSubTabId = tab.id),
+              }),
+            ),
+          ),
+        },
+        tabContent?.content,
+      ),
+    };
+  }
+
+  private renderNoteSelection(trace: TraceImpl, selection: NoteSelection) {
+    return {
+      isLoading: false,
+      content: m(NoteEditor, {trace, selection}),
+    };
   }
 
   private renderTrackDetailsPanel(trace: TraceImpl, trackUri: string) {

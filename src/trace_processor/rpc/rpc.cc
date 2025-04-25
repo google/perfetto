@@ -363,6 +363,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       for (const auto& r : analyzed_queries) {
         auto* query_res = analyze_result->add_results();
         query_res->set_sql(r.sql);
+        query_res->set_textproto(r.textproto);
         for (const std::string& m : r.modules) {
           query_res->add_modules(m);
         }
@@ -375,9 +376,9 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
     }
     default: {
       // This can legitimately happen if the client is newer. We reply with a
-      // generic "unkown request" response, so the client can do feature
+      // generic "unknown request" response, so the client can do feature
       // detection
-      PERFETTO_DLOG("[RPC] Uknown request type (%d), size=%zu", req_type, len);
+      PERFETTO_DLOG("[RPC] Unknown request type (%d), size=%zu", req_type, len);
       Response resp(tx_seq_id_++, req_type);
       resp->set_invalid_request(
           static_cast<RpcProto::TraceProcessorMethod>(req_type));
@@ -504,11 +505,19 @@ void Rpc::Query(const uint8_t* args,
 
   QueryResultSerializer serializer(std::move(it));
 
-  std::vector<uint8_t> res;
+  protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
+                                                                kSliceSize);
   for (bool has_more = true; has_more;) {
-    has_more = serializer.Serialize(&res);
-    result_callback(res.data(), res.size(), has_more);
-    res.clear();
+    has_more = serializer.Serialize(buffered.get());
+    const auto& res = buffered.GetSlices();
+    for (uint32_t i = 0; i < res.size(); ++i) {
+      auto used = res[i].GetUsedRange();
+      result_callback(used.begin, used.size(), has_more || i < res.size() - 1);
+    }
+    if (res.size() == 0 && !has_more) {
+      result_callback(nullptr, 0, false);
+    }
+    buffered.Reset();
   }
 }
 

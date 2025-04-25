@@ -22,19 +22,13 @@ pwd
 mount
 
 # This script will be run in /workspace after the Cloud Build environment has
-# pulled the GitHub repo in shallow mode. We want to build off the official
-# AOSP repo, not the GitHub mirror though, hence why the clone below.
-# GitHub is used only as a trigger. This is because Google Cloud Build doesn't
-# support yet triggering from Gerrit.
+# pulled the GitHub repo in shallow mode.
 
 cd /workspace/
 mkdir /workspace/tmp
 
-ls -A1 | xargs rm -rf
-UPSTREAM="https://android.googlesource.com/platform/external/perfetto.git"
-git clone $UPSTREAM upstream
-
-cd upstream/
+git config --global init.defaultBranch main;
+git fetch --unshallow
 
 # infra/ui.perfetto.dev/cloudbuild_release.yaml sets $1 to the branch
 # name when triggering from a release branch. Otherwise $1 is "" when triggering

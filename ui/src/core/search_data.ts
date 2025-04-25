@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type SearchSource = 'cpu' | 'log' | 'slice' | 'track';
+export type SearchSource = 'cpu' | 'log' | 'slice' | 'track' | 'event';
 
 export interface SearchSummary {
   tsStarts: BigInt64Array;

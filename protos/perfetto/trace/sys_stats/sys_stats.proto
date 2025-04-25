@@ -61,6 +61,9 @@ message SysStats {
 
     // Time spent servicing softirqs.
     optional uint64 softirq_ns = 8;
+
+    // Time spent executing something else on host than this guest.
+    optional uint64 steal_ns = 9;
   }
   // One entry per cpu.
   repeated CpuTimes cpu_stat = 3;

@@ -22,7 +22,7 @@ import os
 
 from protos.perfetto.bigtrace.orchestrator_pb2 import BigtraceQueryArgs
 from protos.perfetto.bigtrace.orchestrator_pb2_grpc import BigtraceOrchestratorStub
-from query_result_iterator import QueryResultIterator
+from perfetto.common.query_result_iterator import QueryResultIterator
 
 USING_MANUAL_OUTPUT_SCHEMA = True
 

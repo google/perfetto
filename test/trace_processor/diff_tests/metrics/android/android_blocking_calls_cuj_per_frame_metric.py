@@ -259,26 +259,26 @@ def add_blocking_call_crossing_frame_boundary(trace, cuj_name):
 
 
   # Add Choreographer#doFrame outside CUJ boundary. This frame will not be considered during
-    # metric calculation.
+  # metric calculation.
   add_frame(
-            trace,
-            vsync=75,
-            ts_do_frame=103_000_000,
-            ts_end_do_frame=110_000_000,
-            tid=LAUNCHER_UI_TID,
-            pid=LAUNCHER_PID)
+      trace,
+      vsync=75,
+      ts_do_frame=103_000_000,
+      ts_end_do_frame=110_000_000,
+      tid=LAUNCHER_UI_TID,
+      pid=LAUNCHER_PID)
 
   add_render_thread_atrace_begin(trace, ts=104_000_000, buf="DrawFrames 75", rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
   add_render_thread_atrace_end(trace, ts_end=105_000_000, rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
 
-    # Add Choreographer#doFrame slices within CUJ boundary.
+  # Add Choreographer#doFrame slices within CUJ boundary.
   add_frame(
-            trace,
-            vsync=80,
-            ts_do_frame=120_000_000,
-            ts_end_do_frame=126_000_000,
-            tid=LAUNCHER_UI_TID,
-            pid=LAUNCHER_PID)
+      trace,
+      vsync=80,
+      ts_do_frame=120_000_000,
+      ts_end_do_frame=126_000_000,
+      tid=LAUNCHER_UI_TID,
+      pid=LAUNCHER_PID)
 
   add_render_thread_atrace_begin(trace, ts=121_000_000, buf="DrawFrames 80", rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
   add_render_thread_atrace_end(trace, ts_end=122_000_000, rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
@@ -310,7 +310,7 @@ def add_blocking_call_crossing_frame_boundary(trace, cuj_name):
 
 def add_process(trace, package_name, uid, pid):
   trace.add_package_list(ts=0, name=package_name, uid=uid, version_code=1)
-  trace.add_process(pid=pid, ppid=0, cmdline=package_name, uid=uid)
+  trace.add_process(pid=pid, ppid=pid, cmdline=package_name, uid=uid)
   trace.add_thread(tid=pid, tgid=pid, cmdline="MainThread", name="MainThread")
 
 def setup_trace():

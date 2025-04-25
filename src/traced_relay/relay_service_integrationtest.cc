@@ -17,8 +17,9 @@
 #include <memory>
 #include <string>
 #include <vector>
+
 #include "perfetto/ext/base/unix_socket.h"
-#include "protos/perfetto/trace/remote_clock_sync.gen.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/traced_relay/relay_service.h"
 
 #include "src/base/test/test_task_runner.h"
@@ -27,6 +28,7 @@
 
 #include "protos/perfetto/config/test_config.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
+#include "protos/perfetto/trace/remote_clock_sync.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 
 namespace perfetto {

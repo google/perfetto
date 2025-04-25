@@ -179,6 +179,28 @@ export class Time {
   }
 }
 
+// Format `value` to `n` significant digits.
+// Examples: (1234, 2)   -> 1234.
+//           (12.34, 2)  -> 12.
+//           (0.1234, 2) -> 0.12.
+function toSignificantDigits(value: number, n: number): string {
+  const sign = Math.sign(value);
+  value = Math.abs(value);
+  // For each of (1, 10, 100, ..., 10^n) we need to render an additional digit
+  // after comma.
+  let pow = 1;
+  let digitsAfterComma = 0;
+  for (let i = 0; i < n; i++, pow *= 10) {
+    if (value < pow) {
+      digitsAfterComma++;
+    }
+  }
+  // Print precisely `digitsAfterComma` digits after comma, unless the number is an integer.
+  const formatted =
+    value === Math.round(value) ? value : value.toFixed(digitsAfterComma);
+  return `${sign < 0 ? '-' : ''}${formatted}`;
+}
+
 export class Duration {
   // The min and max possible duration values - durations can be negative.
   static MIN = BigintMath.INT64_MIN;
@@ -236,22 +258,22 @@ export class Duration {
   // Print duration as as human readable string - i.e. to only a handful of
   // significant figues.
   // Use this when readability is more desireable than precision.
-  // Examples: 1234 -> 1.23ns
-  //           123456789 -> 123ms
-  //           123,123,123,123,123 -> 34h 12m
-  //           1,000,000,023 -> 1 s
-  //           1,230,000,023 -> 1.2 s
+  // Examples: 1234 -> 1.234us
+  //           123456789 -> 123.5ms
+  //           123,123,123,123,123 -> 123123s
+  //           1,000,000,000 -> 1s
+  //           1,000,000,023 -> 1.000s
+  //           1,230,000,023 -> 1.230s
   static humanise(dur: duration): string {
-    const sec = Duration.toSeconds(dur);
-    const units = ['s', 'ms', 'us', 'ns'];
-    const sign = Math.sign(sec);
-    let n = Math.abs(sec);
+    if (dur < 1) return '0s';
+    const units = ['ns', 'us', 'ms', 's'];
+    let n = Math.abs(Number(dur));
     let u = 0;
-    while (n < 1 && n !== 0 && u < units.length - 1) {
-      n *= 1000;
-      u++;
+    while (n >= 1000 && u + 1 < units.length) {
+      n /= 1000;
+      ++u;
     }
-    return `${sign < 0 ? '-' : ''}${Math.round(n * 10) / 10}${units[u]}`;
+    return `${toSignificantDigits(Math.sign(Number(dur)) * n, 4)}${units[u]}`;
   }
 
   // Print duration with absolute precision.

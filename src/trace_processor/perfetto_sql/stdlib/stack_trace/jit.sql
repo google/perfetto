@@ -13,7 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-
 -- Represents a jitted code snippet.
 -- TODO(carlscab): Make public
 CREATE PERFETTO VIEW _jit_code (
@@ -58,5 +57,4 @@ CREATE PERFETTO VIEW _jit_frame (
 SELECT
   jit_code_id,
   frame_id
-FROM
-  __intrinsic_jit_frame;
+FROM __intrinsic_jit_frame;

@@ -18,7 +18,10 @@ import {
   MetricHandler,
 } from './metricUtils';
 import {Trace} from '../../../public/trace';
-import {addJankCUJDebugTrack} from '../../dev.perfetto.AndroidCujs';
+import {
+  addJankCUJDebugTrack,
+  addLatencyCUJDebugTrack,
+} from '../../dev.perfetto.AndroidCujs';
 import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
 class BlockingCallMetricHandler implements MetricHandler {
@@ -58,9 +61,21 @@ class BlockingCallMetricHandler implements MetricHandler {
     addDebugSliceTrack({trace: ctx, ...config});
   }
 
-  private pinSingleCuj(ctx: Trace, metricData: BlockingCallMetricData) {
-    const trackName = `Jank CUJ: ${metricData.cujName}`;
-    addJankCUJDebugTrack(ctx, trackName, metricData.cujName);
+  private async pinSingleCuj(ctx: Trace, metricData: BlockingCallMetricData) {
+    const jankTrackName = `Jank CUJ: ${metricData.cujName}`;
+    const latencyTrackName = `Latency CUJ: ${metricData.cujName}`;
+    // TODO: b/296349525 - Refactor once CUJ tables are migrated to stdlib
+    // Currently, we try to pin a Jank CUJ track and if that fails we add
+    // a Latency CUJ track. We can instead look up a single CUJ table to
+    // better determine what to query and pin.
+    const jankCujPinned = await addJankCUJDebugTrack(
+      ctx,
+      jankTrackName,
+      metricData.cujName,
+    );
+    if (!jankCujPinned) {
+      addLatencyCUJDebugTrack(ctx, latencyTrackName, metricData.cujName);
+    }
   }
 
   private blockingCallTrackConfig(metricData: BlockingCallMetricData) {

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Anchor} from '../../widgets/anchor';
-import {Button} from '../../widgets/button';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
@@ -35,10 +35,7 @@ import {
   getThreadName,
 } from '../../components/sql_utils/thread';
 import {ThreadStateRef} from '../../components/widgets/thread_state';
-import {
-  CRITICAL_PATH_CMD,
-  CRITICAL_PATH_LITE_CMD,
-} from '../../public/exposed_commands';
+import {CRITICAL_PATH_LITE_CMD} from '../../public/exposed_commands';
 import {goToSchedSlice} from '../../components/widgets/sched';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
@@ -313,20 +310,10 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
         m(Button, {
           label: 'Critical path lite',
           intent: Intent.Primary,
+          variant: ButtonVariant.Filled,
           onclick: () => {
             this.trace.commands.runCommand(
               CRITICAL_PATH_LITE_CMD,
-              this.threadState?.thread?.utid,
-            );
-          },
-        }),
-      this.trace.commands.hasCommand(CRITICAL_PATH_CMD) &&
-        m(Button, {
-          label: 'Critical path',
-          intent: Intent.Primary,
-          onclick: () => {
-            this.trace.commands.runCommand(
-              CRITICAL_PATH_CMD,
               this.threadState?.thread?.utid,
             );
           },

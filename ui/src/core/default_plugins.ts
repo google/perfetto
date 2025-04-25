@@ -24,7 +24,6 @@ export const defaultPlugins = [
   'com.android.GpuWorkPeriod',
   'com.google.PixelCpmTrace',
   'com.google.PixelMemory',
-  'dev.perfetto.AndroidBinderVizPlugin',
   'dev.perfetto.AndroidClientServer',
   'dev.perfetto.AndroidCujs',
   'dev.perfetto.AndroidDmabuf',
@@ -80,6 +79,7 @@ export const defaultPlugins = [
   'org.kernel.Wattson',
   'perfetto.CoreCommands',
   'perfetto.ExampleTraces',
+  'perfetto.FlowEvents',
   'perfetto.GlobalGroups',
   'perfetto.TrackUtils',
 ];

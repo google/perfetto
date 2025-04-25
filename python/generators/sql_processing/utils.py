@@ -23,7 +23,9 @@ ALLOWED_PREFIXES = {
     'chrome/util': ['cr'],
     'intervals': ['interval'],
     'graphs': ['graph'],
-    'slices': ['slice', 'thread_slice', 'process_slice'],
+    'slices': [
+        'slice', 'thread_slice', 'process_slice', 'thread_or_process_slice'
+    ],
     'linux': ['cpu', 'memory'],
     'stacks': ['cpu_profiling'],
 }

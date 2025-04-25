@@ -44,7 +44,7 @@
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/regex.h"
@@ -368,7 +368,7 @@ int DbSqliteModule::Create(sqlite3* db,
     return ret;
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnCreate(argv, std::move(state));
+  res->state = context->OnCreate(argc, argv, std::move(state));
   res->table_name = argv[2];
   *vtab = res.release();
   return SQLITE_OK;
@@ -397,7 +397,7 @@ int DbSqliteModule::Connect(sqlite3* db,
   auto* context = GetContext(ctx);
 
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnConnect(argv);
+  res->state = context->OnConnect(argc, argv);
   res->table_name = argv[2];
 
   auto* state =
@@ -840,7 +840,7 @@ int DbSqliteModule::Column(sqlite3_vtab_cursor* cursor,
 
   // We can say kSqliteStatic for strings because all strings are expected
   // to come from the string pool. Thus they will be valid for the lifetime
-  // of trace processor. Similarily, for bytes, we can also use
+  // of trace processor. Similarly, for bytes, we can also use
   // kSqliteStatic because for our iterator will hold onto the pointer as
   // long as we don't call Next(). However, that only happens when Next() is
   // called on the Cursor itself, at which point SQLite no longer cares

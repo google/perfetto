@@ -13,17 +13,16 @@
 // limitations under the License.
 
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {runQuery} from '../../../components/query_table/queries';
+import {runQueryForQueryTable} from '../../../components/query_table/queries';
 import {ChartAttrs} from '../../../components/widgets/charts/chart';
 import {Trace} from '../../../public/trace';
 import {Row} from '../../../trace_processor/query_result';
 import {QueryNode} from '../query_node';
-import {SqlTableState} from '../../../components/widgets/sql/legacy_table/state';
-import {SqlColumnAsSimpleColumn} from '../../dev.perfetto.SqlModules/sql_modules';
+import {SqlTableState} from '../../../components/widgets/sql/table/state';
+import {createTableColumnFromPerfettoSql} from '../../dev.perfetto.SqlModules/sql_modules';
 import {analyzeNode, Query} from '../query_builder/data_source_viewer';
-import {FromSimpleColumn} from '../../../components/widgets/sql/legacy_table/table_column';
-import {Filters} from '../../../components/widgets/sql/legacy_table/filters';
-import {buildSqlQuery} from '../../../components/widgets/sql/legacy_table/query_builder';
+import {Filters} from '../../../components/widgets/sql/table/filters';
+import {buildSqlQuery} from '../../../components/widgets/sql/table/query_builder';
 
 export interface VisViewAttrs {
   charts: Set<ChartAttrs>;
@@ -66,11 +65,11 @@ export class VisViewSource {
   }
 
   addChart(vis: ChartAttrs) {
-    this._visViews?.charts.add(vis);
+    return this._visViews?.charts.add(vis);
   }
 
   removeChart(vis: ChartAttrs) {
-    this._visViews?.charts.delete(vis);
+    return this._visViews?.charts.delete(vis);
   }
 
   private async loadData() {
@@ -78,10 +77,10 @@ export class VisViewSource {
     if (baseSql === undefined) return;
 
     const columns = Object.fromEntries(
-      this.queryNode.columns?.map((col) => [
+      this.queryNode.sourceCols.map((col) => [
         col.column.name,
         col.column.name,
-      ]) || [],
+      ]),
     );
 
     const query = buildSqlQuery({
@@ -99,7 +98,10 @@ export class VisViewSource {
       if (this._fullQuery === undefined) {
         return;
       }
-      const queryRes = await runQuery(this._fullQuery, this.trace.engine);
+      const queryRes = await runQueryForQueryTable(
+        this._fullQuery,
+        this.trace.engine,
+      );
 
       this._data = queryRes.rows;
       this._columns = queryRes.columns;
@@ -120,7 +122,7 @@ export class VisViewSource {
   }
 
   private updateViews(data?: Row[], columns?: string[]) {
-    const queryNodeColumns = this.queryNode.columns;
+    const queryNodeColumns = this.queryNode.sourceCols;
 
     if (
       data === undefined ||
@@ -155,10 +157,9 @@ export class VisViewSource {
           imports: this._baseQuery.modules,
           prefix: `WITH __data AS (${this._baseQuery.sql})`,
           name: '__data',
-          columns: queryNodeColumns.map(
-            (col) =>
-              // TODO: Figure out how to not require table name here.
-              new FromSimpleColumn(SqlColumnAsSimpleColumn(col.column, '')),
+          columns: queryNodeColumns.map((col) =>
+            // TODO: Figure out how to not require table name here.
+            createTableColumnFromPerfettoSql(col.column, ''),
           ),
         },
         {

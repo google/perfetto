@@ -111,8 +111,10 @@ export class HttpRpcEngine extends EngineBase {
         httpRpcState.failure = `${resp.status} - ${resp.statusText}`;
       } else {
         const buf = new Uint8Array(await resp.arrayBuffer());
-        httpRpcState.connected = true;
+        // Decode the response buffer first. If decoding is successful, update the connection state.
+        // This ensures that the connection state is only set to true if the data is correctly parsed.
         httpRpcState.status = protos.StatusResult.decode(buf);
+        httpRpcState.connected = true;
       }
     } catch (err) {
       httpRpcState.failure = `${err}`;

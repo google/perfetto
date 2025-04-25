@@ -628,6 +628,30 @@ message AndroidSystemPropertyConfig {
 
 // End of protos/perfetto/config/android/android_system_property_config.proto
 
+// Begin of protos/perfetto/config/android/app_wakelock_config.proto
+
+// Configuration for the android.app_wakelocks data source.
+message AppWakelocksConfig {
+  // Specifies the delay (in milliseconds) after which the data source will
+  // attempt to write events. Writing less frequently reduces the trace size by
+  // making better use of the packed arrays and reducing the total number of
+  // TracePackets needed (which each have dozens of bytes of overhead). The
+  // suggested delay is 5000ms.
+  optional int32 write_delay_ms = 1;
+
+  // When set, wakelocks held for less than this amount of time are filtered
+  // from the resulting trace. Note: duration is computed by matching wakelocks
+  // with identical attributes, not by tracking the underlying objects. The
+  // threshold should be < the trace's flush_period_ms.
+  optional int32 filter_duration_below_ms = 2;
+
+  // When true, the owner_pid is dropped from the resulting output, reducing the
+  // size of the interning tables.
+  optional bool drop_owner_pid = 3;
+}
+
+// End of protos/perfetto/config/android/app_wakelock_config.proto
+
 // Begin of protos/perfetto/config/android/kernel_wakelocks_config.proto
 
 // Data source that records kernel (and native) wakelock data.
@@ -1207,6 +1231,10 @@ message FtraceConfig {
   // Introduced in: perfetto v43.
   optional bool buffer_size_lower_bound = 27;
 
+  // For perfetto developer use. If true and on a debuggable android build,
+  // serialise raw tracing pages that the implementation cannot parse.
+  optional bool debug_ftrace_abi = 31;
+
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;
 }
@@ -1405,6 +1433,12 @@ message ProcessStatsConfig {
   optional bool resolve_process_fds = 9;
 
   // If true, output will include memory stats from /proc/pid/smaps_rollup.
+  //
+  // Does NOT work with the Android system daemon by default, as it requires
+  // running the recording process (traced_probes or tracebox) as root. It is
+  // possible to avoid the root requirement, but the exact steps depend on the
+  // Linux distibution. The proc file requires passing a PTRACE_MODE_READ
+  // check, and might be further covered by the procfs "hidepid" mount option.
   optional bool scan_smaps_rollup = 10;
 
   // If true: process descriptions will include process age (starttime in
@@ -1689,14 +1723,24 @@ message JavaHprofConfig {
 
 // Begin of protos/perfetto/common/perf_events.proto
 
-// Next id: 12
 message PerfEvents {
-  // What event to sample on, and how often. Commented from the perspective of
-  // its use in |PerfEventConfig|.
+  // The primary event to count. If recording multiple events, this
+  // counter is the "group leader".
+  // Commented from the perspective of its use in |PerfEventConfig|.
+  // Next id: 12
   message Timebase {
-    // How often the per-cpu sampling will occur. Not guaranteed to be honored
-    // as the kernel can throttle the sampling rate if it's too high.
-    // If unset, an implementation-defined default is used.
+    // How often to snapshot the counter, along with any follower events and
+    // any additional sampled data such as callstacks.
+    //
+    // This choice also controls how the readings are taken:
+    // * With |frequency| or |period|, samples are taken by the kernel
+    //   into a ring buffer. Analogous to `perf record`.
+    // * With |poll_period_ms|, the userspace periodically snapshots
+    //   the counters using the read syscall. Analogous to `perf stat -I`.
+    // Prefer the sampling options unless you're recording PMUs whose
+    // perf drivers only support the reading mode.
+    //
+    // If unset, an implementation-defined sampling default is used.
     oneof interval {
       // Per-cpu sampling frequency in Hz, as requested from the kernel. Not the
       // same as 1/period.
@@ -1704,18 +1748,28 @@ message PerfEvents {
       // kernel will dynamically adjust it based on the observed event rate, to
       // approximate this frequency. Works best with steady-rate events like
       // timers.
+      // Not guaranteed to be honored as the kernel can throttle the sampling
+      // rate if it's too high.
       uint64 frequency = 2;
 
       // Per-cpu sampling will occur every |period| counts of |event|.
       // Prefer |frequency| by default, as it's easier to oversample with a
       // fixed period.
+      // Not guaranteed to be honored as the kernel can throttle the sampling
+      // rate if it's too high.
       uint64 period = 1;
+
+      // Per-cpu values are read by the userspace every interval. If using this
+      // mode, only follower events are supported. Options such as
+      // |PerfEventConfig.CallstackSampling| are incompatible.
+      // The period can't be guaranteed to be exact since the readings are taken
+      // by userspace.
+      uint32 poll_period_ms = 6;
     }
 
-    // Counting event to use as a timebase for the sampling.
+    // Counting event to use as the timebase.
     // If unset, implies the CPU timer (SW_CPU_CLOCK) as the event,
     // which is what you usually want.
-    // See common/perf_events.proto for the definitions.
     oneof event {
       Counter counter = 4;
       Tracepoint tracepoint = 3;
@@ -1856,7 +1910,7 @@ message FollowerEvent {
 //     }
 //   }
 //
-// Next id: 20
+// Next id: 21
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
@@ -1869,6 +1923,15 @@ message PerfEventConfig {
   // interval specified by the |timebase|.
   // If unset, the profiler will record only the event counts.
   optional CallstackSampling callstack_sampling = 16;
+
+  // List of cpu indices for counting. If empty, the default is all cpus.
+  //
+  // Note: this is not inside |callstack_sampling.scope| as it also applies to
+  // counter-only traces. A future change will likely reorganise the options,
+  // but this field will continue to be supported.
+  //
+  // Available since: perfetto v50.
+  repeated uint32 target_cpu = 20;
 
   //
   // Kernel <-> userspace ring buffer options:
@@ -3704,7 +3767,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 135
+// Next id: 136
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3871,6 +3934,9 @@ message DataSourceConfig {
   // Data source name: org.chromium.histogram_samples
   optional ChromiumHistogramSamplesConfig chromium_histogram_samples = 134
       [lazy = true];
+
+  // Data source name: android.app_wakelocks
+  optional AppWakelocksConfig app_wakelocks_config = 135 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -4923,6 +4989,49 @@ message AndroidSystemProperty {
 
 // End of protos/perfetto/trace/android/android_system_property.proto
 
+// Begin of protos/perfetto/trace/android/app_wakelock_data.proto
+
+// AppWakelockInfo describes the time-independent properties of a wakelock, such
+// as the owning package or wakelock tag. This is interned to reduce trace size.
+// Event bundles refer to interned wakelock info by the iid.
+message AppWakelockInfo {
+  // The interned id of this wakelock.
+  optional int32 iid = 1;
+
+  // The app-provided tag of the wakelock.
+  optional string tag = 2;
+
+  // The wakelock flags (such as partial vs full).
+  optional int32 flags = 3;
+
+  // The pid that created the wakelock.
+  optional int32 owner_pid = 4;
+
+  // The uid that created the wakelock.
+  optional int32 owner_uid = 5;
+
+  // The uid of the work source root (if present).
+  optional int32 work_uid = 6;
+}
+
+// AppWakelockBundle describes one or more wakelock events. Events are written
+// in two paired array, such that the details for event i are in intern_id[i]
+// and encoded_ts[i].
+message AppWakelockBundle {
+  // The interned id for the WakelockInfo of the event.
+  repeated uint32 intern_id = 1 [packed = true];
+
+  // The timestamp and event type, encoded as:
+  //   (event_time - packet_time) << 1 | (acquired ? 1 : 0)
+  repeated uint64 encoded_ts = 2 [packed = true];
+
+  // For writing single packets (mainly by tokenization).
+  optional AppWakelockInfo info = 3;
+  optional bool acquired = 4;
+}
+
+// End of protos/perfetto/trace/android/app_wakelock_data.proto
+
 // Begin of protos/perfetto/trace/android/bluetooth_trace.proto
 
 // Describes the packet type and direction. CMD and EVT are unidirectional, so
@@ -4940,7 +5049,6 @@ enum BluetoothTracePacketType {
 
 // Trace event for bluetooth
 message BluetoothTraceEvent {
-
   // Packet type and direction
   optional BluetoothTracePacketType packet_type = 1;
 
@@ -4951,8 +5059,8 @@ message BluetoothTraceEvent {
   // interval
   optional uint32 length = 3;
 
-  // The collection interval in ms. This is the duration between the first and
-  // last packets collected.
+  // The collection interval in nanoseconds. This is the duration between the
+  // first and last packets collected.
   optional uint32 duration = 4;
 
   // In case of CMD type, further breakdown of the type of command
@@ -4968,6 +5076,7 @@ message BluetoothTraceEvent {
   // Associated handle for the bluetooth packet
   optional uint32 connection_handle = 8;
 }
+
 // End of protos/perfetto/trace/android/bluetooth_trace.proto
 
 // Begin of protos/perfetto/trace/android/camera_event.proto
@@ -6644,6 +6753,8 @@ message InternedV8WasmScript {
   optional int32 script_id = 2;
 
   optional string url = 3;
+  // Raw transferred wasm native module wire bytes.
+  optional bytes wire_bytes = 4;
 }
 
 message InternedV8JsFunction {
@@ -7917,6 +8028,11 @@ message DpuDispDpuUnderrunFtraceEvent {
   optional int32 id = 1;
   optional int32 frames_pending = 2;
   optional int32 vsync_count = 3;
+}
+message DpuDispVblankIrqEnableFtraceEvent {
+  optional int32 id = 1;
+  optional int32 output_id = 2;
+  optional int32 enable = 3;
 }
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
@@ -11680,6 +11796,7 @@ message FtraceEvent {
     BlockIoDoneFtraceEvent block_io_done = 547;
     MaliGpuPowerStateFtraceEvent mali_gpu_power_state = 548;
     DpuDispDpuUnderrunFtraceEvent dpu_disp_dpu_underrun = 549;
+    DpuDispVblankIrqEnableFtraceEvent dpu_disp_vblank_irq_enable = 550;
   }
 }
 
@@ -11934,6 +12051,11 @@ message FtraceEventBundle {
   // oldest bundles can skew the first valid timestamp per cpu significantly.
   // Added in: perfetto v47.
   optional uint64 previous_bundle_end_timestamp = 10;
+
+  // Written only on debuggable android builds if the config sets
+  // |debug_ftrace_abi|. Contains the raw ring buffer tracing page that the
+  // implementation could not parse.
+  optional bytes broken_abi_trace_page = 512;
 }
 
 enum FtraceClock {
@@ -12250,9 +12372,6 @@ message VulkanMemoryEvent {
 
 // Begin of protos/perfetto/trace/profiling/profile_common.proto
 
-// TODO(fmayer): Figure out naming thoroughout this file to get a
-// nomenclature that works between Windows and Linux.
-
 // The interning fields in this file can refer to 2 different intern tables,
 // depending on the message they are used in. If the interned fields are present
 // in ProfilePacket proto, then the intern tables included in the ProfilePacket
@@ -12265,28 +12384,7 @@ message InternedString {
   optional bytes str = 2;
 }
 
-// A symbol field that is emitted after the trace is written. These tables would
-// be appended as the last packets in the trace that the profiler will use, so
-// that the actual trace need not be rewritten to symbolize the profiles.
-message ProfiledFrameSymbols {
-  // Use the frame id as the interning key for the symbols.
-  optional uint64 frame_iid = 1;
-
-  // These are repeated because when inlining happens, multiple functions'
-  // frames can be at a single address. Imagine function Foo calling the
-  // std::vector<int> constructor, which gets inlined at 0xf00. We then get
-  // both Foo and the std::vector<int> constructor when we symbolize the
-  // address.
-
-  // key to InternedString
-  repeated uint64 function_name_id = 2;
-
-  // key to InternedString
-  repeated uint64 file_name_id = 3;
-
-  repeated uint32 line_number = 4;
-}
-
+// Source line info.
 message Line {
   optional string function_name = 1;
   optional string source_file_name = 2;
@@ -12308,6 +12406,7 @@ message AddressSymbols {
 }
 
 // Symbols for addresses seen in a module.
+// Used in re-symbolisation of complete traces.
 message ModuleSymbols {
   // Fully qualified path to the mapping.
   // E.g. /system/lib64/libc.so.
@@ -13705,7 +13804,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 42.
+// Next id: 43.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -13734,9 +13833,6 @@ message InternedData {
   repeated InternedString source_paths = 18;
   // Names of functions used in frames below.
   repeated InternedString function_names = 5;
-  // Symbols that were added to this trace after the fact.
-  repeated ProfiledFrameSymbols profiled_frame_symbols = 21;
-
   // Executable files mapped into processes.
   repeated Mapping mappings = 19;
   // Frames of callstacks of a program.
@@ -13793,6 +13889,12 @@ message InternedData {
   repeated InternedString viewcapture_window_name = 39;
   repeated InternedString viewcapture_view_id = 40;
   repeated InternedString viewcapture_class_name = 41;
+
+  // Interned context for android.app_wakelocks.
+  repeated AppWakelockInfo app_wakelock_info = 42;
+
+  // removed ProfiledFrameSymbols profiled_frame_symbols
+  reserved 21;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
@@ -14694,6 +14796,7 @@ message PerfSample {
     PROFILER_SKIP_READ_STAGE = 1;
     PROFILER_SKIP_UNWIND_STAGE = 2;
     PROFILER_SKIP_UNWIND_ENQUEUE = 3;
+    PROFILER_SKIP_NOT_IN_SCOPE = 4;
   }
   oneof optional_sample_skipped_reason {
     SampleSkipReason sample_skipped_reason = 18;
@@ -14885,10 +14988,16 @@ message ProcessTree {
     // The parent process ID, as per getppid().
     optional int32 ppid = 2;
 
-    // The command line for the process, as per /proc/pid/cmdline.
-    // If it is a kernel thread there will only be one cmdline field
-    // and it will contain /proc/pid/comm.
+    // The command line for the process, as per /proc/pid/cmdline, broken up on
+    // NUL bytes.
+    // If it is a kernel thread or a zombie, there will only be one cmdline
+    // field and it will contain /proc/pid/comm.
     repeated string cmdline = 3;
+
+    // If true, the |cmdline| field was filled with the main thread's "comm"
+    // field instead.
+    // Introduced in: perfetto v50.
+    optional bool cmdline_is_comm = 9;
 
     // The uid for the process, as per /proc/pid/status.
     optional int32 uid = 5;
@@ -14903,6 +15012,13 @@ message ProcessTree {
     // Recorded if record_process_age config option is set.
     // Resolution of "clock ticks", usually 10ms.
     optional uint64 process_start_from_boot = 7;
+
+    // If true, the process is a kernel thread.
+    // Set only on linux v6.4+. For traces from older devices, it is possible to
+    // infer most kthreads by checking that they're a descendant of kthreadd
+    // (pid=2), or are the idle process (pid=0).
+    // Introduced in: perfetto v50.
+    optional bool is_kthread = 8;
 
     // threads_deprecated
     reserved 4;
@@ -15009,6 +15125,9 @@ message SysStats {
 
     // Time spent servicing softirqs.
     optional uint64 softirq_ns = 8;
+
+    // Time spent executing something else on host than this guest.
+    optional uint64 steal_ns = 9;
   }
   // One entry per cpu.
   repeated CpuTimes cpu_stat = 3;
@@ -15935,7 +16054,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 116.
+// Next id: 117.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -16008,7 +16127,6 @@ message TracePacket {
     EntityStateResidency entity_state_residency = 91;
 
     // Only used in profile packets.
-    ProfiledFrameSymbols profiled_frame_symbols = 55;
     ModuleSymbols module_symbols = 61;
     DeobfuscationMapping deobfuscation_mapping = 64;
 
@@ -16081,6 +16199,8 @@ message TracePacket {
 
     KernelWakelockData kernel_wakelock_data = 115;
 
+    AppWakelockBundle app_wakelock_bundle = 116;
+
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
     // This caused many problems:
@@ -16092,6 +16212,9 @@ message TracePacket {
 
   // AndroidInputEvent android_input_event (moved to winscope_extensions)
   reserved 106;
+
+  // removed ProfiledFrameSymbols profiled_frame_symbols
+  reserved 55;
 
   // Trusted user id of the producer which generated this packet. Keep in sync
   // with TrustedPacket.trusted_uid.

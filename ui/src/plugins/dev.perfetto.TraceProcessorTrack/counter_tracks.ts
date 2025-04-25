@@ -330,8 +330,8 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
   },
   {
     type: 'smaps',
-    topLevelGroup: 'MEMORY',
-    group: 'smaps',
+    topLevelGroup: 'PROCESS',
+    group: undefined,
   },
   {
     type: 'sysprop_counter',

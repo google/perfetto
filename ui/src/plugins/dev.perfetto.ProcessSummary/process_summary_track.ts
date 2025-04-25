@@ -20,7 +20,7 @@ import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {Engine} from '../../trace_processor/engine';
-import {Track} from '../../public/track';
+import {TrackRenderer} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackRenderContext} from '../../public/track';
@@ -48,7 +48,7 @@ const RECT_HEIGHT = 30;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 const SUMMARY_HEIGHT = TRACK_HEIGHT - MARGIN_TOP;
 
-export class ProcessSummaryTrack implements Track {
+export class ProcessSummaryTrack implements TrackRenderer {
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
   private engine: Engine;
   private config: Config;

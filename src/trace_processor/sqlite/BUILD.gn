@@ -20,7 +20,8 @@ source_set("sqlite") {
   sources = [
     "db_sqlite_table.cc",
     "db_sqlite_table.h",
-    "module_lifecycle_manager.h",
+    "module_state_manager.cc",
+    "module_state_manager.h",
     "scoped_db.h",
     "sql_source.cc",
     "sql_source.h",

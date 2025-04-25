@@ -158,13 +158,14 @@ if (enable_perfetto_trace_processor_sqlite) {
       ":storage_minimal",
       "../../gn:default_deps",
       "../../protos/perfetto/common:zero",
-      "../../protos/perfetto/summary:zero",
       "../../protos/perfetto/trace:zero",
       "../../protos/perfetto/trace/perfetto:zero",
       "../../protos/perfetto/trace_processor:zero",
+      "../../protos/perfetto/trace_summary:zero",
       "../base",
       "../base:clock_snapshots",
       "../protozero",
+      "dataframe",
       "db",
       "importers/android_bugreport",
       "importers/archive",
@@ -189,8 +190,9 @@ if (enable_perfetto_trace_processor_sqlite) {
       "perfetto_sql/stdlib",
       "sqlite",
       "storage",
-      "summary",
       "tables",
+      "trace_summary",
+      "trace_summary:gen_cc_trace_summary_descriptor",
       "types",
       "util",
       "util:gzip",
@@ -253,10 +255,10 @@ if (enable_perfetto_trace_processor_sqlite) {
       data_deps = [
         # The diff testing framework depends on these descriptors.
         "../../protos/perfetto/metrics:descriptor",
-        "../../protos/perfetto/summary:descriptor",
         "../../protos/perfetto/trace:descriptor",
         "../../protos/perfetto/trace:test_extensions_descriptor",
         "../../protos/perfetto/trace_processor:stack_descriptor",
+        "../../protos/perfetto/trace_summary:descriptor",
         "../../protos/third_party/pprof:descriptor",
       ]
     }
@@ -317,6 +319,8 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":top_level_unittests",
     "containers:unittests",
+    "dataframe:unittests",
+    "dataframe/impl:unittests",
     "db:unittests",
     "db/column:unittests",
     "importers/android_bugreport:unittests",

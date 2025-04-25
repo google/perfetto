@@ -18,21 +18,18 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
+#include <memory>
 #include <string>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/base/weak_ptr.h"
-#include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
-#include "perfetto/tracing/core/trace_config.h"
-#include "src/android_stats/statsd_logging_helper.h"
 #include "src/traced/probes/android_game_intervention_list/android_game_intervention_list_data_source.h"
 #include "src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks_data_source.h"
 #include "src/traced/probes/android_log/android_log_data_source.h"
@@ -152,9 +149,9 @@ ProbesProducer::CreateDSInstance<InodeFileDataSource>(
   auto buffer_id = static_cast<BufferID>(source_config.target_buffer());
   if (system_inodes_.empty())
     CreateStaticDeviceToInodeMap("/system", &system_inodes_);
-  return std::unique_ptr<InodeFileDataSource>(new InodeFileDataSource(
+  return std::make_unique<InodeFileDataSource>(
       source_config, task_runner_, session_id, &system_inodes_, &cache_,
-      endpoint_->CreateTraceWriter(buffer_id)));
+      endpoint_->CreateTraceWriter(buffer_id));
 }
 
 template <>
@@ -163,9 +160,9 @@ ProbesProducer::CreateDSInstance<ProcessStatsDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<ProcessStatsDataSource>(new ProcessStatsDataSource(
+  return std::make_unique<ProcessStatsDataSource>(
       task_runner_, session_id, endpoint_->CreateTraceWriter(buffer_id),
-      config));
+      config);
 }
 
 template <>
@@ -174,9 +171,9 @@ ProbesProducer::CreateDSInstance<StatsdBinderDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<StatsdBinderDataSource>(new StatsdBinderDataSource(
+  return std::make_unique<StatsdBinderDataSource>(
       task_runner_, session_id, endpoint_->CreateTraceWriter(buffer_id),
-      config));
+      config);
 }
 
 template <>
@@ -185,9 +182,9 @@ ProbesProducer::CreateDSInstance<AndroidPowerDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<ProbesDataSource>(
-      new AndroidPowerDataSource(config, task_runner_, session_id,
-                                 endpoint_->CreateTraceWriter(buffer_id)));
+  return std::make_unique<AndroidPowerDataSource>(
+      config, task_runner_, session_id,
+      endpoint_->CreateTraceWriter(buffer_id));
 }
 
 template <>
@@ -196,9 +193,9 @@ ProbesProducer::CreateDSInstance<LinuxPowerSysfsDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<ProbesDataSource>(
-      new LinuxPowerSysfsDataSource(config, task_runner_, session_id,
-                                    endpoint_->CreateTraceWriter(buffer_id)));
+  return std::make_unique<LinuxPowerSysfsDataSource>(
+      config, task_runner_, session_id,
+      endpoint_->CreateTraceWriter(buffer_id));
 }
 
 template <>
@@ -207,9 +204,9 @@ ProbesProducer::CreateDSInstance<AndroidKernelWakelocksDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<ProbesDataSource>(new AndroidKernelWakelocksDataSource(
+  return std::make_unique<AndroidKernelWakelocksDataSource>(
       config, task_runner_, session_id,
-      endpoint_->CreateTraceWriter(buffer_id)));
+      endpoint_->CreateTraceWriter(buffer_id));
 }
 
 template <>
@@ -218,9 +215,9 @@ ProbesProducer::CreateDSInstance<AndroidLogDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<ProbesDataSource>(
-      new AndroidLogDataSource(config, task_runner_, session_id,
-                               endpoint_->CreateTraceWriter(buffer_id)));
+  return std::make_unique<AndroidLogDataSource>(
+      config, task_runner_, session_id,
+      endpoint_->CreateTraceWriter(buffer_id));
 }
 
 template <>
@@ -229,8 +226,8 @@ ProbesProducer::CreateDSInstance<PackagesListDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<ProbesDataSource>(new PackagesListDataSource(
-      config, session_id, endpoint_->CreateTraceWriter(buffer_id)));
+  return std::make_unique<PackagesListDataSource>(
+      config, session_id, endpoint_->CreateTraceWriter(buffer_id));
 }
 
 template <>
@@ -239,9 +236,8 @@ ProbesProducer::CreateDSInstance<AndroidGameInterventionListDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<ProbesDataSource>(
-      new AndroidGameInterventionListDataSource(
-          config, session_id, endpoint_->CreateTraceWriter(buffer_id)));
+  return std::make_unique<AndroidGameInterventionListDataSource>(
+      config, session_id, endpoint_->CreateTraceWriter(buffer_id));
 }
 
 template <>
@@ -250,9 +246,9 @@ ProbesProducer::CreateDSInstance<SysStatsDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<SysStatsDataSource>(new SysStatsDataSource(
+  return std::make_unique<SysStatsDataSource>(
       task_runner_, session_id, endpoint_->CreateTraceWriter(buffer_id), config,
-      std::unique_ptr<CpuFreqInfo>(new CpuFreqInfo())));
+      std::make_unique<CpuFreqInfo>());
 }
 
 template <>
@@ -261,8 +257,8 @@ ProbesProducer::CreateDSInstance<MetatraceDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<ProbesDataSource>(new MetatraceDataSource(
-      task_runner_, session_id, endpoint_->CreateTraceWriter(buffer_id)));
+  return std::make_unique<MetatraceDataSource>(
+      task_runner_, session_id, endpoint_->CreateTraceWriter(buffer_id));
 }
 
 template <>
@@ -271,9 +267,9 @@ ProbesProducer::CreateDSInstance<SystemInfoDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<ProbesDataSource>(new SystemInfoDataSource(
+  return std::make_unique<SystemInfoDataSource>(
       session_id, endpoint_->CreateTraceWriter(buffer_id),
-      std::unique_ptr<CpuFreqInfo>(new CpuFreqInfo())));
+      std::make_unique<CpuFreqInfo>());
 }
 
 template <>
@@ -282,9 +278,9 @@ ProbesProducer::CreateDSInstance<InitialDisplayStateDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<ProbesDataSource>(new InitialDisplayStateDataSource(
+  return std::make_unique<InitialDisplayStateDataSource>(
       task_runner_, config, session_id,
-      endpoint_->CreateTraceWriter(buffer_id)));
+      endpoint_->CreateTraceWriter(buffer_id));
 }
 
 template <>
@@ -293,9 +289,9 @@ ProbesProducer::CreateDSInstance<AndroidSystemPropertyDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<ProbesDataSource>(new AndroidSystemPropertyDataSource(
+  return std::make_unique<AndroidSystemPropertyDataSource>(
       task_runner_, config, session_id,
-      endpoint_->CreateTraceWriter(buffer_id)));
+      endpoint_->CreateTraceWriter(buffer_id));
 }
 
 // Another anonymous namespace. This cannot be moved into the anonymous
@@ -523,7 +519,7 @@ void ProbesProducer::Flush(FlushRequestID flush_request_id,
     if (it == data_sources_.end() || !it->second->started)
       continue;
     pending_flushes_.emplace(flush_request_id, ds_id);
-    ds_to_flush.emplace_back(std::make_pair(ds_id, it->second.get()));
+    ds_to_flush.emplace_back(ds_id, it->second.get());
   }
 
   // If there is nothing to flush, ack immediately.

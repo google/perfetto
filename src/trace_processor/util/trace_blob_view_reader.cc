@@ -19,9 +19,7 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <cstring>
-#include <iterator>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -65,7 +63,7 @@ template <typename Visitor>
 auto TraceBlobViewReader::SliceOffImpl(const size_t offset,
                                        const size_t length,
                                        Visitor& visitor) const {
-  // If the length is zero, then a zero-sized blob view is always appropiate.
+  // If the length is zero, then a zero-sized blob view is always appropriate.
   if (PERFETTO_UNLIKELY(length == 0)) {
     return visitor.OneSlice(TraceBlobView());
   }
@@ -129,21 +127,21 @@ std::optional<TraceBlobView> TraceBlobViewReader::SliceOff(
     size_t offset,
     size_t length) const {
   struct Visitor {
-    std::optional<TraceBlobView> NoData() { return std::nullopt; }
+    static std::optional<TraceBlobView> NoData() { return std::nullopt; }
 
-    std::optional<TraceBlobView> OneSlice(TraceBlobView tbv) {
+    static std::optional<TraceBlobView> OneSlice(TraceBlobView tbv) {
       return std::move(tbv);
     }
 
-    TraceBlob StartMultiSlice(size_t length) {
+    static TraceBlob StartMultiSlice(size_t length) {
       return TraceBlob::Allocate(length);
     }
 
-    void AddSlice(TraceBlob& blob, size_t offset, TraceBlobView tbv) {
+    static void AddSlice(TraceBlob& blob, size_t offset, TraceBlobView tbv) {
       memcpy(blob.data() + offset, tbv.data(), tbv.size());
     }
 
-    std::optional<TraceBlobView> Finalize(TraceBlob blob) {
+    static std::optional<TraceBlobView> Finalize(TraceBlob blob) {
       return TraceBlobView(std::move(blob));
     }
 
@@ -156,22 +154,24 @@ std::vector<TraceBlobView> TraceBlobViewReader::MultiSliceOff(
     size_t offset,
     size_t length) const {
   struct Visitor {
-    std::vector<TraceBlobView> NoData() { return {}; }
+    static std::vector<TraceBlobView> NoData() { return {}; }
 
-    std::vector<TraceBlobView> OneSlice(TraceBlobView tbv) {
+    static std::vector<TraceBlobView> OneSlice(TraceBlobView tbv) {
       std::vector<TraceBlobView> res;
       res.reserve(1);
       res.push_back(std::move(tbv));
       return res;
     }
 
-    std::vector<TraceBlobView> StartMultiSlice(size_t) { return {}; }
+    static std::vector<TraceBlobView> StartMultiSlice(size_t) { return {}; }
 
-    void AddSlice(std::vector<TraceBlobView>& vec, size_t, TraceBlobView tbv) {
+    static void AddSlice(std::vector<TraceBlobView>& vec,
+                         size_t,
+                         TraceBlobView tbv) {
       vec.push_back(std::move(tbv));
     }
 
-    std::vector<TraceBlobView> Finalize(std::vector<TraceBlobView> vec) {
+    static std::vector<TraceBlobView> Finalize(std::vector<TraceBlobView> vec) {
       return vec;
     }
 

@@ -16,19 +16,21 @@ import m from 'mithril';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {VegaLiteSelectionTypes, VegaView} from '../vega_view';
 import {Spinner} from '../../../widgets/spinner';
-import {ChartAttrs, VegaLiteChartSpec} from './chart';
+import {ChartAttrs} from './chart';
 import {Row} from '../../../trace_processor/query_result';
+import {TopLevelSpec} from 'vega-lite';
+import {assertExists} from '../../../base/logging';
 
 type HistogramAttrs = ChartAttrs;
 
 export class Histogram implements m.ClassComponent<HistogramAttrs> {
-  getVegaSpec(attrs: ChartAttrs): VegaLiteChartSpec {
+  getVegaSpec(attrs: ChartAttrs): TopLevelSpec {
     return {
       $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
       width: 'container',
       mark: 'bar',
       data: {
-        values: attrs.data,
+        values: assertExists(attrs.data),
       },
       params: [
         {

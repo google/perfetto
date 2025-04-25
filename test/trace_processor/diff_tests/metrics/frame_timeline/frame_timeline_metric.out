@@ -7,6 +7,7 @@ android_frame_timeline_metric {
     process {
       name: "process1"
       pid: 1001
+      is_kernel_task: false
     }
     total_frames: 2
     missed_frames: 2
@@ -49,6 +50,7 @@ android_frame_timeline_metric {
     process {
       name: "process2"
       pid: 1002
+      is_kernel_task: false
     }
     total_frames: 2
     missed_frames: 1
@@ -91,6 +93,7 @@ android_frame_timeline_metric {
     process {
       name: "process3"
       pid: 1003
+      is_kernel_task: false
     }
     total_frames: 2
     missed_frames: 2
@@ -133,6 +136,7 @@ android_frame_timeline_metric {
     process {
       name: "process4"
       pid: 1004
+      is_kernel_task: false
     }
     total_frames: 5
     missed_frames: 4

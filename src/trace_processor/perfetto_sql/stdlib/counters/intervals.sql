@@ -41,10 +41,11 @@
 -- ts=10, dur=30, value=20, track_id=2
 -- ```
 CREATE PERFETTO MACRO counter_leading_intervals(
-  -- A table/view/subquery corresponding to a "counter-like" table.
-  -- This table must have the columns "id" and "ts" and "track_id" and "value" corresponding
-  -- to an id, timestamp, counter track_id and associated counter value.
-  counter_table TableOrSubquery)
+    -- A table/view/subquery corresponding to a "counter-like" table.
+    -- This table must have the columns "id" and "ts" and "track_id" and "value" corresponding
+    -- to an id, timestamp, counter track_id and associated counter value.
+    counter_table TableOrSubquery
+)
 -- Table with the schema (id LONG, ts TIMESTAMP, dur DURATION, track_id JOINID(track.id),
 -- value DOUBLE, next_value DOUBLE, delta_value DOUBLE).
 RETURNS TableOrSubquery AS
@@ -59,18 +60,23 @@ RETURNS TableOrSubquery AS
     c6 AS delta_value
   FROM __intrinsic_table_ptr(
     __intrinsic_counter_intervals(
-      "leading", TRACE_END(),
-      (SELECT __intrinsic_counter_per_track_agg(
-        input.id,
-        input.ts,
-        input.track_id,
-        input.value
+      "leading",
+      trace_end(),
+      (
+        SELECT
+          __intrinsic_counter_per_track_agg(input.id, input.ts, input.track_id, input.value)
+        FROM (
+          SELECT
+            *
+          FROM $counter_table
+          ORDER BY
+            ts
+        ) AS input
       )
-      FROM (SELECT * FROM $counter_table ORDER BY ts) input)
     )
   )
-
-  WHERE __intrinsic_table_ptr_bind(c0, 'id')
+  WHERE
+    __intrinsic_table_ptr_bind(c0, 'id')
     AND __intrinsic_table_ptr_bind(c1, 'ts')
     AND __intrinsic_table_ptr_bind(c2, 'dur')
     AND __intrinsic_table_ptr_bind(c3, 'track_id')

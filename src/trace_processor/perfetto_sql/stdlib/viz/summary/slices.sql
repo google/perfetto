@@ -15,10 +15,11 @@
 
 CREATE PERFETTO TABLE _slice_track_summary AS
 SELECT
-  track_id as id,
-  COUNT() AS cnt,
-  MIN(dur) AS min_dur,
-  MAX(dur) AS max_dur,
-  MAX(depth) AS max_depth
+  track_id AS id,
+  count() AS cnt,
+  min(dur) AS min_dur,
+  max(dur) AS max_dur,
+  max(depth) AS max_depth
 FROM slice
-GROUP BY track_id;
+GROUP BY
+  track_id;

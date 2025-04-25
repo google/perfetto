@@ -14,54 +14,60 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE counters.intervals;
+
 INCLUDE PERFETTO MODULE linux.memory.process;
 
 CREATE PERFETTO TABLE _memory_rss_high_watermark_per_process_table AS
-WITH with_rss AS (
+WITH
+  with_rss AS (
     SELECT
-        ts,
-        dur,
-        upid,
-        COALESCE(file_rss, 0) + COALESCE(anon_rss, 0) + COALESCE(shmem_rss, 0) AS rss
+      ts,
+      dur,
+      upid,
+      coalesce(file_rss, 0) + coalesce(anon_rss, 0) + coalesce(shmem_rss, 0) AS rss
     FROM _memory_rss_and_swap_per_process_table
-),
-high_watermark_as_counter AS (
+  ),
+  high_watermark_as_counter AS (
+    SELECT
+      ts,
+      max(rss) OVER (PARTITION BY upid ORDER BY ts) AS value,
+      -- `id` and `track_id` are hacks to use this table in
+      -- `counter_leading_intervals` macro. As `track_id` is using for looking
+      -- for duplicates, we are aliasing `upid` with it. `Id` is ignored by the macro.
+      upid AS track_id,
+      0 AS id
+    FROM with_rss
+  )
 SELECT
-    ts,
-    MAX(rss) OVER (PARTITION BY upid ORDER BY ts) AS value,
-    -- `id` and `track_id` are hacks to use this table in
-    -- `counter_leading_intervals` macro. As `track_id` is using for looking
-    -- for duplicates, we are aliasing `upid` with it. `Id` is ignored by the macro.
-    upid AS track_id,
-    0 AS id
-FROM with_rss
-)
-SELECT ts, dur, track_id AS upid, cast_int!(value) AS rss_high_watermark
+  ts,
+  dur,
+  track_id AS upid,
+  cast_int!(value) AS rss_high_watermark
 FROM counter_leading_intervals!(high_watermark_as_counter);
 
 -- For each process fetches the memory high watermark until or during
 -- timestamp.
-CREATE PERFETTO VIEW memory_rss_high_watermark_per_process
-(
-    -- Timestamp
-    ts TIMESTAMP,
-    -- Duration
-    dur DURATION,
-    -- Upid of the process
-    upid JOINID(process.id),
-    -- Pid of the process
-    pid LONG,
-    -- Name of the process
-    process_name STRING,
-    -- Maximum `rss` value until now
-    rss_high_watermark LONG
+CREATE PERFETTO VIEW memory_rss_high_watermark_per_process (
+  -- Timestamp
+  ts TIMESTAMP,
+  -- Duration
+  dur DURATION,
+  -- Upid of the process
+  upid JOINID(process.id),
+  -- Pid of the process
+  pid LONG,
+  -- Name of the process
+  process_name STRING,
+  -- Maximum `rss` value until now
+  rss_high_watermark LONG
 ) AS
 SELECT
-    ts,
-    dur,
-    upid,
-    pid,
-    name AS process_name,
-    rss_high_watermark
+  ts,
+  dur,
+  upid,
+  pid,
+  name AS process_name,
+  rss_high_watermark
 FROM _memory_rss_high_watermark_per_process_table
-JOIN process USING (upid);
+JOIN process
+  USING (upid);

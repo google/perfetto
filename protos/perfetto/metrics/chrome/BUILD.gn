@@ -42,5 +42,6 @@ perfetto_proto_library("@TYPE@") {
     "user_event_hashes.proto",
   ]
   generate_descriptor = "all_chrome_metrics.descriptor"
+  generator_visibility = [ "../../../../src/trace_processor/metrics:gen_cc_all_chrome_metrics_descriptor" ]
   descriptor_root_source = "all_chrome_metrics.proto"
 }

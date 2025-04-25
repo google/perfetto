@@ -16,14 +16,17 @@
 
 #include "src/trace_processor/util/annotated_callsites.h"
 
-#include <iostream>
+#include <cstddef>
 #include <optional>
+#include <utility>
 
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 AnnotatedCallsites::AnnotatedCallsites(const TraceProcessorContext* context)
     : context_(*context),
@@ -201,5 +204,4 @@ AnnotatedCallsites::MapType AnnotatedCallsites::ClassifyMap(
   return MapType::kOther;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

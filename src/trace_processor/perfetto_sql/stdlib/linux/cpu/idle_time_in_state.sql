@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE time.conversion;
 -- Percentage counter information for sysfs cpuidle states.
 -- For each state per cpu, report the incremental time spent in one state,
 -- divided by time spent in all states, between two timestamps.
-CREATE PERFETTO TABLE linux_per_cpu_idle_time_in_state_counters(
+CREATE PERFETTO TABLE linux_per_cpu_idle_time_in_state_counters (
   -- Timestamp.
   ts TIMESTAMP,
   -- The machine this residency is calculated for.
@@ -33,65 +33,83 @@ CREATE PERFETTO TABLE linux_per_cpu_idle_time_in_state_counters(
   -- Time this cpu spent in any state, in microseconds.
   time_slice LONG
 ) AS
-WITH cpu_counts_per_machine AS (
-  SELECT machine_id, count(1) AS cpu_count
-  FROM cpu
-  GROUP BY machine_id
-),
-idle_states AS (
-  SELECT
-    c.ts,
-    c.value,
-    c.track_id,
-    t.machine_id,
-    EXTRACT_ARG(t.dimension_arg_set_id, 'state') as state,
-    EXTRACT_ARG(t.dimension_arg_set_id, 'cpu') as cpu
-  FROM counter c
-  JOIN track t on c.track_id = t.id
-  WHERE t.type = 'cpu_idle_state'
-),
-residency_deltas AS (
-  SELECT
-    ts,
-    state,
-    cpu,
-    idle_states.machine_id,
-    track_id,
-    value - (LAG(value) OVER (PARTITION BY track_id ORDER BY ts)) as total_residency,
-    (time_to_us(ts - LAG(ts, 1) over (PARTITION BY track_id ORDER BY ts))) as time_slice
-  FROM idle_states
-)
+WITH
+  cpu_counts_per_machine AS (
+    SELECT
+      machine_id,
+      count(1) AS cpu_count
+    FROM cpu
+    GROUP BY
+      machine_id
+  ),
+  idle_states AS (
+    SELECT
+      c.ts,
+      c.value,
+      c.track_id,
+      t.machine_id,
+      extract_arg(t.dimension_arg_set_id, 'state') AS state,
+      extract_arg(t.dimension_arg_set_id, 'cpu') AS cpu
+    FROM counter AS c
+    JOIN track AS t
+      ON c.track_id = t.id
+    WHERE
+      t.type = 'cpu_idle_state'
+  ),
+  residency_deltas AS (
+    SELECT
+      ts,
+      state,
+      cpu,
+      idle_states.machine_id,
+      track_id,
+      value - (
+        lag(value) OVER (PARTITION BY track_id ORDER BY ts)
+      ) AS total_residency,
+      (
+        time_to_us(ts - lag(ts, 1) OVER (PARTITION BY track_id ORDER BY ts))
+      ) AS time_slice
+    FROM idle_states
+  )
 SELECT
   ts,
   machine_id,
   state,
   cpu,
-  MIN(100, (total_residency / time_slice) * 100) as idle_percentage,
+  min(100, (
+    total_residency / time_slice
+  ) * 100) AS idle_percentage,
   total_residency,
   time_slice
-  FROM residency_deltas
-  WHERE time_slice IS NOT NULL
+FROM residency_deltas
+WHERE
+  time_slice IS NOT NULL
 UNION ALL
 -- Calculate c0 state by subtracting all other states from total time.
 SELECT
   ts,
   machine_id,
-  'C0' as state,
+  'C0' AS state,
   cpu,
-  MAX(0,
-    ((time_slice - SUM(total_residency)) / time_slice) * 100
-  )
-    AS idle_percentage,
-  MAX(0, time_slice - SUM(total_residency)) as total_residency,
+  max(0, (
+    (
+      time_slice - sum(total_residency)
+    ) / time_slice
+  ) * 100) AS idle_percentage,
+  max(0, time_slice - sum(total_residency)) AS total_residency,
   time_slice
 FROM residency_deltas
-WHERE time_slice IS NOT NULL
-GROUP BY ts, cpu, machine_id;
+WHERE
+  time_slice IS NOT NULL
+GROUP BY
+  ts,
+  cpu,
+  machine_id;
 
 -- Percentage counter information for sysfs cpuidle states.
 -- For each state across all CPUs, report the incremental time spent in one
 -- state, divided by time spent in all states, between two timestamps.
-CREATE PERFETTO TABLE linux_cpu_idle_time_in_state_counters(
+CREATE PERFETTO TABLE linux_cpu_idle_time_in_state_counters (
   -- Timestamp.
   ts TIMESTAMP,
   -- The machine this residency is calculated for.
@@ -109,8 +127,13 @@ SELECT
   ts,
   machine_id,
   state,
-  MIN(100,(SUM(total_residency) / SUM(time_slice)) * 100 ) as idle_percentage,
-  SUM(total_residency) as total_residency,
-  SUM(time_slice) as time_slice
+  min(100, (
+    sum(total_residency) / sum(time_slice)
+  ) * 100) AS idle_percentage,
+  sum(total_residency) AS total_residency,
+  sum(time_slice) AS time_slice
 FROM linux_per_cpu_idle_time_in_state_counters
-GROUP BY ts, state, machine_id;
+GROUP BY
+  ts,
+  state,
+  machine_id;

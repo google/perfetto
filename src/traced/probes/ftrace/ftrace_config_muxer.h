@@ -57,7 +57,8 @@ struct FtraceDataSourceConfig {
       std::vector<std::string> atrace_categories_sdk_optout_in,
       bool symbolize_ksyms_in,
       uint32_t buffer_percent_in,
-      base::FlatSet<int64_t> syscalls_returning_fd_in)
+      base::FlatSet<int64_t> syscalls_returning_fd_in,
+      bool debug_ftrace_abi_in)
       : event_filter(std::move(event_filter_in)),
         syscall_filter(std::move(syscall_filter_in)),
         compact_sched(compact_sched_in),
@@ -68,7 +69,9 @@ struct FtraceDataSourceConfig {
             std::move(atrace_categories_sdk_optout_in)),
         symbolize_ksyms(symbolize_ksyms_in),
         buffer_percent(buffer_percent_in),
-        syscalls_returning_fd(std::move(syscalls_returning_fd_in)) {}
+        syscalls_returning_fd(std::move(syscalls_returning_fd_in)),
+        debug_ftrace_abi(debug_ftrace_abi_in) {}
+
   // The event filter allows to quickly check if a certain ftrace event with id
   // x is enabled for this data source.
   EventFilter event_filter;
@@ -100,6 +103,10 @@ struct FtraceDataSourceConfig {
 
   // Keep track of the kprobe type for the given tracefs event id
   base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType> kprobes;
+
+  // For development/debugging, serialise raw ring buffer pages if on a
+  // debuggable android build.
+  const bool debug_ftrace_abi;
 };
 
 // Ftrace is a bunch of globally modifiable persistent state.
@@ -149,7 +156,7 @@ class FtraceConfigMuxer {
 
   // Resets the current tracer to "nop" (the default). This cannot be handled
   // by |RemoveConfig| because it requires all ftrace readers to be released
-  // beforehand, which is the reponsibility of ftrace_controller.
+  // beforehand, which is the responsibility of ftrace_controller.
   bool ResetCurrentTracer();
 
   // Returns the current per-cpu buffer size, as configured by this muxer

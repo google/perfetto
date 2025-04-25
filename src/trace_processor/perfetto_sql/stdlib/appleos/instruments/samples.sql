@@ -16,12 +16,14 @@
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
 CREATE PERFETTO TABLE _appleos_instruments_raw_callstacks AS
-SELECT *
+SELECT
+  *
 FROM _callstacks_for_callsites!((
   SELECT p.callsite_id
   FROM instruments_sample p
-)) c
-ORDER BY c.id;
+)) AS c
+ORDER BY
+  c.id;
 
 -- Table summarising the callstacks captured during all
 -- instruments samples in the trace.
@@ -31,7 +33,7 @@ ORDER BY c.id;
 -- equal to the number of samples with that frame as the
 -- leaf and `cumulative_count` equal to the number of
 -- samples with the frame anywhere in the tree.
-CREATE PERFETTO TABLE appleos_instruments_samples_summary_tree(
+CREATE PERFETTO TABLE appleos_instruments_samples_summary_tree (
   -- The id of the callstack. A callstack in this context
   -- is a unique set of frames up to the root.
   id LONG,
@@ -53,10 +55,14 @@ CREATE PERFETTO TABLE appleos_instruments_samples_summary_tree(
   -- anywhere on the callstack.
   cumulative_count LONG
 ) AS
-SELECT r.*, a.cumulative_count
+SELECT
+  r.*,
+  a.cumulative_count
 FROM _callstacks_self_to_cumulative!((
   SELECT id, parent_id, self_count
   FROM _appleos_instruments_raw_callstacks
-)) a
-JOIN _appleos_instruments_raw_callstacks r USING (id)
-ORDER BY r.id;
+)) AS a
+JOIN _appleos_instruments_raw_callstacks AS r
+  USING (id)
+ORDER BY
+  r.id;

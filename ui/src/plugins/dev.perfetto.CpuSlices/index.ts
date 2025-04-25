@@ -22,6 +22,7 @@ import {TrackNode} from '../../public/workspace';
 import {CpuSliceSelectionAggregator} from './cpu_slice_selection_aggregator';
 import {CpuSliceByProcessSelectionAggregator} from './cpu_slice_by_process_selection_aggregator';
 import ThreadPlugin from '../dev.perfetto.Thread';
+import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
 
 function uriForSchedTrack(cpu: number): string {
   return `/sched_cpu${cpu}`;
@@ -32,11 +33,14 @@ export default class implements PerfettoPlugin {
   static readonly dependencies = [ThreadPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.selection.registerAreaSelectionAggregator(
-      new CpuSliceSelectionAggregator(),
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationToTabAdaptor(ctx, new CpuSliceSelectionAggregator()),
     );
-    ctx.selection.registerAreaSelectionAggregator(
-      new CpuSliceByProcessSelectionAggregator(),
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationToTabAdaptor(
+        ctx,
+        new CpuSliceByProcessSelectionAggregator(),
+      ),
     );
 
     // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set

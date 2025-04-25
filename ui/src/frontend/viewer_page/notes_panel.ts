@@ -32,6 +32,7 @@ import {TextInput} from '../../widgets/text_input';
 import {Popup} from '../../widgets/popup';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {AreaSelection, Selection} from '../../public/selection';
+import {MultiSelectOption, PopupMultiSelect} from '../../widgets/multiselect';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -138,50 +139,7 @@ export class NotesPanel {
           icon: 'clear_all',
           compact: true,
         }),
-        m(
-          Popup,
-          {
-            trigger: m(Button, {
-              icon: 'filter_alt',
-              title: 'Track filter',
-              compact: true,
-              iconFilled: Boolean(this.trace.tracks.trackFilterTerm),
-            }),
-          },
-          m(
-            'pf-timeline-toolbar__track-filter',
-            {
-              oncreate({dom}) {
-                // Focus & select text box when the popup opens.
-                const input = findRef(
-                  dom,
-                  FILTER_TEXT_BOX_REF,
-                ) as HTMLInputElement;
-                input.focus();
-                input.select();
-              },
-            },
-            m(TextInput, {
-              ref: FILTER_TEXT_BOX_REF,
-              placeholder: 'Filter tracks...',
-              title:
-                'Track filter - enter one or more comma-separated search terms',
-              value: this.trace.tracks.trackFilterTerm,
-              oninput: (e: Event) => {
-                const value = (e.target as HTMLInputElement).value;
-                this.trace.tracks.trackFilterTerm = value;
-              },
-            }),
-            m(Button, {
-              type: 'reset',
-              icon: 'backspace',
-              onclick: () => {
-                this.trace.tracks.trackFilterTerm = '';
-              },
-              title: 'Clear track filter',
-            }),
-          ),
-        ),
+        this.renderTrackFilter(),
         m(
           Select,
           {
@@ -254,6 +212,108 @@ export class NotesPanel {
             },
           }),
         ),
+      ),
+    );
+  }
+
+  private renderTrackFilter() {
+    const trackFilters = this.trace.tracks.filters;
+
+    return m(
+      Popup,
+      {
+        trigger: m(Button, {
+          icon: 'filter_alt',
+          title: 'Track filter',
+          compact: true,
+          iconFilled: trackFilters.areFiltersSet(),
+        }),
+      },
+      m(
+        'form.pf-track-filter',
+        {
+          oncreate({dom}) {
+            // Focus & select text box when the popup opens.
+            const input = findRef(dom, FILTER_TEXT_BOX_REF) as HTMLInputElement;
+            input.focus();
+            input.select();
+          },
+        },
+        m(
+          '.pf-track-filter__row',
+          m('label', {for: 'filter-name'}, 'Filter by name'),
+          m(TextInput, {
+            ref: FILTER_TEXT_BOX_REF,
+            id: 'filter-name',
+            placeholder: 'Filter by name...',
+            title: 'Filter by name (comma separated terms)',
+            value: trackFilters.nameFilter,
+            oninput: (e: Event) => {
+              const value = (e.target as HTMLInputElement).value;
+              trackFilters.nameFilter = value;
+            },
+          }),
+        ),
+        this.trace.tracks.trackFilterCriteria.map((filter) => {
+          return m(
+            '.pf-track-filter__row',
+            m('label', 'Filter by ', filter.name),
+            m(PopupMultiSelect, {
+              label: filter.name,
+              showNumSelected: true,
+              // It usually doesn't make sense to select all filters - if users
+              // want to pass all they should just remove the filters instead.
+              showSelectAllButton: false,
+              onChange: (diff) => {
+                for (const {id, checked} of diff) {
+                  if (checked) {
+                    // Add the filter option to the criteria.
+                    const criteriaFilters = trackFilters.criteriaFilters.get(
+                      filter.name,
+                    );
+                    if (criteriaFilters) {
+                      criteriaFilters.push(id);
+                    } else {
+                      trackFilters.criteriaFilters.set(filter.name, [id]);
+                    }
+                  } else {
+                    // Remove the filter option from the criteria.
+                    const filterOptions = trackFilters.criteriaFilters.get(
+                      filter.name,
+                    );
+
+                    if (!filterOptions) continue;
+                    const newOptions = filterOptions.filter((f) => f !== id);
+                    if (newOptions.length === 0) {
+                      trackFilters.criteriaFilters.delete(filter.name);
+                    } else {
+                      trackFilters.criteriaFilters.set(filter.name, newOptions);
+                    }
+                  }
+                }
+              },
+              options: filter.options
+                .map((o): MultiSelectOption => {
+                  const filterOptions = trackFilters.criteriaFilters.get(
+                    filter.name,
+                  );
+                  const checked = Boolean(
+                    filterOptions && filterOptions.includes(o.key),
+                  );
+                  return {id: o.key, name: o.label, checked};
+                })
+                .filter((f) => f.name !== ''),
+            }),
+          );
+        }),
+        m(Button, {
+          type: 'reset',
+          label: 'Clear All Filters',
+          icon: 'filter_alt_off',
+          onclick: () => {
+            trackFilters.clearAll();
+          },
+        }),
       ),
     );
   }

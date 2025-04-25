@@ -34,7 +34,7 @@ PROPERTIES = {
     'repository':
         Property(
             kind=str,
-            default='https://android.googlesource.com/platform/external/perfetto'
+            default='https://chromium.googlesource.com/external/github.com/google/perfetto'
         ),
 }
 
@@ -175,7 +175,7 @@ def RunSteps(api, repository):
       build_input = api.buildbucket.build_input
       ref = (
           build_input.gitiles_commit.ref
-          if build_input.gitiles_commit else 'refs/heads/main')
+          if build_input.gitiles_commit else 'refs/heads/upstream-main')
       # Fetch tags so `git describe` works.
       api.step('fetch', ['git', 'fetch', '--tags', '--force', repository, ref])
       api.step('checkout', ['git', 'checkout', 'FETCH_HEAD'])
@@ -229,17 +229,17 @@ def GenTests(api):
            api.buildbucket.ci_build(
                project='perfetto',
                builder='perfetto-official-builder-%s' % target,
-               git_repo='android.googlesource.com/platform/external/perfetto',
+               git_repo='github.com/google/perfetto',
            ))
 
   yield (api.test('ci_tag') + api.platform.name('linux') +
          api.buildbucket.ci_build(
              project='perfetto',
              builder='official',
-             git_repo='android.googlesource.com/platform/external/perfetto',
+             git_repo='github.com/google/perfetto',
              git_ref='refs/tags/v13.0'))
 
   yield (api.test('unofficial') + api.platform.name('linux') +
          api.buildbucket.ci_build(
              project='perfetto',
-             git_repo='android.googlesource.com/platform/external/perfetto'))
+             git_repo='github.com/google/perfetto'))

@@ -22,15 +22,25 @@
 #include <ostream>
 #include <string>
 #include <tuple>
+#include <variant>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/util/sql_argument.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
+
+namespace sql_argument {
+
+inline std::ostream& operator<<(std::ostream& stream, const Type& type) {
+  return stream << TypeToHumanFriendlyString(type);
+}
+
+}  // namespace sql_argument
 
 inline bool operator==(const SqlSource& a, const SqlSource& b) {
   return a.sql() == b.sql();
@@ -41,10 +51,16 @@ inline bool operator==(const PerfettoSqlParser::SqliteSql&,
   return true;
 }
 
+inline bool operator==(const PerfettoSqlParser::CreateFunction::Returns& a,
+                       const PerfettoSqlParser::CreateFunction::Returns& b) {
+  return std::tie(a.is_table, a.scalar_type, a.table_columns) ==
+         std::tie(b.is_table, b.scalar_type, b.table_columns);
+}
+
 inline bool operator==(const PerfettoSqlParser::CreateFunction& a,
                        const PerfettoSqlParser::CreateFunction& b) {
-  return std::tie(a.returns, a.is_table, a.prototype, a.replace, a.sql) ==
-         std::tie(b.returns, b.is_table, b.prototype, b.replace, b.sql);
+  return std::tie(a.returns, a.prototype, a.replace, a.sql, a.description) ==
+         std::tie(b.returns, b.prototype, b.replace, b.sql, b.description);
 }
 
 inline bool operator==(const PerfettoSqlParser::CreateTable& a,
@@ -85,27 +101,43 @@ inline std::ostream& operator<<(std::ostream& stream, const SqlSource& sql) {
 }
 
 inline std::ostream& operator<<(std::ostream& stream,
+                                const FunctionPrototype& ret) {
+  return stream << "Prototype(name="
+                << testing::PrintToString(ret.function_name)
+                << ", arguments=" << testing::PrintToString(ret.arguments)
+                << ")";
+}
+
+inline std::ostream& operator<<(
+    std::ostream& stream,
+    const PerfettoSqlParser::CreateFunction::Returns& ret) {
+  return stream << "Returns(is_table=" << testing::PrintToString(ret.is_table)
+                << ", scalar_type=" << testing::PrintToString(ret.scalar_type)
+                << ", table_columns="
+                << testing::PrintToString(ret.table_columns) << ")";
+}
+
+inline std::ostream& operator<<(std::ostream& stream,
                                 const PerfettoSqlParser::Statement& line) {
   if (std::get_if<PerfettoSqlParser::SqliteSql>(&line)) {
     return stream << "SqliteSql()";
   }
-  if (auto* fn = std::get_if<PerfettoSqlParser::CreateFunction>(&line)) {
+  if (const auto* fn = std::get_if<PerfettoSqlParser::CreateFunction>(&line)) {
     return stream << "CreateFn(sql=" << testing::PrintToString(fn->sql)
                   << ", prototype=" << testing::PrintToString(fn->prototype)
                   << ", returns=" << testing::PrintToString(fn->returns)
-                  << ", is_table=" << testing::PrintToString(fn->is_table)
                   << ", replace=" << testing::PrintToString(fn->replace) << ")";
   }
-  if (auto* tab = std::get_if<PerfettoSqlParser::CreateTable>(&line)) {
+  if (const auto* tab = std::get_if<PerfettoSqlParser::CreateTable>(&line)) {
     return stream << "CreateTable(name=" << testing::PrintToString(tab->name)
                   << ", sql=" << testing::PrintToString(tab->sql) << ")";
   }
-  if (auto* tab = std::get_if<PerfettoSqlParser::CreateView>(&line)) {
+  if (const auto* tab = std::get_if<PerfettoSqlParser::CreateView>(&line)) {
     return stream << "CreateView(name=" << testing::PrintToString(tab->name)
                   << ", sql=" << testing::PrintToString(tab->create_view_sql)
                   << ")";
   }
-  if (auto* macro = std::get_if<PerfettoSqlParser::CreateMacro>(&line)) {
+  if (const auto* macro = std::get_if<PerfettoSqlParser::CreateMacro>(&line)) {
     return stream << "CreateTable(name=" << testing::PrintToString(macro->name)
                   << ", args=" << testing::PrintToString(macro->args)
                   << ", replace=" << testing::PrintToString(macro->replace)
@@ -143,7 +175,6 @@ inline SqlSource FindSubstr(const SqlSource& source,
                        static_cast<uint32_t>(needle.size()));
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_PERFETTO_SQL_TEST_UTILS_H_

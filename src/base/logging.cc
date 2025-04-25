@@ -170,7 +170,7 @@ void LogMessage(LogLev level,
 
   // When printing on stderr, print also the timestamp. We don't really care
   // about the actual time. We just need some reference clock that can be used
-  // to correlated events across differrent processses (e.g. traced and
+  // to correlated events across different processes (e.g. traced and
   // traced_probes). The wall time % 1000 is good enough.
   uint32_t t_ms = static_cast<uint32_t>(GetWallTimeMs().count());
   uint32_t t_sec = t_ms / 1000;

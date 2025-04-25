@@ -65,7 +65,6 @@ function createSessionUniqueId(): string {
 
 export interface TrackNodeArgs {
   title: string;
-  id: string;
   uri: string;
   headless: boolean;
   sortOrder: number;
@@ -128,7 +127,6 @@ export class TrackNode {
   constructor(args?: Partial<TrackNodeArgs>) {
     const {
       title = '',
-      id = createSessionUniqueId(),
       uri,
       headless = false,
       sortOrder,
@@ -137,7 +135,7 @@ export class TrackNode {
       removable = false,
     } = args ?? {};
 
-    this.id = id;
+    this.id = createSessionUniqueId();
     this.uri = uri;
     this.headless = headless;
     this.title = title;

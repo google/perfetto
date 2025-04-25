@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
+import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
 import {
   ArgSetIdColumn,
   DurationColumn,
@@ -23,7 +23,7 @@ import {
   ThreadIdColumn,
   ThreadStateIdColumn,
   TimestampColumn,
-} from './well_known_columns';
+} from '../../components/widgets/sql/table/columns';
 
 export function getThreadTable(): SqlTableDescription {
   return {
@@ -61,21 +61,20 @@ export function getProcessTable(): SqlTableDescription {
 
 export function getSliceTable(): SqlTableDescription {
   return {
-    imports: ['slices.slices'],
-    name: '_slice_with_thread_and_process_info',
-    displayName: 'slice',
+    imports: ['viz.slices'],
+    name: '_viz_slices_for_ui_table',
+    displayName: 'Slices',
     columns: [
       new SliceIdColumn('id', {notNull: true, type: 'id'}),
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
-      new DurationColumn('thread_dur'),
       new StandardColumn('category'),
       new StandardColumn('name'),
       new StandardColumn('track_id', {startsHidden: true}),
-      new ThreadIdColumn('utid', {title: 'utid'}),
-      new ProcessIdColumn('upid', {title: 'upid'}),
+      new ThreadIdColumn('utid'),
+      new ProcessIdColumn('upid'),
       new StandardColumn('depth', {startsHidden: true}),
-      new SliceIdColumn('parent_id', {startsHidden: true}),
+      new SliceIdColumn('parent_id'),
       new ArgSetIdColumn('arg_set_id'),
     ],
   };
@@ -106,7 +105,7 @@ export function getSchedTable(): SqlTableDescription {
   return {
     name: 'sched',
     columns: [
-      new SchedIdColumn('id', {type: 'id'}),
+      new SchedIdColumn('id'),
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
       new StandardColumn('cpu'),
@@ -129,7 +128,7 @@ export function getThreadStateTable(): SqlTableDescription {
   return {
     name: 'thread_state',
     columns: [
-      new ThreadStateIdColumn('id', {notNull: true, type: 'id'}),
+      new ThreadStateIdColumn('id'),
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
       new StandardColumn('state'),

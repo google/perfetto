@@ -51,7 +51,7 @@ TEST(DeferredTest, BindAndResolve) {
   (*res).set_str("foo");
   deferred.Resolve(std::move(res));
 
-  // A second call to Resolve() or Reject() shouldn't have any effect beause we
+  // A second call to Resolve() or Reject() shouldn't have any effect because we
   // didn't set has_more.
   EXPECT_DCHECK(deferred.Resolve(std::move(res)));
   EXPECT_DCHECK(deferred.Reject());

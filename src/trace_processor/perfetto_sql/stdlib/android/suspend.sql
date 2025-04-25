@@ -19,72 +19,108 @@
 -- Selects either the minimal or full ftrace source depending on what's
 -- available, marks suspended periods, and complements them to give awake
 -- periods.
-CREATE PERFETTO TABLE android_suspend_state(
+CREATE PERFETTO TABLE android_suspend_state (
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
   dur DURATION,
   -- 'awake' or 'suspended'
-  power_state STRING) AS
-WITH suspend_slice_from_minimal AS (
-  SELECT ts, dur
-  FROM track t JOIN slice s ON s.track_id = t.id
-  WHERE t.name = 'Suspend/Resume Minimal'
-),
-suspend_slice as (
-  SELECT ts, dur FROM suspend_slice_from_minimal
-  UNION ALL
-  SELECT
-    ts,
-    dur
-  FROM
-    slice
-  JOIN
-    track
-    ON slice.track_id = track.id
-  WHERE
-    track.name = 'Suspend/Resume Latency'
-    AND (slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)')
-    AND dur != -1
-    AND NOT EXISTS(SELECT * FROM suspend_slice_from_minimal)
-),
-awake_slice AS (
-  -- If we don't have any rows, use the trace bounds if bounds are defined.
-  SELECT
-    trace_start() AS ts,
-    trace_dur() AS dur
-  WHERE (SELECT COUNT(*) FROM suspend_slice) = 0 AND dur > 0
-  UNION ALL
-  -- If we do have rows, create one slice from the trace start to the first suspend.
-  SELECT
-    trace_start() AS ts,
-    (SELECT min(ts) FROM suspend_slice) - trace_start() AS dur
-  WHERE (SELECT COUNT(*) FROM suspend_slice) != 0
-  UNION ALL
-  -- And then one slice for each suspend, from the end of the suspend to the
-  -- start of the next one (or the end of the trace if there is no next one).
-  SELECT
-    ts + dur AS ts,
-    ifnull(lead(ts) OVER (ORDER BY ts), trace_end()) - ts - dur
-      AS dur
-  FROM suspend_slice
-)
-SELECT ts, dur, 'awake' AS power_state
+  power_state STRING
+) AS
+WITH
+  suspend_slice_from_minimal AS (
+    SELECT
+      ts,
+      dur
+    FROM track AS t
+    JOIN slice AS s
+      ON s.track_id = t.id
+    WHERE
+      t.name = 'Suspend/Resume Minimal'
+  ),
+  suspend_slice AS (
+    SELECT
+      ts,
+      dur
+    FROM suspend_slice_from_minimal
+    UNION ALL
+    SELECT
+      ts,
+      dur
+    FROM slice
+    JOIN track
+      ON slice.track_id = track.id
+    WHERE
+      track.name = 'Suspend/Resume Latency'
+      AND (
+        slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)'
+      )
+      AND dur != -1
+      AND NOT EXISTS(
+        SELECT
+          *
+        FROM suspend_slice_from_minimal
+      )
+  ),
+  awake_slice AS (
+    -- If we don't have any rows, use the trace bounds if bounds are defined.
+    SELECT
+      trace_start() AS ts,
+      trace_dur() AS dur
+    WHERE
+      (
+        SELECT
+          count(*)
+        FROM suspend_slice
+      ) = 0 AND dur > 0
+    UNION ALL
+    -- If we do have rows, create one slice from the trace start to the first suspend.
+    SELECT
+      trace_start() AS ts,
+      (
+        SELECT
+          min(ts)
+        FROM suspend_slice
+      ) - trace_start() AS dur
+    WHERE
+      (
+        SELECT
+          count(*)
+        FROM suspend_slice
+      ) != 0
+    UNION ALL
+    -- And then one slice for each suspend, from the end of the suspend to the
+    -- start of the next one (or the end of the trace if there is no next one).
+    SELECT
+      ts + dur AS ts,
+      coalesce(lead(ts) OVER (ORDER BY ts), trace_end()) - ts - dur AS dur
+    FROM suspend_slice
+  )
+SELECT
+  ts,
+  dur,
+  'awake' AS power_state
 FROM awake_slice
 UNION ALL
-SELECT ts, dur, 'suspended' AS power_state
+SELECT
+  ts,
+  dur,
+  'suspended' AS power_state
 FROM suspend_slice
-ORDER BY ts; -- Order by will cause Perfetto table to index by ts.
+ORDER BY
+  ts;
 
+-- Order by will cause Perfetto table to index by ts.;
 
 -- Extracts the duration without counting CPU suspended time from an event.
 -- This is the same as converting an event duration from wall clock to monotonic clock.
 -- If there was no CPU suspend, the result is same as |dur|.
 CREATE PERFETTO FUNCTION _extract_duration_without_suspend(
-  -- Timestamp of event.
-  ts TIMESTAMP,
-  -- Duration of event.
-  dur DURATION)
-RETURNS LONG
-AS
-SELECT to_monotonic($ts + $dur) - to_monotonic($ts);
+    -- Timestamp of event.
+    ts TIMESTAMP,
+    -- Duration of event.
+    dur DURATION
+)
+RETURNS LONG AS
+SELECT
+  to_monotonic($ts + $dur) - to_monotonic($ts);

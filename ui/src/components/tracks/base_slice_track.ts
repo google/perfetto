@@ -25,7 +25,7 @@ import {colorCompare} from '../../base/color';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {featureFlags} from '../../core/feature_flags';
 import {raf} from '../../core/raf_scheduler';
-import {Track} from '../../public/track';
+import {TrackRenderer} from '../../public/track';
 import {Slice} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
@@ -176,7 +176,7 @@ export interface SliceLayout {
 export abstract class BaseSliceTrack<
   SliceT extends Slice = Slice,
   RowT extends BaseRow = BaseRow,
-> implements Track
+> implements TrackRenderer
 {
   protected readonly sliceLayout: SliceLayout;
   protected trackUuid = uuidv4Sql();

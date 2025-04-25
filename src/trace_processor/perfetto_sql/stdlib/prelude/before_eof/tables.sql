@@ -14,10 +14,7 @@
 -- limitations under the License.
 
 -- Lists all metrics built-into trace processor.
-CREATE TABLE _trace_metrics(
+CREATE TABLE _trace_metrics (
   -- The name of the metric.
   name STRING
 );
-
--- Helper table to generate a time-interval.
-CREATE VIRTUAL TABLE window USING window();

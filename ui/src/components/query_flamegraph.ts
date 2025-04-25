@@ -32,9 +32,11 @@ import {
 } from '../trace_processor/query_result';
 import {
   Flamegraph,
+  FlamegraphPropertyDefinition,
   FlamegraphQueryData,
   FlamegraphState,
   FlamegraphView,
+  FlamegraphOptionalAction,
 } from '../widgets/flamegraph';
 import {Trace} from '../public/trace';
 
@@ -44,13 +46,16 @@ export interface QueryFlamegraphColumn {
 
   // The human readable name describing the contents of the column.
   readonly displayName: string;
+
+  // Whether the name should be displayed in the UI.
+  readonly isVisible?: boolean;
 }
 
 export interface AggQueryFlamegraphColumn extends QueryFlamegraphColumn {
   // The aggregation to be run when nodes are merged together in the flamegraph.
   //
   // TODO(lalitm): consider adding extra functions here (e.g. a top 5 or similar).
-  readonly mergeAggregation: 'ONE_OR_NULL' | 'SUM';
+  readonly mergeAggregation: 'ONE_OR_NULL' | 'SUM' | 'CONCAT_WITH_COMMA';
 }
 
 export interface QueryFlamegraphMetric {
@@ -86,6 +91,20 @@ export interface QueryFlamegraphMetric {
   //
   // Examples include the source file and line number.
   readonly aggregatableProperties?: ReadonlyArray<AggQueryFlamegraphColumn>;
+
+  // Optional actions to be taken on the flamegraph nodes. Accessible from the
+  // flamegraph tooltip.
+  //
+  // Examples include showing a table of objects from a class reference
+  // hierarchy.
+  readonly optionalNodeActions?: ReadonlyArray<FlamegraphOptionalAction>;
+
+  // Optional actions to be taken on the flamegraph root. Accessible from the
+  // flamegraph tooltip.
+  //
+  // Examples include showing a table of objects from a class reference
+  // hierarchy.
+  readonly optionalRootActions?: ReadonlyArray<FlamegraphOptionalAction>;
 }
 
 export interface QueryFlamegraphState {
@@ -105,6 +124,7 @@ export function metricsFromTableOrSubquery(
   dependencySql?: string,
   unaggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>,
   aggregatableProperties?: ReadonlyArray<AggQueryFlamegraphColumn>,
+  optionalActions?: ReadonlyArray<FlamegraphOptionalAction>,
 ): QueryFlamegraphMetric[] {
   const metrics = [];
   for (const {name, unit, columnName} of tableMetrics) {
@@ -118,6 +138,7 @@ export function metricsFromTableOrSubquery(
       `,
       unaggregatableProperties,
       aggregatableProperties,
+      optionalActions,
     });
   }
   return metrics;
@@ -169,6 +190,8 @@ async function computeFlamegraphTree(
     statement,
     unaggregatableProperties,
     aggregatableProperties,
+    optionalNodeActions,
+    optionalRootActions,
   }: QueryFlamegraphMetric,
   {filters, view}: FlamegraphState,
 ): Promise<FlamegraphQueryData> {
@@ -232,6 +255,9 @@ async function computeFlamegraphTree(
 
   const agg = aggregatableProperties ?? [];
   const aggCols = agg.map((x) => x.name);
+
+  const nodeActions = optionalNodeActions ?? [];
+  const rootActions = optionalRootActions ?? [];
 
   const groupingColumns = `(${(unaggCols.length === 0 ? ['groupingColumn'] : unaggCols).join()})`;
   const groupedColumns = `(${(aggCols.length === 0 ? ['groupedColumn'] : aggCols).join()})`;
@@ -405,11 +431,15 @@ async function computeFlamegraphTree(
   let maxDepth = 0;
   const nodes = [];
   for (; it.valid(); it.next()) {
-    const properties = new Map<string, string>();
+    const properties = new Map<string, FlamegraphPropertyDefinition>();
     for (const a of [...agg, ...unagg]) {
       const r = it.get(a.name);
       if (r !== null) {
-        properties.set(a.displayName, r as string);
+        properties.set(a.name, {
+          displayName: a.displayName,
+          value: r as string,
+          isVisible: a.isVisible ?? true,
+        });
       }
     }
     nodes.push({
@@ -443,6 +473,8 @@ async function computeFlamegraphTree(
     unfilteredCumulativeValue,
     minDepth,
     maxDepth,
+    nodeActions,
+    rootActions,
   };
 }
 
@@ -470,6 +502,8 @@ function computeGroupedAggExprs(agg: ReadonlyArray<AggQueryFlamegraphColumn>) {
         return `IIF(COUNT() = 1, ${x.name}, NULL) AS ${x.name}`;
       case 'SUM':
         return `SUM(${x.name}) AS ${x.name}`;
+      case 'CONCAT_WITH_COMMA':
+        return `GROUP_CONCAT(${x.name}, ',') AS ${x.name}`;
     }
   };
   return `(${agg.length === 0 ? 'groupedColumn' : agg.map((x) => aggFor(x)).join(',')})`;

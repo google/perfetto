@@ -30,7 +30,7 @@ import {DurationWidget} from '../widgets/duration';
 import {renderProcessRef} from '../widgets/process';
 import {renderThreadRef} from '../widgets/thread';
 import {Timestamp} from '../widgets/timestamp';
-import {getSqlTableDescription} from '../widgets/sql/legacy_table/sql_table_registry';
+import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
 import {assertExists} from '../../base/logging';
 import {Trace} from '../../public/trace';
 import {extensions} from '../extensions';

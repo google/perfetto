@@ -23,7 +23,6 @@ export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
 export class FrameSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'frame_aggregation';
-  readonly priority = 1;
   readonly schema = {
     ts: LONG,
     dur: LONG,

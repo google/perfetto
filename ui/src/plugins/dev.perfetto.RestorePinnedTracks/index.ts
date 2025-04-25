@@ -15,9 +15,9 @@
 import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {TrackDescriptor} from '../../public/track';
+import {Track} from '../../public/track';
 import {z} from 'zod';
-import {assertExists, assertIsInstance} from '../../base/logging';
+import {assertIsInstance} from '../../base/logging';
 
 const PLUGIN_ID = 'dev.perfetto.RestorePinnedTrack';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
@@ -168,24 +168,34 @@ export default class implements PerfettoPlugin {
       savedTrack: this.toSavedTrack(track),
       track: track,
     }));
-    tracks.forEach((trackToRestore) => {
-      const foundTrack = this.findMatchingTrack(localTracks, trackToRestore);
-      if (foundTrack) {
-        foundTrack.pin();
-      } else {
-        console.warn(
-          '[RestorePinnedTracks] No track found that matches',
-          trackToRestore,
-        );
-      }
-    });
+    const unrestoredTracks = tracks
+      .map((trackToRestore) => {
+        const foundTrack = this.findMatchingTrack(localTracks, trackToRestore);
+        if (foundTrack) {
+          foundTrack.pin();
+          return {restored: true, track: trackToRestore};
+        } else {
+          console.warn(
+            '[RestorePinnedTracks] No track found that matches',
+            trackToRestore,
+          );
+          return {restored: false, track: trackToRestore};
+        }
+      })
+      .filter(({restored}) => !restored)
+      .map(({track}) => track.trackName);
+
+    if (unrestoredTracks.length > 0) {
+      alert(
+        `[RestorePinnedTracks]\nUnable to restore the following tracks:\n${unrestoredTracks.join('\n')}`,
+      );
+    }
   }
 
   private getCurrentPinnedTracks() {
     const res = [];
     for (const track of this.ctx.workspace.pinnedTracks) {
-      const actual = this.ctx.workspace.getTrackByUri(assertExists(track.uri));
-      res.push(this.toSavedTrack(assertExists(actual)));
+      res.push(this.toSavedTrack(track));
     }
     return res;
   }
@@ -297,18 +307,18 @@ export default class implements PerfettoPlugin {
     return inputString?.replace(/\d+/g, '');
   }
 
-  private toSavedTrack(track: TrackNode): SavedPinnedTrack {
-    let trackDescriptor: TrackDescriptor | undefined = undefined;
-    if (track.uri != undefined) {
-      trackDescriptor = this.ctx.tracks.getTrack(track.uri);
+  private toSavedTrack(trackNode: TrackNode): SavedPinnedTrack {
+    let track: Track | undefined = undefined;
+    if (trackNode.uri != undefined) {
+      track = this.ctx.tracks.getTrack(trackNode.uri);
     }
 
     return {
-      groupName: groupName(track),
-      trackName: track.title,
-      pluginId: trackDescriptor?.pluginId,
-      kind: trackDescriptor?.tags?.kind,
-      isMainThread: trackDescriptor?.chips?.includes('main thread') || false,
+      groupName: groupName(trackNode),
+      trackName: trackNode.title,
+      pluginId: track?.pluginId,
+      kind: track?.tags?.kind,
+      isMainThread: track?.chips?.includes('main thread') || false,
     };
   }
 }

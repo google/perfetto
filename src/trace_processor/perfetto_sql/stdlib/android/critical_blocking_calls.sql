@@ -14,11 +14,17 @@
 -- limitations under the License.
 --
 INCLUDE PERFETTO MODULE android.slices;
+
 INCLUDE PERFETTO MODULE android.binder;
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
-CREATE PERFETTO FUNCTION _is_relevant_blocking_call(name STRING, depth LONG)
-RETURNS BOOL AS SELECT
+CREATE PERFETTO FUNCTION _is_relevant_blocking_call(
+    name STRING,
+    depth LONG
+)
+RETURNS BOOL AS
+SELECT
   $name = 'measure'
   OR $name = 'layout'
   OR $name = 'configChanged'
@@ -44,10 +50,10 @@ RETURNS BOOL AS SELECT
   OR (
     -- Some top level handler slices
     $depth = 0
-    AND $name NOT GLOB '*Choreographer*'
-    AND $name NOT GLOB '*Input*'
-    AND $name NOT GLOB '*input*'
-    AND $name NOT GLOB 'android.os.Handler: #*'
+    AND NOT $name GLOB '*Choreographer*'
+    AND NOT $name GLOB '*Input*'
+    AND NOT $name GLOB '*input*'
+    AND NOT $name GLOB 'android.os.Handler: #*'
     AND (
       -- Handler pattern heuristics
       $name GLOB '*Handler: *$*'
@@ -55,7 +61,6 @@ RETURNS BOOL AS SELECT
       OR $name GLOB '*.*$*: #*'
     )
   );
-
 
 --Extract critical blocking calls from all processes.
 CREATE PERFETTO TABLE _android_critical_blocking_calls AS
@@ -68,8 +73,9 @@ SELECT
   thread.utid,
   s.upid,
   s.ts + s.dur AS ts_end
-FROM thread_slice s JOIN
-thread USING (utid)
+FROM thread_slice AS s
+JOIN thread
+  USING (utid)
 WHERE
   _is_relevant_blocking_call(s.name, s.depth)
 UNION ALL
@@ -80,9 +86,10 @@ SELECT
   tx.client_ts AS ts,
   tx.client_dur AS dur,
   tx.binder_txn_id AS id,
-  tx.client_process as process_name,
-  tx.client_utid as utid,
-  tx.client_upid as upid,
+  tx.client_process AS process_name,
+  tx.client_utid AS utid,
+  tx.client_upid AS upid,
   tx.client_ts + tx.client_dur AS ts_end
 FROM android_binder_txns AS tx
-WHERE aidl_name IS NOT NULL AND is_sync = 1;
+WHERE
+  NOT aidl_name IS NULL AND is_sync = 1;

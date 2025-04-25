@@ -34,7 +34,7 @@
 
 -- A V8 Isolate instance. A V8 Isolate represents an isolated instance of the V8
 -- engine.
-CREATE PERFETTO VIEW v8_isolate(
+CREATE PERFETTO VIEW v8_isolate (
   -- Unique V8 isolate id.
   v8_isolate_id LONG,
   -- Process the isolate was created in.
@@ -66,9 +66,7 @@ SELECT
   code_range_size,
   shared_code_range,
   embedded_blob_code_copy_start_address
-FROM
-  __intrinsic_v8_isolate;
-
+FROM __intrinsic_v8_isolate;
 
 -- Represents a script that was compiled to generate code. Some V8 code is
 -- generated out of scripts and will reference a V8Script other types of code
@@ -95,9 +93,7 @@ SELECT
   script_type,
   name,
   source
-FROM
-  __intrinsic_v8_js_script;
-
+FROM __intrinsic_v8_js_script;
 
 -- Represents one WASM script.
 CREATE PERFETTO VIEW v8_wasm_script (
@@ -110,7 +106,9 @@ CREATE PERFETTO VIEW v8_wasm_script (
   internal_script_id LONG,
   -- URL of the source.
   url STRING,
-  -- Actual contents of the script.
+  -- Raw wire bytes of the script.
+  wire_bytes BYTES,
+  -- Actual source code of the script.
   source STRING
 ) AS
 SELECT
@@ -118,10 +116,9 @@ SELECT
   v8_isolate_id,
   internal_script_id,
   url,
+  base64_decode(wire_bytes_base64) AS wire_bytes,
   source
-FROM
-  __intrinsic_v8_wasm_script;
-
+FROM __intrinsic_v8_wasm_script;
 
 -- Represents a v8 Javascript function.
 CREATE PERFETTO VIEW v8_js_function (
@@ -149,15 +146,13 @@ SELECT
   kind,
   line,
   col
-FROM
-  __intrinsic_v8_js_function;
-
+FROM __intrinsic_v8_js_function;
 
 -- Represents a v8 code snippet for a Javascript function. A given function can
 -- have multiple code snippets (e.g. for different compilation tiers, or as the
 -- function moves around the heap).
 -- TODO(carlscab): Make public once `_jit_code` is public too
-CREATE PERFETTO VIEW _v8_js_code(
+CREATE PERFETTO VIEW _v8_js_code (
   -- Unique id
   id LONG,
   -- Associated jit code. Set for all tiers except IGNITION. Joinable with
@@ -177,13 +172,11 @@ SELECT
   v8_js_function_id,
   tier,
   base64_decode(bytecode_base64) AS bytecode
-FROM
-  __intrinsic_v8_js_code;
-
+FROM __intrinsic_v8_js_code;
 
 -- Represents a v8 code snippet for a v8 internal function.
 -- TODO(carlscab): Make public once `_jit_code` is public too
-CREATE PERFETTO VIEW _v8_internal_code(
+CREATE PERFETTO VIEW _v8_internal_code (
   -- Unique id
   id LONG,
   -- Associated jit code. Joinable with `_jit_code.jit_code_id`.
@@ -202,12 +195,11 @@ SELECT
   v8_isolate_id,
   function_name,
   code_type
-FROM
-  __intrinsic_v8_internal_code;
+FROM __intrinsic_v8_internal_code;
 
 -- Represents the code associated to a WASM function.
 -- TODO(carlscab): Make public once `_jit_code` is public too
-CREATE PERFETTO VIEW _v8_wasm_code(
+CREATE PERFETTO VIEW _v8_wasm_code (
   -- Unique id
   id LONG,
   -- Associated jit code. Joinable with `_jit_code.jit_code_id`.
@@ -224,7 +216,7 @@ CREATE PERFETTO VIEW _v8_wasm_code(
   tier STRING,
   -- Offset into the WASM module where the function starts.
   code_offset_in_module LONG
- ) AS
+) AS
 SELECT
   id,
   jit_code_id,
@@ -233,12 +225,11 @@ SELECT
   function_name,
   tier,
   code_offset_in_module
-FROM
-  __intrinsic_v8_wasm_code;
+FROM __intrinsic_v8_wasm_code;
 
 -- Represents the code associated to a regular expression
 -- TODO(carlscab): Make public once `_jit_code` is public too
-CREATE PERFETTO VIEW _v8_regexp_code(
+CREATE PERFETTO VIEW _v8_regexp_code (
   -- Unique id
   id LONG,
   -- Associated jit code. Joinable with `_jit_code.jit_code_id`.
@@ -254,5 +245,4 @@ SELECT
   jit_code_id,
   v8_isolate_id,
   pattern
-FROM
-  __intrinsic_v8_regexp_code;
+FROM __intrinsic_v8_regexp_code;

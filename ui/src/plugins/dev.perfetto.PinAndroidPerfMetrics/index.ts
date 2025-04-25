@@ -72,6 +72,12 @@ export default class implements PerfettoPlugin {
       },
     });
     if (metrics.length !== 0) {
+      // Add track: Android jank CUJs
+      ctx.commands.runCommand('dev.perfetto.AndroidCujs#PinJankCUJs');
+
+      // Add track: Android latency CUJs
+      ctx.commands.runCommand('dev.perfetto.AndroidCujs#PinLatencyCUJs');
+
       this.callHandlers(metrics, ctx);
     }
   }

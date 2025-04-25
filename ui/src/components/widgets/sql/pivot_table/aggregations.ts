@@ -12,25 +12,59 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Row} from '../../../../trace_processor/query_result';
 import {SqlValue} from '../../../../trace_processor/sql_utils';
-import {LegacyTableColumn} from '../legacy_table/table_column';
+import {TableColumn} from '../table/table_column';
+import {aggregationId} from './ids';
 
-export type Aggregation = {
+// Basic associative aggregation operations which can be pushed down to SQL.
+export type BasicAggregation = {
   op: 'sum' | 'count' | 'min' | 'max';
-  column: LegacyTableColumn;
+  column: TableColumn;
 };
 
-// TODO(b:395565690): add support for "average".
-//
+// Higher-level aggregation operations, which are not associative and need
+// to be resolved to associative operations first and have the final result computed
+// based on the basic aggregations.
+export type Aggregation =
+  | {
+      op: 'average';
+      column: TableColumn;
+    }
+  | BasicAggregation;
+
+// Some aggregations (e.g. average) are non-associative, so we need to expand them into basic
+// associative aggregations and then compute the result from them.
+export function expandAggregations(
+  aggregations: ReadonlyArray<Aggregation>,
+): BasicAggregation[] {
+  const result: BasicAggregation[] = [];
+  for (const agg of aggregations) {
+    if (agg.op === 'average') {
+      result.push({op: 'sum', column: agg.column});
+      result.push({op: 'count', column: agg.column});
+    } else {
+      result.push(agg);
+    }
+  }
+  return result;
+}
+
 // 'count' is intentionally excluded here, as it's special aggregation which is not associated
 // with a column, so we just always show it, so we don't have to bother with figuring special
 // UX for adding it.
-export const AGGREGATIONS: ('sum' | 'min' | 'max')[] = ['sum', 'min', 'max'];
+export const AGGREGATIONS: Exclude<Aggregation['op'], 'count'>[] = [
+  'sum',
+  'min',
+  'max',
+  'average',
+];
 
 // We need to perform basic aggregation operations in JS.
-export const basicAggregations: {
-  [key: string]: (a: SqlValue, b: SqlValue) => SqlValue;
-} = {
+export const basicAggregations: Record<
+  BasicAggregation['op'],
+  (a: SqlValue, b: SqlValue) => SqlValue
+> = {
   sum: (a: SqlValue, b: SqlValue) => {
     if (a === null) return b;
     if (b === null) return a;
@@ -66,3 +100,23 @@ export const basicAggregations: {
     return a;
   },
 };
+
+function sqlValueAsNumber(value: SqlValue): number | null {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  return null;
+}
+
+export function getAggregationValue(agg: Aggregation, row: Row): SqlValue {
+  if (agg.op !== 'average') {
+    return row[aggregationId(agg)];
+  }
+  const sum = sqlValueAsNumber(
+    row[aggregationId({op: 'sum', column: agg.column})],
+  );
+  const count = sqlValueAsNumber(
+    row[aggregationId({op: 'count', column: agg.column})],
+  );
+  if (sum === null || count === null) return null;
+  return sum / count;
+}

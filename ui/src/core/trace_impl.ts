@@ -18,7 +18,7 @@ import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
 import {Trace} from '../public/trace';
 import {ScrollToArgs, setScrollToFunction} from '../public/scroll_helper';
-import {TrackDescriptor} from '../public/track';
+import {Track} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
 import {CommandManagerImpl} from './command_manager';
 import {NoteManagerImpl} from './note_manager';
@@ -33,7 +33,6 @@ import {SidebarMenuItem} from '../public/sidebar';
 import {ScrollHelper} from './scroll_helper';
 import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
-import {PivotTableManager} from './pivot_table_manager';
 import {FlowManager} from './flow_manager';
 import {AppContext, AppImpl} from './app_impl';
 import {PluginManagerImpl} from './plugin_manager';
@@ -78,7 +77,6 @@ export class TraceContext implements Disposable {
   readonly flowMgr: FlowManager;
   readonly pluginSerializableState = createStore<{[key: string]: {}}>({});
   readonly scrollHelper: ScrollHelper;
-  readonly pivotTableMgr;
   readonly trash = new DisposableStack();
   readonly onTraceReady = new EvtSource<void>();
 
@@ -118,10 +116,6 @@ export class TraceContext implements Disposable {
       }
     };
 
-    this.pivotTableMgr = new PivotTableManager(
-      engine.getProxy('PivotTableManager'),
-    );
-
     this.flowMgr = new FlowManager(
       engine.getProxy('FlowManager'),
       this.trackMgr,
@@ -146,10 +140,6 @@ export class TraceContext implements Disposable {
     }
     if (switchToCurrentSelectionTab && selection.kind !== 'empty') {
       this.tabMgr.showCurrentSelectionTab();
-    }
-
-    if (selection.kind === 'area') {
-      this.pivotTableMgr.setSelectionArea(selection);
     }
 
     this.flowMgr.updateFlows(selection);
@@ -223,7 +213,7 @@ export class TraceImpl implements Trace {
 
     // Intercept the registerTrack() method to inject the pluginId into tracks.
     this.trackMgrProxy = createProxy(ctx.trackMgr, {
-      registerTrack(trackDesc: TrackDescriptor): Disposable {
+      registerTrack(trackDesc: Track): Disposable {
         return ctx.trackMgr.registerTrack({...trackDesc, pluginId});
       },
     });
@@ -364,10 +354,6 @@ export class TraceImpl implements Trace {
     return this.traceCtx.noteMgr;
   }
 
-  get pivotTable() {
-    return this.traceCtx.pivotTableMgr;
-  }
-
   get flows() {
     return this.traceCtx.flowMgr;
   }
@@ -412,6 +398,10 @@ export class TraceImpl implements Trace {
 
   get initialRouteArgs(): RouteArgs {
     return this.appImpl.initialRouteArgs;
+  }
+
+  get initialPluginRouteArgs() {
+    return this.appImpl.initialPluginRouteArgs;
   }
 
   get featureFlags(): FeatureFlagManager {

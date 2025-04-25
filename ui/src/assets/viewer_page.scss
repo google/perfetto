@@ -68,3 +68,21 @@
 .pf-track__track-details-popup {
   min-width: 350px;
 }
+
+.pf-track-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  label {
+    font-family: $pf-font;
+    text-transform: uppercase;
+    font-size: 11px;
+  }
+}

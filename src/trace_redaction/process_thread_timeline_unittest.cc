@@ -134,7 +134,7 @@ TEST_F(ProcessThreadTimelineTest, EndOfSpan) {
 }
 
 // Even through its after a span, the previous open and close events should be
-// openned.
+// opened.
 TEST_F(ProcessThreadTimelineTest, AfterSpan) {
   auto prev_open = timeline_.QueryLeftMax(
       kTimeE, kPidB, ProcessThreadTimeline::Event::Type::kOpen);

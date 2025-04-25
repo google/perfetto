@@ -44,7 +44,7 @@ namespace {
 
 using testing::ElementsAreArray;
 
-// The two functions below are templated because they are re-used both on the
+// The two functions below are templated because they are reused both on the
 // libprotobuf and protozero versions to check both libproto -> zero and
 // zero -> libproto compatibility.
 template <typename T>
@@ -351,7 +351,7 @@ TEST(ProtoCppConformanceTest, PackedRepeatedFields) {
 TEST(ProtoCppConformanceTest, DifferentPackages) {
   pbtest::DifferentPackages msg;
 
-  // Pupulate fields defined in "protozero.test.protos.subpackage"
+  // Populate fields defined in "protozero.test.protos.subpackage"
   pbtest_subpackage::Message* msgSubpackage = msg.mutable_subpackage_message();
   msgSubpackage->set_field_int32(1);
   msgSubpackage->set_field_enum(pbtest_subpackage::Enum::A);
@@ -360,7 +360,7 @@ TEST(ProtoCppConformanceTest, DifferentPackages) {
   msg.set_subpackage_enum(pbtest_subpackage::Enum::B);
   msg.set_subpackage_nested_enum(pbtest_subpackage::Message_NestedEnum_D);
 
-  // Pupulate fields defined in "other_package"
+  // Populate fields defined in "other_package"
   pbtest_otherpackage::Message* msgOtherPackage =
       msg.mutable_otherpackage_message();
   msgOtherPackage->set_field_int32(11);

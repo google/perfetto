@@ -26,7 +26,6 @@
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 
 #include "protos/perfetto/common/ftrace_descriptor.pbzero.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -83,10 +82,10 @@ const ProbesDataSource::Descriptor FtraceDataSource::descriptor = {
 FtraceDataSource::FtraceDataSource(
     base::WeakPtr<FtraceController> controller_weak,
     TracingSessionID session_id,
-    const FtraceConfig& config,
+    FtraceConfig config,
     std::unique_ptr<TraceWriter> writer)
     : ProbesDataSource(session_id, &descriptor),
-      config_(config),
+      config_(std::move(config)),
       writer_(std::move(writer)),
       controller_weak_(std::move(controller_weak)) {}
 

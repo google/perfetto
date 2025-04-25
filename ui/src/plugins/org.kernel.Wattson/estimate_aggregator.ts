@@ -22,7 +22,7 @@ import {exists} from '../../base/utils';
 export class WattsonEstimateSelectionAggregator
   implements AreaSelectionAggregator
 {
-  readonly id = 'wattson_estimate_aggregation';
+  readonly id = 'wattson_plugin_estimate_aggregation';
 
   async createAggregateView(engine: Engine, area: AreaSelection) {
     await engine.query(`drop view if exists ${this.id};`);
@@ -52,17 +52,17 @@ export class WattsonEstimateSelectionAggregator
     let query = `
       INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
-      CREATE OR REPLACE PERFETTO TABLE _ui_selection_window AS
+      CREATE OR REPLACE PERFETTO TABLE wattson_plugin_ui_selection_window AS
       SELECT
         ${area.start} as ts,
         ${duration} as dur;
 
-      DROP TABLE IF EXISTS _windowed_cpuss_estimate;
-      CREATE VIRTUAL TABLE _windowed_cpuss_estimate
+      DROP TABLE IF EXISTS wattson_plugin_windowed_cpuss_estimate;
+      CREATE VIRTUAL TABLE wattson_plugin_windowed_cpuss_estimate
       USING
-        SPAN_JOIN(_ui_selection_window, _system_state_mw);
+        SPAN_JOIN(wattson_plugin_ui_selection_window, _system_state_mw);
 
-      CREATE VIEW ${this.id} AS
+      CREATE PERFETTO VIEW ${this.id} AS
     `;
 
     // Convert average power track to total energy in UI window, then divide by
@@ -76,7 +76,7 @@ export class WattsonEstimateSelectionAggregator
         '${estimateTrack}' as name,
         ROUND(SUM(${estimateTrack}_mw * dur) / ${duration}, 3) as power,
         ROUND(SUM(${estimateTrack}_mw * dur) / 1000000000, 3) as energy
-        FROM _windowed_cpuss_estimate
+        FROM wattson_plugin_windowed_cpuss_estimate
       `;
     });
     query += `;`;

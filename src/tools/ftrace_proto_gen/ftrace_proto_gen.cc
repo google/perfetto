@@ -16,14 +16,9 @@
 
 #include "src/tools/ftrace_proto_gen/ftrace_proto_gen.h"
 
-#include <algorithm>
 #include <fstream>
-#include <regex>
+#include <vector>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/pipe.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto {

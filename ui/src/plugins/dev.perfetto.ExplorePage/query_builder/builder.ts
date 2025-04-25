@@ -15,199 +15,135 @@
 import m from 'mithril';
 
 import {PageWithTraceAttrs} from '../../../public/page';
-import {Button} from '../../../widgets/button';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
 import {ColumnControllerRow} from './column_controller';
 import {QueryNode} from '../query_node';
-import {JoinState, QueryBuilderJoin} from './operations/join';
-import {Intent} from '../../../widgets/common';
 import {showModal} from '../../../widgets/modal';
 import {DataSourceViewer} from './data_source_viewer';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {getLastFinishedNode} from '../query_node';
-import {TextInput} from '../../../widgets/text_input';
-import {
-  StdlibTableState,
-  SimpleSlicesAttrs,
-  SimpleSlicesState,
-  SqlSourceAttrs,
-  SqlSourceState,
-} from './source_nodes';
-import {
-  GroupByAttrs,
-  GroupByNode,
-  GroupByOperation,
-} from './operations/groupy_by';
-import {FilterAttrs, FilterNode, FilterOperation} from './operations/filter';
+import {PopupMenu} from '../../../widgets/menu';
+import {Icons} from '../../../base/semantic_icons';
+import {Intent} from '../../../widgets/common';
 
 export interface QueryBuilderTable {
   name: string;
   asSqlTable: SqlTable;
-  columnOptions: ColumnControllerRow[];
+  columnOptions: ColumnControllerRow;
   sql: string;
 }
 
 export interface QueryBuilderAttrs extends PageWithTraceAttrs {
   readonly sqlModules: SqlModules;
-  readonly rootNode?: QueryNode;
+  readonly rootNodes: QueryNode[];
+  readonly selectedNode?: QueryNode;
+
   readonly onRootNodeCreated: (node: QueryNode) => void;
+  readonly onNodeSelected: (node?: QueryNode) => void;
+  readonly renderNodeActionsMenuItems: (node: QueryNode) => m.Children;
+  readonly addSourcePopupMenu: () => m.Children;
+}
+
+interface NodeAttrs {
+  readonly node: QueryNode;
+  isSelected: boolean;
+  readonly onNodeSelected: (node: QueryNode) => void;
+  readonly renderNodeActionsMenuItems: (node: QueryNode) => m.Children;
+}
+
+class NodeBox implements m.ClassComponent<NodeAttrs> {
+  view({attrs}: m.CVnode<NodeAttrs>) {
+    const {node, isSelected, onNodeSelected} = attrs;
+    return m(
+      '.node-box',
+      {
+        style: {
+          border: isSelected ? '2px solid yellow' : '2px solid blue',
+          borderRadius: '5px',
+          padding: '10px',
+          cursor: 'pointer',
+          backgroundColor: 'lightblue',
+        },
+        onclick: () => onNodeSelected(node),
+      },
+      node.getTitle(),
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            iconFilled: true,
+            icon: Icons.MoreVert,
+          }),
+        },
+        attrs.renderNodeActionsMenuItems(node),
+      ),
+    );
+  }
 }
 
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
-    const {trace, sqlModules, rootNode, onRootNodeCreated} = attrs;
+    const {
+      trace,
+      rootNodes,
+      onNodeSelected,
+      selectedNode,
+      renderNodeActionsMenuItems,
+    } = attrs;
 
-    function createModal(
-      title: string,
-      content: m.Children,
-      onAdd: () => void,
-    ) {
-      showModal({
-        title,
-        buttons: [{text: 'Add node', action: onAdd}],
-        content: () => content,
-      });
-    }
-
-    function chooseSourceButton(): m.Child {
-      return m(
-        PopupMenu,
-        {
-          trigger: m(Button, {
-            label: 'Choose a source',
-            intent: Intent.Primary,
-          }),
-        },
-        m(MenuItem, {
-          label: 'Table',
-          onclick: async () => {
-            const tableName = await trace.omnibox.prompt(
-              'Choose a table...',
-              sqlModules.listTablesNames(),
-            );
-            if (!tableName) return;
-
-            const sqlTable = sqlModules.getTable(tableName);
-            if (!sqlTable) return;
-
-            onRootNodeCreated(new StdlibTableState(sqlTable));
-          },
-        }),
-        m(MenuItem, {
-          label: 'Slices',
-          onclick: () =>
-            createModal('Slices source', m(SimpleSlicesModalContent), () => {
-              const newSlices = new SimpleSlicesState(simpleSlicesAttrs);
-              if (newSlices.validate()) {
-                onRootNodeCreated(newSlices);
-              }
-            }),
-        }),
-        m(MenuItem, {
-          label: 'SQL',
-          onclick: () =>
-            createModal('SQL source', m(SqlSourceModalContent), () => {
-              const newSqlSource = new SqlSourceState(sqlSourceAttrs);
-              if (newSqlSource.validate()) {
-                onRootNodeCreated(newSqlSource);
-              }
-            }),
-        }),
-        m(MenuItem, {label: 'Interval intersect', disabled: true}),
-      );
-    }
-
-    function chooseOperationButton(): m.Child {
-      return m(
-        PopupMenu,
-        {
-          trigger: m(Button, {label: '+', intent: Intent.Primary}),
-        },
-        m(MenuItem, {
-          label: 'GROUP BY',
-          onclick: () => {
-            if (!rootNode) return;
-            const curNode = getLastFinishedNode(rootNode);
-            if (!curNode) return;
-
-            const newGroupByAttrs: GroupByAttrs = {prevNode: curNode};
-            createModal(
-              'GROUP BY',
-              m(GroupByOperation, newGroupByAttrs),
-              () => {
-                curNode.nextNode = new GroupByNode(newGroupByAttrs);
-              },
-            );
-          },
-        }),
-        m(MenuItem, {
-          label: 'FILTER',
-          onclick: () => {
-            if (!rootNode) return;
-            const curNode = getLastFinishedNode(rootNode);
-            if (!curNode) return;
-            const newFilterAttrs: FilterAttrs = {prevNode: curNode};
-            createModal('FILTER', m(FilterOperation, newFilterAttrs), () => {
-              curNode.nextNode = new FilterNode(newFilterAttrs);
-            });
-          },
-        }),
-        m(MenuItem, {
-          label: 'JOIN',
-          disabled: true,
-          onclick: () => {
-            if (!rootNode) return;
-            const curNode = getLastFinishedNode(rootNode);
-            if (!curNode) return;
-
-            const newJoinState = new JoinState(curNode);
-            createModal(
-              'JOIN',
-              m(QueryBuilderJoin, {sqlModules, joinState: newJoinState}),
-              () => {
-                newJoinState.validate();
-                curNode.nextNode = newJoinState;
-              },
-            );
-          },
-        }),
-      );
-    }
-
-    function renderNodesPanel(): m.Children {
+    const renderNodesPanel = (): m.Children => {
       const nodes: m.Child[] = [];
-      let row = 1;
+      const numRoots = rootNodes.length;
 
-      if (!rootNode) {
-        nodes.push(
-          m('', {style: {gridColumn: 3, gridRow: row}}, chooseSourceButton()),
-        );
-      } else {
-        let curNode: QueryNode | undefined = rootNode;
-        while (curNode) {
-          nodes.push(
-            m(
-              '',
-              {style: {gridColumn: 3, gridRow: row}},
-              m(Button, {
-                label: curNode.getTitle(),
-                intent: Intent.Primary,
-                // TODO(mayzner): Add logic for button.
-                onclick: async () => {},
-              }),
-            ),
-          );
-          row++;
-          curNode = curNode.nextNode;
-        }
-
+      if (numRoots === 0) {
         nodes.push(
           m(
             '',
-            {style: {gridColumn: 3, gridRow: row}},
-            chooseOperationButton(),
+            {style: {gridColumn: 3, gridRow: 2}},
+            m(
+              PopupMenu,
+              {
+                trigger: m(Button, {
+                  icon: Icons.Add,
+                  intent: Intent.Primary,
+                  variant: ButtonVariant.Filled,
+                  style: {
+                    height: '100px',
+                    width: '100px',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    fontSize: '48px',
+                  },
+                }),
+              },
+              attrs.addSourcePopupMenu(),
+            ),
           ),
         );
+      } else {
+        let col = 1;
+        rootNodes.forEach((rootNode) => {
+          let row = 1;
+          let curNode: QueryNode | undefined = rootNode;
+          while (curNode) {
+            const localCurNode = curNode;
+            nodes.push(
+              m(
+                '',
+                {style: {display: 'flex', gridColumn: col, gridRow: row}},
+                m(NodeBox, {
+                  node: localCurNode,
+                  isSelected: selectedNode === localCurNode,
+                  onNodeSelected,
+                  renderNodeActionsMenuItems,
+                }),
+              ),
+            );
+            row++;
+            curNode = curNode.nextNode;
+          }
+          col += 1;
+        });
       }
 
       return m(
@@ -215,131 +151,19 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         {
           style: {
             display: 'grid',
-            gridTemplateColumns: 'repeat(5, 1fr)',
+            gridTemplateColumns: `repeat(${numRoots} - 1, 1fr)`,
             gridTemplateRows: 'repeat(3, 1fr)',
             gap: '10px',
           },
         },
         nodes,
       );
-    }
-
-    const simpleSlicesAttrs: SimpleSlicesAttrs = {};
-    const SimpleSlicesModalContent = {
-      view: () => {
-        return m(
-          '',
-          m(
-            '',
-            'Slice name glob ',
-            m(TextInput, {
-              id: 'slice_name_glob',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                simpleSlicesAttrs.slice_name = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-          m(
-            '',
-            'Thread name glob ',
-            m(TextInput, {
-              id: 'thread_name_glob',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                simpleSlicesAttrs.thread_name = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-          m(
-            '',
-            'Process name glob ',
-            m(TextInput, {
-              id: 'process_name_glob',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                simpleSlicesAttrs.process_name = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-          m(
-            '',
-            'Track name glob ',
-            m(TextInput, {
-              id: 'track_name_glob',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                simpleSlicesAttrs.track_name = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-        );
-      },
     };
 
-    const sqlSourceAttrs: SqlSourceAttrs = {};
-    const SqlSourceModalContent = {
-      view: () => {
-        return m(
-          '',
-          m(
-            '',
-            'Preamble',
-            m(TextInput, {
-              id: 'preamble',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                sqlSourceAttrs.preamble = (
-                  e.target as HTMLInputElement
-                ).value.trim();
-              },
-            }),
-          ),
-          m(
-            '',
-            'Sql ',
-            m(TextInput, {
-              id: 'sql_source',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                sqlSourceAttrs.sql = (e.target as HTMLInputElement).value
-                  .trim()
-                  .split(';')[0];
-              },
-            }),
-          ),
-          m(
-            '',
-            'Column names (comma separated strings) ',
-            m(TextInput, {
-              id: 'columns',
-              type: 'string',
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                const colsStr = (e.target as HTMLInputElement).value.trim();
-                sqlSourceAttrs.columns = colsStr
-                  .split(',')
-                  .map((col) => col.trim())
-                  .filter(Boolean);
-              },
-            }),
-          ),
-        );
-      },
+    const renderDataSourceViewer = () => {
+      return attrs.selectedNode
+        ? m(DataSourceViewer, {trace, queryNode: attrs.selectedNode})
+        : undefined;
     };
 
     return m(
@@ -353,11 +177,19 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         },
       },
       m('', {style: {gridColumn: 1}}, renderNodesPanel()),
-      m(
-        '',
-        {style: {gridColumn: 2}},
-        rootNode && [m(DataSourceViewer, {trace, queryNode: rootNode})],
-      ),
+      m('', {style: {gridColumn: 2}}, renderDataSourceViewer()),
     );
   }
 }
+
+export const createModal = (
+  title: string,
+  content: () => m.Children,
+  onAdd: () => void,
+) => {
+  showModal({
+    title,
+    buttons: [{text: 'Add node', action: onAdd}],
+    content,
+  });
+};

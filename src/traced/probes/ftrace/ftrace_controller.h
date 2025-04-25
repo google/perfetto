@@ -73,6 +73,9 @@ class FtraceController {
   static std::unique_ptr<FtraceController> Create(base::TaskRunner*, Observer*);
   virtual ~FtraceController();
 
+  FtraceController(const FtraceController&) = delete;
+  FtraceController& operator=(const FtraceController&) = delete;
+
   bool AddDataSource(FtraceDataSource*) PERFETTO_WARN_UNUSED_RESULT;
   bool StartDataSource(FtraceDataSource*);
   void RemoveDataSource(FtraceDataSource*);
@@ -131,9 +134,6 @@ class FtraceController {
   friend class TestFtraceController;
   enum class PollSupport { kUntested, kSupported, kUnsupported };
 
-  FtraceController(const FtraceController&) = delete;
-  FtraceController& operator=(const FtraceController&) = delete;
-
   // Periodic task that reads all per-cpu ftrace buffers. Global across tracefs
   // instances.
   void ReadTick(int generation);
@@ -142,7 +142,7 @@ class FtraceController {
   // Optional: additional reads based on buffer capacity. Per tracefs instance.
   void UpdateBufferWatermarkWatches(FtraceInstanceState* instance,
                                     const std::string& instance_name);
-  void OnBufferPastWatermark(std::string instance_name,
+  void OnBufferPastWatermark(const std::string& instance_name,
                              size_t cpu,
                              bool repoll_watermark);
   void RemoveBufferWatermarkWatches(FtraceInstanceState* instance);
@@ -189,7 +189,7 @@ class FtraceController {
   base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
 };
 
-bool DumpKprobeStats(const std::string& text, FtraceStats* ftrace_stats);
+bool DumpKprobeStats(std::string text, FtraceStats* ftrace_stats);
 
 }  // namespace perfetto
 

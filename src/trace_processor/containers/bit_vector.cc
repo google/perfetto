@@ -170,22 +170,29 @@ void BitVector::Resize(uint32_t new_size, bool filler) {
     if (filler) {
       // If the new space should be filled with ones, then set all the bits
       // between the address of the old size and the new last address.
-      const Address& start = IndexToAddress(old_size);
-      Set(start, last_addr);
+      const Address& start_filler = IndexToAddress(old_size);
+      Set(start_filler, last_addr);
+
+      // If `start_filler` is at the start of a block, we need to update the
+      // last old block `counts_` manually.
+      if (old_size % kBitsInBlock == 0) {
+        counts_[start_filler.block_idx] = CountSetBits();
+      }
 
       // We then need to update the counts vector to match the changes we
       // made to the blocks.
 
       // We start by adding the bits we set in the first block to the
-      // cummulative count before the range we changed.
-      Address end_of_block = {start.block_idx,
+      // cumulative count before the range we changed.
+      Address end_of_block = {start_filler.block_idx,
                               {Block::kWords - 1, BitWord::kBits - 1}};
       uint32_t count_in_block_after_end =
-          AddressToIndex(end_of_block) - AddressToIndex(start) + 1;
+          AddressToIndex(end_of_block) - AddressToIndex(start_filler) + 1;
       uint32_t set_count = CountSetBits() + count_in_block_after_end;
 
-      for (uint32_t i = start.block_idx + 1; i <= last_addr.block_idx; ++i) {
-        // Set the count to the cummulative count so far.
+      for (uint32_t i = start_filler.block_idx + 1; i <= last_addr.block_idx;
+           ++i) {
+        // Set the count to the cumulative count so far.
         counts_[i] = set_count;
 
         // Add a full block of set bits to the count.
@@ -406,7 +413,7 @@ void BitVector::SelectBits(const BitVector& mask_bv) {
 
   // Fix up the counts to match the new values. The Resize above should ensure
   // that a) the counts vector is correctly sized, b) the bits after
-  // |set_bits_in_mask| are cleared (allowing this count algortihm to be
+  // |set_bits_in_mask| are cleared (allowing this count algorithm to be
   // accurate).
   UpdateCounts(words_, counts_);
 }

@@ -14,10 +14,12 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
+
 INCLUDE PERFETTO MODULE graphs.scan;
 
 CREATE PERFETTO TABLE _heap_graph_class_tree_cumulatives AS
-SELECT *
+SELECT
+  *
 FROM _graph_aggregating_scan!(
   (
     SELECT id AS source_node_id, parent_id AS dest_node_id
@@ -50,15 +52,16 @@ FROM _graph_aggregating_scan!(
     FROM agg a
     JOIN _heap_graph_class_tree r USING (id)
   )
-) a
-ORDER BY id;
+) AS a
+ORDER BY
+  id;
 
 -- Table containing all the Android heap graphs in the trace converted to a
 -- shortest-path tree and then aggregated by class name.
 --
 -- This table contains a "flamegraph-like" representation of the contents of the
 -- heap graph.
-CREATE PERFETTO TABLE android_heap_graph_class_summary_tree(
+CREATE PERFETTO TABLE android_heap_graph_class_summary_tree (
   -- The timestamp the heap graph was dumped at.
   graph_sample_ts TIMESTAMP,
   -- The upid of the process.
@@ -94,5 +97,6 @@ SELECT
   t.self_size,
   c.cumulative_count,
   c.cumulative_size
-FROM _heap_graph_class_tree t
-JOIN _heap_graph_class_tree_cumulatives c USING (id);
+FROM _heap_graph_class_tree AS t
+JOIN _heap_graph_class_tree_cumulatives AS c
+  USING (id);

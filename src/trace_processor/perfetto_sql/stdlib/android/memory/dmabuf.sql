@@ -16,32 +16,48 @@
 -- Raw ftrace events
 CREATE PERFETTO TABLE _raw_dmabuf_events AS
 SELECT
-  (SELECT int_value FROM args WHERE arg_set_id = c.arg_set_id AND key = 'inode') AS inode,
+  (
+    SELECT
+      int_value
+    FROM args
+    WHERE
+      arg_set_id = c.arg_set_id AND key = 'inode'
+  ) AS inode,
   tt.utid,
   c.ts,
   cast_int!(c.value) AS buf_size
-FROM thread_counter_track tt
-  JOIN counter c ON c.track_id = tt.id
-WHERE tt.name = 'mem.dma_heap_change';
+FROM thread_counter_track AS tt
+JOIN counter AS c
+  ON c.track_id = tt.id
+WHERE
+  tt.name = 'mem.dma_heap_change';
 
 -- gralloc binder reply slices
 CREATE PERFETTO TABLE _gralloc_binders AS
-WITH gralloc_threads AS (
-  SELECT utid
-  FROM process JOIN thread USING (upid)
-  WHERE process.name GLOB '/vendor/bin/hw/android.hardware.graphics.allocator*'
-)
+WITH
+  gralloc_threads AS (
+    SELECT
+      utid
+    FROM process
+    JOIN thread
+      USING (upid)
+    WHERE
+      process.name GLOB '/vendor/bin/hw/android.hardware.graphics.allocator*'
+  )
 SELECT
   flow.slice_out AS client_slice_id,
   gralloc_slice.ts,
   gralloc_slice.dur,
-  thread_track.utid
-FROM slice gralloc_slice
-JOIN thread_track ON gralloc_slice.track_id = thread_track.id
-JOIN gralloc_threads USING (utid)
-JOIN flow ON gralloc_slice.id = flow.slice_in
-WHERE gralloc_slice.name = 'binder reply'
-;
+  gralloc_tt.utid
+FROM slice AS gralloc_slice
+JOIN thread_track AS gralloc_tt
+  ON gralloc_slice.track_id = gralloc_tt.id
+JOIN gralloc_threads
+  USING (utid)
+JOIN flow
+  ON gralloc_slice.id = flow.slice_in
+WHERE
+  gralloc_slice.name = 'binder reply';
 
 -- Match gralloc thread allocations to inbound binders
 CREATE PERFETTO TABLE _attributed_dmabufs AS
@@ -49,23 +65,38 @@ SELECT
   r.inode,
   r.ts,
   r.buf_size,
-  IFNULL(client_thread.utid, r.utid) AS attr_utid
-FROM _raw_dmabuf_events r
-LEFT JOIN _gralloc_binders gb ON r.utid = gb.utid AND r.ts BETWEEN gb.ts AND gb.ts + gb.dur
-LEFT JOIN thread_track client_thread ON gb.client_slice_id = client_thread.id
-ORDER BY r.inode, r.ts;
+  coalesce(client_tt.utid, r.utid) AS attr_utid
+FROM _raw_dmabuf_events AS r
+LEFT JOIN _gralloc_binders AS gb
+  ON r.utid = gb.utid AND r.ts BETWEEN gb.ts AND gb.ts + gb.dur
+LEFT JOIN slice AS client_slice
+  ON client_slice.id = gb.client_slice_id
+LEFT JOIN thread_track AS client_tt
+  ON client_slice.track_id = client_tt.id
+ORDER BY
+  r.inode,
+  r.ts;
 
-CREATE PERFETTO FUNCTION _alloc_source(is_alloc BOOL, inode LONG, ts TIMESTAMP)
+CREATE PERFETTO FUNCTION _alloc_source(
+    is_alloc BOOL,
+    inode LONG,
+    ts TIMESTAMP
+)
 RETURNS LONG AS
-SELECT attr_utid
+SELECT
+  attr_utid
 FROM _attributed_dmabufs
 WHERE
   inode = $inode
   AND (
-    ($is_alloc AND ts = $ts) OR
-    (NOT $is_alloc AND ts < $ts)
+    (
+      $is_alloc AND ts = $ts
+    ) OR (
+      NOT $is_alloc AND ts < $ts
+    )
   )
-ORDER BY ts DESC
+ORDER BY
+  ts DESC
 LIMIT 1;
 
 -- Track dmabuf allocations, re-attributing gralloc allocations to their source
@@ -92,14 +123,29 @@ CREATE PERFETTO TABLE android_dmabuf_allocs (
   -- process name
   process_name STRING
 ) AS
-WITH _thread_allocs AS (
-  SELECT inode, ts, buf_size, _alloc_source(buf_size > 0, inode, ts) AS utid
-  FROM _attributed_dmabufs
-)
-SELECT ts, buf_size, inode,
-  utid, tid, thread.name AS thread_name,
-  upid, pid, process.name AS process_name
-FROM _thread_allocs allocs
-JOIN thread USING (utid)
-LEFT JOIN process USING (upid)
-ORDER BY ts;
+WITH
+  _thread_allocs AS (
+    SELECT
+      inode,
+      ts,
+      buf_size,
+      _alloc_source(buf_size > 0, inode, ts) AS utid
+    FROM _attributed_dmabufs
+  )
+SELECT
+  ts,
+  buf_size,
+  inode,
+  utid,
+  tid,
+  thread.name AS thread_name,
+  upid,
+  pid,
+  process.name AS process_name
+FROM _thread_allocs AS allocs
+JOIN thread
+  USING (utid)
+LEFT JOIN process
+  USING (upid)
+ORDER BY
+  ts;

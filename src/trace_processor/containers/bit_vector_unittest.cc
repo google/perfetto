@@ -785,6 +785,14 @@ TEST(BitVectorUnittest, UpdateSetBitsGetSetBitIndices) {
   ASSERT_THAT(bv.GetSetBitIndices(), IsEmpty());
 }
 
+TEST(BitVectorUnittest, ResizeBug) {
+  uint32_t size = 8 * 8 * 8;
+  BitVector bv(size, true);
+  bv.Resize(size + 5, true);
+  ASSERT_EQ(bv.size(), size + 5);
+  ASSERT_EQ(bv.CountSetBits(), size + 5);
+}
+
 TEST(BitVectorUnittest, SerializeSimple) {
   BitVector bv{1, 0, 1, 0, 1, 0, 1};
   protozero::HeapBuffered<protos::pbzero::SerializedColumn::BitVector> msg;

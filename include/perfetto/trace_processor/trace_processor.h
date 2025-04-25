@@ -75,41 +75,40 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // |        Trace summary related functionality starts here        |
   // =================================================================
 
-  // Computes the v2 metrics (if non-empty, only the ones given by `metric_ids`)
-  // on the currently loaded trace based on the metric specifications inside
-  // `specs`.
+  // Creates a summary of the trace as defined by the `computation` and `specs`
+  // parameters.
+  //
+  // `computation` is a `TraceSummaryComputationSpec` struct which decides how
+  // the trace should be summarized. It does not contain any business logic
+  // itself, instead just referencing the contents of `specs`.
   //
   // Each entry in `specs` should point to an instance of the `TraceSummarySpec`
   // proto with `spec_format` defining the file format of each specs. This
   // function accepts a vector to make it easy to compute metrics in the common
   // case of having many different `TraceSummarySpec` files, each with a subset
-  // of the metrics which need to be computed.
+  // of the summary to be computed (e.g. metrics shareded across multiple
+  // files).
   //
-  // The result of computing the metrics will be returned in `output` (with a
-  // schema specified by the `TraceSummary` proto) with `output_format` defining
+  // The result of computing the summary will be returned in `output` (with a
+  // schema specified by the `TraceSummary` proto) with `output_spec` defining
   // the format that the data should be returned in.
   //
-  // `metric_ids` is an optional parameter which controls which metric ids from
-  // the specs should be computed. If empty, *all* metrics in all provided specs
-  // will be computed. If specified, every id must match the id of a metric in
-  // the spec or an error will be returned.
-  //
-  // Note: this function will only consider the `metric_spec` and `shared_query`
-  // fields of all the provided specs: any other fields will be silently
-  // ignored.
-  //
-  // Note: this function will only populate the `metric` field of the output,
-  // any other fields are guaranteed to be empty.
+  // Conceptual note: this function is designed with a split in `computation`
+  // vs `specs` is to allow for `specs` to be stored as self-contained set of
+  // protos on the filesystem or in a git repo which are then referenced by the
+  // embedder of trace processor to actually decide which parts of the spec
+  // matter for a particular trace. This allows decoupling what should be
+  // computed from how that computation should happen.
   //
   // Implementation note: after this function returns, any or all of the
   // referenced PerfettoSQL modules in any computed metrics will remain
   // included. This behaviour is *not* considered part of the API and should not
-  // be relied on. It is possible this will change in the future.
-  virtual base::Status ComputeV2Metrics(
+  // be relied on. It is likely this will change in the future.
+  virtual base::Status Summarize(
+      const TraceSummaryComputationSpec& computation,
       const std::vector<TraceSummarySpecBytes>& specs,
       std::vector<uint8_t>* output,
-      TraceSummaryOutputFormat output_format,
-      const std::vector<std::string>& metric_ids = {}) = 0;
+      const TraceSummaryOutputSpec& output_spec) = 0;
 
   // =================================================================
   // |        Metatracing related functionality starts here          |

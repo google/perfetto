@@ -21,35 +21,30 @@
 namespace perfetto::trace_processor {
 
 bool ArchiveEntry::operator<(const ArchiveEntry& rhs) const {
-  // Traces with symbols should be the last ones to be read.
-  // TODO(carlscab): Proto traces with just ModuleSymbols packets should be an
-  // exception. We actually need those are the very end (once whe have all the
-  // Frames). Alternatively we could build a map address -> symbol during
-  // tokenization and use this during parsing to resolve symbols.
-  if (trace_type == kSymbolsTraceType) {
-    return false;
-  }
-  if (rhs.trace_type == kSymbolsTraceType) {
-    return true;
-  }
+  auto trace_priority = [](TraceType type) -> int {
+    if (type == kSymbolsTraceType)
+      // Traces with symbols should be the last ones to be read.
+      // TODO(carlscab): Proto traces with just ModuleSymbols packets should be
+      // an exception. We actually need those are the very end (once whe have
+      // all the Frames). Alternatively we could build a map address -> symbol
+      // during tokenization and use this during parsing to resolve symbols.
+      return 3;
+    if (type == TraceType::kProtoTraceType)
+      // Proto traces should always parsed first as they might contains clock
+      // sync data needed to correctly parse other traces.
+      return 0;
+    if (type == TraceType::kGzipTraceType)
+      return 1;  // Middle priority
+    return 2;    // Default for other trace types
+  };
 
-  // Proto traces should always parsed first as they might contains clock sync
-  // data needed to correctly parse other traces.
-  if (rhs.trace_type == TraceType::kProtoTraceType) {
-    return false;
-  }
-  if (trace_type == TraceType::kProtoTraceType) {
-    return true;
-  }
+  // Compare first by trace type priority, then by name,
+  // and finally by index to ensure strict ordering.
+  int lhs_priority = trace_priority(trace_type);
+  int rhs_priority = trace_priority(rhs.trace_type);
 
-  if (rhs.trace_type == TraceType::kGzipTraceType) {
-    return false;
-  }
-  if (trace_type == TraceType::kGzipTraceType) {
-    return true;
-  }
-
-  return std::tie(name, index) < std::tie(rhs.name, rhs.index);
+  return std::tie(lhs_priority, name, index) <
+         std::tie(rhs_priority, rhs.name, rhs.index);
 }
 
 }  // namespace perfetto::trace_processor

@@ -30,7 +30,7 @@ overlap.
 
 ![Thread track event in UI](/docs/images/synthetic-track-event-thread.png)
 
-This is corresponds to the following protos:
+This corresponds to the following protos:
 
 ```
 # Emit this packet once *before* you emit the first event for this process.
@@ -234,8 +234,8 @@ of execution of GPUs, network traffic, IRQs etc.
 
 Note: in the past, modelling such slices may have been done by abusing
 processes/threads slices, due to limitations with the data model and the
-Perfetto UI. This is no longer necessary and we _strongly_ discourage continued
-use of this hack.
+Perfetto UI. Those workarounds are no longer necessary, and are _strongly_
+discouraged.
 
 ![Process track event in UI](/docs/images/synthetic-track-event-custom-tree.png)
 
@@ -517,7 +517,7 @@ the arrow varies across different applications but most commonly it is used to
 track work passing between threads or processes: e.g. the UI thread asks a
 background thread to do some work and notify when the result is available.
 
-NOTE: a single flow _cannot_ fork ands imply represents a single stream of
+NOTE: a single flow _cannot_ fork and simply represents a single stream of
 arrows from one slice to the next. See
 [this](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/perfetto_trace.proto;drc=ba05b783d9c29fe334a02913cf157ea1d415d37c;l=9604)
 comment for information.

@@ -23,7 +23,7 @@ import {AreaSelectionAggregator} from '../../public/selection';
 export class WattsonPackageSelectionAggregator
   implements AreaSelectionAggregator
 {
-  readonly id = 'wattson_package_aggregation';
+  readonly id = 'wattson_plugin_package_aggregation';
 
   async createAggregateView(engine: Engine, area: AreaSelection) {
     await engine.query(`drop view if exists ${this.id};`);
@@ -49,14 +49,14 @@ export class WattsonPackageSelectionAggregator
     // which is run prior to execution of this module
     engine.query(`
       -- Grouped by UID and made CPU agnostic
-      CREATE VIEW ${this.id} AS
+      CREATE PERFETTO VIEW ${this.id} AS
       SELECT
         ROUND(SUM(total_pws) / ${duration}, 3) as active_mw,
         ROUND(SUM(total_pws) / 1000000000, 3) as active_mws,
         ROUND(SUM(dur) / 1000000.0, 3) as dur_ms,
         uid,
         package_name
-      FROM _unioned_per_cpu_total
+      FROM wattson_plugin_unioned_per_cpu_total
       GROUP BY uid;
     `);
 
