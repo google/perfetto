@@ -25,7 +25,6 @@ source_set("impl") {
     "query_plan.cc",
     "query_plan.h",
     "slab.h",
-    "static_vector.h",
     "types.h",
   ]
   deps = [

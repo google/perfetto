@@ -29,7 +29,6 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
-#include "src/trace_processor/dataframe/impl/static_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 
@@ -155,8 +154,8 @@ class Dataframe {
   // dataframe.
   friend class DataframeBytecodeTest;
 
-  Dataframe(impl::FixedVector<std::string, impl::kMaxColumns> column_names,
-            impl::FixedVector<impl::Column, impl::kMaxColumns> columns,
+  Dataframe(std::vector<std::string> column_names,
+            std::vector<impl::Column> columns,
             uint32_t row_count,
             StringPool* string_pool)
       : column_names_(std::move(column_names)),
@@ -166,11 +165,11 @@ class Dataframe {
 
   // The names of all columns.
   // `column_names_` and `columns_` should always have the same size.
-  impl::FixedVector<std::string, impl::kMaxColumns> column_names_;
+  std::vector<std::string> column_names_;
 
   // Internal storage for columns in the dataframe.
   // `column_names_` and `columns_` should always have the same size.
-  impl::FixedVector<impl::Column, impl::kMaxColumns> columns_;
+  std::vector<impl::Column> columns_;
 
   // Number of rows in the dataframe.
   uint32_t row_count_ = 0;
