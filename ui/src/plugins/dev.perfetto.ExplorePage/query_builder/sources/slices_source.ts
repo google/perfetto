@@ -169,7 +169,7 @@ export class SlicesSourceNode implements QueryNode {
     this.finalCols = createFinalColumns(this);
   }
 
-  getState(): QueryNodeState {
+  getStateCopy(): QueryNodeState {
     const newState: SlicesSourceAttrs = {
       slice_name: this.state.slice_name?.slice(),
       thread_name: this.state.thread_name?.slice(),

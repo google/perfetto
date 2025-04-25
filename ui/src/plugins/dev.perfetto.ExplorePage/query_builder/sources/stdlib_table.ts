@@ -72,7 +72,7 @@ export class StdlibTableNode implements QueryNode {
     this.sqlTable = attrs.sqlTable;
   }
 
-  getState(): QueryNodeState {
+  getStateCopy(): QueryNodeState {
     const newState: StdlibTableAttrs = {
       trace: this.state.trace,
       sqlModules: this.state.sqlModules,
