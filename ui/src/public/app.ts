@@ -77,4 +77,5 @@ export interface App {
     title: string;
     fileName: string;
   }): void;
+  closeCurrentTrace(): void;
 }

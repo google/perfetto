@@ -453,6 +453,10 @@ export class TraceImpl implements Trace {
     this.appImpl.openTraceFromBuffer(args);
   }
 
+  closeCurrentTrace(): void {
+    this.appImpl.closeCurrentTrace();
+  }
+
   get onTraceReady() {
     return this.traceCtx.onTraceReady;
   }
