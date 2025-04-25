@@ -479,9 +479,10 @@ class DataSource : public DataSourceBase {
         DerivedDataSource::kRequiresCallbacksUnderLock;
     params.supports_multiple_instances =
         DerivedDataSource::kSupportsMultipleInstances;
+    params.default_buffer_exhausted_policy =
+        DerivedDataSource::kBufferExhaustedPolicy;
     return Helper::type().Register(
-        descriptor, factory, params, DerivedDataSource::kBufferExhaustedPolicy,
-        no_flush,
+        descriptor, factory, params, no_flush,
         GetCreateTlsFn(
             static_cast<typename DataSourceTraits::TlsStateType*>(nullptr)),
         GetCreateIncrementalStateFn(

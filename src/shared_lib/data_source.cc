@@ -360,10 +360,11 @@ bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
   perfetto::internal::DataSourceParams params;
   params.supports_multiple_instances = true;
   params.requires_callbacks_under_lock = false;
+  params.default_buffer_exhausted_policy =
+      data_source_type->buffer_exhausted_policy;
   bool success = data_source_type->cpp_type.Register(
-      dsd, factory, params, data_source_type->buffer_exhausted_policy,
-      data_source_type->on_flush_cb == nullptr, create_custom_tls_fn,
-      create_incremental_state_fn, cb_ctx);
+      dsd, factory, params, data_source_type->on_flush_cb == nullptr,
+      create_custom_tls_fn, create_incremental_state_fn, cb_ctx);
   if (!success) {
     return false;
   }
