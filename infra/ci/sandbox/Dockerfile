@@ -56,7 +56,7 @@ RUN set -ex; \
     apt-get -y install \
         procps jq python3-jwt python3-requests python3 python3-oauth2client \
         python3-httplib2 python3-google-auth \
-        python3-googleapi
+        python3-googleapi python3-venv
 
 
 RUN set -ex; \

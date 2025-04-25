@@ -588,7 +588,6 @@ class GnParser(object):
         if dep.name == target.a_i_t_test_app:
           dep.instruments = target.a_i_t_app
 
-
       target.deps.add(dep)
       target.transitive_deps.add(dep)
       target.transitive_deps.update(dep.transitive_deps)

@@ -140,7 +140,7 @@ class TestCaseRunner:
   trace_processor_path: str
   trace_descriptor_path: str
   colors: ColorFormatter
-  override_sql_module_paths: List[str]
+  override_sql_package_paths: List[str]
 
   def __output_to_text_proto(self, actual: str, out: BinaryProto) -> str:
     """Deserializes a binary proto and returns its text representation.
@@ -200,8 +200,8 @@ class TestCaseRunner:
       ]
       if self.test.register_files_dir:
         cmd += ['--register-files-dir', self.test.register_files_dir]
-      for sql_module_path in self.override_sql_module_paths:
-        cmd += ['--override-sql-module', sql_module_path]
+      for sql_package_path in self.override_sql_package_paths:
+        cmd += ['--override-sql-package', sql_package_path]
       tp = subprocess.Popen(
           cmd,
           stdout=subprocess.PIPE,
@@ -274,8 +274,8 @@ class TestCaseRunner:
           'binary',
           trace_path,
       ]
-      for sql_module_path in self.override_sql_module_paths:
-        cmd += ['--override-sql-module', sql_module_path]
+      for sql_package_path in self.override_sql_package_paths:
+        cmd += ['--override-sql-package', sql_package_path]
       tp = subprocess.Popen(
           cmd,
           stdout=subprocess.PIPE,
@@ -297,7 +297,6 @@ class TestCaseRunner:
       os.remove(tmp_perf_file.name)
       if not keep_input:
         os.remove(tmp_spec_file.name)
-
 
       return TestResult(
           self.test,
@@ -329,8 +328,8 @@ class TestCaseRunner:
         cmd += ['-Q', self.test.blueprint.query]
       if self.test.register_files_dir:
         cmd += ['--register-files-dir', self.test.register_files_dir]
-      for sql_module_path in self.override_sql_module_paths:
-        cmd += ['--override-sql-module', sql_module_path]
+      for sql_package_path in self.override_sql_package_paths:
+        cmd += ['--override-sql-package', sql_package_path]
       tp = subprocess.Popen(
           cmd,
           stdout=subprocess.PIPE,
@@ -524,7 +523,7 @@ class DiffTestsRunner:
       trace_processor_path: str,
       trace_descriptor: str,
       no_colors: bool,
-      override_sql_module_paths: List[str],
+      override_sql_package_paths: List[str],
       test_dir: str,
       quiet: bool,
   ):
@@ -546,7 +545,7 @@ class DiffTestsRunner:
               self.trace_processor_path,
               self.trace_descriptor_path,
               color_formatter,
-              override_sql_module_paths,
+              override_sql_package_paths,
           ))
 
   def run_all_tests(

@@ -212,7 +212,7 @@ bool LazyKernelSymbolizer::CanReadKernelSymbolAddresses(
     } else if (c == '\n') {
       reading_addr = true;
     }  // if (!reading_addr)
-  }    // for char in buf
+  }  // for char in buf
 
   return false;
 }

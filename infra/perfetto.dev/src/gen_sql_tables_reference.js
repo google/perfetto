@@ -14,25 +14,25 @@
 
 // Generation of SQL table references from C++ headers.
 
-'use strict';
+"use strict";
 
-const fs = require('fs');
-const argv = require('yargs').argv
+const fs = require("fs");
+const argv = require("yargs").argv;
 
 // Removes \n due to 80col wrapping and preserves only end-of-sentence line
 // breaks.
 // TODO dedupe, this is copied from the other gen_proto file.
 function singleLineComment(comment) {
-  comment = comment || '';
+  comment = comment || "";
   comment = comment.trim();
-  comment = comment.replaceAll('|', '\\|');
-  comment = comment.replace(/\.\n/g, '<br>');
-  comment = comment.replace(/\n/g, ' ');
+  comment = comment.replaceAll("|", "\\|");
+  comment = comment.replace(/\.\n/g, "<br>");
+  comment = comment.replace(/\n/g, " ");
   return comment;
 }
 
 function parseTablesInJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'UTF8'));
+  return JSON.parse(fs.readFileSync(filePath, "UTF8"));
 }
 
 function genLink(table) {
@@ -44,48 +44,50 @@ function tableToMarkdown(table) {
   if (table.parent) {
     md += `_Extends ${genLink(table.parent)}_\n\n`;
   }
-  md += table.comment + '\n\n';
-  md += 'Column | Type | Description\n';
-  md += '------ | ---- | -----------\n';
+  md += table.comment + "\n\n";
+  md += "Column | Type | Description\n";
+  md += "------ | ---- | -----------\n";
 
   let curTable = table;
   while (curTable) {
     if (curTable != table) {
-      md += `||_Columns inherited from_ ${genLink(curTable)}\n`
+      md += `||_Columns inherited from_ ${genLink(curTable)}\n`;
     }
     for (const col of Object.values(curTable.cols)) {
-      const type = col.type + (col.optional ? '<br>`optional`' : '');
+      const type = col.type + (col.optional ? "<br>`optional`" : "");
       let description = col.comment;
       if (col.joinTable) {
-        description += `\nJoinable with ` +
-            `[${col.joinTable}.${col.joinCol}](#${col.joinTable})`;
+        description +=
+          `\nJoinable with ` +
+          `[${col.joinTable}.${col.joinCol}](#${col.joinTable})`;
       }
-      md += `${col.name} | ${type} | ${singleLineComment(description)}\n`
+      md += `${col.name} | ${type} | ${singleLineComment(description)}\n`;
     }
     curTable = curTable.parent;
   }
-  md += '\n\n';
+  md += "\n\n";
   return md;
 }
 
 function main() {
-  const outFile = argv['o'];
-  const jsonFile = argv['j'];
+  const outFile = argv["o"];
+  const jsonFile = argv["j"];
   if (!jsonFile) {
-    console.error('Usage: -j tbls.json -[-o out.md]');
+    console.error("Usage: -j tbls.json -[-o out.md]");
     process.exit(1);
   }
 
   // Can be either a string (-j single) or an array (-j one -j two).
-  const jsonFiles = (jsonFile instanceof Array) ? jsonFile : [jsonFile];
-  const jsonTables =
-      Array.prototype.concat(...jsonFiles.map(parseTablesInJson));
+  const jsonFiles = jsonFile instanceof Array ? jsonFile : [jsonFile];
+  const jsonTables = Array.prototype.concat(
+    ...jsonFiles.map(parseTablesInJson),
+  );
 
   // Resolve parents.
-  const tablesIndex = {};    // 'TP_SCHED_SLICE_TABLE_DEF' -> table
-  const tablesByGroup = {};  // 'profilers' => [table1, table2]
-  const tablesCppName = {};  // 'StackProfileMappingTable' => table
-  const tablesByName = {};   // 'profile_mapping' => table
+  const tablesIndex = {}; // 'TP_SCHED_SLICE_TABLE_DEF' -> table
+  const tablesByGroup = {}; // 'profilers' => [table1, table2]
+  const tablesCppName = {}; // 'StackProfileMappingTable' => table
+  const tablesByName = {}; // 'profile_mapping' => table
   for (const table of jsonTables) {
     tablesIndex[table.defMacro] = table;
     if (tablesByGroup[table.tablegroup] === undefined) {
@@ -96,7 +98,7 @@ function main() {
     tablesByGroup[table.tablegroup].push(table);
   }
   const tableGroups = Object.keys(tablesByGroup).sort((a, b) => {
-    const keys = {'Tracks': '1', 'Events': '2', 'Misc': 'z'};
+    const keys = { Tracks: "1", Events: "2", Misc: "z" };
     a = `${keys[a]}_${a}`;
     b = `${keys[b]}_${b}`;
     return a.localeCompare(b);
@@ -110,19 +112,19 @@ function main() {
 
   // Builds a graph of the tables' relationship that can be rendererd with
   // mermaid.js.
-  let graph = '## Tables diagram\n';
+  let graph = "## Tables diagram\n";
   const mkLabel = (table) => `${table.defMacro}["${table.name}"]`;
   for (const tableGroup of tableGroups) {
-    let graphEdges = '';
-    let graphLinks = '';
+    let graphEdges = "";
+    let graphLinks = "";
     graph += `#### ${tableGroup} tables\n`;
-    graph += '```mermaid\ngraph TD\n';
+    graph += "```mermaid\ngraph TD\n";
     graph += `  subgraph ${tableGroup}\n`;
     for (const table of tablesByGroup[tableGroup]) {
       graph += `  ${mkLabel(table)}\n`;
-      graphLinks += `  click ${table.defMacro} "#${table.name}"\n`
+      graphLinks += `  click ${table.defMacro} "#${table.name}"\n`;
       if (table.parent) {
-        graphEdges += ` ${mkLabel(table)} --> ${mkLabel(table.parent)}\n`
+        graphEdges += ` ${mkLabel(table)} --> ${mkLabel(table.parent)}\n`;
       }
 
       for (const col of Object.values(table.cols)) {
@@ -135,23 +137,21 @@ function main() {
             throw new Error(`Cannot find @joinable table ${col.joinTable}`);
           }
         }
-        if (!refTable)
-          continue;
-        graphEdges +=
-            `  ${mkLabel(table)} -. ${col.name} .-> ${mkLabel(refTable)}\n`
-        graphLinks += `  click ${refTable.defMacro} "#${refTable.name}"\n`
+        if (!refTable) continue;
+        graphEdges += `  ${mkLabel(table)} -. ${col.name} .-> ${mkLabel(refTable)}\n`;
+        graphLinks += `  click ${refTable.defMacro} "#${refTable.name}"\n`;
       }
     }
     graph += `  end\n`;
     graph += graphEdges;
     graph += graphLinks;
-    graph += '\n```\n';
+    graph += "\n```\n";
   }
 
-  let title = '# PerfettoSQL Prelude\n'
+  let title = "# PerfettoSQL Prelude\n";
   let md = title + graph;
   for (const tableGroup of tableGroups) {
-    md += `## ${tableGroup}\n`
+    md += `## ${tableGroup}\n`;
     for (const table of tablesByGroup[tableGroup]) {
       md += tableToMarkdown(table);
     }

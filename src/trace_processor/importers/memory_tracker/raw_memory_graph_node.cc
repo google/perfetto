@@ -19,13 +19,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-const char RawMemoryGraphNode::kNameSize[] = "size";
-const char RawMemoryGraphNode::kNameObjectCount[] = "object_count";
-const char RawMemoryGraphNode::kTypeScalar[] = "scalar";
-const char RawMemoryGraphNode::kTypeString[] = "string";
-const char RawMemoryGraphNode::kUnitsBytes[] = "bytes";
-const char RawMemoryGraphNode::kUnitsObjects[] = "objects";
-
 RawMemoryGraphNode::MemoryNodeEntry::MemoryNodeEntry(const std::string& n,
                                                      const std::string& u,
                                                      uint64_t v)

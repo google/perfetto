@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
@@ -91,6 +92,26 @@ struct UpperBound {};
 using EqualRangeLowerBoundUpperBound =
     TypeSet<EqualRange, LowerBound, UpperBound>;
 
+// Type tag indicating nulls should be placed at the start during
+// partitioning/sorting.
+struct NullsAtStart {};
+
+// Type tag indicating nulls should be placed at the end during
+// partitioning/sorting.
+struct NullsAtEnd {};
+
+// TypeSet defining the possible placement locations for nulls.
+using NullsLocation = TypeSet<NullsAtStart, NullsAtEnd>;
+
+// Type tag for finding the minimum value.
+struct MinOp {};
+
+// Type tag for finding the maximum value.
+struct MaxOp {};
+
+// TypeSet combining Min and Max operations.
+using MinMaxOp = TypeSet<MinOp, MaxOp>;
+
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.
 class Storage {
@@ -98,6 +119,8 @@ class Storage {
   // Storage representation for Id columns.
   struct Id {
     uint32_t size;  // Number of rows in the column
+
+    static const void* data() { return nullptr; }
   };
   using Uint32 = FlexVector<uint32_t>;
   using Int32 = FlexVector<int32_t>;
@@ -141,6 +164,32 @@ class Storage {
     return unchecked_get<T>().data();
   }
 
+  // Returns a raw byte pointer to the underlying data.
+  // Returns nullptr if the storage type is Id (which has no buffer).
+  const uint8_t* byte_data() const {
+    switch (type_.index()) {
+      case StorageType::GetTypeIndex<dataframe::Id>():
+        return nullptr;
+      case StorageType::GetTypeIndex<dataframe::Uint32>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::Uint32>(data_).data());
+      case StorageType::GetTypeIndex<dataframe::Int32>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::Int32>(data_).data());
+      case StorageType::GetTypeIndex<dataframe::Int64>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::Int64>(data_).data());
+      case StorageType::GetTypeIndex<dataframe::Double>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::Double>(data_).data());
+      case StorageType::GetTypeIndex<dataframe::String>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::String>(data_).data());
+      default:
+        PERFETTO_FATAL("Should not reach here");
+    }
+  }
+
   StorageType type() const { return type_; }
 
  private:
@@ -150,8 +199,8 @@ class Storage {
   Variant data_;
 };
 
-// Provides overlay data for columns with special properties (e.g. nullability).
-class Overlay {
+// Stores any information about nulls in the column.
+class NullStorage {
  private:
   template <typename T>
   static constexpr uint32_t TypeIndex() {
@@ -159,23 +208,27 @@ class Overlay {
   }
 
  public:
-  // No overlay data (for columns with default properties).
-  struct NoOverlay {};
+  // Used for non-null columns which don't need any storage for nulls.
+  struct NonNull {};
 
-  // Sparse null overlay data (for columns with sparse NULL values).
+  // Used for nullable columns where nulls do *not* reserve a slot in `Storage`.
   struct SparseNull {
+    // 1 = non-null element in storage.
+    // 0 = null with no corresponding entry in storage.
     BitVector bit_vector;
   };
 
-  // Dense null overlay data (for columns with dense NULL values).
+  // Used for nullable columns where nulls reserve a slot in `Storage`.
   struct DenseNull {
+    // 1 = non-null element in storage.
+    // 0 = null with entry in storage with unspecified value
     BitVector bit_vector;
   };
 
-  Overlay(NoOverlay n) : nullability_(dataframe::NonNull{}), data_(n) {}
-  Overlay(SparseNull s)
+  NullStorage(NonNull n) : nullability_(dataframe::NonNull{}), data_(n) {}
+  NullStorage(SparseNull s)
       : nullability_(dataframe::SparseNull{}), data_(std::move(s)) {}
-  Overlay(DenseNull d)
+  NullStorage(DenseNull d)
       : nullability_(dataframe::DenseNull{}), data_(std::move(d)) {}
 
   // Type-safe unchecked access to variant data.
@@ -214,17 +267,15 @@ class Overlay {
 
  private:
   // Variant containing all possible overlay types.
-  using Variant = std::variant<NoOverlay, SparseNull, DenseNull>;
+  using Variant = std::variant<NonNull, SparseNull, DenseNull>;
   Nullability nullability_;
   Variant data_;
 };
 
-// Combines column specification with storage implementation.
 // Represents a complete column in the dataframe.
 struct Column {
-  std::string name;
   Storage storage;
-  Overlay overlay;
+  NullStorage null_storage;
   SortState sort_state;
 };
 

@@ -12,32 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-settings-page {
-  overflow: auto;
+@import "theme";
 
-  &__header {
-    position: sticky;
-    top: 0;
-    padding-bottom: 6px;
-    padding-top: 10px;
-    z-index: 1;
-    background-color: white;
+.pf-cursor-tooltip {
+  position: absolute;
+  background: white;
 
-    &--stuck {
-      box-shadow: 0px 1px 2px 1px #00000026;
-    }
-  }
-
-  &__centred {
-    width: 700px;
-    margin-inline: auto;
-  }
-
-  &__title {
-    font-size: 18px;
-    font-weight: 500;
-    padding-bottom: 12px;
-    padding-top: 24px;
-    text-transform: uppercase;
-  }
+  font-family: $pf-font;
+  z-index: 10;
+  padding: 2px 6px;
+  border-radius: $pf-border-radius;
+  border: solid 1px $pf-minimal-border;
+  box-shadow: 2px 2px 16px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
 }

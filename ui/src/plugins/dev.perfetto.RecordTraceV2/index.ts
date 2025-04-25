@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {bindMithrilAttrs} from '../../base/mithril_utils';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AdbWebsocketTargetProvider} from './adb/websocket/adb_websocket_target_provider';
@@ -34,7 +33,7 @@ import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
 import {savedConfigsPage} from './pages/saved_configs';
 import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_provider';
-
+import m from 'mithril';
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
   private static recordingMgr?: RecordingManager;
@@ -49,10 +48,13 @@ export default class implements PerfettoPlugin {
     });
     app.pages.registerPage({
       route: '/record',
-      traceless: true,
-      page: bindMithrilAttrs(RecordPageV2, {
-        getRecordingManager: this.getRecordingManager.bind(this, app),
-      }),
+      render: (subpage) => {
+        return m(RecordPageV2, {
+          subpage,
+          app,
+          getRecordingManager: () => this.getRecordingManager(app),
+        });
+      },
     });
   }
 

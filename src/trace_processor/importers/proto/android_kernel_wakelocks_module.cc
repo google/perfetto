@@ -22,6 +22,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
+#include "src/kernel_utils/kernel_wakelock_errors.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -100,6 +101,16 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
     last_value->value += delta;
     last_value->type = data->type;
     UpdateCounter(ts, name, data->type, last_value->value);
+  }
+
+  uint64_t traced_errors = evt.error_flags();
+  if (traced_errors & kKernelWakelockErrorZeroValue) {
+    context_->storage->IncrementStats(
+        stats::kernel_wakelock_zero_value_reported);
+  }
+  if (traced_errors & kKernelWakelockErrorNonMonotonicValue) {
+    context_->storage->IncrementStats(
+        stats::kernel_wakelock_non_monotonic_value_reported);
   }
 
   // Anything we knew about but didn't see in this packet must not have

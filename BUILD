@@ -325,6 +325,7 @@ perfetto_cc_binary(
 perfetto_cc_library(
     name = "trace_processor_rpc",
     srcs = [
+        ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
@@ -685,6 +686,7 @@ perfetto_cc_library(
             ":src_android_internal_headers",
             ":src_android_internal_lazy_library_loader",
             ":src_kallsyms_kallsyms",
+            ":src_kernel_utils_kernel_wakelock_errors",
             ":src_kernel_utils_syscall_table",
             ":src_protozero_proto_ring_buffer",
             ":src_traced_probes_android_game_intervention_list_android_game_intervention_list",
@@ -1285,6 +1287,8 @@ perfetto_cc_library(
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
         "src/base/getopt_compat.cc",
+        "src/base/intrusive_tree.cc",
+        "src/base/intrusive_tree.h",
         "src/base/log_ring_buffer.h",
         "src/base/logging.cc",
         "src/base/metatrace.cc",
@@ -1425,6 +1429,14 @@ perfetto_filegroup(
         "src/kallsyms/kernel_symbol_map.h",
         "src/kallsyms/lazy_kernel_symbolizer.cc",
         "src/kallsyms/lazy_kernel_symbolizer.h",
+    ],
+)
+
+# GN target: //src/kernel_utils:kernel_wakelock_errors
+perfetto_filegroup(
+    name = "src_kernel_utils_kernel_wakelock_errors",
+    srcs = [
+        "src/kernel_utils/kernel_wakelock_errors.h",
     ],
 )
 
@@ -1670,6 +1682,7 @@ perfetto_filegroup(
         "src/trace_processor/dataframe/impl/query_plan.cc",
         "src/trace_processor/dataframe/impl/query_plan.h",
         "src/trace_processor/dataframe/impl/slab.h",
+        "src/trace_processor/dataframe/impl/static_vector.h",
         "src/trace_processor/dataframe/impl/types.h",
     ],
 )
@@ -2699,6 +2712,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/chrome/chrome_performance_mark_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_reliable_range.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_v3.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_slice_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_stack_samples_for_task.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_study_hashes.sql",
@@ -2815,6 +2829,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/engine/created_function.h",
         "src/trace_processor/perfetto_sql/engine/dataframe_module.cc",
         "src/trace_processor/perfetto_sql/engine/dataframe_module.h",
+        "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
@@ -3460,6 +3475,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/w_dsu_dependence.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/device_infos.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/system_state.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/utils.sql",
     ],
 )
 
@@ -4472,6 +4488,7 @@ perfetto_android_binary(
 perfetto_android_library(
     name = "src_android_sdk_java_main_perfetto_trace_lib",
     srcs = [
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
@@ -4528,108 +4545,21 @@ perfetto_android_jni_library(
         ":src_android_sdk_nativehelper_nativehelper",
         ":src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
         ":src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
-        ":src_android_stats_android_stats",
-        ":src_android_stats_perfetto_atoms",
-        ":src_protozero_filtering_bytecode_common",
-        ":src_protozero_filtering_bytecode_parser",
-        ":src_protozero_filtering_message_filter",
-        ":src_protozero_filtering_string_filter",
-        ":src_shared_lib_intern_map",
-        ":src_shared_lib_shared_lib",
-        ":src_tracing_client_api_without_backends",
-        ":src_tracing_common",
-        ":src_tracing_core_core",
-        ":src_tracing_in_process_backend",
-        ":src_tracing_ipc_common",
-        ":src_tracing_ipc_consumer_consumer",
-        ":src_tracing_ipc_default_socket",
-        ":src_tracing_ipc_producer_producer",
-        ":src_tracing_ipc_service_service",
-        ":src_tracing_service_service",
-        ":src_tracing_system_backend",
     ],
     binary_name = "libperfetto_jni_lib.so",
     linkopts = [
         "-llog",
     ],
     hdrs = [
-        ":include_perfetto_base_base",
-        ":include_perfetto_ext_base_base",
-        ":include_perfetto_ext_ipc_ipc",
-        ":include_perfetto_ext_tracing_core_core",
-        ":include_perfetto_ext_tracing_ipc_ipc",
-        ":include_perfetto_protozero_protozero",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_abi_public",
         ":include_perfetto_public_base",
         ":include_perfetto_public_protos_protos",
         ":include_perfetto_public_protozero",
         ":include_perfetto_public_public",
-        ":include_perfetto_tracing_core_core",
-        ":include_perfetto_tracing_core_forward_decls",
-        ":include_perfetto_tracing_tracing",
-    ],
-    defines = [
-        "PERFETTO_SHLIB_SDK_IMPLEMENTATION",
     ],
     deps = [
         ":libperfetto_c",
-        ":perfetto_ipc",
-        ":protos_perfetto_common_cpp",
-        ":protos_perfetto_common_zero",
-        ":protos_perfetto_config_android_cpp",
-        ":protos_perfetto_config_android_zero",
-        ":protos_perfetto_config_cpp",
-        ":protos_perfetto_config_ftrace_cpp",
-        ":protos_perfetto_config_ftrace_zero",
-        ":protos_perfetto_config_gpu_cpp",
-        ":protos_perfetto_config_gpu_zero",
-        ":protos_perfetto_config_inode_file_cpp",
-        ":protos_perfetto_config_inode_file_zero",
-        ":protos_perfetto_config_interceptors_cpp",
-        ":protos_perfetto_config_interceptors_zero",
-        ":protos_perfetto_config_power_cpp",
-        ":protos_perfetto_config_power_zero",
-        ":protos_perfetto_config_process_stats_cpp",
-        ":protos_perfetto_config_process_stats_zero",
-        ":protos_perfetto_config_profiling_cpp",
-        ":protos_perfetto_config_profiling_zero",
-        ":protos_perfetto_config_statsd_cpp",
-        ":protos_perfetto_config_statsd_zero",
-        ":protos_perfetto_config_sys_stats_cpp",
-        ":protos_perfetto_config_sys_stats_zero",
-        ":protos_perfetto_config_system_info_cpp",
-        ":protos_perfetto_config_system_info_zero",
-        ":protos_perfetto_config_track_event_cpp",
-        ":protos_perfetto_config_track_event_zero",
-        ":protos_perfetto_config_zero",
-        ":protos_perfetto_ipc_cpp",
-        ":protos_perfetto_ipc_ipc",
-        ":protos_perfetto_trace_android_winscope_common_zero",
-        ":protos_perfetto_trace_android_winscope_regular_zero",
-        ":protos_perfetto_trace_android_zero",
-        ":protos_perfetto_trace_chrome_zero",
-        ":protos_perfetto_trace_etw_zero",
-        ":protos_perfetto_trace_filesystem_zero",
-        ":protos_perfetto_trace_ftrace_zero",
-        ":protos_perfetto_trace_gpu_zero",
-        ":protos_perfetto_trace_interned_data_zero",
-        ":protos_perfetto_trace_minimal_zero",
-        ":protos_perfetto_trace_non_minimal_zero",
-        ":protos_perfetto_trace_perfetto_zero",
-        ":protos_perfetto_trace_power_zero",
-        ":protos_perfetto_trace_profiling_zero",
-        ":protos_perfetto_trace_ps_zero",
-        ":protos_perfetto_trace_statsd_zero",
-        ":protos_perfetto_trace_sys_stats_zero",
-        ":protos_perfetto_trace_system_info_zero",
-        ":protos_perfetto_trace_track_event_cpp",
-        ":protos_perfetto_trace_track_event_zero",
-        ":protos_perfetto_trace_translation_zero",
-        ":protozero",
-        ":src_base_base",
-        ":src_base_clock_snapshots",
-        ":src_base_version",
     ],
     tags = [
         "notap",
@@ -4640,6 +4570,8 @@ perfetto_android_jni_library(
 perfetto_filegroup(
     name = "src_android_sdk_jni_libperfetto_jni_src",
     srcs = [
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.cc",
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.h",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrace.cc",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.cc",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.h",
@@ -5187,6 +5119,7 @@ perfetto_proto_library(
         "protos/perfetto/common/perf_events.proto",
         "protos/perfetto/common/protolog_common.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
+        "protos/perfetto/common/system_info.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -5586,7 +5519,6 @@ perfetto_cc_protozero_library(
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_system_info_cpp",
     deps = [
-        ":protos_perfetto_common_cpp",
         ":protos_perfetto_config_system_info_protos",
     ],
 )
@@ -5595,13 +5527,10 @@ perfetto_cc_protocpp_library(
 perfetto_proto_library(
     name = "protos_perfetto_config_system_info_protos",
     srcs = [
-        "protos/perfetto/config/system_info/system_info.proto",
+        "protos/perfetto/config/system_info/system_info_config.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
-    ],
-    deps = [
-        ":protos_perfetto_common_protos",
     ],
 )
 
@@ -5609,7 +5538,6 @@ perfetto_proto_library(
 perfetto_cc_protozero_library(
     name = "protos_perfetto_config_system_info_zero",
     deps = [
-        ":protos_perfetto_common_zero",
         ":protos_perfetto_config_system_info_protos",
     ],
 )
@@ -6422,7 +6350,6 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_minimal_protos",
     srcs = [
         "protos/perfetto/trace/clock_snapshot.proto",
-        "protos/perfetto/trace/system_info.proto",
         "protos/perfetto/trace/trace_uuid.proto",
         "protos/perfetto/trace/trigger.proto",
     ],
@@ -7253,6 +7180,7 @@ perfetto_cc_binary(
 perfetto_cc_library(
     name = "trace_processor",
     srcs = [
+        ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_dataframe_dataframe",
@@ -7475,6 +7403,7 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
+        ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_profiling_deobfuscator",
         ":src_profiling_symbolizer_symbolize_database",
@@ -7690,6 +7619,7 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
+        ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_profiling_deobfuscator",
         ":src_profiling_symbolizer_symbolize_database",

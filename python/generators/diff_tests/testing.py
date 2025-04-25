@@ -287,6 +287,7 @@ def removeprefix(s: str, prefix: str):
     return s[len(prefix):]
   return s
 
+
 # Virtual class responsible for fetching diff tests.
 # All functions with name starting with `test_` have to return
 # DiffTestBlueprint and function name is a test name. All DiffTestModules have

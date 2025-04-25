@@ -18,7 +18,13 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+// DEPRECATED. Only kept for backwards compatibility. Use |ChromeFrameReporter2|
+// in
+// https://source.chromium.org/chromium/chromium/src/+/main:base/tracing/protos/chrome_track_event.proto
+// instead.
 message ChromeFrameReporter {
+  option deprecated = true;
+
   enum State {
     // The frame did not have any updates to present.
     STATE_NO_UPDATE_DESIRED = 0;

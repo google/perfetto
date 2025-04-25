@@ -607,15 +607,16 @@ class PerfettoTable(TestSuite):
         "displays.dpi_x","displays[0].dpi_x","[NULL]","[NULL]",0.000000
         """))
 
-  def test_winscope_proto_to_args_with_defaults_with_multiple_packets_per_proto(self):
-      return DiffTestBlueprint(
-          trace=Path('../parser/android/shell_transitions.textproto'),
-          query="""
+  def test_winscope_proto_to_args_with_defaults_with_multiple_packets_per_proto(
+      self):
+    return DiffTestBlueprint(
+        trace=Path('../parser/android/shell_transitions.textproto'),
+        query="""
           SELECT key, int_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('__intrinsic_window_manager_shell_transition_protos') as tbl
           ORDER BY tbl.base64_proto_id, key
           LIMIT 53
           """,
-          out=Csv("""
+        out=Csv("""
           "key","int_value","real_value"
           "create_time_ns",76799049027,"[NULL]"
           "finish_time_ns",0,"[NULL]"

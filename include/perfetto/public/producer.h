@@ -39,8 +39,7 @@ struct PerfettoProducerInitArgs {
 };
 
 // Initializes a PerfettoProducerInitArgs struct.
-#define PERFETTO_PRODUCER_INIT_ARGS_INIT() \
-  { 0, 0 }
+#define PERFETTO_PRODUCER_INIT_ARGS_INIT() {0, 0}
 
 // Initializes the global perfetto producer.
 //

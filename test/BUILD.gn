@@ -169,9 +169,9 @@ if (enable_perfetto_integration_tests) {
     testonly = true
     deps = [
       ":integrationtest_initializer",
-      "../src/base",
       "../gn:default_deps",
       "../gn:gtest_and_gmock",
+      "../src/base",
     ]
     sources = [ "integrationtest_main.cc" ]
   }

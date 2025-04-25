@@ -52,7 +52,7 @@ import "protos/perfetto/config/profiling/perf_event_config.proto";
 import "protos/perfetto/config/sys_stats/sys_stats_config.proto";
 import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
-import "protos/perfetto/config/system_info/system_info.proto";
+import "protos/perfetto/config/system_info/system_info_config.proto";
 import "protos/perfetto/config/chrome/histogram_samples.proto";
 
 // The configuration that is passed to each data source when starting tracing.
@@ -212,7 +212,8 @@ message DataSourceConfig {
   optional WindowManagerConfig windowmanager_config = 130 [lazy = true];
 
   // Data source name: org.chromium.system_metrics
-  optional ChromiumSystemMetricsConfig chromium_system_metrics = 131 [lazy = true];
+  optional ChromiumSystemMetricsConfig chromium_system_metrics = 131
+      [lazy = true];
 
   // Data source name: android.kernel_wakelocks
   optional KernelWakelocksConfig kernel_wakelocks_config = 132 [lazy = true];

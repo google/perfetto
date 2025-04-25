@@ -18,13 +18,12 @@ import {assertUnreachable} from '../../base/logging';
 import {exists} from '../../base/utils';
 import {AppImpl} from '../../core/app_impl';
 import {PluginWrapper} from '../../core/plugin_manager';
-import {PageAttrs} from '../../public/page';
 import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
 import {Card, CardList} from '../../widgets/card';
 import {Chip} from '../../widgets/chip';
 import {Intent} from '../../widgets/common';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
-import {SettingsPage} from '../../widgets/settings_page';
+import {SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
 
 enum SortOrder {
@@ -75,7 +74,7 @@ function sortText(sortOrder: SortOrder) {
   }
 }
 
-export class PluginsPage implements m.ClassComponent<PageAttrs> {
+export class PluginsPage implements m.ClassComponent {
   view() {
     const pluginManager = AppImpl.instance.plugins;
     const registeredPlugins = pluginManager.getAllPlugins();
@@ -87,7 +86,7 @@ export class PluginsPage implements m.ClassComponent<PageAttrs> {
     });
     const sorted = sortPlugins(registeredPlugins);
     return m(
-      SettingsPage,
+      SettingsShell,
       {
         title: 'Plugins',
         stickyHeaderContent: m(
@@ -153,8 +152,8 @@ export class PluginsPage implements m.ClassComponent<PageAttrs> {
       m(
         '.pf-plugins-page__details',
         m('h1', plugin.desc.id),
-        // TODO(stevegolton): If we ever get descriptions on plugins...
-        // m('.pf-plugins-page__description', 'Description...'),
+        plugin.desc.description &&
+          m('.pf-plugins-page__description', plugin.desc.description),
       ),
       m(
         '.pf-plugins-page__controls',

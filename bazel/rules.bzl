@@ -419,10 +419,17 @@ def perfetto_cc_tp_tables(name, srcs, outs, deps = [], **kwargs):
 
     cmd = ["$(location " + name + "_tool)"]
     cmd += ["--gen-dir", "$(RULEDIR)"]
-    cmd += ["--inputs", "$(SRCS)"]
+    # Do not use $(SRCS) expansion for --inputs.
+    # Arguments given to --inputs are converted into python modules, using
+    # brittle string manipulation. Instead, do the string manipulation here.
+    # If $(SRCS) expansion is used, filepaths can contain a path prefix, making
+    # it difficult to get the correct python module name.
+    # The py_library above, ${name}_lib, bundles python modules to be
+    # available on the python path for the py_binary, ${name}_tool.
+    module_names = [src.replace("/", ".").removesuffix(".py") for src in srcs]
+    cmd += ["--inputs", " ".join(module_names)]
     if PERFETTO_CONFIG.root != "//":
         cmd += ["--import-prefix", PERFETTO_CONFIG.root[2:]]
-        cmd += ["--relative-input-dir", PERFETTO_CONFIG.root[2:]]
 
     perfetto_genrule(
         name = name + "_gen",

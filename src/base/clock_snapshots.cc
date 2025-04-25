@@ -76,4 +76,4 @@ ClockSnapshotVector CaptureClockSnapshots() {
   return snapshot_data;
 }
 
-}  // namespace perfetto
+}  // namespace perfetto::base

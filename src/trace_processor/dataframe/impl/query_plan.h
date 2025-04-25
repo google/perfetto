@@ -39,19 +39,29 @@
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
+#include "src/trace_processor/dataframe/impl/static_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
 
-static constexpr uint32_t kMaxFilters = 16;
+static constexpr uint32_t kMaxColumns = 64;
 
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
 struct QueryPlan {
   // Contains various parameters required for execution of this query plan.
   struct ExecutionParams {
+    // The maximum number of rows it's possible for this query plan to return.
+    uint32_t max_row_count = 0;
+
+    // The number of rows this query plan estimates it will return.
+    uint32_t estimated_row_count = 0;
+
+    // An estimate for the cost of executing the query plan.
+    double estimated_cost = 0;
+
     // Number of filter values used by this query.
     uint32_t filter_value_count = 0;
 
@@ -59,7 +69,7 @@ struct QueryPlan {
     bytecode::reg::ReadHandle<Span<uint32_t>> output_register;
 
     // Maps column indices to output offsets.
-    std::array<uint32_t, kMaxFilters> col_to_output_offset;
+    std::array<uint32_t, kMaxColumns> col_to_output_offset;
 
     // Number of output indices per row.
     uint32_t output_per_row = 0;
@@ -131,13 +141,24 @@ struct QueryPlan {
 // needed to execute a query.
 class QueryPlanBuilder {
  public:
-  static base::StatusOr<QueryPlan> Build(uint32_t row_count,
-                                         const std::vector<Column>& columns,
-                                         std::vector<FilterSpec>& specs,
-                                         uint64_t cols_used) {
+  static base::StatusOr<QueryPlan> Build(
+      uint32_t row_count,
+      const FixedVector<Column, kMaxColumns>& columns,
+      std::vector<FilterSpec>& specs,
+      const std::vector<DistinctSpec>& distinct,
+      const std::vector<SortSpec>& sort_specs,
+      const LimitSpec& limit_spec,
+      uint64_t cols_used) {
     QueryPlanBuilder builder(row_count, columns);
     RETURN_IF_ERROR(builder.Filter(specs));
-    builder.Output(cols_used);
+    builder.Distinct(distinct);
+    if (builder.CanUseMinMaxOptimization(sort_specs, limit_spec)) {
+      builder.MinMax(sort_specs[0]);
+      builder.Output({}, cols_used);
+    } else {
+      builder.Sort(sort_specs);
+      builder.Output(limit_spec, cols_used);
+    }
     return std::move(builder).Build();
   }
 
@@ -146,22 +167,67 @@ class QueryPlanBuilder {
   using IndicesReg = std::variant<bytecode::reg::RwHandle<Range>,
                                   bytecode::reg::RwHandle<Span<uint32_t>>>;
 
+  // Indicates that the bytecode does not change the estimated or maximum number
+  // of rows.
+  struct UnchangedRowCount {};
+
+  // Indicates that the bytecode reduces the estimated number of rows by 2.
+  struct Div2RowCount {};
+
+  // Indicates that the bytecode reduces the estimated number of rows by 2 *
+  // log(row_count).
+  struct DoubleLog2RowCount {};
+
+  // Indicates that the bytecode produces *exactly* one row and the estimated
+  // and maximum should be set to 1.
+  struct OneRowCount {};
+
+  // Indicates that the bytecode produces *exactly* zero rows and the estimated
+  // and maximum should be set to 0.
+  struct ZeroRowCount {};
+
+  // Indicates that the bytecode produces `limit` rows starting at `offset`.
+  struct LimitOffsetRowCount {
+    uint32_t limit;
+    uint32_t offset;
+  };
+  using RowCountModifier = std::variant<UnchangedRowCount,
+                                        Div2RowCount,
+                                        DoubleLog2RowCount,
+                                        OneRowCount,
+                                        ZeroRowCount,
+                                        LimitOffsetRowCount>;
+
   // State information for a column during query planning.
   struct ColumnState {
     std::optional<bytecode::reg::RwHandle<Slab<uint32_t>>> prefix_popcount;
   };
 
   // Constructs a builder for the given number of rows and columns.
-  QueryPlanBuilder(uint32_t row_count, const std::vector<Column>& columns);
+  QueryPlanBuilder(uint32_t row_count,
+                   const FixedVector<Column, kMaxColumns>& columns);
 
   // Adds filter operations to the query plan based on filter specifications.
   // Optimizes the order of filters for efficiency.
   base::Status Filter(std::vector<FilterSpec>& specs);
 
+  // Adds distinct operations to the query plan based on distinct
+  // specifications. Distinct are applied after filters, in reverse order of
+  // specification.
+  void Distinct(const std::vector<DistinctSpec>& distinct_specs);
+
+  // Adds min/max operations to the query plan given a single column which
+  // should be sorted on.
+  void MinMax(const SortSpec& spec);
+
+  // Adds sort operations to the query plan based on sort specifications.
+  // Sorts are applied after filters and disinct.
+  void Sort(const std::vector<SortSpec>& sort_specs);
+
   // Configures output handling for the filtered rows.
   // |cols_used_bitmap| is a bitmap with bits set for columns that will be
   // accessed.
-  void Output(uint64_t cols_used_bitmap);
+  void Output(const LimitSpec&, uint64_t cols_used_bitmap);
 
   // Finalizes and returns the built query plan.
   QueryPlan Build() &&;
@@ -201,13 +267,25 @@ class QueryPlanBuilder {
 
   // Adds a new bytecode instruction of type T to the plan.
   template <typename T>
-  T& AddOpcode() {
-    return AddOpcode<T>(bytecode::Index<T>());
+  T& AddOpcode(RowCountModifier rc) {
+    return AddOpcode<T>(bytecode::Index<T>(), rc, T::kCost);
   }
 
   // Adds a new bytecode instruction of type T with the given option value.
   template <typename T>
-  T& AddOpcode(uint32_t option);
+  T& AddOpcode(uint32_t option, RowCountModifier rc) {
+    return static_cast<T&>(AddRawOpcode(option, rc, T::kCost));
+  }
+
+  // Adds a new bytecode instruction of type T with the given option value.
+  template <typename T>
+  T& AddOpcode(uint32_t option, RowCountModifier rc, bytecode::Cost cost) {
+    return static_cast<T&>(AddRawOpcode(option, rc, cost));
+  }
+
+  PERFETTO_NO_INLINE bytecode::Bytecode& AddRawOpcode(uint32_t option,
+                                                      RowCountModifier rc,
+                                                      bytecode::Cost cost);
 
   // Sets the result to an empty set. Use when a filter guarantees no matches.
   void SetGuaranteedToBeEmpty();
@@ -216,17 +294,16 @@ class QueryPlanBuilder {
   bytecode::reg::ReadHandle<Slab<uint32_t>> PrefixPopcountRegisterFor(
       uint32_t col);
 
-  // Maximum number of rows in the query result.
-  uint32_t max_row_count_ = 0;
+  bool CanUseMinMaxOptimization(const std::vector<SortSpec>&, const LimitSpec&);
 
   // Reference to the columns being queried.
-  const std::vector<Column>& columns_;
+  const FixedVector<Column, kMaxColumns>& columns_;
 
   // The query plan being built.
   QueryPlan plan_;
 
   // State information for each column during planning.
-  std::vector<ColumnState> column_states_;
+  FixedVector<ColumnState, kMaxColumns> column_states_;
 
   // Number of registers allocated so far.
   uint32_t register_count_ = 0;

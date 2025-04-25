@@ -26,7 +26,8 @@ enum class BufferExhaustedPolicy {
   // available and wait for the tracing service to free one. Note that this
   // requires that messages the arbiter sends to the tracing service (from any
   // TraceWriter thread) will be received by it, even if all TraceWriter threads
-  // are stalled.
+  // are stalled. If no free SMB chunk becomes available after a few seconds,
+  // the process will be aborted.
   kStall,
 
   // SharedMemoryArbiterImpl::GetNewChunk() will return an invalid chunk if no
@@ -35,8 +36,16 @@ enum class BufferExhaustedPolicy {
   // succeeds again.
   kDrop,
 
-  // TODO(eseckler): Switch to kDrop by default and change the Android code to
-  // explicitly request kStall instead.
+  // SharedMemoryArbiterImpl::GetNewChunk() will stall if no free SMB chunk is
+  // available and wait for the tracing service to free one. Note that this
+  // requires that messages the arbiter sends to the tracing service (from any
+  // TraceWriter thread) will be received by it, even if all TraceWriter threads
+  // are stalled. If no free SMB chunk becomes available after a few seconds,
+  // SharedMemoryArbiterImpl::GetNewChunk() will return an invalid chunk and
+  // data will be lost.
+  kStallThenDrop,
+
+  // Deprecated alias. Do not use.
   kDefault = kStall
 };
 

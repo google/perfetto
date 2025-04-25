@@ -799,7 +799,7 @@ export class UiMainPerTrace implements m.ClassComponent {
           omnibox: this.renderOmnibox(),
           trace: this.trace,
         }),
-        app.pages.renderPageForCurrentRoute(app.trace),
+        app.pages.renderPageForCurrentRoute(),
         m(CookieConsent),
         maybeRenderFullscreenModalDialog(),
         app.perfDebugging.renderPerfStats(),

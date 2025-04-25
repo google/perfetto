@@ -55,11 +55,10 @@ declare_args() {
   sysroot = ""
   gcc_toolchain = ""
   ar = "ar"
-  linker = ""
+  linker = ""  # If left to "" uses the default linker (Linux:bfd, Mac:ld64).
   strip = ""
 
   if (is_linux_host) {
-    linker = "gold"
     if (linux_llvm_objcopy != "") {
       # If we are using the hermetic clang toolchain llvm-objcopy from there as
       # it works with Linux-arm cross toolchains. The |_llvm_strip_wrapper| is
@@ -174,11 +173,7 @@ declare_args() {
 
 declare_args() {
   target_strip = ""
-  if (is_linux || is_android) {
-    target_linker = "gold"
-  } else {
-    target_linker = ""
-  }
+  target_linker = ""
 
   if (!is_cross_compiling || is_perfetto_build_generator ||
       is_system_compiler) {

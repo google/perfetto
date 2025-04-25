@@ -112,6 +112,7 @@ def release_or_newer(release):
        'ro.build.version.codename']).decode('utf-8').strip()
   return codename == release
 
+
 def convert_size_to_kb(size):
   if size.endswith("kb"):
     return int(size[:-2])
@@ -121,6 +122,7 @@ def convert_size_to_kb(size):
     return int(size[:-2]) * 1024 * 1024
   else:
     return int(size)
+
 
 def generate_heap_dump_config(args):
   fail = False
@@ -176,30 +178,32 @@ def generate_heap_dump_config(args):
       duration_ms=duration_ms,
       data_source_stop_timeout_ms=data_source_stop_timeout_ms)
 
+
 def generate_oom_config(args):
   if not release_or_newer('UpsideDownCake'):
-    print("FATAL: OOM mode not supported for this android version",
+    print(
+        "FATAL: OOM mode not supported for this android version",
         file=sys.stderr)
     return None
 
   if args.pid:
-    print("FATAL: Specifying pid not supported in OOM mode",
-        file=sys.stderr)
+    print("FATAL: Specifying pid not supported in OOM mode", file=sys.stderr)
     return None
 
   if not args.name:
-    print("FATAL: Must specify process in OOM mode (use --name '*' to match all)",
+    print(
+        "FATAL: Must specify process in OOM mode (use --name '*' to match all)",
         file=sys.stderr)
     return None
 
   if args.continuous_dump:
-    print("FATAL: Specifying continuous dump not supported in OOM mode",
+    print(
+        "FATAL: Specifying continuous dump not supported in OOM mode",
         file=sys.stderr)
     return None
 
   if args.dump_smaps:
-    print("FATAL: Dumping smaps not supported in OOM mode",
-        file=sys.stderr)
+    print("FATAL: Dumping smaps not supported in OOM mode", file=sys.stderr)
     return None
 
   process_cfg = ''

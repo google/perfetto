@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,12 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/ftrace_config_utils.h"
+#ifndef SRC_KERNEL_UTILS_KERNEL_WAKELOCK_ERRORS_H_
+#define SRC_KERNEL_UTILS_KERNEL_WAKELOCK_ERRORS_H_
 
-#include "test/gtest_and_gmock.h"
+#include <cinttypes>
 
-using testing::Contains;
+constexpr uint64_t kKernelWakelockErrorZeroValue = 1;
+constexpr uint64_t kKernelWakelockErrorNonMonotonicValue = 2;
 
-namespace perfetto {
-namespace {
-
-TEST(ConfigTest, CreateFtraceConfig) {
-  FtraceConfig config = CreateFtraceConfig({
-      "aaa",
-      "bbb",
-  });
-
-  EXPECT_THAT(config.ftrace_events(), Contains("aaa"));
-  EXPECT_THAT(config.ftrace_events(), Contains("bbb"));
-}
-
-}  // namespace
-}  // namespace perfetto
+#endif  // SRC_KERNEL_UTILS_KERNEL_WAKELOCK_ERRORS_H_
