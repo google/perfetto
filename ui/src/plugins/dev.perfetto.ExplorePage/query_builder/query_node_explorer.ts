@@ -212,7 +212,6 @@ export async function analyzeNode(
   if (structuredQueries === undefined) return;
 
   const res = await engine.analyzeStructuredQuery(structuredQueries);
-
   if (res.error) return Error(res.error);
   if (res.results.length === 0) return Error('No structured query results');
   if (res.results.length !== structuredQueries.length) {

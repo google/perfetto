@@ -454,7 +454,7 @@ config("release") {
       "-Wl,--gc-sections",
       "-Wl,-O1",
     ]
-  } else if (!is_win && !is_wasm) {
+  } else if (!is_wasm && (is_android || (is_linux && is_hermetic_clang))) {
     ldflags = [
       "-Wl,--gc-sections",
       "-Wl,--icf=all",
