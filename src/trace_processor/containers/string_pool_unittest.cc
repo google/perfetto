@@ -17,12 +17,17 @@
 #include "src/trace_processor/containers/string_pool.h"
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
+#include <map>
+#include <memory>
 #include <random>
 
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class StringPoolTest : public testing::Test {
  protected:
@@ -40,7 +45,7 @@ namespace {
 TEST_F(StringPoolTest, EmptyPool) {
   ASSERT_EQ(pool_.Get(StringPool::Id::Null()).c_str(), nullptr);
 
-  auto it = pool_.CreateIterator();
+  auto it = pool_.CreateSmallStringIterator();
   ASSERT_TRUE(it);
   ASSERT_EQ(it.StringView().c_str(), nullptr);
   ASSERT_FALSE(++it);
@@ -61,7 +66,7 @@ TEST_F(StringPoolTest, NullPointerHandling) {
 }
 
 TEST_F(StringPoolTest, Iterator) {
-  auto it = pool_.CreateIterator();
+  auto it = pool_.CreateSmallStringIterator();
   ASSERT_TRUE(it);
   ASSERT_EQ(it.StringView().c_str(), nullptr);
   ASSERT_FALSE(++it);
@@ -69,7 +74,7 @@ TEST_F(StringPoolTest, Iterator) {
   static char kString[] = "Test String";
   pool_.InternString(kString);
 
-  it = pool_.CreateIterator();
+  it = pool_.CreateSmallStringIterator();
   ASSERT_TRUE(++it);
   ASSERT_STREQ(it.StringView().c_str(), kString);
   ASSERT_FALSE(++it);
@@ -81,7 +86,7 @@ TEST_F(StringPoolTest, ConstIterator) {
 
   const StringPool& const_pool = pool_;
 
-  auto it = const_pool.CreateIterator();
+  auto it = const_pool.CreateSmallStringIterator();
   ASSERT_TRUE(it);
   ASSERT_TRUE(++it);
   ASSERT_STREQ(it.StringView().c_str(), kString);
@@ -114,7 +119,7 @@ TEST_F(StringPoolTest, StressTest) {
   // Finally, iterate through each string in the string pool, check that all ids
   // that match in the multimap are equal, and finish by checking we've removed
   // every item in the multimap.
-  for (auto it = pool_.CreateIterator(); it; ++it) {
+  for (auto it = pool_.CreateSmallStringIterator(); it; ++it) {
     ASSERT_EQ(it.StringView(), pool_.Get(it.StringId()));
 
     auto it_pair = string_map.equal_range(it.StringId());
@@ -128,35 +133,13 @@ TEST_F(StringPoolTest, StressTest) {
   ASSERT_EQ(string_map.size(), 0u);
 }
 
-TEST_F(StringPoolTest, BigString) {
-  // Two of these should fit into one block, but the third one should go into
-  // the |large_strings_| list.
-  constexpr size_t kBigStringSize = 15 * 1024 * 1024;
-  // Will fit into block 1 after two kBigStringSize strings.
-  constexpr size_t kSmallStringSize = 16 * 1024;
-  // Will not fit into block 1 anymore after 2*kBigStringSize and
-  // 2*kSmallStringSize, but is smaller than kMinLargeStringSizeBytes, so will
-  // start a new block.
-  constexpr size_t kMediumStringSize = 2 * 1024 * 1024;
-  // Would not fit into a block at all, so ahs to go into |large_strings_|.
+TEST_F(StringPoolTest, LargeString) {
+  // Would not fit into a block at all, so has to go into |large_strings_|.
   constexpr size_t kEnormousStringSize = 33 * 1024 * 1024;
 
-  constexpr std::array<size_t, 8> kStringSizes = {
-      kBigStringSize,       // block 1
-      kBigStringSize,       // block 1
-      kBigStringSize,       // large strings
-      kSmallStringSize,     // block 1
-      kSmallStringSize,     // block 1
-      kMediumStringSize,    // block 2
+  constexpr std::array<size_t, 1> kStringSizes = {
       kEnormousStringSize,  // large strings
-      kBigStringSize        // block 2
   };
-
-  static_assert(kBigStringSize * 2 + kSmallStringSize * 2 + kMediumStringSize >
-                    kBlockSizeBytes,
-                "medium string shouldn't fit into block 1 for this test");
-  static_assert(kMediumStringSize < kMinLargeStringSizeBytes,
-                "medium string should cause a new block for this test");
 
   std::array<std::unique_ptr<char[]>, kStringSizes.size()> big_strings;
   for (size_t i = 0; i < big_strings.size(); i++) {
@@ -176,27 +159,11 @@ TEST_F(StringPoolTest, BigString) {
                                  big_strings[i].get(), kStringSizes[i])));
   }
 
-  ASSERT_FALSE(string_ids[0].is_large_string());
-  ASSERT_FALSE(string_ids[1].is_large_string());
-  ASSERT_TRUE(string_ids[2].is_large_string());
-  ASSERT_FALSE(string_ids[3].is_large_string());
-  ASSERT_FALSE(string_ids[4].is_large_string());
-  ASSERT_FALSE(string_ids[5].is_large_string());
-  ASSERT_TRUE(string_ids[6].is_large_string());
-  ASSERT_FALSE(string_ids[7].is_large_string());
-
-  ASSERT_EQ(string_ids[0].block_index(), 0u);
-  ASSERT_EQ(string_ids[1].block_index(), 0u);
-  ASSERT_EQ(string_ids[3].block_index(), 0u);
-  ASSERT_EQ(string_ids[4].block_index(), 0u);
-  ASSERT_EQ(string_ids[5].block_index(), 1u);
-  ASSERT_EQ(string_ids[7].block_index(), 1u);
-
+  ASSERT_TRUE(string_ids[0].is_large_string());
   for (size_t i = 0; i < big_strings.size(); i++) {
     ASSERT_EQ(big_strings[i].get(), pool_.Get(string_ids[i]));
   }
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

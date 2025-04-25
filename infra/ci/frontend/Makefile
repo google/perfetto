@@ -16,13 +16,18 @@
 include $(shell python3 ../config.py makefile)
 
 SHASUM=shasum
+GOOGLE_CLOUD_PROJECT=perfetto-ci
 
 test: LOGLEVEL=info
 test: static_3p config.py common_utils.py static/config.js
-	python3 `which dev_appserver.py` app.yaml --dev_appserver_log_level ${LOGLEVEL}
+	gcloud auth application-default login \
+			--impersonate-service-account perfetto-ci@appspot.gserviceaccount.com
+	python3 `which dev_appserver.py` app.yaml \
+		--dev_appserver_log_level ${LOGLEVEL} \
+		--port 8081
 
 deploy: static_3p config.py common_utils.py static/config.js
-	gcloud app deploy -q app.yaml \
+	gcloud app deploy -q app.yaml cron.yaml \
 		--project ${PROJECT} \
 		-v ${GAE_VERSION} \
 		--stop-previous-version
@@ -36,26 +41,10 @@ common_utils.py: ../common_utils.py
 static/config.js: ../config.py
 	../config.py js > $@
 
-static/third_party/xterm-4.11.0.min.css:
-	curl -Sso $@ https://unpkg.com/xterm@4.11.0/css/xterm.css
-	echo "4cee0ccb82803888905fefc8641f0613c0a9081b  $@" | ${SHASUM} -c || rm $@
-
-static/third_party/xterm-4.11.0.min.js:
-	curl -Sso $@ https://unpkg.com/xterm@4.11.0/lib/xterm.js
-	echo "470644a5cd3e2a443a422c6ecddc85b37a85f329  $@" | ${SHASUM} -c || rm $@
-
-static/third_party/xterm-0.8.0-addon-search.min.js:
-	curl -Sso $@ https://unpkg.com/xterm-addon-search@0.8.0/lib/xterm-addon-search.js
-	echo "1eae1371cc07677c38f9d01eae4d6a3b996388f8  $@" | ${SHASUM} -c || rm $@
-
-static/third_party/xterm-0.5.0-addon-fit.min.js:
-	curl -Sso $@ https://unpkg.com/xterm-addon-fit@0.5.0/lib/xterm-addon-fit.js
-	echo "4c8942910554242336443126e349ac1e3897a64e  $@" | ${SHASUM} -c || rm $@
-
 static/third_party/mithril-1.1.6.min.js:
 	curl -Sso $@ https://cdnjs.cloudflare.com/ajax/libs/mithril/1.1.6/mithril.min.js
 	echo "a204c02ee15c347cf368c3481bdea967b443c8d0  $@" | ${SHASUM} -c || rm $@
 
-static_3p: static/third_party/mithril-1.1.6.min.js static/third_party/xterm-4.11.0.min.css static/third_party/xterm-4.11.0.min.js static/third_party/xterm-0.8.0-addon-search.min.js static/third_party/xterm-0.5.0-addon-fit.min.js
+static_3p: static/third_party/mithril-1.1.6.min.js
 
 .PHONY: test deploy static_3p

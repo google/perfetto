@@ -81,7 +81,8 @@ class GlobMatcher {
 
   // Returns whether the comparison should really be an equality comparison.
   bool IsEquality() const {
-    return !leading_star_ && !trailing_star_ && segments_.size() <= 1;
+    return !leading_star_ && !trailing_star_ &&
+           !contains_char_class_or_question_ && segments_.size() <= 1;
   }
 
  private:

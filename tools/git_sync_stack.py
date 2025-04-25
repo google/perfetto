@@ -23,24 +23,6 @@ from python.tools.git_utils import (
 #pylint: enable=wrong-import-position
 
 
-def get_repo_default_branch() -> str:
-  """Gets default branch name via 'gh'. Assumes CWD is repo."""
-  try:
-    result = run_command([
-        'gh', 'repo', 'view', '--json', 'defaultBranchRef', '--jq',
-        '.defaultBranchRef.name'
-    ])
-    default_branch = result.stdout.strip()
-    if not default_branch:
-      raise ValueError("gh returned empty default branch.")
-    return default_branch
-  except Exception as e:
-    print(
-        f"Warning: Could not get default branch via 'gh'. Assuming 'main'. Error: {e}",
-        file=sys.stderr)
-    return "main"
-
-
 def get_existing_pr_info(branch_name: str) -> Optional[Dict]:
   """Checks for existing open PR via 'gh'. Returns PR info dict or None."""
   try:
@@ -91,8 +73,8 @@ def main():
     sys.exit(1)
 
   default_remote_name = args.remote
-  repo_default_branch = get_repo_default_branch()
-  mainline_branches = {repo_default_branch, 'main', 'master', 'develop'}
+  repo_default_branch = 'origin/main'
+  mainline_branches = {'origin/main'}
 
   all_local_branches = get_all_branches()
   if start_branch not in all_local_branches:
@@ -118,7 +100,7 @@ def main():
     print(f"\n--- Processing: {branch} ---")
 
     local_parent = get_branch_parent(branch)
-    desired_base = repo_default_branch
+    desired_base = 'main'
     if local_parent and local_parent not in mainline_branches:
       upstream_base_name = get_upstream_branch_name(local_parent)
       if upstream_base_name:

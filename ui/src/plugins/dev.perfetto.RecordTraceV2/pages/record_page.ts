@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PageAttrs} from '../../../public/page';
 import {RecordingManager} from '../recording_manager';
 import {Icon} from '../../../widgets/icon';
 import {RecordSubpage, supportsPlatform} from '../config/config_interfaces';
@@ -25,10 +24,13 @@ import {BUCKET_NAME} from '../../../base/gcs_uploader';
 import {RecordingTarget} from '../interfaces/recording_target';
 import {exists} from '../../../base/utils';
 import {SHARE_SUBPAGE, shareRecordConfig} from '../config/config_sharing';
+import {App} from '../../../public/app';
 
-export type RecordPageAttrs = PageAttrs & {
-  getRecordingManager: () => RecordingManager;
-};
+export interface RecordPageAttrs {
+  readonly app: App;
+  readonly subpage?: string;
+  readonly getRecordingManager: () => RecordingManager;
+}
 
 const DEFAULT_SUBPAGE = 'target';
 const PERSIST_EVERY_MS = 1000;

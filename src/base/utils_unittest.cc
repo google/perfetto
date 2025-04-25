@@ -109,12 +109,12 @@ TEST(UtilsTest, ReadWritePlatformHandle) {
   // Write a file using PlatformHandle. Note: the {} blocks are to make sure
   // that the file is automatically closed via RAII before being reopened.
   {
-    ScopedPlatformHandle handle {
+    ScopedPlatformHandle handle{
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-      ::CreateFileA(tmp_path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
-                    FILE_ATTRIBUTE_NORMAL, nullptr)
+        ::CreateFileA(tmp_path.c_str(), GENERIC_WRITE, 0, nullptr,
+                      CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr)
 #else
-      OpenFile(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0644)
+        OpenFile(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0644)
 #endif
     };
     ASSERT_TRUE(handle);
@@ -124,12 +124,12 @@ TEST(UtilsTest, ReadWritePlatformHandle) {
 
   // Read it back.
   {
-    ScopedPlatformHandle handle {
+    ScopedPlatformHandle handle{
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-      ::CreateFileA(tmp_path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING,
-                    FILE_ATTRIBUTE_NORMAL, nullptr)
+        ::CreateFileA(tmp_path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING,
+                      FILE_ATTRIBUTE_NORMAL, nullptr)
 #else
-      OpenFile(tmp_path, O_RDONLY)
+        OpenFile(tmp_path, O_RDONLY)
 #endif
     };
     ASSERT_TRUE(handle);

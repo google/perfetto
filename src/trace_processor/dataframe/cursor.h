@@ -39,7 +39,7 @@ struct CellCallback {
   void OnCell(int64_t);
   void OnCell(double);
   void OnCell(NullTermStringView);
-  void OnCell(nullptr_t);
+  void OnCell(std::nullptr_t);
   void OnCell(uint32_t);
   void OnCell(int32_t);
 };
@@ -53,7 +53,9 @@ class Cursor {
                 "FilterValueFetcherImpl must be a subclass of ValueFetcher");
 
   // Constructs a cursor from a query plan and dataframe columns.
-  Cursor(impl::QueryPlan plan, impl::Column* columns, StringPool* pool)
+  Cursor(impl::QueryPlan plan,
+         const impl::Column* columns,
+         const StringPool* pool)
       : interpreter_(std::move(plan.bytecode), columns, pool),
         params_(plan.params),
         columns_(columns),
@@ -137,7 +139,7 @@ class Cursor {
   // Pointer to the dataframe columns.
   const impl::Column* columns_;
   // String pool for string values.
-  StringPool* pool_;
+  const StringPool* pool_;
 
   // Current position in the result set.
   const uint32_t* pos_;

@@ -567,7 +567,7 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
       base::Status status =
           context_->legacy_v8_cpu_profile_tracker->AddCallsite(
               legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), node_id,
-              parent_node_id, url, function_name);
+              parent_node_id, url, function_name, {});
       if (!status.ok()) {
         context_->storage->IncrementStats(
             stats::legacy_v8_cpu_profile_invalid_callsite);

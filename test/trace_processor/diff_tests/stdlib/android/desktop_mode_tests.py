@@ -18,11 +18,13 @@ from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
+
 class DesktopMode(TestSuite):
 
   def test_android_desktop_mode_windows_statsd_events(self):
     return DiffTestBlueprint(
-        trace=DataPath('android_desktop_mode/single_window_add_update_remove.pb'),
+        trace=DataPath(
+            'android_desktop_mode/single_window_add_update_remove.pb'),
         query="""
           INCLUDE PERFETTO MODULE android.desktop_mode;
           SELECT * FROM android_desktop_mode_windows;
@@ -34,7 +36,8 @@ class DesktopMode(TestSuite):
 
   def test_android_desktop_mode_windows_statsd_events_multiple_windows(self):
     return DiffTestBlueprint(
-        trace=DataPath('android_desktop_mode/multiple_windows_add_update_remove.pb'),
+        trace=DataPath(
+            'android_desktop_mode/multiple_windows_add_update_remove.pb'),
         query="""
           INCLUDE PERFETTO MODULE android.desktop_mode;
           SELECT * FROM android_desktop_mode_windows;
@@ -47,7 +50,8 @@ class DesktopMode(TestSuite):
 
   def test_android_desktop_mode_windows_statsd_events_add_no_remove(self):
     return DiffTestBlueprint(
-        trace=DataPath('android_desktop_mode/single_window_add_update_no_remove.pb'),
+        trace=DataPath(
+            'android_desktop_mode/single_window_add_update_no_remove.pb'),
         query="""
           INCLUDE PERFETTO MODULE android.desktop_mode;
           SELECT * FROM android_desktop_mode_windows;
@@ -57,9 +61,11 @@ class DesktopMode(TestSuite):
         1552558346094,"[NULL]",1552558346094,1620521485,27,10211
         """))
 
-  def test_android_desktop_mode_windows_statsd_events_no_add_update_remove(self):
+  def test_android_desktop_mode_windows_statsd_events_no_add_update_remove(
+      self):
     return DiffTestBlueprint(
-        trace=DataPath('android_desktop_mode/single_window_no_add_update_remove.pb'),
+        trace=DataPath(
+            'android_desktop_mode/single_window_no_add_update_remove.pb'),
         query="""
           INCLUDE PERFETTO MODULE android.desktop_mode;
           SELECT * FROM android_desktop_mode_windows;
@@ -81,7 +87,8 @@ class DesktopMode(TestSuite):
         "[NULL]","[NULL]",1852548597746,3663403770,31,10211
         """))
 
-  def test_android_desktop_mode_windows_statsd_events_multiple_windows_update_only(self):
+  def test_android_desktop_mode_windows_statsd_events_multiple_windows_update_only(
+      self):
     return DiffTestBlueprint(
         trace=DataPath('android_desktop_mode/multiple_window_only_update.pb'),
         query="""
@@ -94,7 +101,8 @@ class DesktopMode(TestSuite):
         "[NULL]","[NULL]",2137135290268,4737314089,35,10183
         """))
 
-  def test_android_desktop_mode_windows_statsd_events_multiple_windows_same_instance_new_session(self):
+  def test_android_desktop_mode_windows_statsd_events_multiple_windows_same_instance_new_session(
+      self):
     return DiffTestBlueprint(
         trace=DataPath('android_desktop_mode/session_with_same_instance_id.pb'),
         query="""
@@ -141,4 +149,3 @@ class DesktopMode(TestSuite):
         84619864755554,84638100287708,84619864755554,18235532154,1000076,1010235
         84782344478655,84804145589506,84782344478655,21801110851,1000077,1010238
         """))
-

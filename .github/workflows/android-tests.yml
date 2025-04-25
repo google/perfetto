@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 45
     env:
       PERFETTO_CI_JOB_NAME: android
-      PERFETTO_TEST_GN_ARGS: 'is_debug=false target_os=\"android\" target_cpu=\"arm\"'
+      PERFETTO_TEST_GN_ARGS: 'is_debug=false target_os=\"android\" target_cpu=\"arm\" cc_wrapper=\"ccache\"'
     steps:
       - uses: actions/checkout@v4
 

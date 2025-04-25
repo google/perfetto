@@ -342,8 +342,8 @@ __attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setDisabledCallback(
   return info;
 }
 
-__attribute__((visibility("default"))) uint32_t AHeapProfile_registerHeap(
-    AHeapInfo* info) {
+__attribute__((visibility("default"))) uint32_t
+AHeapProfile_registerHeap(AHeapInfo* info) {
   if (info == nullptr)
     return 0;
   info->ready.store(true, std::memory_order_release);
@@ -417,7 +417,7 @@ AHeapProfile_reportAllocation(uint32_t heap_id, uint64_t id, uint64_t size) {
     }
 
     client = client_ptr;  // owning copy
-  }                       // unlock
+  }  // unlock
 
   if (!client->RecordMalloc(heap_id, sampled_alloc_sz, size, id)) {
     ShutdownLazy(client);
@@ -449,7 +449,7 @@ AHeapProfile_reportSample(uint32_t heap_id, uint64_t id, uint64_t size) {
     }
 
     client = *g_client_ptr;  // owning copy
-  }                          // unlock
+  }  // unlock
 
   if (!client->RecordMalloc(heap_id, size, size, id)) {
     ShutdownLazy(client);

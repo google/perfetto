@@ -86,3 +86,9 @@
     font-size: 11px;
   }
 }
+
+.pf-track__tooltip {
+  font-size: 11px; // Slightly smaller font - to match previous tooltip size
+  opacity: 0.9;
+  font-weight: 300;
+}

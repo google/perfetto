@@ -115,7 +115,7 @@ struct ValueVerifier : CellCallback {
                                     int64_t,
                                     double,
                                     NullTermStringView,
-                                    nullptr_t>;
+                                    std::nullptr_t>;
 
   void Fetch(Cursor<TestRowFetcher>* cursor, uint32_t col_count) {
     for (uint32_t i = 0; i < col_count; ++i) {
@@ -125,7 +125,7 @@ struct ValueVerifier : CellCallback {
   void OnCell(int64_t value) { values.emplace_back(value); }
   void OnCell(double value) { values.emplace_back(value); }
   void OnCell(NullTermStringView value) { values.emplace_back(value); }
-  void OnCell(nullptr_t) { values.emplace_back(nullptr); }
+  void OnCell(std::nullptr_t) { values.emplace_back(nullptr); }
   void OnCell(int32_t value) { values.emplace_back(value); }
   void OnCell(uint32_t value) { values.emplace_back(value); }
 
@@ -155,7 +155,8 @@ class DataframeBuilderTest : public ::testing::Test {
     std::vector<FilterSpec> filter_specs;
     auto num_cols_selected =
         static_cast<uint32_t>(PERFETTO_POPCOUNT(cols_bitmap));
-    ASSERT_OK_AND_ASSIGN(auto plan, df.PlanQuery(filter_specs, cols_bitmap));
+    ASSERT_OK_AND_ASSIGN(auto plan,
+                         df.PlanQuery(filter_specs, {}, {}, {}, cols_bitmap));
 
     TestRowFetcher execute_fetcher;
     std::optional<Cursor<TestRowFetcher>> cursor;

@@ -248,7 +248,7 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
         IncrementCurrentFieldUsage(token.field_id, filter.allowed);
       }
     }  // if (token.valid)
-  }    // if (eat_next_bytes == 0)
+  }  // if (eat_next_bytes == 0)
 
   ++state->in_bytes;
   while (state->in_bytes >= state->in_bytes_limit) {

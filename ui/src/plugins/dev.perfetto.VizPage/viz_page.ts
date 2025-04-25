@@ -15,12 +15,13 @@
 import m from 'mithril';
 import {Editor} from '../../widgets/editor';
 import {VegaView} from '../../components/widgets/vega_view';
-import {PageWithTraceAttrs} from '../../public/page';
 import {Engine} from '../../trace_processor/engine';
+import {Trace} from '../../public/trace';
 
-export interface VizPageAttrs extends PageWithTraceAttrs {
-  spec: string;
-  setSpec: (spec: string) => void;
+export interface VizPageAttrs {
+  readonly trace: Trace;
+  readonly spec: string;
+  readonly setSpec: (spec: string) => void;
 }
 
 export class VizPage implements m.ClassComponent<VizPageAttrs> {

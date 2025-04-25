@@ -17,6 +17,8 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
+INCLUDE PERFETTO MODULE wattson.utils;
+
 -- Get slice info of threads/processes
 CREATE PERFETTO TABLE _thread_process_slices AS
 SELECT
@@ -30,18 +32,6 @@ JOIN sched
   USING (utid)
 WHERE
   dur > 0;
-
--- Helper macro so Perfetto tables can be used with interval intersect
-CREATE PERFETTO MACRO _ii_table(
-    tab TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
-  SELECT
-    _auto_id AS id,
-    *
-  FROM $tab
-);
 
 -- Get slices only where there is transition from deep idle to active
 CREATE PERFETTO TABLE _idle_exits AS
@@ -68,8 +58,8 @@ WITH
       id_1 AS idle_group
     FROM _interval_intersect!(
     (
-      _ii_table!(_thread_process_slices),
-      _ii_table!(_idle_exits)
+      _ii_subquery!(_thread_process_slices),
+      _ii_subquery!(_idle_exits)
     ),
     (cpu)
   ) AS ii
@@ -182,8 +172,8 @@ SELECT
   END AS estimated_mw
 FROM _interval_intersect!(
   (
-    _ii_table!(_idle_w_threads),
-    _ii_table!(_system_state_mw)
+    _ii_subquery!(_idle_w_threads),
+    _ii_subquery!(_system_state_mw)
   ),
   ()
 ) AS ii
@@ -216,7 +206,7 @@ WITH
       cost.upid,
       cost.cpu
     FROM _interval_intersect_single!(
-    $ts, $dur, _ii_table!(_idle_transition_cost)
+    $ts, $dur, _ii_subquery!(_idle_transition_cost)
   ) AS ii
     JOIN _idle_transition_cost AS cost
       ON cost._auto_id = id

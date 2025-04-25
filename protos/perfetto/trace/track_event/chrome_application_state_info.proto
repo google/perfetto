@@ -18,7 +18,6 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-
 // Trace event arguments for application state changes.
 message ChromeApplicationStateInfo {
   // Enum definition taken from:

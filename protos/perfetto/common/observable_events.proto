@@ -72,6 +72,9 @@ message ObservableEvents {
     optional uint32 producer_uid = 4;
     // The timestamp of the CLONE_SNAPSHOT trigger which was hit.
     optional uint64 boot_time_ns = 5;
+    // The configured delay of the CLONE_SNAPSHOT trigger which was hit. For
+    // informational purposes only.
+    optional uint64 trigger_delay_ms = 6;
   }
 
   repeated DataSourceInstanceStateChange instance_state_changes = 1;

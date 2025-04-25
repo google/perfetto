@@ -42,7 +42,7 @@ std::multimap<BlockDeviceID, std::string> ParseMounts(const char* path) {
       continue;
     }
     const char* mountpoint = words.cur_token();
-    struct stat buf {};
+    struct stat buf{};
     if (stat(mountpoint, &buf) == -1) {
       PERFETTO_PLOG("stat %s", mountpoint);
       continue;

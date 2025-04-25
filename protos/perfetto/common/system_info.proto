@@ -25,7 +25,7 @@ message Utsname {
   optional string machine = 4;
 }
 
-// Next id: 15;
+// Next id: 16
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
@@ -53,6 +53,9 @@ message SystemInfo {
   // introduced after Android W in Aug 2024 and is not supported on older
   // versions.
   optional string android_ram_model = 12;
+
+  // The serial console information from android device.
+  optional string android_serial_console = 15;
 
   // The version of traced (the same returned by `traced --version`).
   // This is a human readable string with and its format varies depending on

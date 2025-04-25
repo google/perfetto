@@ -20,4 +20,5 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 __package__ = 'tools'
 from .run_buildtools_binary import run_buildtools_binary
+
 run_buildtools_binary(['gn'] + sys.argv[1:])

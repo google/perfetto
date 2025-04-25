@@ -46,7 +46,7 @@ def main():
         file=sys.stderr)
     sys.exit(1)
 
-  mainline_branches = {'main', 'master', 'develop'}
+  mainline_branches = {'origin/main'}
   ordered_branches: List[str] = []
   try:
     ordered_branches = get_stack_branches_ordered(target_branch,
@@ -67,7 +67,7 @@ def main():
 
   for branch in ordered_branches:
     parent = get_branch_parent(branch)
-    if parent and parent not in mainline_branches:
+    if parent:
       print(f"\nUpdating '{branch}' by merging '{parent}'...")
       try:
         run_git_command(['checkout', branch])

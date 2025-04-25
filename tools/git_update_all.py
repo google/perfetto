@@ -42,11 +42,10 @@ def main():
 
   print(f"Branches to update (topological order): {', '.join(sorted_branches)}")
   original_branch_to_restore = get_current_branch()
-  mainline_branches = {'main'}
 
   for branch in sorted_branches:
     parent = graph.get(branch)
-    if parent and parent not in mainline_branches:
+    if parent:
       print(f"\nUpdating '{branch}' by merging '{parent}'...")
       try:
         run_git_command(['checkout', branch])
@@ -68,7 +67,6 @@ def main():
         ) != original_branch_to_restore:
           run_git_command(['checkout', original_branch_to_restore], check=False)
         sys.exit(1)
-    # else: print(f"\nSkipping merge for '{branch}'.") # Optional skip message
 
   if original_branch_to_restore and get_current_branch(
   ) != original_branch_to_restore:

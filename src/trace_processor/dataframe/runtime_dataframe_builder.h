@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_DATAFRAME_RUNTIME_DATAFRAME_BUILDER_H_
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -37,6 +38,8 @@
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
+#include "src/trace_processor/dataframe/impl/query_plan.h"
+#include "src/trace_processor/dataframe/impl/static_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
@@ -99,9 +102,14 @@ class RuntimeDataframeBuilder {
   //         valid for the lifetime of the builder and the resulting
   //         Dataframe.
   RuntimeDataframeBuilder(std::vector<std::string> names, StringPool* pool)
-      : string_pool_(pool),
-        column_names_(std::move(names)),
-        column_state_(column_names_.size()) {}
+      : string_pool_(pool) {
+    for (uint32_t i = 0; i < names.size(); ++i) {
+      column_states_.emplace_back();
+    }
+    for (auto& name : names) {
+      column_names_.emplace_back(std::move(name));
+    }
+  }
   ~RuntimeDataframeBuilder() = default;
 
   // Movable but not copyable
@@ -145,7 +153,7 @@ class RuntimeDataframeBuilder {
     PERFETTO_CHECK(current_status_.ok());
 
     for (uint32_t i = 0; i < column_names_.size(); ++i) {
-      ColumnState& state = column_state_[i];
+      ColumnState& state = column_states_[i];
       typename ValueFetcherImpl::Type fetched_type = fetcher->GetValueType(i);
       switch (fetched_type) {
         case ValueFetcherImpl::kInt64: {
@@ -204,15 +212,14 @@ class RuntimeDataframeBuilder {
   // - Construct and return the final `Dataframe` instance.
   base::StatusOr<Dataframe> Build() && {
     RETURN_IF_ERROR(current_status_);
-    std::vector<impl::Column> columns;
+    impl::FixedVector<impl::Column, impl::kMaxColumns> columns;
     for (uint32_t i = 0; i < column_names_.size(); ++i) {
-      auto& state = column_state_[i];
+      auto& state = column_states_[i];
       switch (state.data.index()) {
         case base::variant_index<DataVariant, std::nullopt_t>():
           columns.emplace_back(impl::Column{
-              std::move(column_names_[i]),
               impl::Storage{impl::FlexVector<uint32_t>()},
-              CreateOverlayFromBitvector(std::move(state.null_overlay)),
+              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               Unsorted{}});
           break;
         case base::variant_index<DataVariant, impl::FlexVector<int64_t>>(): {
@@ -233,9 +240,8 @@ class RuntimeDataframeBuilder {
           }
           bool is_nullable = state.null_overlay.has_value();
           columns.emplace_back(impl::Column{
-              std::move(column_names_[i]),
               CreateIntegerStorage(std::move(data), is_id_sorted, min, max),
-              CreateOverlayFromBitvector(std::move(state.null_overlay)),
+              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               GetIntegerSortStateFromProperties(is_nullable, is_id_sorted,
                                                 is_setid_sorted, is_sorted)});
           break;
@@ -246,8 +252,8 @@ class RuntimeDataframeBuilder {
           SortState sort_state =
               GetSortStateForDouble(state.null_overlay.has_value(), data);
           columns.emplace_back(impl::Column{
-              std::move(column_names_[i]), impl::Storage{std::move(data)},
-              CreateOverlayFromBitvector(std::move(state.null_overlay)),
+              impl::Storage{std::move(data)},
+              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               sort_state});
           break;
         }
@@ -258,14 +264,15 @@ class RuntimeDataframeBuilder {
           SortState sort_state = GetStringSortState(
               state.null_overlay.has_value(), data, string_pool_);
           columns.emplace_back(impl::Column{
-              std::move(column_names_[i]), impl::Storage{std::move(data)},
-              CreateOverlayFromBitvector(std::move(state.null_overlay)),
+              impl::Storage{std::move(data)},
+              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               sort_state});
           break;
         }
       }
     }
-    return Dataframe(std::move(columns), row_count_, string_pool_);
+    return Dataframe(std::move(column_names_), std::move(columns), row_count_,
+                     string_pool_);
   }
 
   // Returns the current status of the builder.
@@ -326,12 +333,13 @@ class RuntimeDataframeBuilder {
     return impl::Storage{impl::Storage::Int64{std::move(data)}};
   }
 
-  static impl::Overlay CreateOverlayFromBitvector(
+  static impl::NullStorage CreateNullStorageFromBitvector(
       std::optional<impl::BitVector> bit_vector) {
     if (bit_vector) {
-      return impl::Overlay{impl::Overlay::SparseNull{*std::move(bit_vector)}};
+      return impl::NullStorage{
+          impl::NullStorage::SparseNull{*std::move(bit_vector)}};
     }
-    return impl::Overlay{impl::Overlay::NoOverlay{}};
+    return impl::NullStorage{impl::NullStorage::NonNull{}};
   }
 
   template <typename T>
@@ -411,8 +419,8 @@ class RuntimeDataframeBuilder {
 
   StringPool* string_pool_;
   uint32_t row_count_ = 0;
-  std::vector<std::string> column_names_;
-  std::vector<ColumnState> column_state_;
+  impl::FixedVector<std::string, impl::kMaxColumns> column_names_;
+  impl::FixedVector<ColumnState, impl::kMaxColumns> column_states_;
   base::Status current_status_ = base::OkStatus();
 };
 

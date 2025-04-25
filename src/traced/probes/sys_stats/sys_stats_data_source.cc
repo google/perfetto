@@ -494,8 +494,9 @@ void SysStatsDataSource::ReadPsi(protos::pbzero::SysStats* sys_stats) {
         //     some avg10=0.00 avg60=0.00 avg300=0.00 total=0
         if (index == 0) {
           auto resource = token == "some" ? resource_some
-                        : token == "full" ? resource_full
-                                          : PsiSample::PSI_RESOURCE_UNSPECIFIED;
+                          : token == "full"
+                              ? resource_full
+                              : PsiSample::PSI_RESOURCE_UNSPECIFIED;
           psi->set_resource(resource);
         } else if (index == 4) {
           const base::StringView prefix("total=");

@@ -54,4 +54,5 @@ os.environ['ANDROID_NDK_HOME'] = ANDROID_NDK_DIR
 
 __package__ = 'tools'
 from .run_buildtools_binary import run_buildtools_binary
+
 run_buildtools_binary(['bazel'] + sys.argv[1:])
