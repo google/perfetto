@@ -38,8 +38,8 @@ class TracingSession;
 namespace internal {
 
 struct DataSourceParams {
-  bool supports_multiple_instances;
-  bool requires_callbacks_under_lock;
+  bool supports_multiple_instances = true;
+  bool requires_callbacks_under_lock = true;
 };
 
 struct DataSourceStaticState;
