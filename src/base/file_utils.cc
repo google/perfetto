@@ -352,7 +352,7 @@ base::Status ListFilesRecursive(const std::string& dir_path,
 #else
       if (dirent->d_type == DT_DIR) {
         dir_queue.push_back(cur_dir + dirent->d_name + '/');
-      } else if (dirent->d_type == DT_REG) {
+      } else if (dirent->d_type == DT_REG || dirent->d_type == DT_LNK) {
         const std::string full_path = cur_dir + dirent->d_name;
         PERFETTO_CHECK(full_path.length() > root_dir_path.length());
         output.push_back(full_path.substr(root_dir_path.length()));
