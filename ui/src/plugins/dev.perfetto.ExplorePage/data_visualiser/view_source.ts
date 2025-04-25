@@ -113,8 +113,11 @@ export class VisViewSource {
   private async loadBaseQuery() {
     this.sqlAsyncLimiter.schedule(async () => {
       const sql = await analyzeNode(this.queryNode, this.trace.engine);
+      if (sql instanceof Error) {
+        throw sql;
+      }
       if (sql === undefined) {
-        throw Error(`Couldn't fetch the SQL`);
+        throw new Error('No SQL query found');
       }
       this._baseQuery = sql;
       this.loadData();

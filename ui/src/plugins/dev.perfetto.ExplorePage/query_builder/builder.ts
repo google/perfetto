@@ -16,7 +16,6 @@ import m from 'mithril';
 
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode} from '../query_node';
-import {showModal} from '../../../widgets/modal';
 import {QueryNodeExplorer} from './query_node_explorer';
 import {QueryCanvas} from './query_canvas';
 import {Trace} from 'src/public/trace';
@@ -77,15 +76,3 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
     );
   }
 }
-
-export const createModal = (
-  title: string,
-  content: () => m.Children,
-  onAdd: () => void,
-) => {
-  showModal({
-    title,
-    buttons: [{text: 'Add node', action: onAdd}],
-    content,
-  });
-};

@@ -52,21 +52,51 @@ export class QueryNodeExplorer
   private prevSqString?: string;
   private curSqString?: string;
 
-  private currentSql?: Query;
+  private currentQuery?: Query | Error;
+
+  private getAndRunQuery(node: QueryNode, engine: Engine): undefined {
+    console.log('getAndRunQuery', node);
+    const sq = node.getStructuredQuery();
+    if (sq === undefined) return;
+    console.log('sq', sq);
+
+    this.curSqString = JSON.stringify(sq.toJSON(), null, 2);
+
+    if (this.curSqString !== this.prevSqString) {
+      this.tableAsyncLimiter.schedule(async () => {
+        this.currentQuery = await analyzeNode(node, engine);
+        if (!isQueryValid(this.currentQuery)) {
+          return;
+        }
+        this.queryResult = await runQueryForQueryTable(
+          queryToRun(this.currentQuery),
+          engine,
+        );
+        this.prevSqString = this.curSqString;
+      });
+    }
+  }
 
   view({attrs}: m.CVnode<QueryNodeExplorerAttrs>) {
     const renderTable = () => {
+      if (this.currentQuery === undefined) {
+        return m(TextParagraph, {text: `No data to display}`});
+      }
+      if (this.currentQuery instanceof Error) {
+        return m(TextParagraph, {text: `Error: ${this.currentQuery.message}`});
+      }
       if (this.queryResult === undefined) {
-        return;
+        this.getAndRunQuery(attrs.node, attrs.trace.engine);
+        return m(TextParagraph, {text: `No data to display`});
       }
       if (this.queryResult.error !== undefined) {
         return m(TextParagraph, {text: `Error: ${this.queryResult.error}`});
       }
       return (
-        this.currentSql &&
+        this.currentQuery &&
         m(QueryTable, {
           trace: attrs.trace,
-          query: queryToRun(this.currentSql),
+          query: queryToRun(this.currentQuery),
           resp: this.queryResult,
           fillParent: false,
         })
@@ -88,27 +118,14 @@ export class QueryNodeExplorer
       });
     };
 
-    const sq = attrs.node.getStructuredQuery();
-    if (sq === undefined) return;
+    this.getAndRunQuery(attrs.node, attrs.trace.engine);
+    const sql: string = isQueryValid(this.currentQuery)
+      ? queryToRun(this.currentQuery)
+      : '';
+    const textproto: string = isQueryValid(this.currentQuery)
+      ? this.currentQuery.textproto
+      : '';
 
-    this.curSqString = JSON.stringify(sq.toJSON(), null, 2);
-
-    if (this.curSqString !== this.prevSqString) {
-      this.tableAsyncLimiter.schedule(async () => {
-        this.currentSql = await analyzeNode(attrs.node, attrs.trace.engine);
-        if (this.currentSql === undefined) {
-          return;
-        }
-        this.queryResult = await runQueryForQueryTable(
-          queryToRun(this.currentSql),
-          attrs.trace.engine,
-        );
-        this.prevSqString = this.curSqString;
-      });
-    }
-
-    if (this.currentSql === undefined) return;
-    const sql = queryToRun(this.currentSql);
     return [
       m(
         Section,
@@ -120,7 +137,7 @@ export class QueryNodeExplorer
             '.code-snippet',
             m(Button, {
               title: 'Copy to clipboard',
-              onclick: () => copyToClipboard(sql ?? ''),
+              onclick: () => copyToClipboard(sql),
               icon: Icons.Copy,
             }),
             m('code', sql),
@@ -141,10 +158,10 @@ export class QueryNodeExplorer
             '.code-snippet',
             m(Button, {
               title: 'Copy to clipboard',
-              onclick: () => copyToClipboard(this.currentSql?.textproto ?? ''),
+              onclick: () => copyToClipboard(textproto),
               icon: Icons.Copy,
             }),
-            m('code', this.currentSql.textproto),
+            m('code', textproto),
           ),
       ),
       m(Section, {title: 'Sample data'}, renderTable()),
@@ -181,7 +198,8 @@ export interface Query {
   preambles: string[];
 }
 
-export function queryToRun(sql: Query): string {
+export function queryToRun(sql?: Query): string {
+  if (sql === undefined) return 'N/A';
   const includes = sql.modules.map((c) => `INCLUDE PERFETTO MODULE ${c};\n`);
   return includes + sql.sql;
 }
@@ -189,16 +207,15 @@ export function queryToRun(sql: Query): string {
 export async function analyzeNode(
   node: QueryNode,
   engine: Engine,
-): Promise<Query | undefined> {
+): Promise<Query | undefined | Error> {
   const structuredQueries = getStructuredQueries(node);
   if (structuredQueries === undefined) return;
 
   const res = await engine.analyzeStructuredQuery(structuredQueries);
-
-  if (res.error) throw Error(res.error);
-  if (res.results.length === 0) throw Error('No structured query results');
+  if (res.error) return Error(res.error);
+  if (res.results.length === 0) return Error('No structured query results');
   if (res.results.length !== structuredQueries.length) {
-    throw Error(
+    return Error(
       `Wrong structured query results. Asked for ${structuredQueries.length}, received ${res.results.length}`,
     );
   }
@@ -208,7 +225,7 @@ export async function analyzeNode(
     return;
   }
   if (!lastRes.textproto) {
-    throw Error('No textproto in structured query results');
+    return Error('No textproto in structured query results');
   }
 
   const sql: Query = {
@@ -218,4 +235,14 @@ export async function analyzeNode(
     preambles: lastRes.preambles ?? [],
   };
   return sql;
+}
+
+export function isQueryValid(
+  maybeQuery: Query | undefined | Error,
+): maybeQuery is Query {
+  return (
+    maybeQuery !== undefined &&
+    !(maybeQuery instanceof Error) &&
+    maybeQuery.sql !== undefined
+  );
 }
