@@ -97,8 +97,7 @@ export class HttpRpcEngine extends EngineBase {
     if (this.isProcessingQueue) return;
     this.isProcessingQueue = true;
     while (this.queue.length > 0) {
-      const blob = this.queue.shift();
-      if (!blob) continue;
+      const blob = assertExists(this.queue.shift());
       const buf = await blob.arrayBuffer();
       super.onRpcResponseBytes(new Uint8Array(buf));
     }
