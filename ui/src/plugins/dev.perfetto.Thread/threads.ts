@@ -22,3 +22,12 @@ export interface ThreadDesc {
 }
 
 export type ThreadMap = ReadonlyMap<number, ThreadDesc>;
+
+export interface ProcessDesc {
+  upid: number;
+  pid: number;
+  procName?: string;
+  cmdline?: string;
+}
+
+export type ProcessMap = ReadonlyMap<number, ProcessDesc>;

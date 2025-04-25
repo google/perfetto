@@ -12,14 +12,65 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {time, duration, TimeSpan} from '../base/time';
+import m from 'mithril';
+import {duration, time, TimeSpan} from '../base/time';
 import {Dataset, DatasetSchema} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {ColumnDef, Sorting, ThreadStateExtra} from './aggregation';
-import {TrackDescriptor} from './track';
+import {Track} from './track';
+import {arrayEquals} from '../base/array_utils';
+
+export interface ContentWithLoadingFlag {
+  readonly isLoading: boolean;
+  readonly content: m.Children;
+}
+
+export interface AreaSelectionTab {
+  // Unique id for this tab.
+  readonly id: string;
+
+  // A name for this tab.
+  readonly name: string;
+
+  // Defines the sort order of this tab - higher values appear first.
+  readonly priority?: number;
+
+  /**
+   * Called every Mithril render cycle to render the content of the tab. The
+   * returned content will be displayed inside the current selection tab.
+   *
+   * If undefined is returned then the tab handle will be hidden, which gives
+   * the tab the option to dynamically remove itself from the list of tabs if it
+   * has nothing relevant to show.
+   *
+   * The |isLoading| flag is used to avoid flickering. If set to true, we keep
+   * hold of the the previous vnodes, rendering them instead, for up to 50ms
+   * before switching to the new content. This avoids very fast load times
+   * from causing flickering loading screens, which can be somewhat jarring.
+   */
+  render(selection: AreaSelection): ContentWithLoadingFlag | undefined;
+}
+
+/**
+ * Compare two area selections for equality. Returns true if the selections are
+ * equivalent, false otherwise.
+ */
+export function areaSelectionsEqual(a: AreaSelection, b: AreaSelection) {
+  if (a.start !== b.start) return false;
+  if (a.end !== b.end) return false;
+  if (!arrayEquals(a.trackUris, b.trackUris)) {
+    return false;
+  }
+  return true;
+}
 
 export interface SelectionManager {
   readonly selection: Selection;
+
+  /**
+   * Provides a list of registered area selection tabs.
+   */
+  readonly areaSelectionTabs: ReadonlyArray<AreaSelectionTab>;
 
   findTimeRangeOfSelection(): TimeSpan | undefined;
   clear(): void;
@@ -63,7 +114,11 @@ export interface SelectionManager {
   selectArea(args: Area, opts?: SelectionOpts): void;
 
   scrollToCurrentSelection(): void;
-  registerAreaSelectionAggregator(aggr: AreaSelectionAggregator): void;
+
+  /**
+   * Register a new tab under the area selection details panel.
+   */
+  registerAreaSelectionTab(tab: AreaSelectionTab): void;
 }
 
 /**
@@ -170,10 +225,9 @@ export interface Area {
 export interface AreaSelection extends Area {
   readonly kind: 'area';
 
-  // This array contains the resolved TrackDescriptor from Area.trackUris.
-  // The resolution is done by SelectionManager whenever a kind='area' selection
-  // is performed.
-  readonly tracks: ReadonlyArray<TrackDescriptor>;
+  // This array contains the resolved Tracks from Area.trackUris. The resolution
+  // is done by SelectionManager whenever a kind='area' selection is performed.
+  readonly tracks: ReadonlyArray<Track>;
 }
 
 export interface NoteSelection {

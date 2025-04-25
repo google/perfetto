@@ -41,6 +41,7 @@ export interface MultiSelectAttrs {
   repeatCheckedItemsAtTop?: boolean;
   showNumSelected?: boolean;
   fixedSize?: boolean;
+  readonly showSelectAllButton?: boolean;
 }
 
 export type PopupMultiSelectAttrs = MultiSelectAttrs & {
@@ -81,7 +82,11 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
     attrs: MultiSelectAttrs,
     options: MultiSelectOption[],
   ) {
-    const {repeatCheckedItemsAtTop, onChange = () => {}} = attrs;
+    const {
+      repeatCheckedItemsAtTop,
+      onChange = () => {},
+      showSelectAllButton = true,
+    } = attrs;
     const allChecked = options.every(({checked}) => checked);
     const anyChecked = options.some(({checked}) => checked);
 
@@ -129,19 +134,20 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
                 'span',
                 this.searchText === '' ? 'Options' : `Options (Filtered)`,
               ),
-              m(Button, {
-                label:
-                  this.searchText === '' ? 'Select All' : 'Select Filtered',
-                icon: Icons.SelectAll,
-                compact: true,
-                onclick: () => {
-                  const diffs = options
-                    .filter(({checked}) => !checked)
-                    .map(({id}) => ({id, checked: true}));
-                  onChange(diffs);
-                },
-                disabled: allChecked,
-              }),
+              showSelectAllButton &&
+                m(Button, {
+                  label:
+                    this.searchText === '' ? 'Select All' : 'Select Filtered',
+                  icon: Icons.SelectAll,
+                  compact: true,
+                  onclick: () => {
+                    const diffs = options
+                      .filter(({checked}) => !checked)
+                      .map(({id}) => ({id, checked: true}));
+                    onChange(diffs);
+                  },
+                  disabled: allChecked,
+                }),
               m(Button, {
                 label: this.searchText === '' ? 'Clear All' : 'Clear Filtered',
                 icon: Icons.Deselect,

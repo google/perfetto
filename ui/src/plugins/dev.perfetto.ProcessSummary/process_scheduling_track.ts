@@ -22,7 +22,7 @@ import {colorForThread} from '../../components/colorizer';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
-import {Track} from '../../public/track';
+import {TrackRenderer} from '../../public/track';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
@@ -58,7 +58,7 @@ export interface Config {
   utid: number | null;
 }
 
-export class ProcessSchedulingTrack implements Track {
+export class ProcessSchedulingTrack implements TrackRenderer {
   private mousePos?: Point2D;
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
@@ -84,7 +84,7 @@ export class ProcessSchedulingTrack implements Track {
           from thread t
           cross join sched s using (utid)
           where
-            s.utid != 0 and
+            not t.is_idle and
             t.upid = ${this.config.upid}
           order by ts
         `;

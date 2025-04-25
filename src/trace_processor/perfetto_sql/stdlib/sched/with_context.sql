@@ -20,7 +20,7 @@
 --
 -- The rows in this table will always have a matching row in the |thread_state|
 -- table with |thread_state.state| = 'Running'
-CREATE PERFETTO VIEW sched_with_thread_process(
+CREATE PERFETTO VIEW sched_with_thread_process (
   --  Unique identifier for this scheduling slice (Running period).
   id ID(sched.id),
   -- The timestamp at the start of the Running period.
@@ -50,16 +50,18 @@ CREATE PERFETTO VIEW sched_with_thread_process(
   priority LONG
 ) AS
 SELECT
-    sched.id,
-    sched.ts,
-    sched.dur,
-    utid,
-    upid,
-    thread.name AS thread_name,
-    process.name AS process_name,
-    sched.cpu,
-    sched.end_state,
-    sched.priority
+  sched.id,
+  sched.ts,
+  sched.dur,
+  utid,
+  upid,
+  thread.name AS thread_name,
+  process.name AS process_name,
+  sched.cpu,
+  sched.end_state,
+  sched.priority
 FROM sched
-JOIN thread USING (utid)
-LEFT JOIN process USING (upid);
+JOIN thread
+  USING (utid)
+LEFT JOIN process
+  USING (upid);

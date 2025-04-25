@@ -16,6 +16,7 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/trace/android/app_wakelock_data.proto";
 import "protos/perfetto/trace/android/network_trace.proto";
 import "protos/perfetto/trace/chrome/v8.proto";
 import "protos/perfetto/trace/gpu/gpu_render_stage_event.proto";
@@ -55,7 +56,7 @@ package perfetto.protos;
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 42.
+// Next id: 43.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -84,9 +85,6 @@ message InternedData {
   repeated InternedString source_paths = 18;
   // Names of functions used in frames below.
   repeated InternedString function_names = 5;
-  // Symbols that were added to this trace after the fact.
-  repeated ProfiledFrameSymbols profiled_frame_symbols = 21;
-
   // Executable files mapped into processes.
   repeated Mapping mappings = 19;
   // Frames of callstacks of a program.
@@ -143,4 +141,10 @@ message InternedData {
   repeated InternedString viewcapture_window_name = 39;
   repeated InternedString viewcapture_view_id = 40;
   repeated InternedString viewcapture_class_name = 41;
+
+  // Interned context for android.app_wakelocks.
+  repeated AppWakelockInfo app_wakelock_info = 42;
+
+  // removed ProfiledFrameSymbols profiled_frame_symbols
+  reserved 21;
 }

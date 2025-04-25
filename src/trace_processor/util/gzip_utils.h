@@ -46,7 +46,7 @@ constexpr bool IsGzipSupported() {
 
 // 2. [Uncommon ; Discouraged] - Feed the sequence of mem-blocks one by one, by
 //    calling 'Feed'. For each time 'Feed' is called, client should call
-//    'ExtractOutput' again and again to extrat the partially available output,
+//    'ExtractOutput' again and again to extract the partially available output,
 //    until there in no more output to extract. Also see 'ResultCode' enum.
 class GzipDecompressor {
  public:

@@ -101,7 +101,8 @@ TraceProcessorContext& TraceProcessorContext::operator=(
 
 std::optional<MachineId> TraceProcessorContext::machine_id() const {
   if (!machine_tracker) {
-    // Doesn't require that |machine_tracker| is initialzed, e.g. in unit tests.
+    // Doesn't require that |machine_tracker| is initialized, e.g. in unit
+    // tests.
     return std::nullopt;
   }
   return machine_tracker->machine_id();

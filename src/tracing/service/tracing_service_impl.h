@@ -663,7 +663,7 @@ class TracingServiceImpl : public TracingService {
       uint32_t field_id;
 
       // Stores the max size of |timestamps|. Set to 1 by default (in
-      // the constructor) but can be overriden in TraceSession constructor
+      // the constructor) but can be overridden in TraceSession constructor
       // if a larger size is required.
       uint32_t max_size;
 
@@ -736,7 +736,7 @@ class TracingServiceImpl : public TracingService {
     std::vector<uint64_t> filter_bytes_discarded_per_buffer;
 
     // A randomly generated trace identifier. Note that this does NOT always
-    // match the requested TraceConfig.trace_uuid_msb/lsb. Spcifically, it does
+    // match the requested TraceConfig.trace_uuid_msb/lsb. Specifically, it does
     // until a gap-less snapshot is requested. Each snapshot re-generates the
     // uuid to avoid emitting two different traces with the same uuid.
     base::Uuid trace_uuid;

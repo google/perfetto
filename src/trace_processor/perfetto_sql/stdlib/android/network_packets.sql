@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Android network packet events (from android.network_packets data source).
-CREATE PERFETTO VIEW android_network_packets(
+CREATE PERFETTO VIEW android_network_packets (
   -- Timestamp.
   ts TIMESTAMP,
   -- Duration (non-zero only in aggregate events)

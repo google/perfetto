@@ -15,8 +15,6 @@
 import {Engine} from '../../trace_processor/engine';
 import {Row} from '../../trace_processor/query_result';
 
-const MAX_DISPLAY_ROWS = 10000;
-
 export interface QueryResponse {
   query: string;
   error?: string;
@@ -29,15 +27,24 @@ export interface QueryResponse {
   lastStatementSql: string;
 }
 
-export interface QueryRunParams {
-  // If true, replaces nulls with "NULL" string. Default is true.
-  convertNullsToString?: boolean;
-}
-
-export async function runQuery(
+/**
+ * Runs a query and pulls out all the columns into a list of 'row' objects,
+ * where each row contains a dictionary of [columnName] -> value.
+ *
+ * This method will not throw if the query fails, instead the error is populated
+ * in the return value.
+ *
+ * This function is designed to be used with table viewers, where the structure
+ * of resulting rows is not known up front. Use engine.query() or
+ * engine.tryQuery() and use the iterators if the resulting data is to be
+ * processed.
+ *
+ * @param sqlQuery - The query to evaluate.
+ * @param engine - The engine to use to run the query.
+ */
+export async function runQueryForQueryTable(
   sqlQuery: string,
   engine: Engine,
-  params?: QueryRunParams,
 ): Promise<QueryResponse> {
   const startMs = performance.now();
 
@@ -50,20 +57,17 @@ export async function runQuery(
 
   if (maybeResult.ok) {
     const queryRes = maybeResult.value;
-    const convertNullsToString = params?.convertNullsToString ?? true;
 
     const durationMs = performance.now() - startMs;
     const rows: Row[] = [];
     const columns = queryRes.columns();
-    let numRows = 0;
     for (const iter = queryRes.iter({}); iter.valid(); iter.next()) {
       const row: Row = {};
       for (const colName of columns) {
         const value = iter.get(colName);
-        row[colName] = value === null && convertNullsToString ? 'NULL' : value;
+        row[colName] = value === null ? 'NULL' : value;
       }
       rows.push(row);
-      if (++numRows >= MAX_DISPLAY_ROWS) break;
     }
 
     const result: QueryResponse = {

@@ -14,7 +14,7 @@
 
 import {assertUnreachable} from '../base/logging';
 import {getOrCreate} from '../base/utils';
-import {ColumnType, SqlValue} from './query_result';
+import {checkExtends, ColumnType, SqlValue, unionTypes} from './query_result';
 import {sqlValueToSqliteString} from './sql_utils';
 
 /**
@@ -170,9 +170,9 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
     return this;
   }
 
-  implements(schema: DatasetSchema) {
-    return Object.entries(schema).every(([name, kind]) => {
-      return name in this.schema && this.schema[name] === kind;
+  implements(required: DatasetSchema) {
+    return Object.entries(required).every(([name, required]) => {
+      return name in this.schema && checkExtends(required, this.schema[name]);
     });
   }
 
@@ -192,6 +192,13 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
 }
 
 /**
+ * Maximum number of sub-queries to include in a single union statement
+ * to avoid hitting SQLite limits.
+ * See: https://www.sqlite.org/limits.html#max_compound_select
+ */
+const MAX_SUBQUERIES_PER_UNION = 500;
+
+/**
  * A dataset that represents the union of multiple datasets.
  */
 export class UnionDataset implements Dataset {
@@ -200,30 +207,64 @@ export class UnionDataset implements Dataset {
   get schema(): DatasetSchema {
     // Find the minimal set of columns that are supported by all datasets of
     // the union
-    let sch: Record<string, ColumnType> | undefined = undefined;
+    let unionSchema: Record<string, ColumnType> | undefined = undefined;
     this.union.forEach((ds) => {
       const dsSchema = ds.schema;
-      if (sch === undefined) {
+      if (unionSchema === undefined) {
         // First time just use this one
-        sch = dsSchema;
+        unionSchema = dsSchema;
       } else {
         const newSch: Record<string, ColumnType> = {};
-        for (const [key, kind] of Object.entries(sch)) {
-          if (key in dsSchema && dsSchema[key] === kind) {
-            newSch[key] = kind;
+        for (const [key, value] of Object.entries(unionSchema)) {
+          if (key in dsSchema) {
+            const commonType = unionTypes(value, dsSchema[key]);
+            if (commonType !== undefined) {
+              newSch[key] = commonType;
+            }
           }
         }
-        sch = newSch;
+        unionSchema = newSch;
       }
     });
-    return sch ?? {};
+    return unionSchema ?? {};
   }
 
   query(schema?: DatasetSchema): string {
     schema = schema ?? this.schema;
-    return this.union
-      .map((dataset) => dataset.query(schema))
-      .join(' union all ');
+    const subQueries = this.union.map((dataset) => dataset.query(schema));
+
+    // If we have a small number of sub-queries, just use a single union all.
+    if (subQueries.length <= MAX_SUBQUERIES_PER_UNION) {
+      return subQueries.join('\nunion all\n');
+    }
+
+    // Handle large number of sub-queries by batching into multiple CTEs.
+    let sql = 'with\n';
+    const cteNames: string[] = [];
+
+    // Create CTEs for batches of sub-queries
+    for (let i = 0; i < subQueries.length; i += MAX_SUBQUERIES_PER_UNION) {
+      const batch = subQueries.slice(i, i + MAX_SUBQUERIES_PER_UNION);
+      const cteName = `union_batch_${Math.floor(i / MAX_SUBQUERIES_PER_UNION)}`;
+      cteNames.push(cteName);
+
+      sql += `${cteName} as (\n${batch.join('\nunion all\n')}\n)`;
+
+      // Add comma unless this is the last CTE.
+      if (i + MAX_SUBQUERIES_PER_UNION < subQueries.length) {
+        sql += ',\n';
+      }
+    }
+
+    const cols = Object.keys(schema);
+
+    // Union all the CTEs together in the final query.
+    sql += '\n';
+    sql += cteNames
+      .map((name) => `select ${cols.join(',')} from ${name}`)
+      .join('\nunion all\n');
+
+    return sql;
   }
 
   optimize(): Dataset {
@@ -282,9 +323,9 @@ export class UnionDataset implements Dataset {
     }
   }
 
-  implements(schema: DatasetSchema) {
-    return Object.entries(schema).every(([name, kind]) => {
-      return name in this.schema && this.schema[name] === kind;
+  implements(required: DatasetSchema) {
+    return Object.entries(required).every(([name, required]) => {
+      return name in this.schema && checkExtends(required, this.schema[name]);
     });
   }
 }

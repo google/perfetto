@@ -84,6 +84,13 @@ export default class implements PerfettoPlugin {
           null as threadName,
           sum_running_dur > 0 as hasSched,
           android_process_metadata.debuggable as isDebuggable,
+          case
+            when process.name = 'system_server' then
+              ifnull((select int_value from metadata where name = 'android_profile_system_server'), 0)
+            when process.name GLOB 'zygote*' then
+              ifnull((select int_value from metadata where name = 'android_profile_boot_classpath'), 0)
+            else 0
+          end as isBootImageProfiling,
           ifnull((
             select group_concat(string_value)
             from args
@@ -109,6 +116,7 @@ export default class implements PerfettoPlugin {
           thread.name threadName,
           sum_running_dur > 0 as hasSched,
           0 as isDebuggable,
+          0 as isBootImageProfiling,
           '' as chromeProcessLabels,
           ifnull(machine_id, 0) as machine
         from _thread_available_info_summary
@@ -123,6 +131,7 @@ export default class implements PerfettoPlugin {
       tid: NUM_NULL,
       hasSched: NUM_NULL,
       isDebuggable: NUM_NULL,
+      isBootImageProfiling: NUM_NULL,
       chromeProcessLabels: STR,
       machine: NUM,
     });
@@ -133,6 +142,7 @@ export default class implements PerfettoPlugin {
       const tid = it.tid;
       const hasSched = Boolean(it.hasSched);
       const isDebuggable = Boolean(it.isDebuggable);
+      const isBootImageProfiling = Boolean(it.isBootImageProfiling);
       const subtitle = it.chromeProcessLabels;
       const machine = it.machine;
 
@@ -142,6 +152,15 @@ export default class implements PerfettoPlugin {
 
       const chips: string[] = [];
       isDebuggable && chips.push('debuggable');
+
+      // When boot image profiling is enabled for the bootclasspath or system
+      // server, performance characteristics of the device can vary wildly.
+      // Surface that detail in the process tracks for zygote and system_server
+      // to make it clear to the user.
+      // See https://source.android.com/docs/core/runtime/boot-image-profiles
+      // for additional details.
+      isBootImageProfiling && chips.push('boot image profiling');
+
       const machineLabel = maybeMachineLabel(machine);
 
       if (hasSched) {

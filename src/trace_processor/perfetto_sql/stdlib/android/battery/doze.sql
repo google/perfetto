@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 -- Light idle states. This is the state machine that quickly detects the
 -- device is unused and restricts background activity.
 -- See https://developer.android.com/training/monitoring-device-state/doze-standby
-CREATE PERFETTO TABLE android_light_idle_state(
+CREATE PERFETTO TABLE android_light_idle_state (
   -- ID
   id LONG,
   -- Timestamp.
@@ -27,29 +27,42 @@ CREATE PERFETTO TABLE android_light_idle_state(
   -- Description of the light idle state.
   light_idle_state STRING
 ) AS
-WITH _counter AS (
-  SELECT counter.id, ts, 0 AS track_id, value
-  FROM counter
-  JOIN counter_track ON counter_track.id = counter.track_id
-  WHERE name = 'DozeLightState'
-)
+WITH
+  _counter AS (
+    SELECT
+      counter.id,
+      ts,
+      0 AS track_id,
+      value
+    FROM counter
+    JOIN counter_track
+      ON counter_track.id = counter.track_id
+    WHERE
+      name = 'DozeLightState'
+  )
 SELECT
   id,
   ts,
   dur,
   CASE value
     -- device is used or on power
-    WHEN 0 THEN 'active'
+    WHEN 0
+    THEN 'active'
     -- device is waiting to go idle
-    WHEN 1 THEN 'inactive'
+    WHEN 1
+    THEN 'inactive'
     -- device is idle
-    WHEN 4 THEN 'idle'
+    WHEN 4
+    THEN 'idle'
     -- waiting for connectivity before maintenance
-    WHEN 5 THEN 'waiting_for_network'
+    WHEN 5
+    THEN 'waiting_for_network'
     -- maintenance running
-    WHEN 6 THEN 'idle_maintenance'
+    WHEN 6
+    THEN 'idle_maintenance'
     -- device has gone deep idle, light idle state irrelevant
-    WHEN 7 THEN 'override'
+    WHEN 7
+    THEN 'override'
     ELSE 'unmapped'
   END AS light_idle_state
 FROM counter_leading_intervals!(_counter);
@@ -57,7 +70,7 @@ FROM counter_leading_intervals!(_counter);
 -- Deep idle states. This is the state machine that more slowly detects deeper
 -- levels of device unuse and restricts background activity further.
 -- See https://developer.android.com/training/monitoring-device-state/doze-standby
-CREATE PERFETTO TABLE android_deep_idle_state(
+CREATE PERFETTO TABLE android_deep_idle_state (
   -- ID
   id LONG,
   -- Timestamp.
@@ -67,30 +80,45 @@ CREATE PERFETTO TABLE android_deep_idle_state(
   -- Description of the deep idle state.
   deep_idle_state STRING
 ) AS
-WITH _counter AS (
-  SELECT counter.id, ts, 0 AS track_id, value
-  FROM counter
-  JOIN counter_track ON counter_track.id = counter.track_id
-  WHERE name = 'DozeDeepState'
-)
+WITH
+  _counter AS (
+    SELECT
+      counter.id,
+      ts,
+      0 AS track_id,
+      value
+    FROM counter
+    JOIN counter_track
+      ON counter_track.id = counter.track_id
+    WHERE
+      name = 'DozeDeepState'
+  )
 SELECT
   id,
   ts,
   dur,
   CASE value
-    WHEN 0 THEN 'active'
-    WHEN 1 THEN 'inactive'
+    WHEN 0
+    THEN 'active'
+    WHEN 1
+    THEN 'inactive'
     -- waiting for next idle period
-    WHEN 2 THEN 'idle_pending'
+    WHEN 2
+    THEN 'idle_pending'
     -- device is sensing motion
-    WHEN 3 THEN 'sensing'
+    WHEN 3
+    THEN 'sensing'
     -- device is finding location
-    WHEN 4 THEN 'locating'
-    WHEN 5 THEN 'idle'
-    WHEN 6 THEN 'idle_maintenance'
+    WHEN 4
+    THEN 'locating'
+    WHEN 5
+    THEN 'idle'
+    WHEN 6
+    THEN 'idle_maintenance'
     -- inactive, should go straight to idle without motion / location
     -- sensing.
-    WHEN 7 THEN 'quick_doze_delay'
+    WHEN 7
+    THEN 'quick_doze_delay'
     ELSE 'unmapped'
   END AS deep_idle_state
 FROM counter_leading_intervals!(_counter);

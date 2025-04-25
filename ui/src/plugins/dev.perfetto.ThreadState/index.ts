@@ -22,6 +22,7 @@ import {removeFalsyValues} from '../../base/array_utils';
 import {TrackNode} from '../../public/workspace';
 import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
+import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
@@ -34,8 +35,8 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
 
-    ctx.selection.registerAreaSelectionAggregator(
-      new ThreadStateSelectionAggregator(),
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationToTabAdaptor(ctx, new ThreadStateSelectionAggregator()),
     );
 
     const result = await engine.query(`

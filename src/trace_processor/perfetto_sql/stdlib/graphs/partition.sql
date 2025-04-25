@@ -68,30 +68,37 @@
 --   5 (1) 8 (1)
 -- ```
 CREATE PERFETTO MACRO tree_structural_partition_by_group(
-  -- A table/view/subquery corresponding to a tree which should be partitioned.
-  -- This table must have the columns "id", "parent_id" and "group_key".
-  --
-  -- Note: the columns must contain uint32 similar to ids in trace processor
-  -- tables (i.e. the values should be relatively dense and close to zero). The
-  -- implementation makes assumptions on this for performance reasons and, if
-  -- this criteria is not, can lead to enormous amounts of memory being
-  -- allocated.
-  tree_table TableOrSubquery
+    -- A table/view/subquery corresponding to a tree which should be partitioned.
+    -- This table must have the columns "id", "parent_id" and "group_key".
+    --
+    -- Note: the columns must contain uint32 similar to ids in trace processor
+    -- tables (i.e. the values should be relatively dense and close to zero). The
+    -- implementation makes assumptions on this for performance reasons and, if
+    -- this criteria is not, can lead to enormous amounts of memory being
+    -- allocated.
+    tree_table TableOrSubquery
 )
 -- The returned table has the schema
 -- (id LONG, parent_id LONG, group_key LONG).
 RETURNS TableOrSubquery AS
 (
   -- Rename the generic columns of __intrinsic_table_ptr to the actual columns.
-  SELECT c0 AS id, c1 AS parent_id, c2 AS group_key
-  FROM __intrinsic_table_ptr((
-    -- Aggregate function to perform the partitioning algorithm.
-    SELECT __intrinsic_structural_tree_partition(g.id, g.parent_id, g.group_key)
-    FROM $tree_table g
-  ))
+  SELECT
+    c0 AS id,
+    c1 AS parent_id,
+    c2 AS group_key
+  FROM __intrinsic_table_ptr(
+    (
+      -- Aggregate function to perform the partitioning algorithm.
+      SELECT
+        __intrinsic_structural_tree_partition(g.id, g.parent_id, g.group_key)
+      FROM $tree_table AS g
+    )
+  )
   -- Bind the dynamic columns in the |__intrinsic_table_ptr| to the columns of
   -- the partitioning table.
-  WHERE __intrinsic_table_ptr_bind(c0, 'node_id')
+  WHERE
+    __intrinsic_table_ptr_bind(c0, 'node_id')
     AND __intrinsic_table_ptr_bind(c1, 'parent_node_id')
     AND __intrinsic_table_ptr_bind(c2, 'group_key')
 );

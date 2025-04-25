@@ -16,11 +16,15 @@
 
 #include "src/trace_processor/util/sql_argument.h"
 
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "perfetto/base/status.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace sql_argument {
+namespace perfetto::trace_processor::sql_argument {
 namespace {
 
 void ParseArgsSuccessfully(const std::string& args,
@@ -87,6 +91,4 @@ TEST(SqlArgumentTest, ParseArguments) {
 }
 
 }  // namespace
-}  // namespace sql_argument
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::sql_argument

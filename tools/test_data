@@ -20,6 +20,8 @@ import os
 import sys
 import hashlib
 import subprocess
+import random
+import time
 
 from multiprocessing.pool import ThreadPool
 from collections import namedtuple, defaultdict
@@ -43,7 +45,18 @@ def relpath(path):
 
 
 def download(url, out_file):
-  subprocess.check_call(['curl', '-L', '-s', '-o', out_file, url])
+  MAX_RETRIES = 3
+  cmd = ['curl', '-L', '-s', '-o', out_file, url]
+  for attempt in range(1, MAX_RETRIES + 1):
+    try:
+      subprocess.check_call(cmd)
+      return  # success
+    except subprocess.CalledProcessError as e:
+      if attempt == MAX_RETRIES:
+        raise e
+      sleep_time = random.random() * 5 * attempt
+      print(f"${' '.join(cmd)} failed, retrying in {round(sleep_time)} sec")
+      time.sleep(sleep_time)
 
 
 def list_files(path, scan_new_files=False):
@@ -253,7 +266,7 @@ def main():
   parser.add_argument('--dir', default=os.path.join(ROOT_DIR, 'test/data'))
   parser.add_argument('--overwrite', action='store_true')
   parser.add_argument('--bucket', default=BUCKET)
-  parser.add_argument('--jobs', '-j', default=10, type=int)
+  parser.add_argument('--jobs', '-j', default=8, type=int)
   parser.add_argument('--dry-run', '-n', action='store_true')
   parser.add_argument('--quiet', '-q', action='store_true')
   parser.add_argument('--verbose', '-v', action='store_true')

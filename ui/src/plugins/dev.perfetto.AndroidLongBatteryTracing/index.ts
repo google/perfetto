@@ -29,6 +29,8 @@ interface ContainedTrace {
   dur: number;
 }
 
+const SESSION_NAME_ALLOWLIST = ['session_with_lightweight_battery_tracing'];
+
 const PACKAGE_LOOKUP = `
   create or replace perfetto table package_name_lookup as
   with installed as (
@@ -1689,7 +1691,22 @@ export default class implements PerfettoPlugin {
     await this.addContainedTraces(ctx, containedTraces);
   }
 
+  async isAllowListedTrace(e: Engine) {
+    const result = await e.query(`
+      select str_value from metadata where name = 'unique_session_name'`);
+    const it = result.iter({str_value: 'str'});
+    for (; it.valid(); it.next()) {
+      if (SESSION_NAME_ALLOWLIST.includes(it.str_value)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   async onTraceLoad(ctx: Trace): Promise<void> {
-    await this.addTracks(ctx);
+    if (await this.isAllowListedTrace(ctx.engine)) {
+      await this.addTracks(ctx);
+    }
   }
 }

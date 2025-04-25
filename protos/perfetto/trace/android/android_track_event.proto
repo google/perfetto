@@ -33,9 +33,30 @@ message AndroidMessageQueue {
   optional uint64 message_delay_ms = 4;
 }
 
+// Information about an android.graphics.Bitmap.
+message AndroidBitmap {
+  // Allocation size, in bytes.
+  optional int64 size = 1;
+  // Width, in pixels.
+  optional int32 width = 2;
+  // Height, in pixels.
+  optional int32 height = 3;
+  // Density, in DPI.
+  optional int32 density = 4;
+  // Config, in android.graphics.Bitmap.Config ordinal values.
+  optional int32 config = 5;
+  // Whether the pixel data is mutable.
+  // b/398624484: this should be a boolean.
+  optional int32 mutable_pixels = 6;
+  // Pixel storage type, in android::PixelStorageType ordinal values.
+  optional int32 pixel_storage_type = 7;
+  // Bitmap id; see android.graphics.Bitmap#mId.
+  optional int64 id = 8;
+}
+
 message AndroidTrackEvent {
   // Usable range: [2001, 2999]
-  // Next id: 2005
+  // Next id: 2006
   extend TrackEvent {
     // The name of a binder service.
     optional string binder_service_name = 2001;
@@ -46,5 +67,7 @@ message AndroidTrackEvent {
 
     // MessageQueue messages.
     optional AndroidMessageQueue message_queue = 2004;
+    // Bitmaps
+    optional AndroidBitmap bitmap = 2005;
   }
 }

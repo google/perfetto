@@ -23,6 +23,18 @@
 
 #include "perfetto/public/compiler.h"
 
+#if defined(_MSC_VER)
+#define PERFETTO_ASSUME(x) __assume(x)
+#elif defined(__clang__)
+#define PERFETTO_ASSUME(x) __builtin_assume(x)
+#else
+#define PERFETTO_ASSUME(x)     \
+  do {                         \
+    if (!(x))                  \
+      __builtin_unreachable(); \
+  } while (0)
+#endif
+
 // __has_attribute is supported only by clang and recent versions of GCC.
 // Add a layer to wrap the __has_attribute macro.
 #if defined(__has_attribute)
@@ -153,6 +165,32 @@ constexpr size_t variant_index() {
     return i;
   } else {
     return variant_index<VariantType, T, i + 1>();
+  }
+}
+
+template <typename T, typename VariantType, size_t i = 0>
+constexpr T& unchecked_get(VariantType& variant) {
+  static_assert(i < std::variant_size_v<VariantType>,
+                "Type not found in variant");
+  if constexpr (std::is_same_v<std::variant_alternative_t<i, VariantType>, T>) {
+    auto* v = std::get_if<T>(&variant);
+    PERFETTO_ASSUME(v);
+    return *v;
+  } else {
+    return unchecked_get<T, VariantType, i + 1>(variant);
+  }
+}
+
+template <typename T, typename VariantType, size_t i = 0>
+constexpr const T& unchecked_get(const VariantType& variant) {
+  static_assert(i < std::variant_size_v<VariantType>,
+                "Type not found in variant");
+  if constexpr (std::is_same_v<std::variant_alternative_t<i, VariantType>, T>) {
+    const auto* v = std::get_if<T>(&variant);
+    PERFETTO_ASSUME(v != nullptr);
+    return *v;
+  } else {
+    return unchecked_get<T, VariantType, i + 1>(variant);
   }
 }
 

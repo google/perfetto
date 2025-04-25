@@ -12,65 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PageManagerImpl} from './page_manager';
-import {CORE_PLUGIN_ID} from './plugin_manager';
 import {Router} from './router';
-
-const mockComponent = {
-  view() {},
-};
-
-describe('Router#resolve', () => {
-  beforeEach(() => {
-    window.location.hash = '';
-  });
-
-  const pluginId = CORE_PLUGIN_ID;
-  const traceless = true;
-
-  test('Resolves empty route to default component', () => {
-    const pages = new PageManagerImpl();
-    pages.registerPage({route: '/', page: mockComponent, traceless, pluginId});
-    window.location.hash = '';
-    expect(pages.renderPageForCurrentRoute(undefined).tag).toBe(mockComponent);
-  });
-
-  test('Resolves subpage route to component of main page', () => {
-    const nonDefaultComponent = {view() {}};
-    const pages = new PageManagerImpl();
-    pages.registerPage({route: '/', page: mockComponent, traceless, pluginId});
-    pages.registerPage({
-      route: '/a',
-      page: nonDefaultComponent,
-      traceless,
-      pluginId,
-    });
-    window.location.hash = '#!/a/subpage';
-    expect(pages.renderPageForCurrentRoute(undefined).tag).toBe(
-      nonDefaultComponent,
-    );
-    expect(pages.renderPageForCurrentRoute(undefined).attrs.subpage).toBe(
-      '/subpage',
-    );
-  });
-
-  test('Pass empty subpage if not found in URL', () => {
-    const nonDefaultComponent = {view() {}};
-    const pages = new PageManagerImpl();
-    pages.registerPage({route: '/', page: mockComponent, traceless, pluginId});
-    pages.registerPage({
-      route: '/a',
-      page: nonDefaultComponent,
-      traceless,
-      pluginId,
-    });
-    window.location.hash = '#!/a';
-    expect(pages.renderPageForCurrentRoute(undefined).tag).toBe(
-      nonDefaultComponent,
-    );
-    expect(pages.renderPageForCurrentRoute(undefined).attrs.subpage).toBe('');
-  });
-});
 
 describe('Router.parseUrl', () => {
   // Can parse arguments from the search string.

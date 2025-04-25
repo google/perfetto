@@ -139,7 +139,7 @@ class IntervalTree {
 
       // Find intervals that overlap the center_ and intervals that belong to
       // the left node (finish before the center_). If an interval starts after
-      // the center break and assign all remining intervals to the right node.
+      // the center break and assign all remaining intervals to the right node.
       // We can do this as the provided intervals are in sorted order.
       std::vector<Interval> left;
       for (uint32_t i = 0; i < intervals_size; i++) {

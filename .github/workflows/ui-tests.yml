@@ -1,0 +1,102 @@
+# Copyright (C) 2025 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This workflow is triggered by analyze.yml
+name: Perfetto CI [ui]
+on:
+  workflow_call:
+env:
+  # /tmp/cache contains {ccache, bazelcache} and generally any other cache
+  # that should be persisted across jobs, but only updated from the main
+  # branch. This is populated by the "actions/cache/restore" step below.
+  PERFETTO_CACHE_DIR: /tmp/cache
+  PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
+  PYTHONUNBUFFERED: 1
+jobs:
+  ui:
+    runs-on: self-hosted
+    timeout-minutes: 45
+    env:
+      PERFETTO_CI_JOB_NAME: ui
+      PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-ui
+      CI: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup artifacts
+        run: |
+          PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_ROOT/$PERFETTO_CI_JOB_ID
+          echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
+          mkdir -p $PERFETTO_ARTIFACTS_DIR
+
+      - uses: ./.github/actions/install-build-deps
+        with:
+          install-flags: --ui
+
+      - name: Setup ccache
+        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+
+      - name: Restore cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.PERFETTO_CACHE_DIR }}
+          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}-${{ github.run_id }}
+          restore-keys: |
+            cache-${{ env.PERFETTO_CI_JOB_NAME }}-
+
+      - name: Build Perfetto UI
+        run: |
+          ui/build --out out/dist
+          cp -a out/dist/ui/dist/ "$PERFETTO_ARTIFACTS_DIR/ui"
+
+      - name: Print ccache stats
+        run: ccache --show-stats
+
+
+      - name: UI unittests
+        run: ui/run-unittests --out out/dist --no-build
+
+      - name: Install Chrome
+        run: |
+          mkdir /tmp/chrome
+          cd /tmp/chrome
+          CHROME_VERSION=135.0.7049.52
+          curl -Ls -o chrome.deb https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${CHROME_VERSION}-1_amd64.deb
+          dpkg-deb -x chrome.deb  .
+
+      - name: UI integrationtests
+        run: ui/run-integrationtests --out out/dist --no-build
+
+      - name: Upload artifacts to GCS
+        if: ${{ always() }}
+        run: |
+          if [ -d out/dist/ui-test-artifacts ]; then
+            cp -a out/dist/ui-test-artifacts "$PERFETTO_ARTIFACTS_DIR/ui-test-artifacts"
+          fi
+          /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_ROOT }}
+          echo "UI integration test report with screnshots:"
+          echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui-test-artifacts/index.html"
+          echo ""
+          echo "To download locally the changed screenshots run:"
+          echo "tools/download_changed_screenshots.py $PERFETTO_CI_JOB_ID"
+          echo ""
+          echo "Perfetto UI build for this CL"
+          echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html"
+
+      - name: Update cache (if on main)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.PERFETTO_CACHE_DIR }}
+          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}-${{ github.run_id }}

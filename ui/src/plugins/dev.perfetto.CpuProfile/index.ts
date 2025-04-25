@@ -21,6 +21,12 @@ import {getThreadUriPrefix} from '../../public/utils';
 import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
+import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {
+  metricsFromTableOrSubquery,
+  QueryFlamegraph,
+} from '../../components/query_flamegraph';
+import {Flamegraph} from '../../widgets/flamegraph';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuProfile';
@@ -31,7 +37,6 @@ export default class implements PerfettoPlugin {
       with thread_cpu_sample as (
         select distinct utid
         from cpu_profile_stack_sample
-        where utid != 0
       )
       select
         utid,
@@ -40,6 +45,7 @@ export default class implements PerfettoPlugin {
         thread.name as threadName
       from thread_cpu_sample
       join thread using(utid)
+      where not is_idle
     `);
 
     const it = result.iter({
@@ -70,5 +76,90 @@ export default class implements PerfettoPlugin {
       const track = new TrackNode({uri, title, sortOrder: -40});
       group?.addChildInOrder(track);
     }
+
+    ctx.selection.registerAreaSelectionTab(createAreaSelectionTab(ctx));
   }
+}
+
+function createAreaSelectionTab(trace: Trace) {
+  let previousSelection: undefined | AreaSelection;
+  let flamegraph: undefined | QueryFlamegraph;
+
+  return {
+    id: 'cpu_profile_flamegraph',
+    name: 'CPU Profile Sample Flamegraph',
+    render(selection: AreaSelection) {
+      const changed =
+        previousSelection === undefined ||
+        !areaSelectionsEqual(previousSelection, selection);
+
+      if (changed) {
+        flamegraph = computeCpuProfileFlamegraph(trace, selection);
+        previousSelection = selection;
+      }
+
+      if (flamegraph === undefined) {
+        return undefined;
+      }
+
+      return {isLoading: false, content: flamegraph.render()};
+    },
+  };
+}
+
+function computeCpuProfileFlamegraph(trace: Trace, selection: AreaSelection) {
+  const utids = [];
+  for (const trackInfo of selection.tracks) {
+    if (trackInfo?.tags?.kind === CPU_PROFILE_TRACK_KIND) {
+      utids.push(trackInfo.tags?.utid);
+    }
+  }
+  if (utids.length === 0) {
+    return undefined;
+  }
+  const metrics = metricsFromTableOrSubquery(
+    `
+      (
+        select
+          id,
+          parent_id as parentId,
+          name,
+          mapping_name,
+          source_file,
+          cast(line_number AS text) as line_number,
+          self_count
+        from _callstacks_for_callsites!((
+          select p.callsite_id
+          from cpu_profile_stack_sample p
+          where p.ts >= ${selection.start}
+            and p.ts <= ${selection.end}
+            and p.utid in (${utids.join(',')})
+        ))
+      )
+    `,
+    [
+      {
+        name: 'CPU Profile Samples',
+        unit: '',
+        columnName: 'self_count',
+      },
+    ],
+    'include perfetto module callstacks.stack_profile',
+    [{name: 'mapping_name', displayName: 'Mapping'}],
+    [
+      {
+        name: 'source_file',
+        displayName: 'Source File',
+        mergeAggregation: 'ONE_OR_NULL',
+      },
+      {
+        name: 'line_number',
+        displayName: 'Line Number',
+        mergeAggregation: 'ONE_OR_NULL',
+      },
+    ],
+  );
+  return new QueryFlamegraph(trace, metrics, {
+    state: Flamegraph.createDefaultState(metrics),
+  });
 }

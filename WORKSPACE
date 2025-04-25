@@ -29,7 +29,8 @@ new_local_repository(
 # 'rules_android'. So we need to set it here as well.
 android_sdk_repository(
     name = "androidsdk",
-    path = "buildtools/android_sdk",
+    api_level = 35,
+    build_tools_version = "35.0.1",
 )
 
 # We can't setup 'rules_jvm_external' in 'MODULE.bazel' because of bug:
@@ -50,7 +51,9 @@ maven_install(
     artifacts = [
         "androidx.test:runner:1.6.2",
         "androidx.test:monitor:1.7.2",
+        "com.google.truth:truth:1.4.4",
         "junit:junit:4.13.2",
+        "androidx.test.ext:junit:1.2.1",
     ],
     repositories = [
         "https://maven.google.com",

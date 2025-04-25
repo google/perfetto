@@ -174,7 +174,7 @@ class ColumnLegacy {
   static constexpr uint32_t kIdFlags = Flag::kSorted | Flag::kNonNull;
 
   // Flags which should *not* be inherited implicitly when a column is
-  // assocaited to another table.
+  // associated to another table.
   static constexpr uint32_t kNoCrossTableInheritFlags =
       ColumnLegacy::Flag::kSetId;
 

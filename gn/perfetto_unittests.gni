@@ -86,4 +86,9 @@ if (enable_perfetto_traced_relay) {
   perfetto_unittests_targets += [ "src/traced_relay:unittests" ]
 }
 
+if (enable_perfetto_android_java_sdk) {
+  perfetto_unittests_targets +=
+      [ "src/android_sdk/perfetto_sdk_for_jni:unittests" ]
+}
+
 perfetto_unittests_targets += [ "src/trace_redaction:unittests" ]

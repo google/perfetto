@@ -40,19 +40,19 @@ test('Duration.format', () => {
 test('Duration.humanise', () => {
   expect(Duration.humanise(0n)).toEqual('0s');
   expect(Duration.humanise(123n)).toEqual('123ns');
-  expect(Duration.humanise(1_234n)).toEqual('1.2us');
-  expect(Duration.humanise(12_345n)).toEqual('12.3us');
+  expect(Duration.humanise(1_234n)).toEqual('1.234us');
+  expect(Duration.humanise(12_345n)).toEqual('12.35us');
   expect(Duration.humanise(3_000_000_000n)).toEqual('3s');
   expect(Duration.humanise(60_000_000_000n)).toEqual('60s');
   expect(Duration.humanise(63_000_000_000n)).toEqual('63s');
-  expect(Duration.humanise(63_200_000_000n)).toEqual('63.2s');
-  expect(Duration.humanise(63_222_100_000n)).toEqual('63.2s');
-  expect(Duration.humanise(63_222_111_100n)).toEqual('63.2s');
+  expect(Duration.humanise(63_200_000_000n)).toEqual('63.20s');
+  expect(Duration.humanise(63_222_100_000n)).toEqual('63.22s');
+  expect(Duration.humanise(63_222_111_100n)).toEqual('63.22s');
   expect(Duration.humanise(222_111_100n)).toEqual('222.1ms');
   expect(Duration.humanise(1_000n)).toEqual('1us');
   expect(Duration.humanise(3_000n)).toEqual('3us');
-  expect(Duration.humanise(1_000_001_000n)).toEqual('1s');
-  expect(Duration.humanise(200_000_000_030n)).toEqual('200s');
+  expect(Duration.humanise(1_000_001_000n)).toEqual('1.000s');
+  expect(Duration.humanise(200_000_000_030n)).toEqual('200.0s');
   expect(Duration.humanise(3_600_000_000_000n)).toEqual('3600s');
   expect(Duration.humanise(86_400_000_000_000n)).toEqual('86400s');
   expect(Duration.humanise(31_536_000_000_000_000n)).toEqual('31536000s');

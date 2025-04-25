@@ -18,20 +18,23 @@
 
 #include <benchmark/benchmark.h>
 #include <sqlite3.h>
+#include <cstdio>
+#include <string>
+#include <vector>
 
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_view.h"
 
 namespace {
 
-using namespace perfetto;
 using benchmark::Counter;
 using perfetto::trace_processor::util::GlobMatcher;
 
-static const char kAndroidGlob[] = "*android*";
-static const char kLaunchingGlob[] = "launching: *";
-static const char kChoreographerGlob[] = "Choreographer#doFrame*";
-static const char kQuestionMarkGlob[] = "Choreo?rapher#doFrame*";
-static const char kCharClassGlob[] = "Choreo[a-z]rapher#doFrame*";
+const char kAndroidGlob[] = "*android*";
+const char kLaunchingGlob[] = "launching: *";
+const char kChoreographerGlob[] = "Choreographer#doFrame*";
+const char kQuestionMarkGlob[] = "Choreo?rapher#doFrame*";
+const char kCharClassGlob[] = "Choreo[a-z]rapher#doFrame*";
 
 std::vector<std::string> LoadTraceStrings(benchmark::State& state) {
   std::vector<std::string> strs;
@@ -40,7 +43,7 @@ std::vector<std::string> LoadTraceStrings(benchmark::State& state) {
   // too big (220 MB after uncompression) and it's not worth adding it to the
   // //test/data. Also it contains data from a team member's phone and cannot
   // be public.
-  base::ScopedFstream f(fopen("/tmp/slice_strings", "re"));
+  perfetto::base::ScopedFstream f(fopen("/tmp/slice_strings", "re"));
   if (!f) {
     state.SkipWithError(
         "Test strings missing. Googlers: download "
@@ -49,20 +52,21 @@ std::vector<std::string> LoadTraceStrings(benchmark::State& state) {
   }
   char line[4096];
   while (fgets(line, sizeof(line), *f)) {
-    strs.emplace_back(base::StringView(line).ToStdString());
+    strs.emplace_back(perfetto::base::StringView(line).ToStdString());
   }
   return strs;
 }
 
 template <class... Args>
-static void BM_Glob(benchmark::State& state, Args&&... args) {
+void BM_Glob(benchmark::State& state, Args&&... args) {
   auto args_tuple = std::make_tuple(std::move(args)...);
 
   std::vector<std::string> strs = LoadTraceStrings(state);
   GlobMatcher glob = GlobMatcher::FromPattern(std::get<0>(args_tuple));
   for (auto _ : state) {
-    for (const std::string& str : strs)
-      benchmark::DoNotOptimize(glob.Matches(base::StringView(str)));
+    for (const std::string& str : strs) {
+      benchmark::DoNotOptimize(glob.Matches(perfetto::base::StringView(str)));
+    }
     benchmark::ClobberMemory();
   }
   state.counters["str/s"] = Counter(static_cast<double>(strs.size()),
@@ -79,7 +83,7 @@ BENCHMARK_CAPTURE(BM_Glob, question_mark, kQuestionMarkGlob);
 BENCHMARK_CAPTURE(BM_Glob, char_class, kCharClassGlob);
 
 template <class... Args>
-static void BM_SqliteGlob(benchmark::State& state, Args&&... args) {
+void BM_SqliteGlob(benchmark::State& state, Args&&... args) {
   auto args_tuple = std::make_tuple(std::move(args)...);
   const char* glob = std::get<0>(args_tuple);
 

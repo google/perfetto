@@ -22,7 +22,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-TEST(NullTermStringViewTest, Comparisions) {
+TEST(NullTermStringViewTest, Comparisons) {
   // Test the < operator.
   EXPECT_FALSE(NullTermStringView() < NullTermStringView());
   EXPECT_FALSE(NullTermStringView() < NullTermStringView(""));

@@ -15,6 +15,8 @@
 
 CREATE PERFETTO FUNCTION _android_sdk_version()
 RETURNS LONG AS
-SELECT int_value AS sdk_version
+SELECT
+  int_value AS sdk_version
 FROM metadata
-WHERE name = 'android_sdk_version';
+WHERE
+  name = 'android_sdk_version';

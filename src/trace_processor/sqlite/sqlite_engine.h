@@ -20,6 +20,7 @@
 #include <sqlite3.h>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -125,20 +126,32 @@ class SqliteEngine {
   base::Status UnregisterFunction(const char* name, int argc);
 
   // Registers a SQLite virtual table module with the given name.
-  template <typename Module>
+  using ModuleContextDestructor = void(void*);
   void RegisterVirtualTableModule(const std::string& module_name,
-                                  typename Module::Context* ctx);
-
-  // Registers a SQLite virtual table module with the given name.
-  template <typename Module>
-  void RegisterVirtualTableModule(const std::string& module_name,
-                                  std::unique_ptr<typename Module::Context>);
-
-  // Declares a virtual table with SQLite.
-  base::Status DeclareVirtualTable(const std::string& create_stmt);
+                                  const sqlite3_module* module,
+                                  void* ctx,
+                                  ModuleContextDestructor destructor);
 
   // Gets the context for a registered SQL function.
   void* GetFunctionContext(const std::string& name, int argc);
+
+  // Sets a callback to be called when a transaction is committed.
+  //
+  // Returns the prior context object passed to a previous invocation of this
+  // function.
+  //
+  // See https://www.sqlite.org/c3ref/commit_hook.html for more details.
+  using CommitCallback = int(void*);
+  void* SetCommitCallback(CommitCallback callback, void* ctx);
+
+  // Sets a callback to be called when a transaction is rolled back.
+  //
+  // Returns the prior context object passed to a previous invocation of this
+  // function.
+  //
+  // See https://www.sqlite.org/c3ref/commit_hook.html for more details.
+  using RollbackCallback = void(void*);
+  void* SetRollbackCallback(RollbackCallback callback, void* ctx);
 
   sqlite3* db() const { return db_.get(); }
 
@@ -157,36 +170,6 @@ class SqliteEngine {
   base::FlatHashMap<std::pair<std::string, int>, void*, FnHasher> fn_ctx_;
   ScopedDb db_;
 };
-
-}  // namespace perfetto::trace_processor
-
-// The rest of this file is just implementation details which we need
-// in the header file because it is templated code. We separate it out
-// like this to keep the API people actually care about easy to read.
-
-namespace perfetto::trace_processor {
-
-template <typename Module>
-void SqliteEngine::RegisterVirtualTableModule(const std::string& module_name,
-                                              typename Module::Context* ctx) {
-  static_assert(std::is_base_of_v<sqlite::Module<Module>, Module>,
-                "Must subclass sqlite::Module");
-  int res = sqlite3_create_module_v2(db_.get(), module_name.c_str(),
-                                     &Module::kModule, ctx, nullptr);
-  PERFETTO_CHECK(res == SQLITE_OK);
-}
-
-template <typename Module>
-void SqliteEngine::RegisterVirtualTableModule(
-    const std::string& module_name,
-    std::unique_ptr<typename Module::Context> ctx) {
-  static_assert(std::is_base_of_v<sqlite::Module<Module>, Module>,
-                "Must subclass sqlite::Module");
-  int res = sqlite3_create_module_v2(
-      db_.get(), module_name.c_str(), &Module::kModule, ctx.release(),
-      [](void* arg) { delete static_cast<typename Module::Context*>(arg); });
-  PERFETTO_CHECK(res == SQLITE_OK);
-}
 
 }  // namespace perfetto::trace_processor
 

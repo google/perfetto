@@ -1,14 +1,21 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Removed mm_events support as it is no longer maintained.
   SQL Standard library:
     *
   Trace Processor:
-    *
+    * Added `thread_or_process_slice` to the `slices.with_context` module for
+      a unified table which contains all thread and process slices in the trace.
+      This is often useful for ad-hoc queries on Android or Linux traces.
+    * Removed `slices.slices` module and `_slice_with_thread_and_process_info`
+      view. This is replaced by `thread_or_process_slice` (see above).
   UI:
     *
   SDK:
-    *
+    * Added `TraceWriter::drop_count` function for determining the number of
+      of times the writer started dropping data due to exhaustion of the shared
+      memory buffer. This can be used by SDK users to diff this value and
+      reemit interned data if necessary.
 
 
 v49.0 - 2025-01-06:

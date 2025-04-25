@@ -14,7 +14,9 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE linux.cpu.utilization.general;
+
 INCLUDE PERFETTO MODULE time.conversion;
+
 INCLUDE PERFETTO MODULE intervals.intersect;
 
 -- The purpose of this module is to provide high level aggregates of system
@@ -25,8 +27,9 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 -- period, which is defined as a multiply of |interval|. For this reason
 -- first and last period might have lower then real utilization.
 CREATE PERFETTO FUNCTION cpu_utilization_per_period(
-  -- Length of the period on which utilization should be averaged.
-  interval LONG)
+    -- Length of the period on which utilization should be averaged.
+    interval LONG
+)
 RETURNS TABLE (
   -- Timestamp of start of a second.
   ts TIMESTAMP,
@@ -39,17 +42,22 @@ RETURNS TABLE (
   -- [0, cpu_count] range.
   unnormalized_utilization DOUBLE
 ) AS
-SELECT *
+SELECT
+  *
 FROM _cpu_avg_utilization_per_period!(
   $interval,
-  (SELECT * FROM sched WHERE utid != 0)
+  (SELECT * FROM sched WHERE NOT utid IN
+    (
+      SELECT utid FROM thread WHERE is_idle
+    )
+  )
 );
 
 -- Table with system utilization per second.
 -- Utilization is calculated by sum of average utilization of each CPU every
 -- second. For this reason first and last second might have lower then real
 -- utilization.
-CREATE PERFETTO TABLE cpu_utilization_per_second(
+CREATE PERFETTO TABLE cpu_utilization_per_second (
   -- Timestamp of start of a second.
   ts TIMESTAMP,
   -- Sum of average utilization over period.
@@ -68,7 +76,7 @@ SELECT
 FROM cpu_utilization_per_period(time_from_s(1));
 
 -- Aggregated CPU statistics for whole trace. Results in only one row.
-CREATE PERFETTO TABLE cpu_cycles(
+CREATE PERFETTO TABLE cpu_cycles (
   -- Sum of CPU millicycles.
   millicycles LONG,
   -- Sum of CPU megacycles.
@@ -85,9 +93,9 @@ CREATE PERFETTO TABLE cpu_cycles(
 SELECT
   cast_int!(SUM(dur * freq / 1000)) AS millicycles,
   cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
-  SUM(dur) AS runtime,
-  MIN(freq) AS min_freq,
-  MAX(freq) AS max_freq,
+  sum(dur) AS runtime,
+  min(freq) AS min_freq,
+  max(freq) AS max_freq,
   cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread;
 
@@ -98,7 +106,7 @@ CREATE PERFETTO FUNCTION cpu_cycles_in_interval(
     -- Duration of the interval.
     dur LONG
 )
-RETURNS TABLE(
+RETURNS TABLE (
   -- Sum of CPU millicycles.
   millicycles LONG,
   -- Sum of CPU megacycles.
@@ -115,15 +123,16 @@ RETURNS TABLE(
 SELECT
   cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
   cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
-  SUM(ii.dur) AS runtime,
-  MIN(freq) AS min_freq,
-  MAX(freq) AS max_freq,
+  sum(ii.dur) AS runtime,
+  min(freq) AS min_freq,
+  max(freq) AS max_freq,
   cast_int!(SUM((ii.dur * freq / 1000)) / SUM(ii.dur / 1000)) AS avg_freq
-FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) ii
-JOIN _cpu_freq_per_thread USING (id);
+FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
+JOIN _cpu_freq_per_thread
+  USING (id);
 
 -- Aggregated CPU statistics for each CPU.
-CREATE PERFETTO TABLE cpu_cycles_per_cpu(
+CREATE PERFETTO TABLE cpu_cycles_per_cpu (
   -- Unique CPU id. Joinable with `cpu.id`.
   ucpu LONG,
   -- The number of the CPU. Might not be the same as ucpu in multi machine cases.
@@ -146,12 +155,13 @@ SELECT
   cpu,
   cast_int!(SUM(dur * freq / 1000)) AS millicycles,
   cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
-  SUM(dur) AS runtime,
-  MIN(freq) AS min_freq,
-  MAX(freq) AS max_freq,
+  sum(dur) AS runtime,
+  min(freq) AS min_freq,
+  max(freq) AS max_freq,
   cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread
-GROUP BY ucpu;
+GROUP BY
+  ucpu;
 
 -- Aggregated CPU statistics for each CPU in a provided interval.
 CREATE PERFETTO FUNCTION cpu_cycles_per_cpu_in_interval(
@@ -160,7 +170,7 @@ CREATE PERFETTO FUNCTION cpu_cycles_per_cpu_in_interval(
     -- Duration of the interval.
     dur LONG
 )
-RETURNS TABLE(
+RETURNS TABLE (
   -- Unique CPU id. Joinable with `cpu.id`.
   ucpu LONG,
   -- CPU number.
@@ -183,10 +193,12 @@ SELECT
   cpu,
   cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
   cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
-  SUM(ii.dur) AS runtime,
-  MIN(freq) AS min_freq,
-  MAX(freq) AS max_freq,
+  sum(ii.dur) AS runtime,
+  min(freq) AS min_freq,
+  max(freq) AS max_freq,
   cast_int!(SUM((ii.dur * freq / 1000)) / SUM(ii.dur / 1000)) AS avg_freq
-FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) ii
-JOIN _cpu_freq_per_thread USING (id)
-GROUP BY ucpu;
+FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
+JOIN _cpu_freq_per_thread
+  USING (id)
+GROUP BY
+  ucpu;

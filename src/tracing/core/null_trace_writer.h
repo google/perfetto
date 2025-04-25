@@ -17,10 +17,15 @@
 #ifndef SRC_TRACING_CORE_NULL_TRACE_WRITER_H_
 #define SRC_TRACING_CORE_NULL_TRACE_WRITER_H_
 
+#include <cstdint>
+#include <functional>
+#include <memory>
+
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
-#include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/root_message.h"
 #include "perfetto/protozero/scattered_stream_null_delegate.h"
+#include "perfetto/protozero/scattered_stream_writer.h"
 
 namespace perfetto {
 
@@ -39,6 +44,7 @@ class NullTraceWriter : public TraceWriter {
   void Flush(std::function<void()> callback = {}) override;
   WriterID writer_id() const override;
   uint64_t written() const override;
+  uint64_t drop_count() const override;
 
  private:
   NullTraceWriter(const NullTraceWriter&) = delete;

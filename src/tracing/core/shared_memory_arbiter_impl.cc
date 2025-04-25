@@ -163,8 +163,8 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
           if (!chunk.is_valid())
             continue;
           if (stall_count > kLogAfterNStalls) {
-            PERFETTO_LOG("Recovered from stall after %d iterations",
-                         stall_count);
+            PERFETTO_DLOG("Recovered from stall after %d iterations",
+                          stall_count);
           }
 
           if (should_commit_synchronously) {
@@ -190,7 +190,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     // All chunks are taken (either kBeingWritten by us or kBeingRead by the
     // Service).
     if (stall_count++ == kLogAfterNStalls) {
-      PERFETTO_LOG("Shared memory buffer overrun! Stalling");
+      PERFETTO_DLOG("Shared memory buffer overrun! Stalling");
     }
 
     if (stall_count == kAssertAtNStalls) {
@@ -260,7 +260,7 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
   uint32_t flush_delay_ms = 0;
   base::WeakPtr<SharedMemoryArbiterImpl> weak_this;
   {
-    std::lock_guard<std::mutex> scoped_lock(lock_);
+    std::unique_lock<std::mutex> scoped_lock(lock_);
 
     if (!commit_data_req_) {
       commit_data_req_.reset(new CommitDataRequest());
@@ -368,6 +368,29 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
       weak_this = weak_ptr_factory_.GetWeakPtr();
       task_runner_to_post_delayed_callback_on = task_runner_;
       flush_delay_ms = 0;
+    }
+
+    // When using shmem emulation we commit the completed chunks immediately
+    // to prevent the |bytes_pending_commit_| to become greater than the size
+    // of the IPC buffer, since the chunk's data must be passed in the commit
+    // data request proto through the network socket. Not doing so could
+    // result in a "IPC Frame too large" issue on the host traced side.
+    if (fully_bound_ && use_shmem_emulation_) {
+      if (task_runner_->RunsTasksOnCurrentThread()) {
+        task_runner_to_post_delayed_callback_on = nullptr;
+        // Allow next call to UpdateCommitDataRequest to start
+        // another batching period.
+        delayed_flush_scheduled_ = false;
+        // We can't flush while holding the lock
+        scoped_lock.unlock();
+        FlushPendingCommitDataRequests();
+      } else {
+        // Since we aren't on the |task_runner_| thread post a task instead,
+        // in order to prevent non-overlaping commit data request flushes.
+        weak_this = weak_ptr_factory_.GetWeakPtr();
+        task_runner_to_post_delayed_callback_on = task_runner_;
+        flush_delay_ms = 0;
+      }
     }
   }  // scoped_lock(lock_)
 

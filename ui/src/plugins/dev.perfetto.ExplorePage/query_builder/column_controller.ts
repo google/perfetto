@@ -59,18 +59,21 @@ export function columnControllerRowFromName(
 
 export function newColumnControllerRow(
   oldCol: ColumnControllerRow,
-  checked: boolean = false,
+  checked?: boolean | undefined,
 ) {
   return {
     id: oldCol.alias ?? oldCol.column.name,
     column: oldCol.column,
     alias: undefined,
-    checked,
+    checked: checked ?? oldCol.checked,
   };
 }
 
-export function newColumnControllerRows(oldCols: ColumnControllerRow[]) {
-  return oldCols.map((col) => newColumnControllerRow(col));
+export function newColumnControllerRows(
+  oldCols: ColumnControllerRow[],
+  checked?: boolean | undefined,
+) {
+  return oldCols.map((col) => newColumnControllerRow(col, checked));
 }
 
 export interface ColumnControllerDiff {
@@ -90,7 +93,7 @@ export class ColumnController
   implements m.ClassComponent<ColumnControllerAttrs>
 {
   view({attrs}: m.CVnode<ColumnControllerAttrs>) {
-    const {options, fixedSize = true, allowAlias = true} = attrs;
+    const {options, fixedSize = false, allowAlias = true} = attrs;
 
     const filteredItems = options;
 
@@ -123,7 +126,6 @@ export class ColumnController
             '.pf-column-controller-container',
             m(
               '.pf-column-controller-header',
-              m('span', 'Options'),
               m(Button, {
                 label: 'Select All',
                 icon: Icons.SelectAll,

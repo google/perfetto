@@ -41,12 +41,12 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
-#include <unistd.h>
 #include <time.h>
+#include <unistd.h>
 #endif
 
 // Non-QNX include statements
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||           \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #include <sys/syscall.h>
@@ -353,7 +353,7 @@ std::string RelayService::GetMachineIdHint(
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
     // QNX doesn't support the file birthtime flag in the stat structure.
     // In order to still calculate the system boot time in epoch seconds
-    // we get the current epoch seconds and substract the amount of time
+    // we get the current epoch seconds and subtract the amount of time
     // since boot. This is a more generic approach that could be used in
     // general for POSIX operating systems (even though is not as accurate).
     timespec system_boottime;
@@ -362,14 +362,14 @@ std::string RelayService::GetMachineIdHint(
     // Get current epoch time
     int rc = clock_gettime(CLOCK_REALTIME, &system_boottime);
     if (rc == 0)
-        return std::string();
+      return std::string();
 
     // Get seconds since system boot
     timesinceboot_secs = ClockCycles() / SYSPAGE_ENTRY(qtime)->cycles_per_sec;
 
     // Calculate system boot time in epoch seconds
     if (timesinceboot_secs > static_cast<uint64_t>(system_boottime.tv_sec))
-        return std::string();
+      return std::string();
 
     system_boottime.tv_sec -= timesinceboot_secs;
 

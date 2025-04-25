@@ -22,6 +22,7 @@ import "protos/perfetto/trace/extension_descriptor.proto";
 import "protos/perfetto/trace/android/android_game_intervention_list.proto";
 import "protos/perfetto/trace/android/android_log.proto";
 import "protos/perfetto/trace/android/android_system_property.proto";
+import "protos/perfetto/trace/android/app_wakelock_data.proto";
 import "protos/perfetto/trace/android/bluetooth_trace.proto";
 import "protos/perfetto/trace/android/camera_event.proto";
 import "protos/perfetto/trace/android/frame_timeline_event.proto";
@@ -106,7 +107,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 116.
+// Next id: 117.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -179,7 +180,6 @@ message TracePacket {
     EntityStateResidency entity_state_residency = 91;
 
     // Only used in profile packets.
-    ProfiledFrameSymbols profiled_frame_symbols = 55;
     ModuleSymbols module_symbols = 61;
     DeobfuscationMapping deobfuscation_mapping = 64;
 
@@ -252,6 +252,8 @@ message TracePacket {
 
     KernelWakelockData kernel_wakelock_data = 115;
 
+    AppWakelockBundle app_wakelock_bundle = 116;
+
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
     // This caused many problems:
@@ -263,6 +265,9 @@ message TracePacket {
 
   // AndroidInputEvent android_input_event (moved to winscope_extensions)
   reserved 106;
+
+  // removed ProfiledFrameSymbols profiled_frame_symbols
+  reserved 55;
 
   // Trusted user id of the producer which generated this packet. Keep in sync
   // with TrustedPacket.trusted_uid.

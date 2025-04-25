@@ -63,7 +63,8 @@ class AndroidBatteryStatsHistoryStringTracker : public Destructible {
 
   // Gets the string associated with the given HSP index.
   const std::string& GetString(int64_t index) {
-    return index >= 0 ? hsp_items_[static_cast<uint64_t>(index)].str : invalid_string_;
+    return index >= 0 ? hsp_items_[static_cast<uint64_t>(index)].str
+                      : invalid_string_;
   }
 
   // Associate the given uid and string with the given HSP index.
@@ -83,7 +84,7 @@ class AndroidBatteryStatsHistoryStringTracker : public Destructible {
     // max linux uid is 2^31 - 2. Battery stats sometimes gives us a uid of -1,
     // so make this signed.
     int32_t uid;
-    // An arbirary string associated with the HSP i
+    // An arbitrary string associated with the HSP i
     std::string str;
   };
 

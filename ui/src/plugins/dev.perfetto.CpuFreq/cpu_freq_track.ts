@@ -21,7 +21,7 @@ import {colorForCpu} from '../../components/colorizer';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
-import {Track} from '../../public/track';
+import {TrackRenderer} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
@@ -53,7 +53,7 @@ interface Config {
 const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 20;
 
-export class CpuFreqTrack implements Track {
+export class CpuFreqTrack implements TrackRenderer {
   private mousePos: Point2D = {x: 0, y: 0};
   private hoveredValue: number | undefined = undefined;
   private hoveredTs: time | undefined = undefined;

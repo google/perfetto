@@ -55,6 +55,7 @@ ProcessTracker::ProcessTracker(TraceProcessorContext* context)
   thread_row.tid = 0u;
   thread_row.upid = upid;  // The swapper upid may be != 0 for remote machines.
   thread_row.is_main_thread = true;
+  thread_row.is_idle = true;
   thread_row.machine_id = context_->machine_id();
   auto utid = context_->storage->mutable_thread_table()->Insert(thread_row).row;
 

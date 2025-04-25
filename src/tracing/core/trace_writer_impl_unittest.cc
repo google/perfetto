@@ -16,16 +16,29 @@
 
 #include "src/tracing/core/trace_writer_impl.h"
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <tuple>
+#include <utility>
 #include <vector>
 
-#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/message.h"
+#include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/test/aligned_buffer_test.h"
@@ -45,6 +58,7 @@ using ShmemMode = SharedMemoryABI::ShmemMode;
 using ::protozero::ScatteredStreamWriter;
 using ::testing::AllOf;
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::IsNull;
 using ::testing::MockFunction;
@@ -946,6 +960,7 @@ TEST_P(TraceWriterImplTest, FragmentingPacketWhileBufferExhausted) {
 
   EXPECT_TRUE(reinterpret_cast<TraceWriterImpl*>(writer.get())
                   ->drop_packets_for_testing());
+  EXPECT_THAT(writer.get()->drop_count(), Eq(1u));
 
   // First chunk should be committed.
   arbiter_->FlushPendingCommitDataRequests();
@@ -982,6 +997,7 @@ TEST_P(TraceWriterImplTest, FragmentingPacketWhileBufferExhausted) {
   // Grabbing the chunk should have succeeded.
   EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(writer.get())
                    ->drop_packets_for_testing());
+  EXPECT_THAT(writer.get()->drop_count(), Eq(1u));
 
   // The first packet in the chunk should have the previous_packet_dropped
   // flag set, so shouldn't be empty.
@@ -1319,6 +1335,70 @@ TEST_P(TraceWriterImplTest, NestedMsgsPatches) {
   EXPECT_EQ(last_commit_.chunks_to_patch()[0].target_buffer(), kBufId);
   EXPECT_FALSE(last_commit_.chunks_to_patch()[0].has_more_patches());
   EXPECT_THAT(last_commit_.chunks_to_patch()[0].patches(), SizeIs(3));
+}
+
+TEST_P(TraceWriterImplTest, BufferExhaustedMultipleTimes) {
+  const BufferID kBufId = 42;
+  std::unique_ptr<TraceWriter> writer =
+      arbiter_->CreateTraceWriter(kBufId, BufferExhaustedPolicy::kDrop);
+
+  // Write a small first packet, so that |writer| owns a chunk.
+  auto packet = writer->NewTracePacket();
+  EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(writer.get())
+                   ->drop_packets_for_testing());
+  // 3 bytes for the first_packet_on_sequence flag.
+  EXPECT_EQ(packet->Finalize(), 3u);
+
+  // Grab all the remaining chunks in the SMB in new writers.
+  std::array<std::unique_ptr<TraceWriter>, kNumPages * 4 - 1> other_writers;
+  for (size_t i = 0; i < other_writers.size(); i++) {
+    other_writers[i] =
+        arbiter_->CreateTraceWriter(kBufId, BufferExhaustedPolicy::kDrop);
+    auto other_writer_packet = other_writers[i]->NewTracePacket();
+    EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(other_writers[i].get())
+                     ->drop_packets_for_testing());
+  }
+
+  // Write a packet that's guaranteed to span more than a single chunk,
+  // causing |writer| to attempt to acquire a new chunk but fail to do so.
+  auto packet2 = writer->NewTracePacket();
+  size_t chunk_size = page_size() / 4;
+  std::string large_string(chunk_size, 'x');
+  packet2->set_for_testing()->set_str(large_string);
+  packet2->Finalize();
+
+  EXPECT_TRUE(reinterpret_cast<TraceWriterImpl*>(writer.get())
+                  ->drop_packets_for_testing());
+  EXPECT_THAT(writer.get()->drop_count(), Eq(1u));
+
+  // Fill the garbage chunk, so that the writer attempts to grab another chunk
+  // for |packet4|.
+  auto packet3 = writer->NewTracePacket();
+  packet3->set_for_testing()->set_str(large_string);
+  packet3->Finalize();
+
+  // Release the first chunk as free, so |writer| can acquire it again.
+  SharedMemoryABI* abi = arbiter_->shmem_abi_for_testing();
+  ASSERT_EQ(SharedMemoryABI::kChunkComplete, abi->GetChunkState(0u, 0u));
+  auto chunk = abi->TryAcquireChunkForReading(0u, 0u);
+  ASSERT_TRUE(chunk.is_valid());
+  abi->ReleaseChunkAsFree(std::move(chunk));
+
+  // Grab a chunk again.
+  auto packet4 = writer->NewTracePacket();
+  EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(writer.get())
+                   ->drop_packets_for_testing());
+  packet4->Finalize();
+  EXPECT_THAT(writer.get()->drop_count(), Eq(1u));
+
+  // Write a cross-chunk packet again.
+  auto packet5 = writer->NewTracePacket();
+  packet5->set_for_testing()->set_str(large_string);
+  packet5->Finalize();
+
+  EXPECT_TRUE(reinterpret_cast<TraceWriterImpl*>(writer.get())
+                  ->drop_packets_for_testing());
+  EXPECT_THAT(writer.get()->drop_count(), Eq(2u));
 }
 
 // TODO(primiano): add multi-writer test.

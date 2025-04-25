@@ -19,7 +19,6 @@
 
 #include <stdint.h>
 
-#include <string>
 #include <vector>
 
 #include "perfetto/base/logging.h"

@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Android inputmethod clients state dumps (from android.inputmethod data source).
-CREATE PERFETTO VIEW android_inputmethod_clients(
+CREATE PERFETTO VIEW android_inputmethod_clients (
   -- Dump id
   id LONG,
   -- Timestamp when the dump was triggered
@@ -29,7 +29,7 @@ SELECT
 FROM __intrinsic_inputmethod_clients;
 
 -- Android inputmethod manager service state dumps (from android.inputmethod data source).
-CREATE PERFETTO VIEW android_inputmethod_manager_service(
+CREATE PERFETTO VIEW android_inputmethod_manager_service (
   -- Dump id
   id LONG,
   -- Timestamp when the dump was triggered
@@ -44,7 +44,7 @@ SELECT
 FROM __intrinsic_inputmethod_manager_service;
 
 -- Android inputmethod service state dumps (from android.inputmethod data source).
-CREATE PERFETTO VIEW android_inputmethod_service(
+CREATE PERFETTO VIEW android_inputmethod_service (
   -- Dump id
   id LONG,
   -- Timestamp when the dump was triggered

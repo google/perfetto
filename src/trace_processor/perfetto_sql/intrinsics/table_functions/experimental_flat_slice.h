@@ -48,7 +48,7 @@ class TraceProcessorContext;
 // slices.
 //
 // This table also adds "gap slices" which fill in the gap between top level
-// slices with a sentinal values so that comparision of the gap between slices
+// slices with a sentinel values so that comparison of the gap between slices
 // is also possible.
 //
 // As input, this generator takes a start and end timestamp between

@@ -136,7 +136,7 @@ class ClassData {
 };
 
 // Ingested data from a Java Heap Profile for a name, location pair.
-// We need to support multiple class datas per pair as name, location is
+// We need to support multiple class data per pair as name, location is
 // not unique. Classloader should guarantee uniqueness but is not available
 // until S.
 class RawClassData {

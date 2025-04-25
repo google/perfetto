@@ -54,3 +54,18 @@ export interface FlowPoint {
 }
 
 export type FlowDirection = 'Forward' | 'Backward';
+
+export const ALL_CATEGORIES = '_all_';
+
+export function getFlowCategories(flow: Flow): string[] {
+  const categories: string[] = [];
+  // v1 flows have their own categories
+  if (flow.category) {
+    categories.push(...flow.category.split(','));
+    return categories;
+  }
+  const beginCats = flow.begin.sliceCategory.split(',');
+  const endCats = flow.end.sliceCategory.split(',');
+  categories.push(...new Set([...beginCats, ...endCats]));
+  return categories;
+}

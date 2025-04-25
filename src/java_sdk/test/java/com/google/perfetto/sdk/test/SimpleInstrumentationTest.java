@@ -46,5 +46,9 @@ public class SimpleInstrumentationTest {
         Assert.assertEquals(0, perfettoResult);
         Assert.assertTrue(perfettoOutput.exists());
         Assert.assertTrue(perfettoOutput.length() > 0);
+
+        int criticalValuePlusOne = PerfettoExampleWrapper.incrementIntCritical(10);
+        Log.i(TAG, "criticalValuePlusOne: " + criticalValuePlusOne);
+        Assert.assertEquals(11, criticalValuePlusOne);
     }
 }

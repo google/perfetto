@@ -306,6 +306,9 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
       ReturnCompletedChunk();
     }
 
+    // Only increment the count if we are newly entering this state not
+    // otherwise.
+    drop_count_ += !drop_packets_;
     drop_packets_ = true;
     cur_chunk_ = SharedMemoryABI::Chunk();  // Reset to an invalid chunk.
     cur_chunk_packet_count_inflated_ = false;

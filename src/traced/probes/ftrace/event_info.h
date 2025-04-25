@@ -19,7 +19,6 @@
 
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "src/traced/probes/ftrace/event_info_constants.h"
 
 namespace perfetto {

@@ -58,7 +58,6 @@ class AndroidProbesParser {
   const StringId bt_packet_type_id_;
   const StringId bt_count_id_;
   const StringId bt_length_id_;
-  const StringId bt_duration_id_;
   const StringId bt_op_code_id_;
   const StringId bt_event_code_id_;
   const StringId bt_subevent_code_id_;

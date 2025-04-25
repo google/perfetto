@@ -17,6 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_KERNEL_WAKELOCKS_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_KERNEL_WAKELOCKS_MODULE_H_
 
+#include <cstdint>
+#include <string>
+
 #include "protos/perfetto/trace/android/kernel_wakelock_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -24,8 +27,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 struct KernelWakelockMetadata;
 struct KernelWakelockLastValue;
@@ -35,8 +37,6 @@ class AndroidKernelWakelocksModule : public ProtoImporterModule {
   explicit AndroidKernelWakelocksModule(TraceProcessorContext* context);
 
   ~AndroidKernelWakelocksModule() override;
-
-  void OnIncrementalStateCleared(uint32_t /* packet_sequence_id */) override;
 
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
                             int64_t ts,
@@ -49,8 +49,6 @@ class AndroidKernelWakelocksModule : public ProtoImporterModule {
                      protos::pbzero::KernelWakelockData_Wakelock_Type type,
                      uint64_t value);
 
-  base::FlatHashMap<uint32_t, KernelWakelockMetadata> wakelocks_;
-  base::FlatHashMap<std::string, KernelWakelockLastValue> wakelock_last_values_;
   TraceProcessorContext* context_;
 
   const StringId kernel_name_id_;
@@ -58,7 +56,6 @@ class AndroidKernelWakelocksModule : public ProtoImporterModule {
   const StringId unknown_name_id_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_KERNEL_WAKELOCKS_MODULE_H_

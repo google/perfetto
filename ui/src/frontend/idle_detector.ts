@@ -23,7 +23,7 @@ import {taskTracker} from './task_tracker';
  */
 
 const IDLE_HYSTERESIS_MS = 100;
-const TIMEOUT_MS = 30_000;
+const TIMEOUT_MS = 60_000;
 
 export class IdleDetector {
   private promise = defer<void>();

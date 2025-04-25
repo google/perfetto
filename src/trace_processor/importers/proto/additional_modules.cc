@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/proto/android_camera_event_module.h"
 #include "src/trace_processor/importers/proto/android_kernel_wakelocks_module.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
+#include "src/trace_processor/importers/proto/app_wakelock_module.h"
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
@@ -59,6 +60,7 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new WinscopeModule(context));
   context->modules.emplace_back(new PixelModemModule(context));
   context->modules.emplace_back(new ProfileModule(context));
+  context->modules.emplace_back(new AppWakelockModule(context));
 
   // Ftrace/Etw modules are special, because it has one extra method for parsing
   // ftrace/etw packets. So we need to store a pointer to it separately.

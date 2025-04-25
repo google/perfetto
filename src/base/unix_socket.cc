@@ -94,11 +94,11 @@ constexpr char kVsockNamePrefix[] = "vsock://";
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-bool IsQNXHypervisor() {
-  static bool is_qnx_hypervisor = [] {
-    return base::GetAndroidProp("ro.traced.hypervisor") == "qnx";
+bool IsVirtualized() {
+  static bool is_virtualized = [] {
+    return base::GetAndroidProp("ro.traced.hypervisor") == "true";
   }();
-  return is_qnx_hypervisor;
+  return is_virtualized;
 }
 #endif
 
@@ -185,7 +185,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
           __builtin_offsetof(sockaddr_un, sun_path) + name_len + 1);
 
       // Abstract sockets do NOT require a trailing null terminator (which is
-      // instad mandatory for filesystem sockets). Any byte up to `size`,
+      // instead mandatory for filesystem sockets). Any byte up to `size`,
       // including '\0' will become part of the socket name.
       if (saddr.sun_path[0] == '\0')
         --size;
@@ -237,8 +237,8 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       addr.svm_cid = *base::StringToUInt32(parts[0]);
       addr.svm_port = *base::StringToUInt32(parts[1]);
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-      if (IsQNXHypervisor()) {
-        // VM-to-VM VSOCK communication in QNX requires messages to be
+      if (IsVirtualized()) {
+        // VM-to-VM VSOCK communication requires messages to be
         // routed through the host.
         addr.svm_flags = VMADDR_FLAG_TO_HOST;
       }
@@ -490,10 +490,11 @@ bool UnixSocketRaw::Connect(const std::string& socket_name) {
   // until it is writable.
   bool is_blocking_call = family_ == SockFamily::kVsock;
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  // VM-to-VM communication in QNX needs to go through the host.
-  // Therefore the connect call should be handled as if it is
-  // hypervisor-to-VM.
-  bool is_blocking_call = family_ == SockFamily::kVsock && IsQNXHypervisor();
+  // For VM-to-VM communication block until the socket is writable.
+  // Not blocking leads to race condition where no error is found
+  // with SO_ERROR socket option but the socket is still not writable
+  // so subsequent socket calls fail.
+  bool is_blocking_call = family_ == SockFamily::kVsock && IsVirtualized();
 #else
   bool is_blocking_call = false;
 #endif
@@ -719,8 +720,8 @@ bool UnixSocketRaw::SetTxTimeout(uint32_t timeout_ms) {
 #endif
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
   if (family() == SockFamily::kVsock) {
-      // QNX doesn't support SO_SNDTIMEO for vsocks.
-      return true;
+    // QNX doesn't support SO_SNDTIMEO for vsocks.
+    return true;
   }
 #endif
 
@@ -1041,7 +1042,7 @@ void UnixSocket::OnEvent() {
       // re-posted immediately. In both cases, not doing a Recv() in
       // OnDataAvailable, leads to something bad (getting stuck on Windows,
       // getting in a hot loop on Linux), so doesn't feel we should worry too
-      // much about this. If we wanted to keep the behavrior consistent, here
+      // much about this. If we wanted to keep the behavior consistent, here
       // we should do something like: `if (sock_raw_)
       // sock_raw_.SetBlocking(false)` (Note that the socket might be closed
       // by the time we come back here, hence the if part).
