@@ -403,7 +403,6 @@ class BazelLabel(object):
     self.exports = []
     self.main = None
     self.cmd: Optional[str] = None
-    self.python_version: Optional[str] = None
     self.root_dir: Optional[str] = None
     self.namespace: Optional[str] = None
     self.tags: List[str] = []
@@ -432,8 +431,7 @@ class BazelLabel(object):
     ORD = [
         'name', 'testonly', 'srcs', 'binary_name', 'linkopts', 'manifest',
         'resource_files', 'instruments', 'hdrs', 'defines', 'visibility',
-        'data', 'deps', 'outs', 'cmd', 'tools', 'exports', 'main',
-        'python_version'
+        'data', 'deps', 'outs', 'cmd', 'tools', 'exports', 'main'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
