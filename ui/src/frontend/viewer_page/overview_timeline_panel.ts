@@ -24,7 +24,6 @@ import {getOrCreate} from '../../base/utils';
 import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
 import {colorForCpu} from '../../components/colorizer';
 import {raf} from '../../core/raf_scheduler';
-import {timestampFormat} from '../../core/timestamp_format';
 import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {LONG, NUM} from '../../trace_processor/query_result';
@@ -123,7 +122,14 @@ export class OverviewTimeline
         if (type === TickType.MAJOR) {
           ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
           const domainTime = trace.timeline.toDomainTime(time);
-          renderTimestamp(ctx, domainTime, xPos + 5, 18, MIN_PX_PER_STEP);
+          renderTimestamp(
+            trace,
+            ctx,
+            domainTime,
+            xPos + 5,
+            18,
+            MIN_PX_PER_STEP,
+          );
         } else if (type == TickType.MEDIUM) {
           ctx.fillRect(xPos - 1, 0, 1, 8);
         } else if (type == TickType.MINOR) {
@@ -267,13 +273,14 @@ export class OverviewTimeline
 
 // Print a timestamp in the configured time format
 function renderTimestamp(
+  trace: TraceImpl,
   ctx: CanvasRenderingContext2D,
   time: time,
   x: number,
   y: number,
   minWidth: number,
 ): void {
-  const fmt = timestampFormat();
+  const fmt = trace.timeline.timestampFormat;
   switch (fmt) {
     case TimestampFormat.UTC:
     case TimestampFormat.TraceTz:

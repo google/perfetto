@@ -13,12 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button} from '../widgets/button';
-import {Icons} from '../base/semantic_icons';
-import {TraceImplAttrs} from '../core/trace_impl';
+import {Button} from '../../widgets/button';
+import {Icons} from '../../base/semantic_icons';
+import {TraceImpl} from '../../core/trace_impl';
 
-export class NotesListEditor implements m.ClassComponent<TraceImplAttrs> {
-  view({attrs}: m.CVnode<TraceImplAttrs>) {
+interface NotesManagerAttrs {
+  readonly trace: TraceImpl;
+}
+
+export class NotesManager implements m.ClassComponent<NotesManagerAttrs> {
+  view({attrs}: m.CVnode<NotesManagerAttrs>) {
     const notes = attrs.trace.notes.notes;
     if (notes.size === 0) {
       return 'No notes found';

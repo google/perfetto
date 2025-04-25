@@ -38,7 +38,7 @@ if (is_linux_host) {
     _linux_llvm_dir = _find_llvm_out[0]
     linux_clang_bin = _find_llvm_out[1]
     linux_clangxx_bin = _find_llvm_out[2]
-    linux_clang_linker = "gold"
+    linux_clang_linker = "ld"  # Use the default system linker (bfd)
   }
 } else if (is_mac_host && is_clang && !is_system_compiler) {
   _mac_toolchain_dirs = exec_script("mac_find_llvm.py", [], "list lines")
