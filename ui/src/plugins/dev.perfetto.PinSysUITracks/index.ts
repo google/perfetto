@@ -20,7 +20,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 const TRACKS_TO_PIN: string[] = [
   'Actual Timeline',
   'Expected Timeline',
-  'ndroid.systemui',
+  'Android.systemui',
   'IKeyguardService',
   'Transition:',
   'L<',
