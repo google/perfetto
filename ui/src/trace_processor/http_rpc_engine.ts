@@ -96,16 +96,22 @@ export class HttpRpcEngine extends EngineBase {
   private async processQueue() {
     if (this.isProcessingQueue) return;
     this.isProcessingQueue = true;
-    while (this.queue.length > 0) {
-      try {
+    try {
+      while (this.queue.length > 0) {
+        // retain the previous behavior which use the global
+        // reportError to display error messages.
         const blob = assertExists(this.queue.shift());
         const buf = await blob.arrayBuffer();
         super.onRpcResponseBytes(new Uint8Array(buf));
-      } catch (e) {
-        console.error('Error processing websocket Message: ', e.message);
+      }
+    } finally {
+      this.isProcessingQueue = false;
+      // if the queue is not empty, we need start a new task
+      // to continue process the remain websocket message.
+      if (this.queue.length > 0) {
+        this.processQueue();
       }
     }
-    this.isProcessingQueue = false;
   }
 
   static async checkConnection(): Promise<HttpRpcState> {
