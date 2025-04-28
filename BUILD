@@ -1287,6 +1287,8 @@ perfetto_cc_library(
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
         "src/base/getopt_compat.cc",
+        "src/base/intrusive_list.cc",
+        "src/base/intrusive_list.h",
         "src/base/intrusive_tree.cc",
         "src/base/intrusive_tree.h",
         "src/base/log_ring_buffer.h",
@@ -1682,7 +1684,6 @@ perfetto_filegroup(
         "src/trace_processor/dataframe/impl/query_plan.cc",
         "src/trace_processor/dataframe/impl/query_plan.h",
         "src/trace_processor/dataframe/impl/slab.h",
-        "src/trace_processor/dataframe/impl/static_vector.h",
         "src/trace_processor/dataframe/impl/types.h",
     ],
 )
@@ -3138,6 +3139,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_memory_memory",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/memory/dmabuf.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/lmk.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/process.sql",
     ],
 )
