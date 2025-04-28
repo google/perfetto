@@ -309,12 +309,10 @@ class PythonBuildGenerator:
     label.comment = target.name
     label.srcs += (self.python_label_to_path(x) for x in target.sources)
     label.data += (self.python_data_to_path(x) for x in target.data)
-    label.main = target.python_main
-    label.python_version = 'PY3'
     if target.name in public_python_targets:
       label.visibility = ['//visibility:public']
-
     self.populate_python_deps(target, label)
+    label.main = target.python_main
     return [label]
 
   def gen_target(self, gn_target: GnParser.Target):
@@ -405,7 +403,6 @@ class BazelLabel(object):
     self.exports = []
     self.main = None
     self.cmd: Optional[str] = None
-    self.python_version: Optional[str] = None
     self.root_dir: Optional[str] = None
     self.namespace: Optional[str] = None
     self.tags: List[str] = []
@@ -434,8 +431,7 @@ class BazelLabel(object):
     ORD = [
         'name', 'testonly', 'srcs', 'binary_name', 'linkopts', 'manifest',
         'resource_files', 'instruments', 'hdrs', 'defines', 'visibility',
-        'data', 'deps', 'outs', 'cmd', 'tools', 'exports', 'main',
-        'python_version'
+        'data', 'deps', 'outs', 'cmd', 'tools', 'exports', 'main'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])

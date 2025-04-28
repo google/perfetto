@@ -139,9 +139,10 @@ class Dataframe {
   std::vector<ColumnSpec> CreateColumnSpecs() const {
     std::vector<ColumnSpec> specs;
     specs.reserve(columns_.size());
-    for (const auto& col : columns_) {
-      specs.push_back({col.name, col.storage.type(), col.overlay.nullability(),
-                       col.sort_state});
+    for (uint32_t i = 0; i < columns_.size(); ++i) {
+      const auto& col = columns_[i];
+      specs.push_back({column_names_[i], col.storage.type(),
+                       col.null_storage.nullability(), col.sort_state});
     }
     return specs;
   }
@@ -153,14 +154,21 @@ class Dataframe {
   // dataframe.
   friend class DataframeBytecodeTest;
 
-  Dataframe(std::vector<impl::Column> columns,
+  Dataframe(std::vector<std::string> column_names,
+            std::vector<impl::Column> columns,
             uint32_t row_count,
             StringPool* string_pool)
-      : columns_(std::move(columns)),
+      : column_names_(std::move(column_names)),
+        columns_(std::move(columns)),
         row_count_(row_count),
         string_pool_(string_pool) {}
 
+  // The names of all columns.
+  // `column_names_` and `columns_` should always have the same size.
+  std::vector<std::string> column_names_;
+
   // Internal storage for columns in the dataframe.
+  // `column_names_` and `columns_` should always have the same size.
   std::vector<impl::Column> columns_;
 
   // Number of rows in the dataframe.

@@ -26,68 +26,13 @@ import {
   newColumnControllerRows,
 } from '../column_controller';
 import protos from '../../../../protos';
-import {TextParagraph} from '../../../../widgets/text_paragraph';
 import {TextInput} from '../../../../widgets/text_input';
 import {SqlColumn} from '../../../dev.perfetto.SqlModules/sql_modules';
 import {TableAndColumnImpl} from '../../../dev.perfetto.SqlModules/sql_modules_impl';
 import {
   createFiltersProto,
   createGroupByProto,
-  Operator,
 } from '../operations/operation_component';
-
-const slicesCols: ColumnControllerRow[] = [
-  {
-    name: 'id',
-    type: {
-      name: 'ID(slice.id)',
-      shortName: 'id',
-      tableAndColumn: new TableAndColumnImpl('string', 'id'),
-    },
-  },
-  {
-    name: 'ts',
-    type: {
-      name: 'TIMESTAMP',
-      shortName: 'TIMESTAMP',
-    },
-  },
-  {
-    name: 'dur',
-    type: {
-      name: 'DURATION',
-      shortName: 'DURATION',
-    },
-  },
-  {
-    name: 'slice_name',
-    type: {
-      name: 'STRING',
-      shortName: 'STRING',
-    },
-  },
-  {
-    name: 'thread_name',
-    type: {
-      name: 'STRING',
-      shortName: 'STRING',
-    },
-  },
-  {
-    name: 'process_name',
-    type: {
-      name: 'STRING',
-      shortName: 'STRING',
-    },
-  },
-  {
-    name: 'track_name',
-    type: {
-      name: 'STRING',
-      shortName: 'STRING',
-    },
-  },
-].map((c) => columnControllerRowFromSqlColumn(c, true));
 
 export interface SlicesSourceAttrs extends QueryNodeState {
   slice_name?: string;
@@ -109,67 +54,11 @@ export class SlicesSourceNode implements QueryNode {
 
   constructor(attrs: SlicesSourceAttrs) {
     this.state = attrs;
-
-    const cols: SqlColumn[] = [
-      {
-        name: 'id',
-        type: {
-          name: 'ID(slice.id)',
-          shortName: 'id',
-          tableAndColumn: new TableAndColumnImpl('string', 'id'),
-        },
-      },
-      {
-        name: 'ts',
-        type: {
-          name: 'TIMESTAMP',
-          shortName: 'TIMESTAMP',
-        },
-      },
-      {
-        name: 'dur',
-        type: {
-          name: 'DURATION',
-          shortName: 'DURATION',
-        },
-      },
-      {
-        name: 'slice_name',
-        type: {
-          name: 'STRING',
-          shortName: 'STRING',
-        },
-      },
-      {
-        name: 'thread_name',
-        type: {
-          name: 'STRING',
-          shortName: 'STRING',
-        },
-      },
-      {
-        name: 'process_name',
-        type: {
-          name: 'STRING',
-          shortName: 'STRING',
-        },
-      },
-      {
-        name: 'track_name',
-        type: {
-          name: 'STRING',
-          shortName: 'STRING',
-        },
-      },
-    ];
-    this.sourceCols = cols.map((c) =>
-      columnControllerRowFromSqlColumn(c, true),
-    );
-
+    this.sourceCols = slicesSourceNodeColumns(true);
     this.finalCols = createFinalColumns(this);
   }
 
-  getState(): QueryNodeState {
+  getStateCopy(): QueryNodeState {
     const newState: SlicesSourceAttrs = {
       slice_name: this.state.slice_name?.slice(),
       thread_name: this.state.thread_name?.slice(),
@@ -184,12 +73,7 @@ export class SlicesSourceNode implements QueryNode {
   }
 
   validate(): boolean {
-    return (
-      this.state.slice_name !== undefined ||
-      this.state.process_name !== undefined ||
-      this.state.thread_name !== undefined ||
-      this.state.track_name !== undefined
-    );
+    return true;
   }
 
   getTitle(): string {
@@ -225,29 +109,6 @@ export class SlicesSourceNode implements QueryNode {
   }
 
   getDetails(): m.Child {
-    const s: string[] = [];
-    if (this.state.slice_name) {
-      s.push(`slice name GLOB ${this.state.slice_name}`);
-    }
-    if (this.state.thread_name) {
-      s.push(`thread name GLOB ${this.state.thread_name}`);
-    }
-    if (this.state.process_name) {
-      s.push(`process name GLOB ${this.state.process_name}`);
-    }
-    if (this.state.track_name) {
-      s.push(`track name GLOB ${this.state.track_name}`);
-    }
-    return m(TextParagraph, {text: `Slices where ${s.join(' and ')}`});
-  }
-}
-
-export class SlicesSource implements m.ClassComponent<SlicesSourceAttrs> {
-  view({attrs}: m.CVnode<SlicesSourceAttrs>) {
-    if (attrs.sourceCols.length === 0) {
-      attrs.sourceCols = slicesCols;
-      attrs.groupByColumns = newColumnControllerRows(slicesCols, false);
-    }
     return m(
       '',
       m(
@@ -258,7 +119,7 @@ export class SlicesSource implements m.ClassComponent<SlicesSourceAttrs> {
           type: 'string',
           oninput: (e: Event) => {
             if (!e.target) return;
-            attrs.slice_name = (e.target as HTMLInputElement).value.trim();
+            this.state.slice_name = (e.target as HTMLInputElement).value.trim();
           },
         }),
       ),
@@ -270,7 +131,9 @@ export class SlicesSource implements m.ClassComponent<SlicesSourceAttrs> {
           type: 'string',
           oninput: (e: Event) => {
             if (!e.target) return;
-            attrs.thread_name = (e.target as HTMLInputElement).value.trim();
+            this.state.thread_name = (
+              e.target as HTMLInputElement
+            ).value.trim();
           },
         }),
       ),
@@ -282,7 +145,9 @@ export class SlicesSource implements m.ClassComponent<SlicesSourceAttrs> {
           type: 'string',
           oninput: (e: Event) => {
             if (!e.target) return;
-            attrs.process_name = (e.target as HTMLInputElement).value.trim();
+            this.state.process_name = (
+              e.target as HTMLInputElement
+            ).value.trim();
           },
         }),
       ),
@@ -294,17 +159,68 @@ export class SlicesSource implements m.ClassComponent<SlicesSourceAttrs> {
           type: 'string',
           oninput: (e: Event) => {
             if (!e.target) return;
-            attrs.track_name = (e.target as HTMLInputElement).value.trim();
+            this.state.track_name = (e.target as HTMLInputElement).value.trim();
           },
         }),
       ),
-      m(Operator, {
-        filter: {sourceCols: attrs.sourceCols, filters: attrs.filters},
-        groupby: {
-          groupByColumns: attrs.groupByColumns,
-          aggregations: attrs.aggregations,
-        },
-      }),
     );
   }
+}
+
+export function slicesSourceNodeColumns(
+  checked: boolean,
+): ColumnControllerRow[] {
+  const cols: SqlColumn[] = [
+    {
+      name: 'id',
+      type: {
+        name: 'ID(slice.id)',
+        shortName: 'id',
+        tableAndColumn: new TableAndColumnImpl('string', 'id'),
+      },
+    },
+    {
+      name: 'ts',
+      type: {
+        name: 'TIMESTAMP',
+        shortName: 'TIMESTAMP',
+      },
+    },
+    {
+      name: 'dur',
+      type: {
+        name: 'DURATION',
+        shortName: 'DURATION',
+      },
+    },
+    {
+      name: 'slice_name',
+      type: {
+        name: 'STRING',
+        shortName: 'STRING',
+      },
+    },
+    {
+      name: 'thread_name',
+      type: {
+        name: 'STRING',
+        shortName: 'STRING',
+      },
+    },
+    {
+      name: 'process_name',
+      type: {
+        name: 'STRING',
+        shortName: 'STRING',
+      },
+    },
+    {
+      name: 'track_name',
+      type: {
+        name: 'STRING',
+        shortName: 'STRING',
+      },
+    },
+  ];
+  return cols.map((c) => columnControllerRowFromSqlColumn(c, checked));
 }

@@ -45,10 +45,6 @@ enum class BufferExhaustedPolicy {
   // data will be lost.
   kStallThenDrop,
 
-  // Equivalent to kDrop by default, but can be changed using the tracing
-  // configuration.
-  kConfigurable,
-
   // Deprecated alias. Do not use.
   kDefault = kStall
 };

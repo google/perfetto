@@ -75,12 +75,9 @@ void DataSourceType::PopulateTlsInst(
           std::memory_order_relaxed);
   tls_inst->data_source_instance_id = instance_state->data_source_instance_id;
   tls_inst->is_intercepted = instance_state->interceptor_id != 0;
-  BufferExhaustedPolicy buf_exhausted_policy = buffer_exhausted_policy_;
-  if (buf_exhausted_policy == BufferExhaustedPolicy::kConfigurable) {
-    buf_exhausted_policy = instance_state->buf_policy_from_config;
-  }
-  tls_inst->trace_writer = tracing_impl->CreateTraceWriter(
-      &state_, instance_index, instance_state, buf_exhausted_policy);
+  tls_inst->trace_writer =
+      tracing_impl->CreateTraceWriter(&state_, instance_index, instance_state,
+                                      instance_state->buffer_exhausted_policy);
   if (create_incremental_state_fn_) {
     PERFETTO_DCHECK(!tls_inst->incremental_state);
     CreateIncrementalState(tls_inst, instance_index);

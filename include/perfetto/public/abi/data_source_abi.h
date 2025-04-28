@@ -227,9 +227,6 @@ enum PerfettoDsBufferExhaustedPolicy {
   // it will stall, retry and eventually drop data if a free chunk is not
   // acquired after a few seconds.
   PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_STALL_AND_DROP = 2,
-  // Equivalent to PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP by default, but can
-  // be changed using the tracing configuration.
-  PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_CONFIGURABLE = 3,
 };
 
 // If the data source doesn't find an empty chunk when trying to emit tracing

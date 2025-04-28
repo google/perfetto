@@ -106,8 +106,6 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
   bool should_abort = false;
 
   switch (buffer_exhausted_policy) {
-    case BufferExhaustedPolicy::kConfigurable:
-      // This shouldn't happen. Treat kConfigurable as kDrop.
     case BufferExhaustedPolicy::kDrop:
       break;
     case BufferExhaustedPolicy::kStall:

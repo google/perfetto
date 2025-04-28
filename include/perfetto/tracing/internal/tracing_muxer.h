@@ -38,8 +38,10 @@ class TracingSession;
 namespace internal {
 
 struct DataSourceParams {
-  bool supports_multiple_instances;
-  bool requires_callbacks_under_lock;
+  BufferExhaustedPolicy default_buffer_exhausted_policy =
+      BufferExhaustedPolicy::kDrop;
+  bool supports_multiple_instances = true;
+  bool requires_callbacks_under_lock = true;
 };
 
 struct DataSourceStaticState;

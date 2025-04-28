@@ -115,10 +115,9 @@ struct DataSourceState {
   // when it's stopped.
   bool will_notify_on_stop = false;
 
-  // The consumer wanted behavior when a TraceWriter runs out of space in the
-  // shared memory buffer. This is honored only when the data source is
-  // registered with BufferExhaustedPolicy::kConfigured.
-  BufferExhaustedPolicy buf_policy_from_config = BufferExhaustedPolicy::kDrop;
+  // The wanted behavior for this data source instance when a TraceWriter runs
+  // out of space in the shared memory buffer.
+  BufferExhaustedPolicy buffer_exhausted_policy = BufferExhaustedPolicy::kDrop;
 
   // Incremented whenever incremental state should be reset for this instance of
   // this data source.
