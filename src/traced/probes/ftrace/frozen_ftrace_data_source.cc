@@ -21,7 +21,6 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/data_source_config.h"
-#include "src/kernel_utils/syscall_table.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/event_info.h"
@@ -87,8 +86,6 @@ void FrozenFtraceDataSource::Start() {
   PERFETTO_CHECK(cpu_readers_.empty());
   cpu_readers_.reserve(num_cpus);
   for (size_t cpu = 0; cpu < num_cpus; cpu++) {
-    // TODO: the two nullptrs are ok, the implementation treats those pointers
-    // as nullable. We may factor them out of the contructor in the future.
     cpu_readers_.emplace_back(cpu, tracefs_->OpenPipeForCpu(cpu),
                               translation_table_.get(),
                               /*symbolizer=*/nullptr, ftrace_clock,
@@ -99,24 +96,17 @@ void FrozenFtraceDataSource::Start() {
   if (cpu_readers_.empty())
     return;
 
-  // Enable all events in the translation table and all syscalls because
-  // the previous boot trace data may record any events.
+  // Enable all events in the translation table because the previous
+  // boot trace data may record any events.
   EventFilter event_filter;
   for (const auto& event : translation_table_->events()) {
     event_filter.AddEnabledEvent(event.ftrace_event_id);
   }
 
-  SyscallTable syscalls = SyscallTable::FromCurrentArch();
-  EventFilter syscall_filter;
-  for (size_t i = 0; i < kMaxSyscalls; i++) {
-    if (syscalls.GetById(i))
-      syscall_filter.AddEnabledEvent(i);
-  }
-
   parsing_config_ =
       std::unique_ptr<FtraceDataSourceConfig>(new FtraceDataSourceConfig(
           /*event_filter=*/std::move(event_filter),
-          /*syscall_filter=*/std::move(syscall_filter),
+          /*syscall_filter=*/EventFilter{},
           /*compact_sched_in=*/CompactSchedConfig{false},
           /*print_filter=*/std::nullopt,
           /*atrace_apps=*/{},

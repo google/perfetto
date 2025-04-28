@@ -1188,7 +1188,6 @@ size_t CpuReader::ReadFrozen(
 
   // Inputs that we will throw away since we only need a subset of what
   // FtraceDataSource does.
-  // TODO: consider making use of |parse_errors|.
   uint64_t bundle_end_timestamp = 0;
 
   // Convert events and serialise the protos. We don't handle the failure
