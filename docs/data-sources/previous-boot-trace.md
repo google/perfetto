@@ -54,8 +54,8 @@ Run the perfetto with `"linux.frozen_ftrace"` data source like;
 
 ```
 buffers {
-      size_kb: 65536
-      fill_policy: DISCARD
+  size_kb: 65536
+  fill_policy: DISCARD
 }
 
 data_sources {

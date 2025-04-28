@@ -995,7 +995,6 @@ message EtwConfig {
 
 // Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
 
-// Next id: 3
 message FrozenFtraceConfig {
   // The instance name which stores the previous boot ftrace data.
   required string instance_name = 1;
