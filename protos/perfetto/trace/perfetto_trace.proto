@@ -6154,6 +6154,7 @@ message LayerProto {
 
   optional TrustedOverlay trusted_overlay = 59;
 
+  // Layer's scale during background blur, relative to 1.0f=100%
   optional float background_blur_scale = 60;
 }
 
