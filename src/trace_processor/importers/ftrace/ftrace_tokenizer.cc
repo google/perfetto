@@ -280,9 +280,9 @@ void FtraceTokenizer::TokenizeFtraceEvent(
     TokenizeFtraceThermalExynosAcpmBulk(cpu, std::move(event),
                                         std::move(state));
     return;
-  } else if (PERFETTO_UNLIKELY(event_id ==
-                               protos::pbzero::FtraceEvent::
-                                   kParamSetValueCpmFieldNumber)) {
+  } else if (PERFETTO_UNLIKELY(
+                 event_id ==
+                 protos::pbzero::FtraceEvent::kParamSetValueCpmFieldNumber)) {
     TokenizeFtraceParamSetValueCpm(cpu, std::move(event), std::move(state));
     return;
   }
