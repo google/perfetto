@@ -18846,13 +18846,6 @@ prebuilt_etc {
     src: "persistent_cfg.pbtxt",
 }
 
-prebuilt_etc {
-    name: "perfetto_prev_boot_dump.pbtxt",
-    filename: "prev_boot_dump.pbtxt",
-    sub_dir: "perfetto",
-    src: "prev_boot_dump.pbtxt",
-}
-
 phony {
     name: "perfetto-extras",
     required: [
