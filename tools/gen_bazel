@@ -604,7 +604,7 @@ def gen_proto_label(target: GnParser.Target):
   # other public headers. Some advanced SDK users write custom TracePacket: they
   # need visibility into the protozero generated headers.
   if target.proto_plugin == 'protozero':
-    plugin_label.visibility = [ALLOWLIST_PUBLIC_VISIBILITY]
+    plugin_label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
 
   return plugin_label
 
