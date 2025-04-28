@@ -3832,7 +3832,7 @@ message DataSourceConfig {
     // The data source will wait when there's no space in the shared memory
     // buffer. If there's still not space, after a few seconds, the whole
     // producer process will be aborted.
-    BUFFER_EXHAUSTED_STALL = 1;
+    BUFFER_EXHAUSTED_STALL_THEN_ABORT = 1;
     // The data source will wait when there's no space in the shared memory
     // buffer.  If there's still not space, after a few seconds, the data source
     // will drop packets.

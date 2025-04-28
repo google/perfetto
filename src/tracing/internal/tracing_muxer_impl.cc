@@ -172,7 +172,7 @@ BufferExhaustedPolicy ComputeBufferExhaustedPolicy(
   switch (cfg.buffer_exhausted_policy()) {
     case DataSourceConfig::BUFFER_EXHAUSTED_DROP:
       return BufferExhaustedPolicy::kDrop;
-    case DataSourceConfig::BUFFER_EXHAUSTED_STALL:
+    case DataSourceConfig::BUFFER_EXHAUSTED_STALL_THEN_ABORT:
       return BufferExhaustedPolicy::kStall;
     case DataSourceConfig::BUFFER_EXHAUSTED_STALL_THEN_DROP:
       return BufferExhaustedPolicy::kStallThenDrop;

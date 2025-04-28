@@ -74,7 +74,7 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_DataSourceConfig,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_DataSourceConfig,
                                   BUFFER_EXHAUSTED_DROP) = 0,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_DataSourceConfig,
-                                  BUFFER_EXHAUSTED_STALL) = 1,
+                                  BUFFER_EXHAUSTED_STALL_THEN_ABORT) = 1,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_DataSourceConfig,
                                   BUFFER_EXHAUSTED_STALL_THEN_DROP) = 2,
 };
