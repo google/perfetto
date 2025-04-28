@@ -40,6 +40,7 @@ namespace internal {
 struct DataSourceParams {
   BufferExhaustedPolicy default_buffer_exhausted_policy =
       BufferExhaustedPolicy::kDrop;
+  bool buffer_exhausted_policy_configurable = false;
   bool supports_multiple_instances = true;
   bool requires_callbacks_under_lock = true;
 };
