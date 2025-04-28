@@ -51,6 +51,7 @@ interface Pagination {
 
 interface LogEntries {
   offset: number;
+  machineIds: number[];
   timestamps: time[];
   priorities: number[];
   tags: string[];
@@ -86,6 +87,8 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       this.reloadData(attrs);
     }
 
+    const hasMachineIds =
+      this.entries && this.entries.machineIds.filter((id) => id).length > 0;
     const hasProcessNames =
       this.entries &&
       this.entries.processName.filter((name) => name).length > 0;
@@ -101,6 +104,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       m(VirtualTable, {
         className: 'pf-android-logs-table',
         columns: [
+          ...(hasMachineIds ? [{header: 'Machine', width: '6em'}] : []),
           {header: 'Timestamp', width: '13em'},
           {header: 'Level', width: '4em'},
           {header: 'Tag', width: '13em'},
@@ -110,7 +114,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
           // columns will pull the columns to the right out of line.
           {header: 'Message', width: ''},
         ],
-        rows: this.renderRows(hasProcessNames),
+        rows: this.renderRows(hasMachineIds, hasProcessNames),
         firstRowOffset: this.entries?.offset ?? 0,
         numRows: this.entries?.totalEvents ?? 0,
         rowHeight: ROW_H,
@@ -147,11 +151,15 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     });
   }
 
-  private renderRows(hasProcessNames: boolean | undefined): VirtualTableRow[] {
+  private renderRows(
+    hasMachineIds: boolean | undefined,
+    hasProcessNames: boolean | undefined,
+  ): VirtualTableRow[] {
     if (!this.entries) {
       return [];
     }
 
+    const machineIds = this.entries.machineIds;
     const timestamps = this.entries.timestamps;
     const priorities = this.entries.priorities;
     const tags = this.entries.tags;
@@ -171,6 +179,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
           this.entries.isHighlighted[i] && 'pf-highlighted',
         ),
         cells: [
+          ...(hasMachineIds ? [machineIds[i] || ''] : []),
           m(Timestamp, {ts}),
           priorityLetter || '?',
           tags[i],
@@ -333,13 +342,15 @@ async function updateLogEntries(
           ifnull(msg, '[NULL]') as msg,
           is_msg_highlighted as isMsgHighlighted,
           is_process_highlighted as isProcessHighlighted,
-          ifnull(process_name, '') as processName
+          ifnull(process_name, '') as processName,
+          machine_id as machineId
         from filtered_logs
         where ts >= ${span.start} and ts <= ${span.end}
         order by ts
         limit ${pagination.offset}, ${pagination.count}
     `);
 
+  const machineIds = [];
   const timestamps: time[] = [];
   const priorities = [];
   const tags = [];
@@ -355,6 +366,7 @@ async function updateLogEntries(
     isMsgHighlighted: NUM_NULL,
     isProcessHighlighted: NUM,
     processName: STR,
+    machineId: NUM_NULL,
   });
   for (; it.valid(); it.next()) {
     timestamps.push(Time.fromRaw(it.ts));
@@ -365,6 +377,7 @@ async function updateLogEntries(
       it.isMsgHighlighted === 1 || it.isProcessHighlighted === 1,
     );
     processName.push(it.processName);
+    machineIds.push(it.machineId ?? 0); // Id 0 is for the primary VM
   }
 
   const queryRes = await engine.query(`
@@ -377,6 +390,7 @@ async function updateLogEntries(
 
   return {
     offset: pagination.offset,
+    machineIds,
     timestamps,
     priorities,
     tags,
@@ -392,7 +406,8 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
 
   const globMatch = composeGlobMatch(filter.hideNonMatching, filter.textEntry);
   let selectedRows = `select prio, ts, tag, msg,
-      process.name as process_name, ${globMatch}
+      process.name as process_name,
+      process.machine_id as machine_id, ${globMatch}
       from android_logs
       left join thread using(utid)
       left join process using(upid)
