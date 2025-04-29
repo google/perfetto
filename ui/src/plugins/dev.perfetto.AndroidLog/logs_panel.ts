@@ -179,7 +179,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
           this.entries.isHighlighted[i] && 'pf-highlighted',
         ),
         cells: [
-          ...(hasMachineIds ? [machineIds[i] || ''] : []),
+          ...(hasMachineIds ? [machineIds[i]] : []),
           m(Timestamp, {ts}),
           priorityLetter || '?',
           tags[i],
