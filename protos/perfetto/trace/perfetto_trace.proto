@@ -6171,6 +6171,9 @@ message LayerProto {
   optional uint32 original_id = 58;
 
   optional TrustedOverlay trusted_overlay = 59;
+
+  // Layer's scale during background blur, relative to 1.0f=100%
+  optional float background_blur_scale = 60;
 }
 
 message PositionProto {
@@ -6481,6 +6484,8 @@ message LayerState {
   optional DropInputMode drop_input_mode = 42;
 
   optional TrustedOverlay trusted_overlay = 43;
+
+  optional float background_blur_scale = 44;
 }
 
 message DisplayState {
