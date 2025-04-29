@@ -56,6 +56,15 @@ export interface TrackManager {
    * power to the user compared to e.g. purely filtering by name.
    */
   registerTrackFilterCriteria(filter: TrackFilterCriteria): void;
+
+  /**
+   * Register a timeline overlay renderer.
+   *
+   * Overlays are rendered on top of all tracks in the timeline view and can be
+   * used to draw annotations that span multiple tracks, such as flow arrows or
+   * vertical lines marking specific events.
+   */
+  registerTimelineOverlay(overlay: TimelineOverlay): void;
 }
 
 export interface TrackContext {
@@ -307,4 +316,18 @@ export interface Slice {
   subTitle: string;
   colorScheme: ColorScheme;
   isHighlighted: boolean;
+}
+
+export interface TrackBounds {
+  readonly node: TrackNode;
+  readonly verticalBounds: VerticalBounds;
+}
+
+export interface TimelineOverlay {
+  render(
+    ctx: CanvasRenderingContext2D,
+    timescale: TimeScale,
+    size: Size2D,
+    renderedTracks: ReadonlyArray<TrackBounds>,
+  ): void;
 }
