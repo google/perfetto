@@ -51,7 +51,7 @@ import {renderStatusBar} from './statusbar';
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
   description: 'Enable status bar at the bottom of the window',
-  defaultValue: false,
+  defaultValue: true,
 });
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
