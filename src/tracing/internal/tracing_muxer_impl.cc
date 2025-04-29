@@ -1229,6 +1229,8 @@ static bool MaybeAdoptStartupTracingInDataSource(
         internal_state->data_source_instance_id = instance_id;
         internal_state->buffer_id =
             static_cast<internal::BufferId>(cfg.target_buffer());
+        internal_state->buffer_exhausted_policy =
+            rds.params.default_buffer_exhausted_policy;
         internal_state->config.reset(new DataSourceConfig(cfg));
 
         // TODO(eseckler): Should the data source config provided by the service
@@ -1350,6 +1352,8 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     internal_state->data_source_instance_id = instance_id;
     internal_state->buffer_id =
         static_cast<internal::BufferId>(cfg.target_buffer());
+    internal_state->buffer_exhausted_policy =
+        rds.params.default_buffer_exhausted_policy;
     internal_state->config.reset(new DataSourceConfig(cfg));
     internal_state->startup_session_id = startup_session_id;
     internal_state->data_source = rds.factory();
