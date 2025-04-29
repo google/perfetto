@@ -34,7 +34,6 @@
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
-#include "src/trace_processor/dataframe/impl/static_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/util/regex.h"
@@ -129,9 +128,8 @@ inline uint8_t GetDataSize(StorageType type) {
 
 }  // namespace
 
-QueryPlanBuilder::QueryPlanBuilder(
-    uint32_t row_count,
-    const FixedVector<Column, kMaxColumns>& columns)
+QueryPlanBuilder::QueryPlanBuilder(uint32_t row_count,
+                                   const std::vector<Column>& columns)
     : columns_(columns) {
   for (uint32_t i = 0; i < columns_.size(); ++i) {
     column_states_.emplace_back();

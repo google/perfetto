@@ -44,7 +44,6 @@ import {Intent} from '../../../../widgets/common';
 export interface StdlibTableAttrs extends QueryNodeState {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
-  readonly modal: () => void;
 
   sqlTable?: SqlTable;
 }
@@ -58,26 +57,18 @@ export class StdlibTableNode implements QueryNode {
   readonly finalCols: ColumnControllerRow[];
   readonly state: StdlibTableAttrs;
 
-  readonly sqlTable: SqlTable;
-
   constructor(attrs: StdlibTableAttrs) {
     this.state = attrs;
-    if (!attrs.sqlTable) throw new Error('No sqlTable provided');
 
-    this.sourceCols = attrs.sqlTable.columns.map((c) =>
-      columnControllerRowFromSqlColumn(c, true),
-    );
+    this.sourceCols = attrs.sourceCols ?? [];
     this.finalCols = createFinalColumns(this);
-
-    this.sqlTable = attrs.sqlTable;
   }
 
-  getState(): QueryNodeState {
+  getStateCopy(): QueryNodeState {
     const newState: StdlibTableAttrs = {
       trace: this.state.trace,
       sqlModules: this.state.sqlModules,
-      modal: this.state.modal,
-      sqlTable: this.sqlTable,
+      sqlTable: this.state.sqlTable,
       sourceCols: newColumnControllerRows(this.sourceCols),
       groupByColumns: newColumnControllerRows(this.state.groupByColumns),
       filters: this.state.filters.map((f) => ({...f})),
@@ -87,30 +78,54 @@ export class StdlibTableNode implements QueryNode {
   }
 
   getDetails(): m.Child {
-    return m(TextParagraph, {
-      text: `
-    Table '${this.sqlTable.name}' from module
-    '${this.sqlTable.includeKey ?? 'prelude'}'.`,
-    });
+    return m(
+      '',
+      m(Button, {
+        label: this.state.sqlTable ? 'Change table' : 'Select table',
+        intent: Intent.Primary,
+        variant: ButtonVariant.Filled,
+        onclick: async () => {
+          const tableName = await this.state.trace.omnibox.prompt(
+            'Choose a table...',
+            this.state.sqlModules.listTablesNames(),
+          );
+
+          if (!tableName) return;
+          const sqlTable = this.state.sqlModules.getTable(tableName);
+
+          if (!sqlTable) return;
+          this.state.sqlTable = sqlTable;
+          this.state.sourceCols = sqlTable.columns.map((c) =>
+            columnControllerRowFromSqlColumn(c, true),
+          );
+          this.state.filters = [];
+          this.state.groupByColumns = newColumnControllerRows(
+            this.state.sourceCols,
+            false,
+          );
+        },
+      }),
+    );
   }
 
   validate(): boolean {
-    return true;
+    return this.state.sqlTable !== undefined;
   }
 
   getTitle(): string {
-    return `Table ${this.sqlTable.name}`;
+    return `Table ${this.state.sqlTable?.name}`;
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
+    if (!this.state.sqlTable) return;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = `table_source_${this.sqlTable.name}`;
+    sq.id = `table_source_${this.state.sqlTable?.name}`;
     sq.table = new protos.PerfettoSqlStructuredQuery.Table();
-    sq.table.tableName = this.sqlTable.name;
-    sq.table.moduleName = this.sqlTable.includeKey
-      ? this.sqlTable.includeKey
+    sq.table.tableName = this.state.sqlTable.name;
+    sq.table.moduleName = this.state.sqlTable.includeKey
+      ? this.state.sqlTable.includeKey
       : undefined;
     sq.table.columnNames = this.sourceCols
       .filter((c) => c.checked)
@@ -146,7 +161,6 @@ export class StdlibTableSource implements m.ClassComponent<StdlibTableAttrs> {
     attrs.sourceCols = sqlTable.columns.map((c) =>
       columnControllerRowFromSqlColumn(c, true),
     );
-    attrs.modal();
     attrs.filters = [];
     attrs.groupByColumns = newColumnControllerRows(attrs.sourceCols, false);
   }

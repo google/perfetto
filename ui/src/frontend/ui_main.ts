@@ -18,10 +18,6 @@ import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
-import {
-  setDurationPrecision,
-  setTimestampFormat,
-} from '../core/timestamp_format';
 import {Command} from '../public/command';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
@@ -38,7 +34,6 @@ import {DisposableStack} from '../base/disposable_stack';
 import {Spinner} from '../widgets/spinner';
 import {TraceImpl} from '../core/trace_impl';
 import {AppImpl} from '../core/app_impl';
-import {NotesListEditor} from './notes_list_editor';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {Workspace} from '../public/workspace';
@@ -108,17 +103,6 @@ export class UiMainPerTrace implements m.ClassComponent {
     document.title = `${trace.traceInfo.traceTitle || 'Trace'} - Perfetto UI`;
     this.maybeShowJsonWarning();
 
-    this.trash.use(
-      trace.tabs.registerTab({
-        uri: 'notes.manager',
-        isEphemeral: false,
-        content: {
-          getTitle: () => 'Notes & markers',
-          render: () => m(NotesListEditor, {trace}),
-        },
-      }),
-    );
-
     const cmds: Command[] = [
       {
         id: 'perfetto.SetTimestampFormat',
@@ -141,7 +125,7 @@ export class UiMainPerTrace implements m.ClassComponent {
             ],
             getName: (x) => x.name,
           });
-          result && setTimestampFormat(result.format);
+          result && (trace.timeline.timestampFormat = result.format);
         },
       },
       {
@@ -159,7 +143,7 @@ export class UiMainPerTrace implements m.ClassComponent {
               getName: (x) => x.name,
             },
           );
-          result && setDurationPrecision(result.format);
+          result && (trace.timeline.durationPrecision = result.format);
         },
       },
       {
@@ -222,56 +206,6 @@ export class UiMainPerTrace implements m.ClassComponent {
           trace.selection.clear();
         },
         defaultHotkey: 'Escape',
-      },
-      {
-        id: 'perfetto.SetTemporarySpanNote',
-        name: 'Set the temporary span note based on the current selection',
-        callback: () => {
-          const range = trace.selection.findTimeRangeOfSelection();
-          if (range) {
-            trace.notes.addSpanNote({
-              start: range.start,
-              end: range.end,
-              id: '__temp__',
-            });
-
-            // Also select an area for this span
-            const selection = trace.selection.selection;
-            if (selection.kind === 'track_event') {
-              trace.selection.selectArea({
-                start: range.start,
-                end: range.end,
-                trackUris: [selection.trackUri],
-              });
-            }
-          }
-        },
-        defaultHotkey: 'M',
-      },
-      {
-        id: 'perfetto.AddSpanNote',
-        name: 'Add a new span note based on the current selection',
-        callback: () => {
-          const range = trace.selection.findTimeRangeOfSelection();
-          if (range) {
-            trace.notes.addSpanNote({
-              start: range.start,
-              end: range.end,
-            });
-          }
-        },
-        defaultHotkey: 'Shift+M',
-      },
-      {
-        id: 'perfetto.RemoveSelectedNote',
-        name: 'Remove selected note',
-        callback: () => {
-          const selection = trace.selection.selection;
-          if (selection.kind === 'note') {
-            trace.notes.removeNote(selection.id);
-          }
-        },
-        defaultHotkey: 'Delete',
       },
       {
         id: 'perfetto.NextFlow',

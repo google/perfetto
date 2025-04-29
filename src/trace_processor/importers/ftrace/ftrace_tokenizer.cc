@@ -280,14 +280,12 @@ void FtraceTokenizer::TokenizeFtraceEvent(
     TokenizeFtraceThermalExynosAcpmBulk(cpu, std::move(event),
                                         std::move(state));
     return;
+  } else if (PERFETTO_UNLIKELY(
+                 event_id ==
+                 protos::pbzero::FtraceEvent::kParamSetValueCpmFieldNumber)) {
+    TokenizeFtraceParamSetValueCpm(cpu, std::move(event), std::move(state));
+    return;
   }
-  // TODO(b/407000648): Re-enable once param_set_value_cpm timestamp is fixed.
-  // else if (PERFETTO_UNLIKELY(event_id ==
-  //                              protos::pbzero::FtraceEvent::
-  //                                  kParamSetValueCpmFieldNumber)) {
-  //   TokenizeFtraceParamSetValueCpm(cpu, std::move(event), std::move(state));
-  //   return;
-  // }
 
   auto timestamp = context_->clock_tracker->ToTraceTime(
       clock_id, static_cast<int64_t>(raw_timestamp));

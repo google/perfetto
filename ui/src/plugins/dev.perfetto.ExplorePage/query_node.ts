@@ -60,7 +60,7 @@ export interface QueryNode {
   validate(): boolean;
   getTitle(): string;
   getDetails(): m.Child;
-  getState(): QueryNodeState;
+  getStateCopy(): QueryNodeState;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
 }
 
