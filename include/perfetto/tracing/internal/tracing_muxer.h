@@ -38,6 +38,9 @@ class TracingSession;
 namespace internal {
 
 struct DataSourceParams {
+  // This is the policy configured by the data source code
+  // (DataSource::kBufferExhaustedPolicy in C++ or
+  // PerfettoDsSetBufferExhaustedPolicy in C).
   BufferExhaustedPolicy default_buffer_exhausted_policy =
       BufferExhaustedPolicy::kDrop;
   bool supports_multiple_instances = true;
