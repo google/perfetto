@@ -36,6 +36,8 @@ source_set("trace_redaction") {
     "collect_system_info.h",
     "collect_timeline_events.cc",
     "collect_timeline_events.h",
+    "drop_empty_ftrace_events.cc",
+    "drop_empty_ftrace_events.h",
     "filtering.cc",
     "filtering.h",
     "find_package_uid.cc",
