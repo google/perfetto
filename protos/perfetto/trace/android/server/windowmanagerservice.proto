@@ -166,7 +166,7 @@ message AppTransitionProto {
     APP_STATE_IDLE = 0;
     APP_STATE_READY = 1;
     APP_STATE_RUNNING = 2;
-    APP_STATE_TIMEOUT = 3;
+    APP_STATE_TIMEOUT = 3 [deprecated = true];
   }
   optional AppState app_transition_state = 1;
 
