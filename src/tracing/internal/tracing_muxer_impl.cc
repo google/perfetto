@@ -164,12 +164,13 @@ struct CompareBackendByType {
 BufferExhaustedPolicy ComputeBufferExhaustedPolicy(
     const DataSourceConfig& cfg,
     const DataSourceParams& params) {
-  if (!params.buffer_exhausted_policy_configurable ||
-      !cfg.has_buffer_exhausted_policy()) {
+  if (!params.buffer_exhausted_policy_configurable) {
     return params.default_buffer_exhausted_policy;
   }
 
   switch (cfg.buffer_exhausted_policy()) {
+    case DataSourceConfig::BUFFER_EXHAUSTED_UNSPECIFIED:
+      return params.default_buffer_exhausted_policy;
     case DataSourceConfig::BUFFER_EXHAUSTED_DROP:
       return BufferExhaustedPolicy::kDrop;
     case DataSourceConfig::BUFFER_EXHAUSTED_STALL_THEN_ABORT:
@@ -178,7 +179,7 @@ BufferExhaustedPolicy ComputeBufferExhaustedPolicy(
       return BufferExhaustedPolicy::kStallThenDrop;
   }
 
-  return BufferExhaustedPolicy::kDrop;
+  return params.default_buffer_exhausted_policy;
 }
 
 }  // namespace
