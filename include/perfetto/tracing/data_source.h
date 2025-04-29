@@ -259,6 +259,9 @@ class DataSource : public DataSourceBase {
   constexpr static BufferExhaustedPolicy kBufferExhaustedPolicy =
       BufferExhaustedPolicy::kDrop;
 
+  // Whether the kBufferExhaustedPolicy policy above is overridable via config.
+  constexpr static bool kBufferExhaustedPolicyConfigurable = false;
+
   // When this flag is false, we cannot have multiple instances of this data
   // source. When a data source is already active and if we attempt
   // to start another instance of that data source (via another tracing
@@ -481,6 +484,8 @@ class DataSource : public DataSourceBase {
         DerivedDataSource::kSupportsMultipleInstances;
     params.default_buffer_exhausted_policy =
         DerivedDataSource::kBufferExhaustedPolicy;
+    params.buffer_exhausted_policy_configurable =
+        DerivedDataSource::kBufferExhaustedPolicyConfigurable;
     return Helper::type().Register(
         descriptor, factory, params, no_flush,
         GetCreateTlsFn(

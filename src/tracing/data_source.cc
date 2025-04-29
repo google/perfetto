@@ -16,6 +16,7 @@
 
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "protos/perfetto/config/data_source_config.gen.h"
 
 namespace perfetto {
