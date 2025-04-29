@@ -457,13 +457,14 @@ class PerfettoTable(TestSuite):
         query="""
         SELECT flat_key, key, int_value, string_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('surfaceflinger_layer') AS sfl
         ORDER BY sfl.base64_proto_id, key
-        LIMIT 95
+        LIMIT 96
         """,
         out=Csv("""
         "flat_key","key","int_value","string_value","real_value"
         "active_buffer","active_buffer","[NULL]","[NULL]","[NULL]"
         "app_id","app_id",0,"[NULL]","[NULL]"
         "background_blur_radius","background_blur_radius",0,"[NULL]","[NULL]"
+        "background_blur_scale","background_blur_scale","[NULL]","[NULL]",0.000000
         "barrier_layer","barrier_layer","[NULL]","[NULL]","[NULL]"
         "blur_regions","blur_regions","[NULL]","[NULL]","[NULL]"
         "bounds.bottom","bounds.bottom","[NULL]","[NULL]",24000.000000
