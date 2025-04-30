@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+export const CPU_SLICE_URI_PREFIX = '/sched_cpu';
+
 // Helper function moved here as it's only used by the overlay.
 export function uriForSchedTrack(cpu: number): string {
-  return `/sched_cpu${cpu}`;
+  return `${CPU_SLICE_URI_PREFIX}${cpu}`;
 }

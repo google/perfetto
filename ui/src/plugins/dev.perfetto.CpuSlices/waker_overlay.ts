@@ -24,10 +24,10 @@ import {
   getSchedWakeupInfo,
   SchedWakeupInfo,
 } from '../../components/sql_utils/sched';
-import {Selection} from '../../public/selection';
+import {Selection, TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {Overlay, TrackBounds} from '../../public/track';
-import {uriForSchedTrack} from './common';
+import {CPU_SLICE_URI_PREFIX, uriForSchedTrack} from './common';
 
 const MARGIN = 3;
 const DIAMOND_SIZE = 8;
@@ -36,11 +36,8 @@ const ARROW_HEIGHT = 12;
 export class WakerOverlay implements Overlay {
   private readonly limiter = new AsyncLimiter();
   private readonly trace: Trace;
-
-  private currentSelection: Selection | undefined;
-  private wakeup: SchedWakeupInfo | undefined;
-  private wakedTrackUri: string | undefined;
-  private wakedSliceTs: time | undefined;
+  private readonly wakeupCache = new WeakMap<Selection, SchedWakeupInfo>();
+  private cachedSelection?: Selection;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -52,72 +49,74 @@ export class WakerOverlay implements Overlay {
     size: Size2D,
     renderedTracks: ReadonlyArray<TrackBounds>,
   ): void {
-    // Update wakeup info asynchronously if selection changed
-    this.limiter.schedule(async () => await this.updateWakeupInfoIfNeeded());
+    const selection = this.trace.selection.selection;
 
-    // If we don't have valid wakeup info, bail out
-    if (!this.wakeup?.wakeupTs) {
+    // Get out if selection is not a CPU slice.
+    if (!this.cpuSliceTrackSelected(selection)) {
+      this.cachedSelection = undefined;
+      return;
+    }
+
+    // Compare the current selection with the cached one to determine if it has
+    // changed and we need to start loading new wakeup info.
+    if (this.cachedSelection !== selection) {
+      this.cachedSelection = selection;
+      this.limiter.schedule(async () => {
+        const wakeupInfo = await this.loadWakeupInfo(selection);
+        if (!wakeupInfo) return;
+        this.wakeupCache.set(selection, wakeupInfo);
+      });
+    }
+
+    // Check if we have the wakeup info cached, get out if not.
+    const wakeup = this.wakeupCache.get(selection);
+    if (!wakeup || !wakeup.wakeupTs) {
       return;
     }
 
     // Draw the vertical line at the wakeup timestamp
-    this.drawWakeupLine(
-      canvasCtx,
-      timescale,
-      size.height,
-      this.wakeup.wakeupTs,
-    );
+    this.drawWakeupLine(canvasCtx, timescale, size.height, wakeup.wakeupTs);
 
     // Draw the marker on the waker CPU track
-    if (this.wakeup.wakerCpu !== undefined) {
+    if (wakeup.wakerCpu !== undefined) {
       this.drawWakerMarker(
         canvasCtx,
         timescale,
         renderedTracks,
-        this.wakeup.wakeupTs,
-        this.wakeup.wakerCpu,
+        wakeup.wakeupTs,
+        wakeup.wakerCpu,
       );
     }
 
-    // Draw the latency arrow on the waked track
-    if (this.wakedTrackUri && this.wakedSliceTs) {
-      this.drawLatencyArrow(
-        canvasCtx,
-        timescale,
-        renderedTracks,
-        this.wakeup.wakeupTs,
-        this.wakedTrackUri,
-        this.wakedSliceTs,
-      );
-    }
+    this.drawLatencyArrow(
+      canvasCtx,
+      timescale,
+      renderedTracks,
+      wakeup.wakeupTs,
+      selection.trackUri,
+      selection.ts,
+    );
   }
 
-  private async updateWakeupInfoIfNeeded(): Promise<void> {
-    const selection = this.trace.selection.selection;
-    if (this.currentSelection === selection) {
-      return;
-    }
+  private cpuSliceTrackSelected(
+    selection: Selection,
+  ): selection is TrackEventSelection {
+    return (
+      selection.kind === 'track_event' &&
+      selection.trackUri.startsWith(CPU_SLICE_URI_PREFIX)
+    );
+  }
 
-    this.currentSelection = selection;
-    if (selection.kind === 'track_event') {
-      const sched = await getSched(
-        this.trace.engine,
-        asSchedSqlId(selection.eventId),
-      );
-      if (sched === undefined) {
-        this.wakeup = undefined;
-        this.wakedTrackUri = undefined;
-        this.wakedSliceTs = undefined;
-        return;
-      }
-      this.wakeup = await getSchedWakeupInfo(this.trace.engine, sched);
-      this.wakedTrackUri = selection.trackUri;
-      this.wakedSliceTs = selection.ts;
-    } else {
-      this.wakeup = undefined;
-      this.wakedTrackUri = undefined;
-      this.wakedSliceTs = undefined;
-    }
+  private async loadWakeupInfo(
+    selection: TrackEventSelection,
+  ): Promise<SchedWakeupInfo | undefined> {
+    const sched = await getSched(
+      this.trace.engine,
+      asSchedSqlId(selection.eventId),
+    );
+    if (!sched) return undefined;
+    const cache = await getSchedWakeupInfo(this.trace.engine, sched);
+    return cache;
   }
 
   private drawWakeupLine(
