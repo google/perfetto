@@ -236,9 +236,12 @@ size_t HttpServer::ParseOneHttpRequest(HttpServerConnection* conn) {
         if (IsOriginAllowed(hdr_value))
           conn->origin_allowed_ = hdr_value.ToStdString();
       } else if (hdr_name.CaseInsensitiveEq("connection")) {
-        conn->keepalive_ = hdr_value.CaseInsensitiveEq("keep-alive");
-        http_req.is_websocket_handshake =
-            hdr_value.CaseInsensitiveEq("upgrade");
+        auto values = SplitString(hdr_value.ToStdString(), ",");
+        for (auto& value : values) {
+          value = ToLower(TrimWhitespace(value));
+        }
+        conn->keepalive_ = Contains(values, "keep-alive");
+        http_req.is_websocket_handshake = Contains(values, "upgrade");
       }
     }
   }
