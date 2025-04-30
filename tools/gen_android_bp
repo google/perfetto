@@ -326,6 +326,7 @@ additional_args = {
     'perfetto_src_android_sdk_java_test_perfetto_trace_test_lib': [
         ('static_libs', {'perfetto_trace_java_protos'})
     ],
+    'perfetto_trace_lib_java': [('sdk_version', 'module_current')]
 }
 
 
@@ -1114,7 +1115,20 @@ class AndroidJavaSDKModulesGenerator:
   def create_android_library_module(self, target: GnParser.Target,
                                     bp_module_name: str):
     module = Module('android_library', bp_module_name, target.name)
-    module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
+
+    if target.android_bp_generate_java_target:
+      java_library_module_name = bp_module_name + "_java"
+      java_module = Module('java_library', java_library_module_name,
+                           target.name)
+      java_module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
+
+      _add_additional_args(java_module)
+
+      self.blueprint.add_module(java_module)
+
+      module.static_libs.add(java_library_module_name)
+    else:
+      module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
 
     # All JNI libs will be added to the 'jni_libs' argument of the 'android_app'
     # or 'android_test' rule that depends on this 'android_library' rule.
