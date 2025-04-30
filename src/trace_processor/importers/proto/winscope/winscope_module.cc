@@ -36,7 +36,6 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
-#include "winscope_module.h"
 
 namespace perfetto::trace_processor {
 
