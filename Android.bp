@@ -1363,7 +1363,6 @@ cc_binary {
     ],
     required: [
         "perfetto_persistent_cfg.pbtxt",
-        "perfetto_prev_boot_dump.pbtxt",
     ],
 }
 
