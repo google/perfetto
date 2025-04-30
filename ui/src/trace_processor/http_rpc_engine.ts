@@ -14,9 +14,8 @@
 
 import protos from '../protos';
 import {fetchWithTimeout} from '../base/http_utils';
-import {assertExists} from '../base/logging';
+import {assertExists, reportError} from '../base/logging';
 import {EngineBase} from '../trace_processor/engine';
-import {reportError} from '../base/logging';
 
 const RPC_CONNECT_TIMEOUT_MS = 2000;
 
