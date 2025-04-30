@@ -32,7 +32,6 @@
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
-#include "src/trace_processor/dataframe/impl/static_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/util/regex.h"
@@ -106,11 +105,11 @@ class DataframeBytecodeTest : public ::testing::Test {
     PERFETTO_CHECK(cols.size() < 64);
     uint64_t sanitized_cols_used = cols_used & ((1ull << cols.size()) - 1ull);
 
-    impl::FixedVector<std::string, impl::kMaxColumns> col_names;
+    std::vector<std::string> col_names;
     for (uint32_t i = 0; i < cols.size(); ++i) {
       col_names.emplace_back("col" + std::to_string(i));
     }
-    impl::FixedVector<impl::Column, impl::kMaxColumns> col_fixed_vec;
+    std::vector<impl::Column> col_fixed_vec;
     for (auto& col : cols) {
       col_fixed_vec.emplace_back(std::move(col));
     }

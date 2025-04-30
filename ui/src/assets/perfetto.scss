@@ -26,12 +26,14 @@
 @import "trace_info_page";
 @import "flags_page";
 @import "hiring_banner";
+@import "statusbar";
 
 // Widgets - keep these sorted (they should NOT have any inter-dependencies)
 @import "widgets/anchor";
 @import "widgets/button";
 @import "widgets/callout";
 @import "widgets/card";
+@import "widgets/charts";
 @import "widgets/checkbox";
 @import "widgets/chip";
 @import "widgets/details_shell";

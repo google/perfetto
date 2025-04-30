@@ -21,6 +21,8 @@ import {Button} from '../../widgets/button';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.Settings';
+  static readonly description =
+    'Example plugin to show how to register settings.';
 
   static onActivate(app: App) {
     // Register a simple boolean setting like this. The setting will appear on

@@ -42,7 +42,9 @@ export class Operator implements m.ClassComponent<OperatorAttrs> {
 export function createFiltersProto(
   filters: Filter[],
 ): protos.PerfettoSqlStructuredQuery.Filter[] | undefined {
-  const protos = filters.map((f) => FilterToProto(f));
+  const protos = filters
+    .filter((f) => validateFilter(f))
+    .map((f) => FilterToProto(f));
   return protos.length !== 0 ? protos : undefined;
 }
 
@@ -58,7 +60,24 @@ export function createGroupByProto(
     .map((c) => c.column.name);
 
   groupByProto.aggregates = aggregations
-    .filter((agg) => agg.column)
+    .filter((agg) => validateAggregation(agg))
     .map(GroupByAggregationAttrsToProto);
   return groupByProto;
+}
+
+function validateAggregation(aggregation: GroupByAgg): boolean {
+  if (!aggregation.column) return false;
+  return true;
+}
+
+function validateFilter(filter: Filter): boolean {
+  if (!filter.columnName.checked) return false;
+  if (
+    filter.stringsRhs.length === 0 &&
+    filter.doubleRhs.length === 0 &&
+    filter.intRhs.length === 0
+  ) {
+    return false;
+  }
+  return true;
 }

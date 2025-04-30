@@ -22,6 +22,171 @@ from python.generators.diff_tests.testing import PrintProfileProto
 
 class AndroidMemory(TestSuite):
 
+  def test_android_lmk(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 3
+              cmdline: "com.google.android.calculator"
+              uid: 10000
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 1
+              oom_score_adj_update {
+                oom_score_adj: 900
+                pid: 3
+              }
+            }
+            event {
+              timestamp: 2000
+              pid: 2
+              print {
+                buf: "B|2|lmk,3,1,900\n"
+              }
+            }
+            event {
+              timestamp: 3000
+              pid: 2
+              print {
+                buf: "E|2\n"
+              }
+            }
+            event {
+              timestamp: 4000
+              pid: 2
+              print {
+                buf: "N|2|lowmemorykiller|lmk,3,1,900\n"
+              }
+            }
+          }
+        }
+      """),
+        query="""
+      INCLUDE PERFETTO MODULE android.memory.lmk;
+      SELECT ts, upid, pid, process_name, oom_score_adj, kill_reason
+      FROM android_lmk_events;
+      """,
+        out=Csv("""
+        "ts","upid","pid","process_name","oom_score_adj","kill_reason"
+        4000,1,3,"com.google.android.calculator",900,"NOT_RESPONDING"
+      """))
+
+  def test_android_lmk_legacy(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 3
+              cmdline: "com.google.android.calculator"
+              uid: 10000
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 1
+              oom_score_adj_update {
+                oom_score_adj: 900
+                pid: 3
+              }
+            }
+            event {
+              timestamp: 1500
+              pid: 2
+              print {
+                buf: "C|2|kill_one_process|3\n"
+              }
+            }
+            event {
+              timestamp: 2000
+              pid: 2
+              print {
+                buf: "B|2|lmk,3,1,900\n"
+              }
+            }
+            event {
+              timestamp: 3000
+              pid: 2
+              print {
+                buf: "E|2\n"
+              }
+            }
+          }
+        }
+      """),
+        query="""
+      INCLUDE PERFETTO MODULE android.memory.lmk;
+      SELECT ts, upid, pid, process_name, oom_score_adj, kill_reason
+      FROM android_lmk_events;
+      """,
+        out=Csv("""
+        "ts","upid","pid","process_name","oom_score_adj","kill_reason"
+        2000,1,3,"com.google.android.calculator",900,"NOT_RESPONDING"
+      """))
+
+  def test_android_lmk_kill_one_process(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 3
+              cmdline: "com.google.android.calculator"
+              uid: 10000
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 1
+              oom_score_adj_update {
+                oom_score_adj: 900
+                pid: 3
+              }
+            }
+            event {
+              timestamp: 1500
+              pid: 2
+              print {
+                buf: "C|2|kill_one_process|3\n"
+              }
+            }
+            event {
+              timestamp: 1501
+              pid: 1
+              oom_score_adj_update {
+                oom_score_adj: 910
+                pid: 3
+              }
+            }
+          }
+        }
+      """),
+        query="""
+      INCLUDE PERFETTO MODULE android.memory.lmk;
+      SELECT ts, upid, pid, process_name, oom_score_adj, kill_reason
+      FROM android_lmk_events;
+      """,
+        out=Csv("""
+        "ts","upid","pid","process_name","oom_score_adj","kill_reason"
+        1500,1,3,"com.google.android.calculator",900,"UNKNOWN"
+      """))
+
   def test_memory_oom_score_with_rss_and_swap_per_process(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
