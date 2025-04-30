@@ -16,6 +16,7 @@ import protos from '../protos';
 import {fetchWithTimeout} from '../base/http_utils';
 import {assertExists} from '../base/logging';
 import {EngineBase} from '../trace_processor/engine';
+import {reportError} from '../base/logging';
 
 const RPC_CONNECT_TIMEOUT_MS = 2000;
 
@@ -96,22 +97,16 @@ export class HttpRpcEngine extends EngineBase {
   private async processQueue() {
     if (this.isProcessingQueue) return;
     this.isProcessingQueue = true;
-    try {
-      while (this.queue.length > 0) {
-        // retain the previous behavior which use the global
-        // reportError to display error messages.
+    while (this.queue.length > 0) {
+      try {
         const blob = assertExists(this.queue.shift());
         const buf = await blob.arrayBuffer();
         super.onRpcResponseBytes(new Uint8Array(buf));
-      }
-    } finally {
-      this.isProcessingQueue = false;
-      // if the queue is not empty, we need start a new task
-      // to continue process the remain websocket message.
-      if (this.queue.length > 0) {
-        this.processQueue();
+      } catch (e) {
+        reportError(e);
       }
     }
+    this.isProcessingQueue = false;
   }
 
   static async checkConnection(): Promise<HttpRpcState> {
