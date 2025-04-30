@@ -82,7 +82,7 @@ class BumpAllocator {
     uint64_t chunk_index : kChunkIndexAllocIdBits;
     uint64_t chunk_offset : kChunkOffsetAllocIdBits;
 
-    // Comparision operators mainly for sorting.
+    // Comparison operators mainly for sorting.
     bool operator<(const AllocId& other) const {
       return std::tie(chunk_index, chunk_offset) <
              std::tie(other.chunk_index, other.chunk_offset);

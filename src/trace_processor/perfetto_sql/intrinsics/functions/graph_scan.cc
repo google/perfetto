@@ -504,7 +504,7 @@ struct GraphAggregatingScan : public SqliteFunction<GraphAggregatingScan> {
     const char* reduce = sqlite::value::Text(argv[2]);
     if (!reduce) {
       return sqlite::result::Error(
-          ctx, "graph_aggregating_scan: aggegate SQL cannot be null");
+          ctx, "graph_aggregating_scan: aggregate SQL cannot be null");
     }
     const char* column_list = sqlite::value::Text(argv[3]);
     if (!column_list) {

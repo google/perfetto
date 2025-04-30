@@ -23,15 +23,14 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.pages.registerPage({
       route: '/viz',
-      page: {
-        view: ({attrs}) =>
-          m(VizPage, {
-            ...attrs,
-            spec: this.spec,
-            setSpec: (spec) => {
-              this.spec = spec;
-            },
-          }),
+      render: () => {
+        return m(VizPage, {
+          trace,
+          spec: this.spec,
+          setSpec: (spec) => {
+            this.spec = spec;
+          },
+        });
       },
     });
     trace.sidebar.addMenuItem({

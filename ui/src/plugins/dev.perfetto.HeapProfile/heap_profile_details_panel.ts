@@ -32,7 +32,7 @@ import {
 } from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
-import {Button} from '../../widgets/button';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Icon} from '../../widgets/icon';
@@ -133,6 +133,7 @@ export class HeapProfileFlamegraphDetailsPanel
               m(Button, {
                 icon: 'file_download',
                 intent: Intent.Primary,
+                variant: ButtonVariant.Filled,
                 onclick: () => {
                   downloadPprof(this.trace, this.upid, ts);
                 },
@@ -489,6 +490,7 @@ async function downloadPprof(trace: Trace, upid: number, ts: time) {
       title: 'Download not supported',
       content: m('div', 'This trace file does not support downloads'),
     });
+    return;
   }
   const blob = await trace.getTraceFile();
   convertTraceToPprofAndDownload(blob, pid.firstRow({pid: NUM}).pid, ts);

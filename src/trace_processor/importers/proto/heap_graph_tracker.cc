@@ -1048,7 +1048,7 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
 
   std::vector<int64_t> node_to_cumulative_size(init_path.nodes.size());
   std::vector<int64_t> node_to_cumulative_count(init_path.nodes.size());
-  // i > 0 is to skip the artifical root node.
+  // i > 0 is to skip the artificial root node.
   for (size_t i = init_path.nodes.size() - 1; i > 0; --i) {
     const PathFromRoot::Node& node = init_path.nodes[i];
 
@@ -1059,7 +1059,7 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
   }
 
   std::vector<FlamegraphId> node_to_id(init_path.nodes.size());
-  // i = 1 is to skip the artifical root node.
+  // i = 1 is to skip the artificial root node.
   for (size_t i = 1; i < init_path.nodes.size(); ++i) {
     const PathFromRoot::Node& node = init_path.nodes[i];
     PERFETTO_CHECK(node.parent_id < i);

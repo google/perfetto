@@ -59,7 +59,6 @@ class PERFETTO_EXPORT_COMPONENT SharedMemory {
   void* start() { return const_cast<void*>(std::as_const(*this).start()); }
   virtual const void* start() const = 0;
 
-
   virtual size_t size() const = 0;
 };
 

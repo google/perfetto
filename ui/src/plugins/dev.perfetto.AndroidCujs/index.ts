@@ -150,7 +150,11 @@ export async function addLatencyCUJDebugTrack(
 
   // Check if query produces any results to prevent pinning an empty track
   if (result.numRows() !== 0) {
-    addDebugSliceTrack({trace: ctx, title: trackName, ...latencyCujTrackConfig});
+    addDebugSliceTrack({
+      trace: ctx,
+      title: trackName,
+      ...latencyCujTrackConfig,
+    });
     return true;
   }
   return false;
@@ -242,7 +246,11 @@ const BLOCKING_CALLS_DURING_CUJS_COLUMNS = [
  * @param {string} cujColumns SQL Columns for the CUJ track
  * @returns Returns the track config for given CUJs
  */
-function generateCujTrackConfig(cujNames: string | string[] = [], cujQuery: string, cujColumns: string[]) {
+function generateCujTrackConfig(
+  cujNames: string | string[] = [],
+  cujQuery: string,
+  cujColumns: string[],
+) {
   // This method expects the caller to have run JANK_CUJ_QUERY_PRECONDITIONS
   // Not running the precondition query here to save time in case already run
   const cujNamesList = typeof cujNames === 'string' ? [cujNames] : cujNames;

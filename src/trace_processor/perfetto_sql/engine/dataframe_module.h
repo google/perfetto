@@ -19,27 +19,41 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <optional>
+#include <utility>
 
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 
 namespace perfetto::trace_processor {
 
 // Adapter class between SQLite and the Dataframe API. Allows SQLite to query
 // and iterate over the results of a dataframe query.
 struct DataframeModule : sqlite::Module<DataframeModule> {
-  using Context = void;
-  static constexpr auto kType = kEponymousOnly;
+  static constexpr auto kType = kCreateOnly;
   static constexpr bool kSupportsWrites = false;
   static constexpr bool kDoesOverloadFunctions = false;
 
+  struct State {
+    explicit State(std::shared_ptr<const dataframe::Dataframe> _dataframe)
+        : dataframe(std::move(_dataframe)) {}
+    std::shared_ptr<const dataframe::Dataframe> dataframe;
+  };
+  struct Context : sqlite::ModuleStateManager<DataframeModule> {
+    explicit Context(DataframeSharedStorage* _dataframe_shared_storage)
+        : dataframe_shared_storage(_dataframe_shared_storage) {}
+    DataframeSharedStorage* dataframe_shared_storage;
+  };
   struct SqliteValueFetcher : dataframe::ValueFetcher {
     using Type = sqlite::Type;
     static const Type kInt64 = sqlite::Type::kInteger;
@@ -67,21 +81,29 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     void OnCell(NullTermStringView v) const {
       sqlite::result::StaticString(ctx, v.data());
     }
-    void OnCell(nullptr_t) const { sqlite::result::Null(ctx); }
+    void OnCell(std::nullptr_t) const { sqlite::result::Null(ctx); }
     void OnCell(uint32_t v) const { sqlite::result::Long(ctx, v); }
     void OnCell(int32_t v) const { sqlite::result::Long(ctx, v); }
     sqlite3_context* ctx;
   };
   struct Vtab : sqlite::Module<DataframeModule>::Vtab {
-    StringPool* string_pool;
-    dataframe::Dataframe dataframe;
+    sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
+    const dataframe::Dataframe* dataframe;
   };
   using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
-    DfCursor* df_cursor() { return reinterpret_cast<DfCursor*>(cursor); }
-    alignas(DfCursor) char cursor[sizeof(DfCursor)];
+    const dataframe::Dataframe* dataframe;
+    std::optional<DfCursor> df_cursor;
     const char* last_idx_str = nullptr;
   };
+
+  static int Create(sqlite3*,
+                    void*,
+                    int,
+                    const char* const*,
+                    sqlite3_vtab**,
+                    char**);
+  static int Destroy(sqlite3_vtab*);
 
   static int Connect(sqlite3*,
                      void*,

@@ -33,7 +33,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-// Stores a list of row indicies in a space efficient manner. One or more
+// Stores a list of row indices in a space efficient manner. One or more
 // columns can refer to the same RowMap. The RowMap defines the access pattern
 // to iterate on rows.
 //
@@ -53,7 +53,7 @@ namespace trace_processor {
 //
 // Implementation details:
 //
-// Behind the scenes, this class is impelemented using one of three backing
+// Behind the scenes, this class is implemented using one of three backing
 // data-structures:
 // 1. A start and end index (internally named 'range')
 // 1. BitVector

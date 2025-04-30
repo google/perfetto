@@ -44,6 +44,7 @@ Metadata = Dict[str, str]
 
 MAX_LOAD_WORKERS = 32
 
+
 # Enum encoding how errors while loading/querying traces in BatchTraceProcessor
 # should be handled.
 class FailureHandling(Enum):
@@ -258,8 +259,8 @@ class BatchTraceProcessor:
     Raises:
       TraceProcessorException: An error occurred running the query.
     """
-    return self.execute_and_flatten(lambda tp: tp.query(sql).
-                                    as_pandas_dataframe())
+    return self.execute_and_flatten(
+        lambda tp: tp.query(sql).as_pandas_dataframe())
 
   def query_single_result(self, sql: str):
     """Executes the provided SQL statement (returning a single row).
@@ -311,8 +312,8 @@ class BatchTraceProcessor:
 
     return list(self.query_executor.map(wrapped, self.tps_and_metadata))
 
-  def execute_and_flatten(self, fn: Callable[[TraceProcessor], pd.DataFrame]
-                         ) -> pd.DataFrame:
+  def execute_and_flatten(
+      self, fn: Callable[[TraceProcessor], pd.DataFrame]) -> pd.DataFrame:
     """Executes the provided function and flattens the result.
 
     The execution happens in parallel across all the trace processor
@@ -366,8 +367,9 @@ class BatchTraceProcessor:
     See |Stats| class definition for the list of the statistics available."""
     return self._stats
 
-  def _create_tp(self, trace: ResolverRegistry.Result
-                ) -> Optional[Tuple[TraceProcessor, Metadata]]:
+  def _create_tp(
+      self, trace: ResolverRegistry.Result
+  ) -> Optional[Tuple[TraceProcessor, Metadata]]:
     try:
       return TraceProcessor(
           trace=trace.generator, config=self.config.tp_config), trace.metadata

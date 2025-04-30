@@ -27,8 +27,10 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <vector>
 
+// clang-format off
 #include <Windows.h>
 #include <Psapi.h>
+// clang-format on
 #else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <sys/mman.h>
 #include <sys/stat.h>

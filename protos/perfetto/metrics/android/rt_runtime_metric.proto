@@ -36,4 +36,3 @@ message AndroidRtRuntimeMetric {
   // information for top 10 RT tasks
   repeated RtSlice longest_rt_slices = 3;
 }
-

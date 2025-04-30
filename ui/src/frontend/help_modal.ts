@@ -31,7 +31,6 @@ export function toggleHelp() {
   showModal({
     title: 'Perfetto Help',
     content: () => m(KeyMappingsHelp),
-    buttons: [],
   });
 }
 

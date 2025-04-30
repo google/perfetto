@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {z} from 'zod';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
@@ -28,6 +29,8 @@ interface ContainedTrace {
   ts: number;
   dur: number;
 }
+
+const SESSION_NAME_ALLOWLIST = ['session_with_lightweight_battery_tracing'];
 
 const PACKAGE_LOOKUP = `
   create or replace perfetto table package_name_lookup as
@@ -1689,7 +1692,35 @@ export default class implements PerfettoPlugin {
     await this.addContainedTraces(ctx, containedTraces);
   }
 
+  async isAllowListedTrace(e: Engine) {
+    const result = await e.query(`
+      select str_value from metadata where name = 'unique_session_name'`);
+    const it = result.iter({str_value: 'str'});
+    for (; it.valid(); it.next()) {
+      if (SESSION_NAME_ALLOWLIST.includes(it.str_value)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   async onTraceLoad(ctx: Trace): Promise<void> {
-    await this.addTracks(ctx);
+    const enableAllowlist = ctx.settings.register({
+      id: 'dev.perfetto.AndroidLongBatteryTracing#enableAllowlist',
+      name: 'Enable AndroidLongBatteryTracing Session Allowlist',
+      description:
+        'When true, the AndroidLongBatteryTracing plugin first checks ' +
+        'whether the trace has sufficient information, disabling itself on ' +
+        'traces that do not. Disabling this setting can cause the plugin ' +
+        'to report partial or misleading information.',
+      schema: z.boolean(),
+      defaultValue: true,
+      requiresReload: true,
+    });
+
+    if (!enableAllowlist.get() || (await this.isAllowListedTrace(ctx.engine))) {
+      await this.addTracks(ctx);
+    }
   }
 }

@@ -26,7 +26,6 @@ import {
   newColumnControllerRows,
 } from '../column_controller';
 import protos from '../../../../protos';
-import {TextParagraph} from '../../../../widgets/text_paragraph';
 import {TextInput} from '../../../../widgets/text_input';
 import {
   createFiltersProto,
@@ -57,7 +56,7 @@ export class SqlSourceNode implements QueryNode {
     this.finalCols = createFinalColumns(this);
   }
 
-  getState(): QueryNodeState {
+  getStateCopy(): QueryNodeState {
     const newState: SqlSourceAttrs = {
       sql: this.state.sql,
       sqlColumns: this.state.sqlColumns,
@@ -84,8 +83,6 @@ export class SqlSourceNode implements QueryNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    if (!this.validate()) return;
-
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = `sql_source`;
     const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
@@ -109,12 +106,57 @@ export class SqlSourceNode implements QueryNode {
   }
 
   getDetails(): m.Child {
-    return m(TextParagraph, {
-      text: `
-        Running custom SQL returning columns ${this.state.sqlColumns?.join(', ')}.\n
-        Preamble: \n${this.state.preamble ?? `NONE`}\n
-        SQL: \n${this.state.sql ?? `NONE`}`,
-    });
+    return m(
+      '',
+      m(
+        '',
+        'Preamble',
+        m(TextInput, {
+          id: 'preamble',
+          type: 'string',
+          oninput: (e: Event) => {
+            if (!e.target) return;
+            this.state.preamble = (e.target as HTMLInputElement).value.trim();
+          },
+        }),
+      ),
+      m(
+        '',
+        'Sql ',
+        m(TextInput, {
+          id: 'sql_source',
+          type: 'string',
+          oninput: (e: Event) => {
+            if (!e.target) return;
+            this.state.sql = (e.target as HTMLInputElement).value
+              .trim()
+              .split(';')[0];
+          },
+        }),
+      ),
+      m(
+        '',
+        'Column names (comma separated strings) ',
+        m(TextInput, {
+          id: 'columns',
+          type: 'string',
+          oninput: (e: Event) => {
+            if (!e.target) return;
+            this.state.sqlColumns = (e.target as HTMLInputElement).value
+              .split(',')
+              .map((col) => col.trim())
+              .filter(Boolean);
+            this.state.sourceCols = this.state.sqlColumns.map((c) =>
+              columnControllerRowFromName(c, true),
+            );
+            this.state.groupByColumns = newColumnControllerRows(
+              this.state.sourceCols,
+              false,
+            );
+          },
+        }),
+      ),
+    );
   }
 }
 

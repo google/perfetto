@@ -286,6 +286,11 @@ class TracingServiceImpl : public TracingService {
     explicit RelayEndpointImpl(RelayClientID relay_client_id,
                                TracingServiceImpl* service);
     ~RelayEndpointImpl() override;
+
+    void CacheSystemInfo(std::vector<uint8_t> serialized_system_info) override {
+      serialized_system_info_ = serialized_system_info;
+    }
+
     void SyncClocks(SyncMode sync_mode,
                     base::ClockSnapshotVector client_clocks,
                     base::ClockSnapshotVector host_clocks) override;
@@ -297,12 +302,17 @@ class TracingServiceImpl : public TracingService {
       return synced_clocks_;
     }
 
+    std::vector<uint8_t>& serialized_system_info() {
+      return serialized_system_info_;
+    }
+
    private:
     RelayEndpointImpl(const RelayEndpointImpl&) = delete;
     RelayEndpointImpl& operator=(const RelayEndpointImpl&) = delete;
 
     RelayClientID relay_client_id_;
     TracingServiceImpl* const service_;
+    std::vector<uint8_t> serialized_system_info_;
     base::CircularQueue<SyncedClockSnapshots> synced_clocks_;
 
     PERFETTO_THREAD_CHECKER(thread_checker_)
@@ -478,6 +488,7 @@ class TracingServiceImpl : public TracingService {
     std::string trigger_name;
     std::string producer_name;
     uid_t producer_uid = 0;
+    uint64_t trigger_delay_ms = 0;
   };
 
   struct PendingClone {
@@ -663,7 +674,7 @@ class TracingServiceImpl : public TracingService {
       uint32_t field_id;
 
       // Stores the max size of |timestamps|. Set to 1 by default (in
-      // the constructor) but can be overriden in TraceSession constructor
+      // the constructor) but can be overridden in TraceSession constructor
       // if a larger size is required.
       uint32_t max_size;
 
@@ -736,7 +747,7 @@ class TracingServiceImpl : public TracingService {
     std::vector<uint64_t> filter_bytes_discarded_per_buffer;
 
     // A randomly generated trace identifier. Note that this does NOT always
-    // match the requested TraceConfig.trace_uuid_msb/lsb. Spcifically, it does
+    // match the requested TraceConfig.trace_uuid_msb/lsb. Specifically, it does
     // until a gap-less snapshot is requested. Each snapshot re-generates the
     // uuid to avoid emitting two different traces with the same uuid.
     base::Uuid trace_uuid;
@@ -815,6 +826,7 @@ class TracingServiceImpl : public TracingService {
   void EmitUuid(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void EmitSystemInfo(std::vector<TracePacket>*);
+  void MaybeEmitRemoteSystemInfo(std::vector<TracePacket>*);
   void MaybeEmitCloneTrigger(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitRemoteClockSync(TracingSession*, std::vector<TracePacket>*);

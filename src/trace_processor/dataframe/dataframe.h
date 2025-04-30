@@ -19,20 +19,18 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/dataframe/value_fetcher.h"
 
 namespace perfetto::trace_processor::dataframe {
 
@@ -46,6 +44,14 @@ namespace perfetto::trace_processor::dataframe {
 // - Memory-efficient storage with support for specialized column types
 class Dataframe {
  public:
+  // Defines the properties of a column in the dataframe.
+  struct ColumnSpec {
+    std::string name;
+    StorageType type;
+    Nullability nullability;
+    SortState sort_state;
+  };
+
   // QueryPlan encapsulates an executable, serializable representation of a
   // dataframe query operation. It contains the bytecode instructions and
   // metadata needed to execute a query.
@@ -66,6 +72,17 @@ class Dataframe {
     // Returns the underlying implementation for testing purposes.
     const impl::QueryPlan& GetImplForTesting() const { return plan_; }
 
+    // The maximum number of rows it's possible for this query plan to return.
+    uint32_t max_row_count() const { return plan_.params.max_row_count; }
+
+    // The number of rows this query plan estimates it will return.
+    uint32_t estimated_row_count() const {
+      return plan_.params.estimated_row_count;
+    }
+
+    // An estimate for the cost of executing the query plan.
+    double estimated_cost() const { return plan_.params.estimated_cost; }
+
    private:
     friend class Dataframe;
     // Constructs a QueryPlan from its implementation.
@@ -73,12 +90,6 @@ class Dataframe {
     // The underlying query plan implementation.
     impl::QueryPlan plan_;
   };
-
-  // Creates a dataframe with the specified column specifications.
-  //
-  // StringPool is passed here to allow for efficient storage and lookup
-  // of string column values.
-  Dataframe(const std::vector<ColumnSpec>&, StringPool* string_pool);
 
   // Non-copyable
   Dataframe(const Dataframe&) = delete;
@@ -92,14 +103,21 @@ class Dataframe {
   // and column selection.
   //
   // Parameters:
-  //   specs:            Filter predicates to apply to the data.
+  //   filter_specs:     Filter predicates to apply to the data.
+  //   distinct_specs:   Distinct specifications to remove duplicate rows.
+  //   sort_specs:       Sort specifications defining the desired row order.
+  //   limit_spec:       Optional struct specifying LIMIT and OFFSET values.
   //   cols_used_bitmap: Bitmap where each bit corresponds to a column that may
   //                     be requested. Only columns with set bits can be
   //                     fetched.
   // Returns:
   //   A StatusOr containing the QueryPlan or an error status.
-  base::StatusOr<QueryPlan> PlanQuery(std::vector<FilterSpec>& specs,
-                                      uint64_t cols_used_bitmap);
+  base::StatusOr<QueryPlan> PlanQuery(
+      std::vector<FilterSpec>& filter_specs,
+      const std::vector<DistinctSpec>& distinct_specs,
+      const std::vector<SortSpec>& sort_specs,
+      const LimitSpec& limit_spec,
+      uint64_t cols_used_bitmap) const;
 
   // Prepares a cursor for executing the query plan. The template parameter
   // `FilterValueFetcherImpl` is a subclass of `ValueFetcher` that defines the
@@ -108,49 +126,49 @@ class Dataframe {
   //
   // Parameters:
   //   plan: The query plan to execute.
-  //   c:    A pointer to the storage for the cursor. The cursor will be
-  //         constructed in-place at the location pointed to by `c`.
+  //   c:    A reference to a std::optional that will be set to the prepared
+  //         cursor.
   template <typename FilterValueFetcherImpl>
-  void PrepareCursor(QueryPlan plan, Cursor<FilterValueFetcherImpl>* c) {
-    new (c) Cursor<FilterValueFetcherImpl>(std::move(plan.plan_),
-                                           columns_.data(), string_pool_);
+  void PrepareCursor(QueryPlan plan,
+                     std::optional<Cursor<FilterValueFetcherImpl>>& c) const {
+    c.emplace(std::move(plan.plan_), columns_.data(), string_pool_);
   }
 
-  // Inserts a row into the dataframe.
-  //
-  // TODO(lalitm): this is a temporary function which exists for testing
-  // purposes only. We should remove this function once we have a proper builder
-  // class for dataframe construction.
-  template <typename ValueFetcherImpl>
-  void InsertRow() {
-    static_assert(std::is_base_of_v<ValueFetcher, ValueFetcherImpl>,
-                  "ValueFetcherImpl must inherit from ValueFetcher");
-    for (auto& column : columns_) {
-      switch (column.spec.column_type.index()) {
-        case ColumnType::GetTypeIndex<Id>():
-          column.storage.unchecked_get<Id>().size++;
-          break;
-        case ColumnType::GetTypeIndex<Uint32>():
-          column.storage.unchecked_get<Uint32>().push_back(0);
-          break;
-        case ColumnType::GetTypeIndex<Int32>():
-          column.storage.unchecked_get<Int32>().push_back(0);
-          break;
-        case ColumnType::GetTypeIndex<Int64>():
-          column.storage.unchecked_get<Int64>().push_back(0);
-          break;
-        case ColumnType::GetTypeIndex<Double>():
-          column.storage.unchecked_get<Double>().push_back(0);
-          break;
-        default:
-          PERFETTO_FATAL("Invalid column type");
-      }
+  // Creates a vector of ColumnSpec objects that describe the columns in the
+  // dataframe.
+  std::vector<ColumnSpec> CreateColumnSpecs() const {
+    std::vector<ColumnSpec> specs;
+    specs.reserve(columns_.size());
+    for (uint32_t i = 0; i < columns_.size(); ++i) {
+      const auto& col = columns_[i];
+      specs.push_back({column_names_[i], col.storage.type(),
+                       col.null_storage.nullability(), col.sort_state});
     }
-    row_count_++;
+    return specs;
   }
 
  private:
+  friend class RuntimeDataframeBuilder;
+
+  // TODO(lalitm): remove this once we have a proper static builder for
+  // dataframe.
+  friend class DataframeBytecodeTest;
+
+  Dataframe(std::vector<std::string> column_names,
+            std::vector<impl::Column> columns,
+            uint32_t row_count,
+            StringPool* string_pool)
+      : column_names_(std::move(column_names)),
+        columns_(std::move(columns)),
+        row_count_(row_count),
+        string_pool_(string_pool) {}
+
+  // The names of all columns.
+  // `column_names_` and `columns_` should always have the same size.
+  std::vector<std::string> column_names_;
+
   // Internal storage for columns in the dataframe.
+  // `column_names_` and `columns_` should always have the same size.
   std::vector<impl::Column> columns_;
 
   // Number of rows in the dataframe.

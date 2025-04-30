@@ -63,7 +63,7 @@ template <typename Visitor>
 auto TraceBlobViewReader::SliceOffImpl(const size_t offset,
                                        const size_t length,
                                        Visitor& visitor) const {
-  // If the length is zero, then a zero-sized blob view is always appropiate.
+  // If the length is zero, then a zero-sized blob view is always appropriate.
   if (PERFETTO_UNLIKELY(length == 0)) {
     return visitor.OneSlice(TraceBlobView());
   }

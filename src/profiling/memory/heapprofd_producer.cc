@@ -37,6 +37,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
@@ -175,7 +176,7 @@ bool HeapprofdConfigToClientConfiguration(
     // 0. The consumer of the sampling intervals in ClientConfiguration,
     // GetSamplingInterval in wire_protocol.h, uses 0 to signal a heap is
     // disabled, either because it isn't enabled (all_heaps is not set, and the
-    // heap isn't named), or because we explicitely set it here.
+    // heap isn't named), or because we explicitly set it here.
     heaps.insert(heaps.end(), exclude_heaps.cbegin(), exclude_heaps.cend());
     heap_intervals.insert(heap_intervals.end(), exclude_heaps.size(), 0u);
   }
@@ -346,7 +347,8 @@ void HeapprofdProducer::OnTracingSetup() {}
 
 void HeapprofdProducer::WriteRejectedConcurrentSession(BufferID buffer_id,
                                                        pid_t pid) {
-  auto trace_writer = endpoint_->CreateTraceWriter(buffer_id);
+  auto trace_writer =
+      endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall);
   auto trace_packet = trace_writer->NewTracePacket();
   trace_packet->set_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
@@ -426,7 +428,8 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   }
 
   auto buffer_id = static_cast<BufferID>(ds_config.target_buffer());
-  DataSource data_source(endpoint_->CreateTraceWriter(buffer_id));
+  DataSource data_source(
+      endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall));
   data_source.id = id;
   auto& cli_config = data_source.client_configuration;
   if (!HeapprofdConfigToClientConfiguration(heapprofd_config, &cli_config))

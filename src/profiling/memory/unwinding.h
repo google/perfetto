@@ -39,7 +39,7 @@ bool DoUnwind(WireMessage*, UnwindingMetadata* metadata, AllocRecord* out);
 
 // AllocRecords are expensive to construct and destruct. We have seen up to
 // 10 % of total CPU of heapprofd being used to destruct them. That is why
-// we re-use them to cut CPU usage significantly.
+// we reuse them to cut CPU usage significantly.
 class AllocRecordArena {
  public:
   AllocRecordArena() : alloc_records_mutex_(new std::mutex()) {}

@@ -18,6 +18,7 @@ package dev.perfetto.sdk;
 
 import dalvik.annotation.optimization.CriticalNative;
 import dalvik.annotation.optimization.FastNative;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -38,17 +39,9 @@ public final class PerfettoTrace {
   private static final int PERFETTO_TE_TYPE_INSTANT = 3;
   private static final int PERFETTO_TE_TYPE_COUNTER = 4;
 
-  static class NativeAllocationRegistry {
-    public static NativeAllocationRegistry createMalloced(
-        ClassLoader classLoader, long freeFunction) {
-      // do nothing
-      return new NativeAllocationRegistry();
-    }
-
-    public void registerNativeAllocation(Object obj, long ptr) {
-      // do nothing
-    }
-  }
+  private static boolean sIsDebug = false;
+  private static final PerfettoNativeMemoryCleaner sNativeMemoryCleaner =
+      new PerfettoNativeMemoryCleaner();
 
   /** For fetching the next flow event id in a process. */
   private static final AtomicInteger sFlowEventId = new AtomicInteger();
@@ -57,15 +50,11 @@ public final class PerfettoTrace {
    * Perfetto category a trace event belongs to. Registering a category is not sufficient to capture
    * events within the category, it must also be enabled in the trace config.
    */
-  public static final class Category implements PerfettoTrackEventExtra.PerfettoPointer {
-    private static final NativeAllocationRegistry sRegistry =
-        NativeAllocationRegistry.createMalloced(Category.class.getClassLoader(), native_delete());
-
+  public static class Category implements PerfettoTrackEventExtra.PerfettoPointer {
     private final long mPtr;
     private final long mExtraPtr;
     private final String mName;
-    private final String mTag;
-    private final String mSeverity;
+    private final List<String> mTags;
     private boolean mIsRegistered;
 
     /**
@@ -74,36 +63,25 @@ public final class PerfettoTrace {
      * @param name The category name.
      */
     public Category(String name) {
-      this(name, "", "");
+      this(name, List.of());
     }
 
     /**
      * Category ctor.
      *
      * @param name The category name.
-     * @param tag An atrace tag name that this category maps to.
+     * @param tags A list of tags associated with this category.
      */
-    public Category(String name, String tag) {
-      this(name, tag, "");
-    }
-
-    /**
-     * Category ctor.
-     *
-     * @param name The category name.
-     * @param tag An atrace tag name that this category maps to.
-     * @param severity A Log style severity string for the category.
-     */
-    public Category(String name, String tag, String severity) {
+    public Category(String name, List<String> tags) {
       mName = name;
-      mTag = tag;
-      mSeverity = severity;
-      mPtr = native_init(name, tag, severity);
+      mTags = tags;
+      mPtr = native_init(name, tags.toArray(new String[0]));
       mExtraPtr = native_get_extra_ptr(mPtr);
+      sNativeMemoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
     @FastNative
-    private static native long native_init(String name, String tag, String severity);
+    private static native long native_init(String name, String[] tags);
 
     @CriticalNative
     private static native long native_delete();
@@ -148,6 +126,14 @@ public final class PerfettoTrace {
     @Override
     public long getPtr() {
       return mExtraPtr;
+    }
+
+    public String getName() {
+      return mName;
+    }
+
+    public List<String> getTags() {
+      return mTags;
     }
   }
 
@@ -195,9 +181,8 @@ public final class PerfettoTrace {
    * @param category The perfetto category.
    * @param eventName The event name to appear in the trace.
    */
-  public static PerfettoTrackEventExtra.Builder instant(Category category, String eventName) {
-    return PerfettoTrackEventExtra.builder(category.isEnabled())
-        .init(PERFETTO_TE_TYPE_INSTANT, category)
+  public static PerfettoTrackEventBuilder instant(Category category, String eventName) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_INSTANT, category, sIsDebug)
         .setEventName(eventName);
   }
 
@@ -207,9 +192,8 @@ public final class PerfettoTrace {
    * @param category The perfetto category.
    * @param eventName The event name to appear in the trace.
    */
-  public static PerfettoTrackEventExtra.Builder begin(Category category, String eventName) {
-    return PerfettoTrackEventExtra.builder(category.isEnabled())
-        .init(PERFETTO_TE_TYPE_SLICE_BEGIN, category)
+  public static PerfettoTrackEventBuilder begin(Category category, String eventName) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_SLICE_BEGIN, category, sIsDebug)
         .setEventName(eventName);
   }
 
@@ -218,9 +202,8 @@ public final class PerfettoTrace {
    *
    * @param category The perfetto category.
    */
-  public static PerfettoTrackEventExtra.Builder end(Category category) {
-    return PerfettoTrackEventExtra.builder(category.isEnabled())
-        .init(PERFETTO_TE_TYPE_SLICE_END, category);
+  public static PerfettoTrackEventBuilder end(Category category) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_SLICE_END, category, sIsDebug);
   }
 
   /**
@@ -229,9 +212,8 @@ public final class PerfettoTrace {
    * @param category The perfetto category.
    * @param value The value of the counter.
    */
-  public static PerfettoTrackEventExtra.Builder counter(Category category, long value) {
-    return PerfettoTrackEventExtra.builder(category.isEnabled())
-        .init(PERFETTO_TE_TYPE_COUNTER, category)
+  public static PerfettoTrackEventBuilder counter(Category category, long value) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_COUNTER, category, sIsDebug)
         .setCounter(value);
   }
 
@@ -242,8 +224,7 @@ public final class PerfettoTrace {
    * @param value The value of the counter.
    * @param trackName The trackName for the event.
    */
-  public static PerfettoTrackEventExtra.Builder counter(
-      Category category, long value, String trackName) {
+  public static PerfettoTrackEventBuilder counter(Category category, long value, String trackName) {
     return counter(category, value).usingProcessCounterTrack(trackName);
   }
 
@@ -253,9 +234,8 @@ public final class PerfettoTrace {
    * @param category The perfetto category.
    * @param value The value of the counter.
    */
-  public static PerfettoTrackEventExtra.Builder counter(Category category, double value) {
-    return PerfettoTrackEventExtra.builder(category.isEnabled())
-        .init(PERFETTO_TE_TYPE_COUNTER, category)
+  public static PerfettoTrackEventBuilder counter(Category category, double value) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_COUNTER, category, sIsDebug)
         .setCounter(value);
   }
 
@@ -266,7 +246,7 @@ public final class PerfettoTrace {
    * @param value The value of the counter.
    * @param trackName The trackName for the event.
    */
-  public static PerfettoTrackEventExtra.Builder counter(
+  public static PerfettoTrackEventBuilder counter(
       Category category, double value, String trackName) {
     return counter(category, value).usingProcessCounterTrack(trackName);
   }
@@ -299,5 +279,11 @@ public final class PerfettoTrace {
   /** Registers the process with Perfetto. */
   public static void register(boolean isBackendInProcess) {
     native_register(isBackendInProcess);
+  }
+
+  /** Registers the process with Perfetto and enable additional debug checks on the Java side. */
+  public static void registerWithDebugChecks(boolean isBackendInProcess) {
+    sIsDebug = true;
+    register(isBackendInProcess);
   }
 }

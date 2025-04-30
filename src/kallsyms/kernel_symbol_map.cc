@@ -133,8 +133,8 @@ void ForEachSym(int fd, Lambda fn) {
             state = kSymAddr;
           break;
       }  // switch(state)
-    }    // for (char in buf)
-  }      // for (read chunk)
+    }  // for (char in buf)
+  }  // for (read chunk)
 }
 
 // Splits a symbol name into tokens using '_' as a separator, calling the passed

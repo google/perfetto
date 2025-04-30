@@ -43,17 +43,17 @@ typedef void (*AtomCallback)(int32_t subscription_id,
                              size_t num_bytes,
                              void* cookie);
 
-int32_t __attribute__((visibility("default")))
-AddAtomSubscription(const uint8_t* subscription_config,
-                    size_t num_bytes,
-                    AtomCallback callback,
-                    void* cookie);
+int32_t __attribute__((visibility("default"))) AddAtomSubscription(
+    const uint8_t* subscription_config,
+    size_t num_bytes,
+    AtomCallback callback,
+    void* cookie);
 
-void __attribute__((visibility("default")))
-RemoveAtomSubscription(int32_t subscription_id);
+void __attribute__((visibility("default"))) RemoveAtomSubscription(
+    int32_t subscription_id);
 
-void __attribute__((visibility("default")))
-FlushAtomSubscription(int32_t subscription_id);
+void __attribute__((visibility("default"))) FlushAtomSubscription(
+    int32_t subscription_id);
 
 }  // extern "C"
 

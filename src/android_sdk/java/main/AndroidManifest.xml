@@ -17,7 +17,7 @@
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="dev.perfetto.sdk">
-    <uses-sdk android:minSdkVersion="31" />
+    <uses-sdk android:minSdkVersion="33" />
 
     <application>
         <!-- ... -->

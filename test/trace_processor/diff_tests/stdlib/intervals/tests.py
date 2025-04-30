@@ -228,7 +228,6 @@ class StdlibIntervals(TestSuite):
         "ts","dur","id","root_id"
         """))
 
-
   def test_interval_merge_overlapping(self):
     return DiffTestBlueprint(
         trace=TextProto(""),

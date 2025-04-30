@@ -52,6 +52,9 @@ import {PostedTrace} from './trace_source';
 import {PerfManager} from './perf_manager';
 import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
+import {StatusbarManagerImpl} from './statusbar_manager';
+import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
+import {SettingsManagerImpl} from './settings_manager';
 
 /**
  * Handles the per-trace state of the UI
@@ -79,6 +82,7 @@ export class TraceContext implements Disposable {
   readonly scrollHelper: ScrollHelper;
   readonly trash = new DisposableStack();
   readonly onTraceReady = new EvtSource<void>();
+  readonly statusbarMgr = new StatusbarManagerImpl();
 
   // List of errors that were encountered while loading the trace by the TS
   // code. These are on top of traceInfo.importErrors, which is a summary of
@@ -90,7 +94,19 @@ export class TraceContext implements Disposable {
     this.engine = engine;
     this.trash.use(engine);
     this.traceInfo = traceInfo;
-    this.timeline = new TimelineImpl(traceInfo);
+
+    // Wrap the core settings manager in a proxy which removes registered
+    // settings when the trace is disposed.
+    // TODO(stevegolton): Dedupe this with the one in TraceImpl.
+    const settingsManagerProxy = createProxy(gctx.settingsManager, {
+      register: <T>(setting: SettingDescriptor<T>): Setting<T> => {
+        const settingInstance = gctx.settingsManager.register(setting);
+        this.trash.use(settingInstance);
+        return settingInstance;
+      },
+    });
+
+    this.timeline = new TimelineImpl(traceInfo, settingsManagerProxy);
 
     this.scrollHelper = new ScrollHelper(
       this.traceInfo,
@@ -182,6 +198,7 @@ export class TraceImpl implements Trace {
   private readonly commandMgrProxy: CommandManagerImpl;
   private readonly sidebarProxy: SidebarManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
+  private readonly settingsProxy: SettingsManagerImpl;
 
   // This is called by TraceController when loading a new trace, soon after the
   // engine has been set up. It obtains a new TraceImpl for the core. From that
@@ -247,6 +264,14 @@ export class TraceImpl implements Trace {
         });
         traceUnloadTrash.use(disposable);
         return disposable;
+      },
+    });
+
+    this.settingsProxy = createProxy(ctx.appCtx.settingsManager, {
+      register<T>(setting: SettingDescriptor<T>): Setting<T> {
+        const settingInstance = ctx.appCtx.settingsManager.register(setting);
+        traceUnloadTrash.use(settingInstance);
+        return settingInstance;
       },
     });
 
@@ -350,6 +375,10 @@ export class TraceImpl implements Trace {
     return this.traceCtx.traceInfo;
   }
 
+  get statusbar(): StatusbarManagerImpl {
+    return this.traceCtx.statusbarMgr;
+  }
+
   get notes() {
     return this.traceCtx.noteMgr;
   }
@@ -430,6 +459,10 @@ export class TraceImpl implements Trace {
     this.appImpl.openTraceFromBuffer(args);
   }
 
+  closeCurrentTrace(): void {
+    this.appImpl.closeCurrentTrace();
+  }
+
   get onTraceReady() {
     return this.traceCtx.onTraceReady;
   }
@@ -445,6 +478,10 @@ export class TraceImpl implements Trace {
   // Nothing other than AppImpl should ever refer to this, hence the __ name.
   get __traceCtxForApp() {
     return this.traceCtx;
+  }
+
+  get settings(): SettingsManager {
+    return this.settingsProxy;
   }
 }
 

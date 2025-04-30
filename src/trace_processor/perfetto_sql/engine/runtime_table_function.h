@@ -26,7 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/util/sql_argument.h"
@@ -70,9 +70,8 @@ struct RuntimeTableFunctionModule
              kPrimaryKeyColumns;
     }
   };
-  struct Context {
+  struct Context : sqlite::ModuleStateManager<RuntimeTableFunctionModule> {
     std::unique_ptr<State> temporary_create_state;
-    sqlite::ModuleStateManager<RuntimeTableFunctionModule> manager;
   };
   struct Vtab : sqlite::Module<RuntimeTableFunctionModule>::Vtab {
     sqlite::ModuleStateManager<RuntimeTableFunctionModule>::PerVtabState* state;

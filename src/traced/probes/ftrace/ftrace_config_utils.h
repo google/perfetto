@@ -29,9 +29,6 @@ using FtraceConfig = protos::gen::FtraceConfig;
 // 0 is invalid.
 using FtraceConfigId = uint64_t;
 
-// Utility method for the common case where we don't care about atrace events.
-FtraceConfig CreateFtraceConfig(std::set<std::string> names);
-
 // Returns true iff the config has any atrace categories or apps.
 bool RequiresAtrace(const FtraceConfig&);
 

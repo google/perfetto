@@ -182,7 +182,7 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
   if (!args->exec_cmd)
     _exit(0);
 
-  // If |args[0]| is a path use execv() (which takes a path), othewise use
+  // If |args[0]| is a path use execv() (which takes a path), otherwise use
   // exevp(), which uses the shell and follows PATH.
   if (strchr(args->exec_cmd, '/')) {
     char** env = args->env.empty() ? environ : args->env.data();
@@ -269,7 +269,7 @@ void Subprocess::Start() {
   auto* rusage = s_->rusage.get();
   s_->waitpid_thread = std::thread([pid, exit_status_pipe_wr, rusage] {
     int pid_stat = -1;
-    struct rusage usg {};
+    struct rusage usg{};
     int wait_res = PERFETTO_EINTR(wait4(pid, &pid_stat, 0, &usg));
     PERFETTO_CHECK(wait_res == pid);
 

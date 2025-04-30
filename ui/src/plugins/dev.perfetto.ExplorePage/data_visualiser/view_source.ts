@@ -20,7 +20,7 @@ import {Row} from '../../../trace_processor/query_result';
 import {QueryNode} from '../query_node';
 import {SqlTableState} from '../../../components/widgets/sql/table/state';
 import {createTableColumnFromPerfettoSql} from '../../dev.perfetto.SqlModules/sql_modules';
-import {analyzeNode, Query} from '../query_builder/data_source_viewer';
+import {analyzeNode, Query} from '../query_builder/query_node_explorer';
 import {Filters} from '../../../components/widgets/sql/table/filters';
 import {buildSqlQuery} from '../../../components/widgets/sql/table/query_builder';
 
@@ -113,8 +113,11 @@ export class VisViewSource {
   private async loadBaseQuery() {
     this.sqlAsyncLimiter.schedule(async () => {
       const sql = await analyzeNode(this.queryNode, this.trace.engine);
+      if (sql instanceof Error) {
+        throw sql;
+      }
       if (sql === undefined) {
-        throw Error(`Couldn't fetch the SQL`);
+        throw new Error('No SQL query found');
       }
       this._baseQuery = sql;
       this.loadData();

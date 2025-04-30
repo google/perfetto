@@ -21,6 +21,7 @@ from perfetto.trace_processor.protos import ProtoFactory
 
 PROTO_FACTORY = ProtoFactory(PLATFORM_DELEGATE())
 
+
 class TestQueryResultIterator(unittest.TestCase):
   # The numbers input into cells correspond the CellType enum values
   # defined under trace_processor.proto

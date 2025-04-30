@@ -23,8 +23,11 @@ import static perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo.Late
 
 import android.os.Process;
 import android.util.ArraySet;
+import android.util.Log;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
-import dev.perfetto.sdk.*;
+import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
+import dev.perfetto.sdk.PerfettoTrace;
+import dev.perfetto.sdk.PerfettoTrackEventBuilder;
 import java.util.List;
 import java.util.Set;
 import org.junit.Before;
@@ -76,14 +79,77 @@ public class PerfettoTraceTest {
 
   @Before
   public void setUp() {
-    PerfettoTrace.register(true);
+    PerfettoTrace.registerWithDebugChecks(true);
     // 'var unused' suppress error-prone warning
     var unused = FOO_CATEGORY.register();
+
+    PerfettoTrackEventBuilder.getNativeAllocationStats().reset();
 
     mCategoryNames.clear();
     mEventNames.clear();
     mDebugAnnotationNames.clear();
     mTrackNames.clear();
+  }
+
+  @Test
+  public void testFreeNativeMemoryWhenJavaObjectGCed() {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+    for (int i = 0; i < 600_000; i++) {
+      String eventName = "event_" + i;
+      String nativeStringArgKey = "string_key_" + i;
+      String nativeStringValue = "string_value_" + i;
+      // Create a large amount of 'ArgString' objects in heap to trigger GC, no need to emit them.
+      PerfettoTrace.instant(FOO_CATEGORY, eventName).addArg(nativeStringArgKey, nativeStringValue);
+    }
+
+    // Manually trigger GC if creating 600_000 objects was not enough.
+    for (int i = 0; i < 10; i++) {
+      System.runFinalization();
+      System.gc();
+    }
+
+    // We ignore the trace content.
+    byte[] traceBytes = session.close();
+    assertThat(traceBytes).isNotEmpty();
+
+    // We test that the GC triggers 'free native memory' function when the corresponding java
+    // objects are garbage collected.
+    AllocationStats allocationStats = PerfettoTrackEventBuilder.getNativeAllocationStats();
+    String argStringClsName = "dev.perfetto.sdk.PerfettoTrackEventExtra$ArgString";
+    assertThat(allocationStats.getAllocCountForTarget(argStringClsName)).isEqualTo(600_000);
+    // Assert that the native memory was freed at least once.
+    // In practice the counter is usually greater than 300_000 if not manually trigger GC,
+    // and 599_995 (600_000 - dev.perfetto.sdk.PerfettoTrackEventBuilder#DEFAULT_EXTRA_CACHE_SIZE)
+    // if do manually trigger.
+    assertThat(allocationStats.getFreeCountForTarget(argStringClsName)).isGreaterThan(0);
+    String allocDebugStats = allocationStats.reportStats();
+    Log.d(TAG, "Memory cleaner allocation stats: " + allocDebugStats);
+  }
+
+  @Test
+  public void testCategoryWithTags() throws Exception {
+    Category category = new Category("MyCategory", List.of("MyTag", "MyOtherTag")).register();
+    TraceConfig traceConfig = getTraceConfig(null, List.of("MyTag"));
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+    PerfettoTrace.instant(category, "event").addArg("arg", 42).emit();
+
+    byte[] traceBytes = session.close();
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    boolean hasTrackEvent = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackEvent()) {
+        hasTrackEvent = true;
+      }
+      collectInternedData(packet);
+    }
+
+    assertThat(hasTrackEvent).isTrue();
+    assertThat(mDebugAnnotationNames).contains("arg");
+    assertThat(mEventNames).contains("event");
+    assertThat(mCategoryNames).contains("MyCategory");
   }
 
   @Test
@@ -562,8 +628,45 @@ public class PerfettoTraceTest {
     assertThat(hasTrackEvent).isTrue();
     assertThat(mCategoryNames).contains(BAR);
 
-    assertThat(mDebugAnnotationNames).contains("after");
-    assertThat(mDebugAnnotationNames).doesNotContain("before");
+    assertThat(mDebugAnnotationNames).containsExactly("after");
+  }
+
+  @Test
+  public void testDisabledCategory() throws Exception {
+    class DisabledCategory extends Category {
+      public DisabledCategory(String name) {
+        super(name);
+      }
+
+      @Override
+      public boolean isEnabled() {
+        return false;
+      }
+    }
+
+    Category disabledFooCategory = new DisabledCategory("DisabledFoo");
+
+    TraceConfig traceConfig = getTraceConfig(List.of(FOO, "DisabledFoo"));
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.instant(disabledFooCategory, "disabledEvent").addArg("disabledArg", 1).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "event").addArg("arg", 1).emit();
+
+    byte[] traceBytes = session.close();
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    boolean hasTrackEvent = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackEvent()) {
+        hasTrackEvent = true;
+      }
+      collectInternedData(packet);
+    }
+
+    assertThat(hasTrackEvent).isTrue();
+    assertThat(mCategoryNames).containsExactly(FOO);
+    assertThat(mEventNames).containsExactly("event");
+    assertThat(mDebugAnnotationNames).containsExactly("arg");
   }
 
   private TrackEvent getTrackEvent(Trace trace, int idx) {
@@ -579,10 +682,20 @@ public class PerfettoTraceTest {
     return null;
   }
 
-  private TraceConfig getTraceConfig(String cat) {
+  private TraceConfig getTraceConfig(List<String> enableCategories, List<String> enableTags) {
     BufferConfig bufferConfig = BufferConfig.newBuilder().setSizeKb(1024).build();
-    TrackEventConfig trackEventConfig =
-        TrackEventConfig.newBuilder().addEnabledCategories(cat).build();
+    TrackEventConfig.Builder trackEventConfigBuilder = TrackEventConfig.newBuilder();
+    if (enableCategories != null) {
+      for (String category : enableCategories) {
+        trackEventConfigBuilder.addEnabledCategories(category);
+      }
+    }
+    if (enableTags != null) {
+      for (String tag : enableTags) {
+        trackEventConfigBuilder.addEnabledTags(tag);
+      }
+    }
+    TrackEventConfig trackEventConfig = trackEventConfigBuilder.build();
     DataSourceConfig dsConfig =
         DataSourceConfig.newBuilder()
             .setName("track_event")
@@ -593,6 +706,14 @@ public class PerfettoTraceTest {
     TraceConfig traceConfig =
         TraceConfig.newBuilder().addBuffers(bufferConfig).addDataSources(ds).build();
     return traceConfig;
+  }
+
+  private TraceConfig getTraceConfig(String enableCategory) {
+    return getTraceConfig(List.of(enableCategory));
+  }
+
+  private TraceConfig getTraceConfig(List<String> enableCategories) {
+    return getTraceConfig(enableCategories, null);
   }
 
   private TraceConfig getTriggerTraceConfig(String cat, String triggerName) {

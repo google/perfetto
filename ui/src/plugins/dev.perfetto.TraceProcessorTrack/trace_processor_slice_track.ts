@@ -14,8 +14,12 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {clamp} from '../../base/math_utils';
+import {exists} from '../../base/utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {
+  DatasetSliceTrack,
+  renderTooltip,
+} from '../../components/tracks/dataset_slice_track';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -25,6 +29,7 @@ import {
   NUM,
   STR_NULL,
 } from '../../trace_processor/query_result';
+import m from 'mithril';
 
 export interface TraceProcessorSliceTrackAttrs {
   readonly trace: Trace;
@@ -52,6 +57,7 @@ export function createTraceProcessorSliceTrack({
         name: STR_NULL,
         depth: NUM,
         thread_dur: LONG_NULL,
+        category: STR_NULL,
       },
       src: 'slice',
       filter: {
@@ -69,6 +75,13 @@ export function createTraceProcessorSliceTrack({
       } else {
         return 1;
       }
+    },
+    tooltip: (slice) => {
+      return renderTooltip(trace, slice, {
+        title: slice.title,
+        extras:
+          exists(slice.row.category) && m('', 'Category: ', slice.row.category),
+      });
     },
     detailsPanel: detailsPanel
       ? (row) => detailsPanel(row)
@@ -91,7 +104,8 @@ function getDepthProvider(trackIds: ReadonlyArray<number>) {
         dur,
         layout_depth as depth,
         name,
-        thread_dur
+        thread_dur,
+        category
       from experimental_slice_layout
       where filter_track_ids = '${trackIds.join(',')}'
     `;
