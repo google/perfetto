@@ -75,6 +75,8 @@ struct PerfettoDsParams {
   // How to behave when running out of shared memory buffer space.
   enum PerfettoDsBufferExhaustedPolicy buffer_exhausted_policy;
 
+  bool buffer_exhausted_policy_configurable;
+
   // When true the data source is expected to ack the stop request through the
   // NotifyDataSourceStopped() IPC.
   bool will_notify_on_stop;
@@ -92,6 +94,7 @@ static inline struct PerfettoDsParams PerfettoDsParamsDefault(void) {
                                  PERFETTO_NULL,
                                  PERFETTO_NULL,
                                  PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP,
+                                 false,
                                  true};
   return ret;
 }
@@ -163,6 +166,9 @@ static inline bool PerfettoDsRegister(struct PerfettoDs* ds,
   if (params.buffer_exhausted_policy !=
       PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP) {
     PerfettoDsSetBufferExhaustedPolicy(ds_impl, params.buffer_exhausted_policy);
+  }
+  if (params.buffer_exhausted_policy_configurable) {
+    PerfettoDsSetBufferExhaustedPolicyConfigurable(ds_impl, true);
   }
 
   success = PerfettoDsImplRegister(ds_impl, &ds->enabled, desc_buf, desc_size);

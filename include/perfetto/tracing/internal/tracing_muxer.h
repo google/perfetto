@@ -38,8 +38,15 @@ class TracingSession;
 namespace internal {
 
 struct DataSourceParams {
-  bool supports_multiple_instances;
-  bool requires_callbacks_under_lock;
+  // This is the policy configured by the data source code
+  // (DataSource::kBufferExhaustedPolicy in C++ or
+  // PerfettoDsSetBufferExhaustedPolicy in C). It can be overridden by the
+  // consumer via config if buffer_exhausted_policy_configurable is true.
+  BufferExhaustedPolicy default_buffer_exhausted_policy =
+      BufferExhaustedPolicy::kDrop;
+  bool buffer_exhausted_policy_configurable = false;
+  bool supports_multiple_instances = true;
+  bool requires_callbacks_under_lock = true;
 };
 
 struct DataSourceStaticState;

@@ -600,6 +600,12 @@ def gen_proto_label(target: GnParser.Target):
   if target.proto_plugin == 'descriptor':
     plugin_label.outs = [plugin_label_name + '.bin']
 
+  # Most SDK users just emit track event. The headers for those are included by
+  # other public headers. Some advanced SDK users write custom TracePacket: they
+  # need visibility into the protozero generated headers.
+  if target.proto_plugin == 'protozero':
+    plugin_label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
+
   return plugin_label
 
 
