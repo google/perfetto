@@ -366,6 +366,13 @@ TEST(StringUtilsTest, Contains) {
   EXPECT_FALSE(Contains("abc", "abcd"));
   EXPECT_FALSE(Contains("", "a"));
   EXPECT_FALSE(Contains("", "abc"));
+  auto values = std::vector<std::string>{"abc", "def"};
+  EXPECT_TRUE(Contains(values, "abc"));
+  EXPECT_TRUE(Contains(values, "def"));
+  EXPECT_FALSE(Contains(values, "abcdef"));
+  EXPECT_FALSE(Contains(values, "ab"));
+  EXPECT_FALSE(Contains(values, "ef"));
+  EXPECT_FALSE(Contains(std::vector<std::string>{}, "abcdef"));
 }
 
 TEST(StringUtilsTest, Find) {
