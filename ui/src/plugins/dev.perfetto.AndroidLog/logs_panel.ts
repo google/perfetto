@@ -78,11 +78,13 @@ async function getMachineIds(engine: Engine): Promise<number[]> {
   // Hence, the |cpu| table might have ids not present in the logs. Given this
   // is highly unlikely and going through all logs is expensive, we will get
   // the ids from |cpu|, even if filter shows ids not present in logs.
-  const result = await engine.query(`SELECT DISTINCT(machine_id) FROM cpu`);
+  const result = await engine.query(
+    `SELECT DISTINCT(machine_id) FROM cpu ORDER BY machine_id`,
+  );
   const machineIds: number[] = [];
   const it = result.iter({machine_id: NUM_NULL});
-  for (let row = 0; it.valid(); it.next(), row++) {
-    machineIds.push(it.machine_id == null ? 0 : it.machine_id);
+  for (; it.valid(); it.next()) {
+    machineIds.push(it.machine_id ?? 0);
   }
   return machineIds;
 }
@@ -361,7 +363,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
         },
         disabled: attrs.store.state.textEntry === '',
       }),
-      ...(hasMachineIds ? [this.renderFilterPanel(attrs)] : []),
+      hasMachineIds && this.renderFilterPanel(attrs),
     ];
   }
 
@@ -380,7 +382,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
     );
 
     return m(PopupMultiSelect, {
-      label: 'Filter',
+      label: 'Filter by machine',
       icon: 'filter_list_alt',
       popupPosition: PopupPosition.Top,
       options,
