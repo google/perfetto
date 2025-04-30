@@ -64,7 +64,7 @@ export interface TrackManager {
    * used to draw annotations that span multiple tracks, such as flow arrows or
    * vertical lines marking specific events.
    */
-  registerTimelineOverlay(overlay: TimelineOverlay): void;
+  registerOverlay(overlay: Overlay): void;
 }
 
 export interface TrackContext {
@@ -318,16 +318,19 @@ export interface Slice {
   isHighlighted: boolean;
 }
 
+/**
+ * Contains a track and it's top and bottom coordinates in the timeline.
+ */
 export interface TrackBounds {
   readonly node: TrackNode;
   readonly verticalBounds: VerticalBounds;
 }
 
-export interface TimelineOverlay {
+export interface Overlay {
   render(
     ctx: CanvasRenderingContext2D,
     timescale: TimeScale,
     size: Size2D,
-    renderedTracks: ReadonlyArray<TrackBounds>,
+    tracks: ReadonlyArray<TrackBounds>,
   ): void;
 }

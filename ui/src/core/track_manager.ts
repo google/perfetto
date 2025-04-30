@@ -18,7 +18,7 @@ import {
   Track,
   TrackManager,
   TrackFilterCriteria,
-  TimelineOverlay,
+  Overlay,
 } from '../public/track';
 import {AsyncLimiter} from '../base/async_limiter';
 import {TrackRenderContext} from '../public/track';
@@ -73,7 +73,7 @@ export class TrackFilterState {
  */
 export class TrackManagerImpl implements TrackManager {
   private readonly tracks = new Registry<TrackFSMImpl>((x) => x.desc.uri);
-  private readonly _timelineOverlays: TimelineOverlay[] = [];
+  private readonly _overlays: Overlay[] = [];
 
   // This property is written by scroll_helper.ts and read&cleared by the
   // track_panel.ts. This exist for the following use case: the user wants to
@@ -95,13 +95,13 @@ export class TrackManagerImpl implements TrackManager {
     return this.tracks.register(new TrackFSMImpl(trackDesc));
   }
 
-  registerTimelineOverlay(overlay: TimelineOverlay): Disposable {
-    this._timelineOverlays.push(overlay);
+  registerOverlay(overlay: Overlay): Disposable {
+    this._overlays.push(overlay);
     return {
       [Symbol.dispose]: () => {
-        const index = this._timelineOverlays.indexOf(overlay);
+        const index = this._overlays.indexOf(overlay);
         if (index !== -1) {
-          this._timelineOverlays.splice(index, 1);
+          this._overlays.splice(index, 1);
         }
       },
     };
@@ -149,8 +149,8 @@ export class TrackManagerImpl implements TrackManager {
     return this.filterCriteria;
   }
 
-  get timelineOverlays(): ReadonlyArray<TimelineOverlay> {
-    return this._timelineOverlays;
+  get overlays(): ReadonlyArray<Overlay> {
+    return this._overlays;
   }
 }
 

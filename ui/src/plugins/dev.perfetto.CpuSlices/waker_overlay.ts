@@ -26,14 +26,14 @@ import {
 } from '../../components/sql_utils/sched';
 import {Selection} from '../../public/selection';
 import {Trace} from '../../public/trace';
-import {TimelineOverlay, TrackBounds} from '../../public/track';
+import {Overlay, TrackBounds} from '../../public/track';
 import {uriForSchedTrack} from './common';
 
 const MARGIN = 3;
 const DIAMOND_SIZE = 8;
 const ARROW_HEIGHT = 12;
 
-export class WakerOverlay implements TimelineOverlay {
+export class WakerOverlay implements Overlay {
   private readonly limiter = new AsyncLimiter();
   private readonly trace: Trace;
 

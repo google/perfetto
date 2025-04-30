@@ -386,7 +386,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     this.drawAreaSelection(ctx, timescale, size);
     this.updateInteractions(timelineRect, timescale, size, renderedTracks);
 
-    this.trace.tracks.timelineOverlays.forEach((overlay) => {
+    this.trace.tracks.overlays.forEach((overlay) => {
       overlay.render(ctx, timescale, size, renderedTracks);
     });
 

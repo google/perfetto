@@ -74,7 +74,7 @@ export default class implements PerfettoPlugin {
       ctx.workspace.addChildInOrder(trackNode);
     }
 
-    ctx.tracks.registerTimelineOverlay(new WakerOverlay(ctx));
+    ctx.tracks.registerOverlay(new WakerOverlay(ctx));
   }
 
   async getAndroidCpuClusterTypes(
