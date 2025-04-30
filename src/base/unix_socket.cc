@@ -257,7 +257,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
   PERFETTO_CHECK(false);  // For GCC.
 }
 
-ScopedSocketHandle CreateSocketHandle(SockFamily family, SockType type) {
+void InitWinSockOnce() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   static bool init_winsock_once = [] {
     WSADATA ignored{};
@@ -265,7 +265,33 @@ ScopedSocketHandle CreateSocketHandle(SockFamily family, SockType type) {
   }();
   PERFETTO_CHECK(init_winsock_once);
 #endif
+}
+
+ScopedSocketHandle CreateSocketHandle(SockFamily family, SockType type) {
+  InitWinSockOnce();
   return ScopedSocketHandle(socket(MkSockFamily(family), MkSockType(type), 0));
+}
+
+std::string AddrinfoToIpStr(const struct addrinfo* addrinfo_ptr) {
+  PERFETTO_CHECK(addrinfo_ptr && addrinfo_ptr->ai_addr);
+  PERFETTO_CHECK((addrinfo_ptr->ai_family == AF_INET) ||
+                 (addrinfo_ptr->ai_family == AF_INET6));
+
+  void* addr_ptr = nullptr;
+  char ip_str_buffer[INET6_ADDRSTRLEN];
+
+  if (addrinfo_ptr->ai_family == AF_INET) {  // IPv4
+    struct sockaddr_in* ipv4_addr =
+        reinterpret_cast<struct sockaddr_in*>(addrinfo_ptr->ai_addr);
+    addr_ptr = &(ipv4_addr->sin_addr);
+  } else if (addrinfo_ptr->ai_family == AF_INET6) {  // IPv6
+    struct sockaddr_in6* ipv6_addr =
+        reinterpret_cast<struct sockaddr_in6*>(addrinfo_ptr->ai_addr);
+    addr_ptr = &(ipv6_addr->sin6_addr);
+  }
+  PERFETTO_CHECK(inet_ntop(addrinfo_ptr->ai_family, addr_ptr, ip_str_buffer,
+                           sizeof(ip_str_buffer)) != NULL);
+  return std::string(ip_str_buffer);
 }
 
 }  // namespace
@@ -297,6 +323,34 @@ SockFamily GetSockFamily(const char* addr) {
   }
 
   return SockFamily::kUnix;  // For anything else assume it's a linked AF_UNIX.
+}
+
+std::vector<NetAddrInfo> GetNetAddrInfo(const std::string& ip,
+                                        const std::string& port) {
+  InitWinSockOnce();
+  struct addrinfo hints;
+  struct addrinfo* serv_info;
+  struct addrinfo* p;
+  memset(&hints, 0, sizeof hints);
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_PASSIVE;
+  PERFETTO_CHECK(getaddrinfo(ip.c_str(), port.c_str(), &hints, &serv_info) ==
+                 0);
+  std::vector<NetAddrInfo> res;
+  for (p = serv_info; p != nullptr; p = p->ai_next) {
+    if (p->ai_family == AF_INET) {
+      std::string ip_str = AddrinfoToIpStr(p);
+      std::string ip_port = ip_str + ":" + port;
+      res.emplace_back(ip_port, SockFamily::kInet, SockType::kStream);
+    } else if (p->ai_family == AF_INET6) {
+      std::string ip_str = AddrinfoToIpStr(p);
+      std::string ip_port = "[" + ip_str + "]:" + port;
+      res.emplace_back(ip_port, SockFamily::kInet6, SockType::kStream);
+    }
+  }
+  freeaddrinfo(serv_info);
+  return res;
 }
 
 // +-----------------------+

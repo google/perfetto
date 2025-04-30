@@ -14,23 +14,11 @@
 
 import m from 'mithril';
 
-import {Button, ButtonVariant} from '../../../widgets/button';
-import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
-import {ColumnControllerRow} from './column_controller';
+import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode} from '../query_node';
-import {showModal} from '../../../widgets/modal';
-import {DataSourceViewer} from './data_source_viewer';
-import {PopupMenu} from '../../../widgets/menu';
-import {Icons} from '../../../base/semantic_icons';
-import {Intent} from '../../../widgets/common';
-import {Trace} from '../../../public/trace';
-
-export interface QueryBuilderTable {
-  name: string;
-  asSqlTable: SqlTable;
-  columnOptions: ColumnControllerRow;
-  sql: string;
-}
+import {QueryNodeExplorer} from './query_node_explorer';
+import {QueryCanvas} from './query_canvas';
+import {Trace} from 'src/public/trace';
 
 export interface QueryBuilderAttrs {
   readonly trace: Trace;
@@ -45,43 +33,6 @@ export interface QueryBuilderAttrs {
   readonly addSourcePopupMenu: () => m.Children;
 }
 
-interface NodeAttrs {
-  readonly node: QueryNode;
-  isSelected: boolean;
-  readonly onNodeSelected: (node: QueryNode) => void;
-  readonly renderNodeActionsMenuItems: (node: QueryNode) => m.Children;
-}
-
-class NodeBox implements m.ClassComponent<NodeAttrs> {
-  view({attrs}: m.CVnode<NodeAttrs>) {
-    const {node, isSelected, onNodeSelected} = attrs;
-    return m(
-      '.node-box',
-      {
-        style: {
-          border: isSelected ? '2px solid yellow' : '2px solid blue',
-          borderRadius: '5px',
-          padding: '10px',
-          cursor: 'pointer',
-          backgroundColor: 'lightblue',
-        },
-        onclick: () => onNodeSelected(node),
-      },
-      node.getTitle(),
-      m(
-        PopupMenu,
-        {
-          trigger: m(Button, {
-            iconFilled: true,
-            icon: Icons.MoreVert,
-          }),
-        },
-        attrs.renderNodeActionsMenuItems(node),
-      ),
-    );
-  }
-}
-
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
     const {
@@ -90,108 +41,38 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       onNodeSelected,
       selectedNode,
       renderNodeActionsMenuItems,
+      addSourcePopupMenu,
     } = attrs;
-
-    const renderNodesPanel = (): m.Children => {
-      const nodes: m.Child[] = [];
-      const numRoots = rootNodes.length;
-
-      if (numRoots === 0) {
-        nodes.push(
-          m(
-            '',
-            {style: {gridColumn: 3, gridRow: 2}},
-            m(
-              PopupMenu,
-              {
-                trigger: m(Button, {
-                  icon: Icons.Add,
-                  intent: Intent.Primary,
-                  variant: ButtonVariant.Filled,
-                  style: {
-                    height: '100px',
-                    width: '100px',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    fontSize: '48px',
-                  },
-                }),
-              },
-              attrs.addSourcePopupMenu(),
-            ),
-          ),
-        );
-      } else {
-        let col = 1;
-        rootNodes.forEach((rootNode) => {
-          let row = 1;
-          let curNode: QueryNode | undefined = rootNode;
-          while (curNode) {
-            const localCurNode = curNode;
-            nodes.push(
-              m(
-                '',
-                {style: {display: 'flex', gridColumn: col, gridRow: row}},
-                m(NodeBox, {
-                  node: localCurNode,
-                  isSelected: selectedNode === localCurNode,
-                  onNodeSelected,
-                  renderNodeActionsMenuItems,
-                }),
-              ),
-            );
-            row++;
-            curNode = curNode.nextNode;
-          }
-          col += 1;
-        });
-      }
-
-      return m(
-        '',
-        {
-          style: {
-            display: 'grid',
-            gridTemplateColumns: `repeat(${numRoots} - 1, 1fr)`,
-            gridTemplateRows: 'repeat(3, 1fr)',
-            gap: '10px',
-          },
-        },
-        nodes,
-      );
-    };
 
     const renderDataSourceViewer = () => {
       return attrs.selectedNode
-        ? m(DataSourceViewer, {trace, queryNode: attrs.selectedNode})
+        ? m(QueryNodeExplorer, {trace, node: attrs.selectedNode})
         : undefined;
     };
 
     return m(
-      '',
+      '.query-builder-layout',
       {
         style: {
           display: 'grid',
           gridTemplateColumns: '50% 50%',
-          gridTemplateRows: '50% 50%',
+          gridTemplateRows: '1fr auto',
           gap: '10px',
+          height: '100%',
         },
       },
-      m('', {style: {gridColumn: 1}}, renderNodesPanel()),
-      m('', {style: {gridColumn: 2}}, renderDataSourceViewer()),
+      m(
+        '',
+        {style: {gridColumn: 1, gridRow: 1}},
+        m(QueryCanvas, {
+          rootNodes,
+          selectedNode,
+          onNodeSelected,
+          renderNodeActionsMenuItems,
+          addSourcePopupMenu,
+        }),
+      ),
+      m('', {style: {gridColumn: 2, gridRow: 1}}, renderDataSourceViewer()),
     );
   }
 }
-
-export const createModal = (
-  title: string,
-  content: () => m.Children,
-  onAdd: () => void,
-) => {
-  showModal({
-    title,
-    buttons: [{text: 'Add node', action: onAdd}],
-    content,
-  });
-};

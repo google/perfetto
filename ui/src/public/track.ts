@@ -105,20 +105,27 @@ export interface Track {
   // A unique identifier for this track.
   readonly uri: string;
 
-  // A factory function returning a new track instance.
+  // Describes how to render the track.
   readonly track: TrackRenderer;
 
   // Human readable title. Always displayed.
   readonly title: string;
 
-  // Human readable subtitle. Sometimes displayed if there is room.
+  // Optional: A human readable description of the track.
+  readonly description?: string;
+
+  // Optional: Human readable subtitle. Sometimes displayed if there is room.
   readonly subtitle?: string;
 
-  // Optional: A list of tags used for sorting, grouping and "chips".
+  // Optional: A list of tags which provide additional metadata about the track.
+  // Used mainly for legacy purposes that predate dataset.
   readonly tags?: TrackTags;
 
+  // Optional: A list of strings which are displayed as "chips" in the track
+  // shell.
   readonly chips?: ReadonlyArray<string>;
 
+  // Filled in by the core.
   readonly pluginId?: string;
 }
 

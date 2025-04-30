@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,17 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
+.pf-chart {
+  // Position-relative creates an anchor point for the popups,
+  // so relative offsets can be provided when creating a popup.
+  position: relative;
+}
 
-// This is just an example plugin, used to prove that the plugin system works.
-export default class implements PerfettoPlugin {
-  static readonly id = 'com.example.ExampleSimpleCommand';
-  static onActivate(ctx: App): void {
-    ctx.commands.registerCommand({
-      id: 'com.example.ExampleSimpleCommand#LogHelloWorld',
-      name: 'Log "Hello, world!"',
-      callback: () => console.log('Hello, world!'),
-    });
+.pf-chart-popup {
+  width: max-content;
+  font-family: "Roboto Condensed", sans-serif;
+  font-size: 15px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  row-gap: 4px;
+
+  &__tooltip-text-line {
+    cursor: text;
+  }
+
+  &__tooltip-bold-text {
+    font-weight: 600;
+    cursor: text;
   }
 }

@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_DATAFRAME_RUNTIME_DATAFRAME_BUILDER_H_
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -38,7 +39,6 @@
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
-#include "src/trace_processor/dataframe/impl/static_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
@@ -101,7 +101,10 @@ class RuntimeDataframeBuilder {
   //         valid for the lifetime of the builder and the resulting
   //         Dataframe.
   RuntimeDataframeBuilder(std::vector<std::string> names, StringPool* pool)
-      : string_pool_(pool), column_states_(names.size()) {
+      : string_pool_(pool) {
+    for (uint32_t i = 0; i < names.size(); ++i) {
+      column_states_.emplace_back();
+    }
     for (auto& name : names) {
       column_names_.emplace_back(std::move(name));
     }
@@ -208,7 +211,7 @@ class RuntimeDataframeBuilder {
   // - Construct and return the final `Dataframe` instance.
   base::StatusOr<Dataframe> Build() && {
     RETURN_IF_ERROR(current_status_);
-    impl::FixedVector<impl::Column, impl::kMaxColumns> columns;
+    std::vector<impl::Column> columns;
     for (uint32_t i = 0; i < column_names_.size(); ++i) {
       auto& state = column_states_[i];
       switch (state.data.index()) {
@@ -415,8 +418,8 @@ class RuntimeDataframeBuilder {
 
   StringPool* string_pool_;
   uint32_t row_count_ = 0;
-  impl::FixedVector<std::string, impl::kMaxColumns> column_names_;
-  impl::FixedVector<ColumnState, impl::kMaxColumns> column_states_;
+  std::vector<std::string> column_names_;
+  std::vector<ColumnState> column_states_;
   base::Status current_status_ = base::OkStatus();
 };
 

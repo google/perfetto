@@ -19,6 +19,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -31,7 +32,6 @@
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
-#include "src/trace_processor/dataframe/impl/static_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/util/regex.h"
@@ -105,17 +105,19 @@ class DataframeBytecodeTest : public ::testing::Test {
     PERFETTO_CHECK(cols.size() < 64);
     uint64_t sanitized_cols_used = cols_used & ((1ull << cols.size()) - 1ull);
 
-    impl::FixedVector<impl::Column, impl::kMaxColumns> col_fixed_vec;
+    std::vector<std::string> col_names;
+    for (uint32_t i = 0; i < cols.size(); ++i) {
+      col_names.emplace_back("col" + std::to_string(i));
+    }
+    std::vector<impl::Column> col_fixed_vec;
     for (auto& col : cols) {
       col_fixed_vec.emplace_back(std::move(col));
     }
-    impl::FixedVector<std::string, impl::kMaxColumns> col_names(
-        col_fixed_vec.size());
-    Dataframe df(std::move(col_names), std::move(col_fixed_vec), 0,
-                 &string_pool_);
+    std::unique_ptr<Dataframe> df(new Dataframe(
+        std::move(col_names), std::move(col_fixed_vec), 0, &string_pool_));
     ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
-                         df.PlanQuery(filters, distinct_specs, sort_specs,
-                                      limit_spec, sanitized_cols_used));
+                         df->PlanQuery(filters, distinct_specs, sort_specs,
+                                       limit_spec, sanitized_cols_used));
     EXPECT_THAT(FormatBytecode(plan),
                 EqualsIgnoringWhitespace(expected_bytecode));
   }

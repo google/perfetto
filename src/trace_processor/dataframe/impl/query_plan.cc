@@ -34,7 +34,6 @@
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
-#include "src/trace_processor/dataframe/impl/static_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/util/regex.h"
@@ -129,10 +128,12 @@ inline uint8_t GetDataSize(StorageType type) {
 
 }  // namespace
 
-QueryPlanBuilder::QueryPlanBuilder(
-    uint32_t row_count,
-    const FixedVector<Column, kMaxColumns>& columns)
-    : columns_(columns), column_statess_(columns.size()) {
+QueryPlanBuilder::QueryPlanBuilder(uint32_t row_count,
+                                   const std::vector<Column>& columns)
+    : columns_(columns) {
+  for (uint32_t i = 0; i < columns_.size(); ++i) {
+    column_states_.emplace_back();
+  }
   // Setup the maximum and estimated row counts.
   plan_.params.max_row_count = row_count;
   plan_.params.estimated_row_count = row_count;
@@ -809,7 +810,7 @@ void QueryPlanBuilder::SetGuaranteedToBeEmpty() {
 
 bytecode::reg::ReadHandle<Slab<uint32_t>>
 QueryPlanBuilder::PrefixPopcountRegisterFor(uint32_t col) {
-  auto& reg = column_statess_[col].prefix_popcount;
+  auto& reg = column_states_[col].prefix_popcount;
   if (!reg) {
     reg = bytecode::reg::RwHandle<Slab<uint32_t>>{register_count_++};
     {

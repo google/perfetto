@@ -21,6 +21,8 @@ import {Button} from '../../widgets/button';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.Settings';
+  static readonly description =
+    'Example plugin to show how to register settings.';
 
   static onActivate(app: App) {
     // Register a simple boolean setting like this. The setting will appear on
@@ -47,6 +49,8 @@ export default class implements PerfettoPlugin {
       },
     });
 
+    // This is how you register a string setting. The setting will appear on
+    // the settings page as a nubmer input.
     app.settings.register({
       id: 'com.example.Settings#numberSetting',
       name: 'Number Setting',
@@ -100,7 +104,15 @@ export default class implements PerfettoPlugin {
     });
   }
 
-  async onTraceLoad(_: Trace): Promise<void> {
-    // Nothing to do.
+  async onTraceLoad(trace: Trace): Promise<void> {
+    // Register a setting that is only available when a trace is loaded.
+    trace.settings.register({
+      id: 'com.example.Settings#booleanSettingWithTrace',
+      name: 'Boolean Setting (registered with the trace)',
+      description:
+        "A boolean setting that's registered with teh trace rather than the app.",
+      schema: z.boolean(),
+      defaultValue: false,
+    });
   }
 }

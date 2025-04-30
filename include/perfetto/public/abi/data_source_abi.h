@@ -221,8 +221,12 @@ enum PerfettoDsBufferExhaustedPolicy {
   PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP = 0,
   // If the data source runs out of space when trying to acquire a new chunk,
   // it will stall, retry and eventually abort if a free chunk is not acquired
-  // after a while.
+  // after a few seconds.
   PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_STALL_AND_ABORT = 1,
+  // If the data source runs out of space when trying to acquire a new chunk,
+  // it will stall, retry and eventually drop data if a free chunk is not
+  // acquired after a few seconds.
+  PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_STALL_AND_DROP = 2,
 };
 
 // If the data source doesn't find an empty chunk when trying to emit tracing
@@ -235,6 +239,17 @@ enum PerfettoDsBufferExhaustedPolicy {
 PERFETTO_SDK_EXPORT bool PerfettoDsSetBufferExhaustedPolicy(
     struct PerfettoDsImpl*,
     uint32_t policy);
+
+// If `configurable` is set to true, the buffer exhausted policy (see
+// PerfettoDsSetBufferExhaustedPolicy()) will be configurable using the data
+// source config.
+//
+// Should not be called after PerfettoDsImplRegister().
+//
+// Returns true if successful, false otherwise.
+PERFETTO_SDK_EXPORT bool PerfettoDsSetBufferExhaustedPolicyConfigurable(
+    struct PerfettoDsImpl*,
+    bool configurable);
 
 // Registers the `*ds_impl` data source type.
 //

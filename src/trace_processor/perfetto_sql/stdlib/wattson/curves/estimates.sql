@@ -23,6 +23,8 @@ INCLUDE PERFETTO MODULE wattson.curves.w_dsu_dependence;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
+INCLUDE PERFETTO MODULE wattson.utils;
+
 -- One of the two tables will be empty, depending on whether the device is
 -- dependent on devfreq or a different CPU's frequency
 CREATE PERFETTO VIEW _curves_w_dependencies (
