@@ -59,7 +59,7 @@ import {
   wheelNavigationInteraction,
 } from './timeline_interactions';
 import {TrackView} from './track_view';
-import {drawVerticalLineAtTime} from './vertical_line_helper';
+import {drawVerticalLineAtTime} from '../../base/vertical_line_helper';
 import {featureFlags} from '../../core/feature_flags';
 import {EmptyState} from '../../widgets/empty_state';
 import {Button, ButtonVariant} from '../../widgets/button';
@@ -382,10 +382,13 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     renderFlows(this.trace, ctx, size, renderedTracks, rootNode, timescale);
     this.drawHoveredNoteVertical(ctx, timescale, size);
     this.drawHoveredCursorVertical(ctx, timescale, size);
-    this.drawWakeupVertical(ctx, timescale, size);
     this.drawNoteVerticals(ctx, timescale, size);
     this.drawAreaSelection(ctx, timescale, size);
     this.updateInteractions(timelineRect, timescale, size, renderedTracks);
+
+    this.trace.tracks.overlays.forEach((overlay) => {
+      overlay.render(ctx, timescale, size, renderedTracks);
+    });
 
     const renderTime = performance.now() - start;
     this.updatePerfStats(renderTime, renderedTracks.length, tracksOnCanvas);
@@ -680,23 +683,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         this.trace.timeline.hoveredNoteTimestamp,
         size.height,
         `#aaa`,
-      );
-    }
-  }
-
-  private drawWakeupVertical(
-    ctx: CanvasRenderingContext2D,
-    timescale: TimeScale,
-    size: Size2D,
-  ) {
-    const selection = this.trace.selection.selection;
-    if (selection.kind === 'track_event' && selection.wakeupTs) {
-      drawVerticalLineAtTime(
-        ctx,
-        timescale,
-        selection.wakeupTs,
-        size.height,
-        `black`,
       );
     }
   }
