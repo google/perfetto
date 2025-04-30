@@ -20,6 +20,7 @@
 #include <cstdarg>
 #include <cstdint>
 #include <memory>
+#include <new>
 #include <string>
 #include <type_traits>
 #include <vector>

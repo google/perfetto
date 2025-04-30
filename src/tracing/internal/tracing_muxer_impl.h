@@ -113,8 +113,7 @@ class TracingMuxerImpl : public TracingMuxer {
   struct RegisteredDataSource {
     DataSourceDescriptor descriptor;
     DataSourceFactory factory{};
-    bool supports_multiple_instances = false;
-    bool requires_callbacks_under_lock = false;
+    DataSourceParams params;
     bool no_flush = false;
     DataSourceStaticState* static_state = nullptr;
   };
