@@ -46,6 +46,13 @@ import {
 } from '../core/state_serialization';
 import {featureFlags} from '../core/feature_flags';
 import {trackMatchesFilter} from '../core/track_manager';
+import {renderStatusBar} from './statusbar';
+
+const showStatusBarFlag = featureFlags.register({
+  id: 'Enable status bar',
+  description: 'Enable status bar at the bottom of the window',
+  defaultValue: true,
+});
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 const OMNIBOX_INPUT_REF = 'omnibox';
@@ -736,6 +743,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         app.pages.renderPageForCurrentRoute(),
         m(CookieConsent),
         maybeRenderFullscreenModalDialog(),
+        showStatusBarFlag.get() && renderStatusBar(app.trace),
         app.perfDebugging.renderPerfStats(),
       ),
     );
