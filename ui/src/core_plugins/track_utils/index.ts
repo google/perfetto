@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import z from 'zod';
 import {OmniboxMode} from '../../core/omnibox_manager';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
@@ -20,17 +21,26 @@ import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {exists, RequiredField} from '../../base/utils';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
-import {featureFlags} from '../../core/feature_flags';
+import {App} from '../../public/app';
+import {Setting} from '../../public/settings';
 
-const dvorakFlag = featureFlags.register({
-  id: 'dvorakKeyboardLayout',
-  defaultValue: false,
-  name: 'Dvorak keyboard layout',
-  description: 'Disables hotkeys to avoid hotkey collisions',
-});
-
-export default class implements PerfettoPlugin {
+export default class TrackUtilsPlugin implements PerfettoPlugin {
   static readonly id = 'perfetto.TrackUtils';
+  static dvorakSetting: Setting<boolean>;
+
+  static onActivate(ctx: App): void {
+    TrackUtilsPlugin.dvorakSetting = ctx.settings.register({
+      // Plugin ID is omitted because we might want to move this setting in the
+      // future.
+      id: 'dvorakMode',
+      defaultValue: false,
+      name: 'Dvorak mode',
+      description: 'Rearranges hotkeys to avoid collisions in Dvorak layout.',
+      schema: z.boolean(),
+      requiresReload: true, // Hotkeys are registered on trace load.
+    });
+  }
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
       id: 'perfetto.RunQueryInSelectedTimeWindow',
@@ -101,7 +111,7 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'perfetto.SelectNextTrackEvent',
       name: 'Select next track event',
-      defaultHotkey: !dvorakFlag.get() ? '.' : undefined,
+      defaultHotkey: '.',
       callback: async () => {
         await selectAdjacentTrackEvent(ctx, 'next');
       },
@@ -110,7 +120,7 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'perfetto.SelectPreviousTrackEvent',
       name: 'Select previous track event',
-      defaultHotkey: !dvorakFlag.get() ? ',' : undefined,
+      defaultHotkey: !TrackUtilsPlugin.dvorakSetting.get() ? ',' : undefined,
       callback: async () => {
         await selectAdjacentTrackEvent(ctx, 'prev');
       },
