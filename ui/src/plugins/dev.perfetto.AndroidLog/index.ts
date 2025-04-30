@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {LogFilteringCriteria, LogPanel} from './logs_panel';
+import {LogFilteringCriteria, LogPanelCache, LogPanel} from './logs_panel';
 import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
@@ -32,6 +32,7 @@ const DEFAULT_STATE: AndroidLogPluginState = {
     tags: [],
     textEntry: '',
     hideNonMatching: true,
+    machineExcludeList: [],
   },
 };
 
@@ -75,11 +76,15 @@ export default class implements PerfettoPlugin {
       (x) => x as LogFilteringCriteria,
     );
 
+    const cache: LogPanelCache = {
+      uMachineIds: [],
+    };
+
     ctx.tabs.registerTab({
       isEphemeral: false,
       uri: androidLogsTabUri,
       content: {
-        render: () => m(LogPanel, {filterStore: filterStore, trace: ctx}),
+        render: () => m(LogPanel, {filterStore, cache, trace: ctx}),
         getTitle: () => 'Android Logs',
       },
     });

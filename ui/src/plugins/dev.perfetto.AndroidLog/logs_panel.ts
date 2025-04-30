@@ -22,6 +22,12 @@ import {Monitor} from '../../base/monitor';
 import {AsyncLimiter} from '../../base/async_limiter';
 import {escapeGlob, escapeQuery} from '../../trace_processor/query_utils';
 import {Select} from '../../widgets/select';
+import {
+  MultiSelectDiff,
+  MultiSelectOption,
+  PopupMultiSelect,
+} from '../../widgets/multiselect';
+import {PopupPosition} from '../../widgets/popup';
 import {Button} from '../../widgets/button';
 import {TextInput} from '../../widgets/text_input';
 import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
@@ -37,9 +43,15 @@ export interface LogFilteringCriteria {
   tags: string[];
   textEntry: string;
   hideNonMatching: boolean;
+  machineExcludeList: number[];
+}
+
+export interface LogPanelCache {
+  uMachineIds: number[];
 }
 
 export interface LogPanelAttrs {
+  cache: LogPanelCache;
   filterStore: Store<LogFilteringCriteria>;
   trace: Trace;
 }
@@ -61,6 +73,20 @@ interface LogEntries {
   totalEvents: number; // Count of the total number of events within this window
 }
 
+async function getMachineIds(engine: Engine): Promise<number[]> {
+  // A machine might not provide Android logs, even if configured to do so.
+  // Hence, the |cpu| table might have ids not present in the logs. Given this
+  // is highly unlikely and going through all logs is expensive, we will get
+  // the ids from |cpu|, even if filter shows ids not present in logs.
+  const result = await engine.query(`SELECT DISTINCT(machine_id) FROM cpu`);
+  const machineIds: number[] = [];
+  const it = result.iter({machine_id: NUM_NULL});
+  for (let row = 0; it.valid(); it.next(), row++) {
+    machineIds.push(it.machine_id == null ? 0 : it.machine_id);
+  }
+  return machineIds;
+}
+
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private entries?: LogEntries;
 
@@ -80,6 +106,10 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     ]);
 
     this.filterMonitor = new Monitor([() => attrs.filterStore.state]);
+
+    getMachineIds(attrs.trace.engine).then((uMachineIds) => {
+      attrs.cache.uMachineIds = uMachineIds;
+    });
   }
 
   view({attrs}: m.CVnode<LogPanelAttrs>) {
@@ -99,7 +129,11 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       {
         title: 'Android Logs',
         description: `Total messages: ${totalEvents}`,
-        buttons: m(LogsFilters, {trace: attrs.trace, store: attrs.filterStore}),
+        buttons: m(LogsFilters, {
+          trace: attrs.trace,
+          cache: attrs.cache,
+          store: attrs.filterStore,
+        }),
       },
       m(VirtualTable, {
         className: 'pf-android-logs-table',
@@ -277,6 +311,7 @@ class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
 
 interface LogsFiltersAttrs {
   readonly trace: Trace;
+  readonly cache: LogPanelCache;
   readonly store: Store<LogFilteringCriteria>;
 }
 
@@ -325,7 +360,44 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
         },
         disabled: attrs.store.state.textEntry === '',
       }),
+      this.renderFilterPanel(attrs),
     ];
+  }
+
+  private renderFilterPanel(attrs: LogsFiltersAttrs) {
+    const machineExcludeList = attrs.store.state.machineExcludeList;
+    const options: MultiSelectOption[] = attrs.cache.uMachineIds.map(
+      (uMachineId) => {
+        return {
+          id: String(uMachineId),
+          name: `Machine ${uMachineId}`,
+          checked: !machineExcludeList.some(
+            (excluded: number) => excluded === uMachineId,
+          ),
+        };
+      },
+    );
+
+    return m(PopupMultiSelect, {
+      label: 'Filter',
+      icon: 'filter_list_alt',
+      popupPosition: PopupPosition.Top,
+      options,
+      onChange: (diffs: MultiSelectDiff[]) => {
+        const newList = new Set<number>(machineExcludeList);
+        diffs.forEach(({checked, id}) => {
+          const machineId = Number(id);
+          if (checked) {
+            newList.delete(machineId);
+          } else {
+            newList.add(machineId);
+          }
+        });
+        attrs.store.edit((draft) => {
+          draft.machineExcludeList = Array.from(newList);
+        });
+      },
+    });
   }
 }
 
@@ -414,6 +486,9 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
       where prio >= ${filter.minimumLevel}`;
   if (filter.tags.length) {
     selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
+  }
+  if (filter.machineExcludeList.length) {
+    selectedRows += ` and ifnull(process.machine_id, 0) not in (${filter.machineExcludeList.join()})`;
   }
 
   // We extract only the rows which will be visible.
