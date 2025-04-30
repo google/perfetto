@@ -61,14 +61,21 @@ export default class implements PerfettoPlugin {
 
   private async addProcessPerfSamplesTracks(trace: Trace) {
     const pResult = await trace.engine.query(`
-      select distinct upid
-      from perf_sample
-      join thread using (utid)
-      where callsite_id is not null and upid is not null
+      SELECT DISTINCT upid
+      FROM perf_sample
+      JOIN thread USING (utid)
+      WHERE
+        callsite_id IS NOT NULL AND
+        upid IS NOT NULL
     `);
+
+    // Remember all the track URIs so we can use them in the command.
+    const trackUris: string[] = [];
+
     for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       const uri = makeUriForProc(upid);
+      trackUris.push(uri);
       const title = `Process Callstacks`;
       trace.tracks.registerTrack({
         uri,
@@ -85,6 +92,20 @@ export default class implements PerfettoPlugin {
       const track = new TrackNode({uri, title, sortOrder: -40});
       group?.addChildInOrder(track);
     }
+
+    // Add a command to select all the perf samples in the trace - it selects
+    // the entirety of each process scoped perf sample track.
+    trace.commands.registerCommand({
+      id: 'dev.perfetto.LinuxPerf#SelectAllPerfSamples',
+      name: 'Select all perf samples',
+      callback: () => {
+        trace.selection.selectArea({
+          start: trace.traceInfo.start,
+          end: trace.traceInfo.end,
+          trackUris,
+        });
+      },
+    });
   }
 
   private async addThreadPerfSamplesTracks(trace: Trace) {
