@@ -117,8 +117,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       this.reloadData(attrs);
     }
 
-    const hasMachineIds =
-      this.entries && this.entries.machineIds.filter((id) => id).length > 0;
+    const hasMachineIds = attrs.cache.uMachineIds.length > 1;
     const hasProcessNames =
       this.entries &&
       this.entries.processName.filter((name) => name).length > 0;
@@ -317,6 +316,8 @@ interface LogsFiltersAttrs {
 
 export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
   view({attrs}: m.CVnode<LogsFiltersAttrs>) {
+    const hasMachineIds = attrs.cache.uMachineIds.length > 1;
+
     return [
       m('.log-label', 'Log Level'),
       m(LogPriorityWidget, {
@@ -360,7 +361,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
         },
         disabled: attrs.store.state.textEntry === '',
       }),
-      this.renderFilterPanel(attrs),
+      ...(hasMachineIds ? [this.renderFilterPanel(attrs)] : []),
     ];
   }
 
