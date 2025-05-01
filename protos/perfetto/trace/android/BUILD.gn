@@ -18,12 +18,14 @@ perfetto_proto_library("@TYPE@") {
   deps = [
     ":winscope_regular_@TYPE@",
     "../../common:@TYPE@",
+    "../track_event:@TYPE@",
   ]
 
   sources = [
     "android_game_intervention_list.proto",
     "android_log.proto",
     "android_system_property.proto",
+    "android_track_event.proto",
     "app_wakelock_data.proto",
     "bluetooth_trace.proto",
     "camera_event.proto",
@@ -127,16 +129,15 @@ perfetto_proto_library("winscope_@TYPE@") {
   generator_visibility = [ "../../../../src/trace_processor/importers/proto/winscope:gen_cc_winscope_descriptor" ]
   descriptor_root_source = "winscope.proto"
 }
-
 # Android track_event extensions
-perfetto_proto_library("android_track_event_@TYPE@") {
-  sources = [ "android_track_event.proto" ]
-  public_deps = [ "../track_event:@TYPE@" ]
-  generator_visibility = [ "../../../../src/trace_processor/importers/proto:gen_cc_android_track_event_descriptor" ]
-  generate_descriptor = "android_track_event.descriptor"
-  descriptor_root_source = "android_track_event.proto"
-
-  # This is the descriptor for an extension. It shouldn't include the descriptor
-  # for the base message as well.
-  exclude_imports = true
-}
+#perfetto_proto_library("android_track_event_@TYPE@") {
+#  sources = [ "android_track_event.proto" ]
+#  public_deps = [ "../track_event:@TYPE@" ]
+#  generator_visibility = [ "../../../../src/trace_processor/importers/proto:gen_cc_android_track_event_descriptor" ]
+#  generate_descriptor = "android_track_event.descriptor"
+#  descriptor_root_source = "android_track_event.proto"
+#
+#  # This is the descriptor for an extension. It shouldn't include the descriptor
+#  # for the base message as well.
+#  exclude_imports = true
+#}

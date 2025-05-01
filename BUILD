@@ -506,7 +506,6 @@ perfetto_cc_library(
                ":src_base_clock_snapshots",
                ":src_base_version",
                ":src_trace_processor_containers_containers",
-               ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
@@ -2389,17 +2388,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/v8_tracker.h",
         "src/trace_processor/importers/proto/vulkan_memory_tracker.cc",
         "src/trace_processor/importers/proto/vulkan_memory_tracker.h",
-    ],
-)
-
-# GN target: //src/trace_processor/importers/proto:gen_cc_android_track_event_descriptor
-perfetto_cc_proto_descriptor(
-    name = "src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
-    deps = [
-        ":protos_perfetto_trace_android_android_track_event_descriptor",
-    ],
-    outs = [
-        "src/trace_processor/importers/proto/android_track_event.descriptor.h",
     ],
 )
 
@@ -5917,34 +5905,6 @@ perfetto_cc_protozero_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace/android:android_track_event_descriptor
-perfetto_proto_descriptor(
-    name = "protos_perfetto_trace_android_android_track_event_descriptor",
-    deps = [
-        ":protos_perfetto_trace_android_android_track_event_protos",
-    ],
-    outs = [
-        "protos_perfetto_trace_android_android_track_event_descriptor.bin",
-    ],
-)
-
-# GN target: //protos/perfetto/trace/android:android_track_event_source_set
-perfetto_proto_library(
-    name = "protos_perfetto_trace_android_android_track_event_protos",
-    srcs = [
-        "protos/perfetto/trace/android/android_track_event.proto",
-    ],
-    visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
-    ],
-    deps = [
-        ":protos_perfetto_trace_track_event_protos",
-    ],
-    exports = [
-        ":protos_perfetto_trace_track_event_protos",
-    ],
-)
-
 # GN target: //protos/perfetto/trace/android:source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
@@ -5952,6 +5912,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
         "protos/perfetto/trace/android/android_system_property.proto",
+        "protos/perfetto/trace/android/android_track_event.proto",
         "protos/perfetto/trace/android/app_wakelock_data.proto",
         "protos/perfetto/trace/android/bluetooth_trace.proto",
         "protos/perfetto/trace/android/camera_event.proto",
@@ -5971,6 +5932,7 @@ perfetto_proto_library(
         ":protos_perfetto_common_protos",
         ":protos_perfetto_trace_android_winscope_common_protos",
         ":protos_perfetto_trace_android_winscope_regular_protos",
+        ":protos_perfetto_trace_track_event_protos",
     ],
 )
 
@@ -6129,6 +6091,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_trace_android_protos",
         ":protos_perfetto_trace_android_winscope_common_zero",
         ":protos_perfetto_trace_android_winscope_regular_zero",
+        ":protos_perfetto_trace_track_event_zero",
     ],
 )
 
@@ -7403,7 +7366,6 @@ perfetto_cc_library(
                ":src_base_base",
                ":src_base_clock_snapshots",
                ":src_trace_processor_containers_containers",
-               ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
@@ -7618,7 +7580,6 @@ perfetto_cc_binary(
                ":src_base_http_http",
                ":src_base_version",
                ":src_trace_processor_containers_containers",
-               ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
@@ -7833,7 +7794,6 @@ perfetto_cc_binary(
                ":src_base_clock_snapshots",
                ":src_base_version",
                ":src_trace_processor_containers_containers",
-               ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
