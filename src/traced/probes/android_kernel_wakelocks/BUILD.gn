@@ -25,8 +25,8 @@ source_set("android_kernel_wakelocks") {
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/android:zero",
     "../../../android_internal:lazy_library_loader",
-    "../../../kernel_utils:kernel_wakelock_errors",
     "../../../base",
+    "../../../kernel_utils:kernel_wakelock_errors",
   ]
   sources = [
     "android_kernel_wakelocks_data_source.cc",
