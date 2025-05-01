@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,22 +13,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HPROF_EVENT_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HPROF_EVENT_H_
 
 #include <cstdint>
 #include <optional>
-
-#include "src/trace_processor/containers/string_pool.h"
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace perfetto::trace_processor::art_hprof {
+
+/**
+ * Represents a field value in the heap graph with various possible types.
+ */
 struct HeapGraphValue {
   enum ValueType {
-    NONE, BOOLEAN, BYTE, CHAR, SHORT, INT, FLOAT, LONG, DOUBLE, OBJECT_ID, STRING
+    NONE,
+    BOOLEAN,
+    BYTE,
+    CHAR,
+    SHORT,
+    INT,
+    FLOAT,
+    LONG,
+    DOUBLE,
+    OBJECT_ID,
+    STRING
   };
 
   ValueType type = NONE;
+
+  // Use union for memory efficiency for primitive types
   union {
     bool bool_value;
     int8_t byte_value;
@@ -40,9 +56,14 @@ struct HeapGraphValue {
     double double_value;
     uint64_t object_id_value;
   };
+
+  // String values are stored outside the union
   std::string string_value;
 };
 
+/**
+ * Represents an object instance in the heap graph.
+ */
 struct HeapGraphObject {
   uint64_t object_id = 0;
   uint64_t type_id = 0;
@@ -51,8 +72,12 @@ struct HeapGraphObject {
   std::unordered_map<std::string, HeapGraphValue> field_values;
   std::vector<uint64_t> references;
   std::optional<uint32_t> reference_set_id;
+  std::optional<std::string> root_type;
 };
 
+/**
+ * Represents a reference between objects in the heap graph.
+ */
 struct HeapGraphReference {
   uint64_t owner_id = 0;
   std::optional<uint64_t> owned_id;
@@ -61,6 +86,9 @@ struct HeapGraphReference {
   uint32_t reference_set_id = 0;
 };
 
+/**
+ * Represents a class definition in the heap graph.
+ */
 struct HeapGraphClass {
   std::string name;
   std::optional<std::string> deobfuscated_name;
@@ -71,23 +99,27 @@ struct HeapGraphClass {
   uint64_t class_object_id = 0;
 };
 
-// Streamlined IR data structures
+/**
+ * Intermediate representation for heap graph data.
+ */
 struct HeapGraphIR {
   std::vector<HeapGraphClass> classes;
   std::vector<HeapGraphObject> objects;
   std::vector<HeapGraphReference> references;
 };
 
-// Struct to hold event data from the HPROF parser
+/**
+ * Event structure for HPROF data from the Android Runtime.
+ */
 struct ArtHprofEvent {
-  // Thread ID if applicable
+  // Process ID if applicable
   uint32_t pid = 0;
 
-  // The actual data based on event type
+  // The parsed heap graph data
   HeapGraphIR data;
 
-  // Constructors for different event types
-  explicit ArtHprofEvent(HeapGraphIR ir): data(std::move(ir)) {}
+  // Constructor
+  explicit ArtHprofEvent(HeapGraphIR ir) : data(std::move(ir)) {}
 };
 
 }  // namespace perfetto::trace_processor::art_hprof

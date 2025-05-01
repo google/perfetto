@@ -37,6 +37,6 @@ class ArtHprofParserImpl : public ArtHprofParser {
   [[maybe_unused]] TraceProcessorContext* const context_;
 };
 
-}  // namespace perfetto::trace_processor::art_method
+}  // namespace perfetto::trace_processor::art_hprof
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HPROF_PARSER_IMPL_H_

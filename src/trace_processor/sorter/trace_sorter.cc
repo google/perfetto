@@ -433,8 +433,7 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
           token_buffer_.Extract<art_method::ArtMethodEvent>(id));
       return;
     case TimestampedEvent::Type::kArtHprofEvent:
-      base::ignore_result(
-          token_buffer_.Extract<art_hprof::ArtHprofEvent>(id));
+      base::ignore_result(token_buffer_.Extract<art_hprof::ArtHprofEvent>(id));
       return;
     case TimestampedEvent::Type::kPerfTextEvent:
       base::ignore_result(

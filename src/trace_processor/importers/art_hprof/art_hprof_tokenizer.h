@@ -20,90 +20,98 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <fstream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <variant>
 #include <vector>
 
-#include "src/trace_processor/importers/art_hprof/art_hprof_event.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/art_hprof/art_hprof_event.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
-
 namespace perfetto::trace_processor::art_hprof {
-// Heap type enumeration
+
+/**
+ * Heap type enumeration from Android HPROF format.
+ */
 enum HprofHeapId {
-    HPROF_HEAP_DEFAULT = 0,
-    HPROF_HEAP_ZYGOTE = 1,
-    HPROF_HEAP_APP = 2,
-    HPROF_HEAP_IMAGE = 3,
-    HPROF_HEAP_JIT = 4,
-    HPROF_HEAP_APP_CACHE = 5,
-    HPROF_HEAP_SYSTEM = 6
+  HPROF_HEAP_DEFAULT = 0,
+  HPROF_HEAP_ZYGOTE = 1,
+  HPROF_HEAP_APP = 2,
+  HPROF_HEAP_IMAGE = 3,
+  HPROF_HEAP_JIT = 4,
+  HPROF_HEAP_APP_CACHE = 5,
+  HPROF_HEAP_SYSTEM = 6
 };
 
-// Field type constants
+/**
+ * Field type constants from HPROF format.
+ */
 enum FieldType {
-    TYPE_OBJECT = 2,
-    TYPE_BOOLEAN = 4,
-    TYPE_CHAR = 5,
-    TYPE_FLOAT = 6,
-    TYPE_DOUBLE = 7,
-    TYPE_BYTE = 8,
-    TYPE_SHORT = 9,
-    TYPE_INT = 10,
-    TYPE_LONG = 11
+  TYPE_OBJECT = 2,
+  TYPE_BOOLEAN = 4,
+  TYPE_CHAR = 5,
+  TYPE_FLOAT = 6,
+  TYPE_DOUBLE = 7,
+  TYPE_BYTE = 8,
+  TYPE_SHORT = 9,
+  TYPE_INT = 10,
+  TYPE_LONG = 11
 };
 
-// Tag constants
+/**
+ * Tag constants from HPROF format.
+ */
 enum HprofTag {
-    HPROF_UTF8 = 0x01,
-    HPROF_LOAD_CLASS = 0x02,
-    HPROF_UNLOAD_CLASS = 0x03,
-    HPROF_FRAME = 0x04,
-    HPROF_TRACE = 0x05,
-    HPROF_ALLOC_SITES = 0x06,
-    HPROF_HEAP_SUMMARY = 0x07,
-    HPROF_START_THREAD = 0x0A,
-    HPROF_END_THREAD = 0x0B,
-    HPROF_HEAP_DUMP = 0x0C,
-    HPROF_CPU_SAMPLES = 0x0D,
-    HPROF_CONTROL_SETTINGS = 0x0E,
-    HPROF_HEAP_DUMP_SEGMENT = 0x1C,
-    HPROF_HEAP_DUMP_END = 0x2C
+  HPROF_UTF8 = 0x01,
+  HPROF_LOAD_CLASS = 0x02,
+  HPROF_UNLOAD_CLASS = 0x03,
+  HPROF_FRAME = 0x04,
+  HPROF_TRACE = 0x05,
+  HPROF_ALLOC_SITES = 0x06,
+  HPROF_HEAP_SUMMARY = 0x07,
+  HPROF_START_THREAD = 0x0A,
+  HPROF_END_THREAD = 0x0B,
+  HPROF_HEAP_DUMP = 0x0C,
+  HPROF_CPU_SAMPLES = 0x0D,
+  HPROF_CONTROL_SETTINGS = 0x0E,
+  HPROF_HEAP_DUMP_SEGMENT = 0x1C,
+  HPROF_HEAP_DUMP_END = 0x2C
 };
 
-// Heap tag constants
+/**
+ * Heap tag constants from HPROF format.
+ */
 enum HprofHeapTag {
-    HPROF_ROOT_UNKNOWN = 0xFF,
-    HPROF_ROOT_JNI_GLOBAL = 0x01,
-    HPROF_ROOT_JNI_LOCAL = 0x02,
-    HPROF_ROOT_JAVA_FRAME = 0x03,
-    HPROF_ROOT_NATIVE_STACK = 0x04,
-    HPROF_ROOT_STICKY_CLASS = 0x05,
-    HPROF_ROOT_THREAD_BLOCK = 0x06,
-    HPROF_ROOT_MONITOR_USED = 0x07,
-    HPROF_ROOT_THREAD_OBJ = 0x08,
-    HPROF_CLASS_DUMP = 0x20,
-    HPROF_INSTANCE_DUMP = 0x21,
-    HPROF_OBJ_ARRAY_DUMP = 0x22,
-    HPROF_PRIM_ARRAY_DUMP = 0x23,
-    HPROF_HEAP_DUMP_INFO = 0xFE,
-    HPROF_ROOT_INTERNED_STRING = 0x89,
-    HPROF_ROOT_FINALIZING = 0x8A,
-    HPROF_ROOT_DEBUGGER = 0x8B,
-    HPROF_ROOT_REFERENCE_CLEANUP = 0x8C,
-    HPROF_ROOT_VM_INTERNAL = 0x8D,
-    HPROF_ROOT_JNI_MONITOR = 0x8E
+  HPROF_ROOT_UNKNOWN = 0xFF,
+  HPROF_ROOT_JNI_GLOBAL = 0x01,
+  HPROF_ROOT_JNI_LOCAL = 0x02,
+  HPROF_ROOT_JAVA_FRAME = 0x03,
+  HPROF_ROOT_NATIVE_STACK = 0x04,
+  HPROF_ROOT_STICKY_CLASS = 0x05,
+  HPROF_ROOT_THREAD_BLOCK = 0x06,
+  HPROF_ROOT_MONITOR_USED = 0x07,
+  HPROF_ROOT_THREAD_OBJ = 0x08,
+  HPROF_CLASS_DUMP = 0x20,
+  HPROF_INSTANCE_DUMP = 0x21,
+  HPROF_OBJ_ARRAY_DUMP = 0x22,
+  HPROF_PRIM_ARRAY_DUMP = 0x23,
+  HPROF_HEAP_DUMP_INFO = 0xFE,
+  HPROF_ROOT_INTERNED_STRING = 0x89,
+  HPROF_ROOT_FINALIZING = 0x8A,
+  HPROF_ROOT_DEBUGGER = 0x8B,
+  HPROF_ROOT_REFERENCE_CLEANUP = 0x8C,
+  HPROF_ROOT_VM_INTERNAL = 0x8D,
+  HPROF_ROOT_JNI_MONITOR = 0x8E
 };
 
 // Forward declarations
@@ -119,31 +127,78 @@ struct HeapDumpData;
 struct Utf8StringData;
 struct LoadClassData;
 
-// Abstracted file iterator interface
+/**
+ * Abstract interface for a byte iterator that reads from a data source.
+ * This class provides an out-of-line virtual destructor to fix weak vtable
+ * issues.
+ */
 class ByteIterator {
  public:
   virtual ~ByteIterator();
 
+  /**
+   * Read an unsigned 1-byte value.
+   */
   virtual bool ReadU1(uint8_t& value) = 0;
+
+  /**
+   * Read an unsigned 2-byte value.
+   */
   virtual bool ReadU2(uint16_t& value) = 0;
+
+  /**
+   * Read an unsigned 4-byte value.
+   */
   virtual bool ReadU4(uint32_t& value) = 0;
+
+  /**
+   * Read an ID of specified size.
+   */
   virtual bool ReadId(uint64_t& value, uint32_t id_size) = 0;
+
+  /**
+   * Read a string of specified length.
+   */
   virtual bool ReadString(std::string& str, size_t length) = 0;
+
+  /**
+   * Read bytes of specified length.
+   */
   virtual bool ReadBytes(std::vector<uint8_t>& data, size_t length) = 0;
+
+  /**
+   * Skip specified number of bytes.
+   */
   virtual bool SkipBytes(size_t count) = 0;
+
+  /**
+   * Get current position in the stream.
+   */
   virtual std::streampos GetPosition() = 0;
+
+  /**
+   * Check if the end of the stream has been reached.
+   */
   virtual bool IsEof() const = 0;
+
+  /**
+   * Check if the iterator is valid.
+   */
   virtual bool IsValid() const = 0;
 };
 
-// Struct for field information
+/**
+ * Field information structure.
+ */
 struct FieldInfo {
   std::string name;
-  uint8_t type;
+  uint8_t type = 0;
   uint64_t class_id = 0;
 };
 
-// Class information structure
+/**
+ * Class information structure.
+ */
 struct ClassInfo {
   std::string name;
   uint64_t class_object_id = 0;
@@ -154,19 +209,33 @@ struct ClassInfo {
   bool use_string_compression = false;
 };
 
-// Object reference information
+/**
+ * Object reference structure.
+ */
 struct ObjectReference {
   std::string field_name;
-  uint64_t target_object_id;
+  uint64_t target_object_id = 0;
 };
 
-// Field value using a simple variant pattern
+/**
+ * Field value with type information.
+ */
 struct FieldValue {
   enum ValueType {
-    NONE, BOOLEAN, BYTE, CHAR, SHORT, INT, FLOAT, LONG, DOUBLE, OBJECT_ID
+    NONE,
+    BOOLEAN,
+    BYTE,
+    CHAR,
+    SHORT,
+    INT,
+    FLOAT,
+    LONG,
+    DOUBLE,
+    OBJECT_ID
   };
 
   ValueType type = NONE;
+
   union {
     bool bool_value;
     int8_t byte_value;
@@ -180,138 +249,167 @@ struct FieldValue {
   };
 
   // Default constructor
-  FieldValue() {}
+  FieldValue() = default;
 
   // Type-specific constructors
-    explicit FieldValue([[maybe_unused]] bool value) {}
-    explicit FieldValue([[maybe_unused]] int8_t value) {}
-    explicit FieldValue([[maybe_unused]] char16_t value) {}
-    explicit FieldValue([[maybe_unused]] int16_t value) {}
-    explicit FieldValue([[maybe_unused]] int32_t value) {}
-    explicit FieldValue([[maybe_unused]] float value) {}
-    explicit FieldValue([[maybe_unused]] int64_t value) {}
-    explicit FieldValue([[maybe_unused]] double value) {}
-    explicit FieldValue([[maybe_unused]] uint64_t value) {}
+  explicit FieldValue(bool value) : type(BOOLEAN), bool_value(value) {}
+  explicit FieldValue(int8_t value) : type(BYTE), byte_value(value) {}
+  explicit FieldValue(char16_t value) : type(CHAR), char_value(value) {}
+  explicit FieldValue(int16_t value) : type(SHORT), short_value(value) {}
+  explicit FieldValue(int32_t value) : type(INT), int_value(value) {}
+  explicit FieldValue(float value) : type(FLOAT), float_value(value) {}
+  explicit FieldValue(int64_t value) : type(LONG), long_value(value) {}
+  explicit FieldValue(double value) : type(DOUBLE), double_value(value) {}
+  explicit FieldValue(uint64_t value)
+      : type(OBJECT_ID), object_id_value(value) {}
 };
 
-// Field value record
+/**
+ * Field value record structure.
+ */
 struct FieldValueRecord {
   std::string field_name;
   FieldValue value;
 };
 
-// Header node structure
+/**
+ * HPROF header structure.
+ */
 struct HprofHeader {
   std::string format;
-  uint32_t identifier_size;
-  uint64_t timestamp;
+  uint32_t identifier_size = 0;
+  uint64_t timestamp = 0;
 };
 
-// UTF8 String data
+/**
+ * UTF8 string data structure.
+ */
 struct Utf8StringData {
-  uint64_t name_id;
+  uint64_t name_id = 0;
   std::string utf8_string;
 };
 
-// Load Class data
+/**
+ * Load class data structure.
+ */
 struct LoadClassData {
-  uint32_t class_serial_num;
-  uint64_t class_object_id;
-  uint32_t stack_trace_serial_num;
-  uint64_t class_name_id;
+  uint32_t class_serial_num = 0;
+  uint64_t class_object_id = 0;
+  uint32_t stack_trace_serial_num = 0;
+  uint64_t class_name_id = 0;
   std::string class_name;
 };
 
-// Heap dump data
+/**
+ * Heap dump data structure.
+ */
 struct HeapDumpData {
   std::vector<HprofHeapRecord> records;
 };
 
-// Base record structure
+/**
+ * Base record structure.
+ */
 struct HprofRecord {
-  uint8_t tag;
-  uint32_t time;
-  uint32_t length;
+  uint8_t tag = 0;
+  uint32_t time = 0;
+  uint32_t length = 0;
 
   // Payload for different record types
-  std::variant<std::monostate, Utf8StringData, LoadClassData, HeapDumpData> data;
+  std::variant<std::monostate, Utf8StringData, LoadClassData, HeapDumpData>
+      data;
 };
 
-// Root record data
+/**
+ * Root record data structure.
+ */
 struct RootRecordData {
-  uint8_t root_type;
-  uint64_t object_id;
-  uint32_t thread_id;
-  uint32_t frame_number;
+  uint8_t root_type = 0;
+  uint64_t object_id = 0;
+  uint32_t thread_id = 0;
+  uint32_t frame_number = 0;
 };
 
-// Class Dump data
+/**
+ * Class dump data structure.
+ */
 struct ClassDumpData {
-  uint64_t class_object_id;
-  uint32_t stack_trace_serial_num;
-  uint64_t super_class_object_id;
-  uint64_t class_loader_object_id;
-  uint64_t signers_object_id;
-  uint64_t protection_domain_object_id;
-  uint32_t instance_size;
+  uint64_t class_object_id = 0;
+  uint32_t stack_trace_serial_num = 0;
+  uint64_t super_class_object_id = 0;
+  uint64_t class_loader_object_id = 0;
+  uint64_t signers_object_id = 0;
+  uint64_t protection_domain_object_id = 0;
+  uint32_t instance_size = 0;
   std::vector<FieldInfo> static_fields;
   std::vector<FieldInfo> instance_fields;
-  bool is_string_class;
+  bool is_string_class = false;
 };
 
-// Instance Dump data
+/**
+ * Instance dump data structure.
+ */
 struct InstanceDumpData {
-  uint64_t object_id;
-  uint32_t stack_trace_serial_num;
-  uint64_t class_object_id;
+  uint64_t object_id = 0;
+  uint32_t stack_trace_serial_num = 0;
+  uint64_t class_object_id = 0;
   std::vector<uint8_t> raw_instance_data;
   std::vector<ObjectReference> references;
   std::vector<FieldValueRecord> field_values;
-  HprofHeapId heap_id;
+  HprofHeapId heap_id = HPROF_HEAP_DEFAULT;
 };
 
-// Object Array Dump data
+/**
+ * Object array dump data structure.
+ */
 struct ObjArrayDumpData {
-  uint64_t array_object_id;
-  uint32_t stack_trace_serial_num;
-  uint64_t array_class_object_id;
+  uint64_t array_object_id = 0;
+  uint32_t stack_trace_serial_num = 0;
+  uint64_t array_class_object_id = 0;
   std::vector<uint64_t> elements;
-  HprofHeapId heap_id;
+  HprofHeapId heap_id = HPROF_HEAP_DEFAULT;
 };
 
-// Primitive Array Dump data
+/**
+ * Primitive array dump data structure.
+ */
 struct PrimArrayDumpData {
-  uint64_t array_object_id;
-  uint32_t stack_trace_serial_num;
-  uint8_t element_type;
+  uint64_t array_object_id = 0;
+  uint32_t stack_trace_serial_num = 0;
+  uint8_t element_type = 0;
   std::vector<uint8_t> elements;
-  HprofHeapId heap_id;
-  bool is_compressed;
+  HprofHeapId heap_id = HPROF_HEAP_DEFAULT;
+  bool is_compressed = false;
 };
 
-// Heap Dump Info data
+/**
+ * Heap dump info data structure.
+ */
 struct HeapDumpInfoData {
-  uint32_t heap_id;
-  uint64_t heap_name_string_id;
+  uint32_t heap_id = 0;
+  uint64_t heap_name_string_id = 0;
   std::string heap_name;
 };
 
-// Heap record variants
+/**
+ * Heap record variant structure.
+ */
 struct HprofHeapRecord {
   HprofHeapTag tag;
 
-  std::variant<
-    std::monostate,
-    RootRecordData,
-    ClassDumpData,
-    InstanceDumpData,
-    ObjArrayDumpData,
-    PrimArrayDumpData,
-    HeapDumpInfoData
-  > data;
+  std::variant<std::monostate,
+               RootRecordData,
+               ClassDumpData,
+               InstanceDumpData,
+               ObjArrayDumpData,
+               PrimArrayDumpData,
+               HeapDumpInfoData>
+      data;
 };
 
-// Simplified AST structure
+/**
+ * AST structure for parsed HPROF data.
+ */
 struct HprofAst {
   HprofHeader header;
   std::vector<HprofRecord> records;
@@ -332,6 +430,7 @@ struct HprofAst {
   };
 
   std::unordered_map<HprofHeapId, AndroidHeapStats> android_heap_stats;
+  std::unordered_map<uint64_t, uint8_t> root_objects;
 
   // Counters for summary
   size_t string_count = 0;
@@ -348,7 +447,36 @@ struct HprofAst {
   bool use_string_compression = false;
 };
 
+/**
+ * Parser for HPROF heap dumps.
+ */
 class HprofParser {
+ public:
+  /**
+   * Creates a new HprofParser with the given byte iterator.
+   *
+   * @param iterator Byte iterator for reading HPROF data
+   * @param detect_string_classes Whether to detect string classes
+   */
+  explicit HprofParser(ByteIterator* iterator,
+                       bool detect_string_classes = true)
+      : byte_iterator_(iterator),
+        identifier_size_(0),
+        current_heap_(HPROF_HEAP_DEFAULT),
+        detect_string_class_(detect_string_classes) {}
+
+  /**
+   * Destructor.
+   */
+  virtual ~HprofParser();
+
+  /**
+   * Parse the HPROF data into an AST.
+   *
+   * @return The parsed AST
+   */
+  HprofAst Parse();
+
  private:
   ByteIterator* byte_iterator_;
   uint32_t identifier_size_;
@@ -367,12 +495,19 @@ class HprofParser {
   float ReadFloatValue(const std::vector<uint8_t>& data, size_t offset) const;
   int64_t ReadLongValue(const std::vector<uint8_t>& data, size_t offset) const;
   double ReadDoubleValue(const std::vector<uint8_t>& data, size_t offset) const;
-  uint64_t ReadObjectIDValue(const std::vector<uint8_t>& data, size_t offset, uint32_t id_size) const;
-  FieldValue ExtractFieldValue(const std::vector<uint8_t>& data, size_t offset, uint8_t field_type);
-  void ExtractInstanceFields(InstanceDumpData& instance_data, const ClassInfo& class_info);
-  void ExtractStringInstance(InstanceDumpData& instance_data, const ClassInfo& class_info);
+  uint64_t ReadObjectIDValue(const std::vector<uint8_t>& data,
+                             size_t offset,
+                             uint32_t id_size) const;
+  FieldValue ExtractFieldValue(const std::vector<uint8_t>& data,
+                               size_t offset,
+                               uint8_t field_type);
+  void ExtractInstanceFields(InstanceDumpData& instance_data,
+                             const ClassInfo& class_info);
+  void ExtractStringInstance(InstanceDumpData& instance_data,
+                             const ClassInfo& class_info);
   void UpdateHeapStats(HprofHeapId heap_id, size_t object_size);
   void SkipUnknownSubRecord(uint8_t sub_tag, std::streampos end_pos);
+  std::vector<FieldInfo> GetFieldsForClassHierarchy(uint64_t class_object_id);
 
   // ----------- Main parsing methods -----------
   bool ParseHeader();
@@ -383,7 +518,8 @@ class HprofParser {
   void ParseUtf8Record(HprofRecord& record);
   void ParseLoadClassRecord(HprofRecord& record);
   void ParseHeapDumpRecord(HprofRecord& record);
-  bool ParseHeapSubRecord(uint8_t sub_tag, std::vector<HprofHeapRecord>& sub_records);
+  bool ParseHeapSubRecord(uint8_t sub_tag,
+                          std::vector<HprofHeapRecord>& sub_records);
 
   // ----------- Heap sub-record parsing methods -----------
   void ParseRootJniGlobal(HprofHeapRecord& record);
@@ -395,23 +531,25 @@ class HprofParser {
   void ParseInstanceDump(HprofHeapRecord& record);
   void ParseObjectArrayDump(HprofHeapRecord& record);
   void ParsePrimitiveArrayDump(HprofHeapRecord& record);
-
- public:
-HprofParser(ByteIterator* iterator, bool detect_string_classes = true)
-    : byte_iterator_(iterator),
-      identifier_size_(0),
-      current_heap_(HPROF_HEAP_DEFAULT),
-      detect_string_class_(detect_string_classes) {
-}
-
-
-  ~HprofParser();
-  HprofAst Parse();
 };
 
+/**
+ * Converter from HPROF AST to heap graph IR.
+ */
 class HprofAstConverter {
+ public:
+  /**
+   * Convert a HPROF AST to heap graph IR.
+   *
+   * @param ast The HPROF AST to convert
+   * @return The converted heap graph IR
+   */
+  HeapGraphIR ConvertToIR(const HprofAst& ast);
+
  private:
-  // Diagnostic tracking
+  /**
+   * Diagnostic tracking structure.
+   */
   struct ConversionDiagnostics {
     std::unordered_map<std::string, size_t> class_kind_counts;
     std::unordered_map<std::string, size_t> superclass_chain_lengths;
@@ -430,19 +568,46 @@ class HprofAstConverter {
   HeapGraphValue ConvertFieldValue(const FieldValue& value);
   std::string DetermineClassKind(const std::string& class_name) const;
   void PrintConversionDiagnostics();
-
- public:
-  HeapGraphIR ConvertToIR(const HprofAst& ast);
+  std::string RootTypeToString(uint8_t root_type);
 };
 
+/**
+ * Tokenizer for ART HPROF data that handles chunked input.
+ */
 class ArtHprofTokenizer : public ChunkedTraceReader {
  public:
-  explicit ArtHprofTokenizer(TraceProcessorContext*);
+  /**
+   * Creates a new ArtHprofTokenizer with the given context.
+   *
+   * @param context Trace processor context
+   */
+  explicit ArtHprofTokenizer(TraceProcessorContext* context);
+
+  /**
+   * Destructor.
+   */
   ~ArtHprofTokenizer() override;
 
-  base::Status Parse(TraceBlobView) override;
+  /**
+   * Parse a chunk of HPROF data.
+   *
+   * @param blob The blob view containing the chunk
+   * @return Status of the parsing operation
+   */
+  base::Status Parse(TraceBlobView blob) override;
+
+  /**
+   * Notifies that the end of the file has been reached.
+   *
+   * @return Status of the finalization
+   */
   base::Status NotifyEndOfFile() override;
 
+  /**
+   * Sets the parser implementation.
+   *
+   * @param parser_impl The parser implementation to use
+   */
   void SetParserImpl(ArtHprofParser* parser_impl) {
     parser_impl_ = parser_impl;
   }
@@ -450,12 +615,10 @@ class ArtHprofTokenizer : public ChunkedTraceReader {
  private:
   using Iterator = util::TraceBlobViewReader::Iterator;
 
-  // ByteIterator implementation for TraceBlobView
+  /**
+   * ByteIterator implementation for TraceBlobView.
+   */
   class TraceBlobViewIterator : public ByteIterator {
-   private:
-    util::TraceBlobViewReader reader_;
-    size_t current_offset_ = 0;
-
    public:
     explicit TraceBlobViewIterator(util::TraceBlobViewReader&& reader);
     ~TraceBlobViewIterator() override;
@@ -470,14 +633,24 @@ class ArtHprofTokenizer : public ChunkedTraceReader {
     std::streampos GetPosition() override;
     bool IsEof() const override;
     bool IsValid() const override;
+
+   private:
+    util::TraceBlobViewReader reader_;
+    size_t current_offset_ = 0;
   };
 
+  /**
+   * Detection sub-parser.
+   */
   struct Detect {
     base::Status Parse();
     base::Status NotifyEndOfFile() const;
     ArtHprofTokenizer* tokenizer_;
   };
 
+  /**
+   * Non-streaming sub-parser.
+   */
   struct NonStreaming {
     base::Status Parse();
     base::Status NotifyEndOfFile() const;
@@ -485,6 +658,9 @@ class ArtHprofTokenizer : public ChunkedTraceReader {
     bool is_parsing_ = false;
   };
 
+  /**
+   * Streaming sub-parser.
+   */
   struct Streaming {
     base::Status Parse();
     base::Status NotifyEndOfFile();
@@ -495,14 +671,19 @@ class ArtHprofTokenizer : public ChunkedTraceReader {
 
   using SubParser = std::variant<Detect, NonStreaming, Streaming>;
 
-  // Initialize parsers if needed
+  /**
+   * Initialize parsers if needed.
+   *
+   * @return Status of the initialization
+   */
   base::Status InitializeParserIfNeeded();
 
-  // Process parsing results into events
+  /**
+   * Process parsing results and generate events.
+   *
+   * @return Status of the processing
+   */
   base::Status ProcessParsingResults();
-
-  // Generate events from IR data
-  void GenerateEventsFromIR(int64_t ts);
 
   TraceProcessorContext* const context_;
   util::TraceBlobViewReader reader_;
