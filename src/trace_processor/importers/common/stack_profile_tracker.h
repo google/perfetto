@@ -67,24 +67,6 @@ class StackProfileTracker {
   base::FlatHashMap<tables::StackProfileCallsiteTable::Row, CallsiteId>
       callsite_unique_row_index_;
 
-  struct FrameKey {
-    MappingId mapping_id;
-    uint64_t rel_pc;
-
-    bool operator==(const FrameKey& o) const {
-      return mapping_id == o.mapping_id && rel_pc == o.rel_pc;
-    }
-
-    bool operator!=(const FrameKey& o) const { return !(*this == o); }
-
-    struct Hasher {
-      size_t operator()(const FrameKey& o) const {
-        return static_cast<size_t>(
-            base::Hasher::Combine(o.mapping_id.value, o.rel_pc));
-      }
-    };
-  };
-
   base::FlatHashMap<NameInPackage, std::vector<FrameId>, NameInPackage::Hasher>
       java_frames_for_name_;
 };

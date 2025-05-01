@@ -12,6 +12,7 @@ perfetto_android_library("perfetto_trace_lib") {
   ]
   deps = [ "../../jni:libperfetto_jni" ]
   manifest = "AndroidManifest.xml"
+  android_bp_generate_java_target = true
 }
 
 perfetto_android_app("perfetto_trace_app") {

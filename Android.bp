@@ -16361,14 +16361,23 @@ java_library {
 // GN: //src/android_sdk/java/main:perfetto_trace_lib
 android_library {
     name: "perfetto_trace_lib",
+    manifest: "src/android_sdk/java/main/AndroidManifest.xml",
+    static_libs: [
+        "perfetto_trace_lib_java",
+    ],
+    sdk_version: "35",
+}
+
+// GN: //src/android_sdk/java/main:perfetto_trace_lib
+java_library {
+    name: "perfetto_trace_lib_java",
     srcs: [
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
     ],
-    manifest: "src/android_sdk/java/main/AndroidManifest.xml",
-    sdk_version: "35",
+    sdk_version: "module_current",
 }
 
 // GN: //protos/perfetto/trace:perfetto_trace_protos
