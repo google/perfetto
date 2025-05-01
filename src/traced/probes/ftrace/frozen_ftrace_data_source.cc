@@ -81,7 +81,7 @@ void FrozenFtraceDataSource::Start() {
       protos::pbzero::FtraceClock::FTRACE_CLOCK_UNSPECIFIED;
 
   // To avoid reading pages more than expected, record remaining pages.
-  size_t initial_page_quota = tracefs_->GetCpuBufferSizeInPages() + 1;
+  size_t initial_page_quota = tracefs_->GetCpuBufferSizeInPages();
 
   PERFETTO_CHECK(cpu_readers_.empty());
   cpu_readers_.reserve(num_cpus);
