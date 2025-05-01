@@ -30,7 +30,9 @@ class SlabAllocatorTest : public ::testing::Test {
   static constexpr size_t kMaxSlabs = 2;
   static constexpr size_t kCapacity = kMaxSlabs * kSlabCapacity;
 
-  using ElementType = std::aligned_storage_t<32, 32>;
+  struct ElementType {
+    alignas(32) std::byte buf[32];
+  };
   using AllocatorType =
       SlabAllocator<sizeof(ElementType), alignof(ElementType), kSlabCapacity>;
 
