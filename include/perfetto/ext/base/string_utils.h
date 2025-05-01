@@ -169,6 +169,8 @@ bool StartsWithAny(const std::string& str,
                    const std::vector<std::string>& prefixes);
 bool Contains(const std::string& haystack, const std::string& needle);
 bool Contains(const std::string& haystack, char needle);
+bool Contains(const std::vector<std::string>& haystack,
+              const std::string& needle);
 size_t Find(const StringView& needle, const StringView& haystack);
 bool CaseInsensitiveEqual(const std::string& first, const std::string& second);
 std::string Join(const std::vector<std::string>& parts,

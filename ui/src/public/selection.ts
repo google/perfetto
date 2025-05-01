@@ -209,8 +209,6 @@ export interface TrackEventDetails {
   // Optional additional information.
   // TODO(stevegolton): Find an elegant way of moving this information out of
   // the core.
-  readonly wakeupTs?: time;
-  readonly wakerCpu?: number;
   readonly utid?: number;
 }
 

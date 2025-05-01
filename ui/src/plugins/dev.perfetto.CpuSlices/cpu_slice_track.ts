@@ -15,11 +15,8 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
-import {Duration, duration, Time, time} from '../../base/time';
-import {
-  drawDoubleHeadedArrow,
-  drawIncompleteSlice,
-} from '../../base/canvas_utils';
+import {duration, Time, time} from '../../base/time';
+import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../base/color';
 import m from 'mithril';
@@ -33,8 +30,6 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {TrackEventDetails} from '../../public/selection';
-import {asSchedSqlId} from '../../components/sql_utils/core_types';
-import {getSched, getSchedWakeupInfo} from '../../components/sql_utils/sched';
 import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 import {exists} from '../../base/utils';
@@ -384,52 +379,7 @@ export class CpuSliceTrack implements TrackRenderer {
             RECT_HEIGHT + 3,
           );
           ctx.closePath();
-          // Draw arrow from wakeup time of current slice.
-          if (selection.wakeupTs) {
-            const wakeupPos = timescale.timeToPx(selection.wakeupTs);
-            const latencyWidth = rectStart - wakeupPos;
-            drawDoubleHeadedArrow(
-              ctx,
-              wakeupPos,
-              MARGIN_TOP + RECT_HEIGHT,
-              latencyWidth,
-              latencyWidth >= 20,
-            );
-            // Latency time with a white semi-transparent background.
-            const latency = tStart - selection.wakeupTs;
-            const displayText = Duration.humanise(latency);
-            const measured = ctx.measureText(displayText);
-            if (latencyWidth >= measured.width + 2) {
-              ctx.fillStyle = 'rgba(255,255,255,0.7)';
-              ctx.fillRect(
-                wakeupPos + latencyWidth / 2 - measured.width / 2 - 1,
-                MARGIN_TOP + RECT_HEIGHT - 12,
-                measured.width + 2,
-                11,
-              );
-              ctx.textBaseline = 'bottom';
-              ctx.fillStyle = 'black';
-              ctx.fillText(
-                displayText,
-                wakeupPos + latencyWidth / 2,
-                MARGIN_TOP + RECT_HEIGHT - 1,
-              );
-            }
-          }
         }
-      }
-
-      // Draw diamond if the track being drawn is the cpu of the waker.
-      if (this.cpu.cpu === selection.wakerCpu && selection.wakeupTs) {
-        const wakeupPos = Math.floor(timescale.timeToPx(selection.wakeupTs));
-        ctx.beginPath();
-        ctx.moveTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 + 8);
-        ctx.fillStyle = 'black';
-        ctx.lineTo(wakeupPos + 6, MARGIN_TOP + RECT_HEIGHT / 2);
-        ctx.lineTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 - 8);
-        ctx.lineTo(wakeupPos - 6, MARGIN_TOP + RECT_HEIGHT / 2);
-        ctx.fill();
-        ctx.closePath();
       }
     }
   }
@@ -490,17 +440,28 @@ export class CpuSliceTrack implements TrackRenderer {
   async getSelectionDetails?(
     eventId: number,
   ): Promise<TrackEventDetails | undefined> {
-    const sched = await getSched(this.trace.engine, asSchedSqlId(eventId));
-    if (sched === undefined) {
+    const dataset = this.getDataset();
+    const result = await this.trace.engine.query(`
+      SELECT
+        ts,
+        dur
+      FROM (${dataset.query()})
+      WHERE id = ${eventId}
+    `);
+
+    const firstRow = result.maybeFirstRow({
+      ts: LONG,
+      dur: LONG,
+    });
+
+    if (firstRow) {
+      return {
+        ts: Time.fromRaw(firstRow.ts),
+        dur: firstRow.dur,
+      };
+    } else {
       return undefined;
     }
-    const wakeup = await getSchedWakeupInfo(this.trace.engine, sched);
-    return {
-      ts: sched.ts,
-      dur: sched.dur,
-      wakeupTs: wakeup?.wakeupTs,
-      wakerCpu: wakeup?.wakerCpu,
-    };
   }
 
   detailsPanel() {
