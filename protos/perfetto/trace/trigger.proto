@@ -28,4 +28,6 @@ message Trigger {
   optional string producer_name = 2;
   // The verified UID of the producer.
   optional int32 trusted_producer_uid = 3;
+  // The value of stop_delay_ms from the configuration.
+  optional uint64 stop_delay_ms = 4;
 }

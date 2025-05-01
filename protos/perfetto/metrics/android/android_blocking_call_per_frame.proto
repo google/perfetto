@@ -20,18 +20,18 @@ package perfetto.protos;
 
 // Blocking call per frame on the main thread.
 message AndroidBlockingCallPerFrame {
-    // Name of the blocking call
-    optional string name = 1;
-    // Maximal duration within a frame.
-    optional int64 max_dur_per_frame_ms = 2;
-    // Maximal duration within a frame in nanoseconds
-    optional int64 max_dur_per_frame_ns = 3;
-    // Mean duration within the CUJ
-    optional int64 mean_dur_per_frame_ms = 4;
-    // Mean duration within the CUJ in nanoseconds
-    optional int64 mean_dur_per_frame_ns = 5;
-    // Max count in a frame
-    optional int64 max_cnt_per_frame = 6;
-    // Mean count in a frame
-    optional double mean_cnt_per_frame = 7;
+  // Name of the blocking call
+  optional string name = 1;
+  // Maximal duration within a frame.
+  optional int64 max_dur_per_frame_ms = 2;
+  // Maximal duration within a frame in nanoseconds
+  optional int64 max_dur_per_frame_ns = 3;
+  // Mean duration within the CUJ
+  optional int64 mean_dur_per_frame_ms = 4;
+  // Mean duration within the CUJ in nanoseconds
+  optional int64 mean_dur_per_frame_ns = 5;
+  // Max count in a frame
+  optional int64 max_cnt_per_frame = 6;
+  // Mean count in a frame
+  optional double mean_cnt_per_frame = 7;
 }

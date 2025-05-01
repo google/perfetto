@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -50,6 +50,7 @@ export function createAndroidLogTrack(trace: Trace, uri: string) {
           prio,
           utid,
           tag,
+          msg,
           CASE
             WHEN prio <= 3 THEN 0
             WHEN prio = 4 THEN 1
@@ -70,14 +71,13 @@ export function createAndroidLogTrack(trace: Trace, uri: string) {
         prio: NUM,
         utid: NUM,
         depth: NUM,
-        tag: STR,
+        tag: STR_NULL,
+        msg: STR_NULL,
       },
     }),
     initialMaxDepth: 4,
     colorizer: (row) => DEPTH_TO_COLOR[row.depth],
-    // It would be nice to show the message on the tooltip too, but loading a
-    // message for each event may balloon memory, so we just show the tag.
-    tooltip: (row) => [row.tag],
+    tooltip: (slice) => [m('', m('b', slice.row.tag)), m('', slice.row.msg)],
     // All log events are instant events, render them as a little box rather
     // than the default chevron.
     instantStyle: {

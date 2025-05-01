@@ -108,7 +108,7 @@ bool GlobMatcher::Matches(base::StringView in) const {
     return false;
   }
 
-  // Similarily, if there's no trailing star, the last segment needs to be
+  // Similarly, if there's no trailing star, the last segment needs to be
   // "anchored" to the right of the string.
   if (!trailing_star_ && !EndsWith(in, segments_.back())) {
     return false;

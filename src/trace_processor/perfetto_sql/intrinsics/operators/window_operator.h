@@ -19,12 +19,8 @@
 
 #include <cstdint>
 #include <limits>
-#include <memory>
-#include <string>
 
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
 
 namespace perfetto::trace_processor {
 
@@ -39,19 +35,13 @@ struct WindowOperatorModule : sqlite::Module<WindowOperatorModule> {
     // Only returns the first span of the table. Useful for UPDATE operations.
     kReturnFirst = 1,
   };
-  struct State {
+  struct Vtab : sqlite::Module<WindowOperatorModule>::Vtab {
     int64_t quantum = 0;
     int64_t window_start = 0;
 
     // max of int64_t because SQLite technically only supports int64s and not
     // uint64s.
     int64_t window_dur = std::numeric_limits<int64_t>::max();
-  };
-  struct Context {
-    sqlite::ModuleStateManager<WindowOperatorModule> manager;
-  };
-  struct Vtab : sqlite::Module<WindowOperatorModule>::Vtab {
-    sqlite::ModuleStateManager<WindowOperatorModule>::PerVtabState* state;
   };
   struct Cursor : sqlite::Module<WindowOperatorModule>::Cursor {
     int64_t window_end = 0;
@@ -66,6 +56,7 @@ struct WindowOperatorModule : sqlite::Module<WindowOperatorModule> {
 
   static constexpr auto kType = kCreateOnly;
   static constexpr bool kDoesOverloadFunctions = false;
+  static constexpr bool kSupportsWrites = false;
 
   static int Create(sqlite3*,
                     void*,
@@ -97,8 +88,6 @@ struct WindowOperatorModule : sqlite::Module<WindowOperatorModule> {
   static int Eof(sqlite3_vtab_cursor*);
   static int Column(sqlite3_vtab_cursor*, sqlite3_context*, int);
   static int Rowid(sqlite3_vtab_cursor*, sqlite_int64*);
-
-  static int Update(sqlite3_vtab*, int, sqlite3_value**, sqlite_int64*);
 
   // This needs to happen at the end as it depends on the functions
   // defined above.

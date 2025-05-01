@@ -23,45 +23,45 @@ import sys
 import tempfile
 
 SOURCE_FILES = [
-  {
-    'files': [
-      'protos/perfetto/common/builtin_clock.proto',
-      'protos/perfetto/common/data_source_descriptor.proto',
-      'protos/perfetto/config/data_source_config.proto',
-      'protos/perfetto/config/trace_config.proto',
-      'protos/perfetto/config/track_event/track_event_config.proto',
-      'protos/perfetto/trace/android/android_track_event.proto',
-      'protos/perfetto/trace/clock_snapshot.proto',
-      'protos/perfetto/trace/interned_data/interned_data.proto',
-      'protos/perfetto/trace/test_event.proto',
-      'protos/perfetto/trace/trace.proto',
-      'protos/perfetto/trace/trace_packet.proto',
-      'protos/perfetto/trace/track_event/counter_descriptor.proto',
-      'protos/perfetto/trace/track_event/debug_annotation.proto',
-      'protos/perfetto/trace/track_event/track_descriptor.proto',
-      'protos/perfetto/trace/track_event/track_event.proto',
-    ],
-    'guard_strip_prefix': 'PROTOS_PERFETTO_',
-    'guard_add_prefix':'INCLUDE_PERFETTO_PUBLIC_PROTOS_',
-    'path_strip_prefix': 'protos/perfetto',
-    'path_add_prefix': 'perfetto/public/protos',
-    'include_prefix': 'include/',
-  },
-  {
-    'files': [
-      'src/protozero/test/example_proto/extensions.proto',
-      'src/protozero/test/example_proto/library.proto',
-      'src/protozero/test/example_proto/library_internals/galaxies.proto',
-      'src/protozero/test/example_proto/other_package/test_messages.proto',
-      'src/protozero/test/example_proto/subpackage/test_messages.proto',
-      'src/protozero/test/example_proto/test_messages.proto',
-      'src/protozero/test/example_proto/upper_import.proto',
-    ],
-    'guard_strip_prefix': 'SRC_PROTOZERO_TEST_EXAMPLE_PROTO_',
-    'guard_add_prefix':'SRC_SHARED_LIB_TEST_PROTOS_',
-    'path_strip_prefix': 'src/protozero/test/example_proto',
-    'path_add_prefix': 'src/shared_lib/test/protos',
-  },
+    {
+        'files': [
+            'protos/perfetto/common/builtin_clock.proto',
+            'protos/perfetto/common/data_source_descriptor.proto',
+            'protos/perfetto/config/data_source_config.proto',
+            'protos/perfetto/config/trace_config.proto',
+            'protos/perfetto/config/track_event/track_event_config.proto',
+            'protos/perfetto/trace/android/android_track_event.proto',
+            'protos/perfetto/trace/clock_snapshot.proto',
+            'protos/perfetto/trace/interned_data/interned_data.proto',
+            'protos/perfetto/trace/test_event.proto',
+            'protos/perfetto/trace/trace.proto',
+            'protos/perfetto/trace/trace_packet.proto',
+            'protos/perfetto/trace/track_event/counter_descriptor.proto',
+            'protos/perfetto/trace/track_event/debug_annotation.proto',
+            'protos/perfetto/trace/track_event/track_descriptor.proto',
+            'protos/perfetto/trace/track_event/track_event.proto',
+        ],
+        'guard_strip_prefix': 'PROTOS_PERFETTO_',
+        'guard_add_prefix': 'INCLUDE_PERFETTO_PUBLIC_PROTOS_',
+        'path_strip_prefix': 'protos/perfetto',
+        'path_add_prefix': 'perfetto/public/protos',
+        'include_prefix': 'include/',
+    },
+    {
+        'files': [
+            'src/protozero/test/example_proto/extensions.proto',
+            'src/protozero/test/example_proto/library.proto',
+            'src/protozero/test/example_proto/library_internals/galaxies.proto',
+            'src/protozero/test/example_proto/other_package/test_messages.proto',
+            'src/protozero/test/example_proto/subpackage/test_messages.proto',
+            'src/protozero/test/example_proto/test_messages.proto',
+            'src/protozero/test/example_proto/upper_import.proto',
+        ],
+        'guard_strip_prefix': 'SRC_PROTOZERO_TEST_EXAMPLE_PROTO_',
+        'guard_add_prefix': 'SRC_SHARED_LIB_TEST_PROTOS_',
+        'path_strip_prefix': 'src/protozero/test/example_proto',
+        'path_add_prefix': 'src/shared_lib/test/protos',
+    },
 ]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -115,7 +115,9 @@ def transform_extension(filename):
   return filename
 
 
-def generate(source, outdir, protoc_path, protozero_c_plugin_path, guard_strip_prefix, guard_add_prefix, path_strip_prefix, path_add_prefix):
+def generate(source, outdir, protoc_path, protozero_c_plugin_path,
+             guard_strip_prefix, guard_add_prefix, path_strip_prefix,
+             path_add_prefix):
   options = {
       'guard_strip_prefix': guard_strip_prefix,
       'guard_add_prefix': guard_add_prefix,
@@ -159,12 +161,16 @@ def main():
     with tempfile.TemporaryDirectory() as tmpdirname:
       for sources in SOURCE_FILES:
         for source in sources['files']:
-          generate(source, tmpdirname, protoc_path(out), protozero_c_plugin_path(out),
-                   guard_strip_prefix=sources['guard_strip_prefix'],
-                   guard_add_prefix=sources['guard_add_prefix'],
-                   path_strip_prefix=sources['path_strip_prefix'],
-                   path_add_prefix=sources['path_add_prefix'],
-                   )
+          generate(
+              source,
+              tmpdirname,
+              protoc_path(out),
+              protozero_c_plugin_path(out),
+              guard_strip_prefix=sources['guard_strip_prefix'],
+              guard_add_prefix=sources['guard_add_prefix'],
+              path_strip_prefix=sources['path_strip_prefix'],
+              path_add_prefix=sources['path_add_prefix'],
+          )
 
           tmpfilename = os.path.join(tmpdirname, transform_extension(source))
           clang_format(tmpfilename)
@@ -176,7 +182,8 @@ def main():
           targetfilename = sources['path_add_prefix'] + targetfilename
 
           if 'include_prefix' in sources:
-            targetfilename = os.path.join(sources['include_prefix'], targetfilename)
+            targetfilename = os.path.join(sources['include_prefix'],
+                                          targetfilename)
           targetfilename = transform_extension(targetfilename)
 
           if args.check_only:

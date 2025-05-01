@@ -283,7 +283,7 @@ class ProtoToArgsParser {
       Delegate& delegate);
 
   // A type override can call |key.RemoveFieldSuffix()| if it wants to exclude
-  // the overriden field's name from the parsed args' keys.
+  // the overridden field's name from the parsed args' keys.
   base::Status ParseMessageInternal(ScopedNestedKeyContext& key,
                                     const protozero::ConstBytes& cb,
                                     const std::string& type,
@@ -292,11 +292,12 @@ class ProtoToArgsParser {
                                     int* unknown_extensions,
                                     bool add_defaults = false);
 
-  base::Status ParseSimpleField(const FieldDescriptor& desciptor,
+  base::Status ParseSimpleField(const FieldDescriptor& descriptor,
                                 const protozero::Field& field,
                                 Delegate& delegate);
 
-  base::Status AddDefault(const FieldDescriptor& desciptor, Delegate& delegate);
+  base::Status AddDefault(const FieldDescriptor& descriptor,
+                          Delegate& delegate);
 
   base::Status AddEnum(const FieldDescriptor& descriptor,
                        int32_t value,

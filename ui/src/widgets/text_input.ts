@@ -14,25 +14,39 @@
 
 import m from 'mithril';
 import {HTMLInputAttrs} from './common';
+import {Icon} from './icon'; // Import Icon component
 
 type TextInputAttrs = HTMLInputAttrs & {
   // Whether the input should autofocus when it is created.
-  autofocus?: boolean;
+  readonly autofocus?: boolean;
+  // Optional icon to display on the left of the text field.
+  readonly leftIcon?: string;
 };
 
-// For now, this component is just a simple wrapper around a plain old input
-// element, which does no more than specify a class. However, in the future we
-// might want to add more features such as an optional icon or button (e.g. a
-// clear button), at which point the benefit of having this as a component would
-// become more apparent.
 export class TextInput implements m.ClassComponent<TextInputAttrs> {
   oncreate(vnode: m.CVnodeDOM<TextInputAttrs>) {
     if (vnode.attrs.autofocus) {
-      (vnode.dom as HTMLElement).focus();
+      // Focus the actual input element inside the wrapper
+      const inputElement = vnode.dom.querySelector('input');
+      if (inputElement) {
+        inputElement.focus();
+      }
     }
   }
 
   view({attrs}: m.CVnode<TextInputAttrs>) {
-    return m('input.pf-text-input', attrs);
+    const {leftIcon, className, ...inputAttrs} = attrs; // Destructure icon from other attrs
+
+    return m(
+      '.pf-text-input', // Add a wrapper div
+      {
+        className,
+      },
+      leftIcon &&
+        m(Icon, {icon: leftIcon, className: 'pf-text-input__left-icon'}), // Conditionally render icon
+      m('input.pf-text-input__input', {
+        ...inputAttrs, // Pass remaining attrs to the input
+      }),
+    );
   }
 }

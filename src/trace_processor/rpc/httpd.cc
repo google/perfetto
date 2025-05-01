@@ -54,7 +54,7 @@ class Httpd : public base::HttpRequestHandler {
  public:
   explicit Httpd(std::unique_ptr<TraceProcessor>);
   ~Httpd() override;
-  void Run(int port);
+  void Run(const std::string& listen_ip, int port);
 
  private:
   // HttpRequestHandler implementation.
@@ -98,18 +98,16 @@ Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance)
       http_srv_(&task_runner_, this) {}
 Httpd::~Httpd() = default;
 
-void Httpd::Run(int port) {
-  PERFETTO_ILOG("[HTTP] Starting RPC server on localhost:%d", port);
-  PERFETTO_LOG(
+void Httpd::Run(const std::string& listen_ip, int port) {
+  for (const auto& kAllowedCORSOrigin : kAllowedCORSOrigins) {
+    http_srv_.AddAllowedOrigin(kAllowedCORSOrigin);
+  }
+  http_srv_.Start(listen_ip, port);
+  PERFETTO_ILOG(
       "[HTTP] This server can be used by reloading https://ui.perfetto.dev and "
       "clicking on YES on the \"Trace Processor native acceleration\" dialog "
       "or through the Python API (see "
       "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
-
-  for (const auto& kAllowedCORSOrigin : kAllowedCORSOrigins) {
-    http_srv_.AddAllowedOrigin(kAllowedCORSOrigin);
-  }
-  http_srv_.Start(port);
   task_runner_.Run();
 }
 
@@ -158,7 +156,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   // 1. The /rpc based endpoint. This is based on a chunked transfer, doing one
   //    POST request for each RPC invocation. All RPC methods are multiplexed
   //    into this one. This is still used by the python API.
-  // 2. The REST API, with one enpoint per RPC method (/parse, /query, ...).
+  // 2. The REST API, with one endpoint per RPC method (/parse, /query, ...).
   //    This is unused and will be removed at some point.
 
   if (req.uri == "/rpc") {
@@ -261,11 +259,13 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 }  // namespace
 
 void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
+                      const std::string& listen_ip,
                       const std::string& port_number) {
   Httpd srv(std::move(preloaded_instance));
   std::optional<int> port_opt = base::StringToInt32(port_number);
+  std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;
-  srv.Run(port);
+  srv.Run(ip, port);
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {

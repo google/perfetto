@@ -1,3 +1,9 @@
-Flask>=2.2.2
+Flask[async]==2.2.5
 requests
 gunicorn
+google-auth
+google-cloud
+google-cloud-logging
+google-cloud-ndb
+PyJWT
+cryptography

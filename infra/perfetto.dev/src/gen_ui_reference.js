@@ -14,26 +14,27 @@
 
 // Generation of UI API references
 
-'use strict';
+"use strict";
 
-const fs = require('fs');
-const path = require('path');
-const argv = require('yargs').argv
+const fs = require("fs");
+const path = require("path");
+const argv = require("yargs").argv;
 
-const PROJECT_ROOT =
-    path.dirname(path.dirname(path.dirname(path.dirname(__filename))));
+const PROJECT_ROOT = path.dirname(
+  path.dirname(path.dirname(path.dirname(__filename))),
+);
 
 function main() {
-  const inputPath = argv['i'];
-  const outputPath = argv['o'];
+  const inputPath = argv["i"];
+  const outputPath = argv["o"];
   if (!inputPath) {
-    console.error('Usage: -i ui/src/public/index.ts [-o out.md]');
+    console.error("Usage: -i ui/src/public/index.ts [-o out.md]");
     process.exit(1);
   }
 
-  const text = fs.readFileSync(inputPath, 'UTF8');
+  const text = fs.readFileSync(inputPath, "UTF8");
 
-  const generatedMd = '```\n' + text + '```\n';
+  const generatedMd = "```\n" + text + "```\n";
 
   if (outputPath) {
     fs.writeFileSync(outputPath, generatedMd);

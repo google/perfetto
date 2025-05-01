@@ -85,9 +85,6 @@ message InternedData {
   repeated InternedString source_paths = 18;
   // Names of functions used in frames below.
   repeated InternedString function_names = 5;
-  // Symbols that were added to this trace after the fact.
-  repeated ProfiledFrameSymbols profiled_frame_symbols = 21;
-
   // Executable files mapped into processes.
   repeated Mapping mappings = 19;
   // Frames of callstacks of a program.
@@ -147,4 +144,7 @@ message InternedData {
 
   // Interned context for android.app_wakelocks.
   repeated AppWakelockInfo app_wakelock_info = 42;
+
+  // removed ProfiledFrameSymbols profiled_frame_symbols
+  reserved 21;
 }

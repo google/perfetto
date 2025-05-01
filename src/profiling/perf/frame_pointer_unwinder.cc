@@ -69,7 +69,7 @@ void FramePointerUnwinder::TryUnwind() {
     if (!IsFrameValid(fp, sp))
       return;
 
-    // retrive the map info and elf info
+    // retrieve the map info and elf info
     std::shared_ptr<unwindstack::MapInfo> map_info = maps_->Find(pc);
     if (map_info == nullptr) {
       last_error_.code = unwindstack::ErrorCode::ERROR_INVALID_MAP;

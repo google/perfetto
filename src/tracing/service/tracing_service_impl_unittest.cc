@@ -100,6 +100,7 @@ using ::testing::InSequence;
 using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
+using ::testing::IsSupersetOf;
 using ::testing::Mock;
 using ::testing::Ne;
 using ::testing::NiceMock;
@@ -466,7 +467,13 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerDeferredStart) {
   EXPECT_THAT(
       trace,
       HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::START_TRACING));
-  EXPECT_THAT(GetReceivedTriggers(trace), ElementsAre("trigger_name"));
+  EXPECT_THAT(
+      trace,
+      Contains(Property(
+          &protos::gen::TracePacket::trigger,
+          AllOf(
+              Property(&protos::gen::Trigger::trigger_name, Eq("trigger_name")),
+              Property(&protos::gen::Trigger::stop_delay_ms, Eq(1u))))));
 }
 
 // Creates a tracing session with a START_TRACING trigger and checks that the
@@ -510,7 +517,7 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerTimeOut) {
   EXPECT_THAT(consumer->ReadBuffers(), IsEmpty());
 }
 
-// Regression test for b/274931668. An unkonwn trigger should not cause a trace
+// Regression test for b/274931668. An unknown trigger should not cause a trace
 // that runs indefinitely.
 TEST_F(TracingServiceImplTest, FailOnUnknownTrigger) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
@@ -938,6 +945,19 @@ TEST_F(TracingServiceImplTest, EmitTriggersWithStopTracingTrigger) {
       HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::STOP_TRACING));
   EXPECT_THAT(GetReceivedTriggers(packets),
               UnorderedElementsAre("trigger_name", "trigger_name_3"));
+
+  EXPECT_THAT(packets,
+              IsSupersetOf(
+                  {Property(&protos::gen::TracePacket::trigger,
+                            AllOf(Property(&protos::gen::Trigger::trigger_name,
+                                           Eq("trigger_name")),
+                                  Property(&protos::gen::Trigger::stop_delay_ms,
+                                           Eq(1u)))),
+                   Property(&protos::gen::TracePacket::trigger,
+                            AllOf(Property(&protos::gen::Trigger::trigger_name,
+                                           Eq("trigger_name_3")),
+                                  Property(&protos::gen::Trigger::stop_delay_ms,
+                                           Eq(30000u))))}));
 }
 
 // Creates a tracing session with a STOP_TRACING trigger and checks that the
@@ -2182,9 +2202,9 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
       {16, 0, 16, 16, 0, 16},
       // Config is 0, use hint.
       {0, 4, 4, 0, 16, 16},
-      // Config takes precendence over hint.
+      // Config takes precedence over hint.
       {4, 8, 4, 16, 32, 16},
-      // Config takes precendence over hint, even if it's larger.
+      // Config takes precedence over hint, even if it's larger.
       {8, 4, 8, 32, 16, 32},
       // Config page size % 4 != 0, fallback to defaults.
       {3, 0, kDefaultShmPageSizeKb, 0, 0, kDefaultShmSizeKb},
@@ -2382,7 +2402,7 @@ TEST_F(TracingServiceImplTest, BatchFlushes) {
   // Reply only to flush 3. Do not reply to 1,2 and 4.
   producer->endpoint()->NotifyFlushComplete(third_flush_id);
 
-  // Even if the producer explicily replied only to flush ID == 3, all the
+  // Even if the producer explicitly replied only to flush ID == 3, all the
   // previous flushed < 3 should be implicitly acked.
   ASSERT_TRUE(flush_req_1.WaitForReply());
   ASSERT_TRUE(flush_req_2.WaitForReply());
@@ -3018,8 +3038,8 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
   BufferID buf1 = ds2->target_buffer;
 
   // Try to write to the correct buffer.
-  std::unique_ptr<TraceWriter> writer =
-      producer->endpoint()->CreateTraceWriter(buf0);
+  std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
+      buf0, BufferExhaustedPolicy::kStall);
   {
     auto tp = writer->NewTracePacket();
     tp->set_for_testing()->set_str("good_payload");
@@ -3040,7 +3060,8 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
   ASSERT_TRUE(flush_request.WaitForReply());
 
   // Try to write to the wrong buffer.
-  writer = producer->endpoint()->CreateTraceWriter(buf1);
+  writer = producer->endpoint()->CreateTraceWriter(
+      buf1, BufferExhaustedPolicy::kStall);
   {
     auto tp = writer->NewTracePacket();
     tp->set_for_testing()->set_str("bad_payload");
@@ -3267,8 +3288,8 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
 
   const auto* ds_inst = producer->GetDataSourceInstance("data_source");
   ASSERT_NE(nullptr, ds_inst);
-  std::unique_ptr<TraceWriter> writer =
-      shmem_arbiter->CreateTraceWriter(ds_inst->target_buffer);
+  std::unique_ptr<TraceWriter> writer = shmem_arbiter->CreateTraceWriter(
+      ds_inst->target_buffer, BufferExhaustedPolicy::kStall);
   // Wait for the TraceWriter to be registered.
   task_runner.RunUntilIdle();
 
@@ -3396,7 +3417,8 @@ class TracingServiceImplScrapingWithSmbTest : public TracingServiceImplTest {
 
     target_buffer_ = ds->target_buffer;
 
-    writer_ = arbiter_->CreateTraceWriter(target_buffer_);
+    writer_ = arbiter_->CreateTraceWriter(target_buffer_,
+                                          BufferExhaustedPolicy::kStall);
     // Wait for the writer to be registered.
     task_runner.RunUntilIdle();
   }
@@ -5613,6 +5635,7 @@ TEST_F(TracingServiceImplTest, CloneSnapshotTriggerProducesEvent) {
   EXPECT_EQ(trigger_hit_event.producer_name(), kMockProducerName);
   EXPECT_EQ(trigger_hit_event.producer_uid(), kMockProducerUid);
   EXPECT_GT(trigger_hit_event.boot_time_ns(), 0ul);
+  EXPECT_EQ(trigger_hit_event.trigger_delay_ms(), 1u);
 
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("ds_1");
@@ -5653,6 +5676,7 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
   static constexpr auto kCloneTriggerProducerName = "trigger_producer_name";
   static constexpr uid_t kCloneTriggerProducerUid = 42;
   static constexpr uint64_t kCloneTriggerTimestamp = 456789123;
+  static constexpr uint64_t kCloneTriggerDelayMs = 104;
   {
     auto clone_done = task_runner.CreateCheckpoint("clone_done");
     EXPECT_CALL(*consumer2, OnSessionCloned(_))
@@ -5668,6 +5692,7 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
     args.clone_trigger_producer_name = kCloneTriggerProducerName;
     args.clone_trigger_trusted_producer_uid = kCloneTriggerProducerUid;
     args.clone_trigger_boot_time_ns = kCloneTriggerTimestamp;
+    args.clone_trigger_delay_ms = kCloneTriggerDelayMs;
     consumer2->endpoint()->CloneSession(args);
     // CloneSession() will implicitly issue a flush. Linearize with that.
     producer->ExpectFlush(writer.get());
@@ -5709,6 +5734,14 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
   EXPECT_EQ(trigger.producer_name(), kCloneTriggerProducerName);
   EXPECT_EQ(trigger.trusted_producer_uid(),
             static_cast<int32_t>(kCloneTriggerProducerUid));
+  EXPECT_EQ(trigger.stop_delay_ms(), kCloneTriggerDelayMs);
+
+  // A second ReadBuffers() should not reemit the clone_snapshot_trigger.
+  cloned_packets = consumer2->ReadBuffers();
+  EXPECT_THAT(
+      cloned_packets,
+      Not(Contains(Property(
+          &protos::gen::TracePacket::has_clone_snapshot_trigger, Eq(true)))));
 }
 
 TEST_F(TracingServiceImplTest, InvalidBufferSizes) {

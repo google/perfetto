@@ -76,6 +76,7 @@ void OnPerfettoSqlCreateFunction(struct PerfettoSqlParserState*,
 void OnPerfettoSqlCreateTable(struct PerfettoSqlParserState*,
                               int replace,
                               struct PerfettoSqlToken* name,
+                              struct PerfettoSqlToken* table_impl,
                               struct PerfettoSqlArgumentList* args,
                               struct PerfettoSqlToken* body_start,
                               struct PerfettoSqlToken* body_end);

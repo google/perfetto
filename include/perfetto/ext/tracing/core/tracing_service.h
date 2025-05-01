@@ -114,8 +114,7 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
   // DataSourceConfig.target_buffer().
   virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
-      BufferExhaustedPolicy buffer_exhausted_policy =
-          BufferExhaustedPolicy::kDefault) = 0;
+      BufferExhaustedPolicy buffer_exhausted_policy) = 0;
 
   // TODO(eseckler): Also expose CreateStartupTraceWriter() ?
 
@@ -224,6 +223,9 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
     // If not zero, this is stored in the trace as timestamp of the trigger that
     // caused the clone.
     uint64_t clone_trigger_boot_time_ns = 0;
+    // If not zero, this is stored in the trace as the configured delay (in
+    // milliseconds) of the trigger that caused the clone.
+    uint64_t clone_trigger_delay_ms = 0;
   };
   virtual void CloneSession(CloneSessionArgs) = 0;
 
@@ -324,6 +326,8 @@ class PERFETTO_EXPORT_COMPONENT RelayEndpoint {
   };
 
   enum class SyncMode : uint32_t { PING = 1, UPDATE = 2 };
+
+  virtual void CacheSystemInfo(std::vector<uint8_t> serialized_system_info) = 0;
   virtual void SyncClocks(SyncMode sync_mode,
                           base::ClockSnapshotVector client_clocks,
                           base::ClockSnapshotVector host_clocks) = 0;

@@ -37,6 +37,11 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: 'Bluetooth',
   },
   {
+    type: 'app_wakelock_events',
+    topLevelGroup: 'POWER',
+    group: 'App Wakelocks',
+  },
+  {
     type: 'legacy_async_process_slice',
     topLevelGroup: 'PROCESS',
     group: undefined,

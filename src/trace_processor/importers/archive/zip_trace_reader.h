@@ -32,8 +32,8 @@ namespace perfetto::trace_processor {
 class ForwardingTraceParser;
 class TraceProcessorContext;
 
-// Forwards files contained in a ZIP to the appropiate ChunkedTraceReader. It is
-// guaranteed that proto traces will be parsed first.
+// Forwards files contained in a ZIP to the appropriate ChunkedTraceReader. It
+// is guaranteed that proto traces will be parsed first.
 class ZipTraceReader : public ChunkedTraceReader {
  public:
   explicit ZipTraceReader(TraceProcessorContext* context);

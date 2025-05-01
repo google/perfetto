@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-runtime: python39
+runtime: python312
 service: default
 handlers:
 - url: /
@@ -23,6 +23,6 @@ handlers:
 - url: /static/
   static_dir: static/
   secure: always
-- url: /gerrit/.*
+- url: /gh/.*
   script: auto
   secure: always

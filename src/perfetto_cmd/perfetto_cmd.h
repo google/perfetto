@@ -204,6 +204,7 @@ class PerfettoCmd : public Consumer {
     std::string trigger_name;
     std::string producer_name;
     uid_t producer_uid = 0;
+    uint64_t trigger_delay_ms = 0;
   };
   std::optional<SnapshotTriggerInfo> snapshot_trigger_info_;
 

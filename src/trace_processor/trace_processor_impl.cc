@@ -619,7 +619,7 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
         "Package '%s' is already registered. Choose a different name.\n"
         "If you want to replace the existing package using trace processor "
         "shell, you need to pass the --dev flag and use "
-        "--override-sql-module "
+        "--override-sql-package "
         "to pass the module path.",
         name.c_str());
   }
@@ -946,7 +946,8 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
 
 void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_ = std::make_unique<PerfettoSqlEngine>(
-      context_.storage->mutable_string_pool(), config_.enable_extra_checks);
+      context_.storage->mutable_string_pool(), &dataframe_shared_storage_,
+      config_.enable_extra_checks);
   sqlite3* db = engine_->sqlite_engine()->db();
   sqlite3_str_split_init(db);
 
@@ -1058,30 +1059,28 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   TraceStorage* storage = context_.storage.get();
 
   // Operator tables.
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+  engine_->RegisterVirtualTableModule<SpanJoinOperatorModule>(
       "span_join",
       std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+  engine_->RegisterVirtualTableModule<SpanJoinOperatorModule>(
       "span_left_join",
       std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+  engine_->RegisterVirtualTableModule<SpanJoinOperatorModule>(
       "span_outer_join",
       std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
-  engine_->sqlite_engine()->RegisterVirtualTableModule<WindowOperatorModule>(
-      "window", std::make_unique<WindowOperatorModule::Context>());
-  engine_->sqlite_engine()->RegisterVirtualTableModule<CounterMipmapOperator>(
+  engine_->RegisterVirtualTableModule<WindowOperatorModule>(
+      "__intrinsic_window", nullptr);
+  engine_->RegisterVirtualTableModule<CounterMipmapOperator>(
       "__intrinsic_counter_mipmap",
       std::make_unique<CounterMipmapOperator::Context>(engine_.get()));
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SliceMipmapOperator>(
+  engine_->RegisterVirtualTableModule<SliceMipmapOperator>(
       "__intrinsic_slice_mipmap",
       std::make_unique<SliceMipmapOperator::Context>(engine_.get()));
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  engine_->sqlite_engine()
-      ->RegisterVirtualTableModule<etm::EtmDecodeTraceVtable>(
-          "__intrinsic_etm_decode_trace", storage);
-  engine_->sqlite_engine()
-      ->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
-          "__intrinsic_etm_iterate_instruction_range", storage);
+  engine_->RegisterVirtualTableModule<etm::EtmDecodeTraceVtable>(
+      "__intrinsic_etm_decode_trace", storage);
+  engine_->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
+      "__intrinsic_etm_iterate_instruction_range", storage);
 #endif
 
   // Register stdlib packages.
@@ -1112,11 +1111,9 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
           metrics::RunMetric::Context{engine_.get(), &sql_metrics_}));
 
   // Legacy tables.
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SqlStatsModule>(
-      "sqlstats", storage);
-  engine_->sqlite_engine()->RegisterVirtualTableModule<StatsModule>("stats",
-                                                                    storage);
-  engine_->sqlite_engine()->RegisterVirtualTableModule<TablePointerModule>(
+  engine_->RegisterVirtualTableModule<SqlStatsModule>("sqlstats", storage);
+  engine_->RegisterVirtualTableModule<StatsModule>("stats", storage);
+  engine_->RegisterVirtualTableModule<TablePointerModule>(
       "__intrinsic_table_ptr", nullptr);
 
   // New style db-backed tables.

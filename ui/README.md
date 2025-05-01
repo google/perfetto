@@ -3,7 +3,7 @@
 ## Quick Start
 
 ```bash
-$ git clone https://android.googlesource.com/platform/external/perfetto/
+$ git clone https://github.com/google/perfetto/
 $ cd perfetto
 
 # Install build dependencies

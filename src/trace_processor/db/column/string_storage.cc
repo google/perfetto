@@ -92,7 +92,7 @@ struct GlobFullStringPool {
   GlobFullStringPool(StringPool* pool, const util::GlobMatcher& matcher)
       : pool_(pool), matches_(pool->MaxSmallStringId().raw_id()) {
     PERFETTO_DCHECK(!pool->HasLargeString());
-    for (auto it = pool->CreateIterator(); it; ++it) {
+    for (auto it = pool->CreateSmallStringIterator(); it; ++it) {
       auto id = it.StringId();
       matches_[id.raw_id()] = matcher.Matches(pool->Get(id));
     }
@@ -116,7 +116,7 @@ struct RegexFullStringPool {
   RegexFullStringPool(StringPool* pool, const regex::Regex& regex)
       : pool_(pool), matches_(pool->MaxSmallStringId().raw_id()) {
     PERFETTO_DCHECK(!pool->HasLargeString());
-    for (auto it = pool->CreateIterator(); it; ++it) {
+    for (auto it = pool->CreateSmallStringIterator(); it; ++it) {
       auto id = it.StringId();
       matches_[id.raw_id()] =
           id != StringPool::Id::Null() && regex.Search(pool_->Get(id).c_str());

@@ -22,10 +22,10 @@ import {
   CPU_SLICE_TRACK_KIND,
 } from '../public/track_kinds';
 import {Workspace} from '../public/workspace';
-import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM, STR} from '../trace_processor/query_result';
 import {escapeSearchQuery} from '../trace_processor/query_utils';
+import {searchTrackEvents} from './dataset_search';
 import {featureFlags} from './feature_flags';
 import {raf} from './raf_scheduler';
 import {SearchSource} from './search_data';
@@ -349,89 +349,50 @@ export class SearchManagerImpl {
     }
 
     const generation = this._searchGeneration;
-    const searchLiteral = escapeSearchQuery(this._searchText);
 
-    const datasets = trackManager
-      .getAllTracks()
-      .map((t) => {
-        const dataset = t.track.getDataset?.();
-        if (dataset) {
-          return [dataset, t.uri] as const;
-        } else {
-          return undefined;
-        }
-      })
-      .filter(exists)
-      .filter(([dataset]) => dataset.implements({id: NUM, ts: LONG, name: STR}))
-      .map(
-        ([dataset, uri]) =>
-          new SourceDataset({
-            src: `
-              select
-                id,
-                ts,
-                name,
-                '${uri}' as uri
-              from (${dataset.query()})`,
-            schema: {id: NUM, ts: LONG, name: STR, uri: STR},
-          }),
-      );
+    const allResults = await searchTrackEvents(
+      engine,
+      trackManager.getAllTracks(),
+      this._searchText,
+    );
 
-    const union = new UnionDataset(datasets);
-    const result = await engine.query(`
-      select
-        id,
-        uri,
-        ts
-      from (${union.query()})
-      where name glob ${searchLiteral}
-    `);
-
-    const numRows = result.numRows();
+    const numRows = allResults.length;
     const searchResults: SearchResults = {
       eventIds: new Float64Array(numRows),
       tses: new BigInt64Array(numRows),
-      utids: new Float64Array(numRows),
+      utids: new Float64Array(numRows).fill(-1), // Fill with -1 as utid is unknown
       sources: [],
       trackUris: [],
       totalResults: numRows,
     };
 
-    let i = 0;
-    for (
-      const iter = result.iter({id: NUM, ts: LONG, uri: STR});
-      iter.valid();
-      iter.next()
-    ) {
-      searchResults.eventIds[i] = iter.id;
-      searchResults.tses[i] = iter.ts;
-      searchResults.utids[i] = -1; // We don't know anything about utids.
+    for (let i = 0; i < numRows; i++) {
+      const {id, ts, track} = allResults[i];
+      searchResults.eventIds[i] = id;
+      searchResults.tses[i] = ts;
+      searchResults.trackUris.push(track.uri);
+      // Assuming all results from datasets correspond to 'event' type search
       searchResults.sources.push('event');
-      searchResults.trackUris.push(iter.uri);
-      ++i;
     }
 
     if (generation !== this._searchGeneration) {
-      // We arrived too late. By the time we computed results the user issued
-      // another search.
+      // We arrived too late.
       return;
     }
     this._results = searchResults;
 
-    // We have changed the search results - try and find the first result that's
-    // after the start of this visible window.
+    // Find first result after the start of the visible window
     const visibleWindow = this._timeline?.visibleWindow.toTimeSpan();
-    if (visibleWindow) {
-      const foundIndex = this._results.tses.findIndex(
-        (ts) => ts >= visibleWindow.start,
-      );
-      if (foundIndex === -1) {
-        this._resultIndex = -1;
-      } else {
-        // Store the value before the found one, so that when the user presses
-        // enter we navigate to the correct one.
-        this._resultIndex = foundIndex - 1;
+    if (visibleWindow && this._results.totalResults > 0) {
+      let foundIndex = -1;
+      for (let i = 0; i < this._results.tses.length; i++) {
+        if (this._results.tses[i] >= visibleWindow.start) {
+          foundIndex = i;
+          break;
+        }
       }
+      // Store the index *before* the found one, so the first step lands on it.
+      this._resultIndex = foundIndex === -1 ? -1 : foundIndex - 1;
     } else {
       this._resultIndex = -1;
     }

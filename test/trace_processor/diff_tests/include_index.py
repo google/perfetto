@@ -30,6 +30,7 @@ from diff_tests.metrics.camera.tests import Camera
 from diff_tests.metrics.chrome.tests import ChromeMetrics
 from diff_tests.metrics.chrome.tests_args import ChromeArgs
 from diff_tests.metrics.chrome.tests_processes import ChromeProcesses
+from diff_tests.metrics.chrome.tests_scroll_jank import ChromeScrollJankMetrics
 from diff_tests.metrics.codecs.tests import Codecs
 from diff_tests.metrics.common.tests import CloneDurationMetrics
 from diff_tests.metrics.frame_timeline.tests import FrameTimeline
@@ -145,6 +146,7 @@ from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
+from diff_tests.stdlib.traced.stats import TracedStats
 from diff_tests.stdlib.viz.tests import Viz
 from diff_tests.stdlib.wattson.tests import WattsonStdlib
 from diff_tests.syntax.filtering_tests import PerfettoFiltering
@@ -237,6 +239,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       ChromeArgs,
       ChromeMetrics,
       ChromeProcesses,
+      ChromeScrollJankMetrics,
       Codecs,
       FrameTimeline,
       GraphicsMetrics,
@@ -287,6 +290,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       IntervalsIntersect,
       Startups,
       Timestamps,
+      TracedStats,
       Viz,
       WattsonStdlib,
       HeapProfile,

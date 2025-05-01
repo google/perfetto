@@ -180,11 +180,11 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
       if (spec.has_numerator_units() || spec.has_denominator_units()) {
         char buffer[1024];
         base::StringWriter unit(buffer, sizeof(buffer));
-        for (auto numer = spec.numerator_units(); numer; ++numer) {
+        for (auto number = spec.numerator_units(); number; ++number) {
           if (unit.pos()) {
             unit.AppendChar(':');
           }
-          unit.AppendInt(*numer);
+          unit.AppendInt(*number);
         }
         char sep = '/';
         for (auto denom = spec.denominator_units(); denom; ++denom) {

@@ -16,24 +16,31 @@
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
-#include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/util/sql_modules.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 class PerfettoSqlEngineTest : public ::testing::Test {
  protected:
   StringPool pool_;
-  PerfettoSqlEngine engine_{&pool_, true};
+  DataframeSharedStorage dataframe_shared_storage_;
+  PerfettoSqlEngine engine_{&pool_, &dataframe_shared_storage_, true};
 };
 
 sql_modules::RegisteredPackage CreateTestPackage(
-    std::vector<std::pair<std::string, std::string>> files) {
+    const std::vector<std::pair<std::string, std::string>>& files) {
   sql_modules::RegisteredPackage result;
-  for (auto& file : files) {
+  for (const auto& file : files) {
     result.modules[file.first] =
         sql_modules::RegisteredPackage::ModuleFile{file.second, false};
   }
@@ -162,7 +169,7 @@ TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema_MissingColumn) {
       res.status().c_message(),
       testing::EndsWith("CREATE PERFETTO TABLE: the following columns are "
                         "declared in the schema, but do not exist: x; and the "
-                        "folowing columns exist, but are not declared: y"));
+                        "following columns exist, but are not declared: y"));
 }
 
 TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema_IncorrectType) {
@@ -232,7 +239,7 @@ TEST_F(PerfettoSqlEngineTest, View_IncorrectSchema) {
       res.status().c_message(),
       testing::EndsWith("CREATE PERFETTO VIEW: the following columns are "
                         "declared in the schema, but do not exist: x; and the "
-                        "folowing columns exist, but are not declared: y"));
+                        "following columns exist, but are not declared: y"));
 }
 
 TEST_F(PerfettoSqlEngineTest, View_Duplicates) {
@@ -318,5 +325,4 @@ TEST_F(PerfettoSqlEngineTest, Include_Module) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -22,6 +22,7 @@ import {Trace} from './trace';
 import {PageManager} from './page';
 import {FeatureFlagManager} from './feature_flag';
 import {Raf} from './raf';
+import {SettingsManager} from './settings';
 
 /**
  * The API endpoint to interact programmaticaly with the UI before a trace has
@@ -40,12 +41,18 @@ export interface App {
   readonly plugins: PluginManager;
   readonly pages: PageManager;
   readonly featureFlags: FeatureFlagManager;
+  readonly settings: SettingsManager;
 
   /**
    * The parsed querystring passed when starting the app, before any navigation
    * happens.
    */
   readonly initialRouteArgs: RouteArgs;
+
+  /**
+   * Args in the URL bar that start with this plugin's id.
+   */
+  readonly initialPluginRouteArgs: {[key: string]: number | boolean | string};
 
   /**
    * Returns the current trace object, if any. The instance being returned is
@@ -70,4 +77,5 @@ export interface App {
     title: string;
     fileName: string;
   }): void;
+  closeCurrentTrace(): void;
 }

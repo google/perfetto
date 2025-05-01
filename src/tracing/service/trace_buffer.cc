@@ -721,7 +721,7 @@ bool TraceBuffer::ReadNextTracePacket(
       chunk_meta->set_last_read_packet_skipped(true);
       previous_packet_dropped = true;
     }  // while(...)  [iterate over packet fragments for the current chunk].
-  }    // for(;;MoveNext()) [iterate over chunks].
+  }  // for(;;MoveNext()) [iterate over chunks].
 }
 
 TraceBuffer::ReadAheadResult TraceBuffer::ReadAhead(TracePacket* packet) {

@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const ejs = require('ejs');
-const marked = require('marked');
-const argv = require('yargs').argv
-const fs = require('fs-extra');
-const path = require('path');
-const hljs = require('highlight.js');
+const ejs = require("ejs");
+const marked = require("marked");
+const argv = require("yargs").argv;
+const fs = require("fs-extra");
+const path = require("path");
+const hljs = require("highlight.js");
 
 const CS_BASE_URL =
-    'https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto';
+  "https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto";
 
 const ROOT_DIR = path.dirname(path.dirname(path.dirname(__dirname)));
 
-let outDir = '';
-let curMdFile = '';
-let title = '';
+let outDir = "";
+let curMdFile = "";
+let title = "";
 let depFileFd = undefined;
 
 function hrefInDocs(href) {
@@ -34,27 +34,26 @@ function hrefInDocs(href) {
     return undefined;
   }
   let pathFromRoot;
-  if (href.startsWith('/')) {
+  if (href.startsWith("/")) {
     pathFromRoot = href;
   } else {
-    curDocDir = '/' + path.relative(ROOT_DIR, path.dirname(curMdFile));
+    curDocDir = "/" + path.relative(ROOT_DIR, path.dirname(curMdFile));
     pathFromRoot = path.join(curDocDir, href);
   }
-  if (pathFromRoot.startsWith('/docs/')) {
+  if (pathFromRoot.startsWith("/docs/")) {
     return pathFromRoot;
   }
   return undefined;
 }
 
 function assertNoDeadLink(relPathFromRoot) {
-  relPathFromRoot = relPathFromRoot.replace(/\#.*$/g, '');  // Remove #line.
+  relPathFromRoot = relPathFromRoot.replace(/\#.*$/g, ""); // Remove #line.
 
   // Skip check for build-time generated reference pages.
-  if (relPathFromRoot.endsWith('.autogen'))
-    return;
+  if (relPathFromRoot.endsWith(".autogen")) return;
 
   const fullPath = path.join(ROOT_DIR, relPathFromRoot);
-  if (!fs.existsSync(fullPath) && !fs.existsSync(fullPath + '.md')) {
+  if (!fs.existsSync(fullPath) && !fs.existsSync(fullPath + ".md")) {
     const msg = `Dead link: ${relPathFromRoot} in ${curMdFile}`;
     console.error(msg);
     throw new Error(msg);
@@ -68,16 +67,16 @@ function renderHeading(text, level) {
   if (level === 1 && !title) {
     title = text;
   }
-  let anchorId = '';
+  let anchorId = "";
   const explicitAnchor = /{#([\w-_.]+)}/.exec(text);
   if (explicitAnchor) {
-    text = text.replace(explicitAnchor[0], '');
+    text = text.replace(explicitAnchor[0], "");
     anchorId = explicitAnchor[1];
   } else if (level >= 2 && level <= 3) {
-    anchorId = text.toLowerCase().replace(/[^\w]+/g, '-');
-    anchorId = anchorId.replace(/[-]+/g, '-');  // Drop consecutive '-'s.
+    anchorId = text.toLowerCase().replace(/[^\w]+/g, "-");
+    anchorId = anchorId.replace(/[-]+/g, "-"); // Drop consecutive '-'s.
   }
-  let anchor = '';
+  let anchor = "";
   if (anchorId) {
     anchor = `<a name="${anchorId}" class="anchor" href="#${anchorId}"></a>`;
   }
@@ -85,10 +84,11 @@ function renderHeading(text, level) {
 }
 
 function renderLink(originalLinkFn, href, title, text) {
-  if (href.startsWith('../')) {
+  if (href.startsWith("../")) {
     throw new Error(
-        `Don\'t use relative paths in docs, always use /docs/xxx ` +
-        `or /src/xxx for both links to docs and code (${href})`)
+      `Don\'t use relative paths in docs, always use /docs/xxx ` +
+        `or /src/xxx for both links to docs and code (${href})`,
+    );
   }
   const docsHref = hrefInDocs(href);
   let sourceCodeLink = undefined;
@@ -96,15 +96,15 @@ function renderLink(originalLinkFn, href, title, text) {
     // Check that the target doc exists. Skip the check on /reference/ files
     // that are typically generated at build time.
     assertNoDeadLink(docsHref);
-    href = docsHref.replace(/[.](md|autogen)\b/, '');
-    href = href.replace(/\/README$/, '/');
-  } else if (href.startsWith('/') && !href.startsWith('//')) {
+    href = docsHref.replace(/[.](md|autogen)\b/, "");
+    href = href.replace(/\/README$/, "/");
+  } else if (href.startsWith("/") && !href.startsWith("//")) {
     // /tools/xxx -> github/tools/xxx.
     sourceCodeLink = href;
   }
   if (sourceCodeLink !== undefined) {
     // Fix up line anchors for GitHub link: #42 -> #L42.
-    sourceCodeLink = sourceCodeLink.replace(/#(\d+)$/g, '#L$1')
+    sourceCodeLink = sourceCodeLink.replace(/#(\d+)$/g, "#L$1");
     assertNoDeadLink(sourceCodeLink);
     href = CS_BASE_URL + sourceCodeLink;
   }
@@ -112,17 +112,17 @@ function renderLink(originalLinkFn, href, title, text) {
 }
 
 function renderCode(text, lang) {
-  if (lang === 'mermaid') {
+  if (lang === "mermaid") {
     return `<div class="mermaid">${text}</div>`;
   }
 
-  let hlHtml = '';
+  let hlHtml = "";
   if (lang) {
-    hlHtml = hljs.highlight(lang, text).value
+    hlHtml = hljs.highlight(lang, text).value;
   } else {
-    hlHtml = hljs.highlightAuto(text).value
+    hlHtml = hljs.highlightAuto(text).value;
   }
-  return `<code class="hljs code-block">${hlHtml}</code>`
+  return `<code class="hljs code-block">${hlHtml}</code>`;
 }
 
 function renderImage(originalImgFn, href, title, text) {
@@ -136,39 +136,35 @@ function renderImage(originalImgFn, href, title, text) {
       fs.write(depFileFd, ` ${ROOT_DIR + docsHref}`);
     }
   }
-  if (href.endsWith('.svg')) {
-    return `<object type="image/svg+xml" data="${href}"></object>`
+  if (href.endsWith(".svg")) {
+    return `<object type="image/svg+xml" data="${href}"></object>`;
   }
   return originalImgFn(href, title, text);
 }
 
 function renderParagraph(text) {
-  let cssClass = '';
-  if (text.startsWith('NOTE:')) {
-    cssClass = 'note';
+  let cssClass = "";
+  if (text.startsWith("NOTE:")) {
+    cssClass = "note";
+  } else if (text.startsWith("TIP:")) {
+    cssClass = "tip";
+  } else if (text.startsWith("TODO:") || text.startsWith("FIXME:")) {
+    cssClass = "todo";
+  } else if (text.startsWith("WARNING:")) {
+    cssClass = "warning";
+  } else if (text.startsWith("Summary:")) {
+    cssClass = "summary";
   }
-   else if (text.startsWith('TIP:')) {
-    cssClass = 'tip';
-  }
-   else if (text.startsWith('TODO:') || text.startsWith('FIXME:')) {
-    cssClass = 'todo';
-  }
-   else if (text.startsWith('WARNING:')) {
-    cssClass = 'warning';
-  }
-   else if (text.startsWith('Summary:')) {
-    cssClass = 'summary';
-  }
-  if (cssClass != '') {
+  if (cssClass != "") {
     cssClass = ` class="callout ${cssClass}"`;
   }
 
   // Rudimentary support of definition lists.
-  var colonStart = text.search("\n:")
+  var colonStart = text.search("\n:");
   if (colonStart != -1) {
     var key = text.substring(0, colonStart);
     var value = text.substring(colonStart + 2);
-    return `<dl><dt><p>${key}</p></dt><dd><p>${value}</p></dd></dl>`
+    return `<dl><dt><p>${key}</p></dt><dd><p>${value}</p></dd></dl>`;
   }
 
   return `<p${cssClass}>${text}</p>\n`;
@@ -184,20 +180,21 @@ function render(rawMarkdown) {
   renderer.heading = renderHeading;
   renderer.paragraph = renderParagraph;
 
-  return marked.marked.parse(rawMarkdown, {renderer: renderer});
+  return marked.marked.parse(rawMarkdown, { renderer: renderer });
 }
 
 function main() {
-  const inFile = argv['i'];
-  const outFile = argv['o'];
-  outDir = argv['odir'];
-  depFile = argv['depfile'];
-  const templateFile = argv['t'];
+  const inFile = argv["i"];
+  const outFile = argv["o"];
+  outDir = argv["odir"];
+  depFile = argv["depfile"];
+  const templateFile = argv["t"];
   if (!outFile || !outDir) {
     console.error(
-        'Usage: --odir site -o out.html ' +
-        '[-i input.md] [-t templ.html] ' +
-        '[--depfile depfile.d]');
+      "Usage: --odir site -o out.html " +
+        "[-i input.md] [-t templ.html] " +
+        "[--depfile depfile.d]",
+    );
     process.exit(1);
   }
   curMdFile = inFile;
@@ -205,30 +202,29 @@ function main() {
   if (depFile) {
     const depFileDir = path.dirname(depFile);
     fs.ensureDirSync(depFileDir);
-    depFileFd = fs.openSync(depFile, 'w');
+    depFileFd = fs.openSync(depFile, "w");
     fs.write(depFileFd, `${outFile}:`);
   }
-  let markdownHtml = '';
+  let markdownHtml = "";
   if (inFile) {
-    markdownHtml = render(fs.readFileSync(inFile, 'utf8'));
+    markdownHtml = render(fs.readFileSync(inFile, "utf8"));
   }
 
   if (templateFile) {
     // TODO rename nav.html to sitemap or something more mainstream.
-    const navFilePath = path.join(outDir, 'docs', '_nav.html');
+    const navFilePath = path.join(outDir, "docs", "_nav.html");
     const fallbackTitle =
-        'Perfetto - System profiling, app tracing and trace analysis';
+      "Perfetto - System profiling, app tracing and trace analysis";
     const templateData = {
       markdown: markdownHtml,
       title: title ? `${title} - Perfetto Tracing Docs` : fallbackTitle,
-      fileName: '/' + path.relative(outDir, outFile),
+      fileName: "/" + path.relative(outDir, outFile),
     };
     if (fs.existsSync(navFilePath)) {
-      templateData['nav'] = fs.readFileSync(navFilePath, 'utf8');
+      templateData["nav"] = fs.readFileSync(navFilePath, "utf8");
     }
     ejs.renderFile(templateFile, templateData, (err, html) => {
-      if (err)
-        throw err;
+      if (err) throw err;
       fs.writeFileSync(outFile, html);
       process.exit(0);
     });

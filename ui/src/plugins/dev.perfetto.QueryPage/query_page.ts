@@ -21,7 +21,6 @@ import {
 } from '../../components/query_table/queries';
 import {Callout} from '../../widgets/callout';
 import {Editor} from '../../widgets/editor';
-import {PageWithTraceAttrs} from '../../public/page';
 import {QueryHistoryComponent, queryHistoryStorage} from './query_history';
 import {Trace, TraceAttrs} from '../../public/trace';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
@@ -106,8 +105,12 @@ class QueryInput implements m.ClassComponent<QueryInputAttrs> {
   }
 }
 
-export class QueryPage implements m.ClassComponent<PageWithTraceAttrs> {
-  view({attrs}: m.CVnode<PageWithTraceAttrs>) {
+export interface QueryPageAttrs {
+  readonly trace: Trace;
+}
+
+export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
+  view({attrs}: m.CVnode<QueryPageAttrs>) {
     return m(
       '.query-page',
       m(Callout, 'Enter query and press Cmd/Ctrl + Enter'),

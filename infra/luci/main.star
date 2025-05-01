@@ -80,8 +80,8 @@ def official_builder(name, os, caches=[]):
         bucket = "official",
         executable = luci.recipe(
             name = "perfetto",
-            cipd_package = "infra/recipe_bundles/android.googlesource.com/platform/external/perfetto",
-            cipd_version = "refs/heads/master",
+            cipd_package = "infra/recipe_bundles/chromium.googlesource.com/external/github.com/google/perfetto",
+            cipd_version = "refs/heads/upstream/main",
             use_python3 = True,
         ),
         dimensions = {
@@ -94,8 +94,8 @@ def official_builder(name, os, caches=[]):
             luci.gitiles_poller(
                 name = "perfetto-gitiles-trigger",
                 bucket = "official",
-                repo = "https://android.googlesource.com/platform/external/perfetto",
-                refs = ["refs/tags/v.+"],
+                repo = "https://chromium.googlesource.com/external/github.com/google/perfetto",
+                refs = ["refs/tags/upstream/v.+"],
             ),
         ],
         caches = [

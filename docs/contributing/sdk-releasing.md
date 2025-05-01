@@ -5,14 +5,7 @@ This guide shows how to make a new Perfetto SDK release.
 Before snapshotting a release, check that no [release-blockers](http://b/savedsearches/5776355) are
 open.
 
-Check out the code:
-
-```bash
-git clone https://android.googlesource.com/platform/external/perfetto
-cd perfetto
-```
-
-Next, decide the version number for the new release (vX.Y).
+Check out the code, then decide the version number for the new release (vX.Y).
 The major version number (X) is incremented on every release (monthly).
 The minor version number is incremented only for minor changes / fixes on top of the monthly
 release (cherry-picks on the releases/vN.x branch).
@@ -107,17 +100,7 @@ cmake --build build
 3. Upload the new release for review.
 
 ```bash
-git cl upload --no-squash --bypass-hooks -o banned-words~skip
-```
-
-If you get an error about a missing Change-Id field (`remote: ERROR: commit
-a7c7c4c: missing Change-Id in message footer`), install the commit-msg hook
-script and amend the change to make sure that field is present:
-
-```bash
-curl -Lo .git/hooks/commit-msg http://android-review.googlesource.com/tools/hooks/commit-msg
-chmod u+x .git/hooks/commit-msg
-git commit --amend
+gh pr create
 ```
 
 4. Once the release has been reviewed and landed, create and push the tag for

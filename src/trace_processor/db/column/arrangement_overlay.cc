@@ -111,7 +111,7 @@ RangeOrBitVector ArrangementOverlay::ChainImpl::SearchValidated(
     PERFETTO_DCHECK(storage_bitvector.size() == *max_i + 1);
 
     // After benchmarking, it turns out this complexity *is* actually worthwhile
-    // and has a noticable impact on the performance of this function in real
+    // and has a noticeable impact on the performance of this function in real
     // world tables.
 
     // Fast path: we compare as many groups of 64 elements as we can.

@@ -213,7 +213,8 @@ message DisplayContentProto {
   optional bool display_ready = 26;
   optional WindowStateProto input_method_target = 27 [deprecated = true];
   optional WindowStateProto input_method_input_target = 28 [deprecated = true];
-  optional WindowStateProto input_method_control_target = 29 [deprecated = true];
+  optional WindowStateProto input_method_control_target = 29
+      [deprecated = true];
   optional WindowStateProto current_focus = 30 [deprecated = true];
   optional ImeInsetsSourceProviderProto ime_insets_source_provider = 31;
   optional bool can_show_ime = 32 [deprecated = true];
@@ -459,6 +460,8 @@ message WindowStateProto {
   repeated InsetsSourceProto mergedLocalInsetsSources = 47;
   optional int32 requested_visible_types = 48;
   optional RectProto dim_bounds = 49;
+  optional int32 prepare_sync_seq_id = 50;
+  optional int32 sync_seq_id = 51;
 }
 
 message IdentifierProto {

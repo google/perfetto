@@ -67,7 +67,7 @@ class ProcessThreadTimeline {
 
     Type type = Type::kInvalid;
 
-    // The time when the event occured. Undefined when type is kInvalid.
+    // The time when the event occurred. Undefined when type is kInvalid.
     uint64_t ts = 0;
 
     // The subject of the event. Undefined when type is kInvalid.
@@ -93,7 +93,7 @@ class ProcessThreadTimeline {
 
   // REQUIRED: Sorts all events by pid, making it possible to locate the subset
   // of events connected to a pid. Events are not sorted by time because the
-  // subset of events will, on average, be trivally small.
+  // subset of events will, on average, be trivially small.
   void Sort();
 
   // Returns true if a process/thread is connected to a package.

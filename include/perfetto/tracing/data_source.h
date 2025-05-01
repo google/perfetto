@@ -474,12 +474,15 @@ class DataSource : public DataSourceBase {
     constexpr bool no_flush =
         std::is_same_v<decltype(&DerivedDataSource::OnFlush),
                        decltype(&DataSourceBase::OnFlush)>;
-    internal::DataSourceParams params{
-        DerivedDataSource::kSupportsMultipleInstances,
-        DerivedDataSource::kRequiresCallbacksUnderLock};
+    internal::DataSourceParams params;
+    params.requires_callbacks_under_lock =
+        DerivedDataSource::kRequiresCallbacksUnderLock;
+    params.supports_multiple_instances =
+        DerivedDataSource::kSupportsMultipleInstances;
+    params.default_buffer_exhausted_policy =
+        DerivedDataSource::kBufferExhaustedPolicy;
     return Helper::type().Register(
-        descriptor, factory, params, DerivedDataSource::kBufferExhaustedPolicy,
-        no_flush,
+        descriptor, factory, params, no_flush,
         GetCreateTlsFn(
             static_cast<typename DataSourceTraits::TlsStateType*>(nullptr)),
         GetCreateIncrementalStateFn(
@@ -582,7 +585,7 @@ thread_local internal::DataSourceThreadLocalState* DataSource<T, D>::tls_state_;
 // the macro invocation (e.g., "MACRO(...);") to avoid warnings about extra
 // semicolons.
 #define PERFETTO_INTERNAL_SWALLOW_SEMICOLON() \
-  extern int perfetto_internal_unused
+  [[maybe_unused]] extern int perfetto_internal_unused
 
 // This macro must be used once for each data source next to the data source's
 // declaration.

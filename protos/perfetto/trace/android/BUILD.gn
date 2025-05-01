@@ -124,6 +124,7 @@ perfetto_proto_library("winscope_@TYPE@") {
   ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
   generate_descriptor = "winscope.descriptor"
+  generator_visibility = [ "../../../../src/trace_processor/importers/proto/winscope:gen_cc_winscope_descriptor" ]
   descriptor_root_source = "winscope.proto"
 }
 
@@ -131,7 +132,7 @@ perfetto_proto_library("winscope_@TYPE@") {
 perfetto_proto_library("android_track_event_@TYPE@") {
   sources = [ "android_track_event.proto" ]
   public_deps = [ "../track_event:@TYPE@" ]
-
+  generator_visibility = [ "../../../../src/trace_processor/importers/proto:gen_cc_android_track_event_descriptor" ]
   generate_descriptor = "android_track_event.descriptor"
   descriptor_root_source = "android_track_event.proto"
 

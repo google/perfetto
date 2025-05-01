@@ -21,6 +21,7 @@ android_garbage_collection_stats {
       uid: 10243
       pid: 1982
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 86.782306720282
     heap_size_mb: 33.50052429524232
@@ -33,6 +34,7 @@ android_garbage_collection_stats {
       uid: 1000
       pid: 1442
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 248.843694875853
     heap_size_mb: 96.06098939932963
@@ -45,6 +47,7 @@ android_garbage_collection_stats {
       uid: 1000
       pid: 2475
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 3.940914669763
     heap_size_mb: 1.5213090390119473
@@ -57,6 +60,7 @@ android_garbage_collection_stats {
       uid: 10248
       pid: 2523
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 19.58299277801
     heap_size_mb: 7.55961151675581
@@ -75,6 +79,7 @@ android_garbage_collection_stats {
       uid: 1068
       pid: 2353
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 2.660807024882
     heap_size_mb: 1.0271498160255543
@@ -87,6 +92,7 @@ android_garbage_collection_stats {
       uid: 1001
       pid: 2448
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 3.477027840149
     heap_size_mb: 1.342235071137171
@@ -99,6 +105,7 @@ android_garbage_collection_stats {
       uid: 10256
       pid: 2085
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.00068410782
     heap_size_mb: 0.0002640857510084953
@@ -111,6 +118,7 @@ android_garbage_collection_stats {
       uid: 1002
       pid: 2251
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 3.959300889678
     heap_size_mb: 1.5284066609839635
@@ -123,6 +131,7 @@ android_garbage_collection_stats {
       uid: 10421
       pid: 2266
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.001335920382
     heap_size_mb: 0.0005157045820175333
@@ -135,6 +144,7 @@ android_garbage_collection_stats {
       uid: 10246
       pid: 2317
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_allocated_mb: 0.0
     heap_allocation_rate: 0.0
@@ -145,6 +155,7 @@ android_garbage_collection_stats {
       uid: 10217
       pid: 2382
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.001318185906
     heap_size_mb: 0.000508858552376764
@@ -157,6 +168,7 @@ android_garbage_collection_stats {
       uid: 10235
       pid: 2407
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.001698210004
     heap_size_mb: 0.000655559037866984
@@ -169,6 +181,7 @@ android_garbage_collection_stats {
       uid: 10176
       pid: 2666
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 23.437303936342
     heap_size_mb: 9.047489051715914
@@ -181,6 +194,7 @@ android_garbage_collection_stats {
       uid: 10141
       pid: 2855
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 2.229153976088
     heap_size_mb: 0.8605190361495544
@@ -195,6 +209,7 @@ android_garbage_collection_stats {
       uid: 10173
       pid: 2909
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 10.020242708796
     heap_size_mb: 3.8681085695523714
@@ -209,6 +224,7 @@ android_garbage_collection_stats {
       uid: 1000
       pid: 2964
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.039915074364
     heap_size_mb: 0.015408393358194442
@@ -221,6 +237,7 @@ android_garbage_collection_stats {
       uid: 10149
       pid: 3022
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 1.452020476033
     heap_size_mb: 0.5605226350034819
@@ -233,6 +250,7 @@ android_garbage_collection_stats {
       uid: 10176
       pid: 3040
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 8.958439236982
     heap_size_mb: 3.458221181804885
@@ -245,6 +263,7 @@ android_garbage_collection_stats {
       uid: 10196
       pid: 3091
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 9.272426730011
     heap_size_mb: 3.5794295943966863
@@ -257,6 +276,7 @@ android_garbage_collection_stats {
       uid: 10182
       pid: 3162
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 7.149207998379
     heap_size_mb: 2.7598046801567913
@@ -278,6 +298,7 @@ android_garbage_collection_stats {
       uid: 10146
       pid: 3193
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 3.116816923766
     heap_size_mb: 1.203183056829744
@@ -290,6 +311,7 @@ android_garbage_collection_stats {
       uid: 10154
       pid: 3219
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 4.598447270353
     heap_size_mb: 1.775135973250733
@@ -302,6 +324,7 @@ android_garbage_collection_stats {
       uid: 10090
       pid: 3260
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 6.720670444029
     heap_size_mb: 2.5943765728215125
@@ -314,6 +337,7 @@ android_garbage_collection_stats {
       uid: 10283
       pid: 3279
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.749465098714
     heap_size_mb: 0.2893155839799387
@@ -326,6 +350,7 @@ android_garbage_collection_stats {
       uid: 10409
       pid: 3313
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 1.51127949732
     heap_size_mb: 0.58339836114356
@@ -338,6 +363,7 @@ android_garbage_collection_stats {
       uid: 10278
       pid: 3612
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 2.605557507264
     heap_size_mb: 1.0058218762966873
@@ -350,6 +376,7 @@ android_garbage_collection_stats {
       uid: 10131
       pid: 3628
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 9.759894513776
     heap_size_mb: 3.767606504533494
@@ -362,6 +389,7 @@ android_garbage_collection_stats {
       uid: 10155
       pid: 3644
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 8.437325134548
     heap_size_mb: 3.2570558024902603
@@ -374,6 +402,7 @@ android_garbage_collection_stats {
       uid: 10166
       pid: 3667
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 6.1865879369
     heap_size_mb: 2.388205007649721
@@ -386,6 +415,7 @@ android_garbage_collection_stats {
       uid: 1027
       pid: 3689
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 5.121230015436
     heap_size_mb: 1.976945497734062
@@ -398,6 +428,7 @@ android_garbage_collection_stats {
       uid: 1000
       pid: 3690
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.434026301482
     heap_size_mb: 0.16754692525560308
@@ -410,6 +441,7 @@ android_garbage_collection_stats {
       uid: 10244
       pid: 3719
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 4.265511314905
     heap_size_mb: 1.6466128965342353
@@ -422,6 +454,7 @@ android_garbage_collection_stats {
       uid: 10255
       pid: 3737
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.4964586881
     heap_size_mb: 0.1916476638018563
@@ -434,6 +467,7 @@ android_garbage_collection_stats {
       uid: 10212
       pid: 3803
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 5.061494815821
     heap_size_mb: 1.953885952746008
@@ -446,6 +480,7 @@ android_garbage_collection_stats {
       uid: 10201
       pid: 3827
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 5.888898525471
     heap_size_mb: 2.2732881341888915
@@ -458,6 +493,7 @@ android_garbage_collection_stats {
       uid: 10155
       pid: 3857
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 11.744597272805
     heap_size_mb: 4.53376017698648
@@ -470,6 +506,7 @@ android_garbage_collection_stats {
       uid: 10144
       pid: 3863
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 1.393338501862
     heap_size_mb: 0.5378696660319977
@@ -482,6 +519,7 @@ android_garbage_collection_stats {
       uid: 10197
       pid: 3915
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 4.861017464651
     heap_size_mb: 1.8764957953817443
@@ -494,6 +532,7 @@ android_garbage_collection_stats {
       uid: 10321
       pid: 3977
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 4.306523533806
     heap_size_mb: 1.662444819971385
@@ -506,6 +545,7 @@ android_garbage_collection_stats {
       uid: 10328
       pid: 4001
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 3.35872630106
     heap_size_mb: 1.296567195573668
@@ -518,6 +558,7 @@ android_garbage_collection_stats {
       uid: 10294
       pid: 4029
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 4.595402090763
     heap_size_mb: 1.7739604443129393
@@ -530,6 +571,7 @@ android_garbage_collection_stats {
       uid: 10332
       pid: 4091
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 1.132780545844
     heap_size_mb: 0.4372866270948722
@@ -542,6 +584,7 @@ android_garbage_collection_stats {
       uid: 10172
       pid: 4149
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 2.630657261196
     heap_size_mb: 1.0155111199706752
@@ -554,6 +597,7 @@ android_garbage_collection_stats {
       uid: 10210
       pid: 4154
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 2.650787522513
     heap_size_mb: 1.0232819932489505
@@ -566,6 +610,7 @@ android_garbage_collection_stats {
       uid: 10389
       pid: 4160
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 2.290407653808
     heap_size_mb: 0.8841647583731631
@@ -578,6 +623,7 @@ android_garbage_collection_stats {
       uid: 10288
       pid: 4274
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 2.008960047106
     heap_size_mb: 0.7755176995141646
@@ -590,6 +636,7 @@ android_garbage_collection_stats {
       uid: 10320
       pid: 4307
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 1.184198526762
     heap_size_mb: 0.4571354808999209
@@ -602,6 +649,7 @@ android_garbage_collection_stats {
       uid: 10313
       pid: 4322
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 1.415917403262
     heap_size_mb: 0.5465857864429087
@@ -614,6 +662,7 @@ android_garbage_collection_stats {
       uid: 10309
       pid: 4338
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 1.245760817858
     heap_size_mb: 0.4809003369687943
@@ -626,6 +675,7 @@ android_garbage_collection_stats {
       uid: 1000
       pid: 4416
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.93486318396
     heap_size_mb: 0.3608847009324783
@@ -638,6 +688,7 @@ android_garbage_collection_stats {
       uid: 10324
       pid: 4440
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.927179389852
     heap_size_mb: 0.3579185302817674
@@ -650,6 +701,7 @@ android_garbage_collection_stats {
       uid: 10110
       pid: 4461
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.724705644218
     heap_size_mb: 0.27975770590285887
@@ -662,6 +714,7 @@ android_garbage_collection_stats {
       uid: 10085
       pid: 4489
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.319045684136
     heap_size_mb: 0.12316102321571874
@@ -674,6 +727,7 @@ android_garbage_collection_stats {
       uid: 10245
       pid: 4525
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.501066897292
     heap_size_mb: 0.1934265681641447
@@ -686,6 +740,7 @@ android_garbage_collection_stats {
       uid: 10186
       pid: 4570
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.145264668822
     heap_size_mb: 0.0560764371336352
@@ -698,6 +753,7 @@ android_garbage_collection_stats {
       uid: 10358
       pid: 4635
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.047703078582
     heap_size_mb: 0.01841479217814633
@@ -710,6 +766,7 @@ android_garbage_collection_stats {
       uid: 10166
       pid: 4652
       android_user_id: 0
+      is_kernel_task: false
     }
     heap_size_mbs: 0.062291414302
     heap_size_mb: 0.02404631908362778

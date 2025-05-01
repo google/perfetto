@@ -32,7 +32,7 @@ struct ExamplePage {
   const char* data;
 };
 
-// Create a ProtoTranslationTable using the fomat files in
+// Create a ProtoTranslationTable using the format files in
 // directory |name|. Caches the table for subsequent lookups.
 ProtoTranslationTable* GetTable(const std::string& name);
 

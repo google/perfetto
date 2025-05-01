@@ -16,6 +16,7 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/common/system_info.proto";
 import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/trace/extension_descriptor.proto";
@@ -71,7 +72,6 @@ import "protos/perfetto/trace/ps/process_stats.proto";
 import "protos/perfetto/trace/ps/process_tree.proto";
 import "protos/perfetto/trace/remote_clock_sync.proto";
 import "protos/perfetto/trace/sys_stats/sys_stats.proto";
-import "protos/perfetto/trace/system_info.proto";
 import "protos/perfetto/trace/system_info/cpu_info.proto";
 import "protos/perfetto/trace/trace_packet_defaults.proto";
 import "protos/perfetto/trace/track_event/process_descriptor.proto";
@@ -180,7 +180,6 @@ message TracePacket {
     EntityStateResidency entity_state_residency = 91;
 
     // Only used in profile packets.
-    ProfiledFrameSymbols profiled_frame_symbols = 55;
     ModuleSymbols module_symbols = 61;
     DeobfuscationMapping deobfuscation_mapping = 64;
 
@@ -266,6 +265,9 @@ message TracePacket {
 
   // AndroidInputEvent android_input_event (moved to winscope_extensions)
   reserved 106;
+
+  // removed ProfiledFrameSymbols profiled_frame_symbols
+  reserved 55;
 
   // Trusted user id of the producer which generated this packet. Keep in sync
   // with TrustedPacket.trusted_uid.

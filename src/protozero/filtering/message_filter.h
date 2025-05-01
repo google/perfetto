@@ -99,7 +99,7 @@ class MessageFilter {
   // the root message passed to proto_filter when generating the bytecode
   // (in typical tracing use-cases, this is perfetto.protos.Trace). However, the
   // caller (TracingServiceImpl) might want to filter packets from the 2nd level
-  // (perfetto.protos.TracePacket) because the root level is pre-pended after
+  // (perfetto.protos.TracePacket) because the root level is prepended after
   // the fact. This call allows to change the root message for the filter.
   // The argument |field_ids| is an array of proto field ids and determines the
   // path to the new root. For instance, in the case of [1,2,3] SetFilterRoot
@@ -137,7 +137,7 @@ class MessageFilter {
 
   const Config& config() const { return config_; }
 
-  // Retuns the helper class used to perform string filtering.
+  // Returns the helper class used to perform string filtering.
   StringFilter& string_filter() { return config_.string_filter(); }
 
  private:

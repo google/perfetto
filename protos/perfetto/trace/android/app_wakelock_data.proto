@@ -51,4 +51,8 @@ message AppWakelockBundle {
   // The timestamp and event type, encoded as:
   //   (event_time - packet_time) << 1 | (acquired ? 1 : 0)
   repeated uint64 encoded_ts = 2 [packed = true];
+
+  // For writing single packets (mainly by tokenization).
+  optional AppWakelockInfo info = 3;
+  optional bool acquired = 4;
 }

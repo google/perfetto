@@ -29,6 +29,8 @@ WITH
     FROM cpu_frequency_counters AS cf
     JOIN _dev_cpu_policy_map AS d_map
       ON cf.ucpu = d_map.cpu
+    WHERE
+      dur > 0
   ),
   -- Get first freq transition per CPU
   first_cpu_freq_slices AS (

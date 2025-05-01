@@ -62,8 +62,9 @@ import {TrackView} from './track_view';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
 import {featureFlags} from '../../core/feature_flags';
 import {EmptyState} from '../../widgets/empty_state';
-import {Button} from '../../widgets/button';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
+import {CursorTooltip} from '../../widgets/cursor_tooltip';
 
 const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   id: 'virtualTrackScrolling',
@@ -124,6 +125,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   constructor({attrs}: m.Vnode<TrackTreeViewAttrs>) {
     this.trace = attrs.trace;
   }
+
+  private hoveredTrackNode?: TrackNode;
 
   view({attrs}: m.Vnode<TrackTreeViewAttrs>): m.Children {
     const {
@@ -201,6 +204,12 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             stickyTop,
             depth,
             collapsible: !filtersApplied,
+            onTrackMouseOver: () => {
+              this.hoveredTrackNode = node;
+            },
+            onTrackMouseOut: () => {
+              this.hoveredTrackNode = undefined;
+            },
           },
           children,
         );
@@ -222,6 +231,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           },
           m(Button, {
             intent: Intent.Primary,
+            variant: ButtonVariant.Filled,
             label: 'Clear track filter',
             onclick: () => trace.tracks.filters.clearAll(),
           }),
@@ -272,7 +282,19 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         },
       },
       m('', {ref: TRACK_CONTAINER_REF}, trackVnodes),
+      this.hoveredTrackNode && this.renderPopup(this.hoveredTrackNode),
     );
+  }
+
+  private renderPopup(trackNode: TrackNode) {
+    const track = trackNode.uri
+      ? this.trace.tracks.getTrack(trackNode.uri)
+      : undefined;
+    const tooltipNodes = track?.track.renderTooltip?.();
+    if (!Boolean(tooltipNodes)) {
+      return;
+    }
+    return m(CursorTooltip, {className: 'pf-track__tooltip'}, tooltipNodes);
   }
 
   oncreate(vnode: m.VnodeDOM<TrackTreeViewAttrs>) {

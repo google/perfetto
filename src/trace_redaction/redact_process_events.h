@@ -59,6 +59,11 @@ class RedactProcessEvents : public TransformPrimitive {
     filter_ = std::make_unique<Filter>();
   }
 
+  template <class Filter>
+  void emplace_filter(std::unique_ptr<Filter> filter) {
+    filter_ = std::move(filter);
+  }
+
  private:
   base::Status OnFtraceEvents(const Context& context,
                               protozero::ConstBytes bytes,
@@ -88,6 +93,7 @@ class RedactProcessEvents : public TransformPrimitive {
       const Context& context,
       uint64_t ts,
       int32_t cpu,
+      int32_t pid,
       protozero::ConstBytes bytes,
       std::string* shared_comm,
       protos::pbzero::FtraceEvent* parent_message) const;

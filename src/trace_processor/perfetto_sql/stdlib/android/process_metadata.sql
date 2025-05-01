@@ -67,6 +67,37 @@ SELECT
   debuggable
 FROM min_distance;
 
+-- Table containing the upids of all kernel tasks.
+CREATE PERFETTO TABLE _android_kernel_tasks (
+  -- upid of the kernel task
+  upid LONG
+) AS
+SELECT
+  a.upid
+FROM process AS a
+LEFT JOIN process AS b
+  ON a.parent_upid = b.upid
+WHERE
+  b.name = 'kthreadd' OR a.pid = 0 OR b.pid = 0
+ORDER BY
+  1;
+
+-- Returns true if the process is a kernel task.
+CREATE PERFETTO FUNCTION android_is_kernel_task(
+    -- Queried process
+    upid LONG
+)
+-- True for kernel tasks
+RETURNS BOOL AS
+SELECT
+  EXISTS(
+    SELECT
+      TRUE
+    FROM _android_kernel_tasks
+    WHERE
+      upid = $upid
+  );
+
 -- Data about packages running on the process.
 CREATE PERFETTO TABLE android_process_metadata (
   -- Process upid.
@@ -86,7 +117,9 @@ CREATE PERFETTO TABLE android_process_metadata (
   -- Package version code.
   version_code LONG,
   -- Whether package is debuggable.
-  debuggable LONG
+  debuggable LONG,
+  -- Whether the task is kernel or not
+  is_kernel_task BOOL
 ) AS
 SELECT
   process.upid,
@@ -109,7 +142,8 @@ SELECT
   CASE WHEN _uid_package_count.cnt > 1 THEN TRUE ELSE NULL END AS shared_uid,
   plist.package_name,
   plist.version_code,
-  plist.debuggable
+  plist.debuggable,
+  android_is_kernel_task(process.upid) AS is_kernel_task
 FROM process
 LEFT JOIN _uid_package_count
   ON process.android_appid = _uid_package_count.uid

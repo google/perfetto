@@ -23,5 +23,6 @@ perfetto_proto_library("@TYPE@") {
   ]
   deps = [ "..:@TYPE@" ]
   generate_descriptor = "all_webview_metrics.descriptor"
+  generator_visibility = [ "../../../../src/trace_processor/metrics:gen_cc_all_webview_metrics_descriptor" ]
   descriptor_root_source = "all_webview_metrics.proto"
 }

@@ -180,7 +180,9 @@ message FrameTimelineEvent {
 
   // FrameEnd just sends the cookie to indicate that the corresponding
   // <display/surface>frame slice's end.
-  message FrameEnd { optional int64 cookie = 1; };
+  message FrameEnd {
+    optional int64 cookie = 1;
+  };
 
   oneof event {
     ExpectedDisplayFrameStart expected_display_frame_start = 1;

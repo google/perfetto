@@ -103,7 +103,7 @@ base::Status CreateQueriesAndComputeMetrics(
     const TraceSummaryOutputSpec& output_spec) {
   for (const auto& query : queries) {
     auto it = processor->ExecuteQuery("CREATE PERFETTO TABLE " +
-                                      query.table_name + " " + query.sql);
+                                      query.table_name + " AS " + query.sql);
     PERFETTO_CHECK(!it.Next());
     if (!it.Status().ok()) {
       return base::ErrStatus("Error while executing shared query %s: %s",
@@ -246,8 +246,8 @@ base::Status Summarize(TraceProcessor* processor,
               "Metric with empty id field: this is not allowed");
         }
 
-        // If metric ids is empty, we need to compute all metrics. Otherwise
-        // only compute metrics which were populated in the map.
+        // Only compute metrics which were populated in the map (i.e. the ones
+        // which were specified in the `computation.v2_metric_ids` field).
         Metric* metric = queries_per_metric.Find(id);
         if (!metric) {
           continue;

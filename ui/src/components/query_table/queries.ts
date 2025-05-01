@@ -15,8 +15,6 @@
 import {Engine} from '../../trace_processor/engine';
 import {Row} from '../../trace_processor/query_result';
 
-export const MAX_DISPLAY_ROWS = 30000;
-
 export interface QueryResponse {
   query: string;
   error?: string;
@@ -63,7 +61,6 @@ export async function runQueryForQueryTable(
     const durationMs = performance.now() - startMs;
     const rows: Row[] = [];
     const columns = queryRes.columns();
-    let numRows = 0;
     for (const iter = queryRes.iter({}); iter.valid(); iter.next()) {
       const row: Row = {};
       for (const colName of columns) {
@@ -71,7 +68,6 @@ export async function runQueryForQueryTable(
         row[colName] = value === null ? 'NULL' : value;
       }
       rows.push(row);
-      if (++numRows >= MAX_DISPLAY_ROWS) break;
     }
 
     const result: QueryResponse = {

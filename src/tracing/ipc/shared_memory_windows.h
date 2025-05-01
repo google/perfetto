@@ -43,10 +43,12 @@ class SharedMemoryWindows : public SharedMemory {
   // Create a brand new SHM region.
   enum Flags { kNone = 0, kInheritableHandles };
   static std::unique_ptr<SharedMemoryWindows> Create(
-      size_t size, Flags flags=Flags::kNone);
+      size_t size,
+      Flags flags = Flags::kNone);
   static std::unique_ptr<SharedMemoryWindows> Attach(const std::string& key);
   static std::unique_ptr<SharedMemoryWindows> AttachToHandleWithKey(
-      base::ScopedPlatformHandle fd, const std::string& key);
+      base::ScopedPlatformHandle fd,
+      const std::string& key);
   ~SharedMemoryWindows() override;
   const std::string& key() const { return key_; }
   const base::ScopedPlatformHandle& handle() const { return handle_; }
