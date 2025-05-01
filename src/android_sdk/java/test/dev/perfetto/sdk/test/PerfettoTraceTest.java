@@ -92,13 +92,6 @@ public class PerfettoTraceTest {
   }
 
   @Test
-  public void testCanCompileAndroidMessageQueueProto() {
-    perfetto.protos.AndroidTrackEventOuterClass.AndroidMessageQueue mqproto = null;
-    String clsName = perfetto.protos.AndroidTrackEventOuterClass.AndroidMessageQueue.newBuilder().build().getClass().getName();
-    Log.d(TAG, "testCanCompileAndroidMessageQueueProto: " + clsName);
-  }
-
-  @Test
   public void testFreeNativeMemoryWhenJavaObjectGCed() {
     TraceConfig traceConfig = getTraceConfig(FOO);
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
