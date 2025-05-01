@@ -47,7 +47,7 @@ export interface LogFilteringCriteria {
 }
 
 export interface LogPanelCache {
-  uMachineIds: number[];
+  uniqueMachineIds: number[] | null;
 }
 
 export interface LogPanelAttrs {
@@ -109,9 +109,11 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
     this.filterMonitor = new Monitor([() => attrs.filterStore.state]);
 
-    getMachineIds(attrs.trace.engine).then((uMachineIds) => {
-      attrs.cache.uMachineIds = uMachineIds;
-    });
+    if (attrs.cache.uniqueMachineIds === null) {
+      getMachineIds(attrs.trace.engine).then((uniqueMachineIds) => {
+        attrs.cache.uniqueMachineIds = uniqueMachineIds;
+      });
+    }
   }
 
   view({attrs}: m.CVnode<LogPanelAttrs>) {
@@ -119,7 +121,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       this.reloadData(attrs);
     }
 
-    const hasMachineIds = attrs.cache.uMachineIds.length > 1;
+    const hasMachineIds = (attrs.cache.uniqueMachineIds?.length ?? 0) > 1;
     const hasProcessNames =
       this.entries &&
       this.entries.processName.filter((name) => name).length > 0;
@@ -318,7 +320,7 @@ interface LogsFiltersAttrs {
 
 export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
   view({attrs}: m.CVnode<LogsFiltersAttrs>) {
-    const hasMachineIds = attrs.cache.uMachineIds.length > 1;
+    const hasMachineIds = (attrs.cache.uniqueMachineIds?.length ?? 0) > 1;
 
     return [
       m('.log-label', 'Log Level'),
@@ -369,7 +371,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
 
   private renderFilterPanel(attrs: LogsFiltersAttrs) {
     const machineExcludeList = attrs.store.state.machineExcludeList;
-    const options: MultiSelectOption[] = attrs.cache.uMachineIds.map(
+    const options: MultiSelectOption[] = attrs.cache.uniqueMachineIds!.map(
       (uMachineId) => {
         return {
           id: String(uMachineId),
@@ -491,7 +493,7 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
     selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
   }
   if (filter.machineExcludeList.length) {
-    selectedRows += ` and ifnull(process.machine_id, 0) not in (${filter.machineExcludeList.join()})`;
+    selectedRows += ` and ifnull(process.machine_id, 0) not in (${filter.machineExcludeList.join(',')})`;
   }
 
   // We extract only the rows which will be visible.

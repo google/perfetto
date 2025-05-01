@@ -77,7 +77,7 @@ export default class implements PerfettoPlugin {
     );
 
     const cache: LogPanelCache = {
-      uMachineIds: [],
+      uniqueMachineIds: null,
     };
 
     ctx.tabs.registerTab({
