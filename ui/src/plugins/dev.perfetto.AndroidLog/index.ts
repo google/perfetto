@@ -17,7 +17,8 @@ import {LogFilteringCriteria, LogPanelCache, LogPanel} from './logs_panel';
 import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {NUM} from '../../trace_processor/query_result';
+import {Engine} from '../../trace_processor/engine';
+import {NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {createAndroidLogTrack} from './logs_track';
 import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
@@ -39,6 +40,22 @@ const DEFAULT_STATE: AndroidLogPluginState = {
 interface AndroidLogPluginState {
   version: number;
   filter: LogFilteringCriteria;
+}
+
+async function getMachineIds(engine: Engine): Promise<number[]> {
+  // A machine might not provide Android logs, even if configured to do so.
+  // Hence, the |cpu| table might have ids not present in the logs. Given this
+  // is highly unlikely and going through all logs is expensive, we will get
+  // the ids from |cpu|, even if filter shows ids not present in logs.
+  const result = await engine.query(
+    `SELECT DISTINCT(machine_id) FROM cpu ORDER BY machine_id`,
+  );
+  const machineIds: number[] = [];
+  const it = result.iter({machine_id: NUM_NULL});
+  for (; it.valid(); it.next()) {
+    machineIds.push(it.machine_id ?? 0);
+  }
+  return machineIds;
 }
 
 export default class implements PerfettoPlugin {
@@ -77,7 +94,7 @@ export default class implements PerfettoPlugin {
     );
 
     const cache: LogPanelCache = {
-      uniqueMachineIds: null,
+      uniqueMachineIds: await getMachineIds(ctx.engine),
     };
 
     ctx.tabs.registerTab({

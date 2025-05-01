@@ -47,7 +47,7 @@ export interface LogFilteringCriteria {
 }
 
 export interface LogPanelCache {
-  uniqueMachineIds: number[] | null;
+  uniqueMachineIds: number[];
 }
 
 export interface LogPanelAttrs {
@@ -73,22 +73,6 @@ interface LogEntries {
   totalEvents: number; // Count of the total number of events within this window
 }
 
-async function getMachineIds(engine: Engine): Promise<number[]> {
-  // A machine might not provide Android logs, even if configured to do so.
-  // Hence, the |cpu| table might have ids not present in the logs. Given this
-  // is highly unlikely and going through all logs is expensive, we will get
-  // the ids from |cpu|, even if filter shows ids not present in logs.
-  const result = await engine.query(
-    `SELECT DISTINCT(machine_id) FROM cpu ORDER BY machine_id`,
-  );
-  const machineIds: number[] = [];
-  const it = result.iter({machine_id: NUM_NULL});
-  for (; it.valid(); it.next()) {
-    machineIds.push(it.machine_id ?? 0);
-  }
-  return machineIds;
-}
-
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private entries?: LogEntries;
 
@@ -108,12 +92,6 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     ]);
 
     this.filterMonitor = new Monitor([() => attrs.filterStore.state]);
-
-    if (attrs.cache.uniqueMachineIds === null) {
-      getMachineIds(attrs.trace.engine).then((uniqueMachineIds) => {
-        attrs.cache.uniqueMachineIds = uniqueMachineIds;
-      });
-    }
   }
 
   view({attrs}: m.CVnode<LogPanelAttrs>) {
@@ -121,7 +99,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       this.reloadData(attrs);
     }
 
-    const hasMachineIds = (attrs.cache.uniqueMachineIds?.length ?? 0) > 1;
+    const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
     const hasProcessNames =
       this.entries &&
       this.entries.processName.filter((name) => name).length > 0;
@@ -320,7 +298,7 @@ interface LogsFiltersAttrs {
 
 export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
   view({attrs}: m.CVnode<LogsFiltersAttrs>) {
-    const hasMachineIds = (attrs.cache.uniqueMachineIds?.length ?? 0) > 1;
+    const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
 
     return [
       m('.log-label', 'Log Level'),
@@ -371,7 +349,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
 
   private renderFilterPanel(attrs: LogsFiltersAttrs) {
     const machineExcludeList = attrs.store.state.machineExcludeList;
-    const options: MultiSelectOption[] = attrs.cache.uniqueMachineIds!.map(
+    const options: MultiSelectOption[] = attrs.cache.uniqueMachineIds.map(
       (uMachineId) => {
         return {
           id: String(uMachineId),
