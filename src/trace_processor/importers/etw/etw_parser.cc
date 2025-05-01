@@ -64,7 +64,9 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
 
 void EtwParser::ParseCswitch(int64_t timestamp, uint32_t cpu, ConstBytes blob) {
   protos::pbzero::CSwitchEtwEvent::Decoder cs(blob);
-  int32_t old_thread_state = cs.has_old_thread_state() ? cs.old_thread_state() : cs.old_thread_state_int();
+  int32_t old_thread_state = cs.has_old_thread_state()
+                                 ? cs.old_thread_state()
+                                 : cs.old_thread_state_int();
   PushSchedSwitch(cpu, timestamp, cs.old_thread_id(), old_thread_state,
                   cs.new_thread_id(), cs.new_thread_priority());
 }
