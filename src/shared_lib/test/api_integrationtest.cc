@@ -1209,6 +1209,23 @@ TEST_F(SharedLibProducerTest, ActivateTriggers) {
                           StringField("trigger1"))))))))));
 }
 
+TEST(SharedLibNonInitializedTest, DataSourceTrace) {
+  EXPECT_FALSE(PERFETTO_ATOMIC_LOAD(data_source_1.enabled));
+
+  bool executed = false;
+
+  PERFETTO_DS_TRACE(data_source_1, ctx) {
+    executed = true;
+  }
+
+  EXPECT_FALSE(executed);
+}
+
+TEST(SharedLibNonInitializedTest, TeMacro) {
+  EXPECT_FALSE(std::atomic_load(cat1.enabled));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+}
+
 class SharedLibTrackEventTest : public testing::Test {
  protected:
   void SetUp() override {
