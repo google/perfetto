@@ -82,7 +82,7 @@ class TypeSet {
   TypeSet() = delete;
 
   template <typename T, typename = std::enable_if_t<Contains<T>()>>
-  TypeSet(T) : type_idx_(GetTypeIndex<T>()) {}
+  constexpr TypeSet(T) : type_idx_(GetTypeIndex<T>()) {}
 
   uint32_t index() const { return type_idx_; }
 

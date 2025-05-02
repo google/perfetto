@@ -184,7 +184,8 @@ def RunSteps(api, repository):
           'rev-parse', ['git', 'rev-parse', 'HEAD'],
           stdout=api.raw_io.output_text()).stdout.strip()
       ctx.maybe_git_tag = ref.replace(
-          'refs/tags/', '') if ref.startswith('refs/tags/') else None
+          'refs/tags/upstream/',
+          '') if ref.startswith('refs/tags/upstream/') else None
 
   # Pull all deps here.
   with api.context(cwd=src_dir, infra_steps=True):
@@ -238,7 +239,7 @@ def GenTests(api):
              project='perfetto',
              builder='official',
              git_repo='github.com/google/perfetto',
-             git_ref='refs/tags/v13.0'))
+             git_ref='refs/tags/upstream/v50.1'))
 
   yield (api.test('unofficial') + api.platform.name('linux') +
          api.buildbucket.ci_build(
