@@ -45,6 +45,23 @@ class TraceProcessorHttp:
       result.ParseFromString(f.read())
       return result
 
+  def trace_summary(self,
+                    metric_ids: List[str],
+                    specs: List[str],
+                    metadata_query_id: str | None = None):
+    args = self.protos.TraceSummaryArgs()
+    args.textproto_specs.extend(specs)
+    args.computation_spec.metric_ids.extend(metric_ids)
+    if (metadata_query_id is not None):
+      args.computation_spec.metadata_query_id = metadata_query_id
+    args.format = self.protos.TraceSummaryArgs.Format.BINARY_PROTOBUF
+    byte_data = args.SerializeToString()
+    self.conn.request('POST', '/trace_summary', body=byte_data)
+    with self.conn.getresponse() as f:
+      result = self.protos.TraceSummaryResult()
+      result.ParseFromString(f.read())
+      return result
+
   def parse(self, chunk: bytes):
     self.conn.request('POST', '/parse', body=chunk)
     with self.conn.getresponse() as f:

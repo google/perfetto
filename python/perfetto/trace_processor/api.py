@@ -166,6 +166,30 @@ class TraceProcessor:
     metrics.ParseFromString(response.metrics)
     return metrics
 
+  def trace_summary(self,
+                    metric_ids: List[str],
+                    specs: List[str],
+                    metadata_query_id: str | None = None):
+    """Returns the trace summary data corresponding to the passed in metric
+    IDs and specs. Raises TraceProcessorException if the response returns with
+    an error.
+
+    Args:
+      metric_ids: A list of metric IDs as defined in TraceMetrics
+      specs: A list of textproto specs to be used for the summary
+      metadata_query_id: Optional query ID for metadata
+
+    Returns:
+      The trace summary data as a proto message
+    """
+    response = self.http.trace_summary(metric_ids, specs, metadata_query_id)
+    if response.error:
+      raise TraceProcessorException(response.error)
+
+    summary = self.protos.TraceSummary()
+    summary.ParseFromString(response.proto_summary)
+    return summary
+
   def enable_metatrace(self):
     """Enable metatrace for the currently running trace_processor.
     """

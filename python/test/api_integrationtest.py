@@ -306,3 +306,26 @@ class TestApi(unittest.TestCase):
         qr_iterator = tp.query(
             'SELECT IMPORT("ext.module"); SELECT test_value FROM test_table')
         self.assertEqual(next(qr_iterator).test_value, 123)
+
+  def test_trace_summary_failure(self):
+    tp = create_tp(trace=example_android_trace_path())
+    with self.assertRaises(TraceProcessorException):
+      _ = tp.trace_summary(['foo'], ['bar, baz'])
+    tp.close()
+
+  def test_trace_summary_success(self):
+    metric_spec = """metric_spec: {
+        id: "memory_per_process"
+        value: "dur"
+        query: {
+          simple_slices {
+            process_name_glob: "ab*"
+          }
+        }
+      }
+      """
+
+    tp = create_tp(trace=example_android_trace_path())
+    trace_summary = tp.trace_summary(['memory_per_process'], [metric_spec])
+    self.assertEqual(trace_summary.metric[0].spec.id, 'memory_per_process')
+    tp.close()
