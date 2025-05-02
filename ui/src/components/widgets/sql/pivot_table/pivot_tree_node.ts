@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists, assertTrue} from '../../../../base/logging';
+import {
+  assertExists,
+  assertDefined,
+  assertTrue,
+} from '../../../../base/logging';
 import {Row} from '../../../../trace_processor/query_result';
 import {SqlValue} from '../../../../trace_processor/sql_utils';
 import {Filter, StandardFilters} from '../table/filters';
@@ -26,12 +30,6 @@ import {
 } from './aggregations';
 import {aggregationId, pivotId} from './ids';
 import type {SortOrder} from './pivot_table_state';
-
-// assertExists trips over NULLs, but NULL is a valid SQL value we have to work with.
-function assertNotUndefined<T>(value: T | undefined): T {
-  if (value === undefined) throw new Error('Value is undefined');
-  return value;
-}
 
 interface Config {
   readonly pivots: ReadonlyArray<TableColumn>;
@@ -214,7 +212,7 @@ export class PivotTreeNode {
     );
     this.children.clear();
     for (const child of sorted) {
-      this.children.set(assertNotUndefined(child.pivotValue), child);
+      this.children.set(assertDefined(child.pivotValue), child);
     }
   }
 
@@ -248,7 +246,7 @@ export class PivotTreeNode {
   private getFilter(): Filter {
     return StandardFilters.valueEquals(
       this.config.pivots[this.getPivotIndex()].column,
-      assertNotUndefined(this.pivotValue),
+      assertDefined(this.pivotValue),
     );
   }
 
@@ -333,8 +331,8 @@ export class PivotTreeNode {
         // For pivot sorting, we only compare the pivot values at the given depth.
         if (index + 1 === lhs.depth) {
           const cmp = compareSqlValues(
-            assertNotUndefined(lhs.pivotValue),
-            assertNotUndefined(rhs.pivotValue),
+            assertDefined(lhs.pivotValue),
+            assertDefined(rhs.pivotValue),
           );
           if (cmp !== 0) return direction === 'ASC' ? cmp : -cmp;
         }

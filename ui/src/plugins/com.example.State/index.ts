@@ -25,7 +25,7 @@ interface State {
 // This example plugin shows using state that is persisted in the
 // permalink.
 export default class implements PerfettoPlugin {
-  static readonly id = 'com.example.ExampleState';
+  static readonly id = 'com.example.State';
   private store: Store<State> = createStore({counter: 0});
 
   private migrate(initialState: unknown): State {

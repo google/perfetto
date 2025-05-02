@@ -16,6 +16,7 @@
 
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "protos/perfetto/config/data_source_config.gen.h"
 
 namespace perfetto {
@@ -74,8 +75,9 @@ void DataSourceType::PopulateTlsInst(
           std::memory_order_relaxed);
   tls_inst->data_source_instance_id = instance_state->data_source_instance_id;
   tls_inst->is_intercepted = instance_state->interceptor_id != 0;
-  tls_inst->trace_writer = tracing_impl->CreateTraceWriter(
-      &state_, instance_index, instance_state, buffer_exhausted_policy_);
+  tls_inst->trace_writer =
+      tracing_impl->CreateTraceWriter(&state_, instance_index, instance_state,
+                                      instance_state->buffer_exhausted_policy);
   if (create_incremental_state_fn_) {
     PERFETTO_DCHECK(!tls_inst->incremental_state);
     CreateIncrementalState(tls_inst, instance_index);

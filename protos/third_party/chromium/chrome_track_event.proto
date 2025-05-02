@@ -323,6 +323,7 @@ message ChildProcessLauncherPriority {
     IMPORTANCE_NORMAL = 1;
     IMPORTANCE_MODERATE = 2;
     IMPORTANCE_IMPORTANT = 3;
+    IMPORTANCE_PERCEPTIBLE = 4;
   }
   optional Importance importance = 3;
 }
@@ -701,7 +702,8 @@ message BackForwardCacheCanStoreDocumentResult {
     WEBVIEW_SAFE_BROWSING_ALLOWLIST_CHANGED = 63;
     WEBVIEW_DOCUMENT_START_JAVASCRIPT_CHANGED = 64;
     CACHE_CONTROL_NO_STORE_DEVICE_BOUND_SESSION_TERMINATED = 65;
-    CACHE_LIMIT_PRUNED = 66;
+    CACHE_LIMIT_PRUNED_ON_MODERATE_MEMORY_PRESSURE = 66;
+    CACHE_LIMIT_PRUNED_ON_CRITICAL_MEMORY_PRESSURE = 67;
   }
 
   optional BackForwardCacheNotRestoredReason
@@ -1677,7 +1679,7 @@ message ScrollMetrics {
 //
 // All data comes from MotionEvent getters so read these for more context:
 // https://developer.android.com/reference/android/view/MotionEvent
-// Next id: 10
+// Next id: 11
 message EventForwarder {
   // The events getHistorySize().
   optional int32 history_size = 1;
@@ -1714,6 +1716,9 @@ message EventForwarder {
     AMOTION_EVENT_ACTION_BUTTON_RELEASE = 12;
   }
   optional AMotionEventAction action = 9;
+
+  // Whether the event came from the system.
+  optional bool verified_event = 10;
 }
 
 // TouchDispositionGestureFilter is a class on android that detects and forwards

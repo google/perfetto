@@ -53,7 +53,6 @@ perfetto_py_binary(
         ":trace_processor_py",
     ] + PERFETTO_CONFIG.deps.pandas_py,
     main = "tools/slice_breakdown.py",
-    python_version = "PY3",
 )
 
 # GN target: //python:trace_processor_table_generator
@@ -76,7 +75,6 @@ perfetto_py_binary(
         ":trace_processor_py",
     ] + PERFETTO_CONFIG.deps.pandas_py,
     main = "example.py",
-    python_version = "PY3",
 )
 
 # GN target: //python:sql_processing

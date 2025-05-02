@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,17 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
+export const CPU_SLICE_URI_PREFIX = '/sched_cpu';
 
-// This is just an example plugin, used to prove that the plugin system works.
-export default class implements PerfettoPlugin {
-  static readonly id = 'com.example.ExampleSimpleCommand';
-  static onActivate(ctx: App): void {
-    ctx.commands.registerCommand({
-      id: 'com.example.ExampleSimpleCommand#LogHelloWorld',
-      name: 'Log "Hello, world!"',
-      callback: () => console.log('Hello, world!'),
-    });
-  }
+// Helper function moved here as it's only used by the overlay.
+export function uriForSchedTrack(cpu: number): string {
+  return `${CPU_SLICE_URI_PREFIX}${cpu}`;
 }
