@@ -307,7 +307,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       },
       {
         id: 'perfetto.ConvertSelectionToArea',
-        name: 'Convert the current selection to an area selection',
+        name: 'Convert selection to area selection',
         callback: () => {
           const selection = trace.selection.selection;
           const range = trace.selection.findTimeRangeOfSelection();
@@ -319,8 +319,7 @@ export class UiMainPerTrace implements m.ClassComponent {
             });
           }
         },
-        // TODO(stevegolton): Decide on a sensible hotkey.
-        // defaultHotkey: 'L',
+        defaultHotkey: 'R',
       },
       {
         id: 'perfetto.ToggleDrawer',

@@ -15181,6 +15181,7 @@ filegroup {
         "src/trace_redaction/collect_frame_cookies.cc",
         "src/trace_redaction/collect_system_info.cc",
         "src/trace_redaction/collect_timeline_events.cc",
+        "src/trace_redaction/drop_empty_ftrace_events.cc",
         "src/trace_redaction/filtering.cc",
         "src/trace_redaction/find_package_uid.cc",
         "src/trace_redaction/merge_threads.cc",

@@ -24,6 +24,7 @@
 
 namespace perfetto::trace_processor {
 
+class ArgsTracker;
 class TraceProcessorContext;
 
 class AndroidProbesParser {
@@ -47,6 +48,7 @@ class AndroidProbesParser {
 
  private:
   TraceProcessorContext* const context_;
+  std::unique_ptr<ArgsTracker> power_rails_args_tracker_;
 
   const StringId battery_status_id_;
   const StringId plug_type_id_;
