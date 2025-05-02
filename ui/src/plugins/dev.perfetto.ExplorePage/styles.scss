@@ -108,7 +108,6 @@
     }
   }
   .pf-column-controller-item {
-    // display: block; // Put each item on a new line
     margin-top: 5px;
   }
 
@@ -134,7 +133,7 @@
   }
 }
 
-.query-canvas-container {
+.pf-query-canvas {
   position: relative;
   height: 800px;
   background-color: lightgray;
@@ -143,7 +142,7 @@
   border-radius: 4px;
 }
 
-.node-box {
+.pf-node-box {
   border: 2px solid blue;
   border-radius: 5px;
   padding: 10px;
@@ -154,20 +153,15 @@
   align-items: center;
   gap: 4px;
 
-  &.selected {
+  &__selected {
     border-color: var(--perfetto-selection-color);
     border-color: yellow;
     box-shadow: 0 0 5px yellow;
   }
 
-  &.invalid {
+  &__invalid {
     border-color: red;
     background-color: lightcoral;
-  }
-
-  // Style for the popup menu button inside the node box
-  .pf-button {
-    margin-left: auto;
   }
 }
 
@@ -187,10 +181,10 @@
   }
 }
 
-.right-panel {
+.pf-node-explorer {
   border-radius: $pf-border-radius;
   border: 1px solid rgba(0, 0, 0, 0.2);
-  .title-row {
+  &__title-row {
     padding: 6px;
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     display: flex;

@@ -118,13 +118,13 @@ export class QueryNodeExplorer
           }),
           m(MenuItem, {
             label: 'Show SQL',
-            onclick: async () => {
+            onclick: () => {
               this.selectedView = SelectedView.kSql;
             },
           }),
           m(MenuItem, {
             label: 'Show proto',
-            onclick: async () => {
+            onclick: () => {
               this.selectedView = SelectedView.kProto;
             },
           }),
@@ -142,9 +142,9 @@ export class QueryNodeExplorer
 
     return [
       m(
-        '.right-panel',
+        '.pf-node-explorer',
         m(
-          '.title-row',
+          '.pf-node-explorer__title-row',
           !attrs.node.validate() &&
             m(Icon, {
               icon: Icons.Warning,

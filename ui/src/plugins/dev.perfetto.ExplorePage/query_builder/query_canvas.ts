@@ -19,6 +19,7 @@ import {QueryNode} from '../query_node';
 import {PopupMenu} from '../../../widgets/menu';
 import {Icons} from '../../../base/semantic_icons';
 import {Intent} from '../../../widgets/common';
+import {classNames} from '../../../base/classnames';
 
 interface NodeBoxLayout {
   x: number;
@@ -40,13 +41,14 @@ interface NodeBoxAttrs {
 class NodeBox implements m.ClassComponent<NodeBoxAttrs> {
   view({attrs}: m.CVnode<NodeBoxAttrs>) {
     const {node, isSelected, layout, onNodeSelected, onNodeDragStart} = attrs;
-    const conditionalClasses = `${isSelected ? 'selected' : ''} ${
-      !node.validate() ? 'invalid' : ''
-    }`.trim();
+    const conditionalClasses = classNames(
+      isSelected && 'pf-node-box__selected',
+      !node.validate() && 'pf-node-box__invalid',
+    );
     return m(
-      '.node-box', // Base class
+      '.pf-node-box',
       {
-        class: conditionalClasses, // Apply conditional classes here
+        class: conditionalClasses,
         style: {
           position: 'absolute',
           left: `${layout.x || 10}px`,
@@ -117,7 +119,7 @@ export class QueryCanvas implements m.ClassComponent<QueryCanvasAttrs> {
   onNodeDragStart = (node: QueryNode, event: DragEvent) => {
     this.dragNode = node;
     const nodeElem = (event.target as HTMLElement).closest(
-      '.node-box',
+      '.pf-node-box',
     ) as HTMLElement;
 
     const layout = this.nodeLayouts.get(node) || {x: 10, y: 10};
@@ -156,7 +158,6 @@ export class QueryCanvas implements m.ClassComponent<QueryCanvasAttrs> {
               trigger: m(Button, {
                 icon: Icons.Add,
                 intent: Intent.Primary,
-                style: {},
               }),
             },
             addSourcePopupMenu(),
@@ -187,12 +188,6 @@ export class QueryCanvas implements m.ClassComponent<QueryCanvasAttrs> {
       });
     }
 
-    return m(
-      '.query-canvas-container',
-      {
-        // Styles are now in SCSS
-      },
-      nodes,
-    );
+    return m('.pf-query-canvas', nodes);
   }
 }
