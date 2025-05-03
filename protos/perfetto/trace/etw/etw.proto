@@ -81,7 +81,10 @@ message CSwitchEtwEvent {
     MAXIMUM_WAIT_REASON = 37;
   }
 
-  optional OldThreadWaitReason old_thread_wait_reason = 6;
+  oneof old_thread_wait_reason_enum_or_int {
+    OldThreadWaitReason old_thread_wait_reason = 6;
+    int32 old_thread_wait_reason_int = 11;
+  }
 
   // Wait mode for the previous thread. The ordering is important as based on
   // the OldThreadWaitMode definition from the link above. The following are the
@@ -91,7 +94,10 @@ message CSwitchEtwEvent {
     USER_MODE = 1;
   }
 
-  optional OldThreadWaitMode old_thread_wait_mode = 7;
+  oneof old_thread_wait_mode_enum_or_int {
+    OldThreadWaitMode old_thread_wait_mode = 7;
+    int32 old_thread_wait_mode_int = 12;
+  }
 
   // State of the previous thread. The ordering is important as based on the
   // OldThreadState definition from the link above. The following are the
@@ -107,7 +113,10 @@ message CSwitchEtwEvent {
     DEFERRED_READY = 7;
   }
 
-  optional OldThreadState old_thread_state = 8;
+  oneof old_thread_state_enum_or_int {
+    OldThreadState old_thread_state = 8;
+    sint32 old_thread_state_int = 13;
+  }
 
   // Ideal wait time of the previous thread.
   optional sint32 old_thread_wait_ideal_processor = 9;
@@ -134,7 +143,10 @@ message ReadyThreadEtwEvent {
     APPLY_INCREMENT_BOOST = 2;
   }
 
-  optional AdjustReason adjust_reason = 2;
+  oneof adjust_reason_enum_or_int {
+    AdjustReason adjust_reason = 2;
+    int32 adjust_reason_int = 5;
+  }
 
   //  The value by which the priority is being adjusted.
   optional sint32 adjust_increment = 3;
@@ -149,5 +161,8 @@ message ReadyThreadEtwEvent {
     PROCESS_ADDRESS_SWAPPED_OUT = 0x4;
   }
 
-  optional TraceFlag flag = 4;
+  oneof flag_enum_or_int {
+    TraceFlag flag = 4;
+    TraceFlag flag_int = 6;
+  }
 }

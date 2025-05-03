@@ -73,6 +73,11 @@ bool Contains(const std::string& haystack, const char needle) {
   return haystack.find(needle) != std::string::npos;
 }
 
+bool Contains(const std::vector<std::string>& haystack,
+              const std::string& needle) {
+  return std::find(haystack.begin(), haystack.end(), needle) != haystack.end();
+}
+
 size_t Find(const StringView& needle, const StringView& haystack) {
   if (needle.empty())
     return 0;

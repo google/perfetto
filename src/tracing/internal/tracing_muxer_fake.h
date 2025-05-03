@@ -44,11 +44,7 @@ class TracingMuxerFake : public TracingMuxer {
   ~TracingMuxerFake() override;
 
   static constexpr TracingMuxerFake* Get() {
-#if PERFETTO_HAS_NO_DESTROY()
     return &instance;
-#else
-    return nullptr;
-#endif
   }
 
   // TracingMuxer implementation.

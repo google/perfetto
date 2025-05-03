@@ -54,8 +54,9 @@ SELECT
   *
 FROM all_found
 -- Casting string to int returns 0 if the string can't be cast.
+-- frame_id is -1 indicating an invalid vsync id
 WHERE
-  frame_id != 0;
+  frame_id != 0 AND frame_id != -1;
 
 -- All of the `Choreographer#doFrame` slices with their frame id.
 CREATE PERFETTO TABLE android_frames_choreographer_do_frame (

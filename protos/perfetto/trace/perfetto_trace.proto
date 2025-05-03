@@ -3825,7 +3825,28 @@ message DataSourceConfig {
   // DO NOT SET in consumer as this will be overridden by the service.
   optional uint64 tracing_session_id = 4;
 
-  // Keeep the lower IDs (up to 99) for fields that are *not* specific to
+  enum BufferExhaustedPolicy {
+    // The data source will use its default buffer exhausted policy, specified
+    // by the code when the data source is registered.
+    BUFFER_EXHAUSTED_UNSPECIFIED = 0;
+    // The data source will drop packets when there's no space in the shared
+    // memory buffer.
+    BUFFER_EXHAUSTED_DROP = 1;
+    // The data source will wait when there's no space in the shared memory
+    // buffer. If there's still not space, after a few seconds, the whole
+    // producer process will be aborted.
+    BUFFER_EXHAUSTED_STALL_THEN_ABORT = 2;
+    // The data source will wait when there's no space in the shared memory
+    // buffer.  If there's still not space, after a few seconds, the data source
+    // will drop packets.
+    BUFFER_EXHAUSTED_STALL_THEN_DROP = 3;
+  };
+  // How to behave when the producer runs out of space in the shared memory
+  // buffer. This is only honored by some data sources (in the SDK, the data
+  // sources registered with a configurable buffer exhausted policy).
+  optional BufferExhaustedPolicy buffer_exhausted_policy = 9;
+
+  // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
 
   // All data source config fields must be marked as [lazy=true]. This prevents
@@ -6153,6 +6174,9 @@ message LayerProto {
   optional uint32 original_id = 58;
 
   optional TrustedOverlay trusted_overlay = 59;
+
+  // Layer's scale during background blur, relative to 1.0f=100%
+  optional float background_blur_scale = 60;
 }
 
 message PositionProto {
@@ -6463,6 +6487,8 @@ message LayerState {
   optional DropInputMode drop_input_mode = 42;
 
   optional TrustedOverlay trusted_overlay = 43;
+
+  optional float background_blur_scale = 44;
 }
 
 message DisplayState {
@@ -7133,7 +7159,10 @@ message CSwitchEtwEvent {
     MAXIMUM_WAIT_REASON = 37;
   }
 
-  optional OldThreadWaitReason old_thread_wait_reason = 6;
+  oneof old_thread_wait_reason_enum_or_int {
+    OldThreadWaitReason old_thread_wait_reason = 6;
+    int32 old_thread_wait_reason_int = 11;
+  }
 
   // Wait mode for the previous thread. The ordering is important as based on
   // the OldThreadWaitMode definition from the link above. The following are the
@@ -7143,7 +7172,10 @@ message CSwitchEtwEvent {
     USER_MODE = 1;
   }
 
-  optional OldThreadWaitMode old_thread_wait_mode = 7;
+  oneof old_thread_wait_mode_enum_or_int {
+    OldThreadWaitMode old_thread_wait_mode = 7;
+    int32 old_thread_wait_mode_int = 12;
+  }
 
   // State of the previous thread. The ordering is important as based on the
   // OldThreadState definition from the link above. The following are the
@@ -7159,7 +7191,10 @@ message CSwitchEtwEvent {
     DEFERRED_READY = 7;
   }
 
-  optional OldThreadState old_thread_state = 8;
+  oneof old_thread_state_enum_or_int {
+    OldThreadState old_thread_state = 8;
+    sint32 old_thread_state_int = 13;
+  }
 
   // Ideal wait time of the previous thread.
   optional sint32 old_thread_wait_ideal_processor = 9;
@@ -7186,7 +7221,10 @@ message ReadyThreadEtwEvent {
     APPLY_INCREMENT_BOOST = 2;
   }
 
-  optional AdjustReason adjust_reason = 2;
+  oneof adjust_reason_enum_or_int {
+    AdjustReason adjust_reason = 2;
+    int32 adjust_reason_int = 5;
+  }
 
   //  The value by which the priority is being adjusted.
   optional sint32 adjust_increment = 3;
@@ -7201,7 +7239,10 @@ message ReadyThreadEtwEvent {
     PROCESS_ADDRESS_SWAPPED_OUT = 0x4;
   }
 
-  optional TraceFlag flag = 4;
+  oneof flag_enum_or_int {
+    TraceFlag flag = 4;
+    TraceFlag flag_int = 6;
+  }
 }
 // End of protos/perfetto/trace/etw/etw.proto
 

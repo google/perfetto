@@ -66,6 +66,8 @@ struct PerfettoDsImpl {
   perfetto::BufferExhaustedPolicy buffer_exhausted_policy =
       perfetto::BufferExhaustedPolicy::kDrop;
 
+  bool buffer_exhausted_policy_configurable = false;
+
   DataSourceType cpp_type;
   std::atomic<bool> enabled{false};
   std::mutex mu;
@@ -328,6 +330,18 @@ bool PerfettoDsSetBufferExhaustedPolicy(struct PerfettoDsImpl* ds_impl,
   return false;
 }
 
+bool PerfettoDsSetBufferExhaustedPolicyConfigurable(
+    struct PerfettoDsImpl* ds_impl,
+    bool configurable) {
+  if (ds_impl->IsRegistered()) {
+    return false;
+  }
+
+  ds_impl->buffer_exhausted_policy_configurable = configurable;
+
+  return true;
+}
+
 bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
                             PERFETTO_ATOMIC(bool) * *enabled_ptr,
                             const void* descriptor,
@@ -358,12 +372,16 @@ bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
   }
 
   perfetto::internal::DataSourceParams params;
+  params.default_buffer_exhausted_policy = ds_impl->buffer_exhausted_policy;
+  params.buffer_exhausted_policy_configurable =
+      ds_impl->buffer_exhausted_policy_configurable;
   params.supports_multiple_instances = true;
   params.requires_callbacks_under_lock = false;
+  params.default_buffer_exhausted_policy =
+      data_source_type->buffer_exhausted_policy;
   bool success = data_source_type->cpp_type.Register(
-      dsd, factory, params, data_source_type->buffer_exhausted_policy,
-      data_source_type->on_flush_cb == nullptr, create_custom_tls_fn,
-      create_incremental_state_fn, cb_ctx);
+      dsd, factory, params, data_source_type->on_flush_cb == nullptr,
+      create_custom_tls_fn, create_incremental_state_fn, cb_ctx);
   if (!success) {
     return false;
   }

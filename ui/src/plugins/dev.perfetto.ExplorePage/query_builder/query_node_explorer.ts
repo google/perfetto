@@ -20,144 +20,148 @@ import {runQueryForQueryTable} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
-import {NodeType, QueryNode} from '../query_node';
-import {ColumnController, ColumnControllerDiff} from './column_controller';
+import {QueryNode} from '../query_node';
 import {Section} from '../../../widgets/section';
 import {Engine} from '../../../trace_processor/engine';
 import protos from '../../../protos';
 import {copyToClipboard} from '../../../base/clipboard';
 import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
-import {Trace} from '../../../public/trace';
+import {Operator} from './operations/operation_component';
+import {Trace} from 'src/public/trace';
 
-export interface DataSourceAttrs {
+export interface QueryNodeExplorerAttrs {
+  readonly node: QueryNode;
   readonly trace: Trace;
-  readonly queryNode: QueryNode;
 }
 
 enum SelectedView {
-  COLUMNS = 0,
-  SQL = 1,
-  PROTO = 2,
+  kModify = 0,
+  kSql = 1,
+  kProto = 2,
 }
 
-export class DataSourceViewer implements m.ClassComponent<DataSourceAttrs> {
+export class QueryNodeExplorer
+  implements m.ClassComponent<QueryNodeExplorerAttrs>
+{
   private readonly tableAsyncLimiter = new AsyncLimiter();
 
   private queryResult: QueryResponse | undefined;
-  private showDataSourceInfoPanel: number = 0;
+  private selectedView: number = 0;
 
   private prevSqString?: string;
   private curSqString?: string;
 
-  private currentSql?: Query;
+  private currentQuery?: Query | Error;
 
-  view({attrs}: m.CVnode<DataSourceAttrs>) {
-    function renderPickColumns(node: QueryNode): m.Child {
-      return m(ColumnController, {
-        options: node.finalCols,
-        onChange: (diffs: ColumnControllerDiff[]) => {
-          diffs.forEach(({id, checked, alias}) => {
-            if (node.finalCols === undefined) {
-              return;
-            }
-            for (const option of node.finalCols) {
-              if (option.id === id) {
-                option.checked = checked;
-                option.alias = alias;
-              }
-            }
-          });
-        },
+  private getAndRunQuery(node: QueryNode, engine: Engine): undefined {
+    console.log('getAndRunQuery', node);
+    const sq = node.getStructuredQuery();
+    if (sq === undefined) return;
+    console.log('sq', sq);
+
+    this.curSqString = JSON.stringify(sq.toJSON(), null, 2);
+
+    if (this.curSqString !== this.prevSqString) {
+      this.tableAsyncLimiter.schedule(async () => {
+        this.currentQuery = await analyzeNode(node, engine);
+        if (!isQueryValid(this.currentQuery)) {
+          return;
+        }
+        this.queryResult = await runQueryForQueryTable(
+          queryToRun(this.currentQuery),
+          engine,
+        );
+        this.prevSqString = this.curSqString;
       });
     }
+  }
 
+  view({attrs}: m.CVnode<QueryNodeExplorerAttrs>) {
     const renderTable = () => {
+      if (this.currentQuery === undefined) {
+        return m(TextParagraph, {text: `No data to display}`});
+      }
+      if (this.currentQuery instanceof Error) {
+        return m(TextParagraph, {text: `Error: ${this.currentQuery.message}`});
+      }
       if (this.queryResult === undefined) {
-        return;
+        this.getAndRunQuery(attrs.node, attrs.trace.engine);
+        return m(TextParagraph, {text: `No data to display`});
       }
       if (this.queryResult.error !== undefined) {
         return m(TextParagraph, {text: `Error: ${this.queryResult.error}`});
       }
       return (
-        this.currentSql &&
+        this.currentQuery &&
         m(QueryTable, {
           trace: attrs.trace,
-          query: queryToRun(this.currentSql),
+          query: queryToRun(this.currentQuery),
           resp: this.queryResult,
           fillParent: false,
         })
       );
     };
 
-    const renderButtons = (): m.Child => {
+    const renderSelectedViewButtons = (): m.Child => {
       return m(SegmentedButtons, {
         ...attrs,
         options: [
-          {label: 'Show columns'},
+          {label: 'Modify'},
           {label: 'Show SQL'},
           {label: 'Show proto'},
         ],
-        selectedOption: this.showDataSourceInfoPanel,
+        selectedOption: this.selectedView,
         onOptionSelected: (num) => {
-          this.showDataSourceInfoPanel = num;
+          this.selectedView = num;
         },
       });
     };
 
-    const sq = attrs.queryNode.getStructuredQuery();
-    if (sq === undefined) return;
+    this.getAndRunQuery(attrs.node, attrs.trace.engine);
+    const sql: string = isQueryValid(this.currentQuery)
+      ? queryToRun(this.currentQuery)
+      : '';
+    const textproto: string = isQueryValid(this.currentQuery)
+      ? this.currentQuery.textproto
+      : '';
 
-    this.curSqString = JSON.stringify(sq.toJSON(), null, 2);
-
-    if (this.curSqString !== this.prevSqString) {
-      this.tableAsyncLimiter.schedule(async () => {
-        this.currentSql = await analyzeNode(
-          attrs.queryNode,
-          attrs.trace.engine,
-        );
-        if (this.currentSql === undefined) {
-          return;
-        }
-        this.queryResult = await runQueryForQueryTable(
-          attrs.queryNode.type === NodeType.kSqlSource
-            ? queryToRun(this.currentSql)
-            : `${queryToRun(this.currentSql)} LIMIT 50`,
-          attrs.trace.engine,
-        );
-        this.prevSqString = this.curSqString;
-      });
-    }
-
-    if (this.currentSql === undefined) return;
-    const sql = queryToRun(this.currentSql);
     return [
       m(
         Section,
-        {title: attrs.queryNode.getTitle()},
-        attrs.queryNode.getDetails(),
-        renderButtons(),
-        this.showDataSourceInfoPanel === SelectedView.SQL &&
+        {title: attrs.node.getTitle()},
+        attrs.node.getDetails(),
+        renderSelectedViewButtons(),
+        this.selectedView === SelectedView.kSql &&
           m(
             '.code-snippet',
             m(Button, {
               title: 'Copy to clipboard',
-              onclick: () => copyToClipboard(sql ?? ''),
+              onclick: () => copyToClipboard(sql),
               icon: Icons.Copy,
             }),
             m('code', sql),
           ),
-        this.showDataSourceInfoPanel === SelectedView.COLUMNS &&
-          renderPickColumns(attrs.queryNode),
-        this.showDataSourceInfoPanel === SelectedView.PROTO &&
+        this.selectedView === SelectedView.kModify &&
+          m(Operator, {
+            filter: {
+              sourceCols: attrs.node.state.sourceCols,
+              filters: attrs.node.state.filters,
+            },
+            groupby: {
+              groupByColumns: attrs.node.state.groupByColumns,
+              aggregations: attrs.node.state.aggregations,
+            },
+          }),
+        this.selectedView === SelectedView.kProto &&
           m(
             '.code-snippet',
             m(Button, {
               title: 'Copy to clipboard',
-              onclick: () => copyToClipboard(this.currentSql?.textproto ?? ''),
+              onclick: () => copyToClipboard(textproto),
               icon: Icons.Copy,
             }),
-            m('code', this.currentSql.textproto),
+            m('code', textproto),
           ),
       ),
       m(Section, {title: 'Sample data'}, renderTable()),
@@ -194,7 +198,8 @@ export interface Query {
   preambles: string[];
 }
 
-export function queryToRun(sql: Query): string {
+export function queryToRun(sql?: Query): string {
+  if (sql === undefined) return 'N/A';
   const includes = sql.modules.map((c) => `INCLUDE PERFETTO MODULE ${c};\n`);
   return includes + sql.sql;
 }
@@ -202,16 +207,15 @@ export function queryToRun(sql: Query): string {
 export async function analyzeNode(
   node: QueryNode,
   engine: Engine,
-): Promise<Query | undefined> {
+): Promise<Query | undefined | Error> {
   const structuredQueries = getStructuredQueries(node);
   if (structuredQueries === undefined) return;
 
   const res = await engine.analyzeStructuredQuery(structuredQueries);
-
-  if (res.error) throw Error(res.error);
-  if (res.results.length === 0) throw Error('No structured query results');
+  if (res.error) return Error(res.error);
+  if (res.results.length === 0) return Error('No structured query results');
   if (res.results.length !== structuredQueries.length) {
-    throw Error(
+    return Error(
       `Wrong structured query results. Asked for ${structuredQueries.length}, received ${res.results.length}`,
     );
   }
@@ -221,7 +225,7 @@ export async function analyzeNode(
     return;
   }
   if (!lastRes.textproto) {
-    throw Error('No textproto in structured query results');
+    return Error('No textproto in structured query results');
   }
 
   const sql: Query = {
@@ -231,4 +235,14 @@ export async function analyzeNode(
     preambles: lastRes.preambles ?? [],
   };
   return sql;
+}
+
+export function isQueryValid(
+  maybeQuery: Query | undefined | Error,
+): maybeQuery is Query {
+  return (
+    maybeQuery !== undefined &&
+    !(maybeQuery instanceof Error) &&
+    maybeQuery.sql !== undefined
+  );
 }

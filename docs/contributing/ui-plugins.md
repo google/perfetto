@@ -561,46 +561,6 @@ function handleCommand(trace: Trace): void {
 }
 ```
 
-### Details Panels & The Current Selection Tab
-The "Current Selection" tab is a special tab that cannot be hidden. It remains
-permanently in the left-most tab position in the tab bar. Its purpose is to
-display details about the current selection.
-
-Plugins may register interest in providing content for this tab using the
-`PluginContentTrace.registerDetailsPanel()` method.
-
-For example:
-
-```ts
-default export class implements PerfettoPlugin {
-  static readonly id = 'com.example.MyPlugin';
-  async onTraceLoad(trace: Trace) {
-    trace.registerDetailsPanel({
-      render(selection: Selection) {
-        if (canHandleSelection(selection)) {
-          return m('div', 'Details for selection');
-        } else {
-          return undefined;
-        }
-      }
-    });
-  }
-}
-```
-
-This function takes an object that implements the `DetailsPanel` interface,
-which only requires a render function to be implemented that takes the current
-selection object and returns either mithril vnodes or a falsy value.
-
-Every render cycle, render is called on all registered details panels, and the
-first registered panel to return a truthy value will be used.
-
-Currently the winning details panel takes complete control over this tab. Also,
-the order that these panels are called in is not defined, so if we have multiple
-details panels competing for the same selection, the one that actually shows up
-is undefined. This is a limitation of the current approach and will be updated
-to a more democratic contribution model in the future.
-
 ### Sidebar Menu Items
 Plugins can add new entries to the sidebar menu which appears on the left hand
 side of the UI. These entries can include:
