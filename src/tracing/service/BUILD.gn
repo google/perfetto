@@ -50,6 +50,8 @@ source_set("service") {
     "random.h",
     "trace_buffer.cc",
     "trace_buffer.h",
+    "trace_buffer_v2.cc",
+    "trace_buffer_v2.h",
     "tracing_service_impl.cc",
     "tracing_service_impl.h",
   ]

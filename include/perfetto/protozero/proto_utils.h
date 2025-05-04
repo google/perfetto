@@ -258,6 +258,14 @@ inline const uint8_t* ParseVarInt(const uint8_t* start,
   return PerfettoPbParseVarInt(start, end, out_value);
 }
 
+// Returns the number of bytes required to encode the given value as a varint.
+size_t VarintSize(uint64_t value) {
+  size_t size = 1;
+  for (; value >= 0x80; value >>= 7, ++size) {
+  }
+  return size;
+}
+
 enum class RepetitionType {
   kNotRepeated,
   kRepeatedPacked,
