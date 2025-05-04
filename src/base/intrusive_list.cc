@@ -61,6 +61,7 @@ void ListOps::Erase(IntrusiveListNode* node) {
   }
 
   PERFETTO_DCHECK(size_ > 0);
+  node->next = node->prev = nullptr;
   --size_;
 }
 
