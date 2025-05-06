@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {z} from 'zod';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
@@ -29,8 +28,6 @@ interface ContainedTrace {
   ts: number;
   dur: number;
 }
-
-const SESSION_NAME_ALLOWLIST = ['session_with_lightweight_battery_tracing'];
 
 const PACKAGE_LOOKUP = `
   create or replace perfetto table package_name_lookup as
@@ -858,7 +855,7 @@ export default class implements PerfettoPlugin {
     ctx: Trace,
     name: string,
     query: string,
-    groupName?: string,
+    groupName: string,
     columns: string[] = [],
   ) {
     const uri = `/long_battery_tracing_${name}`;
@@ -930,7 +927,7 @@ export default class implements PerfettoPlugin {
     ctx: Trace,
     name: string,
     track: string,
-    groupName: string | undefined,
+    groupName: string,
     features: Set<string>,
   ) {
     if (!features.has(`track.${track}`)) {
@@ -952,8 +949,10 @@ export default class implements PerfettoPlugin {
       return;
     }
 
+    const groupName = 'Device State';
+
     const query = (name: string, track: string) =>
-      this.addBatteryStatsEvent(ctx, name, track, undefined, features);
+      this.addBatteryStatsEvent(ctx, name, track, groupName, features);
 
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
@@ -964,35 +963,40 @@ export default class implements PerfettoPlugin {
 
     await this.addSliceTrack(
       ctx,
-      'Device State: Screen state',
+      'Screen state',
       `SELECT ts, dur, screen_state AS name FROM android_screen_state`,
+      groupName,
     );
     await this.addSliceTrack(
       ctx,
-      'Device State: Charging',
+      'Charging',
       `SELECT ts, dur, charging_state AS name FROM android_charging_states`,
+      groupName,
     );
     await this.addSliceTrack(
       ctx,
-      'Device State: Suspend / resume',
+      'Suspend / resume',
       SUSPEND_RESUME,
+      groupName,
     );
     await this.addSliceTrack(
       ctx,
-      'Device State: Doze light state',
+      'Doze light state',
       `SELECT ts, dur, light_idle_state AS name FROM android_light_idle_state`,
+      groupName,
     );
     await this.addSliceTrack(
       ctx,
-      'Device State: Doze deep state',
+      'Doze deep state',
       `SELECT ts, dur, deep_idle_state AS name FROM android_deep_idle_state`,
+      groupName,
     );
 
-    query('Device State: Top app', 'battery_stats.top');
+    query('Top app', 'battery_stats.top');
 
     await this.addSliceTrack(
       ctx,
-      'Device State: Long wakelocks',
+      'Long wakelocks',
       `SELECT
             ts - 60000000000 as ts,
             safe_dur + 60000000000 as dur,
@@ -1003,18 +1007,19 @@ export default class implements PerfettoPlugin {
           from android_battery_stats_event_slices
           WHERE track_name = "battery_stats.longwake"
         ))`,
-      undefined,
+      groupName,
       ['package'],
     );
 
-    query('Device State: Foreground apps', 'battery_stats.fg');
-    query('Device State: Jobs', 'battery_stats.job');
+    query('Foreground apps', 'battery_stats.fg');
+    query('Jobs', 'battery_stats.job');
 
     if (features.has('atom.thermal_throttling_severity_state_changed')) {
       await this.addSliceTrack(
         ctx,
-        'Device State: Thermal throttling',
+        'Thermal throttling',
         THERMAL_THROTTLING,
+        groupName,
       );
     }
   }
@@ -1692,35 +1697,7 @@ export default class implements PerfettoPlugin {
     await this.addContainedTraces(ctx, containedTraces);
   }
 
-  async isAllowListedTrace(e: Engine) {
-    const result = await e.query(`
-      select str_value from metadata where name = 'unique_session_name'`);
-    const it = result.iter({str_value: 'str'});
-    for (; it.valid(); it.next()) {
-      if (SESSION_NAME_ALLOWLIST.includes(it.str_value)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const enableAllowlist = ctx.settings.register({
-      id: 'dev.perfetto.AndroidLongBatteryTracing#enableAllowlist',
-      name: 'Enable AndroidLongBatteryTracing Session Allowlist',
-      description:
-        'When true, the AndroidLongBatteryTracing plugin first checks ' +
-        'whether the trace has sufficient information, disabling itself on ' +
-        'traces that do not. Disabling this setting can cause the plugin ' +
-        'to report partial or misleading information.',
-      schema: z.boolean(),
-      defaultValue: true,
-      requiresReload: true,
-    });
-
-    if (!enableAllowlist.get() || (await this.isAllowListedTrace(ctx.engine))) {
-      await this.addTracks(ctx);
-    }
+    await this.addTracks(ctx);
   }
 }
