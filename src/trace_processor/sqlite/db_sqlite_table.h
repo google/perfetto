@@ -152,6 +152,26 @@ struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
   static int Column(sqlite3_vtab_cursor*, sqlite3_context*, int);
   static int Rowid(sqlite3_vtab_cursor*, sqlite_int64*);
 
+  static int Begin(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Sync(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Commit(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Rollback(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Savepoint(sqlite3_vtab* t, int r) {
+    DbSqliteModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<DbSqliteModule>::OnSavepoint(vtab->state, r);
+    return SQLITE_OK;
+  }
+  static int Release(sqlite3_vtab* t, int r) {
+    DbSqliteModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<DbSqliteModule>::OnRelease(vtab->state, r);
+    return SQLITE_OK;
+  }
+  static int RollbackTo(sqlite3_vtab* t, int r) {
+    DbSqliteModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<DbSqliteModule>::OnRollbackTo(vtab->state, r);
+    return SQLITE_OK;
+  }
+
   // static for testing.
   static QueryCost EstimateCost(const Table::Schema&,
                                 uint32_t row_count,

@@ -24,11 +24,9 @@
 #include <utility>
 
 #include "src/trace_processor/containers/null_term_string_view.h"
-#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -43,6 +41,7 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   static constexpr auto kType = kCreateOnly;
   static constexpr bool kSupportsWrites = false;
   static constexpr bool kDoesOverloadFunctions = false;
+  static constexpr bool kDoesSupportTransactions = true;
 
   struct State {
     explicit State(std::shared_ptr<const dataframe::Dataframe> _dataframe)
@@ -50,9 +49,7 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     std::shared_ptr<const dataframe::Dataframe> dataframe;
   };
   struct Context : sqlite::ModuleStateManager<DataframeModule> {
-    explicit Context(DataframeSharedStorage* _dataframe_shared_storage)
-        : dataframe_shared_storage(_dataframe_shared_storage) {}
-    DataframeSharedStorage* dataframe_shared_storage;
+    std::unique_ptr<State> temporary_create_state;
   };
   struct SqliteValueFetcher : dataframe::ValueFetcher {
     using Type = sqlite::Type;
@@ -87,8 +84,8 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     sqlite3_context* ctx;
   };
   struct Vtab : sqlite::Module<DataframeModule>::Vtab {
-    sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
     const dataframe::Dataframe* dataframe;
+    sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
   };
   using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
@@ -127,6 +124,26 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   static int Eof(sqlite3_vtab_cursor*);
   static int Column(sqlite3_vtab_cursor*, sqlite3_context*, int);
   static int Rowid(sqlite3_vtab_cursor*, sqlite_int64*);
+
+  static int Begin(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Sync(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Commit(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Rollback(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Savepoint(sqlite3_vtab* t, int r) {
+    DataframeModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<DataframeModule>::OnSavepoint(vtab->state, r);
+    return SQLITE_OK;
+  }
+  static int Release(sqlite3_vtab* t, int r) {
+    DataframeModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<DataframeModule>::OnRelease(vtab->state, r);
+    return SQLITE_OK;
+  }
+  static int RollbackTo(sqlite3_vtab* t, int r) {
+    DataframeModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<DataframeModule>::OnRollbackTo(vtab->state, r);
+    return SQLITE_OK;
+  }
 
   // This needs to happen at the end as it depends on the functions
   // defined above.
