@@ -120,6 +120,7 @@ add_frame_from_depth(
     ts_end_do_frame=65_000_000,
     ts_draw_frame=65_00_000,
     ts_end_draw_frame=70_000_000,
+    resync=True,
     depth=2)
 
 add_frame_from_depth(
