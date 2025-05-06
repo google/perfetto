@@ -116,10 +116,6 @@ int RuntimeTableFunctionModule::Connect(sqlite3* db,
           res->state));
   if (int ret = sqlite3_declare_vtab(db, create_table_str.c_str());
       ret != SQLITE_OK) {
-    // If the registration happens to fail, make sure to disconnect the state
-    // again.
-    sqlite::ModuleStateManager<RuntimeTableFunctionModule>::OnDisconnect(
-        res->state);
     return ret;
   }
   *vtab = res.release();
@@ -128,8 +124,6 @@ int RuntimeTableFunctionModule::Connect(sqlite3* db,
 
 int RuntimeTableFunctionModule::Disconnect(sqlite3_vtab* vtab) {
   std::unique_ptr<Vtab> tab(GetVtab(vtab));
-  sqlite::ModuleStateManager<RuntimeTableFunctionModule>::OnDisconnect(
-      tab->state);
   return SQLITE_OK;
 }
 
