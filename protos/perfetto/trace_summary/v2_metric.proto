@@ -173,8 +173,8 @@ message TraceMetricV2Spec {
   // For a given set of dimensions, there must be exactly *one* value emitted.
   // Optional.
   repeated DimensionSpec dimensions_specs = 5;
-  // Deprecated, use dimensions_specs instead.
-  repeated string dimensions = 2 [deprecated = true];
+  // Either dimensions or dimensions_specs should be defined, but not both.
+  repeated string dimensions = 2;
 
   // The column from `query` which will act as the "value" for the metric. This
   // must be a column containing only integers/doubles/nulls. Strings are *not*
