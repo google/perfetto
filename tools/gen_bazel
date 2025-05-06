@@ -156,6 +156,12 @@ proto_groups = {
         'sources': ['//protos/perfetto/trace_summary:source_set',],
         'visibility': ['//visibility:public'],
     },
+    'trace_android_track_event_extension': {
+        'sources': [
+            '//protos/perfetto/trace/android:android_track_event_source_set',
+        ],
+        'visibility': [],
+    }
 }
 
 # Path for the protobuf sources in the standalone build.
@@ -218,7 +224,8 @@ external_java_android_sdk_deps: Dict[str, List[str]] = {
 # Map from GN targets to the list of Bazel deps labels
 additional_java_android_sdk_deps: Dict[str, List[str]] = {
     '//src/android_sdk/java/test:perfetto_trace_test_lib': [
-        ':trace_java_proto_lite'
+        ':trace_java_proto_lite',
+        ':trace_android_track_event_extension_java_proto_lite',
     ],
 }
 
