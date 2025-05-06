@@ -245,7 +245,14 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
   files_to_check_list = filter_files(
       changed_files,
       files_to_skip=[
-          '*.cc', '*.h', '*.pb', '*.png', '*.jpg', '*/test/data/*', 'Makefile'
+          '*.cc',
+          '*.h',
+          '*.pb',
+          '*.png',
+          '*.jpg',
+          '*/test/data/*',
+          'Makefile',
+          '*.descriptor',
       ])
 
   for f_path in files_to_check_list:
