@@ -188,7 +188,7 @@ def perfetto_cc_protozero_library(name, deps, **kwargs):
     # 2. Zero or more deps on other perfetto_cc_protozero_library targets. This
     #    to deal with the case of foo.proto including common.proto from another
     #    target.
-    _proto_deps = [d for d in deps if d.endswith("_protos")]
+    _proto_deps = [d for d in deps if d.endswith("_protos") or d.endswith("_proto")]
     _cc_deps = [d for d in deps if d not in _proto_deps]
     if len(_proto_deps) != 1:
         fail("Too many proto deps for target %s" % name)
