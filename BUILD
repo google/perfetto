@@ -4768,15 +4768,6 @@ perfetto_py_proto_library(
     ],
 )
 
-# GN target: [//protos/perfetto/config:source_set]
-perfetto_cc_protozero_library(
-    name = "config_zero",
-    visibility = PERFETTO_CONFIG.public_visibility,
-    deps = [
-        ":config_proto",
-    ],
-)
-
 # GN target: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace:minimal_source_set]
 perfetto_proto_library(
     name = "trace_proto",
@@ -4921,15 +4912,6 @@ perfetto_py_proto_library(
     ],
 )
 
-# GN target: [//protos/perfetto/metrics:source_set]
-perfetto_cc_protozero_library(
-    name = "metrics_zero",
-    visibility = PERFETTO_CONFIG.public_visibility,
-    deps = [
-        ":metrics_proto",
-    ],
-)
-
 # GN target: [//protos/third_party/chromium:source_set]
 perfetto_proto_library(
     name = "chromium_proto",
@@ -4970,15 +4952,6 @@ perfetto_java_lite_proto_library(
 # GN target: [//protos/third_party/chromium:source_set]
 perfetto_py_proto_library(
     name = "chromium_py_pb2",
-    visibility = PERFETTO_CONFIG.public_visibility,
-    deps = [
-        ":chromium_proto",
-    ],
-)
-
-# GN target: [//protos/third_party/chromium:source_set]
-perfetto_cc_protozero_library(
-    name = "chromium_zero",
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":chromium_proto",
@@ -5034,15 +5007,6 @@ perfetto_py_proto_library(
     ],
 )
 
-# GN target: [//protos/perfetto/metrics/chrome:source_set]
-perfetto_cc_protozero_library(
-    name = "chrome_metrics_zero",
-    visibility = PERFETTO_CONFIG.public_visibility,
-    deps = [
-        ":chrome_metrics_proto",
-    ],
-)
-
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_proto_library(
     name = "trace_processor_proto",
@@ -5080,15 +5044,6 @@ perfetto_java_lite_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_py_proto_library(
     name = "trace_processor_py_pb2",
-    deps = [
-        ":trace_processor_proto",
-    ],
-)
-
-# GN target: [//protos/perfetto/trace_processor:source_set]
-perfetto_cc_protozero_library(
-    name = "trace_processor_zero",
-    visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5145,15 +5100,6 @@ perfetto_py_proto_library(
     visibility = [
         "//visibility:public",
     ],
-    deps = [
-        ":trace_summary_proto",
-    ],
-)
-
-# GN target: [//protos/perfetto/trace_summary:source_set]
-perfetto_cc_protozero_library(
-    name = "trace_summary_zero",
-    visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":trace_summary_proto",
     ],

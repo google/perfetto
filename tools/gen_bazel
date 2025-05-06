@@ -646,19 +646,22 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
     java_lite_label.visibility = visibility
     py_label.visibility = visibility
 
-  zero_label = BazelLabel(name + '_zero', 'perfetto_cc_protozero_library')
-  zero_label.deps = [':' + sources_label.name]
-  zero_label.comment = sources_label.comment
-  zero_label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
-
-  return [
+  res = [
       sources_label,
       cc_label,
       java_label,
       java_lite_label,
       py_label,
-      zero_label,
   ]
+
+  if name == 'trace':
+    zero_label = BazelLabel(name + '_zero', 'perfetto_cc_protozero_library')
+    zero_label.deps = [':' + sources_label.name]
+    zero_label.comment = sources_label.comment
+    zero_label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
+    return res + [zero_label]
+
+  return res
 
 
 def gen_cc_proto_descriptor(target: GnParser.Target):
