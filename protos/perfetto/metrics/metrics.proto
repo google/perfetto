@@ -388,6 +388,9 @@ message TraceMetrics {
   // WebView metrics.
   extensions 2001 to 2500;
 
+  // AndroidXR metrics.
+  extensions 2501 to 3000;
+
   // DO NOT ADD ANY OTHER FIELDS HERE. ADDITION OF NEW v1 METRICS IS NO LONGER
   // ALLOWED. PLEASE USE METRICS v2 INSTEAD.
 }
