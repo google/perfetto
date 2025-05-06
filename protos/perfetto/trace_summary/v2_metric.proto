@@ -38,7 +38,10 @@ import "protos/perfetto/perfetto_sql/structured_query.proto";
 //
 // ```
 // id: "memory_per_process"
-// dimensions: "process_name"
+// dimensions_specs: {
+//   name: "process_name"
+//   type: STRING
+// }
 // value: "avg_rss_and_swap"
 // query: {
 //   table: {
@@ -66,7 +69,14 @@ import "protos/perfetto/perfetto_sql/structured_query.proto";
 //
 // ```
 // id: "memory_per_process_and_cuj"
-// dimensions: "process_name"
+// dimensions_specs: {
+//  name: "process_name"
+//  type: STRING
+//}
+// dimensions_specs: {
+//  name: "cuj_name"
+//  type: STRING
+//}//
 // value: "avg_rss_and_swap"
 // query: {
 //   interval_intersect: {
@@ -148,10 +158,23 @@ message TraceMetricV2Spec {
   // Required.
   optional string id = 1;
 
+  enum DimensionType {
+    DIMENSION_TYPE_UNSPECIFIED = 0;
+    STRING = 1;
+    INT64 = 2;
+    DOUBLE = 3;
+  }
+
+  message DimensionSpec {
+    optional string name = 1;
+    optional DimensionType type = 2;
+  }
   // The columns from `query` which will act as the "dimensions" for the metric.
   // For a given set of dimensions, there must be exactly *one* value emitted.
   // Optional.
-  repeated string dimensions = 2;
+  repeated DimensionSpec dimensions_specs = 5;
+  // Deprecated, use dimensions_specs instead.
+  repeated string dimensions = 2 [deprecated = true];
 
   // The column from `query` which will act as the "value" for the metric. This
   // must be a column containing only integers/doubles/nulls. Strings are *not*
@@ -230,6 +253,9 @@ message TraceMetricV2 {
     // The dimensions that `value` should be associated with. The order of
     // dimensions matches precisely the order of dimension names given by the
     // `spec`.
+    // The type of the dimension is infered from the sql column type.
+    // In case dimensionSpec is specified, the dimension type must match the
+    // type specified in the spec.
     message Dimension {
       message Null {}
       oneof value_oneof {

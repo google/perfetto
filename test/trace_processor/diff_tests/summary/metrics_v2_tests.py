@@ -44,3 +44,47 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Path('smoke_metric_v2.out'))
+
+  def test_simple_slices_metric_v2(self):
+    return DiffTestBlueprint(
+        trace=Path('synth_simple_slices.py'),
+        # Test reading dimensions in correct order
+        # Dimensions are intentionally defined in different order from the query
+        # Metric is defined to not be the last column in the query
+        query=MetricV2SpecTextproto('''
+              id: "max_duration"
+              dimensions_specs {
+                name: "thread_name"
+                type: STRING
+              }
+              dimensions_specs {
+                name: "slice_name"
+                type: STRING
+              }
+              value: "max_dur"
+              query {
+                simple_slices {
+                  slice_name_glob: "*"
+                }
+                group_by {
+                  column_names: "slice_name"
+                  column_names: "thread_name"
+                  aggregates {
+                    column_name: "dur"
+                    op: COUNT
+                    result_column_name: "count_dur"
+                  }
+                  aggregates {
+                    column_name: "dur"
+                    op: MAX
+                    result_column_name: "max_dur"
+                  }
+                  aggregates {
+                    column_name: "dur"
+                    op: SUM
+                    result_column_name: "sum_dur"
+                  }
+                }
+              }
+        '''),
+        out=Path('simple_slices_metric_v2.out'))

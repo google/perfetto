@@ -112,68 +112,162 @@ base::Status CreateQueriesAndComputeMetrics(
   }
   protozero::HeapBuffered<protos::pbzero::TraceSummary> summary;
   for (auto m = queries_per_metric.GetIterator(); m; ++m) {
+    auto metric_name = m.key().c_str();
     if (m.value().query.empty()) {
       return base::ErrStatus("Metric %s was not found in any summary spec",
-                             m.key().c_str());
+                             metric_name);
     }
     auto* metric = summary->add_metric();
     metric->AppendBytes(protos::pbzero::TraceMetricV2::kSpecFieldNumber,
                         m.value().spec.data, m.value().spec.size);
 
     auto it = processor->ExecuteQuery(m.value().query);
+    protos::pbzero::TraceMetricV2Spec::Decoder spec_decoder(
+        m.value().spec.data, m.value().spec.size);
+
     uint32_t col_count = it.ColumnCount();
+    base::FlatHashMap<std::string, uint32_t> column_name_to_index;
+    for (uint32_t i = 0; i < col_count; ++i) {
+      column_name_to_index.Insert(it.GetColumnName(i), i);
+    }
+    std::string metric_value_column_name = spec_decoder.value().ToStdString();
+    auto* metric_value_index =
+        column_name_to_index.Find(metric_value_column_name);
+    if (!metric_value_index) {
+      return base::ErrStatus(
+          "Column %s not found in the query result for metric %s",
+          metric_value_column_name.c_str(), metric_name);
+    }
+
+    std::vector<protos::pbzero::TraceMetricV2Spec::DimensionSpec::Decoder>
+        dimension_specs;
+    for (auto dim_spec_it = spec_decoder.dimensions_specs(); dim_spec_it;
+         ++dim_spec_it) {
+      dimension_specs.emplace_back(*dim_spec_it);
+    }
     while (it.Next()) {
       PERFETTO_CHECK(col_count > 0);
-      const auto& value = it.Get(col_count - 1);
-
+      const auto& metric_value_column = it.Get(*metric_value_index);
       // Skip null rows.
-      if (value.is_null()) {
+      if (metric_value_column.is_null()) {
+        PERFETTO_DLOG(
+            "Skipping row for metric %s because the value column was null",
+            metric_name);
         continue;
       }
 
       auto* row = metric->add_row();
-      for (uint32_t i = 0; i < col_count - 1; ++i) {
-        const auto& dim = it.Get(i);
-        switch (dim.type) {
-          case SqlValue::kLong:
-            row->add_dimension()->set_int64_value(dim.AsLong());
-            break;
-          case SqlValue::kDouble:
-            row->add_dimension()->set_double_value(dim.AsDouble());
-            break;
-          case SqlValue::kString:
-            row->add_dimension()->set_string_value(dim.AsString());
-            break;
-          case SqlValue::kNull:
-            row->add_dimension()->set_null_value();
-            break;
-          case SqlValue::kBytes:
-            return base::ErrStatus(
-                "Received bytes for dimension in metric %s: this is not "
-                "supported",
-                m.key().c_str());
-        }
-      }
-
-      switch (value.type) {
+      // Read metric value.
+      switch (metric_value_column.type) {
         case SqlValue::kLong:
-          row->set_value(static_cast<double>(value.AsLong()));
+          row->set_value(static_cast<double>(metric_value_column.AsLong()));
           break;
         case SqlValue::kDouble:
-          row->set_value(value.AsDouble());
+          row->set_value(metric_value_column.AsDouble());
           break;
         case SqlValue::kNull:
           PERFETTO_FATAL("Null value should have been skipped");
         case SqlValue::kString:
           return base::ErrStatus(
-              "Received string for metric value in metric %s: this is not "
+              "Received string for value column in metric %s: this is not "
               "supported",
-              m.key().c_str());
+              metric_name);
         case SqlValue::kBytes:
           return base::ErrStatus(
               "Received bytes for metric value in metric %s: this is not "
               "supported",
-              m.key().c_str());
+              metric_name);
+      }
+
+      if (dimension_specs.empty()) {
+        // Dimensions are defined without an explicit type
+        // Infer the type from the sql value.
+        for (auto dim_name_it = spec_decoder.dimensions(); dim_name_it;
+             ++dim_name_it) {
+          protos::pbzero::TraceMetricV2::MetricRow::Dimension* dimension =
+              row->add_dimension();
+          auto* dim_index =
+              column_name_to_index.Find(dim_name_it->as_std_string());
+          if (!dim_index) {
+            return base::ErrStatus(
+                "Column %s not found in the query result for metric %s",
+                dim_name_it->as_std_string().c_str(), metric_name);
+          }
+          const auto& dimension_value = it.Get(*dim_index);
+          switch (dimension_value.type) {
+            case SqlValue::kNull:
+              dimension->set_null_value();
+              break;
+            case SqlValue::kLong:
+              dimension->set_int64_value(dimension_value.AsLong());
+              break;
+            case SqlValue::kDouble:
+              dimension->set_double_value(dimension_value.AsDouble());
+              break;
+            case SqlValue::kString:
+              dimension->set_string_value(dimension_value.AsString());
+              break;
+            case SqlValue::kBytes:
+              return base::ErrStatus(
+                  "Received bytes for dimension in metric %s: this is not "
+                  "supported",
+                  metric_name);
+          }
+        }
+      } else {
+        for (uint32_t i = 0; i < dimension_specs.size(); ++i) {
+          protos::pbzero::TraceMetricV2::MetricRow::Dimension* dimension =
+              row->add_dimension();
+
+          const auto& dim_spec = dimension_specs[i];
+          std::string dim_name = dim_spec.name().ToStdString();
+          protos::pbzero::TraceMetricV2Spec::DimensionType dimension_type =
+              static_cast<protos::pbzero::TraceMetricV2Spec::DimensionType>(
+                  dim_spec.type());
+
+          auto* dim_index = column_name_to_index.Find(dim_name);
+          if (!dim_index) {
+            return base::ErrStatus(
+                "Column %s not found in the query result for metric %s",
+                dim_name.c_str(), metric_name);
+          }
+          const auto& dimension_value = it.Get(*dim_index);
+          if (dimension_value.is_null()) {
+            // Accept null value for all dimension types.
+            dimension->set_null_value();
+            continue;
+          }
+          switch (dimension_type) {
+            case protos::pbzero::TraceMetricV2Spec::STRING:
+              if (dimension_value.type != SqlValue::kString) {
+                return base::ErrStatus(
+                    "Expected string for dimension %s in metric %s, got %d",
+                    dim_name.c_str(), metric_name, dimension_value.type);
+              }
+              dimension->set_string_value(dimension_value.AsString());
+              break;
+            case protos::pbzero::TraceMetricV2Spec::INT64:
+              if (dimension_value.type != SqlValue::kLong) {
+                return base::ErrStatus(
+                    "Expected int64 for dimension %s in metric %s, got %d",
+                    dim_name.c_str(), metric_name, dimension_value.type);
+              }
+              dimension->set_int64_value(dimension_value.AsLong());
+              break;
+            case protos::pbzero::TraceMetricV2Spec::DOUBLE:
+              if (dimension_value.type != SqlValue::kDouble) {
+                return base::ErrStatus(
+                    "Expected double for dimension %s in metric %s, got %d",
+                    dim_name.c_str(), metric_name, dimension_value.type);
+              }
+              dimension->set_double_value(dimension_value.AsDouble());
+              break;
+            case protos::pbzero::TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED:
+              return base::ErrStatus(
+                  "Unsupported dimension type %d for dimension %s in metric %s",
+                  dimension_type, dim_name.c_str(), metric_name);
+          }
+        }
       }
     }
     RETURN_IF_ERROR(it.Status());
