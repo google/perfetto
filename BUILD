@@ -4532,6 +4532,7 @@ perfetto_android_library(
     manifest = "src/android_sdk/java/test/AndroidTestManifest.xml",
     deps = [
         ":src_android_sdk_java_main_perfetto_trace_lib",
+        ":trace_android_track_event_extension_java_proto_lite",
         ":trace_java_proto_lite",
     ] + PERFETTO_CONFIG.deps.android_test_common,
     tags = [
@@ -5093,6 +5094,47 @@ perfetto_py_proto_library(
     ],
     deps = [
         ":trace_summary_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
+perfetto_proto_library(
+    name = "trace_android_track_event_extension_proto",
+    deps = [
+        ":protos_perfetto_trace_android_android_track_event_protos",
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
+perfetto_cc_proto_library(
+    name = "trace_android_track_event_extension_cc_proto",
+    deps = [
+        ":trace_android_track_event_extension_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
+perfetto_java_proto_library(
+    name = "trace_android_track_event_extension_java_proto",
+    deps = [
+        ":trace_android_track_event_extension_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
+perfetto_java_lite_proto_library(
+    name = "trace_android_track_event_extension_java_proto_lite",
+    deps = [
+        ":trace_android_track_event_extension_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
+perfetto_py_proto_library(
+    name = "trace_android_track_event_extension_py_pb2",
+    deps = [
+        ":trace_android_track_event_extension_proto",
     ],
 )
 
