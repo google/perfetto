@@ -600,12 +600,6 @@ def gen_proto_label(target: GnParser.Target):
   if target.proto_plugin == 'descriptor':
     plugin_label.outs = [plugin_label_name + '.bin']
 
-  # Most SDK users just emit track event. The headers for those are included by
-  # other public headers. Some advanced SDK users write custom TracePacket: they
-  # need visibility into the protozero generated headers.
-  if target.proto_plugin == 'protozero':
-    plugin_label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
-
   return plugin_label
 
 
@@ -652,7 +646,19 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
     java_lite_label.visibility = visibility
     py_label.visibility = visibility
 
-  return [sources_label, cc_label, java_label, java_lite_label, py_label]
+  zero_label = BazelLabel(name + '_zero', 'perfetto_cc_protozero_library')
+  zero_label.deps = [':' + sources_label.name]
+  zero_label.comment = sources_label.comment
+  zero_label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
+
+  return [
+      sources_label,
+      cc_label,
+      java_label,
+      java_lite_label,
+      py_label,
+      zero_label,
+  ]
 
 
 def gen_cc_proto_descriptor(target: GnParser.Target):
