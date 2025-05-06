@@ -935,6 +935,8 @@ def gen_protozero_group_target(gn: GnParser):
     label.deps += [':' + get_bazel_label_name(dep.name)]
     label.hdrs += [':' + get_bazel_label_name(dep.name) + '_h']
 
+  label.deps = sorted(set(label.deps))
+  label.hdrs = sorted(set(label.hdrs))
   label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
 
   return [label]
