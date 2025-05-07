@@ -67,8 +67,14 @@ void EtwParser::ParseCswitch(int64_t timestamp, uint32_t cpu, ConstBytes blob) {
   int32_t old_thread_state = cs.has_old_thread_state()
                                  ? cs.old_thread_state()
                                  : cs.old_thread_state_int();
-  PushSchedSwitch(cpu, timestamp, cs.old_thread_id(), old_thread_state,
-                  cs.new_thread_id(), cs.new_thread_priority());
+  // thread_id might be erased for privacy/security concerns, in this case, use
+  // a dummy id since 0 means idle.
+  uint32_t old_thread_id =
+      cs.has_old_thread_id() ? cs.old_thread_id() : uint32_t(-1);
+  uint32_t new_thread_id =
+      cs.has_new_thread_id() ? cs.new_thread_id() : uint32_t(-1);
+  PushSchedSwitch(cpu, timestamp, old_thread_id, old_thread_state,
+                  new_thread_id, cs.new_thread_priority());
 }
 
 void EtwParser::ParseReadyThread(int64_t timestamp, ConstBytes blob) {
