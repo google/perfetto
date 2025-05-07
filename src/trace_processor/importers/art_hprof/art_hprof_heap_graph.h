@@ -37,68 +37,29 @@
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
 namespace perfetto::trace_processor::art_hprof {
-
-/**
- * Converter from HPROF data to Perfetto heap graph.
- */
 class HeapGraphBuilder {
  public:
-  /**
-   * Converts HPROF data to Perfetto heap graph.
-   *
-   * @param data The HPROF data to convert
-   * @return The converted heap graph IR
-   */
   HeapGraph Build(const HprofData& data);
 
  private:
-  /**
-   * Diagnostic tracking structure.
-   */
-  struct ConversionDiagnostics {
-    std::unordered_map<std::string, size_t> class_kind_counts;
-    std::unordered_map<std::string, size_t> superclass_chain_lengths;
-    size_t total_processed_classes = 0;
-    size_t unique_classes_processed = 0;
-    size_t references_generated = 0;
-  };
+  // Main conversion phases
+  void ConvertClasses(const HprofData& data, HeapGraph& ir);
+  void ConvertObjects(const HprofData& data, HeapGraph& ir);
+  void ConvertReferences(const HprofData& data, HeapGraph& ir);
 
-  ConversionDiagnostics diagnostics_;
-  uint32_t next_reference_set_id_ = 1;
-  std::unordered_map<uint8_t, uint64_t> primitive_type_to_class_id_;
-  std::unordered_map<uint64_t, uint32_t> object_to_reference_set_id_;
+  // Helper methods
+  std::string GetRootType(uint8_t root_type_id);
+  std::string GetHeapType(uint8_t heap_id);
+  // Generic template helper for creating objects
+  template <typename T>
+  void CreateObjectFromDump(const T& dump_data,
+                            const HprofData& data,
+                            HeapGraph& ir,
+                            size_t& counter);
 
-  void ToClasses(const HprofData& data, HeapGraph& ir);
-  void ToObjects(const HprofData& data, HeapGraph& ir);
-  void ToReferences(const HprofData& data, HeapGraph& ir);
-  void CreateSyntheticClassesForPrimitiveArrays(HeapGraph& ir);
-  HeapGraphObject ProcessInstanceDump(const InstanceDumpData& instance_data);
-  std::optional<std::string> GetHeapTypeFromId(uint8_t heap_id);
-
-  // Private helper methods for ToReferences
-  std::unordered_set<uint64_t> BuildObjectsInIrSet(const HeapGraph& ir);
-  bool IsArrayObject(uint64_t owner_id, const HprofData& data);
-  std::vector<HeapGraphReference> CreateReferencesForOwner(
-      uint64_t owner_id,
-      const std::vector<ObjectReference>& owned_list,
-      uint32_t reference_set_id,
-      bool is_array,
-      const HprofData& data,
-      const std::unordered_set<uint64_t>& objects_in_ir);
-  HeapGraphReference CreateHeapGraphReference(
-      uint32_t reference_set_id,
-      uint64_t owner_id,
-      const ObjectReference& owned_ref,
-      bool is_array,
-      uint64_t class_id,
-      const HprofData& data,
-      const std::unordered_set<uint64_t>& objects_in_ir);
-  HeapGraphValue ConvertFieldValue(const FieldValue& value);
-  std::string DetermineClassKind(const std::string& class_name) const;
-  void PrintConversionDiagnostics();
-  std::string RootTypeToString(uint8_t root_type);
+  // Tracking processed objects to avoid duplicates
+  std::unordered_set<uint64_t> processed_object_ids_;
 };
-
 /**
  * Tokenizer for ART HPROF data that handles chunked input.
  */

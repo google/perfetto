@@ -287,59 +287,32 @@ bool ArtHprofTokenizer::TraceBlobViewIterator::IsValid() const {
   return true;
 }
 
-// HeapGraphBuilder implementation
+// Main entry point for converting HPROF data to HeapGraph
 HeapGraph HeapGraphBuilder::Build(const HprofData& data) {
-  PERFETTO_DLOG("Converting hprof to HeapGraph HeapGraph");
+  PERFETTO_DLOG("Converting HPROF data to HeapGraph");
 
-  HeapGraph ir;
+  HeapGraph result;
+  processed_object_ids_.clear();
 
-  // Reset diagnostics
-  diagnostics_ = ConversionDiagnostics{};
+  ConvertClasses(data, result);
+  ConvertObjects(data, result);
+  ConvertReferences(data, result);
 
-  // Conversion steps with detailed tracking
-  ToClasses(data, ir);
-  ToObjects(data, ir);
-  ToReferences(data, ir);
-
-  // Print detailed diagnostics
-  PrintConversionDiagnostics();
-
-  return ir;
+  return result;
 }
 
-void HeapGraphBuilder::ToClasses(const HprofData& data, HeapGraph& ir) {
+// Convert class definitions to HeapGraph classes
+void HeapGraphBuilder::ConvertClasses(const HprofData& data, HeapGraph& ir) {
   PERFETTO_DLOG("Converting classes to HeapGraph");
 
-  std::unordered_set<uint64_t> processed_class_ids;
-
   for (const auto& [class_id, class_info] : data.classes) {
-    diagnostics_.total_processed_classes++;
-
-    // Prevent duplicate class processing
-    if (processed_class_ids.count(class_id)) {
-      continue;
-    }
-
-    processed_class_ids.insert(class_id);
-    diagnostics_.unique_classes_processed++;
-
-    // Track class kind
-    std::string kind = DetermineClassKind(class_info.name);
-    diagnostics_.class_kind_counts[kind]++;
-
-    PERFETTO_DLOG("Converting class: id=%" PRIu64 ", name='%s', kind='%s'",
-                  class_id, class_info.name.c_str(), kind.c_str());
-
-    // Create HeapGraphClass and add to HeapGraph
     HeapGraphClass hg_class;
     hg_class.name = class_info.name;
     hg_class.class_object_id = class_id;
-    hg_class.kind = kind;
+    hg_class.kind = "unknown";  // Simplified for now
 
-    // Add superclass reference if exists
     if (class_info.super_class_id != 0) {
       hg_class.superclass_id = class_info.super_class_id;
-      PERFETTO_DLOG("  With superclass: %" PRIu64, class_info.super_class_id);
     }
 
     ir.classes.push_back(std::move(hg_class));
@@ -348,8 +321,277 @@ void HeapGraphBuilder::ToClasses(const HprofData& data, HeapGraph& ir) {
   PERFETTO_DLOG("Converted %zu classes to HeapGraph", ir.classes.size());
 }
 
-std::string HeapGraphBuilder::RootTypeToString(uint8_t root_type) {
-  switch (root_type) {
+void HeapGraphBuilder::ConvertObjects(const HprofData& data, HeapGraph& ir) {
+  PERFETTO_DLOG("Converting objects from HPROF records");
+
+  size_t instance_count = 0;
+  size_t class_obj_count = 0;
+  size_t array_count = 0;
+  size_t prim_array_count = 0;
+
+  // Process each record to create objects
+  for (const auto& record : data.records) {
+    // Skip non-heap dump records
+    if (record.tag != HPROF_HEAP_DUMP &&
+        record.tag != HPROF_HEAP_DUMP_SEGMENT) {
+      continue;
+    }
+
+    if (!std::holds_alternative<HeapDumpData>(record.data)) {
+      continue;
+    }
+
+    const auto& heap_dump = std::get<HeapDumpData>(record.data);
+
+    // Process each sub-record to create objects
+    for (const auto& sub_record : heap_dump.records) {
+      // Process instance dumps
+      if (sub_record.tag == HPROF_INSTANCE_DUMP &&
+          std::holds_alternative<InstanceDumpData>(sub_record.data)) {
+        const auto& instance_data = std::get<InstanceDumpData>(sub_record.data);
+        CreateObjectFromDump(instance_data, data, ir, instance_count);
+      }
+      // Process class dumps
+      else if (sub_record.tag == HPROF_CLASS_DUMP &&
+               std::holds_alternative<ClassDumpData>(sub_record.data)) {
+        const auto& class_data = std::get<ClassDumpData>(sub_record.data);
+        CreateObjectFromDump(class_data, data, ir, class_obj_count);
+      }
+      // Process object array dumps
+      else if (sub_record.tag == HPROF_OBJ_ARRAY_DUMP &&
+               std::holds_alternative<ObjArrayDumpData>(sub_record.data)) {
+        const auto& array_data = std::get<ObjArrayDumpData>(sub_record.data);
+        CreateObjectFromDump(array_data, data, ir, array_count);
+      }
+      // Process primitive array dumps
+      else if (sub_record.tag == HPROF_PRIM_ARRAY_DUMP &&
+               std::holds_alternative<PrimArrayDumpData>(sub_record.data)) {
+        const auto& array_data = std::get<PrimArrayDumpData>(sub_record.data);
+        CreateObjectFromDump(array_data, data, ir, prim_array_count);
+      }
+    }
+  }
+
+  PERFETTO_LOG(
+      "Converted %zu objects to HeapGraph (%zu instances, %zu class objects, "
+      "%zu object arrays, %zu primitive arrays)",
+      ir.objects.size(), instance_count, class_obj_count, array_count,
+      prim_array_count);
+}
+
+void HeapGraphBuilder::ConvertReferences(const HprofData& data, HeapGraph& ir) {
+  PERFETTO_DLOG("Converting references from object relationships");
+
+  size_t total_refs = 0;
+  size_t skipped_owner_refs = 0;
+  size_t skipped_target_refs = 0;
+
+  // New diagnostics
+  std::unordered_map<uint64_t, std::vector<std::pair<uint64_t, std::string>>>
+      missing_by_owner;
+  std::unordered_map<std::string, size_t> field_names_for_missing;
+  std::unordered_map<uint64_t, size_t> owner_classes_with_missing;
+  std::unordered_set<uint64_t> sample_missing_ids;
+
+  // Track ID ranges for missing objects
+  uint64_t min_missing_id = UINT64_MAX;
+  uint64_t max_missing_id = 0;
+
+  // Track ID ranges for processed objects
+  uint64_t min_processed_id = UINT64_MAX;
+  uint64_t max_processed_id = 0;
+
+  // Update processed ID ranges
+  for (uint64_t id : processed_object_ids_) {
+    min_processed_id = std::min(min_processed_id, id);
+    max_processed_id = std::max(max_processed_id, id);
+  }
+
+  // Now process references
+  for (const auto& [owner_id, owned_list] : data.owner_to_owned) {
+    if (!processed_object_ids_.count(owner_id)) {
+      skipped_owner_refs += owned_list.size();
+      continue;
+    }
+
+    // Get owner class info for context
+    std::string owner_class_name = "Unknown";
+    uint64_t owner_class_id = 0;
+    auto owner_class_it = data.object_to_class.find(owner_id);
+    if (owner_class_it != data.object_to_class.end()) {
+      owner_class_id = owner_class_it->second;
+      auto class_it = data.classes.find(owner_class_id);
+      if (class_it != data.classes.end()) {
+        owner_class_name = class_it->second.name;
+      }
+    }
+
+    // Process each reference from this owner
+    for (const auto& owned_ref : owned_list) {
+      uint64_t target_id = owned_ref.target_object_id;
+
+      // Skip if target is null
+      if (target_id == 0) {
+        continue;
+      }
+
+      // Skip if target doesn't exist in our object set
+      if (!processed_object_ids_.count(target_id)) {
+        skipped_target_refs++;
+
+        // Update missing ID ranges
+        min_missing_id = std::min(min_missing_id, target_id);
+        max_missing_id = std::max(max_missing_id, target_id);
+
+        // Collect sample of missing IDs (limit to 100)
+        if (sample_missing_ids.size() < 100) {
+          sample_missing_ids.insert(target_id);
+        }
+
+        // Track which fields are missing
+        field_names_for_missing[owned_ref.field_name]++;
+
+        // Group by owner
+        if (missing_by_owner[owner_id].size() < 10) {  // Limit to 10 per owner
+          missing_by_owner[owner_id].push_back(
+              {target_id, owned_ref.field_name});
+        }
+
+        // Track owner classes with missing references
+        owner_classes_with_missing[owner_class_id]++;
+
+        continue;
+      }
+
+      // Create reference
+      HeapGraphReference ref;
+      ref.reference_set_id = 0;  // Will be set later
+      ref.owner_id = owner_id;
+      ref.owned_id = target_id;
+      ref.field_name = owned_ref.field_name;
+
+      // Set field type name if possible
+      if (auto type_it = data.object_to_class.find(target_id);
+          type_it != data.object_to_class.end()) {
+        if (auto class_it = data.classes.find(type_it->second);
+            class_it != data.classes.end()) {
+          ref.field_type_name = class_it->second.name;
+        }
+      }
+
+      // Use default type name if not determined
+      if (ref.field_type_name.empty()) {
+        ref.field_type_name = "java.lang.Object";
+      }
+
+      // Add to IR
+      ir.references.push_back(std::move(ref));
+      total_refs++;
+    }
+  }
+
+  // Sort owner classes by number of missing refs (descending)
+  std::vector<std::pair<uint64_t, size_t>> sorted_owner_classes(
+      owner_classes_with_missing.begin(), owner_classes_with_missing.end());
+  std::sort(sorted_owner_classes.begin(), sorted_owner_classes.end(),
+            [](const auto& a, const auto& b) { return a.second > b.second; });
+
+  // Log owner classes with most missing refs
+  PERFETTO_LOG("=== Top Owner Classes with Missing References ===");
+  for (size_t i = 0; i < std::min(sorted_owner_classes.size(), size_t(10));
+       i++) {
+    uint64_t class_id = sorted_owner_classes[i].first;
+    size_t count = sorted_owner_classes[i].second;
+    std::string class_name = "Unknown";
+    if (class_id != 0) {
+      auto it = data.classes.find(class_id);
+      if (it != data.classes.end()) {
+        class_name = it->second.name;
+      }
+    }
+    PERFETTO_LOG("  Class '%s': %zu missing reference targets",
+                 class_name.c_str(), count);
+  }
+
+  // Sort field names by frequency (descending)
+  std::vector<std::pair<std::string, size_t>> sorted_fields(
+      field_names_for_missing.begin(), field_names_for_missing.end());
+  std::sort(sorted_fields.begin(), sorted_fields.end(),
+            [](const auto& a, const auto& b) { return a.second > b.second; });
+
+  // Log most common field names with missing refs
+  PERFETTO_LOG("=== Top Field Names with Missing References ===");
+  for (size_t i = 0; i < std::min(sorted_fields.size(), size_t(10)); i++) {
+    PERFETTO_LOG("  Field '%s': %zu missing references",
+                 sorted_fields[i].first.c_str(), sorted_fields[i].second);
+  }
+
+  // Log ID ranges
+  PERFETTO_LOG("=== ID Range Analysis ===");
+  PERFETTO_LOG("  Processed objects ID range: %" PRIu64 " to %" PRIu64,
+               min_processed_id, max_processed_id);
+  PERFETTO_LOG("  Missing objects ID range: %" PRIu64 " to %" PRIu64,
+               min_missing_id, max_missing_id);
+
+  // Distribution of missing IDs (10 buckets)
+  if (min_missing_id != UINT64_MAX && max_missing_id > min_missing_id) {
+    uint64_t range = max_missing_id - min_missing_id;
+    uint64_t bucket_size = range / 10 + 1;
+    std::vector<size_t> distribution(10, 0);
+
+    for (uint64_t id : sample_missing_ids) {
+      size_t bucket = (id - min_missing_id) / bucket_size;
+      if (bucket < 10) {
+        distribution[bucket]++;
+      }
+    }
+
+    PERFETTO_LOG("  Distribution of missing IDs (sample):");
+    for (size_t i = 0; i < 10; i++) {
+      uint64_t start = min_missing_id + i * bucket_size;
+      uint64_t end = min_missing_id + (i + 1) * bucket_size - 1;
+      PERFETTO_LOG("    Range %" PRIu64 "-%" PRIu64 ": %zu objects", start, end,
+                   distribution[i]);
+    }
+  }
+
+  // Get a sampling of owner-missing target pairs for detailed inspection
+  PERFETTO_LOG("=== Sample of Owner-Missing Target Pairs ===");
+  size_t pairs_logged = 0;
+  for (const auto& [owner_id, targets] : missing_by_owner) {
+    if (pairs_logged >= 10)
+      break;
+
+    std::string owner_class = "Unknown";
+    auto owner_class_it = data.object_to_class.find(owner_id);
+    if (owner_class_it != data.object_to_class.end()) {
+      auto class_it = data.classes.find(owner_class_it->second);
+      if (class_it != data.classes.end()) {
+        owner_class = class_it->second.name;
+      }
+    }
+
+    for (const auto& [target_id, field_name] : targets) {
+      PERFETTO_LOG("  Owner %" PRIu64 " (Class '%s') -> Missing Target %" PRIu64
+                   " (Field: %s)",
+                   owner_id, owner_class.c_str(), target_id,
+                   field_name.c_str());
+      pairs_logged++;
+      if (pairs_logged >= 20)
+        break;
+    }
+  }
+
+  PERFETTO_LOG("Converted %zu object references to HeapGraph", total_refs);
+  PERFETTO_LOG("Skipped %zu references due to missing owner",
+               skipped_owner_refs);
+  PERFETTO_LOG("Skipped %zu references due to missing target",
+               skipped_target_refs);
+}
+
+// Convert root type ID to string
+std::string HeapGraphBuilder::GetRootType(uint8_t root_type_id) {
+  switch (root_type_id) {
     case HPROF_ROOT_JNI_GLOBAL:
       return "jni_global";
     case HPROF_ROOT_JNI_LOCAL:
@@ -376,16 +618,13 @@ std::string HeapGraphBuilder::RootTypeToString(uint8_t root_type) {
       return "vm_internal";
     case HPROF_ROOT_JNI_MONITOR:
       return "jni_monitor";
-    case HPROF_ROOT_UNKNOWN:
     default:
       return "unknown";
   }
 }
 
-// Fix GetHeapTypeFromId in HeapGraphBuilder
-std::optional<std::string> HeapGraphBuilder::GetHeapTypeFromId(
-    uint8_t heap_id) {
-  // Fallback to the standard heap types if no explicit mapping
+// Convert heap type ID to string
+std::string HeapGraphBuilder::GetHeapType(uint8_t heap_id) {
   switch (heap_id) {
     case HPROF_HEAP_APP:
       return "app";
@@ -406,499 +645,76 @@ std::optional<std::string> HeapGraphBuilder::GetHeapTypeFromId(
   }
 }
 
-// Process an instance dump record
-HeapGraphObject HeapGraphBuilder::ProcessInstanceDump(
-    const InstanceDumpData& instance_data) {
-  uint64_t object_id = instance_data.object_id;
-  uint64_t type_id = instance_data.class_object_id;
+// Generic helper for creating objects from different record types
+template <typename T>
+void HeapGraphBuilder::CreateObjectFromDump(const T& dump_data,
+                                            const HprofData& data,
+                                            HeapGraph& ir,
+                                            size_t& counter) {
+  // Extract object ID, type ID and other fields based on dump type
+  uint64_t object_id;
+  uint64_t type_id;
+  int64_t size;
+  HprofHeapId heap_id;
 
-  // Create HeapGraph object
-  HeapGraphObject hg_object;
-  hg_object.object_id = object_id;
-  hg_object.type_id = type_id;
-  hg_object.self_size =
-      static_cast<int64_t>(instance_data.raw_instance_data.size());
-  hg_object.heap_type = GetHeapTypeFromId(instance_data.heap_id);
+  // Set values based on the specific dump type
+  if constexpr (std::is_same_v<T, InstanceDumpData>) {
+    object_id = dump_data.object_id;
+    type_id = dump_data.class_object_id;
+    size = static_cast<int64_t>(dump_data.raw_instance_data.size());
+    heap_id = dump_data.heap_id;
+  } else if constexpr (std::is_same_v<T, ClassDumpData>) {
+    object_id = dump_data.class_object_id;
+    type_id = data.java_lang_class_object_id != 0
+                  ? data.java_lang_class_object_id
+                  : dump_data.class_object_id;
+    size = dump_data.instance_size;
+    heap_id = dump_data.heap_id;
+  } else if constexpr (std::is_same_v<T, ObjArrayDumpData>) {
+    object_id = dump_data.array_object_id;
+    type_id = dump_data.array_class_object_id;
+    size = static_cast<int64_t>(
+        dump_data.elements.size() *
+        (data.header.identifier_size == 0 ? 8 : data.header.identifier_size));
+    heap_id = dump_data.heap_id;
 
-  return hg_object;
-}
-
-// Main ToObjects implementation
-void HeapGraphBuilder::ToObjects(const HprofData& data, HeapGraph& ir) {
-  PERFETTO_DLOG("Converting objects from hprof to HeapGraph");
-
-  size_t instance_objects = 0;
-  size_t obj_array_objects = 0;
-  size_t prim_array_objects = 0;
-  size_t root_objects = 0;
-  size_t skipped_objects = 0;
-
-  // Track which object IDs have been processed to avoid duplicates
-  std::unordered_set<uint64_t> processed_object_ids;
-
-  // Process all records in the hprof for objects
-  for (const auto& record : data.records) {
-    // We're only interested in heap dump records
-    if (record.tag != HPROF_HEAP_DUMP &&
-        record.tag != HPROF_HEAP_DUMP_SEGMENT) {
-      continue;
-    }
-
-    // Process heap dump records
-    if (std::holds_alternative<HeapDumpData>(record.data)) {
-      const auto& heap_dump_data = std::get<HeapDumpData>(record.data);
-
-      for (const auto& sub_record : heap_dump_data.records) {
-        uint64_t object_id = 0;
-        uint64_t type_id = 0;
-        uint32_t ref_set_id = 0;
-        HeapGraphObject hg_object;
-        bool skip_object = false;
-
-        // Process based on record type
-        if (sub_record.tag == HPROF_INSTANCE_DUMP &&
-            std::holds_alternative<InstanceDumpData>(sub_record.data)) {
-          // Handle instance dump
-          const auto& instance_data =
-              std::get<InstanceDumpData>(sub_record.data);
-          object_id = instance_data.object_id;
-          type_id = instance_data.class_object_id;
-
-          // Check if class ID exists in the hprof classes
-          if (type_id == 0 ||
-              data.classes.find(type_id) == data.classes.end()) {
-            PERFETTO_DLOG(
-                "Skipping instance with missing class: object_id=%" PRIu64
-                ", class_id=%" PRIu64,
-                object_id, type_id);
-            skipped_objects++;
-            continue;
-          }
-
-          // Create HeapGraph object
-          hg_object.object_id = object_id;
-          hg_object.type_id = type_id;
-          hg_object.self_size =
-              static_cast<int64_t>(instance_data.raw_instance_data.size());
-
-          // Use the heap ID from the instance data
-          auto heap_name = GetHeapTypeFromId(instance_data.heap_id);
-          if (heap_name) {
-            hg_object.heap_type = *heap_name;
-          } else {
-            // Fallback to "default" if no heap info available
-            hg_object.heap_type = "default";
-          }
-
-          instance_objects++;
-        } else if (sub_record.tag == HPROF_OBJ_ARRAY_DUMP &&
-                   std::holds_alternative<ObjArrayDumpData>(sub_record.data)) {
-        } else if (sub_record.tag == HPROF_PRIM_ARRAY_DUMP &&
-                   std::holds_alternative<PrimArrayDumpData>(sub_record.data)) {
-        } else {
-          // Skip other record types
-          continue;
-        }
-
-        // Skip if object ID is 0 or already processed
-        if (object_id == 0 || processed_object_ids.count(object_id) > 0) {
-          continue;
-        }
-
-        // Mark as processed
-        processed_object_ids.insert(object_id);
-
-        // Skip if we're supposed to skip this object (due to missing class ID)
-        if (skip_object) {
-          continue;
-        }
-
-        // Check if this object is a root and add root type
-        auto root_it = data.root_objects.find(object_id);
-        if (root_it != data.root_objects.end()) {
-          std::string root_type = RootTypeToString(root_it->second);
-          hg_object.root_type = root_type;
-
-          root_objects++;
-
-          // Log root objects (limited to avoid spam)
-          if (root_objects <= 10 || root_objects % 1000 == 0) {
-            PERFETTO_DLOG("Found root object: ID=%" PRIu64 ", type=%s",
-                          object_id, hg_object.root_type->c_str());
-          }
-        }
-
-        // Generate reference set ID
-        ref_set_id = next_reference_set_id_++;
-        object_to_reference_set_id_[object_id] = ref_set_id;
-        hg_object.reference_set_id = ref_set_id;
-
-        // Log sample object conversions
-        if (ir.objects.size() < 10 || ir.objects.size() % 10000 == 0) {
-          PERFETTO_DLOG("Converting object to HeapGraph: ID=%" PRIu64
-                        ", type=%" PRIu64 ", size=%" PRId64 "%s",
-                        object_id, type_id, hg_object.self_size,
-                        hg_object.root_type.has_value()
-                            ? (", root_type=" + *hg_object.root_type).c_str()
-                            : "");
-        }
-
-        ir.objects.push_back(std::move(hg_object));
+    for (const auto& element_id : dump_data.elements) {
+      if (element_id != 0) {
+        processed_object_ids_.insert(element_id);
       }
     }
-  }
-
-  // Add class objects as well
-  for (const auto& [class_id, class_info] : data.classes) {
-    // Skip if already processed (could happen if class objects were already in
-    // objects)
-    if (processed_object_ids.count(class_id) > 0) {
-      continue;
-    }
-
-    HeapGraphObject hg_object;
-    hg_object.object_id = class_id;
-
-    // Class objects are instances of java.lang.Class
-    if (data.java_lang_class_object_id != 0) {
-      hg_object.type_id = data.java_lang_class_object_id;
-    } else {
-      // If java.lang.Class wasn't found, use the class ID itself
-      hg_object.type_id = class_id;
-    }
-
-    // Since classes are often in the zygote or system heap
-    hg_object.heap_type = "system";
-
-    // Size is difficult to determine for class objects - using a constant size
-    hg_object.self_size = 64;  // Placeholder size
-
-    // Generate reference set ID
-    uint32_t ref_set_id = next_reference_set_id_++;
-    object_to_reference_set_id_[class_id] = ref_set_id;
-    hg_object.reference_set_id = ref_set_id;
-
-    // Check if this class object is also a root
-    auto root_it = data.root_objects.find(class_id);
-    if (root_it != data.root_objects.end()) {
-      std::string root_type = RootTypeToString(root_it->second);
-      hg_object.root_type = root_type;
-    }
-
-    ir.objects.push_back(std::move(hg_object));
-  }
-
-  PERFETTO_DLOG(
-      "Converted %zu objects to HeapGraph (%zu instances, %zu obj arrays, %zu "
-      "prim "
-      "arrays, %zu roots, %zu skipped)",
-      ir.objects.size(), instance_objects, obj_array_objects,
-      prim_array_objects, root_objects, skipped_objects);
-}
-
-// Build a set of objects in the IR for fast lookup
-std::unordered_set<uint64_t> HeapGraphBuilder::BuildObjectsInIrSet(
-    const HeapGraph& ir) {
-  std::unordered_set<uint64_t> objects_in_ir;
-  for (const auto& obj : ir.objects) {
-    objects_in_ir.insert(obj.object_id);
-  }
-  return objects_in_ir;
-}
-
-// Check if an object is an array
-bool HeapGraphBuilder::IsArrayObject(uint64_t owner_id, const HprofData& data) {
-  uint64_t class_id = 0;
-  auto owner_class_it = data.object_to_class.find(owner_id);
-  if (owner_class_it != data.object_to_class.end()) {
-    class_id = owner_class_it->second;
-    auto class_info_it = data.classes.find(class_id);
-    if (class_info_it != data.classes.end()) {
-      // Check if class name indicates an array
-      const std::string& class_name = class_info_it->second.name;
-      return (!class_name.empty() &&
-              class_name[0] ==
-                  '[') ||  // Handles "[I", "[Ljava.lang.String;" etc.
-             (class_name.find("[]") !=
-              std::string::npos);  // Handles "int[]", "java.lang.String[]" etc.
-    }
-  }
-  return false;
-}
-
-// Create a HeapGraphReference from an ObjectReference
-HeapGraphReference HeapGraphBuilder::CreateHeapGraphReference(
-    uint32_t reference_set_id,
-    uint64_t owner_id,
-    const ObjectReference& owned_ref,
-    bool is_array,
-    uint64_t class_id,
-    const HprofData& data,
-    const std::unordered_set<uint64_t>& objects_in_ir) {
-  HeapGraphReference hg_ref;
-  hg_ref.reference_set_id = reference_set_id;
-  hg_ref.owner_id = owner_id;
-
-  // Set the field name properly based on whether this is an array or a regular
-  // object
-  if (is_array) {
-    // Keep the array index format for arrays
-    hg_ref.field_name = owned_ref.field_name;
+  } else if constexpr (std::is_same_v<T, PrimArrayDumpData>) {
+    object_id = dump_data.array_object_id;
+    type_id = 0;  // Primitive arrays don't have a specific class
+    size = static_cast<int64_t>(dump_data.elements.size());
+    heap_id = dump_data.heap_id;
   } else {
-    // For regular objects, make sure we don't have array index format
-    std::string field_name = owned_ref.field_name;
-    if (field_name.size() >= 2 && field_name[0] == '[' &&
-        field_name[field_name.size() - 1] == ']') {
-      // This looks like an array index but the owner is not an array
-      // This is probably a bug in the parsing phase
-      PERFETTO_DLOG(
-          "Warning: Found array index field name '%s' for non-array object "
-          "%" PRIu64,
-          field_name.c_str(), owner_id);
-    }
-    hg_ref.field_name = field_name;
+    // This should never happen with proper usage
+    return;
   }
 
-  // Set the owned ID if valid
-  uint64_t target_id = owned_ref.target_object_id;
-  if (target_id != 0) {
-    if (objects_in_ir.find(target_id) != objects_in_ir.end()) {
-      hg_ref.owned_id = target_id;
-    }
+  // Skip if already processed
+  if (processed_object_ids_.count(object_id)) {
+    return;
   }
 
-  // Set field type name
-  std::string owner_class_name;
-  if (class_id != 0) {
-    auto class_info_it = data.classes.find(class_id);
-    if (class_info_it != data.classes.end()) {
-      owner_class_name = class_info_it->second.name;
-    }
+  // Create object
+  HeapGraphObject object;
+  object.object_id = object_id;
+  object.type_id = type_id;
+  object.self_size = size;
+  object.heap_type = GetHeapType(heap_id);
+
+  // Check if it's a root object
+  auto root_it = data.root_objects.find(object_id);
+  if (root_it != data.root_objects.end()) {
+    object.root_type = GetRootType(root_it->second);
   }
 
-  // Try to determine field type name from owned object
-  if (target_id != 0) {
-    auto type_it = data.object_to_class.find(target_id);
-    if (type_it != data.object_to_class.end()) {
-      auto class_it = data.classes.find(type_it->second);
-      if (class_it != data.classes.end()) {
-        hg_ref.field_type_name = class_it->second.name;
-      }
-    }
-  }
-
-  // If field type is still empty, use owner class name as fallback
-  if (hg_ref.field_type_name.empty() && !owner_class_name.empty()) {
-    hg_ref.field_type_name = owner_class_name;
-  } else if (hg_ref.field_type_name.empty()) {
-    // If still empty, use a default type name
-    hg_ref.field_type_name = "java.lang.Object";
-  }
-
-  return hg_ref;
-}
-
-// Create references for a single owner
-std::vector<HeapGraphReference> HeapGraphBuilder::CreateReferencesForOwner(
-    uint64_t owner_id,
-    const std::vector<ObjectReference>& owned_list,
-    uint32_t reference_set_id,
-    bool is_array,
-    const HprofData& data,
-    const std::unordered_set<uint64_t>& objects_in_ir) {
-  std::vector<HeapGraphReference> references;
-
-  uint64_t class_id = 0;
-  auto owner_class_it = data.object_to_class.find(owner_id);
-  if (owner_class_it != data.object_to_class.end()) {
-    class_id = owner_class_it->second;
-  }
-
-  // Process all references from this owner
-  for (const auto& owned_ref : owned_list) {
-    HeapGraphReference hg_ref =
-        CreateHeapGraphReference(reference_set_id, owner_id, owned_ref,
-                                 is_array, class_id, data, objects_in_ir);
-
-    references.push_back(std::move(hg_ref));
-  }
-
-  return references;
-}
-
-// Main ToReferences implementation
-void HeapGraphBuilder::ToReferences(const HprofData& data, HeapGraph& ir) {
-  PERFETTO_DLOG("Converting %zu reference owner-to-owned entries to HeapGraph",
-                data.owner_to_owned.size());
-
-  // Track reference conversion statistics
-  size_t total_references = 0;
-  size_t refs_with_valid_owner = 0;
-  size_t refs_with_valid_owned = 0;
-
-  // Build a set of objects in IR for fast lookup
-  std::unordered_set<uint64_t> objects_in_ir = BuildObjectsInIrSet(ir);
-  PERFETTO_DLOG("Found %zu objects in HeapGraph", objects_in_ir.size());
-
-  // Process each owner and its references
-  for (const auto& [owner_id, owned_list] : data.owner_to_owned) {
-    // Check if owner exists in HeapGraph objects
-    if (objects_in_ir.find(owner_id) == objects_in_ir.end()) {
-      if (total_references < 10 || total_references % 10000 == 0) {
-        PERFETTO_DLOG("Owner ID %" PRIu64
-                      " from hprof not found in HeapGraph objects",
-                      owner_id);
-      }
-      continue;
-    }
-
-    refs_with_valid_owner++;
-
-    // Find the reference set ID for the owner
-    uint32_t reference_set_id = 0;
-    auto ref_set_id_it = object_to_reference_set_id_.find(owner_id);
-    if (ref_set_id_it != object_to_reference_set_id_.end()) {
-      reference_set_id = ref_set_id_it->second;
-    } else {
-      PERFETTO_DLOG("No reference set ID found for owner %" PRIu64, owner_id);
-      continue;
-    }
-
-    // Determine if the owner is an array
-    bool is_array = IsArrayObject(owner_id, data);
-
-    // Create references for this owner
-    std::vector<HeapGraphReference> owner_references = CreateReferencesForOwner(
-        owner_id, owned_list, reference_set_id, is_array, data, objects_in_ir);
-
-    // Update statistics and add references to IR
-    for (auto& ref : owner_references) {
-      total_references++;
-
-      if (ref.owned_id.has_value()) {
-        refs_with_valid_owned++;
-      }
-
-      // Log sample of references for debugging
-      if (total_references < 10 || total_references % 10000 == 0) {
-        PERFETTO_DLOG(
-            "Added reference: owner=%" PRIu64 " (%s), owned=%s, field=%s",
-            owner_id, is_array ? "array" : "object",
-            ref.owned_id.has_value() ? std::to_string(*ref.owned_id).c_str()
-                                     : "null",
-            ref.field_name.c_str());
-      }
-
-      // Add the reference to HeapGraph
-      ir.references.push_back(std::move(ref));
-    }
-  }
-
-  PERFETTO_DLOG(
-      "Converted %zu references: %zu with valid owner, %zu with valid owned",
-      total_references, refs_with_valid_owner, refs_with_valid_owned);
-}
-
-HeapGraphValue HeapGraphBuilder::ConvertFieldValue(const FieldValue& value) {
-  PERFETTO_DLOG("Converting field value of type %d",
-                static_cast<int>(value.type));
-  HeapGraphValue hg_value;
-
-  switch (value.type) {
-    case FieldValue::ValueType::BOOLEAN:
-      hg_value.type = HeapGraphValue::Type::BOOLEAN;
-      hg_value.primitive_value = std::get<bool>(value.value);
-      break;
-    case FieldValue::ValueType::BYTE:
-      hg_value.type = HeapGraphValue::Type::BYTE;
-      hg_value.primitive_value = std::get<int8_t>(value.value);
-      break;
-    case FieldValue::ValueType::CHAR:
-      hg_value.type = HeapGraphValue::Type::CHAR;
-      hg_value.primitive_value = std::get<char16_t>(value.value);
-      break;
-    case FieldValue::ValueType::SHORT:
-      hg_value.type = HeapGraphValue::Type::SHORT;
-      hg_value.primitive_value = std::get<int16_t>(value.value);
-      break;
-    case FieldValue::ValueType::INT:
-      hg_value.type = HeapGraphValue::Type::INT;
-      hg_value.primitive_value = std::get<int32_t>(value.value);
-      break;
-    case FieldValue::ValueType::FLOAT:
-      hg_value.type = HeapGraphValue::Type::FLOAT;
-      hg_value.primitive_value = std::get<float>(value.value);
-      break;
-    case FieldValue::ValueType::LONG:
-      hg_value.type = HeapGraphValue::Type::LONG;
-      hg_value.primitive_value = std::get<int64_t>(value.value);
-      break;
-    case FieldValue::ValueType::DOUBLE:
-      hg_value.type = HeapGraphValue::Type::DOUBLE;
-      hg_value.primitive_value = std::get<double>(value.value);
-      break;
-    case FieldValue::ValueType::OBJECT_ID:
-      hg_value.type = HeapGraphValue::Type::OBJECT_ID;
-      hg_value.primitive_value = std::get<uint64_t>(value.value);
-      break;
-    case FieldValue::ValueType::NONE:
-      hg_value.type = HeapGraphValue::Type::NONE;
-      hg_value.primitive_value = std::monostate{};
-      break;
-  }
-
-  return hg_value;
-}
-
-std::string HeapGraphBuilder::DetermineClassKind(
-    const std::string& class_name) const {
-  PERFETTO_DLOG("Determining class kind for: %s", class_name.c_str());
-
-  // Refined kind determination
-  if (class_name.find("java.lang.") == 0)
-    return "system";
-  if (class_name.find("java.util.") == 0)
-    return "system";
-  if (class_name.find("java.concurrent.") == 0)
-    return "system";
-  if (class_name.find("jdk.internal.") == 0)
-    return "system";
-  if (class_name.find("sun.") == 0)
-    return "system";
-  if (class_name.find("com.sun.") == 0)
-    return "system";
-  if (class_name.find("android.") == 0)
-    return "framework";
-  if (class_name.find("com.android.") == 0)
-    return "framework";
-  if (class_name.find("androidx.") == 0)
-    return "framework";
-
-  return "app";
-}
-
-void HeapGraphBuilder::PrintConversionDiagnostics() {
-  PERFETTO_DLOG("\nConversion Diagnostics:");
-  PERFETTO_DLOG("----------------------");
-
-  PERFETTO_DLOG("Total Classes Processed: %zu",
-                diagnostics_.total_processed_classes);
-  PERFETTO_DLOG("Unique Classes Processed: %zu",
-                diagnostics_.unique_classes_processed);
-
-  PERFETTO_DLOG("\nClass Kind Distribution:");
-  for (const auto& [kind, count] : diagnostics_.class_kind_counts) {
-    PERFETTO_DLOG("  %s: %zu", kind.c_str(), count);
-  }
-
-  PERFETTO_DLOG("\nSuperclass Chain Lengths:");
-  for (const auto& [length, count] : diagnostics_.superclass_chain_lengths) {
-    PERFETTO_DLOG("  %s: %zu", length.c_str(), count);
-  }
-
-  PERFETTO_DLOG("\nReferences:");
-  PERFETTO_DLOG("  Generated References: %zu",
-                diagnostics_.references_generated);
+  // Add to heap graph
+  ir.objects.push_back(std::move(object));
+  processed_object_ids_.insert(object_id);
+  counter++;
 }
 
 }  // namespace perfetto::trace_processor::art_hprof

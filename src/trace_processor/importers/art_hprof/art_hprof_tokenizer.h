@@ -79,7 +79,6 @@ enum HprofTag {
  * Heap tag constants from HPROF format.
  */
 enum HprofHeapTag {
-  HPROF_ROOT_UNKNOWN = 0xFF,
   HPROF_ROOT_JNI_GLOBAL = 0x01,
   HPROF_ROOT_JNI_LOCAL = 0x02,
   HPROF_ROOT_JAVA_FRAME = 0x03,
@@ -88,17 +87,17 @@ enum HprofHeapTag {
   HPROF_ROOT_THREAD_BLOCK = 0x06,
   HPROF_ROOT_MONITOR_USED = 0x07,
   HPROF_ROOT_THREAD_OBJ = 0x08,
+  HPROF_ROOT_INTERNED_STRING = 0x89,
+  HPROF_ROOT_DEBUGGER = 0x8b,
+  HPROF_ROOT_VM_INTERNAL = 0x8d,
+  HPROF_ROOT_UNKNOWN = 0xff,
+  HPROF_ROOT_JNI_MONITOR = 0x8e,
+  HPROF_ROOT_FINALIZING = 0x8a,
   HPROF_CLASS_DUMP = 0x20,
   HPROF_INSTANCE_DUMP = 0x21,
   HPROF_OBJ_ARRAY_DUMP = 0x22,
   HPROF_PRIM_ARRAY_DUMP = 0x23,
   HPROF_HEAP_DUMP_INFO = 0xFE,
-  HPROF_ROOT_INTERNED_STRING = 0x89,
-  HPROF_ROOT_FINALIZING = 0x8A,
-  HPROF_ROOT_DEBUGGER = 0x8B,
-  HPROF_ROOT_REFERENCE_CLEANUP = 0x8C,
-  HPROF_ROOT_VM_INTERNAL = 0x8D,
-  HPROF_ROOT_JNI_MONITOR = 0x8E
 };
 
 // Forward declarations
@@ -328,6 +327,7 @@ struct ClassDumpData {
   std::vector<FieldInfo> static_fields;
   std::vector<FieldInfo> instance_fields;
   bool is_string_class = false;
+  HprofHeapId heap_id = HPROF_HEAP_DEFAULT;
 };
 
 /**
@@ -400,12 +400,9 @@ struct HprofData {
 
   // Maps for resolving references
   std::unordered_map<uint64_t, std::string> id_to_string_map;
-  std::unordered_map<uint32_t, uint64_t> class_serial_to_id;
   std::unordered_map<uint64_t, ClassInfo> classes;
   std::unordered_map<uint64_t, uint64_t> object_to_class;
   std::unordered_map<uint64_t, std::vector<ObjectReference>> owner_to_owned;
-  std::unordered_map<uint8_t, uint64_t>
-      primitive_array_class_ids;  // Using FieldType as key
   uint64_t java_lang_class_object_id = 0;
 
   std::unordered_map<uint64_t, uint8_t> root_objects;
@@ -462,50 +459,44 @@ class HprofParser {
     uint32_t length;
   };
 
+  // Helper to add a main record to data_.records
+  template <typename T>
+  void AddMainRecord(const RecordHeader& header, T&& record_data);
+
+  // Helper to add a heap record to the current heap dump record
+  template <typename T>
+  void AddHeapRecord(HprofHeapTag tag, T&& record_data);
+
+  // Helper to get string from ID map, with error handling
+  std::string GetString(uint64_t id) const;
+
   // Main parsing methods with centralized dispatch
-  void ParseHeader(HprofData& data);
+  void ParseHeader();
   bool HasMoreData() const;
   RecordHeader ReadRecordHeader();
-  void ParseRecordByType(const RecordHeader& header, HprofData& data);
-  void ParseUtf8Record(const RecordHeader& header, HprofData& data);
-  void ParseLoadClassRecord(const RecordHeader& header, HprofData& data);
-  void ParseHeapDumpRecord(const RecordHeader& header, HprofData& data);
+  void ParseRecordByType(const RecordHeader& header);
+  void ParseUtf8Record(const RecordHeader& header);
+  void ParseLoadClassRecord(const RecordHeader& header);
+  void ParseHeapDumpRecord(const RecordHeader& header);
   void SkipRecord(uint32_t length);
 
   // Heap sub-record parsing methods
-  void ParseRootJniGlobal(HprofData& data);
-  void ParseRootWithThread(HprofData& data, uint8_t sub_tag_value);
-  void ParseSimpleRoot(HprofData& data, uint8_t sub_tag_value);
-  void ParseThreadObjectRoot(HprofData& data);
-  void ParseHeapDumpInfo(HprofData& data);
-  void ParseClassDump(HprofData& data);
-  void ParseInstanceDump(HprofData& data);
-  void ParseObjectArrayDump(HprofData& data);
-  void ParsePrimitiveArrayDump(HprofData& data);
+  void ParseRootJniGlobal();
+  // Changed: Signature updated to accept tag value
+  // Renamed from ParseRootWithThread to better reflect usage
+  void ParseThreadObjectRoot(uint8_t sub_tag_value);
+  void ParseSimpleRoot(uint8_t sub_tag_value);
+  // Removed: ParseRootWithThread is no longer needed after consolidation
+  void ParseHeapDumpInfo();
+  void ParseClassDump();
+  void ParseInstanceDump();
+  void ParseObjectArrayDump();
+  void ParsePrimitiveArrayDump();
   void SkipUnknownSubRecord(uint8_t sub_tag);
-  static std::string NormalizeClassName(std::string name);
 
   // Helper methods
   bool IsStringClass(const std::string& class_name) const;
   size_t GetFieldTypeSize(uint8_t type) const;
-  int8_t ReadByteValue(const std::vector<uint8_t>& data, size_t offset) const;
-  bool ReadBooleanValue(const std::vector<uint8_t>& data, size_t offset) const;
-  int16_t ReadShortValue(const std::vector<uint8_t>& data, size_t offset) const;
-  char16_t ReadCharValue(const std::vector<uint8_t>& data, size_t offset) const;
-  int32_t ReadIntValue(const std::vector<uint8_t>& data, size_t offset) const;
-  float ReadFloatValue(const std::vector<uint8_t>& data, size_t offset) const;
-  int64_t ReadLongValue(const std::vector<uint8_t>& data, size_t offset) const;
-  double ReadDoubleValue(const std::vector<uint8_t>& data, size_t offset) const;
-  uint64_t ReadObjectIDValue(const std::vector<uint8_t>& data,
-                             size_t offset,
-                             uint32_t id_size) const;
-  FieldValue ExtractFieldValue(const std::vector<uint8_t>& data,
-                               size_t offset,
-                               uint8_t field_type);
-  void ExtractInstanceFields(InstanceDumpData& instance_data,
-                             const ClassInfo& class_info);
-  void ExtractStringInstance(InstanceDumpData& instance_data,
-                             const ClassInfo& class_info);
   std::vector<FieldInfo> GetFieldsForClassHierarchy(uint64_t class_object_id);
   size_t GetPosition() const;
   bool IsEof() const;
