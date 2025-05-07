@@ -38,10 +38,7 @@ import "protos/perfetto/perfetto_sql/structured_query.proto";
 //
 // ```
 // id: "memory_per_process"
-// dimensions_specs: {
-//   name: "process_name"
-//   type: STRING
-// }
+// dimensions: "process_name"
 // value: "avg_rss_and_swap"
 // query: {
 //   table: {
@@ -69,14 +66,8 @@ import "protos/perfetto/perfetto_sql/structured_query.proto";
 //
 // ```
 // id: "memory_per_process_and_cuj"
-// dimensions_specs: {
-//  name: "process_name"
-//  type: STRING
-//}
-// dimensions_specs: {
-//  name: "cuj_name"
-//  type: STRING
-//}//
+// dimensions: "process_name"
+// dimensions: "cuj_name"
 // value: "avg_rss_and_swap"
 // query: {
 //   interval_intersect: {
