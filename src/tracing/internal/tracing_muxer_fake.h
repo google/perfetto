@@ -24,7 +24,7 @@ namespace perfetto {
 namespace internal {
 
 // An always-fail implementation of TracingMuxer. Before tracing has been
-// initialiazed, all muxer operations will route here and fail with a helpful
+// initialized, all muxer operations will route here and fail with a helpful
 // error message. This is to avoid introducing null checks in
 // performance-critical parts of the codebase.
 class TracingMuxerFake : public TracingMuxer {
@@ -44,11 +44,7 @@ class TracingMuxerFake : public TracingMuxer {
   ~TracingMuxerFake() override;
 
   static constexpr TracingMuxerFake* Get() {
-#if PERFETTO_HAS_NO_DESTROY()
     return &instance;
-#else
-    return nullptr;
-#endif
   }
 
   // TracingMuxer implementation.

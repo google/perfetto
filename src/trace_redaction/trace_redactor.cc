@@ -32,6 +32,7 @@
 #include "src/trace_redaction/collect_frame_cookies.h"
 #include "src/trace_redaction/collect_system_info.h"
 #include "src/trace_redaction/collect_timeline_events.h"
+#include "src/trace_redaction/drop_empty_ftrace_events.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/merge_threads.h"
 #include "src/trace_redaction/populate_allow_lists.h"
@@ -118,9 +119,9 @@ base::Status TraceRedactor::Transform(
     auto packet = packet_it->as_std_string();
 
     for (const auto& transformer : transformers_) {
-      // If the packet has been cleared, it means a tranformation has removed it
-      // from the trace. Stop processing it. This saves transforms from having
-      // to check and handle empty packets.
+      // If the packet has been cleared, it means a transformation has removed
+      // it from the trace. Stop processing it. This saves transforms from
+      // having to check and handle empty packets.
       if (packet.empty()) {
         break;
       }
@@ -266,6 +267,15 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
     auto* primitive = redactor->emplace_transform<RedactProcessTrees>();
     primitive->emplace_modifier<ProcessTreeCreateSynthThreads>();
     primitive->emplace_filter<ConnectedToPackage>();
+  }
+
+  // Optimizations:
+  //
+  // This block of transforms should be registered last. They clean-up after the
+  // other transforms. The most common function will be to remove empty
+  // messages.
+  {
+    redactor->emplace_transform<DropEmptyFtraceEvents>();
   }
 
   return redactor;

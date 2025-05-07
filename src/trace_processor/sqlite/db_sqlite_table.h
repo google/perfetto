@@ -30,7 +30,7 @@
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 
 namespace perfetto::trace_processor {
 
@@ -68,9 +68,8 @@ struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
    private:
     State(TableComputation, Table::Schema);
   };
-  struct Context {
+  struct Context : sqlite::ModuleStateManager<DbSqliteModule> {
     std::unique_ptr<State> temporary_create_state;
-    sqlite::ModuleStateManager<DbSqliteModule> manager;
   };
   struct Vtab : public sqlite::Module<DbSqliteModule>::Vtab {
     sqlite::ModuleStateManager<DbSqliteModule>::PerVtabState* state;
@@ -152,6 +151,26 @@ struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
   static int Eof(sqlite3_vtab_cursor*);
   static int Column(sqlite3_vtab_cursor*, sqlite3_context*, int);
   static int Rowid(sqlite3_vtab_cursor*, sqlite_int64*);
+
+  static int Begin(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Sync(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Commit(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Rollback(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Savepoint(sqlite3_vtab* t, int r) {
+    DbSqliteModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<DbSqliteModule>::OnSavepoint(vtab->state, r);
+    return SQLITE_OK;
+  }
+  static int Release(sqlite3_vtab* t, int r) {
+    DbSqliteModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<DbSqliteModule>::OnRelease(vtab->state, r);
+    return SQLITE_OK;
+  }
+  static int RollbackTo(sqlite3_vtab* t, int r) {
+    DbSqliteModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<DbSqliteModule>::OnRollbackTo(vtab->state, r);
+    return SQLITE_OK;
+  }
 
   // static for testing.
   static QueryCost EstimateCost(const Table::Schema&,

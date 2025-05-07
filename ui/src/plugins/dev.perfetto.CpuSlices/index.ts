@@ -12,21 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {Engine} from '../../trace_processor/engine';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
-import {NUM, STR_NULL} from '../../trace_processor/query_result';
-import {CpuSliceTrack} from './cpu_slice_track';
-import {TrackNode} from '../../public/workspace';
-import {CpuSliceSelectionAggregator} from './cpu_slice_selection_aggregator';
-import {CpuSliceByProcessSelectionAggregator} from './cpu_slice_by_process_selection_aggregator';
-import ThreadPlugin from '../dev.perfetto.Thread';
 import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
-
-function uriForSchedTrack(cpu: number): string {
-  return `/sched_cpu${cpu}`;
-}
+import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
+import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {TrackNode} from '../../public/workspace';
+import {Engine} from '../../trace_processor/engine';
+import {NUM, STR_NULL} from '../../trace_processor/query_result';
+import ThreadPlugin from '../dev.perfetto.Thread';
+import {uriForSchedTrack} from './common';
+import {CpuSliceByProcessSelectionAggregator} from './cpu_slice_by_process_selection_aggregator';
+import {CpuSliceSelectionAggregator} from './cpu_slice_selection_aggregator';
+import {CpuSliceTrack} from './cpu_slice_track';
+import {WakerOverlay} from './waker_overlay';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuSlices';
@@ -75,6 +73,8 @@ export default class implements PerfettoPlugin {
       const trackNode = new TrackNode({uri, title: name, sortOrder: -50});
       ctx.workspace.addChildInOrder(trackNode);
     }
+
+    ctx.tracks.registerOverlay(new WakerOverlay(ctx));
   }
 
   async getAndroidCpuClusterTypes(

@@ -19,10 +19,15 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/type_set.h"
@@ -39,16 +44,25 @@ using NonStringType = TypeSet<Id, Uint32, Int32, Int64, Double>;
 using IntegerOrDoubleType = TypeSet<Uint32, Int32, Int64, Double>;
 
 // Set of operations applicable to non-null values.
-using NonNullOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
+using NonNullOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
 
 // Set of operations applicable to non-string values.
 using NonStringOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
+
+// Set of operations applicable to string values.
+using StringOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
+
+// Set of operations applicable to only string values.
+using OnlyStringOp = TypeSet<Glob, Regex>;
 
 // Set of operations applicable to ranges.
 using RangeOp = TypeSet<Eq, Lt, Le, Gt, Ge>;
 
 // Set of inequality operations (Lt, Le, Gt, Ge).
 using InequalityOp = TypeSet<Lt, Le, Gt, Ge>;
+
+// Set of null operations (IsNotNull, IsNull).
+using NullOp = TypeSet<IsNotNull, IsNull>;
 
 // Indicates an operation applies to both bounds of a range.
 struct BothBounds {};
@@ -78,6 +92,26 @@ struct UpperBound {};
 using EqualRangeLowerBoundUpperBound =
     TypeSet<EqualRange, LowerBound, UpperBound>;
 
+// Type tag indicating nulls should be placed at the start during
+// partitioning/sorting.
+struct NullsAtStart {};
+
+// Type tag indicating nulls should be placed at the end during
+// partitioning/sorting.
+struct NullsAtEnd {};
+
+// TypeSet defining the possible placement locations for nulls.
+using NullsLocation = TypeSet<NullsAtStart, NullsAtEnd>;
+
+// Type tag for finding the minimum value.
+struct MinOp {};
+
+// Type tag for finding the maximum value.
+struct MaxOp {};
+
+// TypeSet combining Min and Max operations.
+using MinMaxOp = TypeSet<MinOp, MaxOp>;
+
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.
 class Storage {
@@ -85,28 +119,37 @@ class Storage {
   // Storage representation for Id columns.
   struct Id {
     uint32_t size;  // Number of rows in the column
+
+    static const void* data() { return nullptr; }
   };
   using Uint32 = FlexVector<uint32_t>;
   using Int32 = FlexVector<int32_t>;
   using Int64 = FlexVector<int64_t>;
   using Double = FlexVector<double>;
+  using String = FlexVector<StringPool::Id>;
 
-  explicit Storage(Storage::Id data) : data_(data) {}
-  explicit Storage(Storage::Uint32 data) : data_(std::move(data)) {}
-  explicit Storage(Storage::Int32 data) : data_(std::move(data)) {}
-  explicit Storage(Storage::Int64 data) : data_(std::move(data)) {}
-  explicit Storage(Storage::Double data) : data_(std::move(data)) {}
+  Storage(Storage::Id data) : type_(dataframe::Id{}), data_(data) {}
+  Storage(Storage::Uint32 data)
+      : type_(dataframe::Uint32{}), data_(std::move(data)) {}
+  Storage(Storage::Int32 data)
+      : type_(dataframe::Int32{}), data_(std::move(data)) {}
+  Storage(Storage::Int64 data)
+      : type_(dataframe::Int64{}), data_(std::move(data)) {}
+  Storage(Storage::Double data)
+      : type_(dataframe::Double{}), data_(std::move(data)) {}
+  Storage(Storage::String data)
+      : type_(dataframe::String{}), data_(std::move(data)) {}
 
   // Type-safe access to storage with unchecked variant access.
   template <typename T>
   auto& unchecked_get() {
-    using U = ColumnType::VariantTypeAtIndex<T, Variant>;
+    using U = StorageType::VariantTypeAtIndex<T, Variant>;
     return base::unchecked_get<U>(data_);
   }
 
   template <typename T>
   const auto& unchecked_get() const {
-    using U = ColumnType::VariantTypeAtIndex<T, Variant>;
+    using U = StorageType::VariantTypeAtIndex<T, Variant>;
     return base::unchecked_get<U>(data_);
   }
 
@@ -121,14 +164,43 @@ class Storage {
     return unchecked_get<T>().data();
   }
 
+  // Returns a raw byte pointer to the underlying data.
+  // Returns nullptr if the storage type is Id (which has no buffer).
+  const uint8_t* byte_data() const {
+    switch (type_.index()) {
+      case StorageType::GetTypeIndex<dataframe::Id>():
+        return nullptr;
+      case StorageType::GetTypeIndex<dataframe::Uint32>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::Uint32>(data_).data());
+      case StorageType::GetTypeIndex<dataframe::Int32>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::Int32>(data_).data());
+      case StorageType::GetTypeIndex<dataframe::Int64>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::Int64>(data_).data());
+      case StorageType::GetTypeIndex<dataframe::Double>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::Double>(data_).data());
+      case StorageType::GetTypeIndex<dataframe::String>():
+        return reinterpret_cast<const uint8_t*>(
+            base::unchecked_get<Storage::String>(data_).data());
+      default:
+        PERFETTO_FATAL("Should not reach here");
+    }
+  }
+
+  StorageType type() const { return type_; }
+
  private:
   // Variant containing all possible storage representations.
-  using Variant = std::variant<Id, Uint32, Int32, Int64, Double>;
+  using Variant = std::variant<Id, Uint32, Int32, Int64, Double, String>;
+  StorageType type_;
   Variant data_;
 };
 
-// Provides overlay data for columns with special properties (e.g. nullability).
-class Overlay {
+// Stores any information about nulls in the column.
+class NullStorage {
  private:
   template <typename T>
   static constexpr uint32_t TypeIndex() {
@@ -136,34 +208,75 @@ class Overlay {
   }
 
  public:
-  // No overlay data (for columns with default properties).
-  struct NoOverlay {};
+  // Used for non-null columns which don't need any storage for nulls.
+  struct NonNull {};
 
-  explicit Overlay(NoOverlay n) : data_(n) {}
+  // Used for nullable columns where nulls do *not* reserve a slot in `Storage`.
+  struct SparseNull {
+    // 1 = non-null element in storage.
+    // 0 = null with no corresponding entry in storage.
+    BitVector bit_vector;
+  };
+
+  // Used for nullable columns where nulls reserve a slot in `Storage`.
+  struct DenseNull {
+    // 1 = non-null element in storage.
+    // 0 = null with entry in storage with unspecified value
+    BitVector bit_vector;
+  };
+
+  NullStorage(NonNull n) : nullability_(dataframe::NonNull{}), data_(n) {}
+  NullStorage(SparseNull s)
+      : nullability_(dataframe::SparseNull{}), data_(std::move(s)) {}
+  NullStorage(DenseNull d)
+      : nullability_(dataframe::DenseNull{}), data_(std::move(d)) {}
 
   // Type-safe unchecked access to variant data.
   template <typename T>
-  T& uget() {
+  T& unchecked_get() {
     return base::unchecked_get<T>(data_);
   }
 
   template <typename T>
-  const T& uget() const {
+  const T& unchecked_get() const {
     return base::unchecked_get<T>(data_);
   }
 
+  BitVector& GetNullBitVector() {
+    switch (data_.index()) {
+      case TypeIndex<SparseNull>():
+        return unchecked_get<SparseNull>().bit_vector;
+      case TypeIndex<DenseNull>():
+        return unchecked_get<DenseNull>().bit_vector;
+      default:
+        PERFETTO_FATAL("Unsupported overlay type");
+    }
+  }
+  const BitVector& GetNullBitVector() const {
+    switch (data_.index()) {
+      case TypeIndex<SparseNull>():
+        return unchecked_get<SparseNull>().bit_vector;
+      case TypeIndex<DenseNull>():
+        return unchecked_get<DenseNull>().bit_vector;
+      default:
+        PERFETTO_FATAL("Unsupported overlay type");
+    }
+  }
+
+  Nullability nullability() const { return nullability_; }
+
  private:
   // Variant containing all possible overlay types.
-  using Variant = std::variant<NoOverlay>;
+  using Variant = std::variant<NonNull, SparseNull, DenseNull>;
+  Nullability nullability_;
   Variant data_;
 };
 
-// Combines column specification with storage implementation.
 // Represents a complete column in the dataframe.
 struct Column {
-  ColumnSpec spec;  // Column specifications (name, type, etc.)
-  Storage storage;  // Physical storage for column data
-  Overlay overlay;  // Optional overlay data for special properties
+  Storage storage;
+  NullStorage null_storage;
+  SortState sort_state;
 };
 
 // Handle for referring to a filter value during query execution.
@@ -180,7 +293,8 @@ struct CastFilterValueResult {
     bool operator==(const Id& other) const { return value == other.value; }
     uint32_t value;
   };
-  using Value = std::variant<Id, uint32_t, int32_t, int64_t, double>;
+  using Value =
+      std::variant<Id, uint32_t, int32_t, int64_t, double, const char*>;
 
   bool operator==(const CastFilterValueResult& other) const {
     return validity == other.validity && value == other.value;

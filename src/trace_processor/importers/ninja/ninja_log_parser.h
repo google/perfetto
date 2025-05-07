@@ -35,7 +35,7 @@ class TraceProcessorContext;
 // - For each ninja invocation we create one process in the trace (from the UI
 //   perspective a process is a group of tracks).
 // - Within each invocation we work out the parallelism from the time stamp and
-//   create one thread for each concurent stream of jobs.
+//   create one thread for each concurrent stream of jobs.
 // Caveat: this works only if ninja didn't recompact the logs. Once recompaction
 // happens (can be forced via ninja -t recompact) there is no way to identify
 // the boundaries of each build (recompaction deletes, for each hash, all but

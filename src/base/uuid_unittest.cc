@@ -103,17 +103,17 @@ TEST(UuidTest, DISABLED_BitRandomDistribution) {
   }
 
   // By adding +1 / -1 for each one/zero, `bit_count` contains for each bit,
-  // their embalance. In an ideal world we expect `bit_count` to be 0 at each
-  // position. In practice we accept a 2% embalance to pass the test.
+  // their imbalance. In an ideal world we expect `bit_count` to be 0 at each
+  // position. In practice we accept a 2% imbalance to pass the test.
   int64_t max_diff = 0;
   for (size_t i = 0; i < bit_count.size(); i++)
     max_diff = std::max(max_diff, std::abs(bit_count[i]));
 
   const double diff_pct =
       100.0 * static_cast<double>(max_diff) / static_cast<double>(kRounds);
-  PERFETTO_DLOG("Max bit embalance: %.2f %%", diff_pct);
+  PERFETTO_DLOG("Max bit imbalance: %.2f %%", diff_pct);
 
-  // Local runs show a 1% embalance. We take a 5x margin for the test.
+  // Local runs show a 1% imbalance. We take a 5x margin for the test.
   ASSERT_LT(diff_pct, 5.0);
 }
 

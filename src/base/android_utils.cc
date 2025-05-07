@@ -26,6 +26,15 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
+#include "perfetto/ext/base/string_utils.h"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+#include <sys/utsname.h>
+#include <unistd.h>
+#endif
 
 namespace perfetto {
 namespace base {
@@ -57,6 +66,76 @@ std::string GetAndroidProp(const char* name) {
 }
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
+SystemInfo GetSystemInfo() {
+  SystemInfo info;
+
+  info.timezone_off_mins = GetTimezoneOffsetMins();
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+  struct utsname uname_info;
+  if (uname(&uname_info) == 0) {
+    Utsname utsname_info;
+    utsname_info.sysname = uname_info.sysname;
+    utsname_info.version = uname_info.version;
+    utsname_info.machine = uname_info.machine;
+    utsname_info.release = uname_info.release;
+
+    info.utsname_info = utsname_info;
+  }
+  info.page_size = static_cast<uint32_t>(sysconf(_SC_PAGESIZE));
+  info.num_cpus = static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF));
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  info.android_build_fingerprint = GetAndroidProp("ro.build.fingerprint");
+  if (info.android_build_fingerprint.empty()) {
+    PERFETTO_ELOG("Unable to read ro.build.fingerprint");
+  }
+
+  info.android_device_manufacturer = GetAndroidProp("ro.product.manufacturer");
+  if (info.android_device_manufacturer.empty()) {
+    PERFETTO_ELOG("Unable to read ro.product.manufacturer");
+  }
+
+  std::string sdk_str_value = GetAndroidProp("ro.build.version.sdk");
+  info.android_sdk_version = StringToUInt64(sdk_str_value);
+  if (!info.android_sdk_version.has_value()) {
+    PERFETTO_ELOG("Unable to read ro.build.version.sdk");
+  }
+
+  info.android_soc_model = GetAndroidProp("ro.soc.model");
+  if (info.android_soc_model.empty()) {
+    PERFETTO_ELOG("Unable to read ro.soc.model");
+  }
+
+  // guest_soc model is not always present
+  info.android_guest_soc_model = GetAndroidProp("ro.boot.guest_soc.model");
+
+  info.android_hardware_revision = GetAndroidProp("ro.boot.hardware.revision");
+  if (info.android_hardware_revision.empty()) {
+    PERFETTO_ELOG("Unable to read ro.boot.hardware.revision");
+  }
+
+  info.android_storage_model = GetAndroidProp("ro.boot.hardware.ufs");
+  if (info.android_storage_model.empty()) {
+    PERFETTO_ELOG("Unable to read ro.boot.hardware.ufs");
+  }
+
+  info.android_ram_model = GetAndroidProp("ro.boot.hardware.ddr");
+  if (info.android_ram_model.empty()) {
+    PERFETTO_ELOG("Unable to read ro.boot.hardware.ddr");
+  }
+
+  info.android_serial_console = GetAndroidProp("init.svc.console");
+  if (info.android_serial_console.empty()) {
+    PERFETTO_ELOG("Unable to read init.svc.console");
+  }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
+  return info;
+}
 
 }  // namespace base
 }  // namespace perfetto

@@ -103,12 +103,12 @@ struct Utf8 {
   }
 };
 
-enum class Endianess {
+enum class Endianness {
   kBigEndian,
   kLittleEndian,
 };
 
-template <Endianess endianess>
+template <Endianness endianness>
 class Utf16Iterator {
  public:
   using Utf16CodeUnit = uint16_t;
@@ -179,7 +179,7 @@ class Utf16Iterator {
     uint16_t byte_1 = static_cast<uint16_t>(*current_);
     ++current_;
 
-    if (endianess == Endianess::kBigEndian) {
+    if (endianness == Endianness::kBigEndian) {
       return (byte_0 << 8) + byte_1;
     }
 
@@ -198,8 +198,8 @@ class Utf16Iterator {
   const uint8_t* const end_;
 };
 
-using Utf16LeIterator = Utf16Iterator<Endianess::kLittleEndian>;
-using Utf16BeIterator = Utf16Iterator<Endianess::kBigEndian>;
+using Utf16LeIterator = Utf16Iterator<Endianness::kLittleEndian>;
+using Utf16BeIterator = Utf16Iterator<Endianness::kBigEndian>;
 
 }  // namespace
 

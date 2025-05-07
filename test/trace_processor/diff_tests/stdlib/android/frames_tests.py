@@ -34,6 +34,8 @@ class Frames(TestSuite):
         "frame_id","name","depth"
         10,"Choreographer#doFrame 10",0
         11,"Choreographer#doFrame 11",1
+        12,"Choreographer#doFrame 12",4
+        13,"Choreographer#doFrame 13",3
         """))
 
   def test_android_frames_choreographer_do_frame(self):
@@ -120,14 +122,14 @@ class Frames(TestSuite):
         """))
 
   def test_android_frames_layers(self):
-      return DiffTestBlueprint(
-          trace=Path('../../metrics/graphics/android_jank_cuj.py'),
-          query="""
+    return DiffTestBlueprint(
+        trace=Path('../../metrics/graphics/android_jank_cuj.py'),
+        query="""
           INCLUDE PERFETTO MODULE android.frames.timeline;
 
           SELECT * FROM android_frames_layers;
           """,
-          out=Csv("""
+        out=Csv("""
           "frame_id","ts","dur","ts_end","do_frame_id","draw_frame_id","actual_frame_timeline_id","expected_frame_timeline_id","render_thread_utid","ui_thread_utid","layer_id","layer_name","upid","process_name"
           10,0,16000000,16000000,2,8,1,0,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
           20,8000000,28000000,36000000,15,16,12,11,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"

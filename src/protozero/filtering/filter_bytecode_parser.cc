@@ -71,7 +71,7 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* bytecode_data,
 
   words.pop_back();  // Pop the checksum.
 
-  // Temporay storage for each message. Cleared on every END_OF_MESSAGE.
+  // Temporary storage for each message. Cleared on every END_OF_MESSAGE.
   std::vector<uint32_t> direct_indexed_fields;
   std::vector<uint32_t> ranges;
   uint32_t max_msg_index = 0;
@@ -232,7 +232,7 @@ FilterBytecodeParser::QueryResult FilterBytecodeParser::Query(
         break;
       }
     }  // for (word in ranges)
-  }    // if (field_id >= num_directly_indexed)
+  }  // if (field_id >= num_directly_indexed)
 
   res.allowed = (field_state & kAllowed) != 0;
   res.nested_msg_index = field_state & ~kAllowed;

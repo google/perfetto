@@ -253,8 +253,6 @@ class HeapGraphTracker : public Destructible {
                     std::vector<tables::HeapGraphReferenceTable::RowNumber>>
       field_to_rows_;
 
-  std::map<std::pair<std::optional<StringId>, StringId>, StringId>
-      deobfuscation_mapping_;
   std::map<std::pair<UniquePid, int64_t>,
            std::set<tables::HeapGraphObjectTable::RowNumber>>
       roots_;

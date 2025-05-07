@@ -76,6 +76,8 @@ export interface TrackViewAttrs {
   readonly depth: number;
   readonly stickyTop: number;
   readonly collapsible: boolean;
+  onTrackMouseOver(): void;
+  onTrackMouseOut(): void;
 }
 
 /**
@@ -178,10 +180,12 @@ export class TrackView {
             timescale,
           });
           raf.scheduleCanvasRedraw();
+          attrs.onTrackMouseOver();
         },
         onTrackContentMouseOut: () => {
           renderer?.track.onMouseOut?.();
           raf.scheduleCanvasRedraw();
+          attrs.onTrackMouseOut();
         },
         onTrackContentClick: (pos, bounds) => {
           const timescale = this.getTimescaleForBounds(bounds);
@@ -633,6 +637,8 @@ function renderTrackDetailsMenu(node: TrackNode, descriptor?: Track) {
       }),
       m(TreeNode, {left: 'Path', right: fullPath}),
       m(TreeNode, {left: 'Title', right: node.title}),
+      descriptor &&
+        m(TreeNode, {left: 'Description', right: descriptor?.description}),
       m(TreeNode, {
         left: 'Workspace',
         right: node.workspace?.title ?? '[no workspace]',

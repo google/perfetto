@@ -170,7 +170,7 @@ void Unwinder::ProcessQueue() {
   base::FlatSet<DataSourceInstanceID> pending_sample_sources =
       ConsumeAndUnwindReadySamples();
 
-  // Deal with the possiblity of data sources that are shutting down.
+  // Deal with the possibility of data sources that are shutting down.
   bool post_delayed_reprocess = false;
   base::FlatSet<DataSourceInstanceID> sources_to_stop;
   for (auto& id_and_ds : data_sources_) {

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """A tool to delete permalinks and traces behind them.
 
 To be used by the Perfetto team, who has write access to the GCS bucket.
@@ -37,7 +36,9 @@ def delete_permalink_uuid(uuid: str, gcs_delete_list: List[str]):
 def main():
   gcs_delete_list = []
   if sys.stdin.isatty():
-    logging.warn('This tool expects a list of uuids or https://ui.perfetto.dev/#!#?s=deadbeef')
+    logging.warn(
+        'This tool expects a list of uuids or https://ui.perfetto.dev/#!#?s=deadbeef'
+    )
 
   for line in sys.stdin.readlines():
     line = line.strip()

@@ -93,8 +93,9 @@ TEST(UnwindingTest, TestFunctionOffset) {
 
 // This is needed because ASAN thinks copying the whole stack is a buffer
 // underrun.
-void __attribute__((noinline))
-UnsafeMemcpy(void* dst, const void* src, size_t n)
+void __attribute__((noinline)) UnsafeMemcpy(void* dst,
+                                            const void* src,
+                                            size_t n)
     __attribute__((no_sanitize("address", "hwaddress", "memory"))) {
   const uint8_t* from = reinterpret_cast<const uint8_t*>(src);
   uint8_t* to = reinterpret_cast<uint8_t*>(dst);

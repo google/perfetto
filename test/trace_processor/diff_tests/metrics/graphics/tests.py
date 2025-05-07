@@ -20,6 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class GraphicsMetrics(TestSuite):
+
   def test_frame_missed_metrics(self):
     return DiffTestBlueprint(
         trace=Path('frame_missed.py'),
@@ -168,7 +169,9 @@ class GraphicsMetrics(TestSuite):
         display_metrics {
           total_duplicate_frames: 0
           duplicate_frames_logged: 0
-          total_dpu_underrun_count: 0
+          dpu_state {
+            total_dpu_underrun_count: 0
+          }
           refresh_rate_switches: 5
           refresh_rate_stats {
             refresh_rate_fps: 60
@@ -190,6 +193,31 @@ class GraphicsMetrics(TestSuite):
           }
           update_power_state {
             avg_runtime_micro_secs: 4000
+          }
+        }
+        """))
+
+  def test_dpu_state(self):
+    return DiffTestBlueprint(
+        trace=DataPath('dpu_state.textproto'),
+        query=Metric("display_metrics"),
+        out=TextProto(r"""
+        display_metrics {
+          total_duplicate_frames: 0
+          duplicate_frames_logged: 0
+          dpu_state {
+            total_dpu_underrun_count: 336
+            dpu_underrun_detail {
+              name: "underrun[0]"
+              dpu_underrun_count: 167
+            }
+            dpu_underrun_detail {
+              name: "underrun[1]"
+              dpu_underrun_count: 169
+            }
+          }
+          refresh_rate_switches: 0
+          update_power_state {
           }
         }
         """))

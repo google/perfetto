@@ -44,6 +44,7 @@ source_set("lib") {
     "../../protos/perfetto/ipc",
     "../../protos/perfetto/ipc:wire_protocol_cpp",
     "../base",
+    "../base:version",
     "../ipc:perfetto_ipc",
     "../tracing/ipc/producer:relay",  # For relay_ipc_client.h
   ]

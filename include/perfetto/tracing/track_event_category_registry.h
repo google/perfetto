@@ -175,11 +175,10 @@ constexpr const char* NullCategory(const char*) {
 perfetto::DynamicCategory NullCategory(const perfetto::DynamicCategory&);
 
 constexpr bool StringMatchesPrefix(const char* str, const char* prefix) {
-  return !*str ? !*prefix
-               : !*prefix ? true
-                          : *str != *prefix
-                                ? false
-                                : StringMatchesPrefix(str + 1, prefix + 1);
+  return !*str             ? !*prefix
+         : !*prefix        ? true
+         : *str != *prefix ? false
+                           : StringMatchesPrefix(str + 1, prefix + 1);
 }
 
 constexpr bool IsStringInPrefixList(const char*) {
@@ -252,11 +251,10 @@ class PERFETTO_EXPORT_COMPONENT TrackEventCategoryRegistry {
   }
 
   constexpr bool ValidateCategories(size_t index = 0) const {
-    return (index == category_count_)
-               ? true
-               : IsValidCategoryName(categories_[index].name)
-                     ? ValidateCategories(index + 1)
-                     : false;
+    return (index == category_count_) ? true
+           : IsValidCategoryName(categories_[index].name)
+               ? ValidateCategories(index + 1)
+               : false;
   }
 
  private:
@@ -264,12 +262,11 @@ class PERFETTO_EXPORT_COMPONENT TrackEventCategoryRegistry {
   constexpr size_t FindImpl(const char* name,
                             bool is_dynamic,
                             size_t index = 0) const {
-    return is_dynamic ? kDynamicCategoryIndex
-                      : (index == category_count_)
-                            ? kInvalidCategoryIndex
-                            : StringEq(categories_[index].name, name)
-                                  ? index
-                                  : FindImpl(name, false, index + 1);
+    return is_dynamic                   ? kDynamicCategoryIndex
+           : (index == category_count_) ? kInvalidCategoryIndex
+           : StringEq(categories_[index].name, name)
+               ? index
+               : FindImpl(name, false, index + 1);
   }
 
   // A compile time helper for checking that a category index is valid.
@@ -291,14 +288,15 @@ class PERFETTO_EXPORT_COMPONENT TrackEventCategoryRegistry {
   }
 
   static constexpr bool IsValidCategoryName(const char* name) {
-    return (!name || *name == '\"' || *name == '*' || *name == ' ')
-               ? false
-               : *name ? IsValidCategoryName(name + 1) : true;
+    return (!name || *name == '\"' || *name == '*' || *name == ' ') ? false
+           : *name ? IsValidCategoryName(name + 1)
+                   : true;
   }
 
   static constexpr bool StringEq(const char* a, const char* b) {
-    return *a != *b ? false
-                    : (!*a || !*b) ? (*a == *b) : StringEq(a + 1, b + 1);
+    return *a != *b       ? false
+           : (!*a || !*b) ? (*a == *b)
+                          : StringEq(a + 1, b + 1);
   }
 
   const Category* const categories_;

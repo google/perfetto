@@ -36,10 +36,11 @@ export default class implements PerfettoPlugin {
         trace: ctx,
         uri,
         data: {
-          sqlSource:
-            `SELECT ts, ops_in_queue_or_device as value
+          sqlSource: `
+            SELECT ts, ops_in_queue_or_device as value
             FROM linux_active_block_io_operations_by_device
-            WHERE dev = ${String(device['id'])}`
+            WHERE dev = ${String(device['id'])}
+          `,
         },
       });
       ctx.tracks.registerTrack({
@@ -59,17 +60,19 @@ export default class implements PerfettoPlugin {
     }
   }
 
-  private async lookupDevices(engine: Engine): Promise<{ [key: string]: number; }[]> {
-    const query =`
+  private async lookupDevices(
+    engine: Engine,
+  ): Promise<{[key: string]: number}[]> {
+    const query = `
       SELECT DISTINCT dev, linux_device_major_id(dev) as major, linux_device_minor_id(dev) as minor
       FROM linux_active_block_io_operations_by_device ORDER BY dev`;
     const result = await engine.query(query);
     const it = result.iter({dev: NUM, major: NUM, minor: NUM});
 
-    const devs: { [key: string]: number; }[] = [];
+    const devs: {[key: string]: number}[] = [];
 
     for (; it.valid(); it.next()) {
-      devs.push({'id': it.dev, 'major': it.major, 'minor': it.minor});
+      devs.push({id: it.dev, major: it.major, minor: it.minor});
     }
 
     return devs;

@@ -103,8 +103,9 @@ body > main {
   grid-template-areas:
     "sidebar topbar"
     "sidebar alerts"
-    "sidebar page";
-  grid-template-rows: auto auto 1fr;
+    "sidebar page"
+    "statusbar statusbar";
+  grid-template-rows: auto auto 1fr auto;
   grid-template-columns: auto 1fr;
   color: #121212;
   overflow: hidden;

@@ -40,8 +40,8 @@ std::string ConvertLatin1ToUtf8(protozero::ConstBytes latin1);
 //
 // ATTENTION: This function performs no special handling of special characters
 // such as BOM (byte order mark). In particular this means that the caller is
-// responsible of determining the right endianess and remove those characters if
-// needed.
+// responsible of determining the right endianness and remove those characters
+// if needed.
 std::string ConvertUtf16LeToUtf8(protozero::ConstBytes utf16);
 
 // Converts a byte stream that represents a UTF16 Big Endian
@@ -53,7 +53,7 @@ std::string ConvertUtf16LeToUtf8(protozero::ConstBytes utf16);
 //
 // ATTENTION: This function performs no special handling of special characters
 // such as BOM (byte order mark). In particular this means that the caller is
-// responsible of determining the right endianess and remove any special
+// responsible of determining the right endianness and remove any special
 // character if  needed.
 std::string ConvertUtf16BeToUtf8(protozero::ConstBytes utf16);
 

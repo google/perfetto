@@ -46,12 +46,12 @@
 
 #include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/trace/android/bluetooth_trace.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace/android/bluetooth_trace.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {

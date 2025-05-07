@@ -53,6 +53,7 @@ export const defaultPlugins = [
   'dev.perfetto.MetricsPage',
   'dev.perfetto.PinAndroidPerfMetrics',
   'dev.perfetto.PinSysUITracks',
+  'dev.perfetto.PowerAggregations',
   'dev.perfetto.Process',
   'dev.perfetto.ProcessSummary',
   'dev.perfetto.ProcessThreadGroups',
@@ -81,5 +82,7 @@ export const defaultPlugins = [
   'perfetto.ExampleTraces',
   'perfetto.FlowEvents',
   'perfetto.GlobalGroups',
+  'perfetto.Notes',
+  'perfetto.SettingsPage',
   'perfetto.TrackUtils',
 ];

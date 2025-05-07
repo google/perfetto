@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {InsightsPage} from './insights_page';
@@ -20,7 +21,10 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.InsightsPage';
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    trace.pages.registerPage({route: '/insights', page: InsightsPage});
+    trace.pages.registerPage({
+      route: '/insights',
+      render: () => m(InsightsPage, {trace}),
+    });
     trace.sidebar.addMenuItem({
       section: 'current_trace',
       text: 'Insights',

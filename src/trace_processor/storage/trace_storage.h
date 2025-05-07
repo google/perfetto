@@ -228,7 +228,7 @@ class TraceStorage {
   };
   using StatsMap = std::array<Stats, stats::kNumKeys>;
 
-  // Return an unqiue identifier for the contents of each string.
+  // Return an unique identifier for the contents of each string.
   // The string is copied internally and can be destroyed after this called.
   // Virtual for testing.
   virtual StringId InternString(base::StringView str) {

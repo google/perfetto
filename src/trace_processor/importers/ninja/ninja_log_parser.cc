@@ -135,7 +135,7 @@ base::Status NinjaLogParser::NotifyEndOfFile() {
   // 3: [   job 3   ]
   //    T=0              | T=6
   // Assume that a new job starts at T=6. It's very likely that job4 was started
-  // as a consequence of job2 completion (othewise it could have been started
+  // as a consequence of job2 completion (otherwise it could have been started
   // earlier, soon after job 1 or Job 3). It seems to make more sense to draw
   // it next in the 2nd worker, i.e. next to job 2.
   struct Worker {

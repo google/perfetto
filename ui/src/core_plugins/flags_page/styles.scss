@@ -33,6 +33,7 @@
   &__card {
     display: flex;
     flex-direction: row;
+    gap: 6px;
     justify-content: space-between;
     border-left: solid 3px transparent;
     color: gray;
@@ -44,6 +45,12 @@
     &--enabled {
       color: unset;
     }
+  }
+
+  &__details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
   &__description {

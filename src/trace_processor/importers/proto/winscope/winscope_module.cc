@@ -246,4 +246,8 @@ void WinscopeModule::ParseWindowManagerData(int64_t timestamp,
   }
 }
 
+void WinscopeModule::NotifyEndOfFile() {
+  ShellTransitionsTracker::GetOrCreate(context_)->Flush();
+}
+
 }  // namespace perfetto::trace_processor

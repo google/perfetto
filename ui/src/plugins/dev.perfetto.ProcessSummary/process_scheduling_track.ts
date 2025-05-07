@@ -16,8 +16,8 @@ import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchEq, searchRange} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
-import {drawTrackHoverTooltip} from '../../base/canvas_utils';
 import {Color} from '../../base/color';
+import m from 'mithril';
 import {colorForThread} from '../../components/colorizer';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
@@ -219,6 +219,26 @@ export class ProcessSchedulingTrack implements TrackRenderer {
     return TRACK_HEIGHT;
   }
 
+  renderTooltip(): m.Children {
+    if (this.utidHoveredInThisTrack === -1 || this.mousePos === undefined) {
+      return undefined;
+    }
+
+    const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
+    if (!hoveredThread) {
+      return undefined;
+    }
+
+    const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+
+    if (hoveredThread.pid !== undefined) {
+      const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
+      return m('.tooltip', [m('div', pidText), m('div', tidText)]);
+    } else {
+      return m('.tooltip', tidText);
+    }
+  }
+
   render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
@@ -277,18 +297,6 @@ export class ProcessSchedulingTrack implements TrackRenderer {
       const y = MARGIN_TOP + cpuTrackHeight * cpu + cpu;
       ctx.fillRect(rectStart, y, rectWidth, cpuTrackHeight);
     }
-
-    const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
-    if (hoveredThread !== undefined && this.mousePos !== undefined) {
-      const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (hoveredThread.pid) {
-        const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-        drawTrackHoverTooltip(ctx, this.mousePos, size, pidText, tidText);
-      } else {
-        drawTrackHoverTooltip(ctx, this.mousePos, size, tidText);
-      }
-    }
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
@@ -321,6 +329,9 @@ export class ProcessSchedulingTrack implements TrackRenderer {
     const pid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     this.trace.timeline.hoveredUtid = utid;
     this.trace.timeline.hoveredPid = pid;
+
+    // Trigger redraw to update tooltip
+    m.redraw();
   }
 
   onMouseOut() {

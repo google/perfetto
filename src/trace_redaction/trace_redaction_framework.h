@@ -62,7 +62,7 @@ class SystemInfo {
   // Perfetto uses a 32 (signed) int for the pid. Even in this case, there is
   // room for 2^9 synthetic threads (2 ^ (31 - 22) = 2 ^ 9).
   //
-  // Futhermore, ther Android source code return 4194304 (2 ^ 22) on 64 bit
+  // Furthermore, ther Android source code return 4194304 (2 ^ 22) on 64 bit
   // devices.
   //
   //  /proc/sys/kernel/pid_max (since Linux 2.5.34)
@@ -328,7 +328,7 @@ class Context {
   //  - ExpectedDisplayFrame
   //  - ExpectedSurfaceFrame
   //
-  // Connect a time, a pid, and a cookie value. Cookies are unqiue within a
+  // Connect a time, a pid, and a cookie value. Cookies are unique within a
   // trace, so if a cookie was connected to the target package, it can always be
   // used.
   //

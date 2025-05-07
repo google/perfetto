@@ -32,6 +32,11 @@ header {
     grid-template-columns: fit-content(250px) 1fr;
 }
 
+main {
+    display: block;
+    overflow: auto;
+}
+
 h1 {
     font-size: 20px;
     font-weight: 100;
@@ -116,63 +121,11 @@ header>nav>div:last-child {
     border-right: 0;
 }
 
-.term-container {
-    position: relative;
-    background: #000;
-    border-top: 3px solid #39aa56;
-    box-sizing: content-box;
-    padding: 5px 0px 5px 20px;
-}
-
-main { overflow: scroll; }
-
-.term-container.maximized {
-    position: absolute;
-    height: calc(100% - 50px);
-    top: 50px;
-    max-height: initial;
-}
-
-input[type=text].term-search {
-    position: absolute;
-    background: rgba(255, 255, 255, 0.1);
-    font-weight: 100;
-    font-size: 12px;
-    border-radius: 2px;
-    width: 150px;
-    height: 20px;
-    line-height: 20px;
-    right: 5px;
-    top: 5px;
-    z-index: 10;
-    outline: none;
-    color: #000;
-    border: 0px solid #aaa;
-    padding: 5px 10px;
-    transition: color ease 0.2s, background-color ease 0.2s
-}
-
-input[type=text].term-search:focus {
-    background: rgba(255, 255, 255, 0.9);
-    color: #333;
-}
-
-.term-info > div {
-    margin: 5px;
-}
-
 #cls {
-    display: grid;
-    grid-template-columns: 1fr;
-    grid-template-rows: 4fr 1fr;
-    overflow: hidden;
-}
-
-.table-scrolling-container {
     overflow: scroll;
 }
 
-.table-scrolling-container footer {
+#cls footer {
     font-size: 14px;
     text-align: center;
     color: #666;
@@ -249,33 +202,49 @@ a:hover {
     margin-left: 5px;
 }
 
-.main-table tbody td.job .COMPLETED {
+.main-table tbody td.job .success {
     color: #39aa56;
 }
 
-.main-table tbody td.job .STARTED {
+.main-table tbody td.job .queued {
     color: #607d8b;
 }
 
-.main-table tbody td.job .FAILED {
+.main-table tbody td.job .failure {
     color: #db4545;
 }
 
-.main-table tbody td.job .CANCELLED {
+.main-table tbody td.job .cancelled {
     color: #ffa000;
 }
 
-.main-table tbody td.job .INTERRUPTED {
-    color: #ffa000;
-}
-
-.main-table tbody td.job .TIMED_OUT {
+.main-table tbody td.job .timed_out {
     color: #db4545;
 }
 
-.main-table tbody td.job .UNKNOWN {
+.main-table tbody td.job .unknown {
     color: #607d8b;
 }
+
+
+/* Jobs page */
+
+.main-table tr.workflow.in_progress {
+    color: #2a8229;
+}
+
+.main-table tr.workflow.queued {
+    color: #ffa000;
+}
+
+.main-table tr.workflow.completed {
+    color: #999;
+}
+
+.main-table tr.workflow.failure {
+    color: #db4545;
+}
+
 
 .main-table tbody td.align-left {
     text-align: left
@@ -302,6 +271,10 @@ a:hover {
     color: #999;
 }
 
+.main-table tbody tr.offline {
+   color: #aaa;
+}
+
 .main-table .expand {
     position: absolute;
     left: -5px;
@@ -318,8 +291,8 @@ a:hover {
     transform: rotate(90deg);
 }
 
-.main-table tbody tr.MERGED td:not(.job),
-.main-table tbody tr.MERGED td:not(.job) a {
+.main-table tbody tr.closed td:not(.job),
+.main-table tbody tr.closed td:not(.job) a {
     color: #BBB;
 }
 

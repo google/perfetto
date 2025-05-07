@@ -17,7 +17,6 @@ from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
-
 EXAMPLE_CHECKIN = """9,0,i,vers,36,214,AP1A.240305.019.A1,AP2A.240805.005.S4
 9,hsp,0,10216,"com.android.chrome"
 9,hsp,1,1001,"*telephony-radio*"
@@ -39,6 +38,7 @@ EXAMPLE_CHECKIN = """9,0,i,vers,36,214,AP1A.240305.019.A1,AP2A.240805.005.S4
 
 
 class AndroidDumpstate(TestSuite):
+
   def test_android_dumpstate_standalone_battery_stats_checkin(self):
     return DiffTestBlueprint(
         trace=Csv(EXAMPLE_CHECKIN),

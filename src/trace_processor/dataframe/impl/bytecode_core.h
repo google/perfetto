@@ -25,6 +25,7 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -33,6 +34,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
 #include "src/trace_processor/dataframe/impl/types.h"
+#include "src/trace_processor/dataframe/specs.h"
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode {
 
@@ -66,6 +68,42 @@ struct Bytecode {
 };
 static_assert(std::is_trivially_copyable_v<Bytecode>);
 static_assert(sizeof(Bytecode) <= 32);
+
+// Indicates that the bytecode has a fixed cost.
+struct FixedCost {
+  double cost;
+};
+
+// Indicates that the bytecode has `cost` multiplied by `log2(estimated row
+// count)`.
+struct LogPerRowCost {
+  double cost;
+};
+
+// Indicates that the bytecode has `cost` multiplied by `estimated row count`.
+struct LinearPerRowCost {
+  double cost;
+};
+
+// Indicates that the bytecode has `cost` multiplied by `log2(estimated row
+// count) * estimated row count`.
+struct LogLinearPerRowCost {
+  double cost;
+};
+
+// Indicates that the bytecode has `cost` multiplied by the `estimated row
+// count` *after* the operation completes (as opposed to `LinearPerRowCost`
+// which is *before* the operation completes).
+struct PostOperationLinearPerRowCost {
+  double cost;
+};
+
+// A variant used to specify the cost of a bytecode operation.
+using Cost = std::variant<FixedCost,
+                          LogPerRowCost,
+                          LinearPerRowCost,
+                          LogLinearPerRowCost,
+                          PostOperationLinearPerRowCost>;
 
 // Bytecode with one template parameter for dispatching.
 template <typename TypeSet1>
@@ -102,7 +140,7 @@ PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
 }
 
 PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(NonNullOp value) {
-  return base::StackString<64>("NonNullOp(%d)", value.index());
+  return base::StackString<64>("NonNullOp(%u)", value.index());
 }
 
 PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
@@ -112,7 +150,18 @@ PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
 
 PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
     impl::BoundModifier bound) {
-  return base::StackString<64>("BoundModifier(%d)", bound.index());
+  return base::StackString<64>("BoundModifier(%u)", bound.index());
+}
+
+PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
+    SortDirection direction) {
+  return base::StackString<64>("SortDirection(%u)",
+                               static_cast<uint32_t>(direction));
+}
+
+PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
+    NullsLocation location) {
+  return base::StackString<64>("NullsLocation(%u)", location.index());
 }
 
 PERFETTO_NO_INLINE inline void BytecodeFieldToString(
@@ -136,18 +185,13 @@ PERFETTO_NO_INLINE inline std::string BytecodeFieldsFormat(
 }
 
 // Macro to define bytecode instruction with 5 fields.
-#define PERFETTO_DATAFRAME_BYTECODE_IMPL_5(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
-                                           n5)                                 \
-  enum Field : uint8_t {                                                       \
-    n1 = 0,                                                                    \
-    n2,                                                                        \
-    n3,                                                                        \
-    n4,                                                                        \
-    n5,                                                                        \
-  };                                                                           \
-  using tuple = std::tuple<t1, t2, t3, t4, t5>;                                \
+#define PERFETTO_DATAFRAME_BYTECODE_IMPL_7(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
+                                           n5, t6, n6, t7, n7)                 \
+  enum Field : uint8_t { n1 = 0, n2, n3, n4, n5, n6, n7 };                     \
+  using tuple = std::tuple<t1, t2, t3, t4, t5, t6, t7>;                        \
   static constexpr auto kOffsets = MakeOffsetsArray<tuple>();                  \
-  static constexpr auto kNames = std::array{#n1, #n2, #n3, #n4, #n5};          \
+  static constexpr auto kNames =                                               \
+      std::array{#n1, #n2, #n3, #n4, #n5, #n6, #n7};                           \
                                                                                \
   template <Field N>                                                           \
   const auto& arg() const {                                                    \
@@ -166,11 +210,23 @@ PERFETTO_NO_INLINE inline std::string BytecodeFieldsFormat(
     BytecodeFieldToString(#n3, ArgToString(arg<n3>()).c_str(), fields);        \
     BytecodeFieldToString(#n4, ArgToString(arg<n4>()).c_str(), fields);        \
     BytecodeFieldToString(#n5, ArgToString(arg<n5>()).c_str(), fields);        \
+    BytecodeFieldToString(#n6, ArgToString(arg<n6>()).c_str(), fields);        \
+    BytecodeFieldToString(#n7, ArgToString(arg<n7>()).c_str(), fields);        \
     return BytecodeFieldsFormat(fields);                                       \
   }                                                                            \
   static void UnusedForWarningSuppresssion()
 
 // Simplified macros that add padding fields automatically.
+#define PERFETTO_DATAFRAME_BYTECODE_IMPL_6(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
+                                           n5, t6, n6)                         \
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(t1, n1, t2, n2, t3, n3, t4, n4, t5, n5,   \
+                                     t6, n6, uint32_t, pad7)
+
+#define PERFETTO_DATAFRAME_BYTECODE_IMPL_5(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
+                                           n5)                                 \
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_6(t1, n1, t2, n2, t3, n3, t4, n4, t5, n5,   \
+                                     uint32_t, pad6)
+
 #define PERFETTO_DATAFRAME_BYTECODE_IMPL_4(t1, n1, t2, n2, t3, n3, t4, n4)     \
   PERFETTO_DATAFRAME_BYTECODE_IMPL_5(t1, n1, t2, n2, t3, n3, t4, n4, uint32_t, \
                                      pad5)

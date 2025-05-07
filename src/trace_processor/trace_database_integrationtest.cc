@@ -54,7 +54,7 @@ TEST(TraceProcessorCustomConfigTest, SkipInternalMetricsMatchingMountPath) {
   auto processor = TraceProcessor::CreateInstance(config);
   ASSERT_OK(processor->NotifyEndOfFile());
 
-  // Check that andorid metrics have not been loaded.
+  // Check that android metrics have not been loaded.
   auto it = processor->ExecuteQuery(
       "select count(*) from trace_metrics "
       "where name = 'android_cpu';");
@@ -92,7 +92,7 @@ TEST(TraceProcessorCustomConfigTest, HandlesMalformedMountPath) {
   auto processor = TraceProcessor::CreateInstance(config);
   ASSERT_OK(processor->NotifyEndOfFile());
 
-  // Check that andorid metrics have been loaded.
+  // Check that android metrics have been loaded.
   auto it = processor->ExecuteQuery(
       "select count(*) from trace_metrics "
       "where name = 'android_cpu';");
@@ -720,7 +720,7 @@ TEST_F(TraceProcessorIntegrationTest, TraceWithoutUuidReadInOneChunk) {
  * This trace does not have a uuid. The uuid will be generated from the first
  * 4096 bytes, which will be read in multiple chunks.
  */
-TEST_F(TraceProcessorIntegrationTest, TraceWithoutUuidReadInMultipleChuncks) {
+TEST_F(TraceProcessorIntegrationTest, TraceWithoutUuidReadInMultipleChunks) {
   ASSERT_TRUE(LoadTrace("example_android_trace_30s.pb", 512, 2048).ok());
   auto it = Query("select str_value from metadata where name = 'trace_uuid'");
   ASSERT_TRUE(it.Next());
@@ -728,8 +728,8 @@ TEST_F(TraceProcessorIntegrationTest, TraceWithoutUuidReadInMultipleChuncks) {
 }
 
 /*
- * This trace has a uuid. It will not be overriden by the hash of the first 4096
- * bytes.
+ * This trace has a uuid. It will not be overridden by the hash of the first
+ * 4096 bytes.
  */
 TEST_F(TraceProcessorIntegrationTest, TraceWithUuidReadInParts) {
   ASSERT_TRUE(LoadTrace("trace_with_uuid.pftrace", 512, 2048).ok());

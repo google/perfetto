@@ -855,7 +855,7 @@ export default class implements PerfettoPlugin {
     ctx: Trace,
     name: string,
     query: string,
-    groupName?: string,
+    groupName: string,
     columns: string[] = [],
   ) {
     const uri = `/long_battery_tracing_${name}`;
@@ -927,7 +927,7 @@ export default class implements PerfettoPlugin {
     ctx: Trace,
     name: string,
     track: string,
-    groupName: string | undefined,
+    groupName: string,
     features: Set<string>,
   ) {
     if (!features.has(`track.${track}`)) {
@@ -949,8 +949,10 @@ export default class implements PerfettoPlugin {
       return;
     }
 
+    const groupName = 'Device State';
+
     const query = (name: string, track: string) =>
-      this.addBatteryStatsEvent(ctx, name, track, undefined, features);
+      this.addBatteryStatsEvent(ctx, name, track, groupName, features);
 
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
@@ -961,35 +963,40 @@ export default class implements PerfettoPlugin {
 
     await this.addSliceTrack(
       ctx,
-      'Device State: Screen state',
+      'Screen state',
       `SELECT ts, dur, screen_state AS name FROM android_screen_state`,
+      groupName,
     );
     await this.addSliceTrack(
       ctx,
-      'Device State: Charging',
+      'Charging',
       `SELECT ts, dur, charging_state AS name FROM android_charging_states`,
+      groupName,
     );
     await this.addSliceTrack(
       ctx,
-      'Device State: Suspend / resume',
+      'Suspend / resume',
       SUSPEND_RESUME,
+      groupName,
     );
     await this.addSliceTrack(
       ctx,
-      'Device State: Doze light state',
+      'Doze light state',
       `SELECT ts, dur, light_idle_state AS name FROM android_light_idle_state`,
+      groupName,
     );
     await this.addSliceTrack(
       ctx,
-      'Device State: Doze deep state',
+      'Doze deep state',
       `SELECT ts, dur, deep_idle_state AS name FROM android_deep_idle_state`,
+      groupName,
     );
 
-    query('Device State: Top app', 'battery_stats.top');
+    query('Top app', 'battery_stats.top');
 
     await this.addSliceTrack(
       ctx,
-      'Device State: Long wakelocks',
+      'Long wakelocks',
       `SELECT
             ts - 60000000000 as ts,
             safe_dur + 60000000000 as dur,
@@ -1000,18 +1007,19 @@ export default class implements PerfettoPlugin {
           from android_battery_stats_event_slices
           WHERE track_name = "battery_stats.longwake"
         ))`,
-      undefined,
+      groupName,
       ['package'],
     );
 
-    query('Device State: Foreground apps', 'battery_stats.fg');
-    query('Device State: Jobs', 'battery_stats.job');
+    query('Foreground apps', 'battery_stats.fg');
+    query('Jobs', 'battery_stats.job');
 
     if (features.has('atom.thermal_throttling_severity_state_changed')) {
       await this.addSliceTrack(
         ctx,
-        'Device State: Thermal throttling',
+        'Thermal throttling',
         THERMAL_THROTTLING,
+        groupName,
       );
     }
   }

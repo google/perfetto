@@ -48,6 +48,8 @@ WITH
     )) AS cli
     JOIN cpu_counter_track AS cct
       ON cli.track_id = cct.id
+    WHERE
+      dur > 0
   ),
   -- Adjusted ts if applicable, which makes the current active state longer if
   -- it is coming from an idle exit.

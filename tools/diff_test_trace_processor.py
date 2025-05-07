@@ -42,7 +42,7 @@ def main():
   parser.add_argument('--winscope-extensions', type=str, default=None)
   parser.add_argument('--perf-file', type=str)
   parser.add_argument(
-      '--override-sql-module', type=str, action='append', default=[])
+      '--override-sql-package', type=str, action='append', default=[])
   parser.add_argument('--test-dir', type=str, default=ROOT_DIR)
   parser.add_argument(
       '--name-filter',
@@ -82,7 +82,7 @@ def main():
       args.trace_processor,
       args.trace_descriptor,
       args.no_colors,
-      args.override_sql_module,
+      args.override_sql_package,
       args.test_dir,
       args.quiet,
   )

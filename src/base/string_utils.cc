@@ -38,7 +38,7 @@ namespace base {
 
 // Locale-independant as possible version of strtod.
 double StrToD(const char* nptr, char** endptr) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||           \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   static auto c_locale = newlocale(LC_ALL, "C", nullptr);
@@ -71,6 +71,11 @@ bool Contains(const std::string& haystack, const std::string& needle) {
 
 bool Contains(const std::string& haystack, const char needle) {
   return haystack.find(needle) != std::string::npos;
+}
+
+bool Contains(const std::vector<std::string>& haystack,
+              const std::string& needle) {
+  return std::find(haystack.begin(), haystack.end(), needle) != haystack.end();
 }
 
 size_t Find(const StringView& needle, const StringView& haystack) {
@@ -219,6 +224,83 @@ std::string ReplaceAll(std::string str,
   return str;
 }
 
+bool CheckAsciiAndRemoveInvalidUTF8(base::StringView str, std::string& output) {
+  bool is_ascii = std::all_of(str.begin(), str.end(), [](char c) {
+    return (static_cast<unsigned char>(c) & 0b10000000) == 0b00000000;
+  });
+  if (is_ascii) {
+    return true;
+  }
+
+  // https://www.rfc-editor.org/rfc/rfc3629.txt
+  output.clear();
+  output.reserve(str.size());
+  for (size_t i = 0; i < str.size();) {
+    unsigned char c = static_cast<unsigned char>(str.data()[i]);
+    size_t num_bytes = 0;
+    bool valid_sequence = true;
+
+    if ((c & 0b10000000) == 0b00000000) {
+      num_bytes = 1;
+    } else if ((c & 0b11100000) == 0b11000000) {
+      num_bytes = 2;
+    } else if ((c & 0b11110000) == 0b11100000) {
+      num_bytes = 3;
+    } else if ((c & 0b11111000) == 0b11110000) {
+      num_bytes = 4;
+    } else {
+      valid_sequence = false;
+      // Skip this byte
+      num_bytes = 1;
+    }
+
+    if (valid_sequence) {
+      // Check if enough bytes are available in the string
+      if (i + num_bytes > str.size()) {
+        valid_sequence = false;
+        num_bytes = 1;  // Treat as a single invalid byte for advancement
+      } else {
+        // Check for overlong encodings, surrogates, and out-of-range
+        if (num_bytes == 2 && c < 0b11000010) {  // 0xC2
+          valid_sequence = false;                // Overlong
+        } else if (num_bytes == 3) {
+          unsigned char byte2 = static_cast<unsigned char>(str.data()[i + 1]);
+          if ((c == 0b11100000 && byte2 < 0b10100000) ||   // Overlong E0
+              (c == 0b11101101 && byte2 >= 0b10100000)) {  // Surrogate ED
+            valid_sequence = false;
+          }
+        } else if (num_bytes == 4) {
+          unsigned char byte2 = static_cast<unsigned char>(str.data()[i + 1]);
+          if ((c == 0b11110000 && byte2 < 0b10010000) ||  // Overlong F0
+              (c == 0b11110100 && byte2 > 0b10001111)) {  // Out of range F4
+            valid_sequence = false;
+          }
+        }
+
+        if (valid_sequence && num_bytes > 1) {
+          for (size_t j = 1; j < num_bytes; ++j) {
+            unsigned char continuation_byte =
+                static_cast<unsigned char>(str.data()[i + j]);
+            if ((continuation_byte & 0b11000000) != 0b10000000) {
+              valid_sequence = false;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (valid_sequence) {
+      for (size_t j = 0; j < num_bytes; ++j) {
+        output.push_back(str.data()[i + j]);
+      }
+    }
+
+    i += num_bytes;
+  }
+  return false;
+}
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 bool WideToUTF8(const std::wstring& source, std::string& output) {
   if (source.empty() ||
@@ -236,7 +318,7 @@ bool WideToUTF8(const std::wstring& source, std::string& output) {
   }
   return true;
 }
-#endif // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 bool UTF8ToWide(const std::string& source, std::wstring& output) {
@@ -254,7 +336,7 @@ bool UTF8ToWide(const std::string& source, std::wstring& output) {
   }
   return true;
 }
-#endif // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...) {
   if (PERFETTO_UNLIKELY(dst_size == 0))

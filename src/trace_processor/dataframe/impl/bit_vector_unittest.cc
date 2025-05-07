@@ -31,23 +31,20 @@ TEST(BitVectorTest, DefaultConstructor) {
   EXPECT_EQ(bits.size(), 0u);
 }
 
-// Test static CreateWithCapacityation method
-TEST(BitVectorTest, StaticCreateWithCapacityation) {
-  constexpr size_t kBitCapacity = 128;  // Power of two - 128 bits = 2 words
-  auto bits = BitVector::CreateWithCapacity(kBitCapacity);
-
-  EXPECT_EQ(bits.size(), 0u);  // Should start with 0 size
-
-  // Add bits up to capacity
-  for (size_t i = 0; i < kBitCapacity; ++i) {
-    bits.push_back(false);
+TEST(BitVectorTest, CreateWithSize) {
+  {
+    auto bits = BitVector::CreateWithSize(31);
+    EXPECT_EQ(bits.size(), 31u);
+    for (size_t i = 0; i < 31; ++i) {
+      EXPECT_FALSE(bits.is_set(i)) << "Bit " << i << " should be unset";
+    }
   }
-
-  EXPECT_EQ(bits.size(), kBitCapacity);
-
-  // All bits should be false since we pushed all false values
-  for (size_t i = 0; i < kBitCapacity; ++i) {
-    EXPECT_FALSE(bits.is_set(i)) << "Bit " << i << " should be unset";
+  {
+    auto bits = BitVector::CreateWithSize(65, true);
+    EXPECT_EQ(bits.size(), 65u);
+    for (size_t i = 0; i < 65; ++i) {
+      EXPECT_TRUE(bits.is_set(i)) << "Bit " << i << " should be set";
+    }
   }
 }
 

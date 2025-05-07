@@ -366,6 +366,13 @@ TEST(StringUtilsTest, Contains) {
   EXPECT_FALSE(Contains("abc", "abcd"));
   EXPECT_FALSE(Contains("", "a"));
   EXPECT_FALSE(Contains("", "abc"));
+  auto values = std::vector<std::string>{"abc", "def"};
+  EXPECT_TRUE(Contains(values, "abc"));
+  EXPECT_TRUE(Contains(values, "def"));
+  EXPECT_FALSE(Contains(values, "abcdef"));
+  EXPECT_FALSE(Contains(values, "ab"));
+  EXPECT_FALSE(Contains(values, "ef"));
+  EXPECT_FALSE(Contains(std::vector<std::string>{}, "abcdef"));
 }
 
 TEST(StringUtilsTest, Find) {
@@ -395,6 +402,81 @@ TEST(StringUtilsTest, ReplaceAll) {
   EXPECT_EQ(ReplaceAll("abc", "a", "b"), "bbc");
   EXPECT_EQ(ReplaceAll("abc", "c", "b"), "abb");
   EXPECT_EQ(ReplaceAll("abc", "c", "bbb"), "abbbb");
+}
+
+TEST(StringUtilsTest, CheckAsciiAndRemoveInvalidUTF8) {
+  std::string output;
+  // ASCII string "hello"
+  EXPECT_TRUE(CheckAsciiAndRemoveInvalidUTF8("hello", output));
+  EXPECT_TRUE(output.empty());
+
+  // Mixed string with invalid 2-byte sequence 11000000 10000000
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("hello\xc0\x80world", output));
+  EXPECT_EQ(output, "helloworld");
+
+  // Mixed string with valid 2-byte sequence ɸ (11000000 10000000)
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("hello\xc9\xb8world", output));
+  EXPECT_EQ(output, "hello\xc9\xb8world");
+
+  // Valid 2-byte UTF-8 sequence - ɸ
+  // 11001001 10111000
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("\xc9\xb8", output));
+  EXPECT_EQ(output, "\xc9\xb8");
+
+  // Valid 3-byte UTF-8 sequence - ✓
+  // 11100010 10011100 10010011
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("\xe2\x9c\x93", output));
+  EXPECT_EQ(output, "\xe2\x9c\x93");
+
+  // Valid 4-byte UTF-8 sequence - Grinning face emoji
+  // 11110000 10011111 10011000 10000000
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("\xf0\x9f\x98\x80", output));
+  EXPECT_EQ(output, "\xf0\x9f\x98\x80");
+
+  // Invalid 5+ byte sequence (truncated to 1 byte)
+  // 11111000 10000000 10000000 10000000 10000000
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("\xf8\x80\x80\x80\x80", output));
+  EXPECT_EQ(output, "");
+
+  // Invalid continuation byte in 2 byte sequence
+  // 11010000 10110000 (invalid continuation byte)
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("\xd0\xc0", output));
+  EXPECT_TRUE(output.empty());
+
+  // Invalid continuation byte in 3 byte sequence
+  // 11100000 10100100 11000000 (invalid continuation byte)
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("\xe0\xa4\xc0", output));
+  EXPECT_TRUE(output.empty());
+
+  // Invalid continuation byte in 4 byte sequence
+  // 11110000 10011111 10011000 11000000 (invalid continuation byte)
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("\xf0\x9f\x98\xc0", output));
+  EXPECT_TRUE(output.empty());
+
+  // Overlong 2-byte sequence of NULL char
+  // 11000000 10000000
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("\xc0\x80", output));
+  EXPECT_TRUE(output.empty());
+
+  // Overlong 3-byte sequence of NULL char
+  // 11100000 10000000 10000000
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("\xe0\x80\x80", output));
+  EXPECT_TRUE(output.empty());
+
+  // Overlong 4-byte sequence of NULL char
+  // 11110000 10000000 10000000 10000000
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("\xf0\x80\x80\x80", output));
+  EXPECT_TRUE(output.empty());
+
+  // Surrogate
+  // 11101101 10100000 10000000
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("\xed\xa0\x80", output));
+  EXPECT_TRUE(output.empty());
+
+  // Out of range
+  // 11110100 10010000 10000000 10000000
+  EXPECT_FALSE(CheckAsciiAndRemoveInvalidUTF8("\xf4\x90\x80\x80", output));
+  EXPECT_TRUE(output.empty());
 }
 
 TEST(StringUtilsTest, StringCopy) {
