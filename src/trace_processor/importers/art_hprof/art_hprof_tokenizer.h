@@ -20,23 +20,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <memory>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <variant>
 #include <vector>
-
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/status_or.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/art_hprof/art_hprof_event.h"
-#include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
-#include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/trace_blob_view_reader.h"
 
 namespace perfetto::trace_processor::art_hprof {
 
@@ -174,7 +161,7 @@ class ByteIterator {
   /**
    * Get current position in the stream.
    */
-  virtual std::streampos GetPosition() = 0;
+  virtual size_t GetPosition() = 0;
 
   /**
    * Check if the end of the stream has been reached.
@@ -206,7 +193,6 @@ struct ClassInfo {
   uint32_t instance_size = 0;
   std::vector<FieldInfo> fields;
   bool is_string_class = false;
-  bool use_string_compression = false;
 };
 
 /**
@@ -221,7 +207,7 @@ struct ObjectReference {
  * Field value with type information.
  */
 struct FieldValue {
-  enum ValueType {
+  enum class ValueType {
     NONE,
     BOOLEAN,
     BYTE,
@@ -234,34 +220,32 @@ struct FieldValue {
     OBJECT_ID
   };
 
-  ValueType type = NONE;
-
-  union {
-    bool bool_value;
-    int8_t byte_value;
-    char16_t char_value;
-    int16_t short_value;
-    int32_t int_value;
-    float float_value;
-    int64_t long_value;
-    double double_value;
-    uint64_t object_id_value;
-  };
+  ValueType type = ValueType::NONE;
+  std::variant<std::monostate,
+               bool,
+               int8_t,
+               char16_t,
+               int16_t,
+               int32_t,
+               float,
+               int64_t,
+               double,
+               uint64_t>
+      value;
 
   // Default constructor
-  FieldValue() = default;
+  FieldValue() : type(ValueType::NONE), value(std::monostate{}) {}
 
   // Type-specific constructors
-  explicit FieldValue(bool value) : type(BOOLEAN), bool_value(value) {}
-  explicit FieldValue(int8_t value) : type(BYTE), byte_value(value) {}
-  explicit FieldValue(char16_t value) : type(CHAR), char_value(value) {}
-  explicit FieldValue(int16_t value) : type(SHORT), short_value(value) {}
-  explicit FieldValue(int32_t value) : type(INT), int_value(value) {}
-  explicit FieldValue(float value) : type(FLOAT), float_value(value) {}
-  explicit FieldValue(int64_t value) : type(LONG), long_value(value) {}
-  explicit FieldValue(double value) : type(DOUBLE), double_value(value) {}
-  explicit FieldValue(uint64_t value)
-      : type(OBJECT_ID), object_id_value(value) {}
+  explicit FieldValue(bool val) : type(ValueType::BOOLEAN), value(val) {}
+  explicit FieldValue(int8_t val) : type(ValueType::BYTE), value(val) {}
+  explicit FieldValue(char16_t val) : type(ValueType::CHAR), value(val) {}
+  explicit FieldValue(int16_t val) : type(ValueType::SHORT), value(val) {}
+  explicit FieldValue(int32_t val) : type(ValueType::INT), value(val) {}
+  explicit FieldValue(float val) : type(ValueType::FLOAT), value(val) {}
+  explicit FieldValue(int64_t val) : type(ValueType::LONG), value(val) {}
+  explicit FieldValue(double val) : type(ValueType::DOUBLE), value(val) {}
+  explicit FieldValue(uint64_t val) : type(ValueType::OBJECT_ID), value(val) {}
 };
 
 /**
@@ -408,9 +392,9 @@ struct HprofHeapRecord {
 };
 
 /**
- * AST structure for parsed HPROF data.
+ * Parsed HPROF data.
  */
-struct HprofAst {
+struct HprofData {
   HprofHeader header;
   std::vector<HprofRecord> records;
 
@@ -420,16 +404,10 @@ struct HprofAst {
   std::unordered_map<uint64_t, ClassInfo> classes;
   std::unordered_map<uint64_t, uint64_t> object_to_class;
   std::unordered_map<uint64_t, std::vector<ObjectReference>> owner_to_owned;
+  std::unordered_map<uint8_t, uint64_t>
+      primitive_array_class_ids;  // Using FieldType as key
+  uint64_t java_lang_class_object_id = 0;
 
-  // Structure to track Android heap stats
-  struct AndroidHeapStats {
-    size_t object_count = 0;
-    size_t total_bytes = 0;
-
-    void AddObject(size_t size);
-  };
-
-  std::unordered_map<HprofHeapId, AndroidHeapStats> android_heap_stats;
   std::unordered_map<uint64_t, uint8_t> root_objects;
 
   // Counters for summary
@@ -442,9 +420,6 @@ struct HprofAst {
   size_t root_count = 0;
   size_t field_reference_count = 0;
   size_t heap_info_count = 0;
-
-  // Track Android-specific information
-  bool use_string_compression = false;
 };
 
 /**
@@ -456,14 +431,11 @@ class HprofParser {
    * Creates a new HprofParser with the given byte iterator.
    *
    * @param iterator Byte iterator for reading HPROF data
-   * @param detect_string_classes Whether to detect string classes
    */
-  explicit HprofParser(ByteIterator* iterator,
-                       bool detect_string_classes = true)
+  explicit HprofParser(ByteIterator* iterator)
       : byte_iterator_(iterator),
         identifier_size_(0),
-        current_heap_(HPROF_HEAP_DEFAULT),
-        detect_string_class_(detect_string_classes) {}
+        current_heap_(HPROF_HEAP_DEFAULT) {}
 
   /**
    * Destructor.
@@ -471,20 +443,49 @@ class HprofParser {
   virtual ~HprofParser();
 
   /**
-   * Parse the HPROF data into an AST.
+   * Parses the HPROF binary data into data structures.
    *
-   * @return The parsed AST
+   * @return The parsed data.
    */
-  HprofAst Parse();
+  HprofData Parse();
 
  private:
   ByteIterator* byte_iterator_;
   uint32_t identifier_size_;
-  HprofAst ast_;
+  HprofData data_;
   HprofHeapId current_heap_;
-  bool detect_string_class_;
 
-  // ----------- Helper methods -----------
+  // Record header structure
+  struct RecordHeader {
+    uint8_t tag;
+    uint32_t time;
+    uint32_t length;
+  };
+
+  // Main parsing methods with centralized dispatch
+  void ParseHeader(HprofData& data);
+  bool HasMoreData() const;
+  RecordHeader ReadRecordHeader();
+  void ParseRecordByType(const RecordHeader& header, HprofData& data);
+  void ParseUtf8Record(const RecordHeader& header, HprofData& data);
+  void ParseLoadClassRecord(const RecordHeader& header, HprofData& data);
+  void ParseHeapDumpRecord(const RecordHeader& header, HprofData& data);
+  void SkipRecord(uint32_t length);
+
+  // Heap sub-record parsing methods
+  void ParseRootJniGlobal(HprofData& data);
+  void ParseRootWithThread(HprofData& data, uint8_t sub_tag_value);
+  void ParseSimpleRoot(HprofData& data, uint8_t sub_tag_value);
+  void ParseThreadObjectRoot(HprofData& data);
+  void ParseHeapDumpInfo(HprofData& data);
+  void ParseClassDump(HprofData& data);
+  void ParseInstanceDump(HprofData& data);
+  void ParseObjectArrayDump(HprofData& data);
+  void ParsePrimitiveArrayDump(HprofData& data);
+  void SkipUnknownSubRecord(uint8_t sub_tag);
+  static std::string NormalizeClassName(std::string name);
+
+  // Helper methods
   bool IsStringClass(const std::string& class_name) const;
   size_t GetFieldTypeSize(uint8_t type) const;
   int8_t ReadByteValue(const std::vector<uint8_t>& data, size_t offset) const;
@@ -505,200 +506,9 @@ class HprofParser {
                              const ClassInfo& class_info);
   void ExtractStringInstance(InstanceDumpData& instance_data,
                              const ClassInfo& class_info);
-  void UpdateHeapStats(HprofHeapId heap_id, size_t object_size);
-  void SkipUnknownSubRecord(uint8_t sub_tag, std::streampos end_pos);
   std::vector<FieldInfo> GetFieldsForClassHierarchy(uint64_t class_object_id);
-
-  // ----------- Main parsing methods -----------
-  bool ParseHeader();
-  void ParseRecords();
-  void ParseRecord(uint8_t tag, uint32_t time, uint32_t length);
-
-  // ----------- Record type specific parsing methods -----------
-  void ParseUtf8Record(HprofRecord& record);
-  void ParseLoadClassRecord(HprofRecord& record);
-  void ParseHeapDumpRecord(HprofRecord& record);
-  bool ParseHeapSubRecord(uint8_t sub_tag,
-                          std::vector<HprofHeapRecord>& sub_records);
-
-  // ----------- Heap sub-record parsing methods -----------
-  void ParseRootJniGlobal(HprofHeapRecord& record);
-  void ParseRootWithThread(HprofHeapRecord& record);
-  void ParseSimpleRoot(HprofHeapRecord& record);
-  void ParseThreadObjectRoot(HprofHeapRecord& record);
-  void ParseHeapDumpInfo(HprofHeapRecord& record);
-  void ParseClassDump(HprofHeapRecord& record);
-  void ParseInstanceDump(HprofHeapRecord& record);
-  void ParseObjectArrayDump(HprofHeapRecord& record);
-  void ParsePrimitiveArrayDump(HprofHeapRecord& record);
-};
-
-/**
- * Converter from HPROF AST to heap graph IR.
- */
-class HprofAstConverter {
- public:
-  /**
-   * Convert a HPROF AST to heap graph IR.
-   *
-   * @param ast The HPROF AST to convert
-   * @return The converted heap graph IR
-   */
-  HeapGraphIR ConvertToIR(const HprofAst& ast);
-
- private:
-  /**
-   * Diagnostic tracking structure.
-   */
-  struct ConversionDiagnostics {
-    std::unordered_map<std::string, size_t> class_kind_counts;
-    std::unordered_map<std::string, size_t> superclass_chain_lengths;
-    size_t total_processed_classes = 0;
-    size_t unique_classes_processed = 0;
-    size_t references_generated = 0;
-  };
-
-  ConversionDiagnostics diagnostics_;
-  uint32_t next_reference_set_id_ = 1;
-  std::unordered_map<uint64_t, uint32_t> object_to_reference_set_id_;
-
-  void ConvertClasses(const HprofAst& ast, HeapGraphIR& ir);
-  void ConvertObjects(const HprofAst& ast, HeapGraphIR& ir);
-  void ConvertReferences(const HprofAst& ast, HeapGraphIR& ir);
-  HeapGraphValue ConvertFieldValue(const FieldValue& value);
-  std::string DetermineClassKind(const std::string& class_name) const;
-  void PrintConversionDiagnostics();
-  std::string RootTypeToString(uint8_t root_type);
-};
-
-/**
- * Tokenizer for ART HPROF data that handles chunked input.
- */
-class ArtHprofTokenizer : public ChunkedTraceReader {
- public:
-  /**
-   * Creates a new ArtHprofTokenizer with the given context.
-   *
-   * @param context Trace processor context
-   */
-  explicit ArtHprofTokenizer(TraceProcessorContext* context);
-
-  /**
-   * Destructor.
-   */
-  ~ArtHprofTokenizer() override;
-
-  /**
-   * Parse a chunk of HPROF data.
-   *
-   * @param blob The blob view containing the chunk
-   * @return Status of the parsing operation
-   */
-  base::Status Parse(TraceBlobView blob) override;
-
-  /**
-   * Notifies that the end of the file has been reached.
-   *
-   * @return Status of the finalization
-   */
-  base::Status NotifyEndOfFile() override;
-
-  /**
-   * Sets the parser implementation.
-   *
-   * @param parser_impl The parser implementation to use
-   */
-  void SetParserImpl(ArtHprofParser* parser_impl) {
-    parser_impl_ = parser_impl;
-  }
-
- private:
-  using Iterator = util::TraceBlobViewReader::Iterator;
-
-  /**
-   * ByteIterator implementation for TraceBlobView.
-   */
-  class TraceBlobViewIterator : public ByteIterator {
-   public:
-    explicit TraceBlobViewIterator(util::TraceBlobViewReader&& reader);
-    ~TraceBlobViewIterator() override;
-
-    bool ReadU1(uint8_t& value) override;
-    bool ReadU2(uint16_t& value) override;
-    bool ReadU4(uint32_t& value) override;
-    bool ReadId(uint64_t& value, uint32_t id_size) override;
-    bool ReadString(std::string& str, size_t length) override;
-    bool ReadBytes(std::vector<uint8_t>& data, size_t length) override;
-    bool SkipBytes(size_t count) override;
-    std::streampos GetPosition() override;
-    bool IsEof() const override;
-    bool IsValid() const override;
-
-   private:
-    util::TraceBlobViewReader reader_;
-    size_t current_offset_ = 0;
-  };
-
-  /**
-   * Detection sub-parser.
-   */
-  struct Detect {
-    base::Status Parse();
-    base::Status NotifyEndOfFile() const;
-    ArtHprofTokenizer* tokenizer_;
-  };
-
-  /**
-   * Non-streaming sub-parser.
-   */
-  struct NonStreaming {
-    base::Status Parse();
-    base::Status NotifyEndOfFile() const;
-    ArtHprofTokenizer* tokenizer_;
-    bool is_parsing_ = false;
-  };
-
-  /**
-   * Streaming sub-parser.
-   */
-  struct Streaming {
-    base::Status Parse();
-    base::Status NotifyEndOfFile();
-    ArtHprofTokenizer* tokenizer_;
-    size_t it_offset_ = 0;
-    bool header_parsed_ = false;
-  };
-
-  using SubParser = std::variant<Detect, NonStreaming, Streaming>;
-
-  /**
-   * Initialize parsers if needed.
-   *
-   * @return Status of the initialization
-   */
-  base::Status InitializeParserIfNeeded();
-
-  /**
-   * Process parsing results and generate events.
-   *
-   * @return Status of the processing
-   */
-  base::Status ProcessParsingResults();
-
-  TraceProcessorContext* const context_;
-  util::TraceBlobViewReader reader_;
-  SubParser sub_parser_ = Detect{this};
-  ArtHprofParser* parser_impl_ = nullptr;
-
-  // Parser components
-  std::unique_ptr<ByteIterator> byte_iterator_;
-  std::unique_ptr<HprofParser> parser_;
-  std::optional<HprofAst> parser_result_;
-  std::unique_ptr<HprofAstConverter> converter_;
-  std::optional<HeapGraphIR> ir_;
-
-  bool is_initialized_ = false;
-  bool is_complete_ = false;
+  size_t GetPosition() const;
+  bool IsEof() const;
 };
 
 }  // namespace perfetto::trace_processor::art_hprof

@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser_impl.h"
 
 #include <cstdint>
+#include <deque>
 #include <string>
 #include <unordered_map>
 
@@ -42,7 +43,7 @@ ArtHprofParserImpl::ArtHprofParserImpl(TraceProcessorContext* context)
  * processor database tables with class, object, and reference information.
  */
 void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
-  const HeapGraphIR& ir = event.data;
+  const HeapGraph& ir = event.data;
   uint32_t os_pid = event.pid;
 
   // Get or create the process for this pid
@@ -200,12 +201,12 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
     object_row.graph_sample_ts = ts;
     object_row.self_size = static_cast<int64_t>(obj_ir.self_size);
     object_row.native_size = 0;  // Default
-    object_row.reference_set_id = obj_ir.reference_set_id.value_or(0);
+    object_row.reference_set_id = std::nullopt;
     object_row.reachable = 1;  // Default
     object_row.heap_type = heap_type_id_opt;
     object_row.type_id = actual_type_id;
     object_row.root_type = root_type_id_opt;  // Set root type
-    object_row.root_distance = 0;             // Default
+    object_row.root_distance = -1;            // Will be calculated later
 
     tables::HeapGraphObjectTable::Id actual_owner_table_id =
         object_table.Insert(object_row).id;
@@ -222,73 +223,136 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
   PERFETTO_DLOG("Inserted %zu objects", objects_processed);
 
   //-----------------------------------------------------------------------------
-  // PHASE 4: Process references directly from IR
+  // PHASE 3.5: Group references by owner and prepare reference set IDs
   //-----------------------------------------------------------------------------
-  // Now process all references directly from the IR
+  // Group references by owner_id for more efficient processing
+  std::unordered_map<uint64_t, std::vector<const HeapGraphReference*>>
+      refs_by_owner;
+  for (const auto& ref_ir : ir.references) {
+    refs_by_owner[ref_ir.owner_id].push_back(&ref_ir);
+  }
+
+  PERFETTO_DLOG("Grouped references by %zu unique owners",
+                refs_by_owner.size());
+
+  // Process reference groups (all references from the same owner)
+  uint32_t next_reference_set_id = 0;
   size_t refs_processed = 0;
   size_t refs_skipped_owner = 0;
   size_t refs_skipped_owned = 0;
 
-  for (const auto& ref_ir : ir.references) {
-    // Find the owner object in our map
-    auto owner_it = object_hprof_id_to_table_id.find(ref_ir.owner_id);
+  for (const auto& [owner_id, refs] : refs_by_owner) {
+    // Skip if no owner in our table
+    auto owner_it = object_hprof_id_to_table_id.find(owner_id);
     if (owner_it == object_hprof_id_to_table_id.end()) {
-      refs_skipped_owner++;
-      if (refs_skipped_owner <= 10 || refs_skipped_owner % 10000 == 0) {
-        PERFETTO_DLOG("Reference owner not found: %" PRIu64, ref_ir.owner_id);
-      }
+      refs_skipped_owner += refs.size();
+      PERFETTO_DLOG("Reference owner not found: %" PRIu64
+                    " (%zu references skipped)",
+                    owner_id, refs.size());
       continue;
     }
 
-    tables::HeapGraphObjectTable::Id actual_owner_id = owner_it->second;
-    std::optional<tables::HeapGraphObjectTable::Id> actual_owned_id_opt;
-
-    // Resolve the owned object if it exists
-    if (ref_ir.owned_id.has_value() && *ref_ir.owned_id != 0) {
-      auto owned_it = object_hprof_id_to_table_id.find(*ref_ir.owned_id);
-      if (owned_it != object_hprof_id_to_table_id.end()) {
-        actual_owned_id_opt = owned_it->second;
-      } else {
-        refs_skipped_owned++;
-        if (refs_skipped_owned <= 10 || refs_skipped_owned % 10000 == 0) {
-          PERFETTO_DLOG("Reference owned not found: owner=%" PRIu64
-                        ", owned=%" PRIu64,
-                        ref_ir.owner_id, *ref_ir.owned_id);
-        }
-        // We still process the reference even if owned object not found
-      }
+    // Skip if no references (shouldn't happen but just to be safe)
+    if (refs.empty()) {
+      continue;
     }
 
-    // Intern field name and type strings
-    StringId field_name_id =
-        context_->storage->InternString(base::StringView(ref_ir.field_name));
-    StringId field_type_name_id = context_->storage->InternString(
-        base::StringView(ref_ir.field_type_name));
+    // Assign a single reference_set_id for this owner
+    uint32_t reference_set_id = next_reference_set_id;
+    tables::HeapGraphObjectTable::Id actual_owner_id = owner_it->second;
 
-    // Create and insert the reference
-    tables::HeapGraphReferenceTable::Row reference_row;
-    reference_row.reference_set_id = ref_ir.reference_set_id;
-    reference_row.owner_id = actual_owner_id;
-    reference_row.owned_id = actual_owned_id_opt;
-    reference_row.field_name = field_name_id;
-    reference_row.field_type_name = field_type_name_id;
-    reference_row.deobfuscated_field_name = std::nullopt;  // Default
+    // Update the object table with this reference_set_id
+    object_table.mutable_reference_set_id()->Set(actual_owner_id.value,
+                                                 reference_set_id);
 
-    reference_table.Insert(reference_row);
-    refs_processed++;
+    PERFETTO_DLOG("Assigned reference_set_id %u to object %" PRIu64
+                  " with %zu references",
+                  reference_set_id, owner_id, refs.size());
 
-    // Log only a sample
-    if (refs_processed <= 10 || refs_processed % 10000 == 0) {
-      PERFETTO_DLOG(
-          "Processed reference %zu: owner=%" PRIu64 ", owned=%s, field=%s",
-          refs_processed, ref_ir.owner_id,
-          ref_ir.owned_id.has_value() ? std::to_string(*ref_ir.owned_id).c_str()
-                                      : "null",
-          ref_ir.field_name.c_str());
+    // Process all references from this owner with the same reference_set_id
+    for (const HeapGraphReference* ref_ptr : refs) {
+      next_reference_set_id++;
+      const auto& ref_ir = *ref_ptr;
+
+      // Resolve the owned object if it exists
+      std::optional<tables::HeapGraphObjectTable::Id> actual_owned_id_opt;
+      if (ref_ir.owned_id.has_value() && *ref_ir.owned_id != 0) {
+        auto owned_it = object_hprof_id_to_table_id.find(*ref_ir.owned_id);
+        if (owned_it != object_hprof_id_to_table_id.end()) {
+          actual_owned_id_opt = owned_it->second;
+        } else {
+          refs_skipped_owned++;
+          if (refs_skipped_owned <= 10 || refs_skipped_owned % 10000 == 0) {
+            PERFETTO_DLOG("Reference owned not found: owner=%" PRIu64
+                          ", owned=%" PRIu64,
+                          ref_ir.owner_id, *ref_ir.owned_id);
+          }
+        }
+      }
+
+      // Intern field name and type strings
+      StringId field_name_id =
+          context_->storage->InternString(base::StringView(ref_ir.field_name));
+      StringId field_type_name_id = context_->storage->InternString(
+          base::StringView(ref_ir.field_type_name));
+
+      // Create and insert the reference
+      tables::HeapGraphReferenceTable::Row reference_row;
+      reference_row.reference_set_id = reference_set_id;
+      reference_row.owner_id = actual_owner_id;
+      reference_row.owned_id = actual_owned_id_opt;
+      reference_row.field_name = field_name_id;
+      reference_row.field_type_name = field_type_name_id;
+      reference_row.deobfuscated_field_name = std::nullopt;
+
+      reference_table.Insert(reference_row);
+      refs_processed++;
+
+      // Log only a sample
+      if (refs_processed <= 10 || refs_processed % 10000 == 0) {
+        PERFETTO_DLOG("Processed reference %zu: owner=%" PRIu64
+                      ", owned=%s, field=%s",
+                      refs_processed, ref_ir.owner_id,
+                      ref_ir.owned_id.has_value()
+                          ? std::to_string(*ref_ir.owned_id).c_str()
+                          : "null",
+                      ref_ir.field_name.c_str());
+      }
     }
   }
 
-  PERFETTO_DLOG(
+  //-----------------------------------------------------------------------------
+  // PHASE 5: Calculate root distances and mark reachable objects
+  //-----------------------------------------------------------------------------
+
+  // Check reference_set_id sharing
+  std::unordered_map<uint32_t, uint32_t> refs_per_set_id;
+  for (uint32_t i = 0; i < reference_table.row_count(); i++) {
+    uint32_t set_id = reference_table.reference_set_id()[i];
+    refs_per_set_id[set_id]++;
+  }
+
+  size_t single_ref_sets = 0;
+  size_t multi_ref_sets = 0;
+  size_t max_refs_in_set = 0;
+  for (const auto& [set_id, count] : refs_per_set_id) {
+    if (count == 1) {
+      single_ref_sets++;
+    } else {
+      multi_ref_sets++;
+      if (count > max_refs_in_set) {
+        max_refs_in_set = count;
+      }
+    }
+  }
+
+  PERFETTO_LOG(
+      "Reference set ID stats: %zu sets with single ref, %zu sets with "
+      "multiple refs",
+      single_ref_sets, multi_ref_sets);
+  PERFETTO_LOG("Max references in a single set: %zu", max_refs_in_set);
+
+  PERFETTO_LOG(
       "ArtHprofEvent parsing complete: %zu classes, %zu objects, "
       "%zu references processed, %zu owner refs skipped, %zu owned refs "
       "skipped",

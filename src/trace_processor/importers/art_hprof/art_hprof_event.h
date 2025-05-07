@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 namespace perfetto::trace_processor::art_hprof {
@@ -28,7 +29,7 @@ namespace perfetto::trace_processor::art_hprof {
  * Represents a field value in the heap graph with various possible types.
  */
 struct HeapGraphValue {
-  enum ValueType {
+  enum class Type {
     NONE,
     BOOLEAN,
     BYTE,
@@ -42,23 +43,28 @@ struct HeapGraphValue {
     STRING
   };
 
-  ValueType type = NONE;
+  Type type = Type::NONE;
 
-  // Use union for memory efficiency for primitive types
-  union {
-    bool bool_value;
-    int8_t byte_value;
-    char16_t char_value;
-    int16_t short_value;
-    int32_t int_value;
-    float float_value;
-    int64_t long_value;
-    double double_value;
-    uint64_t object_id_value;
-  };
+  // Use variant instead of union for type safety and better compatibility
+  std::variant<std::monostate,  // for NONE
+               bool,            // for BOOLEAN
+               int8_t,          // for BYTE
+               char16_t,        // for CHAR
+               int16_t,         // for SHORT
+               int32_t,         // for INT
+               float,           // for FLOAT
+               int64_t,         // for LONG
+               double,          // for DOUBLE
+               uint64_t         // for OBJECT_ID
+               >
+      primitive_value;
 
-  // String values are stored outside the union
+  // String values remain separate since they can't be part of a variant with
+  // primitive types
   std::string string_value;
+
+  // Default constructor
+  HeapGraphValue() : type(Type::NONE), primitive_value(std::monostate{}) {}
 };
 
 /**
@@ -68,11 +74,13 @@ struct HeapGraphObject {
   uint64_t object_id = 0;
   uint64_t type_id = 0;
   int64_t self_size = 0;
+  int32_t root_distance;
   std::optional<std::string> heap_type;
   std::unordered_map<std::string, HeapGraphValue> field_values;
   std::vector<uint64_t> references;
   std::optional<uint32_t> reference_set_id;
   std::optional<std::string> root_type;
+  std::optional<bool> reachable;
 };
 
 /**
@@ -102,7 +110,7 @@ struct HeapGraphClass {
 /**
  * Intermediate representation for heap graph data.
  */
-struct HeapGraphIR {
+struct HeapGraph {
   std::vector<HeapGraphClass> classes;
   std::vector<HeapGraphObject> objects;
   std::vector<HeapGraphReference> references;
@@ -116,10 +124,10 @@ struct ArtHprofEvent {
   uint32_t pid = 0;
 
   // The parsed heap graph data
-  HeapGraphIR data;
+  HeapGraph data;
 
   // Constructor
-  explicit ArtHprofEvent(HeapGraphIR ir) : data(std::move(ir)) {}
+  explicit ArtHprofEvent(HeapGraph ir) : data(std::move(ir)) {}
 };
 
 }  // namespace perfetto::trace_processor::art_hprof

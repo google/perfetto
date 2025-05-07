@@ -1843,6 +1843,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_art_hprof_art_hprof",
     srcs = [
+        "src/trace_processor/importers/art_hprof/art_hprof_heap_graph.cc",
+        "src/trace_processor/importers/art_hprof/art_hprof_heap_graph.h",
         "src/trace_processor/importers/art_hprof/art_hprof_parser_impl.cc",
         "src/trace_processor/importers/art_hprof/art_hprof_parser_impl.h",
         "src/trace_processor/importers/art_hprof/art_hprof_tokenizer.cc",
