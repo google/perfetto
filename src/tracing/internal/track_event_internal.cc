@@ -314,7 +314,8 @@ bool TrackEventInternal::IsCategoryEnabled(
     return false;
   };
 
-  // First try exact matches, then pattern matches.
+  // First try exact matches, then pattern matches. Last, try the global
+  // wildcard.
   const std::array<MatchType, 3> match_types = {
       {MatchType::kExact, MatchType::kPattern, MatchType::kWildcard}};
   for (auto match_type : match_types) {
