@@ -51,6 +51,15 @@ void TmpDirTree::AddFile(const std::string& relative_path,
                  static_cast<ssize_t>(content.size()));
 }
 
+void TmpDirTree::AddBinaryFile(const std::string& relative_path,
+                               const std::vector<uint8_t>& content) {
+  TrackFile(relative_path);
+  base::ScopedFile fd(base::OpenFile(AbsolutePath(relative_path),
+                                     O_WRONLY | O_CREAT | O_TRUNC, 0600));
+  PERFETTO_CHECK(base::WriteAll(fd.get(), content.data(), content.size()) ==
+                 static_cast<ssize_t>(content.size()));
+}
+
 void TmpDirTree::TrackFile(const std::string& relative_path) {
   files_to_remove_.push(relative_path);
 }

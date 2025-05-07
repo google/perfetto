@@ -3859,5 +3859,93 @@ TEST(CpuReaderTest, GenericEventSelfDescribingFormat) {
   // (skip verifying last switch)
 }
 
+// Tests that |ReadFrozen()| reads the specified file and parse it correctly.
+TEST(CpuReaderTest, FrozenPageRead) {
+  auto page_ok = PageFromXxd(g_switch_page);
+  auto page_loss = PageFromXxd(g_switch_page_lost_events);
+
+  // build test buffer with 8 pages
+  std::vector<const uint8_t*> test_pages = {
+      page_ok.get(),   page_ok.get(), page_ok.get(), page_loss.get(),
+      page_loss.get(), page_ok.get(), page_ok.get(), page_ok.get()};
+
+  size_t num_pages = test_pages.size();
+  size_t page_sz = base::GetSysPageSize();
+
+  std::vector<uint8_t> buf;
+  for (size_t i = 0; i < num_pages; i++) {
+    const uint8_t* raw_ptr = test_pages[i];
+    buf.insert(buf.end(), raw_ptr, raw_ptr + page_sz);
+  }
+  ASSERT_EQ(buf.size(), page_sz * 8);
+
+  // build an empty file for ReadFrozen
+  base::TmpDirTree tracedir;
+  tracedir.AddFile("trace", "");
+  tracedir.AddDir("per_cpu");
+  tracedir.AddDir("per_cpu/cpu0");
+  tracedir.AddBinaryFile("per_cpu/cpu0/trace_pipe_raw", buf);
+
+  auto tracefs = FtraceProcfs::Create(tracedir.AbsolutePath(""));
+
+  ProtoTranslationTable* table = GetTable("synthetic");
+  CpuReader cpu_reader(0, tracefs->OpenPipeForCpu(0), table,
+                       /*symbolizer=*/nullptr,
+                       protos::pbzero::FTRACE_CLOCK_UNSPECIFIED,
+                       /*ftrace_clock_snapshot=*/nullptr);
+
+  // build cfg requesting ftrace/print
+  FtraceMetadata metadata{};
+  FtraceDataSourceConfig ftrace_cfg = EmptyConfig();
+  ftrace_cfg.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
+
+  // invoke ReadFrozen
+  TraceWriterForTesting trace_writer;
+  base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors;
+  CpuReader::ParsingBuffers parsing_mem;
+  parsing_mem.AllocateIfNeeded();
+
+  // read 2 pages because max_pages limits it.
+  size_t pages_read = cpu_reader.ReadFrozen(
+      &parsing_mem, 2, &ftrace_cfg, &metadata, &parse_errors, &trace_writer);
+  EXPECT_EQ(2u, pages_read);
+  EXPECT_EQ(0u, parse_errors.size());
+
+  // first 2 pages has 2 events without any data lost.
+  auto first_packets = trace_writer.GetAllTracePackets();
+  ASSERT_EQ(1u, first_packets.size());
+
+  EXPECT_FALSE(first_packets[0].ftrace_events().lost_events());
+  EXPECT_EQ(2u, first_packets[0].ftrace_events().event().size());
+
+  // read remaining pages.
+  pages_read = cpu_reader.ReadFrozen(&parsing_mem, 32, &ftrace_cfg, &metadata,
+                                     &parse_errors, &trace_writer);
+  EXPECT_EQ(6u, pages_read);
+  // When we hit the last page, it records FTRACE_STATUS_PARTIAL_PAGE_READ.
+  EXPECT_EQ(1u, parse_errors.size());
+  EXPECT_EQ(1u, parse_errors.count(
+                    FtraceParseStatus::FTRACE_STATUS_PARTIAL_PAGE_READ));
+
+  // Each packet should contain the parsed contents of a contiguous run of pages
+  // without data loss.
+  // So we should get three packets (each page has 1 event):
+  //   [2 events (previous ReadFrozen)] [1 events] [1 event] [4 events].
+  auto packets = trace_writer.GetAllTracePackets();
+  ASSERT_EQ(4u, packets.size());
+  EXPECT_FALSE(packets[0].ftrace_events().lost_events());
+  EXPECT_EQ(2u, packets[0].ftrace_events().event().size());
+
+  EXPECT_FALSE(packets[1].ftrace_events().lost_events());
+  EXPECT_EQ(1u, packets[1].ftrace_events().event().size());
+
+  EXPECT_TRUE(packets[2].ftrace_events().lost_events());
+  EXPECT_EQ(1u, packets[2].ftrace_events().event().size());
+
+  EXPECT_TRUE(packets[3].ftrace_events().lost_events());
+  EXPECT_EQ(4u, packets[3].ftrace_events().event().size());
+}
+
 }  // namespace
 }  // namespace perfetto

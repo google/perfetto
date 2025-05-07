@@ -19,6 +19,7 @@
 
 #include <stack>
 #include <string>
+#include <vector>
 
 #include "perfetto/ext/base/temp_file.h"
 
@@ -46,6 +47,12 @@ class TmpDirTree {
   // directories should have been created. PERFETTO_CHECK()s that the operation
   // succeeds.
   void AddFile(const std::string& relative_path, const std::string& content);
+
+  // Creates a file at `relative_path` which contains binary data `content`.
+  // All the parent directories should have been created. PERFETTO_CHECK()s that
+  // the operation succeeds.
+  void AddBinaryFile(const std::string& relative_path,
+                     const std::vector<uint8_t>& content);
 
   // Tells this object to remove `relative_path` on destruction. This is used
   // for files created by the caller that still need to be removed on cleanup by
