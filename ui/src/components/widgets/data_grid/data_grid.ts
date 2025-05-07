@@ -26,7 +26,7 @@ import {
   SortBy,
   SortByColumn,
 } from './common';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
 
@@ -108,6 +108,24 @@ export interface DataGridAttrs {
     columnName: string,
     row: RowDef,
   ) => m.Children;
+
+  /**
+   * Show filters in the toolbar and filtering options in dropdown menus. If
+   * false, filtering can still be applied externally, but the UI for filtering
+   * will not be visible to the user.
+   *
+   * Defaults to true.
+   */
+  readonly enableFiltering?: boolean;
+
+  /**
+   * Display applied filters in the toolbar. Set to false to hide them, for
+   * example, if filters are displayed elsewhere in the UI. This does not
+   * disable filtering functionality.
+   *
+   * Defaults to true.
+   */
+  readonly showFiltersInToolbar?: boolean;
 }
 
 const DEFAULT_ROWS_PER_PAGE = 50;
@@ -128,6 +146,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       onFilterChange,
       cellRenderer,
       maxRowsPerPage = DEFAULT_ROWS_PER_PAGE,
+      enableFiltering: enableFilters = true,
+      showFiltersInToolbar = true,
     } = attrs;
 
     const currentPage = this.currentPage;
@@ -160,6 +180,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         onSortByChange,
         onFilterChange,
         maxRowsPerPage,
+        enableFilters && showFiltersInToolbar,
       ),
       m(
         'table',
@@ -167,12 +188,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           columns,
           sortBy,
           onSortByChange,
+          enableFilters,
           filters,
           onFilterChange,
         ),
         this.renderTableBody(
           columns,
           rowData,
+          enableFilters,
           filters,
           onFilterChange,
           cellRenderer,
@@ -204,6 +227,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       | ((filters: ReadonlyArray<FilterDefinition>) => void)
       | undefined,
     maxRowsPerPage: number,
+    showFilters: boolean,
   ) {
     return m('.pf-data-grid__toolbar', [
       m(Button, {
@@ -222,18 +246,19 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       }),
       m(
         '.pf-data-grid__toolbar-filters',
-        filters.map((filter) =>
-          m(Chip, {
-            className: 'pf-data-grid__filter-chip',
-            title: 'Remove filter',
-            label: this.formatFilter(filter),
-            onclick: () => {
-              const newFilters = filters.filter((f) => f !== filter);
-              this.internalFilters = newFilters;
-              onFiltersChange?.(newFilters);
-            },
-          }),
-        ),
+        showFilters &&
+          filters.map((filter) =>
+            m(Chip, {
+              className: 'pf-data-grid__filter-chip',
+              title: 'Remove filter',
+              label: this.formatFilter(filter),
+              onclick: () => {
+                const newFilters = filters.filter((f) => f !== filter);
+                this.internalFilters = newFilters;
+                onFiltersChange?.(newFilters);
+              },
+            }),
+          ),
       ),
       m('.pf-data-grid__toolbar-pagination', [
         m(Button, {
@@ -297,6 +322,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     columns: ReadonlyArray<ColumnDefinition>,
     currentSortBy: SortBy,
     onSortByChange: ((sortBy: SortBy) => void) | undefined,
+    enableFilters: boolean,
     filters: ReadonlyArray<FilterDefinition>,
     onFilterChange:
       | ((filters: ReadonlyArray<FilterDefinition>) => void)
@@ -384,32 +410,36 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     },
                   }),
 
-                m(MenuItem, {
-                  label: 'Filter out nulls',
-                  onclick: () => {
-                    this.addFilter(
-                      filters,
-                      {
-                        column: column.name,
-                        op: 'is not null',
-                      },
-                      onFilterChange,
-                    );
-                  },
-                }),
-                m(MenuItem, {
-                  label: 'Only show nulls',
-                  onclick: () => {
-                    this.addFilter(
-                      filters,
-                      {
-                        column: column.name,
-                        op: 'is null',
-                      },
-                      onFilterChange,
-                    );
-                  },
-                }),
+                enableFilters && [
+                  m(MenuDivider),
+
+                  m(MenuItem, {
+                    label: 'Filter out nulls',
+                    onclick: () => {
+                      this.addFilter(
+                        filters,
+                        {
+                          column: column.name,
+                          op: 'is not null',
+                        },
+                        onFilterChange,
+                      );
+                    },
+                  }),
+                  m(MenuItem, {
+                    label: 'Only show nulls',
+                    onclick: () => {
+                      this.addFilter(
+                        filters,
+                        {
+                          column: column.name,
+                          op: 'is null',
+                        },
+                        onFilterChange,
+                      );
+                    },
+                  }),
+                ],
               ),
             ),
           );
@@ -421,6 +451,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private renderTableBody(
     columns: ReadonlyArray<ColumnDefinition>,
     rowData: DataSourceResult,
+    enableFilters: boolean,
     filters: ReadonlyArray<FilterDefinition>,
     onFilterChange:
       | ((filters: ReadonlyArray<FilterDefinition>) => void)
@@ -467,134 +498,135 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   cellRenderer
                     ? cellRenderer(value, column.name, row)
                     : renderCell(value, column.name),
-                  m(
-                    PopupMenu,
-                    {
-                      trigger: m(Button, {
-                        className: 'pf-data-grid__cell-button',
-                        icon: 'more_vert',
-                        compact: true,
-                      }),
-                    },
-                    value !== null && [
-                      m(MenuItem, {
-                        label: 'Filter equal to this',
-                        onclick: () => {
-                          this.addFilter(
-                            filters,
-                            {
-                              column: column.name,
-                              op: '=',
-                              value: value,
-                            },
-                            onFilterChange,
-                          );
-                        },
-                      }),
-                      m(MenuItem, {
-                        label: 'Filter not equal to this',
-                        onclick: () => {
-                          this.addFilter(
-                            filters,
-                            {
-                              column: column.name,
-                              op: '!=',
-                              value: value,
-                            },
-                            onFilterChange,
-                          );
-                        },
-                      }),
-                    ],
+                  enableFilters &&
+                    m(
+                      PopupMenu,
+                      {
+                        trigger: m(Button, {
+                          className: 'pf-data-grid__cell-button',
+                          icon: 'more_vert',
+                          compact: true,
+                        }),
+                      },
+                      value !== null && [
+                        m(MenuItem, {
+                          label: 'Filter equal to this',
+                          onclick: () => {
+                            this.addFilter(
+                              filters,
+                              {
+                                column: column.name,
+                                op: '=',
+                                value: value,
+                              },
+                              onFilterChange,
+                            );
+                          },
+                        }),
+                        m(MenuItem, {
+                          label: 'Filter not equal to this',
+                          onclick: () => {
+                            this.addFilter(
+                              filters,
+                              {
+                                column: column.name,
+                                op: '!=',
+                                value: value,
+                              },
+                              onFilterChange,
+                            );
+                          },
+                        }),
+                      ],
 
-                    isNumeric(value) && [
-                      m(MenuItem, {
-                        label: 'Filter greater than this',
-                        onclick: () => {
-                          this.addFilter(
-                            filters,
-                            {
-                              column: column.name,
-                              op: '>',
-                              value: value,
-                            },
-                            onFilterChange,
-                          );
-                        },
-                      }),
-                      m(MenuItem, {
-                        label: 'Filter greater than or equal to this',
-                        onclick: () => {
-                          this.addFilter(
-                            filters,
-                            {
-                              column: column.name,
-                              op: '>=',
-                              value: value,
-                            },
-                            onFilterChange,
-                          );
-                        },
-                      }),
-                      m(MenuItem, {
-                        label: 'Filter less than this',
-                        onclick: () => {
-                          this.addFilter(
-                            filters,
-                            {
-                              column: column.name,
-                              op: '<',
-                              value: value,
-                            },
-                            onFilterChange,
-                          );
-                        },
-                      }),
-                      m(MenuItem, {
-                        label: 'Filter less than or equal to this',
-                        onclick: () => {
-                          this.addFilter(
-                            filters,
-                            {
-                              column: column.name,
-                              op: '<=',
-                              value: value,
-                            },
-                            onFilterChange,
-                          );
-                        },
-                      }),
-                    ],
+                      isNumeric(value) && [
+                        m(MenuItem, {
+                          label: 'Filter greater than this',
+                          onclick: () => {
+                            this.addFilter(
+                              filters,
+                              {
+                                column: column.name,
+                                op: '>',
+                                value: value,
+                              },
+                              onFilterChange,
+                            );
+                          },
+                        }),
+                        m(MenuItem, {
+                          label: 'Filter greater than or equal to this',
+                          onclick: () => {
+                            this.addFilter(
+                              filters,
+                              {
+                                column: column.name,
+                                op: '>=',
+                                value: value,
+                              },
+                              onFilterChange,
+                            );
+                          },
+                        }),
+                        m(MenuItem, {
+                          label: 'Filter less than this',
+                          onclick: () => {
+                            this.addFilter(
+                              filters,
+                              {
+                                column: column.name,
+                                op: '<',
+                                value: value,
+                              },
+                              onFilterChange,
+                            );
+                          },
+                        }),
+                        m(MenuItem, {
+                          label: 'Filter less than or equal to this',
+                          onclick: () => {
+                            this.addFilter(
+                              filters,
+                              {
+                                column: column.name,
+                                op: '<=',
+                                value: value,
+                              },
+                              onFilterChange,
+                            );
+                          },
+                        }),
+                      ],
 
-                    value === null && [
-                      m(MenuItem, {
-                        label: 'Filter out nulls',
-                        onclick: () => {
-                          this.addFilter(
-                            filters,
-                            {
-                              column: column.name,
-                              op: 'is not null',
-                            },
-                            onFilterChange,
-                          );
-                        },
-                      }),
-                      m(MenuItem, {
-                        label: 'Only show nulls',
-                        onclick: () => {
-                          this.addFilter(
-                            filters,
-                            {
-                              column: column.name,
-                              op: 'is null',
-                            },
-                            onFilterChange,
-                          );
-                        },
-                      }),
-                    ],
-                  ),
+                      value === null && [
+                        m(MenuItem, {
+                          label: 'Filter out nulls',
+                          onclick: () => {
+                            this.addFilter(
+                              filters,
+                              {
+                                column: column.name,
+                                op: 'is not null',
+                              },
+                              onFilterChange,
+                            );
+                          },
+                        }),
+                        m(MenuItem, {
+                          label: 'Only show nulls',
+                          onclick: () => {
+                            this.addFilter(
+                              filters,
+                              {
+                                column: column.name,
+                                op: 'is null',
+                              },
+                              onFilterChange,
+                            );
+                          },
+                        }),
+                      ],
+                    ),
                 ),
               );
             }),

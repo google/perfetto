@@ -65,7 +65,6 @@ import {MultiselectInput} from '../../widgets/multiselect_input';
 import {DataGrid} from '../../components/widgets/data_grid/data_grid';
 import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
 import {SQLDataSource} from '../../components/widgets/data_grid/sql_data_source';
-import {Engine} from '../../trace_processor/engine';
 import {App} from '../../public/app';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
@@ -1581,19 +1580,27 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       m(WidgetShowcase, {
         label: 'DataGrid (memory backed)',
         description: `An interactive data explorer and viewer.`,
-        renderWidget: () => m(DataGridShowcase),
+        renderWidget: (opts) => m(DataGridShowcase, opts),
+        initialOpts: {
+          enableFiltering: true,
+          showFiltersInToolbar: true,
+        },
       }),
 
       m(WidgetShowcase, {
         label: 'DataGrid (query backed)',
         description: `An interactive data explorer and viewer - fetched from SQL.`,
-        renderWidget: () => {
+        renderWidget: (opts) => {
           const trace = attrs.app.trace;
           if (trace) {
-            return m(DataGridSqlShowcase, {engine: trace.engine});
+            return m(DataGridSqlShowcase, {...opts, engine: trace.engine});
           } else {
             return 'Load a trace to start';
           }
+        },
+        initialOpts: {
+          enableFiltering: true,
+          showFiltersInToolbar: true,
         },
       }),
     );
@@ -1670,7 +1677,7 @@ function DataGridShowcase() {
       ts: 185n,
       dur: 4n,
       data: new Uint8Array(),
-      maybe_null: 'not null!',
+      maybe_null: 'Non null',
     },
     {
       id: 3,
@@ -1683,8 +1690,9 @@ function DataGridShowcase() {
   ]);
 
   return {
-    view() {
+    view({attrs}: m.Vnode) {
       return m(DataGrid, {
+        ...attrs,
         columns: [
           {name: 'id'},
           {name: 'ts'},
@@ -1699,15 +1707,17 @@ function DataGridShowcase() {
   };
 }
 
-function DataGridSqlShowcase(vnode: m.Vnode<{engine: Engine}>) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function DataGridSqlShowcase(vnode: m.Vnode<any>) {
   const dataSource = new SQLDataSource(
     vnode.attrs.engine,
     'SELECT * FROM slice',
   );
 
   return {
-    view() {
+    view({attrs}: m.Vnode) {
       return m(DataGrid, {
+        ...attrs,
         columns: [{name: 'id'}, {name: 'ts'}, {name: 'dur'}],
         dataSource,
         maxRowsPerPage: 10,
