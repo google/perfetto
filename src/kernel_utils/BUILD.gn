@@ -27,9 +27,7 @@ source_set("syscall_table") {
 }
 
 source_set("kernel_wakelock_errors") {
-  sources = [
-    "kernel_wakelock_errors.h",
-  ]
+  sources = [ "kernel_wakelock_errors.h" ]
 }
 
 perfetto_unittest_source_set("unittests") {

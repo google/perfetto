@@ -77,7 +77,6 @@ def main():
     # script is executed. So we need to replace both.
     return module.replace('/', '.').replace(os.sep, '.')
 
-
   modules = [to_module_name(i) for i in args.inputs]
   headers: Dict[str, Header] = {}
   for table in parse_tables_from_modules(modules):

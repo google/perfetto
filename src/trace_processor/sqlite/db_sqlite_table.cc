@@ -404,9 +404,6 @@ int DbSqliteModule::Connect(sqlite3* db,
       sqlite::ModuleStateManager<DbSqliteModule>::GetState(res->state);
   std::string sql = CreateTableStatementFromSchema(state->schema, argv[2]);
   if (int ret = sqlite3_declare_vtab(db, sql.c_str()); ret != SQLITE_OK) {
-    // If the registration happens to fail, make sure to disconnect the state
-    // again.
-    sqlite::ModuleStateManager<DbSqliteModule>::OnDisconnect(res->state);
     return ret;
   }
   *vtab = res.release();
@@ -415,7 +412,6 @@ int DbSqliteModule::Connect(sqlite3* db,
 
 int DbSqliteModule::Disconnect(sqlite3_vtab* vtab) {
   std::unique_ptr<Vtab> tab(GetVtab(vtab));
-  sqlite::ModuleStateManager<DbSqliteModule>::OnDisconnect(tab->state);
   return SQLITE_OK;
 }
 

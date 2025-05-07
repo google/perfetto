@@ -22,6 +22,12 @@ import {Monitor} from '../../base/monitor';
 import {AsyncLimiter} from '../../base/async_limiter';
 import {escapeGlob, escapeQuery} from '../../trace_processor/query_utils';
 import {Select} from '../../widgets/select';
+import {
+  MultiSelectDiff,
+  MultiSelectOption,
+  PopupMultiSelect,
+} from '../../widgets/multiselect';
+import {PopupPosition} from '../../widgets/popup';
 import {Button} from '../../widgets/button';
 import {TextInput} from '../../widgets/text_input';
 import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
@@ -37,9 +43,15 @@ export interface LogFilteringCriteria {
   tags: string[];
   textEntry: string;
   hideNonMatching: boolean;
+  machineExcludeList: number[];
+}
+
+export interface LogPanelCache {
+  uniqueMachineIds: number[];
 }
 
 export interface LogPanelAttrs {
+  cache: LogPanelCache;
   filterStore: Store<LogFilteringCriteria>;
   trace: Trace;
 }
@@ -87,8 +99,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       this.reloadData(attrs);
     }
 
-    const hasMachineIds =
-      this.entries && this.entries.machineIds.filter((id) => id).length > 0;
+    const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
     const hasProcessNames =
       this.entries &&
       this.entries.processName.filter((name) => name).length > 0;
@@ -99,7 +110,11 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       {
         title: 'Android Logs',
         description: `Total messages: ${totalEvents}`,
-        buttons: m(LogsFilters, {trace: attrs.trace, store: attrs.filterStore}),
+        buttons: m(LogsFilters, {
+          trace: attrs.trace,
+          cache: attrs.cache,
+          store: attrs.filterStore,
+        }),
       },
       m(VirtualTable, {
         className: 'pf-android-logs-table',
@@ -277,11 +292,14 @@ class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
 
 interface LogsFiltersAttrs {
   readonly trace: Trace;
+  readonly cache: LogPanelCache;
   readonly store: Store<LogFilteringCriteria>;
 }
 
 export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
   view({attrs}: m.CVnode<LogsFiltersAttrs>) {
+    const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
+
     return [
       m('.log-label', 'Log Level'),
       m(LogPriorityWidget, {
@@ -325,7 +343,44 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
         },
         disabled: attrs.store.state.textEntry === '',
       }),
+      hasMachineIds && this.renderFilterPanel(attrs),
     ];
+  }
+
+  private renderFilterPanel(attrs: LogsFiltersAttrs) {
+    const machineExcludeList = attrs.store.state.machineExcludeList;
+    const options: MultiSelectOption[] = attrs.cache.uniqueMachineIds.map(
+      (uMachineId) => {
+        return {
+          id: String(uMachineId),
+          name: `Machine ${uMachineId}`,
+          checked: !machineExcludeList.some(
+            (excluded: number) => excluded === uMachineId,
+          ),
+        };
+      },
+    );
+
+    return m(PopupMultiSelect, {
+      label: 'Filter by machine',
+      icon: 'filter_list_alt',
+      popupPosition: PopupPosition.Top,
+      options,
+      onChange: (diffs: MultiSelectDiff[]) => {
+        const newList = new Set<number>(machineExcludeList);
+        diffs.forEach(({checked, id}) => {
+          const machineId = Number(id);
+          if (checked) {
+            newList.delete(machineId);
+          } else {
+            newList.add(machineId);
+          }
+        });
+        attrs.store.edit((draft) => {
+          draft.machineExcludeList = Array.from(newList);
+        });
+      },
+    });
   }
 }
 
@@ -414,6 +469,9 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
       where prio >= ${filter.minimumLevel}`;
   if (filter.tags.length) {
     selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
+  }
+  if (filter.machineExcludeList.length) {
+    selectedRows += ` and ifnull(process.machine_id, 0) not in (${filter.machineExcludeList.join(',')})`;
   }
 
   // We extract only the rows which will be visible.
