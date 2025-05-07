@@ -1,0 +1,63 @@
+row {
+    value: 100.0
+    dimension {
+        null_value {}
+    }
+    dimension {
+        string_value: "ProcessSliceNoThread"
+    }
+}
+row {
+    value: 301.0
+    dimension {
+        string_value: "Thread"
+    }
+    dimension {
+        string_value: "ThreadSlice1"
+    }
+}
+row {
+    value: 199.0
+    dimension {
+        string_value: "Thread"
+    }
+    dimension {
+        string_value: "ThreadSlice2"
+    }
+}
+spec {
+    id: "max_duration"
+    value: "max_dur"
+    query {
+        simple_slices {
+            slice_name_glob: "*"
+        }
+        group_by {
+            column_names: "slice_name"
+            column_names: "thread_name"
+            aggregates {
+                column_name: "dur"
+                op: COUNT
+                result_column_name: "count_dur"
+            }
+            aggregates {
+                column_name: "dur"
+                op: MAX
+                result_column_name: "max_dur"
+            }
+            aggregates {
+                column_name: "dur"
+                op: SUM
+                result_column_name: "sum_dur"
+            }
+        }
+    }
+    dimensions_specs {
+        name: "thread_name"
+        type: STRING
+    }
+    dimensions_specs {
+        name: "slice_name"
+        type: STRING
+    }
+}
