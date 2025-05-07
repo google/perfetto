@@ -23,10 +23,10 @@
 namespace perfetto {
 namespace internal {
 
-// An always-fail implementation of TracingMuxer. Before tracing has been
-// initialized, all muxer operations will route here and fail with a helpful
-// error message. This is to avoid introducing null checks in
-// performance-critical parts of the codebase.
+//  An always-fail implementation of TracingMuxer. Before tracing has been
+//  initialized, all muxer operations will route here and fail with a helpful
+//  error message. This is to avoid introducing null checks in
+//  performance-critical parts of the codebase.
 class TracingMuxerFake : public TracingMuxer {
   class FakePlatform : public Platform {
    public:
@@ -43,9 +43,7 @@ class TracingMuxerFake : public TracingMuxer {
   TracingMuxerFake() : TracingMuxer(&FakePlatform::instance) {}
   ~TracingMuxerFake() override;
 
-  static constexpr TracingMuxerFake* Get() {
-    return &instance;
-  }
+  static constexpr TracingMuxerFake* Get() { return &instance; }
 
   // TracingMuxer implementation.
   bool RegisterDataSource(const DataSourceDescriptor&,
