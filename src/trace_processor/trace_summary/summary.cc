@@ -40,7 +40,6 @@
 
 #include "protos/perfetto/trace_summary/file.pbzero.h"
 #include "protos/perfetto/trace_summary/v2_metric.pbzero.h"
-
 namespace perfetto::trace_processor::summary {
 
 namespace {
@@ -139,54 +138,65 @@ base::Status CreateQueriesAndComputeMetrics(
           metric_value_column_name.c_str(), metric_name.c_str());
     }
 
-    std::vector<protos::pbzero::TraceMetricV2Spec::DimensionSpec::Decoder>
-        all_dimensions;
     if (spec_decoder.dimensions_specs() && spec_decoder.dimensions()) {
       return base::ErrStatus(
           "Both dimensions and dimension_specs defined for metric %s. Only one "
           "is allowed",
           metric_name.c_str());
     }
-    for (auto dim_spec_it = spec_decoder.dimensions_specs(); dim_spec_it;
-         ++dim_spec_it) {
-      protos::pbzero::TraceMetricV2Spec::DimensionSpec::Decoder dim_spec(
-          *dim_spec_it);
-      std::string dim_name = dim_spec.name().ToStdString();
-      protos::pbzero::TraceMetricV2Spec::DimensionType dimension_type =
-          static_cast<protos::pbzero::TraceMetricV2Spec::DimensionType>(
-              dim_spec.type());
-      if (dimension_type ==
-          protos::pbzero::TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED) {
-        return base::ErrStatus("Dimension %s in metric %s has unspecified type",
-                               dim_name.c_str(), metric_name.c_str());
-      }
-      all_dimensions.emplace_back(*dim_spec_it);
-    }
-    for (auto dim_name_it = spec_decoder.dimensions(); dim_name_it;
-         ++dim_name_it) {
-      protozero::HeapBuffered<protos::pbzero::TraceMetricV2Spec::DimensionSpec>
-          dim_spec_no_type;
-      dim_spec_no_type->set_name(dim_name_it->as_std_string());
-      all_dimensions.emplace_back(dim_spec_no_type.SerializeAsArray().data(),
-                                  dim_spec_no_type.SerializeAsArray().size());
-    }
-
     std::vector<uint32_t> dimension_column_indices;
-    for (const auto& dim_spec : all_dimensions) {
-      std::string dim_name = dim_spec.name().ToStdString();
-      std::optional<uint32_t> dim_index;
-      for (uint32_t i = 0; i < col_count; ++i) {
-        if (it.GetColumnName(i) == dim_name) {
-          dim_index = i;
-          break;
+    std::vector<protos::pbzero::TraceMetricV2Spec::DimensionType>
+        dimension_types;
+    if (spec_decoder.dimensions_specs()) {
+      for (auto dim_spec_it = spec_decoder.dimensions_specs(); dim_spec_it;
+           ++dim_spec_it) {
+        protos::pbzero::TraceMetricV2Spec::DimensionSpec::Decoder dim_spec(
+            *dim_spec_it);
+        std::string dim_name = dim_spec.name().ToStdString();
+        protos::pbzero::TraceMetricV2Spec::DimensionType dimension_type =
+            static_cast<protos::pbzero::TraceMetricV2Spec::DimensionType>(
+                dim_spec.type());
+        if (dimension_type ==
+            protos::pbzero::TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED) {
+          return base::ErrStatus(
+              "Dimension %s in metric %s has unspecified type",
+              dim_name.c_str(), metric_name.c_str());
         }
+        std::optional<uint32_t> dim_index;
+        for (uint32_t i = 0; i < col_count; ++i) {
+          if (it.GetColumnName(i) == dim_name) {
+            dim_index = i;
+            break;
+          }
+        }
+        if (!dim_index) {
+          return base::ErrStatus(
+              "Column %s not found in the query result for metric %s",
+              dim_name.c_str(), metric_name.c_str());
+        }
+        dimension_column_indices.push_back(*dim_index);
+        dimension_types.push_back(dimension_type);
       }
-      if (!dim_index) {
-        return base::ErrStatus(
-            "Column %s not found in the query result for metric %s",
-            dim_name.c_str(), metric_name.c_str());
+    } else {
+      for (auto dim_name_it = spec_decoder.dimensions(); dim_name_it;
+           ++dim_name_it) {
+        std::string dim_name = dim_name_it->as_std_string();
+        std::optional<uint32_t> dim_index;
+        for (uint32_t i = 0; i < col_count; ++i) {
+          if (it.GetColumnName(i) == dim_name) {
+            dim_index = i;
+            break;
+          }
+        }
+        if (!dim_index) {
+          return base::ErrStatus(
+              "Column %s not found in the query result for metric %s",
+              dim_name.c_str(), metric_name.c_str());
+        }
+        dimension_column_indices.push_back(*dim_index);
+        dimension_types.push_back(
+            protos::pbzero::TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED);
       }
-      dimension_column_indices.push_back(*dim_index);
     }
 
     while (it.Next()) {
@@ -221,21 +231,20 @@ base::Status CreateQueriesAndComputeMetrics(
       }
 
       // Read dimensions.
-      for (size_t i = 0; i < all_dimensions.size(); ++i) {
+      for (size_t i = 0; i < dimension_types.size(); ++i) {
         protos::pbzero::TraceMetricV2::MetricRow::Dimension* dimension =
             row->add_dimension();
 
         uint32_t dim_column_index = dimension_column_indices[i];
+        protos::pbzero::TraceMetricV2Spec::DimensionType dimension_type =
+            dimension_types[i];
+
         const auto& dimension_value = it.Get(dim_column_index);
         if (dimension_value.is_null()) {
           // Accept null value for all dimension types.
           dimension->set_null_value();
           continue;
         }
-
-        protos::pbzero::TraceMetricV2Spec::DimensionType dimension_type =
-            static_cast<protos::pbzero::TraceMetricV2Spec::DimensionType>(
-                all_dimensions[i].type());
         switch (dimension_type) {
           case protos::pbzero::TraceMetricV2Spec::STRING:
             if (dimension_value.type != SqlValue::kString) {
