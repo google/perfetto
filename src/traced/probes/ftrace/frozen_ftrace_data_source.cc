@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
@@ -58,8 +59,15 @@ FrozenFtraceDataSource::FrozenFtraceDataSource(
 void FrozenFtraceDataSource::Start() {
   parsing_mem_.AllocateIfNeeded();
 
-  tracefs_ = FtraceProcfs::CreateGuessingMountPoint(
-      "instances/" + ds_config_.instance_name() + "/");
+  std::string raw_instance_name = ds_config_.instance_name();
+  if (base::Contains(raw_instance_name, '/') ||
+      base::StartsWith(raw_instance_name, "..")) {
+    PERFETTO_ELOG("instance name '%s' is invalid.", raw_instance_name.c_str());
+    return;
+  }
+
+  tracefs_ = FtraceProcfs::CreateGuessingMountPoint("instances/" +
+                                                    raw_instance_name + "/");
   if (!tracefs_)
     return;
 
