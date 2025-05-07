@@ -197,6 +197,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       Router.parseUrl(window.location.href).page === '/viewer';
 
     return m(DataGrid, {
+      enableFiltering: false,
       columns: resp.columns.map((c) => ({name: c})),
       dataSource,
       cellRenderer: (value, name, row) => {
