@@ -112,7 +112,7 @@ class TrackEventSessionObserverRegistry {
   std::vector<RegisteredObserver> observers_;
 };
 
-enum class MatchType { kExact, kPattern };
+enum class MatchType { kExact, kPattern, kWildcard };
 
 bool NameMatchesPattern(const std::string& pattern,
                         const std::string& name,
@@ -122,6 +122,9 @@ bool NameMatchesPattern(const std::string& pattern,
   size_t i = pattern.find('*');
   if (i != std::string::npos) {
     PERFETTO_DCHECK(i == pattern.size() - 1);
+    if (i == 0) {
+      return match_type == MatchType::kWildcard;
+    }
     if (match_type != MatchType::kPattern)
       return false;
     return name.substr(0, i) == pattern.substr(0, i);
@@ -312,23 +315,43 @@ bool TrackEventInternal::IsCategoryEnabled(
   };
 
   // First try exact matches, then pattern matches.
-  const std::array<MatchType, 2> match_types = {
-      {MatchType::kExact, MatchType::kPattern}};
+  const std::array<MatchType, 3> match_types = {
+      {MatchType::kExact, MatchType::kPattern, MatchType::kWildcard}};
   for (auto match_type : match_types) {
-    // 1. Enabled categories.
+    // 1. Disabled categories.
+    if (NameMatchesPatternList(config.disabled_categories(), category.name,
+                               match_type)) {
+      return false;
+    }
+
+    // 2. Enabled categories.
     if (NameMatchesPatternList(config.enabled_categories(), category.name,
                                match_type)) {
       return true;
     }
 
-    // 2. Enabled tags.
+    // 3. Disabled tags.
+    if (has_matching_tag([&](const char* tag) {
+          if (config.disabled_tags_size()) {
+            return NameMatchesPatternList(config.disabled_tags(), tag,
+                                          match_type);
+          } else if (config.enabled_tags_size() == 0) {
+            // The "slow" and "debug" tags are disabled by default.
+            return NameMatchesPattern(kSlowTag, tag, match_type) ||
+                   NameMatchesPattern(kDebugTag, tag, match_type);
+          }
+        })) {
+      return false;
+    }
+
+    // 4. Enabled tags.
     if (has_matching_tag([&](const char* tag) {
           return NameMatchesPatternList(config.enabled_tags(), tag, match_type);
         })) {
       return true;
     }
 
-    // 2.5. A special case for Chrome's legacy disabled-by-default categories.
+    // 4.5. A special case for Chrome's legacy disabled-by-default categories.
     // We treat them as having a "slow" tag with one exception: they can be
     // enabled by a pattern if the pattern starts with "disabled-by-default-"
     // itself.
@@ -341,26 +364,6 @@ bool TrackEventInternal::IsCategoryEnabled(
           return true;
         }
       }
-    }
-
-    // 3. Disabled categories.
-    if (NameMatchesPatternList(config.disabled_categories(), category.name,
-                               match_type)) {
-      return false;
-    }
-
-    // 4. Disabled tags.
-    if (has_matching_tag([&](const char* tag) {
-          if (config.disabled_tags_size()) {
-            return NameMatchesPatternList(config.disabled_tags(), tag,
-                                          match_type);
-          } else {
-            // The "slow" and "debug" tags are disabled by default.
-            return NameMatchesPattern(kSlowTag, tag, match_type) ||
-                   NameMatchesPattern(kDebugTag, tag, match_type);
-          }
-        })) {
-      return false;
     }
   }
 
