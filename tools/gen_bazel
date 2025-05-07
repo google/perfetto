@@ -156,6 +156,12 @@ proto_groups = {
         'sources': ['//protos/perfetto/trace_summary:source_set',],
         'visibility': ['//visibility:public'],
     },
+    'trace_android_track_event_extension': {
+        'sources': [
+            '//protos/perfetto/trace/android:android_track_event_source_set',
+        ],
+        'visibility': [],
+    }
 }
 
 # Path for the protobuf sources in the standalone build.
@@ -218,7 +224,8 @@ external_java_android_sdk_deps: Dict[str, List[str]] = {
 # Map from GN targets to the list of Bazel deps labels
 additional_java_android_sdk_deps: Dict[str, List[str]] = {
     '//src/android_sdk/java/test:perfetto_trace_test_lib': [
-        ':trace_java_proto_lite'
+        ':trace_java_proto_lite',
+        ':trace_android_track_event_extension_java_proto_lite',
     ],
 }
 
@@ -600,12 +607,6 @@ def gen_proto_label(target: GnParser.Target):
   if target.proto_plugin == 'descriptor':
     plugin_label.outs = [plugin_label_name + '.bin']
 
-  # Most SDK users just emit track event. The headers for those are included by
-  # other public headers. Some advanced SDK users write custom TracePacket: they
-  # need visibility into the protozero generated headers.
-  if target.proto_plugin == 'protozero':
-    plugin_label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
-
   return plugin_label
 
 
@@ -652,7 +653,13 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
     java_lite_label.visibility = visibility
     py_label.visibility = visibility
 
-  return [sources_label, cc_label, java_label, java_lite_label, py_label]
+  return [
+      sources_label,
+      cc_label,
+      java_label,
+      java_lite_label,
+      py_label,
+  ]
 
 
 def gen_cc_proto_descriptor(target: GnParser.Target):
@@ -915,6 +922,26 @@ def gen_target_helper(gn_target: GnParser.Target,
   return [label]
 
 
+def gen_protozero_group_target(gn: GnParser):
+  label = BazelLabel('trace_zero', 'perfetto_cc_library')
+
+  minimal = '//protos/perfetto/trace:minimal_zero'
+  for dep in gn.get_target(minimal).transitive_proto_deps():
+    label.deps += [':' + get_bazel_label_name(dep.name)]
+    label.hdrs += [':' + get_bazel_label_name(dep.name) + '_h']
+
+  non_minimal = '//protos/perfetto/trace:non_minimal_zero'
+  for dep in gn.get_target(non_minimal).transitive_proto_deps():
+    label.deps += [':' + get_bazel_label_name(dep.name)]
+    label.hdrs += [':' + get_bazel_label_name(dep.name) + '_h']
+
+  label.deps = sorted(set(label.deps))
+  label.hdrs = sorted(set(label.hdrs))
+  label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
+
+  return [label]
+
+
 def gen_target(gn_target: GnParser.Target, win_target: GnParser.Target = None):
   targets = gen_target_helper(gn_target, win_target)
   if gn_target.name not in target_overrides:
@@ -1049,6 +1076,9 @@ exports_files(["NOTICE"])
   # Generate targets for proto groups.
   for l_name, t_desc in proto_groups.items():
     res += ''.join(str(x) for x in gen_proto_group_target(gn, l_name, t_desc))
+
+  # Generate targets for protozero group.
+  res += ''.join(str(x) for x in gen_protozero_group_target(gn))
 
   # For any non-source set and non-descriptor targets, ensure the source set
   # associated to that target is discovered.

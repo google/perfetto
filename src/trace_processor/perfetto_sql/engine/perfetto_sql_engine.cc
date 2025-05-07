@@ -16,10 +16,10 @@
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 
+#include <sqlite3.h>
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -62,7 +62,7 @@
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/status_macros.h"
 
-#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"  // IWYU pragma: keep
 
 // Implementation details
 // ----------------------
@@ -355,8 +355,8 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
                                                std::move(ctx));
   }
   {
-    auto ctx =
-        std::make_unique<DataframeModule::Context>(dataframe_shared_storage_);
+    auto ctx = std::make_unique<DataframeModule::Context>();
+    dataframe_context_ = ctx.get();
     RegisterVirtualTableModule<DataframeModule>("__intrinsic_dataframe",
                                                 std::move(ctx));
   }
@@ -751,16 +751,27 @@ base::Status PerfettoSqlEngine::ExecuteCreateTableUsingDataframe(
   base::StackString<1024> drop("DROP TABLE IF EXISTS %s;",
                                create_table.name.c_str());
   base::StackString<1024> sql_str(
-      "SAVEPOINT create_table_using_dataframe; %s "
-      "CREATE VIRTUAL TABLE %s USING __intrinsic_dataframe(%" PRIu64
-      "); "
-      "RELEASE SAVEPOINT create_table_using_dataframe",
-      create_table.replace ? drop.c_str() : "", create_table.name.c_str(),
-      tag.hash);
+      R"(
+      SAVEPOINT create_table_using_dataframe;
+      %s
+      CREATE VIRTUAL TABLE %s USING __intrinsic_dataframe;
+      RELEASE SAVEPOINT create_table_using_dataframe;
+      )",
+      create_table.replace ? drop.c_str() : "", create_table.name.c_str());
+
+  // Make sure we didn't accidentally leak a state from a previous function
+  // creation.
+  PERFETTO_CHECK(!dataframe_context_->temporary_create_state);
+  dataframe_context_->temporary_create_state =
+      std::make_unique<DataframeModule::State>(df);
 
   auto exec_res = Execute(
       SqlSource::FromTraceProcessorImplementation(sql_str.ToStdString()));
-  if (!exec_res.ok()) {
+  if (exec_res.ok()) {
+    PERFETTO_CHECK(!dataframe_context_->temporary_create_state);
+  } else {
+    dataframe_context_->temporary_create_state.reset();
+
     auto rollback_res = Execute(SqlSource::FromTraceProcessorImplementation(
         "ROLLBACK TO create_table_using_dataframe; "
         "RELEASE create_table_using_dataframe;"));
@@ -922,7 +933,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
                       record->AddArg("cols", base::Join(index.col_names, ", "));
                     });
 
-  Table* t = GetTableOrNullSlow(index.table_name);
+  Table* t = GetTableOrNull(index.table_name);
   if (!t) {
     return base::ErrStatus("CREATE PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
@@ -950,7 +961,7 @@ base::Status PerfettoSqlEngine::ExecuteDropIndex(
                       record->AddArg("table_name", index.table_name);
                     });
 
-  Table* t = GetTableOrNullSlow(index.table_name);
+  Table* t = GetTableOrNull(index.table_name);
   if (!t) {
     return base::ErrStatus("DROP PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
@@ -1204,26 +1215,26 @@ void PerfettoSqlEngine::OnRollback() {
   }
 }
 
-const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNullSlow(
-    std::string_view name) const {
-  auto* state = runtime_table_context_->FindStateByNameSlow(name);
+const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(
+    const std::string& name) const {
+  auto* state = runtime_table_context_->GetStateByName(name);
   return state ? state->runtime_table.get() : nullptr;
 }
 
-RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNullSlow(
-    std::string_view name) {
-  auto* state = runtime_table_context_->FindStateByNameSlow(name);
+RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(
+    const std::string& name) {
+  auto* state = runtime_table_context_->GetStateByName(name);
   return state ? state->runtime_table.get() : nullptr;
 }
 
-const Table* PerfettoSqlEngine::GetStaticTableOrNullSlow(
-    std::string_view name) const {
-  auto* state = static_table_context_->FindStateByNameSlow(name);
+const Table* PerfettoSqlEngine::GetStaticTableOrNull(
+    const std::string& name) const {
+  auto* state = static_table_context_->GetStateByName(name);
   return state ? state->static_table : nullptr;
 }
 
-Table* PerfettoSqlEngine::GetStaticTableOrNullSlow(std::string_view name) {
-  auto* state = static_table_context_->FindStateByNameSlow(name);
+Table* PerfettoSqlEngine::GetStaticTableOrNull(const std::string& name) {
+  auto* state = static_table_context_->GetStateByName(name);
   return state ? state->static_table : nullptr;
 }
 

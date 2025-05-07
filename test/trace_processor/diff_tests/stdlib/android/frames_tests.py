@@ -34,6 +34,8 @@ class Frames(TestSuite):
         "frame_id","name","depth"
         10,"Choreographer#doFrame 10",0
         11,"Choreographer#doFrame 11",1
+        12,"Choreographer#doFrame 12",4
+        13,"Choreographer#doFrame 13",3
         """))
 
   def test_android_frames_choreographer_do_frame(self):
