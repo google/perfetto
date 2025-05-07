@@ -330,28 +330,7 @@ bool TrackEventInternal::IsCategoryEnabled(
       return true;
     }
 
-    // 3. Disabled tags.
-    if (has_matching_tag([&](const char* tag) {
-          if (config.disabled_tags_size()) {
-            return NameMatchesPatternList(config.disabled_tags(), tag,
-                                          match_type);
-          } else if (config.enabled_tags_size() == 0) {
-            // The "slow" and "debug" tags are disabled by default.
-            return NameMatchesPattern(kSlowTag, tag, match_type) ||
-                   NameMatchesPattern(kDebugTag, tag, match_type);
-          }
-        })) {
-      return false;
-    }
-
-    // 4. Enabled tags.
-    if (has_matching_tag([&](const char* tag) {
-          return NameMatchesPatternList(config.enabled_tags(), tag, match_type);
-        })) {
-      return true;
-    }
-
-    // 4.5. A special case for Chrome's legacy disabled-by-default categories.
+    // 2.5. A special case for Chrome's legacy disabled-by-default categories.
     // We treat them as having a "slow" tag with one exception: they can be
     // enabled by a pattern if the pattern starts with "disabled-by-default-"
     // itself.
@@ -364,6 +343,28 @@ bool TrackEventInternal::IsCategoryEnabled(
           return true;
         }
       }
+    }
+
+    // 3. Disabled tags.
+    if (has_matching_tag([&](const char* tag) {
+          if (config.disabled_tags_size()) {
+            return NameMatchesPatternList(config.disabled_tags(), tag,
+                                          match_type);
+          } else if (config.enabled_tags_size() == 0) {
+            // The "slow" and "debug" tags are disabled by default.
+            return NameMatchesPattern(kSlowTag, tag, match_type) ||
+                   NameMatchesPattern(kDebugTag, tag, match_type);
+          }
+          return false;
+        })) {
+      return false;
+    }
+
+    // 4. Enabled tags.
+    if (has_matching_tag([&](const char* tag) {
+          return NameMatchesPatternList(config.enabled_tags(), tag, match_type);
+        })) {
+      return true;
     }
   }
 

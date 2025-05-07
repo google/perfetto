@@ -109,6 +109,9 @@ PERFETTO_DEFINE_CATEGORIES(
     perfetto::Category("test")
         .SetDescription("This is a test category")
         .SetTags("tag"),
+    perfetto::Category("test.verbose")
+        .SetDescription("This is a test category")
+        .SetTags("tag", "debug"),
     perfetto::Category("foo"),
     perfetto::Category("bar"),
     perfetto::Category("cat").SetTags("slow"),
@@ -3866,6 +3869,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     TRACE_EVENT_BEGIN("cat", "SlowEvent");
     TRACE_EVENT_BEGIN("cat.verbose", "DebugEvent");
     TRACE_EVENT_BEGIN("test", "TagEvent");
+    TRACE_EVENT_BEGIN("test.verbose", "VerboseTagEvent");
     TRACE_EVENT_BEGIN(TRACE_DISABLED_BY_DEFAULT("cat"), "SlowDisabledEvent");
     TRACE_EVENT_BEGIN("dynamic,foo", "DynamicGroupFooEvent");
     perfetto::DynamicCategory dyn{"dynamic,bar"};
@@ -3957,6 +3961,17 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     te_cfg.add_disabled_categories("*");
     te_cfg.add_enabled_tags("tag");
     auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices, ElementsAre("B:test.TagEvent",
+                                    "B:test.verbose.VerboseTagEvent"));
+  }
+
+  // Enable a tag and disable another.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    te_cfg.add_enabled_tags("tag");
+    te_cfg.add_disabled_tags("debug");
+    auto slices = check_config(te_cfg);
     EXPECT_THAT(slices, ElementsAre("B:test.TagEvent"));
   }
 
@@ -3994,6 +4009,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
                     "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
                     "B:red,green,blue,yellow.MultiNone", "B:cat.SlowEvent",
                     "B:cat.verbose.DebugEvent", "B:test.TagEvent",
+                    "B:test.verbose.VerboseTagEvent",
                     "B:disabled-by-default-cat.SlowDisabledEvent",
                     "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
