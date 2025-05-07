@@ -158,11 +158,14 @@ message TraceMetricV2Spec {
 
   message DimensionSpec {
     optional string name = 1;
+    // The type of the dimension. Must be specified.
     optional DimensionType type = 2;
   }
   // The columns from `query` which will act as the "dimensions" for the metric.
   // For a given set of dimensions, there must be exactly *one* value emitted.
   // Optional.
+  // If the `dimensions_specs` field is defined, then the type of each
+  // dimension must be specified.
   repeated DimensionSpec dimensions_specs = 5;
   // Either dimensions or dimensions_specs should be defined, but not both.
   repeated string dimensions = 2;
