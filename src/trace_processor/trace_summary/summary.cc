@@ -138,7 +138,7 @@ base::Status CreateQueriesAndComputeMetrics(
           metric_value_column_name.c_str(), metric_name.c_str());
     }
 
-    if (spec_decoder.dimensions_specs() && spec_decoder.dimensions()) {
+    if (spec_decoder.has_dimensions_specs() && spec_decoder.has_dimensions()) {
       return base::ErrStatus(
           "Both dimensions and dimension_specs defined for metric %s. Only one "
           "is allowed",
