@@ -141,6 +141,9 @@ SurfaceFlingerLayersSnapshotTable::~SurfaceFlingerLayersSnapshotTable() =
     default;
 SurfaceFlingerLayerTable::~SurfaceFlingerLayerTable() = default;
 SurfaceFlingerTransactionsTable::~SurfaceFlingerTransactionsTable() = default;
+SurfaceFlingerTransactionTable::~SurfaceFlingerTransactionTable() = default;
+SurfaceFlingerTransactionFlagTable::~SurfaceFlingerTransactionFlagTable() =
+    default;
 ViewCaptureTable::~ViewCaptureTable() = default;
 ViewCaptureViewTable::~ViewCaptureViewTable() = default;
 ViewCaptureInternedDataTable::~ViewCaptureInternedDataTable() = default;
