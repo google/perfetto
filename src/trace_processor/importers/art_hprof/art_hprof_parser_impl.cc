@@ -177,14 +177,16 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
     if (type_id_it == class_hprof_id_to_table_id.end()) {
       // For missing types, check if it's a valid class ID
       if (valid_class_ids.find(obj_ir.type_id) != valid_class_ids.end()) {
-        PERFETTO_DLOG("Warning: Class with ID %" PRIu64 " exists but is not in the map",
+        PERFETTO_DLOG("Warning: Class with ID %" PRIu64
+                      " exists but is not in the map",
                       obj_ir.type_id);
       } else {
         objects_with_unknown_type++;
 
-        if (objects_with_unknown_type <= 10 || objects_with_unknown_type % 1000 == 0) {
+        if (objects_with_unknown_type <= 10 ||
+            objects_with_unknown_type % 1000 == 0) {
           PERFETTO_DLOG("Object %" PRIu64 " has unknown type ID: %" PRIu64,
-                      obj_ir.object_id, obj_ir.type_id);
+                        obj_ir.object_id, obj_ir.type_id);
         }
 
         if (objects_with_unknown_type == 1) {
@@ -208,7 +210,7 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
           // Use this as fallback for all objects with unknown types
           class_hprof_id_to_table_id[0] = unknown_class_id;
           PERFETTO_DLOG("Created fallback 'unknown' class with table ID %u",
-                      unknown_class_id.value);
+                        unknown_class_id.value);
         }
 
         // Continue with the fallback "unknown" class
@@ -216,7 +218,7 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
         if (type_id_it == class_hprof_id_to_table_id.end()) {
           // Skip this object if we can't even use the fallback
           PERFETTO_DLOG("Skipping object %" PRIu64 " with unknown type",
-                       obj_ir.object_id);
+                        obj_ir.object_id);
           continue;
         }
       }
@@ -289,7 +291,8 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
 
   for (uint64_t ref_id : all_referenced_object_ids) {
     // Skip if object already exists
-    if (object_hprof_id_to_table_id.find(ref_id) != object_hprof_id_to_table_id.end()) {
+    if (object_hprof_id_to_table_id.find(ref_id) !=
+        object_hprof_id_to_table_id.end()) {
       continue;
     }
 
@@ -328,14 +331,16 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
 
     synthetic_objects_created++;
 
-    if (synthetic_objects_created <= 10 || synthetic_objects_created % 10000 == 0) {
-      PERFETTO_DLOG("Created synthetic object %zu: HPROF ID=%" PRIu64 ", table_id=%u",
-                   synthetic_objects_created, ref_id, synthetic_table_id.value);
+    if (synthetic_objects_created <= 10 ||
+        synthetic_objects_created % 10000 == 0) {
+      PERFETTO_DLOG(
+          "Created synthetic object %zu: HPROF ID=%" PRIu64 ", table_id=%u",
+          synthetic_objects_created, ref_id, synthetic_table_id.value);
     }
   }
 
   PERFETTO_DLOG("Created %zu synthetic objects for missing references",
-               synthetic_objects_created);
+                synthetic_objects_created);
 
   //-----------------------------------------------------------------------------
   // PHASE 4: Process references
@@ -351,7 +356,8 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
                 refs_by_owner.size());
 
   // Process reference groups (all references from the same owner)
-  uint32_t next_reference_set_id = 1;  // Start with ID 1 to avoid potential issues with 0
+  uint32_t next_reference_set_id =
+      1;  // Start with ID 1 to avoid potential issues with 0
   size_t refs_processed = 0;
   size_t refs_skipped_owner = 0;
   size_t refs_skipped_owned = 0;
@@ -367,8 +373,8 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
 
       if (owners_processed <= 10 || owners_processed % 1000 == 0) {
         PERFETTO_DLOG("Reference owner not found: %" PRIu64
-                     " (%zu references skipped)",
-                     owner_id, refs.size());
+                      " (%zu references skipped)",
+                      owner_id, refs.size());
       }
       continue;
     }
@@ -378,18 +384,19 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
       continue;
     }
 
-    // Assign a single reference_set_id for this owner and increment for next owner
+    // Assign a single reference_set_id for this owner and increment for next
+    // owner
     uint32_t reference_set_id = next_reference_set_id++;
     tables::HeapGraphObjectTable::Id actual_owner_id = owner_it->second;
 
     // Update the object table with this reference_set_id
     object_table.mutable_reference_set_id()->Set(actual_owner_id.value,
-                                               reference_set_id);
+                                                 reference_set_id);
 
     if (owners_processed <= 10 || owners_processed % 10000 == 0) {
       PERFETTO_DLOG("Assigned reference_set_id %u to object %" PRIu64
-                   " with %zu references",
-                   reference_set_id, owner_id, refs.size());
+                    " with %zu references",
+                    reference_set_id, owner_id, refs.size());
     }
 
     // Process all references from this owner with the same reference_set_id
@@ -409,9 +416,9 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
 
           if (refs_skipped_owned <= 10 || refs_skipped_owned % 10000 == 0) {
             PERFETTO_DLOG("Reference owned not found: owner=%" PRIu64
-                         ", owned=%" PRIu64 " (field: %s)",
-                         ref_ir.owner_id, *ref_ir.owned_id,
-                         ref_ir.field_name.c_str());
+                          ", owned=%" PRIu64 " (field: %s)",
+                          ref_ir.owner_id, *ref_ir.owned_id,
+                          ref_ir.field_name.c_str());
           }
         }
       }
@@ -438,13 +445,12 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
       if (refs_processed <= 10 || refs_processed % 50000 == 0 ||
           (owner_refs_processed == 1 && refs.size() > 1000)) {
         PERFETTO_DLOG("Processed reference %zu: owner=%" PRIu64
-                     ", owned=%s, field=%s (set_id=%u)",
-                     refs_processed, ref_ir.owner_id,
-                     ref_ir.owned_id.has_value()
-                         ? std::to_string(*ref_ir.owned_id).c_str()
-                         : "null",
-                     ref_ir.field_name.c_str(),
-                     reference_set_id);
+                      ", owned=%s, field=%s (set_id=%u)",
+                      refs_processed, ref_ir.owner_id,
+                      ref_ir.owned_id.has_value()
+                          ? std::to_string(*ref_ir.owned_id).c_str()
+                          : "null",
+                      ref_ir.field_name.c_str(), reference_set_id);
       }
     }
   }
@@ -481,10 +487,11 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
       "multiple refs",
       single_ref_sets, multi_ref_sets);
   PERFETTO_LOG("Max references in a single set: %zu (set_id=%u)",
-              max_refs_in_set, max_refs_set_id);
+               max_refs_in_set, max_refs_set_id);
 
   PERFETTO_LOG(
-      "ArtHprofEvent parsing complete: %zu classes, %zu objects (%zu synthetic), "
+      "ArtHprofEvent parsing complete: %zu classes, %zu objects (%zu "
+      "synthetic), "
       "%zu references processed, %zu owner refs skipped, %zu owned refs "
       "skipped",
       classes_processed, objects_processed, synthetic_objects_created,
