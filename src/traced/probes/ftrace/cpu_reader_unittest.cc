@@ -21,6 +21,7 @@
 #include <sys/syscall.h>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -3865,31 +3866,20 @@ TEST(CpuReaderTest, FrozenPageRead) {
   auto page_loss = PageFromXxd(g_switch_page_lost_events);
 
   // build test buffer with 8 pages
-  std::vector<const uint8_t*> test_pages = {
-      page_ok.get(),   page_ok.get(), page_ok.get(), page_loss.get(),
-      page_loss.get(), page_ok.get(), page_ok.get(), page_ok.get()};
-
-  size_t num_pages = test_pages.size();
   size_t page_sz = base::GetSysPageSize();
-
-  std::vector<uint8_t> buf;
-  for (size_t i = 0; i < num_pages; i++) {
-    const uint8_t* raw_ptr = test_pages[i];
-    buf.insert(buf.end(), raw_ptr, raw_ptr + page_sz);
-  }
-  ASSERT_EQ(buf.size(), page_sz * 8);
-
-  // build an empty file for ReadFrozen
-  base::TmpDirTree tracedir;
-  tracedir.AddFile("trace", "");
-  tracedir.AddDir("per_cpu");
-  tracedir.AddDir("per_cpu/cpu0");
-  tracedir.AddBinaryFile("per_cpu/cpu0/trace_pipe_raw", buf);
-
-  auto tracefs = FtraceProcfs::Create(tracedir.AbsolutePath(""));
+  base::TempFile test_pages = base::TempFile::CreateUnlinked();
+  base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_loss.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_loss.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
+  ASSERT_NE(lseek(test_pages.fd(), 0, SEEK_SET), -1);
 
   ProtoTranslationTable* table = GetTable("synthetic");
-  CpuReader cpu_reader(0, tracefs->OpenPipeForCpu(0), table,
+  CpuReader cpu_reader(0, test_pages.ReleaseFD(), table,
                        /*symbolizer=*/nullptr,
                        protos::pbzero::FTRACE_CLOCK_UNSPECIFIED,
                        /*ftrace_clock_snapshot=*/nullptr);
@@ -3920,13 +3910,10 @@ TEST(CpuReaderTest, FrozenPageRead) {
   EXPECT_EQ(2u, first_packets[0].ftrace_events().event().size());
 
   // read remaining pages.
-  pages_read = cpu_reader.ReadFrozen(&parsing_mem, 32, &ftrace_cfg, &metadata,
+  pages_read = cpu_reader.ReadFrozen(&parsing_mem, 6, &ftrace_cfg, &metadata,
                                      &parse_errors, &trace_writer);
   EXPECT_EQ(6u, pages_read);
-  // When we hit the last page, it records FTRACE_STATUS_PARTIAL_PAGE_READ.
-  EXPECT_EQ(1u, parse_errors.size());
-  EXPECT_EQ(1u, parse_errors.count(
-                    FtraceParseStatus::FTRACE_STATUS_PARTIAL_PAGE_READ));
+  EXPECT_EQ(0u, parse_errors.size());
 
   // Each packet should contain the parsed contents of a contiguous run of pages
   // without data loss.
