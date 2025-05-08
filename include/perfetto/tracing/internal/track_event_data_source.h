@@ -220,8 +220,7 @@ struct TrackEventDataSourceTraits : public perfetto::DefaultDataSourceTraits {
   }
 };
 
-// A generic track event data source which is instantiated once per track event
-// category namespace.
+// A generic track event data source.
 class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
     : public DataSource<TrackEventDataSource, TrackEventDataSourceTraits> {
   using Base = DataSource<TrackEventDataSource, TrackEventDataSourceTraits>;
