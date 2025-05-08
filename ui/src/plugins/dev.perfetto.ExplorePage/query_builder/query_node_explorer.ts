@@ -239,7 +239,7 @@ export async function analyzeNode(
   if (structuredQueries === undefined) return;
 
   const res = await engine.analyzeStructuredQuery(structuredQueries);
-  if (res.error) return Error(res.error);
+  if (Boolean(res.error)) return Error(res.error);
   if (res.results.length === 0) return Error('No structured query results');
   if (res.results.length !== structuredQueries.length) {
     return Error(
@@ -251,7 +251,7 @@ export async function analyzeNode(
   if (lastRes.sql === null || lastRes.sql === undefined) {
     return;
   }
-  if (!lastRes.textproto) {
+  if (!Boolean(lastRes.textproto)) {
     return Error('No textproto in structured query results');
   }
 
