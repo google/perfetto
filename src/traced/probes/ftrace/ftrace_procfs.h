@@ -135,6 +135,9 @@ class FtraceProcfs {
   // by the number of CPUs.
   bool SetCpuBufferSizeInPages(size_t pages);
 
+  // Returns the current per-cpu buffer size in pages.
+  size_t GetCpuBufferSizeInPages();
+
   // Returns the number of CPUs.
   // This will match the number of tracing/per_cpu/cpuXX directories.
   size_t virtual NumberOfCpus() const;

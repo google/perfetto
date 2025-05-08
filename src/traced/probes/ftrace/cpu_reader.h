@@ -212,6 +212,16 @@ class CpuReader {
                    size_t max_pages,
                    const std::set<FtraceDataSource*>& started_data_sources);
 
+  // Niche version of ReadCycle for FrozenFtraceDataSource, assumes a stopped
+  // tracefs instance. Don't add new callers.
+  size_t ReadFrozen(
+      ParsingBuffers* parsing_bufs,
+      size_t max_pages,
+      const FtraceDataSourceConfig* parsing_config,
+      FtraceMetadata* metadata,
+      base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
+      TraceWriter* trace_writer);
+
   template <typename T>
   static bool ReadAndAdvance(const uint8_t** ptr, const uint8_t* end, T* out) {
     if (*ptr > end - sizeof(T))
