@@ -149,6 +149,15 @@ void SetParseError(const std::set<FtraceDataSource*>& started_data_sources,
   }
 }
 
+void SetParseErrorOne(
+    base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
+    size_t cpu,
+    FtraceParseStatus status) {
+  PERFETTO_DPLOG("[cpu%zu]: unexpected ftrace read error: %s", cpu,
+                 protos::pbzero::FtraceParseStatus_Name(status));
+  parse_errors->insert(status);
+}
+
 void WriteAndSetParseError(CpuReader::Bundler* bundler,
                            base::FlatSet<FtraceParseStatus>* stat,
                            uint64_t timestamp,
@@ -1134,6 +1143,62 @@ void CpuReader::ParseSchedWakingCompact(const uint8_t* start,
   uint32_t common_flags =
       ReadValue<uint8_t>(start + format->common_flags_offset);
   compact_buf->sched_waking().common_flags().Append(common_flags);
+}
+
+size_t CpuReader::ReadFrozen(
+    ParsingBuffers* parsing_bufs,
+    size_t max_pages,
+    const FtraceDataSourceConfig* parsing_config,
+    FtraceMetadata* metadata,
+    base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
+    TraceWriter* trace_writer) {
+  PERFETTO_CHECK(max_pages > 0);
+  // Limit the max read page under the buffer size.
+  max_pages = std::min(parsing_bufs->ftrace_data_buf_pages(), max_pages);
+
+  uint8_t* parsing_buf = parsing_bufs->ftrace_data_buf();
+  const uint32_t sys_page_size = base::GetSysPageSize();
+
+  // Read the pages into |parsing_buf|.
+  size_t pages_read = 0;
+  for (; pages_read < max_pages;) {
+    uint8_t* curr_page = parsing_buf + (pages_read * sys_page_size);
+    ssize_t res = PERFETTO_EINTR(read(*trace_fd_, curr_page, sys_page_size));
+    if (res < 0) {
+      // Expected:
+      // * EAGAIN: no data (since we're in non-blocking mode).
+      if (errno != EAGAIN)
+        SetParseErrorOne(
+            parse_errors, cpu_,
+            FtraceParseStatus::FTRACE_STATUS_UNEXPECTED_READ_ERROR);
+      break;
+    }
+    if (res != static_cast<ssize_t>(sys_page_size)) {
+      // For the frozen trace buffer, it should return page size. If not,
+      // this should stop reading at that point.
+      SetParseErrorOne(parse_errors, cpu_,
+                       FtraceParseStatus::FTRACE_STATUS_PARTIAL_PAGE_READ);
+      break;
+    }
+    pages_read += 1;
+  }
+
+  if (pages_read == 0)
+    return pages_read;
+
+  // Inputs that we will throw away since we only need a subset of what
+  // FtraceDataSource does.
+  uint64_t bundle_end_timestamp = 0;
+
+  // Convert events and serialise the protos. We don't handle the failure
+  // here, because appropriate errors are recorded in |parsing_errors|.
+  ProcessPagesForDataSource(trace_writer, metadata, cpu_, parsing_config,
+                            parse_errors, &bundle_end_timestamp, parsing_buf,
+                            pages_read, parsing_bufs->compact_sched_buf(),
+                            table_, symbolizer_, ftrace_clock_snapshot_,
+                            ftrace_clock_);
+
+  return pages_read;
 }
 
 }  // namespace perfetto

@@ -33,6 +33,8 @@
     * [Atrace instrumentation](data-sources/atrace.md)
     * [Android log (logcat)](data-sources/android-log.md)
     * [Android Janks](data-sources/frametimeline.md)
+  * [Linux system](#)
+    * [Tracing across reboot](data-sources/previous-boot-trace.md)
 
 * [App Instrumentation](#)
   * [Tracing SDK](instrumentation/tracing-sdk.md)
