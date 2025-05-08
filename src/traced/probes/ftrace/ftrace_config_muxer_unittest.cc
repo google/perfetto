@@ -124,11 +124,11 @@ class MockProtoTranslationTable : public ProtoTranslationTable {
                               compact_sched_format,
                               PrintkMap()) {}
   MOCK_METHOD(Event*,
-              CreateGenericEvent,
+              GetOrCreateEvent,
               (const GroupAndName& group_and_name),
               (override));
   MOCK_METHOD(Event*,
-              CreateKprobeEvent,
+              GetOrCreateKprobeEvent,
               (const GroupAndName& group_and_name),
               (override));
   MOCK_METHOD(const Event*,
@@ -1257,9 +1257,11 @@ TEST_F(FtraceConfigMuxerMockTableTest, AddGenericEvent) {
   event_to_return.name = "cpu_frequency";
   event_to_return.group = "power";
   event_to_return.ftrace_event_id = kExpectedEventId;
-  ON_CALL(*mock_table_, GetEvent(GroupAndName("power", "cpu_frequency")))
+  ON_CALL(*mock_table_,
+          GetOrCreateEvent(GroupAndName("power", "cpu_frequency")))
       .WillByDefault(Return(&event_to_return));
-  EXPECT_CALL(*mock_table_, GetEvent(GroupAndName("power", "cpu_frequency")));
+  EXPECT_CALL(*mock_table_,
+              GetOrCreateEvent(GroupAndName("power", "cpu_frequency")));
 
   FtraceConfigId id = 7;
   ASSERT_TRUE(model_.SetupConfig(id, config));
@@ -1317,12 +1319,7 @@ TEST_P(FtraceConfigMuxerMockTableParamTest, AddKprobeEvent) {
   event_to_return_kprobe.name = "fuse_file_write_iter";
   event_to_return_kprobe.group = group_name.c_str();
   event_to_return_kprobe.ftrace_event_id = kExpectedEventId;
-  event_to_return_kprobe.proto_field_id =
-      protos::pbzero::FtraceEvent::kKprobeEventFieldNumber;
-  EXPECT_CALL(*mock_table_,
-              GetEvent(GroupAndName(group_name, "fuse_file_write_iter")))
-      .WillOnce(Return(nullptr));
-  EXPECT_CALL(*mock_table_, CreateKprobeEvent(GroupAndName(
+  EXPECT_CALL(*mock_table_, GetOrCreateKprobeEvent(GroupAndName(
                                 group_name, "fuse_file_write_iter")))
       .WillOnce(Return(&event_to_return_kprobe));
 
@@ -1402,12 +1399,7 @@ TEST_F(FtraceConfigMuxerMockTableTest, AddKprobeBothEvent) {
   event_to_return_kprobe.name = "fuse_file_write_iter";
   event_to_return_kprobe.group = g1.c_str();
   event_to_return_kprobe.ftrace_event_id = kExpectedEventId;
-  event_to_return_kprobe.proto_field_id =
-      protos::pbzero::FtraceEvent::kKprobeEventFieldNumber;
-  EXPECT_CALL(*mock_table_, GetEvent(GroupAndName("perfetto_kprobes",
-                                                  "fuse_file_write_iter")))
-      .WillOnce(Return(nullptr));
-  EXPECT_CALL(*mock_table_, CreateKprobeEvent(GroupAndName(
+  EXPECT_CALL(*mock_table_, GetOrCreateKprobeEvent(GroupAndName(
                                 "perfetto_kprobes", "fuse_file_write_iter")))
       .WillOnce(Return(&event_to_return_kprobe));
 
@@ -1417,12 +1409,7 @@ TEST_F(FtraceConfigMuxerMockTableTest, AddKprobeBothEvent) {
   event_to_return_kretprobe.name = "fuse_file_write_iter";
   event_to_return_kretprobe.group = g2.c_str();
   event_to_return_kretprobe.ftrace_event_id = kExpectedEventId2;
-  event_to_return_kretprobe.proto_field_id =
-      protos::pbzero::FtraceEvent::kKprobeEventFieldNumber;
-  EXPECT_CALL(*mock_table_, GetEvent(GroupAndName("perfetto_kretprobes",
-                                                  "fuse_file_write_iter")))
-      .WillOnce(Return(nullptr));
-  EXPECT_CALL(*mock_table_, CreateKprobeEvent(GroupAndName(
+  EXPECT_CALL(*mock_table_, GetOrCreateKprobeEvent(GroupAndName(
                                 "perfetto_kretprobes", "fuse_file_write_iter")))
       .WillOnce(Return(&event_to_return_kretprobe));
 
@@ -1473,9 +1460,10 @@ TEST_F(FtraceConfigMuxerMockTableTest, AddAllEvents) {
   static constexpr int kSchedSwitchEventId = 1;
   Event sched_switch = {"sched_switch", "sched", {}, 0, 0, 0};
   sched_switch.ftrace_event_id = kSchedSwitchEventId;
-  ON_CALL(*mock_table_, GetEvent(GroupAndName("sched", "sched_switch")))
+  ON_CALL(*mock_table_, GetOrCreateEvent(GroupAndName("sched", "sched_switch")))
       .WillByDefault(Return(&sched_switch));
-  EXPECT_CALL(*mock_table_, GetEvent(GroupAndName("sched", "sched_switch")))
+  EXPECT_CALL(*mock_table_,
+              GetOrCreateEvent(GroupAndName("sched", "sched_switch")))
       .Times(AnyNumber());
 
   // Generic event.
@@ -1484,9 +1472,11 @@ TEST_F(FtraceConfigMuxerMockTableTest, AddAllEvents) {
   event_to_return.name = "sched_new_event";
   event_to_return.group = "sched";
   event_to_return.ftrace_event_id = kGenericEventId;
-  ON_CALL(*mock_table_, GetEvent(GroupAndName("sched", "sched_new_event")))
+  ON_CALL(*mock_table_,
+          GetOrCreateEvent(GroupAndName("sched", "sched_new_event")))
       .WillByDefault(Return(&event_to_return));
-  EXPECT_CALL(*mock_table_, GetEvent(GroupAndName("sched", "sched_new_event")));
+  EXPECT_CALL(*mock_table_,
+              GetOrCreateEvent(GroupAndName("sched", "sched_new_event")));
 
   FtraceConfigId id = 13;
   ASSERT_TRUE(model_.SetupConfig(id, config));
@@ -1524,18 +1514,18 @@ TEST_F(FtraceConfigMuxerMockTableTest, TwoWildcardGroups) {
   event1.name = "foo";
   event1.group = "group_one";
   event1.ftrace_event_id = kEventId1;
-  ON_CALL(*mock_table_, GetEvent(GroupAndName("group_one", "foo")))
+  ON_CALL(*mock_table_, GetOrCreateEvent(GroupAndName("group_one", "foo")))
       .WillByDefault(Return(&event1));
-  EXPECT_CALL(*mock_table_, GetEvent(GroupAndName("group_one", "foo")));
+  EXPECT_CALL(*mock_table_, GetOrCreateEvent(GroupAndName("group_one", "foo")));
 
   static constexpr int kEventId2 = 2;
   Event event2;
   event2.name = "foo";
   event2.group = "group_two";
   event2.ftrace_event_id = kEventId2;
-  ON_CALL(*mock_table_, GetEvent(GroupAndName("group_two", "foo")))
+  ON_CALL(*mock_table_, GetOrCreateEvent(GroupAndName("group_two", "foo")))
       .WillByDefault(Return(&event2));
-  EXPECT_CALL(*mock_table_, GetEvent(GroupAndName("group_two", "foo")));
+  EXPECT_CALL(*mock_table_, GetOrCreateEvent(GroupAndName("group_two", "foo")));
 
   ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
       .WillByDefault(Return("nop"));
@@ -1564,18 +1554,18 @@ TEST_F(FtraceConfigMuxerMockTableTest, AddSameNameEvents) {
   event1.name = "foo";
   event1.group = "group_one";
   event1.ftrace_event_id = kEventId1;
-  ON_CALL(*mock_table_, GetEvent(GroupAndName("group_one", "foo")))
+  ON_CALL(*mock_table_, GetOrCreateEvent(GroupAndName("group_one", "foo")))
       .WillByDefault(Return(&event1));
-  EXPECT_CALL(*mock_table_, GetEvent(GroupAndName("group_one", "foo")));
+  EXPECT_CALL(*mock_table_, GetOrCreateEvent(GroupAndName("group_one", "foo")));
 
   static constexpr int kEventId2 = 2;
   Event event2;
   event2.name = "foo";
   event2.group = "group_two";
   event2.ftrace_event_id = kEventId2;
-  ON_CALL(*mock_table_, GetEvent(GroupAndName("group_two", "foo")))
+  ON_CALL(*mock_table_, GetOrCreateEvent(GroupAndName("group_two", "foo")))
       .WillByDefault(Return(&event2));
-  EXPECT_CALL(*mock_table_, GetEvent(GroupAndName("group_two", "foo")));
+  EXPECT_CALL(*mock_table_, GetOrCreateEvent(GroupAndName("group_two", "foo")));
 
   ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
       .WillByDefault(Return("nop"));

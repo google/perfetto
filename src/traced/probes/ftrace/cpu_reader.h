@@ -23,8 +23,6 @@
 #include <optional>
 #include <set>
 
-#include "perfetto/base/flat_set.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
@@ -121,9 +119,7 @@ class CpuReader {
             protos::pbzero::FtraceClock ftrace_clock,
             CompactSchedBuffer* compact_sched_buf,
             bool compact_sched_enabled,
-            uint64_t previous_bundle_end_ts,
-            const base::FlatHashMap<uint32_t, std::vector<uint8_t>>*
-                generic_pb_descriptors)
+            uint64_t previous_bundle_end_ts)
         : trace_writer_(trace_writer),
           metadata_(metadata),
           symbolizer_(symbolizer),
@@ -132,8 +128,7 @@ class CpuReader {
           ftrace_clock_(ftrace_clock),
           compact_sched_enabled_(compact_sched_enabled),
           compact_sched_buf_(compact_sched_buf),
-          initial_previous_bundle_end_ts_(previous_bundle_end_ts),
-          generic_pb_descriptors_(generic_pb_descriptors) {
+          initial_previous_bundle_end_ts_(previous_bundle_end_ts) {
       if (compact_sched_enabled_)
         compact_sched_buf_->Reset();
     }
@@ -161,12 +156,6 @@ class CpuReader {
       return compact_sched_buf_;
     }
 
-    base::FlatSet<uint32_t>* generic_descriptors_to_write() {
-      return &generic_descriptors_to_write_;
-    }
-
-    void WriteGenericEventDescriptors();
-
    private:
     TraceWriter* const trace_writer_;         // Never nullptr.
     FtraceMetadata* const metadata_;          // Never nullptr.
@@ -177,10 +166,6 @@ class CpuReader {
     const bool compact_sched_enabled_;
     CompactSchedBuffer* const compact_sched_buf_;
     uint64_t initial_previous_bundle_end_ts_;
-    // Keyed by proto field id within |FtraceEvent|.
-    base::FlatSet<uint32_t> generic_descriptors_to_write_;
-    const base::FlatHashMap<uint32_t, std::vector<uint8_t>>*
-        generic_pb_descriptors_;
 
     TraceWriter::TracePacketHandle packet_;
     protos::pbzero::FtraceEventBundle* bundle_ = nullptr;
@@ -340,8 +325,7 @@ class CpuReader {
                          const ProtoTranslationTable* table,
                          const FtraceDataSourceConfig* ds_config,
                          protozero::Message* message,
-                         FtraceMetadata* metadata,
-                         base::FlatSet<uint32_t>* generic_descriptors_to_write);
+                         FtraceMetadata* metadata);
 
   static bool ParseField(const Field& field,
                          const uint8_t* start,
@@ -363,13 +347,6 @@ class CpuReader {
                            const FtraceDataSourceConfig* ds_config,
                            protozero::Message* message,
                            FtraceMetadata* metadata);
-
-  static bool ParseGenericEventLegacy(const Event& info,
-                                      const uint8_t* start,
-                                      const uint8_t* end,
-                                      const ProtoTranslationTable* table,
-                                      protozero::Message* message,
-                                      FtraceMetadata* metadata);
 
   // Parse a sched_switch event according to pre-validated format, and buffer
   // the individual fields in the given compact encoding batch.

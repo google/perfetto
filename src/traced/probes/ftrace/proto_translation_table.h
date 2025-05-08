@@ -28,7 +28,6 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/format_parser/format_parser.h"
 #include "src/traced/probes/ftrace/printk_formats_parser.h"
@@ -72,8 +71,6 @@ bool InferFtraceType(const std::string& type_and_name,
 
 class ProtoTranslationTable {
  public:
-  static constexpr uint32_t kGenericEvtProtoMinPbFieldId = 65536;
-
   struct FtracePageHeaderSpec {
     FtraceEvent::Field timestamp{};
     FtraceEvent::Field overwrite{};
@@ -151,8 +148,15 @@ class ProtoTranslationTable {
     return ftrace_page_header_spec_.size.size;
   }
 
-  virtual const Event* CreateGenericEvent(const GroupAndName&);
-  virtual const Event* CreateKprobeEvent(const GroupAndName&);
+  // Retrieves the ftrace event from the proto translation
+  // table. If it does not exist, reads the format file and creates a
+  // new event with the proto id set to generic. Virtual for testing.
+  virtual const Event* GetOrCreateEvent(const GroupAndName&);
+
+  // Retrieves the ftrace event, that's going to be translated to a kprobe, from
+  // the proto translation table. If the event is already known and used for
+  // something other than a kprobe, returns nullptr.
+  virtual const Event* GetOrCreateKprobeEvent(const GroupAndName&);
 
   // Removes the ftrace event from the proto translation table.
   virtual void RemoveEvent(const GroupAndName&);
@@ -175,22 +179,16 @@ class ProtoTranslationTable {
     return printk_formats_.at(address);
   }
 
-  bool IsGenericEventProtoId(uint32_t proto_field_id) const {
-    return proto_field_id >= kGenericEvtProtoMinPbFieldId;
-  }
-
-  const base::FlatHashMap<uint32_t, std::vector<uint8_t>>*
-  generic_evt_pb_descriptors() const {
-    return &generic_evt_pb_descriptors_;
-  }
-
  private:
   // Store strings so they can be read when writing the trace output.
   const char* InternString(const std::string& str);
 
-  const Event* CreateGenericEventInternal(const GroupAndName& group_and_name,
-                                          uint32_t proto_field_id,
-                                          bool keep_proto_descriptor);
+  // The event must not already exist.
+  const Event* CreateEventWithProtoId(const GroupAndName& group_and_name,
+                                      uint32_t proto_field_id);
+
+  uint16_t CreateGenericEventField(const FtraceEvent::Field& ftrace_field,
+                                   Event& event);
 
   const FtraceProcfs* ftrace_procfs_;
   std::set<std::string> interned_strings_;
@@ -203,16 +201,6 @@ class ProtoTranslationTable {
   FtracePageHeaderSpec ftrace_page_header_spec_{};
   CompactSchedEventFormat compact_sched_format_;
   PrintkMap printk_formats_;
-  // Used to assign proto field ids within "FtraceEvent" proto when serialising
-  // events not known at compile time.
-  uint32_t next_generic_evt_proto_id_ = kGenericEvtProtoMinPbFieldId;
-  // Keyed by proto id. Not garbage collected as the number of events is bounded
-  // unless someone is constantly recreating dynamic probes. This is acceptable
-  // since the proto translation table itself only lives for as long as tracing
-  // is active.
-  // TODO(rsavitski): double-check that tracefs doesn't reuse tracepoint ids for
-  // dynamic probes.
-  base::FlatHashMap<uint32_t, std::vector<uint8_t>> generic_evt_pb_descriptors_;
 };
 
 // Class for efficient 'is event with id x enabled?' checks.
