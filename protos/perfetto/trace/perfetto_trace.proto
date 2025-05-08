@@ -922,6 +922,9 @@ message ChromeConfig {
   // If |json_agent_label_filter| is not empty, only data pertaining to
   // the specified tracing agent label (e.g. "traceEvents") will be returned.
   optional string json_agent_label_filter = 5;
+
+  //  When enabled, event names should not contain package names.
+  optional bool event_package_name_filter_enabled = 6;
 }
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
@@ -992,6 +995,14 @@ message EtwConfig {
   repeated KernelFlag kernel_flags = 1;
 }
 // End of protos/perfetto/config/etw/etw_config.proto
+
+// Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
+
+message FrozenFtraceConfig {
+  // The instance name which stores the previous boot ftrace data.
+  required string instance_name = 1;
+}
+// End of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
@@ -3773,7 +3784,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 136
+// Next id: 137
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3895,6 +3906,8 @@ message DataSourceConfig {
   optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
   // Data source name: linux.system_info
   optional SystemInfoConfig system_info_config = 119;
+  // Data source name: linux.frozen_ftrace
+  optional FrozenFtraceConfig frozen_ftrace_config = 136 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would

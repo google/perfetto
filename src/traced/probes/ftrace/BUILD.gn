@@ -139,6 +139,8 @@ source_set("ftrace") {
     "event_info.h",
     "event_info_constants.cc",
     "event_info_constants.h",
+    "frozen_ftrace_data_source.cc",
+    "frozen_ftrace_data_source.h",
     "ftrace_config_muxer.cc",
     "ftrace_config_muxer.h",
     "ftrace_config_utils.cc",
