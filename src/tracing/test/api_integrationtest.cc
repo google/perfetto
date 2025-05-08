@@ -7156,6 +7156,30 @@ TEST_F(ConcurrentSessionTest, DisallowMultipleSessionBasic) {
   EXPECT_THAT(slices3, ElementsAre("B:test.DrawGame3"));
 }
 
+TEST(PerfettoApiInitTest, NonInitializedThreadTrackCurrent) {
+  ASSERT_FALSE(perfetto::Tracing::IsInitialized());
+
+  auto PERFETTO_UNUSED track = perfetto::ThreadTrack::Current();
+}
+
+TEST(PerfettoApiInitTest, NonInitializedDataSourceTrace) {
+  ASSERT_FALSE(perfetto::Tracing::IsInitialized());
+
+  CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
+    {
+      auto packet = ctx.NewTracePacket();
+      packet->set_for_testing()->set_str("CustomDataSource.Main");
+    }
+    ctx.Flush();
+  });
+}
+
+TEST(PerfettoApiInitTest, NonInitializedTraceEventMacro) {
+  ASSERT_FALSE(perfetto::Tracing::IsInitialized());
+
+  TRACE_EVENT("cat", "Foo");
+}
+
 TEST(PerfettoApiInitTest, DisableSystemConsumer) {
   g_test_tracing_policy->should_allow_consumer_connection = true;
 

@@ -19,6 +19,7 @@ import {QueryNode} from '../query_node';
 import {PopupMenu} from '../../../widgets/menu';
 import {Icons} from '../../../base/semantic_icons';
 import {Intent} from '../../../widgets/common';
+import {classNames} from '../../../base/classnames';
 
 interface NodeBoxLayout {
   x: number;
@@ -40,15 +41,15 @@ interface NodeBoxAttrs {
 class NodeBox implements m.ClassComponent<NodeBoxAttrs> {
   view({attrs}: m.CVnode<NodeBoxAttrs>) {
     const {node, isSelected, layout, onNodeSelected, onNodeDragStart} = attrs;
+    const conditionalClasses = classNames(
+      isSelected && 'pf-node-box__selected',
+      !node.validate() && 'pf-node-box__invalid',
+    );
     return m(
-      '.node-box',
+      '.pf-node-box',
       {
+        class: conditionalClasses,
         style: {
-          border: isSelected ? '2px solid yellow' : '2px solid blue',
-          borderRadius: '5px',
-          padding: '10px',
-          cursor: 'grab',
-          backgroundColor: 'lightblue',
           position: 'absolute',
           left: `${layout.x || 10}px`,
           top: `${layout.y || 10}px`,
@@ -118,7 +119,7 @@ export class QueryCanvas implements m.ClassComponent<QueryCanvasAttrs> {
   onNodeDragStart = (node: QueryNode, event: DragEvent) => {
     this.dragNode = node;
     const nodeElem = (event.target as HTMLElement).closest(
-      '.node-box',
+      '.pf-node-box',
     ) as HTMLElement;
 
     const layout = this.nodeLayouts.get(node) || {x: 10, y: 10};
@@ -150,29 +151,13 @@ export class QueryCanvas implements m.ClassComponent<QueryCanvasAttrs> {
       // Render the centered "Add" button if no nodes exist
       nodes.push(
         m(
-          '',
-          {
-            style: {
-              position: 'absolute',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
-            },
-          },
+          '.query-canvas-add-button-container',
           m(
             PopupMenu,
             {
               trigger: m(Button, {
                 icon: Icons.Add,
                 intent: Intent.Primary,
-                style: {
-                  height: '100px',
-                  width: '100px',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  fontSize: '48px',
-                },
               }),
             },
             addSourcePopupMenu(),
@@ -203,17 +188,6 @@ export class QueryCanvas implements m.ClassComponent<QueryCanvasAttrs> {
       });
     }
 
-    return m(
-      '.query-canvas-container',
-      {
-        style: {
-          position: 'relative', // Absolute positioning of NodeBoxes
-          height: '800px',
-          backgroundColor: 'lightgray',
-          overflow: 'auto', // Required for scroll functionality
-        },
-      },
-      nodes,
-    );
+    return m('.pf-query-canvas', nodes);
   }
 }
