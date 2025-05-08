@@ -72,20 +72,23 @@ std::string SimpleFieldTypeFromDescriptor(
   switch (desc.type()) {
     case google::protobuf::FieldDescriptor::TYPE_MESSAGE:
       if (packageless_type) {
-        return base::StripPrefix(desc.message_type()->full_name(),
-                                 desc.message_type()->file()->package() + ".");
+        return base::StripPrefix(
+            std::string(desc.message_type()->full_name()),
+            std::string(desc.message_type()->file()->package()) + ".");
       } else {
-        return MinimizeType(desc.message_type()->full_name(),
-                            parent.full_name())
-            .value_or(desc.message_type()->name());
+        return MinimizeType(std::string(desc.message_type()->full_name()),
+                            std::string(parent.full_name()))
+            .value_or(std::string(desc.message_type()->name()));
       }
     case google::protobuf::FieldDescriptor::TYPE_ENUM:
       if (packageless_type) {
-        return base::StripPrefix(desc.enum_type()->full_name(),
-                                 desc.enum_type()->file()->package() + ".");
+        return base::StripPrefix(
+            std::string(desc.enum_type()->full_name()),
+            std::string(desc.enum_type()->file()->package()) + ".");
       } else {
-        return MinimizeType(desc.enum_type()->full_name(), parent.full_name())
-            .value_or(desc.enum_type()->name());
+        return MinimizeType(std::string(desc.enum_type()->full_name()),
+                            std::string(parent.full_name()))
+            .value_or(std::string(desc.enum_type()->name()));
       }
     default:
       return kTypeToName[desc.type()];
@@ -148,7 +151,7 @@ std::vector<ProtoFile::Option> OptionsFromMessage(
     for (int j = 0; j < count; j++) {
       std::string name;
       if (fields[i]->is_extension()) {
-        name = "(" + fields[i]->full_name() + ")";
+        name = "(" + std::string(fields[i]->full_name()) + ")";
       } else {
         name = fields[i]->name();
       }

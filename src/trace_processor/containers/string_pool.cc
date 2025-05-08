@@ -16,161 +16,75 @@
 
 #include "src/trace_processor/containers/string_pool.h"
 
-#include <limits>
-#include <tuple>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <utility>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/public/compiler.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 StringPool::StringPool() {
-  static_assert(
-      StringPool::kMinLargeStringSizeBytes <= StringPool::kBlockSizeBytes + 1,
-      "minimum size of large strings must be small enough to support any "
-      "string that doesn't fit in a Block.");
-
-  blocks_.emplace_back(kBlockSizeBytes);
-
   // Reserve a slot for the null string.
-  PERFETTO_CHECK(blocks_.back().TryInsert(NullTermStringView()).first);
+  MaybeLockGuard guard{mutex_, should_acquire_mutex_};
+  blocks_[block_index_] = std::make_unique<uint8_t[]>(kBlockSizeBytes);
+  block_end_ptrs_[block_index_] = blocks_[block_index_].get();
+  InsertInCurrentBlock({});
 }
 
-StringPool::~StringPool() = default;
-
-StringPool::StringPool(StringPool&&) noexcept = default;
-StringPool& StringPool::operator=(StringPool&&) noexcept = default;
-
-StringPool::Id StringPool::InsertString(base::StringView str, uint64_t hash) {
-  // Try and find enough space in the current block for the string and the
-  // metadata (varint-encoded size + the string data + the null terminator).
-  bool success;
-  uint32_t offset;
-  std::tie(success, offset) = blocks_.back().TryInsert(str);
-  if (PERFETTO_UNLIKELY(!success)) {
-    // The block did not have enough space for the string. If the string is
-    // large, add it into the |large_strings_| vector, to avoid discarding a
-    // large portion of the current block's memory. This also enables us to
-    // support strings that wouldn't fit into a single block. Otherwise, add a
-    // new block to store the string.
-    if (str.size() + kMaxMetadataSize >= kMinLargeStringSizeBytes) {
-      return InsertLargeString(str, hash);
-    }
-    blocks_.emplace_back(kBlockSizeBytes);
-
-    // Try and reserve space again - this time we should definitely succeed.
-    std::tie(success, offset) = blocks_.back().TryInsert(str);
-    PERFETTO_CHECK(success);
+StringPool::Id StringPool::InsertString(base::StringView str) {
+  // If the string is over `kMinLargeStringSizeBytes` in size, don't bother
+  // adding it to a block, just put it in the large strings vector.
+  if (str.size() >= kMinLargeStringSizeBytes) {
+    return InsertLargeString(str);
   }
 
-  // Compute the id from the block index and offset and add a mapping from the
-  // hash to the id.
-  Id string_id = Id::BlockString(blocks_.size() - 1, offset);
+  // If the current block does not have enough space, go to the next block.
+  uint8_t* max_pos = block_end_ptrs_[block_index_] + str.size() + kMetadataSize;
+  if (max_pos > blocks_[block_index_].get() + kBlockSizeBytes) {
+    blocks_[++block_index_] = std::make_unique<uint8_t[]>(kBlockSizeBytes);
+    block_end_ptrs_[block_index_] = blocks_[block_index_].get();
+  }
 
-  // Deliberately not adding |string_id| to |string_index_|. The caller
-  // (InternString()) must take care of this.
-  PERFETTO_DCHECK(string_index_.Find(hash));
-
-  return string_id;
+  // Actually perform the insertion.
+  return Id::BlockString(block_index_, InsertInCurrentBlock(str));
 }
 
-StringPool::Id StringPool::InsertLargeString(base::StringView str,
-                                             uint64_t hash) {
-  large_strings_.emplace_back(new std::string(str.begin(), str.size()));
-  // Compute id from the index and add a mapping from the hash to the id.
-  Id string_id = Id::LargeString(large_strings_.size() - 1);
+StringPool::Id StringPool::InsertLargeString(base::StringView str) {
+  // +1 for the null terminator.
+  large_strings_.emplace_back(std::make_unique<char[]>(str.size() + 1),
+                              str.size());
 
-  // Deliberately not adding |string_id| to |string_index_|. The caller
-  // (InternString()) must take care of this.
-  PERFETTO_DCHECK(string_index_.Find(hash));
+  auto& [ptr, size] = large_strings_.back();
+  memcpy(ptr.get(), str.data(), str.size());
+  ptr[str.size()] = '\0';
 
-  return string_id;
+  return Id::LargeString(large_strings_.size() - 1);
 }
 
-std::pair<bool /*success*/, uint32_t /*offset*/> StringPool::Block::TryInsert(
-    base::StringView str) {
-  auto str_size = str.size();
-  size_t max_pos = static_cast<size_t>(pos_) + str_size + kMaxMetadataSize;
-  if (max_pos > size_)
-    return std::make_pair(false, 0u);
-
-  // Ensure that we commit up until the end of the string to memory.
-  mem_.EnsureCommitted(max_pos);
+uint32_t StringPool::InsertInCurrentBlock(base::StringView str) {
+  uint8_t*& block_end_ref = block_end_ptrs_[block_index_];
+  uint8_t* str_start = block_end_ref;
 
   // Get where we should start writing this string.
-  uint32_t offset = pos_;
-  uint8_t* begin = Get(offset);
+  auto str_size = static_cast<uint32_t>(str.size());
 
-  // First write the size of the string using varint encoding.
-  uint8_t* end = protozero::proto_utils::WriteVarInt(str_size, begin);
+  // First write the size of the string.
+  memcpy(block_end_ref, &str_size, sizeof(uint32_t));
+  block_end_ref += sizeof(uint32_t);
 
   // Next the string itself.
   if (PERFETTO_LIKELY(str_size > 0)) {
-    memcpy(end, str.data(), str_size);
-    end += str_size;
+    memcpy(block_end_ref, str.data(), str_size);
   }
+  block_end_ref += str_size;
 
   // Finally add a null terminator.
-  *(end++) = '\0';
-
-  // Update the end of the block and return the pointer to the string.
-  pos_ = OffsetOf(end);
-
-  return std::make_pair(true, offset);
+  *(block_end_ref++) = '\0';
+  return static_cast<uint32_t>(str_start - blocks_[block_index_].get());
 }
 
-StringPool::Iterator::Iterator(const StringPool* pool) : pool_(pool) {}
-
-StringPool::Iterator& StringPool::Iterator::operator++() {
-  if (block_index_ < pool_->blocks_.size()) {
-    // Try and go to the next string in the current block.
-    const auto& block = pool_->blocks_[block_index_];
-
-    // Find the size of the string at the current offset in the block
-    // and increment the offset by that size.
-    uint32_t str_size = 0;
-    const uint8_t* ptr = block.Get(block_offset_);
-    ptr = ReadSize(ptr, &str_size);
-    ptr += str_size + 1;
-    block_offset_ = block.OffsetOf(ptr);
-
-    // If we're out of bounds for this block, go to the start of the next block.
-    if (block.pos() <= block_offset_) {
-      block_index_++;
-      block_offset_ = 0;
-    }
-
-    return *this;
-  }
-
-  // Advance to the next string from |large_strings_|.
-  PERFETTO_DCHECK(large_strings_index_ < pool_->large_strings_.size());
-  large_strings_index_++;
-  return *this;
-}
-
-StringPool::Iterator::operator bool() const {
-  return block_index_ < pool_->blocks_.size() ||
-         large_strings_index_ < pool_->large_strings_.size();
-}
-
-NullTermStringView StringPool::Iterator::StringView() {
-  return pool_->Get(StringId());
-}
-
-StringPool::Id StringPool::Iterator::StringId() {
-  if (block_index_ < pool_->blocks_.size()) {
-    PERFETTO_DCHECK(block_offset_ < pool_->blocks_[block_index_].pos());
-
-    // If we're at (0, 0), we have the null string which has id 0.
-    if (block_index_ == 0 && block_offset_ == 0)
-      return Id::Null();
-    return Id::BlockString(block_index_, block_offset_);
-  }
-  PERFETTO_DCHECK(large_strings_index_ < pool_->large_strings_.size());
-  return Id::LargeString(large_strings_index_);
-}
-
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -80,7 +80,7 @@ export class AdbWebsocketTargetProvider implements RecordingTargetProvider {
     if (!status.ok) return devices;
     for (const line of status.value.trimEnd().split('\n')) {
       if (line === '') continue;
-      const m = line.match(/^(\w+)\s+.*model:([^ ]+)/);
+      const m = line.match(/^([^\s]+)\s+.*model:([^ ]+)/);
       if (!exists(m)) {
         console.warn('Could not parse ADB device', line);
         continue;

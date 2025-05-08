@@ -22,8 +22,11 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <optional>
 
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/regs_parsing.h"
 
 namespace perfetto {
@@ -148,7 +151,7 @@ std::optional<PerfRingBuffer> PerfRingBuffer::Allocate(int perf_fd,
 // Is there an argument for maintaining our own copy of |data_tail| instead of
 // reloading it?
 char* PerfRingBuffer::ReadRecordNonconsuming() {
-  static_assert(sizeof(std::atomic<uint64_t>) == sizeof(uint64_t), "");
+  static_assert(sizeof(std::atomic<uint64_t>) == sizeof(uint64_t));
 
   PERFETTO_DCHECK(valid());
 
@@ -209,7 +212,7 @@ EventReader::EventReader(uint32_t cpu,
                          perf_event_attr event_attr,
                          base::ScopedFile perf_fd,
                          std::vector<base::ScopedFile> followers_fds,
-                         PerfRingBuffer ring_buffer)
+                         std::optional<PerfRingBuffer> ring_buffer)
     : cpu_(cpu),
       event_attr_(event_attr),
       perf_fd_(std::move(perf_fd)),
@@ -245,35 +248,96 @@ std::optional<EventReader> EventReader::ConfigureEvents(
     follower_fds.push_back(std::move(follower_fd));
   }
 
-  // Apply the tracepoint to the timebase.
+  // Optional: apply the tracepoint filter to the timebase.
   if (!MaybeApplyTracepointFilter(timebase_fd.get(),
                                   event_cfg.timebase_event()))
     return std::nullopt;
 
-  // Apply the tracepoint to the followers.
+  // Optional: apply tracepoint filters to the followers.
   if (follower_fds.size() != event_cfg.follower_events().size()) {
     return std::nullopt;
   }
-
   for (size_t i = 0; i < follower_fds.size(); ++i) {
     if (!MaybeApplyTracepointFilter(follower_fds[i].get(),
                                     event_cfg.follower_events()[i]))
       return std::nullopt;
   }
 
-  auto ring_buffer = PerfRingBuffer::Allocate(timebase_fd.get(),
-                                              event_cfg.ring_buffer_pages());
-  if (!ring_buffer.has_value()) {
-    return std::nullopt;
+  // Sampling mode: mmap the ring buffer.
+  std::optional<PerfRingBuffer> ring_buffer;
+  if (event_cfg.recording_mode() == RecordingMode::kSampling) {
+    ring_buffer = PerfRingBuffer::Allocate(timebase_fd.get(),
+                                           event_cfg.ring_buffer_pages());
+    if (!ring_buffer.has_value()) {
+      return std::nullopt;
+    }
   }
   return EventReader(cpu, *event_cfg.perf_attr(), std::move(timebase_fd),
-                     std::move(follower_fds), std::move(ring_buffer.value()));
+                     std::move(follower_fds), std::move(ring_buffer));
+}
+
+std::optional<CommonSampleData> EventReader::ReadCounters() {
+  // Currently, we should be using exactly the following format:
+  if (PERFETTO_UNLIKELY((event_attr_.read_format != PERF_FORMAT_GROUP)))
+    return std::nullopt;
+
+  // We reuse the sampling type, but populate only a subset of it.
+  CommonSampleData snapshot;
+  snapshot.cpu = cpu_;
+  snapshot.timestamp = static_cast<uint64_t>(base::GetBootTimeNs().count());
+
+  // struct read_format {
+  //     u64 nr;            /* The number of events */
+  //     struct {
+  //         u64 value;     /* The value of the event */
+  //     } values[nr];
+  // };
+  // Note: theoretically the order of counters is unspecified and requires
+  // PERF_FORMAT_ID, but in practice the kernel maintains the order of creation.
+  size_t num_followers = follower_fds_.size();
+  size_t num_counters = 1 + num_followers;                 // leader + followers
+  size_t rd_size = sizeof(uint64_t) * (1 + num_counters);  // + nr
+
+  constexpr size_t kStackBufElements = 16;
+  uint64_t stack_buf[kStackBufElements];
+
+  uint64_t* buf = stack_buf;
+  std::vector<uint64_t> heap_buf;
+  static_assert(sizeof(stack_buf) == kStackBufElements * 8u);
+  if (PERFETTO_UNLIKELY(rd_size > sizeof(stack_buf))) {
+    heap_buf.resize(rd_size / sizeof(uint64_t));
+    buf = heap_buf.data();
+  }
+
+  ssize_t rd = read(*perf_fd_, buf, rd_size);
+  if (PERFETTO_UNLIKELY(rd != static_cast<ssize_t>(rd_size))) {
+    PERFETTO_PLOG("read() of perf event failed");
+    return std::nullopt;
+  }
+
+  const char* parse_pos = reinterpret_cast<char*>(buf);
+  uint64_t nr = 0;
+  parse_pos = ReadValue(&nr, parse_pos);
+  PERFETTO_DCHECK(nr == num_counters);
+  parse_pos = ReadValue(&snapshot.timebase_count, parse_pos);
+
+  if (num_followers > 0) {
+    snapshot.follower_counts.resize(num_followers);
+    parse_pos =
+        ReadValues(snapshot.follower_counts.data(), parse_pos, num_followers);
+  }
+
+  PERFETTO_DCHECK(parse_pos == reinterpret_cast<char*>(buf + rd_size));
+  return snapshot;
 }
 
 std::optional<ParsedSample> EventReader::ReadUntilSample(
     std::function<void(uint64_t)> records_lost_callback) {
+  if (PERFETTO_UNLIKELY(!ring_buffer_))
+    return std::nullopt;
+
   for (;;) {
-    char* event = ring_buffer_.ReadRecordNonconsuming();
+    char* event = ring_buffer_->ReadRecordNonconsuming();
     if (!event)
       return std::nullopt;  // caught up with the writer
 
@@ -281,7 +345,7 @@ std::optional<ParsedSample> EventReader::ReadUntilSample(
 
     if (event_hdr->type == PERF_RECORD_SAMPLE) {
       ParsedSample sample = ParseSampleRecord(cpu_, event);
-      ring_buffer_.Consume(event_hdr->size);
+      ring_buffer_->Consume(event_hdr->size);
       return std::make_optional(std::move(sample));
     }
 
@@ -298,20 +362,20 @@ std::optional<ParsedSample> EventReader::ReadUntilSample(
           event + sizeof(perf_event_header) + sizeof(uint64_t));
 
       records_lost_callback(records_lost);
-      ring_buffer_.Consume(event_hdr->size);
+      ring_buffer_->Consume(event_hdr->size);
       continue;  // keep looking for a sample
     }
 
     // Kernel had to throttle irqs.
     if (event_hdr->type == PERF_RECORD_THROTTLE ||
         event_hdr->type == PERF_RECORD_UNTHROTTLE) {
-      ring_buffer_.Consume(event_hdr->size);
+      ring_buffer_->Consume(event_hdr->size);
       continue;  // keep looking for a sample
     }
 
     PERFETTO_DFATAL_OR_ELOG("Unsupported event type [%zu]",
                             static_cast<size_t>(event_hdr->type));
-    ring_buffer_.Consume(event_hdr->size);
+    ring_buffer_->Consume(event_hdr->size);
   }
 }
 
@@ -410,7 +474,13 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
     }
   }
 
-  PERFETTO_CHECK(parse_pos == record_start + sample_size);
+  // Note: historically, we asserted that parse_pos is exactly at the end of the
+  // record according to the kernel (record_start + sample_size). This verified
+  // that the record is as densely packed as possible.
+  // This is no longer true for kernels above ~6.7 (at least when sampling on
+  // static tracepoints), which can leave some zero padding at the end of the
+  // record.
+  PERFETTO_CHECK(parse_pos <= record_start + sample_size);
   return sample;
 }
 

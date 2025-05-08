@@ -115,7 +115,12 @@ export function sqlValueToReadableString(val?: SqlValue): string | undefined {
 
 // Given a SqlValue, return a string representation (properly escaped, if
 // necessary) of it to be used in a SQL query.
-export function sqlValueToSqliteString(val: SqlValue): string {
+export function sqlValueToSqliteString(
+  val: SqlValue | ReadonlyArray<SqlValue>,
+): string {
+  if (Array.isArray(val)) {
+    return val.map((v) => sqlValueToSqliteString(v)).join(',');
+  }
   if (val instanceof Uint8Array) {
     throw new Error("Can't pass blob back to trace processor as value");
   }

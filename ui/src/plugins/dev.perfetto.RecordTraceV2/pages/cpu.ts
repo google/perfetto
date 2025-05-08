@@ -116,7 +116,7 @@ function syscalls(): RecordProbe {
     genConfig: function (tc: TraceConfigBuilder) {
       tc.addFtraceEvents(
         'raw_syscalls/sys_enter', //
-        'raw_syscalls/raw_exit', //
+        'raw_syscalls/sys_exit', //
       );
     },
   };

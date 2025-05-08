@@ -21,6 +21,21 @@ service traced /system/bin/traced
     group nobody
     task_profiles ProcessCapacityHigh
 
+# traced_relay relays its local producer's data to a central traced service
+# running in a different VM or in the host. traced and traced_relay are mutually
+# exclusive, therefore make sure they aren't running at the same time.
+#
+# Note:
+# * The relay socket name is specified by the |traced_relay.relay_port|
+#   system property.
+service traced_relay /system/bin/traced_relay
+    class late_start
+    disabled
+    socket traced_producer stream 0666 root root
+    user nobody
+    group nobody
+    task_profiles ProcessCapacityHigh
+
 service traced_probes /system/bin/traced_probes
     class late_start
     disabled
@@ -48,6 +63,15 @@ on property:debug.atrace.user_initiated=1
 on property:persist.traced.enable=1 && property:debug.atrace.user_initiated=""
     start traced_probes
 
+# Possible values of persist.traced.enable:
+# - 0=disabled
+# - 1=enabled
+# - 2=relay_mode
+on property:persist.traced.enable=0
+    stop traced
+    stop traced_relay
+    stop traced_probes
+
 on property:persist.traced.enable=1
     # Trace files need to be:
     # - Written by either uid:shell or uid:statsd.
@@ -66,34 +90,18 @@ on property:persist.traced.enable=1
     # too many other domains can write into that. See b/170404111.
     mkdir /data/misc/perfetto-configs 0775 root shell
 
+    stop traced_relay
     start traced
     start traced_probes
 
-on property:persist.traced.enable=0
+on property:persist.traced.enable=2
     stop traced
-    stop traced_probes
+    start traced_relay
+    start traced_probes
 
 # Reset the Perfetto guard rail state on boot:
 on post-fs-data
     rm /data/misc/perfetto-traces/.guardraildata
-
-#############################################################################
-#  mm_events - Arms a perfetto trace config that is triggered
-#              on memory pressure (kmem_activity trigger)
-#############################################################################
-
-service mm_events /system/bin/mm_events
-    class late_start
-    disabled
-    oneshot
-    user nobody
-    group nobody
-
-on property:persist.mm_events.enabled=true && property:persist.traced.enable=1
-    restart mm_events   # Restart to reset backoff interval
-
-on property:persist.mm_events.enabled=false
-    stop mm_events
 
 #############################################################################
 #  perfetto_trace_on_boot - Starts a perfetto trace on boot

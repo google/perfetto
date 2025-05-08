@@ -30,7 +30,7 @@ class SystraceLineTokenizer {
  public:
   SystraceLineTokenizer();
 
-  util::Status Tokenize(const std::string& line, SystraceLine*);
+  base::Status Tokenize(const std::string& line, SystraceLine*);
 
  private:
   const std::regex line_matcher_;

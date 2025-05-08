@@ -33,6 +33,8 @@
     * [Atrace instrumentation](data-sources/atrace.md)
     * [Android log (logcat)](data-sources/android-log.md)
     * [Android Janks](data-sources/frametimeline.md)
+  * [Linux system](#)
+    * [Tracing across reboot](data-sources/previous-boot-trace.md)
 
 * [App Instrumentation](#)
   * [Tracing SDK](instrumentation/tracing-sdk.md)
@@ -47,6 +49,7 @@
   * [PerfettoSQL](#)
     * [Standard Library](analysis/stdlib-docs.autogen)
     * [Syntax](analysis/perfetto-sql-syntax.md)
+    * [Style Guide](analysis/style-guide.md)
     * [Prelude tables](analysis/sql-tables.autogen)
     * [Built-ins](analysis/builtin.md)
     * [Backwards Compatibility](analysis/perfetto-sql-backcompat.md)

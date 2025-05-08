@@ -16,16 +16,21 @@ import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../components/tracks/base_counter_track';
-import {Trace} from '../../public/trace';
+import {
+  CPUSS_ESTIMATE_TRACK_KIND,
+  SLICE_TRACK_KIND,
+} from '../../public/track_kinds';
+import {createWattsonAggregationToTabAdaptor} from './aggregation_panel';
+import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {Engine} from '../../trace_processor/engine';
+import {NUM} from '../../trace_processor/query_result';
 import {PerfettoPlugin} from '../../public/plugin';
-import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
+import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
 import {WattsonPackageSelectionAggregator} from './package_aggregator';
 import {WattsonProcessSelectionAggregator} from './process_aggregator';
 import {WattsonThreadSelectionAggregator} from './thread_aggregator';
-import {Engine} from '../../trace_processor/engine';
-import {NUM} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
@@ -37,19 +42,55 @@ export default class implements PerfettoPlugin {
     const group = new TrackNode({title: 'Wattson', isSummary: true});
     ctx.workspace.addChildInOrder(group);
 
+    // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
+    // if it's seen in sched slices.
+    const queryRes = await ctx.engine.query(
+      `select distinct ucpu from sched order by ucpu;`,
+    );
+    const ucpus = new Set<number>();
+    for (const it = queryRes.iter({ucpu: NUM}); it.valid(); it.next()) {
+      ucpus.add(it.ucpu);
+    }
+
+    // Add Wattson markers window track if markers are present
+    const checkValue = await ctx.engine.query(`
+        INCLUDE PERFETTO MODULE wattson.utils;
+        SELECT COUNT(*) as numRows from _wattson_markers_window
+    `);
+    if (checkValue.firstRow({numRows: NUM}).numRows > 0) {
+      const uri = `/wattson/markers_window`;
+      const title = `Wattson markers window`;
+      const track = await createQuerySliceTrack({
+        trace: ctx,
+        uri,
+        data: {
+          sqlSource: `SELECT ts, dur, name FROM _wattson_markers_window`,
+        },
+      });
+      ctx.tracks.registerTrack({
+        uri,
+        title,
+        tags: {
+          kind: SLICE_TRACK_KIND,
+        },
+        track,
+      });
+      group.addChildInOrder(new TrackNode({uri, title}));
+    }
+
     // CPUs estimate as part of CPU subsystem
-    const cpus = ctx.traceInfo.cpus;
+    const cpus = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
     for (const cpu of cpus) {
-      const queryKey = `cpu${cpu}_mw`;
-      const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu}`;
-      const title = `Cpu${cpu} Estimate`;
+      const queryKey = `cpu${cpu.ucpu}_mw`;
+      const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu.ucpu}`;
+      const title = `Cpu${cpu.toString()} Estimate`;
       ctx.tracks.registerTrack({
         uri,
         title,
         track: new CpuSubsystemEstimateTrack(ctx, uri, queryKey),
         tags: {
           kind: CPUSS_ESTIMATE_TRACK_KIND,
-          wattson: `CPU${cpu}`,
+          wattson: `CPU${cpu.ucpu}`,
           groupName: `Wattson`,
         },
       });
@@ -73,17 +114,29 @@ export default class implements PerfettoPlugin {
     // Register selection aggregators.
     // NOTE: the registration order matters because the laste two aggregators
     // depend on views created by the first two.
-    ctx.selection.registerAreaSelectionAggregator(
-      new WattsonEstimateSelectionAggregator(),
+    ctx.selection.registerAreaSelectionTab(
+      createWattsonAggregationToTabAdaptor(
+        ctx,
+        new WattsonEstimateSelectionAggregator(),
+      ),
     );
-    ctx.selection.registerAreaSelectionAggregator(
-      new WattsonThreadSelectionAggregator(),
+    ctx.selection.registerAreaSelectionTab(
+      createWattsonAggregationToTabAdaptor(
+        ctx,
+        new WattsonThreadSelectionAggregator(),
+      ),
     );
-    ctx.selection.registerAreaSelectionAggregator(
-      new WattsonProcessSelectionAggregator(),
+    ctx.selection.registerAreaSelectionTab(
+      createWattsonAggregationToTabAdaptor(
+        ctx,
+        new WattsonProcessSelectionAggregator(),
+      ),
     );
-    ctx.selection.registerAreaSelectionAggregator(
-      new WattsonPackageSelectionAggregator(),
+    ctx.selection.registerAreaSelectionTab(
+      createWattsonAggregationToTabAdaptor(
+        ctx,
+        new WattsonPackageSelectionAggregator(),
+      ),
     );
   }
 }

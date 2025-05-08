@@ -20,7 +20,19 @@ import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {ColorScheme} from '../base/color_scheme';
 import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails, TrackEventSelection} from './selection';
-import {Dataset} from '../trace_processor/dataset';
+import {SourceDataset} from '../trace_processor/dataset';
+import {TrackNode} from './workspace';
+
+export interface TrackFilterCriteria {
+  readonly name: string;
+
+  // Run on each node to work out whether it satisfies the selected filter
+  // option.
+  readonly predicate: (track: TrackNode, filterOption: string) => boolean;
+
+  // The list of possible filter options.
+  readonly options: ReadonlyArray<{key: string; label: string}>;
+}
 
 export interface TrackManager {
   /**
@@ -28,15 +40,31 @@ export interface TrackManager {
    * shown by default and callers need to either manually add it to a
    * Workspace or use registerTrackAndShowOnTraceLoad() below.
    */
-  registerTrack(trackDesc: TrackDescriptor): void;
+  registerTrack(track: Track): void;
 
   findTrack(
-    predicate: (desc: TrackDescriptor) => boolean | undefined,
-  ): TrackDescriptor | undefined;
+    predicate: (track: Track) => boolean | undefined,
+  ): Track | undefined;
 
-  getAllTracks(): TrackDescriptor[];
+  getAllTracks(): Track[];
 
-  getTrack(uri: string): TrackDescriptor | undefined;
+  getTrack(uri: string): Track | undefined;
+
+  /**
+   * Register a track filter criteria, which can be used by end users to control
+   * the list of tracks they see in workspaces. These criteria can provide more
+   * power to the user compared to e.g. purely filtering by name.
+   */
+  registerTrackFilterCriteria(filter: TrackFilterCriteria): void;
+
+  /**
+   * Register a timeline overlay renderer.
+   *
+   * Overlays are rendered on top of all tracks in the timeline view and can be
+   * used to draw annotations that span multiple tracks, such as flow arrows or
+   * vertical lines marking specific events.
+   */
+  registerOverlay(overlay: Overlay): void;
 }
 
 export interface TrackContext {
@@ -82,24 +110,31 @@ export interface TrackRenderContext extends TrackContext {
 }
 
 // A definition of a track, including a renderer implementation and metadata.
-export interface TrackDescriptor {
+export interface Track {
   // A unique identifier for this track.
   readonly uri: string;
 
-  // A factory function returning a new track instance.
-  readonly track: Track;
+  // Describes how to render the track.
+  readonly track: TrackRenderer;
 
   // Human readable title. Always displayed.
   readonly title: string;
 
-  // Human readable subtitle. Sometimes displayed if there is room.
+  // Optional: A human readable description of the track.
+  readonly description?: string;
+
+  // Optional: Human readable subtitle. Sometimes displayed if there is room.
   readonly subtitle?: string;
 
-  // Optional: A list of tags used for sorting, grouping and "chips".
+  // Optional: A list of tags which provide additional metadata about the track.
+  // Used mainly for legacy purposes that predate dataset.
   readonly tags?: TrackTags;
 
+  // Optional: A list of strings which are displayed as "chips" in the track
+  // shell.
   readonly chips?: ReadonlyArray<string>;
 
+  // Filled in by the core.
   readonly pluginId?: string;
 }
 
@@ -123,7 +158,15 @@ export interface TrackMouseEvent {
   readonly timescale: TimeScale;
 }
 
-export interface Track {
+export interface TrackRenderer {
+  /**
+   * Describes which root table the events on this track come from. This is
+   * mainly for use by flows (before they get refactored to be more generic) and
+   * will be used by the SQL table resolver mechanism along with dataset.
+   * TODO(stevegolton): Maybe move this onto dataset directly?
+   */
+  readonly rootTableName?: string;
+
   /**
    * Optional lifecycle hook called on the first render cycle. Should be used to
    * create any required resources.
@@ -179,7 +222,7 @@ export interface Track {
    * Optional: Returns a dataset that represents the events displayed on this
    * track.
    */
-  getDataset?(): Dataset | undefined;
+  getDataset?(): SourceDataset | undefined;
 
   /**
    * Optional: Get details of a track event given by eventId on this track.
@@ -189,7 +232,11 @@ export interface Track {
   // Optional: A factory that returns a details panel object for a given track
   // event selection. This is called each time the selection is changed (and the
   // selection is relevant to this track).
-  detailsPanel?(sel: TrackEventSelection): TrackEventDetailsPanel;
+  detailsPanel?(sel: TrackEventSelection): TrackEventDetailsPanel | undefined;
+
+  // Optional: Returns tooltip content if available. If the return value is
+  // falsy, no tooltip is rendered.
+  renderTooltip?(): m.Children;
 }
 
 // An set of key/value pairs describing a given track. These are used for
@@ -235,6 +282,9 @@ interface WellKnownTrackTags {
 
   // Group name, used as a hint to ask track decider to put this in a group
   groupName: string;
+
+  // Track type, used for filtering
+  type: string;
 }
 
 export interface Slice {
@@ -262,8 +312,25 @@ export interface Slice {
   readonly fillRatio: number;
 
   // These can be changed by the Impl.
-  title: string;
+  title?: string;
   subTitle: string;
   colorScheme: ColorScheme;
   isHighlighted: boolean;
+}
+
+/**
+ * Contains a track and it's top and bottom coordinates in the timeline.
+ */
+export interface TrackBounds {
+  readonly node: TrackNode;
+  readonly verticalBounds: VerticalBounds;
+}
+
+export interface Overlay {
+  render(
+    ctx: CanvasRenderingContext2D,
+    timescale: TimeScale,
+    size: Size2D,
+    tracks: ReadonlyArray<TrackBounds>,
+  ): void;
 }

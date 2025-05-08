@@ -21,6 +21,7 @@ import {defer} from '../../../base/deferred';
 import {exists} from '../../../base/utils';
 import {assertExists, assertFalse, assertTrue} from '../../../base/logging';
 import {PacketAssembler} from './packet_assembler';
+import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
 
 /**
  * Implements the Consumer side of the Perfetto Tracing Protocol.
@@ -97,6 +98,8 @@ export class TracingProtocol {
     const method = RPC_METHODS[methodName];
     const resultPromise = defer<ResponseType<T>>();
     const pendingInvoke: PendingInvoke = {
+      methodName,
+      failSilently: 'failSilently' in method && method.failSilently,
       onResponse: (data: Uint8Array | undefined, hasMore: boolean) => {
         assertFalse(hasMore); // Should have used invokeStreaming instead.
         const response = exists(data)
@@ -117,6 +120,7 @@ export class TracingProtocol {
     const streamDecoder = method.respType.createStreamingDecoder();
 
     const pendingInvoke: PendingInvoke = {
+      methodName,
       onResponse: (data: Uint8Array | undefined, hasMore: boolean) => {
         streamDecoder.decode(data, hasMore);
       },
@@ -188,12 +192,13 @@ export class TracingProtocol {
     const frame = protos.IPCFrame.decode(frameData.slice());
     if (frame.msg === 'msgInvokeMethodReply') {
       const reply = assertExists(frame.msgInvokeMethodReply);
+      const pendInvoke = assertExists(this.pendingInvokes.get(frame.requestId));
       // We process messages without a `replyProto` field (for instance
       // `FreeBuffers` does not have `replyProto`). However, we ignore messages
       // without a valid 'success' field.
-      assertTrue(Boolean(reply.success));
-
-      const pendInvoke = assertExists(this.pendingInvokes.get(frame.requestId));
+      if (reply.success === false && !pendInvoke.failSilently) {
+        throw new Error(`Tracing Protocol: ${pendInvoke.methodName} failed`);
+      }
       pendInvoke.onResponse(
         reply.replyProto ?? undefined,
         Boolean(reply.hasMore),
@@ -243,6 +248,30 @@ export class PacketStream {
   }
 }
 
+// QueryServiceStateResponse can be split in several chunks if the service state
+// exceeds the 128KB ipc limit. This class simply merges them and exposes the
+// merged result once hasMore = false.
+class ServiceStateMerger {
+  static createStreamingDecoder(): ServiceStateMerger {
+    return new ServiceStateMerger();
+  }
+
+  private rxBuf = new ResizableArrayBuffer();
+  readonly promise = defer<protos.QueryServiceStateResponse>();
+
+  decode(data: Uint8Array | undefined, hasMore: boolean) {
+    if (data !== undefined) {
+      this.rxBuf.append(data);
+    }
+
+    if (!hasMore) {
+      const msg = protos.QueryServiceStateResponse.decode(this.rxBuf.get());
+      this.rxBuf.clear();
+      this.promise.resolve(msg);
+    }
+  }
+}
+
 const RPC_METHODS = {
   EnableTracing: {
     argType: protos.EnableTracingRequest,
@@ -255,6 +284,7 @@ const RPC_METHODS = {
   Flush: {
     argType: protos.FlushRequest,
     respType: protos.FlushResponse,
+    failSilently: true,
   },
   FreeBuffers: {
     argType: protos.FreeBuffersRequest,
@@ -264,16 +294,16 @@ const RPC_METHODS = {
     argType: protos.GetTraceStatsRequest,
     respType: protos.GetTraceStatsResponse,
   },
-  QueryServiceState: {
-    argType: protos.QueryServiceStateRequest,
-    respType: protos.QueryServiceStateResponse,
-  },
 };
 
 const RPC_STREAMING_METHODS = {
   ReadBuffers: {
     argType: protos.ReadBuffersRequest,
     respType: PacketStream,
+  },
+  QueryServiceState: {
+    argType: protos.QueryServiceStateRequest,
+    respType: ServiceStateMerger,
   },
 };
 
@@ -297,5 +327,7 @@ type StreamingResponseType<T extends RpcStreamingMethodName> = InstanceType<
 >;
 
 interface PendingInvoke {
+  methodName: RpcAllMethodName; // This exists only to make debugging easier.
   onResponse: (data: Uint8Array | undefined, hasMore: boolean) => void;
+  failSilently?: boolean;
 }

@@ -24,7 +24,7 @@ import {
   ProcessInfo,
 } from '../sql_utils/process';
 import {Anchor} from '../../widgets/anchor';
-import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {ProcessDetailsTab} from '../details/process_details_tab';
 import {
   createSqlIdRefRenderer,
@@ -88,7 +88,7 @@ export function processRefMenuItems(info: {
 
 export function renderProcessRef(info: ProcessInfo): m.Children {
   return m(
-    PopupMenu2,
+    PopupMenu,
     {
       trigger: m(Anchor, getProcessName(info)),
     },

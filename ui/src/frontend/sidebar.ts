@@ -47,8 +47,7 @@ import {classNames} from '../base/classnames';
 import {formatHotkey} from '../base/hotkeys';
 import {assetSrc} from '../base/assets';
 
-const GITILES_URL =
-  'https://android.googlesource.com/platform/external/perfetto';
+const GITILES_URL = 'https://github.com/google/perfetto';
 
 function getBugReportUrl(): string {
   if (globals.isInternalUser) {
@@ -317,7 +316,7 @@ class SidebarFooter implements m.ClassComponent<OptionalTraceImplAttrs> {
         m(
           'a',
           {
-            href: `${GITILES_URL}/+/${SCM_REVISION}/ui`,
+            href: `${GITILES_URL}/tree/${SCM_REVISION}/ui`,
             title: `Channel: ${getCurrentChannel()}`,
             target: '_blank',
           },

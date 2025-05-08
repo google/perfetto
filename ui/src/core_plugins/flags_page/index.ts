@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {featureFlags} from '../../core/feature_flags';
-import {App} from '../../public/app';
+import m from 'mithril';
+import {AppImpl} from '../../core/app_impl';
 import {PerfettoPlugin} from '../../public/plugin';
 import {FlagsPage} from './flags_page';
 import {PluginsPage} from './plugins_page';
@@ -21,12 +21,11 @@ import {PluginsPage} from './plugins_page';
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.FlagsPage';
 
-  static onActivate(app: App) {
+  static onActivate(app: AppImpl) {
     // Flags page
     app.pages.registerPage({
       route: '/flags',
-      page: FlagsPage,
-      traceless: true,
+      render: (subpage) => m(FlagsPage, {subpage}),
     });
     app.sidebar.addMenuItem({
       section: 'support',
@@ -36,27 +35,17 @@ export default class implements PerfettoPlugin {
       icon: 'emoji_flags',
     });
 
-    // Plugins page.
+    // Plugins page
     app.pages.registerPage({
       route: '/plugins',
-      page: PluginsPage,
-      traceless: true,
+      render: () => m(PluginsPage),
     });
-
-    const PLUGINS_PAGE_IN_NAV_FLAG = featureFlags.register({
-      id: 'showPluginsPageInNav',
-      name: 'Show plugins page',
-      description: 'Show a link to the plugins page in the side bar.',
-      defaultValue: false,
+    app.sidebar.addMenuItem({
+      section: 'support',
+      text: 'Plugins',
+      href: '#!/plugins',
+      icon: 'extension',
+      sortOrder: 9,
     });
-    if (PLUGINS_PAGE_IN_NAV_FLAG.get()) {
-      app.sidebar.addMenuItem({
-        section: 'support',
-        text: 'Plugins',
-        href: '#!/plugins',
-        icon: 'extension',
-        sortOrder: 9,
-      });
-    }
   }
 }

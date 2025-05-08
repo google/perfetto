@@ -16,17 +16,20 @@ import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
-import {drawTrackHoverTooltip} from '../../base/canvas_utils';
 import {colorForCpu} from '../../components/colorizer';
+import m from 'mithril';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
-import {Track} from '../../public/track';
+import {TrackRenderer} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
-import {Point2D} from '../../base/geom';
-import {createView, createVirtualTable} from '../../trace_processor/sql_utils';
+import {
+  createPerfettoTable,
+  createView,
+  createVirtualTable,
+} from '../../trace_processor/sql_utils';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Trace} from '../../public/trace';
 
@@ -49,8 +52,7 @@ interface Config {
 const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 20;
 
-export class CpuFreqTrack implements Track {
-  private mousePos: Point2D = {x: 0, y: 0};
+export class CpuFreqTrack implements TrackRenderer {
   private hoveredValue: number | undefined = undefined;
   private hoveredTs: time | undefined = undefined;
   private hoveredTsEnd: time | undefined = undefined;
@@ -68,6 +70,9 @@ export class CpuFreqTrack implements Track {
 
   async onCreate() {
     this.trash = new AsyncDisposableStack();
+    await this.trace.engine.query(`
+      INCLUDE PERFETTO MODULE counters.intervals;
+    `);
     if (this.config.idleTrackId === undefined) {
       this.trash.use(
         await createView(
@@ -75,26 +80,32 @@ export class CpuFreqTrack implements Track {
           `raw_freq_idle_${this.trackUuid}`,
           `
             select ts, dur, value as freqValue, -1 as idleValue
-            from experimental_counter_dur c
-            where track_id = ${this.config.freqTrackId}
+            from counter_leading_intervals!((
+              select id, ts, track_id, value
+              from counter
+              where track_id = ${this.config.freqTrackId}
+            ))
           `,
         ),
       );
     } else {
       this.trash.use(
-        await createView(
+        await createPerfettoTable(
           this.trace.engine,
           `raw_freq_${this.trackUuid}`,
           `
             select ts, dur, value as freqValue
-            from experimental_counter_dur c
-            where track_id = ${this.config.freqTrackId}
+            from counter_leading_intervals!((
+              select id, ts, track_id, value
+              from counter
+             where track_id = ${this.config.freqTrackId}
+            ))
           `,
         ),
       );
 
       this.trash.use(
-        await createView(
+        await createPerfettoTable(
           this.trace.engine,
           `raw_idle_${this.trackUuid}`,
           `
@@ -102,8 +113,11 @@ export class CpuFreqTrack implements Track {
               ts,
               dur,
               iif(value = 4294967295, -1, cast(value as int)) as idleValue
-            from experimental_counter_dur c
-            where track_id = ${this.config.idleTrackId}
+            from counter_leading_intervals!((
+              select id, ts, track_id, value
+              from counter
+              where track_id = ${this.config.idleTrackId}
+            ))
           `,
         ),
       );
@@ -224,6 +238,22 @@ export class CpuFreqTrack implements Track {
     return MARGIN_TOP + RECT_HEIGHT;
   }
 
+  renderTooltip(): m.Children {
+    if (this.hoveredValue === undefined || this.hoveredTs === undefined) {
+      return undefined;
+    }
+
+    let text = `${this.hoveredValue.toLocaleString()}kHz`;
+
+    // Display idle value if current hover is idle.
+    if (this.hoveredIdle !== undefined && this.hoveredIdle !== -1) {
+      // Display the idle value +1 to be consistent with catapult.
+      text += ` (Idle: ${(this.hoveredIdle + 1).toLocaleString()})`;
+    }
+
+    return text;
+  }
+
   render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
@@ -339,8 +369,6 @@ export class CpuFreqTrack implements Track {
     ctx.font = '10px Roboto Condensed';
 
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
-      let text = `${this.hoveredValue.toLocaleString()}kHz`;
-
       ctx.fillStyle = color.setHSL({s: 45, l: 75}).cssString;
       ctx.strokeStyle = color.setHSL({s: 45, l: 45}).cssString;
 
@@ -370,15 +398,6 @@ export class CpuFreqTrack implements Track {
       );
       ctx.fill();
       ctx.stroke();
-
-      // Display idle value if current hover is idle.
-      if (this.hoveredIdle !== undefined && this.hoveredIdle !== -1) {
-        // Display the idle value +1 to be consistent with catapult.
-        text += ` (Idle: ${(this.hoveredIdle + 1).toLocaleString()})`;
-      }
-
-      // Draw the tooltip.
-      drawTrackHoverTooltip(ctx, this.mousePos, size, text);
     }
 
     // Write the Y scale on the top left corner.
@@ -401,10 +420,9 @@ export class CpuFreqTrack implements Track {
     );
   }
 
-  onMouseMove({x, y, timescale}: TrackMouseEvent) {
+  onMouseMove({x, timescale}: TrackMouseEvent) {
     const data = this.fetcher.data;
     if (data === undefined) return;
-    this.mousePos = {x, y};
     const time = timescale.pxToHpTime(x);
 
     const [left, right] = searchSegment(data.timestamps, time.toTime());
@@ -415,6 +433,9 @@ export class CpuFreqTrack implements Track {
       right === -1 ? undefined : Time.fromRaw(data.timestamps[right]);
     this.hoveredValue = left === -1 ? undefined : data.lastFreqKHz[left];
     this.hoveredIdle = left === -1 ? undefined : data.lastIdleValues[left];
+
+    // Trigger redraw to update tooltip
+    m.redraw();
   }
 
   onMouseOut() {

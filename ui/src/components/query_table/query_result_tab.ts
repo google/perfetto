@@ -15,11 +15,11 @@
 import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 import {assertExists} from '../../base/logging';
-import {QueryResponse, runQuery} from './queries';
+import {QueryResponse, runQueryForQueryTable} from './queries';
 import {QueryError} from '../../trace_processor/query_result';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
 import {Button} from '../../widgets/button';
-import {PopupMenu2} from '../../widgets/menu';
+import {PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
 import {QueryTable} from './query_table';
 import {Trace} from '../../public/trace';
@@ -67,7 +67,10 @@ export class QueryResultTab implements Tab {
     if (this.args.prefetchedResponse !== undefined) {
       this.queryResponse = this.args.prefetchedResponse;
     } else {
-      const result = await runQuery(this.args.query, this.trace.engine);
+      const result = await runQueryForQueryTable(
+        this.args.query,
+        this.trace.engine,
+      );
       this.queryResponse = result;
       if (result.error !== undefined) {
         return;
@@ -95,7 +98,7 @@ export class QueryResultTab implements Tab {
         this.sqlViewName === undefined
           ? null
           : m(
-              PopupMenu2,
+              PopupMenu,
               {
                 trigger: m(Button, {label: 'Show debug track'}),
                 popupPosition: PopupPosition.Top,

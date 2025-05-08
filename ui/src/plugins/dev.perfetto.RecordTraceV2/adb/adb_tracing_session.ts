@@ -46,7 +46,8 @@ export async function getAdbTracingServiceState(
   const stream = status.value;
   using consumerPort = await TracingProtocol.create(stream);
   const req = new protos.QueryServiceStateRequest({});
-  const resp = await consumerPort.invoke('QueryServiceState', req);
+  const rpcCall = consumerPort.invokeStreaming('QueryServiceState', req);
+  const resp = await rpcCall.promise;
   if (!exists(resp.serviceState)) {
     return errResult('Failed to decode QueryServiceStateResponse');
   }

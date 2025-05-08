@@ -60,6 +60,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:gtest_and_gmock",
     "../../../include/perfetto/protozero",
     "../../../protos/perfetto/trace_processor:zero",
+    "../../base",
   ]
 }
 
@@ -76,6 +77,7 @@ if (enable_perfetto_benchmarks) {
       "bit_vector_benchmark.cc",
       "row_map_algorithms_benchmark.cc",
       "row_map_benchmark.cc",
+      "string_pool_benchmark.cc",
     ]
   }
 }

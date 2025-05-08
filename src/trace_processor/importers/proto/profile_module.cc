@@ -215,20 +215,6 @@ void ProfileModule::ParsePerfSample(
     return;
   }
 
-  // Sample that looked relevant for the tracing session, but had to be skipped.
-  // Either we failed to look up the procfs file descriptors necessary for
-  // remote stack unwinding (not unexpected in most cases), or the unwind queue
-  // was out of capacity (producer lost data on its own).
-  if (sample.has_sample_skipped_reason()) {
-    context_->storage->IncrementStats(stats::perf_samples_skipped);
-
-    if (sample.sample_skipped_reason() ==
-        PerfSample::PROFILER_SKIP_UNWIND_ENQUEUE)
-      context_->storage->IncrementStats(stats::perf_samples_skipped_dataloss);
-
-    return;
-  }
-
   // Not a sample, but an event from the producer.
   // TODO(rsavitski): this stat is indexed by the session id, but the older
   // stats (see above) aren't. The indexing is relevant if a trace contains more
@@ -245,8 +231,27 @@ void ProfileModule::ParsePerfSample(
     return;
   }
 
-  // Proper sample, populate the |perf_sample| table with everything except the
-  // recorded counter values, which go to |counter|.
+  // Sample has incomplete stack sampling payload (not necessarily an error).
+  if (sample.has_sample_skipped_reason()) {
+    switch (sample.sample_skipped_reason()) {
+      case (PerfSample::PROFILER_SKIP_NOT_IN_SCOPE):
+        // WAI, we're recording per-cpu but the sampled process was not in
+        // config's scope. The counter part of the sample is still relevant.
+        break;
+      case (PerfSample::PROFILER_SKIP_READ_STAGE):
+      case (PerfSample::PROFILER_SKIP_UNWIND_STAGE):
+        context_->storage->IncrementStats(stats::perf_samples_skipped);
+        break;
+      case (PerfSample::PROFILER_SKIP_UNWIND_ENQUEUE):
+        context_->storage->IncrementStats(stats::perf_samples_skipped_dataloss);
+        break;
+      default:
+        break;
+    }
+  }
+
+  // Populate the |perf_sample| table with everything except the recorded
+  // counter values, which go to |counter|.
   context_->event_tracker->PushCounter(
       ts, static_cast<double>(sample.timebase_count()),
       sampling_stream.timebase_track_id);
@@ -266,31 +271,13 @@ void ProfileModule::ParsePerfSample(
   const UniquePid upid =
       context_->process_tracker->GetOrCreateProcess(sample.pid());
 
+  std::optional<CallsiteId> cs_id;
   StackProfileSequenceState& stack_profile_sequence_state =
       *sequence_state->GetCustomState<StackProfileSequenceState>();
-  uint64_t callstack_iid = sample.callstack_iid();
-  std::optional<CallsiteId> cs_id =
-      stack_profile_sequence_state.FindOrInsertCallstack(upid, callstack_iid);
-
-  // A failed lookup of the interned callstack can mean either:
-  // (a) This is a counter-only profile without callstacks. Due to an
-  //     implementation quirk, these packets still set callstack_iid
-  //     corresponding to a callstack with no frames. To reliably identify this
-  //     case (without resorting to config parsing) we further need to rely on
-  //     the fact that the implementation (callstack_trie.h) always assigns this
-  //     callstack the id "1". Such callstacks should not occur outside of
-  //     counter-only profiles, as there should always be at least a synthetic
-  //     error frame if the unwinding completely failed.
-  // (b) This is a ring-buffer profile where some of the referenced internings
-  //     have been overwritten, and the build predates perf_sample_defaults and
-  //     SEQ_NEEDS_INCREMENTAL_STATE sequence flag in perf_sample packets.
-  //     Such packets should be discarded.
-  if (!cs_id && callstack_iid != 1) {
-    PERFETTO_DLOG("Discarding perf_sample since callstack_iid [%" PRIu64
-                  "] references a missing/partially lost interning according "
-                  "to stack_profile_tracker",
-                  callstack_iid);
-    return;
+  if (sample.has_callstack_iid()) {
+    uint64_t callstack_iid = sample.callstack_iid();
+    cs_id =
+        stack_profile_sequence_state.FindOrInsertCallstack(upid, callstack_iid);
   }
 
   using protos::pbzero::Profiling;

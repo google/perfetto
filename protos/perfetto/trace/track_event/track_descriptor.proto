@@ -51,7 +51,24 @@ message TrackDescriptor {
   // tracks. For example, to define an asynchronous track which is scoped to a
   // specific process, specify the uuid for that process's process track here.
   // Similarly, to associate a COUNTER_THREAD_TIME_NS counter track with a
-  // thread, specify the uuid for that thread's thread track here.
+  // thread, specify the uuid for that thread's thread track here. In general,
+  // setting a parent will *nest* that track under the parent in the UI and in
+  // the trace processor data model (with the important exception noted below).
+  //
+  // If not specified, the track will be a root track, i.e. not nested under any
+  // other track.
+  //
+  // Note: if the `thread` or `process` fields are set, this value will be
+  // *ignored* as priority is given to those fields.
+  //
+  // Note: if the parent is set to a track with `thread` or `process` fields
+  // set, the track will *not* be nested under the parent in the UI and in the
+  // trace processor data model. Instead, the track will inherit the parent'
+  // thread/process association and will appear as a *sibling* of the parent.
+  // This semantic exists for back-compat reasons as the UI used to work this
+  // way for years and changing this leads to a lot of traces subtly breaking.
+  // If you want to force nesting, create *another* intermediate track to act as
+  // the parent.
   optional uint64 parent_uuid = 5;
 
   // Name of the track. Optional - if unspecified, it may be derived from the
@@ -104,6 +121,9 @@ message TrackDescriptor {
   // where `parent_uuid` is specified to this track `uuid`). Note that this
   // value is simply a *hint* to the UI: the UI is not guarnateed to respect
   // this if it has a good reason not to do so.
+  //
+  // Note: for tracks where `thread` or `process` are set, this option is
+  // *ignored*. See `parent_uuid` for details.
   enum ChildTracksOrdering {
     // The default ordering, with no bearing on how the UI will visualise the
     // tracks.
@@ -127,5 +147,8 @@ message TrackDescriptor {
   // ordered relative to each other: tracks with lower ranks will appear before
   // tracks with higher ranks. An unspecified rank will be treated as a rank of
   // 0.
+  //
+  // Note: for tracks where the parent has `thread` or `process` are set, this
+  // option is *ignored*. See `parent_uuid` for details.
   optional int32 sibling_order_rank = 12;
 }

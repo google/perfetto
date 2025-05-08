@@ -13,14 +13,16 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE PERFETTO MACRO _ii_df_agg(x Expr, y Expr)
-RETURNS Expr AS __intrinsic_stringify!($x), input.$y;
+-- sqlformat file off
+
+CREATE PERFETTO MACRO _ii_df_agg(x ColumnName, y ColumnName)
+RETURNS _ProjectionFragment AS __intrinsic_stringify!($x), input.$y;
 
 CREATE PERFETTO MACRO _ii_df_bind(x Expr, y Expr)
 RETURNS Expr AS __intrinsic_table_ptr_bind($x, __intrinsic_stringify!($y));
 
-CREATE PERFETTO MACRO _ii_df_select(x Expr, y Expr)
-RETURNS Expr AS $x AS $y;
+CREATE PERFETTO MACRO _ii_df_select(x ColumnName, y Expr)
+RETURNS _ProjectionFragment AS $x AS $y;
 
 CREATE PERFETTO MACRO __first_arg(x Expr, y Expr)
 RETURNS Expr AS $x;
@@ -110,4 +112,108 @@ RETURNS TableOrSubquery AS
     ($t, (SELECT 0 AS id, $ts AS ts, $dur AS dur)),
     ()
   )
+);
+
+-- Given a list of intervals (ts, dur), this macro generates a list of interval
+-- end points as well as the intervals that intersect with those points.
+--
+-- e.g. input (10, 20), (20, 25)
+--
+--         10      30
+--        A |-------|
+--             B|----------|
+--             20         45
+--
+-- would generate the output
+--
+--   ts,dur,group_id,id,interval_ends_at_ts
+--   10,10,1,A,0
+--   20,10,2,A,0
+--   20,10,2,B,0
+--   30,15,3,A,1
+--   30,15,3,B,0
+--   45,0,4,B,1
+--
+-- Runtime is O(n log n + m), where n is the number of intervals and m
+-- is the size of the output.
+CREATE PERFETTO MACRO interval_self_intersect(
+  -- Table or subquery containing interval data.
+  intervals TableOrSubquery)
+RETURNS TableOrSubquery
+AS
+(
+  WITH RECURSIVE
+    _end_points AS (
+      SELECT
+        ts,
+        id,
+        TRUE AS is_start
+      FROM $intervals
+      UNION ALL
+      SELECT
+        ts + dur AS ts,
+        id,
+        FALSE AS is_start
+      FROM $intervals
+    ),
+    _with_next_ts AS (
+      SELECT
+        *,
+        LEAD(ts, 1, NULL) OVER (ORDER BY ts) AS next_ts
+      FROM _end_points
+      ORDER BY ts
+    ),
+    _group_by_ts AS (
+       SELECT
+         ts,
+         MAX(next_ts) AS next_group_ts,
+         ROW_NUMBER() OVER (ORDER BY ts) AS group_id
+       FROM _with_next_ts
+       GROUP BY ts
+    ),
+    _end_points_w_group_info AS (
+      SELECT *
+      FROM _with_next_ts
+      JOIN _group_by_ts USING (ts)
+    ),
+    -- Algorithm: Consider endpoints from left to right (increasing group_id).
+    -- As we scan, we keep a set of open intervals:
+    --    + if a new interval opens at ts, add it to the set
+    --    + if a current interval closes at ts, remove it from the set
+    -- At each timestamp (start or end), we record this set of open intervals
+    scan(group_id, ts, dur, id) AS (
+      -- Base case: we open intervals
+      SELECT
+        group_id,
+        ts,
+        IFNULL(next_group_ts - ts, 0) AS dur,
+        id
+      FROM _end_points_w_group_info
+      WHERE is_start = 1
+      UNION ALL
+      -- Recursive: look at intervals from previous sequence number
+      -- and keep all that remain open
+      SELECT
+        cur.group_id,
+        cur.ts,
+        IFNULL(next_group_ts - cur.ts, 0) AS dur,
+        prev.id
+      FROM
+        _end_points_w_group_info cur
+      JOIN
+        scan prev ON (cur.group_id = prev.group_id + 1)
+      WHERE
+        prev.id <> cur.id
+      -- this order by makes the join more efficient
+      ORDER BY group_id ASC
+  )
+  SELECT ts, dur, group_id, id, FALSE AS interval_ends_at_ts FROM scan
+  UNION ALL
+  SELECT
+    ts,
+    IFNULL(next_ts - ts, 0) AS dur,
+    group_id,
+    id,
+    TRUE AS interval_ends_at_ts
+  FROM _end_points_w_group_info WHERE is_start = 0
 );

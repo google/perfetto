@@ -13,171 +13,215 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PageWithTraceAttrs} from '../../public/page';
-import {SqlTableState as SqlTableViewState} from '../../components/widgets/sql/legacy_table/state';
-import {SqlTable as SqlTableView} from '../../components/widgets/sql/legacy_table/table';
-import {exists} from '../../base/utils';
-import {Menu, MenuItem, MenuItemAttrs} from '../../widgets/menu';
-import {Button} from '../../widgets/button';
-import {Icons} from '../../base/semantic_icons';
-import {DetailsShell} from '../../widgets/details_shell';
-import {
-  Chart,
-  ChartOption,
-  createChartConfigFromSqlTableState,
-  renderChartComponent,
-} from '../../components/widgets/charts/chart';
-import {AddChartMenuItem} from '../../components/widgets/charts/add_chart_menu';
-import {
-  SplitPanel,
-  SplitPanelDrawerVisibility,
-} from '../../widgets/split_panel';
-import {Trace} from '../../public/trace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
-export interface ExploreTableState {
-  sqlTableViewState?: SqlTableViewState;
-  selectedTableName?: string;
+import {DataVisualiser} from './data_visualiser/data_visualiser';
+import {QueryBuilder} from './query_builder/builder';
+import {Button, ButtonVariant} from '../../widgets/button';
+import {Intent} from '../../widgets/common';
+import {NodeType, QueryNode} from './query_node';
+import {MenuItem} from '../../widgets/menu';
+import {Icons} from '../../base/semantic_icons';
+import {VisViewSource} from './data_visualiser/view_source';
+import {PopupMenu} from '../../widgets/menu';
+import {
+  StdlibTableAttrs,
+  StdlibTableNode,
+} from './query_builder/sources/stdlib_table';
+import {
+  SlicesSourceAttrs,
+  SlicesSourceNode,
+  slicesSourceNodeColumns,
+} from './query_builder/sources/slices_source';
+import {
+  SqlSourceAttrs,
+  SqlSourceNode,
+} from './query_builder/sources/sql_source';
+import {Trace} from '../../public/trace';
+
+export interface ExplorePageState {
+  rootNodes: QueryNode[];
+  selectedNode?: QueryNode; // Selected Query Node on which to perform actions
+  activeViewSource?: VisViewSource; // View Source of activeQueryNode
+  mode: ExplorePageModes;
 }
 
-interface ExplorePageAttrs extends PageWithTraceAttrs {
-  readonly state: ExploreTableState;
-  readonly charts: Set<Chart>;
+export enum ExplorePageModes {
+  QUERY_BUILDER,
+  DATA_VISUALISER,
+}
+
+export const ExplorePageModeToLabel: Record<ExplorePageModes, string> = {
+  [ExplorePageModes.QUERY_BUILDER]: 'Query Builder',
+  [ExplorePageModes.DATA_VISUALISER]: 'Visualise Data',
+};
+
+interface ExplorePageAttrs {
+  readonly trace: Trace;
+  readonly sqlModulesPlugin: SqlModulesPlugin;
+  readonly state: ExplorePageState;
 }
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
-  private visibility = SplitPanelDrawerVisibility.VISIBLE;
-
-  // Show menu with standard library tables
-  private renderSelectableTablesMenuItems(
-    trace: Trace,
-    state: ExploreTableState,
-  ): m.Vnode<MenuItemAttrs, unknown>[] {
-    const sqlModules = trace.plugins
-      .getPlugin(SqlModulesPlugin)
-      .getSqlModules();
-    return sqlModules.listTables().map((tableName) => {
-      const sqlTable = sqlModules
-        .getModuleForTable(tableName)
-        ?.getTable(tableName);
-      const sqlTableViewDescription = sqlModules
-        .getModuleForTable(tableName)
-        ?.getSqlTableDescription(tableName);
-
-      return m(MenuItem, {
-        label: tableName,
+  renderNodeActionsMenuItems(node: QueryNode, state: ExplorePageState) {
+    // TODO: Split into operations on graph (like delete or duplicate) and
+    // operations on node (like edit).
+    return [
+      m(MenuItem, {
+        label: 'Visualise Data',
+        icon: Icons.Chart,
         onclick: () => {
-          if (
-            (state.selectedTableName &&
-              tableName === state.selectedTableName) ||
-            sqlTable === undefined ||
-            sqlTableViewDescription === undefined
-          ) {
-            return;
-          }
-
-          state.selectedTableName = sqlTable.name;
-          state.sqlTableViewState = new SqlTableViewState(
-            trace,
-            {
-              name: tableName,
-              columns: sqlTable.getTableColumns(),
-            },
-            {imports: sqlTableViewDescription.imports},
-          );
+          state.selectedNode = node;
+          state.mode = ExplorePageModes.DATA_VISUALISER;
         },
-      });
-    });
-  }
-
-  private renderSqlTable(state: ExploreTableState, charts: Set<Chart>) {
-    const sqlTableViewState = state.sqlTableViewState;
-
-    if (sqlTableViewState === undefined) return;
-
-    const range = sqlTableViewState.getDisplayedRange();
-    const rowCount = sqlTableViewState.getTotalRowCount();
-
-    const navigation = [
-      exists(range) &&
-        exists(rowCount) &&
-        `Showing rows ${range.from}-${range.to} of ${rowCount}`,
-      m(Button, {
-        icon: Icons.GoBack,
-        disabled: !sqlTableViewState.canGoBack(),
-        onclick: () => sqlTableViewState!.goBack(),
       }),
-      m(Button, {
-        icon: Icons.GoForward,
-        disabled: !sqlTableViewState.canGoForward(),
-        onclick: () => sqlTableViewState!.goForward(),
+      m(MenuItem, {
+        label: 'Duplicate',
+        onclick: async () => {
+          state.rootNodes.push(cloneQueryNode(node));
+        },
+      }),
+      m(MenuItem, {
+        label: 'Delete',
+        onclick: async () => {
+          const idx = state.rootNodes.indexOf(node);
+          if (idx !== -1) {
+            state.rootNodes.splice(idx, 1);
+            state.selectedNode = node;
+          }
+        },
       }),
     ];
-
-    return m(
-      DetailsShell,
-      {
-        title: 'Explore Table',
-        buttons: navigation,
-        fillParent: false,
-      },
-      m(SqlTableView, {
-        state: sqlTableViewState,
-        addColumnMenuItems: (column, columnAlias) =>
-          m(AddChartMenuItem, {
-            chartConfig: createChartConfigFromSqlTableState(
-              column,
-              columnAlias,
-              sqlTableViewState,
-            ),
-            chartOptions: [ChartOption.HISTOGRAM],
-            addChart: (chart) => charts.add(chart),
-          }),
-      }),
-    );
-  }
-
-  private renderRemovableChart(chart: Chart, charts: Set<Chart>) {
-    return m(
-      '.chart-card',
-      {
-        key: `${chart.option}-${chart.config.columnTitle}`,
-      },
-      m(Button, {
-        icon: Icons.Close,
-        onclick: () => {
-          charts.delete(chart);
-        },
-      }),
-      renderChartComponent(chart),
-    );
   }
 
   view({attrs}: m.CVnode<ExplorePageAttrs>) {
-    const {trace, state, charts} = attrs;
+    const {trace, state} = attrs;
 
     return m(
       '.page.explore-page',
       m(
-        SplitPanel,
-        {
-          visibility: this.visibility,
-          onVisibilityChange: (visibility) => {
-            this.visibility = visibility;
-          },
-          drawerContent: this.renderSqlTable(state, charts),
-        },
-        m(
-          '.chart-container',
-          m(Menu, this.renderSelectableTablesMenuItems(trace, state)),
-        ),
-        m(
-          '.chart-container',
-          Array.from(charts.values()).map((chart) =>
-            this.renderRemovableChart(chart, charts),
-          ),
-        ),
+        '.explore-page__header',
+        m('h1', `${ExplorePageModeToLabel[state.mode]}`),
+        m('span', {style: {flexGrow: 1}}),
+        state.mode === ExplorePageModes.QUERY_BUILDER
+          ? m(
+              '',
+              m(
+                PopupMenu,
+                {
+                  trigger: m(Button, {
+                    label: 'Add new node',
+                    icon: Icons.Add,
+                    intent: Intent.Primary,
+                    variant: ButtonVariant.Filled,
+                  }),
+                },
+                addSourcePopupMenu(attrs),
+              ),
+              m(Button, {
+                label: 'Clear All Query Nodes',
+                intent: Intent.Primary,
+                variant: ButtonVariant.Filled,
+                onclick: () => {
+                  state.rootNodes = [];
+                  state.selectedNode = undefined;
+                },
+                style: {marginLeft: '10px'},
+              }),
+            )
+          : m(Button, {
+              label: 'Back to Query Builder',
+              intent: Intent.Primary,
+              variant: ButtonVariant.Filled,
+              onclick: () => {
+                state.mode = ExplorePageModes.QUERY_BUILDER;
+              },
+            }),
       ),
+
+      state.mode === ExplorePageModes.QUERY_BUILDER &&
+        m(QueryBuilder, {
+          trace,
+          sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
+          onRootNodeCreated(arg) {
+            state.rootNodes.push(arg);
+            state.selectedNode = arg;
+          },
+          onNodeSelected(arg) {
+            state.selectedNode = arg;
+          },
+          renderNodeActionsMenuItems: (node: QueryNode) =>
+            this.renderNodeActionsMenuItems(node, state),
+          rootNodes: state.rootNodes,
+          selectedNode: state.selectedNode,
+          addSourcePopupMenu: () => addSourcePopupMenu(attrs),
+        }),
+      state.mode === ExplorePageModes.DATA_VISUALISER &&
+        state.rootNodes.length !== 0 &&
+        m(DataVisualiser, {
+          trace,
+          state,
+        }),
     );
+  }
+}
+
+function addSourcePopupMenu(attrs: ExplorePageAttrs): m.Children {
+  const {trace, state} = attrs;
+  const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+  return [
+    m(MenuItem, {
+      label: 'Standard library table',
+      onclick: async () => {
+        const newNode = new StdlibTableNode({
+          filters: [],
+          sourceCols: [],
+          groupByColumns: [],
+          aggregations: [],
+          trace,
+          sqlModules,
+        });
+        state.rootNodes.push(newNode);
+        state.selectedNode = newNode;
+      },
+    }),
+    m(MenuItem, {
+      label: 'Custom slices',
+      onclick: () => {
+        const newNode = new SlicesSourceNode({
+          sourceCols: slicesSourceNodeColumns(true),
+          filters: [],
+          groupByColumns: slicesSourceNodeColumns(false),
+          aggregations: [],
+        });
+        state.rootNodes.push(newNode);
+        state.selectedNode = newNode;
+      },
+    }),
+    m(MenuItem, {
+      label: 'Custom SQL',
+      onclick: () => {
+        const newNode = new SqlSourceNode({
+          sourceCols: [],
+          filters: [],
+          groupByColumns: [],
+          aggregations: [],
+        });
+        state.rootNodes.push(newNode);
+        state.selectedNode = newNode;
+      },
+    }),
+  ];
+}
+
+function cloneQueryNode(node: QueryNode): QueryNode {
+  const attrsCopy = node.getStateCopy();
+  switch (node.type) {
+    case NodeType.kStdlibTable:
+      return new StdlibTableNode(attrsCopy as StdlibTableAttrs);
+    case NodeType.kSimpleSlices:
+      return new SlicesSourceNode(attrsCopy as SlicesSourceAttrs);
+    case NodeType.kSqlSource:
+      return new SqlSourceNode(attrsCopy as SqlSourceAttrs);
   }
 }

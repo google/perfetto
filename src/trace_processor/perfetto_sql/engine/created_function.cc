@@ -109,7 +109,7 @@ struct StoredSqlValue {
   // the destructors run correctly for non-trivial members of the
   // union.
   using Data =
-      std::variant<int64_t, double, OwnedString, OwnedBytes, nullptr_t>;
+      std::variant<int64_t, double, OwnedString, OwnedBytes, std::nullptr_t>;
 
   StoredSqlValue(SqlValue value) {
     switch (value.type) {
@@ -134,7 +134,7 @@ struct StoredSqlValue {
   }
 
   SqlValue AsSqlValue() {
-    if (std::holds_alternative<nullptr_t>(data)) {
+    if (std::holds_alternative<std::nullptr_t>(data)) {
       return SqlValue();
     } else if (std::holds_alternative<int64_t>(data)) {
       return SqlValue::Long(std::get<int64_t>(data));

@@ -17,13 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_WINSCOPE_PROTO_MAPPING_H_
 #define SRC_TRACE_PROCESSOR_UTIL_WINSCOPE_PROTO_MAPPING_H_
 
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 
-namespace perfetto::trace_processor {
-namespace util {
-namespace winscope_proto_mapping {
+namespace perfetto::trace_processor::util::winscope_proto_mapping {
+
 inline base::StatusOr<const char* const> GetProtoName(
     const std::string& table_name) {
   if (table_name == tables::SurfaceFlingerLayerTable::Name()) {
@@ -35,7 +42,7 @@ inline base::StatusOr<const char* const> GetProtoName(
   if (table_name == tables::SurfaceFlingerTransactionsTable::Name()) {
     return ".perfetto.protos.TransactionTraceEntry";
   }
-  if (table_name == tables::WindowManagerShellTransitionsTable::Name()) {
+  if (table_name == tables::WindowManagerShellTransitionProtosTable::Name()) {
     return ".perfetto.protos.ShellTransition";
   }
   if (table_name == tables::InputMethodClientsTable::Name()) {
@@ -49,6 +56,9 @@ inline base::StatusOr<const char* const> GetProtoName(
   }
   if (table_name == tables::ViewCaptureTable::Name()) {
     return ".perfetto.protos.ViewCapture";
+  }
+  if (table_name == tables::ViewCaptureViewTable::Name()) {
+    return ".perfetto.protos.ViewCapture.View";
   }
   if (table_name == tables::WindowManagerTable::Name()) {
     return ".perfetto.protos.WindowManagerTraceEntry";
@@ -71,10 +81,30 @@ inline std::optional<const std::vector<uint32_t>> GetAllowedFields(
   if (table_name == tables::SurfaceFlingerLayersSnapshotTable::Name()) {
     return std::vector<uint32_t>({1, 2, 4, 5, 6, 7, 8});
   }
+  if (table_name == tables::ViewCaptureTable::Name()) {
+    return std::vector<uint32_t>({1, 2});
+  }
   return std::nullopt;
 }
-}  // namespace winscope_proto_mapping
-}  // namespace util
-}  // namespace perfetto::trace_processor
+
+inline std::optional<const std::string> GetGroupIdColName(
+    const std::string& table_name) {
+  if (table_name == tables::WindowManagerShellTransitionProtosTable::Name()) {
+    return "transition_id";
+  }
+  return std::nullopt;
+}
+
+inline std::optional<const Table*> GetInternedDataTable(
+    const std::string& table_name,
+    TraceStorage* storage) {
+  if (table_name == tables::ViewCaptureTable::Name() ||
+      table_name == tables::ViewCaptureViewTable::Name()) {
+    return storage->mutable_viewcapture_interned_data_table();
+  }
+  return std::nullopt;
+}
+
+}  // namespace perfetto::trace_processor::util::winscope_proto_mapping
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_WINSCOPE_PROTO_MAPPING_H_

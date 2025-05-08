@@ -14,10 +14,12 @@
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE android.binder_breakdown;
 INCLUDE PERFETTO MODULE linux.cpu.utilization.thread;
 INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
 INCLUDE PERFETTO MODULE slices.with_context;
 INCLUDE PERFETTO MODULE slices.cpu_time;
+INCLUDE PERFETTO MODULE slices.flat_slices;
 
 SELECT RUN_METRIC('android/android_cpu.sql');
 SELECT RUN_METRIC('android/android_powrails.sql');
@@ -77,17 +79,28 @@ SELECT CASE
   ELSE $slice_name
 END;
 
+CREATE OR REPLACE PERFETTO FUNCTION extract_codec_string_after(slice_name STRING, limiter STRING)
+RETURNS STRING AS
+SELECT CASE
+  -- Delimit with the first occurrence
+  WHEN instr($slice_name, $limiter) > 0
+  THEN substr($slice_name, instr($slice_name, $limiter) + length($limiter), length($slice_name))
+  ELSE $slice_name
+END;
+
 -- Traits strings from codec framework
 DROP TABLE IF EXISTS trace_trait_table;
 CREATE TABLE trace_trait_table(trace_trait TEXT UNIQUE);
 INSERT INTO trace_trait_table VALUES
-  ('MediaCodec::'),
-  ('CCodec::'),
-  ('CCodecBufferChannel::'),
-  ('C2PooledBlockPool::'),
-  ('C2hal::'),
-  ('ACodec::'),
-  ('FrameDecoder::');
+  ('MediaCodec::*'),
+  ('CCodec::*'),
+  ('CCodecBufferChannel::*'),
+  ('C2PooledBlockPool::*'),
+  ('C2hal::*'),
+  ('ACodec::*'),
+  ('FrameDecoder::*'),
+  ('*android.hardware.media.c2.*'),
+  ('*android.hardware.drm.ICryptoPlugin*');
 
 -- Maps traits to slice strings. Any string with '@' is considered to indicate
 -- the same trace with different information.Hence those strings are delimited
@@ -99,11 +112,13 @@ CREATE PERFETTO TABLE codec_slices AS
 WITH
   __codec_slices AS (
     SELECT DISTINCT
-      extract_codec_string(name, '@') AS codec_string,
+      IIF(instr(name, 'android.hardware.') > 0,
+        extract_codec_string_after(name, 'android.hardware.'),
+        extract_codec_string(name, '(')) AS codec_string,
       slice.id AS sid,
       slice.name AS sname
     FROM slice
-    JOIN trace_trait_table ON slice.name glob trace_trait || '*'
+    JOIN trace_trait_table ON slice.name GLOB trace_trait
   ),
   _codec_slices AS (
     SELECT DISTINCT codec_string,
@@ -123,18 +138,90 @@ DROP TABLE IF EXISTS codec_slice_cpu_running;
 CREATE PERFETTO TABLE codec_slice_cpu_running AS
 SELECT
   codec_string,
-  MIN(ts) AS ts,
+  MIN(ts) AS min_ts,
   MAX(ts + t.dur) AS max_ts,
-  SUM(t.dur) AS dur,
+  SUM(t.dur) AS sum_dur_ns,
   SUM(ct.cpu_time) AS cpu_run_ns,
-  SUM(megacycles) AS cpu_cycles,
-  cc.thread_name,
-  cc.process_name
+  AVG(t.dur) AS avg_dur_ns,
+  CAST(SUM(millicycles) AS INT64) AS cpu_cycles,
+  CAST(SUM(megacycles) AS INT64) AS cpu_mega_cycles,
+  IIF(INSTR(cc.thread_name, 'binder') > 0,
+    'binder', cc.thread_name) as thread_name_mod,
+  cc.process_name as process_name,
+  COUNT (*) as count
 FROM codec_slices
 JOIN thread_slice t ON(sid = t.id)
 JOIN thread_slice_cpu_cycles cc ON(sid = cc.id)
 JOIN thread_slice_cpu_time ct ON(sid = ct.id)
-GROUP BY codec_slice_idx, cc.thread_name, cc.process_name;
+GROUP BY codec_slice_idx, thread_name_mod, cc.process_name;
+
+-- Codec framework message latencies
+DROP TABLE IF EXISTS  fwk_looper_msg_latency;
+CREATE PERFETTO TABLE fwk_looper_msg_latency AS
+SELECT
+  slice.name AS normalized_name,
+  NULL AS process_name,
+  extract_codec_string(slice.name,'::') AS thread_name,
+  COUNT(*) AS count,
+  MAX(slice.dur/1e3) AS max_us,
+  MIN(slice.dur/1e3) AS min_us,
+  AVG(slice.dur)/1e3 AS avg_us,
+  SUM(slice.dur)/1e3 AS agg_us
+FROM slice
+WHERE slice.name GLOB '*::Looper_msg*'
+GROUP BY slice.name, thread_name, process_name;
+
+-- Qualifying individual slice latency
+DROP TABLE IF EXISTS latency_codec_slices;
+CREATE PERFETTO TABLE latency_codec_slices AS
+WITH
+  _filtered_raw_codec_flattened_slices AS(
+    SELECT
+      IIF(instr(name, 'android.hardware.') > 0,
+        extract_codec_string_after(name, 'android.hardware.'),
+        extract_codec_string(name, '(')) AS normalized_name,
+    slice_id,
+    root_id,
+    dur,
+    IIF(INSTR(thread_name, 'binder') > 0,
+    'binder', thread_name) as thread_name,
+    process_name,
+    depth
+    FROM _slice_flattened
+    JOIN trace_trait_table ON name GLOB trace_trait
+  ),
+  _filtered_agg_codec_flattened_slices AS(
+    SELECT
+      root_id,
+      normalized_name,
+      process_name,
+      thread_name,
+      SUM(dur)/1e3 AS _agg_us
+    FROM _filtered_raw_codec_flattened_slices
+    GROUP BY slice_id, root_id
+    ORDER BY depth)
+SELECT
+  normalized_name,
+  process_name,
+  thread_name,
+  COUNT(*) as count,
+  MAX(_agg_us) as max_us,
+  MIN(_agg_us) as min_us,
+  AVG(_agg_us) as avg_us,
+  SUM(_agg_us) as agg_us
+  FROM _filtered_agg_codec_flattened_slices
+  GROUP BY normalized_name, thread_name, process_name
+UNION ALL
+SELECT
+  normalized_name as codec_string,
+  process_name,
+  thread_name,
+  count,
+  max_us,
+  min_us,
+  avg_us,
+  agg_us
+  FROM fwk_looper_msg_latency;
 
 -- POWER consumed during codec use.
 DROP VIEW IF EXISTS codec_power_mw;
@@ -151,15 +238,35 @@ FROM avg_used_powers;
 DROP VIEW IF EXISTS metrics_per_slice_type;
 CREATE PERFETTO VIEW metrics_per_slice_type AS
 SELECT
-  process_name,
-  codec_string,
+  COALESCE(codec_string, normalized_name) as codec_string,
+  COALESCE(rslice.process_name, lat.process_name) as process_name,
+  COALESCE(lat.thread_name, rslice.thread_name_mod) as thread_name,
+  max_us,
+  min_us,
+  avg_us,
+  agg_us,
+  lat.count AS count,
   AndroidCodecMetrics_Detail(
-    'thread_name', thread_name,
-    'total_cpu_ns', CAST(dur AS INT64),
+    'total_cpu_ns', CAST(sum_dur_ns AS INT64),
     'running_cpu_ns', CAST(cpu_run_ns AS INT64),
-    'cpu_cycles', CAST(cpu_cycles AS INT64)
+    'avg_running_cpu_ns', CAST((cpu_run_ns/rslice.count) AS INT64),
+    'avg_time_ns', CAST(avg_dur_ns AS INT64),
+    'total_cpu_cycles', CAST(cpu_cycles AS INT64),
+    'avg_cpu_cycles', CAST((cpu_cycles/rslice.count) AS INT64),
+    'count', rslice.count,
+    'self', AndroidCodecMetrics_Detail_Latency (
+      'max_us', CAST(max_us AS INT64),
+      'min_us', CAST(min_us AS INT64),
+      'avg_us', CAST(avg_us AS INT64),
+      'agg_us', CAST(agg_us AS INT64),
+      'count', lat.count
+    )
   ) AS proto
-FROM codec_slice_cpu_running;
+FROM latency_codec_slices lat
+FULL JOIN codec_slice_cpu_running  rslice
+ON codec_string = lat.normalized_name
+AND lat.thread_name = rslice.thread_name_mod
+AND lat.process_name = rslice.process_name;
 
 -- Generating codec framework cpu metric
 DROP VIEW IF EXISTS codec_metrics_output;
@@ -169,9 +276,13 @@ SELECT AndroidCodecMetrics (
     SELECT RepeatedField(
       AndroidCodecMetrics_CpuUsage(
         'process_name', process_name,
-        'thread_name', thread_name,
-        'thread_cpu_ns', CAST((runtime) AS INT64),
-        'core_data', proto
+        'thread', AndroidCodecMetrics_CpuUsage_ThreadInfo(
+          'name', thread_name,
+          'info', AndroidCodecMetrics_CpuUsage_ThreadInfo_Details(
+            'thread_cpu_ns', CAST((runtime) AS INT64),
+            'core_data', proto
+          )
+        )
       )
     ) FROM cpu_cycles_runtime
   ),
@@ -179,8 +290,13 @@ SELECT AndroidCodecMetrics (
     SELECT RepeatedField (
       AndroidCodecMetrics_CodecFunction(
         'codec_string', codec_string,
-        'process_name', process_name,
-        'detail', metrics_per_slice_type.proto
+        'process', AndroidCodecMetrics_CodecFunction_Process(
+          'name', process_name,
+          'thread', AndroidCodecMetrics_CodecFunction_Process_Thread(
+            'name', thread_name,
+            'detail', metrics_per_slice_type.proto
+          )
+        )
       )
     ) FROM metrics_per_slice_type
   ),

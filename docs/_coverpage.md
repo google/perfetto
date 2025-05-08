@@ -9,5 +9,5 @@
 * Web-based trace viewer UI
 
 [Docs](#perfetto-performance-instrumentation-and-tracing)
-[Sources](https://android.googlesource.com/platform/external/perfetto/)
+[Sources](https://github.com/google/perfetto)
 [Trace viewer UI](https://ui.perfetto.dev)

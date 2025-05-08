@@ -108,6 +108,7 @@ V8_WASM_SCRIPT = Table(
         C('v8_isolate_id', CppTableId(V8_ISOLATE)),
         C('internal_script_id', CppInt32()),
         C('url', CppString()),
+        C('wire_bytes_base64', CppOptional(CppString())),
         C('source', CppOptional(CppString())),
     ],
     tabledoc=TableDoc(
@@ -117,6 +118,7 @@ V8_WASM_SCRIPT = Table(
             'v8_isolate_id': 'V8 Isolate',
             'internal_script_id': 'Script id used by the V8 engine',
             'url': 'URL of the source',
+            'wire_bytes_base64': 'Raw write bytes of the script',
             'source': 'Actual contents of the script.',
         },
     ),

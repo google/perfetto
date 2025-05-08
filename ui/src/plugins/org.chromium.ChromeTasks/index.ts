@@ -16,7 +16,7 @@ import {asUtid} from '../../components/sql_utils/core_types';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {ChromeTasksThreadTrack} from './track';
+import {createChromeTasksThreadTrack} from './track';
 import {TrackNode} from '../../public/workspace';
 
 export default class implements PerfettoPlugin {
@@ -86,7 +86,7 @@ export default class implements PerfettoPlugin {
       const title = `${it.threadName} ${it.tid}`;
       ctx.tracks.registerTrack({
         uri,
-        track: new ChromeTasksThreadTrack(ctx, uri, asUtid(utid)),
+        track: createChromeTasksThreadTrack(ctx, uri, asUtid(utid)),
         title,
       });
       const track = new TrackNode({uri, title});

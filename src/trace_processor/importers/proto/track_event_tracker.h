@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -52,12 +53,13 @@ class TrackEventTracker {
       uint32_t packet_sequence_id = 0;
       double latest_value = 0;
       StringId unit = kNullStringId;
+      StringId builtin_type_str;
 
       bool IsForSameTrack(const CounterDetails& o) const {
         return std::tie(category, unit_multiplier, is_incremental,
-                        packet_sequence_id) ==
+                        packet_sequence_id, builtin_type_str) ==
                std::tie(o.category, o.unit_multiplier, o.is_incremental,
-                        o.packet_sequence_id);
+                        o.packet_sequence_id, o.builtin_type_str);
       }
     };
 
@@ -157,11 +159,12 @@ class TrackEventTracker {
 
     static ResolvedDescriptorTrack Process(TrackId,
                                            UniquePid upid,
-                                           bool is_counter);
+                                           bool is_counter,
+                                           bool is_root);
     static ResolvedDescriptorTrack Thread(TrackId,
                                           UniqueTid utid,
                                           bool is_counter,
-                                          bool is_default_thead_slice_track);
+                                          bool is_root);
     static ResolvedDescriptorTrack Global(TrackId, bool is_counter);
 
     TrackId track_id() const { return track_id_; }
@@ -171,23 +174,20 @@ class TrackEventTracker {
       PERFETTO_DCHECK(scope() == Scope::kThread);
       return utid_;
     }
-    bool is_default_thead_slice_track() const {
-      PERFETTO_DCHECK(scope() == Scope::kThread);
-      return is_default_thead_slice_track_;
-    }
     UniquePid upid() const {
       PERFETTO_DCHECK(scope() == Scope::kProcess);
       return upid_;
     }
+    bool is_root() const { return is_root_; }
 
    private:
     TrackId track_id_;
     Scope scope_;
     bool is_counter_;
+    bool is_root_;
 
     // Only set when |scope| == |Scope::kThread|.
     UniqueTid utid_;
-    bool is_default_thead_slice_track_ = false;
 
     // Only set when |scope| == |Scope::kProcess|.
     UniquePid upid_;
@@ -227,6 +227,7 @@ class TrackEventTracker {
   const StringId source_id_key_;
   const StringId is_root_in_scope_key_;
   const StringId category_key_;
+  const StringId builtin_counter_type_key_;
   const StringId has_first_packet_on_sequence_key_id_;
   const StringId child_ordering_key_;
   const StringId explicit_id_;

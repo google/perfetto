@@ -70,8 +70,8 @@ class InputMethodService(TestSuite):
         trace=Path('inputmethod_service.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.winscope.inputmethod;
-        SELECT COUNT(*) FROM android_inputmethod_service
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        SELECT COUNT(*) FROM __intrinsic_inputmethod_service
+        WHERE base64_proto_id IS NOT NULL
         """,
         out=Csv("""
         "COUNT(*)"

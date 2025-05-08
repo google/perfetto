@@ -13,9 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PageWithTraceAttrs} from '../../public/page';
 
-export class InsightsPage implements m.ClassComponent<PageWithTraceAttrs> {
+export class InsightsPage implements m.ClassComponent {
   view() {
     return m('.insights-page');
   }

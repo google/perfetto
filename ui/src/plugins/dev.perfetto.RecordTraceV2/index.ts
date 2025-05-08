@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {bindMithrilAttrs} from '../../base/mithril_utils';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
-import RecordingV1Plugin from '../dev.perfetto.RecordTrace';
 import {AdbWebsocketTargetProvider} from './adb/websocket/adb_websocket_target_provider';
 import {AdbWebusbTargetProvider} from './adb/webusb/adb_webusb_target_provider';
 import {ChromeExtensionTargetProvider} from './chrome/chrome_extension_target_provider';
@@ -34,14 +32,13 @@ import {targetSelectionPage} from './pages/target_selection_page';
 import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
 import {savedConfigsPage} from './pages/saved_configs';
-
+import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_provider';
+import m from 'mithril';
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
-  static readonly dependencies = [RecordingV1Plugin];
   private static recordingMgr?: RecordingManager;
 
   static onActivate(app: App) {
-    if (!RecordingV1Plugin.useRecordingV2) return;
     app.sidebar.addMenuItem({
       section: 'navigation',
       text: 'Record new trace',
@@ -51,10 +48,13 @@ export default class implements PerfettoPlugin {
     });
     app.pages.registerPage({
       route: '/record',
-      traceless: true,
-      page: bindMithrilAttrs(RecordPageV2, {
-        getRecordingManager: this.getRecordingManager.bind(this, app),
-      }),
+      render: (subpage) => {
+        return m(RecordPageV2, {
+          subpage,
+          app,
+          getRecordingManager: () => this.getRecordingManager(app),
+        });
+      },
     });
   }
 
@@ -67,6 +67,8 @@ export default class implements PerfettoPlugin {
       this.recordingMgr = recMgr;
       recMgr.registerProvider(new AdbWebusbTargetProvider());
       recMgr.registerProvider(new AdbWebsocketTargetProvider());
+      recMgr.registerProvider(new WebDeviceProxyTargetProvider());
+
       const chromeProvider = new ChromeExtensionTargetProvider();
       recMgr.registerProvider(chromeProvider);
       recMgr.registerProvider(new TracedWebsocketTargetProvider());
@@ -87,6 +89,9 @@ export default class implements PerfettoPlugin {
       );
       recMgr.restorePluginStateFromLocalstorage();
     }
+
+    // For devtools debugging purposes.
+    (window as {} as {recordingMgr: unknown}).recordingMgr = this.recordingMgr;
     return this.recordingMgr;
   }
 }

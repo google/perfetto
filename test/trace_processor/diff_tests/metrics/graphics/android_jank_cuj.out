@@ -12,6 +12,8 @@ android_jank_cuj {
         debuggable: false
       }
       pid: 1000
+      android_user_id: 0
+      is_kernel_task: false
     }
     ts: 0
     dur: 123000000
@@ -188,6 +190,8 @@ android_jank_cuj {
         debuggable: false
       }
       pid: 1000
+      android_user_id: 0
+      is_kernel_task: false
     }
     ts: 0
     dur: 901000010

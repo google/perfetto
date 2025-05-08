@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+#include "src/trace_processor/importers/proto/network_trace_module.h"
+
 #include <cstdint>
 #include <memory>
 #include <vector>
-
-#include "src/trace_processor/importers/proto/network_trace_module.h"
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_view.h"
@@ -135,15 +135,18 @@ TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
   ASSERT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices[0].ts(), 123);
 
-  EXPECT_TRUE(HasArg(2u, "packet_length", Variadic::Integer(72)));
-  EXPECT_TRUE(HasArg(2u, "socket_uid", Variadic::Integer(1010)));
-  EXPECT_TRUE(HasArg(2u, "local_port", Variadic::Integer(5100)));
-  EXPECT_TRUE(HasArg(2u, "remote_port", Variadic::Integer(443)));
-  EXPECT_TRUE(HasArg(2u, "packet_transport",
+  EXPECT_TRUE(slices[0].arg_set_id().has_value());
+
+  uint32_t arg_set_id = *slices[0].arg_set_id();
+  EXPECT_TRUE(HasArg(arg_set_id, "packet_length", Variadic::Integer(72)));
+  EXPECT_TRUE(HasArg(arg_set_id, "socket_uid", Variadic::Integer(1010)));
+  EXPECT_TRUE(HasArg(arg_set_id, "local_port", Variadic::Integer(5100)));
+  EXPECT_TRUE(HasArg(arg_set_id, "remote_port", Variadic::Integer(443)));
+  EXPECT_TRUE(HasArg(arg_set_id, "packet_transport",
                      Variadic::String(storage_->InternString("IPPROTO_TCP"))));
-  EXPECT_TRUE(HasArg(2u, "socket_tag",
+  EXPECT_TRUE(HasArg(arg_set_id, "socket_tag",
                      Variadic::String(storage_->InternString("0x407"))));
-  EXPECT_TRUE(HasArg(2u, "packet_tcp_flags",
+  EXPECT_TRUE(HasArg(arg_set_id, "packet_tcp_flags",
                      Variadic::String(storage_->InternString(".s..a..."))));
 }
 
@@ -175,8 +178,13 @@ TEST_F(NetworkTraceModuleTest, TokenizeAndParsePerPacketBundle) {
   EXPECT_EQ(slices[0].ts(), 123);
   EXPECT_EQ(slices[1].ts(), 133);
 
-  EXPECT_TRUE(HasArg(2u, "packet_length", Variadic::Integer(72)));
-  EXPECT_TRUE(HasArg(3u, "packet_length", Variadic::Integer(100)));
+  EXPECT_TRUE(slices[0].arg_set_id().has_value());
+  EXPECT_TRUE(slices[1].arg_set_id().has_value());
+
+  EXPECT_TRUE(
+      HasArg(*slices[0].arg_set_id(), "packet_length", Variadic::Integer(72)));
+  EXPECT_TRUE(
+      HasArg(*slices[1].arg_set_id(), "packet_length", Variadic::Integer(100)));
 }
 
 TEST_F(NetworkTraceModuleTest, TokenizeAndParseAggregateBundle) {
@@ -200,8 +208,11 @@ TEST_F(NetworkTraceModuleTest, TokenizeAndParseAggregateBundle) {
   EXPECT_EQ(slices[0].ts(), 123);
   EXPECT_EQ(slices[0].dur(), 10);
 
-  EXPECT_TRUE(HasArg(2u, "packet_length", Variadic::Integer(172)));
-  EXPECT_TRUE(HasArg(2u, "packet_count", Variadic::Integer(2)));
+  EXPECT_TRUE(slices[0].arg_set_id().has_value());
+
+  uint32_t arg_set_id = *slices[0].arg_set_id();
+  EXPECT_TRUE(HasArg(arg_set_id, "packet_length", Variadic::Integer(172)));
+  EXPECT_TRUE(HasArg(arg_set_id, "packet_count", Variadic::Integer(2)));
 }
 
 }  // namespace

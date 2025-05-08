@@ -31,7 +31,7 @@ class SystraceLineParser {
  public:
   explicit SystraceLineParser(TraceProcessorContext*);
 
-  util::Status ParseLine(const SystraceLine&);
+  base::Status ParseLine(const SystraceLine&);
 
  private:
   TraceProcessorContext* const context_;

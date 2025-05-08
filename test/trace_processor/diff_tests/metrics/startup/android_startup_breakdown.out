@@ -71,6 +71,8 @@ android_startup {
         debuggable: false
       }
       pid: 3
+      android_user_id: 0
+      is_kernel_task: false
     }
     activities {
       name: "com.google.android.calendar.MainActivity"

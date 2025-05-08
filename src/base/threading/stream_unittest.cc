@@ -321,7 +321,7 @@ TEST_F(StreamUnittest, FlattenStreams) {
   interested_.clear();
   ready_ = {};
   ASSERT_TRUE(stream.PollNext(&ctx_).IsPending());
-  ASSERT_THAT(interested_, ElementsAre(fd2, fd3, fd4));
+  ASSERT_THAT(interested_, UnorderedElementsAre(fd2, fd3, fd4));
 
   interested_.clear();
   ready_ = {fd1, fd2, fd3};

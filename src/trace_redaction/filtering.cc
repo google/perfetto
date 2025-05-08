@@ -36,4 +36,10 @@ bool AllowAll::Includes(const Context&, protozero::Field) const {
   return true;
 }
 
+MatchesPid::MatchesPid(int32_t pid) : pid_(pid) {}
+
+bool MatchesPid::Includes(const Context&, uint64_t, int32_t pid) const {
+  return pid == pid_;
+}
+
 }  // namespace perfetto::trace_redaction

@@ -16,11 +16,19 @@
 
 #include "src/trace_processor/util/sql_argument.h"
 
-#include "perfetto/ext/base/string_utils.h"
+#include <algorithm>
+#include <cctype>
+#include <optional>
+#include <string>
+#include <vector>
 
-namespace perfetto {
-namespace trace_processor {
-namespace sql_argument {
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/basic_types.h"
+
+namespace perfetto::trace_processor::sql_argument {
 
 bool IsValidName(base::StringView str) {
   if (str.empty()) {
@@ -153,6 +161,4 @@ std::string SerializeArguments(const std::vector<ArgumentDefinition>& args) {
   return serialized;
 }
 
-}  // namespace sql_argument
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::sql_argument

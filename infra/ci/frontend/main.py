@@ -18,81 +18,272 @@ import os
 import re
 import requests
 import time
-import urllib.parse
+import json
 
 from collections import namedtuple
-from config import GERRIT_HOST, GERRIT_PROJECT
-''' Makes anonymous GET-only requests to Gerrit.
+from datetime import datetime
+from config import GITHUB_REPO, PROJECT
+from common_utils import SCOPES, get_github_installation_token, req_async, utc_now_iso
+from google.cloud import ndb
+from stackdriver_metrics import STACKDRIVER_METRICS
 
-Solves the lack of CORS headers from AOSP gerrit.
-'''
+STACKDRIVER_API = 'https://monitoring.googleapis.com/v3/projects/%s' % PROJECT
 
-HASH_RE = re.compile('^[a-f0-9]+$')
+SCOPES.append('https://www.googleapis.com/auth/cloud-platform')
+SCOPES.append('https://www.googleapis.com/auth/datastore')
+SCOPES.append('https://www.googleapis.com/auth/monitoring')
+SCOPES.append('https://www.googleapis.com/auth/monitoring.write')
+
+HASH_RE = re.compile(r'^[a-f0-9]+$')
+JOB_TYPE_RE = re.compile(r'^([\w-]+)\s*\/\s*[\w-]+(?:\s*\(\s*([^,\s)]+))?')
+HEX_RE = re.compile(r'^[0-9a-fA-F]+$')
+
 CACHE_TTL = 3600  # 1 h
 CacheEntry = namedtuple('CacheEntry', ['contents', 'expiration'])
 
 app = flask.Flask(__name__)
+
+ndb_client = ndb.Client()
 
 logging.basicConfig(
     format='%(levelname)-8s %(asctime)s %(message)s',
     level=logging.DEBUG if os.getenv('VERBOSE') else logging.INFO,
     datefmt=r'%Y-%m-%d %H:%M:%S')
 
-cache = {}
+# Cache the GitHub installation token and refresh it every hour.
+_cached_gh_token = None
+_cached_gh_token_expiry = 0
 
 
-def DeleteStaleCacheEntries():
+def get_cached_github_token():
+  global _cached_gh_token, _cached_gh_token_expiry
   now = time.time()
-  for url, entry in list(cache.items()):
-    if now > entry.expiration:
-      cache.pop(url, None)
+  if _cached_gh_token is None or now >= _cached_gh_token_expiry:
+    _cached_gh_token = get_github_installation_token()
+    _cached_gh_token_expiry = now + 3600  # Cache for 1 hour
+  return _cached_gh_token
 
 
-def req_cached(url):
-  '''Used for requests that return immutable data, avoid hitting Gerrit 500'''
-  DeleteStaleCacheEntries()
-  entry = cache.get(url)
-  contents = entry.contents if entry is not None else None
-  if not contents:
-    resp = requests.get(url)
-    if resp.status_code != 200:
-      err_str = 'http error %d while fetching %s' % (resp.status_code, url)
-      return resp.status_code, err_str
-    contents = resp.content.decode('utf-8')
-    cache[url] = CacheEntry(contents, time.time() + CACHE_TTL)
-  return contents, 200
+def gh_req(url, headers={}, params={}):
+  headers.update({
+      'Authorization': f'token {get_cached_github_token()}',
+      'Accept': 'application/vnd.github+json'
+  })
+  resp = requests.get(url, headers=headers, params=params)
+  return resp.content.decode('utf-8')
 
 
-@app.route('/gerrit/commits/<string:sha1>', methods=['GET', 'POST'])
-def commits(sha1):
-  if not HASH_RE.match(sha1):
-    return 'Malformed input', 500
-  project = urllib.parse.quote(GERRIT_PROJECT, '')
-  url = 'https://%s/projects/%s/commits/%s' % (GERRIT_HOST, project, sha1)
-  content, status = req_cached(url)
-  return content[4:], status  # 4: -> Strip Gerrit XSSI chars.
+@app.route('/_ah/start', methods=['GET', 'POST'])
+async def http_start():
+  await create_stackdriver_metric_definitions()
+  return 'OK'
 
 
-@app.route(
-    '/gerrit/log/<string:first>..<string:second>', methods=['GET', 'POST'])
-def gerrit_log(first, second):
-  if not HASH_RE.match(first) or not HASH_RE.match(second):
-    return 'Malformed input', 500
-  url = 'https://%s/%s/+log/%s..%s?format=json' % (GERRIT_HOST.replace(
-      '-review', ''), GERRIT_PROJECT, first, second)
-  content, status = req_cached(url)
-  return content[4:], status  # 4: -> Strip Gerrit XSSI chars.
+async def create_stackdriver_metric_definitions():
+  logging.info('Creating Stackdriver metric definitions')
+  for name, metric in STACKDRIVER_METRICS.items():
+    logging.info('Creating metric %s', name)
+    await req_async('POST', STACKDRIVER_API + '/metricDescriptors', body=metric)
 
 
-@app.route('/gerrit/changes/', methods=['GET', 'POST'])
-def gerrit_changes():
-  url = 'https://%s/changes/?q=project:%s+' % (GERRIT_HOST, GERRIT_PROJECT)
-  url += flask.request.query_string.decode('utf-8')
-  resp = requests.get(url)
-  hdr = {'Content-Type': 'text/plain'}
-  status = resp.status_code
-  if status == 200:
-    resp = resp.content.decode('utf-8')[4:]  # 4: -> Strip Gerrit XSSI chars.
-  else:
-    resp = 'HTTP error %s' % status
-  return resp, status, hdr
+@app.route('/gh/pulls')
+async def gh_pulls():
+  url = f'https://api.github.com/repos/{GITHUB_REPO}/pulls'
+  params = {
+      'state': 'all',
+      'per_page': 50,
+      'sort': 'updated',
+      'direction': 'desc'
+  }
+  return gh_req(url, params=params)
+
+
+@app.route('/gh/checks/<string:sha>')
+async def gh_checks(sha):
+  if not HEX_RE.fullmatch(sha):
+    flask.abort(400, description="Invalid hex string")
+  url = f'https://api.github.com/repos/{GITHUB_REPO}/commits/{sha}/check-runs'
+  return gh_req(url)
+
+
+@app.route('/gh/patchsets/<int:pr>')
+async def gh_patchsets(pr):
+  url = f'https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr}/commits'
+  return gh_req(url)
+
+
+@app.route('/gh/commits/main')
+async def gh_commits_main():
+  url = f'https://api.github.com/repos/{GITHUB_REPO}/commits'
+  params = {'sha': 'main'}
+  return gh_req(url, params=params)
+
+
+@app.route('/gh/runners')
+async def gh_runners():
+  params = {'per_page': 100}
+  url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runners'
+  return gh_req(url, params=params)
+
+
+async def get_jobs_for_workflow_run(id):
+  url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runs/{id}/jobs'
+  resp = gh_req(url, params={'per_page': 100})
+  respj = json.loads(resp)
+  jobs = []
+  for job in respj['jobs']:
+    job_name = job.get('name', '')
+    m = JOB_TYPE_RE.match(job_name)
+    if m:
+      job_name = m[1] + (f'/{m[2]}' if m[2] else '')
+    jobs.append({
+        'id': job.get('id'),
+        'name': job_name,
+        'html_url': job.get('html_url'),
+        'status': job.get('status'),
+        'conclusion': job.get('conclusion'),
+        'created_at': job.get('created_at'),
+        'started_at': job.get('started_at'),
+        'updated_at': job.get('updated_at'),
+        'completed_at': job.get('completed_at'),
+        'runner_id': job.get('runner_id'),
+        'runner_name': job.get('runner_name'),
+    })
+  return jobs
+
+
+@app.route('/gh/workflows')
+async def workflow_runs_and_jobs():
+  url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runs'
+  resp = gh_req(url, params={'per_page': 64})
+  respj = json.loads(resp)
+  runs = []
+  for run in respj['workflow_runs']:
+    if run.get('name') != 'Perfetto CI':
+      continue
+    resp_obj = {
+        'id': run.get('id'),
+        'name': run.get('name'),
+        'event': run.get('event'),
+        'display_title': run.get('display_title'),
+        'html_url': run.get('html_url'),
+        'head_sha': run.get('head_sha'),
+        'status': run.get('status'),
+        'conclusion': run.get('conclusion'),
+        'actor': {
+            'login': run.get('actor', {}).get('login')
+        },
+        'created_at': run.get('created_at'),
+        'updated_at': run.get('updated_at'),
+        'run_started_at': run.get('run_started_at'),
+        'jobs': await get_jobs_for_workflow_run(run.get('id'))
+    }
+    runs.append(resp_obj)
+  return runs
+
+
+@app.route('/gh/update_metrics')
+async def update_metrics():
+  workflows = await workflow_runs_and_jobs()
+  num_pending = 0
+  all_metrics = []
+  # First compute the queue len in a dedicated pass. This is so that if there
+  # is a bug/crash in the metrics computation below, we don't screw up the
+  # autoscaler.
+  for w in workflows:
+    for j in w.get('jobs', []):
+      num_pending += 1 if j['status'] in ('queued', 'in_progress') else 0
+  queue_len_metric = ('ci_job_queue_len', {'v': num_pending})
+  all_metrics.append(queue_len_metric)
+  await write_metrics([queue_len_metric])
+
+  # Compute the FYI metrics for the dashboard.
+  for w in workflows:
+    j = None
+    metrics = []
+    if w['conclusion'] != 'success':
+      continue
+    datastore_key = 'workflow_%s' % w['id']
+    if was_metric_recorded(datastore_key):
+      continue
+    w_created = datetime.fromisoformat(w['created_at'])
+    w_updated = datetime.fromisoformat(w['updated_at'])
+    metrics += [('ci_cl_completion_time', {
+        'l': {},
+        'v': int((w_updated - w_created).seconds)
+    })]
+    for j in w.get('jobs', []):
+      job_name = j['name']
+      if j['conclusion'] == 'success':
+        j_completed = datetime.fromisoformat(j['completed_at'])
+        j_started = datetime.fromisoformat(j['started_at'])
+        metrics += [('ci_job_run_time', {
+            'l': {
+                'job_type': job_name
+            },
+            'v': int((j_completed - j_started).seconds)
+        }),
+                    ('ci_job_queue_time', {
+                        'l': {
+                            'job_type': job_name
+                        },
+                        'v': int((j_started - w_created).seconds)
+                    })]
+    if len(metrics) > 0:
+      await write_metrics(metrics)
+      mark_metric_as_recorded(datastore_key)
+      all_metrics += metrics
+  return all_metrics
+
+
+async def write_metrics(metrics):
+  logging.info(f'Writing {len(metrics)} metrics to Stackdriver')
+  if len(metrics) == 0:
+    return
+  now = utc_now_iso()
+  desc = {'timeSeries': []}
+  for key, spec in metrics:
+    desc['timeSeries'] += [{
+        'metric': {
+            'type': STACKDRIVER_METRICS[key]['type'],
+            'labels': spec.get('l', {})
+        },
+        'resource': {
+            'type': 'global'
+        },
+        'points': [{
+            'interval': {
+                'endTime': now
+            },
+            'value': {
+                'int64Value': str(spec['v'])
+            }
+        }]
+    }]
+  try:
+    await req_async('POST', STACKDRIVER_API + '/timeSeries', body=desc)
+  except Exception as e:
+    # Metric updates can easily fail due to Stackdriver API limitations.
+    msg = str(e)
+    if 'written more frequently than the maximum sampling' not in msg:
+      logging.error('Metrics update failed: %s', msg)
+
+
+# We use datastore to remember which metrics we computed and pushed to
+# stackdriver. This is to avoid re-emitting metrics for the same job
+# on each periodic poll.
+class MetricFlag(ndb.Model):
+  updated = ndb.BooleanProperty()
+
+
+def was_metric_recorded(metric_key: str) -> bool:
+  with ndb_client.context():
+    key = ndb.Key(MetricFlag, metric_key)
+    entity = key.get()
+    return entity.updated if entity else False
+
+
+def mark_metric_as_recorded(metric_key: str):
+  with ndb_client.context():
+    key = ndb.Key(MetricFlag, metric_key)
+    MetricFlag(key=key, updated=True).put()

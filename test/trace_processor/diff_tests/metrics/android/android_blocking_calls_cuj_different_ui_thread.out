@@ -6,6 +6,8 @@ android_blocking_calls_cuj_metric {
       name: "com.google.android.with.custom.ui.thread"
       uid: 10001
       pid: 5000
+      android_user_id: 0
+      is_kernel_task: false
     }
     ts: 0
     dur: 18000000
@@ -27,6 +29,8 @@ android_blocking_calls_cuj_metric {
       name: "com.google.android.with.custom.ui.thread"
       uid: 10001
       pid: 5000
+      android_user_id: 0
+      is_kernel_task: false
     }
     ts: 0
     dur: 18000000

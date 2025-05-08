@@ -14,6 +14,7 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE linux.threads;
+
 INCLUDE PERFETTO MODULE viz.summary.trace;
 
 -- Create a new table containing the utids of all the kernel threads.
@@ -23,7 +24,8 @@ CREATE PERFETTO TABLE _kernel_threads AS
 SELECT
   utid
 FROM linux_kernel_threads
-WHERE _is_linux_trace() = 1;
+WHERE
+  _is_linux_trace() = 1;
 
 CREATE PERFETTO TABLE _threads_with_kernel_flag AS
 SELECT
@@ -33,6 +35,11 @@ SELECT
   tid,
   name,
   is_main_thread,
+  is_idle,
   machine_id,
-  utid IN (SELECT utid FROM _kernel_threads) AS is_kernel_thread
-FROM thread
+  utid IN (
+    SELECT
+      utid
+    FROM _kernel_threads
+  ) AS is_kernel_thread
+FROM thread;

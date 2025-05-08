@@ -69,8 +69,8 @@ class WindowManager(TestSuite):
         trace=Path('windowmanager.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.winscope.windowmanager;
-        SELECT COUNT(*) FROM android_windowmanager
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        SELECT COUNT(*) FROM __intrinsic_windowmanager
+        WHERE base64_proto_id IS NOT NULL
         """,
         out=Csv("""
         "COUNT(*)"

@@ -52,6 +52,7 @@ packet {
       reference_object_id: 0x02
       reference_object_id: 0x00
       reference_object_id: 0x02
+      heap_type_delta: HEAP_TYPE_APP
     }
     objects {
       id: 0x02
@@ -77,6 +78,12 @@ packet {
       id: 0x06
       type_id: 5
       self_size: 256
+    }
+    objects {
+      id: 0x07
+      type_id: 8
+      self_size: 256
+      heap_type_delta: HEAP_TYPE_ZYGOTE
     }
     continued: true
     index: 0
@@ -135,6 +142,10 @@ packet {
       id: 5
       class_name: "java.lang.Class<a[]>"
       location_id: 1
+    }
+    types {
+      id: 8
+      class_name: "android.os.Parcel"
     }
     field_names {
       iid: 1

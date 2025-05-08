@@ -37,6 +37,7 @@ perfetto_proto_library("@TYPE@") {
 
   sources = [
     "chrome/chrome_config.proto",
+    "chrome/histogram_samples.proto",
     "chrome/scenario_config.proto",
     "chrome/system_metrics.proto",
     "chrome/v8_config.proto",
@@ -49,5 +50,7 @@ perfetto_proto_library("@TYPE@") {
   ]
 
   generate_descriptor = "config.descriptor"
+  generator_visibility =
+      [ "../../../src/trace_config_utils:gen_cc_config_descriptor" ]
   descriptor_root_source = "trace_config.proto"
 }

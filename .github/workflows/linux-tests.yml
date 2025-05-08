@@ -1,0 +1,153 @@
+# Copyright (C) 2025 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This workflow is triggered by analyze.yml
+name: Perfetto CI [linux]
+on:
+  workflow_call:
+env:
+  # /tmp/cache contains {ccache, bazelcache} and generally any other cache
+  # that should be persisted across jobs, but only updated from the main
+  # branch. This is populated by the "actions/cache/restore" step below.
+  PERFETTO_CACHE_DIR: /tmp/cache
+  PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
+  PYTHONUNBUFFERED: 1
+jobs:
+  linux:
+    runs-on: self-hosted
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false  # Don't cancel all jobs if one fails (to detect flakes).
+      matrix:
+        config:
+          - name: clang-x86_64-debug
+            PERFETTO_TEST_GN_ARGS: 'is_debug=true is_hermetic_clang=false non_hermetic_clang_stdlib=\"libc++\" enable_perfetto_merged_protos_check=true cc_wrapper=\"ccache\"'
+            PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
+          - name: clang-x86_64-tsan
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_tsan=true cc_wrapper=\"ccache\"'
+            PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
+          - name: clang-x86_64-msan
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_msan=true cc_wrapper=\"ccache\"'
+            PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
+          - name: clang-x86_64-asan_lsan
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_asan=true is_lsan=true cc_wrapper=\"ccache\"'
+            PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
+          - name: clang-x86-release
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false target_cpu=\"x86\" cc_wrapper=\"ccache\"'
+            PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
+          - name: gcc8-x86_64-release
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_clang=false enable_perfetto_grpc=true cc=\"gcc-8\" cxx=\"g++-8\" cc_wrapper=\"ccache\"'
+            PERFETTO_INSTALL_BUILD_DEPS_ARGS: '--grpc'
+    env:
+      PERFETTO_CI_JOB_NAME: ${{ matrix.config.name }}
+      PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-${{ matrix.config.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup ccache
+        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+
+      - name: Setup artifacts
+        run: |
+          PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_ROOT/$PERFETTO_CI_JOB_ID
+          echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
+          mkdir -p $PERFETTO_ARTIFACTS_DIR
+
+      - name: Restore cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.PERFETTO_CACHE_DIR }}
+          key: cache-${{ matrix.config.name }}-${{ github.run_id }}
+          restore-keys: |
+            cache-${{ matrix.config.name }}-
+
+      - uses: ./.github/actions/install-build-deps
+        with:
+          install-flags: ${{ matrix.config.PERFETTO_INSTALL_BUILD_DEPS_ARGS }}
+
+      - name: Run GN
+        env:
+          # We hop through this env var to preserve quote escaping.
+          GN_ARGS: ${{ matrix.config.PERFETTO_TEST_GN_ARGS }}
+        run: tools/gn gen out/dist --args="${{ env.GN_ARGS }}" --check
+
+      - name: Build
+        run: tools/ninja -C out/dist
+
+      - name: Print ccache stats
+        run: ccache --show-stats
+
+      - name: setup symbolizer paths
+        run: |
+          if [[ -e buildtools/linux64/clang/bin/llvm-symbolizer ]]; then
+            echo "ASAN_SYMBOLIZER_PATH=$(readlink -f buildtools/linux64/clang/bin/llvm-symbolizer)" >> $GITHUB_ENV
+            echo "MSAN_SYMBOLIZER_PATH=$(readlink -f buildtools/linux64/clang/bin/llvm-symbolizer)" >> $GITHUB_ENV
+          fi
+
+      - name: perfetto_unittests
+        run: out/dist/perfetto_unittests
+
+      - name: perfetto_integrationtests
+        run: out/dist/perfetto_integrationtests
+
+      - name: trace_processor_minimal_smoke_tests
+        run: out/dist/trace_processor_minimal_smoke_tests
+
+      - name: Find trace_processor_shell
+        run: |
+          # If this is a split host+target build, use the trace_processor_shell
+          # binary from the host directory. In some cases (e.g. lsan x86 builds)
+          # the host binary that is copied into the target directory cannot run
+          # because depends on libc++.so within the same folder (which is built
+          # using target bitness, not host bitness).
+          HOST_OUT_PATH=out/dist/gcc_like_host
+          if [ ! -f $HOST_OUT_PATH/trace_processor_shell ]; then
+            HOST_OUT_PATH=out/dist
+          fi
+          echo "HOST_OUT_PATH=$HOST_OUT_PATH" >> $GITHUB_ENV
+
+      - name: TraceProcessor diff tests
+        run: |
+          mkdir -p "$PERFETTO_ARTIFACTS_DIR/perf"
+          tools/diff_test_trace_processor.py \
+            --perf-file=$PERFETTO_ARTIFACTS_DIR/perf/tp-perf-all.json \
+            $HOST_OUT_PATH/trace_processor_shell
+
+      - name: TraceProcessor python tests
+        run: python/run_tests.py $HOST_OUT_PATH
+
+      - name: perfetto_benchmarks (functional-only)
+        if: ${{ !(contains(matrix.name, 'msan') || contains(matrix.name, 'asan') || contains(matrix.name, 'tsan')) }}
+        run: |
+          # Don't run benchmarks under x86 (running out of address space because
+          # of 4GB) limit or debug (too slow and pointless).
+          HOST_CPU="$(tools/gn args --short --list=host_cpu out/dist | awk '{print $3}' | sed -e 's/^"//' -e 's/"$//')"
+          TARGET_CPU="$(tools/gn args --short --list=target_cpu out/dist | awk '{print $3}' | sed -e 's/^"//' -e 's/"$//')"
+          IS_DEBUG="$(tools/gn args --short --list=is_debug out/dist | awk '{print $3}')"
+          if [[ !("$TARGET_CPU" == "x86" || ("$TARGET_CPU" == "" && "$HOST_CPU" == "x86")) && "$IS_DEBUG" == "false" ]]; then
+            BENCHMARK_FUNCTIONAL_TEST_ONLY=true out/dist/perfetto_benchmarks
+          fi
+
+      - name: Upload artifacts to GCS
+        if: ${{ always() }}
+        run: |
+          /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_ROOT }}
+
+      - name: Update cache (if on main)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.PERFETTO_CACHE_DIR }}
+          key: cache-${{ matrix.config.name }}-${{ github.run_id }}
+

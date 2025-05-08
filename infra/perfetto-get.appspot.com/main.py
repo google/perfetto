@@ -19,8 +19,7 @@ import time
 from collections import namedtuple
 from flask import Flask, make_response, redirect
 
-BASE = 'https://android.googlesource.com/platform/external/perfetto.git/' \
-       '+/main/%s?format=TEXT'
+BASE = 'https://raw.githubusercontent.com/google/perfetto/main/%s'
 
 RESOURCES = {
     'tracebox': 'tools/tracebox',
@@ -63,7 +62,7 @@ def fetch_artifact(resource):
     if req.status_code != 200:
       err_str = 'http error %d while fetching %s' % (req.status_code, url)
       return make_response(err_str, req.status_code, hdrs)
-    contents = base64.b64decode(req.text)
+    contents = req.text
     cache[url] = CacheEntry(contents, time.time() + CACHE_TTL)
   hdrs = {'Content-Disposition': 'attachment; filename="%s"' % resource}
   return make_response(contents, 200, hdrs)

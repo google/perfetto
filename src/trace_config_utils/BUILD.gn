@@ -21,10 +21,9 @@ source_set("txt_to_pb") {
   deps = [
     ":gen_cc_config_descriptor",
     "../../gn:default_deps",
-    "../../protos/perfetto/common:cpp",
-    "../../protos/perfetto/config:cpp",
     "../base",
     "../protozero",
+    "../protozero/text_to_proto",
   ]
   sources = [
     "txt_to_pb.cc",

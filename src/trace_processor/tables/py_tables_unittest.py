@@ -13,7 +13,7 @@
 # limitations under the License.
 """Contains tables for unittesting."""
 
-from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import Column as C, CppOptional
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import Table
@@ -25,7 +25,7 @@ EVENT_TABLE = Table(
     sql_name="event",
     columns=[
         C("ts", CppInt64(), flags=ColumnFlag.SORTED),
-        C("arg_set_id", CppUint32()),
+        C("arg_set_id", CppOptional(CppUint32())),
     ])
 
 EVENT_CHILD_TABLE = Table(

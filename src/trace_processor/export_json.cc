@@ -37,6 +37,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -503,28 +504,24 @@ class JsonExporter {
           inf_value_(Json::StaticString("Infinity")),
           neg_inf_value_(Json::StaticString("-Infinity")) {
       const auto& arg_table = storage_->arg_table();
-      uint32_t count = arg_table.row_count();
-      if (count == 0) {
-        args_sets_.resize(1, empty_value_);
-        return;
-      }
-      args_sets_.resize(arg_table[count - 1].arg_set_id() + 1, empty_value_);
-
+      Json::Value* cur_args_ptr = nullptr;
+      uint32_t cur_args_set_id = std::numeric_limits<uint32_t>::max();
       for (auto it = arg_table.IterateRows(); it; ++it) {
         ArgSetId set_id = it.arg_set_id();
+        if (set_id != cur_args_set_id) {
+          cur_args_ptr =
+              args_sets_.Insert(set_id, Json::Value(Json::objectValue)).first;
+          cur_args_set_id = set_id;
+        }
         const char* key = storage->GetString(it.key()).c_str();
         Variadic value = storage_->GetArgValue(it.row_number().row_number());
-        AppendArg(set_id, key, VariadicToJson(value));
+        AppendArg(cur_args_ptr, key, VariadicToJson(value));
       }
       PostprocessArgs();
     }
 
-    const Json::Value& GetArgs(ArgSetId set_id) const {
-      // If |set_id| was empty and added to the storage last, it may not be in
-      // args_sets_.
-      if (set_id > args_sets_.size())
-        return empty_value_;
-      return args_sets_[set_id];
+    const Json::Value& GetArgs(std::optional<ArgSetId> set_id) const {
+      return set_id ? *args_sets_.Find(*set_id) : empty_value_;
     }
 
    private:
@@ -566,15 +563,13 @@ class JsonExporter {
       PERFETTO_FATAL("Not reached");  // For gcc.
     }
 
-    void AppendArg(ArgSetId set_id,
-                   const std::string& key,
-                   const Json::Value& value) {
-      Json::Value* target = &args_sets_[set_id];
+    static void AppendArg(Json::Value* target,
+                          const std::string& key,
+                          const Json::Value& value) {
       for (base::StringSplitter parts(key, '.'); parts.Next();) {
         if (PERFETTO_UNLIKELY(!target->isNull() && !target->isObject())) {
           PERFETTO_DLOG("Malformed arguments. Can't append %s to %s.",
-                        key.c_str(),
-                        args_sets_[set_id].toStyledString().c_str());
+                        key.c_str(), target->toStyledString().c_str());
           return;
         }
         std::string key_part = parts.cur_token();
@@ -592,8 +587,7 @@ class JsonExporter {
                                                     bracketpos - 1);
             if (PERFETTO_UNLIKELY(!target->isNull() && !target->isArray())) {
               PERFETTO_DLOG("Malformed arguments. Can't append %s to %s.",
-                            key.c_str(),
-                            args_sets_[set_id].toStyledString().c_str());
+                            key.c_str(), target->toStyledString().c_str());
               return;
             }
             std::optional<uint32_t> index = base::StringToUInt32(s);
@@ -611,7 +605,8 @@ class JsonExporter {
     }
 
     void PostprocessArgs() {
-      for (Json::Value& args : args_sets_) {
+      for (auto it = args_sets_.GetIterator(); it; ++it) {
+        auto& args = it.value();
         // Move all fields from "debug" key to upper level.
         if (args.isMember("debug")) {
           Json::Value debug = args["debug"];
@@ -648,7 +643,7 @@ class JsonExporter {
     }
 
     const TraceStorage* storage_;
-    std::vector<Json::Value> args_sets_;
+    base::FlatHashMap<ArgSetId, Json::Value> args_sets_;
     const Json::Value empty_value_;
     const Json::Value nan_value_;
     const Json::Value inf_value_;
@@ -1073,12 +1068,12 @@ class JsonExporter {
     for (auto it = flow_table.IterateRows(); it; ++it) {
       SliceId slice_out = it.slice_out();
       SliceId slice_in = it.slice_in();
-      uint32_t arg_set_id = it.arg_set_id();
+      std::optional<uint32_t> arg_set_id = it.arg_set_id();
 
       std::string cat;
       std::string name;
       auto args = args_builder_.GetArgs(arg_set_id);
-      if (arg_set_id != kInvalidArgSetId) {
+      if (arg_set_id != std::nullopt) {
         cat = args["cat"].asString();
         name = args["name"].asString();
         // Don't export these args since they are only used for this export and
@@ -1107,7 +1102,7 @@ class JsonExporter {
   }
 
   Json::Value ConvertLegacyRawEventToJson(
-      const tables::RawTable::ConstIterator& it) {
+      const tables::ChromeRawTable::ConstIterator& it) {
     Json::Value event;
     event["ts"] = Json::Int64(it.ts() / 1000);
 
@@ -1192,7 +1187,7 @@ class JsonExporter {
     std::optional<StringId> raw_chrome_metadata_event_id =
         storage_->string_pool().GetId("chrome_event.metadata");
 
-    const auto& events = storage_->raw_table();
+    const auto& events = storage_->chrome_raw_table();
     for (auto it = events.IterateRows(); it; ++it) {
       if (raw_legacy_event_key_id && it.name() == *raw_legacy_event_key_id) {
         Json::Value event = ConvertLegacyRawEventToJson(it);

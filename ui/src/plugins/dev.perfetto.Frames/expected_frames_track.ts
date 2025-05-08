@@ -14,63 +14,39 @@
 
 import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
-import {
-  NAMED_ROW,
-  NamedRow,
-  NamedSliceTrack,
-} from '../../components/tracks/named_slice_track';
-import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../components/tracks/slice_layout';
-import {Slice} from '../../public/track';
 import {Trace} from '../../public/trace';
-import {TrackEventDetails} from '../../public/selection';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 
 const GREEN = makeColorScheme(new HSLColor('#4CAF50')); // Green 500
 
-export class ExpectedFramesTrack extends NamedSliceTrack {
-  constructor(
-    trace: Trace,
-    maxDepth: number,
-    uri: string,
-    private trackIds: number[],
-  ) {
-    super(trace, uri);
-    this.sliceLayout = {
-      ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
-      depthGuess: maxDepth,
-    };
-  }
-
-  getSqlSource(): string {
-    return `
-      SELECT
-        ts,
-        dur,
-        layout_depth as depth,
-        name,
-        id
-      from experimental_slice_layout
-      where
-        filter_track_ids = '${this.trackIds.join(',')}'
-    `;
-  }
-
-  rowToSlice(row: NamedRow): Slice {
-    const baseSlice = this.rowToSliceBase(row);
-    return {...baseSlice, colorScheme: GREEN};
-  }
-
-  getRowSpec(): NamedRow {
-    return NAMED_ROW;
-  }
-
-  override async getSelectionDetails(
-    id: number,
-  ): Promise<TrackEventDetails | undefined> {
-    const baseDetails = await super.getSelectionDetails(id);
-    if (!baseDetails) return undefined;
-    return {
-      ...baseDetails,
-      tableName: 'slice',
-    };
-  }
+export function createExpectedFramesTrack(
+  trace: Trace,
+  uri: string,
+  maxDepth: number,
+  trackIds: ReadonlyArray<number>,
+) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    initialMaxDepth: maxDepth,
+    rootTableName: 'slice',
+    dataset: new SourceDataset({
+      src: 'expected_frame_timeline_slice',
+      schema: {
+        ts: LONG,
+        dur: LONG,
+        name: STR,
+        id: NUM,
+      },
+      filter: {
+        col: 'track_id',
+        in: trackIds,
+      },
+    }),
+    colorizer: () => GREEN,
+    detailsPanel: () => new ThreadSliceDetailsPanel(trace),
+  });
 }

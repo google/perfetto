@@ -32,7 +32,7 @@ class AndroidInputEventParser {
   explicit AndroidInputEventParser(TraceProcessorContext* context);
 
   void ParseAndroidInputEvent(int64_t packet_ts,
-                            const protozero::ConstBytes& bytes);
+                              const protozero::ConstBytes& bytes);
 
  private:
   TraceProcessorContext& context_;
@@ -40,7 +40,8 @@ class AndroidInputEventParser {
 
   void ParseMotionEvent(int64_t packet_ts, const protozero::ConstBytes& bytes);
   void ParseKeyEvent(int64_t packet_ts, const protozero::ConstBytes& bytes);
-  void ParseWindowDispatchEvent(int64_t packet_ts, const protozero::ConstBytes& bytes);
+  void ParseWindowDispatchEvent(int64_t packet_ts,
+                                const protozero::ConstBytes& bytes);
 };
 
 }  // namespace perfetto::trace_processor

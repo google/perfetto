@@ -13,6 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 INCLUDE PERFETTO MODULE slices.with_context;
+
 INCLUDE PERFETTO MODULE intervals.overlap;
 
 -- The concept of a "flat slice" is to take the data in the slice table and
@@ -44,7 +45,6 @@ INCLUDE PERFETTO MODULE intervals.overlap;
 -- @column dur                Duration of `slice.id` as the most active slice until the next active slice.
 -- @column depth              Depth of `slice.id` in the original stack.
 -- @column name               Name of `slice.id`.
--- @column root_name          Name of the top most slice of the stack.
 -- @column root_id            Id of of the top most slice of the stack.
 -- @column track_id           Alias for `slice.track_id`.
 -- @column utid               Alias for `thread.utid`.
@@ -53,20 +53,29 @@ INCLUDE PERFETTO MODULE intervals.overlap;
 -- @column upid               Alias for `process.upid`.
 -- @column pid                Alias for `process.pid`.
 -- @column process_name       Alias for `process.name`.
-CREATE PERFETTO TABLE _slice_flattened
-AS
+CREATE PERFETTO TABLE _slice_flattened AS
 WITH
   root_slices AS (
-    SELECT * FROM slice WHERE parent_id IS NULL
+    SELECT
+      *
+    FROM slice
+    WHERE
+      parent_id IS NULL
   ),
   child_slices AS (
-    SELECT anc.id AS root_id, slice.*
-    FROM slice
-    JOIN ancestor_slice(slice.id) anc
-    WHERE slice.parent_id IS NOT NULL
+    SELECT
+      anc.id AS root_id,
+      slice.*
+    FROM slice, ancestor_slice(slice.id) AS anc
+    WHERE
+      slice.parent_id IS NOT NULL
   ),
   flat_slices AS (
-    SELECT id, ts, dur
+    SELECT
+      root_id,
+      id,
+      ts,
+      dur
     FROM _intervals_flatten !(_intervals_merge_root_and_children!(root_slices, child_slices))
   )
 SELECT
@@ -75,6 +84,7 @@ SELECT
   flat_slices.dur,
   depth,
   name,
+  root_id,
   track_id,
   utid,
   tid,
@@ -86,8 +96,6 @@ FROM flat_slices
 JOIN thread_slice
   USING (id);
 
-CREATE PERFETTO INDEX _slice_flattened_id_idx
-ON _slice_flattened(slice_id);
+CREATE PERFETTO INDEX _slice_flattened_id_idx ON _slice_flattened(slice_id);
 
-CREATE PERFETTO INDEX _slice_flattened_ts_idx
-ON _slice_flattened(ts);
+CREATE PERFETTO INDEX _slice_flattened_ts_idx ON _slice_flattened(ts);

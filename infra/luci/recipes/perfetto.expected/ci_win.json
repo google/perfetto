@@ -12,7 +12,7 @@
       "/path/to/tmp/json",
       "ensure-directory",
       "--mode",
-      "0777",
+      "0o777",
       "[CACHE]\\builder\\perfetto"
     ],
     "infra_step": true,
@@ -63,7 +63,7 @@
       "fetch",
       "--tags",
       "--force",
-      "https://android.googlesource.com/platform/external/perfetto",
+      "https://chromium.googlesource.com/external/github.com/google/perfetto",
       "refs/heads/main"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
@@ -138,7 +138,8 @@
   {
     "cmd": [
       "python3",
-      "tools/install-build-deps"
+      "tools/install-build-deps",
+      "--no-dev-tools"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
@@ -420,6 +421,7 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
     "luci_context": {
       "realm": {
         "name": "perfetto:ci"
@@ -453,10 +455,13 @@
       "latest",
       "-tag",
       "git_revision:",
+      "-metadata",
+      "build_id:8945511751514863184",
       "-json-output",
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
     "luci_context": {
       "realm": {
         "name": "perfetto:ci"
@@ -560,6 +565,7 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
     "luci_context": {
       "realm": {
         "name": "perfetto:ci"
@@ -593,10 +599,13 @@
       "latest",
       "-tag",
       "git_revision:",
+      "-metadata",
+      "build_id:8945511751514863184",
       "-json-output",
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
     "luci_context": {
       "realm": {
         "name": "perfetto:ci"
@@ -700,6 +709,7 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
     "luci_context": {
       "realm": {
         "name": "perfetto:ci"
@@ -733,10 +743,13 @@
       "latest",
       "-tag",
       "git_revision:",
+      "-metadata",
+      "build_id:8945511751514863184",
       "-json-output",
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
     "luci_context": {
       "realm": {
         "name": "perfetto:ci"
@@ -840,6 +853,7 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
     "luci_context": {
       "realm": {
         "name": "perfetto:ci"
@@ -873,10 +887,13 @@
       "latest",
       "-tag",
       "git_revision:",
+      "-metadata",
+      "build_id:8945511751514863184",
       "-json-output",
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
     "luci_context": {
       "realm": {
         "name": "perfetto:ci"

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {findRef} from '../base/dom_utils';
 import {assertExists, assertTrue} from '../base/logging';
 import {Monitor} from '../base/monitor';
 import {Button, ButtonBar} from './button';
@@ -24,6 +23,9 @@ import {Spinner} from './spinner';
 import {TagInput} from './tag_input';
 import {SegmentedButtons} from './segmented_buttons';
 import {z} from 'zod';
+import {Rect2D, Size2D} from '../base/geom';
+import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
+import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
 
 const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
@@ -78,6 +80,18 @@ interface ZoomRegion {
   readonly type: 'ABOVE_ROOT' | 'BELOW_ROOT' | 'ROOT';
 }
 
+export interface FlamegraphOptionalAction {
+  readonly name: string;
+  execute?: (kv: ReadonlyMap<string, string>) => void;
+  readonly subActions?: FlamegraphOptionalAction[];
+}
+
+export type FlamegraphPropertyDefinition = {
+  displayName: string;
+  value: string;
+  isVisible: boolean;
+};
+
 export interface FlamegraphQueryData {
   readonly nodes: ReadonlyArray<{
     readonly id: number;
@@ -87,7 +101,7 @@ export interface FlamegraphQueryData {
     readonly selfValue: number;
     readonly cumulativeValue: number;
     readonly parentCumulativeValue?: number;
-    readonly properties: ReadonlyMap<string, string>;
+    readonly properties: ReadonlyMap<string, FlamegraphPropertyDefinition>;
     readonly xStart: number;
     readonly xEnd: number;
   }>;
@@ -95,6 +109,8 @@ export interface FlamegraphQueryData {
   readonly allRootsCumulativeValue: number;
   readonly minDepth: number;
   readonly maxDepth: number;
+  readonly nodeActions: ReadonlyArray<FlamegraphOptionalAction>;
+  readonly rootActions: ReadonlyArray<FlamegraphOptionalAction>;
 }
 
 const FLAMEGRAPH_FILTER_SCHEMA = z
@@ -105,6 +121,7 @@ const FLAMEGRAPH_FILTER_SCHEMA = z
         z.literal('HIDE_STACK').readonly(),
         z.literal('SHOW_FROM_FRAME').readonly(),
         z.literal('HIDE_FRAME').readonly(),
+        z.literal('OPTIONS').readonly(),
       ])
       .readonly(),
     filter: z.string().readonly(),
@@ -196,8 +213,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private renderNodes?: ReadonlyArray<RenderNode>;
 
   private tooltipPos?: {
-    node: RenderNode;
     x: number;
+    y: number;
+    source: Source;
     state: 'HOVER' | 'CLICK' | 'DECLICK';
   };
   private lastClickedNode?: RenderNode;
@@ -241,120 +259,126 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const canvasHeight =
       Math.max(maxDepth - minDepth + PADDING_NODE_COUNT, PADDING_NODE_COUNT) *
       NODE_HEIGHT;
+    const hoveredNode = this.renderNodes?.find((n) =>
+      isIntersecting(this.hoveredX, this.hoveredY, n),
+    );
     return m(
       '.pf-flamegraph',
       this.renderFilterBar(attrs),
       m(
-        '.canvas-container[ref=canvas-container]',
+        VirtualOverlayCanvas,
         {
-          // This will trigger auto redraws
-          onscroll: () => {},
+          className: 'virtual-canvas',
+          overflowX: 'hidden',
+          overflowY: 'auto',
+          onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {
+            this.drawCanvas(ctx, virtualCanvasSize, canvasRect);
+          },
         },
         m(
-          Popup,
+          'div',
           {
-            trigger: m('.popup-anchor', {
-              style: {
-                left: this.tooltipPos?.x + 'px',
-                top: this.tooltipPos?.node.y + 'px',
-              },
-            }),
-            position: PopupPosition.Bottom,
-            isOpen:
-              this.tooltipPos?.state === 'HOVER' ||
-              this.tooltipPos?.state === 'CLICK',
-            className: 'pf-flamegraph-tooltip-popup',
-            offset: NODE_HEIGHT,
-          },
-          this.renderTooltip(),
-        ),
-        m(`canvas[ref=canvas]`, {
-          style: `height:${canvasHeight}px; width:100%`,
-          onmousemove: ({offsetX, offsetY}: MouseEvent) => {
-            this.hoveredX = offsetX;
-            this.hoveredY = offsetY;
-            if (this.tooltipPos?.state === 'CLICK') {
-              return;
-            }
-            const renderNode = this.renderNodes?.find((n) =>
-              isIntersecting(offsetX, offsetY, n),
-            );
-            if (renderNode === undefined) {
-              this.tooltipPos = undefined;
-              return;
-            }
-            if (
-              isIntersecting(
-                this.tooltipPos?.x,
-                this.tooltipPos?.node.y,
-                renderNode,
-              )
-            ) {
-              return;
-            }
-            this.tooltipPos = {
-              x: offsetX,
-              node: renderNode,
-              state: 'HOVER',
-            };
-          },
-          onmouseout: () => {
-            this.hoveredX = undefined;
-            this.hoveredY = undefined;
-            document.body.style.cursor = 'default';
-            if (
-              this.tooltipPos?.state === 'HOVER' ||
-              this.tooltipPos?.state === 'DECLICK'
-            ) {
-              this.tooltipPos = undefined;
-            }
-          },
-          onclick: ({offsetX, offsetY}: MouseEvent) => {
-            const renderNode = this.renderNodes?.find((n) =>
-              isIntersecting(offsetX, offsetY, n),
-            );
-            this.lastClickedNode = renderNode;
-            if (renderNode === undefined) {
-              this.tooltipPos = undefined;
-            } else if (
-              isIntersecting(
-                this.tooltipPos?.x,
-                this.tooltipPos?.node.y,
-                renderNode,
-              )
-            ) {
-              this.tooltipPos!.state =
-                this.tooltipPos?.state === 'CLICK' ? 'DECLICK' : 'CLICK';
-            } else {
+            style: {
+              height: `${canvasHeight}px`,
+              cursor: hoveredNode === undefined ? 'default' : 'pointer',
+            },
+            onmousemove: ({offsetX, offsetY}: MouseEvent) => {
+              this.hoveredX = offsetX;
+              this.hoveredY = offsetY;
+              if (this.tooltipPos?.state === 'CLICK') {
+                return;
+              }
+              const renderNode = this.renderNodes?.find((n) =>
+                isIntersecting(offsetX, offsetY, n),
+              );
+              if (renderNode === undefined) {
+                this.tooltipPos = undefined;
+                return;
+              }
+              if (
+                isIntersecting(
+                  this.tooltipPos?.x,
+                  this.tooltipPos?.y,
+                  renderNode,
+                )
+              ) {
+                return;
+              }
               this.tooltipPos = {
                 x: offsetX,
-                node: renderNode,
-                state: 'CLICK',
+                y: renderNode.y,
+                source: renderNode.source,
+                state: 'HOVER',
               };
-            }
+            },
+            onmouseout: () => {
+              this.hoveredX = undefined;
+              this.hoveredY = undefined;
+              if (
+                this.tooltipPos?.state === 'HOVER' ||
+                this.tooltipPos?.state === 'DECLICK'
+              ) {
+                this.tooltipPos = undefined;
+              }
+            },
+            onclick: ({offsetX, offsetY}: MouseEvent) => {
+              const renderNode = this.renderNodes?.find((n) =>
+                isIntersecting(offsetX, offsetY, n),
+              );
+              this.lastClickedNode = renderNode;
+              if (renderNode === undefined) {
+                this.tooltipPos = undefined;
+              } else if (
+                isIntersecting(
+                  this.tooltipPos?.x,
+                  this.tooltipPos?.y,
+                  renderNode,
+                )
+              ) {
+                this.tooltipPos!.state =
+                  this.tooltipPos?.state === 'CLICK' ? 'DECLICK' : 'CLICK';
+              } else {
+                this.tooltipPos = {
+                  x: offsetX,
+                  y: renderNode.y,
+                  source: renderNode.source,
+                  state: 'CLICK',
+                };
+              }
+            },
+            ondblclick: ({offsetX, offsetY}: MouseEvent) => {
+              const renderNode = this.renderNodes?.find((n) =>
+                isIntersecting(offsetX, offsetY, n),
+              );
+              // TODO(lalitm): ignore merged nodes for now as we haven't quite
+              // figured out the UX for this.
+              if (renderNode?.source.kind === 'MERGED') {
+                return;
+              }
+              this.zoomRegion = renderNode?.source;
+            },
           },
-          ondblclick: ({offsetX, offsetY}: MouseEvent) => {
-            const renderNode = this.renderNodes?.find((n) =>
-              isIntersecting(offsetX, offsetY, n),
-            );
-            // TODO(lalitm): ignore merged nodes for now as we haven't quite
-            // figured out the UX for this.
-            if (renderNode?.source.kind === 'MERGED') {
-              return;
-            }
-            this.zoomRegion = renderNode?.source;
-          },
-        }),
+          m(
+            Popup,
+            {
+              trigger: m('.popup-anchor', {
+                style: {
+                  left: this.tooltipPos?.x + 'px',
+                  top: this.tooltipPos?.y + 'px',
+                },
+              }),
+              position: PopupPosition.Bottom,
+              isOpen:
+                this.tooltipPos?.state === 'HOVER' ||
+                this.tooltipPos?.state === 'CLICK',
+              className: 'pf-flamegraph-tooltip-popup',
+              offset: NODE_HEIGHT,
+            },
+            this.renderTooltip(),
+          ),
+        ),
       ),
     );
-  }
-
-  oncreate({dom}: m.VnodeDOM<FlamegraphAttrs, this>) {
-    this.drawCanvas(dom);
-  }
-
-  onupdate({dom}: m.VnodeDOM<FlamegraphAttrs, this>) {
-    this.drawCanvas(dom);
   }
 
   static createDefaultState(
@@ -367,23 +391,12 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     };
   }
 
-  private drawCanvas(dom: Element) {
-    // TODO(lalitm): consider migrating to VirtualCanvas to improve performance here.
-    const canvasContainer = findRef(dom, 'canvas-container');
-    if (canvasContainer === null) {
-      return;
-    }
-    const canvas = findRef(dom, 'canvas');
-    if (canvas === null || !(canvas instanceof HTMLCanvasElement)) {
-      return;
-    }
-    const ctx = canvas.getContext('2d');
-    if (ctx === null) {
-      return;
-    }
-    canvas.width = canvas.offsetWidth * devicePixelRatio;
-    canvas.height = canvas.offsetHeight * devicePixelRatio;
-    this.canvasWidth = canvas.offsetWidth;
+  private drawCanvas(
+    ctx: CanvasRenderingContext2D,
+    size: Size2D,
+    rect: Rect2D,
+  ) {
+    this.canvasWidth = size.width;
 
     if (this.renderNodesMonitor.ifStateChanged()) {
       if (this.attrs.data === undefined) {
@@ -397,7 +410,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             queryXEnd: this.attrs.data.allRootsCumulativeValue,
             type: 'ROOT',
           },
-          canvas.offsetWidth,
+          size.width,
         );
         this.lastClickedNode = this.renderNodes?.find((n) =>
           isIntersecting(this.lastClickedNode?.x, this.lastClickedNode?.y, n),
@@ -409,19 +422,12 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       return;
     }
 
-    const containerRect = canvasContainer.getBoundingClientRect();
-    const canvasRect = canvas.getBoundingClientRect();
-
-    const yStart = containerRect.top - canvasRect.top;
-    const yEnd = containerRect.bottom - canvasRect.top;
+    const yStart = rect.top;
+    const yEnd = rect.bottom;
 
     const {allRootsCumulativeValue, unfilteredCumulativeValue, nodes} =
       this.attrs.data;
     const unit = assertExists(this.selectedMetric).unit;
-
-    ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
-    ctx.save();
-    ctx.scale(devicePixelRatio, devicePixelRatio);
 
     ctx.font = LABEL_FONT_STYLE;
     ctx.textBaseline = 'middle';
@@ -433,7 +439,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       this.labelCharWidth = ctx.measureText('_').width;
     }
 
-    let hoveredNode: RenderNode | undefined = undefined;
     for (let i = 0; i < this.renderNodes.length; i++) {
       const node = this.renderNodes[i];
       const {x, y, width: width, source, state} = node;
@@ -442,9 +447,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       }
 
       const hover = isIntersecting(this.hoveredX, this.hoveredY, node);
-      if (hover) {
-        hoveredNode = node;
-      }
       let name: string;
       if (source.kind === 'ROOT') {
         const val = displaySize(allRootsCumulativeValue, unit);
@@ -487,12 +489,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         ctx.lineWidth = 0.5;
       }
     }
-    if (hoveredNode === undefined) {
-      canvas.style.cursor = 'default';
-    } else {
-      canvas.style.cursor = 'pointer';
-    }
-    ctx.restore();
   }
 
   private renderFilterBar(attrs: FlamegraphAttrs) {
@@ -574,18 +570,23 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     if (this.tooltipPos === undefined) {
       return undefined;
     }
-    const {node} = this.tooltipPos;
-    if (node.source.kind === 'MERGED') {
+    const {source} = this.tooltipPos;
+    if (source.kind === 'MERGED') {
       return m(
         'div',
         m('.tooltip-bold-text', '(merged)'),
         m('.tooltip-text', 'Nodes too small to show, please use filters'),
       );
     }
-    const {nodes, allRootsCumulativeValue, unfilteredCumulativeValue} =
-      assertExists(this.attrs.data);
+    const {
+      nodes,
+      allRootsCumulativeValue,
+      unfilteredCumulativeValue,
+      nodeActions,
+      rootActions,
+    } = assertExists(this.attrs.data);
     const {unit} = assertExists(this.selectedMetric);
-    if (node.source.kind === 'ROOT') {
+    if (source.kind === 'ROOT') {
       const val = displaySize(allRootsCumulativeValue, unit);
       const percent = displayPercentage(
         allRootsCumulativeValue,
@@ -598,10 +599,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           '.tooltip-text-line',
           m('.tooltip-bold-text', 'Cumulative:'),
           m('.tooltip-text', `${val}, ${percent}`),
+          this.renderActionsMenu(rootActions, new Map()),
         ),
       );
     }
-    const {queryIdx} = node.source;
+    const {queryIdx} = source;
     const {
       name,
       cumulativeValue,
@@ -653,12 +655,15 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           `${displaySize(selfValue, unit)} (${selfPercentText})`,
         ),
       ),
-      Array.from(properties, ([key, value]) => {
-        return m(
-          '.tooltip-text-line',
-          m('.tooltip-bold-text', key + ':'),
-          m('.tooltip-text', value),
-        );
+      Array.from(properties, ([_, value]) => {
+        if (value.isVisible) {
+          return m(
+            '.tooltip-text-line',
+            m('.tooltip-bold-text', value.displayName + ':'),
+            m('.tooltip-text', value.value),
+          );
+        }
+        return null;
       }),
       m(
         ButtonBar,
@@ -666,7 +671,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         m(Button, {
           label: 'Zoom',
           onclick: () => {
-            this.zoomRegion = node.source;
+            this.zoomRegion = source;
           },
         }),
         m(Button, {
@@ -718,10 +723,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           onclick: () => {
             filterButtonClick({
               ...this.attrs.state,
-              view: {kind: 'PIVOT', pivot: name},
+              view: {kind: 'PIVOT', pivot: `^${name}$`},
             });
           },
         }),
+        this.renderActionsMenu(nodeActions, properties),
       ),
     );
   }
@@ -730,6 +736,85 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     return this.attrs.metrics.find(
       (x) => x.name === this.attrs.state.selectedMetricName,
     );
+  }
+
+  private renderActionsMenu(
+    actions: ReadonlyArray<FlamegraphOptionalAction>,
+    properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+  ) {
+    if (actions.length === 0) {
+      return null;
+    }
+
+    return m(
+      PopupMenu,
+      {
+        trigger: m(Button, {
+          icon: 'menu',
+          compact: true,
+        }),
+        position: PopupPosition.Bottom,
+      },
+      actions.map((action) => this.renderMenuItem(action, properties)),
+    );
+  }
+
+  private renderMenuItem(
+    action: FlamegraphOptionalAction,
+    properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+  ): m.Vnode<MenuItemAttrs> {
+    if (action.subActions !== undefined && action.subActions.length > 0) {
+      return this.renderParentMenuItem(action, action.subActions, properties);
+    } else if (action.execute) {
+      return this.renderExecutableMenuItem(action, properties);
+    } else {
+      return this.renderDisabledMenuItem(action);
+    }
+  }
+
+  private renderParentMenuItem(
+    action: FlamegraphOptionalAction,
+    subActions: FlamegraphOptionalAction[],
+    properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+  ): m.Vnode<MenuItemAttrs> {
+    return m(
+      MenuItem,
+      {
+        label: action.name,
+        // No onclick handler for parent menu items
+      },
+      // Directly render sub-actions as children of the MenuItem
+      subActions.map((subAction) => this.renderMenuItem(subAction, properties)),
+    );
+  }
+
+  private renderExecutableMenuItem(
+    action: FlamegraphOptionalAction,
+    properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+  ): m.Vnode<MenuItemAttrs> {
+    return m(MenuItem, {
+      label: action.name,
+      onclick: () => {
+        const reducedProperties = this.createReducedProperties(properties);
+        action.execute!(reducedProperties);
+        this.tooltipPos = undefined; // Close tooltip after action
+      },
+    });
+  }
+
+  private renderDisabledMenuItem(
+    action: FlamegraphOptionalAction,
+  ): m.Vnode<MenuItemAttrs> {
+    return m(MenuItem, {
+      label: action.name,
+      disabled: true,
+    });
+  }
+
+  private createReducedProperties(
+    properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+  ): ReadonlyMap<string, string> {
+    return new Map([...properties].map(([key, {value}]) => [key, value]));
   }
 }
 
@@ -927,35 +1012,36 @@ function displayPercentage(size: number, totalSize: number): string {
 
 function updateState(state: FlamegraphState, filter: string): FlamegraphState {
   const lwr = filter.toLowerCase();
-  if (lwr.startsWith('ss: ') || lwr.startsWith('show stack: ')) {
+  const splitFilterFn = (f: string) => f.substring(f.indexOf(':') + 1).trim();
+  if (lwr.startsWith('ss:') || lwr.startsWith('show stack:')) {
     return addFilter(state, {
       kind: 'SHOW_STACK',
-      filter: filter.split(': ', 2)[1],
+      filter: splitFilterFn(filter),
     });
-  } else if (lwr.startsWith('hs: ') || lwr.startsWith('hide stack: ')) {
+  } else if (lwr.startsWith('hs:') || lwr.startsWith('hide stack:')) {
     return addFilter(state, {
       kind: 'HIDE_STACK',
-      filter: filter.split(': ', 2)[1],
+      filter: splitFilterFn(filter),
     });
-  } else if (lwr.startsWith('sff: ') || lwr.startsWith('show from frame: ')) {
+  } else if (lwr.startsWith('sff:') || lwr.startsWith('show from frame:')) {
     return addFilter(state, {
       kind: 'SHOW_FROM_FRAME',
-      filter: filter.split(': ', 2)[1],
+      filter: splitFilterFn(filter),
     });
-  } else if (lwr.startsWith('hf: ') || lwr.startsWith('hide frame: ')) {
+  } else if (lwr.startsWith('hf:') || lwr.startsWith('hide frame:')) {
     return addFilter(state, {
       kind: 'HIDE_FRAME',
-      filter: filter.split(': ', 2)[1],
+      filter: splitFilterFn(filter),
     });
-  } else if (lwr.startsWith('p:') || lwr.startsWith('pivot: ')) {
+  } else if (lwr.startsWith('p:') || lwr.startsWith('pivot:')) {
     return {
       ...state,
-      view: {kind: 'PIVOT', pivot: filter.split(': ', 2)[1]},
+      view: {kind: 'PIVOT', pivot: splitFilterFn(filter)},
     };
   }
   return addFilter(state, {
     kind: 'SHOW_STACK',
-    filter: filter,
+    filter: filter.trim(),
   });
 }
 
@@ -970,6 +1056,8 @@ function toTags(state: FlamegraphState): ReadonlyArray<string> {
         return 'Show From Frame: ' + x.filter;
       case 'SHOW_STACK':
         return 'Show Stack: ' + x.filter;
+      case 'OPTIONS':
+        return 'Options';
     }
   };
   const filters = state.filters.map((x) => toString(x));

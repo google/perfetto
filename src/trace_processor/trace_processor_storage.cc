@@ -31,7 +31,7 @@ std::unique_ptr<TraceProcessorStorage> TraceProcessorStorage::CreateInstance(
 
 TraceProcessorStorage::~TraceProcessorStorage() = default;
 
-util::Status TraceProcessorStorage::Parse(std::unique_ptr<uint8_t[]> buf,
+base::Status TraceProcessorStorage::Parse(std::unique_ptr<uint8_t[]> buf,
                                           size_t size) {
   return Parse(TraceBlobView(TraceBlob::TakeOwnership(std::move(buf), size)));
 }

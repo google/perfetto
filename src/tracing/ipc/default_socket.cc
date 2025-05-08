@@ -18,6 +18,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/ipc/basic_types.h"
@@ -86,9 +87,18 @@ const char* GetProducerSocket() {
   return name;
 }
 
-const char* GetRelaySocket() {
+std::string GetRelaySocket() {
   // The relay socket is optional and is connected only when the env var is set.
-  return getenv("PERFETTO_RELAY_SOCK_NAME");
+  // In Android, if the env var isn't set then we check the
+  // |traced_relay.relay_port| system property.
+  const char* name = getenv("PERFETTO_RELAY_SOCK_NAME");
+  if (name != nullptr)
+    return std::string(name);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  return base::GetAndroidProp("traced_relay.relay_port");
+#else
+  return std::string();
+#endif
 }
 
 std::vector<std::string> TokenizeProducerSockets(

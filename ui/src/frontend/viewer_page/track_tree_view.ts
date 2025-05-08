@@ -46,7 +46,7 @@ import {
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {TraceImpl} from '../../core/trace_impl';
 import {TrackNode} from '../../public/workspace';
-import {VirtualOverlayCanvas} from '../../components/widgets/virtual_overlay_canvas';
+import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {
   SELECTION_STROKE_COLOR,
   TRACK_BORDER_COLOR,
@@ -59,8 +59,12 @@ import {
   wheelNavigationInteraction,
 } from './timeline_interactions';
 import {TrackView} from './track_view';
-import {drawVerticalLineAtTime} from './vertical_line_helper';
+import {drawVerticalLineAtTime} from '../../base/vertical_line_helper';
 import {featureFlags} from '../../core/feature_flags';
+import {EmptyState} from '../../widgets/empty_state';
+import {Button, ButtonVariant} from '../../widgets/button';
+import {Intent} from '../../widgets/common';
+import {CursorTooltip} from '../../widgets/cursor_tooltip';
 
 const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   id: 'virtualTrackScrolling',
@@ -82,13 +86,23 @@ export interface TrackTreeViewAttrs {
   // Additional class names to add to the root level element.
   readonly className?: string;
 
-  // Whether tracks in this stack can be reordered amongst themselves.
+  // Allow nodes to be reordered by dragging and dropping.
   // Default: false
-  readonly reorderable?: boolean;
+  readonly canReorderNodes?: boolean;
+
+  // Adds a little remove button to each node.
+  // Default: false
+  readonly canRemoveNodes?: boolean;
 
   // Scroll to scroll to new tracks as they are added.
   // Default: false
   readonly scrollToNewTracks?: boolean;
+
+  // If supplied, each track will be run though this filter to work out whether
+  // to show it or not.
+  readonly trackFilter?: (track: TrackNode) => boolean;
+
+  readonly filtersApplied?: boolean;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -112,16 +126,42 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     this.trace = attrs.trace;
   }
 
+  private hoveredTrackNode?: TrackNode;
+
   view({attrs}: m.Vnode<TrackTreeViewAttrs>): m.Children {
-    const {trace, scrollToNewTracks, reorderable, className, rootNode} = attrs;
+    const {
+      trace,
+      scrollToNewTracks,
+      canReorderNodes,
+      canRemoveNodes,
+      className,
+      rootNode,
+      trackFilter,
+      filtersApplied,
+    } = attrs;
     const renderedTracks = new Array<TrackView>();
     let top = 0;
+
+    function filterMatches(node: TrackNode): boolean {
+      if (!trackFilter) return true; // Filter ignored, show all tracks.
+
+      // If this track name matches filter, show it.
+      if (trackFilter(node)) return true;
+
+      // Also show if any of our children match.
+      if (node.children?.some(filterMatches)) return true;
+
+      return false;
+    }
 
     const renderTrack = (
       node: TrackNode,
       depth = 0,
       stickyTop = 0,
     ): m.Children => {
+      // Skip nodes that don't match the filter and have no matching children.
+      if (!filterMatches(node)) return undefined;
+
       const trackView = new TrackView(trace, node, top);
       renderedTracks.push(trackView);
 
@@ -134,7 +174,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       }
 
       const children =
-        (node.headless || node.expanded) &&
+        (node.headless || node.expanded || filtersApplied) &&
         node.hasChildren &&
         node.children.map((track) =>
           renderTrack(track, childDepth, childStickyTop),
@@ -159,21 +199,62 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           {
             lite: !Boolean(isTrackOnScreen()),
             scrollToOnCreate: scrollToNewTracks,
-            reorderable,
+            reorderable: canReorderNodes,
+            removable: canRemoveNodes,
             stickyTop,
             depth,
+            collapsible: !filtersApplied,
+            onTrackMouseOver: () => {
+              this.hoveredTrackNode = node;
+            },
+            onTrackMouseOut: () => {
+              this.hoveredTrackNode = undefined;
+            },
           },
           children,
         );
       }
     };
 
+    const trackVnodes = rootNode.children.map((track) => renderTrack(track));
+
+    // If there are no truthy vnode values, show "empty state" placeholder.
+    if (trackVnodes.every((x) => !Boolean(x))) {
+      if (filtersApplied) {
+        // If we are filtering, show 'no matching tracks' empty state widget.
+        return m(
+          EmptyState,
+          {
+            className,
+            icon: 'filter_alt_off',
+            title: `No tracks match track filter`,
+          },
+          m(Button, {
+            intent: Intent.Primary,
+            variant: ButtonVariant.Filled,
+            label: 'Clear track filter',
+            onclick: () => trace.tracks.filters.clearAll(),
+          }),
+        );
+      } else {
+        // Not filtering, the workspace must be empty.
+        return m(EmptyState, {
+          className,
+          icon: 'inbox',
+          title: 'Empty workspace',
+        });
+      }
+    }
+
     return m(
       VirtualOverlayCanvas,
       {
-        raf: attrs.trace.raf,
+        onMount: (redrawCanvas) =>
+          attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
+        disableCanvasRedrawOnMithrilUpdates: true,
         className: classNames(className, 'pf-track-tree'),
-        scrollAxes: 'y',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {
           this.drawCanvas(
             ctx,
@@ -200,22 +281,25 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           }
         },
       },
-      m(
-        '',
-        {ref: TRACK_CONTAINER_REF},
-        rootNode.children.map((track) => renderTrack(track)),
-      ),
+      m('', {ref: TRACK_CONTAINER_REF}, trackVnodes),
+      this.hoveredTrackNode && this.renderPopup(this.hoveredTrackNode),
     );
   }
 
-  oncreate({attrs, dom}: m.VnodeDOM<TrackTreeViewAttrs>) {
-    const interactionTarget = toHTMLElement(
-      assertExists(findRef(dom, TRACK_CONTAINER_REF)),
-    );
-    this.interactions = new ZonedInteractionHandler(interactionTarget);
-    this.trash.use(this.interactions);
+  private renderPopup(trackNode: TrackNode) {
+    const track = trackNode.uri
+      ? this.trace.tracks.getTrack(trackNode.uri)
+      : undefined;
+    const tooltipNodes = track?.track.renderTooltip?.();
+    if (!Boolean(tooltipNodes)) {
+      return;
+    }
+    return m(CursorTooltip, {className: 'pf-track__tooltip'}, tooltipNodes);
+  }
+
+  oncreate(vnode: m.VnodeDOM<TrackTreeViewAttrs>) {
     this.trash.use(
-      attrs.trace.perfDebugging.addContainer({
+      vnode.attrs.trace.perfDebugging.addContainer({
         setPerfStatsEnabled: (enable: boolean) => {
           this.perfStatsEnabled = enable;
         },
@@ -231,10 +315,32 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         },
       }),
     );
+
+    this.onupdate(vnode);
+  }
+
+  onupdate({dom}: m.VnodeDOM<TrackTreeViewAttrs>) {
+    // Depending on the state of the filter/workspace, we sometimes have a
+    // TRACK_CONTAINER_REF element and sometimes we don't (see the view
+    // function). This means the DOM element could potentially appear/disappear
+    // or change every update cycle. This chunk of code hooks the
+    // ZonedInteractionHandler back up again if the DOM element is present,
+    // otherwise it just removes it.
+    const interactionTarget = findRef(dom, TRACK_CONTAINER_REF) ?? undefined;
+    if (interactionTarget !== this.interactions?.target) {
+      this.interactions?.[Symbol.dispose]();
+      if (!interactionTarget) {
+        this.interactions = undefined;
+      } else {
+        this.interactions = new ZonedInteractionHandler(
+          toHTMLElement(interactionTarget),
+        );
+      }
+    }
   }
 
   onremove() {
-    this.trash.dispose();
+    this.interactions?.[Symbol.dispose]();
   }
 
   private drawCanvas(
@@ -276,10 +382,13 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     renderFlows(this.trace, ctx, size, renderedTracks, rootNode, timescale);
     this.drawHoveredNoteVertical(ctx, timescale, size);
     this.drawHoveredCursorVertical(ctx, timescale, size);
-    this.drawWakeupVertical(ctx, timescale, size);
     this.drawNoteVerticals(ctx, timescale, size);
     this.drawAreaSelection(ctx, timescale, size);
     this.updateInteractions(timelineRect, timescale, size, renderedTracks);
+
+    this.trace.tracks.overlays.forEach((overlay) => {
+      overlay.render(ctx, timescale, size, renderedTracks);
+    });
 
     const renderTime = performance.now() - start;
     this.updatePerfStats(renderTime, renderedTracks.length, tracksOnCanvas);
@@ -574,23 +683,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         this.trace.timeline.hoveredNoteTimestamp,
         size.height,
         `#aaa`,
-      );
-    }
-  }
-
-  private drawWakeupVertical(
-    ctx: CanvasRenderingContext2D,
-    timescale: TimeScale,
-    size: Size2D,
-  ) {
-    const selection = this.trace.selection.selection;
-    if (selection.kind === 'track_event' && selection.wakeupTs) {
-      drawVerticalLineAtTime(
-        ctx,
-        timescale,
-        selection.wakeupTs,
-        size.height,
-        `black`,
       );
     }
   }

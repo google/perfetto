@@ -72,6 +72,76 @@ export const LONG_NULL: bigint | null = 1n;
 
 const SHIFT_32BITS = 32n;
 
+// Describes the inheritance tree of the above types.
+const inheritanceTree = new Map<ColumnType, {readonly extends?: ColumnType}>([
+  [NUM, {extends: NUM_NULL}],
+  [NUM_NULL, {extends: UNKNOWN}],
+  [LONG, {extends: LONG_NULL}],
+  [LONG_NULL, {extends: UNKNOWN}],
+  [BLOB, {extends: BLOB_NULL}],
+  [BLOB_NULL, {extends: UNKNOWN}],
+  [STR, {extends: STR_NULL}],
+  [STR_NULL, {extends: UNKNOWN}],
+  [UNKNOWN, {}],
+]);
+
+/**
+ * Check whether a given type extends another.
+ *
+ * @param required - The type we want to extend.
+ * @param actual - The type to test.
+ * @returns - True if `actual` extends `required`.
+ */
+export function checkExtends(
+  required: ColumnType,
+  actual: ColumnType,
+): boolean {
+  // If the types are the same, just return true
+  if (required === actual) return true;
+
+  const ancestry = getAncestryPath(actual);
+  return ancestry.includes(required);
+}
+
+/**
+ * Returns the closest common ancestor of two types.
+ */
+export function unionTypes(
+  typeA: ColumnType,
+  typeB: ColumnType,
+): ColumnType | undefined {
+  // If the types are the same, just return the same type
+  if (typeA === typeB) return typeA;
+
+  // Get the ancestry path for each type
+  const pathA = getAncestryPath(typeA);
+  const pathB = getAncestryPath(typeB);
+
+  // Find the first common type in both ancestry paths
+  for (const type of pathA) {
+    if (pathB.includes(type)) {
+      return type;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Returns the ancestry path from the given type to the root, inclusive.
+ */
+function getAncestryPath(type: ColumnType): ColumnType[] {
+  const path: ColumnType[] = [type];
+  let current = inheritanceTree.get(type);
+
+  while (current && current.extends !== undefined) {
+    path.push(current.extends);
+    current = inheritanceTree.get(current.extends);
+  }
+
+  return path;
+}
+
 // Fast decode varint int64 into a bigint
 // Inspired by
 // https://github.com/protobufjs/protobuf.js/blob/56b1e64979dae757b67a21d326e16acee39f2267/src/reader.js#L123

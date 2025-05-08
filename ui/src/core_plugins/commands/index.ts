@@ -99,6 +99,17 @@ const SHOW_OPEN_WITH_LEGACY_UI_BUTTON = featureFlags.register({
   defaultValue: false,
 });
 
+function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
+  if (exists(tsRaw)) {
+    if (typeof tsRaw !== 'bigint') {
+      throw Error(`${tsRaw} is not a bigint`);
+    }
+    return Time.fromRaw(tsRaw);
+  }
+  // No args passed, probably run from the command palette.
+  return promptForTimestamp('Enter a timestamp');
+}
+
 export default class implements PerfettoPlugin {
   static readonly id = 'perfetto.CoreCommands';
   static onActivate(ctx: App) {
@@ -152,6 +163,14 @@ export default class implements PerfettoPlugin {
         icon: 'filter_none',
       });
     }
+
+    ctx.commands.registerCommand({
+      id: 'perfetto.closeTrace',
+      name: 'Close trace',
+      callback: () => {
+        ctx.closeCurrentTrace();
+      },
+    });
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -250,17 +269,22 @@ export default class implements PerfettoPlugin {
       id: 'perfetto.CoreCommands#PanToTimestamp',
       name: 'Pan to timestamp',
       callback: (tsRaw: unknown) => {
-        if (exists(tsRaw)) {
-          if (typeof tsRaw !== 'bigint') {
-            throw Error(`${tsRaw} is not a bigint`);
-          }
-          ctx.timeline.panToTimestamp(Time.fromRaw(tsRaw));
-        } else {
-          // No args passed, probably run from the command palette.
-          const ts = promptForTimestamp('Enter a timestamp');
-          if (exists(ts)) {
-            ctx.timeline.panToTimestamp(Time.fromRaw(ts));
-          }
+        const ts = getOrPromptForTimestamp(tsRaw);
+        if (ts !== undefined) {
+          ctx.timeline.panToTimestamp(ts);
+        }
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'perfetto.CoreCommands#MarkTimestamp',
+      name: 'Mark timestamp',
+      callback: (tsRaw: unknown) => {
+        const ts = getOrPromptForTimestamp(tsRaw);
+        if (ts !== undefined) {
+          ctx.notes.addNote({
+            timestamp: ts,
+          });
         }
       },
     });

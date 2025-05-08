@@ -47,7 +47,7 @@ TEST_F(PerfettoSqlPreprocessorUnittest, SemiColonTerminatedStatement) {
   PerfettoSqlPreprocessor preprocessor(source, macros_);
   ASSERT_TRUE(preprocessor.NextStatement());
   ASSERT_EQ(preprocessor.statement(),
-            FindSubstr(source, "SELECT * FROM slice;"));
+            FindSubstr(source, "SELECT * FROM slice"));
   ASSERT_FALSE(preprocessor.NextStatement());
   ASSERT_TRUE(preprocessor.status().ok());
 }
@@ -56,7 +56,7 @@ TEST_F(PerfettoSqlPreprocessorUnittest, IgnoreOnlySpace) {
   auto source = SqlSource::FromExecuteQuery(" ; SELECT * FROM s; ; ;");
   PerfettoSqlPreprocessor preprocessor(source, macros_);
   ASSERT_TRUE(preprocessor.NextStatement());
-  ASSERT_EQ(preprocessor.statement(), FindSubstr(source, "SELECT * FROM s;"));
+  ASSERT_EQ(preprocessor.statement(), FindSubstr(source, "SELECT * FROM s"));
   ASSERT_FALSE(preprocessor.NextStatement());
   ASSERT_TRUE(preprocessor.status().ok());
 }
@@ -67,7 +67,7 @@ TEST_F(PerfettoSqlPreprocessorUnittest, MultipleStmts) {
   PerfettoSqlPreprocessor preprocessor(source, macros_);
   ASSERT_TRUE(preprocessor.NextStatement());
   ASSERT_EQ(preprocessor.statement(),
-            FindSubstr(source, "SELECT * FROM slice;"));
+            FindSubstr(source, "SELECT * FROM slice"));
   ASSERT_TRUE(preprocessor.NextStatement());
   ASSERT_EQ(preprocessor.statement(), FindSubstr(source, "SELECT * FROM s"));
   ASSERT_FALSE(preprocessor.NextStatement());
@@ -100,22 +100,22 @@ TEST_F(PerfettoSqlPreprocessorUnittest, SingleMacro) {
   ASSERT_TRUE(preprocessor.NextStatement()) << preprocessor.status().message();
   ASSERT_EQ(preprocessor.statement().AsTraceback(0),
             "Fully expanded statement\n"
-            "  SELECT (select s.ts + r.dur from s, r) + 1234;\n"
+            "  SELECT (select s.ts + r.dur from s, r) + 1234\n"
             "  ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
-            "    foo!((select s.ts + r.dur from s, r), 1234);\n"
+            "    foo!((select s.ts + r.dur from s, r), 1234)\n"
             "    ^\n"
             "  File \"stdin\" line 1 col 59\n"
             "    SELECT $a + $b\n"
             "    ^\n");
   ASSERT_EQ(preprocessor.statement().AsTraceback(7),
             "Fully expanded statement\n"
-            "  SELECT (select s.ts + r.dur from s, r) + 1234;\n"
+            "  SELECT (select s.ts + r.dur from s, r) + 1234\n"
             "         ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
-            "    foo!((select s.ts + r.dur from s, r), 1234);\n"
+            "    foo!((select s.ts + r.dur from s, r), 1234)\n"
             "    ^\n"
             "  File \"stdin\" line 1 col 66\n"
             "    SELECT $a + $b\n"
@@ -124,7 +124,7 @@ TEST_F(PerfettoSqlPreprocessorUnittest, SingleMacro) {
             "    (select s.ts + r.dur from s, r)\n"
             "    ^\n");
   ASSERT_EQ(preprocessor.statement().sql(),
-            "SELECT (select s.ts + r.dur from s, r) + 1234;");
+            "SELECT (select s.ts + r.dur from s, r) + 1234");
   ASSERT_TRUE(preprocessor.NextStatement());
   ASSERT_EQ(preprocessor.statement(), FindSubstr(source, "SELECT 1"));
   ASSERT_FALSE(preprocessor.NextStatement());
@@ -157,7 +157,7 @@ TEST_F(PerfettoSqlPreprocessorUnittest, NestedMacro) {
   ASSERT_TRUE(preprocessor.NextStatement()) << preprocessor.status().message();
   ASSERT_EQ(preprocessor.statement().sql(),
             "SELECT (select s.ts + r.dur from s, r) + 1234 + 1234 + "
-            "(select s.ts + r.dur from s, r);");
+            "(select s.ts + r.dur from s, r)");
   ASSERT_TRUE(preprocessor.NextStatement()) << preprocessor.status().message();
   ASSERT_EQ(preprocessor.statement().sql(), "SELECT 1");
 }
@@ -230,6 +230,63 @@ TEST_F(PerfettoSqlPreprocessorUnittest, Stringify) {
               "    __intrinsic_stringify!()\n"
               "    ^\n"
               "stringify: must specify exactly 1 argument, actual 0");
+  }
+}
+
+TEST_F(PerfettoSqlPreprocessorUnittest, NestedStringify) {
+  auto sf = SqlSource::FromExecuteQuery(
+      "CREATE MACRO a(x EXPR) RETURNS Expr AS __intrinsic_stringify!($x)");
+  {
+    PerfettoSqlPreprocessor preprocessor(sf, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement());
+    ASSERT_EQ(preprocessor.statement(),
+              FindSubstr(sf,
+                         "CREATE MACRO a(x EXPR) RETURNS Expr AS "
+                         "__intrinsic_stringify!($x)"));
+    ASSERT_FALSE(preprocessor.NextStatement());
+    ASSERT_TRUE(preprocessor.status().ok());
+  }
+
+  macros_.Insert("a", Macro{
+                          false,
+                          "a",
+                          {"x"},
+                          FindSubstr(sf, "__intrinsic_stringify!($x)"),
+                      });
+  {
+    auto source = SqlSource::FromExecuteQuery("a!(foo)");
+    PerfettoSqlPreprocessor preprocessor(source, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement())
+        << preprocessor.status().message();
+    ASSERT_EQ(preprocessor.statement().sql(), "'foo'");
+    ASSERT_FALSE(preprocessor.NextStatement());
+  }
+
+  auto bar = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO MACRO b(x EXPR) RETURNS Expr AS a!($x)");
+  {
+    PerfettoSqlPreprocessor preprocessor(bar, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement());
+    ASSERT_EQ(preprocessor.statement(),
+              SqlSource::FromTraceProcessorImplementation(
+                  "CREATE PERFETTO MACRO b(x EXPR) RETURNS Expr AS "
+                  "__intrinsic_stringify!($x)"));
+    ASSERT_FALSE(preprocessor.NextStatement());
+    ASSERT_TRUE(preprocessor.status().ok());
+  }
+  macros_.Insert("b", Macro{
+                          false,
+                          "b",
+                          {"x"},
+                          FindSubstr(bar, "a!($x)"),
+                      });
+  {
+    auto source = SqlSource::FromExecuteQuery("b!(foo)");
+    PerfettoSqlPreprocessor preprocessor(source, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement())
+        << preprocessor.status().message();
+    ASSERT_EQ(preprocessor.statement().sql(), "'foo'");
+    ASSERT_FALSE(preprocessor.NextStatement());
   }
 }
 

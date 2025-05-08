@@ -110,6 +110,9 @@ message FtraceEvent {
   // consider merging with common_preempt_count to avoid extra proto tags.
   optional uint32 common_flags = 5;
 
+  // Range reserved for self-describing messages.
+  reserved 65536 to 131072;
+
   oneof event {
     PrintFtraceEvent print = 3;
     SchedSwitchFtraceEvent sched_switch = 4;
@@ -688,5 +691,8 @@ message FtraceEvent {
     OpenExecFtraceEvent open_exec = 545;
     BlockIoStartFtraceEvent block_io_start = 546;
     BlockIoDoneFtraceEvent block_io_done = 547;
+    MaliGpuPowerStateFtraceEvent mali_gpu_power_state = 548;
+    DpuDispDpuUnderrunFtraceEvent dpu_disp_dpu_underrun = 549;
+    DpuDispVblankIrqEnableFtraceEvent dpu_disp_vblank_irq_enable = 550;
   }
 }

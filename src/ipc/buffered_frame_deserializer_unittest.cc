@@ -106,7 +106,7 @@ TEST(BufferedFrameDeserializerTest, WholeMessages) {
     CheckedMemcpy(rbuf, frame);
     ASSERT_TRUE(bfd.EndReceive(frame.size()));
 
-    // Excactly one frame should be decoded, with no leftover buffer.
+    // Exactly one frame should be decoded, with no leftover buffer.
     auto decoded_frame = bfd.PopNextFrame();
     ASSERT_TRUE(decoded_frame);
     ASSERT_EQ(size - kHeaderSize, decoded_frame->SerializeAsString().size());
@@ -189,7 +189,7 @@ TEST(BufferedFrameDeserializerTest, ZeroSizedReceive) {
   CheckedMemcpy(rbuf, frame_chunk2);
   ASSERT_TRUE(bfd.EndReceive(frame_chunk2.size()));
 
-  // Excactly one frame should be decoded, with no leftover buffer.
+  // Exactly one frame should be decoded, with no leftover buffer.
   std::unique_ptr<Frame> decoded_frame = bfd.PopNextFrame();
   ASSERT_TRUE(decoded_frame);
   ASSERT_TRUE(FrameEq(frame, *decoded_frame));
@@ -279,7 +279,7 @@ TEST(BufferedFrameDeserializerTest, HighlyFragmentedFrames) {
 
 // A bunch of valid frames interleaved with frames that have a valid header
 // but unparsable payload. The expectation is that PopNextFrame() returns
-// nullptr for the unparsable frames but the other frames are decoded peroperly.
+// nullptr for the unparsable frames but the other frames are decoded properly.
 TEST(BufferedFrameDeserializerTest, CanRecoverAfterUnparsableFrames) {
   BufferedFrameDeserializer bfd;
   for (size_t i = 1; i <= 50; i++) {
@@ -293,7 +293,7 @@ TEST(BufferedFrameDeserializerTest, CanRecoverAfterUnparsableFrames) {
     CheckedMemcpy(rbuf, frame);
     ASSERT_TRUE(bfd.EndReceive(frame.size()));
 
-    // Excactly one frame should be decoded if |parsable|. In any case no
+    // Exactly one frame should be decoded if |parsable|. In any case no
     // leftover bytes should be left in the buffer.
     auto decoded_frame = bfd.PopNextFrame();
     if (unparsable) {

@@ -34,6 +34,8 @@ class Frames(TestSuite):
         "frame_id","name","depth"
         10,"Choreographer#doFrame 10",0
         11,"Choreographer#doFrame 11",1
+        12,"Choreographer#doFrame 12",4
+        13,"Choreographer#doFrame 13",3
         """))
 
   def test_android_frames_choreographer_do_frame(self):
@@ -120,35 +122,35 @@ class Frames(TestSuite):
         """))
 
   def test_android_frames_layers(self):
-      return DiffTestBlueprint(
-          trace=Path('../../metrics/graphics/android_jank_cuj.py'),
-          query="""
+    return DiffTestBlueprint(
+        trace=Path('../../metrics/graphics/android_jank_cuj.py'),
+        query="""
           INCLUDE PERFETTO MODULE android.frames.timeline;
 
           SELECT * FROM android_frames_layers;
           """,
-          out=Csv("""
-          "frame_id","ts","dur","do_frame_id","draw_frame_id","actual_frame_timeline_id","expected_frame_timeline_id","render_thread_utid","ui_thread_utid","layer_id","layer_name","upid","process_name"
-          10,0,16000000,2,8,1,0,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          20,8000000,28000000,15,16,12,11,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          30,30000000,25000000,22,23,21,20,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          40,40000000,40000000,35,41,37,36,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          60,70000000,10000000,46,50,48,47,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          60,70000000,20000000,46,50,49,47,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          90,100000000,23000000,55,57,54,53,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          90,100000000,23000000,55,60,54,53,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          100,200000000,22000000,63,66,65,64,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          100,200000000,22000000,63,69,65,64,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          110,300000000,61000000,73,74,71,70,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          110,300000000,80000000,73,74,72,70,4,2,1,"TX - JankyLayer#1",2,"com.android.systemui"
-          120,400000000,61000000,79,80,78,77,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          130,500000000,2000000,87,89,85,84,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          130,550000000,6000000,87,89,88,84,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          140,608600000,17000000,93,95,94,91,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          145,650000000,20000000,99,100,98,97,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          150,700500000,14500000,102,105,104,103,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          160,800000000,2000000,108,109,"[NULL]",107,4,2,"[NULL]","[NULL]",2,"com.android.systemui"
-          1000,1100000000,500000000,140,146,138,137,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+        out=Csv("""
+          "frame_id","ts","dur","ts_end","do_frame_id","draw_frame_id","actual_frame_timeline_id","expected_frame_timeline_id","render_thread_utid","ui_thread_utid","layer_id","layer_name","upid","process_name"
+          10,0,16000000,16000000,2,8,1,0,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          20,8000000,28000000,36000000,15,16,12,11,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          30,30000000,25000000,55000000,22,23,21,20,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          40,40000000,40000000,80000000,35,41,37,36,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          60,70000000,10000000,80000000,46,50,48,47,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          60,70000000,20000000,90000000,46,50,49,47,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          90,100000000,23000000,123000000,55,57,54,53,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          90,100000000,23000000,123000000,55,60,54,53,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          100,200000000,22000000,222000000,63,66,65,64,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          100,200000000,22000000,222000000,63,69,65,64,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          110,300000000,61000000,361000000,73,74,71,70,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          110,300000000,80000000,380000000,73,74,72,70,4,2,1,"TX - JankyLayer#1",2,"com.android.systemui"
+          120,400000000,61000000,461000000,79,80,78,77,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          130,500000000,2000000,502000000,87,89,85,84,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          130,550000000,6000000,556000000,87,89,88,84,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          140,608600000,17000000,625600000,93,95,94,91,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          145,650000000,20000000,670000000,99,100,98,97,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          150,700500000,14500000,715000000,102,105,104,103,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          160,800000000,2000000,802000000,108,109,"[NULL]",107,4,2,"[NULL]","[NULL]",2,"com.android.systemui"
+          1000,1100000000,500000000,1600000000,140,146,138,137,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
           """))
 
   def test_android_first_frame_after(self):

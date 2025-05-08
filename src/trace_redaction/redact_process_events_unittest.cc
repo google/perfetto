@@ -410,46 +410,165 @@ TEST_F(RedactProcessFree, DropTaskOutsidePackage) {
   ASSERT_FALSE(packet.ftrace_events().event().at(0).has_sched_process_free());
 }
 
-class RedactRenameTest : public testing::Test {
+// There were two places where PID vales can appear:
+//
+//    1. At the ftrace event - the PID must appear here. If the PID does not
+//       appear here, the packet is invalid.
+//
+//    2. At the rename task - if the PID appeared here, it would match the
+//       ftrace event's PID. The pid at the task level was removed.
+//
+// Because the PID was removed at the task-level, the primitive should not
+// depend on being or not being present. To test this, we test every
+// permutation.
+class RedactRenamePidsTest : public testing::Test {
  protected:
   void SetUp() {
-    auto* events = packet_.mutable_ftrace_events();
-    events->set_cpu(kCpu);
-
-    auto* event = events->add_event();
-    event->set_timestamp(kTimeB);
-    event->set_pid(kPidA);
-
-    // The rename event pid will match the ftrace event pid.
-    auto* rename = event->mutable_task_rename();
-    rename->set_newcomm(std::string(kCommB));
-    rename->set_oldcomm(std::string(kCommA));
-    rename->set_pid(kPidA);
-    rename->set_oom_score_adj(0);
+    redact_.emplace_filter<AllowAll>();
+    redact_.emplace_modifier<ClearComms>();
 
     context_.timeline = std::make_unique<ProcessThreadTimeline>();
-
     context_.timeline->Append(
         ProcessThreadTimeline::Event::Open(kTimeA, kPidA, kNoParent, kUidA));
     context_.timeline->Append(
         ProcessThreadTimeline::Event::Open(kTimeA, kPidB, kNoParent, kUidB));
     context_.timeline->Sort();
 
-    redact_.emplace_modifier<DoNothing>();
-    redact_.emplace_filter<AllowAll>();
+    // A package uid must be provided.
+    context_.package_uid = kPidA;
+
+    auto* events = packet_.mutable_ftrace_events();
+    events->set_cpu(kCpu);
+
+    event_ = events->add_event();
+    event_->set_timestamp(kTimeA);
+
+    rename_task_ = event_->mutable_task_rename();
+    rename_task_->set_newcomm(std::string(kCommB));
+    rename_task_->set_oldcomm(std::string(kCommA));
+    rename_task_->set_oom_score_adj(0);
   }
 
-  RedactProcessEvents redact_;
   protos::gen::TracePacket packet_;
+  protos::gen::FtraceEvent* event_;
+  protos::gen::TaskRenameFtraceEvent* rename_task_;
+
+  RedactProcessEvents redact_;
   Context context_;
 };
 
-TEST_F(RedactRenameTest, KeepCommInsidePackage) {
-  redact_.emplace_modifier<ClearComms>();
+TEST_F(RedactRenamePidsTest, PidInEventAndTask) {
+  event_->set_pid(kPidA);
+  rename_task_->set_pid(kPidA);
 
-  // The rename task is for Pid A. Pid A is part of Uid A. Keep Uid A; keep
-  // comm.
+  auto packet_string = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_string));
+}
+
+TEST_F(RedactRenamePidsTest, PidInEventButNotTask) {
+  event_->set_pid(kPidA);
+
+  auto packet_string = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_string));
+}
+
+TEST_F(RedactRenamePidsTest, PidNotInEventButInTask) {
+  rename_task_->set_pid(kPidA);
+
+  auto packet_string = packet_.SerializeAsString();
+  ASSERT_FALSE(redact_.Transform(context_, &packet_string).ok());
+}
+
+TEST_F(RedactRenamePidsTest, PidsNotInEventAndNotInTask) {
+  auto packet_string = packet_.SerializeAsString();
+  ASSERT_FALSE(redact_.Transform(context_, &packet_string).ok());
+}
+
+// If a PID was added at the event and the task level, only the task level PID
+// should persist.
+TEST_F(RedactRenamePidsTest, DropPidFromTask) {
+  event_->set_pid(kPidA);
+  rename_task_->set_pid(kPidA);
+
+  auto packet_string = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_string));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_string));
+
+  // The task should still exist, but the pid should not remain.
+  ASSERT_TRUE(packet.has_ftrace_events());
+  ASSERT_EQ(packet.ftrace_events().event_size(), 1);
+  ASSERT_TRUE(packet.ftrace_events().event().front().has_task_rename());
+  ASSERT_FALSE(packet.ftrace_events().event().front().task_rename().has_pid());
+}
+
+TEST_F(RedactRenamePidsTest, PidInTaskOverridesPidInEvent) {
+  // The only allowed pid will be the pid on the task. If it was not set, it
+  // would have been removed. But because the rename task overrides the ftrace
+  // event's pid, it should be retained.
+  redact_.emplace_filter(std::make_unique<MatchesPid>(kPidA));
+
   context_.package_uid = kUidA;
+  event_->set_pid(kPidB);
+  rename_task_->set_pid(kPidA);
+
+  auto packet_string = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_string));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_string));
+
+  ASSERT_TRUE(packet.has_ftrace_events());
+  ASSERT_EQ(packet.ftrace_events().event_size(), 1);
+  ASSERT_TRUE(packet.ftrace_events().event().front().has_task_rename());
+}
+
+// Redact comm values
+//
+// The comm values are the process names. "Old comm" is the previous name and
+// the "new comm" is the new name. Rename events should only carry over when
+// there is a pid and the pid belongs to the target package.
+class RedactCommValuesTest : public testing::Test {
+ protected:
+  void SetUp() {
+    context_.timeline = std::make_unique<ProcessThreadTimeline>();
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidA, kNoParent, kUidA));
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidB, kNoParent, kUidB));
+    context_.timeline->Sort();
+
+    redact_.emplace_filter<ConnectedToPackage>();
+    redact_.emplace_modifier<ClearComms>();
+
+    events_ = packet_.mutable_ftrace_events();
+
+    event_ = events_->add_event();
+    event_->set_timestamp(kTimeA);
+
+    rename_ = event_->mutable_task_rename();
+    rename_->set_newcomm(std::string(kCommB));
+    rename_->set_oldcomm(std::string(kCommA));
+    rename_->set_oom_score_adj(0);
+  }
+
+  protos::gen::TracePacket packet_;
+  protos::gen::FtraceEventBundle* events_;
+  protos::gen::FtraceEvent* event_;
+  protos::gen::TaskRenameFtraceEvent* rename_;
+
+  RedactProcessEvents redact_;
+  Context context_;
+};
+
+// The UID UID_A has a PID PID_A which has one rename task. If the target UID
+// is UID_A, then PID_A is included, which means that rename task will be
+// included.
+TEST_F(RedactCommValuesTest, KeepCommInsideOfPackage) {
+  context_.package_uid = kUidA;
+
+  event_->set_pid(kPidA);
 
   auto packet_str = packet_.SerializeAsString();
   ASSERT_OK(redact_.Transform(context_, &packet_str));
@@ -465,22 +584,20 @@ TEST_F(RedactRenameTest, KeepCommInsidePackage) {
 
   const auto& task_rename = event.task_rename();
 
-  ASSERT_TRUE(task_rename.has_pid());
-  ASSERT_EQ(task_rename.pid(), kPidA);
-
+  ASSERT_FALSE(task_rename.has_pid());
   ASSERT_TRUE(task_rename.has_oldcomm());
-  ASSERT_EQ(task_rename.oldcomm(), kCommA);
-
   ASSERT_TRUE(task_rename.has_newcomm());
+
+  ASSERT_EQ(task_rename.oldcomm(), kCommA);
   ASSERT_EQ(task_rename.newcomm(), kCommB);
 }
 
-TEST_F(RedactRenameTest, ClearCommOutsidePackage) {
-  redact_.emplace_modifier<ClearComms>();
-
-  // The rename task is for Pid A. Pid A is part of Uid A. Keep Uid B; drop
-  // comm.
+// If the target UID is UID_B. Then PID_A, which contains the rename task, would
+// not be included in UID_B's tree, and therefore dropped.
+TEST_F(RedactCommValuesTest, DropCommOutsideOfPackage) {
   context_.package_uid = kUidB;
+
+  event_->set_pid(kPidA);
 
   auto packet_str = packet_.SerializeAsString();
   ASSERT_OK(redact_.Transform(context_, &packet_str));
@@ -492,23 +609,48 @@ TEST_F(RedactRenameTest, ClearCommOutsidePackage) {
   ASSERT_EQ(packet.ftrace_events().event().size(), 1u);
 
   const auto& event = packet.ftrace_events().event().at(0);
-  ASSERT_TRUE(event.has_task_rename());
-
-  const auto& task_rename = event.task_rename();
-
-  ASSERT_TRUE(task_rename.has_pid());
-  ASSERT_EQ(task_rename.pid(), kPidA);
-
-  ASSERT_TRUE(task_rename.has_oldcomm());
-  ASSERT_TRUE(task_rename.oldcomm().empty());
-
-  ASSERT_TRUE(task_rename.has_newcomm());
-  ASSERT_TRUE(task_rename.newcomm().empty());
+  ASSERT_FALSE(event.has_task_rename());
 }
 
-TEST_F(RedactRenameTest, KeepTaskInsidePackage) {
-  redact_.emplace_filter<ConnectedToPackage>();
+TEST_F(RedactCommValuesTest, FailsWhenThereIsNoPidOnTheEvent) {
+  context_.package_uid = kUidA;
 
+  auto packet_str = packet_.SerializeAsString();
+  ASSERT_FALSE(redact_.Transform(context_, &packet_str).ok());
+}
+
+class RedactRenameTest : public testing::Test {
+ protected:
+  void SetUp() {
+    redact_.emplace_filter<ConnectedToPackage>();
+    redact_.emplace_modifier<ClearComms>();
+
+    context_.timeline = std::make_unique<ProcessThreadTimeline>();
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidA, kNoParent, kUidA));
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidB, kNoParent, kUidB));
+    context_.timeline->Sort();
+
+    auto* events = packet_.mutable_ftrace_events();
+    events->set_cpu(kCpu);
+
+    auto* event = packet_.mutable_ftrace_events()->add_event();
+    event->set_timestamp(kTimeB);
+    event->set_pid(kPidA);
+
+    auto* rename = event->mutable_task_rename();
+    rename->set_newcomm(std::string(kCommB));
+    rename->set_oldcomm(std::string(kCommA));
+    rename->set_oom_score_adj(0);
+  }
+
+  protos::gen::TracePacket packet_;
+  RedactProcessEvents redact_;
+  Context context_;
+};
+
+TEST_F(RedactRenameTest, KeepTaskInsidePackage) {
   // The rename task is for Pid A. Pid A is part of Uid A. Keep Uid A; keep
   // comm.
   context_.package_uid = kUidA;
@@ -527,8 +669,6 @@ TEST_F(RedactRenameTest, KeepTaskInsidePackage) {
 }
 
 TEST_F(RedactRenameTest, DropTaskOutsidePackage) {
-  redact_.emplace_filter<ConnectedToPackage>();
-
   // The rename task is for Pid A. Pid A is part of Uid A. Keep Uid B; drop
   // task.
   context_.package_uid = kUidB;

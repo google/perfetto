@@ -13,28 +13,20 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE traced.stats;
+
 DROP VIEW IF EXISTS clone_duration_output;
 CREATE PERFETTO VIEW clone_duration_output AS
 SELECT
   CloneDuration(
     'by_buffer', (
-      WITH clone_started_ns AS (
-        SELECT value
-        FROM stats
-        WHERE name = 'traced_clone_started_timestamp_ns'
-        LIMIT 1
-      )
       SELECT
         RepeatedField(CloneDuration_ByBuffer(
           'buffer',
-          idx,
+          buffer_id,
           'duration_ns',
-          value - (SELECT value FROM clone_started_ns)
+          duration_ns
         ))
-      FROM stats
-      WHERE
-        name = 'traced_buf_clone_done_timestamp_ns'
-        AND (SELECT value FROM clone_started_ns) <> 0
-      ORDER BY idx
+      FROM traced_clone_flush_latency
     )
   );

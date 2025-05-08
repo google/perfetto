@@ -17,9 +17,11 @@
 #include "perfetto/ext/base/uuid.h"
 
 #include <array>
-#include <optional>
+#include <cinttypes>
+#include <set>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -101,18 +103,43 @@ TEST(UuidTest, DISABLED_BitRandomDistribution) {
   }
 
   // By adding +1 / -1 for each one/zero, `bit_count` contains for each bit,
-  // their embalance. In an ideal world we expect `bit_count` to be 0 at each
-  // position. In practice we accept a 2% embalance to pass the test.
+  // their imbalance. In an ideal world we expect `bit_count` to be 0 at each
+  // position. In practice we accept a 2% imbalance to pass the test.
   int64_t max_diff = 0;
   for (size_t i = 0; i < bit_count.size(); i++)
     max_diff = std::max(max_diff, std::abs(bit_count[i]));
 
   const double diff_pct =
       100.0 * static_cast<double>(max_diff) / static_cast<double>(kRounds);
-  PERFETTO_DLOG("Max bit embalance: %.2f %%", diff_pct);
+  PERFETTO_DLOG("Max bit imbalance: %.2f %%", diff_pct);
 
-  // Local runs show a 1% embalance. We take a 5x margin for the test.
+  // Local runs show a 1% imbalance. We take a 5x margin for the test.
   ASSERT_LT(diff_pct, 5.0);
+}
+
+// This test checks for collisions in a space of 300M traces.
+// It takes ~20  minutes to run (hence the disabled-by-default)
+TEST(UuidTest, DISABLED_NoCollisions) {
+  std::set<int64_t> rand_nums;
+  uint64_t num_collisions = 0;
+  const uint64_t kSpace = 300ull * 1000ull * 1000ull;
+  const int64_t t_start = base::GetWallTimeMs().count();
+  for (uint64_t i = 0; i < kSpace; i++) {
+    Uuid uuid = Uuidv4();
+    int64_t lsb = uuid.lsb();
+    int64_t msb = uuid.msb();
+    if (!rand_nums.insert(lsb).second || !rand_nums.insert(msb).second) {
+      PERFETTO_ELOG("Found collision @ step %" PRIu64, i);
+    }
+    if (i % 1000000 == 0 && i > 0) {
+      int64_t now = base::GetWallTimeMs().count();
+      uint64_t elapsed = static_cast<uint64_t>(now - t_start);
+      uint64_t eta_ms = kSpace * elapsed / i - elapsed;
+      PERFETTO_LOG("Running... %" PRIu64 " %%, ETA: %" PRIu64 " seconds",
+                   i * 100 / kSpace, eta_ms / 1000);
+    }
+  }
+  EXPECT_EQ(num_collisions, 0u);
 }
 
 }  // namespace

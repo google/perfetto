@@ -142,6 +142,17 @@ if (enable_perfetto_integration_tests) {
   }
 }
 
+if (enable_perfetto_android_java_sdk) {
+  all_targets += [
+    "src/java_sdk/main:perfetto_java_sdk_app",
+    "src/java_sdk/test:perfetto_java_sdk_test_app",
+    "src/java_sdk/test:perfetto_java_sdk_instrumentation_test",
+    "src/android_sdk/jni:libperfetto_jni",
+    "src/android_sdk/java/main:perfetto_trace_lib",
+    "src/android_sdk/java/test:perfetto_trace_instrumentation_test",
+  ]
+}
+
 if (enable_perfetto_trace_processor_json) {
   test("trace_processor_minimal_smoke_tests") {
     testonly = true
@@ -283,7 +294,6 @@ if (!build_with_chromium) {
     public_deps = [
       "gn:default_deps",
       "src/tracing:client_api",
-      "src/tracing:platform_impl",
     ]
     sources = [ "include/perfetto/tracing.h" ]
     assert_no_deps = [ "gn:protobuf_lite" ]
@@ -300,7 +310,6 @@ if (build_with_chromium) {
     deps = [
       "src/trace_processor/importers/memory_tracker:graph_processor",
       "src/tracing:client_api",
-      "src/tracing:platform_impl",
       "src/tracing/core",
     ]
     configs -= [ "//build/config/compiler:chromium_code" ]  # nogncheck
@@ -325,7 +334,7 @@ if (build_with_chromium) {
       ]
       public_deps += [ "include/perfetto/ext/tracing/ipc:ipc" ]
     }
-    if (!is_nacl) {
+    if (perfetto_libperfetto_includes_json) {
       deps += [
         "src/trace_processor:export_json",
         "src/trace_processor:storage_minimal",

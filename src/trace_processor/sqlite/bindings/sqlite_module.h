@@ -50,6 +50,13 @@ struct Module {
   // Setting this to true requires that the |FindFunction| function is defined.
   static constexpr bool kDoesOverloadFunctions = true;
 
+  // Specifies whether this module supports transactions. Implementations can
+  // override this field by declaring and defining it.
+  //
+  // Setting this to true requires that all transaction functions are declared
+  // and defined.
+  static constexpr bool kDoesSupportTransactions = false;
+
   // Specifies the type of context for the module. Implementations should define
   // this type to match the context type which is expected to be passed into
   // |sqlite3_create_module|.
@@ -178,6 +185,19 @@ struct Module {
                           FindFunctionFn**,
                           void**);
 
+  // Callback functions required to implement support for SQLite transactions.
+  //
+  // Implementations *must* define these funcitons themselves if
+  // `kDoesSupportTransactions` is true; these function is declared but *not*
+  // defined so linker errors will be thrown if not defined.
+  static int Begin(sqlite3_vtab*);
+  static int Sync(sqlite3_vtab*);
+  static int Commit(sqlite3_vtab*);
+  static int Rollback(sqlite3_vtab*);
+  static int Savepoint(sqlite3_vtab*, int);
+  static int Release(sqlite3_vtab*, int);
+  static int RollbackTo(sqlite3_vtab*, int);
+
   // Helper function to cast the module context pointer to the correct type.
   static auto GetContext(void* ctx) {
     return static_cast<typename Impl::Context*>(ctx);
@@ -197,6 +217,7 @@ struct Module {
   // information about this module to SQLite.
   static constexpr sqlite3_module CreateModule() {
     sqlite3_module module{};
+    module.iVersion = 4;
     module.xBestIndex = &Impl::BestIndex;
     module.xOpen = &Impl::Open;
     module.xClose = &Impl::Close;
@@ -223,6 +244,15 @@ struct Module {
     }
     if constexpr (Impl::kDoesOverloadFunctions) {
       module.xFindFunction = &Impl::FindFunction;
+    }
+    if constexpr (Impl::kDoesSupportTransactions) {
+      module.xBegin = &Impl::Begin;
+      module.xSync = &Impl::Sync;
+      module.xCommit = &Impl::Commit;
+      module.xRollback = &Impl::Rollback;
+      module.xSavepoint = &Impl::Savepoint;
+      module.xRelease = &Impl::Release;
+      module.xRollbackTo = &Impl::RollbackTo;
     }
     return module;
   }

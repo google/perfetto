@@ -15,6 +15,7 @@
  */
 
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -45,7 +46,7 @@ class PyTablesUnittest : public ::testing::Test {
   TestArgsTable args_{&pool_};
 };
 
-TEST_F(PyTablesUnittest, EventTableProprties) {
+TEST_F(PyTablesUnittest, EventTableProperties) {
   ASSERT_STREQ(TestEventTable::Name(), "event");
 
   ASSERT_EQ(TestEventTable::ColumnIndex::id, 0u);
@@ -55,10 +56,10 @@ TEST_F(PyTablesUnittest, EventTableProprties) {
   ASSERT_EQ(TestEventTable::ColumnFlag::ts,
             ColumnLegacy::Flag::kSorted | ColumnLegacy::Flag::kNonNull);
   ASSERT_EQ(TestEventTable::ColumnFlag::arg_set_id,
-            ColumnLegacy::Flag::kNonNull);
+            ColumnLegacy::Flag::kNoFlag);
 }
 
-TEST_F(PyTablesUnittest, ArgsTableProprties) {
+TEST_F(PyTablesUnittest, ArgsTableProperties) {
   ASSERT_STREQ(TestArgsTable::Name(), "args");
 
   ASSERT_EQ(TestArgsTable::ColumnIndex::id, 0u);
@@ -79,11 +80,11 @@ TEST_F(PyTablesUnittest, InsertEvent) {
 TEST_F(PyTablesUnittest, InsertEventSpecifyCols) {
   TestEventTable::Row row;
   row.ts = 100;
-  row.arg_set_id = 0;
+  row.arg_set_id = std::nullopt;
   event_.Insert(row);
 
   ASSERT_EQ(event_[0].ts(), 100);
-  ASSERT_EQ(event_[0].arg_set_id(), 0u);
+  ASSERT_EQ(event_[0].arg_set_id(), std::nullopt);
 }
 
 TEST_F(PyTablesUnittest, MutableColumn) {

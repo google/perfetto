@@ -28,6 +28,7 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/root_message.h"
 #include "perfetto/protozero/static_buffer.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -238,8 +239,13 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
   header.chunk_id.store(next_chunk_id_, std::memory_order_relaxed);
   header.packets.store(packets, std::memory_order_relaxed);
 
+  BufferExhaustedPolicy policy = buffer_exhausted_policy_;
+  if (policy == BufferExhaustedPolicy::kStallThenDrop && drop_packets_) {
+    policy = BufferExhaustedPolicy::kDrop;
+  }
+
   SharedMemoryABI::Chunk new_chunk =
-      shmem_arbiter_->GetNewChunk(header, buffer_exhausted_policy_);
+      shmem_arbiter_->GetNewChunk(header, policy);
   if (!new_chunk.is_valid()) {
     // Shared memory buffer exhausted, switch into |drop_packets_| mode. We'll
     // drop data until the garbage chunk has been filled once and then retry.
@@ -306,6 +312,9 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
       ReturnCompletedChunk();
     }
 
+    // Only increment the count if we are newly entering this state not
+    // otherwise.
+    drop_count_ += !drop_packets_;
     drop_packets_ = true;
     cur_chunk_ = SharedMemoryABI::Chunk();  // Reset to an invalid chunk.
     cur_chunk_packet_count_inflated_ = false;
@@ -365,7 +374,7 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
 #endif
       }
     }  // for(nested_msg)
-  }    // if(fragmenting_packet)
+  }  // if(fragmenting_packet)
 
   if (cur_chunk_.is_valid()) {
     // ReturnCompletedChunk will consume the first patched entries from

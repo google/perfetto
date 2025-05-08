@@ -107,31 +107,31 @@ bool ParseBuildId(const perf_event_header& header,
   return true;
 }
 
-util::Status ParseEventTypeInfo(std::string value, SimpleperfMetaInfo& out) {
+base::Status ParseEventTypeInfo(std::string value, SimpleperfMetaInfo& out) {
   for (const auto& line : base::SplitString(value, "\n")) {
     auto tokens = base::SplitString(line, ",");
     if (tokens.size() != 3) {
-      return util::ErrStatus("Invalid event_type_info: '%s'", line.c_str());
+      return base::ErrStatus("Invalid event_type_info: '%s'", line.c_str());
     }
 
     auto type = base::StringToUInt32(tokens[1]);
     if (!type) {
-      return util::ErrStatus("Could not parse type in event_type_info: '%s'",
+      return base::ErrStatus("Could not parse type in event_type_info: '%s'",
                              tokens[1].c_str());
     }
     auto config = base::StringToUInt64(tokens[2]);
     if (!config) {
-      return util::ErrStatus("Could not parse config in event_type_info: '%s'",
+      return base::ErrStatus("Could not parse config in event_type_info: '%s'",
                              tokens[2].c_str());
     }
 
     out.event_type_info.Insert({*type, *config}, std::move(tokens[0]));
   }
 
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-util::Status ParseSimpleperfMetaInfoEntry(
+base::Status ParseSimpleperfMetaInfoEntry(
     std::pair<std::string, std::string> entry,
     SimpleperfMetaInfo& out) {
   static constexpr char kEventTypeInfoKey[] = "event_type_info";
@@ -142,14 +142,14 @@ util::Status ParseSimpleperfMetaInfoEntry(
   PERFETTO_CHECK(
       out.entries.Insert(std::move(entry.first), std::move(entry.second))
           .second);
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 }  // namespace
 
 // static
-util::Status BuildId::Parse(TraceBlobView bytes,
-                            std::function<util::Status(BuildId)> cb) {
+base::Status BuildId::Parse(TraceBlobView bytes,
+                            std::function<base::Status(BuildId)> cb) {
   Reader reader(std::move(bytes));
   while (reader.size_left() != 0) {
     perf_event_header header;
@@ -175,27 +175,27 @@ util::Status BuildId::Parse(TraceBlobView bytes,
 
     RETURN_IF_ERROR(cb(std::move(build_id)));
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 // static
-util::Status SimpleperfMetaInfo::Parse(const TraceBlobView& bytes,
+base::Status SimpleperfMetaInfo::Parse(const TraceBlobView& bytes,
                                        SimpleperfMetaInfo& out) {
   auto* it_end = reinterpret_cast<const char*>(bytes.data() + bytes.size());
   for (auto* it = reinterpret_cast<const char*>(bytes.data()); it != it_end;) {
     auto end = std::find(it, it_end, '\0');
     if (end == it_end) {
-      return util::ErrStatus("Failed to read key from Simpleperf MetaInfo");
+      return base::ErrStatus("Failed to read key from Simpleperf MetaInfo");
     }
     std::string key(it, end);
     it = end;
     ++it;
     if (it == it_end) {
-      return util::ErrStatus("Missing value in Simpleperf MetaInfo");
+      return base::ErrStatus("Missing value in Simpleperf MetaInfo");
     }
     end = std::find(it, it_end, '\0');
     if (end == it_end) {
-      return util::ErrStatus("Failed to read value from Simpleperf MetaInfo");
+      return base::ErrStatus("Failed to read value from Simpleperf MetaInfo");
     }
     std::string value(it, end);
     it = end;
@@ -204,18 +204,18 @@ util::Status SimpleperfMetaInfo::Parse(const TraceBlobView& bytes,
     RETURN_IF_ERROR(ParseSimpleperfMetaInfoEntry(
         std::make_pair(std::move(key), std::move(value)), out));
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 // static
-util::Status EventDescription::Parse(
+base::Status EventDescription::Parse(
     TraceBlobView bytes,
-    std::function<util::Status(EventDescription)> cb) {
+    std::function<base::Status(EventDescription)> cb) {
   Reader reader(std::move(bytes));
   uint32_t nr;
   uint32_t attr_size;
   if (!reader.Read(nr) || !reader.Read(attr_size)) {
-    return util::ErrStatus("Failed to parse header for PERF_EVENT_DESC");
+    return base::ErrStatus("Failed to parse header for PERF_EVENT_DESC");
   }
 
   for (; nr != 0; --nr) {
@@ -223,21 +223,21 @@ util::Status EventDescription::Parse(
     uint32_t nr_ids;
     if (!reader.ReadPerfEventAttr(desc.attr, attr_size) ||
         !reader.Read(nr_ids) || !ParseString(reader, desc.event_string)) {
-      return util::ErrStatus("Failed to parse record for PERF_EVENT_DESC");
+      return base::ErrStatus("Failed to parse record for PERF_EVENT_DESC");
     }
 
     desc.ids.resize(nr_ids);
     for (uint64_t& id : desc.ids) {
       if (!reader.Read(id)) {
-        return util::ErrStatus("Failed to parse ids for PERF_EVENT_DESC");
+        return base::ErrStatus("Failed to parse ids for PERF_EVENT_DESC");
       }
     }
     RETURN_IF_ERROR(cb(std::move(desc)));
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-util::Status ParseSimpleperfFile2(TraceBlobView bytes,
+base::Status ParseSimpleperfFile2(TraceBlobView bytes,
                                   std::function<void(TraceBlobView)> cb) {
   Reader reader(std::move(bytes));
   while (reader.size_left() != 0) {
@@ -252,15 +252,15 @@ util::Status ParseSimpleperfFile2(TraceBlobView bytes,
     }
     cb(std::move(payload));
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 // static
-util::Status HeaderGroupDesc::Parse(TraceBlobView bytes, HeaderGroupDesc& out) {
+base::Status HeaderGroupDesc::Parse(TraceBlobView bytes, HeaderGroupDesc& out) {
   Reader reader(std::move(bytes));
   uint32_t nr;
   if (!reader.Read(nr)) {
-    return util::ErrStatus("Failed to parse header for HEADER_GROUP_DESC");
+    return base::ErrStatus("Failed to parse header for HEADER_GROUP_DESC");
   }
 
   HeaderGroupDesc group_desc;
@@ -268,7 +268,7 @@ util::Status HeaderGroupDesc::Parse(TraceBlobView bytes, HeaderGroupDesc& out) {
   for (auto& e : group_desc.entries) {
     if (!ParseString(reader, e.string) || !reader.Read(e.leader_idx) ||
         !reader.Read(e.nr_members)) {
-      return util::ErrStatus("Failed to parse HEADER_GROUP_DESC entry");
+      return base::ErrStatus("Failed to parse HEADER_GROUP_DESC entry");
     }
   }
   out = std::move(group_desc);
@@ -279,7 +279,7 @@ base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView bytes) {
   Reader reader(std::move(bytes));
   uint32_t nr;
   if (!reader.Read(nr)) {
-    return util::ErrStatus("Failed to parse nr for CMDLINE");
+    return base::ErrStatus("Failed to parse nr for CMDLINE");
   }
 
   std::vector<std::string> args;

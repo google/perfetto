@@ -29,7 +29,7 @@
 
 namespace perfetto::trace_processor {
 
-// Preprocessor for PerfettoSQL statements. The main responsiblity of this
+// Preprocessor for PerfettoSQL statements. The main responsibility of this
 // class is to perform similar functions to the C/C++ preprocessor (e.g.
 // expanding macros). It is also responsible for splitting the given SQL into
 // statements.

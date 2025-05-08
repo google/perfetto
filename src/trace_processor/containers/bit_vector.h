@@ -303,8 +303,8 @@ class BitVector {
     uint32_t start_fast_idx = BlockToIndex(start_fast_block);
     BitVector bv(start, false);
 
-    // Minimum value of start_fast_idx is numer of bits in block, so we need to
-    // seperate calculation for shorter ranges.
+    // Minimum value of start_fast_idx is number of bits in block, so we need to
+    // separate calculation for shorter ranges.
     if (start_fast_idx > end) {
       for (uint32_t i = start; i < end; ++i) {
         bv.Append(f(i));
@@ -553,7 +553,7 @@ class BitVector {
       // allow branchless algorithms when considering bits of a uint64.
       //
       // In benchmarks, this algorithm has found to be the fastest, portable
-      // way of computing the nth set bit (if we were only targetting new
+      // way of computing the nth set bit (if we were only targeting new
       // versions of x64, we could also use pdep + ctz but unfortunately
       // this would fail on WASM - this about 2.5-3x faster on x64).
       //
@@ -705,7 +705,7 @@ class BitVector {
     void FromFiller(uint32_t offset, Filler f) {
       // We choose to iterate the bits as the outer loop as this allows us
       // to reuse the mask and the bit offset between iterations of the loop.
-      // This makes a small (but noticable) impact in the performance of this
+      // This makes a small (but noticeable) impact in the performance of this
       // function.
       for (uint32_t i = 0; i < BitWord::kBits; ++i) {
         uint64_t mask = 1ull << i;

@@ -16,19 +16,24 @@ import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchEq, searchRange} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
-import {drawTrackHoverTooltip} from '../../base/canvas_utils';
 import {Color} from '../../base/color';
+import m from 'mithril';
 import {colorForThread} from '../../components/colorizer';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
-import {Track} from '../../public/track';
+import {TrackRenderer} from '../../public/track';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {Point2D} from '../../base/geom';
 import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
+import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {
+  createPerfettoTable,
+  createVirtualTable,
+} from '../../trace_processor/sql_utils';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -53,7 +58,7 @@ export interface Config {
   utid: number | null;
 }
 
-export class ProcessSchedulingTrack implements Track {
+export class ProcessSchedulingTrack implements TrackRenderer {
   private mousePos?: Point2D;
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
@@ -67,44 +72,70 @@ export class ProcessSchedulingTrack implements Track {
   ) {}
 
   async onCreate(): Promise<void> {
-    if (this.config.upid !== null) {
-      await this.trace.engine.query(`
-        create virtual table process_scheduling_${this.trackUuid}
-        using __intrinsic_slice_mipmap((
+    const getQuery = () => {
+      if (this.config.upid !== null) {
+        // TODO(lalitm): remove the harcoding of the cross join here.
+        return `
           select
-            id,
-            ts,
-            iif(
-              dur = -1,
-              lead(ts, 1, trace_end()) over (partition by cpu order by ts) - ts,
-              dur
-            ) as dur,
-            cpu as depth
-          from experimental_sched_upid
+            s.id,
+            s.ts,
+            s.dur,
+            s.cpu
+          from thread t
+          cross join sched s using (utid)
           where
-            utid != 0 and
-            upid = ${this.config.upid}
-        ));
-      `);
-    } else {
+            not t.is_idle and
+            t.upid = ${this.config.upid}
+          order by ts
+        `;
+      }
       assertExists(this.config.utid);
-      await this.trace.engine.query(`
-        create virtual table process_scheduling_${this.trackUuid}
-        using __intrinsic_slice_mipmap((
-          select
-            id,
-            ts,
-            iif(
-              dur = -1,
-              lead(ts, 1, trace_end()) over (partition by cpu order by ts) - ts,
-              dur
-            ) as dur,
-            cpu as depth
-          from sched
-          where utid = ${this.config.utid}
-        ));
-      `);
-    }
+      return `
+        select
+          s.id,
+          s.ts,
+          s.dur,
+          s.cpu
+        from sched s
+        where
+          s.utid = ${this.config.utid}
+      `;
+    };
+
+    const trash = new AsyncDisposableStack();
+    trash.use(
+      await createPerfettoTable(
+        this.trace.engine,
+        `tmp_${this.trackUuid}`,
+        getQuery(),
+      ),
+    );
+    await createVirtualTable(
+      this.trace.engine,
+      `process_scheduling_${this.trackUuid}`,
+      `__intrinsic_slice_mipmap((
+        select
+          s.id,
+          s.ts,
+          iif(
+            s.dur = -1,
+            ifnull(
+              (
+                select n.ts
+                from tmp_${this.trackUuid} n
+                where n.ts > s.ts and n.cpu = s.cpu
+                order by ts
+                limit 1
+              ),
+              trace_end()
+            ) - s.ts,
+            s.dur
+          ) as dur,
+          s.cpu as depth
+        from tmp_${this.trackUuid} s
+      ))`,
+    );
+    await trash.asyncDispose();
   }
 
   async onUpdate({
@@ -188,6 +219,26 @@ export class ProcessSchedulingTrack implements Track {
     return TRACK_HEIGHT;
   }
 
+  renderTooltip(): m.Children {
+    if (this.utidHoveredInThisTrack === -1 || this.mousePos === undefined) {
+      return undefined;
+    }
+
+    const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
+    if (!hoveredThread) {
+      return undefined;
+    }
+
+    const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+
+    if (hoveredThread.pid !== undefined) {
+      const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
+      return m('.tooltip', [m('div', pidText), m('div', tidText)]);
+    } else {
+      return m('.tooltip', tidText);
+    }
+  }
+
   render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
@@ -246,18 +297,6 @@ export class ProcessSchedulingTrack implements Track {
       const y = MARGIN_TOP + cpuTrackHeight * cpu + cpu;
       ctx.fillRect(rectStart, y, rectWidth, cpuTrackHeight);
     }
-
-    const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
-    if (hoveredThread !== undefined && this.mousePos !== undefined) {
-      const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (hoveredThread.pid) {
-        const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-        drawTrackHoverTooltip(ctx, this.mousePos, size, pidText, tidText);
-      } else {
-        drawTrackHoverTooltip(ctx, this.mousePos, size, tidText);
-      }
-    }
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
@@ -290,6 +329,9 @@ export class ProcessSchedulingTrack implements Track {
     const pid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     this.trace.timeline.hoveredUtid = utid;
     this.trace.timeline.hoveredPid = pid;
+
+    // Trigger redraw to update tooltip
+    m.redraw();
   }
 
   onMouseOut() {

@@ -14,10 +14,10 @@
 
 import {uuidv4} from '../../base/uuid';
 import {NUM} from '../../trace_processor/query_result';
-import {VisualizedArgsTrack} from './visualized_args_track';
 import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {createVisualizedArgsTrack} from './visualized_args_track';
 
 const VISUALIZED_ARGS_SLICE_TRACK_URI_PREFIX = 'perfetto.VisualizedArgs';
 
@@ -69,7 +69,7 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
       uri,
       title: argName,
       chips: ['arg'],
-      track: new VisualizedArgsTrack({
+      track: await createVisualizedArgsTrack({
         trace,
         uri,
         trackId,
@@ -86,11 +86,11 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
     // this track before it.
     const threadSliceTrack = trace.workspace.flatTracks.find((trackNode) => {
       if (!trackNode.uri) return false;
-      const trackDescriptor = trace.tracks.getTrack(trackNode.uri);
+      const track = trace.tracks.getTrack(trackNode.uri);
       return (
-        trackDescriptor &&
-        trackDescriptor.tags?.kind === SLICE_TRACK_KIND &&
-        trackDescriptor.tags?.trackIds?.includes(trackId)
+        track &&
+        track.tags?.kind === SLICE_TRACK_KIND &&
+        track.tags?.trackIds?.includes(trackId)
       );
     });
 

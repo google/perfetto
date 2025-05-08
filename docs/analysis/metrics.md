@@ -280,7 +280,7 @@ message TopProcesses {
 }
 ```
 
-Finally, define an extension to the root proto for all metrics (the [TraceMetrics](https://android.googlesource.com/platform/external/perfetto/+/HEAD/protos/perfetto/metrics/metrics.proto#39) proto).
+Finally, define an extension to the root proto for all metrics (the [TraceMetrics](https://github.com/google/perfetto/blob/main/protos/perfetto/metrics/metrics.proto#L39) proto).
 
 ```protobuf
 extend TraceMetrics {

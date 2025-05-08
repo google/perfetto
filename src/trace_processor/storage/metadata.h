@@ -38,6 +38,9 @@ namespace metadata {
   F(android_hardware_revision,         KeyType::kSingle,  Variadic::kString), \
   F(android_storage_model,             KeyType::kSingle,  Variadic::kString), \
   F(android_ram_model,                 KeyType::kSingle,  Variadic::kString), \
+  F(android_serial_console,            KeyType::kSingle,  Variadic::kString), \
+  F(android_profile_boot_classpath,    KeyType::kSingle,  Variadic::kInt),    \
+  F(android_profile_system_server,     KeyType::kSingle,  Variadic::kInt),    \
   F(benchmark_description,             KeyType::kSingle,  Variadic::kString), \
   F(benchmark_had_failures,            KeyType::kSingle,  Variadic::kInt),    \
   F(benchmark_label,                   KeyType::kSingle,  Variadic::kString), \
@@ -76,9 +79,19 @@ namespace metadata {
   F(kMulti,  "multi")
 // clang-format
 
-// Ignore GCC warning about a missing argument for a variadic macro parameter.
 #if defined(__GNUC__) || defined(__clang__)
+#if defined(__clang__)
+#pragma clang diagnostic push
+// Fix 'error: #pragma system_header ignored in main file' for clang in Google3.
+#pragma clang diagnostic ignored "-Wpragma-system-header-outside-header"
+#endif
+
+// Ignore GCC warning about a missing argument for a variadic macro parameter.
 #pragma GCC system_header
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 #endif
 
 #define PERFETTO_TP_META_TYPE_ENUM(varname, ...) varname

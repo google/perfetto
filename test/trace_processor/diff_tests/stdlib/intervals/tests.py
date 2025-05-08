@@ -227,3 +227,80 @@ class StdlibIntervals(TestSuite):
         out=Csv("""
         "ts","dur","id","root_id"
         """))
+
+  def test_interval_merge_overlapping(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH
+          data(ts, dur) AS (
+            VALUES
+              -- partial overlap
+              (1, 4),
+              (2, 4),
+              -- end within epsilon of start
+              (10, 3),
+              (14, 2),
+              -- end not within epsilon of start
+              (20, 3),
+              (26, 2),
+              -- nested
+              (30, 4),
+              (31, 2)
+          )
+        SELECT *
+        FROM interval_merge_overlapping!(data, 1);
+        """,
+        out=Csv("""
+        "ts","dur"
+        1,5
+        10,6
+        20,3
+        26,2
+        30,4
+        """))
+
+  def test_intersect_list(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        WITH
+          data(ts, dur, id) AS (
+            VALUES
+              (10, 100, 0),
+              (20, 40, 1),
+              (30, 120, 2),
+              (200, 10, 3),
+              (200, 20, 4),
+              (300, 10, 5)
+          )
+        SELECT *
+        FROM interval_self_intersect!(data)
+        ORDER BY ts ASC, id ASC;
+        """,
+        out=Csv("""
+        "ts","dur","group_id","id","interval_ends_at_ts"
+        10,10,1,0,0
+        20,10,2,0,0
+        20,10,2,1,0
+        30,30,3,0,0
+        30,30,3,1,0
+        30,30,3,2,0
+        60,50,4,0,0
+        60,50,4,1,1
+        60,50,4,2,0
+        110,40,5,0,1
+        110,40,5,2,0
+        150,50,6,2,1
+        200,10,7,3,0
+        200,10,7,4,0
+        210,10,8,3,1
+        210,10,8,4,0
+        220,80,9,4,1
+        300,10,10,5,0
+        310,0,11,5,1
+        """))

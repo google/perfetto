@@ -18,20 +18,9 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_UTIL_H_
 
 #include <cstddef>
-#include <cstdint>
 #include <type_traits>
 
 namespace perfetto::trace_processor::perf_importer {
-
-template <typename A, typename B, typename Res>
-inline bool SafeAdd(A a, B b, Res* result) {
-  return !__builtin_add_overflow(a, b, result);
-}
-
-template <typename A, typename B, typename Res>
-inline bool SafeMultiply(A a, B b, Res* result) {
-  return !__builtin_mul_overflow(a, b, result);
-}
 
 template <typename A,
           typename Res,

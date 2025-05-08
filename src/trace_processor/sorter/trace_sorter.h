@@ -130,6 +130,7 @@ class TraceSorter {
   ~TraceSorter();
 
   SortingMode sorting_mode() const { return sorting_mode_; }
+  bool SetSortingMode(SortingMode sorting_mode);
 
   void AddMachineContext(TraceProcessorContext* context) {
     sorter_data_by_machine_.emplace_back(context);

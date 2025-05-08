@@ -24,7 +24,7 @@ namespace trace_processor {
 
 ProtoTraceTokenizer::ProtoTraceTokenizer() = default;
 
-util::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
+base::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
                                              TraceBlobView* output) {
   PERFETTO_DCHECK(util::IsGzipSupported());
 
@@ -41,13 +41,13 @@ util::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
       });
 
   if (ret == ResultCode::kError || ret == ResultCode::kNeedsMoreInput) {
-    return util::ErrStatus("Failed to decompress (error code: %d)",
+    return base::ErrStatus("Failed to decompress (error code: %d)",
                            static_cast<int>(ret));
   }
 
   TraceBlob out_blob = TraceBlob::CopyFrom(data.data(), data.size());
   *output = TraceBlobView(std::move(out_blob));
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 }  // namespace trace_processor

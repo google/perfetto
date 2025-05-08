@@ -1,22 +1,23 @@
 # Perfetto build instructions
 
-The source of truth for the Perfetto codebase lives in AOSP:
-https://android.googlesource.com/platform/external/perfetto/
+The source of truth for the Perfetto codebase is
+https://github.com/google/perfetto
 
-A read-only mirror is also available at https://github.com/google/perfetto .
+A copy is also available in the Android tree under /external/perfetto and is
+updated with the regular Android release cadence.
 
 Perfetto can be built both from the Android tree (AOSP) and standalone.
-Standalone builds are meant only for local testing and are not shipped.
+Standalone builds are meant only for local testing.
 Due to the reduced dependencies, the standalone workflow is faster to iterate on
 and the suggested way to work on Perfetto, unless you are working on code that
 has non-NDK depedencies into Android internals. Profilers and internal HAL/AIDL
 dependencies will not be built in the standalone build.
 
-If you are chromium contributor, AOSP is still the place you should send CLs to.
+If you are chromium contributor, GitHub is the place you should send PRs to.
 The code inside chromium's
 [third_party/perfetto](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/?q=f:third_party%2Fperfetto&ss=chromium)
 is a direct mirror of the AOSP repo. The
-[AOSP->Chromium autoroller](https://autoroll.skia.org/r/perfetto-chromium-autoroll)
+[GitHub->Chromium autoroller](https://autoroll.skia.org/r/perfetto-chromium-autoroll)
 takes care of keeping chromium's DEPS up to date.
 
 ## Standalone builds
@@ -24,7 +25,7 @@ takes care of keeping chromium's DEPS up to date.
 #### Get the code
 
 ```bash
-git clone https://android.googlesource.com/platform/external/perfetto/
+git clone https://github.com/google/perfetto
 ```
 
 #### Pull dependent libraries and toolchains

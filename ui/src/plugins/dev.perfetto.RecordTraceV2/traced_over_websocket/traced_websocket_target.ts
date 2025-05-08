@@ -103,7 +103,8 @@ export class TracedWebsocketTarget implements RecordingTarget {
     if (!ipcStatus.ok) return ipcStatus;
     const consumerIpc = ipcStatus.value;
     const req = new protos.QueryServiceStateRequest({});
-    const resp = await consumerIpc.invoke('QueryServiceState', req);
+    const rpcCall = consumerIpc.invokeStreaming('QueryServiceState', req);
+    const resp = await rpcCall.promise;
     if (!exists(resp.serviceState)) {
       return errResult('Failed to decode QueryServiceStateResponse');
     }

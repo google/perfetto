@@ -31,7 +31,7 @@ FLOW_TABLE = Table(
         C('slice_out', CppTableId(SLICE_TABLE)),
         C('slice_in', CppTableId(SLICE_TABLE)),
         C('trace_id', CppOptional(CppInt64())),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='''''',

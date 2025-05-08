@@ -12,134 +12,142 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time, duration, time} from '../../base/time';
-import {LIMIT, TrackData} from '../../components/tracks/track_data';
-import {TimelineFetcher} from '../../components/tracks/track_helper';
-import {checkerboardExcept} from '../../components/checkerboard';
-import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM} from '../../trace_processor/query_result';
-import {Track} from '../../public/track';
-import {TrackRenderContext} from '../../public/track';
+import m from 'mithril';
+import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {Trace} from '../../public/trace';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {makeColorScheme} from '../../components/colorizer';
+import {HSLColor} from '../../base/color';
+import {Section} from '../../widgets/section';
+import {Tree, TreeNode} from '../../widgets/tree';
+import {Timestamp} from '../../components/widgets/timestamp';
+import {Time} from '../../base/time';
+import {DetailsShell} from '../../widgets/details_shell';
+import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
+import {Spinner} from '../../widgets/spinner';
 
-export interface Data extends TrackData {
-  // Total number of log events within [start, end], before any quantization.
-  numEvents: number;
-
-  // Below: data quantized by resolution and aggregated by event priority.
-  timestamps: BigInt64Array;
-
-  // Each Uint8 value has the i-th bit is set if there is at least one log
-  // event at the i-th priority level at the corresponding time in |timestamps|.
-  priorities: Uint8Array;
-}
-
-const LEVELS: LevelCfg[] = [
-  {color: 'hsl(122, 39%, 49%)', prios: [0, 1, 2, 3]}, // Up to DEBUG: Green.
-  {color: 'hsl(0, 0%, 70%)', prios: [4]}, // 4 (INFO) -> Gray.
-  {color: 'hsl(45, 100%, 51%)', prios: [5]}, // 5 (WARN) -> Amber.
-  {color: 'hsl(4, 90%, 58%)', prios: [6]}, // 6 (ERROR) -> Red.
-  {color: 'hsl(291, 64%, 42%)', prios: [7]}, // 7 (FATAL) -> Purple
+const DEPTH_TO_COLOR = [
+  makeColorScheme(new HSLColor({h: 122, s: 39, l: 49})),
+  makeColorScheme(new HSLColor({h: 0, s: 0, l: 70})),
+  makeColorScheme(new HSLColor({h: 45, s: 100, l: 51})),
+  makeColorScheme(new HSLColor({h: 4, s: 90, l: 58})),
+  makeColorScheme(new HSLColor({h: 291, s: 64, l: 42})),
 ];
 
-const MARGIN_TOP = 2;
-const RECT_HEIGHT = 35;
-const EVT_PX = 2; // Width of an event tick in pixels.
+const EVT_PX = 6; // Width of an event tick in pixels.
 
-interface LevelCfg {
-  color: string;
-  prios: number[];
-}
+export function createAndroidLogTrack(trace: Trace, uri: string) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    rootTableName: 'android_logs',
+    dataset: new SourceDataset({
+      src: `
+        select
+          id,
+          ts,
+          prio,
+          utid,
+          tag,
+          msg,
+          CASE
+            WHEN prio <= 3 THEN 0
+            WHEN prio = 4 THEN 1
+            WHEN prio = 5 THEN 2
+            WHEN prio = 6 THEN 3
+            WHEN prio = 7 THEN 4
+            ELSE -1
+          END as depth
+        from android_logs
+        order by ts
+        -- android_logs aren't guaranteed to be ordered by ts, but this is a
+        -- requirements for DatasetSliceTrack's mipmap operator to work 
+        -- correctly, so we must explicitly sort them above.
+      `,
+      schema: {
+        id: NUM,
+        ts: LONG,
+        prio: NUM,
+        utid: NUM,
+        depth: NUM,
+        tag: STR_NULL,
+        msg: STR_NULL,
+      },
+    }),
+    initialMaxDepth: 4,
+    colorizer: (row) => DEPTH_TO_COLOR[row.depth],
+    tooltip: (slice) => [m('', m('b', slice.row.tag)), m('', slice.row.msg)],
+    // All log events are instant events, render them as a little box rather
+    // than the default chevron.
+    instantStyle: {
+      width: EVT_PX,
+      render: (ctx, r) => ctx.fillRect(r.x, r.y, r.width, r.height),
+    },
+    // Make rows a little more compact.
+    sliceLayout: {
+      padding: 2,
+      sliceHeight: 7,
+    },
+    detailsPanel: (row) => {
+      // The msg is initially undefined, it'll be filled in when it loads
+      let msg: string | undefined;
 
-export class AndroidLogTrack implements Track {
-  private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
+      // Quickly load the log message
+      trace.engine
+        .query(`select msg from android_logs where id = ${row.id}`)
+        .then((result) => {
+          const resultRow = result.maybeFirstRow({msg: STR});
+          msg = resultRow?.msg;
+        });
 
-  constructor(private engine: Engine) {}
-
-  async onUpdate({
-    visibleWindow,
-    resolution,
-  }: TrackRenderContext): Promise<void> {
-    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
-  }
-
-  async onDestroy(): Promise<void> {
-    this.fetcher[Symbol.dispose]();
-  }
-
-  getHeight(): number {
-    return 40;
-  }
-
-  async onBoundsChange(
-    start: time,
-    end: time,
-    resolution: duration,
-  ): Promise<Data> {
-    const queryRes = await this.engine.query(`
-      select
-        cast(ts / ${resolution} as integer) * ${resolution} as tsQuant,
-        prio,
-        count(prio) as numEvents
-      from android_logs
-      where ts >= ${start} and ts <= ${end}
-      group by tsQuant, prio
-      order by tsQuant, prio limit ${LIMIT};`);
-
-    const rowCount = queryRes.numRows();
-    const result = {
-      start,
-      end,
-      resolution,
-      length: rowCount,
-      numEvents: 0,
-      timestamps: new BigInt64Array(rowCount),
-      priorities: new Uint8Array(rowCount),
-    };
-
-    const it = queryRes.iter({tsQuant: LONG, prio: NUM, numEvents: NUM});
-    for (let row = 0; it.valid(); it.next(), row++) {
-      result.timestamps[row] = it.tsQuant;
-      const prio = Math.min(it.prio, 7);
-      result.priorities[row] |= 1 << prio;
-      result.numEvents += it.numEvents;
-    }
-    return result;
-  }
-
-  render({ctx, size, timescale}: TrackRenderContext): void {
-    const data = this.fetcher.data;
-
-    if (data === undefined) return; // Can't possibly draw anything.
-
-    const dataStartPx = timescale.timeToPx(data.start);
-    const dataEndPx = timescale.timeToPx(data.end);
-
-    checkerboardExcept(
-      ctx,
-      this.getHeight(),
-      0,
-      size.width,
-      dataStartPx,
-      dataEndPx,
-    );
-
-    const quantWidth = Math.max(
-      EVT_PX,
-      timescale.durationToPx(data.resolution),
-    );
-    const blockH = RECT_HEIGHT / LEVELS.length;
-    for (let i = 0; i < data.timestamps.length; i++) {
-      for (let lev = 0; lev < LEVELS.length; lev++) {
-        let hasEventsForCurColor = false;
-        for (const prio of LEVELS[lev].prios) {
-          if (data.priorities[i] & (1 << prio)) hasEventsForCurColor = true;
-        }
-        if (!hasEventsForCurColor) continue;
-        ctx.fillStyle = LEVELS[lev].color;
-        const timestamp = Time.fromRaw(data.timestamps[i]);
-        const px = Math.floor(timescale.timeToPx(timestamp));
-        ctx.fillRect(px, MARGIN_TOP + blockH * lev, quantWidth, blockH);
-      } // for(lev)
-    } // for (timestamps)
-  }
+      return {
+        render() {
+          return m(
+            DetailsShell,
+            {
+              title: `Android Log`,
+            },
+            m(
+              GridLayout,
+              m(
+                GridLayoutColumn,
+                m(
+                  Section,
+                  {title: 'Details'},
+                  m(
+                    Tree,
+                    m(TreeNode, {
+                      left: 'ID',
+                      right: row.id,
+                    }),
+                    m(TreeNode, {
+                      left: 'Timestamp',
+                      right: m(Timestamp, {ts: Time.fromRaw(row.ts)}),
+                    }),
+                    m(TreeNode, {
+                      left: 'Priority',
+                      right: row.prio,
+                    }),
+                    m(TreeNode, {
+                      left: 'Tag',
+                      right: row.tag,
+                    }),
+                    m(TreeNode, {
+                      left: 'Utid',
+                      right: row.utid,
+                    }),
+                    m(TreeNode, {
+                      left: 'Message',
+                      right: msg ? msg : m(Spinner),
+                    }),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      };
+    },
+  });
 }

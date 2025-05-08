@@ -164,8 +164,7 @@ ANDROID_MOTION_EVENTS_TABLE = Table(
     columns=[
         C('event_id', CppUint32()),
         C('ts', CppInt64()),
-        C('arg_set_id', CppUint32()),
-        C('base64_proto', CppString()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -183,8 +182,8 @@ ANDROID_MOTION_EVENTS_TABLE = Table(
                 ColumnDoc(
                     doc='Details of the motion event parsed from the proto message.',
                     joinable='args.arg_set_id'),
-            'base64_proto': 'Raw proto message encoded in base64',
-            'base64_proto_id': 'String id for raw proto message',
+            'base64_proto_id':
+                'String id for raw proto message',
         }))
 
 ANDROID_KEY_EVENTS_TABLE = Table(
@@ -194,8 +193,7 @@ ANDROID_KEY_EVENTS_TABLE = Table(
     columns=[
         C('event_id', CppUint32()),
         C('ts', CppInt64()),
-        C('arg_set_id', CppUint32()),
-        C('base64_proto', CppString()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -213,8 +211,8 @@ ANDROID_KEY_EVENTS_TABLE = Table(
                 ColumnDoc(
                     doc='Details of the key event parsed from the proto message.',
                     joinable='args.arg_set_id'),
-            'base64_proto': 'Raw proto message encoded in base64',
-            'base64_proto_id': 'String id for raw proto message',
+            'base64_proto_id':
+                'String id for raw proto message',
         }))
 
 ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
@@ -223,10 +221,9 @@ ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
     sql_name='__intrinsic_android_input_event_dispatch',
     columns=[
         C('event_id', CppUint32()),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('vsync_id', CppInt64()),
         C('window_id', CppInt32()),
-        C('base64_proto', CppString()),
         C('base64_proto_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -252,8 +249,8 @@ ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
                 ''',
             'window_id':
                 'The id of the window to which the event was dispatched.',
-            'base64_proto': 'Raw proto message encoded in base64',
-            'base64_proto_id': 'String id for raw proto message',
+            'base64_proto_id':
+                'String id for raw proto message',
         }))
 
 # Keep this list sorted.

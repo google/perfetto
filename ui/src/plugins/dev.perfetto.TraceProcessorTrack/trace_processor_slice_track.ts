@@ -14,125 +14,102 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {clamp} from '../../base/math_utils';
+import {exists} from '../../base/utils';
+import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 import {
-  NAMED_ROW,
-  NamedSliceTrack,
-} from '../../components/tracks/named_slice_track';
-import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../components/tracks/slice_layout';
-import {TrackEventDetails} from '../../public/selection';
+  DatasetSliceTrack,
+  renderTooltip,
+} from '../../components/tracks/dataset_slice_track';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
-import {Slice} from '../../public/track';
-import {SourceDataset, Dataset} from '../../trace_processor/dataset';
+import {SourceDataset} from '../../trace_processor/dataset';
 import {
   LONG,
   LONG_NULL,
   NUM,
-  NUM_NULL,
-  STR,
+  STR_NULL,
 } from '../../trace_processor/query_result';
+import m from 'mithril';
 
-export const THREAD_SLICE_ROW = {
-  // Base columns (tsq, ts, dur, id, depth).
-  ...NAMED_ROW,
+export interface TraceProcessorSliceTrackAttrs {
+  readonly trace: Trace;
+  readonly uri: string;
+  readonly maxDepth?: number;
+  readonly trackIds: ReadonlyArray<number>;
+  readonly detailsPanel?: (row: {id: number}) => TrackEventDetailsPanel;
+}
 
-  // Thread-specific columns.
-  threadDur: LONG_NULL,
-};
-export type ThreadSliceRow = typeof THREAD_SLICE_ROW;
-
-export class TraceProcessorSliceTrack extends NamedSliceTrack<
-  Slice,
-  ThreadSliceRow
-> {
-  constructor(
-    trace: Trace,
-    uri: string,
-    maxDepth: number,
-    private readonly trackIds: number[],
-  ) {
-    super(trace, uri);
-    this.sliceLayout = {
-      ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
-      depthGuess: maxDepth,
-    };
-  }
-
-  getRowSpec(): ThreadSliceRow {
-    return THREAD_SLICE_ROW;
-  }
-
-  rowToSlice(row: ThreadSliceRow): Slice {
-    const namedSlice = this.rowToSliceBase(row);
-
-    if (row.dur > 0n && row.threadDur !== null) {
-      const fillRatio = clamp(BIMath.ratio(row.threadDur, row.dur), 0, 1);
-      return {...namedSlice, fillRatio};
-    } else {
-      return namedSlice;
-    }
-  }
-
-  getSqlSource(): string {
-    // If we only have one track ID we can avoid the overhead of
-    // experimental_slice_layout, and just go straight to the slice table.
-    if (this.trackIds.length === 1) {
-      return `
-        select
-          ts,
-          dur,
-          id,
-          depth,
-          ifnull(name, '[null]') as name,
-          thread_dur as threadDur
-        from slice
-        where track_id = ${this.trackIds[0]}
-      `;
-    } else {
-      return `
-        select
-          id,
-          ts,
-          dur,
-          layout_depth as depth,
-          ifnull(name, '[null]') as name,
-          thread_dur as threadDur
-        from experimental_slice_layout
-        where filter_track_ids = '${this.trackIds.join(',')}'
-      `;
-    }
-  }
-
-  onUpdatedSlices(slices: Slice[]) {
-    for (const slice of slices) {
-      slice.isHighlighted = slice === this.hoveredSlice;
-    }
-  }
-
-  async getSelectionDetails(
-    id: number,
-  ): Promise<TrackEventDetails | undefined> {
-    const baseDetails = await super.getSelectionDetails(id);
-    if (!baseDetails) return undefined;
-    return {
-      ...baseDetails,
-      tableName: 'slice',
-    };
-  }
-
-  override getDataset(): Dataset {
-    return new SourceDataset({
-      src: `slice`,
-      filter: {
-        col: 'track_id',
-        in: this.trackIds,
-      },
+export function createTraceProcessorSliceTrack({
+  trace,
+  uri,
+  maxDepth,
+  trackIds,
+  detailsPanel,
+}: TraceProcessorSliceTrackAttrs) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: new SourceDataset({
       schema: {
         id: NUM,
-        name: STR,
         ts: LONG,
         dur: LONG,
-        parent_id: NUM_NULL,
+        name: STR_NULL,
+        depth: NUM,
+        thread_dur: LONG_NULL,
+        category: STR_NULL,
       },
-    });
+      src: 'slice',
+      filter: {
+        col: 'track_id',
+        in: trackIds,
+      },
+    }),
+    sliceName: (row) => (row.name === null ? '[null]' : row.name),
+    initialMaxDepth: maxDepth,
+    rootTableName: 'slice',
+    queryGenerator: getDepthProvider(trackIds),
+    fillRatio: (row) => {
+      if (row.dur > 0n && row.thread_dur !== null) {
+        return clamp(BIMath.ratio(row.thread_dur, row.dur), 0, 1);
+      } else {
+        return 1;
+      }
+    },
+    tooltip: (slice) => {
+      return renderTooltip(trace, slice, {
+        title: slice.title,
+        extras:
+          exists(slice.row.category) && m('', 'Category: ', slice.row.category),
+      });
+    },
+    detailsPanel: detailsPanel
+      ? (row) => detailsPanel(row)
+      : () => new ThreadSliceDetailsPanel(trace),
+  });
+}
+
+function getDepthProvider(trackIds: ReadonlyArray<number>) {
+  // If we have more than one track we basically just need to replace the query
+  // used for rendering tracks with this one which uses
+  // experimental_slice_layout. The reason we don't just put this query in the
+  // dataset is that the dataset is shared with the outside world and we don't
+  // want to force everyone else to use experimental_slice_track.
+  // TODO(stevegolton): Let's teach internal_layout how to mimic this behaviour.
+  if (trackIds.length > 1) {
+    return () => `
+      select
+        id,
+        ts,
+        dur,
+        layout_depth as depth,
+        name,
+        thread_dur,
+        category
+      from experimental_slice_layout
+      where filter_track_ids = '${trackIds.join(',')}'
+    `;
+  } else {
+    return undefined;
   }
 }

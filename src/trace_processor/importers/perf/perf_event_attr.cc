@@ -43,7 +43,7 @@ namespace {
 constexpr auto kBytesPerField = 8;
 
 size_t CountSetFlags(uint64_t sample_type) {
-  return static_cast<size_t>(__builtin_popcountll(sample_type));
+  return static_cast<size_t>(PERFETTO_POPCOUNT(sample_type));
 }
 
 std::optional<size_t> TimeOffsetFromEndOfNonSampleRecord(

@@ -44,7 +44,8 @@ def add_gpu_thread_atrace(trace, ts, ts_end, buf):
 
 def add_main_thread_atrace_from_depth(trace, ts, ts_end, buf, depth=0):
   for i in range(0, depth):
-    trace.add_atrace_begin(ts=ts - (depth - i), tid=PID, pid=PID, buf='<depth %d>'.format(i))
+    trace.add_atrace_begin(
+        ts=ts - (depth - i), tid=PID, pid=PID, buf='<depth %d>'.format(i))
   trace.add_atrace_begin(ts=ts, tid=PID, pid=PID, buf=buf)
   trace.add_atrace_end(ts=ts_end, tid=PID, pid=PID)
   for i in range(0, depth):
@@ -52,17 +53,17 @@ def add_main_thread_atrace_from_depth(trace, ts, ts_end, buf, depth=0):
 
 
 def add_frame_from_depth(trace,
-              vsync,
-              ts_do_frame,
-              ts_end_do_frame,
-              ts_draw_frame,
-              ts_end_draw_frame,
-              ts_gpu=None,
-              ts_end_gpu=None,
-              resync=False,
-              depth=0):
+                         vsync,
+                         ts_do_frame,
+                         ts_end_do_frame,
+                         ts_draw_frame,
+                         ts_end_draw_frame,
+                         ts_gpu=None,
+                         ts_end_gpu=None,
+                         resync=False,
+                         depth=0):
   add_main_thread_atrace_from_depth(trace, ts_do_frame, ts_end_do_frame,
-                         "Choreographer#doFrame %d" % vsync, depth)
+                                    "Choreographer#doFrame %d" % vsync, depth)
   if resync:
     add_main_thread_atrace_from_depth(
         trace, ts_do_frame, ts_end_do_frame,
@@ -119,6 +120,7 @@ add_frame_from_depth(
     ts_end_do_frame=65_000_000,
     ts_draw_frame=65_00_000,
     ts_end_draw_frame=70_000_000,
+    resync=True,
     depth=2)
 
 add_frame_from_depth(

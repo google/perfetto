@@ -158,7 +158,7 @@ constexpr auto Dimensions(D... dimensions) {
 }
 
 // Indicates that the name of the track was provided in the blueprint.
-constexpr nullptr_t BlueprintName() {
+constexpr std::nullptr_t BlueprintName() {
   return nullptr;
 }
 
@@ -169,7 +169,7 @@ constexpr StringPool::Id DynamicName(StringPool::Id id) {
 }
 
 // Indicates that the unit of the track was provided in the blueprint.
-constexpr nullptr_t BlueprintUnit() {
+constexpr std::nullptr_t BlueprintUnit() {
   return nullptr;
 }
 

@@ -628,6 +628,40 @@ message AndroidSystemPropertyConfig {
 
 // End of protos/perfetto/config/android/android_system_property_config.proto
 
+// Begin of protos/perfetto/config/android/app_wakelock_config.proto
+
+// Configuration for the android.app_wakelocks data source.
+message AppWakelocksConfig {
+  // Specifies the delay (in milliseconds) after which the data source will
+  // attempt to write events. Writing less frequently reduces the trace size by
+  // making better use of the packed arrays and reducing the total number of
+  // TracePackets needed (which each have dozens of bytes of overhead). The
+  // suggested delay is 5000ms.
+  optional int32 write_delay_ms = 1;
+
+  // When set, wakelocks held for less than this amount of time are filtered
+  // from the resulting trace. Note: duration is computed by matching wakelocks
+  // with identical attributes, not by tracking the underlying objects. The
+  // threshold should be < the trace's flush_period_ms.
+  optional int32 filter_duration_below_ms = 2;
+
+  // When true, the owner_pid is dropped from the resulting output, reducing the
+  // size of the interning tables.
+  optional bool drop_owner_pid = 3;
+}
+
+// End of protos/perfetto/config/android/app_wakelock_config.proto
+
+// Begin of protos/perfetto/config/android/kernel_wakelocks_config.proto
+
+// Data source that records kernel (and native) wakelock data.
+message KernelWakelocksConfig {
+  // Record at this frequency.
+  optional uint32 poll_ms = 1;
+}
+
+// End of protos/perfetto/config/android/kernel_wakelocks_config.proto
+
 // Begin of protos/perfetto/config/android/network_trace_config.proto
 
 // Network tracing data source that records details on all packets sent or
@@ -777,8 +811,8 @@ message SurfaceFlingerLayersConfig {
     MODE_DUMP = 3;
 
     // Default mode (applied by SurfaceFlinger if no mode is specified).
-    // Same as MODE_GENERATED, but triggers the layers snapshots generation only when a bugreport
-    // is taken.
+    // Same as MODE_GENERATED, but triggers the layers snapshots generation only
+    // when a bugreport is taken.
     MODE_GENERATED_BUGREPORT_ONLY = 4;
   }
   optional Mode mode = 1;
@@ -888,9 +922,33 @@ message ChromeConfig {
   // If |json_agent_label_filter| is not empty, only data pertaining to
   // the specified tracing agent label (e.g. "traceEvents") will be returned.
   optional string json_agent_label_filter = 5;
+
+  //  When enabled, event names should not contain package names.
+  optional bool event_package_name_filter_enabled = 6;
 }
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
+
+// Begin of protos/perfetto/config/chrome/histogram_samples.proto
+
+message ChromiumHistogramSamplesConfig {
+  // Records when a value within the specified bounds [min_value, max_value] is
+  // emitted into a Chrome histogram.
+  message HistogramSample {
+    optional string histogram_name = 1;
+    optional int64 min_value = 2;
+    optional int64 max_value = 3;
+  }
+  // List of histograms to record. If no histogram is specified, all histograms
+  // are recorded.
+  repeated HistogramSample histograms = 1;
+
+  // Default: false (i.e. histogram names are NOT filtered out by default)
+  // When true, histogram_name will be filtered out.
+  optional bool filter_histogram_names = 2;
+}
+
+// End of protos/perfetto/config/chrome/histogram_samples.proto
 
 // Begin of protos/perfetto/config/chrome/system_metrics.proto
 
@@ -938,9 +996,17 @@ message EtwConfig {
 }
 // End of protos/perfetto/config/etw/etw_config.proto
 
+// Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
+
+message FrozenFtraceConfig {
+  // The instance name which stores the previous boot ftrace data.
+  required string instance_name = 1;
+}
+// End of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
+
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 31
+// Next id: 33
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1076,6 +1142,12 @@ message FtraceConfig {
   // For more context: go/rss-stat-throttled.
   optional bool throttle_rss_stat = 15;
 
+  // If true, use self-describing proto messages when writing events not known
+  // at compile time (aka generic events). Each event bundle will have a set of
+  // serialised proto descriptors for events within that bundle.
+  // Added in: perfetto v50.
+  optional bool denser_generic_event_encoding = 32;
+
   // If true, avoid enabling events that aren't statically known by
   // traced_probes. Otherwise, the default is to emit such events as
   // GenericFtraceEvent protos.
@@ -1176,6 +1248,10 @@ message FtraceConfig {
   // Introduced in: perfetto v43.
   optional bool buffer_size_lower_bound = 27;
 
+  // For perfetto developer use. If true and on a debuggable android build,
+  // serialise raw tracing pages that the implementation cannot parse.
+  optional bool debug_ftrace_abi = 31;
+
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;
 }
@@ -1200,6 +1276,26 @@ message GpuCounterConfig {
 }
 
 // End of protos/perfetto/config/gpu/gpu_counter_config.proto
+
+// Begin of protos/perfetto/config/gpu/gpu_renderstages_config.proto
+
+message GpuRenderStagesConfig {
+  // Enable to separate the color and depth/stencil load and store stages
+  // into a separate stages. If disabled, the depth/stencil load and store
+  // stages will be combined.  Disabled by default. This option has no effect if
+  // Low Overhead mode is enabled.
+  optional bool full_loadstore = 1;
+
+  // Use the low overhead mode for traces. In this mode render stages are
+  // combined into a single workload stage. This provides less granular data but
+  // induces minimal GPU overhead. Disabled by default.
+  optional bool low_overhead = 2;
+
+  // Trace metrics to capture for each render stage
+  repeated string trace_metrics = 3;
+}
+
+// End of protos/perfetto/config/gpu/gpu_renderstages_config.proto
 
 // Begin of protos/perfetto/config/gpu/vulkan_memory_config.proto
 
@@ -1354,6 +1450,12 @@ message ProcessStatsConfig {
   optional bool resolve_process_fds = 9;
 
   // If true, output will include memory stats from /proc/pid/smaps_rollup.
+  //
+  // Does NOT work with the Android system daemon by default, as it requires
+  // running the recording process (traced_probes or tracebox) as root. It is
+  // possible to avoid the root requirement, but the exact steps depend on the
+  // Linux distibution. The proc file requires passing a PTRACE_MODE_READ
+  // check, and might be further covered by the procfs "hidepid" mount option.
   optional bool scan_smaps_rollup = 10;
 
   // If true: process descriptions will include process age (starttime in
@@ -1638,14 +1740,24 @@ message JavaHprofConfig {
 
 // Begin of protos/perfetto/common/perf_events.proto
 
-// Next id: 12
 message PerfEvents {
-  // What event to sample on, and how often. Commented from the perspective of
-  // its use in |PerfEventConfig|.
+  // The primary event to count. If recording multiple events, this
+  // counter is the "group leader".
+  // Commented from the perspective of its use in |PerfEventConfig|.
+  // Next id: 12
   message Timebase {
-    // How often the per-cpu sampling will occur. Not guaranteed to be honored
-    // as the kernel can throttle the sampling rate if it's too high.
-    // If unset, an implementation-defined default is used.
+    // How often to snapshot the counter, along with any follower events and
+    // any additional sampled data such as callstacks.
+    //
+    // This choice also controls how the readings are taken:
+    // * With |frequency| or |period|, samples are taken by the kernel
+    //   into a ring buffer. Analogous to `perf record`.
+    // * With |poll_period_ms|, the userspace periodically snapshots
+    //   the counters using the read syscall. Analogous to `perf stat -I`.
+    // Prefer the sampling options unless you're recording PMUs whose
+    // perf drivers only support the reading mode.
+    //
+    // If unset, an implementation-defined sampling default is used.
     oneof interval {
       // Per-cpu sampling frequency in Hz, as requested from the kernel. Not the
       // same as 1/period.
@@ -1653,18 +1765,28 @@ message PerfEvents {
       // kernel will dynamically adjust it based on the observed event rate, to
       // approximate this frequency. Works best with steady-rate events like
       // timers.
+      // Not guaranteed to be honored as the kernel can throttle the sampling
+      // rate if it's too high.
       uint64 frequency = 2;
 
       // Per-cpu sampling will occur every |period| counts of |event|.
       // Prefer |frequency| by default, as it's easier to oversample with a
       // fixed period.
+      // Not guaranteed to be honored as the kernel can throttle the sampling
+      // rate if it's too high.
       uint64 period = 1;
+
+      // Per-cpu values are read by the userspace every interval. If using this
+      // mode, only follower events are supported. Options such as
+      // |PerfEventConfig.CallstackSampling| are incompatible.
+      // The period can't be guaranteed to be exact since the readings are taken
+      // by userspace.
+      uint32 poll_period_ms = 6;
     }
 
-    // Counting event to use as a timebase for the sampling.
+    // Counting event to use as the timebase.
     // If unset, implies the CPU timer (SW_CPU_CLOCK) as the event,
     // which is what you usually want.
-    // See common/perf_events.proto for the definitions.
     oneof event {
       Counter counter = 4;
       Tracepoint tracepoint = 3;
@@ -1805,7 +1927,7 @@ message FollowerEvent {
 //     }
 //   }
 //
-// Next id: 20
+// Next id: 21
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
@@ -1818,6 +1940,15 @@ message PerfEventConfig {
   // interval specified by the |timebase|.
   // If unset, the profiler will record only the event counts.
   optional CallstackSampling callstack_sampling = 16;
+
+  // List of cpu indices for counting. If empty, the default is all cpus.
+  //
+  // Note: this is not inside |callstack_sampling.scope| as it also applies to
+  // counter-only traces. A future change will likely reorganise the options,
+  // but this field will continue to be supported.
+  //
+  // Available since: perfetto v50.
+  repeated uint32 target_cpu = 20;
 
   //
   // Kernel <-> userspace ring buffer options:
@@ -2396,7 +2527,6 @@ enum AtomId {
   ATOM_CLIPBOARD_CLEARED = 408;
   ATOM_VM_CREATION_REQUESTED = 409;
   ATOM_NEARBY_DEVICE_SCAN_STATE_CHANGED = 410;
-  ATOM_CAMERA_COMPAT_CONTROL_EVENT_REPORTED = 411;
   ATOM_APPLICATION_LOCALES_CHANGED = 412;
   ATOM_MEDIAMETRICS_AUDIOTRACKSTATUS_REPORTED = 413;
   ATOM_FOLD_STATE_DURATION_REPORTED = 414;
@@ -2730,6 +2860,7 @@ enum AtomId {
   ATOM_NOTIFICATION_MEMORY_USE = 10174;
   ATOM_HDR_CAPABILITIES = 10175;
   ATOM_WS_FAVOURITE_WATCH_FACE_LIST_SNAPSHOT = 10176;
+  ATOM_ACCESSIBILITY_CHECK_RESULT_REPORTED = 910;
   ATOM_ADAPTIVE_AUTH_UNLOCK_AFTER_LOCK_REPORTED = 820;
   ATOM_THERMAL_STATUS_CALLED = 772;
   ATOM_THERMAL_HEADROOM_CALLED = 773;
@@ -2804,6 +2935,10 @@ enum AtomId {
   ATOM_SELECT_ADS_FROM_OUTCOMES_API_CALLED = 876;
   ATOM_REPORT_IMPRESSION_API_CALLED = 877;
   ATOM_AD_SERVICES_ENROLLMENT_TRANSACTION_STATS = 885;
+  ATOM_AD_SERVICES_COBALT_LOGGER_EVENT_REPORTED = 902;
+  ATOM_AD_SERVICES_COBALT_PERIODIC_JOB_EVENT_REPORTED = 903;
+  ATOM_UPDATE_SIGNALS_PROCESS_REPORTED = 905;
+  ATOM_TOPICS_SCHEDULE_EPOCH_JOB_SETTING_REPORTED = 930;
   ATOM_AI_WALLPAPERS_BUTTON_PRESSED = 706;
   ATOM_AI_WALLPAPERS_TEMPLATE_SELECTED = 707;
   ATOM_AI_WALLPAPERS_TERM_SELECTED = 708;
@@ -2816,6 +2951,7 @@ enum AtomId {
   ATOM_APP_SEARCH_SCHEMA_MIGRATION_STATS_REPORTED = 579;
   ATOM_APP_SEARCH_USAGE_SEARCH_INTENT_STATS_REPORTED = 825;
   ATOM_APP_SEARCH_USAGE_SEARCH_INTENT_RAW_QUERY_STATS_REPORTED = 826;
+  ATOM_APP_SEARCH_APPS_INDEXER_STATS_REPORTED = 909;
   ATOM_ART_DATUM_REPORTED = 332;
   ATOM_ART_DEVICE_DATUM_REPORTED = 550;
   ATOM_ART_DATUM_DELTA_REPORTED = 565;
@@ -2855,7 +2991,11 @@ enum AtomId {
   ATOM_BROADCAST_AUDIO_SESSION_REPORTED = 927;
   ATOM_BROADCAST_AUDIO_SYNC_REPORTED = 928;
   ATOM_BLUETOOTH_RFCOMM_CONNECTION_REPORTED_AT_CLOSE = 982;
+  ATOM_BLUETOOTH_LE_CONNECTION = 988;
+  ATOM_BROADCAST_SENT = 922;
   ATOM_CAMERA_FEATURE_COMBINATION_QUERY_EVENT = 900;
+  ATOM_CERTIFICATE_TRANSPARENCY_LOG_LIST_STATE_CHANGED = 934;
+  ATOM_CERTIFICATE_TRANSPARENCY_LOG_LIST_UPDATE_FAILED = 972;
   ATOM_DAILY_KEEPALIVE_INFO_REPORTED = 650;
   ATOM_NETWORK_REQUEST_STATE_CHANGED = 779;
   ATOM_TETHERING_ACTIVE_SESSIONS_REPORTED = 925;
@@ -2882,6 +3022,7 @@ enum AtomId {
   ATOM_CRONET_INITIALIZED = 764;
   ATOM_DESKTOP_MODE_UI_CHANGED = 818;
   ATOM_DESKTOP_MODE_SESSION_TASK_UPDATE = 819;
+  ATOM_DESKTOP_MODE_TASK_SIZE_UPDATED = 935;
   ATOM_DEVICE_LOCK_CHECK_IN_REQUEST_REPORTED = 726;
   ATOM_DEVICE_LOCK_PROVISIONING_COMPLETE_REPORTED = 727;
   ATOM_DEVICE_LOCK_KIOSK_APP_REQUEST_REPORTED = 728;
@@ -2905,6 +3046,7 @@ enum AtomId {
   ATOM_FULL_SCREEN_INTENT_LAUNCHED = 631;
   ATOM_BAL_ALLOWED = 632;
   ATOM_IN_TASK_ACTIVITY_STARTED = 685;
+  ATOM_DEVICE_ORIENTATION_CHANGED = 906;
   ATOM_CACHED_APPS_HIGH_WATERMARK = 10189;
   ATOM_STYLUS_PREDICTION_METRICS_REPORTED = 718;
   ATOM_USER_RISK_EVENT_REPORTED = 725;
@@ -2920,8 +3062,14 @@ enum AtomId {
   ATOM_SENSITIVE_NOTIFICATION_REDACTION = 833;
   ATOM_SENSITIVE_CONTENT_APP_PROTECTION = 835;
   ATOM_APP_RESTRICTION_STATE_CHANGED = 866;
+  ATOM_BATTERY_USAGE_STATS_PER_UID = 10209;
+  ATOM_POSTGC_MEMORY_SNAPSHOT = 924;
+  ATOM_POWER_SAVE_TEMP_ALLOWLIST_CHANGED = 926;
+  ATOM_APP_OP_ACCESS_TRACKED = 931;
+  ATOM_CONTENT_OR_FILE_URI_EVENT_REPORTED = 933;
   ATOM_APPLICATION_GRAMMATICAL_INFLECTION_CHANGED = 584;
   ATOM_SYSTEM_GRAMMATICAL_INFLECTION_CHANGED = 816;
+  ATOM_BATTERY_HEALTH = 10220;
   ATOM_HDMI_EARC_STATUS_REPORTED = 701;
   ATOM_HDMI_SOUNDBAR_MODE_STATUS_REPORTED = 724;
   ATOM_HEALTH_CONNECT_API_CALLED = 616;
@@ -2929,6 +3077,9 @@ enum AtomId {
   ATOM_HEALTH_CONNECT_STORAGE_STATS = 618;
   ATOM_HEALTH_CONNECT_API_INVOKED = 643;
   ATOM_EXERCISE_ROUTE_API_CALLED = 654;
+  ATOM_HEALTH_CONNECT_EXPORT_INVOKED = 907;
+  ATOM_HEALTH_CONNECT_IMPORT_INVOKED = 918;
+  ATOM_HEALTH_CONNECT_EXPORT_IMPORT_STATS_REPORTED = 919;
   ATOM_HEALTH_CONNECT_UI_IMPRESSION = 623;
   ATOM_HEALTH_CONNECT_UI_INTERACTION = 624;
   ATOM_HEALTH_CONNECT_APP_OPENED_REPORTED = 625;
@@ -2939,16 +3090,21 @@ enum AtomId {
   ATOM_KEYBOARD_CONFIGURED = 682;
   ATOM_KEYBOARD_SYSTEMS_EVENT_REPORTED = 683;
   ATOM_INPUTDEVICE_USAGE_REPORTED = 686;
+  ATOM_INPUT_EVENT_LATENCY_REPORTED = 932;
   ATOM_TOUCHPAD_USAGE = 10191;
   ATOM_KERNEL_OOM_KILL_OCCURRED = 754;
   ATOM_EMERGENCY_STATE_CHANGED = 633;
   ATOM_CHRE_SIGNIFICANT_MOTION_STATE_CHANGED = 868;
+  ATOM_POPULATION_DENSITY_PROVIDER_LOADING_REPORTED = 1002;
+  ATOM_DENSITY_BASED_COARSE_LOCATIONS_USAGE_REPORTED = 1003;
+  ATOM_DENSITY_BASED_COARSE_LOCATIONS_PROVIDER_QUERY_REPORTED = 1004;
   ATOM_MEDIA_CODEC_RECLAIM_REQUEST_COMPLETED = 600;
   ATOM_MEDIA_CODEC_STARTED = 641;
   ATOM_MEDIA_CODEC_STOPPED = 642;
   ATOM_MEDIA_CODEC_RENDERED = 684;
   ATOM_MEDIA_EDITING_ENDED_REPORTED = 798;
   ATOM_MTE_STATE = 10181;
+  ATOM_MICROXR_DEVICE_BOOT_COMPLETE_REPORTED = 901;
   ATOM_NFC_OBSERVE_MODE_STATE_CHANGED = 855;
   ATOM_NFC_FIELD_CHANGED = 856;
   ATOM_NFC_POLLING_LOOP_NOTIFICATION_REPORTED = 857;
@@ -2958,6 +3114,7 @@ enum AtomId {
   ATOM_PDF_LOAD_REPORTED = 859;
   ATOM_PDF_API_USAGE_REPORTED = 860;
   ATOM_PDF_SEARCH_REPORTED = 861;
+  ATOM_PRESSURE_STALL_INFORMATION = 10229;
   ATOM_PERMISSION_RATIONALE_DIALOG_VIEWED = 645;
   ATOM_PERMISSION_RATIONALE_DIALOG_ACTION_REPORTED = 646;
   ATOM_APP_DATA_SHARING_UPDATES_NOTIFICATION_INTERACTION = 647;
@@ -2987,6 +3144,11 @@ enum AtomId {
   ATOM_SCREEN_DIM_REPORTED = 867;
   ATOM_MEDIA_PROVIDER_DATABASE_ROLLBACK_REPORTED = 784;
   ATOM_BACKUP_SETUP_STATUS_REPORTED = 785;
+  ATOM_RANGING_SESSION_CONFIGURED = 993;
+  ATOM_RANGING_SESSION_STARTED = 994;
+  ATOM_RANGING_SESSION_CLOSED = 995;
+  ATOM_RANGING_TECHNOLOGY_STARTED = 996;
+  ATOM_RANGING_TECHNOLOGY_STOPPED = 997;
   ATOM_RKPD_POOL_STATS = 664;
   ATOM_RKPD_CLIENT_OPERATION = 665;
   ATOM_SANDBOX_API_CALLED = 488;
@@ -3004,12 +3166,19 @@ enum AtomId {
   ATOM_DISPLAY_SWITCH_LATENCY_TRACKED = 753;
   ATOM_NOTIFICATION_LISTENER_SERVICE = 829;
   ATOM_NAV_HANDLE_TOUCH_POINTS = 869;
+  ATOM_COMMUNAL_HUB_WIDGET_EVENT_REPORTED = 908;
+  ATOM_COMMUNAL_HUB_SNAPSHOT = 10226;
   ATOM_EMERGENCY_NUMBER_DIALED = 637;
+  ATOM_CALL_STATS = 10221;
+  ATOM_CALL_AUDIO_ROUTE_STATS = 10222;
+  ATOM_TELECOM_API_STATS = 10223;
+  ATOM_TELECOM_ERROR_STATS = 10224;
   ATOM_CELLULAR_RADIO_POWER_STATE_CHANGED = 713;
   ATOM_EMERGENCY_NUMBERS_INFO = 10180;
   ATOM_DATA_NETWORK_VALIDATION = 10207;
   ATOM_DATA_RAT_STATE_CHANGED = 854;
   ATOM_CONNECTED_CHANNEL_CHANGED = 882;
+  ATOM_IWLAN_UNDERLYING_NETWORK_VALIDATION_RESULT_REPORTED = 923;
   ATOM_QUALIFIED_RAT_LIST_CHANGED = 634;
   ATOM_QNS_IMS_CALL_DROP_STATS = 635;
   ATOM_QNS_FALLBACK_RESTRICTION_CHANGED = 636;
@@ -3035,10 +3204,12 @@ enum AtomId {
   ATOM_BOOT_INTEGRITY_INFO_REPORTED = 775;
   ATOM_TV_LOW_POWER_STANDBY_POLICY = 679;
   ATOM_EXTERNAL_TV_INPUT_EVENT = 717;
+  ATOM_TEST_UPROBESTATS_ATOM_REPORTED = 915;
   ATOM_UWB_ACTIVITY_INFO = 10188;
   ATOM_MEDIATOR_UPDATED = 721;
   ATOM_SYSPROXY_BLUETOOTH_BYTES_TRANSFER = 10196;
   ATOM_SYSPROXY_CONNECTION_UPDATED = 786;
+  ATOM_WEAR_COMPANION_CONNECTION_STATE = 921;
   ATOM_MEDIA_ACTION_REPORTED = 608;
   ATOM_MEDIA_CONTROLS_LAUNCHED = 609;
   ATOM_MEDIA_SESSION_STATE_CHANGED = 677;
@@ -3059,6 +3230,10 @@ enum AtomId {
   ATOM_INFLATION_FAILED = 749;
   ATOM_IGNORED_INFLATION_FAILURES_REPORTED = 750;
   ATOM_DRAWABLE_RENDERED = 751;
+  ATOM_WEAR_TIME_SYNC_REQUESTED = 911;
+  ATOM_WEAR_TIME_UPDATE_STARTED = 912;
+  ATOM_WEAR_TIME_SYNC_ATTEMPT_COMPLETED = 913;
+  ATOM_WEAR_TIME_CHANGED = 914;
   ATOM_WEAR_ADAPTIVE_SUSPEND_STATS_REPORTED = 619;
   ATOM_WEAR_POWER_ANOMALY_SERVICE_OPERATIONAL_STATS_REPORTED = 620;
   ATOM_WEAR_POWER_ANOMALY_SERVICE_EVENT_STATS_REPORTED = 621;
@@ -3072,10 +3247,18 @@ enum AtomId {
   ATOM_WS_WATCH_FACE_RESTRICTED_COMPLICATIONS_IMPACTED = 802;
   ATOM_WS_WATCH_FACE_DEFAULT_RESTRICTED_COMPLICATIONS_REMOVED = 803;
   ATOM_WS_COMPLICATIONS_IMPACTED_NOTIFICATION_EVENT_REPORTED = 804;
+  ATOM_WS_REMOTE_EVENT_USAGE_REPORTED = 920;
+  ATOM_WS_BUGREPORT_REQUESTED = 936;
+  ATOM_WS_BUGREPORT_TRIGGERED = 937;
+  ATOM_WS_BUGREPORT_FINISHED = 938;
+  ATOM_WS_BUGREPORT_RESULT_RECEIVED = 939;
   ATOM_WS_STANDALONE_MODE_SNAPSHOT = 10197;
   ATOM_WS_FAVORITE_WATCH_FACE_SNAPSHOT = 10206;
+  ATOM_WS_PHOTOS_WATCH_FACE_FEATURE_SNAPSHOT = 10225;
+  ATOM_WS_WATCH_FACE_CUSTOMIZATION_SNAPSHOT = 10227;
   ATOM_WEAR_POWER_MENU_OPENED = 731;
   ATOM_WEAR_ASSISTANT_OPENED = 755;
+  ATOM_FIRST_OVERLAY_STATE_CHANGED = 917;
   ATOM_WIFI_AWARE_NDP_REPORTED = 638;
   ATOM_WIFI_AWARE_ATTACH_REPORTED = 639;
   ATOM_WIFI_SELF_RECOVERY_TRIGGERED = 661;
@@ -3451,7 +3634,7 @@ message SysStatsConfig {
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
 
-// Begin of protos/perfetto/config/system_info/system_info.proto
+// Begin of protos/perfetto/config/system_info/system_info_config.proto
 
 // This data-source does a one-off recording of system information when
 // the trace starts.
@@ -3461,7 +3644,7 @@ message SysStatsConfig {
 // datasource has no configuration options at present.
 message SystemInfoConfig {}
 
-// End of protos/perfetto/config/system_info/system_info.proto
+// End of protos/perfetto/config/system_info/system_info_config.proto
 
 // Begin of protos/perfetto/config/test_config.proto
 
@@ -3601,7 +3784,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 132
+// Next id: 137
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3653,7 +3836,28 @@ message DataSourceConfig {
   // DO NOT SET in consumer as this will be overridden by the service.
   optional uint64 tracing_session_id = 4;
 
-  // Keeep the lower IDs (up to 99) for fields that are *not* specific to
+  enum BufferExhaustedPolicy {
+    // The data source will use its default buffer exhausted policy, specified
+    // by the code when the data source is registered.
+    BUFFER_EXHAUSTED_UNSPECIFIED = 0;
+    // The data source will drop packets when there's no space in the shared
+    // memory buffer.
+    BUFFER_EXHAUSTED_DROP = 1;
+    // The data source will wait when there's no space in the shared memory
+    // buffer. If there's still not space, after a few seconds, the whole
+    // producer process will be aborted.
+    BUFFER_EXHAUSTED_STALL_THEN_ABORT = 2;
+    // The data source will wait when there's no space in the shared memory
+    // buffer.  If there's still not space, after a few seconds, the data source
+    // will drop packets.
+    BUFFER_EXHAUSTED_STALL_THEN_DROP = 3;
+  };
+  // How to behave when the producer runs out of space in the shared memory
+  // buffer. This is only honored by some data sources (in the SDK, the data
+  // sources registered with a configurable buffer exhausted policy).
+  optional BufferExhaustedPolicy buffer_exhausted_policy = 9;
+
+  // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
 
   // All data source config fields must be marked as [lazy=true]. This prevents
@@ -3679,7 +3883,7 @@ message DataSourceConfig {
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
   // Data source name: android.log
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
-  // TODO(fmayer): Add data source name for this.
+  // Data source name: gpu.counters
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
   // Data source name: android.game_interventions
   optional AndroidGameInterventionListConfig
@@ -3702,6 +3906,8 @@ message DataSourceConfig {
   optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
   // Data source name: linux.system_info
   optional SystemInfoConfig system_info_config = 119;
+  // Data source name: linux.frozen_ftrace
+  optional FrozenFtraceConfig frozen_ftrace_config = 136 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would
@@ -3757,7 +3963,21 @@ message DataSourceConfig {
   optional WindowManagerConfig windowmanager_config = 130 [lazy = true];
 
   // Data source name: org.chromium.system_metrics
-  optional ChromiumSystemMetricsConfig chromium_system_metrics = 131 [lazy = true];
+  optional ChromiumSystemMetricsConfig chromium_system_metrics = 131
+      [lazy = true];
+
+  // Data source name: android.kernel_wakelocks
+  optional KernelWakelocksConfig kernel_wakelocks_config = 132 [lazy = true];
+
+  // Data source name: gpu.renderstages
+  optional GpuRenderStagesConfig gpu_renderstages_config = 133 [lazy = true];
+
+  // Data source name: org.chromium.histogram_samples
+  optional ChromiumHistogramSamplesConfig chromium_histogram_samples = 134
+      [lazy = true];
+
+  // Data source name: android.app_wakelocks
+  optional AppWakelocksConfig app_wakelocks_config = 135 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -4496,6 +4716,76 @@ message TraceConfig {
 
 // End of protos/perfetto/config/trace_config.proto
 
+// Begin of protos/perfetto/common/system_info.proto
+
+message Utsname {
+  optional string sysname = 1;
+  optional string version = 2;
+  optional string release = 3;
+  optional string machine = 4;
+}
+
+// Next id: 16
+message SystemInfo {
+  optional Utsname utsname = 1;
+  optional string android_build_fingerprint = 2;
+
+  // The manufacturer of the product/hardware.
+  // Source : "ro.product.manufacturer"
+  // Introduced after Android W in Nov 2024 and is not supported on older
+  // versions.
+  optional string android_device_manufacturer = 14;
+
+  // The SoC model from which trace is collected
+  optional string android_soc_model = 9;
+
+  // The guest SoC model from which trace is collected in case of VMs
+  optional string android_guest_soc_model = 13;
+
+  // The hardware reversion from android device
+  optional string android_hardware_revision = 10;
+
+  // The storage component from android_device. This field has been introduced
+  // after Android W in Aug 2024 and is not supported on older versions.
+  optional string android_storage_model = 11;
+
+  // The RAM component information from android device. This field has been
+  // introduced after Android W in Aug 2024 and is not supported on older
+  // versions.
+  optional string android_ram_model = 12;
+
+  // The serial console information from android device.
+  optional string android_serial_console = 15;
+
+  // The version of traced (the same returned by `traced --version`).
+  // This is a human readable string with and its format varies depending on
+  // the build system and the repo (standalone vs AOSP).
+  // This is intended for human debugging only.
+  optional string tracing_service_version = 4;
+
+  // The Android SDK vesion (e.g. 21 for L, 31 for S etc).
+  // Introduced in Android T.
+  optional uint64 android_sdk_version = 5;
+
+  // Kernel page size - sysconf(_SC_PAGESIZE).
+  optional uint32 page_size = 6;
+
+  // Number of cpus - sysconf(_SC_NPROCESSORS_CONF).
+  // Might be different to the number of online cpus.
+  // Introduced in perfetto v44.
+  optional uint32 num_cpus = 8;
+
+  // The timezone offset from UTC, as per strftime("%z"), in minutes.
+  // Introduced in v38 / Android V.
+  optional int32 timezone_off_mins = 7;
+
+  // Ticks per second - sysconf(_SC_CLK_TCK).
+  // Not serialised as of perfetto v44.
+  optional int64 hz = 3;
+}
+
+// End of protos/perfetto/common/system_info.proto
+
 // Begin of protos/perfetto/common/trace_stats.proto
 
 // Statistics for the internals of the tracing service.
@@ -4810,6 +5100,96 @@ message AndroidSystemProperty {
 
 // End of protos/perfetto/trace/android/android_system_property.proto
 
+// Begin of protos/perfetto/trace/android/app_wakelock_data.proto
+
+// AppWakelockInfo describes the time-independent properties of a wakelock, such
+// as the owning package or wakelock tag. This is interned to reduce trace size.
+// Event bundles refer to interned wakelock info by the iid.
+message AppWakelockInfo {
+  // The interned id of this wakelock.
+  optional int32 iid = 1;
+
+  // The app-provided tag of the wakelock.
+  optional string tag = 2;
+
+  // The wakelock flags (such as partial vs full).
+  optional int32 flags = 3;
+
+  // The pid that created the wakelock.
+  optional int32 owner_pid = 4;
+
+  // The uid that created the wakelock.
+  optional int32 owner_uid = 5;
+
+  // The uid of the work source root (if present).
+  optional int32 work_uid = 6;
+}
+
+// AppWakelockBundle describes one or more wakelock events. Events are written
+// in two paired array, such that the details for event i are in intern_id[i]
+// and encoded_ts[i].
+message AppWakelockBundle {
+  // The interned id for the WakelockInfo of the event.
+  repeated uint32 intern_id = 1 [packed = true];
+
+  // The timestamp and event type, encoded as:
+  //   (event_time - packet_time) << 1 | (acquired ? 1 : 0)
+  repeated uint64 encoded_ts = 2 [packed = true];
+
+  // For writing single packets (mainly by tokenization).
+  optional AppWakelockInfo info = 3;
+  optional bool acquired = 4;
+}
+
+// End of protos/perfetto/trace/android/app_wakelock_data.proto
+
+// Begin of protos/perfetto/trace/android/bluetooth_trace.proto
+
+// Describes the packet type and direction. CMD and EVT are unidirectional, so
+// no need to differentiate the direction.
+enum BluetoothTracePacketType {
+  HCI_CMD = 1;
+  HCI_EVT = 2;
+  HCI_ACL_RX = 3;
+  HCI_ACL_TX = 4;
+  HCI_SCO_RX = 5;
+  HCI_SCO_TX = 6;
+  HCI_ISO_RX = 7;
+  HCI_ISO_TX = 8;
+}
+
+// Trace event for bluetooth
+message BluetoothTraceEvent {
+  // Packet type and direction
+  optional BluetoothTracePacketType packet_type = 1;
+
+  // Total count of the packets collected during the collection interval
+  optional uint32 count = 2;
+
+  // Total cumulative length of the packets collected during the collection
+  // interval
+  optional uint32 length = 3;
+
+  // The collection interval in nanoseconds. This is the duration between the
+  // first and last packets collected.
+  optional uint32 duration = 4;
+
+  // In case of CMD type, further breakdown of the type of command
+  optional uint32 op_code = 5;
+
+  // In the case of EVT type, further breakdown of the type of event
+  optional uint32 event_code = 6;
+
+  // When applicable for EVT type, further breakdown of event type into specific
+  // subevent
+  optional uint32 subevent_code = 7;
+
+  // Associated handle for the bluetooth packet
+  optional uint32 connection_handle = 8;
+}
+
+// End of protos/perfetto/trace/android/bluetooth_trace.proto
+
 // Begin of protos/perfetto/trace/android/camera_event.proto
 
 // A profiling event corresponding to a single camera frame. This message
@@ -4879,18 +5259,17 @@ message AndroidCameraFrameEvent {
   // The number of streams in the capture request.
   optional int32 num_streams = 13;
 
-  // A profiling event corresponding to a single node processing within the camera
-  // pipeline. Intuitively this corresponds to a single stage of processing to
-  // produce a camera frame.
-  // Next ID: 6
+  // A profiling event corresponding to a single node processing within the
+  // camera pipeline. Intuitively this corresponds to a single stage of
+  // processing to produce a camera frame. Next ID: 6
   message CameraNodeProcessingDetails {
     optional int64 node_id = 1;
     // The timestamp at which node processing begins to run.
     optional int64 start_processing_ns = 2;
     // The timestamp at which node processing finishes running.
     optional int64 end_processing_ns = 3;
-    // The delay between inputs becoming ready and the node actually beginning to
-    // run.
+    // The delay between inputs becoming ready and the node actually beginning
+    // to run.
     optional int64 scheduling_latency_ns = 4;
   }
   repeated CameraNodeProcessingDetails node_processing_details = 14;
@@ -4922,10 +5301,10 @@ message AndroidCameraSessionStats {
       // A list of outputs produced by this node.
       repeated int64 output_ids = 3;
 
-      // These fields capture vendor-specific additions to this proto message. In
-      // practice `vendor_data` typically contains a serialized message of the
-      // vendor's design, and `vendor_data_version` is incremented each time there
-      // is a backwards incompatible change made to the message.
+      // These fields capture vendor-specific additions to this proto message.
+      // In practice `vendor_data` typically contains a serialized message of
+      // the vendor's design, and `vendor_data_version` is incremented each time
+      // there is a backwards incompatible change made to the message.
       optional int32 vendor_data_version = 4;
       optional bytes vendor_data = 5;
     }
@@ -4942,10 +5321,10 @@ message AndroidCameraSessionStats {
       optional int64 input_node_id = 3;
       optional int64 input_id = 4;
 
-      // These fields capture vendor-specific additions to this proto message. In
-      // practice `vendor_data` typically contains a serialized message of the
-      // vendor's design, and `vendor_data_version` is incremented each time there
-      // is a backwards incompatible change made to the message.
+      // These fields capture vendor-specific additions to this proto message.
+      // In practice `vendor_data` typically contains a serialized message of
+      // the vendor's design, and `vendor_data_version` is incremented each time
+      // there is a backwards incompatible change made to the message.
       optional int32 vendor_data_version = 5;
       optional bytes vendor_data = 6;
     }
@@ -5121,7 +5500,9 @@ message FrameTimelineEvent {
 
   // FrameEnd just sends the cookie to indicate that the corresponding
   // <display/surface>frame slice's end.
-  message FrameEnd { optional int64 cookie = 1; };
+  message FrameEnd {
+    optional int64 cookie = 1;
+  };
 
   oneof event {
     ExpectedDisplayFrameStart expected_display_frame_start = 1;
@@ -5194,6 +5575,44 @@ message InitialDisplayState {
 }
 
 // End of protos/perfetto/trace/android/initial_display_state.proto
+
+// Begin of protos/perfetto/trace/android/kernel_wakelock_data.proto
+
+message KernelWakelockData {
+  message Wakelock {
+    enum Type {
+      WAKELOCK_TYPE_UNKNOWN = 0;
+      WAKELOCK_TYPE_KERNEL = 1;
+      WAKELOCK_TYPE_NATIVE = 2;
+    }
+
+    // Interning id.
+    optional uint32 wakelock_id = 1;
+
+    // Name of the wakelock.
+    optional string wakelock_name = 2;
+
+    // Type of the wakelock. We record data about both true kernel wakelocks
+    // and "native" wakelocks which are taken in userspace but are more
+    // conceptually similar to kernel wakelocks than normal userspace ones.
+    optional Type wakelock_type = 3;
+  }
+
+  // This is only emitted when we encounter new wakelocks.
+  repeated Wakelock wakelock = 1;
+
+  // Interning id.
+  repeated uint32 wakelock_id = 2 [packed = true];
+
+  // If we interned the wakelock name in this packet, this is the total time
+  // the wakelock has been held.
+  // If not, it's a delta from the last time we saw it.
+  repeated uint64 time_held_millis = 3 [packed = true];
+
+  optional uint64 error_flags = 4;
+}
+
+// End of protos/perfetto/trace/android/kernel_wakelock_data.proto
 
 // Begin of protos/perfetto/trace/android/network_trace.proto
 
@@ -5641,7 +6060,7 @@ enum HwcCompositionType {
   HWC_TYPE_CURSOR = 4;
   // Layer was composited by the device via a sideband stream
   HWC_TYPE_SIDEBAND = 5;
-   // Layer was composited by hardware optimized for display decoration
+  // Layer was composited by hardware optimized for display decoration
   HWC_TYPE_DISPLAY_DECORATION = 6;
 }
 
@@ -5768,6 +6187,9 @@ message LayerProto {
   optional uint32 original_id = 58;
 
   optional TrustedOverlay trusted_overlay = 59;
+
+  // Layer's scale during background blur, relative to 1.0f=100%
+  optional float background_blur_scale = 60;
 }
 
 message PositionProto {
@@ -6078,6 +6500,8 @@ message LayerState {
   optional DropInputMode drop_input_mode = 42;
 
   optional TrustedOverlay trusted_overlay = 43;
+
+  optional float background_blur_scale = 44;
 }
 
 message DisplayState {
@@ -6448,6 +6872,8 @@ message InternedV8WasmScript {
   optional int32 script_id = 2;
 
   optional string url = 3;
+  // Raw transferred wasm native module wire bytes.
+  optional bytes wire_bytes = 4;
 }
 
 message InternedV8JsFunction {
@@ -6491,6 +6917,8 @@ message InternedV8JsFunction {
   // Where in the script source this function is defined. This is counted in
   // bytes not characters.
   optional uint32 byte_offset = 6;
+  optional uint32 line = 7;
+  optional uint32 column = 8;
 }
 
 // A V8 Isolate instance. A V8 Isolate represents an isolated instance of the V8
@@ -6616,6 +7044,7 @@ message V8CodeMove {
 message V8CodeDefaults {
   optional uint32 tid = 1;
 }
+
 // End of protos/perfetto/trace/chrome/v8.proto
 
 // Begin of protos/perfetto/trace/clock_snapshot.proto
@@ -6743,7 +7172,10 @@ message CSwitchEtwEvent {
     MAXIMUM_WAIT_REASON = 37;
   }
 
-  optional OldThreadWaitReason old_thread_wait_reason = 6;
+  oneof old_thread_wait_reason_enum_or_int {
+    OldThreadWaitReason old_thread_wait_reason = 6;
+    int32 old_thread_wait_reason_int = 11;
+  }
 
   // Wait mode for the previous thread. The ordering is important as based on
   // the OldThreadWaitMode definition from the link above. The following are the
@@ -6753,7 +7185,10 @@ message CSwitchEtwEvent {
     USER_MODE = 1;
   }
 
-  optional OldThreadWaitMode old_thread_wait_mode = 7;
+  oneof old_thread_wait_mode_enum_or_int {
+    OldThreadWaitMode old_thread_wait_mode = 7;
+    int32 old_thread_wait_mode_int = 12;
+  }
 
   // State of the previous thread. The ordering is important as based on the
   // OldThreadState definition from the link above. The following are the
@@ -6769,7 +7204,10 @@ message CSwitchEtwEvent {
     DEFERRED_READY = 7;
   }
 
-  optional OldThreadState old_thread_state = 8;
+  oneof old_thread_state_enum_or_int {
+    OldThreadState old_thread_state = 8;
+    sint32 old_thread_state_int = 13;
+  }
 
   // Ideal wait time of the previous thread.
   optional sint32 old_thread_wait_ideal_processor = 9;
@@ -6796,7 +7234,10 @@ message ReadyThreadEtwEvent {
     APPLY_INCREMENT_BOOST = 2;
   }
 
-  optional AdjustReason adjust_reason = 2;
+  oneof adjust_reason_enum_or_int {
+    AdjustReason adjust_reason = 2;
+    int32 adjust_reason_int = 5;
+  }
 
   //  The value by which the priority is being adjusted.
   optional sint32 adjust_increment = 3;
@@ -6811,7 +7252,10 @@ message ReadyThreadEtwEvent {
     PROCESS_ADDRESS_SWAPPED_OUT = 0x4;
   }
 
-  optional TraceFlag flag = 4;
+  oneof flag_enum_or_int {
+    TraceFlag flag = 4;
+    TraceFlag flag_int = 6;
+  }
 }
 // End of protos/perfetto/trace/etw/etw.proto
 
@@ -7713,6 +8157,16 @@ message DpuDsiTxFtraceEvent {
   optional uint32 tx_buf = 2;
   optional uint32 last = 3;
   optional uint32 delay_ms = 4;
+}
+message DpuDispDpuUnderrunFtraceEvent {
+  optional int32 id = 1;
+  optional int32 frames_pending = 2;
+  optional int32 vsync_count = 3;
+}
+message DpuDispVblankIrqEnableFtraceEvent {
+  optional int32 id = 1;
+  optional int32 output_id = 2;
+  optional int32 enable = 3;
 }
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
@@ -9754,6 +10208,11 @@ message MaliMaliPMMCURESETWAITFtraceEvent {
   optional uint32 kctx_id = 2;
   optional uint64 info_val = 3;
 }
+message MaliGpuPowerStateFtraceEvent {
+  optional uint64 change_ns = 1;
+  optional int32 from_state = 2;
+  optional int32 to_state = 3;
+}
 
 // End of protos/perfetto/trace/ftrace/mali.proto
 
@@ -10891,6 +11350,9 @@ message FtraceEvent {
   // consider merging with common_preempt_count to avoid extra proto tags.
   optional uint32 common_flags = 5;
 
+  // Range reserved for self-describing messages.
+  reserved 65536 to 131072;
+
   oneof event {
     PrintFtraceEvent print = 3;
     SchedSwitchFtraceEvent sched_switch = 4;
@@ -11469,6 +11931,9 @@ message FtraceEvent {
     OpenExecFtraceEvent open_exec = 545;
     BlockIoStartFtraceEvent block_io_start = 546;
     BlockIoDoneFtraceEvent block_io_done = 547;
+    MaliGpuPowerStateFtraceEvent mali_gpu_power_state = 548;
+    DpuDispDpuUnderrunFtraceEvent dpu_disp_dpu_underrun = 549;
+    DpuDispVblankIrqEnableFtraceEvent dpu_disp_vblank_irq_enable = 550;
   }
 }
 
@@ -11723,6 +12188,23 @@ message FtraceEventBundle {
   // oldest bundles can skew the first valid timestamp per cpu significantly.
   // Added in: perfetto v47.
   optional uint64 previous_bundle_end_timestamp = 10;
+
+  // Describes the serialised |FtraceEvent| protos for events not known at
+  // compile time, when using the |denser_generic_event_encoding| option.
+  // Addded in: perfetto v50.
+  message GenericEventDescriptor {
+    // submessage id within FtraceEvent described by |event_descriptor|.
+    optional int32 field_id = 1;
+    // serialised DescriptorProto
+    optional bytes event_descriptor = 2;
+  }
+  repeated GenericEventDescriptor generic_event_descriptors = 11;
+
+  // Written only on android builds if the config sets |debug_ftrace_abi|.
+  // Contains the raw ring buffer tracing page that the implementation could
+  // not parse.
+  // Addded in: perfetto v50.
+  optional bytes broken_abi_trace_page = 512;
 }
 
 enum FtraceClock {
@@ -12039,9 +12521,6 @@ message VulkanMemoryEvent {
 
 // Begin of protos/perfetto/trace/profiling/profile_common.proto
 
-// TODO(fmayer): Figure out naming thoroughout this file to get a
-// nomenclature that works between Windows and Linux.
-
 // The interning fields in this file can refer to 2 different intern tables,
 // depending on the message they are used in. If the interned fields are present
 // in ProfilePacket proto, then the intern tables included in the ProfilePacket
@@ -12054,28 +12533,7 @@ message InternedString {
   optional bytes str = 2;
 }
 
-// A symbol field that is emitted after the trace is written. These tables would
-// be appended as the last packets in the trace that the profiler will use, so
-// that the actual trace need not be rewritten to symbolize the profiles.
-message ProfiledFrameSymbols {
-  // Use the frame id as the interning key for the symbols.
-  optional uint64 frame_iid = 1;
-
-  // These are repeated because when inlining happens, multiple functions'
-  // frames can be at a single address. Imagine function Foo calling the
-  // std::vector<int> constructor, which gets inlined at 0xf00. We then get
-  // both Foo and the std::vector<int> constructor when we symbolize the
-  // address.
-
-  // key to InternedString
-  repeated uint64 function_name_id = 2;
-
-  // key to InternedString
-  repeated uint64 file_name_id = 3;
-
-  repeated uint32 line_number = 4;
-}
-
+// Source line info.
 message Line {
   optional string function_name = 1;
   optional string source_file_name = 2;
@@ -12097,6 +12555,7 @@ message AddressSymbols {
 }
 
 // Symbols for addresses seen in a module.
+// Used in re-symbolisation of complete traces.
 message ModuleSymbols {
   // Fully qualified path to the mapping.
   // E.g. /system/lib64/libc.so.
@@ -12388,7 +12847,6 @@ message ChromeActiveProcesses {
 
 // Begin of protos/perfetto/trace/track_event/chrome_application_state_info.proto
 
-
 // Trace event arguments for application state changes.
 message ChromeApplicationStateInfo {
   // Enum definition taken from:
@@ -12671,7 +13129,13 @@ message ChromeContentSettingsEventInfo {
 
 // Begin of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
 
+// DEPRECATED. Only kept for backwards compatibility. Use |ChromeFrameReporter2|
+// in
+// https://source.chromium.org/chromium/chromium/src/+/main:base/tracing/protos/chrome_track_event.proto
+// instead.
 message ChromeFrameReporter {
+  option deprecated = true;
+
   enum State {
     // The frame did not have any updates to present.
     STATE_NO_UPDATE_DESIRED = 0;
@@ -12774,6 +13238,14 @@ message ChromeFrameReporter {
 
   // Whether the frame contained any content that is not fully recorded.
   optional bool checkerboarded_needs_record = 16;
+
+  // viz::BeginFrameArgs.trace_id of the frame (before surface aggregation). See
+  // also ChromeTrackEvent.EventLatency.surface_frame_trace_id.
+  optional int64 surface_frame_trace_id = 17;
+
+  // gfx::PresentationFeedback.display_trace_id of the frame (after surface
+  // aggregation). See also ChromeTrackEvent.EventLatency.display_trace_id.
+  optional int64 display_trace_id = 18;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
@@ -13267,7 +13739,11 @@ message TrackEvent {
   optional ChromeLegacyIpc chrome_legacy_ipc = 27;
   optional ChromeHistogramSample chrome_histogram_sample = 28;
   optional ChromeLatencyInfo chrome_latency_info = 29;
-  optional ChromeFrameReporter chrome_frame_reporter = 32;
+  // DEPRECATED. Only kept for backwards compatibility. Use the
+  // |ChromeTrackEvent.frame_reporter| extension in
+  // https://source.chromium.org/chromium/chromium/src/+/main:base/tracing/protos/chrome_track_event.proto
+  // instead.
+  optional ChromeFrameReporter chrome_frame_reporter = 32 [deprecated = true];
   optional ChromeApplicationStateInfo chrome_application_state_info = 39;
   optional ChromeRendererSchedulerState chrome_renderer_scheduler_state = 40;
   optional ChromeWindowHandleEventInfo chrome_window_handle_event_info = 41;
@@ -13486,7 +13962,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 42.
+// Next id: 43.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -13515,9 +13991,6 @@ message InternedData {
   repeated InternedString source_paths = 18;
   // Names of functions used in frames below.
   repeated InternedString function_names = 5;
-  // Symbols that were added to this trace after the fact.
-  repeated ProfiledFrameSymbols profiled_frame_symbols = 21;
-
   // Executable files mapped into processes.
   repeated Mapping mappings = 19;
   // Frames of callstacks of a program.
@@ -13574,6 +14047,12 @@ message InternedData {
   repeated InternedString viewcapture_window_name = 39;
   repeated InternedString viewcapture_view_id = 40;
   repeated InternedString viewcapture_class_name = 41;
+
+  // Interned context for android.app_wakelocks.
+  repeated AppWakelockInfo app_wakelock_info = 42;
+
+  // removed ProfiledFrameSymbols profiled_frame_symbols
+  reserved 21;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
@@ -13960,7 +14439,6 @@ message BatteryCounters {
 // Begin of protos/perfetto/trace/power/power_rails.proto
 
 message PowerRails {
-
   message RailDescriptor {
     // Index corresponding to the rail
     optional uint32 index = 1;
@@ -14452,7 +14930,9 @@ message PerfSample {
 
   // If set, stack unwinding was incomplete due to an error.
   // Unset values should be treated as UNWIND_ERROR_NONE.
-  oneof optional_unwind_error { Profiling.StackUnwindError unwind_error = 16; };
+  oneof optional_unwind_error {
+    Profiling.StackUnwindError unwind_error = 16;
+  };
 
   // If set, indicates that this message is not a sample, but rather an
   // indication of data loss in the ring buffer allocated for |cpu|. Such data
@@ -14475,6 +14955,7 @@ message PerfSample {
     PROFILER_SKIP_READ_STAGE = 1;
     PROFILER_SKIP_UNWIND_STAGE = 2;
     PROFILER_SKIP_UNWIND_ENQUEUE = 3;
+    PROFILER_SKIP_NOT_IN_SCOPE = 4;
   }
   oneof optional_sample_skipped_reason {
     SampleSkipReason sample_skipped_reason = 18;
@@ -14666,10 +15147,16 @@ message ProcessTree {
     // The parent process ID, as per getppid().
     optional int32 ppid = 2;
 
-    // The command line for the process, as per /proc/pid/cmdline.
-    // If it is a kernel thread there will only be one cmdline field
-    // and it will contain /proc/pid/comm.
+    // The command line for the process, as per /proc/pid/cmdline, broken up on
+    // NUL bytes.
+    // If it is a kernel thread or a zombie, there will only be one cmdline
+    // field and it will contain /proc/pid/comm.
     repeated string cmdline = 3;
+
+    // If true, the |cmdline| field was filled with the main thread's "comm"
+    // field instead.
+    // Introduced in: perfetto v50.
+    optional bool cmdline_is_comm = 9;
 
     // The uid for the process, as per /proc/pid/status.
     optional int32 uid = 5;
@@ -14684,6 +15171,13 @@ message ProcessTree {
     // Recorded if record_process_age config option is set.
     // Resolution of "clock ticks", usually 10ms.
     optional uint64 process_start_from_boot = 7;
+
+    // If true, the process is a kernel thread.
+    // Set only on linux v6.4+. For traces from older devices, it is possible to
+    // infer most kthreads by checking that they're a descendant of kthreadd
+    // (pid=2), or are the idle process (pid=0).
+    // Introduced in: perfetto v50.
+    optional bool is_kthread = 8;
 
     // threads_deprecated
     reserved 4;
@@ -14790,6 +15284,9 @@ message SysStats {
 
     // Time spent servicing softirqs.
     optional uint64 softirq_ns = 8;
+
+    // Time spent executing something else on host than this guest.
+    optional uint64 steal_ns = 9;
   }
   // One entry per cpu.
   repeated CpuTimes cpu_stat = 3;
@@ -14915,73 +15412,6 @@ message SysStats {
 
 // End of protos/perfetto/trace/sys_stats/sys_stats.proto
 
-// Begin of protos/perfetto/trace/system_info.proto
-
-message Utsname {
-  optional string sysname = 1;
-  optional string version = 2;
-  optional string release = 3;
-  optional string machine = 4;
-}
-
-// Next id: 15;
-message SystemInfo {
-  optional Utsname utsname = 1;
-  optional string android_build_fingerprint = 2;
-
-  // The manufacturer of the product/hardware.
-  // Source : "ro.product.manufacturer"
-  // Introduced after Android W in Nov 2024 and is not supported on older
-  // versions.
-  optional string android_device_manufacturer = 14;
-
-  // The SoC model from which trace is collected
-  optional string android_soc_model = 9;
-
-  // The guest SoC model from which trace is collected in case of VMs
-  optional string android_guest_soc_model = 13;
-
-  // The hardware reversion from android device
-  optional string android_hardware_revision = 10;
-
-  // The storage component from android_device. This field has been introduced
-  // after Android W in Aug 2024 and is not supported on older versions.
-  optional string android_storage_model = 11;
-
-  // The RAM component information from android device. This field has been
-  // introduced after Android W in Aug 2024 and is not supported on older
-  // versions.
-  optional string android_ram_model = 12;
-
-  // The version of traced (the same returned by `traced --version`).
-  // This is a human readable string with and its format varies depending on
-  // the build system and the repo (standalone vs AOSP).
-  // This is intended for human debugging only.
-  optional string tracing_service_version = 4;
-
-  // The Android SDK vesion (e.g. 21 for L, 31 for S etc).
-  // Introduced in Android T.
-  optional uint64 android_sdk_version = 5;
-
-  // Kernel page size - sysconf(_SC_PAGESIZE).
-  optional uint32 page_size = 6;
-
-  // Number of cpus - sysconf(_SC_NPROCESSORS_CONF).
-  // Might be different to the number of online cpus.
-  // Introduced in perfetto v44.
-  optional uint32 num_cpus = 8;
-
-  // The timezone offset from UTC, as per strftime("%z"), in minutes.
-  // Introduced in v38 / Android V.
-  optional int32 timezone_off_mins = 7;
-
-  // Ticks per second - sysconf(_SC_CLK_TCK).
-  // Not serialised as of perfetto v44.
-  optional int64 hz = 3;
-}
-
-// End of protos/perfetto/trace/system_info.proto
-
 // Begin of protos/perfetto/trace/system_info/cpu_info.proto
 
 // Information about CPUs from procfs and sysfs.
@@ -15022,6 +15452,11 @@ message CpuInfo {
     oneof identifier {
       ArmCpuIdentifier arm_identifier = 4;
     }
+
+    // Features is a bitmap containing a bit set for each feature defined in
+    // kCpuInfoFlags (cpu_info_flags_allowlist.h) for the corresponding array
+    // index.
+    optional uint64 features = 5;
   }
 
   // Describes available CPUs, one entry per CPU.
@@ -15481,7 +15916,24 @@ message TrackDescriptor {
   // tracks. For example, to define an asynchronous track which is scoped to a
   // specific process, specify the uuid for that process's process track here.
   // Similarly, to associate a COUNTER_THREAD_TIME_NS counter track with a
-  // thread, specify the uuid for that thread's thread track here.
+  // thread, specify the uuid for that thread's thread track here. In general,
+  // setting a parent will *nest* that track under the parent in the UI and in
+  // the trace processor data model (with the important exception noted below).
+  //
+  // If not specified, the track will be a root track, i.e. not nested under any
+  // other track.
+  //
+  // Note: if the `thread` or `process` fields are set, this value will be
+  // *ignored* as priority is given to those fields.
+  //
+  // Note: if the parent is set to a track with `thread` or `process` fields
+  // set, the track will *not* be nested under the parent in the UI and in the
+  // trace processor data model. Instead, the track will inherit the parent'
+  // thread/process association and will appear as a *sibling* of the parent.
+  // This semantic exists for back-compat reasons as the UI used to work this
+  // way for years and changing this leads to a lot of traces subtly breaking.
+  // If you want to force nesting, create *another* intermediate track to act as
+  // the parent.
   optional uint64 parent_uuid = 5;
 
   // Name of the track. Optional - if unspecified, it may be derived from the
@@ -15534,6 +15986,9 @@ message TrackDescriptor {
   // where `parent_uuid` is specified to this track `uuid`). Note that this
   // value is simply a *hint* to the UI: the UI is not guarnateed to respect
   // this if it has a good reason not to do so.
+  //
+  // Note: for tracks where `thread` or `process` are set, this option is
+  // *ignored*. See `parent_uuid` for details.
   enum ChildTracksOrdering {
     // The default ordering, with no bearing on how the UI will visualise the
     // tracks.
@@ -15557,6 +16012,9 @@ message TrackDescriptor {
   // ordered relative to each other: tracks with lower ranks will appear before
   // tracks with higher ranks. An unspecified rank will be treated as a rank of
   // 0.
+  //
+  // Note: for tracks where the parent has `thread` or `process` are set, this
+  // option is *ignored*. See `parent_uuid` for details.
   optional int32 sibling_order_rank = 12;
 }
 
@@ -15623,6 +16081,8 @@ message Trigger {
   optional string producer_name = 2;
   // The verified UID of the producer.
   optional int32 trusted_producer_uid = 3;
+  // The value of stop_delay_ms from the configuration.
+  optional uint64 stop_delay_ms = 4;
 }
 
 // End of protos/perfetto/trace/trigger.proto
@@ -15688,7 +16148,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 114.
+// Next id: 117.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -15761,7 +16221,6 @@ message TracePacket {
     EntityStateResidency entity_state_residency = 91;
 
     // Only used in profile packets.
-    ProfiledFrameSymbols profiled_frame_symbols = 55;
     ModuleSymbols module_symbols = 61;
     DeobfuscationMapping deobfuscation_mapping = 64;
 
@@ -15830,6 +16289,12 @@ message TracePacket {
 
     Trigger clone_snapshot_trigger = 113;
 
+    BluetoothTraceEvent bluetooth_trace_event = 114;
+
+    KernelWakelockData kernel_wakelock_data = 115;
+
+    AppWakelockBundle app_wakelock_bundle = 116;
+
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
     // This caused many problems:
@@ -15841,6 +16306,9 @@ message TracePacket {
 
   // AndroidInputEvent android_input_event (moved to winscope_extensions)
   reserved 106;
+
+  // removed ProfiledFrameSymbols profiled_frame_symbols
+  reserved 55;
 
   // Trusted user id of the producer which generated this packet. Keep in sync
   // with TrustedPacket.trusted_uid.

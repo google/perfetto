@@ -55,6 +55,11 @@ message CpuInfo {
     oneof identifier {
       ArmCpuIdentifier arm_identifier = 4;
     }
+
+    // Features is a bitmap containing a bit set for each feature defined in
+    // kCpuInfoFlags (cpu_info_flags_allowlist.h) for the corresponding array
+    // index.
+    optional uint64 features = 5;
   }
 
   // Describes available CPUs, one entry per CPU.

@@ -21,6 +21,22 @@ java_library {
 }
 
 java_library_host {
+    name: "trace_summary-full",
+    proto: {
+        type: "full",
+        canonical_path_from_root: false,
+    },
+    static_libs: [
+        "libprotobuf-java-full",
+    ],
+    srcs: [
+        ":perfetto_trace_summary_filegroup_proto",
+    ],
+    // b/267831518: Pin tradefed and dependencies to Java 11.
+    java_version: "11",
+}
+
+java_library_host {
     name: "perfetto_trace-full",
     proto: {
         type: "full",
@@ -103,11 +119,6 @@ genrule {
     ],
 }
 
-sh_binary {
-    name: "mm_events",
-    src: "tools/mm_events",
-}
-
 package {
     default_applicable_licenses: ["external_perfetto_license"],
 }
@@ -178,7 +189,7 @@ license {
 gensrcs {
     name: "perfetto_trace_javastream_protos",
     srcs: [
-        ":perfetto_winscope_filegroup_proto",
+        ":perfetto_javastream_filegroup_proto",
     ],
     tools: [
         "aprotoc",
@@ -188,7 +199,7 @@ gensrcs {
     cmd: "mkdir -p $(genDir)/$(in) " +
         "&& $(location aprotoc) " +
         "--plugin=$(location protoc-gen-javastream) " +
-        "--javastream_opt=include_filter:perfetto.protos.TracePacket,perfetto.protos.ShellTransition,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogMessage,perfetto.protos.ProtoLogViewerConfig,perfetto.protos.ShellHandlerMapping,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogGroup,perfetto.protos.ProtoLogConfig,perfetto.protos.DataSourceConfig,perfetto.protos.InternedString,perfetto.protos.InternedData,perfetto.protos.ProtoLogLevel,perfetto.protos.TestEvent,perfetto.protos.TestEvent.TestPayload,perfetto.protos.TestConfig,perfetto.protos.TestConfig.DummyFields,perfetto.protos.WinscopeExtensionsImpl,perfetto.protos.InputMethodClientsTraceProto,perfetto.protos.InputMethodManagerServiceTraceProto,perfetto.protos.InputMethodServiceTraceProto,perfetto.protos.ViewCapture,perfetto.protos.WindowManagerConfig,perfetto.protos.WindowManagerTraceEntry " +
+        "--javastream_opt=include_filter:perfetto.protos.TracePacket,perfetto.protos.ShellTransition,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogMessage,perfetto.protos.ProtoLogViewerConfig,perfetto.protos.ShellHandlerMapping,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogGroup,perfetto.protos.ProtoLogConfig,perfetto.protos.DataSourceConfig,perfetto.protos.InternedString,perfetto.protos.InternedData,perfetto.protos.ProtoLogLevel,perfetto.protos.TestEvent,perfetto.protos.TestEvent.TestPayload,perfetto.protos.TestConfig,perfetto.protos.TestConfig.DummyFields,perfetto.protos.WinscopeExtensionsImpl,perfetto.protos.InputMethodClientsTraceProto,perfetto.protos.InputMethodManagerServiceTraceProto,perfetto.protos.InputMethodServiceTraceProto,perfetto.protos.ViewCapture,perfetto.protos.WindowManagerConfig,perfetto.protos.WindowManagerTraceEntry,perfetto.protos.AppWakelocksConfig,perfetto.protos.AppWakelockInfo,perfetto.protos.AppWakelockBundle " +
         "--javastream_out=$(genDir)/$(in) " +
         "-Iexternal/protobuf/src " +
         "-Iexternal/perfetto " +
@@ -210,7 +221,7 @@ java_library {
     },
     srcs: [
         ":libprotobuf-internal-descriptor-proto",
-        ":perfetto_winscope_filegroup_proto",
+        ":perfetto_javastream_filegroup_proto",
     ],
     static_libs: [
         "libprotobuf-java-lite",
@@ -248,7 +259,6 @@ phony {
     name: "perfetto-extras",
     required: [
         "libperfetto_android_internal",
-        "mm_events",
         "traced_perf",
         "trigger_perfetto",
     ],
@@ -259,4 +269,16 @@ filegroup {
     srcs: [
         "tools/heap_profile",
     ],
+}
+
+aconfig_declarations {
+    name: "perfetto_flags-aconfig",
+    package: "perfetto.flags",
+    container: "system",
+    srcs: ["perfetto_flags.aconfig"],
+}
+
+cc_aconfig_library {
+    name: "perfetto_flags_c_lib",
+    aconfig_declarations: "perfetto_flags-aconfig",
 }

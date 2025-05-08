@@ -13,106 +13,80 @@
 // limitations under the License.
 
 import {colorForState} from '../../components/colorizer';
-import {
-  BASE_ROW,
-  BaseSliceTrack,
-} from '../../components/tracks/base_slice_track';
-import {
-  SLICE_LAYOUT_FLAT_DEFAULTS,
-  SliceLayout,
-} from '../../components/tracks/slice_layout';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
-import {Slice} from '../../public/track';
 import {translateState} from '../../components/sql_utils/thread_state';
-import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {ThreadStateDetailsPanel} from './thread_state_details_panel';
 import {Trace} from '../../public/trace';
-import {Dataset, SourceDataset} from '../../trace_processor/dataset';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 
-export const THREAD_STATE_ROW = {
-  ...BASE_ROW,
-  state: STR,
-  ioWait: NUM_NULL,
-};
-
-export type ThreadStateRow = typeof THREAD_STATE_ROW;
-
-export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
-  protected sliceLayout: SliceLayout = {...SLICE_LAYOUT_FLAT_DEFAULTS};
-
-  constructor(
-    trace: Trace,
-    uri: string,
-    private utid: number,
-  ) {
-    super(trace, uri);
-  }
-
-  // This is used by the base class to call iter().
-  getRowSpec(): ThreadStateRow {
-    return THREAD_STATE_ROW;
-  }
-
-  getSqlSource(): string {
-    // Do not display states: 'S' (sleeping), 'I' (idle kernel thread).
-    return `
-      select
-        id,
-        ts,
-        dur,
-        cpu,
-        state,
-        io_wait as ioWait,
-        0 as depth
-      from thread_state
-      where
-        utid = ${this.utid} and
-        state not in ('S', 'I')
-    `;
-  }
-
-  getDataset(): Dataset | undefined {
-    return new SourceDataset({
-      src: 'thread_state',
+export function createThreadStateTrack(
+  trace: Trace,
+  uri: string,
+  utid: number,
+) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: new SourceDataset({
       schema: {
         id: NUM,
         ts: LONG,
         dur: LONG,
-        cpu: NUM,
+        cpu: NUM_NULL,
         state: STR,
         io_wait: NUM_NULL,
         utid: NUM,
       },
+      src: 'thread_state',
       filter: {
         col: 'utid',
-        eq: this.utid,
+        eq: utid,
       },
-    });
-  }
+    }),
+    // Make thread slice tracks a little shorter in height.
+    sliceLayout: {
+      sliceHeight: 12,
+      titleSizePx: 10,
+    },
+    queryGenerator: (dataset) => {
+      // We actually abuse the depth provider here just a little. Instead of
+      // providing just a depth value, we also filter out non-sleeping/idle
+      // slices. In effect, we're using this function as a little escape hatch
+      // to override the query that's used for track rendering.
+      //
+      // The reason we don't just filter out sleeping/idle slices in the main
+      // dataset is because we don't want to filter the dataset exposed via
+      // getDataset(), we only want to filter them out at the rendering stage.
+      //
+      // The reason we don't want to render these slices is slightly nuanced.
+      // Essentially, if we render all slices and zoom out, the vast majority of
+      // the track is covered by sleeping slices, and the important
+      // runnable/running/etc slices are no longer rendered (effectively
+      // sleeping slices always 'win' on every bucket) so we lost the important
+      // detail. We could get around this if we had some way to tell the
+      // algorithm to prioritize some slices over others.
+      return `
+        select
+          0 as depth,
+          *
+        from (${dataset.query()})
+        where state not in ('S', 'I')
+      `;
+    },
+    colorizer: (row) => {
+      const title = getState(row);
+      return colorForState(title);
+    },
+    sliceName: (row) => {
+      return getState(row);
+    },
+    detailsPanel: (row) => new ThreadStateDetailsPanel(trace, row.id),
+    rootTableName: 'thread_state',
+  });
+}
 
-  rowToSlice(row: ThreadStateRow): Slice {
-    const baseSlice = this.rowToSliceBase(row);
-    const ioWait = row.ioWait === null ? undefined : !!row.ioWait;
-    const title = translateState(row.state, ioWait);
-    const color = colorForState(title);
-    return {...baseSlice, title, colorScheme: color};
-  }
-
-  onUpdatedSlices(slices: Slice[]) {
-    for (const slice of slices) {
-      slice.isHighlighted = slice === this.hoveredSlice;
-    }
-  }
-
-  // Add utid to selection details
-  override async getSelectionDetails(
-    id: number,
-  ): Promise<TrackEventDetails | undefined> {
-    const details = await super.getSelectionDetails(id);
-    return details && {...details, utid: this.utid};
-  }
-
-  detailsPanel({eventId}: TrackEventSelection) {
-    return new ThreadStateDetailsPanel(this.trace, eventId);
-  }
+function getState(row: {io_wait: number | null; state: string}) {
+  const ioWait = row.io_wait === null ? undefined : Boolean(row.io_wait);
+  return translateState(row.state, ioWait);
 }

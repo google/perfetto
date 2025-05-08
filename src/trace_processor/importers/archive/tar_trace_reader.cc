@@ -48,22 +48,64 @@ constexpr char kGnuMagic[] = {'u', 's', 't', 'a', 'r', ' ', ' ', '\0'};
 constexpr char TYPE_FLAG_REGULAR = '0';
 constexpr char TYPE_FLAG_AREGULAR = '\0';
 constexpr char TYPE_FLAG_GNU_LONG_NAME = 'L';
+constexpr char TYPE_FLAG_DIR = '5';
 
 template <size_t Size>
-std::optional<uint64_t> ExtractUint64(const char (&ptr)[Size]) {
-  static_assert(Size <= 64 / 3);
-  if (*ptr == 0) {
-    return std::nullopt;
+base::StatusOr<uint64_t> ParseBase256(const char (&ptr)[Size]) {
+  if ((ptr[0] & 0x40) != 0) {
+    return base::ErrStatus(
+        "Negative size in base-256 encoding is not supported.");
   }
+
+  // Skip leading null bytes after the first byte (base-256 indicator)
+  size_t start = 1;
+  while (start < Size && ptr[start] == 0) {
+    ++start;
+  }
+
+  // Calculate the effective size of the remaining significant bytes
+  size_t effective_size = Size - start;
+  if (effective_size > sizeof(uint64_t)) {
+    return base::ErrStatus("Base-256 value exceeds uint64_t range.");
+  }
+
+  // Accumulate the value directly from the remaining bytes
+  uint64_t value = 0;
+  for (size_t i = start; i < Size; ++i) {
+    value = (value << 8) | static_cast<uint8_t>(ptr[i]);
+  }
+
+  return value;
+}
+
+template <size_t Size>
+base::StatusOr<uint64_t> ParseOctal(const char (&ptr)[Size]) {
   uint64_t value = 0;
   for (size_t i = 0; i < Size && ptr[i] != 0; ++i) {
     if (ptr[i] > '7' || ptr[i] < '0') {
-      return std::nullopt;
+      return base::ErrStatus("Invalid octal digit in size field.");
     }
-    value <<= 3;
-    value += static_cast<uint64_t>(ptr[i] - '0');
+    value = (value << 3) + static_cast<uint64_t>(ptr[i] - '0');
   }
+
   return value;
+}
+
+template <size_t Size>
+base::StatusOr<uint64_t> ExtractUint64(const char (&ptr)[Size]) {
+  static_assert(Size <= 64 / 3);
+
+  if (*ptr == 0) {
+    return base::ErrStatus("Size field is empty or zero.");
+  }
+
+  // Detect and handle base-256 encoding
+  if ((ptr[0] & 0x80) != 0) {
+    return ParseBase256(ptr);
+  }
+
+  // Handle standard octal parsing
+  return ParseOctal(ptr);
 }
 
 enum class TarType { kUnknown, kUstar, kGnu };
@@ -126,7 +168,7 @@ TarTraceReader::TarTraceReader(TraceProcessorContext* context)
 
 TarTraceReader::~TarTraceReader() = default;
 
-util::Status TarTraceReader::Parse(TraceBlobView blob) {
+base::Status TarTraceReader::Parse(TraceBlobView blob) {
   ParseResult result = ParseResult::kOk;
   buffer_.PushBack(std::move(blob));
   while (!buffer_.empty() && result == ParseResult::kOk) {
@@ -200,6 +242,10 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseMetadata() {
     return ParseResult::kOk;
   }
 
+  if (*header.type_flag == TYPE_FLAG_DIR) {
+    return ParseResult::kOk;
+  }
+
   if (type == TarType::kUstar && (header.magic.ustar.version[0] != '0' ||
                                   header.magic.ustar.version[1] != '0')) {
     return base::ErrStatus("Invalid version: %c%c",
@@ -207,13 +253,14 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseMetadata() {
                            header.magic.ustar.version[1]);
   }
 
-  std::optional<uint64_t> size = ExtractUint64(header.size);
-  if (!size.has_value()) {
-    return base::ErrStatus("Failed to parse octal size field.");
+  auto size = ExtractUint64(header.size);
+  if (!size.ok()) {
+    return base::ErrStatus("Failed to parse size field: %s",
+                           size.status().message().c_str());
   }
 
   metadata_.emplace();
-  metadata_->size = *size;
+  metadata_->size = size.value();
   metadata_->type_flag = *header.type_flag;
 
   if (long_name_) {

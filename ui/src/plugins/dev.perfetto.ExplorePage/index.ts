@@ -15,9 +15,8 @@
 import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {ExplorePage, ExploreTableState} from './explore_page';
-import {Chart} from '../../components/widgets/charts/chart';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {ExplorePage, ExplorePageModes, ExplorePageState} from './explore_page';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
@@ -26,19 +25,20 @@ export default class implements PerfettoPlugin {
   // The following allows us to have persistent
   // state/charts for the lifecycle of a single
   // trace.
-  private readonly state: ExploreTableState = {};
-  private charts: Set<Chart> = new Set();
+  private readonly state: ExplorePageState = {
+    mode: ExplorePageModes.QUERY_BUILDER,
+    rootNodes: [],
+  };
 
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.pages.registerPage({
       route: '/explore',
-      page: {
-        view: ({attrs}) =>
-          m(ExplorePage, {
-            ...attrs,
-            state: this.state,
-            charts: this.charts,
-          }),
+      render: () => {
+        return m(ExplorePage, {
+          trace,
+          state: this.state,
+          sqlModulesPlugin: trace.plugins.getPlugin(SqlModulesPlugin),
+        });
       },
     });
     trace.sidebar.addMenuItem({

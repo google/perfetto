@@ -53,6 +53,7 @@
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/debug_annotation_parser.h"
@@ -689,12 +690,18 @@ class TrackEventParser::EventImporter {
           "TrackEvent with phase B without thread association");
     }
 
-    auto* thread_slices = storage_->mutable_slice_table();
-    auto opt_slice_id = context_->slice_tracker->BeginTyped(
-        thread_slices, MakeThreadSliceRow(),
+    auto opt_slice_id = context_->slice_tracker->Begin(
+        ts_, track_id_, category_id_, name_id_,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
-
     if (opt_slice_id.has_value()) {
+      auto rr =
+          context_->storage->mutable_slice_table()->FindById(*opt_slice_id);
+      if (thread_timestamp_) {
+        rr->set_thread_ts(*thread_timestamp_);
+      }
+      if (thread_instruction_count_) {
+        rr->set_thread_instruction_count(*thread_instruction_count_);
+      }
       MaybeParseFlowEvents(opt_slice_id.value());
     }
     return base::OkStatus();
@@ -747,20 +754,22 @@ class TrackEventParser::EventImporter {
     if (duration_ns < 0)
       return base::ErrStatus("TrackEvent with phase X with negative duration");
 
-    auto* thread_slices = storage_->mutable_slice_table();
-    tables::SliceTable::Row row = MakeThreadSliceRow();
-    row.dur = duration_ns;
-    if (legacy_event_.has_thread_duration_us()) {
-      row.thread_dur = legacy_event_.thread_duration_us() * 1000;
-    }
-    if (legacy_event_.has_thread_instruction_delta()) {
-      row.thread_instruction_delta = legacy_event_.thread_instruction_delta();
-    }
-    auto opt_slice_id = context_->slice_tracker->ScopedTyped(
-        thread_slices, row,
+    auto opt_slice_id = context_->slice_tracker->Scoped(
+        ts_, track_id_, category_id_, name_id_, duration_ns,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
-
     if (opt_slice_id.has_value()) {
+      auto rr =
+          context_->storage->mutable_slice_table()->FindById(*opt_slice_id);
+      PERFETTO_CHECK(rr);
+      if (thread_timestamp_) {
+        rr->set_thread_ts(*thread_timestamp_);
+        rr->set_thread_dur(legacy_event_.thread_duration_us() * 1000);
+      }
+      if (thread_instruction_count_) {
+        rr->set_thread_instruction_count(*thread_instruction_count_);
+        rr->set_thread_instruction_delta(
+            legacy_event_.thread_instruction_delta());
+      }
       MaybeParseFlowEvents(opt_slice_id.value());
     }
     return base::OkStatus();
@@ -879,25 +888,23 @@ class TrackEventParser::EventImporter {
                          Variadic::String(phase_id));
       }
     };
+    opt_slice_id =
+        context_->slice_tracker->Scoped(ts_, track_id_, category_id_, name_id_,
+                                        duration_ns, std::move(args_inserter));
+    if (!opt_slice_id) {
+      return base::OkStatus();
+    }
     if (utid_) {
-      auto* thread_slices = storage_->mutable_slice_table();
-      tables::SliceTable::Row row = MakeThreadSliceRow();
-      row.dur = duration_ns;
+      auto rr =
+          context_->storage->mutable_slice_table()->FindById(*opt_slice_id);
       if (thread_timestamp_) {
-        row.thread_dur = duration_ns;
+        rr->set_thread_ts(*thread_timestamp_);
+        rr->set_thread_dur(duration_ns);
       }
       if (thread_instruction_count_) {
-        row.thread_instruction_delta = tidelta;
+        rr->set_thread_instruction_count(*thread_instruction_count_);
+        rr->set_thread_instruction_delta(tidelta);
       }
-      opt_slice_id = context_->slice_tracker->ScopedTyped(
-          thread_slices, row, std::move(args_inserter));
-    } else {
-      opt_slice_id = context_->slice_tracker->Scoped(
-          ts_, track_id_, category_id_, name_id_, duration_ns,
-          std::move(args_inserter));
-    }
-    if (!opt_slice_id.has_value()) {
-      return base::OkStatus();
     }
     MaybeParseFlowEvents(opt_slice_id.value());
     return base::OkStatus();
@@ -1059,10 +1066,9 @@ class TrackEventParser::EventImporter {
     if (!utid_)
       return base::ErrStatus("raw legacy event without thread association");
 
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
-    RawId id =
-        storage_->mutable_raw_table()
-            ->Insert({ts_, parser_->raw_legacy_event_id_, *utid_, 0, 0, ucpu})
+    tables::ChromeRawTable::Id id =
+        storage_->mutable_chrome_raw_table()
+            ->Insert({ts_, parser_->raw_legacy_event_id_, *utid_, 0})
             .id;
 
     auto inserter = context_->args_tracker->AddArgsTo(id);
@@ -1334,19 +1340,6 @@ class TrackEventParser::EventImporter {
     inserter->AddArg(parser_->histogram_name_key_id_,
                      Variadic::String(storage_->InternString(decoder->name())));
     return base::OkStatus();
-  }
-
-  tables::SliceTable::Row MakeThreadSliceRow() {
-    tables::SliceTable::Row row;
-    row.ts = ts_;
-    row.track_id = track_id_;
-    row.category = category_id_;
-    row.name = name_id_;
-    row.thread_ts = thread_timestamp_;
-    row.thread_dur = std::nullopt;
-    row.thread_instruction_count = thread_instruction_count_;
-    row.thread_instruction_delta = std::nullopt;
-    return row;
   }
 
   TraceProcessorContext* context_;

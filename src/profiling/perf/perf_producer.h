@@ -22,9 +22,6 @@
 #include <memory>
 #include <optional>
 
-#include <unwindstack/Error.h>
-#include <unwindstack/Regs.h>
-
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
@@ -35,7 +32,6 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "src/profiling/common/callstack_trie.h"
 #include "src/profiling/common/interning_output.h"
-#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/event_config.h"
 #include "src/profiling/perf/event_reader.h"
@@ -98,7 +94,7 @@ class PerfProducer : public Producer,
 
   // Calls `cb` when all data sources have been registered.
   void SetAllDataSourcesRegisteredCb(std::function<void()> cb) {
-    all_data_sources_registered_cb_ = cb;
+    all_data_sources_registered_cb_ = std::move(cb);
   }
 
   // public for testing:
@@ -172,9 +168,10 @@ class PerfProducer : public Producer,
 
   // For |EmitSkippedSample|.
   enum class SampleSkipReason {
-    kReadStage = 0,  // discarded at read stage
-    kUnwindEnqueue,  // discarded due to unwinder queue being full
-    kUnwindStage,    // discarded at unwind stage
+    kReadFdTimeout = 0,  // discarded since fd lookup previously timed out
+    kUnwindEnqueue,      // discarded due to unwinder queue being full
+    kUnwindStage,        // discarded at unwind stage (any reason)
+    kRejected,           // doesn't match target scope from the config
   };
 
   void ConnectService();
@@ -182,9 +179,13 @@ class PerfProducer : public Producer,
   void ResetConnectionBackoff();
   void IncreaseConnectionBackoff();
 
-  // Periodic read task which reads a batch of samples from all kernel ring
-  // buffers associated with the given data source.
+  // Periodic read task.
   void TickDataSourceRead(DataSourceInstanceID ds_id);
+  // Snapshots the current values of the counters using the read syscall.
+  void ReadCounters(DataSourceState& ds);
+  // Reads a batch of samples from all kernel ring buffers for this data source.
+  bool ReadRingBuffers(DataSourceInstanceID ds_id, DataSourceState& ds);
+
   // Returns *false* if the reader has caught up with the writer position, true
   // otherwise. Return value is only useful if the underlying perf_event has
   // been paused (to identify when the buffer is empty). |max_samples| is a cap
@@ -193,7 +194,7 @@ class PerfProducer : public Producer,
   bool ReadAndParsePerCpuBuffer(EventReader* reader,
                                 uint64_t max_samples,
                                 DataSourceInstanceID ds_id,
-                                DataSourceState* ds);
+                                DataSourceState& ds);
 
   void InitiateDescriptorLookup(DataSourceInstanceID ds_id,
                                 pid_t pid,
@@ -204,6 +205,9 @@ class PerfProducer : public Producer,
                              uint32_t timeout_ms);
   void EvaluateDescriptorLookupTimeout(DataSourceInstanceID ds_id, pid_t pid);
 
+  void EmitCounterOnlySample(DataSourceState& ds,
+                             const CommonSampleData& sample,
+                             bool has_process_context);
   void EmitSample(DataSourceInstanceID ds_id, CompletedSample sample);
   void EmitRingBufferLoss(DataSourceInstanceID ds_id,
                           size_t cpu,

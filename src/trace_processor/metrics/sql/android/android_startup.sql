@@ -113,13 +113,8 @@ DROP VIEW IF EXISTS startup_view;
 CREATE PERFETTO VIEW startup_view AS
 SELECT
   AndroidStartupMetric_Startup(
-    'startup_id',launches.startup_id,
-    'startup_type', (
-      SELECT lp.startup_type
-      FROM android_startup_processes lp
-      WHERE lp.startup_id =launches.startup_id
-      LIMIT 1
-    ),
+    'startup_id', launches.startup_id,
+    'startup_type', launches.startup_type,
     'cpu_count', (
       SELECT COUNT(DISTINCT cpu) from sched
     ),

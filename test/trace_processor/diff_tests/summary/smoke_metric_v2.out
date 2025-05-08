@@ -1,0 +1,1159 @@
+row: {
+  value: 113012736.0
+  dimension: {
+    string_value: ".ShannonImsService"
+  }
+}
+row: {
+  value: 11852175.945019681
+  dimension: {
+    string_value: "/apex/com.android.adbd/bin/adbd"
+  }
+}
+row: {
+  value: 3973120.0
+  dimension: {
+    string_value: "/apex/com.android.hardware.cas/bin/hw/android.hardware.cas-service.example"
+  }
+}
+row: {
+  value: 14008170.191819213
+  dimension: {
+    string_value: "/apex/com.android.os.statsd/bin/statsd"
+  }
+}
+row: {
+  value: 36081664.0
+  dimension: {
+    string_value: "/apex/com.google.android.hardware.biometrics.face/bin/hw/android.hardware.biometrics.face-service.22.pixel"
+  }
+}
+row: {
+  value: 6430720.0
+  dimension: {
+    string_value: "/apex/com.google.android.widevine/bin/hw/android.hardware.drm-service.widevine"
+  }
+}
+row: {
+  value: 264998912.0
+  dimension: {
+    string_value: "/apex/com.google.pixel.camera.hal/bin/hw/android.hardware.camera.provider@2.7-service-google"
+  }
+}
+row: {
+  value: 9572352.0
+  dimension: {
+    string_value: "/apex/com.google.pixel.camera.hal/bin/rlsservice"
+  }
+}
+row: {
+  value: 9039872.0
+  dimension: {
+    string_value: "/apex/com.google.pixel.wifi.ext/bin/hw/vendor.google.wifi_ext-service-vendor"
+  }
+}
+row: {
+  value: 8568248.97626863
+  dimension: {
+    string_value: "/system/bin/apexd"
+  }
+}
+row: {
+  value: 30362068.184725884
+  dimension: {
+    string_value: "/system/bin/audioserver"
+  }
+}
+row: {
+  value: 28598272.0
+  dimension: {
+    string_value: "/system/bin/cameraserver"
+  }
+}
+row: {
+  value: 7651328.0
+  dimension: {
+    string_value: "/system/bin/credstore"
+  }
+}
+row: {
+  value: 8699904.0
+  dimension: {
+    string_value: "/system/bin/drmserver"
+  }
+}
+row: {
+  value: 6533120.0
+  dimension: {
+    string_value: "/system/bin/gatekeeperd"
+  }
+}
+row: {
+  value: 8818688.0
+  dimension: {
+    string_value: "/system/bin/gpuservice"
+  }
+}
+row: {
+  value: 5652480.0
+  dimension: {
+    string_value: "/system/bin/hw/android.system.suspend-service"
+  }
+}
+row: {
+  value: 6160384.0
+  dimension: {
+    string_value: "/system/bin/incidentd"
+  }
+}
+row: {
+  value: 12291467.840539945
+  dimension: {
+    string_value: "/system/bin/init"
+  }
+}
+row: {
+  value: 8081408.0
+  dimension: {
+    string_value: "/system/bin/installd"
+  }
+}
+row: {
+  value: 3678208.0
+  dimension: {
+    string_value: "/system/bin/ip6tables-restore"
+  }
+}
+row: {
+  value: 3522560.0
+  dimension: {
+    string_value: "/system/bin/iptables-restore"
+  }
+}
+row: {
+  value: 13512896.936731752
+  dimension: {
+    string_value: "/system/bin/keystore2"
+  }
+}
+row: {
+  value: 4055040.0
+  dimension: {
+    string_value: "/system/bin/lmkd"
+  }
+}
+row: {
+  value: 7340415.835375342
+  dimension: {
+    string_value: "/system/bin/logd"
+  }
+}
+row: {
+  value: 29708288.0
+  dimension: {
+    string_value: "/system/bin/mediaserver"
+  }
+}
+row: {
+  value: 11836424.090334903
+  dimension: {
+    string_value: "/system/bin/netd"
+  }
+}
+row: {
+  value: 6397952.0
+  dimension: {
+    string_value: "/system/bin/prng_seeder"
+  }
+}
+row: {
+  value: 5894575.151083791
+  dimension: {
+    string_value: "/system/bin/servicemanager"
+  }
+}
+row: {
+  value: 7446465.518512878
+  dimension: {
+    string_value: "/system/bin/storaged"
+  }
+}
+row: {
+  value: 104745285.26249185
+  dimension: {
+    string_value: "/system/bin/surfaceflinger"
+  }
+}
+row: {
+  value: 2895872.0
+  dimension: {
+    string_value: "/system/bin/tombstoned"
+  }
+}
+row: {
+  value: 13501493.912013592
+  dimension: {
+    string_value: "/system/bin/traced"
+  }
+}
+row: {
+  value: 9183345.909270825
+  dimension: {
+    string_value: "/system/bin/traced_probes"
+  }
+}
+row: {
+  value: 8830976.0
+  dimension: {
+    string_value: "/system/bin/ueventd"
+  }
+}
+row: {
+  value: 10977280.0
+  dimension: {
+    string_value: "/system/bin/update_engine"
+  }
+}
+row: {
+  value: 9359360.0
+  dimension: {
+    string_value: "/system/bin/virtual_camera"
+  }
+}
+row: {
+  value: 9514519.349475052
+  dimension: {
+    string_value: "/system/bin/vold"
+  }
+}
+row: {
+  value: 7241728.0
+  dimension: {
+    string_value: "/system/bin/wificond"
+  }
+}
+row: {
+  value: 4542464.0
+  dimension: {
+    string_value: "/system/system_ext/bin/hw/android.hidl.allocator@1.0-service"
+  }
+}
+row: {
+  value: 6762496.0
+  dimension: {
+    string_value: "/system/system_ext/bin/hwservicemanager"
+  }
+}
+row: {
+  value: 2830336.0
+  dimension: {
+    string_value: "/system/vendor/bin/wfc-pkt-router"
+  }
+}
+row: {
+  value: 2580480.0
+  dimension: {
+    string_value: "/system_ext/bin/gs_watchdogd"
+  }
+}
+row: {
+  value: 35811328.0
+  dimension: {
+    string_value: "/system_ext/bin/hw/vendor.google.edgetpu_app_service@1.0-service"
+  }
+}
+row: {
+  value: 3391488.0
+  dimension: {
+    string_value: "/vendor/bin/aocd"
+  }
+}
+row: {
+  value: 5234688.0
+  dimension: {
+    string_value: "/vendor/bin/bipchmgr"
+  }
+}
+row: {
+  value: 4476928.0
+  dimension: {
+    string_value: "/vendor/bin/cbd"
+  }
+}
+row: {
+  value: 13680640.0
+  dimension: {
+    string_value: "/vendor/bin/chre"
+  }
+}
+row: {
+  value: 12070912.0
+  dimension: {
+    string_value: "/vendor/bin/dmd"
+  }
+}
+row: {
+  value: 27336704.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.audio.service"
+  }
+}
+row: {
+  value: 11829248.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.authsecret-service.citadel"
+  }
+}
+row: {
+  value: 9363456.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.biometrics.fingerprint-service.goodix"
+  }
+}
+row: {
+  value: 10113024.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.bluetooth-service.bcmbtlinux"
+  }
+}
+row: {
+  value: 6197248.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.boot-service.default-pixel"
+  }
+}
+row: {
+  value: 6483968.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.cas@1.2-service"
+  }
+}
+row: {
+  value: 20366491.23091697
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.composer.hwc3-service.pixel"
+  }
+}
+row: {
+  value: 11829248.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.confirmationui-service.trusty.vendor"
+  }
+}
+row: {
+  value: 6361088.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.contexthub-service.generic"
+  }
+}
+row: {
+  value: 6680576.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.drm-service.clearkey"
+  }
+}
+row: {
+  value: 4915200.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.dumpstate-service"
+  }
+}
+row: {
+  value: 9650176.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.edgetpu.logging@service-edgetpu-logging"
+  }
+}
+row: {
+  value: 4726784.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.gatekeeper-service.trusty"
+  }
+}
+row: {
+  value: 6402048.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.gnss@2.1-service-brcm"
+  }
+}
+row: {
+  value: 9130213.758128721
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.graphics.allocator-V2-service"
+  }
+}
+row: {
+  value: 9617408.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.gxp.logging@service-gxp-logging"
+  }
+}
+row: {
+  value: 6594560.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.health-service.gs201"
+  }
+}
+row: {
+  value: 13996032.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.identity@1.0-service.citadel"
+  }
+}
+row: {
+  value: 7888896.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.input.processor-service"
+  }
+}
+row: {
+  value: 4374528.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.memtrack-service.pixel"
+  }
+}
+row: {
+  value: 19640320.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.neuralnetworks@service-darwinn-aidl"
+  }
+}
+row: {
+  value: 6308410.904908914
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.nfc-service.st"
+  }
+}
+row: {
+  value: 10485760.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.oemlock-service.citadel"
+  }
+}
+row: {
+  value: 6959104.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.power-service.pixel-libperfmgr"
+  }
+}
+row: {
+  value: 6029312.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.power.stats-service.pixel"
+  }
+}
+row: {
+  value: 5177344.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.secure_element@1.2-service-gto"
+  }
+}
+row: {
+  value: 4747264.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.secure_element@1.2-service-gto-ese2"
+  }
+}
+row: {
+  value: 5562368.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.secure_element@1.2-uicc-service"
+  }
+}
+row: {
+  value: 13201408.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.security.keymint-service.citadel"
+  }
+}
+row: {
+  value: 8347648.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.security.keymint-service.trusty"
+  }
+}
+row: {
+  value: 13918208.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.sensors-service.multihal"
+  }
+}
+row: {
+  value: 8491008.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.thermal-service.pixel"
+  }
+}
+row: {
+  value: 8458240.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.usb-service"
+  }
+}
+row: {
+  value: 5468160.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.usb.gadget-service"
+  }
+}
+row: {
+  value: 6889472.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.vibrator-service.cs40l26"
+  }
+}
+row: {
+  value: 11243520.0
+  dimension: {
+    string_value: "/vendor/bin/hw/android.hardware.weaver-service.citadel"
+  }
+}
+row: {
+  value: 6762496.0
+  dimension: {
+    string_value: "/vendor/bin/hw/battery_mitigation"
+  }
+}
+row: {
+  value: 6692864.0
+  dimension: {
+    string_value: "/vendor/bin/hw/citadeld"
+  }
+}
+row: {
+  value: 17113088.0
+  dimension: {
+    string_value: "/vendor/bin/hw/google.hardware.media.c2@1.0-service"
+  }
+}
+row: {
+  value: 20459520.0
+  dimension: {
+    string_value: "/vendor/bin/hw/gpsd"
+  }
+}
+row: {
+  value: 6877184.0
+  dimension: {
+    string_value: "/vendor/bin/hw/lhd"
+  }
+}
+row: {
+  value: 26075136.0
+  dimension: {
+    string_value: "/vendor/bin/hw/rild_exynos"
+  }
+}
+row: {
+  value: 28449840.895026725
+  dimension: {
+    string_value: "/vendor/bin/hw/samsung.hardware.media.c2@1.0-service"
+  }
+}
+row: {
+  value: 5791744.0
+  dimension: {
+    string_value: "/vendor/bin/hw/scd"
+  }
+}
+row: {
+  value: 17522688.0
+  dimension: {
+    string_value: "/vendor/bin/hw/vendor.dolby.media.c2@1.0-service"
+  }
+}
+row: {
+  value: 4931584.0
+  dimension: {
+    string_value: "/vendor/bin/hw/vendor.google.audiometricext@1.0-service-vendor"
+  }
+}
+row: {
+  value: 4460544.0
+  dimension: {
+    string_value: "/vendor/bin/hw/vendor.google.google_battery-service"
+  }
+}
+row: {
+  value: 9101312.0
+  dimension: {
+    string_value: "/vendor/bin/hw/vendor.google.radioext@1.0-service"
+  }
+}
+row: {
+  value: 5459968.0
+  dimension: {
+    string_value: "/vendor/bin/hw/vendor.google.wireless_charger-default"
+  }
+}
+row: {
+  value: 10682368.0
+  dimension: {
+    string_value: "/vendor/bin/hw/wpa_supplicant"
+  }
+}
+row: {
+  value: 7905280.0
+  dimension: {
+    string_value: "/vendor/bin/modem_svc_sit"
+  }
+}
+row: {
+  value: 7376896.0
+  dimension: {
+    string_value: "/vendor/bin/pixelstats-vendor"
+  }
+}
+row: {
+  value: 7880704.0
+  dimension: {
+    string_value: "/vendor/bin/ramdump"
+  }
+}
+row: {
+  value: 5373952.0
+  dimension: {
+    string_value: "/vendor/bin/rfsd"
+  }
+}
+row: {
+  value: 6811648.0
+  dimension: {
+    string_value: "/vendor/bin/sced"
+  }
+}
+row: {
+  value: 4898816.0
+  dimension: {
+    string_value: "/vendor/bin/securedpud.slider"
+  }
+}
+row: {
+  value: 4268032.0
+  dimension: {
+    string_value: "/vendor/bin/sscoredump"
+  }
+}
+row: {
+  value: 5939200.0
+  dimension: {
+    string_value: "/vendor/bin/storageproxyd"
+  }
+}
+row: {
+  value: 7065600.0
+  dimension: {
+    string_value: "/vendor/bin/trusty_metricsd"
+  }
+}
+row: {
+  value: 13722827.85442414
+  dimension: {
+    string_value: "/vendor/bin/twoshay"
+  }
+}
+row: {
+  value: 5115904.0
+  dimension: {
+    string_value: "/vendor/bin/vcd"
+  }
+}
+row: {
+  value: 5197824.0
+  dimension: {
+    string_value: "/vendor/bin/vndservicemanager"
+  }
+}
+row: {
+  value: 77574867.29363601
+  dimension: {
+    string_value: "<pre-initialized>"
+  }
+}
+row: {
+  value: 119901923.07804145
+  dimension: {
+    string_value: "android.process.acore"
+  }
+}
+row: {
+  value: 135321584.60826433
+  dimension: {
+    string_value: "com.amazon.mp3"
+  }
+}
+row: {
+  value: 118841344.0
+  dimension: {
+    string_value: "com.android.hbmsvmanager"
+  }
+}
+row: {
+  value: 84585746.53216511
+  dimension: {
+    string_value: "com.android.keychain"
+  }
+}
+row: {
+  value: 130279227.75502045
+  dimension: {
+    string_value: "com.android.networkstack.process"
+  }
+}
+row: {
+  value: 126076558.19797729
+  dimension: {
+    string_value: "com.android.nfc"
+  }
+}
+row: {
+  value: 165445922.11769405
+  dimension: {
+    string_value: "com.android.phone"
+  }
+}
+row: {
+  value: 105727768.47018088
+  dimension: {
+    string_value: "com.android.pixellogger"
+  }
+}
+row: {
+  value: 92268916.03742339
+  dimension: {
+    string_value: "com.android.printspooler"
+  }
+}
+row: {
+  value: 100278091.29145253
+  dimension: {
+    string_value: "com.android.providers.calendar"
+  }
+}
+row: {
+  value: 119287808.0
+  dimension: {
+    string_value: "com.android.qns"
+  }
+}
+row: {
+  value: 108517343.88877721
+  dimension: {
+    string_value: "com.android.se"
+  }
+}
+row: {
+  value: 170906692.3330943
+  dimension: {
+    string_value: "com.android.settings"
+  }
+}
+row: {
+  value: 331252345.2092829
+  dimension: {
+    string_value: "com.android.systemui"
+  }
+}
+row: {
+  value: 127333374.21053497
+  dimension: {
+    string_value: "com.apple.android.music"
+  }
+}
+row: {
+  value: 131994629.73064403
+  dimension: {
+    string_value: "com.blinkslabs.blinkist.android"
+  }
+}
+row: {
+  value: 99124425.81118406
+  dimension: {
+    string_value: "com.google.SSRestartDetector"
+  }
+}
+row: {
+  value: 115765005.31563856
+  dimension: {
+    string_value: "com.google.android.apps.books"
+  }
+}
+row: {
+  value: 102584320.0
+  dimension: {
+    string_value: "com.google.android.apps.cbrsnetworkmonitor"
+  }
+}
+row: {
+  value: 112467832.35257435
+  dimension: {
+    string_value: "com.google.android.apps.dreamliner"
+  }
+}
+row: {
+  value: 73342862.13835329
+  dimension: {
+    string_value: "com.google.android.apps.messaging"
+  }
+}
+row: {
+  value: 149553232.26201677
+  dimension: {
+    string_value: "com.google.android.apps.messaging:rcs"
+  }
+}
+row: {
+  value: 205078687.04026902
+  dimension: {
+    string_value: "com.google.android.apps.nexuslauncher"
+  }
+}
+row: {
+  value: 131632627.93570869
+  dimension: {
+    string_value: "com.google.android.apps.scone"
+  }
+}
+row: {
+  value: 91929734.68803188
+  dimension: {
+    string_value: "com.google.android.apps.wallpaper"
+  }
+}
+row: {
+  value: 143188154.99330282
+  dimension: {
+    string_value: "com.google.android.apps.wellbeing"
+  }
+}
+row: {
+  value: 151185261.37761384
+  dimension: {
+    string_value: "com.google.android.apps.work.clouddpc"
+  }
+}
+row: {
+  value: 135083844.18794808
+  dimension: {
+    string_value: "com.google.android.apps.youtube.music"
+  }
+}
+row: {
+  value: 140071034.52435604
+  dimension: {
+    string_value: "com.google.android.as"
+  }
+}
+row: {
+  value: 107899445.67196637
+  dimension: {
+    string_value: "com.google.android.as.oss"
+  }
+}
+row: {
+  value: 139295065.81265295
+  dimension: {
+    string_value: "com.google.android.bluetooth"
+  }
+}
+row: {
+  value: 127004948.4009137
+  dimension: {
+    string_value: "com.google.android.calendar"
+  }
+}
+row: {
+  value: 113388507.0774323
+  dimension: {
+    string_value: "com.google.android.carrier"
+  }
+}
+row: {
+  value: 121946112.0
+  dimension: {
+    string_value: "com.google.android.cellbroadcastreceiver"
+  }
+}
+row: {
+  value: 111776308.14758231
+  dimension: {
+    string_value: "com.google.android.connectivitythermalpowermanager"
+  }
+}
+row: {
+  value: 152290061.3412011
+  dimension: {
+    string_value: "com.google.android.deskclock"
+  }
+}
+row: {
+  value: 112916020.47075118
+  dimension: {
+    string_value: "com.google.android.devicelockcontroller"
+  }
+}
+row: {
+  value: 159732493.62819943
+  dimension: {
+    string_value: "com.google.android.dialer"
+  }
+}
+row: {
+  value: 125062420.87162027
+  dimension: {
+    string_value: "com.google.android.euicc"
+  }
+}
+row: {
+  value: 107732992.0
+  dimension: {
+    string_value: "com.google.android.ext.services"
+  }
+}
+row: {
+  value: 109680011.17867869
+  dimension: {
+    string_value: "com.google.android.flipendo"
+  }
+}
+row: {
+  value: 202160954.38982838
+  dimension: {
+    string_value: "com.google.android.gms"
+  }
+}
+row: {
+  value: 221737256.8410084
+  dimension: {
+    string_value: "com.google.android.gms.persistent"
+  }
+}
+row: {
+  value: 184128156.4260782
+  dimension: {
+    string_value: "com.google.android.googlequicksearchbox:interactor"
+  }
+}
+row: {
+  value: 214279072.42379332
+  dimension: {
+    string_value: "com.google.android.googlequicksearchbox:search"
+  }
+}
+row: {
+  value: 104032638.15231209
+  dimension: {
+    string_value: "com.google.android.grilservice"
+  }
+}
+row: {
+  value: 117683562.10621835
+  dimension: {
+    string_value: "com.google.android.ims"
+  }
+}
+row: {
+  value: 106495122.61137347
+  dimension: {
+    string_value: "com.google.android.iwlan"
+  }
+}
+row: {
+  value: 100281127.54310323
+  dimension: {
+    string_value: "com.google.android.keep"
+  }
+}
+row: {
+  value: 152711168.0
+  dimension: {
+    string_value: "com.google.android.permissioncontroller"
+  }
+}
+row: {
+  value: 102866659.35768764
+  dimension: {
+    string_value: "com.google.android.pixelsystemservice"
+  }
+}
+row: {
+  value: 123640436.04555914
+  dimension: {
+    string_value: "com.google.android.providers.media.module"
+  }
+}
+row: {
+  value: 107329677.28226179
+  dimension: {
+    string_value: "com.google.android.repairmode"
+  }
+}
+row: {
+  value: 153962539.1654484
+  dimension: {
+    string_value: "com.google.android.youtube"
+  }
+}
+row: {
+  value: 123172162.28469536
+  dimension: {
+    string_value: "com.google.ar.core"
+  }
+}
+row: {
+  value: 108286251.33829463
+  dimension: {
+    string_value: "com.google.euiccpixel"
+  }
+}
+row: {
+  value: 103899136.0
+  dimension: {
+    string_value: "com.google.pixel.camera.services"
+  }
+}
+row: {
+  value: 98515946.76050714
+  dimension: {
+    string_value: "com.overdrive.mobile.android.libby"
+  }
+}
+row: {
+  value: 111826186.7314072
+  dimension: {
+    string_value: "com.patreon.android"
+  }
+}
+row: {
+  value: 104247296.0
+  dimension: {
+    string_value: "com.samsung.slsi.telephony.oem.oemrilhookservice"
+  }
+}
+row: {
+  value: 106664991.93757431
+  dimension: {
+    string_value: "com.samsung.slsi.telephony.oemril"
+  }
+}
+row: {
+  value: 127314912.40864347
+  dimension: {
+    string_value: "com.shannon.imsservice"
+  }
+}
+row: {
+  value: 121524224.0
+  dimension: {
+    string_value: "com.shannon.rcsservice"
+  }
+}
+row: {
+  value: 116756480.0
+  dimension: {
+    string_value: "com.shannon.rcsservice:shannonrcsservice"
+  }
+}
+row: {
+  value: 103703184.29208773
+  dimension: {
+    string_value: "com.spotify.music"
+  }
+}
+row: {
+  value: 3069727.9616463576
+  dimension: {
+    string_value: "getprop"
+  }
+}
+row: {
+  value: 4534272.0
+  dimension: {
+    string_value: "logcat"
+  }
+}
+row: {
+  value: 29422549.912183467
+  dimension: {
+    string_value: "media.extractor"
+  }
+}
+row: {
+  value: 8613888.0
+  dimension: {
+    string_value: "media.metrics"
+  }
+}
+row: {
+  value: 25278875.69385074
+  dimension: {
+    string_value: "media.swcodec"
+  }
+}
+row: {
+  value: 125091331.94821103
+  dimension: {
+    string_value: "org.thoughtcrime.securesms"
+  }
+}
+row: {
+  value: 98893926.77114624
+  dimension: {
+    string_value: "org.videolan.vlc"
+  }
+}
+row: {
+  value: 2813952.0
+  dimension: {
+    string_value: "perfetto"
+  }
+}
+row: {
+  value: 3434367.3689263687
+  dimension: {
+    string_value: "sh"
+  }
+}
+row: {
+  value: 956328088.2450107
+  dimension: {
+    string_value: "system_server"
+  }
+}
+row: {
+  value: 4034394.3193060732
+  dimension: {
+    string_value: "vold_prepare_su"
+  }
+}
+row: {
+  value: 89782548.02415742
+  dimension: {
+    string_value: "webview_zygote"
+  }
+}
+row: {
+  value: 198025216.0
+  dimension: {
+    string_value: "zygote64"
+  }
+}
+spec: {
+  id: "memory_per_process"
+  dimensions: "process_name"
+  value: "avg_rss_and_swap"
+  query: {
+    table: {
+      table_name: "memory_rss_and_swap_per_process"
+      module_name: "linux.memory.process"
+    }
+    group_by: {
+      column_names: "process_name"
+      aggregates: {
+        column_name: "rss_and_swap"
+        op: DURATION_WEIGHTED_MEAN
+        result_column_name: "avg_rss_and_swap"
+      }
+    }
+  }
+}

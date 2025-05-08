@@ -66,6 +66,7 @@ TEST(ProtoZeroConformanceTest, SimpleFieldsNoNesting) {
   msg->set_small_enum(pbtest::SmallEnum::TO_BE);
   msg->set_signed_enum(pbtest::SignedEnum::NEGATIVE);
   msg->set_big_enum(pbtest::BigEnum::BEGIN);
+  msg->set_very_negative_enum(pbtest::VeryNegativeEnum::VAL);
   msg->set_field_string("FizzBuzz");
   msg->set_field_bytes(reinterpret_cast<const uint8_t*>("\x11\x00\xBE\xEF"), 4);
   msg->add_repeated_int32(1);
@@ -93,6 +94,7 @@ TEST(ProtoZeroConformanceTest, SimpleFieldsNoNesting) {
   EXPECT_EQ(pbgold::SmallEnum::TO_BE, gold_msg.small_enum());
   EXPECT_EQ(pbgold::SignedEnum::NEGATIVE, gold_msg.signed_enum());
   EXPECT_EQ(pbgold::BigEnum::BEGIN, gold_msg.big_enum());
+  EXPECT_EQ(pbgold::VeryNegativeEnum::VAL, gold_msg.very_negative_enum());
   EXPECT_EQ("FizzBuzz", gold_msg.field_string());
   EXPECT_EQ(std::string("\x11\x00\xBE\xEF", 4), gold_msg.field_bytes());
   EXPECT_EQ(4, gold_msg.repeated_int32_size());
@@ -319,7 +321,7 @@ TEST(ProtoZeroConformanceTest, EnumToString) {
 TEST(ProtoZeroConformanceTest, DifferentPackages) {
   HeapBuffered<pbtest::DifferentPackages> msg{kChunkSize, kChunkSize};
 
-  // Pupulate fields defined in "protozero.test.protos.subpackage"
+  // Populate fields defined in "protozero.test.protos.subpackage"
   pbtest_subpackage::Message* msgSubpackage = msg->set_subpackage_message();
   msgSubpackage->set_field_int32(1);
   msgSubpackage->set_field_enum(pbtest_subpackage::Enum::A);
@@ -329,7 +331,7 @@ TEST(ProtoZeroConformanceTest, DifferentPackages) {
   msg->set_subpackage_enum(pbtest_subpackage::Enum::B);
   msg->set_subpackage_nested_enum(pbtest_subpackage::Message_NestedEnum::D);
 
-  // Pupulate fields defined in "other_package"
+  // Populate fields defined in "other_package"
   pbtest_otherpackage::Message* msgOtherPackage =
       msg->set_otherpackage_message();
   msgOtherPackage->set_field_int32(11);

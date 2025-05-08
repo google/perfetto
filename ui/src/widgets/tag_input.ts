@@ -106,7 +106,9 @@ export class TagInput implements m.ClassComponent<TagInputAttrs> {
         },
         ...htmlAttrs,
       },
-      tags.map((tag, index) => renderTag(tag, () => onTagRemove(index))),
+      tags.map((tag, index) =>
+        renderTag(tag, onChange, () => onTagRemove(index)),
+      ),
       m('input', {
         ref: INPUT_REF,
         value,
@@ -140,9 +142,21 @@ export class TagInput implements m.ClassComponent<TagInputAttrs> {
   }
 }
 
-function renderTag(text: string, onRemove: () => void): m.Children {
+function renderTag(
+  text: string,
+  onChange: ((value: string) => void) | undefined,
+  onRemove: () => void,
+): m.Children {
   return m(
     'span.pf-tag',
+    {
+      ondblclick: onChange
+        ? () => {
+            onChange(text);
+            onRemove();
+          }
+        : undefined,
+    },
     text,
     m(Icon, {
       icon: 'close',

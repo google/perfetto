@@ -25,17 +25,31 @@ import "protos/perfetto/metrics/android/cpu_metric.proto";
 // idea about performance and cpu usage when using codec
 // framework
 message AndroidCodecMetrics {
-
   // profile details in messages
   message Detail {
-    // function thread
-    optional string thread_name = 1;
+    // was thread_name
+    reserved 1;
     // total time
     optional int64 total_cpu_ns = 2;
     // CPU time ( time 'Running' on cpu)
     optional int64 running_cpu_ns = 3;
-    // CPU cycles
-    optional int64 cpu_cycles = 4;
+    // avg running time for the trace duration
+    optional int64 avg_running_cpu_ns = 9;
+    // Total CPU cycles
+    optional int64 total_cpu_cycles = 4;
+    // avg CPU cycles per call
+    optional int64 avg_cpu_cycles = 8;
+    // avg time for this slice type
+    optional int64 avg_time_ns = 5;
+    optional int32 count = 6;
+    message Latency {
+      optional int64 max_us = 1;
+      optional int64 min_us = 2;
+      optional int64 avg_us = 3;
+      optional int64 agg_us = 4;
+      optional uint32 count = 5;
+    }
+    optional Latency self = 7;
   }
 
   // These are traces and could indicate framework queue latency
@@ -46,10 +60,15 @@ message AndroidCodecMetrics {
   message CodecFunction {
     // codec string
     optional string codec_string = 1;
-    // process_name
-    optional string process_name = 2;
-    // details
-    optional Detail detail = 3;
+    message Process {
+      optional string name = 1;
+      message Thread {
+        optional string name = 1;
+        optional Detail detail = 2;
+      }
+      optional Thread thread = 2;
+    }
+    optional Process process = 2;
   }
 
   // This message can indicate overall cpu
@@ -57,16 +76,22 @@ message AndroidCodecMetrics {
   message CpuUsage {
     // name of process using codec framework
     optional string process_name = 1;
-    // name of the codec thread
-    optional string thread_name = 2;
+    message ThreadInfo {
+      // name of the codec thread
+      optional string name = 1;
+      message Details {
+        // total cpu usage of the codec thread
+        optional int64 thread_cpu_ns = 1;
+        // can be number of codec framework thread
+        optional uint32 num_threads = 2;
+        // core type data info used by codec thread
+        repeated AndroidCpuMetric.CoreTypeData core_data = 3;
+      }
+      optional Details info = 2;
+    }
+    optional ThreadInfo thread = 2;
     // was thread_cpu_us
     reserved 3;
-    // total cpu usage of the codec thread
-    optional int64 thread_cpu_ns = 6;
-    // can be number of codec framework thread
-    optional uint32 num_threads = 4;
-    // core type data info used by codec thread
-    repeated AndroidCpuMetric.CoreTypeData core_data = 5;
   }
 
   // Rail details
@@ -98,5 +123,4 @@ message AndroidCodecMetrics {
   repeated CpuUsage cpu_usage = 1;
   repeated CodecFunction codec_function = 2;
   optional Energy energy = 3;
-
 }

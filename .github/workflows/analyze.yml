@@ -1,0 +1,105 @@
+# Copyright (C) 2025 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Perfetto CI
+on:
+  # 1. continuous
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+
+  # 2. postsubmit
+  push:
+    branches:
+      - main
+
+  # 3. presubmit
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+      - dev/**/*
+
+# If a new commit is pushed, cancel previous jobs for the same PR / branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: self-hosted
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Fetch the upstream branch as well, so we can diff and see the list of
+      # changed files.
+      - name: Fetch upstream branch
+        run: git fetch origin ${{ github.base_ref }} --depth=1
+
+      - name: Check if the change is trivial (docs/infra only)
+        run: |
+          if !(git diff --name-only origin/${{ github.base_ref }}...HEAD | egrep -qv '^(docs|infra|tools)/'); then
+          echo "TRIVIAL_CHANGE=1" >> $GITHUB_OUTPUT
+          else
+          echo "TRIVIAL_CHANGE=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if the change is UI only (skip linux/android tests)
+        run: |
+          if !(git diff --name-only origin/${{ github.base_ref }}...HEAD | egrep -qv '^(ui|test/data/ui-screenshots)/'); then
+          echo "UI_ONLY_CHANGE=1" >> $GITHUB_OUTPUT
+          else
+          echo "UI_ONLY_CHANGE=0" >> $GITHUB_OUTPUT
+          fi
+
+  linux:
+    needs: analyze
+    if:
+      needs.analyze.outputs.UI_ONLY_CHANGE == '0' &&
+      needs.analyze.outputs.TRIVIAL_CHANGE == '0'
+    uses: ./.github/workflows/linux-tests.yml
+
+  android:
+    needs: analyze
+    if:
+      needs.analyze.outputs.UI_ONLY_CHANGE == '0' &&
+      needs.analyze.outputs.TRIVIAL_CHANGE == '0'
+    uses: ./.github/workflows/android-tests.yml
+
+  ui:
+    needs: analyze
+    if: needs.analyze.outputs.TRIVIAL_CHANGE == '0'
+    uses: ./.github/workflows/ui-tests.yml
+
+  bazel:
+    needs: analyze
+    if:
+      needs.analyze.outputs.UI_ONLY_CHANGE == '0' &&
+      needs.analyze.outputs.TRIVIAL_CHANGE == '0'
+    uses: ./.github/workflows/bazel-tests.yml
+
+  fuzzer:
+    needs: analyze
+    if:
+      needs.analyze.outputs.UI_ONLY_CHANGE == '0' &&
+      needs.analyze.outputs.TRIVIAL_CHANGE == '0'
+    uses: ./.github/workflows/fuzzer-tests.yml
+
+  repo-checks:
+    needs: analyze
+    if: needs.analyze.outputs.UI_ONLY_CHANGE == '0'
+    uses: ./.github/workflows/repo-checks.yml

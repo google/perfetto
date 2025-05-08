@@ -51,7 +51,7 @@ TEST(DeferredTest, BindAndResolve) {
   (*res).set_str("foo");
   deferred.Resolve(std::move(res));
 
-  // A second call to Resolve() or Reject() shouldn't have any effect beause we
+  // A second call to Resolve() or Reject() shouldn't have any effect because we
   // didn't set has_more.
   EXPECT_DCHECK(deferred.Resolve(std::move(res)));
   EXPECT_DCHECK(deferred.Reject());
@@ -172,7 +172,9 @@ TEST(DeferredTest, MoveOperators) {
     ASSERT_FALSE(msg.success());
     (*num_callbacks)++;
   });
-  { Deferred<TestMessage> scoped_deferred(std::move(deferred)); }
+  {
+    Deferred<TestMessage> scoped_deferred(std::move(deferred));
+  }
   ASSERT_EQ(3, *num_callbacks);
   callback = nullptr;
   ASSERT_EQ(1, num_callbacks.use_count());
@@ -238,7 +240,9 @@ TEST(DeferredTest, StreamingReplyIsRejectedOutOfScope) {
     }
 
     // |deferred_moved| going out of scope should cause a Reject().
-    { Deferred<TestMessage> deferred_moved = std::move(deferred); }
+    {
+      Deferred<TestMessage> deferred_moved = std::move(deferred);
+    }
     ASSERT_EQ(4, *num_callbacks);
   }
 

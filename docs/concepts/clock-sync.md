@@ -92,8 +92,6 @@ Such `ClockSnapshot`:
 
 * Must be emitted on the same sequence (i.e. by the same `TraceWriter`) that is
   used to emit other `TracePacket`(s) that refer to such `timestamp_clock_id`.
-* Must be emitted before the custom clock is referred to by any `TracePacket`
-  written by the same `TraceWriter`.
 * Must contain a snapshot of: (i) the custom clock id [64, 127] and (ii) another
   clock domain that can be resolved, at import time, against the default trace
   clock domain (`CLOCK_BOOTTIME`) (see the [Operation section](#operation)

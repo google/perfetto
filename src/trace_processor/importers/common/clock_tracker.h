@@ -228,6 +228,13 @@ class ClockTracker {
         metadata::trace_time_clock_id, Variadic::Integer(trace_time_clock_id_));
   }
 
+  bool HasPathToTraceTime(ClockId clock_id) {
+    if (clock_id == trace_time_clock_id_) {
+      return true;
+    }
+    return FindPath(clock_id, trace_time_clock_id_).valid();
+  }
+
   void set_cache_lookups_disabled_for_testing(bool v) {
     cache_lookups_disabled_for_testing_ = v;
   }

@@ -15,31 +15,19 @@
  */
 
 #include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
-#include <memory>
 
-#include "src/trace_processor/importers/common/args_translation_table.h"
-#include "src/trace_processor/importers/common/clock_converter.h"
-#include "src/trace_processor/importers/common/clock_tracker.h"
-#include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/machine_tracker.h"
-#include "src/trace_processor/importers/common/mapping_tracker.h"
+#include <memory>
+#include <utility>
+
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/common/sched_event_tracker.h"
-#include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/stack_profile_tracker.h"
-#include "src/trace_processor/importers/common/track_compressor.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
-#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
-#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 MultiMachineTraceManager::MultiMachineTraceManager(
     TraceProcessorContext* default_context)
@@ -56,7 +44,7 @@ std::unique_ptr<TraceProcessorContext> MultiMachineTraceManager::CreateContext(
 
   // Register default and additional modules (if enabled).
   RegisterDefaultModules(new_context.get());
-  // Register addtional modules through the registered function pointer.
+  // Register additional modules through the registered function pointer.
   if (additional_modules_factory_)
     additional_modules_factory_(new_context.get());
 
@@ -93,5 +81,4 @@ ProtoTraceReader* MultiMachineTraceManager::GetOrCreateReader(
   return remote_machine_contexts_[raw_machine_id].reader.get();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

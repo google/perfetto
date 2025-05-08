@@ -20,10 +20,9 @@ import {
   VerticalBounds,
 } from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
-import {Flow} from '../../core/flow_types';
+import {ALL_CATEGORIES, Flow, getFlowCategories} from '../../core/flow_types';
 import {TraceImpl} from '../../core/trace_impl';
 import {TrackNode} from '../../public/workspace';
-import {ALL_CATEGORIES, getFlowCategories} from '../flow_events_panel';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;

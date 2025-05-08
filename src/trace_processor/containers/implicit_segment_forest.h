@@ -23,6 +23,10 @@
 
 #include "perfetto/base/logging.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
+#include <immintrin.h>
+#endif
+
 namespace perfetto::trace_processor {
 
 // An implementation of a segment tree data structure [1] with:
@@ -98,9 +102,8 @@ class ImplicitSegmentForest {
     values_.emplace_back(std::move(v));
 
     size_t len = values_.size();
-    auto levels_to_index = static_cast<uint32_t>(__builtin_ctzl(
-                               static_cast<unsigned long>(~len))) -
-                           1;
+    auto levels_to_index =
+        static_cast<uint32_t>(Tzcnt(static_cast<uint64_t>(~len))) - 1;
 
     size_t cur = len - 1;
     for (uint32_t level = 0; level < levels_to_index; ++level) {
@@ -120,15 +123,35 @@ class ImplicitSegmentForest {
   uint32_t size() const { return static_cast<uint32_t>(values_.size() / 2); }
 
  private:
-  static uint32_t Lsp(uint32_t x) { return x & -x; }
+  static uint32_t Lsp(uint32_t x) { return x & ~(x - 1); }
   static uint32_t Msp(uint32_t x) {
-    return (1u << (sizeof(x) * 8 - 1)) >> __builtin_clz(x);
+    return (1u << (sizeof(x) * 8 - 1)) >> Lzcnt32(x);
   }
   static uint32_t LargestPrefixInsideSkip(uint32_t min, uint32_t max) {
     return Lsp(min | Msp(max - min));
   }
   static uint32_t AggNode(uint32_t i, uint32_t offset) {
     return i + (offset >> 1) - 1;
+  }
+
+  static PERFETTO_ALWAYS_INLINE uint32_t Lzcnt32(uint32_t value) {
+#if defined(__GNUC__) || defined(__clang__)
+    return value ? static_cast<uint32_t>(__builtin_clz(value)) : 32u;
+#else
+    unsigned long out;
+    return _BitScanReverse(&out, value) ? 31 - out : 32u;
+#endif
+  }
+
+  static PERFETTO_ALWAYS_INLINE uint32_t Tzcnt(uint64_t value) {
+#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
+    return static_cast<uint32_t>(_tzcnt_u64(value));
+#elif defined(__GNUC__) || defined(__clang__)
+    return value ? static_cast<uint32_t>(__builtin_ctzll(value)) : 64u;
+#else
+    unsigned long out;
+    return _BitScanForward64(&out, value) ? static_cast<uint32_t>(out) : 64u;
+#endif
   }
 
   std::vector<T> values_;

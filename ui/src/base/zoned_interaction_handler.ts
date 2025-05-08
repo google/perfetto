@@ -141,7 +141,7 @@ export class ZonedInteractionHandler implements Disposable {
   private currentGesture?: InProgressGesture;
   private shiftHeld = false;
 
-  constructor(private readonly target: HTMLElement) {
+  constructor(readonly target: HTMLElement) {
     this.bindEvent(this.target, 'mousedown', this.onMouseDown.bind(this));
     this.bindEvent(document, 'mousemove', this.onMouseMove.bind(this));
     this.bindEvent(document, 'mouseup', this.onMouseUp.bind(this));

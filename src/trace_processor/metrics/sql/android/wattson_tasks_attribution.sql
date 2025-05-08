@@ -15,6 +15,7 @@
 
 INCLUDE PERFETTO MODULE wattson.curves.estimates;
 INCLUDE PERFETTO MODULE wattson.curves.idle_attribution;
+INCLUDE PERFETTO MODULE wattson.utils;
 INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 
 -- Take only the Wattson estimations that are in the window of interest
@@ -107,17 +108,11 @@ JOIN _sched_w_thread_process_package_summary AS s ON s._auto_id = id_1;
 DROP VIEW IF EXISTS _per_thread_idle_attribution;
 CREATE PERFETTO VIEW _per_thread_idle_attribution AS
 SELECT
-  SUM(cost.estimated_mw * cost.dur) / 1e9 as idle_cost_mws,
+  SUM(cost.idle_cost_mws) as idle_cost_mws,
   cost.utid,
-  ii.id_1 as period_id
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_idle_transition_cost),
-    (SELECT ts, dur, period_id as id FROM {{window_table}})
-  ),
-  ()
-) ii
-JOIN _idle_transition_cost as cost ON cost._auto_id = id_0
+  period_window.period_id
+FROM {{window_table}} AS period_window
+CROSS JOIN _filter_idle_attribution(period_window.ts, period_window.dur) AS cost
 GROUP BY utid, period_id;
 
 -- Group by unique thread ID and disregard CPUs, summing of power over all CPUs
@@ -130,9 +125,11 @@ SELECT
   (
     SUM(estimated_mw * dur) / (SELECT SUM(dur) from _windowed_wattson)
   ) as estimated_mw,
-  idle_cost_mws,
+  -- Output zero idle cost for threads that don't cause wakeup
+  COALESCE(idle_cost_mws, 0) as idle_cost_mws,
   thread_name,
-  process_name,
+  -- Ensure that all threads have the process field
+  COALESCE(process_name, '') as process_name,
   tid,
   pid,
   period_id
@@ -152,6 +149,7 @@ SELECT
         'estimated_mws', ROUND(estimated_mws, 6),
         'estimated_mw', ROUND(estimated_mw, 6),
         'idle_transitions_mws', ROUND(idle_cost_mws, 6),
+        'total_mws', ROUND(estimated_mws + idle_cost_mws, 6),
         'thread_name', thread_name,
         'process_name', process_name,
         'thread_id', tid,

@@ -104,27 +104,15 @@ base::StatusOr<std::unique_ptr<Table>> TableInfo::ComputeTable(
   auto table = std::make_unique<TableInfoTable>(string_pool_);
   auto table_name_id = string_pool_->InternString(table_name.c_str());
 
-  // Find static table
-  const Table* static_table = engine_->GetStaticTableOrNull(table_name);
-  if (static_table) {
-    for (auto& row : GetColInfoRows(static_table->columns(), string_pool_)) {
+  // Find table
+  const Table* t = engine_->GetTableOrNull(table_name);
+  if (t) {
+    for (auto& row : GetColInfoRows(t->columns(), string_pool_)) {
       row.table_name = table_name_id;
       table->Insert(row);
     }
     return std::unique_ptr<Table>(std::move(table));
   }
-
-  // Find runtime table
-  const RuntimeTable* runtime_table =
-      engine_->GetRuntimeTableOrNull(table_name);
-  if (runtime_table) {
-    for (auto& row : GetColInfoRows(runtime_table->columns(), string_pool_)) {
-      row.table_name = table_name_id;
-      table->Insert(row);
-    }
-    return std::unique_ptr<Table>(std::move(table));
-  }
-
   return base::ErrStatus("Perfetto table '%s' not found.", table_name.c_str());
 }
 

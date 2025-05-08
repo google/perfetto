@@ -24,7 +24,7 @@
 #include "src/trace_processor/containers/implicit_segment_forest.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 
 namespace perfetto::trace_processor {
 
@@ -68,10 +68,9 @@ struct SliceMipmapOperator : sqlite::Module<SliceMipmapOperator> {
   struct State {
     std::vector<PerDepth> by_depth;
   };
-  struct Context {
+  struct Context : sqlite::ModuleStateManager<SliceMipmapOperator> {
     explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}
     PerfettoSqlEngine* engine;
-    sqlite::ModuleStateManager<SliceMipmapOperator> manager;
   };
   struct Vtab : sqlite::Module<SliceMipmapOperator>::Vtab {
     sqlite::ModuleStateManager<SliceMipmapOperator>::PerVtabState* state;
@@ -121,6 +120,28 @@ struct SliceMipmapOperator : sqlite::Module<SliceMipmapOperator> {
   static int Eof(sqlite3_vtab_cursor*);
   static int Column(sqlite3_vtab_cursor*, sqlite3_context*, int);
   static int Rowid(sqlite3_vtab_cursor*, sqlite_int64*);
+
+  static int Begin(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Sync(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Commit(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Rollback(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Savepoint(sqlite3_vtab* t, int r) {
+    SliceMipmapOperator::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<SliceMipmapOperator>::OnSavepoint(vtab->state,
+                                                                 r);
+    return SQLITE_OK;
+  }
+  static int Release(sqlite3_vtab* t, int r) {
+    SliceMipmapOperator::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<SliceMipmapOperator>::OnRelease(vtab->state, r);
+    return SQLITE_OK;
+  }
+  static int RollbackTo(sqlite3_vtab* t, int r) {
+    SliceMipmapOperator::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<SliceMipmapOperator>::OnRollbackTo(vtab->state,
+                                                                  r);
+    return SQLITE_OK;
+  }
 
   // This needs to happen at the end as it depends on the functions
   // defined above.

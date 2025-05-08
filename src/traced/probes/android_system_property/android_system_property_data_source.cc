@@ -122,7 +122,7 @@ const std::optional<std::string> AndroidSystemPropertyDataSource::ReadProperty(
     const std::string& name) {
   std::string value = base::GetAndroidProp(name.c_str());
   if (value.empty()) {
-    PERFETTO_LOG("Unable to read %s", name.c_str());
+    PERFETTO_DLOG("Unable to read %s", name.c_str());
     return std::nullopt;
   }
   return std::make_optional(value);

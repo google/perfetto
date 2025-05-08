@@ -17,12 +17,15 @@ import {searchSegment} from '../../base/binary_search';
 import {assertTrue, assertUnreachable} from '../../base/logging';
 import {Time, time} from '../../base/time';
 import {uuidv4Sql} from '../../base/uuid';
-import {drawTrackHoverTooltip} from '../../base/canvas_utils';
 import {raf} from '../../core/raf_scheduler';
 import {CacheKey} from './timeline_cache';
-import {Track, TrackMouseEvent, TrackRenderContext} from '../../public/track';
+import {
+  TrackRenderer,
+  TrackMouseEvent,
+  TrackRenderContext,
+} from '../../public/track';
 import {Button} from '../../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
@@ -179,7 +182,7 @@ export interface CounterOptions {
   unit?: string;
 }
 
-export abstract class BaseCounterTrack implements Track {
+export abstract class BaseCounterTrack implements TrackRenderer {
   protected trackUuid = uuidv4Sql();
 
   // This is the over-skirted cached bounds:
@@ -195,7 +198,6 @@ export abstract class BaseCounterTrack implements Track {
 
   private limits?: CounterLimits;
 
-  private mousePos = {x: 0, y: 0};
   private hover?: CounterTooltipState;
   private options?: CounterOptions;
 
@@ -213,6 +215,34 @@ export abstract class BaseCounterTrack implements Track {
       this.options = options;
     }
     return this.options;
+  }
+
+  renderTooltip(): m.Children {
+    if (this.hover) {
+      const value =
+        this.options?.yDisplay === 'log'
+          ? Math.exp(this.hover.lastDisplayValue)
+          : this.hover.lastDisplayValue;
+
+      return m('.pf-track__tooltip', this.formatValue(value));
+    } else {
+      return undefined;
+    }
+  }
+
+  private formatValue(value: number) {
+    const options = this.getCounterOptions();
+    const unit = this.unit;
+    switch (options.yMode) {
+      case 'value':
+        return `${value.toLocaleString()} ${unit}`;
+      case 'delta':
+        return `${value.toLocaleString()} \u0394${unit}`;
+      case 'rate':
+        return `${value.toLocaleString()} \u0394${unit}/s`;
+      default:
+        assertUnreachable(options.yMode);
+    }
   }
 
   // Extension points.
@@ -417,7 +447,7 @@ export abstract class BaseCounterTrack implements Track {
   // it manually, if they want to customise rendering track buttons.
   protected getCounterContextMenu(): m.Child {
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
         trigger: m(Button, {icon: 'show_chart', compact: true}),
       },
@@ -469,8 +499,6 @@ export abstract class BaseCounterTrack implements Track {
     assertTrue(data.timestamps.length === data.minDisplayValues.length);
     assertTrue(data.timestamps.length === data.maxDisplayValues.length);
     assertTrue(data.timestamps.length === data.lastDisplayValues.length);
-
-    const options = this.getCounterOptions();
 
     const timestamps = data.timestamps;
     const minValues = data.minDisplayValues;
@@ -556,24 +584,6 @@ export abstract class BaseCounterTrack implements Track {
 
     const hover = this.hover;
     if (hover !== undefined) {
-      let text = `${hover.lastDisplayValue.toLocaleString()}`;
-
-      const unit = this.unit;
-      switch (options.yMode) {
-        case 'value':
-          text = `${text} ${unit}`;
-          break;
-        case 'delta':
-          text = `${text} \u0394${unit}`;
-          break;
-        case 'rate':
-          text = `${text} \u0394${unit}/s`;
-          break;
-        default:
-          assertUnreachable(options.yMode);
-          break;
-      }
-
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
@@ -611,9 +621,6 @@ export abstract class BaseCounterTrack implements Track {
         ctx.fill();
         ctx.stroke();
       }
-
-      // Draw the tooltip.
-      drawTrackHoverTooltip(ctx, this.mousePos, size, text);
     }
 
     // Write the Y scale on the top left corner.
@@ -646,10 +653,9 @@ export abstract class BaseCounterTrack implements Track {
     );
   }
 
-  onMouseMove({x, y, timescale}: TrackMouseEvent) {
+  onMouseMove({x, timescale}: TrackMouseEvent) {
     const data = this.counters;
     if (data === undefined) return;
-    this.mousePos = {x, y};
     const time = timescale.pxToHpTime(x);
 
     const [left, right] = searchSegment(data.timestamps, time.toTime());
@@ -668,6 +674,9 @@ export abstract class BaseCounterTrack implements Track {
       tsEnd,
       lastDisplayValue,
     };
+
+    // Full redraw to update the tooltip
+    raf.scheduleFullRedraw();
   }
 
   onMouseOut() {

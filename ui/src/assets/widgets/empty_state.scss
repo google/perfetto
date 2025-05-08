@@ -15,6 +15,7 @@
 @import "theme";
 
 .pf-empty-state {
+  font-family: $pf-font;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -26,7 +27,7 @@
 
   & > i {
     font-size: 5em; // Size of the icon is relative to the font size.
-    margin-bottom: 8px;
+    margin-bottom: 12px;
   }
 
   // Limit width to the size of the container and use no wrap & elipsis to
@@ -39,11 +40,10 @@
   .pf-empty-state-title {
     text-align: center;
     font-weight: bolder;
-    margin-bottom: 2px;
+    margin-bottom: 8px;
   }
 
   .pf-empty-state-content {
     text-align: center;
-    font-size: smaller;
   }
 }

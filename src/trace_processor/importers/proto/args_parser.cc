@@ -70,7 +70,7 @@ void ArgsParser::AddDouble(const Key& key, double value) {
 void ArgsParser::AddPointer(const Key& key, uint64_t value) {
   inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
                    storage_.InternString(base::StringView(key.key)),
-                   Variadic::Pointer(reinterpret_cast<uint64_t>(value)));
+                   Variadic::Pointer(value));
 }
 
 void ArgsParser::AddBoolean(const Key& key, bool value) {

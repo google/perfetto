@@ -42,17 +42,17 @@ struct DimensionBlueprintT : DimensionBlueprintBase {
 
 struct NameBlueprintT {
   struct Auto {
-    using name_t = nullptr_t;
+    using name_t = std::nullptr_t;
   };
   struct Static {
-    using name_t = nullptr_t;
+    using name_t = std::nullptr_t;
     const char* name;
   };
   struct Dynamic {
     using name_t = StringPool::Id;
   };
   struct FnBase {
-    using name_t = nullptr_t;
+    using name_t = std::nullptr_t;
   };
   template <typename F>
   struct Fn : FnBase {
@@ -84,7 +84,7 @@ using DimensionBlueprintsT = std::tuple<T...>;
 
 struct UnitBlueprintT {
   struct Unknown {
-    using unit_t = nullptr_t;
+    using unit_t = std::nullptr_t;
   };
   struct Static {
     using unit_t = const char*;

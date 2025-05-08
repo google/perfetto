@@ -37,7 +37,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -53,7 +53,13 @@ constexpr char kTsColumnName[] = "ts";
 constexpr char kDurColumnName[] = "dur";
 
 bool IsRequiredColumn(const std::string& name) {
-  return name == kTsColumnName || name == kDurColumnName;
+  return name == kTsColumnName;
+}
+
+bool IsSpecialColumn(const std::string& name,
+                     const std::optional<std::string>& partition_col) {
+  return name == kTsColumnName || name == kDurColumnName ||
+         name == partition_col;
 }
 
 std::optional<std::string> HasDuplicateColumns(
@@ -62,7 +68,7 @@ std::optional<std::string> HasDuplicateColumns(
     const std::optional<std::string>& partition_col) {
   std::unordered_set<std::string> seen_names;
   for (const auto& col : t1) {
-    if (IsRequiredColumn(col.second) || col.second == partition_col) {
+    if (IsSpecialColumn(col.second, partition_col)) {
       continue;
     }
     if (seen_names.count(col.second) > 0) {
@@ -71,7 +77,7 @@ std::optional<std::string> HasDuplicateColumns(
     seen_names.insert(col.second);
   }
   for (const auto& col : t2) {
-    if (IsRequiredColumn(col.second) || col.second == partition_col) {
+    if (IsSpecialColumn(col.second, partition_col)) {
       continue;
     }
     if (seen_names.count(col.second) > 0) {
@@ -107,7 +113,8 @@ std::string OpToString(int op) {
       // The "null" will be added below in EscapedSqliteValueAsString.
       return " is not ";
     default:
-      PERFETTO_FATAL("Operator to string conversion not impemented for %d", op);
+      PERFETTO_FATAL("Operator to string conversion not implemented for %d",
+                     op);
   }
 }
 
@@ -133,7 +140,7 @@ std::string EscapedSqliteValueAsString(sqlite3_value* value) {
 
 }  // namespace
 
-void SpanJoinOperatorModule::State::PopulateColumnLocatorMap(uint32_t offset) {
+void SpanJoinOperatorModule::Vtab::PopulateColumnLocatorMap(uint32_t offset) {
   for (uint32_t i = 0; i < t1_defn.columns().size(); ++i) {
     if (i == t1_defn.ts_idx() || i == t1_defn.dur_idx() ||
         i == t1_defn.partition_idx()) {
@@ -154,7 +161,7 @@ void SpanJoinOperatorModule::State::PopulateColumnLocatorMap(uint32_t offset) {
   }
 }
 
-std::string SpanJoinOperatorModule::State::BestIndexStrForDefinition(
+std::string SpanJoinOperatorModule::Vtab::BestIndexStrForDefinition(
     const sqlite3_index_info* info,
     const TableDefinition& defn) {
   uint32_t count = 0;
@@ -171,7 +178,7 @@ std::string SpanJoinOperatorModule::State::BestIndexStrForDefinition(
     }
 
     // Le constraints can be passed straight to the child tables as they won't
-    // affect the span join computation. Similarily, source_geq constraints
+    // affect the span join computation. Similarly, source_geq constraints
     // explicitly request that they are passed as geq constraints to the source
     // tables.
     if (col_name == kTsColumnName && !sqlite::utils::IsOpLe(c.op) &&
@@ -185,7 +192,7 @@ std::string SpanJoinOperatorModule::State::BestIndexStrForDefinition(
       continue;
     }
 
-    // If we're emitting shadow slices, don't propogate any constraints
+    // If we're emitting shadow slices, don't propagate any constraints
     // on this table as this will break the shadow slice computation.
     if (defn.ShouldEmitPresentPartitionShadow()) {
       continue;
@@ -220,7 +227,7 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
 
   uint32_t required_columns_found = 0;
   uint32_t ts_idx = std::numeric_limits<uint32_t>::max();
-  uint32_t dur_idx = std::numeric_limits<uint32_t>::max();
+  std::optional<uint32_t> dur_idx;
   uint32_t partition_idx = std::numeric_limits<uint32_t>::max();
   for (uint32_t i = 0; i < cols.size(); i++) {
     auto col = cols[i];
@@ -244,10 +251,9 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
       partition_idx = i;
     }
   }
-  if (required_columns_found != 2) {
-    return base::ErrStatus(
-        "SPAN_JOIN: Missing one of columns {ts, dur} in table %s",
-        desc.name.c_str());
+  if (required_columns_found != 1) {
+    return base::ErrStatus("SPAN_JOIN: Missing ts column in table %s",
+                           desc.name.c_str());
   }
   if (desc.IsPartitioned() && partition_idx >= cols.size()) {
     return base::ErrStatus(
@@ -256,7 +262,6 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
   }
 
   PERFETTO_DCHECK(ts_idx < cols.size());
-  PERFETTO_DCHECK(dur_idx < cols.size());
 
   *defn = TableDefinition(desc.name, desc.partition_col, std::move(cols),
                           emit_shadow_type, ts_idx, dur_idx, partition_idx);
@@ -267,7 +272,7 @@ std::string
 SpanJoinOperatorModule::TableDefinition::CreateVtabCreateTableSection() const {
   std::string cols;
   for (const auto& col : columns()) {
-    if (IsRequiredColumn(col.second) || col.second == partition_col()) {
+    if (IsSpecialColumn(col.second, partition_col())) {
       continue;
     }
     if (col.first == SqlValue::Type::kNull) {
@@ -280,7 +285,7 @@ SpanJoinOperatorModule::TableDefinition::CreateVtabCreateTableSection() const {
   return cols;
 }
 
-std::string SpanJoinOperatorModule::State::GetNameForGlobalColumnIndex(
+std::string SpanJoinOperatorModule::Vtab::GetNameForGlobalColumnIndex(
     const TableDefinition& defn,
     int global_column) {
   auto col_idx = static_cast<size_t>(global_column);
@@ -302,9 +307,9 @@ std::string SpanJoinOperatorModule::State::GetNameForGlobalColumnIndex(
   return defn.columns()[locator.col_index].second;
 }
 
-SpanJoinOperatorModule::Query::Query(SpanJoinOperatorModule::State* state,
+SpanJoinOperatorModule::Query::Query(Vtab* vtab,
                                      const TableDefinition* definition)
-    : defn_(definition), in_state_(state) {
+    : defn_(definition), vtab_(vtab) {
   PERFETTO_DCHECK(!defn_->IsPartitioned() ||
                   defn_->partition_idx() < defn_->columns().size());
 }
@@ -314,7 +319,7 @@ SpanJoinOperatorModule::Query::~Query() = default;
 base::Status SpanJoinOperatorModule::Query::Initialize(
     std::string sql_query,
     InitialEofBehavior eof_behavior) {
-  *this = Query(in_state_, definition());
+  *this = Query(vtab_, definition());
   sql_query_ = std::move(sql_query);
   base::Status status = Rewind();
   if (!status.ok())
@@ -438,7 +443,7 @@ base::Status SpanJoinOperatorModule::Query::NextSliceState() {
 }
 
 base::Status SpanJoinOperatorModule::Query::Rewind() {
-  auto res = in_state_->engine->sqlite_engine()->PrepareStatement(
+  auto res = vtab_->engine->sqlite_engine()->PrepareStatement(
       SqlSource::FromTraceProcessorImplementation(sql_query_));
   cursor_eof_ = false;
   RETURN_IF_ERROR(res.status());
@@ -521,7 +526,7 @@ SpanJoinOperatorModule::TableDefinition::TableDefinition(
     std::vector<std::pair<SqlValue::Type, std::string>> cols,
     EmitShadowType emit_shadow_type,
     uint32_t ts_idx,
-    uint32_t dur_idx,
+    std::optional<uint32_t> dur_idx,
     uint32_t partition_idx)
     : emit_shadow_type_(emit_shadow_type),
       name_(std::move(name)),
@@ -595,18 +600,18 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
                                    void* ctx,
                                    int argc,
                                    const char* const* argv,
-                                   sqlite3_vtab** vtab,
+                                   sqlite3_vtab** vtab_out,
                                    char** pzErr) {
   // argv[0] - argv[2] are SQLite populated fields which are always present.
-  if (argc < 5) {
-    *pzErr = sqlite3_mprintf("SPAN_JOIN: expected at least 2 args");
+  if (argc != 5) {
+    *pzErr = sqlite3_mprintf("SPAN_JOIN: expected exactly two arguments");
     return SQLITE_ERROR;
   }
 
   auto* context = GetContext(ctx);
-  auto state = std::make_unique<State>();
-  state->engine = context->engine;
-  state->module_name = argv[0];
+  std::unique_ptr<Vtab> vtab = std::make_unique<Vtab>();
+  vtab->engine = context->engine;
+  vtab->module_name = argv[0];
 
   TableDescriptor t1_desc;
   auto status = TableDescriptor::Parse(
@@ -626,9 +631,9 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
 
   // Check that the partition columns match between the two tables.
   if (t1_desc.partition_col == t2_desc.partition_col) {
-    state->partitioning = t1_desc.IsPartitioned()
-                              ? PartitioningType::kSamePartitioning
-                              : PartitioningType::kNoPartitioning;
+    vtab->partitioning = t1_desc.IsPartitioned()
+                             ? PartitioningType::kSamePartitioning
+                             : PartitioningType::kNoPartitioning;
   } else if (t1_desc.IsPartitioned() && t2_desc.IsPartitioned()) {
     *pzErr = sqlite3_mprintf(
         "SPAN_JOIN: mismatching partitions between the two tables; "
@@ -637,20 +642,20 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
         t2_desc.partition_col.c_str(), t2_desc.name.c_str());
     return SQLITE_ERROR;
   } else {
-    state->partitioning = PartitioningType::kMixedPartitioning;
+    vtab->partitioning = PartitioningType::kMixedPartitioning;
   }
 
   bool t1_part_mixed =
       t1_desc.IsPartitioned() &&
-      state->partitioning == PartitioningType::kMixedPartitioning;
+      vtab->partitioning == PartitioningType::kMixedPartitioning;
   bool t2_part_mixed =
       t2_desc.IsPartitioned() &&
-      state->partitioning == PartitioningType::kMixedPartitioning;
+      vtab->partitioning == PartitioningType::kMixedPartitioning;
 
   EmitShadowType t1_shadow_type;
-  if (state->IsOuterJoin()) {
+  if (vtab->IsOuterJoin()) {
     if (t1_part_mixed ||
-        state->partitioning == PartitioningType::kNoPartitioning) {
+        vtab->partitioning == PartitioningType::kNoPartitioning) {
       t1_shadow_type = EmitShadowType::kPresentPartitionOnly;
     } else {
       t1_shadow_type = EmitShadowType::kAll;
@@ -658,17 +663,17 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
   } else {
     t1_shadow_type = EmitShadowType::kNone;
   }
-  status = TableDefinition::Create(state->engine, t1_desc, t1_shadow_type,
-                                   &state->t1_defn);
+  status = TableDefinition::Create(vtab->engine, t1_desc, t1_shadow_type,
+                                   &vtab->t1_defn);
   if (!status.ok()) {
     *pzErr = sqlite3_mprintf("%s", status.c_message());
     return SQLITE_ERROR;
   }
 
   EmitShadowType t2_shadow_type;
-  if (state->IsOuterJoin() || state->IsLeftJoin()) {
+  if (vtab->IsOuterJoin() || vtab->IsLeftJoin()) {
     if (t2_part_mixed ||
-        state->partitioning == PartitioningType::kNoPartitioning) {
+        vtab->partitioning == PartitioningType::kNoPartitioning) {
       t2_shadow_type = EmitShadowType::kPresentPartitionOnly;
     } else {
       t2_shadow_type = EmitShadowType::kAll;
@@ -676,36 +681,46 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
   } else {
     t2_shadow_type = EmitShadowType::kNone;
   }
-  status = TableDefinition::Create(state->engine, t2_desc, t2_shadow_type,
-                                   &state->t2_defn);
+  status = TableDefinition::Create(vtab->engine, t2_desc, t2_shadow_type,
+                                   &vtab->t2_defn);
   if (!status.ok()) {
     *pzErr = sqlite3_mprintf("%s", status.c_message());
     return SQLITE_ERROR;
   }
 
+  if (!vtab->t1_defn.dur_idx().has_value() &&
+      !vtab->t2_defn.dur_idx().has_value()) {
+    *pzErr = sqlite3_mprintf(
+        "SPAN_JOIN: column %s must be present in at least one of tables %s and "
+        "%s",
+        kDurColumnName, vtab->t1_defn.name().c_str(),
+        vtab->t2_defn.name().c_str());
+    return SQLITE_ERROR;
+  }
+
   if (auto dupe = HasDuplicateColumns(
-          state->t1_defn.columns(), state->t2_defn.columns(),
-          state->partitioning == PartitioningType::kNoPartitioning
+          vtab->t1_defn.columns(), vtab->t2_defn.columns(),
+          vtab->partitioning == PartitioningType::kNoPartitioning
               ? std::nullopt
-              : std::make_optional(state->partition_col()))) {
+              : std::make_optional(vtab->partition_col()))) {
     *pzErr = sqlite3_mprintf(
         "SPAN_JOIN: column %s present in both tables %s and %s", dupe->c_str(),
-        state->t1_defn.name().c_str(), state->t2_defn.name().c_str());
+        vtab->t1_defn.name().c_str(), vtab->t2_defn.name().c_str());
     return SQLITE_ERROR;
   }
 
   // Create the map from column index to the column in the child sub-queries.
-  state->PopulateColumnLocatorMap(
-      state->partitioning == PartitioningType::kNoPartitioning ? 2 : 3);
+  vtab->PopulateColumnLocatorMap(
+      vtab->partitioning == PartitioningType::kNoPartitioning ? 2 : 3);
 
   std::string primary_key = "ts";
   std::string partition;
-  if (state->partitioning != PartitioningType::kNoPartitioning) {
-    partition = state->partition_col() + " BIGINT,";
-    primary_key += ", " + state->partition_col();
+  if (vtab->partitioning != PartitioningType::kNoPartitioning) {
+    partition = vtab->partition_col() + " BIGINT,";
+    primary_key += ", " + vtab->partition_col();
   }
-  std::string t1_section = state->t1_defn.CreateVtabCreateTableSection();
-  std::string t2_section = state->t2_defn.CreateVtabCreateTableSection();
+  std::string t1_section = vtab->t1_defn.CreateVtabCreateTableSection();
+  std::string t2_section = vtab->t2_defn.CreateVtabCreateTableSection();
   static constexpr char kStmt[] = R"(
     CREATE TABLE x(
       ts BIGINT,
@@ -719,47 +734,31 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
   base::StackString<1024> create_table_str(
       kStmt, partition.c_str(), t1_section.c_str(), t2_section.c_str(),
       primary_key.c_str());
-  state->create_table_stmt = create_table_str.ToStdString();
+  vtab->create_table_stmt = create_table_str.ToStdString();
   if (int ret = sqlite3_declare_vtab(db, create_table_str.c_str());
       ret != SQLITE_OK) {
     return ret;
   }
-
-  std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnCreate(argv, std::move(state));
-  *vtab = res.release();
+  *vtab_out = vtab.release();
   return SQLITE_OK;
 }
 
 int SpanJoinOperatorModule::Destroy(sqlite3_vtab* vtab) {
   std::unique_ptr<Vtab> tab(GetVtab(vtab));
-  sqlite::ModuleStateManager<SpanJoinOperatorModule>::OnDestroy(tab->state);
   return SQLITE_OK;
 }
 
 int SpanJoinOperatorModule::Connect(sqlite3* db,
                                     void* ctx,
-                                    int,
+                                    int argc,
                                     const char* const* argv,
                                     sqlite3_vtab** vtab,
-                                    char**) {
-  auto* context = GetContext(ctx);
-  std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->manager.OnConnect(argv);
-
-  auto* state =
-      sqlite::ModuleStateManager<SpanJoinOperatorModule>::GetState(res->state);
-  if (int ret = sqlite3_declare_vtab(db, state->create_table_stmt.c_str());
-      ret != SQLITE_OK) {
-    return ret;
-  }
-  *vtab = res.release();
-  return SQLITE_OK;
+                                    char** pzErr) {
+  return Create(db, ctx, argc, argv, vtab, pzErr);
 }
 
 int SpanJoinOperatorModule::Disconnect(sqlite3_vtab* vtab) {
   std::unique_ptr<Vtab> tab(GetVtab(vtab));
-  sqlite::ModuleStateManager<SpanJoinOperatorModule>::OnDisconnect(tab->state);
   return SQLITE_OK;
 }
 
@@ -774,9 +773,7 @@ int SpanJoinOperatorModule::BestIndex(sqlite3_vtab* tab,
   }
 
   Vtab* table = GetVtab(tab);
-  State* state = sqlite::ModuleStateManager<SpanJoinOperatorModule>::GetState(
-      table->state);
-  if (state->partitioning == PartitioningType::kNoPartitioning) {
+  if (table->partitioning == PartitioningType::kNoPartitioning) {
     // If both tables are not partitioned and we have a single order by on ts,
     // we return data in the correct order.
     info->orderByConsumed = info->nOrderBy == 1 &&
@@ -803,8 +800,8 @@ int SpanJoinOperatorModule::BestIndex(sqlite3_vtab* tab,
     }
   }
 
-  std::string t1 = state->BestIndexStrForDefinition(info, state->t1_defn);
-  std::string t2 = state->BestIndexStrForDefinition(info, state->t2_defn);
+  std::string t1 = table->BestIndexStrForDefinition(info, table->t1_defn);
+  std::string t2 = table->BestIndexStrForDefinition(info, table->t2_defn);
   info->idxStr = sqlite3_mprintf("%s,%s", t1.c_str(), t2.c_str());
   info->needToFreeIdxStr = true;
 
@@ -813,9 +810,7 @@ int SpanJoinOperatorModule::BestIndex(sqlite3_vtab* tab,
 
 int SpanJoinOperatorModule::Open(sqlite3_vtab* tab,
                                  sqlite3_vtab_cursor** cursor) {
-  State* state = sqlite::ModuleStateManager<SpanJoinOperatorModule>::GetState(
-      GetVtab(tab)->state);
-  std::unique_ptr<Cursor> c = std::make_unique<Cursor>(state);
+  std::unique_ptr<Cursor> c = std::make_unique<Cursor>(GetVtab(tab));
   *cursor = c.release();
   return SQLITE_OK;
 }
@@ -834,31 +829,29 @@ int SpanJoinOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
 
   Cursor* c = GetCursor(cursor);
   Vtab* table = GetVtab(cursor->pVtab);
-  State* state = sqlite::ModuleStateManager<SpanJoinOperatorModule>::GetState(
-      table->state);
 
   base::StringSplitter splitter(std::string(idxStr), ',');
   bool t1_partitioned_mixed =
       c->t1.definition()->IsPartitioned() &&
-      state->partitioning == PartitioningType::kMixedPartitioning;
-  auto t1_eof = state->IsOuterJoin() && !t1_partitioned_mixed
+      table->partitioning == PartitioningType::kMixedPartitioning;
+  auto t1_eof = table->IsOuterJoin() && !t1_partitioned_mixed
                     ? Query::InitialEofBehavior::kTreatAsMissingPartitionShadow
                     : Query::InitialEofBehavior::kTreatAsEof;
   base::Status status =
-      c->t1.Initialize(state->t1_defn.CreateSqlQuery(splitter, argv), t1_eof);
+      c->t1.Initialize(table->t1_defn.CreateSqlQuery(splitter, argv), t1_eof);
   if (!status.ok()) {
     return sqlite::utils::SetError(table, status.c_message());
   }
 
   bool t2_partitioned_mixed =
       c->t2.definition()->IsPartitioned() &&
-      state->partitioning == PartitioningType::kMixedPartitioning;
+      table->partitioning == PartitioningType::kMixedPartitioning;
   auto t2_eof =
-      (state->IsLeftJoin() || state->IsOuterJoin()) && !t2_partitioned_mixed
+      (table->IsLeftJoin() || table->IsOuterJoin()) && !t2_partitioned_mixed
           ? Query::InitialEofBehavior::kTreatAsMissingPartitionShadow
           : Query::InitialEofBehavior::kTreatAsEof;
   status =
-      c->t2.Initialize(state->t2_defn.CreateSqlQuery(splitter, argv), t2_eof);
+      c->t2.Initialize(table->t2_defn.CreateSqlQuery(splitter, argv), t2_eof);
   if (!status.ok()) {
     return sqlite::utils::SetError(table, status.c_message());
   }
@@ -894,8 +887,6 @@ int SpanJoinOperatorModule::Column(sqlite3_vtab_cursor* cursor,
                                    int N) {
   Cursor* c = GetCursor(cursor);
   Vtab* table = GetVtab(cursor->pVtab);
-  State* state = sqlite::ModuleStateManager<SpanJoinOperatorModule>::GetState(
-      table->state);
 
   PERFETTO_DCHECK(c->t1.IsReal() || c->t2.IsReal());
 
@@ -913,9 +904,9 @@ int SpanJoinOperatorModule::Column(sqlite3_vtab_cursor* cursor,
       break;
     }
     case Column::kPartition: {
-      if (state->partitioning != PartitioningType::kNoPartitioning) {
+      if (table->partitioning != PartitioningType::kNoPartitioning) {
         int64_t partition;
-        if (state->partitioning == PartitioningType::kMixedPartitioning) {
+        if (table->partitioning == PartitioningType::kMixedPartitioning) {
           partition = c->last_mixed_partition_;
         } else {
           partition = c->t1.IsReal() ? c->t1.partition() : c->t2.partition();
@@ -927,7 +918,7 @@ int SpanJoinOperatorModule::Column(sqlite3_vtab_cursor* cursor,
     }
     default: {
       const auto* locator =
-          state->global_index_to_column_locator.Find(static_cast<size_t>(N));
+          table->global_index_to_column_locator.Find(static_cast<size_t>(N));
       PERFETTO_CHECK(locator);
       if (locator->defn == c->t1.definition()) {
         c->t1.ReportSqliteResult(context, locator->col_index);
@@ -969,7 +960,7 @@ bool SpanJoinOperatorModule::Cursor::IsOverlappingSpan() const {
     return false;
 
   using PartitioningType = PartitioningType;
-  if (state->partitioning == PartitioningType::kSamePartitioning) {
+  if (vtab->partitioning == PartitioningType::kSamePartitioning) {
     // If both tables are partitioned, then ensure that the partitions overlap.
     bool partition_in_bounds = (t1.FirstPartition() >= t2.FirstPartition() &&
                                 t1.FirstPartition() <= t2.LastPartition()) ||
@@ -991,7 +982,7 @@ bool SpanJoinOperatorModule::Cursor::IsOverlappingSpan() const {
 base::Status SpanJoinOperatorModule::Cursor::FindOverlappingSpan() {
   // We loop until we find a slice which overlaps from the two tables.
   while (true) {
-    if (state->partitioning == PartitioningType::kMixedPartitioning) {
+    if (vtab->partitioning == PartitioningType::kMixedPartitioning) {
       // If we have a mixed partition setup, we need to have special checks
       // for eof and to reset the unpartitioned cursor every time the partition
       // changes in the partitioned table.
@@ -1037,7 +1028,7 @@ SpanJoinOperatorModule::Cursor::FindEarliestFinishQuery() {
   int64_t t1_part;
   int64_t t2_part;
 
-  switch (state->partitioning) {
+  switch (vtab->partitioning) {
     case PartitioningType::kMixedPartitioning: {
       // If either table is EOF, forward the other table to try and make
       // the partitions not match anymore.

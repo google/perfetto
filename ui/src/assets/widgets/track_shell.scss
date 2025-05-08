@@ -34,6 +34,7 @@
   color: var(--text-color-dark);
   background-color: var(--default-background);
   user-select: none;
+  scroll-margin-top: calc(var(--sticky-top) * 1px);
 
   &__header {
     height: calc(var(--height) * 1px);
@@ -44,8 +45,6 @@
       )
       1fr;
     grid-template-areas: "indent shell canvas";
-    border-bottom: solid 1px var(--track-border-color);
-    box-sizing: border-box;
 
     &::before {
       content: "";
@@ -68,7 +67,9 @@
 
   &__shell {
     grid-area: shell;
-    border-right: solid 1px var(--track-border-color);
+    border-width: 0 1px 1px 0; // Borders on bottom and right
+    border-style: solid;
+    border-color: var(--track-border-color);
 
     &--highlight {
       background-color: #ffe263;
@@ -77,6 +78,10 @@
 
     &--drag-after {
       box-shadow: inset 0 -6px 3px -3px var(--drag-highlight-color);
+    }
+
+    &--drag-inside {
+      box-shadow: inset -6px 0 3px -3px var(--drag-highlight-color);
     }
 
     &--drag-before {
@@ -111,6 +116,7 @@
   &__canvas {
     grid-area: canvas;
     overflow: hidden; // Keeps subtitle width contained
+    border-bottom: solid 1px var(--track-border-color);
 
     &--error {
       // Necessary trig because we have 45deg stripes

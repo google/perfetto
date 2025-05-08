@@ -29,7 +29,7 @@ namespace perfetto::trace_processor {
 // SQLite module which allows iteration over a table pointer (i.e. a instance of
 // Table which is being directly passed in as a SQL value). This allows for a
 // dynamic, schema-less iteration over table pointers. This is generally not
-// possible as SQLite reqiures the schema to be defined upfront but this class
+// possible as SQLite requires the schema to be defined upfront but this class
 // works around that by having a fixed schema but then allowing "binding" table
 // pointer columns to SQLite columns dynamically at query time.
 //

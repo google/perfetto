@@ -24,15 +24,11 @@ import {getOrCreate} from '../../base/utils';
 import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
 import {colorForCpu} from '../../components/colorizer';
 import {raf} from '../../core/raf_scheduler';
-import {timestampFormat} from '../../core/timestamp_format';
 import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {LONG, NUM} from '../../trace_processor/query_result';
-import {VirtualOverlayCanvas} from '../../components/widgets/virtual_overlay_canvas';
-import {
-  OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
-  TRACK_SHELL_WIDTH,
-} from '../css_constants';
+import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
+import {OVERVIEW_TIMELINE_NON_VISIBLE_COLOR} from '../css_constants';
 import {
   generateTicks,
   getMaxMajorTicks,
@@ -68,7 +64,9 @@ export class OverviewTimeline
     return m(
       VirtualOverlayCanvas,
       {
-        raf: attrs.trace.raf,
+        onMount: (redrawCanvas) =>
+          attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
+        disableCanvasRedrawOnMithrilUpdates: true,
         className: attrs.className,
         onCanvasRedraw: ({ctx, virtualCanvasSize}) => {
           this.renderCanvas(attrs.trace, ctx, virtualCanvasSize);
@@ -92,10 +90,10 @@ export class OverviewTimeline
     ctx: CanvasRenderingContext2D,
     size: Size2D,
   ) {
-    if (size.width <= TRACK_SHELL_WIDTH) return;
+    if (size.width <= 0) return;
 
     const traceTime = trace.traceInfo;
-    const pxBounds = {left: TRACK_SHELL_WIDTH, right: size.width};
+    const pxBounds = {left: 0, right: size.width};
     const hpTraceTime = HighPrecisionTimeSpan.fromTime(
       traceTime.start,
       traceTime.end,
@@ -109,8 +107,8 @@ export class OverviewTimeline
       trace.traceInfo.end,
     );
 
-    if (size.width > TRACK_SHELL_WIDTH && traceContext.duration > 0n) {
-      const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
+    if (size.width > 0 && traceContext.duration > 0n) {
+      const maxMajorTicks = getMaxMajorTicks(size.width);
       const offset = trace.timeline.timestampOffset();
       const tickGen = generateTicks(traceContext, maxMajorTicks, offset);
 
@@ -124,7 +122,14 @@ export class OverviewTimeline
         if (type === TickType.MAJOR) {
           ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
           const domainTime = trace.timeline.toDomainTime(time);
-          renderTimestamp(ctx, domainTime, xPos + 5, 18, MIN_PX_PER_STEP);
+          renderTimestamp(
+            trace,
+            ctx,
+            domainTime,
+            xPos + 5,
+            18,
+            MIN_PX_PER_STEP,
+          );
         } else if (type == TickType.MEDIUM) {
           ctx.fillRect(xPos - 1, 0, 1, 8);
         } else if (type == TickType.MINOR) {
@@ -167,12 +172,7 @@ export class OverviewTimeline
     const vizEndPx = Math.ceil(right);
 
     ctx.fillStyle = OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
-    ctx.fillRect(
-      TRACK_SHELL_WIDTH - 1,
-      headerHeight,
-      vizStartPx - TRACK_SHELL_WIDTH,
-      tracksHeight,
-    );
+    ctx.fillRect(0, headerHeight, vizStartPx, tracksHeight);
     ctx.fillRect(vizEndPx, headerHeight, size.width - vizEndPx, tracksHeight);
 
     // Draw brushes.
@@ -251,7 +251,7 @@ export class OverviewTimeline
       {
         id: 'select',
         area: new Rect2D({
-          left: TRACK_SHELL_WIDTH,
+          left: 0,
           right: size.width,
           top: 0,
           bottom: size.height,
@@ -273,13 +273,14 @@ export class OverviewTimeline
 
 // Print a timestamp in the configured time format
 function renderTimestamp(
+  trace: TraceImpl,
   ctx: CanvasRenderingContext2D,
   time: time,
   x: number,
   y: number,
   minWidth: number,
 ): void {
-  const fmt = timestampFormat();
+  const fmt = trace.timeline.timestampFormat;
   switch (fmt) {
     case TimestampFormat.UTC:
     case TimestampFormat.TraceTz:
@@ -371,11 +372,17 @@ class OverviewDataLoader {
       // between each step, slowing down significantly the overall process.
       stepPromises.push(
         (async () => {
-          const schedResult = await this.trace.engine.query(
-            `select cast(sum(dur) as float)/${stepSize} as load, cpu from sched ` +
-              `where ts >= ${start} and ts < ${end} and utid != 0 ` +
-              'group by cpu order by cpu',
-          );
+          const schedResult = await this.trace.engine.query(`
+            select
+              cast(sum(dur) as float)/${stepSize} as load,
+              cpu from sched
+            where
+              ts >= ${start} and
+              ts < ${end} and
+              not utid in (select utid from thread where is_idle)
+            group by cpu
+            order by cpu
+          `);
           const schedData: {[key: string]: QuantizedLoad} = {};
           const it = schedResult.iter({load: NUM, cpu: NUM});
           for (; it.valid(); it.next()) {
@@ -392,22 +399,24 @@ class OverviewDataLoader {
 
   async loadSliceOverview(traceSpan: TimeSpan, stepSize: duration) {
     // Slices overview.
-    const sliceResult = await this.trace.engine.query(`select
-            bucket,
-            upid,
-            ifnull(sum(utid_sum) / cast(${stepSize} as float), 0) as load
-          from thread
-          inner join (
-            select
-              ifnull(cast((ts - ${traceSpan.start})/${stepSize} as int), 0) as bucket,
-              sum(dur) as utid_sum,
-              utid
-            from slice
-            inner join thread_track on slice.track_id = thread_track.id
-            group by bucket, utid
-          ) using(utid)
-          where upid is not null
-          group by bucket, upid`);
+    const sliceResult = await this.trace.engine.query(`
+      select
+        bucket,
+        upid,
+        ifnull(sum(utid_sum) / cast(${stepSize} as float), 0) as load
+      from thread
+      inner join (
+        select
+          ifnull(cast((ts - ${traceSpan.start})/${stepSize} as int), 0) as bucket,
+          sum(dur) as utid_sum,
+          utid
+        from slice
+        inner join thread_track on slice.track_id = thread_track.id
+        group by bucket, utid
+      ) using(utid)
+      where upid is not null
+      group by bucket, upid
+    `);
 
     const slicesData: {[key: string]: QuantizedLoad[]} = {};
     const it = sliceResult.iter({bucket: LONG, upid: NUM, load: NUM});

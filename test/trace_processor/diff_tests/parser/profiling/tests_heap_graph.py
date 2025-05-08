@@ -57,6 +57,7 @@ class ProfilingHeapGraph(TestSuite):
                o.self_size,
                o.reference_set_id,
                o.reachable,
+               o.heap_type,
                c.name AS type_name,
                c.deobfuscated_name AS deobfuscated_type_name,
                o.root_type
@@ -90,6 +91,7 @@ class ProfilingHeapGraph(TestSuite):
                o.self_size,
                o.reference_set_id,
                o.reachable,
+               o.heap_type,
                c.name AS type_name,
                c.deobfuscated_name AS deobfuscated_type_name,
                o.root_type
@@ -205,12 +207,22 @@ class ProfilingHeapGraph(TestSuite):
                o.self_size,
                o.reference_set_id,
                o.reachable,
+               o.heap_type,
                c.name AS type_name,
                c.deobfuscated_name AS deobfuscated_type_name,
                o.root_type
         FROM heap_graph_object o JOIN heap_graph_class c ON o.type_id = c.id;
         """,
-        out=Path('heap_graph_object.out'))
+        out=Csv('''
+          "id","upid","graph_sample_ts","self_size","reference_set_id","reachable","heap_type","type_name","deobfuscated_type_name","root_type"
+          0,2,10,64,0,1,"HEAP_TYPE_APP","FactoryProducerDelegateImplActor","[NULL]","ROOT_JAVA_FRAME"
+          1,2,10,32,"[NULL]",1,"HEAP_TYPE_APP","Foo","[NULL]","[NULL]"
+          2,2,10,128,"[NULL]",0,"HEAP_TYPE_APP","Foo","[NULL]","[NULL]"
+          3,2,10,1024,3,0,"HEAP_TYPE_APP","a","DeobfuscatedA","[NULL]"
+          4,2,10,256,"[NULL]",1,"HEAP_TYPE_APP","a[]","DeobfuscatedA[]","ROOT_JAVA_FRAME"
+          5,2,10,256,"[NULL]",0,"HEAP_TYPE_APP","java.lang.Class<a[]>","java.lang.Class<DeobfuscatedA[]>","[NULL]"
+          6,2,10,256,"[NULL]",0,"HEAP_TYPE_ZYGOTE","android.os.Parcel","[NULL]","[NULL]"
+        '''))
 
   def test_heap_graph_object_reference_set_id(self):
     return DiffTestBlueprint(
@@ -276,6 +288,7 @@ class ProfilingHeapGraph(TestSuite):
                o.self_size,
                o.reference_set_id,
                o.reachable,
+               o.heap_type,
                c.name AS type_name,
                c.deobfuscated_name AS deobfuscated_type_name,
                o.root_type

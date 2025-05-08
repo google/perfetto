@@ -119,7 +119,7 @@ export const UNEXPECTED_PINK = makeColorScheme(new HSLColor([330, 100, 70]));
 
 // Selects a predictable color scheme from a palette of material design colors,
 // based on a string seed.
-function materialColorScheme(seed: string): ColorScheme {
+export function materialColorScheme(seed: string): ColorScheme {
   const colorIdx = hash(seed, MD_PALETTE.length);
   return MD_PALETTE[colorIdx];
 }
@@ -215,10 +215,6 @@ export function getColorForSlice(sliceName: string): ColorScheme {
   } else {
     return proceduralColorScheme(name);
   }
-}
-
-export function colorForFtrace(name: string): ColorScheme {
-  return materialColorScheme(name);
 }
 
 export function getColorForSample(callsiteId: number): ColorScheme {

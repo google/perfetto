@@ -18,6 +18,7 @@
 #include <algorithm>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -135,6 +136,15 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
   init_opts.compressor_fn = &ZlibCompressFn;
 #endif
+  std::string relay_producer_socket;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  relay_producer_socket = base::GetAndroidProp("traced.relay_producer_port");
+  // If a guest producer port is defined, then the relay endpoint should be
+  // enabled regardless. This is used in cases where perf data is passed
+  // from guest machines or the hypervisor to Android.
+  if (!relay_producer_socket.empty())
+    init_opts.enable_relay_endpoint = true;
+#endif
   if (enable_relay_endpoint)
     init_opts.enable_relay_endpoint = true;
   svc = ServiceIPCHost::CreateInstance(&task_runner, init_opts);
@@ -150,21 +160,28 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     PERFETTO_CHECK(false);
 #else
-    base::ScopedFile producer_fd(atoi(env_prod));
-    base::ScopedFile consumer_fd(atoi(env_cons));
-    started = svc->Start(std::move(producer_fd), std::move(consumer_fd));
+    ListenEndpoint consumer_ep(base::ScopedFile(atoi(env_cons)));
+    std::list<ListenEndpoint> producer_eps;
+    producer_eps.emplace_back(ListenEndpoint(base::ScopedFile(atoi(env_prod))));
+    if (!relay_producer_socket.empty()) {
+      producer_eps.emplace_back(ListenEndpoint(relay_producer_socket));
+    }
+    started = svc->Start(std::move(producer_eps), std::move(consumer_ep));
 #endif
   } else {
-    auto producer_sockets = TokenizeProducerSockets(GetProducerSocket());
-    for (const auto& producer_socket : producer_sockets) {
-      remove(producer_socket.c_str());
+    std::list<ListenEndpoint> producer_eps;
+    auto producer_socket_names = TokenizeProducerSockets(GetProducerSocket());
+    for (const auto& producer_socket_name : producer_socket_names) {
+      remove(producer_socket_name.c_str());
+      producer_eps.emplace_back(ListenEndpoint(producer_socket_name));
     }
     remove(GetConsumerSocket());
-    started = svc->Start(producer_sockets, GetConsumerSocket());
+    started = svc->Start(std::move(producer_eps),
+                         ListenEndpoint(GetConsumerSocket()));
 
     if (!producer_socket_group.empty()) {
       auto status = base::OkStatus();
-      for (const auto& producer_socket : producer_sockets) {
+      for (const auto& producer_socket : producer_socket_names) {
         if (base::GetSockFamily(producer_socket.c_str()) !=
             base::SockFamily::kUnix) {
           // Socket permissions is only available to unix sockets.

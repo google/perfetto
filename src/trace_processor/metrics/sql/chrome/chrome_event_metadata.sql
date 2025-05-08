@@ -21,7 +21,7 @@ DROP VIEW IF EXISTS chrome_event_metadata;
 CREATE PERFETTO VIEW chrome_event_metadata AS
 WITH metadata (arg_set_id) AS (
   SELECT arg_set_id
-  FROM raw
+  FROM __intrinsic_chrome_raw
   WHERE name = "chrome_event.metadata"
 )
 -- TODO(b/173201788): Once this is fixed, extract all the fields.

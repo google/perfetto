@@ -45,7 +45,7 @@ class EtwModuleImpl : public EtwModule {
   void ParseEtwEventData(uint32_t cpu,
                          int64_t ts,
                          const TracePacketData& data) override {
-    util::Status res = parser_.ParseEtwEvent(cpu, ts, data);
+    base::Status res = parser_.ParseEtwEvent(cpu, ts, data);
     if (!res.ok()) {
       PERFETTO_ELOG("%s", res.message().c_str());
     }

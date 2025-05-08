@@ -12,22 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  CustomSqlTableDefConfig,
-  CustomSqlTableSliceTrack,
-} from '../../components/tracks/custom_sql_table_slice_track';
-import {TrackEventSelection} from '../../public/selection';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {Trace} from '../../public/trace';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {ScrollDetailsPanel} from './scroll_details_panel';
 
-export class TopLevelScrollTrack extends CustomSqlTableSliceTrack {
-  getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      columns: [`printf("Scroll %s", CAST(id AS STRING)) AS name`, '*'],
-      sqlTableName: 'chrome_scrolls',
-    };
-  }
-
-  override detailsPanel(sel: TrackEventSelection) {
-    return new ScrollDetailsPanel(this.trace, sel.eventId);
-  }
+export function createTopLevelScrollTrack(trace: Trace, uri: string) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        rawId: LONG,
+        ts: LONG,
+        dur: LONG,
+        name: STR,
+      },
+      src: `
+        SELECT
+          ROW_NUMBER() OVER (ORDER BY ts) as id,
+          id as rawId,
+          printf("Scroll %s", CAST(id AS STRING)) AS name,
+          ts,
+          dur
+        FROM chrome_scrolls
+        -- If the scroll has started before the trace started, we won't have
+        -- an id for it, so skip it to ensure that we can show the remaining
+        -- traces.
+        WHERE id IS NOT NULL
+      `,
+    }),
+    detailsPanel: (row) => new ScrollDetailsPanel(trace, row.rawId),
+  });
 }

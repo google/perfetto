@@ -16,15 +16,29 @@ import {uuidv4Sql} from '../../base/uuid';
 import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {EventLatencyTrack, JANKY_LATENCY_NAME} from './event_latency_track';
-import {ScrollJankV3Track} from './scroll_jank_v3_track';
-import {ScrollTimelineTrack} from './scroll_timeline_track';
-import {TopLevelScrollTrack} from './scroll_track';
+import {
+  createEventLatencyTrack,
+  JANKY_LATENCY_NAME,
+} from './event_latency_track';
+import {createScrollJankV3Track} from './scroll_jank_v3_track';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {createScrollTimelineModel} from './scroll_timeline_model';
+import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {createFlatColoredDurationTrack} from './flat_colored_duration_track';
+import {createTopLevelScrollTrack} from './scroll_track';
+import {createScrollTimelineTrack} from './scroll_timeline_track';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {escapeQuery} from '../../trace_processor/query_utils';
+import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
+  static readonly dependencies = [SqlModulesPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const group = new TrackNode({
       title: 'Chrome Scroll Jank',
@@ -35,7 +49,8 @@ export default class implements PerfettoPlugin {
     await this.addEventLatencyTrack(ctx, group);
     await this.addScrollJankV3ScrollTrack(ctx, group);
     await ScrollJankCauseMap.initialize(ctx.engine);
-    this.addScrollTimelineTrack(ctx, group);
+    await this.addScrollTimelineTrack(ctx, group);
+    await this.addVsyncTracks(ctx, group);
     ctx.workspace.addChildInOrder(group);
     group.expand();
   }
@@ -56,7 +71,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new TopLevelScrollTrack(ctx, uri),
+      track: createTopLevelScrollTrack(ctx, uri),
     });
 
     const track = new TrackNode({uri, title});
@@ -69,7 +84,7 @@ export default class implements PerfettoPlugin {
   ): Promise<void> {
     const subTableSql = generateSqlWithInternalLayout({
       columns: ['id', 'ts', 'dur', 'track_id', 'name'],
-      sourceTable: 'chrome_event_latencies',
+      source: 'chrome_event_latencies',
       ts: 'ts',
       dur: 'dur',
       whereClause: `
@@ -165,7 +180,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new EventLatencyTrack(ctx, uri, baseTable),
+      track: createEventLatencyTrack(ctx, uri, baseTable),
     });
 
     const track = new TrackNode({uri, title});
@@ -186,24 +201,150 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new ScrollJankV3Track(ctx, uri),
+      track: createScrollJankV3Track(ctx, uri),
     });
 
     const track = new TrackNode({uri, title});
     group.addChildInOrder(track);
   }
 
-  private addScrollTimelineTrack(ctx: Trace, group: TrackNode) {
+  private async addScrollTimelineTrack(
+    ctx: Trace,
+    group: TrackNode,
+  ): Promise<void> {
     const uri = 'org.chromium.ChromeScrollJank#scrollTimeline';
     const title = 'Chrome Scroll Timeline';
+
+    const tableName =
+      'scrolltimelinetrack_org_chromium_ChromeScrollJank_scrollTimeline';
+    const model = await createScrollTimelineModel(ctx.engine, tableName, uri);
 
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new ScrollTimelineTrack(ctx, uri),
+      track: createScrollTimelineTrack(ctx, model),
     });
 
     const track = new TrackNode({uri, title});
     group.addChildInOrder(track);
+  }
+
+  private async addVsyncTracks(ctx: Trace, group: TrackNode) {
+    const vsyncTable = '_chrome_scroll_jank_plugin_vsyncs';
+    await ctx.engine.query(`
+      INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
+
+      CREATE PERFETTO TABLE ${vsyncTable} AS
+      SELECT
+        id,
+        ts,
+        dur,
+        track_id,
+        name
+      FROM slice
+      WHERE name = 'Extend_VSync'`);
+
+    {
+      // Add a track for the VSync slices.
+      const uri = 'org.chromium.ChromeScrollJank#ChromeVsync';
+      const track = await createQuerySliceTrack({
+        trace: ctx,
+        data: {sqlSource: `SELECT * FROM ${vsyncTable}`},
+        argColumns: ['id', 'track_id', 'ts', 'dur'],
+        uri,
+      });
+      const title = 'Chrome VSync';
+      ctx.tracks.registerTrack({uri, title, track});
+      group.addChildInOrder(new TrackNode({uri, title}));
+    }
+
+    {
+      // Add a track which tracks the differences between VSyncs.
+      const uri = 'org.chromium.ChromeScrollJank#ChromeVsyncDelta';
+      const track = createFlatColoredDurationTrack(
+        ctx,
+        uri,
+        `(SELECT id, ts, LEAD(ts) OVER (ORDER BY ts) - ts as dur FROM ${vsyncTable})`,
+      );
+      const title = 'Chrome VSync delta';
+      ctx.tracks.registerTrack({uri, title, track});
+      group.addChildInOrder(new TrackNode({uri, title}));
+    }
+
+    {
+      // Add a track which tracks the differences between inputs.
+      const uri = 'org.chromium.ChromeScrollJank#ChromeInputDelta';
+      const track = createFlatColoredDurationTrack(
+        ctx,
+        uri,
+        `(SELECT
+          ROW_NUMBER() OVER () AS id,
+          generation_ts AS ts,
+          LEAD(generation_ts) OVER (ORDER BY generation_ts) - generation_ts as dur
+        FROM chrome_scroll_update_info
+        WHERE generation_ts IS NOT NULL)`,
+      );
+      const title = 'Chrome input delta';
+      ctx.tracks.registerTrack({uri, title, track});
+      group.addChildInOrder(new TrackNode({uri, title}));
+    }
+
+    {
+      const steps = [
+        {
+          column: 'scroll_update_created_slice_id',
+          name: 'Step: send event (UI, ScrollUpdate)',
+        },
+        {
+          column: 'compositor_dispatch_slice_id',
+          name: 'Step: compositor dispatch (ScrollUpdate)',
+        },
+        {
+          column: 'compositor_resample_slice_id',
+          name: 'Step: resample input',
+        },
+        {
+          column: 'compositor_generate_compositor_frame_slice_id',
+          name: 'Step: generate frame (compositor)',
+        },
+        {
+          column: 'viz_receive_compositor_frame_slice_id',
+          name: 'Step: receive frame (viz)',
+        },
+      ];
+
+      for (const step of steps) {
+        const uri = `org.chromium.ChromeScrollJank#chrome_scroll_update_info.${step.column}`;
+        const track = new DatasetSliceTrack({
+          trace: ctx,
+          uri,
+          dataset: new SourceDataset({
+            schema: {
+              id: NUM,
+              ts: LONG,
+              dur: LONG,
+              name: STR,
+            },
+            src: `
+              WITH slice_ids AS MATERIALIZED (
+                SELECT DISTINCT ${step.column} AS slice_id
+                FROM chrome_scroll_update_info
+                WHERE ${step.column} IS NOT NULL
+              )
+              SELECT
+                slice.id,
+                slice.ts,
+                slice.dur,
+                 ${escapeQuery(step.name)} AS name
+              FROM slice_ids
+              JOIN slice USING (slice_id)
+            `,
+          }),
+          detailsPanel: () => new ThreadSliceDetailsPanel(ctx),
+        });
+        ctx.tracks.registerTrack({uri, title: step.name, track});
+        group.addChildInOrder(new TrackNode({uri, title: step.name}));
+      }
+    }
   }
 }

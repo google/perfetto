@@ -24,6 +24,8 @@ perfetto_proto_library("@TYPE@") {
     "android_polled_state_config.proto",
     "android_sdk_sysprop_guard_config.proto",
     "android_system_property_config.proto",
+    "app_wakelock_config.proto",
+    "kernel_wakelocks_config.proto",
     "network_trace_config.proto",
     "packages_list_config.proto",
     "pixel_modem_config.proto",

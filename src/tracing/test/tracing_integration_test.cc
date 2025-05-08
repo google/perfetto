@@ -257,8 +257,8 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   // Now let the data source fill some pages within the same task.
   // Doing so should accumulate a bunch of chunks that will be notified by the
   // a future task in one batch.
-  std::unique_ptr<TraceWriter> writer =
-      producer_endpoint_->CreateTraceWriter(global_buf_id);
+  std::unique_ptr<TraceWriter> writer = producer_endpoint_->CreateTraceWriter(
+      global_buf_id, BufferExhaustedPolicy::kStall);
   ASSERT_TRUE(writer);
 
   const size_t kNumPackets = 10;
@@ -390,8 +390,8 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
       }));
   task_runner_->RunUntilCheckpoint("on_create_ds_instance");
 
-  std::unique_ptr<TraceWriter> writer =
-      producer_endpoint_->CreateTraceWriter(global_buf_id);
+  std::unique_ptr<TraceWriter> writer = producer_endpoint_->CreateTraceWriter(
+      global_buf_id, BufferExhaustedPolicy::kStall);
   ASSERT_TRUE(writer);
 
   const size_t kNumPackets = 10;
@@ -481,8 +481,8 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
 
   // Create writer, which will post a task to register the writer with the
   // service.
-  std::unique_ptr<TraceWriter> writer =
-      producer_endpoint_->CreateTraceWriter(global_buf_id);
+  std::unique_ptr<TraceWriter> writer = producer_endpoint_->CreateTraceWriter(
+      global_buf_id, BufferExhaustedPolicy::kStall);
   ASSERT_TRUE(writer);
 
   // Wait for the writer to be registered.

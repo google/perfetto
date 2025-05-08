@@ -209,8 +209,9 @@ async function main() {
   process.on('SIGINT', () => {
     console.log('\nSIGINT received. Killing all child processes and exiting');
     for (const proc of subprocesses) {
-      if (proc) proc.kill('SIGINT');
+      if (proc) proc.kill('SIGKILL');
     }
+    process.kill(0, 'SIGKILL');  // Kill the whole process group.
     process.exit(130);  // 130 -> Same behavior of bash when killed by SIGINT.
   });
 
@@ -407,6 +408,7 @@ function compileProtos() {
     'protos/perfetto/ipc/consumer_port.proto',
     'protos/perfetto/ipc/wire_protocol.proto',
     'protos/perfetto/trace/perfetto/perfetto_metatrace.proto',
+    'protos/perfetto/perfetto_sql/structured_query.proto',
     'protos/perfetto/trace_processor/trace_processor.proto',
   ];
   // Can't put --no-comments here - The comments are load bearing for

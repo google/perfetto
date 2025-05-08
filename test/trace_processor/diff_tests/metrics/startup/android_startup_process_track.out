@@ -48,6 +48,8 @@ android_startup {
         debuggable: false
       }
       pid: 3
+      android_user_id: 0
+      is_kernel_task: false
     }
     event_timestamps {
       intent_received: 100
@@ -139,6 +141,8 @@ android_startup {
         debuggable: false
       }
       pid: 4
+      android_user_id: 0
+      is_kernel_task: false
     }
     event_timestamps {
       intent_received: 200

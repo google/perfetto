@@ -51,7 +51,11 @@ void SystraceParser::ParsePrintEvent(int64_t ts,
                                      uint32_t pid,
                                      base::StringView event) {
   systrace_utils::SystraceTracePoint point{};
-  switch (ParseSystraceTracePoint(event, &point)) {
+  bool is_ascii =
+      base::CheckAsciiAndRemoveInvalidUTF8(event, temp_string_utf8_);
+  base::StringView event_utf8 =
+      is_ascii ? event : base::StringView(temp_string_utf8_);
+  switch (ParseSystraceTracePoint(event_utf8, &point)) {
     case systrace_utils::SystraceParseResult::kSuccess:
       ParseSystracePoint(ts, pid, point);
       break;
@@ -138,6 +142,9 @@ void SystraceParser::ParseKernelTracingMarkWrite(int64_t ts,
 
 // TODO(rsavitski): try to remove most special casing of tgid 0, as it is valid
 // for kernel systrace points (due to systrace from interrupts).
+// Note: ParseDpuTracingMarkWrite is further relying on tgid 0 hacks by setting
+// that as the tgid for at least instant (I) events, but also overrides the
+// value for B/E events.
 void SystraceParser::ParseSystracePoint(
     int64_t ts,
     uint32_t pid,

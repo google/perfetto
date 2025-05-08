@@ -33,9 +33,9 @@ namespace {
 
 class JsonStringOutputWriter : public json::OutputWriter {
  public:
-  util::Status AppendString(const std::string& string) override {
+  base::Status AppendString(const std::string& string) override {
     buffer += string;
-    return util::OkStatus();
+    return base::OkStatus();
   }
   std::string buffer;
 };
@@ -54,7 +54,7 @@ TEST_F(StorageMinimalSmokeTest, GraphicEventsIgnored) {
   auto f = fopen(base::GetTestDataPath("test/data/gpu_trace.pb").c_str(), "rb");
   std::unique_ptr<uint8_t[]> buf(new uint8_t[MAX_SIZE]);
   auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, MAX_SIZE, f);
-  util::Status status = storage_->Parse(std::move(buf), rsize);
+  base::Status status = storage_->Parse(std::move(buf), rsize);
   ASSERT_TRUE(status.ok());
   ASSERT_OK(storage_->NotifyEndOfFile());
 
@@ -78,7 +78,7 @@ TEST_F(StorageMinimalSmokeTest, SystraceReturnsError) {
       fopen(base::GetTestDataPath("test/data/systrace.html").c_str(), "rb");
   std::unique_ptr<uint8_t[]> buf(new uint8_t[MAX_SIZE]);
   auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, MAX_SIZE, f);
-  util::Status status = storage_->Parse(std::move(buf), rsize);
+  base::Status status = storage_->Parse(std::move(buf), rsize);
 
   ASSERT_FALSE(status.ok());
 }
@@ -88,7 +88,7 @@ TEST_F(StorageMinimalSmokeTest, TrackEventsImported) {
   auto f = fopen("test/data/track_event_typed_args.pb", "rb");
   std::unique_ptr<uint8_t[]> buf(new uint8_t[MAX_SIZE]);
   auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, MAX_SIZE, f);
-  util::Status status = storage_->Parse(std::move(buf), rsize);
+  base::Status status = storage_->Parse(std::move(buf), rsize);
   ASSERT_TRUE(status.ok());
   ASSERT_OK(storage_->NotifyEndOfFile());
 

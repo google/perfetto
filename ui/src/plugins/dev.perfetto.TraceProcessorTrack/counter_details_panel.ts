@@ -140,18 +140,39 @@ async function loadCounterDetails(
   rootTable: string,
 ): Promise<CounterDetails> {
   const query = `
-    WITH CTE AS (
+    WITH CURRENT AS (
       SELECT
         id,
-        ts as leftTs,
+        ts,
         value,
-        LAG(value) OVER (ORDER BY ts) AS prevValue,
-        LEAD(ts) OVER (ORDER BY ts) AS rightTs,
-        arg_set_id AS argSetId
+        arg_set_id
       FROM ${rootTable}
-      WHERE track_id = ${trackId}
+      WHERE track_id = ${trackId} and id = ${id}
+    ),
+    PREV as (
+      SELECT
+        value
+      FROM ${rootTable}
+      WHERE track_id = ${trackId} AND ts < (select ts from CURRENT)
+      ORDER BY ts DESC
+      LIMIT 1
+    ),
+    NEXT as (
+      SELECT
+        ts
+      FROM ${rootTable}
+      WHERE track_id = ${trackId} AND ts > (select ts from CURRENT)
+      ORDER BY ts ASC
+      LIMIT 1
     )
-    SELECT * FROM CTE WHERE id = ${id}
+    SELECT
+      id,
+      ts as leftTs,
+      value,
+      arg_set_id as argSetId,
+      (SELECT value FROM PREV) as prevValue,
+      (SELECT ts FROM NEXT) as rightTs
+    FROM CURRENT
   `;
 
   const counter = await engine.query(query);

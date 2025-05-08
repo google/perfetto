@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+exports_files(
+    ["run_ait_with_adb.sh"],
+    visibility = ["//visibility:private"],
+)
+
 config_setting(
     name = "os_osx",
     constraint_values = [
@@ -43,4 +48,20 @@ config_setting(
         "@platforms//os:windows",
     ],
     visibility = ["//visibility:public"],
+)
+
+platform(
+    name = "arm64-v8a",
+    constraint_values = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:android",
+    ],
+)
+
+platform(
+    name = "x86_64",
+    constraint_values = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:android",
+    ],
 )

@@ -35,16 +35,7 @@ COUNTER_TABLE = Table(
         C('track_id', CppTableId(TRACK_TABLE)),
         C('value', CppDouble()),
         C('arg_set_id', CppOptional(CppUint32())),
-    ],
-    tabledoc=TableDoc(
-        doc='''''',
-        group='Events',
-        columns={
-            'ts': '''''',
-            'track_id': '''''',
-            'value': '''''',
-            'arg_set_id': '''''',
-        }))
+    ])
 
 # Keep this list sorted.
 ALL_TABLES = [

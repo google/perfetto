@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Next id: 31
+// Next id: 33
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -154,6 +154,12 @@ message FtraceConfig {
   // For more context: go/rss-stat-throttled.
   optional bool throttle_rss_stat = 15;
 
+  // If true, use self-describing proto messages when writing events not known
+  // at compile time (aka generic events). Each event bundle will have a set of
+  // serialised proto descriptors for events within that bundle.
+  // Added in: perfetto v50.
+  optional bool denser_generic_event_encoding = 32;
+
   // If true, avoid enabling events that aren't statically known by
   // traced_probes. Otherwise, the default is to emit such events as
   // GenericFtraceEvent protos.
@@ -253,6 +259,10 @@ message FtraceConfig {
   // the recording in the kernel.
   // Introduced in: perfetto v43.
   optional bool buffer_size_lower_bound = 27;
+
+  // For perfetto developer use. If true and on a debuggable android build,
+  // serialise raw tracing pages that the implementation cannot parse.
+  optional bool debug_ftrace_abi = 31;
 
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;

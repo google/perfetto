@@ -27,6 +27,7 @@
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "src/kallsyms/kernel_symbol_map.h"
 #include "src/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
@@ -35,6 +36,7 @@
 #include "src/traced/probes/ftrace/ftrace_print_filter.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
+#include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"  // FtraceParseStatus
@@ -47,7 +49,9 @@ namespace perfetto {
 namespace {
 
 using FtraceParseStatus = protos::pbzero::FtraceParseStatus;
+using protos::pbzero::GenericFtraceEvent;
 using protos::pbzero::KprobeEvent;
+using protozero::proto_utils::ProtoSchemaType;
 
 // If the compact_sched buffer accumulates more unique strings, the reader will
 // flush it to reset the interning state (and make it cheap again).
@@ -145,6 +149,15 @@ void SetParseError(const std::set<FtraceDataSource*>& started_data_sources,
   }
 }
 
+void SetParseErrorOne(
+    base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
+    size_t cpu,
+    FtraceParseStatus status) {
+  PERFETTO_DPLOG("[cpu%zu]: unexpected ftrace read error: %s", cpu,
+                 protos::pbzero::FtraceParseStatus_Name(status));
+  parse_errors->insert(status);
+}
+
 void WriteAndSetParseError(CpuReader::Bundler* bundler,
                            base::FlatSet<FtraceParseStatus>* stat,
                            uint64_t timestamp,
@@ -158,9 +171,15 @@ void WriteAndSetParseError(CpuReader::Bundler* bundler,
   proto->set_status(status);
 }
 
-}  // namespace
+void SerialiseOffendingPage([[maybe_unused]] CpuReader::Bundler* bundler,
+                            [[maybe_unused]] const uint8_t* page,
+                            [[maybe_unused]] size_t size) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  bundler->GetOrCreateBundle()->set_broken_abi_trace_page(page, size);
+#endif
+}
 
-using protos::pbzero::GenericFtraceEvent;
+}  // namespace
 
 CpuReader::CpuReader(size_t cpu,
                      base::ScopedFile trace_fd,
@@ -341,6 +360,23 @@ void CpuReader::Bundler::StartNewPacket(
   }
 }
 
+void CpuReader::Bundler::WriteGenericEventDescriptors() {
+  if (!bundle_)
+    return;
+
+  for (uint32_t proto_id : generic_descriptors_to_write_) {
+    PERFETTO_DCHECK(generic_pb_descriptors_->Find(proto_id));
+
+    std::vector<unsigned char>* pb_descriptor =
+        generic_pb_descriptors_->Find(proto_id);
+    if (pb_descriptor) {
+      auto* g = bundle_->add_generic_event_descriptors();
+      g->set_field_id(static_cast<int32_t>(proto_id));
+      g->set_event_descriptor(pb_descriptor->data(), pb_descriptor->size());
+    }
+  }
+}
+
 void CpuReader::Bundler::FinalizeAndRunSymbolizer() {
   if (!packet_) {
     return;
@@ -348,6 +384,10 @@ void CpuReader::Bundler::FinalizeAndRunSymbolizer() {
 
   if (compact_sched_enabled_) {
     compact_sched_buf_->WriteAndReset(bundle_);
+  }
+
+  if (!generic_descriptors_to_write_.empty()) {
+    WriteGenericEventDescriptors();
   }
 
   bundle_->Finalize();
@@ -434,7 +474,8 @@ bool CpuReader::ProcessPagesForDataSource(
   Bundler bundler(trace_writer, metadata,
                   ds_config->symbolize_ksyms ? symbolizer : nullptr, cpu,
                   ftrace_clock_snapshot, ftrace_clock, compact_sched_buf,
-                  ds_config->compact_sched.enabled, *bundle_end_timestamp);
+                  ds_config->compact_sched.enabled, *bundle_end_timestamp,
+                  table->generic_evt_pb_descriptors());
 
   bool success = true;
   size_t pages_parsed = 0;
@@ -453,6 +494,9 @@ bool CpuReader::ProcessPagesForDataSource(
           &bundler, parse_errors,
           page_header.has_value() ? page_header->timestamp : 0,
           FtraceParseStatus::FTRACE_STATUS_ABI_INVALID_PAGE_HEADER);
+      if (ds_config->debug_ftrace_abi) {
+        SerialiseOffendingPage(&bundler, curr_page, sys_page_size);
+      }
       success = false;
       continue;
     }
@@ -482,6 +526,9 @@ bool CpuReader::ProcessPagesForDataSource(
     if (status != FtraceParseStatus::FTRACE_STATUS_OK) {
       WriteAndSetParseError(&bundler, parse_errors, page_header->timestamp,
                             status);
+      if (ds_config->debug_ftrace_abi) {
+        SerialiseOffendingPage(&bundler, curr_page, sys_page_size);
+      }
       success = false;
       continue;
     }
@@ -677,7 +724,8 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
                   bundler->GetOrCreateBundle()->add_event();
               event->set_timestamp(timestamp);
               if (!ParseEvent(ftrace_event_id, start, next, table, ds_config,
-                              event, metadata)) {
+                              event, metadata,
+                              bundler->generic_descriptors_to_write())) {
                 return FtraceParseStatus::FTRACE_STATUS_INVALID_EVENT;
               }
             } else {  // print event did NOT pass the filter
@@ -689,7 +737,8 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
                 bundler->GetOrCreateBundle()->add_event();
             event->set_timestamp(timestamp);
             if (!ParseEvent(ftrace_event_id, start, next, table, ds_config,
-                            event, metadata)) {
+                            event, metadata,
+                            bundler->generic_descriptors_to_write())) {
               return FtraceParseStatus::FTRACE_STATUS_INVALID_EVENT;
             }
           }
@@ -698,9 +747,9 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
           }
         }  // IsEventEnabled(id)
         ptr = next;
-      }              // case (data_record)
-    }                // switch (event_header.type_or_length)
-  }                  // while (ptr < end)
+      }  // case (data_record)
+    }  // switch (event_header.type_or_length)
+  }  // while (ptr < end)
 
   if (last_written_event_ts)
     *bundle_end_timestamp = last_written_event_ts;
@@ -709,15 +758,16 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
 
 // |start| is the start of the current event.
 // |end| is the end of the buffer.
-bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
-                           const uint8_t* start,
-                           const uint8_t* end,
-                           const ProtoTranslationTable* table,
-                           const FtraceDataSourceConfig* ds_config,
-                           protozero::Message* message,
-                           FtraceMetadata* metadata) {
+bool CpuReader::ParseEvent(
+    uint16_t ftrace_event_id,
+    const uint8_t* start,
+    const uint8_t* end,
+    const ProtoTranslationTable* table,
+    const FtraceDataSourceConfig* ds_config,
+    protozero::Message* message,
+    FtraceMetadata* metadata,
+    base::FlatSet<uint32_t>* generic_descriptors_to_write) {
   PERFETTO_DCHECK(start < end);
-
   // The event must be enabled and known to reach here.
   const Event& info = *table->GetEventById(ftrace_event_id);
 
@@ -728,41 +778,59 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
 
   bool success = true;
   const Field* common_pid_field = table->common_pid();
-  if (PERFETTO_LIKELY(common_pid_field))
+  if (PERFETTO_LIKELY(common_pid_field)) {
     success &=
         ParseField(*common_pid_field, start, end, table, message, metadata);
+  }
 
-  protozero::Message* nested =
-      message->BeginNestedMessage<protozero::Message>(info.proto_field_id);
+  auto begin_nested_message = [&message](uint32_t field_id) {
+    return message->BeginNestedMessage<protozero::Message>(field_id);
+  };
 
-  // Parse generic (not known at compile time) event.
-  if (PERFETTO_UNLIKELY(info.proto_field_id ==
-                        protos::pbzero::FtraceEvent::kGenericFieldNumber)) {
-    nested->AppendString(GenericFtraceEvent::kEventNameFieldNumber, info.name);
-    for (const Field& field : info.fields) {
-      auto* generic_field = nested->BeginNestedMessage<protozero::Message>(
-          GenericFtraceEvent::kFieldFieldNumber);
-      generic_field->AppendString(GenericFtraceEvent::Field::kNameFieldNumber,
-                                  field.ftrace_name);
-      success &= ParseField(field, start, end, table, generic_field, metadata);
+  using protos::pbzero::FtraceEvent;
+  if (PERFETTO_UNLIKELY(table->IsGenericEventProtoId(info.proto_field_id))) {
+    if (ds_config->write_generic_evt_descriptors) {
+      // Newer style encoding for generic (unknown at compile time) events.
+      // The encoding itself is the same as the common "else" branch at the
+      // bottom of this if-else chain. The only addition is remembering that we
+      // need to emit the descriptor.
+      generic_descriptors_to_write->insert(info.proto_field_id);
+      protozero::Message* nested = begin_nested_message(info.proto_field_id);
+      for (const Field& field : info.fields) {
+        success &= ParseField(field, start, end, table, nested, metadata);
+      }
+    } else {
+      // legacy encoding of generic events
+      protozero::Message* nested =
+          begin_nested_message(FtraceEvent::kGenericFieldNumber);
+      success &=
+          ParseGenericEventLegacy(info, start, end, table, nested, metadata);
     }
-  } else if (PERFETTO_UNLIKELY(
-                 info.proto_field_id ==
-                 protos::pbzero::FtraceEvent::kSysEnterFieldNumber)) {
-    success &= ParseSysEnter(info, start, end, nested, metadata);
-  } else if (PERFETTO_UNLIKELY(
-                 info.proto_field_id ==
-                 protos::pbzero::FtraceEvent::kSysExitFieldNumber)) {
+
+  } else if (PERFETTO_UNLIKELY(info.proto_field_id ==
+                               FtraceEvent::kSysEnterFieldNumber)) {
+    // syscall sys_enter
+    protozero::Message* nested = begin_nested_message(info.proto_field_id);
+    success &= ParseSysEnter(info, start, end, nested);
+
+  } else if (PERFETTO_UNLIKELY(info.proto_field_id ==
+                               FtraceEvent::kSysExitFieldNumber)) {
+    // syscall sys_exit
+    protozero::Message* nested = begin_nested_message(info.proto_field_id);
     success &= ParseSysExit(info, start, end, ds_config, nested, metadata);
-  } else if (PERFETTO_UNLIKELY(
-                 info.proto_field_id ==
-                 protos::pbzero::FtraceEvent::kKprobeEventFieldNumber)) {
-    KprobeEvent::KprobeType* elem = ds_config->kprobes.Find(ftrace_event_id);
+
+  } else if (PERFETTO_UNLIKELY(info.proto_field_id ==
+                               FtraceEvent::kKprobeEventFieldNumber)) {
+    // kprobes
+    protozero::Message* nested = begin_nested_message(info.proto_field_id);
     nested->AppendString(KprobeEvent::kNameFieldNumber, info.name);
-    if (elem) {
-      nested->AppendVarInt(KprobeEvent::kTypeFieldNumber, *elem);
+    if (auto* type = ds_config->kprobes.Find(ftrace_event_id); type) {
+      nested->AppendVarInt(KprobeEvent::kTypeFieldNumber, *type);
     }
-  } else {  // Parse all other events.
+
+  } else {
+    // all other events
+    protozero::Message* nested = begin_nested_message(info.proto_field_id);
     for (const Field& field : info.fields) {
       success &= ParseField(field, start, end, table, nested, metadata);
     }
@@ -847,7 +915,7 @@ bool CpuReader::ParseField(const Field& field,
       size_t size = std::min<size_t>(field.ftrace_size, sizeof(n));
       memcpy(base::AssumeLittleEndian(&n),
              reinterpret_cast<const void*>(field_start), size);
-      // Look up the adddress in the printk format map and write it into the
+      // Look up the address in the printk format map and write it into the
       // proto.
       base::StringView name = table->LookupTraceString(n);
       message->AppendBytes(field_id, name.begin(), name.size());
@@ -893,11 +961,42 @@ bool CpuReader::ParseField(const Field& field,
   return false;
 }
 
+// static
+bool CpuReader::ParseGenericEventLegacy(const Event& info,
+                                        const uint8_t* start,
+                                        const uint8_t* end,
+                                        const ProtoTranslationTable* table,
+                                        protozero::Message* message,
+                                        FtraceMetadata* metadata) {
+  using PBFIELD = GenericFtraceEvent::Field;
+
+  bool success = true;
+  auto* generic = static_cast<GenericFtraceEvent*>(message);
+  generic->set_event_name(info.name);
+  for (const Field& field : info.fields) {
+    auto* pb_field = generic->add_field();
+    pb_field->set_name(field.ftrace_name);
+    // Proto translation table has an ascending order of proto field ids for the
+    // fields, but we need to encode them into a type-dependent oneof.
+    Field for_encoding = field;
+    if (field.proto_field_type == ProtoSchemaType::kInt64)
+      for_encoding.proto_field_id = PBFIELD::kIntValueFieldNumber;
+    else if (field.proto_field_type == ProtoSchemaType::kUint64)
+      for_encoding.proto_field_id = PBFIELD::kUintValueFieldNumber;
+    else if (field.proto_field_type == ProtoSchemaType::kString)
+      for_encoding.proto_field_id = PBFIELD::kStrValueFieldNumber;
+    else
+      return false;
+    success &= ParseField(for_encoding, start, end, table, pb_field, metadata);
+  }
+  return success;
+}
+
+// static
 bool CpuReader::ParseSysEnter(const Event& info,
                               const uint8_t* start,
                               const uint8_t* end,
-                              protozero::Message* message,
-                              FtraceMetadata* /* metadata */) {
+                              protozero::Message* message) {
   if (info.fields.size() != 2) {
     PERFETTO_DLOG("Unexpected number of fields for sys_enter");
     return false;
@@ -941,6 +1040,7 @@ bool CpuReader::ParseSysEnter(const Event& info,
   return true;
 }
 
+// static
 bool CpuReader::ParseSysExit(const Event& info,
                              const uint8_t* start,
                              const uint8_t* end,
@@ -1043,6 +1143,62 @@ void CpuReader::ParseSchedWakingCompact(const uint8_t* start,
   uint32_t common_flags =
       ReadValue<uint8_t>(start + format->common_flags_offset);
   compact_buf->sched_waking().common_flags().Append(common_flags);
+}
+
+size_t CpuReader::ReadFrozen(
+    ParsingBuffers* parsing_bufs,
+    size_t max_pages,
+    const FtraceDataSourceConfig* parsing_config,
+    FtraceMetadata* metadata,
+    base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
+    TraceWriter* trace_writer) {
+  PERFETTO_CHECK(max_pages > 0);
+  // Limit the max read page under the buffer size.
+  max_pages = std::min(parsing_bufs->ftrace_data_buf_pages(), max_pages);
+
+  uint8_t* parsing_buf = parsing_bufs->ftrace_data_buf();
+  const uint32_t sys_page_size = base::GetSysPageSize();
+
+  // Read the pages into |parsing_buf|.
+  size_t pages_read = 0;
+  for (; pages_read < max_pages;) {
+    uint8_t* curr_page = parsing_buf + (pages_read * sys_page_size);
+    ssize_t res = PERFETTO_EINTR(read(*trace_fd_, curr_page, sys_page_size));
+    if (res < 0) {
+      // Expected:
+      // * EAGAIN: no data (since we're in non-blocking mode).
+      if (errno != EAGAIN)
+        SetParseErrorOne(
+            parse_errors, cpu_,
+            FtraceParseStatus::FTRACE_STATUS_UNEXPECTED_READ_ERROR);
+      break;
+    }
+    if (res != static_cast<ssize_t>(sys_page_size)) {
+      // For the frozen trace buffer, it should return page size. If not,
+      // this should stop reading at that point.
+      SetParseErrorOne(parse_errors, cpu_,
+                       FtraceParseStatus::FTRACE_STATUS_PARTIAL_PAGE_READ);
+      break;
+    }
+    pages_read += 1;
+  }
+
+  if (pages_read == 0)
+    return pages_read;
+
+  // Inputs that we will throw away since we only need a subset of what
+  // FtraceDataSource does.
+  uint64_t bundle_end_timestamp = 0;
+
+  // Convert events and serialise the protos. We don't handle the failure
+  // here, because appropriate errors are recorded in |parsing_errors|.
+  ProcessPagesForDataSource(trace_writer, metadata, cpu_, parsing_config,
+                            parse_errors, &bundle_end_timestamp, parsing_buf,
+                            pages_read, parsing_bufs->compact_sched_buf(),
+                            table_, symbolizer_, ftrace_clock_snapshot_,
+                            ftrace_clock_);
+
+  return pages_read;
 }
 
 }  // namespace perfetto

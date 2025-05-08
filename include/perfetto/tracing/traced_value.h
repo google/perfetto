@@ -125,7 +125,7 @@ namespace internal {
 PERFETTO_EXPORT_COMPONENT TracedValue
 CreateTracedValueFromProto(protos::pbzero::DebugAnnotation*,
                            EventContext* = nullptr);
-}
+}  // namespace internal
 
 class PERFETTO_EXPORT_COMPONENT TracedValue {
  public:
@@ -423,12 +423,13 @@ struct is_incomplete_type<const char[]> {
 // class does not have it support, so they are useful in SFINAE and in producing
 // helpful compiler results.
 template <typename T, class Result = void>
-using check_traced_value_support_t = decltype(
-    internal::WriteImpl(
-        std::declval<base::priority_tag<internal::kMaxWriteImplPriority>>(),
-        std::declval<TracedValue>(),
-        std::declval<T>()),
-    std::declval<Result>());
+using check_traced_value_support_t =
+    decltype(internal::WriteImpl(
+                 std::declval<
+                     base::priority_tag<internal::kMaxWriteImplPriority>>(),
+                 std::declval<TracedValue>(),
+                 std::declval<T>()),
+             std::declval<Result>());
 
 // check_traced_value_support<T, V>::type is defined (and equal to V) iff T
 // supports being passed to WriteIntoTracedValue. See the comment in

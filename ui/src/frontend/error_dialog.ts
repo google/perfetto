@@ -21,6 +21,8 @@ import {getCurrentModalKey, showModal} from '../widgets/modal';
 import {globals} from './globals';
 import {AppImpl} from '../core/app_impl';
 import {Router} from '../core/router';
+import {Button, ButtonVariant} from '../widgets/button';
+import {Intent} from '../widgets/common';
 
 const MODAL_KEY = 'crash_modal';
 
@@ -34,6 +36,7 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
   // Here we rely on the exception message from onCannotGrowMemory function
   if (
     err.message.includes('Cannot enlarge memory') ||
+    err.stack.some((entry) => entry.name.includes('base::AlignedAlloc')) ||
     err.stack.some((entry) => entry.name.includes('OutOfMemoryHandler')) ||
     err.stack.some((entry) => entry.name.includes('_emscripten_resize_heap')) ||
     err.stack.some((entry) => entry.name.includes('sbrk')) ||
@@ -220,11 +223,12 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
       ),
       m(
         'footer',
-        m(
-          'button.modal-btn.modal-btn-primary',
-          {onclick: () => this.fileBug(err)},
-          'File a bug (Googlers only)',
-        ),
+        m(Button, {
+          onclick: () => this.fileBug(err),
+          intent: Intent.Primary,
+          variant: ButtonVariant.Filled,
+          label: 'File a bug (Googlers only)',
+        }),
       ),
     ];
   }

@@ -44,7 +44,7 @@ namespace {
 
 using testing::ElementsAreArray;
 
-// The two functions below are templated because they are re-used both on the
+// The two functions below are templated because they are reused both on the
 // libprotobuf and protozero versions to check both libproto -> zero and
 // zero -> libproto compatibility.
 template <typename T>
@@ -66,6 +66,7 @@ void SetTestingFields(T* msg) {
   msg->set_small_enum(decltype(msg->small_enum())::TO_BE);
   msg->set_signed_enum(decltype(msg->signed_enum())::NEGATIVE);
   msg->set_big_enum(decltype(msg->big_enum())::BEGIN);
+  msg->set_very_negative_enum(decltype(msg->very_negative_enum())::VAL);
 
   msg->set_field_string("FizzBuzz");
   msg->set_field_bytes(reinterpret_cast<const uint8_t*>("\x11\x00\xBE\xEF"),
@@ -94,6 +95,7 @@ void CheckTestingFields(const T& msg) {
   EXPECT_EQ(decltype(msg.small_enum())::TO_BE, msg.small_enum());
   EXPECT_EQ(decltype(msg.signed_enum())::NEGATIVE, msg.signed_enum());
   EXPECT_EQ(decltype(msg.big_enum())::BEGIN, msg.big_enum());
+  EXPECT_EQ(decltype(msg.very_negative_enum())::VAL, msg.very_negative_enum());
   EXPECT_EQ("FizzBuzz", msg.field_string());
   EXPECT_EQ(std::string("\x11\x00\xBE\xEF", 4), msg.field_bytes());
   ASSERT_THAT(msg.repeated_int32(), ElementsAreArray({1, -1, 100, 2000000}));
@@ -349,7 +351,7 @@ TEST(ProtoCppConformanceTest, PackedRepeatedFields) {
 TEST(ProtoCppConformanceTest, DifferentPackages) {
   pbtest::DifferentPackages msg;
 
-  // Pupulate fields defined in "protozero.test.protos.subpackage"
+  // Populate fields defined in "protozero.test.protos.subpackage"
   pbtest_subpackage::Message* msgSubpackage = msg.mutable_subpackage_message();
   msgSubpackage->set_field_int32(1);
   msgSubpackage->set_field_enum(pbtest_subpackage::Enum::A);
@@ -358,7 +360,7 @@ TEST(ProtoCppConformanceTest, DifferentPackages) {
   msg.set_subpackage_enum(pbtest_subpackage::Enum::B);
   msg.set_subpackage_nested_enum(pbtest_subpackage::Message_NestedEnum_D);
 
-  // Pupulate fields defined in "other_package"
+  // Populate fields defined in "other_package"
   pbtest_otherpackage::Message* msgOtherPackage =
       msg.mutable_otherpackage_message();
   msgOtherPackage->set_field_int32(11);

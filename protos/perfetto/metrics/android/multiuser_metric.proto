@@ -20,7 +20,6 @@ package perfetto.protos;
 
 // Metrics for Multiuser events, such as switching users.
 message AndroidMultiuserMetric {
-
   // Holds the data for a Multiuser event.
   message EventData {
     // Duration of the event (in milliseconds).
@@ -32,12 +31,15 @@ message AndroidMultiuserMetric {
       optional int32 user_id = 1;
       // The name of the process.
       optional string process_name = 2;
-      // The number of CPU cycles (in megacycles) spent by that process during the event.
+      // The number of CPU cycles (in megacycles) spent by that process during
+      // the event.
       optional int32 cpu_mcycles = 3;
-      // The ratio of this process's cycles to the total for all processes, expressed as a percentage.
+      // The ratio of this process's cycles to the total for all processes,
+      // expressed as a percentage.
       optional float cpu_percentage = 4;
-      // General identifier for this usage source: determined from the process name, user, etc.
-      // Should be stable across multiple runs (i.e. does not print the user_id directly).
+      // General identifier for this usage source: determined from the process
+      // name, user, etc. Should be stable across multiple runs (i.e. does not
+      // print the user_id directly).
       optional string identifier = 5;
     }
     repeated CpuUsage cpu_usage = 2;

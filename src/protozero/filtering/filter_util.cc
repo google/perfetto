@@ -109,14 +109,14 @@ bool FilterUtil::LoadMessageDefinition(
   if (!root_message.empty()) {
     root_msg = importer.pool()->FindMessageTypeByName(root_message);
   } else if (root_file->message_type_count() > 0) {
-    // The user didn't specfy the root type. Pick the first type in the file,
+    // The user didn't specify the root type. Pick the first type in the file,
     // most times it's the right guess.
     root_msg = root_file->message_type(0);
     if (root_msg)
       PERFETTO_LOG(
-          "The guessed root message name is \"%s\". Pass -r com.MyName to "
+          "The guessed root message name is \"%.*s\". Pass -r com.MyName to "
           "override",
-          root_msg->full_name().c_str());
+          int(root_msg->full_name().size()), root_msg->full_name().data());
   }
 
   if (!root_msg) {
@@ -166,13 +166,14 @@ bool FilterUtil::LoadMessageDefinition(
 FilterUtil::Message* FilterUtil::ParseProtoDescriptor(
     const google::protobuf::Descriptor* proto,
     DescriptorsByNameMap* descriptors_by_full_name) {
-  auto descr_it = descriptors_by_full_name->find(proto->full_name());
+  auto descr_it =
+      descriptors_by_full_name->find(std::string(proto->full_name()));
   if (descr_it != descriptors_by_full_name->end())
     return descr_it->second;
 
   descriptors_.emplace_back();
   Message* msg = &descriptors_.back();
-  msg->full_name = proto->full_name();
+  msg->full_name = std::string(proto->full_name());
   (*descriptors_by_full_name)[msg->full_name] = msg;
   for (int i = 0; i < proto->field_count(); ++i) {
     const auto* proto_field = proto->field(i);
@@ -248,10 +249,10 @@ void FilterUtil::Dedupe() {
       // Replace with the dupe.
       id_and_field.second.nested_type = it->second;
     }  // for (nested_fields).
-  }    // for (descriptors_).
+  }  // for (descriptors_).
 
   // Remove unreferenced descriptors. We should much rather crash in the case of
-  // a logic bug rathern than trying to use them but don't emit them.
+  // a logic bug rather than trying to use them but don't emit them.
   size_t removed_count = 0;
   for (auto it = descriptors_.begin(); it != descriptors_.end();) {
     if (referenced_descriptors.count(&*it)) {
@@ -379,7 +380,7 @@ std::string FilterUtil::GenerateFilterBytecode() {
         }
         break;
       }  // for (range_len)
-    }    // for (descr.fields)
+    }  // for (descr.fields)
     bytecode_gen.EndMessage();
   }  // for (descriptors)
   return bytecode_gen.Serialize();

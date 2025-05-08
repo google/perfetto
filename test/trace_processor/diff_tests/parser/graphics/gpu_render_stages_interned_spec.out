@@ -1,4 +1,0 @@
-"track_name","track_desc","ts","dur","slice_name","depth","flat_key","string_value","context_id","render_target","render_target_name","render_pass","render_pass_name","command_buffer","command_buffer_name","submission_id","hw_queue_id","render_subpasses"
-"vertex","vertex queue",100,10,"binning",0,"description","binning graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"
-"fragment","fragment queue",200,10,"render",0,"description","render graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,2,"[NULL]"
-"queue2","queue2 description",300,10,"render",0,"description","render graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"

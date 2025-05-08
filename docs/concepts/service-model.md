@@ -67,13 +67,11 @@ of:
 * One or more `TracePacket` sub-messages
   ([example](/protos/perfetto/trace/ps/process_tree.proto))
 
-Different producers may expose the same data source. Concrete example:
-*** aside
-At some point in the near future we might offer, as part of Perfetto, a library
-for in-process heap profiling. In such case more than one producer, linking
-against the updated Perfetto library, will expose the heap profiler data source,
-for its own process.
-**
+Different producers may expose the same data source. A concrete example is
+the case of processes using the
+[Track Event in the Tracing SDK](/docs/instrumentation/track-events). That
+exposes the same `track_event` data source in every process involved.
+
 
 ## IPC channel
 In a multiprocess scenario, each producer and each consumer interact with the

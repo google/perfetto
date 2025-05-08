@@ -120,27 +120,27 @@ class TablesSched(TestSuite):
         15748
         """))
 
-  def test_raw_common_flags(self):
+  def test_ftrace_event_common_flags(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
           SELECT id, ts, name, cpu, utid, arg_set_id, common_flags
-          FROM raw
+          FROM ftrace_event
           WHERE common_flags != 0
           ORDER BY ts LIMIT 10
         """,
         out=Csv("""
-        "id","ts","name","cpu","utid","arg_set_id","common_flags"
-        3,1735489788930,"sched_waking",0,300,4,1
-        4,1735489812571,"sched_waking",0,300,5,1
-        5,1735489833977,"sched_waking",1,305,6,1
-        8,1735489876788,"sched_waking",1,297,9,1
-        9,1735489879097,"sched_waking",0,304,10,1
-        12,1735489933912,"sched_waking",0,428,13,1
-        14,1735489972385,"sched_waking",1,232,15,1
-        17,1735489999987,"sched_waking",1,232,15,1
-        19,1735490039439,"sched_waking",1,298,18,1
-        20,1735490042084,"sched_waking",1,298,19,1
+          "id","ts","name","cpu","utid","arg_set_id","common_flags"
+          3,1735489788930,"sched_waking",0,300,21,1
+          4,1735489812571,"sched_waking",0,300,25,1
+          5,1735489833977,"sched_waking",1,305,29,1
+          8,1735489876788,"sched_waking",1,297,47,1
+          9,1735489879097,"sched_waking",0,304,51,1
+          12,1735489933912,"sched_waking",0,428,69,1
+          14,1735489972385,"sched_waking",1,232,80,1
+          17,1735489999987,"sched_waking",1,232,80,1
+          19,1735490039439,"sched_waking",1,298,98,1
+          20,1735490042084,"sched_waking",1,298,102,1
         """))
 
   def test_thread_executing_span_graph(self):
@@ -677,13 +677,13 @@ class TablesSched(TestSuite):
         """))
 
   # Test the support of machine_id ID of the raw table.
-  def test_raw_machine_id(self):
+  def test_ftrace_event_machine_id(self):
     return DiffTestBlueprint(
         trace=DataPath('android_sched_and_ps.pb'),
         trace_modifier=TraceInjector(['ftrace_events'], {'machine_id': 1001}),
         query="""
         SELECT count(*)
-        FROM raw LEFT JOIN cpu USING (ucpu)
+        FROM ftrace_event LEFT JOIN cpu USING (ucpu)
         WHERE machine_id is NULL;
         """,
         out=Csv("""
@@ -725,4 +725,29 @@ class TablesSched(TestSuite):
         3,0,1001
         4,0,1001
         7,0,1001
+        """))
+
+  def test_sched_with_thread_process(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE sched.with_context;
+        SELECT id, ts, dur, process_name, thread_name
+        FROM sched_with_thread_process
+        WHERE process_name IS NOT NULL
+        ORDER BY id
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "id","ts","dur","process_name","thread_name"
+        0,1735489352733,126010,"/system/bin/traced","traced"
+        2,1735489730796,123226,"/system/bin/logd","logd.writer"
+        3,1735489844255,42185,"logcat","logcat"
+        4,1735489854022,42487,"/system/bin/logd","logd.reader.per"
+        5,1735489886440,89626,"/system/bin/traced_probes","traced_probes"
+        6,1735489896509,57264,"/apex/com.android.adbd/bin/adbd","shell svc 3468"
+        7,1735489953773,263504,"/system/bin/logcat","logcat"
+        8,1735489976066,19743,"/system/bin/init","init"
+        9,1735489995809,6031,"/system/bin/traced_probes","traced_probes"
+        10,1735490001840,54126,"/system/bin/init","init"
         """))

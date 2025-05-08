@@ -14,7 +14,8 @@
 
 import {assertUnreachable} from '../base/logging';
 import {getOrCreate} from '../base/utils';
-import {ColumnType, SqlValue} from './query_result';
+import {checkExtends, ColumnType, SqlValue, unionTypes} from './query_result';
+import {sqlValueToSqliteString} from './sql_utils';
 
 /**
  * A dataset defines a set of rows in TraceProcessor and a schema of the
@@ -31,11 +32,11 @@ import {ColumnType, SqlValue} from './query_result';
  * Users can also use the `schema` property and `implements()` to get and test
  * the schema of a given dataset.
  */
-export interface Dataset {
+export interface Dataset<T extends DatasetSchema = DatasetSchema> {
   /**
    * Get or calculate the resultant schema of this dataset.
    */
-  readonly schema: DatasetSchema;
+  readonly schema: T;
 
   /**
    * Produce a query for this dataset.
@@ -90,7 +91,7 @@ export interface Dataset {
    * },
    * ```
    */
-  optimize(): Dataset;
+  optimize(): Dataset<T>;
 
   /**
    * Returns true if this dataset implements a given schema.
@@ -130,9 +131,9 @@ type Filter = EqFilter | InFilter;
 /**
  * Named arguments for a SourceDataset.
  */
-interface SourceDatasetConfig {
+interface SourceDatasetConfig<T extends DatasetSchema> {
   readonly src: string;
-  readonly schema: DatasetSchema;
+  readonly schema: T;
   readonly filter?: Filter;
 }
 
@@ -140,12 +141,14 @@ interface SourceDatasetConfig {
  * Defines a dataset with a source SQL select statement of table name, a
  * schema describing the columns, and an optional filter.
  */
-export class SourceDataset implements Dataset {
+export class SourceDataset<T extends DatasetSchema = DatasetSchema>
+  implements Dataset<T>
+{
   readonly src: string;
-  readonly schema: DatasetSchema;
+  readonly schema: T;
   readonly filter?: Filter;
 
-  constructor(config: SourceDatasetConfig) {
+  constructor(config: SourceDatasetConfig<T>) {
     this.src = config.src;
     this.schema = config.schema;
     this.filter = config.filter;
@@ -154,8 +157,12 @@ export class SourceDataset implements Dataset {
   query(schema?: DatasetSchema) {
     schema = schema ?? this.schema;
     const cols = Object.keys(schema);
-    const whereClause = this.filterToQuery();
-    return `select ${cols.join(', ')} from (${this.src}) ${whereClause}`.trim();
+    const selectSql = `select ${cols.join(', ')} from (${this.src})`;
+    const filterSql = this.filterQuery();
+    if (filterSql === undefined) {
+      return selectSql;
+    }
+    return `${selectSql} where ${filterSql}`;
   }
 
   optimize() {
@@ -163,26 +170,33 @@ export class SourceDataset implements Dataset {
     return this;
   }
 
-  implements(schema: DatasetSchema) {
-    return Object.entries(schema).every(([name, kind]) => {
-      return name in this.schema && this.schema[name] === kind;
+  implements(required: DatasetSchema) {
+    return Object.entries(required).every(([name, required]) => {
+      return name in this.schema && checkExtends(required, this.schema[name]);
     });
   }
 
-  private filterToQuery() {
-    const filter = this.filter;
-    if (filter === undefined) {
-      return '';
-    }
-    if ('eq' in filter) {
-      return `where ${filter.col} = ${filter.eq}`;
-    } else if ('in' in filter) {
-      return `where ${filter.col} in (${filter.in.join(',')})`;
+  // Convert filter to a SQL expression (without the where clause), or undefined
+  // if we have no filter.
+  private filterQuery() {
+    if (!this.filter) return undefined;
+
+    if ('eq' in this.filter) {
+      return `${this.filter.col} = ${sqlValueToSqliteString(this.filter.eq)}`;
+    } else if ('in' in this.filter) {
+      return `${this.filter.col} in (${sqlValueToSqliteString(this.filter.in)})`;
     } else {
-      assertUnreachable(filter);
+      assertUnreachable(this.filter);
     }
   }
 }
+
+/**
+ * Maximum number of sub-queries to include in a single union statement
+ * to avoid hitting SQLite limits.
+ * See: https://www.sqlite.org/limits.html#max_compound_select
+ */
+const MAX_SUBQUERIES_PER_UNION = 500;
 
 /**
  * A dataset that represents the union of multiple datasets.
@@ -193,30 +207,64 @@ export class UnionDataset implements Dataset {
   get schema(): DatasetSchema {
     // Find the minimal set of columns that are supported by all datasets of
     // the union
-    let sch: Record<string, ColumnType> | undefined = undefined;
+    let unionSchema: Record<string, ColumnType> | undefined = undefined;
     this.union.forEach((ds) => {
       const dsSchema = ds.schema;
-      if (sch === undefined) {
+      if (unionSchema === undefined) {
         // First time just use this one
-        sch = dsSchema;
+        unionSchema = dsSchema;
       } else {
         const newSch: Record<string, ColumnType> = {};
-        for (const [key, kind] of Object.entries(sch)) {
-          if (key in dsSchema && dsSchema[key] === kind) {
-            newSch[key] = kind;
+        for (const [key, value] of Object.entries(unionSchema)) {
+          if (key in dsSchema) {
+            const commonType = unionTypes(value, dsSchema[key]);
+            if (commonType !== undefined) {
+              newSch[key] = commonType;
+            }
           }
         }
-        sch = newSch;
+        unionSchema = newSch;
       }
     });
-    return sch ?? {};
+    return unionSchema ?? {};
   }
 
   query(schema?: DatasetSchema): string {
     schema = schema ?? this.schema;
-    return this.union
-      .map((dataset) => dataset.query(schema))
-      .join(' union all ');
+    const subQueries = this.union.map((dataset) => dataset.query(schema));
+
+    // If we have a small number of sub-queries, just use a single union all.
+    if (subQueries.length <= MAX_SUBQUERIES_PER_UNION) {
+      return subQueries.join('\nunion all\n');
+    }
+
+    // Handle large number of sub-queries by batching into multiple CTEs.
+    let sql = 'with\n';
+    const cteNames: string[] = [];
+
+    // Create CTEs for batches of sub-queries
+    for (let i = 0; i < subQueries.length; i += MAX_SUBQUERIES_PER_UNION) {
+      const batch = subQueries.slice(i, i + MAX_SUBQUERIES_PER_UNION);
+      const cteName = `union_batch_${Math.floor(i / MAX_SUBQUERIES_PER_UNION)}`;
+      cteNames.push(cteName);
+
+      sql += `${cteName} as (\n${batch.join('\nunion all\n')}\n)`;
+
+      // Add comma unless this is the last CTE.
+      if (i + MAX_SUBQUERIES_PER_UNION < subQueries.length) {
+        sql += ',\n';
+      }
+    }
+
+    const cols = Object.keys(schema);
+
+    // Union all the CTEs together in the final query.
+    sql += '\n';
+    sql += cteNames
+      .map((name) => `select ${cols.join(',')} from ${name}`)
+      .join('\nunion all\n');
+
+    return sql;
   }
 
   optimize(): Dataset {
@@ -275,9 +323,9 @@ export class UnionDataset implements Dataset {
     }
   }
 
-  implements(schema: DatasetSchema) {
-    return Object.entries(schema).every(([name, kind]) => {
-      return name in this.schema && this.schema[name] === kind;
+  implements(required: DatasetSchema) {
+    return Object.entries(required).every(([name, required]) => {
+      return name in this.schema && checkExtends(required, this.schema[name]);
     });
   }
 }

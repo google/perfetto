@@ -16,6 +16,7 @@
 
 #include "src/profiling/common/producer_support.h"
 
+#include <algorithm>
 #include <optional>
 
 #include "perfetto/ext/base/android_utils.h"

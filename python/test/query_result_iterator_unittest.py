@@ -21,6 +21,7 @@ from perfetto.trace_processor.protos import ProtoFactory
 
 PROTO_FACTORY = ProtoFactory(PLATFORM_DELEGATE())
 
+
 class TestQueryResultIterator(unittest.TestCase):
   # The numbers input into cells correspond the CellType enum values
   # defined under trace_processor.proto
@@ -107,7 +108,7 @@ class TestQueryResultIterator(unittest.TestCase):
 
     # Since the batch isn't defined as the last batch, the QueryResultsIterator
     # expects another batch and thus raises IndexError as no next batch exists.
-    with self.assertRaises(IndexError):
+    with self.assertRaises(Exception):
       qr_iterator = QueryResultIterator([], [batch])
 
   def test_null_cells(self):
@@ -154,13 +155,11 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
-    qr_iterator = QueryResultIterator(['foo_id', 'foo_num'], [batch])
-
     # The batch specifies there ought to be 2 cells of type VARINT and 2 cells
     # of type STRING, but there are no string cells defined in the batch. Thus
     # an IndexError occurs as it tries to access the empty string cells list.
-    with self.assertRaises(IndexError):
-      for row in qr_iterator:
+    with self.assertRaises(Exception):
+      for row in QueryResultIterator(['foo_id', 'foo_num'], [batch]):
         pass
 
   def test_incorrect_columns_batch(self):
@@ -175,7 +174,7 @@ class TestQueryResultIterator(unittest.TestCase):
     # of columns. However, here this is clearly not the case, so raise a
     # PerfettoException during the data integrity check in
     # the constructor
-    with self.assertRaises(PerfettoException):
+    with self.assertRaises(Exception):
       qr_iterator = QueryResultIterator(
           ['foo_id', 'foo_num', 'foo_dur', 'foo_ms'], [batch])
 
@@ -188,13 +187,11 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.varint_cells.extend([100, 200])
     batch.is_last_batch = True
 
-    qr_iterator = QueryResultIterator(['foo_id', 'foo_num'], [batch])
-
     # In this batch we declare the columns types to be CELL_INVALID,
     # CELL_VARINT but that doesn't match the data which are both ints*
     # so we should raise a PerfettoException.
-    with self.assertRaises(PerfettoException):
-      for row in qr_iterator:
+    with self.assertRaises(Exception):
+      for row in QueryResultIterator(['foo_id', 'foo_num'], [batch]):
         pass
 
   def test_one_batch_as_pandas(self):
@@ -318,12 +315,11 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
-    qr_iterator = QueryResultIterator(['foo_id', 'foo_num'], [batch])
-
     # The batch specifies there ought to be 2 cells of type VARINT and 2 cells
     # of type STRING, but there are no string cells defined in the batch. Thus
     # an IndexError occurs as it tries to access the empty string cells list.
-    with self.assertRaises(IndexError):
+    with self.assertRaises(Exception):
+      qr_iterator = QueryResultIterator(['foo_id', 'foo_num'], [batch])
       _ = qr_iterator.as_pandas_dataframe()
 
   def test_invalid_cell_type_as_pandas(self):
@@ -335,10 +331,9 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.varint_cells.extend([100, 200])
     batch.is_last_batch = True
 
-    qr_iterator = QueryResultIterator(['foo_id', 'foo_num'], [batch])
-
     # In this batch we declare the columns types to be CELL_INVALID,
     # CELL_VARINT but that doesn't match the data which are both ints*
     # so we should raise a PerfettoException.
-    with self.assertRaises(PerfettoException):
+    with self.assertRaises(Exception):
+      qr_iterator = QueryResultIterator(['foo_id', 'foo_num'], [batch])
       _ = qr_iterator.as_pandas_dataframe()

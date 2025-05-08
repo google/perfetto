@@ -152,6 +152,7 @@ template("protozero_cpp_library") {
     forward_variables_from(invoker,
                            [
                              "defines",
+                             "deps",
                              "generator_plugin_options",
                              "include_dirs",
                              "proto_deps",
@@ -205,6 +206,7 @@ template("ipc_library") {
     forward_variables_from(invoker,
                            [
                              "defines",
+                             "deps",
                              "extra_configs",
                              "include_dirs",
                              "proto_deps",
@@ -333,6 +335,12 @@ template("perfetto_proto_library") {
     }
   }
 
+  # This group is necessary for Chrome proto_library build rule to work
+  # correctly.
+  group("${source_set_target_name}_input_group") {
+    public_deps = [ ":${source_set_target_name}" ]
+  }
+
   # Generate the descriptor if the option is set.
   if (defined(invoker.generate_descriptor)) {
     target_name_ = string_replace(target_name, expansion_token, "descriptor")
@@ -350,6 +358,7 @@ template("perfetto_proto_library") {
                                "visibility",
                                "testonly",
                                "exclude_imports",
+                               "generator_visibility",
                              ])
     }
   }

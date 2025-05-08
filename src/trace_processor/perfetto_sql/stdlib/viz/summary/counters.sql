@@ -14,19 +14,6 @@
 -- limitations under the License.
 
 CREATE PERFETTO TABLE _counter_track_summary AS
-WITH distinct_ids AS (
-  SELECT DISTINCT track_id as id
-  FROM counter
-)
-SELECT
-  distinct_ids.id,
-  COALESCE(SUM(
-    args.key = 'upid'
-    OR args.key = 'utid'
-    OR args.key = 'cpu'
-    OR args.key = 'gpu'
-  ), 0) = 0 AS is_legacy_global
-FROM distinct_ids
-JOIN counter_track USING (id)
-LEFT JOIN args ON counter_track.dimension_arg_set_id = args.arg_set_id
-GROUP BY distinct_ids.id;
+SELECT DISTINCT
+  track_id AS id
+FROM counter;

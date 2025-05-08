@@ -38,6 +38,12 @@ import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import {featureFlags} from './feature_flags';
 import {Raf} from '../public/raf';
 import {AsyncLimiter} from '../base/async_limiter';
+import {
+  PERFETTO_SETTINGS_STORAGE_KEY,
+  SettingsManagerImpl,
+} from './settings_manager';
+import {SettingsManager} from '../public/settings';
+import {LocalStorage} from './local_storage';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
@@ -74,6 +80,9 @@ export class AppContext {
   readonly embeddedMode: boolean;
   readonly testingMode: boolean;
   readonly openTraceAsyncLimiter = new AsyncLimiter();
+  readonly settingsManager = new SettingsManagerImpl(
+    new LocalStorage(PERFETTO_SETTINGS_STORAGE_KEY),
+  );
 
   // This is normally empty and is injected with extra google-internal packages
   // via is_internal_user.js
@@ -155,6 +164,9 @@ export class AppContext {
 
 export class AppImpl implements App {
   readonly pluginId: string;
+  readonly initialPluginRouteArgs: {
+    [key: string]: number | boolean | string;
+  };
   private readonly appCtx: AppContext;
   private readonly pageMgrProxy: PageManagerImpl;
 
@@ -174,6 +186,23 @@ export class AppImpl implements App {
   constructor(appCtx: AppContext, pluginId: string) {
     this.appCtx = appCtx;
     this.pluginId = pluginId;
+
+    const args: {[key: string]: string | number | boolean} = {};
+    this.initialPluginRouteArgs = Object.entries(
+      appCtx.initialRouteArgs,
+    ).reduce((result, [key, value]) => {
+      // Create a regex to match keys starting with pluginId
+      const regex = new RegExp(`^${pluginId}:(.+)$`);
+      const match = key.match(regex);
+
+      // Only include entries that match the regex and have the right value type
+      if (match && ['string', 'number', 'boolean'].includes(typeof value)) {
+        const newKey = match[1];
+        // Use the capture group (what comes after the prefix) as the new key
+        result[newKey] = value;
+      }
+      return result;
+    }, args);
 
     this.pageMgrProxy = createProxy(this.appCtx.pageMgr, {
       registerPage(pageHandler: PageHandler): Disposable {
@@ -229,6 +258,10 @@ export class AppImpl implements App {
     return this.appCtx.initialRouteArgs;
   }
 
+  get settings(): SettingsManager {
+    return this.appCtx.settingsManager;
+  }
+
   get featureFlags(): FeatureFlagManager {
     return {
       register: (settings: FlagSettings) => featureFlags.register(settings),
@@ -252,6 +285,24 @@ export class AppImpl implements App {
   }
 
   private async openTrace(src: TraceSource) {
+    if (src.type === 'ARRAY_BUFFER' && src.buffer instanceof Uint8Array) {
+      // Even though the type of `buffer` is ArrayBuffer, it's possible to
+      // accidentally pass a Uint8Array here, because the interface of
+      // Uint8Array is compatible with ArrayBuffer. That can cause subtle bugs
+      // in TraceStream when creating chunks out of it (see b/390473162).
+      // So if we get a Uint8Array in input, convert it into an actual
+      // ArrayBuffer, as various parts of the codebase assume that this is a
+      // pure ArrayBuffer, and not a logical view of it with a byteOffset > 0.
+      if (
+        src.buffer.byteOffset === 0 &&
+        src.buffer.byteLength === src.buffer.buffer.byteLength
+      ) {
+        src.buffer = src.buffer.buffer;
+      } else {
+        src.buffer = src.buffer.slice().buffer;
+      }
+    }
+
     // Rationale for asyncLimiter: openTrace takes several seconds and involves
     // a long sequence of async tasks (e.g. invoking plugins' onLoad()). These
     // tasks cannot overlap if the user opens traces in rapid succession, as
@@ -286,6 +337,10 @@ export class AppImpl implements App {
   // Called by trace_loader.ts soon after it has created a new TraceImpl.
   setActiveTrace(traceImpl: TraceImpl) {
     this.appCtx.setActiveTrace(traceImpl.__traceCtxForApp);
+  }
+
+  closeCurrentTrace() {
+    this.appCtx.closeCurrentTrace();
   }
 
   get embeddedMode(): boolean {

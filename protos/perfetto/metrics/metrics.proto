@@ -81,13 +81,15 @@ import "protos/perfetto/metrics/android/wattson_tasks_attribution.proto";
 import "protos/perfetto/metrics/common/clone_duration.proto";
 
 // Trace processor metadata
-// Next id: 18
+// Next id: 20
 message TraceMetadata {
   reserved 1;
   optional int64 trace_duration_ns = 2;
   optional string trace_uuid = 3;
   optional string android_build_fingerprint = 4;
   optional string android_device_manufacturer = 16;
+  optional int64 android_profile_boot_classpath = 18;
+  optional int64 android_profile_system_server = 19;
   optional int64 statsd_triggering_subscription_id = 5;
   optional int64 trace_size_bytes = 6;
   repeated string trace_trigger = 7;
@@ -130,10 +132,15 @@ message TraceAnalysisStats {
   repeated Stat stat = 1;
 }
 
-// Root message for all Perfetto-based metrics.
+// Root message for all Perfetto-based metrics (v1 metrics only).
 //
-// Next id: 78
+// NOTE: the v1 system is "soft" deprecated: no new metrics are allowed but
+// we still fully support any existing metrics written using this system.
+//
+// DO NOT ADD ANY OTHER FIELDS HERE. ADDITION OF NEW v1 METRICS WITH
+// IS NO LONGER ALLOWED. PLEASE USE METRICS v2 INSTEAD.
 message TraceMetrics {
+  // Metrics which were later removed.
   reserved 4, 10, 13, 14, 16, 19;
 
   // Battery counters metric on Android.
@@ -355,8 +362,18 @@ message TraceMetrics {
 
   optional CloneDuration clone_duration = 77;
 
-  // Per-frame blocking calls (e.g. binder calls) during CUJs (important UI transitions).
-  optional AndroidCujBlockingCallsPerFrameMetric android_blocking_calls_cuj_per_frame_metric = 78;
+  // Per-frame blocking calls (e.g. binder calls) during CUJs (important UI
+  // transitions).
+  optional AndroidCujBlockingCallsPerFrameMetric
+      android_blocking_calls_cuj_per_frame_metric = 78;
+
+  // Android Wattson thread attribution during app startups.
+  optional AndroidWattsonTasksAttributionMetric wattson_app_startup_threads =
+      79;
+
+  // Android Wattson thread attribution during atrace app windows.
+  optional AndroidWattsonTasksAttributionMetric wattson_atrace_apps_threads =
+      80;
 
   // Android
   // Demo extensions.
@@ -370,4 +387,10 @@ message TraceMetrics {
 
   // WebView metrics.
   extensions 2001 to 2500;
+
+  // AndroidXR metrics.
+  extensions 2501 to 3000;
+
+  // DO NOT ADD ANY OTHER FIELDS HERE. ADDITION OF NEW v1 METRICS IS NO LONGER
+  // ALLOWED. PLEASE USE METRICS v2 INSTEAD.
 }

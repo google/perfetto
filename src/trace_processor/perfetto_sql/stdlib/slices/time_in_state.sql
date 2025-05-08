@@ -14,13 +14,14 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE intervals.intersect;
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- For each thread slice, returns the sum of the time it spent in various
 -- scheduling states.
 --
 -- Requires scheduling data to be available in the trace.
-CREATE PERFETTO TABLE thread_slice_time_in_state(
+CREATE PERFETTO TABLE thread_slice_time_in_state (
   -- Thread slice.
   id JOINID(slice.id),
   -- Name of the slice.
@@ -48,7 +49,7 @@ CREATE PERFETTO TABLE thread_slice_time_in_state(
   -- If in uninterruptible sleep (D), the kernel function on which was blocked.
   -- Only available on userdebug Android builds when
   -- `sched/sched_blocked_reason` ftrace tracepoint is enabled.
-  blocked_function LONG,
+  blocked_function STRING,
   -- The duration of time the threads slice spent for each
   -- (state, io_wait, blocked_function) tuple.
   dur DURATION
@@ -63,15 +64,22 @@ SELECT
   tstate.state,
   tstate.io_wait,
   tstate.blocked_function,
-  SUM(ii.dur) AS dur
+  sum(ii.dur) AS dur
 FROM _interval_intersect!(
   (
     (SELECT * FROM thread_slice WHERE utid > 0 AND dur > 0),
     (SELECT * FROM thread_state WHERE dur > 0)
   ),
   (utid)
-) ii
-JOIN thread_slice ts ON ts.id = ii.id_0
-JOIN thread_state tstate ON tstate.id = ii.id_1
-GROUP BY ii.id_0, tstate.state, tstate.io_wait, tstate.blocked_function
-ORDER BY ii.id_0;
+) AS ii
+JOIN thread_slice AS ts
+  ON ts.id = ii.id_0
+JOIN thread_state AS tstate
+  ON tstate.id = ii.id_1
+GROUP BY
+  ii.id_0,
+  tstate.state,
+  tstate.io_wait,
+  tstate.blocked_function
+ORDER BY
+  ii.id_0;

@@ -307,9 +307,9 @@ WriteIntoTracedProtoImpl(base::priority_tag<1>,
 
 // If T has WriteIntoTrace(TracedProto<MessageType>) method, use it.
 template <typename MessageType, typename T>
-decltype(
-    std::declval<T>().WriteIntoTrace(std::declval<TracedProto<MessageType>>()),
-    void())
+decltype(std::declval<T>().WriteIntoTrace(
+             std::declval<TracedProto<MessageType>>()),
+         void())
 WriteIntoTracedProtoImpl(base::priority_tag<0>,
                          TracedProto<MessageType> message,
                          T&& value) {

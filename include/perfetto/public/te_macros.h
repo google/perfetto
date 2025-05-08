@@ -33,15 +33,19 @@
 //
 // The macro uses the High level ABI to emit track events.
 
-#define PERFETTO_I_TE_HL_MACRO_PARAMS_(NAME_AND_TYPE, ...)            \
+#define PERFETTO_I_TE_HL_MACRO_PARAMS__(NAME_AND_TYPE, ...)           \
   NAME_AND_TYPE.type, NAME_AND_TYPE.name,                             \
       PERFETTO_I_TE_COMPOUND_LITERAL_ARRAY(struct PerfettoTeHlExtra*, \
                                            {__VA_ARGS__})
 
+// Level of indirection for MSVC traditional preprocessor.
+#define PERFETTO_I_TE_HL_MACRO_PARAMS_(MACRO, ARGS) MACRO ARGS
+
 // Provides an initializer for `struct PerfettoTeHlMacroParams` and sets all the
 // unused extra fields to PERFETTO_NULL.
-#define PERFETTO_I_TE_HL_MACRO_PARAMS(...) \
-  PERFETTO_I_TE_HL_MACRO_PARAMS_(__VA_ARGS__, PERFETTO_NULL)
+#define PERFETTO_I_TE_HL_MACRO_PARAMS(...)                        \
+  PERFETTO_I_TE_HL_MACRO_PARAMS_(PERFETTO_I_TE_HL_MACRO_PARAMS__, \
+                                 (__VA_ARGS__, PERFETTO_NULL))
 
 // Implementation of the PERFETTO_TE macro. If `CAT` is enabled, emits the
 // tracing event specified by the params.

@@ -37,7 +37,6 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
@@ -108,23 +107,17 @@ base::Status ParseGenericEvent(const protozero::ConstBytes& cb,
 using perfetto::protos::pbzero::StatsdAtom;
 using perfetto::protos::pbzero::TracePacket;
 
-PoolAndDescriptor::PoolAndDescriptor(const uint8_t* data,
-                                     size_t size,
-                                     const char* name) {
-  pool_.AddFromFileDescriptorSet(data, size);
-  std::optional<uint32_t> opt_idx = pool_.FindDescriptorIdx(name);
-  if (opt_idx.has_value()) {
-    descriptor_ = &pool_.descriptors()[opt_idx.value()];
-  }
-}
-
-PoolAndDescriptor::~PoolAndDescriptor() = default;
-
 StatsdModule::StatsdModule(TraceProcessorContext* context)
-    : context_(context),
-      pool_(kAtomsDescriptor.data(), kAtomsDescriptor.size(), kAtomProtoName),
-      args_parser_(*(pool_.pool())) {
+    : context_(context), args_parser_(*context_->descriptor_pool_) {
   RegisterForField(TracePacket::kStatsdAtomFieldNumber, context);
+  context_->descriptor_pool_->AddFromFileDescriptorSet(kAtomsDescriptor.data(),
+                                                       kAtomsDescriptor.size());
+
+  std::optional<uint32_t> opt_idx =
+      context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName);
+  if (opt_idx.has_value()) {
+    descriptor_ = &context_->descriptor_pool_->descriptors()[opt_idx.value()];
+  }
 }
 
 StatsdModule::~StatsdModule() = default;
@@ -204,7 +197,7 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
       [&](ArgsTracker::BoundInserter* inserter) {
         ArgsParser delegate(ts, *inserter, *context_->storage);
 
-        const auto& fields = pool_.descriptor()->fields();
+        const auto& fields = descriptor_->fields();
         const auto& field_it = fields.find(nested_field_id);
         base::Status status;
 
@@ -232,13 +225,13 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
 StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
   StringId* cached_name = atom_names_.Find(atom_field_id);
   if (cached_name == nullptr) {
-    if (pool_.descriptor() == nullptr) {
+    if (descriptor_ == nullptr) {
       context_->storage->IncrementStats(stats::atom_unknown);
       return context_->storage->InternString("Could not load atom descriptor");
     }
 
     StringId name_id;
-    const auto& fields = pool_.descriptor()->fields();
+    const auto& fields = descriptor_->fields();
     const auto& field_it = fields.find(atom_field_id);
     if (field_it == fields.end()) {
       base::StackString<255> name("atom_%u", atom_field_id);

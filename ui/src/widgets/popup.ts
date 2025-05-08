@@ -127,19 +127,21 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       closeOnOutsideClick = true,
     } = attrs;
 
-    this.isOpen = isOpen;
     this.onChange = onChange;
     this.closeOnEscape = closeOnEscape;
     this.closeOnOutsideClick = closeOnOutsideClick;
 
     return [
-      this.renderTrigger(trigger),
+      this.renderTrigger(trigger, isOpen),
       isOpen && this.renderPopup(attrs, children),
     ];
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private renderTrigger(trigger: m.Vnode<any, any>): m.Children {
+  private renderTrigger(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    trigger: m.Vnode<any, any>,
+    isOpen: boolean,
+  ): m.Children {
     trigger.attrs = {
       ...trigger.attrs,
       ref: Popup.TRIGGER_REF,
@@ -147,7 +149,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         this.togglePopup();
         e.preventDefault();
       },
-      active: this.isOpen,
+      active: isOpen,
     };
     return trigger;
   }
@@ -348,11 +350,9 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   };
 
   private closePopup() {
-    if (this.isOpen) {
-      this.isOpen = false;
-      this.onChange(this.isOpen);
-      m.redraw();
-    }
+    this.isOpen = false;
+    this.onChange(false);
+    m.redraw();
   }
 
   private togglePopup() {

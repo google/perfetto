@@ -138,15 +138,14 @@ class JsonParser(TestSuite):
 
   def test_json_incomplete(self):
     return DiffTestBlueprint(
-      trace=Json('''
+        trace=Json('''
         [
         {"name":"typecheck","ph":"X","ts":4619295550.000,"dur":8000.000,"pid":306339,"tid":3},
       '''),
-      query='''
+        query='''
         select ts from slice
       ''',
-      out=Csv('''
+        out=Csv('''
       "ts"
       4619295550000
-      ''')
-    )
+      '''))

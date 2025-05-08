@@ -146,10 +146,10 @@ class AndroidMetrics(TestSuite):
         out=Path('android_blocking_calls_cuj_different_ui_thread.out'))
 
   def test_android_blocking_calls_cuj_per_frame(self):
-      return DiffTestBlueprint(
-          trace=Path('android_blocking_calls_cuj_per_frame_metric.py'),
-          query=Metric('android_blocking_calls_cuj_per_frame_metric'),
-          out=Path('android_blocking_calls_cuj_per_frame_metric.out'))
+    return DiffTestBlueprint(
+        trace=Path('android_blocking_calls_cuj_per_frame_metric.py'),
+        query=Metric('android_blocking_calls_cuj_per_frame_metric'),
+        out=Path('android_blocking_calls_cuj_per_frame_metric.out'))
 
   def test_sysui_notif_shade_list_builder(self):
     return DiffTestBlueprint(
@@ -257,25 +257,7 @@ class AndroidMetrics(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_postboot_unlock.pftrace'),
         query=Metric('android_garbage_collection_stats'),
-        out=TextProto(r"""
-          android_garbage_collection_stats {
-            ts: 37574228004                                                                 dur: 2590476076
-            heap_size_mbs: 545.245650252069
-            heap_size_mb: 210.4808669354679
-            heap_allocated_mb: 157.435
-            heap_allocation_rate: 60.77454312687503
-            heap_live_mbs: 21.891720379191
-            heap_total_mbs: 53.434635626237
-            heap_utilization: 0.4096915815486898
-            gc_running_dur: 80862916
-            gc_running_rate: 0.031215465276506957
-            gc_running_efficiency: 1351.232098555335
-            gc_during_android_startup_dur: 177436890
-            total_android_startup_dur: 675663737
-            gc_during_android_startup_rate: 0.2626112373409793
-            gc_during_android_startup_efficiency: 160.61513239126643
-          }
-         """))
+        out=Path('android_garbage_collection_stats.out'))
 
   def test_android_auto_multiuser_switch(self):
     return DiffTestBlueprint(
@@ -575,3 +557,15 @@ class AndroidMetrics(TestSuite):
         trace=DataPath('wattson_jank_cuj.pb'),
         query=Metric("wattson_atrace_apps_rails"),
         out=Path('wattson_atrace_apps_rails.out'))
+
+  def test_wattson_atrace_apps_threads_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sysui_qsmedia_microbenchmark.pb'),
+        query=Metric("wattson_atrace_apps_threads"),
+        out=Path('wattson_atrace_apps_threads.out'))
+
+  def test_wattson_app_startup_threads_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_calculator_startup.pb'),
+        query=Metric("wattson_app_startup_threads"),
+        out=Path('wattson_app_startup_threads.out'))

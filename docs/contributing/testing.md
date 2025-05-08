@@ -186,8 +186,8 @@ test on platforms that the Perfetto CI doesn't cover (e.g. Windows, MacOS),
 allowing you to verify the patch before you submit it (and it then eventually
 auto-rolls into Chromium).
 
-To do this, first make sure you have uploaded your Perfetto patch to the
-Android Gerrit. Next, create a new Chromium CL that modifies Chromium's
+To do this, first make sure you have uploaded pull request to GitHub.
+Next, create a new Chromium CL that modifies Chromium's
 `//src/DEPS` file.
 
 If you recently uploaded your change, it may be enough to modify the git commit
@@ -195,27 +195,23 @@ hash in the `DEPS` entry for `src/third_party/perfetto`:
 
 ```
   'src/third_party/perfetto':
-    Var('android_git') + '/platform/external/perfetto.git' + '@' + '8fe19f55468ee227e99c1a682bd8c0e8f7e5bcdb',
+    Var('chromium_git') + '/external/github.com/google/perfetto/' + '@' + '8fe19f55468ee227e99c1a682bd8c0e8f7e5bcdb',
 ```
 
-Replace the git hash with the commit hash of your most recent patch set, which
-you can find in gerrit next to the active patch set number.
+Replace the git hash with the commit hash of your most recent patch set.
 
 Alternatively, you can add `hooks` to patch in the pending CL on top of
 Chromium's current third_party/perfetto revision. For this, add the following
 entries to the `hooks` array in Chromium's `//src/DEPS` file, modifying the
-`refs/changes/XX/YYYYYYY/ZZ` to the appropriate values for your gerrit change.
-You can see these values when pressing the "Download" button in gerrit. You can
-also use this method to patch in multiple Perfetto changes at once by
-adding additional `hooks` entries. [Here][chromium_cl]'s an example CL.
+`refs/pull/XXXX/head` to the appropriate values for your pull request.
 
 ```
   {
     'name': 'fetch_custom_patch',
     'pattern': '.',
     'action': [ 'git', '-C', 'src/third_party/perfetto/',
-                'fetch', 'https://android.googlesource.com/platform/external/perfetto',
-                'refs/changes/XX/YYYYYYY/ZZ',
+                'fetch', 'https://github.com/google/perfetto.git',
+                'refs/pull/XXXX/head',
     ],
   },
   {

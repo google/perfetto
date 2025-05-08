@@ -20,14 +20,11 @@
 #include <functional>
 #include <map>
 #include <memory>
-#include <utility>
 
 #include "perfetto/base/flat_set.h"
-#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
-#include "perfetto/protozero/message_handle.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
@@ -42,7 +39,6 @@ struct FtraceDataSourceConfig;
 
 namespace protos {
 namespace pbzero {
-class FtraceEventBundle;
 enum FtraceParseStatus : int32_t;
 }  // namespace pbzero
 }  // namespace protos
@@ -58,7 +54,7 @@ class FtraceDataSource : public ProbesDataSource {
 
   FtraceDataSource(base::WeakPtr<FtraceController>,
                    TracingSessionID,
-                   const FtraceConfig&,
+                   FtraceConfig,
                    std::unique_ptr<TraceWriter>);
   ~FtraceDataSource() override;
 

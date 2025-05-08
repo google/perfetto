@@ -19,7 +19,6 @@
 #include <memory>
 #include <optional>
 
-#include "perfetto/base/logging.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
@@ -42,12 +41,9 @@
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/proto/android_track_event.descriptor.h"
-#include "src/trace_processor/importers/proto/chrome_track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/importers/proto/track_event.descriptor.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_reader_registry.h"
 
@@ -57,48 +53,34 @@ TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
     : config(args.config), storage(args.storage) {
   reader_registry = std::make_unique<TraceReaderRegistry>(this);
   // Init the trackers.
-  machine_tracker.reset(new MachineTracker(this, args.raw_machine_id));
+  machine_tracker = std::make_unique<MachineTracker>(this, args.raw_machine_id);
   if (!machine_id()) {
-    multi_machine_trace_manager.reset(new MultiMachineTraceManager(this));
+    multi_machine_trace_manager =
+        std::make_unique<MultiMachineTraceManager>(this);
   }
-  track_tracker.reset(new TrackTracker(this));
-  track_compressor.reset(new TrackCompressor(this));
-  args_tracker.reset(new ArgsTracker(this));
-  args_translation_table.reset(new ArgsTranslationTable(storage.get()));
-  slice_tracker.reset(new SliceTracker(this));
-  slice_translation_table.reset(new SliceTranslationTable(storage.get()));
-  flow_tracker.reset(new FlowTracker(this));
-  event_tracker.reset(new EventTracker(this));
-  sched_event_tracker.reset(new SchedEventTracker(this));
-  process_tracker.reset(new ProcessTracker(this));
-  process_track_translation_table.reset(
-      new ProcessTrackTranslationTable(storage.get()));
-  clock_tracker.reset(new ClockTracker(this));
-  clock_converter.reset(new ClockConverter(this));
-  mapping_tracker.reset(new MappingTracker(this));
-  perf_sample_tracker.reset(new PerfSampleTracker(this));
-  stack_profile_tracker.reset(new StackProfileTracker(this));
-  metadata_tracker.reset(new MetadataTracker(storage.get()));
-  cpu_tracker.reset(new CpuTracker(this));
-  global_args_tracker.reset(new GlobalArgsTracker(storage.get()));
-  {
-    descriptor_pool_.reset(new DescriptorPool());
-    auto status = descriptor_pool_->AddFromFileDescriptorSet(
-        kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
-
-    PERFETTO_DCHECK(status.ok());
-
-    status = descriptor_pool_->AddFromFileDescriptorSet(
-        kChromeTrackEventDescriptor.data(), kChromeTrackEventDescriptor.size());
-
-    PERFETTO_DCHECK(status.ok());
-
-    status = descriptor_pool_->AddFromFileDescriptorSet(
-        kAndroidTrackEventDescriptor.data(),
-        kAndroidTrackEventDescriptor.size());
-
-    PERFETTO_DCHECK(status.ok());
-  }
+  track_tracker = std::make_unique<TrackTracker>(this);
+  track_compressor = std::make_unique<TrackCompressor>(this);
+  args_tracker = std::make_unique<ArgsTracker>(this);
+  args_translation_table =
+      std::make_unique<ArgsTranslationTable>(storage.get());
+  slice_tracker = std::make_unique<SliceTracker>(this);
+  slice_translation_table =
+      std::make_unique<SliceTranslationTable>(storage.get());
+  flow_tracker = std::make_unique<FlowTracker>(this);
+  event_tracker = std::make_unique<EventTracker>(this);
+  sched_event_tracker = std::make_unique<SchedEventTracker>(this);
+  process_tracker = std::make_unique<ProcessTracker>(this);
+  process_track_translation_table =
+      std::make_unique<ProcessTrackTranslationTable>(storage.get());
+  clock_tracker = std::make_unique<ClockTracker>(this);
+  clock_converter = std::make_unique<ClockConverter>(this);
+  mapping_tracker = std::make_unique<MappingTracker>(this);
+  perf_sample_tracker = std::make_unique<PerfSampleTracker>(this);
+  stack_profile_tracker = std::make_unique<StackProfileTracker>(this);
+  metadata_tracker = std::make_unique<MetadataTracker>(storage.get());
+  cpu_tracker = std::make_unique<CpuTracker>(this);
+  global_args_tracker = std::make_shared<GlobalArgsTracker>(storage.get());
+  descriptor_pool_ = std::make_unique<DescriptorPool>();
 
   slice_tracker->SetOnSliceBeginCallback(
       [this](TrackId track_id, SliceId slice_id) {
@@ -119,7 +101,8 @@ TraceProcessorContext& TraceProcessorContext::operator=(
 
 std::optional<MachineId> TraceProcessorContext::machine_id() const {
   if (!machine_tracker) {
-    // Doesn't require that |machine_tracker| is initialzed, e.g. in unit tests.
+    // Doesn't require that |machine_tracker| is initialized, e.g. in unit
+    // tests.
     return std::nullopt;
   }
   return machine_tracker->machine_id();

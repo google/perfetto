@@ -35,10 +35,10 @@ void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
   protos::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(blob);
   tables::SurfaceFlingerLayersSnapshotTable::Row snapshot;
   snapshot.ts = timestamp;
-  snapshot.base64_proto =
-      context_->storage->mutable_string_pool()->InternString(
-          base::StringView(base::Base64Encode(blob.data, blob.size)));
-  snapshot.base64_proto_id = snapshot.base64_proto.raw_id();
+  snapshot.base64_proto_id = context_->storage->mutable_string_pool()
+                                 ->InternString(base::StringView(
+                                     base::Base64Encode(blob.data, blob.size)))
+                                 .raw_id();
   auto snapshot_id =
       context_->storage->mutable_surfaceflinger_layers_snapshot_table()
           ->Insert(snapshot)
@@ -69,9 +69,10 @@ void SurfaceFlingerLayersParser::ParseLayer(
     tables::SurfaceFlingerLayersSnapshotTable::Id snapshot_id) {
   tables::SurfaceFlingerLayerTable::Row layer;
   layer.snapshot_id = snapshot_id;
-  layer.base64_proto = context_->storage->mutable_string_pool()->InternString(
-      base::StringView(base::Base64Encode(blob.data, blob.size)));
-  layer.base64_proto_id = layer.base64_proto.raw_id();
+  layer.base64_proto_id = context_->storage->mutable_string_pool()
+                              ->InternString(base::StringView(
+                                  base::Base64Encode(blob.data, blob.size)))
+                              .raw_id();
   auto layerId =
       context_->storage->mutable_surfaceflinger_layer_table()->Insert(layer).id;
 

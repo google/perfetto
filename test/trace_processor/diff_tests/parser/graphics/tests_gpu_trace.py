@@ -65,29 +65,148 @@ class GraphicsGpuTrace(TestSuite):
   def test_gpu_render_stages(self):
     return DiffTestBlueprint(
         trace=Path('gpu_render_stages.py'),
-        query=Path('gpu_render_stages_test.sql'),
-        out=Path('gpu_render_stages.out'))
+        query='''
+          SELECT
+            g.name AS track_name,
+            g.description AS track_desc,
+            ts,
+            dur,
+            s.name AS slice_name,
+            depth,
+            args.flat_key,
+            args.string_value,
+            s.context_id,
+            render_target,
+            render_target_name,
+            render_pass,
+            render_pass_name,
+            command_buffer,
+            command_buffer_name,
+            submission_id,
+            hw_queue_id,
+            render_subpasses
+          FROM gpu_track g
+          JOIN gpu_slice s ON g.id = s.track_id
+          LEFT JOIN (
+            SELECT arg_set_id, flat_key, string_value
+            FROM args
+            WHERE args.key IS NULL OR args.key NOT IN (
+              'context_id',
+              'render_target',
+              'render_target_name',
+              'render_pass',
+              'render_pass_name',
+              'command_buffer',
+              'command_buffer_name',
+              'submission_id',
+              'hw_queue_id',
+              'render_subpasses',
+              'upid'
+            )
+          ) args USING (arg_set_id)
+          ORDER BY ts;
+        ''',
+        out=Csv('''
+          "track_name","track_desc","ts","dur","slice_name","depth","flat_key","string_value","context_id","render_target","render_target_name","render_pass","render_pass_name","command_buffer","command_buffer_name","submission_id","hw_queue_id","render_subpasses"
+          "queue 1","queue desc 1",0,5,"render stage(1)",0,"[NULL]","[NULL]",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"
+          "queue 0","queue desc 0",0,5,"stage 0",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"[NULL]"
+          "queue 1","queue desc 1",10,5,"stage 1",0,"description","stage desc 1",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"
+          "queue 2","[NULL]",20,5,"stage 2",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,2,"[NULL]"
+          "queue 0","queue desc 0",30,5,"stage 3",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"[NULL]"
+          "Unknown GPU Queue 3","[NULL]",40,5,"render stage(4)",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,3,"[NULL]"
+          "queue 0","queue desc 0",50,5,"stage 0",0,"key1","value1",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"[NULL]"
+          "queue 0","queue desc 0",60,5,"stage 0",0,"key1","value1",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"[NULL]"
+          "queue 0","queue desc 0",60,5,"stage 0",0,"key2","value2",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"[NULL]"
+          "queue 0","queue desc 0",70,5,"stage 0",0,"key1","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"[NULL]"
+          "queue 0","queue desc 0",80,5,"stage 2",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"[NULL]"
+          "queue 0","queue desc 0",90,5,"stage 0",0,"[NULL]","[NULL]",42,16,"[NULL]",32,"[NULL]",48,"[NULL]",0,0,"[NULL]"
+          "queue 0","queue desc 0",100,5,"stage 0",0,"[NULL]","[NULL]",42,16,"[NULL]",16,"[NULL]",16,"command_buffer",0,0,"[NULL]"
+          "queue 0","queue desc 0",110,5,"stage 0",0,"[NULL]","[NULL]",42,16,"[NULL]",16,"render_pass",16,"command_buffer",0,0,"[NULL]"
+          "queue 0","queue desc 0",120,5,"stage 0",0,"[NULL]","[NULL]",42,16,"framebuffer",16,"render_pass",16,"command_buffer",0,0,"[NULL]"
+          "queue 0","queue desc 0",130,5,"stage 0",0,"[NULL]","[NULL]",42,16,"renamed_buffer",0,"[NULL]",0,"[NULL]",0,0,"[NULL]"
+          "Unknown GPU Queue ","[NULL]",140,5,"render stage(18446744073709551615)",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1024,"[NULL]"
+          "queue 0","queue desc 0",150,5,"stage 0",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"0"
+          "queue 0","queue desc 0",160,5,"stage 0",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"63,64"
+          "queue 0","queue desc 0",170,5,"stage 0",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"64"
+          "queue 0","queue desc 0",180,5,"stage 0",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"3,68,69,70,71"
+      '''))
 
   def test_gpu_render_stages_interned_spec(self):
     return DiffTestBlueprint(
         trace=Path('gpu_render_stages_interned_spec.textproto'),
-        query=Path('gpu_render_stages_test.sql'),
-        out=Path('gpu_render_stages_interned_spec.out'))
+        query='''
+          SELECT
+            g.name AS track_name,
+            g.description AS track_desc,
+            ts,
+            dur,
+            s.name AS slice_name,
+            depth,
+            args.flat_key,
+            args.string_value,
+            s.context_id,
+            render_target,
+            render_target_name,
+            render_pass,
+            render_pass_name,
+            command_buffer,
+            command_buffer_name,
+            submission_id,
+            hw_queue_id,
+            render_subpasses
+          FROM gpu_track g
+          JOIN gpu_slice s ON g.id = s.track_id
+          LEFT JOIN (
+            SELECT arg_set_id, flat_key, string_value
+            FROM args
+            WHERE args.key IS NULL OR args.key NOT IN (
+              'context_id',
+              'render_target',
+              'render_target_name',
+              'render_pass',
+              'render_pass_name',
+              'command_buffer',
+              'command_buffer_name',
+              'submission_id',
+              'hw_queue_id',
+              'render_subpasses',
+              'upid'
+            )
+          ) args USING (arg_set_id)
+          ORDER BY ts;
+        ''',
+        out=Csv('''
+          "track_name","track_desc","ts","dur","slice_name","depth","flat_key","string_value","context_id","render_target","render_target_name","render_pass","render_pass_name","command_buffer","command_buffer_name","submission_id","hw_queue_id","render_subpasses"
+          "vertex","vertex queue",100,10,"binning",0,"description","binning graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"
+          "fragment","fragment queue",200,10,"render",0,"description","render graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,2,"[NULL]"
+          "queue2","queue2 description",300,10,"render",0,"description","render graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"
+        '''))
 
   def test_vulkan_api_events(self):
     return DiffTestBlueprint(
         trace=Path('vulkan_api_events.py'),
         query="""
-        SELECT track.name AS track_name, gpu_track.description AS track_desc, ts, dur,
-          gpu_slice.name AS slice_name, depth, flat_key, int_value,
-          gpu_slice.context_id, command_buffer, submission_id
-        FROM gpu_track
-        LEFT JOIN track USING (id)
-        JOIN gpu_slice ON gpu_track.id = gpu_slice.track_id
-        LEFT JOIN args ON gpu_slice.arg_set_id = args.arg_set_id
+        SELECT
+          g.name AS track_name,
+          g.description AS track_desc,
+          ts,
+          dur,
+          s.name AS slice_name,
+          depth,
+          s.context_id,
+          command_buffer,
+          submission_id,
+          extract_arg(s.arg_set_id, 'tid') as tid,
+          extract_arg(s.arg_set_id, 'pid') as pid
+        FROM gpu_track g
+        JOIN gpu_slice s ON g.id = s.track_id
         ORDER BY ts;
         """,
-        out=Path('vulkan_api_events.out'))
+        out=Csv('''
+          "track_name","track_desc","ts","dur","slice_name","depth","context_id","command_buffer","submission_id","tid","pid"
+          "Vulkan Events","[NULL]",10,2,"vkQueueSubmit",0,"[NULL]",100,1,43,42
+          "Vulkan Events","[NULL]",20,2,"vkQueueSubmit",0,"[NULL]",200,2,45,44
+        '''))
 
   def test_gpu_log(self):
     return DiffTestBlueprint(

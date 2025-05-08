@@ -101,6 +101,8 @@ message InternedV8WasmScript {
   optional int32 script_id = 2;
 
   optional string url = 3;
+  // Raw transferred wasm native module wire bytes.
+  optional bytes wire_bytes = 4;
 }
 
 message InternedV8JsFunction {
@@ -144,6 +146,8 @@ message InternedV8JsFunction {
   // Where in the script source this function is defined. This is counted in
   // bytes not characters.
   optional uint32 byte_offset = 6;
+  optional uint32 line = 7;
+  optional uint32 column = 8;
 }
 
 // A V8 Isolate instance. A V8 Isolate represents an isolated instance of the V8

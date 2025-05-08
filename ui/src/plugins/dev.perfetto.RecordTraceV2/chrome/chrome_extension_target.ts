@@ -24,7 +24,7 @@ import {TargetPlatformId} from '../interfaces/target_platform';
 import {ChromeExtensionTracingSession} from './chrome_extension_tracing_session';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
-const EXTENSION_URL = `g.co/chrome/tracing-extension`;
+const EXTENSION_URL = `https://g.co/chrome/tracing-extension`;
 
 export class ChromeExtensionTarget implements RecordingTarget {
   readonly id = 'chrome_extension';
@@ -34,7 +34,7 @@ export class ChromeExtensionTarget implements RecordingTarget {
   private port?: chrome.runtime.Port;
   private _connected = false;
   private _extensionVersion?: string;
-  private _connectPromise?: Deferred<void>;
+  private _connectPromise?: Deferred<boolean>;
   private chromeCategories?: string[];
   private chromeCategoriesPromise = defer<string[]>();
   private session?: ChromeExtensionTracingSession;
@@ -43,18 +43,14 @@ export class ChromeExtensionTarget implements RecordingTarget {
     yield {
       name: 'Tracing Extension',
       status: await (async (): Promise<Result<string>> => {
+        const err = errResult(`Not found. Please install ${EXTENSION_URL}`);
         if (!exists(window.chrome) || !exists(window.chrome.runtime)) {
-          return errResult(
-            'window.chrome.runtime not Available. ' +
-              'The extension is supported only in the Chrome browser',
-          );
+          return err;
         }
-        try {
-          await this.connectIfNeeded();
-        } catch {}
+        await this.connectIfNeeded();
         return this._connected
           ? okResult(`Connected (version: ${this._extensionVersion})`)
-          : errResult(`Not found. Please install ${EXTENSION_URL}`);
+          : err;
       })(),
     };
 
@@ -70,11 +66,11 @@ export class ChromeExtensionTarget implements RecordingTarget {
     }
   }
 
-  async connectIfNeeded(): Promise<void> {
+  async connectIfNeeded(): Promise<boolean> {
     if (!exists(window.chrome) || !exists(window.chrome.runtime)) {
-      return;
+      return false;
     }
-    if (this._connected) return;
+    if (this._connected) return true;
     this.port = window.chrome.runtime.connect(EXTENSION_ID);
     this.port.onMessage.addListener(this.onExtensionMessage.bind(this));
     this.port.onDisconnect.addListener(this.onExtensionDisconnect.bind(this));
@@ -83,13 +79,13 @@ export class ChromeExtensionTarget implements RecordingTarget {
     // Unfortunately the chrome.runtime API doesn't offer a way to tell if the
     // extension exists or not. The port is always connected. If the extension
     // doesn't exist, then we receive an onDisconnect soon after.
-    const retPromise = defer<void>();
+    const retPromise = defer<boolean>();
     this._connectPromise = retPromise;
 
     // This will trigger a promise resolution once the extension replies with
     // the version (in onExtensionMessage() below);
     this.invokeExtensionMethod('ExtensionVersion');
-    await retPromise;
+    return retPromise;
   }
 
   disconnect(): void {
@@ -112,15 +108,18 @@ export class ChromeExtensionTarget implements RecordingTarget {
 
   async getServiceState(): Promise<Result<protos.ITracingServiceState>> {
     const categories = await this.getChromeCategories();
-    return okResult(categoriesToServiceState(categories));
+    if (!categories.ok) return categories;
+    return okResult(categoriesToServiceState(categories.value));
   }
 
-  async getChromeCategories(): Promise<string[]> {
+  async getChromeCategories(): Promise<Result<string[]>> {
     if (this.chromeCategories === undefined) {
-      await this.connectIfNeeded();
+      if (!(await this.connectIfNeeded())) {
+        return errResult('Tracing extension not detected');
+      }
       this.chromeCategories = await this.chromeCategoriesPromise;
     }
-    return this.chromeCategories;
+    return okResult(this.chromeCategories);
   }
 
   async startTracing(
@@ -140,7 +139,7 @@ export class ChromeExtensionTarget implements RecordingTarget {
       this._extensionVersion = `${msg.version}`;
       const cp = this._connectPromise;
       this._connectPromise = undefined;
-      cp?.resolve();
+      cp?.resolve(true);
       this.invokeExtensionMethod('GetCategories');
       return;
     }
@@ -173,7 +172,7 @@ export class ChromeExtensionTarget implements RecordingTarget {
     this.port = undefined;
     this._connected = false;
     if (this._connectPromise) {
-      this._connectPromise.reject('Chrome Tracing extension not found');
+      this._connectPromise.resolve(false);
     }
     m.redraw();
   }

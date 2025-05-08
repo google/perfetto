@@ -41,11 +41,13 @@ extern "C" {
 
 // These functions are not thread safe unless specified otherwise.
 
-bool __attribute__((visibility("default")))
-ListCategories(TracingVendorCategory*, size_t* size_of_arr);
+bool __attribute__((visibility("default"))) ListCategories(
+    TracingVendorCategory*,
+    size_t* size_of_arr);
 
-bool __attribute__((visibility("default")))
-EnableCategories(const char** categories, size_t categories_count);
+bool __attribute__((visibility("default"))) EnableCategories(
+    const char** categories,
+    size_t categories_count);
 
 bool __attribute__((visibility("default"))) DisableAllCategories();
 

@@ -19,7 +19,7 @@ import {Icons} from '../../base/semantic_icons';
 import {duration} from '../../base/time';
 import {AppImpl} from '../../core/app_impl';
 import {Anchor} from '../../widgets/anchor';
-import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {Trace} from '../../public/trace';
 import {formatDuration} from '../time_utils';
 import {DurationPrecisionMenuItem} from './duration_precision_menu_items';
@@ -44,14 +44,13 @@ export class DurationWidget implements m.ClassComponent<DurationWidgetAttrs> {
   view({attrs}: m.Vnode<DurationWidgetAttrs>) {
     const {dur} = attrs;
 
-    if (dur === -1n) {
-      return '(Did not end)';
-    }
+    const value: m.Children =
+      dur === -1n ? m('i', '(Did not end)') : formatDuration(this.trace, dur);
 
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
-        trigger: m(Anchor, formatDuration(this.trace, dur)),
+        trigger: m(Anchor, value),
       },
       m(MenuItem, {
         icon: Icons.Copy,

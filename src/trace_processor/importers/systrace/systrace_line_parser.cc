@@ -56,7 +56,7 @@ SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
       waker_utid_id_(ctx->storage->InternString("waker_utid")),
       unknown_thread_name_id_(ctx->storage->InternString("<...>")) {}
 
-util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
+base::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
   const StringId line_task_id{
       context_->storage->InternString(base::StringView(line.task))};
   auto utid = context_->process_tracker->UpdateThreadName(
@@ -109,7 +109,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
 
     if (!(prev_pid.has_value() && prev_prio.has_value() &&
           next_pid.has_value() && next_prio.has_value())) {
-      return util::Status("Could not parse sched_switch");
+      return base::Status("Could not parse sched_switch");
     }
 
     FtraceSchedEventTracker::GetOrCreate(context_)->PushSchedSwitch(
@@ -123,7 +123,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     auto comm = args["comm"];
     std::optional<uint32_t> wakee_pid = base::StringToUInt32(args["pid"]);
     if (!wakee_pid.has_value()) {
-      return util::Status("Could not convert wakee_pid");
+      return base::Status("Could not convert wakee_pid");
     }
 
     StringId name_id = context_->storage->InternString(base::StringView(comm));
@@ -137,10 +137,10 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     std::optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
     std::optional<double> new_state = base::StringToDouble(args["state"]);
     if (!event_cpu.has_value()) {
-      return util::Status("Could not convert event cpu");
+      return base::Status("Could not convert event cpu");
     }
     if (!event_cpu.has_value()) {
-      return util::Status("Could not convert state");
+      return base::Status("Could not convert state");
     }
 
     TrackId track = context_->track_tracker->InternTrack(
@@ -150,10 +150,10 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     std::optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
     std::optional<double> new_state = base::StringToDouble(args["state"]);
     if (!event_cpu.has_value()) {
-      return util::Status("Could not convert event cpu");
+      return base::Status("Could not convert event cpu");
     }
     if (!event_cpu.has_value()) {
-      return util::Status("Could not convert state");
+      return base::Status("Could not convert state");
     }
 
     TrackId track = context_->track_tracker->InternTrack(
@@ -171,16 +171,16 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     std::string code_str = args["code"] + " Java Layer Dependent";
     StringId code = context_->storage->InternString(base::StringView(code_str));
     if (!dest_tgid.has_value()) {
-      return util::Status("Could not convert dest_tgid");
+      return base::Status("Could not convert dest_tgid");
     }
     if (!dest_tid.has_value()) {
-      return util::Status("Could not convert dest_tid");
+      return base::Status("Could not convert dest_tid");
     }
     if (!id.has_value()) {
-      return util::Status("Could not convert transaction id");
+      return base::Status("Could not convert transaction id");
     }
     if (!dest_node.has_value()) {
-      return util::Status("Could not covert dest node");
+      return base::Status("Could not covert dest node");
     }
     BinderTracker::GetOrCreate(context_)->Transaction(
         line.ts, line.pid, id.value(), dest_node.value(), dest_tgid.value(),
@@ -188,21 +188,21 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
   } else if (line.event_name == "binder_transaction_received") {
     auto id = base::StringToInt32(args["transaction"]);
     if (!id.has_value()) {
-      return util::Status("Could not convert transaction id");
+      return base::Status("Could not convert transaction id");
     }
     BinderTracker::GetOrCreate(context_)->TransactionReceived(line.ts, line.pid,
                                                               id.value());
   } else if (line.event_name == "binder_command") {
     auto id = base::StringToUInt32(args["cmd"], 0);
     if (!id.has_value()) {
-      return util::Status("Could not convert cmd ");
+      return base::Status("Could not convert cmd ");
     }
     BinderTracker::GetOrCreate(context_)->CommandToKernel(line.ts, line.pid,
                                                           id.value());
   } else if (line.event_name == "binder_return") {
     auto id = base::StringToUInt32(args["cmd"], 0);
     if (!id.has_value()) {
-      return util::Status("Could not convert cmd");
+      return base::Status("Could not convert cmd");
     }
     BinderTracker::GetOrCreate(context_)->ReturnFromKernel(line.ts, line.pid,
                                                            id.value());
@@ -216,17 +216,17 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     auto data_size = base::StringToUInt64(args["data_size"]);
     auto offsets_size = base::StringToUInt64(args["offsets_size"]);
     if (!data_size.has_value()) {
-      return util::Status("Could not convert data size");
+      return base::Status("Could not convert data size");
     }
     if (!offsets_size.has_value()) {
-      return util::Status("Could not convert offsets size");
+      return base::Status("Could not convert offsets size");
     }
     BinderTracker::GetOrCreate(context_)->TransactionAllocBuf(
         line.ts, line.pid, data_size.value(), offsets_size.value());
   } else if (line.event_name == "clock_set_rate") {
     auto rate = base::StringToUInt32(args["state"]);
     if (!rate.has_value()) {
-      return util::Status("Could not convert state");
+      return base::Status("Could not convert state");
     }
     TrackId track = context_->track_tracker->InternTrack(
         tracks::kClockFrequencyBlueprint,
@@ -236,7 +236,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
              line.event_name == "clock_disable") {
     auto rate = base::StringToUInt32(args["state"]);
     if (!rate.has_value()) {
-      return util::Status("Could not convert state");
+      return base::Status("Could not convert state");
     }
     TrackId track = context_->track_tracker->InternTrack(
         tracks::kClockStateBlueprint,
@@ -257,7 +257,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
         tracks::Dimensions(base::StringView(args["thermal_zone"])));
     auto temp = base::StringToInt32(args["temp"]);
     if (!temp.has_value()) {
-      return util::Status("Could not convert temp");
+      return base::Status("Could not convert temp");
     }
     context_->event_tracker->PushCounter(line.ts, temp.value(), track);
   } else if (line.event_name == "cdev_update") {
@@ -266,18 +266,18 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
         tracks::Dimensions(base::StringView(args["type"])));
     auto target = base::StringToDouble(args["target"]);
     if (!target.has_value()) {
-      return util::Status("Could not convert target");
+      return base::Status("Could not convert target");
     }
     context_->event_tracker->PushCounter(line.ts, target.value(), track);
   } else if (line.event_name == "sched_blocked_reason") {
     auto wakee_pid = base::StringToUInt32(args["pid"]);
     if (!wakee_pid.has_value()) {
-      return util::Status("sched_blocked_reason: could not parse wakee_pid");
+      return base::Status("sched_blocked_reason: could not parse wakee_pid");
     }
     auto wakee_utid = context_->process_tracker->GetOrCreateThread(*wakee_pid);
     auto io_wait = base::StringToInt32(args["iowait"]);
     if (!io_wait.has_value()) {
-      return util::Status("sched_blocked_reason: could not parse io_wait");
+      return base::Status("sched_blocked_reason: could not parse io_wait");
     }
     StringId blocked_function =
         context_->storage->InternString(base::StringView(args["caller"]));
@@ -290,10 +290,10 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     auto mm_id = base::StringToInt64(args["mm_id"]);
     auto opt_curr = base::StringToUInt32(args["curr"]);
     if (!size.has_value()) {
-      return util::Status("rss_stat: could not parse size");
+      return base::Status("rss_stat: could not parse size");
     }
     if (!member.has_value()) {
-      return util::Status("rss_stat: could not parse member");
+      return base::Status("rss_stat: could not parse member");
     }
     std::optional<bool> curr;
     if (!opt_curr.has_value()) {
@@ -303,7 +303,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
                                    mm_id);
   }
 
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor

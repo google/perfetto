@@ -27,6 +27,7 @@ import shutil
 import subprocess
 import sys
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Set
 from typing import Tuple
@@ -333,6 +334,8 @@ class GnParser(object):
       # bubbled-up sources.
       self.public_headers = set()  # 'public'
 
+      self.metadata: Dict[str, List[str]] = dict()
+
       # These are valid only for type == 'action'
       self.data = set()
       self.inputs = set()
@@ -341,6 +344,21 @@ class GnParser(object):
       self.args = []
       self.custom_action_type = None
       self.python_main = None
+      # Used only when custom_action_type
+      # in ['perfetto_android_library', 'perfetto_android_app']
+      self.manifest: Optional[str] = None
+      # Used only when custom_action_type == 'perfetto_android_app'
+      self.resource_files: Optional[str] = None
+      # Used only when custom_action_type == 'perfetto_android_app'
+      self.instruments: Optional[str] = None
+      # Used only when custom_action_type == 'perfetto_android_library'
+      self.android_bp_generate_java_target = False
+      # Used only when
+      # custom_action_type == 'perfetto_android_instrumentation_test'
+      self.a_i_t_app: Optional[str] = None
+      self.a_i_t_test_app: Optional[str] = None
+      self.a_i_t_android_bp_test_manifest: Optional[str] = None
+      self.a_i_t_android_bp_test_config: Optional[str] = None
 
       # These variables are propagated up when encountering a dependency
       # on a source_set target.
@@ -377,6 +395,17 @@ class GnParser(object):
     def transitive_source_set_deps(self):
       return set(d for d in self.transitive_deps if d.type == 'source_set')
 
+    def custom_target_type(self) -> Optional[str]:
+      custom_bazel_type = self.metadata.get('perfetto_custom_target_type')
+      return custom_bazel_type[0] if custom_bazel_type else None
+
+    def linkopts(self) -> List[str]:
+      return self.metadata.get('perfetto_bazel_argument_linkopts', [])
+
+    def binary_name(self) -> Optional[str]:
+      binary_name = self.metadata.get('perfetto_argument_binary_name')
+      return binary_name[0] if binary_name else None
+
     def __lt__(self, other):
       if isinstance(other, self.__class__):
         return self.name < other.name
@@ -385,13 +414,18 @@ class GnParser(object):
           (type(self).__name__, type(other).__name__))
 
     def __repr__(self):
-      return json.dumps(
-          {
-              k: (list(sorted(v)) if isinstance(v, set) else v)
-              for (k, v) in iteritems(self.__dict__)
-          },
-          indent=4,
-          sort_keys=True)
+      serializable_dict = dict()
+      # 'set' is not serializable type, so we convert sets to the sorted lists
+      # 'deps' and 'transitive_deps' fields are 'Set[Target]', we don't want to
+      # recursively dump all Targets, so we convert them to the list of names.
+      for (k, v) in iteritems(self.__dict__):
+        vv = v
+        if k == "deps" or k == "transitive_deps":
+          vv = sorted([target.name for target in v])
+        if isinstance(vv, set):
+          vv = sorted(vv)
+        serializable_dict[k] = vv
+      return json.dumps(serializable_dict, indent=4, sort_keys=True)
 
     def update(self, other):
       for key in ('cflags', 'data', 'defines', 'deps', 'include_dirs',
@@ -436,6 +470,8 @@ class GnParser(object):
       target.is_third_party_dep_ = True
       return target
 
+    target.metadata = desc.get('metadata', {})
+
     proto_target_type, proto_desc = self.get_proto_target_type(target)
     if proto_target_type:
       assert proto_desc
@@ -456,7 +492,7 @@ class GnParser(object):
       target.sources.update(desc.get('sources', []))
     elif target.type == 'action':
       self.actions[gn_target_name] = target
-      target.data.update(desc.get('metadata', {}).get('perfetto_data', []))
+      target.data.update(target.metadata.get('perfetto_data', []))
       target.inputs.update(desc.get('inputs', []))
       target.sources.update(desc.get('sources', []))
       outs = [re.sub('^//out/.+?/gen/', '', x) for x in desc['outputs']]
@@ -465,12 +501,34 @@ class GnParser(object):
       # Args are typically relative to the root build dir (../../xxx)
       # because root build dir is typically out/xxx/).
       target.args = [re.sub('^../../', '//', x) for x in desc['args']]
-      action_types = desc.get('metadata',
-                              {}).get('perfetto_action_type_for_generator', [])
-      target.custom_action_type = action_types[0] if len(
-          action_types) > 0 else None
-      python_main = desc.get('metadata', {}).get('perfetto_python_main', [])
+      action_types = target.metadata.get('perfetto_action_type_for_generator')
+      target.custom_action_type = action_types[0] if action_types else None
+      python_main = target.metadata.get('perfetto_python_main')
       target.python_main = python_main[0] if python_main else None
+      manifest = target.metadata.get('perfetto_android_manifest')
+      if manifest:
+        target.manifest = manifest[0]
+      resource_files = target.metadata.get(
+          'perfetto_android_resource_files_glob')
+      if resource_files:
+        target.resource_files = resource_files[0]
+        assert (target.resource_files.endswith('/**/*'))
+      generate_java_target = target.metadata.get(
+          'perfetto_android_library_android_bp_generate_java_target')
+      if generate_java_target:
+        target.android_bp_generate_java_target = bool(generate_java_target[0])
+      a_i_t_app = target.metadata.get('perfetto_android_a_i_t_app')
+      target.a_i_t_app = a_i_t_app[0] if a_i_t_app else None
+      a_i_t_test_app = target.metadata.get('perfetto_android_a_i_t_test_app')
+      target.a_i_t_test_app = a_i_t_test_app[0] if a_i_t_test_app else None
+      a_i_t_android_bp_test_manifest = target.metadata.get(
+          'perfetto_android_a_i_t_android_bp_test_manifest')
+      target.a_i_t_android_bp_test_manifest = a_i_t_android_bp_test_manifest[
+          0] if a_i_t_android_bp_test_manifest else None
+      a_i_t_android_bp_test_config = target.metadata.get(
+          'perfetto_android_a_i_t_android_bp_test_config')
+      target.a_i_t_android_bp_test_config = a_i_t_android_bp_test_config[
+          0] if a_i_t_android_bp_test_config else None
 
     # Default for 'public' is //* - all headers in 'sources' are public.
     # TODO(primiano): if a 'public' section is specified (even if empty), then
@@ -521,6 +579,20 @@ class GnParser(object):
         target.update(dep)  # Bubble up source set's cflags/ldflags etc.
       elif dep.type == 'proto_library':
         target.proto_paths.update(dep.proto_paths)
+
+      if (target.custom_action_type == 'perfetto_android_library' or
+          target.custom_action_type == 'perfetto_android_app'):
+        jni_library = dep.type == 'shared_library' and dep.custom_target_type(
+        ) == 'perfetto_android_jni_library'
+        android_lib = dep.custom_action_type == 'perfetto_android_library'
+        assert (jni_library or android_lib or dep.is_third_party_dep_)
+
+      if target.custom_action_type == 'perfetto_android_instrumentation_test':
+        assert (dep.custom_action_type == 'perfetto_android_app')
+        assert (dep.name == target.a_i_t_app or
+                dep.name == target.a_i_t_test_app)
+        if dep.name == target.a_i_t_test_app:
+          dep.instruments = target.a_i_t_app
 
       target.deps.add(dep)
       target.transitive_deps.add(dep)

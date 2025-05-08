@@ -60,6 +60,12 @@ message ProcessStatsConfig {
   optional bool resolve_process_fds = 9;
 
   // If true, output will include memory stats from /proc/pid/smaps_rollup.
+  //
+  // Does NOT work with the Android system daemon by default, as it requires
+  // running the recording process (traced_probes or tracebox) as root. It is
+  // possible to avoid the root requirement, but the exact steps depend on the
+  // Linux distibution. The proc file requires passing a PTRACE_MODE_READ
+  // check, and might be further covered by the procfs "hidepid" mount option.
   optional bool scan_smaps_rollup = 10;
 
   // If true: process descriptions will include process age (starttime in

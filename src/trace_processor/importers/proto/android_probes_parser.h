@@ -24,6 +24,7 @@
 
 namespace perfetto::trace_processor {
 
+class ArgsTracker;
 class TraceProcessorContext;
 
 class AndroidProbesParser {
@@ -43,9 +44,11 @@ class AndroidProbesParser {
   void ParseInitialDisplayState(int64_t ts, ConstBytes);
   void ParseAndroidSystemProperty(int64_t ts, ConstBytes);
   void ParseAndroidGameIntervention(ConstBytes);
+  void ParseBtTraceEvent(int64_t ts, ConstBytes);
 
  private:
   TraceProcessorContext* const context_;
+  std::unique_ptr<ArgsTracker> power_rails_args_tracker_;
 
   const StringId battery_status_id_;
   const StringId plug_type_id_;
@@ -53,6 +56,14 @@ class AndroidProbesParser {
   const StringId energy_consumer_id_;
   const StringId consumer_type_id_;
   const StringId ordinal_id_;
+  const StringId bt_trace_event_id_;
+  const StringId bt_packet_type_id_;
+  const StringId bt_count_id_;
+  const StringId bt_length_id_;
+  const StringId bt_op_code_id_;
+  const StringId bt_event_code_id_;
+  const StringId bt_subevent_code_id_;
+  const StringId bt_handle_id_;
 };
 }  // namespace perfetto::trace_processor
 

@@ -51,6 +51,7 @@ using ::perfetto::protos::pbzero::InternedV8Isolate;
 using ::perfetto::protos::pbzero::InternedV8JsFunction;
 using ::perfetto::protos::pbzero::InternedV8JsScript;
 using ::perfetto::protos::pbzero::InternedV8WasmScript;
+using ::perfetto::protos::pbzero::V8CodeMove;
 using ::perfetto::protos::pbzero::V8InternalCode;
 using ::perfetto::protos::pbzero::V8JsCode;
 using ::perfetto::protos::pbzero::V8RegExpCode;
@@ -321,6 +322,8 @@ tables::V8WasmScriptTable::Id V8Tracker::InternWasmScript(
   row.v8_isolate_id = isolate_id;
   row.internal_script_id = script.script_id();
   row.url = context_->storage->InternString(script.url());
+  row.wire_bytes_base64 = context_->storage->InternString(base::StringView(
+      base::Base64Encode(script.wire_bytes().data, script.wire_bytes().size)));
 
   tables::V8WasmScriptTable::Id script_id =
       context_->storage->mutable_v8_wasm_script_table()->Insert(row).id;
@@ -341,10 +344,13 @@ tables::V8JsFunctionTable::Id V8Tracker::InternJsFunction(
   row.is_toplevel = function.is_toplevel();
   row.kind =
       context_->storage->InternString(JsFunctionKindToString(function.kind()));
-  // TODO(carlscab): Line and column are hard. Offset is in bytes, line and
-  // column are in characters and we potentially have a multi byte encoding
-  // (UTF16). Good luck!
-  if (function.has_byte_offset()) {
+  if (function.has_line() && function.has_column()) {
+    row.line = function.line();
+    row.col = function.column();
+  } else if (function.has_byte_offset()) {
+    // TODO(carlscab): Line and column are hard. Offset is in bytes, line and
+    // column are in characters and we potentially have a multi byte encoding
+    // (UTF16). Good luck!
     row.line = 1;
     row.col = function.byte_offset();
   }
@@ -518,6 +524,24 @@ void V8Tracker::AddRegExpCode(int64_t timestamp,
 
   context_->storage->mutable_v8_regexp_code_table()->Insert(
       {jit_code_id, isolate_id, pattern});
+}
+
+void V8Tracker::MoveCode(int64_t timestamp,
+                         UniqueTid utid,
+                         IsolateId isolate_id,
+                         const V8CodeMove::Decoder& code) {
+  if (!code.has_from_instruction_start_address())
+    return;
+
+  const AddressRange code_range = AddressRange::FromStartAndSize(
+      code.from_instruction_start_address(), code.instruction_size_bytes());
+  JitCache* const jit_cache = FindJitCache(isolate_id, code_range);
+  if (!jit_cache) {
+    return;
+  }
+
+  jit_cache->MoveCode(timestamp, utid, code.from_instruction_start_address(),
+                      code.to_instruction_start_address());
 }
 
 StringId V8Tracker::InternV8String(const V8String::Decoder& v8_string) {

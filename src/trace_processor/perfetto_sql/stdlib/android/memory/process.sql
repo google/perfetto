@@ -14,18 +14,18 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE android.oom_adjuster;
+
 INCLUDE PERFETTO MODULE linux.memory.process;
 
 -- OOM score tables
 
-CREATE VIRTUAL TABLE _mem_ooms_sj
-USING SPAN_OUTER_JOIN(
+CREATE VIRTUAL TABLE _mem_ooms_sj USING SPAN_OUTER_JOIN (
   android_oom_adj_intervals PARTITIONED upid,
   _memory_rss_and_swap_per_process_table PARTITIONED upid);
 
 -- Process memory and it's OOM adjuster scores. Detects transitions, each new
 -- interval means that either the memory or OOM adjuster score of the process changed.
-CREATE PERFETTO TABLE memory_oom_score_with_rss_and_swap_per_process(
+CREATE PERFETTO TABLE memory_oom_score_with_rss_and_swap_per_process (
   -- Timestamp the oom_adj score or memory of the process changed
   ts TIMESTAMP,
   -- Duration until the next oom_adj score or memory change of the process.
@@ -90,9 +90,10 @@ SELECT
   anon_rss,
   file_rss,
   shmem_rss,
-  file_rss + anon_rss + COALESCE(shmem_rss, 0) AS rss,
+  file_rss + anon_rss + coalesce(shmem_rss, 0) AS rss,
   swap,
-  anon_rss + COALESCE(swap, 0) AS anon_rss_and_swap,
-  anon_rss + file_rss  + COALESCE(shmem_rss, 0) + COALESCE(swap, 0) AS rss_and_swap
+  anon_rss + coalesce(swap, 0) AS anon_rss_and_swap,
+  anon_rss + file_rss + coalesce(shmem_rss, 0) + coalesce(swap, 0) AS rss_and_swap
 FROM _mem_ooms_sj
-JOIN process USING (upid);
+JOIN process
+  USING (upid);

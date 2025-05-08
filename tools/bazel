@@ -18,6 +18,41 @@ import sys
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
+
+ANDROID_SDK_DIR = os.path.join(ROOT_DIR, 'buildtools', 'android_sdk')
+if not os.path.exists(ANDROID_SDK_DIR):
+  print("""Could not find hermetic Android SDK installation.
+Please run: 'tools/install-build-deps --android'""")
+  sys.exit(1)
+
+ANDROID_NDK_DIR = os.path.join(ROOT_DIR, 'buildtools', 'ndk')
+if not os.path.exists(ANDROID_NDK_DIR):
+  print("""Could not find hermetic Android NDK installation.
+Please run: 'tools/install-build-deps --android'""")
+  sys.exit(1)
+
+os.environ['ANDROID_HOME'] = ANDROID_SDK_DIR
+os.environ['ANDROID_NDK_HOME'] = ANDROID_NDK_DIR
+
+# There are two ways to provide Android SDK and NDK locations to a Bazel build:
+# 1. Using standard environment variables (ANDROID_HOME and ANDROID_NDK_HOME)
+# 2. Using the 'android_sdk_repository_extension.configure' API in the
+# MODULE.bazel file
+#
+# The second option overrides the environment variables that are usually
+# already set on the developer's machine.
+# This leads to a situation where the `adb` tool used to push Android tests to
+# the local device or emulator during the build differs from the version already
+# running (e.g., used by the Android Studio Logcat viewer).
+# When this happens, the ADB daemon restarts, leading to slower test execution
+# and sometimes obscure test errors.
+# To overcome this, we enforce the use of environment variables
+# only when using this 'tools/bazel' script, which allows developers to use a
+# local version of Bazel together with the local version of the SDK and NDK.
+# We explicitly specify the required Android SDK version in MODULE.bazel, which
+# ensures that if the local SDK is used, it is the correct version.
+
 __package__ = 'tools'
 from .run_buildtools_binary import run_buildtools_binary
+
 run_buildtools_binary(['bazel'] + sys.argv[1:])

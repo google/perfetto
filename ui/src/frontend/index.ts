@@ -35,7 +35,7 @@ import {postMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
-import {ViewerPage} from './viewer_page/viewer_page';
+import {renderViewerPage} from './viewer_page/viewer_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
@@ -82,6 +82,7 @@ function setupContentSecurityPolicy() {
   let rpcPolicy = [
     'http://127.0.0.1:9001', // For trace_processor_shell --httpd.
     'ws://127.0.0.1:9001', // Ditto, for the websocket RPC.
+    'ws://127.0.0.1:9167', // For Web Device Proxy.
   ];
   if (CSP_WS_PERMISSIVE_PORT.get()) {
     const route = Router.parseUrl(window.location.href);
@@ -215,9 +216,8 @@ function onCssLoaded() {
   document.body.innerHTML = '';
 
   const pages = AppImpl.instance.pages;
-  const traceless = true;
-  pages.registerPage({route: '/', traceless, page: HomePage});
-  pages.registerPage({route: '/viewer', page: ViewerPage});
+  pages.registerPage({route: '/', render: () => m(HomePage)});
+  pages.registerPage({route: '/viewer', render: () => renderViewerPage()});
   const router = new Router();
   router.onRouteChanged = routeChange;
 

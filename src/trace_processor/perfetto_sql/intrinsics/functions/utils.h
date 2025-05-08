@@ -264,7 +264,7 @@ base::Status WriteFile::Run(TraceStorage*,
 
   out = SqlValue::Long(int_len);
 
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 struct ExtractArg : public SqlFunction {

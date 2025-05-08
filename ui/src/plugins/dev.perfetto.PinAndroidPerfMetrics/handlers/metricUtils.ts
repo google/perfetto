@@ -44,6 +44,7 @@ export interface CujScopedMetricData {
 /**
  * Represents data for a Blocking Call metric
  * Eg.- perfetto_android_blocking_call-cuj-name-com.google.android.apps.nexuslauncher-name-TASKBAR_EXPAND-blocking_calls-name-animation-total_dur_ms-mean
+ * Eg.- perfetto_android_blocking_call_per_frame-cuj-name-com.android.systemui-name-NOTIFICATION_SHADE_EXPAND_COLLAPSE::Collapse-blocking_calls-name-input-mean_dur_per_frame_ns-max
  */
 export interface BlockingCallMetricData {
   /** Process name (e.g., com.google.android.apps.nexuslauncher) */

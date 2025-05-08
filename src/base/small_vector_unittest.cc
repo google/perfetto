@@ -176,7 +176,9 @@ TEST_P(SmallVectorTestP, MoveOperators) {
     EXPECT_TRUE(v1[i].constructed);
   }
 
-  { auto destroy = std::move(v1); }
+  {
+    auto destroy = std::move(v1);
+  }
 
   EXPECT_EQ(g_instances, 0);
 }

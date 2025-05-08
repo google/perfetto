@@ -149,8 +149,8 @@ RowMap Table::QueryToRowMap(const Query& q) const {
   // over them), using a combination of dead code elimination and linker
   // stripping all chain related code be removed.
   //
-  // From rough benchmarking, this has a negligible impact on peformance as this
-  // branch is almost never taken.
+  // From rough benchmarking, this has a negligible impact on performance as
+  // this branch is almost never taken.
   if (PERFETTO_UNLIKELY(chains_.size() != columns_.size())) {
     CreateChains();
   }

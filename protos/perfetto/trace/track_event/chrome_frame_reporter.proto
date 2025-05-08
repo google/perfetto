@@ -18,7 +18,13 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+// DEPRECATED. Only kept for backwards compatibility. Use |ChromeFrameReporter2|
+// in
+// https://source.chromium.org/chromium/chromium/src/+/main:base/tracing/protos/chrome_track_event.proto
+// instead.
 message ChromeFrameReporter {
+  option deprecated = true;
+
   enum State {
     // The frame did not have any updates to present.
     STATE_NO_UPDATE_DESIRED = 0;
@@ -121,4 +127,12 @@ message ChromeFrameReporter {
 
   // Whether the frame contained any content that is not fully recorded.
   optional bool checkerboarded_needs_record = 16;
+
+  // viz::BeginFrameArgs.trace_id of the frame (before surface aggregation). See
+  // also ChromeTrackEvent.EventLatency.surface_frame_trace_id.
+  optional int64 surface_frame_trace_id = 17;
+
+  // gfx::PresentationFeedback.display_trace_id of the frame (after surface
+  // aggregation). See also ChromeTrackEvent.EventLatency.display_trace_id.
+  optional int64 display_trace_id = 18;
 }

@@ -18,19 +18,20 @@ from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
+
 class AndroidInputEvent(TestSuite):
 
   def test_key_events_table(self):
     return DiffTestBlueprint(
-      trace=Path('input_event_trace.textproto'),
-      query="""
+        trace=Path('input_event_trace.textproto'),
+        query="""
         INCLUDE PERFETTO MODULE android.input;
         SELECT
           event_id, ts
         FROM
           android_key_events;
         """,
-      out=Csv("""
+        out=Csv("""
         "event_id","ts"
         759309047,674773501245024
         894093732,674773509276111
@@ -38,8 +39,8 @@ class AndroidInputEvent(TestSuite):
 
   def test_key_events_args(self):
     return DiffTestBlueprint(
-      trace=Path('input_event_trace.textproto'),
-      query="""
+        trace=Path('input_event_trace.textproto'),
+        query="""
         INCLUDE PERFETTO MODULE android.input;
         SELECT
           args.key, args.display_value
@@ -48,7 +49,7 @@ class AndroidInputEvent(TestSuite):
         WHERE e.event_id = 894093732
         ORDER BY args.key;
         """,
-      out=Csv("""
+        out=Csv("""
         "key","display_value"
         "action","1"
         "device_id","2"
@@ -67,15 +68,15 @@ class AndroidInputEvent(TestSuite):
 
   def test_motion_events_table(self):
     return DiffTestBlueprint(
-      trace=Path('input_event_trace.textproto'),
-      query="""
+        trace=Path('input_event_trace.textproto'),
+        query="""
         INCLUDE PERFETTO MODULE android.input;
         SELECT
           event_id, ts
         FROM
           android_motion_events;
         """,
-      out=Csv("""
+        out=Csv("""
         "event_id","ts"
         330184796,674772186549222
         1327679296,674772186549222
@@ -87,8 +88,8 @@ class AndroidInputEvent(TestSuite):
 
   def test_motion_events_args(self):
     return DiffTestBlueprint(
-      trace=Path('input_event_trace.textproto'),
-      query="""
+        trace=Path('input_event_trace.textproto'),
+        query="""
         INCLUDE PERFETTO MODULE android.input;
         SELECT
           args.key, args.display_value
@@ -97,7 +98,7 @@ class AndroidInputEvent(TestSuite):
         WHERE e.event_id = 557261353
         ORDER BY args.key;
         """,
-      out=Csv("""
+        out=Csv("""
         "key","display_value"
         "action","2"
         "classification","1"
@@ -136,15 +137,15 @@ class AndroidInputEvent(TestSuite):
 
   def test_dispatch_table(self):
     return DiffTestBlueprint(
-      trace=Path('input_event_trace.textproto'),
-      query="""
+        trace=Path('input_event_trace.textproto'),
+        query="""
         INCLUDE PERFETTO MODULE android.input;
         SELECT
           id, event_id, vsync_id, window_id
         FROM
           android_input_event_dispatch;
         """,
-      out=Csv("""
+        out=Csv("""
         "id","event_id","vsync_id","window_id"
         0,1327679296,89110,98
         1,330184796,89110,212
@@ -180,8 +181,8 @@ class AndroidInputEvent(TestSuite):
 
   def test_motion_dispatch_args(self):
     return DiffTestBlueprint(
-      trace=Path('input_event_trace.textproto'),
-      query="""
+        trace=Path('input_event_trace.textproto'),
+        query="""
         INCLUDE PERFETTO MODULE android.input;
         SELECT
           d.id, args.key, args.display_value
@@ -190,7 +191,7 @@ class AndroidInputEvent(TestSuite):
         WHERE d.event_id = 330184796
         ORDER BY d.id, args.key;
         """,
-      out=Csv("""
+        out=Csv("""
         "id","key","display_value"
         1,"dispatched_pointer[0].axis_value_in_window[0].axis","0"
         1,"dispatched_pointer[0].axis_value_in_window[0].value","1936.0"
@@ -261,8 +262,8 @@ class AndroidInputEvent(TestSuite):
 
   def test_key_dispatch_args(self):
     return DiffTestBlueprint(
-      trace=Path('input_event_trace.textproto'),
-      query="""
+        trace=Path('input_event_trace.textproto'),
+        query="""
         INCLUDE PERFETTO MODULE android.input;
         SELECT
           d.id, args.key, args.display_value
@@ -271,7 +272,7 @@ class AndroidInputEvent(TestSuite):
         WHERE d.event_id = 759309047
         ORDER BY d.id, args.key;
         """,
-      out=Csv("""
+        out=Csv("""
         "id","key","display_value"
         26,"event_id","759309047"
         26,"resolved_flags","8"
@@ -288,14 +289,14 @@ class AndroidInputEvent(TestSuite):
         trace=Path('input_event_trace.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.input;
-        SELECT COUNT(*) FROM android_key_events
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        SELECT COUNT(*) FROM __intrinsic_android_key_events
+        WHERE base64_proto_id IS NOT NULL
         UNION ALL
-        SELECT COUNT(*) FROM android_motion_events
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        SELECT COUNT(*) FROM __intrinsic_android_motion_events
+        WHERE base64_proto_id IS NOT NULL
         UNION ALL
-        SELECT COUNT(*) FROM android_input_event_dispatch
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        SELECT COUNT(*) FROM __intrinsic_android_input_event_dispatch
+        WHERE base64_proto_id IS NOT NULL
         """,
         out=Csv("""
         "COUNT(*)"

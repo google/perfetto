@@ -22,10 +22,8 @@ import {AdbKey} from './adb_key';
 const KEY_IN_MEMORY_TIMEOUT = 1000 * 60 * 30; // 30 minutes
 
 export class AdbKeyManager {
-  // private key?: AdbKey;
   private expiryTimerId = -1;
   private key = new AsyncLazy<AdbKey>();
-  // private asyncGuard = new AsyncGuard<AdbKey | undefined>();
 
   // Finds a key, by priority:
   // - Look in memory (i.e. this.key)

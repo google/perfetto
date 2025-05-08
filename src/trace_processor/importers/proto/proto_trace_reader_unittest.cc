@@ -44,7 +44,7 @@ class ProtoTraceReaderTest : public ::testing::Test {
     proto_trace_reader_ = std::make_unique<ProtoTraceReader>(&context_);
   }
 
-  util::Status Tokenize() {
+  base::Status Tokenize() {
     trace_->Finalize();
     std::vector<uint8_t> trace_bytes = trace_.SerializeAsArray();
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[trace_bytes.size()]);
@@ -191,7 +191,7 @@ TEST_F(ProtoTraceReaderTest, CalculateClockOffset_MultiRounds) {
   snapshots[BOOTTIME] = {140000, 20000};
   sync_clock_snapshots.push_back(std::move(snapshots));
 
-  // The interval works as a delimeter of IPC exchange.
+  // The interval works as a delimiter of IPC exchange.
   auto interval = 30ull * 1000 * 1000 * 1000;
 
   // This emits clock offsets: (30000 + 45000) / 2 - 160000 = -122500,

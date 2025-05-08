@@ -19,7 +19,7 @@
 
 #include "perfetto/trace_processor/status.h"
 
-// Evaluates |expr|, which should return a util::Status. If the status is an
+// Evaluates |expr|, which should return a base::Status. If the status is an
 // error status, returns the status from the current function.
 #define RETURN_IF_ERROR(expr)                           \
   do {                                                  \

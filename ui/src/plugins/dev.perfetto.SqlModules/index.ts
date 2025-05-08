@@ -23,28 +23,37 @@ import {extensions} from '../../components/extensions';
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
   private sqlModules?: SqlModules;
+  private tables?: string[];
 
   async onTraceLoad(ctx: Trace) {
-    const resp = await fetch(assetSrc('stdlib_docs.json'));
-    const json = await resp.json();
+    this.loadJson(ctx);
+  }
+
+  private async loadJson(ctx: Trace) {
+    const x = await fetch(assetSrc('stdlib_docs.json'));
+    const json = await x.json();
     const docs = SQL_MODULES_DOCS_SCHEMA.parse(json);
     const sqlModules = new SqlModulesImpl(docs);
+
     this.sqlModules = sqlModules;
+    this.tables = sqlModules.listTablesNames();
 
     ctx.commands.registerCommand({
       id: 'perfetto.OpenSqlModulesTable',
       name: 'Open table...',
       callback: async () => {
-        const tables = sqlModules.listTables();
-        const tableName = await ctx.omnibox.prompt('Choose a table...', tables);
-        if (tableName === undefined) {
+        const chosenTable = await ctx.omnibox.prompt(
+          'Choose a table...',
+          this.tables,
+        );
+        if (chosenTable === undefined) {
           return;
         }
-        const module = sqlModules.getModuleForTable(tableName);
+        const module = sqlModules.getModuleForTable(chosenTable);
         if (module === undefined) {
           return;
         }
-        const sqlTable = module.getSqlTableDescription(tableName);
+        const sqlTable = module.getSqlTableDescription(chosenTable);
         sqlTable &&
           extensions.addLegacySqlTableTab(ctx, {
             table: sqlTable,
@@ -53,7 +62,11 @@ export default class implements PerfettoPlugin {
     });
   }
 
-  getSqlModules() {
+  getSqlModules(): SqlModules {
     return assertExists(this.sqlModules);
+  }
+
+  getSqlTables(): string[] {
+    return assertExists(this.tables);
   }
 }

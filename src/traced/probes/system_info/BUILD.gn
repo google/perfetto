@@ -17,6 +17,7 @@ import("../../../../gn/test.gni")
 source_set("system_info") {
   public_deps = [ "../../../tracing/core" ]
   deps = [
+    ":cpu_info_features_allowlist",
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
@@ -31,9 +32,15 @@ source_set("system_info") {
   ]
 }
 
+source_set("cpu_info_features_allowlist") {
+  deps = [ "../../../../gn:default_deps" ]
+  sources = [ "cpu_info_features_allowlist.h" ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
+    ":cpu_info_features_allowlist",
     ":system_info",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",

@@ -18,10 +18,6 @@ import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
-import {
-  setDurationPrecision,
-  setTimestampFormat,
-} from '../core/timestamp_format';
 import {Command} from '../public/command';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
@@ -33,17 +29,32 @@ import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_share_utils';
-import {AggregationsTabs} from './aggregation_tab';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {DisposableStack} from '../base/disposable_stack';
 import {Spinner} from '../widgets/spinner';
 import {TraceImpl} from '../core/trace_impl';
 import {AppImpl} from '../core/app_impl';
-import {NotesEditorTab} from './notes_editor_tab';
-import {NotesListEditor} from './notes_list_editor';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
+import {Workspace} from '../public/workspace';
+import {
+  deserializeAppStatePhase1,
+  deserializeAppStatePhase2,
+  JsonSerialize,
+  parseAppState,
+  serializeAppState,
+} from '../core/state_serialization';
+import {featureFlags} from '../core/feature_flags';
+import {trackMatchesFilter} from '../core/track_manager';
+import {renderStatusBar} from './statusbar';
 
+const showStatusBarFlag = featureFlags.register({
+  id: 'Enable status bar',
+  description: 'Enable status bar at the bottom of the window',
+  defaultValue: true,
+});
+
+const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 const OMNIBOX_INPUT_REF = 'omnibox';
 
 // This wrapper creates a new instance of UiMainPerTrace for each new trace
@@ -99,23 +110,6 @@ export class UiMainPerTrace implements m.ClassComponent {
     document.title = `${trace.traceInfo.traceTitle || 'Trace'} - Perfetto UI`;
     this.maybeShowJsonWarning();
 
-    // Register the aggregation tabs.
-    this.trash.use(new AggregationsTabs(trace));
-
-    // Register the notes manager+editor.
-    this.trash.use(trace.tabs.registerDetailsPanel(new NotesEditorTab(trace)));
-
-    this.trash.use(
-      trace.tabs.registerTab({
-        uri: 'notes.manager',
-        isEphemeral: false,
-        content: {
-          getTitle: () => 'Notes & markers',
-          render: () => m(NotesListEditor, {trace}),
-        },
-      }),
-    );
-
     const cmds: Command[] = [
       {
         id: 'perfetto.SetTimestampFormat',
@@ -138,7 +132,7 @@ export class UiMainPerTrace implements m.ClassComponent {
             ],
             getName: (x) => x.name,
           });
-          result && setTimestampFormat(result.format);
+          result && (trace.timeline.timestampFormat = result.format);
         },
       },
       {
@@ -156,7 +150,7 @@ export class UiMainPerTrace implements m.ClassComponent {
               getName: (x) => x.name,
             },
           );
-          result && setDurationPrecision(result.format);
+          result && (trace.timeline.durationPrecision = result.format);
         },
       },
       {
@@ -221,56 +215,6 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'Escape',
       },
       {
-        id: 'perfetto.SetTemporarySpanNote',
-        name: 'Set the temporary span note based on the current selection',
-        callback: () => {
-          const range = trace.selection.findTimeRangeOfSelection();
-          if (range) {
-            trace.notes.addSpanNote({
-              start: range.start,
-              end: range.end,
-              id: '__temp__',
-            });
-
-            // Also select an area for this span
-            const selection = trace.selection.selection;
-            if (selection.kind === 'track_event') {
-              trace.selection.selectArea({
-                start: range.start,
-                end: range.end,
-                trackUris: [selection.trackUri],
-              });
-            }
-          }
-        },
-        defaultHotkey: 'M',
-      },
-      {
-        id: 'perfetto.AddSpanNote',
-        name: 'Add a new span note based on the current selection',
-        callback: () => {
-          const range = trace.selection.findTimeRangeOfSelection();
-          if (range) {
-            trace.notes.addSpanNote({
-              start: range.start,
-              end: range.end,
-            });
-          }
-        },
-        defaultHotkey: 'Shift+M',
-      },
-      {
-        id: 'perfetto.RemoveSelectedNote',
-        name: 'Remove selected note',
-        callback: () => {
-          const selection = trace.selection.selection;
-          if (selection.kind === 'note') {
-            trace.notes.removeNote(selection.id);
-          }
-        },
-        defaultHotkey: 'Delete',
-      },
-      {
         id: 'perfetto.NextFlow',
         name: 'Next flow',
         callback: () => trace.flows.focusOtherFlow('Forward'),
@@ -293,6 +237,27 @@ export class UiMainPerTrace implements m.ClassComponent {
         name: 'Move prev flow',
         callback: () => trace.flows.moveByFocusedFlow('Backward'),
         defaultHotkey: '[',
+      },
+
+      // Provides a test bed for resolving events using a SQL table name and ID
+      // which is used in deep-linking, amongst other places.
+      {
+        id: 'perfetto.SelectEventByTableNameAndId',
+        name: 'Select event by table name and ID',
+        callback: async () => {
+          const rootTableName = await trace.omnibox.prompt('Enter table name');
+          if (rootTableName === undefined) return;
+
+          const id = await trace.omnibox.prompt('Enter ID');
+          if (id === undefined) return;
+
+          const num = Number(id);
+          if (!isFinite(num)) return; // Rules out NaN or +-Infinity
+
+          trace.selection.selectSqlEvent(rootTableName, num, {
+            scrollToSelection: true,
+          });
+        },
       },
       {
         id: 'perfetto.SelectAll',
@@ -342,7 +307,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       },
       {
         id: 'perfetto.ConvertSelectionToArea',
-        name: 'Convert the current selection to an area selection',
+        name: 'Convert selection to area selection',
         callback: () => {
           const selection = trace.selection.selection;
           const range = trace.selection.findTimeRangeOfSelection();
@@ -354,8 +319,7 @@ export class UiMainPerTrace implements m.ClassComponent {
             });
           }
         },
-        // TODO(stevegolton): Decide on a sensible hotkey.
-        // defaultHotkey: 'L',
+        defaultHotkey: 'R',
       },
       {
         id: 'perfetto.ToggleDrawer',
@@ -363,12 +327,141 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'Q',
         callback: () => trace.tabs.toggleTabPanelVisibility(),
       },
+      {
+        id: 'perfetto.CopyPinnedToWorkspace',
+        name: 'Copy pinned tracks to workspace',
+        callback: async () => {
+          const pinnedTracks = trace.workspace.pinnedTracks;
+          if (!pinnedTracks.length) {
+            window.alert('No pinned tracks to copy');
+            return;
+          }
+
+          const ws = await this.selectWorkspace(trace, 'Pinned tracks');
+          if (!ws) return;
+
+          for (const pinnedTrack of pinnedTracks) {
+            const clone = pinnedTrack.clone();
+            ws.addChildLast(clone);
+          }
+          trace.workspaces.switchWorkspace(ws);
+        },
+      },
+      {
+        id: 'perfetto.CopyFilteredToWorkspace',
+        name: 'Copy filtered tracks to workspace',
+        callback: async () => {
+          // Copies all filtered tracks as a flat list to a new workspace. This
+          // means parents are not included.
+          const tracks = trace.workspace.flatTracks.filter((track) =>
+            trackMatchesFilter(trace, track),
+          );
+
+          if (!tracks.length) {
+            window.alert('No filtered tracks to copy');
+            return;
+          }
+
+          const ws = await this.selectWorkspace(trace, 'Filtered tracks');
+          if (!ws) return;
+
+          for (const track of tracks) {
+            const clone = track.clone();
+            ws.addChildLast(clone);
+          }
+          trace.workspaces.switchWorkspace(ws);
+        },
+      },
+      {
+        id: 'perfetto.CopySelectedTracksToWorkspace',
+        name: 'Copy selected tracks to workspace',
+        callback: async () => {
+          const selection = trace.selection.selection;
+
+          if (selection.kind !== 'area' || selection.trackUris.length === 0) {
+            window.alert('No selected tracks to copy');
+            return;
+          }
+
+          const workspace = await this.selectWorkspace(trace);
+          if (!workspace) return;
+
+          for (const uri of selection.trackUris) {
+            const node = trace.workspace.getTrackByUri(uri);
+            if (!node) continue;
+            const newNode = node.clone();
+            workspace.addChildLast(newNode);
+          }
+          trace.workspaces.switchWorkspace(workspace);
+        },
+      },
+      {
+        id: 'perfetto.Quicksave',
+        name: 'Quicksave UI state to localStorage',
+        callback: () => {
+          const state = serializeAppState(trace);
+          const json = JsonSerialize(state);
+          localStorage.setItem(QUICKSAVE_LOCALSTORAGE_KEY, json);
+        },
+      },
+      {
+        id: 'perfetto.Quickload',
+        name: 'Quickload UI state from the localStorage',
+        callback: () => {
+          const json = localStorage.getItem(QUICKSAVE_LOCALSTORAGE_KEY);
+          if (json === null) {
+            showModal({
+              title: 'Nothing saved in the quicksave slot',
+              buttons: [{text: 'Dismiss'}],
+            });
+            return;
+          }
+          const parsed = JSON.parse(json);
+          const state = parseAppState(parsed);
+          if (state.success) {
+            deserializeAppStatePhase1(state.data, trace);
+            deserializeAppStatePhase2(state.data, trace);
+          }
+        },
+      },
+      {
+        id: `${app.pluginId}#RestoreDefaults`,
+        name: 'Reset all flags back to default values',
+        callback: () => {
+          featureFlags.resetAll();
+          window.location.reload();
+        },
+      },
     ];
 
     // Register each command with the command manager
     cmds.forEach((cmd) => {
       this.trash.use(trace.commands.registerCommand(cmd));
     });
+  }
+
+  // Selects a workspace or creates a new one.
+  private async selectWorkspace(
+    trace: TraceImpl,
+    newWorkspaceName = 'Untitled workspace',
+  ): Promise<Workspace | undefined> {
+    const options = trace.workspaces.all
+      .filter((ws) => ws.userEditable)
+      .map((ws) => ({title: ws.title, fn: () => ws}))
+      .concat([
+        {
+          title: 'New workspace...',
+          fn: () => trace.workspaces.createEmptyWorkspace(newWorkspaceName),
+        },
+      ]);
+
+    const result = await trace.omnibox.prompt('Select a workspace...', {
+      values: options,
+      getName: (ws) => ws.title,
+    });
+
+    if (!result) return undefined;
+    return result.fn();
   }
 
   private renderOmnibox(): m.Children {
@@ -646,9 +739,10 @@ export class UiMainPerTrace implements m.ClassComponent {
           omnibox: this.renderOmnibox(),
           trace: this.trace,
         }),
-        app.pages.renderPageForCurrentRoute(app.trace),
+        app.pages.renderPageForCurrentRoute(),
         m(CookieConsent),
         maybeRenderFullscreenModalDialog(),
+        showStatusBarFlag.get() && renderStatusBar(app.trace),
         app.perfDebugging.renderPerfStats(),
       ),
     );
@@ -737,7 +831,6 @@ export class UiMainPerTrace implements m.ClassComponent {
         ),
         m('br'),
       ),
-      buttons: [],
     });
   }
 }

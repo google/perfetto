@@ -74,23 +74,24 @@ class FrameTimelineEventParser {
   std::array<StringId, 4> prediction_type_ids_;
   std::array<StringId, 4> jank_severity_type_ids_;
 
-  StringId surface_frame_token_id_;
-  StringId display_frame_token_id_;
-  StringId present_type_id_;
-  StringId on_time_finish_id_;
-  StringId gpu_composition_id_;
-  StringId jank_type_id_;
-  StringId jank_severity_type_id_;
-  StringId layer_name_id_;
-  StringId prediction_type_id_;
-  StringId is_buffer_id_;
+  const StringId surface_frame_token_id_;
+  const StringId display_frame_token_id_;
+  const StringId present_type_id_;
+  const StringId on_time_finish_id_;
+  const StringId gpu_composition_id_;
+  const StringId jank_type_id_;
+  const StringId jank_severity_type_id_;
+  const StringId layer_name_id_;
+  const StringId prediction_type_id_;
+  const StringId jank_tag_id_;
+  const StringId is_buffer_id_;
 
-  StringId jank_tag_none_id_;
-  StringId jank_tag_self_id_;
-  StringId jank_tag_other_id_;
-  StringId jank_tag_dropped_id_;
-  StringId jank_tag_buffer_stuffing_id_;
-  StringId jank_tag_sf_stuffing_id_;
+  const StringId jank_tag_none_id_;
+  const StringId jank_tag_self_id_;
+  const StringId jank_tag_other_id_;
+  const StringId jank_tag_dropped_id_;
+  const StringId jank_tag_buffer_stuffing_id_;
+  const StringId jank_tag_sf_stuffing_id_;
 
   // upid -> set of tokens map. The expected timeline is the same for a given
   // token no matter how many times its seen. We can safely ignore duplicates

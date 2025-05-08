@@ -23,8 +23,10 @@ import "protos/perfetto/metrics/android/sysui_slice_performance_statistical_data
 // Shows count, average duration, and max duration for each.
 message SysuiNotifShadeListBuilderMetric {
   optional SysUiSlicePerformanceStatisticalData all_slices_performance = 1;
-  optional SysUiSlicePerformanceStatisticalData slices_with_inflation_performance = 2;
-  optional SysUiSlicePerformanceStatisticalData slices_with_modification_performance = 3;
+  optional SysUiSlicePerformanceStatisticalData
+      slices_with_inflation_performance = 2;
+  optional SysUiSlicePerformanceStatisticalData
+      slices_with_modification_performance = 3;
 
   // Data row for a single slice
   message SliceDuration {

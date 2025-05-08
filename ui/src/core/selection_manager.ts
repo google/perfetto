@@ -18,25 +18,24 @@ import {
   Area,
   SelectionOpts,
   SelectionManager,
-  AreaSelectionAggregator,
-  SqlSelectionResolver,
   TrackEventSelection,
+  AreaSelectionTab,
 } from '../public/selection';
 import {TimeSpan} from '../base/time';
 import {raf} from './raf_scheduler';
-import {exists} from '../base/utils';
+import {exists, getOrCreate} from '../base/utils';
 import {TrackManagerImpl} from './track_manager';
 import {Engine} from '../trace_processor/engine';
 import {ScrollHelper} from './scroll_helper';
 import {NoteManagerImpl} from './note_manager';
 import {SearchResult} from '../public/search';
-import {SelectionAggregationManager} from './selection_aggregation_manager';
 import {AsyncLimiter} from '../base/async_limiter';
 import m from 'mithril';
 import {SerializedSelection} from './state_serialization_schema';
-
-const INSTANT_FOCUS_DURATION = 1n;
-const INCOMPLETE_SLICE_DURATION = 30_000n;
+import {showModal} from '../widgets/modal';
+import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
+import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
+import {Track} from '../public/track';
 
 interface SelectionDetailsPanel {
   isLoading: boolean;
@@ -55,29 +54,19 @@ interface SelectionDetailsPanel {
 export class SelectionManagerImpl implements SelectionManager {
   private readonly detailsPanelLimiter = new AsyncLimiter();
   private _selection: Selection = {kind: 'empty'};
-  private _aggregationManager: SelectionAggregationManager;
-  // Incremented every time _selection changes.
-  private readonly selectionResolvers = new Array<SqlSelectionResolver>();
   private readonly detailsPanels = new WeakMap<
     Selection,
     SelectionDetailsPanel
   >();
+  public readonly areaSelectionTabs: AreaSelectionTab[] = [];
 
   constructor(
-    engine: Engine,
+    private readonly engine: Engine,
     private trackManager: TrackManagerImpl,
     private noteManager: NoteManagerImpl,
     private scrollHelper: ScrollHelper,
     private onSelectionChange: (s: Selection, opts: SelectionOpts) => void,
-  ) {
-    this._aggregationManager = new SelectionAggregationManager(
-      engine.getProxy('SelectionAggregationManager'),
-    );
-  }
-
-  registerAreaSelectionAggregator(aggr: AreaSelectionAggregator): void {
-    this._aggregationManager.registerAggregator(aggr);
-  }
+  ) {}
 
   clear(): void {
     this.setSelection({kind: 'empty'});
@@ -110,9 +99,9 @@ export class SelectionManagerImpl implements SelectionManager {
     assertTrue(start <= end);
 
     // In the case of area selection, the caller provides a list of trackUris.
-    // However, all the consumer want to access the resolved TrackDescriptor.
-    // Rather than delegating this to the various consumers, we resolve them
-    // now once and for all and place them in the selection object.
+    // However, all the consumers want to access the resolved Tracks. Rather
+    // than delegating this to the various consumers, we resolve them now once
+    // and for all and place them in the selection object.
     const tracks = [];
     for (const uri of area.trackUris) {
       const trackDescr = this.trackManager.getTrack(uri);
@@ -134,21 +123,51 @@ export class SelectionManagerImpl implements SelectionManager {
     if (serialized === undefined) {
       return;
     }
-    switch (serialized.kind) {
-      case 'TRACK_EVENT':
-        this.selectTrackEventInternal(
-          serialized.trackKey,
-          parseInt(serialized.eventId),
-          undefined,
-          serialized.detailsPanel,
-        );
-        break;
-      case 'AREA':
-        this.selectArea({
-          start: serialized.start,
-          end: serialized.end,
-          trackUris: serialized.trackUris,
-        });
+    this.deserializeInternal(serialized);
+  }
+
+  private async deserializeInternal(serialized: SerializedSelection) {
+    try {
+      switch (serialized.kind) {
+        case 'TRACK_EVENT':
+          await this.selectTrackEventInternal(
+            serialized.trackKey,
+            parseInt(serialized.eventId),
+            undefined,
+            serialized.detailsPanel,
+          );
+          break;
+        case 'AREA':
+          this.selectArea({
+            start: serialized.start,
+            end: serialized.end,
+            trackUris: serialized.trackUris,
+          });
+      }
+    } catch (ex) {
+      showModal({
+        title: 'Failed to restore the selected event',
+        content: m(
+          'div',
+          m(
+            'p',
+            `Due to a version skew between the version of the UI the trace was
+             shared with and the version of the UI you are using, we were
+             unable to restore the selected event.`,
+          ),
+          m(
+            'p',
+            `These backwards incompatible changes are very rare but is in some
+             cases unavoidable. We apologise for the inconvenience.`,
+          ),
+        ),
+        buttons: [
+          {
+            text: 'Continue',
+            primary: true,
+          },
+        ],
+      });
     }
   }
 
@@ -204,23 +223,84 @@ export class SelectionManagerImpl implements SelectionManager {
     return this.detailsPanels.get(this._selection);
   }
 
-  registerSqlSelectionResolver(resolver: SqlSelectionResolver): void {
-    this.selectionResolvers.push(resolver);
-  }
-
   async resolveSqlEvent(
     sqlTableName: string,
     id: number,
   ): Promise<{eventId: number; trackUri: string} | undefined> {
-    const matchingResolvers = this.selectionResolvers.filter(
-      (r) => r.sqlTableName === sqlTableName,
-    );
+    // This function:
+    // 1. Find the list of tracks whose rootTableName is the same as the one we
+    //    are looking for
+    // 2. Groups them by their filter column - i.e. utid, cpu, or track_id.
+    // 3. Builds a map of which of these column values match which track.
+    // 4. Run one query per group, reading out the filter column value, and
+    //    looking up the originating track in the map.
+    // One flaw of this approach is that.
+    const groups = new Map<string, [SourceDataset, Track][]>();
+    const tracksWithNoFilter: [SourceDataset, Track][] = [];
 
-    for (const resolver of matchingResolvers) {
-      const result = await resolver.callback(id, sqlTableName);
-      if (result) {
-        // If we have multiple resolvers for the same table, just return the first one.
-        return result;
+    this.trackManager
+      .getAllTracks()
+      .filter((track) => track.track.rootTableName === sqlTableName)
+      .map((track) => {
+        const dataset = track.track.getDataset?.();
+        if (!dataset) return undefined;
+        return [dataset, track] as const;
+      })
+      .filter(exists)
+      .filter(([dataset]) => dataset.implements({id: NUM}))
+      .forEach(([dataset, track]) => {
+        const col = dataset.filter?.col;
+        if (col) {
+          const existingGroup = getOrCreate(groups, col, () => []);
+          existingGroup.push([dataset, track]);
+        } else {
+          tracksWithNoFilter.push([dataset, track]);
+        }
+      });
+
+    // Run one query per no-filter track. This is the only way we can reliably
+    // keep track of which track the event belonged to.
+    for (const [dataset, track] of tracksWithNoFilter) {
+      const query = `select id from (${dataset.query()}) where id = ${id}`;
+      const result = await this.engine.query(query);
+      if (result.numRows() > 0) {
+        return {eventId: id, trackUri: track.uri};
+      }
+    }
+
+    for (const [colName, values] of groups) {
+      // Build a map of the values -> track uri
+      const map = new Map<SqlValue, string>();
+      values.forEach(([dataset, track]) => {
+        const filter = dataset.filter;
+        if (filter) {
+          if ('eq' in filter) map.set(filter.eq, track.uri);
+          if ('in' in filter) filter.in.forEach((v) => map.set(v, track.uri));
+        }
+      });
+
+      const datasets = values.map(([dataset]) => dataset);
+      const union = new UnionDataset(datasets).optimize();
+
+      // Make sure to include the filter value in the schema.
+      const schema = {...union.schema, [colName]: UNKNOWN};
+      const query = `select * from (${union.query(schema)}) where id = ${id}`;
+      const result = await this.engine.query(query);
+
+      const row = result.iter(union.schema);
+      const value = row.get(colName);
+
+      let trackUri = map.get(value);
+
+      // If that didn't work, try converting the value to a number if it's a
+      // bigint. Unless specified as a NUM type, any integers on the wire will
+      // be parsed as a bigint to avoid losing precision.
+      if (trackUri === undefined && typeof value === 'bigint') {
+        trackUri = map.get(Number(value));
+      }
+
+      if (trackUri) {
+        return {eventId: id, trackUri};
       }
     }
 
@@ -240,12 +320,6 @@ export class SelectionManagerImpl implements SelectionManager {
 
     if (opts?.scrollToSelection) {
       this.scrollToCurrentSelection();
-    }
-
-    if (this._selection.kind === 'area') {
-      this._aggregationManager.aggregateArea(this._selection);
-    } else {
-      this._aggregationManager.clear();
     }
   }
 
@@ -269,12 +343,23 @@ export class SelectionManagerImpl implements SelectionManager {
         });
         break;
       case 'log':
-        // TODO(stevegolton): Get log selection working.
+        this.selectSqlEvent('android_logs', eventId, {
+          clearSearch: false,
+          scrollToSelection: true,
+          switchToCurrentSelectionTab: true,
+        });
         break;
       case 'slice':
         // Search results only include slices from the slice table for now.
         // When we include annotations we need to pass the correct table.
         this.selectSqlEvent('slice', eventId, {
+          clearSearch: false,
+          scrollToSelection: true,
+          switchToCurrentSelectionTab: true,
+        });
+        break;
+      case 'event':
+        this.selectTrackEvent(trackUri, eventId, {
           clearSearch: false,
           scrollToSelection: true,
           switchToCurrentSelectionTab: true,
@@ -296,30 +381,11 @@ export class SelectionManagerImpl implements SelectionManager {
           return undefined;
       }
     })();
-    const range = this.findFocusRangeOfSelection();
+    const range = this.findTimeRangeOfSelection();
     this.scrollHelper.scrollTo({
       time: range ? {...range} : undefined,
       track: uri ? {uri: uri, expandGroup: true} : undefined,
     });
-  }
-
-  // Finds the time range range that we should actually focus on - using dummy
-  // values for instant and incomplete slices, so we don't end up super zoomed
-  // in.
-  private findFocusRangeOfSelection(): TimeSpan | undefined {
-    const sel = this.selection;
-    if (sel.kind === 'track_event') {
-      // The focus range of slices is different to that of the actual span
-      if (sel.dur === -1n) {
-        return TimeSpan.fromTimeAndDuration(sel.ts, INCOMPLETE_SLICE_DURATION);
-      } else if (sel.dur === 0n) {
-        return TimeSpan.fromTimeAndDuration(sel.ts, INSTANT_FOCUS_DURATION);
-      } else {
-        return TimeSpan.fromTimeAndDuration(sel.ts, sel.dur);
-      }
-    } else {
-      return this.findTimeRangeOfSelection();
-    }
   }
 
   private async selectTrackEventInternal(
@@ -328,12 +394,25 @@ export class SelectionManagerImpl implements SelectionManager {
     opts?: SelectionOpts,
     serializedDetailsPanel?: unknown,
   ) {
-    const details = await this.trackManager
-      .getTrack(trackUri)
-      ?.track.getSelectionDetails?.(eventId);
+    const track = this.trackManager.getTrack(trackUri);
+    if (!track) {
+      throw new Error(
+        `Unable to resolve selection details: Track ${trackUri} not found`,
+      );
+    }
 
+    const trackRenderer = track.track;
+    if (!trackRenderer.getSelectionDetails) {
+      throw new Error(
+        `Unable to resolve selection details: Track ${trackUri} does not support selection details`,
+      );
+    }
+
+    const details = await trackRenderer.getSelectionDetails(eventId);
     if (!exists(details)) {
-      throw new Error('Unable to resolve selection details');
+      throw new Error(
+        `Unable to resolve selection details: Track ${trackUri} returned no details for event ${eventId}`,
+      );
     }
 
     const selection: TrackEventSelection = {
@@ -393,22 +472,28 @@ export class SelectionManagerImpl implements SelectionManager {
           case 'SPAN':
             return new TimeSpan(selectedNote.start, selectedNote.end);
           case 'DEFAULT':
-            return TimeSpan.fromTimeAndDuration(
-              selectedNote.timestamp,
-              INSTANT_FOCUS_DURATION,
-            );
+            // A TimeSpan where start === end is treated as an instant event.
+            return new TimeSpan(selectedNote.timestamp, selectedNote.timestamp);
           default:
             assertUnreachable(kind);
         }
       }
     } else if (sel.kind === 'track_event') {
-      return TimeSpan.fromTimeAndDuration(sel.ts, sel.dur);
+      switch (sel.dur) {
+        case undefined:
+        case -1n:
+          // Events without a duration or with duration -1 (DNF) slices are just
+          // treated as if they were instant events.
+          return TimeSpan.fromTimeAndDuration(sel.ts, 0n);
+        default:
+          return TimeSpan.fromTimeAndDuration(sel.ts, sel.dur);
+      }
     }
 
     return undefined;
   }
 
-  get aggregation() {
-    return this._aggregationManager;
+  registerAreaSelectionTab(tab: AreaSelectionTab): void {
+    this.areaSelectionTabs.push(tab);
   }
 }

@@ -12,36 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
+import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
 import {
-  ArgSetColumnSet,
+  ArgSetIdColumn,
   DurationColumn,
-  ProcessColumn,
-  ProcessColumnSet,
   ProcessIdColumn,
   SchedIdColumn,
   SliceIdColumn,
   StandardColumn,
-  ThreadColumn,
-  ThreadColumnSet,
   ThreadIdColumn,
   ThreadStateIdColumn,
   TimestampColumn,
-} from './well_known_columns';
+} from '../../components/widgets/sql/table/columns';
 
 export function getThreadTable(): SqlTableDescription {
   return {
     name: 'thread',
     columns: [
-      new ThreadIdColumn('utid'),
-      new StandardColumn('tid', {aggregationType: 'nominal'}),
+      new ThreadIdColumn('utid', {type: 'id'}),
+      new StandardColumn('tid'),
       new StandardColumn('name'),
       new TimestampColumn('start_ts'),
       new TimestampColumn('end_ts'),
-      new ProcessColumnSet('upid', {title: 'upid', notNull: true}),
-      new StandardColumn('is_main_thread', {
-        aggregationType: 'nominal',
-      }),
+      new ProcessIdColumn('upid', {notNull: true}),
+      new StandardColumn('is_main_thread'),
     ],
   };
 }
@@ -50,45 +44,38 @@ export function getProcessTable(): SqlTableDescription {
   return {
     name: 'process',
     columns: [
-      new ProcessIdColumn('upid'),
-      new StandardColumn('pid', {aggregationType: 'nominal'}),
+      new ProcessIdColumn('upid', {type: 'id'}),
+      new StandardColumn('pid'),
       new StandardColumn('name'),
       new TimestampColumn('start_ts'),
       new TimestampColumn('end_ts'),
-      new ProcessColumn('parent_upid'),
-      new StandardColumn('uid', {aggregationType: 'nominal'}),
-      new StandardColumn('android_appid', {aggregationType: 'nominal'}),
+      new ProcessIdColumn('parent_upid'),
+      new StandardColumn('uid'),
+      new StandardColumn('android_appid'),
       new StandardColumn('cmdline', {startsHidden: true}),
-      new StandardColumn('machine_id', {aggregationType: 'nominal'}),
-      new ArgSetColumnSet('arg_set_id'),
+      new StandardColumn('machine_id'),
+      new ArgSetIdColumn('arg_set_id'),
     ],
   };
 }
 
 export function getSliceTable(): SqlTableDescription {
   return {
-    imports: ['slices.slices'],
-    name: '_slice_with_thread_and_process_info',
-    displayName: 'slice',
+    imports: ['viz.slices'],
+    name: '_viz_slices_for_ui_table',
+    displayName: 'Slices',
     columns: [
-      new SliceIdColumn('id', {notNull: true}),
-      new TimestampColumn('ts', {title: 'Timestamp'}),
-      new DurationColumn('dur', {title: 'Duration'}),
-      new DurationColumn('thread_dur', {title: 'Thread duration'}),
-      new StandardColumn('category', {title: 'Category'}),
-      new StandardColumn('name', {title: 'Name'}),
-      new StandardColumn('track_id', {
-        title: 'Track ID',
-        aggregationType: 'nominal',
-        startsHidden: true,
-      }),
-      new ThreadColumnSet('utid', {title: 'utid'}),
-      new ProcessColumnSet('upid', {title: 'upid'}),
-      new StandardColumn('depth', {title: 'Depth', startsHidden: true}),
-      new SliceIdColumn('parent_id', {
-        startsHidden: true,
-      }),
-      new ArgSetColumnSet('arg_set_id'),
+      new SliceIdColumn('id', {notNull: true, type: 'id'}),
+      new TimestampColumn('ts'),
+      new DurationColumn('dur'),
+      new StandardColumn('category'),
+      new StandardColumn('name'),
+      new StandardColumn('track_id', {startsHidden: true}),
+      new ThreadIdColumn('utid'),
+      new ProcessIdColumn('upid'),
+      new StandardColumn('depth', {startsHidden: true}),
+      new SliceIdColumn('parent_id'),
+      new ArgSetIdColumn('arg_set_id'),
     ],
   };
 }
@@ -97,21 +84,18 @@ export function getAndroidLogsTable(): SqlTableDescription {
   return {
     name: 'android_logs',
     columns: [
-      new StandardColumn('id', {aggregationType: 'nominal'}),
+      new StandardColumn('id'),
       new TimestampColumn('ts'),
       new StandardColumn('tag'),
-      new StandardColumn('prio', {aggregationType: 'nominal'}),
-      new ThreadColumnSet('utid', {title: 'utid', notNull: true}),
-      new ProcessColumnSet(
-        {
-          column: 'upid',
-          source: {
-            table: 'thread',
-            joinOn: {utid: 'utid'},
-          },
+      new StandardColumn('prio'),
+      new ThreadIdColumn('utid'),
+      new ProcessIdColumn({
+        column: 'upid',
+        source: {
+          table: 'thread',
+          joinOn: {utid: 'utid'},
         },
-        {title: 'upid', notNull: true},
-      ),
+      }),
       new StandardColumn('msg'),
     ],
   };
@@ -124,27 +108,18 @@ export function getSchedTable(): SqlTableDescription {
       new SchedIdColumn('id'),
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
-      new StandardColumn('cpu', {aggregationType: 'nominal'}),
-      new StandardColumn('priority', {aggregationType: 'nominal'}),
-      new ThreadColumnSet('utid', {title: 'utid', notNull: true}),
-      new ProcessColumnSet(
-        {
-          column: 'upid',
-          source: {
-            table: 'thread',
-            joinOn: {
-              utid: 'utid',
-            },
-            innerJoin: true,
-          },
+      new StandardColumn('cpu'),
+      new StandardColumn('priority'),
+      new ThreadIdColumn('utid'),
+      new ProcessIdColumn({
+        column: 'upid',
+        source: {
+          table: 'thread',
+          joinOn: {utid: 'utid'},
         },
-        {title: 'upid', notNull: true},
-      ),
-      new StandardColumn('end_state'),
-      new StandardColumn('ucpu', {
-        aggregationType: 'nominal',
-        startsHidden: true,
       }),
+      new StandardColumn('end_state'),
+      new StandardColumn('ucpu', {startsHidden: true}),
     ],
   };
 }
@@ -153,34 +128,25 @@ export function getThreadStateTable(): SqlTableDescription {
   return {
     name: 'thread_state',
     columns: [
-      new ThreadStateIdColumn('id', {notNull: true}),
+      new ThreadStateIdColumn('id'),
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
       new StandardColumn('state'),
-      new StandardColumn('cpu', {aggregationType: 'nominal'}),
-      new ThreadColumnSet('utid', {title: 'utid', notNull: true}),
-      new ProcessColumnSet(
-        {
-          column: 'upid',
-          source: {
-            table: 'thread',
-            joinOn: {
-              utid: 'utid',
-            },
-            innerJoin: true,
-          },
+      new StandardColumn('cpu'),
+      new ThreadIdColumn('utid'),
+      new ProcessIdColumn({
+        column: 'upid',
+        source: {
+          table: 'thread',
+          joinOn: {utid: 'utid'},
         },
-        {title: 'upid (process)', notNull: true},
-      ),
-      new StandardColumn('io_wait', {aggregationType: 'nominal'}),
-      new StandardColumn('blocked_function'),
-      new ThreadColumn('waker_utid', {title: 'Waker thread'}),
-      new ThreadStateIdColumn('waker_id'),
-      new StandardColumn('irq_context', {aggregationType: 'nominal'}),
-      new StandardColumn('ucpu', {
-        aggregationType: 'nominal',
-        startsHidden: true,
       }),
+      new StandardColumn('io_wait'),
+      new StandardColumn('blocked_function'),
+      new ThreadIdColumn('waker_utid'),
+      new ThreadStateIdColumn('waker_id'),
+      new StandardColumn('irq_context'),
+      new StandardColumn('ucpu', {startsHidden: true}),
     ],
   };
 }

@@ -36,10 +36,8 @@ slices_to_standardize = [
     "LoadApkAssetsFd({ParcelFileDescriptor: java.io.FileDescriptor@340019d})",
     "relayoutWindow#first=false/resize=false/vis=true/params=true/force=false",
     "android.os.Handler: kotlinx.coroutines.CancellableContinuationImpl",
-    "Choreographer#doFrame 122932914",
-    "DrawFrames 122921845",
-    "/data/app/.../base.apk",
-    "OpenDexFilesFromOat(/data/app/.../base.apk)",
+    "Choreographer#doFrame 122932914", "DrawFrames 122921845",
+    "/data/app/.../base.apk", "OpenDexFilesFromOat(/data/app/.../base.apk)",
     "Open oat file /data/misc/apexdata/com.android.art/dalvik-cache/boot.oat",
     "android.os.Handler: kotlinx.coroutines.internal.DispatchedContinuation",
     "GC: Wait For Completion Alloc",
@@ -48,6 +46,23 @@ slices_to_standardize = [
     'android.os.Handler: com.android.systemui.broadcast.ActionReceiver$1$1',
     'com.android.keyguard.KeyguardUpdateMonitor$13: #302',
     'android.os.Handler: com.android.systemui.qs.TileServiceManager$1',
+    'FrameBuffer-201#invokeListeners-non-direct',
+    'Transaction (ptz-fgd-1-LOCAL_MEDIA_REMOVE_DELETED_ITEMS_SYNC, 11910)',
+    'InputConsumer processing on ClientState{e1d234a mUid=1234 mPid=1234 '
+    'mSelfReportedDisplayId=0} (0xb000000000000000)',
+    'InputConsumer processing on [Gesture Monitor] swipe-up '
+    '(0xb000000000000000)',
+    '+job=1234:"com.google.android.apps.internal.betterbug"',
+    'Looper.dispatch: android.app.ActivityThread$H(runnable@a9f7a84'
+    '(android.app.ActivityThread@1d57743,40))', 'Not changed at ALL 0',
+    'Three digits to replace 123 1234', 'kworker/1d57743', '1234',
+    '1019b5c SurfaceView[com.google.android.apps.maps/com.google.android.maps.'
+    'MapsActivity]#1(BLAST Consumer)1', '1 2 3 4', '0x1019b5c',
+    'ImageDecoder#decodeDrawable', '+state=10152:"sensor:0x101002e"',
+    '[0612]< SET_SIGNAL_STRENGTH_REPORTING_CRITERIA',
+    'sendMessage(inputChannel=6f38b3e PopupWindow:bb19a78, seq=0x123, '
+    'type=FOCUS)', 'Over the RR duration: timestamp:12345,signalTime:12345'
+    ',VSyncPeriod:12345,desiredVsyncPeriod:12345,transientDuration:1'
 ]
 
 for name in slices_to_standardize:

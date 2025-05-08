@@ -15,10 +15,10 @@
 
 -- Similar to `ancestor_slice`, but returns the slice itself in addition to strict ancestors.
 CREATE PERFETTO FUNCTION _slice_ancestor_and_self(
-  -- Id of the slice.
-  slice_id JOINID(slice.id)
+    -- Id of the slice.
+    slice_id JOINID(slice.id)
 )
-RETURNS TABLE(
+RETURNS TABLE (
   -- Slice
   id JOINID(slice.id),
   -- Alias of `slice.ts`.
@@ -43,20 +43,41 @@ RETURNS TABLE(
   thread_dur LONG
 ) AS
 SELECT
-  id, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, thread_ts, thread_dur
+  id,
+  ts,
+  dur,
+  track_id,
+  category,
+  name,
+  depth,
+  parent_id,
+  arg_set_id,
+  thread_ts,
+  thread_dur
 FROM slice
-WHERE id = $slice_id
+WHERE
+  id = $slice_id
 UNION ALL
 SELECT
-  id, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, thread_ts, thread_dur
+  id,
+  ts,
+  dur,
+  track_id,
+  category,
+  name,
+  depth,
+  parent_id,
+  arg_set_id,
+  thread_ts,
+  thread_dur
 FROM ancestor_slice($slice_id);
 
 -- Similar to `descendant_slice`, but returns the slice itself in addition to strict descendants.
 CREATE PERFETTO FUNCTION _slice_descendant_and_self(
-  -- Id of the slice.
-  slice_id JOINID(slice.id)
+    -- Id of the slice.
+    slice_id JOINID(slice.id)
 )
-RETURNS TABLE(
+RETURNS TABLE (
   -- Slice
   id JOINID(slice.id),
   -- Alias of `slice.ts`.
@@ -81,12 +102,33 @@ RETURNS TABLE(
   thread_dur LONG
 ) AS
 SELECT
-  id, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, thread_ts, thread_dur
+  id,
+  ts,
+  dur,
+  track_id,
+  category,
+  name,
+  depth,
+  parent_id,
+  arg_set_id,
+  thread_ts,
+  thread_dur
 FROM slice
-WHERE id = $slice_id
+WHERE
+  id = $slice_id
 UNION ALL
 SELECT
-  id, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, thread_ts, thread_dur
+  id,
+  ts,
+  dur,
+  track_id,
+  category,
+  name,
+  depth,
+  parent_id,
+  arg_set_id,
+  thread_ts,
+  thread_dur
 FROM descendant_slice($slice_id);
 
 -- Delete rows from |slice_table| where the |column_name| value is NULL.
@@ -95,33 +137,40 @@ FROM descendant_slice($slice_id);
 -- ancestor remaining. This keeps the trees as connected as possible,
 -- allowing further graph analysis.
 CREATE PERFETTO MACRO _slice_remove_nulls_and_reparent(
-  -- Table or subquery containing a subset of the slice table. Required columns are
-  -- (id LONG, parent_id LONG, depth LONG, <column_name>).
-  slice_table TableOrSubQuery,
-  -- Column name for which a NULL value indicates the row will be deleted.
-  column_name ColumnName)
-  -- The returned table has the schema (id LONG, parent_id LONG, depth LONG, <column_name>).
-RETURNS TableOrSubQuery
-AS (
-  WITH _slice AS (
-    SELECT * FROM $slice_table WHERE $column_name IS NOT NULL
-  )
+    -- Table or subquery containing a subset of the slice table. Required columns are
+    -- (id LONG, parent_id LONG, depth LONG, <column_name>).
+    slice_table TableOrSubQuery,
+    -- Column name for which a NULL value indicates the row will be deleted.
+    column_name ColumnName
+)
+-- The returned table has the schema (id LONG, parent_id LONG, depth LONG, <column_name>).
+RETURNS TableOrSubQuery AS
+(
+  WITH
+    _slice AS (
+      SELECT
+        *
+      FROM $slice_table
+      WHERE
+        $column_name IS NOT NULL
+    )
   SELECT
     id,
     parent_id,
     depth,
     $column_name
   FROM _slice
-  WHERE depth = 0
+  WHERE
+    depth = 0
   UNION ALL
   SELECT
     child.id,
     anc.id AS parent_id,
-    MAX(IIF(parent.$column_name IS NULL, 0, anc.depth)) AS depth,
+    max(iif(parent.$column_name IS NULL, 0, anc.depth)) AS depth,
     child.$column_name
-  FROM _slice child
-  JOIN ancestor_slice(child.id) anc
-  LEFT JOIN _slice parent
+  FROM _slice AS child, ancestor_slice(child.id) AS anc
+  LEFT JOIN _slice AS parent
     ON parent.id = anc.id
-  GROUP BY child.id
+  GROUP BY
+    child.id
 );

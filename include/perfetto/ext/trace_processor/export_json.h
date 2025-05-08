@@ -44,12 +44,12 @@ class PERFETTO_EXPORT_COMPONENT OutputWriter {
   OutputWriter();
   virtual ~OutputWriter();
 
-  virtual util::Status AppendString(const std::string&) = 0;
+  virtual base::Status AppendString(const std::string&) = 0;
 };
 
 // Public for Chrome. Exports the trace loaded in TraceProcessorStorage to json,
 // applying argument, metadata and label filtering using the callbacks.
-util::Status PERFETTO_EXPORT_COMPONENT
+base::Status PERFETTO_EXPORT_COMPONENT
 ExportJson(TraceProcessorStorage*,
            OutputWriter*,
            ArgumentFilterPredicate = nullptr,

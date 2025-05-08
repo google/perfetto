@@ -55,10 +55,10 @@
 #include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/common/system_info.pbzero.h"
 #include "protos/perfetto/trace/ps/process_stats.pbzero.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
-#include "protos/perfetto/trace/system_info.pbzero.h"
 #include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -226,6 +226,7 @@ const char* GetSmapsKey(uint32_t field_id) {
 SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
     : context_(context),
       utid_name_id_(context->storage->InternString("utid")),
+      is_kthread_id_(context->storage->InternString("is_kthread")),
       arm_cpu_implementer(
           context->storage->InternString("arm_cpu_implementer")),
       arm_cpu_architecture(
@@ -418,6 +419,8 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
                                          intern_track("irq_ns"));
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.softirq_ns()), intern_track("softirq_ns"));
+    context_->event_tracker->PushCounter(ts, static_cast<double>(ct.steal_ns()),
+                                         intern_track("steal_ns"));
   }
 
   for (auto it = sys_stats.num_irq(); it; ++it) {
@@ -559,18 +562,25 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
 }
 
 void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
-  static constexpr auto kBlueprint = tracks::CounterBlueprint(
-      "cpu_idle_state", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(
-          tracks::kCpuDimensionBlueprint,
-          tracks::StringDimensionBlueprint("cpu_idle_state")));
-
   protos::pbzero::SysStats::CpuIdleState::Decoder cpuidle_state(blob);
   uint32_t cpu = cpuidle_state.cpu_id();
+  static constexpr auto kBlueprint = tracks::CounterBlueprint(
+      "cpu_idle_state", tracks::StaticUnitBlueprint("us"),
+      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint,
+                                  tracks::StringDimensionBlueprint("state")),
+      tracks::FnNameBlueprint([](uint32_t cpu, base::StringView state) {
+        return base::StackString<1024>("cpuidle%u.%.*s", cpu, int(state.size()),
+                                       state.data());
+      }));
+
   for (auto f = cpuidle_state.cpuidle_state_entry(); f; ++f) {
     protos::pbzero::SysStats::CpuIdleStateEntry::Decoder idle(*f);
-    TrackId track =
-        context_->track_tracker->InternTrack(kBlueprint, {cpu, idle.state()});
+    std::string state_name = idle.state().ToStdString();
+
+    TrackId track = context_->track_tracker->InternTrack(
+        kBlueprint, tracks::Dimensions(cpu, state_name.c_str()),
+        tracks::BlueprintName());
+
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(idle.duration_us()), track);
   }
@@ -662,6 +672,12 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
       if (start_ts.ok()) {
         context_->process_tracker->SetStartTsIfUnset(upid, *start_ts);
       }
+    }
+
+    // Linux v6.4+: explicit field for whether this is a kernel thread.
+    if (proc.has_is_kthread()) {
+      context_->process_tracker->AddArgsTo(upid).AddArg(
+          is_kthread_id_, Variadic::Boolean(proc.is_kthread()));
     }
   }
 
@@ -923,6 +939,13 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
         metadata::android_ram_model,
         Variadic::String(
             context_->storage->InternString(packet.android_ram_model())));
+  }
+
+  if (packet.has_android_serial_console()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::android_serial_console,
+        Variadic::String(
+            context_->storage->InternString(packet.android_serial_console())));
   }
 
   page_size_ = packet.page_size();

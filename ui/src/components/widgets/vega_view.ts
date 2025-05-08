@@ -34,15 +34,99 @@ function isVegaLite(spec: unknown): boolean {
   return true;
 }
 
+// Vega-Lite specific interactions
+// types (https://vega.github.io/vega-lite/docs/selection.html#select)
+export enum VegaLiteSelectionTypes {
+  INTERVAL = 'interval',
+  POINT = 'point',
+}
+
+// Vega-Lite Field Types
+// These are for axis field (data) types
+// https://vega.github.io/vega-lite/docs/type.html
+export type VegaLiteFieldType =
+  | 'quantitative'
+  | 'temporal'
+  | 'ordinal'
+  | 'nominal'
+  | 'geojson';
+
+// Vega-Lite supported aggregation operations
+// https://vega.github.io/vega-lite/docs/aggregate.html#ops
+export type VegaLiteAggregationOps =
+  | 'count'
+  | 'valid'
+  | 'values'
+  | 'missing'
+  | 'distinct'
+  | 'sum'
+  | 'product'
+  | 'mean'
+  | 'average'
+  | 'variance'
+  | 'variancep'
+  | 'stdev'
+  | 'stdevp'
+  | 'stderr'
+  | 'median'
+  | 'q1'
+  | 'q3'
+  | 'ci0'
+  | 'ci1'
+  | 'min'
+  | 'max'
+  | 'argmin'
+  | 'argmax';
+
+export type VegaEventType =
+  | 'click'
+  | 'dblclick'
+  | 'dragenter'
+  | 'dragleave'
+  | 'dragover'
+  | 'keydown'
+  | 'keypress'
+  | 'keyup'
+  | 'mousedown'
+  | 'mousemove'
+  | 'mouseout'
+  | 'mouseover'
+  | 'mouseup'
+  | 'mousewheel'
+  | 'touchend'
+  | 'touchmove'
+  | 'touchstart'
+  | 'wheel';
+
 export interface VegaViewData {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [name: string]: any;
 }
 
+type VegaSignalListenerHandler = (args: {
+  view: vega.View;
+  name: string;
+  value: vega.SignalValue;
+}) => void;
+type VegaEventListenerHandler = (args: {
+  view: vega.View;
+  event: vega.ScenegraphEvent;
+  item?: vega.Item | null;
+}) => void;
+
 interface VegaViewAttrs {
   spec: string;
   data: VegaViewData;
   engine?: Engine;
+  signalHandlers?: {
+    readonly name: string;
+    readonly handler: VegaSignalListenerHandler;
+  }[];
+  eventHandlers?: {
+    readonly name: string;
+    readonly handler: VegaEventListenerHandler;
+  }[];
+  onViewDestroyed?: () => void;
 }
 
 // VegaWrapper is in exactly one of these states:
@@ -125,6 +209,16 @@ class VegaWrapper {
   private _error?: string;
   private _engine?: Engine;
 
+  private _signalHandlers?: {
+    readonly name: string;
+    readonly handler: vega.SignalListenerHandler;
+  }[];
+  private _eventHandlers?: {
+    readonly name: string;
+    readonly handler: vega.EventListenerHandler;
+  }[];
+  private _onViewDestroyed?: () => void;
+
   constructor(dom: Element) {
     this.dom = dom;
     this._status = Status.Empty;
@@ -157,6 +251,51 @@ class VegaWrapper {
     this._engine = engine;
   }
 
+  set signalHandlers(
+    handlers: {
+      readonly name: string;
+      readonly handler: VegaSignalListenerHandler;
+    }[],
+  ) {
+    for (const {name, handler} of this._signalHandlers ?? []) {
+      this.view?.removeSignalListener(name, handler);
+    }
+    this._signalHandlers = handlers.map(({name, handler}) => {
+      return {
+        name,
+        handler: (name2, value) =>
+          handler({view: this.view!, name: name2, value}),
+      };
+    });
+    for (const {name, handler} of this._signalHandlers) {
+      this.view?.addSignalListener(name, handler);
+    }
+  }
+
+  set eventHandlers(
+    handlers: {
+      readonly name: string;
+      readonly handler: VegaEventListenerHandler;
+    }[],
+  ) {
+    for (const {name, handler} of this._eventHandlers ?? []) {
+      this.view?.removeEventListener(name, handler);
+    }
+    this._eventHandlers = handlers.map(({name, handler}) => {
+      return {
+        name,
+        handler: (event, item) => handler({view: this.view!, event, item}),
+      };
+    });
+    for (const {name, handler} of this._eventHandlers) {
+      this.view?.addEventListener(name, handler);
+    }
+  }
+
+  set onViewDestroyed(handler: (() => void) | undefined) {
+    this._onViewDestroyed = handler;
+  }
+
   onResize() {
     if (this.view) {
       this.view.resize();
@@ -174,6 +313,7 @@ class VegaWrapper {
 
     // Destroy existing view if needed:
     if (this.view) {
+      this._onViewDestroyed?.();
       this.view.finalize();
       this.view = undefined;
     }
@@ -206,6 +346,15 @@ class VegaWrapper {
       this.view.initialize(this.dom);
       for (const [key, value] of Object.entries(this._data)) {
         this.view.data(key, value);
+      }
+
+      if (isVegaLite(this._spec)) {
+        for (const {name, handler} of this._signalHandlers ?? []) {
+          this.view.addSignalListener(name, handler);
+        }
+        for (const {name, handler} of this._eventHandlers ?? []) {
+          this.view.addEventListener(name, handler);
+        }
       }
 
       const pending = this.view.runAsync();
@@ -260,6 +409,10 @@ export class VegaView implements m.ClassComponent<VegaViewAttrs> {
     wrapper.spec = attrs.spec;
     wrapper.data = attrs.data;
     wrapper.engine = attrs.engine;
+    wrapper.signalHandlers = attrs.signalHandlers ?? [];
+    wrapper.eventHandlers = attrs.eventHandlers ?? [];
+    wrapper.onViewDestroyed = attrs.onViewDestroyed;
+
     this.wrapper = wrapper;
     this.resize = new SimpleResizeObserver(dom, () => {
       wrapper.onResize();
@@ -271,6 +424,9 @@ export class VegaView implements m.ClassComponent<VegaViewAttrs> {
       this.wrapper.spec = attrs.spec;
       this.wrapper.data = attrs.data;
       this.wrapper.engine = attrs.engine;
+      this.wrapper.signalHandlers = attrs.signalHandlers ?? [];
+      this.wrapper.eventHandlers = attrs.eventHandlers ?? [];
+      this.wrapper.onViewDestroyed = attrs.onViewDestroyed;
     }
   }
 

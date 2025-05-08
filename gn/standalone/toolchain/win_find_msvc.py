@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
+r"""
 Finds and prints MSVC and Windows SDK paths.
 
 It outpus:
@@ -68,7 +68,7 @@ def main():
       ['BuildTools', 'Community', 'Professional', 'Enterprise', 'Preview'],
       ['Program Files', 'Program Files (x86)']):
     msvc_base = (f'C:\\{try_dir[2]}\\Microsoft Visual Studio\\'
-                f'{try_dir[0]}\\{try_dir[1]}\\VC\\Tools\\MSVC')
+                 f'{try_dir[0]}\\{try_dir[1]}\\VC\\Tools\\MSVC')
     if os.path.exists(msvc_base):
       filt = lambda x: os.path.exists(
           os.path.join(x, 'lib', 'x64', 'libcmt.lib'))

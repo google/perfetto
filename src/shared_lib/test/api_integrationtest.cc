@@ -882,9 +882,50 @@ TEST_F(SharedLibDataSourceTest, StopDone) {
   std::thread t([&]() { tracing_session.StopBlocking(); });
 
   stop_called.WaitForNotification();
+
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    struct PerfettoDsRootTracePacket trace_packet;
+    PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
+
+    {
+      struct perfetto_protos_TestEvent for_testing;
+      perfetto_protos_TracePacket_begin_for_testing(&trace_packet.msg,
+                                                    &for_testing);
+      {
+        struct perfetto_protos_TestEvent_TestPayload payload;
+        perfetto_protos_TestEvent_begin_payload(&for_testing, &payload);
+        perfetto_protos_TestEvent_TestPayload_set_cstr_str(&payload,
+                                                           "After stop");
+        perfetto_protos_TestEvent_end_payload(&for_testing, &payload);
+      }
+      perfetto_protos_TracePacket_end_for_testing(&trace_packet.msg,
+                                                  &for_testing);
+    }
+    PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
+  }
+
   PerfettoDsStopDone(stopper);
 
   t.join();
+
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    // After the postponed stop has been acknowledged, this should not be
+    // executed.
+    ADD_FAILURE();
+  }
+
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          MsgField(Contains(PbField(
+              perfetto_protos_TracePacket_for_testing_field_number,
+              MsgField(Contains(PbField(
+                  perfetto_protos_TestEvent_payload_field_number,
+                  MsgField(ElementsAre(PbField(
+                      perfetto_protos_TestEvent_TestPayload_str_field_number,
+                      StringField("After stop")))))))))))));
 }
 
 TEST_F(SharedLibDataSourceTest, FlushDone) {
@@ -1166,6 +1207,23 @@ TEST_F(SharedLibProducerTest, ActivateTriggers) {
                       MsgField(Contains(PbField(
                           perfetto_protos_Trigger_trigger_name_field_number,
                           StringField("trigger1"))))))))));
+}
+
+TEST(SharedLibNonInitializedTest, DataSourceTrace) {
+  EXPECT_FALSE(PERFETTO_ATOMIC_LOAD(data_source_1.enabled));
+
+  bool executed = false;
+
+  PERFETTO_DS_TRACE(data_source_1, ctx) {
+    executed = true;
+  }
+
+  EXPECT_FALSE(executed);
+}
+
+TEST(SharedLibNonInitializedTest, TeMacro) {
+  EXPECT_FALSE(std::atomic_load(cat1.enabled));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 }
 
 class SharedLibTrackEventTest : public testing::Test {
@@ -1824,7 +1882,9 @@ TEST_F(SharedLibTrackEventTest, ScopedDisabled) {
                                        .Build();
   // Check that the PERFETTO_TE_SCOPED macro does not have any effect if the
   // category is disabled.
-  { PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE("slice")); }
+  {
+    PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE("slice"));
+  }
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -1971,7 +2031,9 @@ TEST_F(SharedLibTrackEventTest, ScopedFunc) {
                                        .Build();
 
   // Check that using __func__ works as expected.
-  { PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE(__func__)); }
+  {
+    PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE(__func__));
+  }
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();

@@ -95,7 +95,10 @@ def Main():
       map_file_contents = fetch_url_cached(map_url)
       srcmap = sourcemap.loads(map_file_contents)
       maps_by_url[map_url] = srcmap
-    sym = srcmap.lookup(int(line), int(col))
+    try:
+      sym = srcmap.lookup(int(line), int(col))
+    except IndexError:
+      sym = sourcemap.objects.Token(src='<Could not resolve symbol>')
     src = sym.src.replace('../../', '')
     sym_url = '%s#%s' % (src, sym.src_line)
     if src.startswith('../out/ui/'):

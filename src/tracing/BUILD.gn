@@ -43,33 +43,16 @@ if (perfetto_build_standalone) {
   shared_library("client_api_no_backends_compile_test") {
     deps = [
       ":client_api_without_backends",
-      ":platform_fake",
       "../../gn:default_deps",
     ]
   }
 }
 
-# Separate target because the embedder might not want this.
+# Some .gn build files outside of this repo (v8, webrtc) still reference this
+# target.
 source_set("platform_impl") {
-  deps = [
-    "../../gn:default_deps",
-    "../../include/perfetto/tracing",
-    "../base",
-  ]
-  sources = [
-    "platform_posix.cc",
-    "platform_windows.cc",
-  ]
-}
-
-# Fake platform that allows buiding the client lib on all OSes. You can only use
-# those parts of the client lib that do not use the platform.
-source_set("platform_fake") {
-  deps = [
-    "../../gn:default_deps",
-    "../../include/perfetto/tracing",
-  ]
-  sources = [ "platform_fake.cc" ]
+  deps = [ "../../gn:default_deps" ]
+  sources = []
 }
 
 # Code that both public headers and other non-public sources (e.g.
@@ -116,6 +99,8 @@ source_set("client_api_without_backends") {
     "internal/track_event_internal.cc",
     "internal/track_event_interned_fields.cc",
     "platform.cc",
+    "platform_posix.cc",
+    "platform_windows.cc",
     "traced_value.cc",
     "tracing.cc",
     "tracing_policy.cc",
@@ -152,6 +137,7 @@ source_set("integrationtests") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
+    ":client_api_without_backends",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../protos/perfetto/trace:lite",
@@ -163,19 +149,9 @@ perfetto_unittest_source_set("unittests") {
 
   sources = []
 
-  # TODO(primiano): remove the build_with_chromium conditional once the root
-  # //BUILD.gn:libperfetto (in chromium) stops adding tracing:platform_fake.
-  # The problem is the following: in chrome builds we end up with duplicate
-  # symbol definitions in the test because both platforms (impl and fake) are
-  # present: impl added here and fake coming from chromium's base (full path:
-  # perfetto_unittests -> //(chromium)base:test_support -> //(chromium)base
-  # -> libperfetto -> platform_fake.
+  # TODO(lalitm): this tests appear to be failing on Chromium for unknown
+  # reasons. Figure out why and reenable them.
   if (!build_with_chromium) {
-    deps += [
-      ":client_api_without_backends",
-      ":platform_impl",
-    ]
-
     sources += [
       "internal/interceptor_trace_writer_unittest.cc",
       "traced_proto_unittest.cc",
@@ -234,7 +210,6 @@ if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
     deps = [
-      ":platform_impl",
       "../..:libperfetto_client_experimental",
       "../../gn:benchmark",
       "../../gn:default_deps",

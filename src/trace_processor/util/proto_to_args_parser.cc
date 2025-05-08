@@ -16,20 +16,28 @@
 
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <unordered_map>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "protos/perfetto/common/descriptor.pbzero.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+#include "protos/perfetto/common/descriptor.pbzero.h"
+
+namespace perfetto::trace_processor::util {
 
 namespace {
 
@@ -124,7 +132,7 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
     return base::Status("Failed to find proto descriptor");
   }
 
-  auto& descriptor = pool_.descriptors()[*idx];
+  const auto& descriptor = pool_.descriptors()[*idx];
 
   std::unordered_map<size_t, int> repeated_field_index;
   bool empty_message = true;
@@ -133,7 +141,7 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
   for (protozero::Field f = decoder.ReadField(); f.valid();
        f = decoder.ReadField()) {
     empty_message = false;
-    auto field = descriptor.FindFieldByTag(f.id());
+    const auto* field = descriptor.FindFieldByTag(f.id());
     if (!field) {
       if (unknown_extensions != nullptr) {
         (*unknown_extensions)++;
@@ -395,6 +403,9 @@ ProtoToArgsParser::ScopedNestedKeyContext ProtoToArgsParser::EnterDictionary(
 base::Status ProtoToArgsParser::AddDefault(const FieldDescriptor& descriptor,
                                            Delegate& delegate) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+  if (!delegate.ShouldAddDefaultArg(key_prefix_)) {
+    return base::OkStatus();
+  }
   if (descriptor.is_repeated()) {
     delegate.AddNull(key_prefix_);
     return base::OkStatus();
@@ -475,12 +486,6 @@ base::Status ProtoToArgsParser::AddEnum(const FieldDescriptor& descriptor,
   auto opt_enum_descriptor_idx =
       pool_.FindDescriptorIdx(descriptor.resolved_type_name());
   if (!opt_enum_descriptor_idx) {
-    delegate.AddInteger(key_prefix_, value);
-    return base::OkStatus();
-  }
-  auto opt_enum_string =
-      pool_.descriptors()[*opt_enum_descriptor_idx].FindEnumString(value);
-  if (!opt_enum_string) {
     // Fall back to the integer representation of the field.
     // We add the string representation of the int value here in order that
     // EXTRACT_ARG() should return consistent types under error conditions and
@@ -489,11 +494,17 @@ base::Status ProtoToArgsParser::AddEnum(const FieldDescriptor& descriptor,
     delegate.AddString(key_prefix_, std::to_string(value));
     return base::OkStatus();
   }
+  auto opt_enum_string =
+      pool_.descriptors()[*opt_enum_descriptor_idx].FindEnumString(value);
+  if (!opt_enum_string) {
+    // Fall back to the integer representation of the field. See above for
+    // motivation.
+    delegate.AddString(key_prefix_, std::to_string(value));
+    return base::OkStatus();
+  }
   delegate.AddString(
       key_prefix_,
       protozero::ConstChars{opt_enum_string->data(), opt_enum_string->size()});
   return base::OkStatus();
 }
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util

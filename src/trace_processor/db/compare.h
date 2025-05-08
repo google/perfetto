@@ -29,7 +29,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace compare {
 
-// This file contains the de-facto impleemntation of all comparisions used by
+// This file contains the de-facto impleemntation of all comparisons used by
 // trace processor in every setting. All of this is centralised in one file to
 // ensure both internal consistency with SQLite and consistency with SQLite.
 
@@ -65,13 +65,13 @@ inline int LongToDouble(int64_t i, double d) {
 //  * <0 if a < b,
 //  * >0 if a > b.
 //  *  0 otherwise
-// This code matches the behaviour of the inline code in the comparision path of
+// This code matches the behaviour of the inline code in the comparison path of
 // sqlite3VdbeExec (for ints) and the behaviour of sqlite3MemCompare (for
 // doubles).
 template <typename T>
 inline int Numeric(T a, T b) {
   static_assert(std::is_arithmetic<T>::value,
-                "Numeric comparision performed with non-numeric type");
+                "Numeric comparison performed with non-numeric type");
   return a < b ? -1 : (a > b ? 1 : 0);
 }
 
@@ -150,7 +150,7 @@ inline int NullableString(base::StringView a, base::StringView b) {
 //  * <0 if a < b (a and b both non null and either of same type or numeric)
 //  * >0 if a > b (a and b both non null and either of same type or numeric)
 //  *  0 otherwise
-// This code roughly matches the behaviour of the code in the comparision path
+// This code roughly matches the behaviour of the code in the comparison path
 // of sqlite3VdbeExec except we are intentionally more strict than SQLite when
 // it comes to casting between strings and numerics - we disallow moving between
 // the two. We do allow comparing between doubles and longs however as doubles

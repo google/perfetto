@@ -87,6 +87,7 @@ function heapProfiling(): RecordProbe {
     shmemKB: new Slider({
       title: 'Shared memory buffer',
       values: SMB_VALUES_KB,
+      default: 8192,
       cssClass: '.thin',
       unit: 'KB',
     }),
@@ -357,15 +358,13 @@ const SAMPLING_TIMES_MS = [
 ];
 
 const SMB_VALUES_KB = [
-  16,
-  32,
-  64,
-  128,
-  512,
   1024,
-  4096,
+  2 * 1024,
+  4 * 1024,
+  8 * 1024,
   16 * 1024,
   32 * 1024,
+  64 * 1024,
   128 * 1024,
 ];
 

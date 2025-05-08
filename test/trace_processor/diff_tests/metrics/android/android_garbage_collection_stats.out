@@ -1,0 +1,776 @@
+android_garbage_collection_stats {
+  ts: 37574228004
+  dur: 2590476076
+  heap_size_mbs: 545.245650252069
+  heap_size_mb: 210.4808669354679
+  heap_allocated_mb: 157.435
+  heap_allocation_rate: 60.77454312687503
+  heap_live_mbs: 21.891720379191
+  heap_total_mbs: 53.434635626237
+  heap_utilization: 0.4096915815486898
+  gc_running_dur: 80862916
+  gc_running_rate: 0.031215465276506957
+  gc_running_efficiency: 1351.232098555335
+  gc_during_android_startup_dur: 177436890
+  total_android_startup_dur: 675663737
+  gc_during_android_startup_rate: 0.2626112373409793
+  gc_during_android_startup_efficiency: 160.61513239126643
+  processes {
+    process {
+      name: "com.android.systemui"
+      uid: 10243
+      pid: 1982
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 86.782306720282
+    heap_size_mb: 33.50052429524232
+    heap_allocated_mb: 11.633
+    heap_allocation_rate: 4.490680345507271
+  }
+  processes {
+    process {
+      name: "system_server"
+      uid: 1000
+      pid: 1442
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 248.843694875853
+    heap_size_mb: 96.06098939932963
+    heap_allocated_mb: 51.035
+    heap_allocation_rate: 19.701011900022657
+  }
+  processes {
+    process {
+      name: "com.android.settings"
+      uid: 1000
+      pid: 2475
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 3.940914669763
+    heap_size_mb: 1.5213090390119473
+    heap_allocated_mb: 0.37
+    heap_allocation_rate: 0.14283088866480617
+  }
+  processes {
+    process {
+      name: "com.google.android.apps.nexuslauncher"
+      uid: 10248
+      pid: 2523
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 19.58299277801
+    heap_size_mb: 7.55961151675581
+    heap_allocated_mb: 17.393
+    heap_allocation_rate: 6.714209855532362
+    heap_live_mbs: 16.015346765763
+    heap_total_mbs: 40.851855960883
+    heap_utilization: 0.39203474087195017
+    gc_running_dur: 24952066
+    gc_running_rate: 0.009632231785953772
+    gc_running_efficiency: 449.48352473851145
+  }
+  processes {
+    process {
+      name: "com.android.se"
+      uid: 1068
+      pid: 2353
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 2.660807024882
+    heap_size_mb: 1.0271498160255543
+    heap_allocated_mb: 0.256
+    heap_allocation_rate: 0.09882353377889293
+  }
+  processes {
+    process {
+      name: "com.android.phone"
+      uid: 1001
+      pid: 2448
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 3.477027840149
+    heap_size_mb: 1.342235071137171
+    heap_allocated_mb: 0.568
+    heap_allocation_rate: 0.21926471557191868
+  }
+  processes {
+    process {
+      name: "com.google.android.flipendo"
+      uid: 10256
+      pid: 2085
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.00068410782
+    heap_size_mb: 0.0002640857510084953
+    heap_allocated_mb: 0.032
+    heap_allocation_rate: 0.012352941722361616
+  }
+  processes {
+    process {
+      name: "com.google.android.bluetooth"
+      uid: 1002
+      pid: 2251
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 3.959300889678
+    heap_size_mb: 1.5284066609839635
+    heap_allocated_mb: 1.032
+    heap_allocation_rate: 0.3983823705461621
+  }
+  processes {
+    process {
+      name: "com.google.android.pixelsystemservice"
+      uid: 10421
+      pid: 2266
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.001335920382
+    heap_size_mb: 0.0005157045820175333
+    heap_allocated_mb: 0.032
+    heap_allocation_rate: 0.012352941722361616
+  }
+  processes {
+    process {
+      name: "com.google.android.grilservice"
+      uid: 10246
+      pid: 2317
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_allocated_mb: 0.0
+    heap_allocation_rate: 0.0
+  }
+  processes {
+    process {
+      name: "com.shannon.imsservice"
+      uid: 10217
+      pid: 2382
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.001318185906
+    heap_size_mb: 0.000508858552376764
+    heap_allocated_mb: 0.032
+    heap_allocation_rate: 0.012352941722361616
+  }
+  processes {
+    process {
+      name: "com.samsung.slsi.telephony.oemril"
+      uid: 10235
+      pid: 2407
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.001698210004
+    heap_size_mb: 0.000655559037866984
+    heap_allocated_mb: 0.032
+    heap_allocation_rate: 0.012352941722361616
+  }
+  processes {
+    process {
+      name: "com.google.android.gms.persistent"
+      uid: 10176
+      pid: 2666
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 23.437303936342
+    heap_size_mb: 9.047489051715914
+    heap_allocated_mb: 5.368
+    heap_allocation_rate: 2.072205973926161
+  }
+  processes {
+    process {
+      name: "com.google.android.euicc"
+      uid: 10141
+      pid: 2855
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 2.229153976088
+    heap_size_mb: 0.8605190361495544
+    heap_allocated_mb: 0.761
+    heap_allocation_rate: 0.29376839533491217
+    gc_running_dur: 4148763
+    gc_running_rate: 0.001601544611215317
+  }
+  processes {
+    process {
+      name: "com.google.android.apps.wellbeing"
+      uid: 10173
+      pid: 2909
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 10.020242708796
+    heap_size_mb: 3.8681085695523714
+    heap_allocated_mb: 1.223
+    heap_allocation_rate: 0.472113991451508
+    gc_running_dur: 8950766
+    gc_running_rate: 0.0034552590865154936
+  }
+  processes {
+    process {
+      name: "com.google.android.repairmode"
+      uid: 1000
+      pid: 2964
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.039915074364
+    heap_size_mb: 0.015408393358194442
+    heap_allocated_mb: 0.032
+    heap_allocation_rate: 0.012352941722361616
+  }
+  processes {
+    process {
+      name: "com.google.android.apps.scone"
+      uid: 10149
+      pid: 3022
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 1.452020476033
+    heap_size_mb: 0.5605226350034819
+    heap_allocated_mb: 0.592
+    heap_allocation_rate: 0.22852942186368988
+  }
+  processes {
+    process {
+      name: "com.google.android.gms"
+      uid: 10176
+      pid: 3040
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 8.958439236982
+    heap_size_mb: 3.458221181804885
+    heap_allocated_mb: 1.737
+    heap_allocation_rate: 0.6705331178669415
+  }
+  processes {
+    process {
+      name: "com.google.android.apps.work.clouddpc"
+      uid: 10196
+      pid: 3091
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 9.272426730011
+    heap_size_mb: 3.5794295943966863
+    heap_allocated_mb: 1.409
+    heap_allocation_rate: 0.5439154652127349
+  }
+  processes {
+    process {
+      name: "com.google.android.deskclock"
+      uid: 10182
+      pid: 3162
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 7.149207998379
+    heap_size_mb: 2.7598046801567913
+    heap_allocated_mb: 2.135
+    heap_allocation_rate: 0.824172830538814
+    heap_live_mbs: 5.876373613428
+    heap_total_mbs: 12.582779665354
+    heap_utilization: 0.4670171273528913
+    gc_running_dur: 42811321
+    gc_running_rate: 0.016526429792822376
+    gc_running_efficiency: 43.697722812789394
+    gc_during_android_startup_dur: 177436890
+    gc_during_android_startup_rate: 0.2626112373409793
+    gc_during_android_startup_efficiency: 2.749948385621066
+  }
+  processes {
+    process {
+      name: "com.google.android.carrier"
+      uid: 10146
+      pid: 3193
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 3.116816923766
+    heap_size_mb: 1.203183056829744
+    heap_allocated_mb: 0.096
+    heap_allocation_rate: 0.03705882516708485
+  }
+  processes {
+    process {
+      name: "com.google.android.dialer"
+      uid: 10154
+      pid: 3219
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 4.598447270353
+    heap_size_mb: 1.775135973250733
+    heap_allocated_mb: 0.2
+    heap_allocation_rate: 0.0772058857647601
+  }
+  processes {
+    process {
+      name: "android.process.acore"
+      uid: 10090
+      pid: 3260
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 6.720670444029
+    heap_size_mb: 2.5943765728215125
+    heap_allocated_mb: 1.164
+    heap_allocation_rate: 0.44933825515090375
+  }
+  processes {
+    process {
+      name: "com.google.android.devicelockcontroller"
+      uid: 10283
+      pid: 3279
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.749465098714
+    heap_size_mb: 0.2893155839799387
+    heap_allocated_mb: 0.721
+    heap_allocation_rate: 0.27832721818196016
+  }
+  processes {
+    process {
+      name: "com.google.android.ims"
+      uid: 10409
+      pid: 3313
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 1.51127949732
+    heap_size_mb: 0.58339836114356
+    heap_allocated_mb: 0.224
+    heap_allocation_rate: 0.0864705920565313
+  }
+  processes {
+    process {
+      name: "com.google.android.providers.media.module"
+      uid: 10278
+      pid: 3612
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 2.605557507264
+    heap_size_mb: 1.0058218762966873
+    heap_allocated_mb: 1.431
+    heap_allocation_rate: 0.5524081126468585
+  }
+  processes {
+    process {
+      name: "com.google.android.as"
+      uid: 10131
+      pid: 3628
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 9.759894513776
+    heap_size_mb: 3.767606504533494
+    heap_allocated_mb: 4.21
+    heap_allocation_rate: 1.6251838953482
+  }
+  processes {
+    process {
+      name: "com.google.android.googlequicksearchbox:interactor"
+      uid: 10155
+      pid: 3644
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 8.437325134548
+    heap_size_mb: 3.2570558024902603
+    heap_allocated_mb: 4.953
+    heap_allocation_rate: 1.912003760964284
+  }
+  processes {
+    process {
+      name: "com.google.android.apps.messaging:rcs"
+      uid: 10166
+      pid: 3667
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 6.1865879369
+    heap_size_mb: 2.388205007649721
+    heap_allocated_mb: 3.42
+    heap_allocation_rate: 1.3202206465773978
+  }
+  processes {
+    process {
+      name: "com.android.nfc"
+      uid: 1027
+      pid: 3689
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 5.121230015436
+    heap_size_mb: 1.976945497734062
+    heap_allocated_mb: 1.435
+    heap_allocation_rate: 0.5539522303621537
+  }
+  processes {
+    process {
+      name: "com.google.SSRestartDetector"
+      uid: 1000
+      pid: 3690
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.434026301482
+    heap_size_mb: 0.16754692525560308
+    heap_allocated_mb: 0.256
+    heap_allocation_rate: 0.09882353377889293
+  }
+  processes {
+    process {
+      name: "com.google.android.connectivitythermalpowermanager"
+      uid: 10244
+      pid: 3719
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 4.265511314905
+    heap_size_mb: 1.6466128965342353
+    heap_allocated_mb: 1.894
+    heap_allocation_rate: 0.7311397381922782
+  }
+  processes {
+    process {
+      name: "com.android.pixellogger"
+      uid: 10255
+      pid: 3737
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.4964586881
+    heap_size_mb: 0.1916476638018563
+    heap_allocated_mb: 0.424
+    heap_allocation_rate: 0.1636764778212914
+  }
+  processes {
+    process {
+      name: "com.google.android.calendar"
+      uid: 10212
+      pid: 3803
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 5.061494815821
+    heap_size_mb: 1.953885952746008
+    heap_allocated_mb: 3.544
+    heap_allocation_rate: 1.368088295751549
+  }
+  processes {
+    process {
+      name: "com.google.android.apps.youtube.music"
+      uid: 10201
+      pid: 3827
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 5.888898525471
+    heap_size_mb: 2.2732881341888915
+    heap_allocated_mb: 2.795
+    heap_allocation_rate: 1.0789522535625224
+  }
+  processes {
+    process {
+      name: "com.google.android.googlequicksearchbox:search"
+      uid: 10155
+      pid: 3857
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 11.744597272805
+    heap_size_mb: 4.53376017698648
+    heap_allocated_mb: 18.182
+    heap_allocation_rate: 7.01878707487434
+  }
+  processes {
+    process {
+      name: "com.google.android.apps.dreamliner"
+      uid: 10144
+      pid: 3863
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 1.393338501862
+    heap_size_mb: 0.5378696660319977
+    heap_allocated_mb: 0.768
+    heap_allocation_rate: 0.2964706013366788
+  }
+  processes {
+    process {
+      name: "com.google.android.youtube"
+      uid: 10197
+      pid: 3915
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 4.861017464651
+    heap_size_mb: 1.8764957953817443
+    heap_allocated_mb: 2.407
+    heap_allocation_rate: 0.9291728351788878
+  }
+  processes {
+    process {
+      name: "com.amazon.mp3"
+      uid: 10321
+      pid: 3977
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 4.306523533806
+    heap_size_mb: 1.662444819971385
+    heap_allocated_mb: 1.843
+    heap_allocation_rate: 0.7114522373222643
+  }
+  processes {
+    process {
+      name: "com.apple.android.music"
+      uid: 10328
+      pid: 4001
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 3.35872630106
+    heap_size_mb: 1.296567195573668
+    heap_allocated_mb: 0.994
+    heap_allocation_rate: 0.3837132522508577
+  }
+  processes {
+    process {
+      name: "com.blinkslabs.blinkist.android"
+      uid: 10294
+      pid: 4029
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 4.595402090763
+    heap_size_mb: 1.7739604443129393
+    heap_allocated_mb: 3.352
+    heap_allocation_rate: 1.2939706454173792
+  }
+  processes {
+    process {
+      name: "com.google.android.apps.books"
+      uid: 10332
+      pid: 4091
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 1.132780545844
+    heap_size_mb: 0.4372866270948722
+    heap_allocated_mb: 0.392
+    heap_allocation_rate: 0.1513235360989298
+  }
+  processes {
+    process {
+      name: "com.google.android.as.oss"
+      uid: 10172
+      pid: 4149
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 2.630657261196
+    heap_size_mb: 1.0155111199706752
+    heap_allocated_mb: 1.297
+    heap_allocation_rate: 0.5006801691844692
+  }
+  processes {
+    process {
+      name: "com.google.ar.core"
+      uid: 10210
+      pid: 4154
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 2.650787522513
+    heap_size_mb: 1.0232819932489505
+    heap_allocated_mb: 1.51
+    heap_allocation_rate: 0.5829044375239387
+  }
+  processes {
+    process {
+      name: "com.overdrive.mobile.android.libby"
+      uid: 10389
+      pid: 4160
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 2.290407653808
+    heap_size_mb: 0.8841647583731631
+    heap_allocated_mb: 0.898
+    heap_allocation_rate: 0.34665442708377286
+  }
+  processes {
+    process {
+      name: "org.thoughtcrime.securesms"
+      uid: 10288
+      pid: 4274
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 2.008960047106
+    heap_size_mb: 0.7755176995141646
+    heap_allocated_mb: 0.761
+    heap_allocation_rate: 0.29376839533491217
+  }
+  processes {
+    process {
+      name: "com.patreon.android"
+      uid: 10320
+      pid: 4307
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 1.184198526762
+    heap_size_mb: 0.4571354808999209
+    heap_allocated_mb: 0.32
+    heap_allocation_rate: 0.12352941722361616
+  }
+  processes {
+    process {
+      name: "com.spotify.music"
+      uid: 10313
+      pid: 4322
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 1.415917403262
+    heap_size_mb: 0.5465857864429087
+    heap_allocated_mb: 0.256
+    heap_allocation_rate: 0.09882353377889293
+  }
+  processes {
+    process {
+      name: "com.google.android.keep"
+      uid: 10309
+      pid: 4338
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 1.245760817858
+    heap_size_mb: 0.4809003369687943
+    heap_allocated_mb: 0.32
+    heap_allocation_rate: 0.12352941722361616
+  }
+  processes {
+    process {
+      name: "com.android.keychain"
+      uid: 1000
+      pid: 4416
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.93486318396
+    heap_size_mb: 0.3608847009324783
+    heap_allocated_mb: 0.288
+    heap_allocation_rate: 0.11117647550125455
+  }
+  processes {
+    process {
+      name: "org.videolan.vlc"
+      uid: 10324
+      pid: 4440
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.927179389852
+    heap_size_mb: 0.3579185302817674
+    heap_allocated_mb: 0.256
+    heap_allocation_rate: 0.09882353377889293
+  }
+  processes {
+    process {
+      name: "com.android.printspooler"
+      uid: 10110
+      pid: 4461
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.724705644218
+    heap_size_mb: 0.27975770590285887
+    heap_allocated_mb: 0.256
+    heap_allocation_rate: 0.09882353377889293
+  }
+  processes {
+    process {
+      name: "com.android.providers.calendar"
+      uid: 10085
+      pid: 4489
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.319045684136
+    heap_size_mb: 0.12316102321571874
+    heap_allocated_mb: 0.32
+    heap_allocation_rate: 0.12352941722361616
+  }
+  processes {
+    process {
+      name: "com.google.android.apps.wallpaper"
+      uid: 10245
+      pid: 4525
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.501066897292
+    heap_size_mb: 0.1934265681641447
+    heap_allocated_mb: 0.256
+    heap_allocation_rate: 0.09882353377889293
+  }
+  processes {
+    process {
+      name: "<pre-initialized>"
+      uid: 10186
+      pid: 4570
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.145264668822
+    heap_size_mb: 0.0560764371336352
+    heap_allocated_mb: 0.128
+    heap_allocation_rate: 0.049411766889446464
+  }
+  processes {
+    process {
+      name: "<pre-initialized>"
+      uid: 10358
+      pid: 4635
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.047703078582
+    heap_size_mb: 0.01841479217814633
+    heap_allocated_mb: 0.128
+    heap_allocation_rate: 0.049411766889446464
+  }
+  processes {
+    process {
+      name: "com.google.android.apps.messaging"
+      uid: 10166
+      pid: 4652
+      android_user_id: 0
+      is_kernel_task: false
+    }
+    heap_size_mbs: 0.062291414302
+    heap_size_mb: 0.02404631908362778
+    heap_allocated_mb: 0.064
+    heap_allocation_rate: 0.024705883444723232
+  }
+}

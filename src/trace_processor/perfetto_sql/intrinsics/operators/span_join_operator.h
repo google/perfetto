@@ -32,7 +32,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 
 namespace perfetto::trace_processor {
@@ -47,7 +46,7 @@ struct SpanJoinOperatorModule;
 // operations which run for a particular *span* of time.
 //
 // We draw spans like so (time on the x-axis):
-// start of span->[ time where opertion is running ]<- end of span
+// start of span->[ time where operation is running ]<- end of span
 //
 // Multiple spans can happen in parallel:
 // [      ]
@@ -77,7 +76,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
   static constexpr uint32_t kSourceGeqOpCode =
       SQLITE_INDEX_CONSTRAINT_FUNCTION + 1;
 
-  struct State;
+  struct Vtab;
 
   // Enum indicating whether the queries on the two inner tables should
   // emit shadows.
@@ -115,7 +114,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
                     std::vector<std::pair<SqlValue::Type, std::string>> cols,
                     EmitShadowType emit_shadow_type,
                     uint32_t ts_idx,
-                    uint32_t dur_idx,
+                    std::optional<uint32_t> dur_idx,
                     uint32_t partition_idx);
 
     static base::Status Create(PerfettoSqlEngine* engine,
@@ -152,7 +151,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     }
 
     uint32_t ts_idx() const { return ts_idx_; }
-    uint32_t dur_idx() const { return dur_idx_; }
+    std::optional<uint32_t> dur_idx() const { return dur_idx_; }
     uint32_t partition_idx() const { return partition_idx_; }
 
    private:
@@ -163,7 +162,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     std::vector<std::pair<SqlValue::Type, std::string>> cols_;
 
     uint32_t ts_idx_ = std::numeric_limits<uint32_t>::max();
-    uint32_t dur_idx_ = std::numeric_limits<uint32_t>::max();
+    std::optional<uint32_t> dur_idx_;
     uint32_t partition_idx_ = std::numeric_limits<uint32_t>::max();
   };
 
@@ -184,7 +183,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
       // real slice present.
       kPresentPartitionShadow,
 
-      // Encodes that the current slice is on a paritition(s) for which there is
+      // Encodes that the current slice is on a partition(s) for which there is
       // no real slice for those partition(s).
       kMissingPartitionShadow,
 
@@ -192,7 +191,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
       kEof,
     };
 
-    Query(SpanJoinOperatorModule::State*, const TableDefinition*);
+    Query(Vtab*, const TableDefinition*);
     virtual ~Query();
 
     Query(Query&&) noexcept = default;
@@ -312,7 +311,10 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
 
     int64_t CursorDur() const {
       PERFETTO_DCHECK(!cursor_eof_);
-      auto dur_idx = static_cast<int>(defn_->dur_idx());
+      if (!defn_->dur_idx().has_value()) {
+        return 0;
+      }
+      auto dur_idx = static_cast<int>(defn_->dur_idx().value());
       return sqlite3_column_int64(stmt_->sqlite_stmt(), dur_idx);
     }
 
@@ -341,7 +343,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     std::optional<SqliteEngine::PreparedStatement> stmt_;
 
     const TableDefinition* defn_ = nullptr;
-    SpanJoinOperatorModule::State* in_state_ = nullptr;
+    Vtab* vtab_ = nullptr;
   };
 
   // Columns of the span operator table.
@@ -374,9 +376,8 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}
 
     PerfettoSqlEngine* engine;
-    sqlite::ModuleStateManager<SpanJoinOperatorModule> manager;
   };
-  struct State {
+  struct Vtab : public sqlite3_vtab {
     bool IsLeftJoin() const {
       return base::CaseInsensitiveEqual(module_name, "span_left_join");
     }
@@ -405,16 +406,11 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     PartitioningType partitioning;
     base::FlatHashMap<size_t, ColumnLocator> global_index_to_column_locator;
   };
-  struct Vtab : public sqlite3_vtab {
-    sqlite::ModuleStateManager<SpanJoinOperatorModule>::PerVtabState* state;
-  };
 
   // Base class for a cursor on the span table.
   struct Cursor final : public sqlite3_vtab_cursor {
-    explicit Cursor(State* _state)
-        : t1(_state, &_state->t1_defn),
-          t2(_state, &_state->t2_defn),
-          state(_state) {}
+    explicit Cursor(Vtab* _vtab)
+        : t1(_vtab, &_vtab->t1_defn), t2(_vtab, &_vtab->t2_defn), vtab(_vtab) {}
 
     bool IsOverlappingSpan() const;
     base::Status FindOverlappingSpan();
@@ -428,7 +424,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     // Only valid for kMixedPartition.
     int64_t last_mixed_partition_ = std::numeric_limits<int64_t>::min();
 
-    State* state;
+    Vtab* vtab;
   };
 
   static constexpr bool kSupportsWrites = false;

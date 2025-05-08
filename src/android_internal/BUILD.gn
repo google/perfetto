@@ -34,6 +34,7 @@ if (perfetto_build_with_android) {
       "power_stats.cc",
       "statsd.cc",
       "statsd_logging.cc",
+      "suspend_control_service.cc",
       "tracing_service_proxy.cc",
     ]
     libs = [
@@ -42,6 +43,7 @@ if (perfetto_build_with_android) {
       "android.hardware.power.stats@1.0",
       "android.hardware.power.stats-V1-cpp",
       "android.hardware.atrace@1.0",
+      "android.system.suspend.control.internal-cpp",
       "statslog_perfetto",
       "statssocket",
       "cutils",
@@ -79,6 +81,7 @@ source_set("headers") {
     "power_stats.h",
     "statsd.h",
     "statsd_logging.h",
+    "suspend_control_service.h",
     "tracing_service_proxy.h",
   ]
 }

@@ -20,6 +20,7 @@
 #include <ostream>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::base {
@@ -36,6 +37,11 @@ MATCHER(IsError, negation ? "is not error" : "is error") {
   return !arg.ok();
 }
 
+// Macros for testing the results of function returning base::Status*.
+#define PERFETTO_TEST_STATUS_MATCHER_CONCAT(x, y) x##y
+#define PERFETTO_TEST_STATUS_MATCHER_CONCAT2(x, y) \
+  PERFETTO_TEST_STATUS_MATCHER_CONCAT(x, y)
+
 // Macros for testing the results of functions that return base::Status or
 // base::StatusOr<T> (for any type T).
 #define EXPECT_OK(expression) \
@@ -43,16 +49,14 @@ MATCHER(IsError, negation ? "is not error" : "is error") {
 #define ASSERT_OK(expression) \
   ASSERT_THAT(expression, ::perfetto::base::gtest_matchers::IsOk())
 
-// Macros for testing the results of function returning base::StatusOr<T>.
-#define PERFETTO_TEST_STATUS_MATCHER_CONCAT(x, y) x##y
-#define PERFETTO_TEST_STATUS_MATCHER_CONCAT2(x, y) \
-  PERFETTO_TEST_STATUS_MATCHER_CONCAT(x, y)
-#define ASSERT_OK_AND_ASSIGN(lhs, rhs)                                     \
-  PERFETTO_TEST_STATUS_MATCHER_CONCAT2(auto status_or, __LINE__) = rhs;    \
-  ASSERT_OK(                                                               \
-      PERFETTO_TEST_STATUS_MATCHER_CONCAT2(status_or, __LINE__).status()); \
-  lhs = std::move(                                                         \
-      PERFETTO_TEST_STATUS_MATCHER_CONCAT2(status_or, __LINE__).value())
+#define ASSERT_OK_AND_ASSIGN(lhs, rhs)                                      \
+  PERFETTO_TEST_STATUS_MATCHER_CONCAT2(auto status_or, __LINE__) = rhs;     \
+  lhs = PERFETTO_TEST_STATUS_MATCHER_CONCAT2(status_or, __LINE__).ok()      \
+            ? std::move(                                                    \
+                  PERFETTO_TEST_STATUS_MATCHER_CONCAT2(status_or, __LINE__) \
+                      .value())                                             \
+            : decltype(rhs)::value_type{};                                  \
+  ASSERT_OK(PERFETTO_TEST_STATUS_MATCHER_CONCAT2(status_or, __LINE__).status())
 
 }  // namespace gtest_matchers
 
@@ -63,6 +67,14 @@ inline void PrintTo(const Status& status, std::ostream* os) {
     *os << "OK";
   } else {
     *os << "Error(message=" << status.message() << ")";
+  }
+}
+template <typename T>
+inline void PrintTo(const StatusOr<T>& status, std::ostream* os) {
+  if (status.ok()) {
+    *os << testing::PrintToString(status.value());
+  } else {
+    *os << "Error(message=" << status.status().message() << ")";
   }
 }
 

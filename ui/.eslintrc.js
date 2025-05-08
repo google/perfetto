@@ -1,31 +1,30 @@
 module.exports = {
-  'env': {
-    'browser': true,
-    'es2021': true,
-    'node': true,
+  env: {
+    browser: true,
+    es2021: true,
+    node: true,
   },
-  'extends': [
-    'google',
-  ],
-  'parser': '@typescript-eslint/parser',
-  'parserOptions': {
-    'ecmaVersion': 'latest',
-    'sourceType': 'module',
-    'project': './tsconfig.json',
+  extends: ['google'],
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    ecmaVersion: 'latest',
+    sourceType: 'module',
+    project: './tsconfig.json',
   },
-  'plugins': [
-    '@typescript-eslint',
-  ],
-  'rules': {
+  plugins: ['@typescript-eslint'],
+  rules: {
     // We don't want to enforce jsdoc everywhere:
     'require-jsdoc': 'off',
 
     // Relax jsdoc requirements
-    'valid-jsdoc': ['error', {
-      'requireParamType': false,
-      'requireReturnType': false,
-      'requireReturn': false,
-    }],
+    'valid-jsdoc': [
+      'error',
+      {
+        requireParamType: false,
+        requireReturnType: false,
+        requireReturn: false,
+      },
+    ],
 
     // Formatting handled by prettier
     'indent': 'off',
@@ -48,8 +47,10 @@ module.exports = {
     // Default no-unused-vars doesn't understand TypeScript enums. See:
     // https://github.com/typescript-eslint/typescript-eslint/issues/2621
     'no-unused-vars': 'off',
-    '@typescript-eslint/no-unused-vars':
-        ['error', {'argsIgnorePattern': '^_.*', 'varsIgnorePattern': '^_.*'}],
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      {argsIgnorePattern: '^_.*', varsIgnorePattern: '^_.*'},
+    ],
 
     // new Array() is banned (use [] instead) but new Array<Foo>() is
     // allowed since it can be clearer to put the type by the
@@ -68,7 +69,7 @@ module.exports = {
     // TODO(hjd): Switch these to be lowercase and remove capIsNew.
     // There are also some properties like: foo.factory these should
     // stay.
-    'new-cap': ['error', {'capIsNew': false, 'properties': false}],
+    'new-cap': ['error', {capIsNew: false, properties: false}],
 
     // Don't allow new introduction of any it is most always a mistake.
     '@typescript-eslint/no-explicit-any': 'error',

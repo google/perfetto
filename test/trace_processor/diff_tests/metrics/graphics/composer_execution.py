@@ -30,7 +30,8 @@ trace.add_thread(15000, 10335, "worker thread")
 trace.add_ftrace_packet(1)
 
 # unskipped validation
-trace.add_atrace_begin(ts=100, tid=10335, pid=10335, buf="onMessageRefresh")
+trace.add_atrace_begin(
+    ts=100, tid=10335, pid=10335, buf="CompositionEngine::present")
 trace.add_atrace_begin(
     ts=200, tid=10335, pid=10335, buf="HwcPresentOrValidateDisplay 0")
 trace.add_atrace_end(ts=300, tid=10335, pid=10335)
@@ -59,7 +60,8 @@ trace.add_atrace_end(ts=2_800, tid=10335, pid=10335)
 
 # skipped validation
 trace.add_atrace_begin(ts=3_100, tid=10335, pid=10335, buf="AnotherFunction")
-trace.add_atrace_begin(ts=3_200, tid=10335, pid=10335, buf="onMessageRefresh")
+trace.add_atrace_begin(
+    ts=3_200, tid=10335, pid=10335, buf="CompositionEngine::present")
 trace.add_atrace_begin(
     ts=3_300, tid=10335, pid=10335, buf="HwcPresentOrValidateDisplay 0")
 trace.add_atrace_end(ts=3_400, tid=10335, pid=10335)

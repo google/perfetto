@@ -86,7 +86,7 @@ class SurfaceFlingerTransactions(TestSuite):
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
         SELECT COUNT(*) FROM surfaceflinger_transactions
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        WHERE base64_proto_id IS NOT NULL
         """,
         out=Csv("""
         "COUNT(*)"

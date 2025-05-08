@@ -30,7 +30,7 @@ class EtwParser {
  public:
   explicit EtwParser(TraceProcessorContext* context);
 
-  util::Status ParseEtwEvent(uint32_t cpu,
+  base::Status ParseEtwEvent(uint32_t cpu,
                              int64_t ts,
                              const TracePacketData& data);
 
@@ -40,7 +40,7 @@ class EtwParser {
   void PushSchedSwitch(uint32_t cpu,
                        int64_t timestamp,
                        uint32_t prev_pid,
-                       int64_t prev_state,
+                       int32_t prev_state,
                        uint32_t next_pid,
                        int32_t next_prio);
   StringId TaskStateToStringId(int64_t task_state_int);

@@ -7,7 +7,7 @@
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by appicable law or agreed to in writing, software
+ * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
@@ -37,24 +37,26 @@ std::vector<std::string> SplitFieldPath(const std::string& name) {
 Allowlist::Message& ResolveMessageForDescriptor(
     const google::protobuf::Descriptor& desc,
     Allowlist& allowlist) {
+  std::string name(desc.name());
   if (!desc.containing_type())
-    return allowlist.messages[desc.name()];
+    return allowlist.messages[name];
 
   Allowlist::Message& parent =
       ResolveMessageForDescriptor(*desc.containing_type(), allowlist);
-  return parent.nested_messages[desc.name()];
+  return parent.nested_messages[name];
 }
 
 void AllowlistEnum(const google::protobuf::EnumDescriptor& desc,
                    Allowlist& allowlist) {
+  std::string name(desc.name());
   if (!desc.containing_type()) {
-    allowlist.enums.emplace(desc.name());
+    allowlist.enums.emplace(name);
     return;
   }
 
   auto& containing =
       ResolveMessageForDescriptor(*desc.containing_type(), allowlist);
-  containing.enums.emplace(desc.name());
+  containing.enums.emplace(name);
 }
 
 void AllowlistField(const google::protobuf::FieldDescriptor& desc,
@@ -66,7 +68,8 @@ void AllowlistField(const google::protobuf::FieldDescriptor& desc,
   // We need to do slightly different things based on whether or not this field
   // is in a oneof.
   if (desc.containing_oneof()) {
-    auto& oneof = containing.oneofs[desc.containing_oneof()->name()];
+    auto& oneof =
+        containing.oneofs[std::string(desc.containing_oneof()->name())];
     if (!oneof.emplace(desc.number()).second) {
       return;
     }
@@ -106,7 +109,8 @@ base::Status AllowlistFromFieldList(
       const auto* field = current->FindFieldByName(pieces[i]);
       if (!field) {
         return base::ErrStatus("Field %s in message %s not found.",
-                               pieces[i].c_str(), current->name().c_str());
+                               pieces[i].c_str(),
+                               std::string(current->name()).c_str());
       }
       if (i == pieces.size() - 1) {
         // For the last field, allow the field and any messages it depends on
@@ -118,7 +122,8 @@ base::Status AllowlistFromFieldList(
       // All fields before the last should lead to a message type.
       if (field->type() != google::protobuf::FieldDescriptor::TYPE_MESSAGE) {
         return base::ErrStatus("Field %s in message %s has a non-message type",
-                               field->name().c_str(), desc.name().c_str());
+                               std::string(field->name()).c_str(),
+                               std::string(desc.name()).c_str());
       }
       current = field->message_type();
     }

@@ -271,13 +271,14 @@ class Viz(TestSuite):
     return DiffTestBlueprint(
         trace=self.chronological_trace,
         query="""
-        INCLUDE PERFETTO MODULE viz.summary.tracks;
-        SELECT id, order_id
-        FROM _track_event_tracks_ordered
-        ORDER BY id;
+        INCLUDE PERFETTO MODULE viz.summary.track_event;
+        SELECT cast_int!(track_ids) as id, order_id
+        FROM _track_event_tracks_ordered_groups
+        ORDER BY track_ids;
         """,
         out=Csv("""
         "id","order_id"
+        0,1
         1,2
         2,1
         """))
@@ -305,13 +306,14 @@ class Viz(TestSuite):
     return DiffTestBlueprint(
         trace=self.explicit_trace,
         query="""
-        INCLUDE PERFETTO MODULE viz.summary.tracks;
-        SELECT id, order_id
-        FROM _track_event_tracks_ordered
+        INCLUDE PERFETTO MODULE viz.summary.track_event;
+        SELECT cast_int!(track_ids) as id, order_id
+        FROM _track_event_tracks_ordered_groups
         ORDER BY id;
         """,
         out=Csv("""
         "id","order_id"
+        0,1
         1,2
         2,3
         3,1
@@ -341,13 +343,14 @@ class Viz(TestSuite):
     return DiffTestBlueprint(
         trace=self.lexicographic_trace,
         query="""
-        INCLUDE PERFETTO MODULE viz.summary.tracks;
-        SELECT id, order_id
-        FROM _track_event_tracks_ordered
+        INCLUDE PERFETTO MODULE viz.summary.track_event;
+        SELECT cast_int!(track_ids) as id, order_id
+        FROM _track_event_tracks_ordered_groups
         ORDER BY id;
         """,
         out=Csv("""
         "id","order_id"
+        0,1
         1,2
         2,1
         3,3
@@ -385,14 +388,16 @@ class Viz(TestSuite):
     return DiffTestBlueprint(
         trace=self.all_ordering_trace,
         query="""
-        INCLUDE PERFETTO MODULE viz.summary.tracks;
-        SELECT id, parent_id, order_id
-        FROM _track_event_tracks_ordered
-        JOIN track USING (id)
+        INCLUDE PERFETTO MODULE viz.summary.track_event;
+        SELECT cast_int!(track_ids) as id, parent_id, order_id
+        FROM _track_event_tracks_ordered_groups
         ORDER BY parent_id, id
         """,
         out=Csv("""
         "id","parent_id","order_id"
+        0,"[NULL]",1
+        3,"[NULL]",3
+        5,"[NULL]",2
         1,0,2
         2,0,1
         4,3,1
@@ -438,20 +443,22 @@ class Viz(TestSuite):
     return DiffTestBlueprint(
         trace=Path('track_event_tracks_ordering.textproto'),
         query="""
-        INCLUDE PERFETTO MODULE viz.summary.tracks;
-        SELECT id, order_id
-        FROM _track_event_tracks_ordered
+        INCLUDE PERFETTO MODULE viz.summary.track_event;
+        SELECT cast_int!(track_ids) as id, order_id
+        FROM _track_event_tracks_ordered_groups
         ORDER BY id;
         """,
         out=Csv("""
         "id","order_id"
+        0,2
         1,3
         2,4
         3,1
+        4,1
         5,1
         6,2
         7,3
-        8,2
+        9,3
         10,1
         11,2
         12,4

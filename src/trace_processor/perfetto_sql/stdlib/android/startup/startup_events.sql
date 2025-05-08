@@ -21,8 +21,10 @@ SELECT
   ts,
   dur,
   ts + dur AS ts_end,
-  STR_SPLIT(s.name, ": ", 1) AS package_name
-FROM process_slice s
+  str_split(s.name, ": ", 1) AS package_name
+FROM process_slice AS s
 WHERE
   s.name GLOB 'launching: *'
-  AND (process_name IS NULL OR process_name = 'system_server');
+  AND (
+    process_name IS NULL OR process_name = 'system_server'
+  );

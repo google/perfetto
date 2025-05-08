@@ -19,13 +19,14 @@ import {Rect2D} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
 import {AppImpl} from '../../core/app_impl';
 import {featureFlags} from '../../core/feature_flags';
-import {PageWithTraceImplAttrs} from '../../core/page_manager';
 import {raf} from '../../core/raf_scheduler';
 import {OverviewTimeline} from './overview_timeline_panel';
 import {TabPanel} from './tab_panel';
 import {TimelineHeader} from './timeline_header';
 import {TrackTreeView} from './track_tree_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
+import {trackMatchesFilter} from '../../core/track_manager';
+import {TraceImpl} from '../../core/trace_impl';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -34,13 +35,26 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
   defaultValue: true,
 });
 
-export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
+export function renderViewerPage() {
+  // Only render if a trace is loaded
+  const trace = AppImpl.instance.trace;
+  if (trace) {
+    return m(ViewerPage, {trace});
+  } else {
+    return undefined;
+  }
+}
+
+interface ViewerPageAttrs {
+  readonly trace: TraceImpl;
+}
+
+class ViewerPage implements m.ClassComponent<ViewerPageAttrs> {
   private readonly trash = new DisposableStack();
   private timelineBounds?: Rect2D;
 
-  view({attrs}: m.CVnode<PageWithTraceImplAttrs>) {
+  view({attrs}: m.CVnode<ViewerPageAttrs>) {
     const {trace} = attrs;
-
     return m(
       '.pf-viewer-page.page',
       m(
@@ -67,20 +81,23 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
               trace,
               className: 'pf-viewer-page__pinned-track-tree',
               rootNode: trace.workspace.pinnedTracksNode,
-              reorderable: true,
+              canReorderNodes: true,
               scrollToNewTracks: true,
             }),
           m(TrackTreeView, {
             trace,
             className: 'pf-viewer-page__scrolling-track-tree',
             rootNode: trace.workspace.tracks,
+            canReorderNodes: trace.workspace.userEditable,
+            canRemoveNodes: trace.workspace.userEditable,
+            trackFilter: (track) => trackMatchesFilter(trace, track),
           }),
         ],
       ),
     );
   }
 
-  oncreate(vnode: m.VnodeDOM<PageWithTraceImplAttrs>) {
+  oncreate(vnode: m.VnodeDOM<ViewerPageAttrs>) {
     const {attrs, dom} = vnode;
 
     // Handles WASD keybindings to pan & zoom
@@ -110,7 +127,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
     this.onupdate(vnode);
   }
 
-  onupdate({attrs}: m.VnodeDOM<PageWithTraceImplAttrs>) {
+  onupdate({attrs}: m.VnodeDOM<ViewerPageAttrs>) {
     // TODO(stevegolton): It's assumed that the TrackStacks will call into
     // trace.tracks.getTrackRenderer() in their view() functions which will mark
     // track renderers as used. We call flushOldTracks() here as it's guaranteed

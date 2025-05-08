@@ -43,13 +43,13 @@ import {
   getPredictorJankDeltas,
   getPresentedScrollDeltas,
 } from './scroll_delta_graph';
-import {JANKS_TRACK_URI, renderSliceRef} from './selection_utils';
+import {JANKS_TRACK_URI, renderSliceRef} from './utils';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 
 interface Data {
   // Scroll ID.
-  id: number;
+  id: bigint;
   // Timestamp of the beginning of this slice in nanoseconds.
   ts: time;
   // DurationWidget of this slice in nanoseconds.
@@ -86,7 +86,7 @@ export class ScrollDetailsPanel implements TrackEventDetailsPanel {
 
   constructor(
     private readonly trace: Trace,
-    private readonly id: number,
+    private readonly id: bigint,
   ) {}
 
   async load() {
@@ -109,7 +109,7 @@ export class ScrollDetailsPanel implements TrackEventDetailsPanel {
       FROM scrolls`);
 
     const iter = queryResult.firstRow({
-      id: NUM,
+      id: LONG,
       ts: LONG,
       dur: LONG,
     });
@@ -385,7 +385,7 @@ export class ScrollDetailsPanel implements TrackEventDetailsPanel {
     }
 
     const details = dictToTreeNodes({
-      'Scroll ID': this.data.id,
+      'Scroll ID': `${this.data.id}`,
       'Start time': m(Timestamp, {ts: this.data.ts}),
       'Duration': m(DurationWidget, {dur: this.data.dur}),
       'SQL ID': m(SqlRef, {table: 'chrome_scrolls', id: this.id}),

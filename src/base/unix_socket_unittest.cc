@@ -43,8 +43,9 @@
      PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID))
 #define SKIP_IF_VSOCK_LOOPBACK_NOT_SUPPORTED()                                 \
   do {                                                                         \
-    if (!UnixSocketRaw::CreateMayFail(SockFamily::kVsock, SockType::kStream)   \
-             .Bind("vsock://1:10000")) {                                       \
+    auto raw_sock =                                                            \
+        UnixSocketRaw::CreateMayFail(SockFamily::kVsock, SockType::kStream);   \
+    if (!raw_sock || !raw_sock.Bind("vsock://1:10000")) {                      \
       GTEST_SKIP() << "vsock testing skipped: loopback address unsupported.\n" \
                    << "Please run sudo modprobe vsock-loopback";               \
     }                                                                          \
@@ -1077,7 +1078,7 @@ TEST_F(UnixSocketTest, Sockaddr_FilesystemLinked) {
   // Create a raw socket and manually connect to that (to avoid getting affected
   // by accidental future bugs in the logic that populates struct sockaddr_un).
   auto cli = UnixSocketRaw::CreateMayFail(SockFamily::kUnix, SockType::kStream);
-  struct sockaddr_un addr {};
+  struct sockaddr_un addr{};
   addr.sun_family = AF_UNIX;
   StringCopy(addr.sun_path, sock_path.c_str(), sizeof(addr.sun_path));
   ASSERT_EQ(0, connect(cli.fd(), reinterpret_cast<struct sockaddr*>(&addr),
@@ -1099,7 +1100,7 @@ TEST_F(UnixSocketTest, Sockaddr_AbstractUnix) {
   ASSERT_TRUE(srv && srv->is_listening());
 
   auto cli = UnixSocketRaw::CreateMayFail(SockFamily::kUnix, SockType::kStream);
-  struct sockaddr_un addr {};
+  struct sockaddr_un addr{};
   addr.sun_family = AF_UNIX;
   StringCopy(addr.sun_path, sock_name.c_str(), sizeof(addr.sun_path));
   addr.sun_path[0] = '\0';

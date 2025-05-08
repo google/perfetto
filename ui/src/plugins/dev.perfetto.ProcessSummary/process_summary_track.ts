@@ -20,10 +20,15 @@ import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {Engine} from '../../trace_processor/engine';
-import {Track} from '../../public/track';
+import {TrackRenderer} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackRenderContext} from '../../public/track';
+import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {
+  createPerfettoTable,
+  createVirtualTable,
+} from '../../trace_processor/sql_utils';
 
 export const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
 
@@ -43,7 +48,7 @@ const RECT_HEIGHT = 30;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 const SUMMARY_HEIGHT = TRACK_HEIGHT - MARGIN_TOP;
 
-export class ProcessSummaryTrack implements Track {
+export class ProcessSummaryTrack implements TrackRenderer {
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
   private engine: Engine;
   private config: Config;
@@ -55,50 +60,61 @@ export class ProcessSummaryTrack implements Track {
   }
 
   async onCreate(): Promise<void> {
-    let trackIdQuery: string;
-    if (this.config.upid !== null) {
-      trackIdQuery = `
-        select tt.id as track_id
-        from thread_track as tt
-        join _thread_available_info_summary using (utid)
-        join thread using (utid)
-        where thread.upid = ${this.config.upid}
-        order by slice_count desc
-      `;
-    } else {
-      trackIdQuery = `
+    const getQuery = () => {
+      if (this.config.upid !== null) {
+        return `
+          select tt.id as track_id
+          from thread_track as tt
+          join _thread_available_info_summary using (utid)
+          join thread using (utid)
+          where thread.upid = ${this.config.upid}
+          order by slice_count desc
+        `;
+      }
+      return `
         select tt.id as track_id
         from thread_track as tt
         join _thread_available_info_summary using (utid)
         where tt.utid = ${assertExists(this.config.utid)}
         order by slice_count desc
       `;
-    }
-    await this.engine.query(`
-      create virtual table process_summary_${this.uuid}
-      using __intrinsic_counter_mipmap((
-        with
-          tt as materialized (
-            ${trackIdQuery}
-          ),
-          ss as (
-            select ts, 1.0 as value
-            from slice
-            join tt using (track_id)
-            where slice.depth = 0
-            union all
-            select ts + dur as ts, -1.0 as value
-            from slice
-            join tt using (track_id)
-            where slice.depth = 0
-          )
+    };
+
+    const trash = new AsyncDisposableStack();
+    trash.use(
+      await createPerfettoTable(this.engine, `tmp_${this.uuid}`, getQuery()),
+    );
+    trash.use(
+      await createPerfettoTable(
+        this.engine,
+        `changes_${this.uuid}`,
+        `
+          select ts, 1.0 as value
+          from tmp_${this.uuid}
+          cross join slice using (track_id)
+          where slice.depth = 0
+          union all
+          select ts + dur as ts, -1.0 as value
+          from tmp_${this.uuid}
+          cross join slice using (track_id)
+          where slice.depth = 0
+        `,
+      ),
+    );
+    await createVirtualTable(
+      this.engine,
+      `process_summary_${this.uuid}`,
+      `__intrinsic_counter_mipmap((
         select
           ts,
-          sum(value) over (order by ts) / (select count() from tt) as value
-        from ss
+          sum(value) over (order by ts) / (
+            select count() from tmp_${this.uuid}
+          ) as value
+        from changes_${this.uuid}
         order by ts
-      ));
-    `);
+      ))`,
+    );
+    await trash.asyncDispose();
   }
 
   async onUpdate({

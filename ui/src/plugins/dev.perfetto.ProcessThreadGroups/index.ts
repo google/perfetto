@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
+import {maybeMachineLabel} from '../../base/multi_machine_trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
@@ -156,6 +157,7 @@ export default class implements PerfettoPlugin {
           sum_running_dur as sumRunningDur,
           thread_slice_count + process_slice_count as sliceCount,
           perf_sample_count as perfSampleCount,
+          instruments_sample_count as instrumentsSampleCount,
           allocation_count as heapProfileAllocationCount,
           graph_object_count as heapGraphObjectCount,
           (
@@ -171,7 +173,8 @@ export default class implements PerfettoPlugin {
             when 'Gpu' then 2
             when 'Renderer' then 1
             else 0
-          end as chromeProcessRank
+          end as chromeProcessRank,
+          ifnull(machine_id, 0) as machine
         from _process_available_info_summary
         join process using(upid)
       ),
@@ -182,7 +185,9 @@ export default class implements PerfettoPlugin {
           thread.name as threadName,
           sum_running_dur as sumRunningDur,
           slice_count as sliceCount,
-          perf_sample_count as perfSampleCount
+          perf_sample_count as perfSampleCount,
+          instruments_sample_count as instrumentsSampleCount,
+          ifnull(machine_id, 0) as machine
         from _thread_available_info_summary
         join thread using (utid)
         where upid is null
@@ -193,13 +198,15 @@ export default class implements PerfettoPlugin {
           'process' as kind,
           upid as uid,
           pid as id,
-          processName as name
+          processName as name,
+          machine
         from processGroups
         order by
           chromeProcessRank desc,
           heapProfileAllocationCount desc,
           heapGraphObjectCount desc,
           perfSampleCount desc,
+          instrumentsSampleCount desc,
           sumRunningDur desc,
           sliceCount desc,
           processName asc,
@@ -212,10 +219,12 @@ export default class implements PerfettoPlugin {
           'thread' as kind,
           utid as uid,
           tid as id,
-          threadName as name
+          threadName as name,
+          machine
         from threadGroups
         order by
           perfSampleCount desc,
+          instrumentsSampleCount desc,
           sumRunningDur desc,
           sliceCount desc,
           threadName asc,
@@ -228,6 +237,7 @@ export default class implements PerfettoPlugin {
       uid: NUM,
       id: NUM,
       name: STR_NULL,
+      machine: NUM,
     });
     for (; it.valid(); it.next()) {
       const {kind, uid, id, name} = it;
@@ -238,14 +248,17 @@ export default class implements PerfettoPlugin {
           continue;
         }
 
+        const machineLabel = maybeMachineLabel(it.machine);
         function getProcessDisplayName(
           processName: string | undefined,
           pid: number,
         ) {
           if (processName) {
-            return `${stripPathFromExecutable(processName)} ${pid}`;
+            return `${stripPathFromExecutable(processName)} ${pid}${
+              machineLabel
+            }`;
           } else {
-            return `Process ${pid}`;
+            return `Process ${pid}${machineLabel}`;
           }
         }
 

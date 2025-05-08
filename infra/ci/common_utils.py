@@ -17,13 +17,16 @@ import concurrent.futures
 import google.auth
 import google.auth.transport.requests
 import json
+import jwt
 import logging
 import os
 import requests
+import time
 
-from base64 import b64encode
+from base64 import b64encode, b64decode
 from datetime import datetime
-from config import PROJECT
+
+from config import PROJECT, GITHUB_REPO, GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID
 
 # Thread pool for making http requests asynchronosly.
 thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=8)
@@ -33,12 +36,15 @@ SCOPES = []
 cached_gerrit_creds = None
 cached_oauth2_creds = None
 
+GITHUB_API_URL = 'https://api.github.com'
+
 
 class ConcurrentModificationError(Exception):
   pass
 
 
 def get_access_token():
+  """Returns the access token for the current service account"""
   global cached_oauth2_creds
   creds = cached_oauth2_creds
   if creds is None or not creds.valid or creds.expired:
@@ -49,37 +55,55 @@ def get_access_token():
   return creds.token
 
 
-def get_gerrit_credentials():
-  '''Retrieve the credentials used to authenticate Gerrit requests
-
-  Returns a tuple (user, gitcookie). These fields are obtained from the Gerrit
-  'New HTTP password' page which generates a .gitcookie file and stored in the
-  project datastore.
-  user: typically looks like git-user.gmail.com.
-  gitcookie: is the password after the = token.
-  '''
-  global cached_gerrit_creds
-  if cached_gerrit_creds is None:
-    body = {'query': {'kind': [{'name': 'GerritAuth'}]}}
-    res = req(
-        'POST',
-        'https://datastore.googleapis.com/v1/projects/%s:runQuery' % PROJECT,
-        body=body)
-    auth = res['batch']['entityResults'][0]['entity']['properties']
-    user = auth['user']['stringValue']
-    gitcookie = auth['gitcookie']['stringValue']
-    cached_gerrit_creds = user, gitcookie
-  return cached_gerrit_creds
+def get_secret(secret_id):
+  """Retrieves a secret stored in the Cloud Secrets API"""
+  access_token = get_access_token()
+  url = f'https://secretmanager.googleapis.com/v1/projects/{PROJECT}/secrets/{secret_id}/versions/latest:access'
+  headers = {'Authorization': f'Bearer {access_token}'}
+  response = requests.get(url, headers=headers)
+  response.raise_for_status()
+  return b64decode(response.json()['payload']['data'])
 
 
-async def req_async(method, url, body=None, gerrit=False):
+def get_github_installation_token():
+  gh_private_key = get_secret('perfetto_ci_github_private_key')
+  now = int(time.time())
+  payload = {
+      'iat': now,
+      'exp': now + (10 * 60),  # JWT valid for 10 minutes
+      'iss': GITHUB_APP_ID
+  }
+  jwt_token = jwt.encode(payload, gh_private_key, algorithm='RS256')
+  url = f'{GITHUB_API_URL}/app/installations/{GITHUB_APP_INSTALLATION_ID}/access_tokens'
+  headers = {
+      'Authorization': f'Bearer {jwt_token}',
+      'Accept': 'application/vnd.github.v3+json'
+  }
+  response = requests.post(url, headers=headers)
+  response.raise_for_status()
+  return response.json()['token']
+
+
+def get_github_registration_token():
+  inst_token = get_github_installation_token()
+  url = f'{GITHUB_API_URL}/repos/{GITHUB_REPO}/actions/runners/registration-token'
+  headers = {
+      'Authorization': f'token {inst_token}',
+      'Accept': 'application/vnd.github.v3+json'
+  }
+  response = requests.post(url, headers=headers)
+  response.raise_for_status()
+  return response.json()['token']
+
+
+async def req_async(method, url, body=None):
   loop = asyncio.get_running_loop()
   # run_in_executor cannot take kwargs, we need to stick with order.
-  return await loop.run_in_executor(thread_pool, req, method, url, body, gerrit,
-                                    False, None)
+  return await loop.run_in_executor(thread_pool, req, method, url, body, False,
+                                    None)
 
 
-def req(method, url, body=None, gerrit=False, req_etag=False, etag=None):
+def req(method, url, body=None, req_etag=False, etag=None):
   '''Helper function to handle authenticated HTTP requests.
 
   Cloud API and Gerrit require two different types of authentication and as
@@ -89,12 +113,9 @@ def req(method, url, body=None, gerrit=False, req_etag=False, etag=None):
   these connections won't be recycled for too long.
   '''
   hdr = {'Content-Type': 'application/json; charset=UTF-8'}
-  if gerrit:
-    creds = '%s:%s' % get_gerrit_credentials()
-    auth_header = 'Basic ' + b64encode(creds.encode('utf-8')).decode('utf-8')
-  elif SCOPES:
+  if SCOPES:
     auth_header = 'Bearer ' + get_access_token()
-  logging.debug('%s %s [gerrit=%d]', method, url, gerrit)
+  logging.debug('%s %s', method, url)
   hdr['Authorization'] = auth_header
   if req_etag:
     hdr['X-Firebase-ETag'] = 'true'
@@ -105,8 +126,7 @@ def req(method, url, body=None, gerrit=False, req_etag=False, etag=None):
   res = resp.content.decode('utf-8')
   resp_etag = resp.headers.get('etag')
   if resp.status_code == 200:
-    # [4:] is to strip Gerrit XSSI projection prefix.
-    res = json.loads(res[4:] if gerrit else res)
+    res = json.loads(res)
     return (res, resp_etag) if req_etag else res
   elif resp.status_code == 412:
     raise ConcurrentModificationError()

@@ -14,51 +14,61 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE graphs.hierarchy;
+
 INCLUDE PERFETTO MODULE graphs.scan;
+
+INCLUDE PERFETTO MODULE v8.jit;
 
 CREATE PERFETTO TABLE _callstack_spf_summary AS
 SELECT
   id,
   symbol_set_id,
   (
-    SELECT id
-    FROM stack_profile_symbol s
-    WHERE s.symbol_set_id = f.symbol_set_id
-    ORDER BY id
+    SELECT
+      id
+    FROM stack_profile_symbol AS s
+    WHERE
+      s.symbol_set_id = f.symbol_set_id
+    ORDER BY
+      id
     LIMIT 1
   ) AS min_symbol_id,
   (
-    SELECT id
-    FROM stack_profile_symbol s
-    WHERE s.symbol_set_id = f.symbol_set_id
-    ORDER BY id DESC
+    SELECT
+      id
+    FROM stack_profile_symbol AS s
+    WHERE
+      s.symbol_set_id = f.symbol_set_id
+    ORDER BY
+      id DESC
     LIMIT 1
   ) AS max_symbol_id
-FROM stack_profile_frame f
-ORDER BY id;
+FROM stack_profile_frame AS f
+ORDER BY
+  id;
 
 CREATE PERFETTO TABLE _callstack_spc_raw_forest AS
 SELECT
   c.id AS callsite_id,
   s.id AS symbol_id,
-  IIF(
-    s.id IS f.min_symbol_id,
-    c.parent_id,
-    c.id
-  ) AS parent_callsite_id,
-  IIF(
-    s.id IS f.min_symbol_id,
-    pf.max_symbol_id,
-    s.id - 1
-  ) AS parent_symbol_id,
+  iif(s.id IS f.max_symbol_id, c.parent_id, c.id) AS parent_callsite_id,
+  iif(s.id IS f.max_symbol_id, pf.min_symbol_id, s.id + 1) AS parent_symbol_id,
   f.id AS frame_id,
-  s.id IS f.max_symbol_id AS is_leaf
-FROM stack_profile_callsite c
-JOIN _callstack_spf_summary f ON c.frame_id = f.id
-LEFT JOIN stack_profile_symbol s USING (symbol_set_id)
-LEFT JOIN stack_profile_callsite p ON c.parent_id = p.id
-LEFT JOIN _callstack_spf_summary pf ON p.frame_id = pf.id
-ORDER BY c.id;
+  jf.jit_code_id AS jit_code_id,
+  s.id IS f.min_symbol_id AS is_leaf
+FROM stack_profile_callsite AS c
+JOIN _callstack_spf_summary AS f
+  ON c.frame_id = f.id
+LEFT JOIN __intrinsic_jit_frame AS jf
+  ON jf.frame_id = f.id
+LEFT JOIN stack_profile_symbol AS s
+  USING (symbol_set_id)
+LEFT JOIN stack_profile_callsite AS p
+  ON c.parent_id = p.id
+LEFT JOIN _callstack_spf_summary AS pf
+  ON p.frame_id = pf.id
+ORDER BY
+  c.id;
 
 CREATE PERFETTO TABLE _callstack_spc_forest AS
 SELECT
@@ -67,31 +77,49 @@ SELECT
   -- TODO(lalitm): consider demangling in a separate table as
   -- demangling is suprisingly inefficient and is taking a
   -- significant fraction of the runtime on big traces.
-  IFNULL(
-    DEMANGLE(COALESCE(s.name, f.deobfuscated_name, f.name)),
-    COALESCE(s.name, f.deobfuscated_name, f.name, '[Unknown]')
+  coalesce(
+    'JS: ' || iif(jsf.name = "", "(anonymous)", jsf.name) || ':' || jsf.line || ':' || jsf.col || ' [' || lower(jsc.tier) || ']',
+    'WASM: ' || wc.function_name || ' [' || lower(wc.tier) || ']',
+    'REGEXP: ' || rc.pattern,
+    'V8: ' || v8c.function_name,
+    'JIT: ' || jc.function_name,
+    demangle(coalesce(s.name, f.deobfuscated_name, f.name)),
+    coalesce(s.name, f.deobfuscated_name, f.name, '[Unknown]')
   ) AS name,
   f.mapping AS mapping_id,
   s.source_file,
-  s.line_number,
+  coalesce(jsf.line, s.line_number) AS line_number,
+  coalesce(jsf.col, 0) AS column_number,
   c.callsite_id,
   c.is_leaf AS is_leaf_function_in_callsite_frame
-FROM _callstack_spc_raw_forest c
-JOIN stack_profile_frame f ON c.frame_id = f.id
-LEFT JOIN stack_profile_symbol s ON c.symbol_id = s.id
-LEFT JOIN _callstack_spc_raw_forest p ON
-  p.callsite_id = c.parent_callsite_id
-  AND p.symbol_id IS c.parent_symbol_id
-ORDER BY c._auto_id;
+FROM _callstack_spc_raw_forest AS c
+JOIN stack_profile_frame AS f
+  ON c.frame_id = f.id
+LEFT JOIN _v8_js_code AS jsc
+  USING (jit_code_id)
+LEFT JOIN v8_js_function AS jsf
+  USING (v8_js_function_id)
+LEFT JOIN _v8_internal_code AS v8c
+  USING (jit_code_id)
+LEFT JOIN _v8_wasm_code AS wc
+  USING (jit_code_id)
+LEFT JOIN _v8_regexp_code AS rc
+  USING (jit_code_id)
+LEFT JOIN __intrinsic_jit_code AS jc
+  ON c.jit_code_id = jc.id
+LEFT JOIN stack_profile_symbol AS s
+  ON c.symbol_id = s.id
+LEFT JOIN _callstack_spc_raw_forest AS p
+  ON p.callsite_id = c.parent_callsite_id AND p.symbol_id IS c.parent_symbol_id
+ORDER BY
+  c._auto_id;
 
-CREATE PERFETTO INDEX _callstack_spc_index
-ON _callstack_spc_forest(callsite_id);
+CREATE PERFETTO INDEX _callstack_spc_index ON _callstack_spc_forest(callsite_id);
 
 CREATE PERFETTO MACRO _callstacks_for_stack_profile_samples(
-  spc_samples TableOrSubquery
+    spc_samples TableOrSubquery
 )
-RETURNS TableOrSubquery
-AS
+RETURNS TableOrSubquery AS
 (
   SELECT
     f.id,
@@ -100,7 +128,8 @@ AS
     f.name,
     m.name AS mapping_name,
     f.source_file,
-    f.line_number
+    f.line_number,
+    f.is_leaf_function_in_callsite_frame
   FROM _tree_reachable_ancestors_or_self!(
     _callstack_spc_forest,
     (
@@ -109,24 +138,27 @@ AS
       JOIN _callstack_spc_forest f USING (callsite_id)
       WHERE f.is_leaf_function_in_callsite_frame
     )
-  ) g
-  JOIN _callstack_spc_forest f USING (id)
-  JOIN stack_profile_mapping m ON f.mapping_id = m.id
+  ) AS g
+  JOIN _callstack_spc_forest AS f
+    USING (id)
+  JOIN stack_profile_mapping AS m
+    ON f.mapping_id = m.id
 );
 
 CREATE PERFETTO MACRO _callstacks_for_callsites(
-  samples TableOrSubquery
+    samples TableOrSubquery
 )
-RETURNS TableOrSubquery
-AS
+RETURNS TableOrSubquery AS
 (
-  WITH metrics AS MATERIALIZED (
-    SELECT
-      callsite_id,
-      COUNT() AS self_count
-    FROM $samples
-    GROUP BY callsite_id
-  )
+  WITH
+    metrics AS MATERIALIZED (
+      SELECT
+        callsite_id,
+        count() AS self_count
+      FROM $samples
+      GROUP BY
+        callsite_id
+    )
   SELECT
     c.id,
     c.parent_id,
@@ -134,18 +166,19 @@ AS
     c.mapping_name,
     c.source_file,
     c.line_number,
-    IFNULL(m.self_count, 0) AS self_count
-  FROM _callstacks_for_stack_profile_samples!(metrics) c
-  LEFT JOIN metrics m USING (callsite_id)
+    iif(c.is_leaf_function_in_callsite_frame, coalesce(m.self_count, 0), 0) AS self_count
+  FROM _callstacks_for_stack_profile_samples!(metrics) AS c
+  LEFT JOIN metrics AS m
+    USING (callsite_id)
 );
 
 CREATE PERFETTO MACRO _callstacks_self_to_cumulative(
-  callstacks TableOrSubquery
+    callstacks TableOrSubquery
 )
-RETURNS TableOrSubquery
-AS
+RETURNS TableOrSubquery AS
 (
-  SELECT a.*
+  SELECT
+    a.*
   FROM _graph_aggregating_scan!(
     (
       SELECT id AS source_node_id, parent_id AS dest_node_id
@@ -171,5 +204,5 @@ AS
       FROM agg a
       JOIN $callstacks r USING (id)
     )
-  ) a
-)
+  ) AS a
+);

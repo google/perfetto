@@ -14,29 +14,33 @@
 -- limitations under the License.
 
 -- Extract name of the device based on metadata from the trace.
-CREATE PERFETTO TABLE android_device_name(
+CREATE PERFETTO TABLE android_device_name (
   -- Device name.
   name STRING
-)
-AS
+) AS
 WITH
   -- Example str_value:
   -- Android/aosp_raven/raven:VanillaIceCream/UDC/11197703:userdebug/test-keys
   -- Gets substring after first slash;
   after_first_slash(str) AS (
-    SELECT SUBSTR(str_value, INSTR(str_value, '/') + 1)
+    SELECT
+      substr(str_value, instr(str_value, '/') + 1)
     FROM metadata
-    WHERE name = 'android_build_fingerprint'
+    WHERE
+      name = 'android_build_fingerprint'
   ),
   -- Gets substring after second slash
   after_second_slash(str) AS (
-    SELECT SUBSTR(str, INSTR(str, '/') + 1)
+    SELECT
+      substr(str, instr(str, '/') + 1)
     FROM after_first_slash
   ),
   -- Gets substring after second slash and before the colon
   before_colon(str) AS (
-    SELECT SUBSTR(str, 0, INSTR(str, ':'))
+    SELECT
+      substr(str, 0, instr(str, ':'))
     FROM after_second_slash
   )
-SELECT str AS name FROM before_colon;
-
+SELECT
+  str AS name
+FROM before_colon;

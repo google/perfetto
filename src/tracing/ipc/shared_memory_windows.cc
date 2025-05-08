@@ -29,8 +29,8 @@
 namespace perfetto {
 
 // static
-std::unique_ptr<SharedMemoryWindows> SharedMemoryWindows::Create(
-    size_t size, Flags flags) {
+std::unique_ptr<SharedMemoryWindows> SharedMemoryWindows::Create(size_t size,
+                                                                 Flags flags) {
   base::ScopedPlatformHandle shmem_handle;
   std::random_device rnd_dev;
   uint64_t rnd_key = (static_cast<uint64_t>(rnd_dev()) << 32) | rnd_dev();
@@ -43,8 +43,7 @@ std::unique_ptr<SharedMemoryWindows> SharedMemoryWindows::Create(
 
   shmem_handle.reset(CreateFileMappingA(
       INVALID_HANDLE_VALUE,  // Use paging file.
-      &security_attributes,
-      PAGE_READWRITE,
+      &security_attributes, PAGE_READWRITE,
       static_cast<DWORD>(size >> 32),  // maximum object size (high-order DWORD)
       static_cast<DWORD>(size),        // maximum object size (low-order DWORD)
       key.c_str()));
@@ -96,7 +95,8 @@ std::unique_ptr<SharedMemoryWindows> SharedMemoryWindows::Attach(
 
 // static
 std::unique_ptr<SharedMemoryWindows> SharedMemoryWindows::AttachToHandleWithKey(
-    base::ScopedPlatformHandle shmem_handle, const std::string& key) {
+    base::ScopedPlatformHandle shmem_handle,
+    const std::string& key) {
   void* start =
       MapViewOfFile(*shmem_handle, FILE_MAP_ALL_ACCESS, /*offsetHigh=*/0,
                     /*offsetLow=*/0, /*dwNumberOfBytesToMap=*/0);

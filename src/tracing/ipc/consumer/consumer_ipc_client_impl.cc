@@ -282,7 +282,7 @@ void ConsumerIPCClientImpl::Attach(const std::string& key) {
           const TraceConfig& trace_config = response->trace_config();
 
           // If attached successfully, also attach to the end-of-trace
-          // notificaton callback, via EnableTracing(attach_notification_only).
+          // notification callback, via EnableTracing(attach_notification_only).
           protos::gen::EnableTracingRequest enable_req;
           enable_req.set_attach_notification_only(true);
           ipc::Deferred<protos::gen::EnableTracingResponse> enable_resp;
@@ -491,6 +491,9 @@ void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
   }
   if (args.clone_trigger_boot_time_ns != 0) {
     req.set_clone_trigger_boot_time_ns(args.clone_trigger_boot_time_ns);
+  }
+  if (args.clone_trigger_delay_ms != 0) {
+    req.set_clone_trigger_delay_ms(args.clone_trigger_delay_ms);
   }
   ipc::Deferred<protos::gen::CloneSessionResponse> async_response;
   auto weak_this = weak_ptr_factory_.GetWeakPtr();

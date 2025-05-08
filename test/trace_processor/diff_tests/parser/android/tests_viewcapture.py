@@ -21,7 +21,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 class ViewCapture(TestSuite):
 
-  def test_has_expected_rows(self):
+  def test_snapshot_table(self):
     return DiffTestBlueprint(
         trace=Path('viewcapture.textproto'),
         query="""
@@ -37,7 +37,7 @@ class ViewCapture(TestSuite):
         1,448883575576
         """))
 
-  def test_has_expected_args(self):
+  def test_snapshot_args(self):
     return DiffTestBlueprint(
         trace=Path('viewcapture.textproto'),
         query="""
@@ -47,48 +47,88 @@ class ViewCapture(TestSuite):
         FROM
           android_viewcapture AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
         WHERE vc.id = 0
-        ORDER BY args.key
-        LIMIT 10;
+        ORDER BY args.key;
         """,
         out=Csv("""
         "key","display_value"
         "package_name","com.google.android.apps.nexuslauncher"
-        "views[0].alpha","1.0"
-        "views[0].class_name","com.android.internal.policy.PhoneWindow@6cec234"
-        "views[0].hashcode","182652084"
-        "views[0].height","2400"
-        "views[0].parent_id","-1"
-        "views[0].scale_x","1.0"
-        "views[0].scale_y","1.0"
-        "views[0].view_id","NO_ID"
-        "views[0].width","1080"
+        "window_name","STRING DE-INTERNING ERROR"
+        "window_name_iid","1"
+        """))
+
+  def test_view_table(self):
+    return DiffTestBlueprint(
+        trace=Path('viewcapture.textproto'),
+        query="""
+        SELECT
+          id, snapshot_id
+        FROM
+          __intrinsic_viewcapture_view;
+        """,
+        out=Csv("""
+        "id","snapshot_id"
+        0,0
+        1,0
+        2,1
+        3,1
+        """))
+
+  def test_view_args(self):
+    return DiffTestBlueprint(
+        trace=Path('viewcapture.textproto'),
+        query="""
+        SELECT
+          args.key, args.display_value
+        FROM
+          __intrinsic_viewcapture_view AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
+          WHERE vc.snapshot_id = 1
+        ORDER BY args.arg_set_id, args.key
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "key","display_value"
+        "alpha","1.0"
+        "class_name","com.android.internal.policy.PhoneWindow@6cec234"
+        "hashcode","182652084"
+        "height","2400"
+        "parent_id","-1"
+        "scale_x","1.0"
+        "scale_y","1.0"
+        "view_id","NO_ID"
+        "width","1080"
+        "will_not_draw","true"
         """))
 
   def test_handle_string_deinterning_errors(self):
     return DiffTestBlueprint(
         trace=Path('viewcapture.textproto'),
         query="""
-        INCLUDE PERFETTO MODULE android.winscope.viewcapture;
         SELECT
           args.key, args.display_value
         FROM
-          android_viewcapture AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
-        WHERE vc.id = 1 and args.key = 'views[1].class_name';
+          __intrinsic_viewcapture_view AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
+        WHERE args.key = 'class_name';
         """,
         out=Csv("""
         "key","display_value"
-        "views[1].class_name","STRING DE-INTERNING ERROR"
+        "class_name","com.android.internal.policy.PhoneWindow@6cec234"
+        "class_name","com.android.internal.policy.PhoneWindow@6cec234"
+        "class_name","com.android.internal.policy.DecorView"
+        "class_name","STRING DE-INTERNING ERROR"
         """))
 
-  def test_table_has_raw_protos(self):
+  def test_tables_has_raw_protos(self):
     return DiffTestBlueprint(
         trace=Path('viewcapture.textproto'),
         query="""
-        INCLUDE PERFETTO MODULE android.winscope.viewcapture;
-        SELECT COUNT(*) FROM android_viewcapture
-        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        SELECT COUNT(*) FROM __intrinsic_viewcapture
+        WHERE base64_proto_id IS NOT NULL
+        UNION ALL
+        SELECT COUNT(*) FROM __intrinsic_viewcapture_view
+        WHERE base64_proto_id IS NOT NULL
         """,
         out=Csv("""
         "COUNT(*)"
         2
+        4
         """))

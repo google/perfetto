@@ -347,12 +347,8 @@ std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
         return;
       }
       ssize_t rd = base::Read(*fd, &magic, sizeof(magic));
-      if (rd != sizeof(magic)) {
-        PERFETTO_PLOG("Failed to read %s", fname);
-        return;
-      }
-      if (!IsElf(magic, static_cast<size_t>(rd)) &&
-          !IsMachO64(magic, static_cast<size_t>(rd))) {
+      if (rd != sizeof(magic) || (!IsElf(magic, static_cast<size_t>(rd)) &&
+                                  !IsMachO64(magic, static_cast<size_t>(rd)))) {
         PERFETTO_DLOG("%s not an ELF or Mach-O 64.", fname);
         return;
       }

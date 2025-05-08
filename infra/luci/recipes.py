@@ -36,7 +36,6 @@ import urllib.parse as urlparse
 
 from collections import namedtuple
 
-
 # The dependency entry for the recipe_engine in the client repo's recipes.cfg
 #
 # url (str) - the url to the engine repo we want to use.
@@ -235,13 +234,10 @@ def main():
   if not shutil.which(vpython):
     return f'Required binary is not found on PATH: {vpython}'
 
-  # We unset PYTHONPATH here in case the user has conflicting environmental
-  # things we don't want them to leak through into the recipe_engine which
-  # manages its environment entirely via vpython.
-  #
-  # NOTE: os.unsetenv unhelpfully doesn't exist on all platforms until python3.9
-  # so we have to use the cutesy `pop` formulation below until then...
-  os.environ.pop("PYTHONPATH", None)
+  # We overwrite PYTHONPATH here on purpose; We don't want any conflicting
+  # environmental path leaking through into the recipe_engine which manages its
+  # environment entirely via vpython.
+  os.environ['PYTHONPATH'] = engine_path
 
   spec = '.vpython3'
   debugger = os.environ.get('RECIPE_DEBUGGER', '')

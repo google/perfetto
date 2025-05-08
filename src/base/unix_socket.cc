@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -92,6 +93,15 @@ using CBufLenType = socklen_t;
 constexpr char kVsockNamePrefix[] = "vsock://";
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+bool IsVirtualized() {
+  static bool is_virtualized = [] {
+    return base::GetAndroidProp("ro.traced.hypervisor") == "true";
+  }();
+  return is_virtualized;
+}
+#endif
+
 // A wrapper around variable-size sockaddr structs.
 // This is solving the following problem: when calling connect() or bind(), the
 // caller needs to take care to allocate the right struct (sockaddr_un for
@@ -152,7 +162,7 @@ inline int MkSockType(SockType type) {
 SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
   switch (family) {
     case SockFamily::kUnix: {
-      struct sockaddr_un saddr {};
+      struct sockaddr_un saddr{};
       const size_t name_len = socket_name.size();
       if (name_len + 1 /* for trailing \0 */ >= sizeof(saddr.sun_path)) {
         errno = ENAMETOOLONG;
@@ -175,7 +185,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
           __builtin_offsetof(sockaddr_un, sun_path) + name_len + 1);
 
       // Abstract sockets do NOT require a trailing null terminator (which is
-      // instad mandatory for filesystem sockets). Any byte up to `size`,
+      // instead mandatory for filesystem sockets). Any byte up to `size`,
       // including '\0' will become part of the socket name.
       if (saddr.sun_path[0] == '\0')
         --size;
@@ -186,7 +196,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       auto parts = SplitString(socket_name, ":");
       PERFETTO_CHECK(parts.size() == 2);
       struct addrinfo* addr_info = nullptr;
-      struct addrinfo hints {};
+      struct addrinfo hints{};
       hints.ai_family = AF_INET;
       PERFETTO_CHECK(getaddrinfo(parts[0].c_str(), parts[1].c_str(), &hints,
                                  &addr_info) == 0);
@@ -204,7 +214,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       auto port = SplitString(parts[1], ":");
       PERFETTO_CHECK(port.size() == 1);
       struct addrinfo* addr_info = nullptr;
-      struct addrinfo hints {};
+      struct addrinfo hints{};
       hints.ai_family = AF_INET6;
       PERFETTO_CHECK(getaddrinfo(address[0].c_str(), port[0].c_str(), &hints,
                                  &addr_info) == 0);
@@ -226,6 +236,13 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       addr.svm_family = AF_VSOCK;
       addr.svm_cid = *base::StringToUInt32(parts[0]);
       addr.svm_port = *base::StringToUInt32(parts[1]);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+      if (IsVirtualized()) {
+        // VM-to-VM VSOCK communication requires messages to be
+        // routed through the host.
+        addr.svm_flags = VMADDR_FLAG_TO_HOST;
+      }
+#endif
       SockaddrAny res(&addr, sizeof(addr));
       return res;
 #else
@@ -240,7 +257,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
   PERFETTO_CHECK(false);  // For GCC.
 }
 
-ScopedSocketHandle CreateSocketHandle(SockFamily family, SockType type) {
+void InitWinSockOnce() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   static bool init_winsock_once = [] {
     WSADATA ignored{};
@@ -248,7 +265,33 @@ ScopedSocketHandle CreateSocketHandle(SockFamily family, SockType type) {
   }();
   PERFETTO_CHECK(init_winsock_once);
 #endif
+}
+
+ScopedSocketHandle CreateSocketHandle(SockFamily family, SockType type) {
+  InitWinSockOnce();
   return ScopedSocketHandle(socket(MkSockFamily(family), MkSockType(type), 0));
+}
+
+std::string AddrinfoToIpStr(const struct addrinfo* addrinfo_ptr) {
+  PERFETTO_CHECK(addrinfo_ptr && addrinfo_ptr->ai_addr);
+  PERFETTO_CHECK((addrinfo_ptr->ai_family == AF_INET) ||
+                 (addrinfo_ptr->ai_family == AF_INET6));
+
+  void* addr_ptr = nullptr;
+  char ip_str_buffer[INET6_ADDRSTRLEN];
+
+  if (addrinfo_ptr->ai_family == AF_INET) {  // IPv4
+    struct sockaddr_in* ipv4_addr =
+        reinterpret_cast<struct sockaddr_in*>(addrinfo_ptr->ai_addr);
+    addr_ptr = &(ipv4_addr->sin_addr);
+  } else if (addrinfo_ptr->ai_family == AF_INET6) {  // IPv6
+    struct sockaddr_in6* ipv6_addr =
+        reinterpret_cast<struct sockaddr_in6*>(addrinfo_ptr->ai_addr);
+    addr_ptr = &(ipv6_addr->sin6_addr);
+  }
+  PERFETTO_CHECK(inet_ntop(addrinfo_ptr->ai_family, addr_ptr, ip_str_buffer,
+                           sizeof(ip_str_buffer)) != NULL);
+  return std::string(ip_str_buffer);
 }
 
 }  // namespace
@@ -280,6 +323,34 @@ SockFamily GetSockFamily(const char* addr) {
   }
 
   return SockFamily::kUnix;  // For anything else assume it's a linked AF_UNIX.
+}
+
+std::vector<NetAddrInfo> GetNetAddrInfo(const std::string& ip,
+                                        const std::string& port) {
+  InitWinSockOnce();
+  struct addrinfo hints;
+  struct addrinfo* serv_info;
+  struct addrinfo* p;
+  memset(&hints, 0, sizeof hints);
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_PASSIVE;
+  PERFETTO_CHECK(getaddrinfo(ip.c_str(), port.c_str(), &hints, &serv_info) ==
+                 0);
+  std::vector<NetAddrInfo> res;
+  for (p = serv_info; p != nullptr; p = p->ai_next) {
+    if (p->ai_family == AF_INET) {
+      std::string ip_str = AddrinfoToIpStr(p);
+      std::string ip_port = ip_str + ":" + port;
+      res.emplace_back(ip_port, SockFamily::kInet, SockType::kStream);
+    } else if (p->ai_family == AF_INET6) {
+      std::string ip_str = AddrinfoToIpStr(p);
+      std::string ip_port = "[" + ip_str + "]:" + port;
+      res.emplace_back(ip_port, SockFamily::kInet6, SockType::kStream);
+    }
+  }
+  freeaddrinfo(serv_info);
+  return res;
 }
 
 // +-----------------------+
@@ -467,6 +538,26 @@ bool UnixSocketRaw::Connect(const std::string& socket_name) {
   bool continue_async = WSAGetLastError() == WSAEWOULDBLOCK;
 #else
   bool continue_async = errno == EINPROGRESS;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+  // QNX doesn't support the SO_ERROR socket option for vsock.
+  // Therefore block the connect call by polling the socket
+  // until it is writable.
+  bool is_blocking_call = family_ == SockFamily::kVsock;
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // For VM-to-VM communication block until the socket is writable.
+  // Not blocking leads to race condition where no error is found
+  // with SO_ERROR socket option but the socket is still not writable
+  // so subsequent socket calls fail.
+  bool is_blocking_call = family_ == SockFamily::kVsock && IsVirtualized();
+#else
+  bool is_blocking_call = false;
+#endif
+  if (is_blocking_call && res < 0 && continue_async) {
+    pollfd pfd{*fd_, POLLOUT, 0};
+    if (PERFETTO_EINTR(poll(&pfd, 1 /*nfds*/, 3000 /*timeout*/)) <= 0)
+      return false;
+    return (pfd.revents & POLLOUT) != 0;
+  }
 #endif
   if (res && !continue_async)
     return false;
@@ -675,7 +766,7 @@ bool UnixSocketRaw::SetTxTimeout(uint32_t timeout_ms) {
   DWORD timeout = timeout_ms;
   ignore_result(tx_timeout_ms_);
 #else
-  struct timeval timeout {};
+  struct timeval timeout{};
   uint32_t timeout_sec = timeout_ms / 1000;
   timeout.tv_sec = static_cast<decltype(timeout.tv_sec)>(timeout_sec);
   timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(
@@ -683,8 +774,8 @@ bool UnixSocketRaw::SetTxTimeout(uint32_t timeout_ms) {
 #endif
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
   if (family() == SockFamily::kVsock) {
-      // QNX doesn't support SO_SNDTIMEO for vsocks.
-      return true;
+    // QNX doesn't support SO_SNDTIMEO for vsocks.
+    return true;
   }
 #endif
 
@@ -698,7 +789,7 @@ bool UnixSocketRaw::SetRxTimeout(uint32_t timeout_ms) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   DWORD timeout = timeout_ms;
 #else
-  struct timeval timeout {};
+  struct timeval timeout{};
   uint32_t timeout_sec = timeout_ms / 1000;
   timeout.tv_sec = static_cast<decltype(timeout.tv_sec)>(timeout_sec);
   timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(
@@ -710,7 +801,7 @@ bool UnixSocketRaw::SetRxTimeout(uint32_t timeout_ms) {
 }
 
 std::string UnixSocketRaw::GetSockAddr() const {
-  struct sockaddr_storage stg {};
+  struct sockaddr_storage stg{};
   socklen_t slen = sizeof(stg);
   PERFETTO_CHECK(
       getsockname(*fd_, reinterpret_cast<struct sockaddr*>(&stg), &slen) == 0);
@@ -1005,7 +1096,7 @@ void UnixSocket::OnEvent() {
       // re-posted immediately. In both cases, not doing a Recv() in
       // OnDataAvailable, leads to something bad (getting stuck on Windows,
       // getting in a hot loop on Linux), so doesn't feel we should worry too
-      // much about this. If we wanted to keep the behavrior consistent, here
+      // much about this. If we wanted to keep the behavior consistent, here
       // we should do something like: `if (sock_raw_)
       // sock_raw_.SetBlocking(false)` (Note that the socket might be closed
       // by the time we come back here, hence the if part).
@@ -1050,11 +1141,22 @@ void UnixSocket::OnEvent() {
 
   if (state_ == State::kConnecting) {
     PERFETTO_DCHECK(sock_raw_);
-    int sock_err = EINVAL;
-    socklen_t err_len = sizeof(sock_err);
-    int res =
-        getsockopt(sock_raw_.fd(), SOL_SOCKET, SO_ERROR, &sock_err, &err_len);
-
+    int res = 0, sock_err = 0;
+    bool is_error_opt_supported = true;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+    // QNX doesn't support the SO_ERROR socket option for vsock.
+    // Since, we make the connect call blocking, it is fine to skip
+    // the error check and simply continue with the connection flow.
+    if (sock_raw_.family() == SockFamily::kVsock) {
+      is_error_opt_supported = false;
+    }
+#endif
+    if (is_error_opt_supported) {
+      sock_err = EINVAL;
+      socklen_t err_len = sizeof(sock_err);
+      res =
+          getsockopt(sock_raw_.fd(), SOL_SOCKET, SO_ERROR, &sock_err, &err_len);
+    }
     if (res == 0 && sock_err == EINPROGRESS)
       return;  // Not connected yet, just a spurious FD watch wakeup.
     if (res == 0 && sock_err == 0) {

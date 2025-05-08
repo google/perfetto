@@ -13,6 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- sqlformat file off
+-- TODO(lalitm): this is necessary because of AS TEXT cast which gets converted
+-- to AS STRING which we don't want. Relax this when we improve the formatting
+-- script.
+
 -- Casts |value| to INT.
 CREATE PERFETTO MACRO cast_int(
     -- Query or subquery that will be cast.

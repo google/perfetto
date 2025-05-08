@@ -39,6 +39,7 @@
 #include <stdint.h>
 #include <map>
 #include <mutex>
+#include <optional>
 
 namespace perfetto {
 namespace internal {
@@ -438,6 +439,10 @@ namespace internal {
 class PERFETTO_EXPORT_COMPONENT TrackRegistry {
  public:
   using SerializedTrackDescriptor = std::string;
+  struct TrackInfo {
+    SerializedTrackDescriptor desc;
+    uint64_t parent_uuid = 0;
+  };
 
   TrackRegistry();
   ~TrackRegistry();
@@ -464,26 +469,31 @@ class PERFETTO_EXPORT_COMPONENT TrackRegistry {
     // If the track has extra metadata (recorded with UpdateTrack), it will be
     // found in the registry. To minimize the time the lock is held, make a copy
     // of the data held in the registry and write it outside the lock.
-    std::string desc_copy;
-    uint64_t parent_uuid = 0;
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      const auto& it = tracks_.find(track.uuid);
-      if (it != tracks_.end()) {
-        desc_copy = it->second.desc;
-        parent_uuid = it->second.parent_uuid;
-        PERFETTO_DCHECK(!desc_copy.empty());
-      }
-    }
-    if (!desc_copy.empty()) {
-      WriteTrackDescriptor(std::move(desc_copy), std::move(packet));
+    auto track_info = FindTrackInfo(track.uuid);
+    if (track_info) {
+      WriteTrackDescriptor(std::move(track_info->desc), std::move(packet));
+      return track_info->parent_uuid;
     } else {
       // Otherwise we just write the basic descriptor for this type of track
       // (e.g., just uuid, no name).
       track.Serialize(packet->set_track_descriptor());
-      parent_uuid = track.parent_uuid;
+      return track.parent_uuid;
     }
-    return parent_uuid;
+  }
+
+  // If saved in the registry, returns the serialize track descriptor and parent
+  // uuid for `uuid`.
+  std::optional<TrackInfo> FindTrackInfo(uint64_t uuid) {
+    std::optional<TrackInfo> track_info;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      const auto it = tracks_.find(uuid);
+      if (it != tracks_.end()) {
+        track_info = it->second;
+        PERFETTO_DCHECK(!track_info->desc.empty());
+      }
+    }
+    return track_info;
   }
 
   static void WriteTrackDescriptor(
@@ -491,10 +501,6 @@ class PERFETTO_EXPORT_COMPONENT TrackRegistry {
       protozero::MessageHandle<protos::pbzero::TracePacket> packet);
 
  private:
-  struct TrackInfo {
-    SerializedTrackDescriptor desc;
-    uint64_t parent_uuid = 0;
-  };
   std::mutex mutex_;
   std::map<uint64_t /* uuid */, TrackInfo> tracks_;
 

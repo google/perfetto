@@ -141,7 +141,9 @@ message EnableTracingRequest {
 }
 
 message EnableTracingResponse {
-  oneof state { bool disabled = 1; }
+  oneof state {
+    bool disabled = 1;
+  }
 
   // If present and non-empty tracing was disabled because of an error.
   // Introduced in Android S.
@@ -317,6 +319,9 @@ message CloneSessionRequest {
   // If set, this is stored in the trace as timestamp of the trigger that caused
   // the clone.
   optional uint64 clone_trigger_boot_time_ns = 8;
+  // If set, this is stored in the trace as the configured delay of the trigger
+  // that caused the clone.
+  optional uint64 clone_trigger_delay_ms = 9;
 }
 
 message CloneSessionResponse {

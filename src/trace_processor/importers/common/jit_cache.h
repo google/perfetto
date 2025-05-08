@@ -68,6 +68,10 @@ class JitCache {
       StringId function_name,
       std::optional<SourceLocation> source_location,
       TraceBlobView native_code);
+  tables::JitCodeTable::Id MoveCode(int64_t timestamp,
+                                    UniqueTid utid,
+                                    uint64_t from_code_start,
+                                    uint64_t to_code_start);
 
   // Forward frame interning request.
   // MappingTracker allows other trackers to register ranges of memory for

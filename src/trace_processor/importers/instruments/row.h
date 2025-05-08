@@ -41,6 +41,7 @@ struct Binary {
 
 struct Frame {
   long long addr = 0;
+  std::string name;
   BinaryId binary = kNullId;
 };
 

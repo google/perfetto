@@ -14,10 +14,12 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE graphs.scan;
+
 INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;
 
 CREATE PERFETTO TABLE _heap_graph_dominator_tree_bottom_up_scan AS
-SELECT *
+SELECT
+  *
 FROM _graph_aggregating_scan!(
   (
     SELECT id AS source_node_id, idom_id AS dest_node_id
@@ -55,10 +57,12 @@ FROM _graph_aggregating_scan!(
     JOIN heap_graph_object o USING (id)
   )
 )
-ORDER BY id;
+ORDER BY
+  id;
 
 CREATE PERFETTO TABLE _heap_graph_dominator_tree_top_down_scan AS
-SELECT *
+SELECT
+  *
 FROM _graph_scan!(
   (
     SELECT idom_id AS source_node_id, id AS dest_node_id
@@ -73,7 +77,8 @@ FROM _graph_scan!(
   (depth),
   (SELECT t.id, t.depth + 1 AS depth FROM $table t)
 )
-ORDER BY id;
+ORDER BY
+  id;
 
 -- All reachable heap graph objects, their immediate dominators and summary of
 -- their dominated sets.
@@ -82,7 +87,7 @@ ORDER BY id;
 -- dominator is their parent node in the tree, and their dominated set is all
 -- their descendants in the tree. All size information come from the
 -- heap_graph_object prelude table.
-CREATE PERFETTO TABLE heap_graph_dominator_tree(
+CREATE PERFETTO TABLE heap_graph_dominator_tree (
   -- Heap graph object id.
   id LONG,
   -- Immediate dominator object id of the object. If the immediate dominator
@@ -105,8 +110,12 @@ SELECT
   d.subtree_size_bytes AS dominated_size_bytes,
   d.subtree_native_size_bytes AS dominated_native_size_bytes,
   t.depth
-FROM _raw_heap_graph_dominator_tree r
-JOIN _heap_graph_dominator_tree_bottom_up_scan d USING(id)
-JOIN _heap_graph_dominator_tree_top_down_scan t USING (id)
-WHERE r.id IS NOT NULL
-ORDER BY id;
+FROM _raw_heap_graph_dominator_tree AS r
+JOIN _heap_graph_dominator_tree_bottom_up_scan AS d
+  USING (id)
+JOIN _heap_graph_dominator_tree_top_down_scan AS t
+  USING (id)
+WHERE
+  r.id IS NOT NULL
+ORDER BY
+  id;

@@ -18,9 +18,7 @@
 #include <fstream>
 #include <map>
 #include <memory>
-#include <regex>
 #include <set>
-#include <sstream>
 #include <string>
 
 #include <google/protobuf/descriptor.h>
@@ -200,9 +198,12 @@ int main(int argc, char** argv) {
       // The first id used for events in FtraceEvent proto is 3.
       uint32_t proto_field = i + 3;
 
-      // The generic event has field id 327 so any event with a id higher
-      // than that has to be incremented by 1.
+      // Hand-authored events that need to be skipped by the generator.
+      // * GenericFtraceEvent (327)
+      // * KprobeEvent (542)
       if (proto_field >= 327)
+        proto_field++;
+      if (proto_field >= 542)
         proto_field++;
 
       events_info.push_back(

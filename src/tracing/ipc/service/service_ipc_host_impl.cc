@@ -16,10 +16,13 @@
 
 #include "src/tracing/ipc/service/service_ipc_host_impl.h"
 
+#include <list>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/ipc/host.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/tracing/default_socket.h"
 #include "src/tracing/ipc/service/consumer_ipc_service.h"
 #include "src/tracing/ipc/service/producer_ipc_service.h"
 #include "src/tracing/ipc/service/relay_ipc_service.h"
@@ -34,7 +37,22 @@ namespace perfetto {
 
 namespace {
 constexpr uint32_t kProducerSocketTxTimeoutMs = 10;
+
+std::unique_ptr<ipc::Host> CreateIpcHost(base::TaskRunner* task_runner,
+                                         ListenEndpoint ep) {
+  if (!ep.sock_name.empty()) {
+    PERFETTO_DCHECK(!ep.sock_handle && !ep.ipc_host);
+    return ipc::Host::CreateInstance(ep.sock_name.c_str(), task_runner);
+  }
+  if (ep.sock_handle) {
+    PERFETTO_DCHECK(!ep.ipc_host);
+    return ipc::Host::CreateInstance(std::move(ep.sock_handle), task_runner);
+  }
+  PERFETTO_DCHECK(ep.ipc_host);
+  return std::move(ep.ipc_host);
 }
+
+}  // namespace
 
 // TODO(fmayer): implement per-uid connection limit (b/69093705).
 
@@ -53,41 +71,16 @@ ServiceIPCHostImpl::ServiceIPCHostImpl(base::TaskRunner* task_runner,
 
 ServiceIPCHostImpl::~ServiceIPCHostImpl() {}
 
-bool ServiceIPCHostImpl::Start(
-    const std::vector<std::string>& producer_socket_names,
-    const char* consumer_socket_name) {
+bool ServiceIPCHostImpl::Start(std::list<ListenEndpoint> producer_sockets,
+                               ListenEndpoint consumer_socket) {
   PERFETTO_CHECK(!svc_);  // Check if already started.
 
   // Initialize the IPC transport.
-  for (const auto& producer_socket_name : producer_socket_names)
+  for (auto& sock : producer_sockets) {
     producer_ipc_ports_.emplace_back(
-        ipc::Host::CreateInstance(producer_socket_name.c_str(), task_runner_));
-  consumer_ipc_port_ =
-      ipc::Host::CreateInstance(consumer_socket_name, task_runner_);
-  return DoStart();
-}
-
-bool ServiceIPCHostImpl::Start(base::ScopedSocketHandle producer_socket_fd,
-                               base::ScopedSocketHandle consumer_socket_fd) {
-  PERFETTO_CHECK(!svc_);  // Check if already started.
-
-  // Initialize the IPC transport.
-  producer_ipc_ports_.emplace_back(
-      ipc::Host::CreateInstance(std::move(producer_socket_fd), task_runner_));
-  consumer_ipc_port_ =
-      ipc::Host::CreateInstance(std::move(consumer_socket_fd), task_runner_);
-  return DoStart();
-}
-
-bool ServiceIPCHostImpl::Start(std::unique_ptr<ipc::Host> producer_host,
-                               std::unique_ptr<ipc::Host> consumer_host) {
-  PERFETTO_CHECK(!svc_);  // Check if already started.
-  PERFETTO_DCHECK(producer_host);
-  PERFETTO_DCHECK(consumer_host);
-
-  // Initialize the IPC transport.
-  producer_ipc_ports_.emplace_back(std::move(producer_host));
-  consumer_ipc_port_ = std::move(consumer_host);
+        CreateIpcHost(task_runner_, std::move(sock)));
+  }
+  consumer_ipc_port_ = CreateIpcHost(task_runner_, std::move(consumer_socket));
 
   return DoStart();
 }
@@ -124,7 +117,7 @@ bool ServiceIPCHostImpl::DoStart() {
   for (auto& producer_ipc_port : producer_ipc_ports_)
     producer_ipc_port->SetSocketSendTimeoutMs(kProducerSocketTxTimeoutMs);
 
-  // TODO(fmayer): add a test that destroyes the ServiceIPCHostImpl soon after
+  // TODO(fmayer): add a test that destroys the ServiceIPCHostImpl soon after
   // Start() and checks that no spurious callbacks are issued.
   for (auto& producer_ipc_port : producer_ipc_ports_) {
     bool producer_service_exposed = producer_ipc_port->ExposeService(
@@ -162,5 +155,43 @@ void ServiceIPCHostImpl::Shutdown() {
 // Definitions for the base class ctor/dtor.
 ServiceIPCHost::ServiceIPCHost() = default;
 ServiceIPCHost::~ServiceIPCHost() = default;
+
+// Definitions for ListenEndpoint, declared in service_ipc_host.h.
+ListenEndpoint::ListenEndpoint(const char* socket_name)
+    : sock_name(socket_name) {}
+ListenEndpoint::ListenEndpoint(std::string socket_name)
+    : sock_name(std::move(socket_name)) {}
+ListenEndpoint::ListenEndpoint(base::ScopedSocketHandle sh)
+    : sock_handle(std::move(sh)) {}
+ListenEndpoint::ListenEndpoint(std::unique_ptr<ipc::Host> ih)
+    : ipc_host(std::move(ih)) {}
+ListenEndpoint::ListenEndpoint(ListenEndpoint&&) noexcept = default;
+ListenEndpoint& ListenEndpoint::operator=(ListenEndpoint&&) = default;
+ListenEndpoint::~ListenEndpoint() = default;
+
+// Definitions for overloads of Start, declared in service_ipc_host.h.
+
+bool ServiceIPCHost::Start(const char* producer_socket_names,
+                           const char* consumer_socket_name) {
+  std::list<ListenEndpoint> eps;
+  for (const auto& sock_name : TokenizeProducerSockets(producer_socket_names)) {
+    eps.emplace_back(ListenEndpoint(sock_name));
+  }
+  return Start(std::move(eps), ListenEndpoint(consumer_socket_name));
+}
+
+bool ServiceIPCHost::Start(base::ScopedSocketHandle producer_socket_fd,
+                           base::ScopedSocketHandle consumer_socket_fd) {
+  std::list<ListenEndpoint> eps;
+  eps.emplace_back(ListenEndpoint(std::move(producer_socket_fd)));
+  return Start(std::move(eps), ListenEndpoint(std::move(consumer_socket_fd)));
+}
+
+bool ServiceIPCHost::Start(std::unique_ptr<ipc::Host> producer_host,
+                           std::unique_ptr<ipc::Host> consumer_host) {
+  std::list<ListenEndpoint> eps;
+  eps.emplace_back(ListenEndpoint(std::move(producer_host)));
+  return Start(std::move(eps), ListenEndpoint(std::move(consumer_host)));
+}
 
 }  // namespace perfetto

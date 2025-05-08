@@ -85,6 +85,8 @@ perfetto_unittest_source_set("unittests") {
     "../../../protozero",
     "../../sorter",
     "../../storage",
+    "../../tables",
+    "../../types",
     "../../util:descriptors",
     "../common",
     "../ftrace:full",

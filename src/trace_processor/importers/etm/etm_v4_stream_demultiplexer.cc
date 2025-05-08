@@ -130,15 +130,16 @@ ReadCpuConfig(perf_importer::Reader& reader) {
   }
 
   uint32_t cpu;
-  if (!perf_importer::SafeAdd(cpu_header.cpu, 0, &cpu)) {
+  if (!perf_importer::SafeCast(cpu_header.cpu, &cpu)) {
     return base::ErrStatus("Integer overflow in ETM info header");
   }
 
   uint32_t size;
-  if (!perf_importer::SafeMultiply(cpu_header.trace_parameter_count, 8,
-                                   &size)) {
+  if (cpu_header.trace_parameter_count >
+      std::numeric_limits<uint32_t>::max() / 8) {
     return base::ErrStatus("Integer overflow in ETM info header");
   }
+  size = static_cast<uint32_t>(cpu_header.trace_parameter_count * 8);
 
   TraceBlobView blob;
   if (!reader.ReadBlob(blob, size)) {

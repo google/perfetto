@@ -70,6 +70,7 @@ function ftraceCfg(): RecordProbe {
           binder: 'binder/*',
           block: 'block/*',
           clk: 'clk/*',
+          devfreq: 'devfreq/*',
           ext4: 'ext4/*',
           f2fs: 'f2fs/*',
           i2c: 'i2c/*',

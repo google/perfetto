@@ -78,6 +78,8 @@ android_startup {
         debuggable: true
       }
       pid: 3
+      android_user_id: 0
+      is_kernel_task: false
     }
     event_timestamps {
       intent_received: 220

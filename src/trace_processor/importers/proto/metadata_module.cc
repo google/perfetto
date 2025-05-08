@@ -29,7 +29,6 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
-#include "src/trace_processor/importers/proto/config.descriptor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/metadata.h"
@@ -158,6 +157,7 @@ void MetadataModule::ParseTrigger(int64_t ts,
     trace_trigger_packet_type_ = TraceTriggerPacketType::kCloneSnapshot;
     context_->metadata_tracker->SetMetadata(metadata::trace_trigger,
                                             Variadic::String(name_id));
+    context_->storage->SetStats(stats::traced_clone_trigger_timestamp_ns, ts);
   } else if (packetType == TraceTriggerPacketType::kTraceTrigger &&
              trace_trigger_packet_type_ == TraceTriggerPacketType::kNone) {
     trace_trigger_packet_type_ = TraceTriggerPacketType::kTraceTrigger;
@@ -237,12 +237,8 @@ void MetadataModule::ParseTraceConfig(
                                             Variadic::String(id));
   }
 
-  DescriptorPool pool;
-  pool.AddFromFileDescriptorSet(kConfigDescriptor.data(),
-                                kConfigDescriptor.size());
-
   std::string text = protozero_to_text::ProtozeroToText(
-      pool, ".perfetto.protos.TraceConfig",
+      *context_->descriptor_pool_, ".perfetto.protos.TraceConfig",
       protozero::ConstBytes{
           trace_config.begin(),
           static_cast<uint32_t>(trace_config.end() - trace_config.begin())},

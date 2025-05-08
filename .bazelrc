@@ -1,1 +1,4 @@
 build --cxxopt=-std=c++17
+# To simplify command line invocations, we build "fat" APK
+# for real device (arm64-v8a) and emulators (x86_64) by default.
+common --android_platforms=@perfetto//bazel:arm64-v8a,@perfetto//bazel:x86_64

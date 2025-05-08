@@ -27,15 +27,15 @@ message AndroidDmaHeapMetric {
     optional int32 delta_bytes = 2;
   }
 
-    optional double avg_size_bytes = 1;
-    optional double min_size_bytes = 2;
-    optional double max_size_bytes = 3;
+  optional double avg_size_bytes = 1;
+  optional double min_size_bytes = 2;
+  optional double max_size_bytes = 3;
 
-    // Total allocation size.
-    // Essentially the sum of positive allocs.
-    optional double total_alloc_size_bytes = 4;
+  // Total allocation size.
+  // Essentially the sum of positive allocs.
+  optional double total_alloc_size_bytes = 4;
 
-    // Total delta size (bytes allocated but not freed during the trace)
-    optional int32 total_delta_bytes = 5;
-    repeated ProcessStats process_stats = 6;
+  // Total delta size (bytes allocated but not freed during the trace)
+  optional int32 total_delta_bytes = 5;
+  repeated ProcessStats process_stats = 6;
 }

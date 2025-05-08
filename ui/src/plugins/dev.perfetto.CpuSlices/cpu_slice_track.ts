@@ -15,31 +15,27 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
-import {Duration, duration, Time, time} from '../../base/time';
-import {
-  drawDoubleHeadedArrow,
-  drawIncompleteSlice,
-  drawTrackHoverTooltip,
-} from '../../base/canvas_utils';
+import {duration, Time, time} from '../../base/time';
+import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../base/color';
+import m from 'mithril';
 import {colorForThread} from '../../components/colorizer';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {Point2D} from '../../base/geom';
-import {Track} from '../../public/track';
+import {TrackRenderer} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {TrackEventDetails} from '../../public/selection';
-import {asSchedSqlId} from '../../components/sql_utils/core_types';
-import {getSched, getSchedWakeupInfo} from '../../components/sql_utils/sched';
 import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 import {exists} from '../../base/utils';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
-import {Dataset, SourceDataset} from '../../trace_processor/dataset';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {Cpu} from '../../base/multi_machine_trace';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -58,7 +54,7 @@ const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 const CPU_SLICE_FLAGS_INCOMPLETE = 1;
 const CPU_SLICE_FLAGS_REALTIME = 2;
 
-export class CpuSliceTrack implements Track {
+export class CpuSliceTrack implements TrackRenderer {
   private mousePos?: Point2D;
   private utidHoveredInThisTrack?: number;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
@@ -66,10 +62,12 @@ export class CpuSliceTrack implements Track {
   private lastRowId = -1;
   private trackUuid = uuidv4Sql();
 
+  readonly rootTableName = 'sched_slice';
+
   constructor(
     private readonly trace: Trace,
     private readonly uri: string,
-    private readonly cpu: number,
+    private readonly cpu: Cpu,
     private readonly threads: ThreadMap,
   ) {}
 
@@ -83,33 +81,37 @@ export class CpuSliceTrack implements Track {
           iif(dur = -1, lead(ts, 1, trace_end()) over (order by ts) - ts, dur),
           0 as depth
         from sched
-        where cpu = ${this.cpu} and utid != 0
+        where ucpu = ${this.cpu.ucpu} and
+          not utid in (select utid from thread where is_idle)
       ));
     `);
     const it = await this.trace.engine.query(`
       select coalesce(max(id), -1) as lastRowId
       from sched
-      where cpu = ${this.cpu} and utid != 0
+      where ucpu = ${this.cpu.ucpu} and
+        not utid in (select utid from thread where is_idle)
     `);
     this.lastRowId = it.firstRow({lastRowId: NUM}).lastRowId;
   }
 
-  getDataset(): Dataset | undefined {
+  getDataset() {
     return new SourceDataset({
       // TODO(stevegolton): Once we allow datasets to have more than one filter,
       // move this where clause to a dataset filter and change this src to
       // 'sched'.
-      src: 'select id, ts, dur, cpu, utid from sched where utid != 0',
+      src: `select id, ts, dur, ucpu, utid
+            from sched
+            where not utid in (select utid from thread where is_idle)`,
       schema: {
         id: NUM,
         ts: LONG,
         dur: LONG,
-        cpu: NUM,
+        ucpu: NUM,
         utid: NUM,
       },
       filter: {
-        col: 'cpu',
-        eq: this.cpu,
+        col: 'ucpu',
+        eq: this.cpu.ucpu,
       },
     });
   }
@@ -188,6 +190,29 @@ export class CpuSliceTrack implements Track {
 
   getHeight(): number {
     return TRACK_HEIGHT;
+  }
+
+  renderTooltip(): m.Children {
+    if (
+      this.utidHoveredInThisTrack === undefined ||
+      this.mousePos === undefined
+    ) {
+      return undefined;
+    }
+
+    const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
+    if (!hoveredThread) {
+      return undefined;
+    }
+
+    const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+
+    if (hoveredThread.pid !== undefined) {
+      const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
+      return m('.tooltip', [m('div', pidText), m('div', tidText)]);
+    } else {
+      return m('.tooltip', tidText);
+    }
   }
 
   render(trackCtx: TrackRenderContext): void {
@@ -354,67 +379,6 @@ export class CpuSliceTrack implements Track {
             RECT_HEIGHT + 3,
           );
           ctx.closePath();
-          // Draw arrow from wakeup time of current slice.
-          if (selection.wakeupTs) {
-            const wakeupPos = timescale.timeToPx(selection.wakeupTs);
-            const latencyWidth = rectStart - wakeupPos;
-            drawDoubleHeadedArrow(
-              ctx,
-              wakeupPos,
-              MARGIN_TOP + RECT_HEIGHT,
-              latencyWidth,
-              latencyWidth >= 20,
-            );
-            // Latency time with a white semi-transparent background.
-            const latency = tStart - selection.wakeupTs;
-            const displayText = Duration.humanise(latency);
-            const measured = ctx.measureText(displayText);
-            if (latencyWidth >= measured.width + 2) {
-              ctx.fillStyle = 'rgba(255,255,255,0.7)';
-              ctx.fillRect(
-                wakeupPos + latencyWidth / 2 - measured.width / 2 - 1,
-                MARGIN_TOP + RECT_HEIGHT - 12,
-                measured.width + 2,
-                11,
-              );
-              ctx.textBaseline = 'bottom';
-              ctx.fillStyle = 'black';
-              ctx.fillText(
-                displayText,
-                wakeupPos + latencyWidth / 2,
-                MARGIN_TOP + RECT_HEIGHT - 1,
-              );
-            }
-          }
-        }
-      }
-
-      // Draw diamond if the track being drawn is the cpu of the waker.
-      if (this.cpu === selection.wakerCpu && selection.wakeupTs) {
-        const wakeupPos = Math.floor(timescale.timeToPx(selection.wakeupTs));
-        ctx.beginPath();
-        ctx.moveTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 + 8);
-        ctx.fillStyle = 'black';
-        ctx.lineTo(wakeupPos + 6, MARGIN_TOP + RECT_HEIGHT / 2);
-        ctx.lineTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 - 8);
-        ctx.lineTo(wakeupPos - 6, MARGIN_TOP + RECT_HEIGHT / 2);
-        ctx.fill();
-        ctx.closePath();
-      }
-
-      if (this.utidHoveredInThisTrack !== undefined) {
-        const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
-        if (hoveredThread && this.mousePos !== undefined) {
-          const tidText = `T: ${hoveredThread.threadName}
-          [${hoveredThread.tid}]`;
-          // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-          if (hoveredThread.pid) {
-            const pidText = `P: ${hoveredThread.procName}
-            [${hoveredThread.pid}]`;
-            drawTrackHoverTooltip(ctx, this.mousePos, size, pidText, tidText);
-          } else {
-            drawTrackHoverTooltip(ctx, this.mousePos, size, tidText);
-          }
         }
       }
     }
@@ -448,6 +412,9 @@ export class CpuSliceTrack implements Track {
     const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     this.trace.timeline.hoveredUtid = hoveredUtid;
     this.trace.timeline.hoveredPid = hoveredPid;
+
+    // Trigger redraw to update tooltip
+    m.redraw();
   }
 
   onMouseOut() {
@@ -473,17 +440,28 @@ export class CpuSliceTrack implements Track {
   async getSelectionDetails?(
     eventId: number,
   ): Promise<TrackEventDetails | undefined> {
-    const sched = await getSched(this.trace.engine, asSchedSqlId(eventId));
-    if (sched === undefined) {
+    const dataset = this.getDataset();
+    const result = await this.trace.engine.query(`
+      SELECT
+        ts,
+        dur
+      FROM (${dataset.query()})
+      WHERE id = ${eventId}
+    `);
+
+    const firstRow = result.maybeFirstRow({
+      ts: LONG,
+      dur: LONG,
+    });
+
+    if (firstRow) {
+      return {
+        ts: Time.fromRaw(firstRow.ts),
+        dur: firstRow.dur,
+      };
+    } else {
       return undefined;
     }
-    const wakeup = await getSchedWakeupInfo(this.trace.engine, sched);
-    return {
-      ts: sched.ts,
-      dur: sched.dur,
-      wakeupTs: wakeup?.wakeupTs,
-      wakerCpu: wakeup?.wakerCpu,
-    };
   }
 
   detailsPanel() {

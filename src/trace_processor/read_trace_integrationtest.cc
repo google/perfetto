@@ -69,7 +69,7 @@ TEST_F(ReadTraceIntegrationTest, CompressedTrace) {
   std::vector<uint8_t> decompressed;
   decompressed.reserve(raw_trace.size());
 
-  util::Status status = trace_processor::DecompressTrace(
+  base::Status status = trace_processor::DecompressTrace(
       raw_trace.data(), raw_trace.size(), &decompressed);
   ASSERT_TRUE(status.ok());
 
@@ -89,7 +89,7 @@ TEST_F(ReadTraceIntegrationTest, NonProtobufShouldNotDecompress) {
   std::vector<uint8_t> raw_trace = ReadAllData(f);
 
   std::vector<uint8_t> decompressed;
-  util::Status status = trace_processor::DecompressTrace(
+  base::Status status = trace_processor::DecompressTrace(
       raw_trace.data(), raw_trace.size(), &decompressed);
   ASSERT_FALSE(status.ok());
 }
@@ -100,7 +100,7 @@ TEST_F(ReadTraceIntegrationTest, OuterGzipDecompressTrace) {
   std::vector<uint8_t> raw_compressed_trace = ReadAllData(f);
 
   std::vector<uint8_t> decompressed;
-  util::Status status = trace_processor::DecompressTrace(
+  base::Status status = trace_processor::DecompressTrace(
       raw_compressed_trace.data(), raw_compressed_trace.size(), &decompressed);
   ASSERT_TRUE(status.ok());
 
@@ -117,7 +117,7 @@ TEST_F(ReadTraceIntegrationTest, DoubleGzipDecompressTrace) {
   std::vector<uint8_t> raw_compressed_trace = ReadAllData(f);
 
   std::vector<uint8_t> decompressed;
-  util::Status status = trace_processor::DecompressTrace(
+  base::Status status = trace_processor::DecompressTrace(
       raw_compressed_trace.data(), raw_compressed_trace.size(), &decompressed);
   ASSERT_TRUE(status.ok()) << status.message();
 

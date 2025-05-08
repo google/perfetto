@@ -75,10 +75,15 @@ void QueryExecutor::ApplyConstraint(const Constraint& c,
   uint32_t rm_last = rm->Get(rm_size - 1);
   uint32_t range_size = rm_last - rm_first;
 
+  // Always prefer linear search if on a range *except* when the range is small
+  // but the last element of the range is large: this will cause a big bitvector
+  // to be created which negates the benefits of using linear search over
+  // index search.
+  bool disallows_index_search = rm->IsRange() && rm_last < range_size * 100;
+
   // If the number of elements in the rowmap is small or the number of
   // elements is less than 1/10th of the range, use indexed filtering.
   // TODO(b/283763282): use Overlay estimations.
-  bool disallows_index_search = rm->IsRange();
   bool prefers_index_search =
       rm->IsIndexVector() || rm_size < 1024 || rm_size * 10 < range_size;
 

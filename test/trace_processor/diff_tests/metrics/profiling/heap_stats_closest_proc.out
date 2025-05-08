@@ -5,6 +5,8 @@ java_heap_stats {
       name: "proc1"
       uid: 1000
       pid: 2
+      android_user_id: 0
+      is_kernel_task: false
     }
     samples {
       ts: 200000000
@@ -30,6 +32,8 @@ java_heap_stats {
       name: "proc2"
       uid: 1000
       pid: 3
+      android_user_id: 0
+      is_kernel_task: false
     }
     samples {
       ts: 1500000000

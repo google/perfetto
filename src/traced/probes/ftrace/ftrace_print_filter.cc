@@ -137,7 +137,7 @@ std::optional<FtracePrintFilterConfig> FtracePrintFilterConfig::Create(
 }
 
 FtracePrintFilterConfig::FtracePrintFilterConfig(FtracePrintFilter filter)
-    : filter_(filter) {}
+    : filter_(std::move(filter)) {}
 
 bool FtracePrintFilterConfig::IsEventInteresting(const uint8_t* start,
                                                  const uint8_t* end) const {

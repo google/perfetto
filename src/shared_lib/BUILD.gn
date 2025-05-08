@@ -34,7 +34,6 @@ source_set("shared_lib") {
     "../../include/perfetto/public",
     "../base",
     "../tracing:client_api",
-    "../tracing:platform_impl",
   ]
   sources = [
     "data_source.cc",

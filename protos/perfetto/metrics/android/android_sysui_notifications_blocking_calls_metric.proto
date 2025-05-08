@@ -20,7 +20,8 @@ package perfetto.protos;
 
 import "protos/perfetto/metrics/android/android_blocking_call.proto";
 
-// Blocking calls inside System UI Notifications. Shows count and total duration for each.
+// Blocking calls inside System UI Notifications. Shows count and total duration
+// for each.
 message AndroidSysUINotificationsBlockingCallsMetric {
   repeated AndroidBlockingCall blocking_calls = 1;
 }

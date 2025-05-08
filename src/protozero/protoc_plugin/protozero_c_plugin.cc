@@ -79,7 +79,16 @@ struct EnumDescriptorComp {
 };
 
 inline std::string ProtoStubName(const FileDescriptor* proto) {
-  return StripSuffix(proto->name(), ".proto") + ".pzc";
+  return StripSuffix(std::string(proto->name()), ".proto") + ".pzc";
+}
+
+std::string IntLiteralString(int number) {
+  // Special case for -2147483648. If int is 32-bit, the compiler will
+  // misinterpret it.
+  if (number == std::numeric_limits<int32_t>::min()) {
+    return "-2147483647 - 1";
+  }
+  return std::to_string(number);
 }
 
 class GeneratorJob {
@@ -134,7 +143,7 @@ class GeneratorJob {
   // prohibited but not recommended in order to avoid name collisions.
   template <class T>
   inline std::string GetCppClassName(const T* descriptor) {
-    return StripChars(descriptor->full_name(), ".", '_');
+    return StripChars(std::string(descriptor->full_name()), ".", '_');
   }
 
   const char* FieldTypeToPackedBufferType(FieldDescriptor::Type type) {
@@ -344,7 +353,7 @@ class GeneratorJob {
   }
 
   std::string GenerateGuard() {
-    std::string guard = StripSuffix(source_->name(), ".proto");
+    std::string guard = StripSuffix(std::string(source_->name()), ".proto");
     guard = ToUpper(guard);
     guard = StripChars(guard, ".-/\\", '_');
     guard = StripPrefix(guard, guard_strip_prefix_);
@@ -433,17 +442,17 @@ class GeneratorJob {
 
     for (int i = 0; i < enumeration->value_count(); ++i) {
       const EnumValueDescriptor* value = enumeration->value(i);
-      const std::string value_name = value->name();
+      const std::string value_name = std::string(value->name());
 
       if (enumeration->containing_type()) {
         stub_h_->Print(
             "PERFETTO_PB_ENUM_IN_MSG_ENTRY($msg$, $val$) = $number$,\n", "msg",
             GetCppClassName(enumeration->containing_type()), "val", value_name,
-            "number", std::to_string(value->number()));
+            "number", IntLiteralString(value->number()));
       } else {
         stub_h_->Print("PERFETTO_PB_ENUM_ENTRY($val$) = $number$, \n", "val",
                        full_namespace_prefix_ + "_" + value_name, "number",
-                       std::to_string(value->number()));
+                       IntLiteralString(value->number()));
       }
     }
     stub_h_->Outdent();
@@ -451,7 +460,7 @@ class GeneratorJob {
   }
 
   // Packed repeated fields are encoded as a length-delimited field on the wire,
-  // where the payload is the concatenation of invidually encoded elements.
+  // where the payload is the concatenation of individually encoded elements.
   void GeneratePackedRepeatedFieldDescriptorArgs(
       const std::string& message_cpp_type,
       const FieldDescriptor* field) {

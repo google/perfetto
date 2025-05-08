@@ -22,7 +22,6 @@
 
 #include <array>
 #include <atomic>
-#include <functional>
 #include <memory>
 #include <mutex>
 
@@ -115,6 +114,10 @@ struct DataSourceState {
   // Whether this data source instance should call NotifyDataSourceStopped()
   // when it's stopped.
   bool will_notify_on_stop = false;
+
+  // The wanted behavior for this data source instance when a TraceWriter runs
+  // out of space in the shared memory buffer.
+  BufferExhaustedPolicy buffer_exhausted_policy = BufferExhaustedPolicy::kDrop;
 
   // Incremented whenever incremental state should be reset for this instance of
   // this data source.

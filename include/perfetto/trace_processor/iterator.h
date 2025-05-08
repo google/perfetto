@@ -88,7 +88,7 @@ class PERFETTO_EXPORT_COMPONENT Iterator {
   std::string LastStatementSql();
 
   // Returns the status of the iterator.
-  util::Status Status();
+  base::Status Status();
 
  private:
   friend class QueryResultSerializer;

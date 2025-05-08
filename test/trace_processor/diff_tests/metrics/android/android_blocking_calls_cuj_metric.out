@@ -6,6 +6,8 @@ android_blocking_calls_cuj_metric {
       name: "com.android.systemui"
       uid: 10001
       pid: 1000
+      android_user_id: 0
+      is_kernel_task: false
     }
     ts: 2000000
     dur: 15000000
@@ -27,6 +29,8 @@ android_blocking_calls_cuj_metric {
       name: "com.google.android.apps.nexuslauncher"
       uid: 10002
       pid: 2000
+      android_user_id: 0
+      is_kernel_task: false
     }
     ts: 2000000
     dur: 15000000
@@ -48,6 +52,8 @@ android_blocking_calls_cuj_metric {
       name: "com.google.android.third.process"
       uid: 10003
       pid: 3000
+      android_user_id: 0
+      is_kernel_task: false
     }
     ts: 2000000
     dur: 260000000
@@ -299,6 +305,8 @@ android_blocking_calls_cuj_metric {
       name: "com.google.android.top.level.slices"
       uid: 10004
       pid: 4000
+      android_user_id: 0
+      is_kernel_task: false
     }
     ts: 2000000
     dur: 70000000
@@ -360,6 +368,8 @@ android_blocking_calls_cuj_metric {
       name: "com.android.systemui"
       uid: 10001
       pid: 1000
+      android_user_id: 0
+      is_kernel_task: false
     }
     ts: 20000000
     dur: 10000000
@@ -381,6 +391,8 @@ android_blocking_calls_cuj_metric {
       name: "com.android.systemui"
       uid: 10001
       pid: 1000
+      android_user_id: 0
+      is_kernel_task: false
     }
     ts: 22000000
     dur: 10000000
@@ -402,6 +414,8 @@ android_blocking_calls_cuj_metric {
       name: "com.android.systemui"
       uid: 10001
       pid: 1000
+      android_user_id: 0
+      is_kernel_task: false
     }
     ts: 40000000
     dur: 10000000

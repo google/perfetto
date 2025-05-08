@@ -60,12 +60,14 @@ config("extra_warnings") {
       "-Wextra",
       "-Wpedantic",
     ]
+
     # Apple Clang tends to lag upstream Clang by several major versions, so add
     # additional warnings on Mac to get warning behavior that more closely
     # mimics the newer Clang used in Perfetto CI on Linux.
     if (is_mac && is_clang) {
       cflags += [
-        "-Wsign-conversion"
+        "-Wextra-semi",
+        "-Wsign-conversion",
       ]
     }
   }
@@ -213,6 +215,11 @@ config("default") {
     # constexpr, even in C++14 mode. Disable the deprecated warnings to work
     # around the problem.
     cflags += [ "-Wno-deprecated" ]
+  }
+
+  if (!is_clang && is_win) {
+    # MSVC
+    cflags += [ "/permissive-" ]
   }
 
   if (is_win) {
@@ -447,7 +454,7 @@ config("release") {
       "-Wl,--gc-sections",
       "-Wl,-O1",
     ]
-  } else if (!is_win && !is_wasm) {
+  } else if (!is_wasm && (is_android || (is_linux && is_hermetic_clang))) {
     ldflags = [
       "-Wl,--gc-sections",
       "-Wl,--icf=all",
@@ -501,9 +508,12 @@ config("android_liblog") {
 
 # Checks that tools/install-build-deps has been run since it last changed.
 perfetto_check_build_deps("check_build_deps") {
-  args = []
+  args = [ "--no-dev-tools" ]
 }
 
 perfetto_check_build_deps("check_build_deps_android") {
-  args = [ "--android" ]
+  args = [
+    "--no-dev-tools",
+    "--android",
+  ]
 }

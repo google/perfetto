@@ -59,7 +59,10 @@ class TracedConnectioManagementDialog implements m.ClassComponent<DialogAttrs> {
           'remote host where traced is running and invoke websocket_bridge.',
       ),
       m('br'),
-      m('code', 'ssh -L8037:remote_machine:8037 websocket_bridge'),
+      m(
+        'code',
+        "ssh -L8037:localhost:8037 <remote-machine> 'websocket_bridge'",
+      ),
       m('header', 'Connect a new target'),
       m(
         'div',

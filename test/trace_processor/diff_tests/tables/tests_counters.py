@@ -108,52 +108,6 @@ class TablesCounters(TestSuite):
         """,
         out=Path('filter_row_vector_example_android_trace_30s.out'))
 
-  def test_counter_dur_example_android_trace_30s(self):
-    return DiffTestBlueprint(
-        trace=DataPath('example_android_trace_30s.pb'),
-        query=Path('counter_dur_test.sql'),
-        out=Csv("""
-        "ts","dur"
-        100351738640,-1
-        100351738640,-1
-        100351738640,-1
-        70731059648,19510835
-        70731059648,19510835
-        70731059648,19510835
-        73727335051,23522762
-        73727335051,23522762
-        73727335051,23522762
-        86726132752,24487554
-        """))
-
-  def test_counter_dur_example_android_trace_30s_machine_id(self):
-    return DiffTestBlueprint(
-        trace=DataPath('example_android_trace_30s.pb'),
-        trace_modifier=TraceInjector(
-            ['ftrace_events', 'sys_stats', 'process_stats', 'process_tree'],
-            {'machine_id': 1001}),
-        query="""
-        SELECT ts, dur, m.raw_id as raw_machine_id
-        FROM experimental_counter_dur c
-        JOIN counter_track t on c.track_id = t.id
-        JOIN machine m on t.machine_id = m.id
-        WHERE track_id IN (1, 2, 3)
-        ORDER BY dur LIMIT 10;
-        """,
-        out=Csv("""
-        "ts","dur","raw_machine_id"
-        100351738640,-1,1001
-        100351738640,-1,1001
-        100351738640,-1,1001
-        70731059648,19510835,1001
-        70731059648,19510835,1001
-        70731059648,19510835,1001
-        73727335051,23522762,1001
-        73727335051,23522762,1001
-        73727335051,23522762,1001
-        86726132752,24487554,1001
-        """))
-
   # Tests counter.machine_id and process_counter_track.machine.
   def test_filter_row_vector_example_android_trace_30s_machine_id(self):
     return DiffTestBlueprint(
@@ -287,8 +241,8 @@ class TablesCounters(TestSuite):
         """,
         out=Csv("""
         "id","arg_set_id"
-        1,1
-        15,8
+        1,0
+        17,16
         """))
 
   def test_cpu_counter_track_multi_machine(self):
@@ -337,25 +291,29 @@ class TablesCounters(TestSuite):
         4,"cpu.times.io_wait_ns","[NULL]",0
         5,"cpu.times.irq_ns","[NULL]",0
         6,"cpu.times.softirq_ns","[NULL]",0
-        7,"cpu.times.user_ns","[NULL]",1
-        8,"cpu.times.user_nice_ns","[NULL]",1
-        9,"cpu.times.system_mode_ns","[NULL]",1
-        10,"cpu.times.idle_ns","[NULL]",1
-        11,"cpu.times.io_wait_ns","[NULL]",1
-        12,"cpu.times.irq_ns","[NULL]",1
-        13,"cpu.times.softirq_ns","[NULL]",1
-        14,"cpu.times.user_ns",1,0
-        15,"cpu.times.user_nice_ns",1,0
-        16,"cpu.times.system_mode_ns",1,0
-        17,"cpu.times.idle_ns",1,0
-        18,"cpu.times.io_wait_ns",1,0
-        19,"cpu.times.irq_ns",1,0
-        20,"cpu.times.softirq_ns",1,0
-        21,"cpu.times.user_ns",1,1
-        22,"cpu.times.user_nice_ns",1,1
-        23,"cpu.times.system_mode_ns",1,1
-        24,"cpu.times.idle_ns",1,1
-        25,"cpu.times.io_wait_ns",1,1
-        26,"cpu.times.irq_ns",1,1
-        27,"cpu.times.softirq_ns",1,1
+        7,"cpu.times.steal_ns","[NULL]",0
+        8,"cpu.times.user_ns","[NULL]",1
+        9,"cpu.times.user_nice_ns","[NULL]",1
+        10,"cpu.times.system_mode_ns","[NULL]",1
+        11,"cpu.times.idle_ns","[NULL]",1
+        12,"cpu.times.io_wait_ns","[NULL]",1
+        13,"cpu.times.irq_ns","[NULL]",1
+        14,"cpu.times.softirq_ns","[NULL]",1
+        15,"cpu.times.steal_ns","[NULL]",1
+        16,"cpu.times.user_ns",1,0
+        17,"cpu.times.user_nice_ns",1,0
+        18,"cpu.times.system_mode_ns",1,0
+        19,"cpu.times.idle_ns",1,0
+        20,"cpu.times.io_wait_ns",1,0
+        21,"cpu.times.irq_ns",1,0
+        22,"cpu.times.softirq_ns",1,0
+        23,"cpu.times.steal_ns",1,0
+        24,"cpu.times.user_ns",1,1
+        25,"cpu.times.user_nice_ns",1,1
+        26,"cpu.times.system_mode_ns",1,1
+        27,"cpu.times.idle_ns",1,1
+        28,"cpu.times.io_wait_ns",1,1
+        29,"cpu.times.irq_ns",1,1
+        30,"cpu.times.softirq_ns",1,1
+        31,"cpu.times.steal_ns",1,1
         """))

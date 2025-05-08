@@ -759,6 +759,10 @@
     }
   } // probe
 
+  .textarea-holder {
+    padding-top: var(--record-section-padding);
+  }
+
   .toggle {
     transition: color 0.2s ease;
     padding-top: var(--record-section-padding);
@@ -1434,6 +1438,7 @@ a.inline-chip:visited {
         grid-area: description;
         font-size: 0.75rem;
         margin-bottom: 10px;
+        white-space: pre-line;
       }
     }
     input[type="radio"]:checked + label {

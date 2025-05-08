@@ -23,7 +23,10 @@ android_garbage_collection_unagg {
       name: "com.google.android.deskclock"
       uid: 10182
       pid: 3162
+      android_user_id: 0
+      is_kernel_task: false
     }
+    gc_count: 1
   }
   gc_events {
     thread_name: "HeapTaskDaemon"
@@ -49,7 +52,10 @@ android_garbage_collection_unagg {
       name: "com.google.android.apps.nexuslauncher"
       uid: 10248
       pid: 2523
+      android_user_id: 0
+      is_kernel_task: false
     }
+    gc_count: 1
   }
   gc_events {
     thread_name: "HeapTaskDaemon"
@@ -70,7 +76,10 @@ android_garbage_collection_unagg {
       name: "com.google.android.apps.wellbeing"
       uid: 10173
       pid: 2909
+      android_user_id: 0
+      is_kernel_task: false
     }
+    gc_count: 1
   }
   gc_events {
     thread_name: "HeapTaskDaemon"
@@ -91,6 +100,9 @@ android_garbage_collection_unagg {
       name: "com.google.android.euicc"
       uid: 10141
       pid: 2855
+      android_user_id: 0
+      is_kernel_task: false
     }
+    gc_count: 1
   }
 }

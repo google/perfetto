@@ -69,6 +69,11 @@ bool ViewCaptureArgsParser::TryAddDeinternedString(const Key& key,
   }
 
   ArgsParser::AddString(deintern_key_combined, *deintern_val);
+
+  IidToStringMap& iid_args =
+      flat_key_to_iid_args[storage_.InternString(key.flat_key)];
+  iid_args.Insert(iid, storage_.InternString(*deintern_val));
+
   return true;
 }
 

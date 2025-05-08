@@ -81,7 +81,6 @@ using StringId = StringPool::Id;
 static const StringId kNullStringId = StringId::Null();
 
 using ArgSetId = uint32_t;
-static const ArgSetId kInvalidArgSetId = 0;
 
 using TrackId = tables::TrackTable::Id;
 
@@ -100,8 +99,6 @@ using SymbolId = tables::SymbolTable::Id;
 using CallsiteId = tables::StackProfileCallsiteTable::Id;
 
 using MetadataId = tables::MetadataTable::Id;
-
-using RawId = tables::RawTable::Id;
 
 using FlamegraphId = tables::ExperimentalFlamegraphTable::Id;
 
@@ -231,7 +228,7 @@ class TraceStorage {
   };
   using StatsMap = std::array<Stats, stats::kNumKeys>;
 
-  // Return an unqiue identifier for the contents of each string.
+  // Return an unique identifier for the contents of each string.
   // The string is copied internally and can be destroyed after this called.
   // Virtual for testing.
   virtual StringId InternString(base::StringView str) {
@@ -349,7 +346,7 @@ class TraceStorage {
     track_table_.ShrinkToFit();
     counter_table_.ShrinkToFit();
     slice_table_.ShrinkToFit();
-    raw_table_.ShrinkToFit();
+    ftrace_event_table_.ShrinkToFit();
     sched_slice_table_.ShrinkToFit();
     thread_state_table_.ShrinkToFit();
     arg_table_.ShrinkToFit();
@@ -414,11 +411,6 @@ class TraceStorage {
     return &virtual_track_slices_;
   }
 
-  const tables::GpuSliceTable& gpu_slice_table() const {
-    return gpu_slice_table_;
-  }
-  tables::GpuSliceTable* mutable_gpu_slice_table() { return &gpu_slice_table_; }
-
   const tables::CounterTable& counter_table() const { return counter_table_; }
   tables::CounterTable* mutable_counter_table() { return &counter_table_; }
 
@@ -480,8 +472,12 @@ class TraceStorage {
   const tables::ArgTable& arg_table() const { return arg_table_; }
   tables::ArgTable* mutable_arg_table() { return &arg_table_; }
 
-  const tables::RawTable& raw_table() const { return raw_table_; }
-  tables::RawTable* mutable_raw_table() { return &raw_table_; }
+  const tables::ChromeRawTable& chrome_raw_table() const {
+    return chrome_raw_table_;
+  }
+  tables::ChromeRawTable* mutable_chrome_raw_table() {
+    return &chrome_raw_table_;
+  }
 
   const tables::FtraceEventTable& ftrace_event_table() const {
     return ftrace_event_table_;
@@ -625,14 +621,6 @@ class TraceStorage {
     return &vulkan_memory_allocations_table_;
   }
 
-  const tables::GraphicsFrameSliceTable& graphics_frame_slice_table() const {
-    return graphics_frame_slice_table_;
-  }
-
-  tables::GraphicsFrameSliceTable* mutable_graphics_frame_slice_table() {
-    return &graphics_frame_slice_table_;
-  }
-
   const tables::MemorySnapshotTable& memory_snapshot_table() const {
     return memory_snapshot_table_;
   }
@@ -660,25 +648,6 @@ class TraceStorage {
   }
   tables::MemorySnapshotEdgeTable* mutable_memory_snapshot_edge_table() {
     return &memory_snapshot_edge_table_;
-  }
-
-  const tables::ExpectedFrameTimelineSliceTable&
-  expected_frame_timeline_slice_table() const {
-    return expected_frame_timeline_slice_table_;
-  }
-
-  tables::ExpectedFrameTimelineSliceTable*
-  mutable_expected_frame_timeline_slice_table() {
-    return &expected_frame_timeline_slice_table_;
-  }
-
-  const tables::ActualFrameTimelineSliceTable&
-  actual_frame_timeline_slice_table() const {
-    return actual_frame_timeline_slice_table_;
-  }
-  tables::ActualFrameTimelineSliceTable*
-  mutable_actual_frame_timeline_slice_table() {
-    return &actual_frame_timeline_slice_table_;
   }
 
   const tables::AndroidNetworkPacketsTable& android_network_packets_table()
@@ -851,6 +820,22 @@ class TraceStorage {
     return &viewcapture_table_;
   }
 
+  const tables::ViewCaptureViewTable& viewcapture_view_table() const {
+    return viewcapture_view_table_;
+  }
+  tables::ViewCaptureViewTable* mutable_viewcapture_view_table() {
+    return &viewcapture_view_table_;
+  }
+
+  const tables::ViewCaptureInternedDataTable& viewcapture_interned_data_table()
+      const {
+    return viewcapture_interned_data_table_;
+  }
+  tables::ViewCaptureInternedDataTable*
+  mutable_viewcapture_interned_data_table() {
+    return &viewcapture_interned_data_table_;
+  }
+
   const tables::WindowManagerTable& windowmanager_table() const {
     return windowmanager_table_;
   }
@@ -874,6 +859,15 @@ class TraceStorage {
   tables::WindowManagerShellTransitionHandlersTable*
   mutable_window_manager_shell_transition_handlers_table() {
     return &window_manager_shell_transition_handlers_table_;
+  }
+
+  const tables::WindowManagerShellTransitionProtosTable&
+  window_manager_shell_transition_protos_table() const {
+    return window_manager_shell_transition_protos_table_;
+  }
+  tables::WindowManagerShellTransitionProtosTable*
+  mutable_window_manager_shell_transition_protos_table() {
+    return &window_manager_shell_transition_protos_table_;
   }
 
   const tables::ProtoLogTable& protolog_table() const {
@@ -1042,18 +1036,14 @@ class TraceStorage {
   // NestableSlices).
   VirtualTrackSlices virtual_track_slices_;
 
-  // Additional attributes for gpu track slices (sub-type of
-  // NestableSlices).
-  tables::GpuSliceTable gpu_slice_table_{&string_pool_, &slice_table_};
-
   // The values from the Counter events from the trace. This includes CPU
   // frequency events as well systrace trace_marker counter events.
   tables::CounterTable counter_table_{&string_pool_};
 
   SqlStats sql_stats_;
 
-  tables::RawTable raw_table_{&string_pool_};
-  tables::FtraceEventTable ftrace_event_table_{&string_pool_, &raw_table_};
+  tables::ChromeRawTable chrome_raw_table_{&string_pool_};
+  tables::FtraceEventTable ftrace_event_table_{&string_pool_};
 
   tables::MachineTable machine_table_{&string_pool_};
 
@@ -1097,21 +1087,12 @@ class TraceStorage {
   tables::VulkanMemoryAllocationsTable vulkan_memory_allocations_table_{
       &string_pool_};
 
-  tables::GraphicsFrameSliceTable graphics_frame_slice_table_{&string_pool_,
-                                                              &slice_table_};
-
   // Metadata for memory snapshot.
   tables::MemorySnapshotTable memory_snapshot_table_{&string_pool_};
   tables::ProcessMemorySnapshotTable process_memory_snapshot_table_{
       &string_pool_};
   tables::MemorySnapshotNodeTable memory_snapshot_node_table_{&string_pool_};
   tables::MemorySnapshotEdgeTable memory_snapshot_edge_table_{&string_pool_};
-
-  // FrameTimeline tables
-  tables::ExpectedFrameTimelineSliceTable expected_frame_timeline_slice_table_{
-      &string_pool_, &slice_table_};
-  tables::ActualFrameTimelineSliceTable actual_frame_timeline_slice_table_{
-      &string_pool_, &slice_table_};
 
   // AndroidNetworkPackets tables
   tables::AndroidNetworkPacketsTable android_network_packets_table_{
@@ -1158,11 +1139,16 @@ class TraceStorage {
   tables::SurfaceFlingerTransactionsTable surfaceflinger_transactions_table_{
       &string_pool_};
   tables::ViewCaptureTable viewcapture_table_{&string_pool_};
+  tables::ViewCaptureViewTable viewcapture_view_table_{&string_pool_};
+  tables::ViewCaptureInternedDataTable viewcapture_interned_data_table_{
+      &string_pool_};
   tables::WindowManagerTable windowmanager_table_{&string_pool_};
   tables::WindowManagerShellTransitionsTable
       window_manager_shell_transitions_table_{&string_pool_};
   tables::WindowManagerShellTransitionHandlersTable
       window_manager_shell_transition_handlers_table_{&string_pool_};
+  tables::WindowManagerShellTransitionProtosTable
+      window_manager_shell_transition_protos_table_{&string_pool_};
   tables::ProtoLogTable protolog_table_{&string_pool_};
 
   tables::ExperimentalProtoPathTable experimental_proto_path_table_{

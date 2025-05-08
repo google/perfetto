@@ -19,7 +19,6 @@ import {addQueryResultsTab} from '../../components/query_table/query_result_tab'
 import {
   addDebugCounterTrack,
   addDebugSliceTrack,
-  addPivotedTracks,
 } from '../../components/tracks/debug_tracks';
 import {STR} from '../../trace_processor/query_result';
 
@@ -278,9 +277,9 @@ export default class implements PerfettoPlugin {
           );
           if (filterValue === null) return;
         }
-        await addPivotedTracks(
-          ctx,
-          {
+        await addDebugCounterTrack({
+          trace: ctx,
+          data: {
             sqlSource: `
               SELECT
                 ts,
@@ -289,15 +288,9 @@ export default class implements PerfettoPlugin {
               FROM ftrace_event
                 WHERE name = '${event}' AND pivot IN (${filterValue})`,
           },
-          event + '#' + value + '@' + filter,
-          'pivot',
-          async (ctx, data, trackName) =>
-            addDebugCounterTrack({
-              trace: ctx,
-              data,
-              title: trackName,
-            }),
-        );
+          title: event + '#' + value + '@' + filter,
+          pivotOn: 'pivot',
+        });
       },
     });
   }

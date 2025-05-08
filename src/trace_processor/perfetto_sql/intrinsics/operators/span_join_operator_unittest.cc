@@ -35,10 +35,10 @@ namespace {
 class SpanJoinOperatorTableTest : public ::testing::Test {
  public:
   SpanJoinOperatorTableTest() {
-    engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+    engine_.RegisterVirtualTableModule<SpanJoinOperatorModule>(
         "span_join",
         std::make_unique<SpanJoinOperatorModule::Context>(&engine_));
-    engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+    engine_.RegisterVirtualTableModule<SpanJoinOperatorModule>(
         "span_left_join",
         std::make_unique<SpanJoinOperatorModule::Context>(&engine_));
   }
@@ -67,7 +67,7 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
 
  protected:
   StringPool pool_;
-  PerfettoSqlEngine engine_{&pool_, true};
+  PerfettoSqlEngine engine_{&pool_, nullptr, true};
   ScopedStmt stmt_;
 };
 
@@ -385,6 +385,51 @@ TEST_F(SpanJoinOperatorTableTest, CapitalizedLeftJoin) {
   ASSERT_EQ(sqlite3_column_type(stmt_.get(), 3), SQLITE_NULL);
 
   ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_DONE);
+}
+
+TEST_F(SpanJoinOperatorTableTest, NoDurationOnOne) {
+  RunStatement(
+      "CREATE TEMP TABLE f("
+      "ts BIGINT PRIMARY KEY, "
+      "f_val BIGINT"
+      ");");
+  RunStatement(
+      "CREATE TEMP TABLE s("
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
+      "s_val BIGINT"
+      ");");
+  RunStatement("CREATE VIRTUAL TABLE sp USING span_join(f, s);");
+
+  RunStatement("INSERT INTO f VALUES(100, 44444);");
+  RunStatement("INSERT INTO f VALUES(120, 55555);");
+  RunStatement("INSERT INTO f VALUES(140, 66666);");
+  RunStatement("INSERT INTO f VALUES(160, 77777);");
+
+  RunStatement("INSERT INTO s VALUES(100, 5, 11111);");
+  RunStatement("INSERT INTO s VALUES(110, 20, 22222);");
+  RunStatement("INSERT INTO s VALUES(150, 60, 33333);");
+
+  PrepareValidStatement("SELECT * FROM sp");
+  AssertNextRow({100, 0, 44444, 11111});
+  AssertNextRow({120, 0, 55555, 22222});
+  AssertNextRow({160, 0, 77777, 33333});
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_DONE);
+}
+
+TEST_F(SpanJoinOperatorTableTest, ErrorIfNoDurationOnEither) {
+  RunStatement(
+      "CREATE TEMP TABLE f("
+      "ts BIGINT PRIMARY KEY, "
+      "f_val BIGINT"
+      ");");
+  RunStatement(
+      "CREATE TEMP TABLE s("
+      "ts BIGINT PRIMARY KEY, "
+      "s_val BIGINT"
+      ");");
+  PrepareValidStatement("CREATE VIRTUAL TABLE sp USING span_join(f, s);");
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ERROR);
 }
 
 }  // namespace

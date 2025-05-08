@@ -5,6 +5,8 @@ android_blocking_calls_cuj_per_frame_metric {
       name: "com.android.systemui"
       uid: 10001
       pid: 5000
+      android_user_id: 0
+      is_kernel_task: false
     }
     blocking_calls {
       name: "animation"
@@ -31,6 +33,8 @@ android_blocking_calls_cuj_per_frame_metric {
       name: "com.google.android.apps.nexuslauncher"
       uid: 10002
       pid: 6000
+      android_user_id: 0
+      is_kernel_task: false
     }
     blocking_calls {
       name: "animation"

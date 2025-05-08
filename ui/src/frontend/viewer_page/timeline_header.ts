@@ -24,7 +24,7 @@ import {TraceImpl} from '../../core/trace_impl';
 import {
   VirtualOverlayCanvas,
   VirtualOverlayCanvasDrawContext,
-} from '../../components/widgets/virtual_overlay_canvas';
+} from '../../widgets/virtual_overlay_canvas';
 import {TRACK_SHELL_WIDTH} from '../css_constants';
 import {NotesPanel} from './notes_panel';
 import {TickmarkPanel} from './tickmark_panel';
@@ -88,16 +88,18 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
       m(
         VirtualOverlayCanvas,
         {
-          raf: attrs.trace.raf,
-          onCanvasRedraw: this.drawCanvas.bind(this),
-          onCanvasResized: (size: Size2D) => {
+          onMount: (redrawCanvas) =>
+            attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
+          disableCanvasRedrawOnMithrilUpdates: true,
+          onCanvasRedraw: (ctx) => {
             const rect = new Rect2D({
               left: TRACK_SHELL_WIDTH,
-              right: size.width,
+              right: ctx.virtualCanvasSize.width,
               top: 0,
               bottom: 0,
             });
             attrs.onTimelineBoundsChange?.(rect);
+            this.drawCanvas(ctx);
           },
         },
         this.panels.map((p) => p.render()),

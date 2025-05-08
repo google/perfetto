@@ -12,75 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../../base/logging';
-import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
-import {getColorForSample} from '../../components/colorizer';
-import {BaseSliceTrack} from '../../components/tracks/base_slice_track';
-import {NAMED_ROW, NamedRow} from '../../components/tracks/named_slice_track';
-import {NUM} from '../../trace_processor/query_result';
-import {Slice} from '../../public/track';
+import {LONG, NUM} from '../../trace_processor/query_result';
 import {CpuProfileSampleFlamegraphDetailsPanel} from './cpu_profile_details_panel';
 import {Trace} from '../../public/trace';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {Time} from '../../base/time';
+import {getColorForSample} from '../../components/colorizer';
 
-interface CpuProfileRow extends NamedRow {
-  callsiteId: number;
-}
-
-export class CpuProfileTrack extends BaseSliceTrack<Slice, CpuProfileRow> {
-  constructor(
-    trace: Trace,
-    uri: string,
-    private utid: number,
-  ) {
-    super(trace, uri);
-  }
-
-  protected getRowSpec(): CpuProfileRow {
-    return {...NAMED_ROW, callsiteId: NUM};
-  }
-
-  protected rowToSlice(row: CpuProfileRow): Slice {
-    const baseSlice = super.rowToSliceBase(row);
-    const name = assertExists(row.name);
-    const colorScheme = getColorForSample(row.callsiteId);
-    return {...baseSlice, title: name, colorScheme};
-  }
-
-  onUpdatedSlices(slices: Slice[]) {
-    for (const slice of slices) {
-      slice.isHighlighted = slice === this.hoveredSlice;
-    }
-  }
-
-  getSqlSource(): string {
-    return `
-      select
-        p.id,
-        ts,
-        0 as dur,
-        0 as depth,
-        'CPU Sample' as name,
-        callsite_id as callsiteId
-      from cpu_profile_stack_sample p
-      where utid = ${this.utid}
-      order by ts
-    `;
-  }
-
-  async getSelectionDetails(
-    id: number,
-  ): Promise<TrackEventDetails | undefined> {
-    const baseDetails = await super.getSelectionDetails(id);
-    if (baseDetails === undefined) return undefined;
-    return {...baseDetails, utid: this.utid};
-  }
-
-  detailsPanel(selection: TrackEventSelection) {
-    const {ts, utid} = selection;
-    return new CpuProfileSampleFlamegraphDetailsPanel(
-      this.trace,
-      ts,
-      assertExists(utid),
-    );
-  }
+export function createCpuProfileTrack(trace: Trace, uri: string, utid: number) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        callsite_id: NUM,
+      },
+      src: `cpu_profile_stack_sample`,
+      filter: {
+        col: 'utid',
+        eq: utid,
+      },
+    }),
+    sliceName: () => 'CPU Sample',
+    colorizer: (row) => getColorForSample(row.callsite_id),
+    detailsPanel: (row) => {
+      return new CpuProfileSampleFlamegraphDetailsPanel(
+        trace,
+        Time.fromRaw(row.ts),
+        utid,
+      );
+    },
+  });
 }

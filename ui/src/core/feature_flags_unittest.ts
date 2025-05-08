@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FlagsForTesting as Flags, FlagStore} from '../core/feature_flags';
+import {FlagsForTesting as Flags} from '../core/feature_flags';
+import {Storage} from './storage';
 
-class TestFlagStore implements FlagStore {
-  o: object = {};
+class TestFlagStore implements Storage {
+  o: Record<string, unknown> = {};
 
-  load(): object {
+  load(): Record<string, unknown> {
     return this.o;
   }
 
-  save(o: object): void {
+  save(o: Record<string, unknown>): void {
     this.o = o;
   }
 }
@@ -103,11 +104,11 @@ test('flags can be reset', () => {
 
 test('corrupt store is ignored', () => {
   class Store {
-    load(): object {
+    load(): Record<string, unknown> {
       return {foo: 'bad state'};
     }
 
-    save(_: object): void {}
+    save(_: Record<string, unknown>): void {}
   }
   const flags = new Flags(new Store());
   const foo = flags.register({

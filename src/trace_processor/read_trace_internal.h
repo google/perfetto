@@ -30,7 +30,7 @@ namespace trace_processor {
 class TraceProcessor;
 
 // Reads trace without Flushing the data at the end.
-util::Status PERFETTO_EXPORT_COMPONENT ReadTraceUnfinalized(
+base::Status PERFETTO_EXPORT_COMPONENT ReadTraceUnfinalized(
     TraceProcessor* tp,
     const char* filename,
     const std::function<void(uint64_t parsed_size)>& progress_callback = {});

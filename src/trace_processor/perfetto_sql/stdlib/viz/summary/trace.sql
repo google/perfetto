@@ -14,7 +14,10 @@
 -- limitations under the License.
 
 -- Returns 1 if trace is linux trace and 0 otherwise.
-CREATE PERFETTO FUNCTION _is_linux_trace() RETURNS LONG AS
-SELECT count() == 1
+CREATE PERFETTO FUNCTION _is_linux_trace()
+RETURNS LONG AS
+SELECT
+  count() = 1
 FROM metadata
-WHERE name = 'system_name' AND str_value = 'Linux';
+WHERE
+  name = 'system_name' AND str_value = 'Linux';

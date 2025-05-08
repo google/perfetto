@@ -61,8 +61,9 @@ PROCESS_TABLE = Table(
         C('parent_upid', CppOptional(CppSelfTableId())),
         C('uid', CppOptional(CppUint32())),
         C('android_appid', CppOptional(CppUint32())),
+        C('android_user_id', CppOptional(CppUint32())),
         C('cmdline', CppOptional(CppString())),
-        C('arg_set_id', CppUint32()),
+        C('arg_set_id', CppOptional(CppUint32())),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='process',),
@@ -114,6 +115,12 @@ PROCESS_TABLE = Table(
                     joinable='package_list.uid'),
             'android_appid':
                 'Android appid of this process.',
+            'android_user_id':
+                '''
+                Android user id running the process.
+                Related to Android multi-user (not to be confused with the
+                unix uid)
+                ''',
             'cmdline':
                 '/proc/cmdline for this process.',
             'arg_set_id':
@@ -138,6 +145,7 @@ THREAD_TABLE = Table(
         C('end_ts', CppOptional(CppInt64())),
         C('upid', CppOptional(CppTableId(PROCESS_TABLE))),
         C('is_main_thread', CppOptional(CppUint32())),
+        C('is_idle', CppUint32()),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='thread',),
@@ -185,6 +193,12 @@ THREAD_TABLE = Table(
                   Boolean indicating if this thread is the main thread
                   in the process.
                 ''',
+            'is_idle':
+                '''
+                  Boolean indicating if this thread is an kernel idle task (
+                  pid = 0 on Linux).
+
+                ''',
             'machine_id':
                 '''
                   Machine identifier, non-null for threads on a remote machine.
@@ -231,26 +245,36 @@ CPU_TABLE = Table(
                 '''Extra args associated with the CPU''',
         }))
 
-RAW_TABLE = Table(
+CHROME_RAW_TABLE = Table(
     python_module=__file__,
-    class_name='RawTable',
-    sql_name='__intrinsic_raw',
+    class_name='ChromeRawTable',
+    sql_name='__intrinsic_chrome_raw',
+    columns=[
+        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
+        C('name', CppString()),
+        C('utid', CppTableId(THREAD_TABLE)),
+        C('arg_set_id', CppUint32()),
+    ])
+
+FTRACE_EVENT_TABLE = Table(
+    python_module=__file__,
+    class_name='FtraceEventTable',
+    sql_name='__intrinsic_ftrace_event',
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED),
         C('name', CppString()),
         C('utid', CppTableId(THREAD_TABLE)),
         C('arg_set_id', CppUint32()),
         C('common_flags', CppUint32()),
-        C('ucpu', CppTableId(CPU_TABLE))
+        C('ucpu', CppTableId(CPU_TABLE)),
     ],
-    wrapping_sql_view=WrappingSqlView('track'),
+    wrapping_sql_view=WrappingSqlView('ftrace_event'),
     tabledoc=TableDoc(
         doc='''
-          Contains 'raw' events from the trace for some types of events. This
-          table only exists for debugging purposes and should not be relied on
-          in production usecases (i.e. metrics, standard library etc).
-
-          If you are looking for ftrace_events: please use the ftrace_event table.
+          Contains all the ftrace events in the trace. This table exists only
+          for debugging purposes and should not be relied on in production
+          usecases (i.e. metrics, standard library etc). Note also that this
+          table might be empty if raw ftrace parsing has been disabled.
         ''',
         group='Events',
         columns={
@@ -278,29 +302,14 @@ RAW_TABLE = Table(
                 ''',
         }))
 
-FTRACE_EVENT_TABLE = Table(
-    python_module=__file__,
-    class_name='FtraceEventTable',
-    sql_name='__intrinsic_ftrace_event',
-    parent=RAW_TABLE,
-    columns=[],
-    wrapping_sql_view=WrappingSqlView('ftrace_event'),
-    tabledoc=TableDoc(
-        doc='''
-          Contains all the ftrace events in the trace. This table exists only
-          for debugging purposes and should not be relied on in production
-          usecases (i.e. metrics, standard library etc). Note also that this
-          table might be empty if raw ftrace parsing has been disabled.
-        ''',
-        group='Events',
-        columns={}))
-
 ARG_TABLE = Table(
     python_module=__file__,
     class_name='ArgTable',
     sql_name='__intrinsic_args',
     columns=[
-        C('arg_set_id', CppUint32(), flags=ColumnFlag.SORTED),
+        C('arg_set_id',
+          CppUint32(),
+          flags=ColumnFlag.SORTED | ColumnFlag.SET_ID),
         C('flat_key', CppString()),
         C('key', CppString()),
         C('int_value', CppOptional(CppInt64())),
@@ -489,6 +498,7 @@ TRACE_FILE_TABLE = Table(
 # Keep this list sorted.
 ALL_TABLES = [
     ARG_TABLE,
+    CHROME_RAW_TABLE,
     CLOCK_SNAPSHOT_TABLE,
     CPU_FREQ_TABLE,
     CPU_TABLE,
@@ -498,7 +508,6 @@ ALL_TABLES = [
     MACHINE_TABLE,
     METADATA_TABLE,
     PROCESS_TABLE,
-    RAW_TABLE,
     THREAD_TABLE,
     TRACE_FILE_TABLE,
 ]

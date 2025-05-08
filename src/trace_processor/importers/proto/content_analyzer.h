@@ -17,18 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_CONTENT_ANALYZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_CONTENT_ANALYZER_H_
 
+#include <cstddef>
 #include <utility>
-#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
-#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/proto_profiler.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Interface for a module that processes track event information.
 class ProtoContentAnalyzer : public PacketAnalyzer {
@@ -59,22 +58,19 @@ class ProtoContentAnalyzer : public PacketAnalyzer {
   using AnnotatedSamplesMap = base::
       FlatHashMap<SampleAnnotation, PathToSamplesMap, SampleAnnotationHasher>;
 
-  ProtoContentAnalyzer(TraceProcessorContext* context);
+  explicit ProtoContentAnalyzer(TraceProcessorContext* context);
   ~ProtoContentAnalyzer() override;
 
-  void ProcessPacket(const TraceBlobView& packet,
-                     const SampleAnnotation& annotation) override;
+  void ProcessPacket(const TraceBlobView&, const SampleAnnotation&) override;
 
   void NotifyEndOfFile() override;
 
  private:
   TraceProcessorContext* context_;
-  DescriptorPool pool_;
   util::SizeProfileComputer computer_;
   AnnotatedSamplesMap aggregated_samples_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_CONTENT_ANALYZER_H_

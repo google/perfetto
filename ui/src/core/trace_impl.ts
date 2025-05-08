@@ -18,7 +18,7 @@ import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
 import {Trace} from '../public/trace';
 import {ScrollToArgs, setScrollToFunction} from '../public/scroll_helper';
-import {TrackDescriptor} from '../public/track';
+import {Track} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
 import {CommandManagerImpl} from './command_manager';
 import {NoteManagerImpl} from './note_manager';
@@ -33,7 +33,6 @@ import {SidebarMenuItem} from '../public/sidebar';
 import {ScrollHelper} from './scroll_helper';
 import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
-import {PivotTableManager} from './pivot_table_manager';
 import {FlowManager} from './flow_manager';
 import {AppContext, AppImpl} from './app_impl';
 import {PluginManagerImpl} from './plugin_manager';
@@ -53,6 +52,9 @@ import {PostedTrace} from './trace_source';
 import {PerfManager} from './perf_manager';
 import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
+import {StatusbarManagerImpl} from './statusbar_manager';
+import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
+import {SettingsManagerImpl} from './settings_manager';
 
 /**
  * Handles the per-trace state of the UI
@@ -78,9 +80,9 @@ export class TraceContext implements Disposable {
   readonly flowMgr: FlowManager;
   readonly pluginSerializableState = createStore<{[key: string]: {}}>({});
   readonly scrollHelper: ScrollHelper;
-  readonly pivotTableMgr;
   readonly trash = new DisposableStack();
   readonly onTraceReady = new EvtSource<void>();
+  readonly statusbarMgr = new StatusbarManagerImpl();
 
   // List of errors that were encountered while loading the trace by the TS
   // code. These are on top of traceInfo.importErrors, which is a summary of
@@ -92,7 +94,19 @@ export class TraceContext implements Disposable {
     this.engine = engine;
     this.trash.use(engine);
     this.traceInfo = traceInfo;
-    this.timeline = new TimelineImpl(traceInfo);
+
+    // Wrap the core settings manager in a proxy which removes registered
+    // settings when the trace is disposed.
+    // TODO(stevegolton): Dedupe this with the one in TraceImpl.
+    const settingsManagerProxy = createProxy(gctx.settingsManager, {
+      register: <T>(setting: SettingDescriptor<T>): Setting<T> => {
+        const settingInstance = gctx.settingsManager.register(setting);
+        this.trash.use(settingInstance);
+        return settingInstance;
+      },
+    });
+
+    this.timeline = new TimelineImpl(traceInfo, settingsManagerProxy);
 
     this.scrollHelper = new ScrollHelper(
       this.traceInfo,
@@ -118,10 +132,6 @@ export class TraceContext implements Disposable {
       }
     };
 
-    this.pivotTableMgr = new PivotTableManager(
-      engine.getProxy('PivotTableManager'),
-    );
-
     this.flowMgr = new FlowManager(
       engine.getProxy('FlowManager'),
       this.trackMgr,
@@ -146,10 +156,6 @@ export class TraceContext implements Disposable {
     }
     if (switchToCurrentSelectionTab && selection.kind !== 'empty') {
       this.tabMgr.showCurrentSelectionTab();
-    }
-
-    if (selection.kind === 'area') {
-      this.pivotTableMgr.setSelectionArea(selection);
     }
 
     this.flowMgr.updateFlows(selection);
@@ -192,6 +198,7 @@ export class TraceImpl implements Trace {
   private readonly commandMgrProxy: CommandManagerImpl;
   private readonly sidebarProxy: SidebarManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
+  private readonly settingsProxy: SettingsManagerImpl;
 
   // This is called by TraceController when loading a new trace, soon after the
   // engine has been set up. It obtains a new TraceImpl for the core. From that
@@ -223,7 +230,7 @@ export class TraceImpl implements Trace {
 
     // Intercept the registerTrack() method to inject the pluginId into tracks.
     this.trackMgrProxy = createProxy(ctx.trackMgr, {
-      registerTrack(trackDesc: TrackDescriptor): Disposable {
+      registerTrack(trackDesc: Track): Disposable {
         return ctx.trackMgr.registerTrack({...trackDesc, pluginId});
       },
     });
@@ -257,6 +264,14 @@ export class TraceImpl implements Trace {
         });
         traceUnloadTrash.use(disposable);
         return disposable;
+      },
+    });
+
+    this.settingsProxy = createProxy(ctx.appCtx.settingsManager, {
+      register<T>(setting: SettingDescriptor<T>): Setting<T> {
+        const settingInstance = ctx.appCtx.settingsManager.register(setting);
+        traceUnloadTrash.use(settingInstance);
+        return settingInstance;
       },
     });
 
@@ -360,12 +375,12 @@ export class TraceImpl implements Trace {
     return this.traceCtx.traceInfo;
   }
 
-  get notes() {
-    return this.traceCtx.noteMgr;
+  get statusbar(): StatusbarManagerImpl {
+    return this.traceCtx.statusbarMgr;
   }
 
-  get pivotTable() {
-    return this.traceCtx.pivotTableMgr;
+  get notes() {
+    return this.traceCtx.noteMgr;
   }
 
   get flows() {
@@ -414,6 +429,10 @@ export class TraceImpl implements Trace {
     return this.appImpl.initialRouteArgs;
   }
 
+  get initialPluginRouteArgs() {
+    return this.appImpl.initialPluginRouteArgs;
+  }
+
   get featureFlags(): FeatureFlagManager {
     return {
       register: (settings: FlagSettings) => featureFlags.register(settings),
@@ -440,6 +459,10 @@ export class TraceImpl implements Trace {
     this.appImpl.openTraceFromBuffer(args);
   }
 
+  closeCurrentTrace(): void {
+    this.appImpl.closeCurrentTrace();
+  }
+
   get onTraceReady() {
     return this.traceCtx.onTraceReady;
   }
@@ -455,6 +478,10 @@ export class TraceImpl implements Trace {
   // Nothing other than AppImpl should ever refer to this, hence the __ name.
   get __traceCtxForApp() {
     return this.traceCtx;
+  }
+
+  get settings(): SettingsManager {
+    return this.settingsProxy;
   }
 }
 

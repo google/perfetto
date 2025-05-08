@@ -12,23 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  CustomSqlTableDefConfig,
-  CustomSqlTableSliceTrack,
-} from '../../components/tracks/custom_sql_table_slice_track';
-import {TrackEventSelection} from '../../public/selection';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {Trace} from '../../public/trace';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {ScreenshotDetailsPanel} from './screenshot_panel';
 
-export class ScreenshotsTrack extends CustomSqlTableSliceTrack {
-  static readonly kind = 'dev.perfetto.ScreenshotsTrack';
-
-  getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      sqlTableName: 'android_screenshots',
-    };
-  }
-
-  override detailsPanel(_sel: TrackEventSelection) {
-    return new ScreenshotDetailsPanel(this.trace.engine);
-  }
+export function createScreenshotsTrack(trace: Trace, uri: string) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        name: STR,
+      },
+      src: 'android_screenshots',
+    }),
+    detailsPanel: () => {
+      return new ScreenshotDetailsPanel(trace.engine);
+    },
+  });
 }

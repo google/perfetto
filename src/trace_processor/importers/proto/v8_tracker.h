@@ -87,6 +87,11 @@ class V8Tracker : public Destructible {
                      IsolateId v8_isolate_id,
                      const protos::pbzero::V8RegExpCode::Decoder& code);
 
+  void MoveCode(int64_t timestamp,
+                UniqueTid utid,
+                IsolateId v8_isolate_id,
+                const protos::pbzero::V8CodeMove::Decoder& code_move);
+
  private:
   struct JsFunctionHash {
     size_t operator()(const tables::V8JsFunctionTable::Row& v) const {

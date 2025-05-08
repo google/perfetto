@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/base/test/utils.h"
@@ -991,6 +992,8 @@ TEST_F(PerfettoCmdlineTest, MultipleTriggersCloneSnapshot) {
   ASSERT_EQ(clone_trigger_packets.size(), 1ul);
   EXPECT_EQ(clone_trigger_packets[0].clone_snapshot_trigger().trigger_name(),
             "trigger_name_2");
+  EXPECT_EQ(clone_trigger_packets[0].clone_snapshot_trigger().stop_delay_ms(),
+            500u);
   // Assert that all fields of 'clone_snapshot_trigger' equal to the same fields
   // of a 'trigger'.
   EXPECT_EQ(clone_trigger_packets[0].timestamp(), trigger_packet.timestamp());
@@ -1014,6 +1017,8 @@ TEST_F(PerfettoCmdlineTest, MultipleTriggersCloneSnapshot) {
   ASSERT_EQ(clone_trigger_packets_2.size(), 1ul);
   EXPECT_EQ(clone_trigger_packets_2[0].clone_snapshot_trigger().trigger_name(),
             "trigger_name_1");
+  EXPECT_EQ(clone_trigger_packets_2[0].clone_snapshot_trigger().stop_delay_ms(),
+            1500u);
 
   // There is no triggers in the second snapshot, but we can compare the
   // "clone_snapshot_trigger" with the trigger saved into the first snapshot.

@@ -290,8 +290,8 @@ INSTRUMENTS_SAMPLE_TABLE = Table(
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED),
         C('utid', CppUint32()),
-        C('cpu', CppOptional(CppUint32())),
         C('callsite_id', CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
+        C('cpu', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -303,10 +303,10 @@ INSTRUMENTS_SAMPLE_TABLE = Table(
                 '''Timestamp of the sample.''',
             'utid':
                 '''Sampled thread.''',
-            'cpu':
-                '''Core the sampled thread was running on.''',
             'callsite_id':
                 '''If set, unwound callstack of the sampled thread.''',
+            'cpu':
+                '''Core the sampled thread was running on.''',
         }))
 
 SYMBOL_TABLE = Table(
@@ -461,7 +461,7 @@ EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
 HEAP_GRAPH_CLASS_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphClassTable',
-    sql_name='heap_graph_class',
+    sql_name='__intrinsic_heap_graph_class',
     columns=[
         C('name', CppString()),
         C('deobfuscated_name', CppOptional(CppString())),
@@ -496,7 +496,7 @@ HEAP_GRAPH_CLASS_TABLE = Table(
 HEAP_GRAPH_OBJECT_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphObjectTable',
-    sql_name='heap_graph_object',
+    sql_name='__intrinsic_heap_graph_object',
     columns=[
         C('upid', CppUint32()),
         C('graph_sample_ts', CppInt64()),
@@ -504,6 +504,7 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
         C('native_size', CppInt64()),
         C('reference_set_id', CppOptional(CppUint32()), flags=ColumnFlag.DENSE),
         C('reachable', CppInt32()),
+        C('heap_type', CppOptional(CppString())),
         C('type_id', CppTableId(HEAP_GRAPH_CLASS_TABLE)),
         C('root_type', CppOptional(CppString())),
         C('root_distance', CppInt32(), flags=ColumnFlag.HIDDEN),
@@ -531,6 +532,9 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
             'reachable':
                 '''bool whether this object is reachable from a GC root. If
                 false, this object is uncollected garbage.''',
+            'heap_type':
+                '''The type of ART heap this object is stored on (app, zygote,
+                boot image)''',
             'type_id':
                 '''class this object is an instance of.''',
             'root_type':
@@ -542,7 +546,7 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
 HEAP_GRAPH_REFERENCE_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphReferenceTable',
-    sql_name='heap_graph_reference',
+    sql_name='__intrinsic_heap_graph_reference',
     columns=[
         C('reference_set_id',
           CppUint32(),

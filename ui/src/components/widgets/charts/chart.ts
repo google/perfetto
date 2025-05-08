@@ -13,75 +13,39 @@
 // limitations under the License.
 import m from 'mithril';
 import {Row} from '../../../trace_processor/query_result';
-import {Engine} from '../../../trace_processor/engine';
-import {
-  Filter,
-  LegacyTableColumn,
-  LegacyTableColumnSet,
-} from '../sql/legacy_table/column';
-import {Histogram} from './histogram/histogram';
-import {SqlTableState} from '../sql/legacy_table/state';
-import {columnTitle} from '../sql/legacy_table/table';
+import {Histogram} from './histogram';
+import {Item, SignalValue} from 'vega';
+import {VegaLiteAggregationOps, VegaLiteFieldType} from '../vega_view';
+import {BarChart} from './bar_chart';
 
-export interface VegaLiteChartSpec {
-  $schema: string;
-  width: string | number;
-  mark:
-    | 'area'
-    | 'bar'
-    | 'circle'
-    | 'line'
-    | 'point'
-    | 'rect'
-    | 'rule'
-    | 'square'
-    | 'text'
-    | 'tick'
-    | 'geoshape'
-    | 'boxplot'
-    | 'errorband'
-    | 'errorbar';
-  data: {values?: string | Row[]};
-
-  encoding: {
-    x: {[key: string]: unknown};
-    y: {[key: string]: unknown};
+export interface ChartAttrs {
+  readonly chartType: ChartType;
+  readonly description?: string;
+  readonly title?: string;
+  data?: Row[];
+  columns: string[];
+  onPointSelection?: (item: Item) => void;
+  onIntervalSelection?: (value: SignalValue) => void;
+  isLoading?: boolean;
+  specProps?: {
+    xField?: string;
+    xType?: VegaLiteFieldType;
+    xAggregationOp?: VegaLiteAggregationOps;
+    yField?: string;
+    yType?: VegaLiteFieldType;
+    yAggregationOp?: VegaLiteAggregationOps;
   };
 }
 
 // Holds the various chart types and human readable string
-export enum ChartOption {
+export enum ChartType {
+  BAR_CHART = 'bar chart',
   HISTOGRAM = 'histogram',
-}
-
-export interface ChartConfig {
-  readonly engine: Engine;
-  readonly columnTitle: string; // Human readable column name (ex: Duration)
-  readonly sqlColumn: string[]; // SQL column name (ex: dur)
-  readonly filters?: Filter[]; // Filters applied to SQL table
-  readonly tableDisplay?: string; // Human readable table name (ex: slices)
-  readonly query: string; // SQL query for the underlying data
-  readonly aggregationType?: 'nominal' | 'quantitative'; // Aggregation type.
-}
-
-export interface Chart {
-  readonly option: ChartOption;
-  readonly config: ChartConfig;
 }
 
 export interface ChartData {
   readonly rows: Row[];
   readonly error?: string;
-}
-
-export interface ChartState {
-  readonly engine: Engine;
-  readonly query: string;
-  readonly columns: LegacyTableColumn[] | LegacyTableColumnSet[] | string[];
-  data?: ChartData;
-  spec?: VegaLiteChartSpec;
-  loadData(): Promise<void>;
-  isLoading(): boolean;
 }
 
 export function toTitleCase(s: string): string {
@@ -94,31 +58,15 @@ export function toTitleCase(s: string): string {
   return words.join(' ');
 }
 
-// renderChartComponent will take a chart option and config and map
+// Takes a chart option and config and map
 // to the corresponding chart class component.
-export function renderChartComponent(chart: Chart) {
-  switch (chart.option) {
-    case ChartOption.HISTOGRAM:
-      return m(Histogram, chart.config);
+export function renderChart(chart: ChartAttrs) {
+  switch (chart.chartType) {
+    case ChartType.BAR_CHART:
+      return m(BarChart, chart);
+    case ChartType.HISTOGRAM:
+      return m(Histogram, chart);
     default:
       return;
   }
-}
-
-export function createChartConfigFromSqlTableState(
-  column: LegacyTableColumn,
-  columnAlias: string,
-  sqlTableState: SqlTableState,
-) {
-  return {
-    engine: sqlTableState.trace.engine,
-    columnTitle: columnTitle(column),
-    sqlColumn: [columnAlias],
-    filters: sqlTableState?.getFilters(),
-    tableDisplay: sqlTableState.config.displayName ?? sqlTableState.config.name,
-    query: sqlTableState.getSqlQuery(
-      Object.fromEntries([[columnAlias, column.primaryColumn()]]),
-    ),
-    aggregationType: column.aggregation?.().dataType,
-  };
 }

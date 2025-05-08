@@ -15,46 +15,52 @@
 @import "../../assets/widgets/theme";
 
 .pf-plugins-page {
-  padding: 20px;
-  font-size: 16px;
-  overflow: auto;
+  margin-block: 16px;
 
-  .pf-plugins-topbar {
-    margin-bottom: 10px;
-    & > button {
-      margin-right: 4px;
+  &__topbar {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  &__chip {
+    font-size: 12px;
+    font-family: inherit;
+    border-color: gray;
+    color: gray;
+    font-weight: 400;
+  }
+
+  &__card {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    justify-content: space-between;
+    border-left: solid 3px transparent;
+    color: gray;
+
+    &--active {
+      border-left: solid 3px green;
+    }
+
+    &--enabled {
+      color: unset;
     }
   }
 
-  h1 {
-    margin: 32px 0 8px 0;
-    font-size: 28px;
+  &__details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
-  .restart_needed {
-    margin: 16px 0;
-    color: #ef6c00;
+  &__description {
+    font-size: smaller;
   }
 
-  .pf-plugins-grid {
-    display: inline-grid;
-    grid-template-columns: repeat(6, auto);
-    row-gap: 6px;
-    column-gap: 10px;
-  }
-
-  .pf-tag {
-    padding: 3px 6px;
-    display: inline;
-    width: 100px;
-    text-align: center;
-    border-radius: $pf-border-radius;
-
-    &.pf-active {
-      background: lightgreen;
-    }
-    &.pf-inactive {
-      background: lightcoral;
-    }
+  &__controls {
+    display: flex;
+    flex-direction: row;
+    column-gap: 12px;
+    align-items: center;
   }
 }

@@ -13,14 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
-import {Engine} from '../../trace_processor/engine';
-import {Trace} from '../../public/trace';
+
+import {Cpu} from '../../base/multi_machine_trace';
 import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
+import {TrackNode} from '../../public/workspace';
 import {NUM} from '../../trace_processor/query_result';
 import {FtraceFilter, FtracePluginState} from './common';
+import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {FtraceRawTrack} from './ftrace_track';
-import {TrackNode} from '../../public/workspace';
 
 const VERSION = 1;
 
@@ -54,25 +55,25 @@ export default class implements PerfettoPlugin {
     );
     ctx.trash.use(filterStore);
 
-    const cpus = await this.lookupCpuCores(ctx.engine);
+    const cpus = await this.lookupCpuCores(ctx);
     const group = new TrackNode({
       title: 'Ftrace Events',
       sortOrder: -5,
       isSummary: true,
     });
 
-    for (const cpuNum of cpus) {
-      const uri = `/ftrace/cpu${cpuNum}`;
-      const title = `Ftrace Track for CPU ${cpuNum}`;
+    for (const cpu of cpus) {
+      const uri = `/ftrace/cpu${cpu.ucpu}`;
+      const title = `Ftrace Track for CPU ${cpu.toString()}`;
 
       ctx.tracks.registerTrack({
         uri,
         title,
         tags: {
-          cpu: cpuNum,
+          cpu: cpu.cpu,
           groupName: 'Ftrace Events',
         },
-        track: new FtraceRawTrack(ctx.engine, cpuNum, filterStore),
+        track: new FtraceRawTrack(ctx.engine, cpu.ucpu, filterStore),
       });
 
       const track = new TrackNode({uri, title});
@@ -113,18 +114,18 @@ export default class implements PerfettoPlugin {
     });
   }
 
-  private async lookupCpuCores(engine: Engine): Promise<number[]> {
-    const query = 'select distinct cpu from ftrace_event order by cpu';
-
-    const result = await engine.query(query);
-    const it = result.iter({cpu: NUM});
-
-    const cpuCores: number[] = [];
-
-    for (; it.valid(); it.next()) {
-      cpuCores.push(it.cpu);
+  private async lookupCpuCores(ctx: Trace): Promise<Cpu[]> {
+    // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
+    // if it's seen in ftrace_event.
+    const queryRes = await ctx.engine.query(
+      `select distinct ucpu from ftrace_event order by ucpu;`,
+    );
+    const ucpus = new Set<number>();
+    for (const it = queryRes.iter({ucpu: NUM}); it.valid(); it.next()) {
+      ucpus.add(it.ucpu);
     }
 
+    const cpuCores = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
     return cpuCores;
   }
 }

@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/traced/probes/system_info/cpu_info_features_allowlist.h"
 
 #include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -53,6 +54,11 @@ const char kPart[] = "CPU part";
 
 // Key for CPU revision in /proc/cpuinfo. Arm only.
 const char kRevision[] = "CPU revision";
+
+// Key for feature flags in /proc/cpuinfo. Arm calls them Features,
+// Intel calls them Flags.
+const char kFeatures[] = "Features";
+const char kFlags[] = "Flags";
 
 }  // namespace
 
@@ -90,6 +96,7 @@ void SystemInfoDataSource::Start() {
   std::optional<uint32_t> variant;
   std::optional<uint32_t> part;
   std::optional<uint32_t> revision;
+  uint64_t features = 0;
 
   uint32_t next_cpu_index = 0;
   while (line_start != proc_cpu_info.end()) {
@@ -120,18 +127,19 @@ void SystemInfoDataSource::Start() {
       cpu_index = "";
 
       // Set Arm CPU identifier if available
-      if (implementer || architecture || part || variant || revision) {
-        if (implementer && architecture && part && variant && revision) {
-          auto* identifier = cpu->set_arm_identifier();
-          identifier->set_implementer(implementer.value());
-          identifier->set_architecture(architecture.value());
-          identifier->set_variant(variant.value());
-          identifier->set_part(part.value());
-          identifier->set_revision(revision.value());
-        } else {
-          PERFETTO_ILOG(
-              "Failed to parse Arm specific fields from /proc/cpuinfo");
-        }
+      if (implementer && architecture && part && variant && revision) {
+        auto* identifier = cpu->set_arm_identifier();
+        identifier->set_implementer(implementer.value());
+        identifier->set_architecture(architecture.value());
+        identifier->set_variant(variant.value());
+        identifier->set_part(part.value());
+        identifier->set_revision(revision.value());
+      } else if (implementer || architecture || part || variant || revision) {
+        PERFETTO_ILOG("Failed to parse Arm specific fields from /proc/cpuinfo");
+      }
+
+      if (features != 0) {
+        cpu->set_features(features);
       }
 
       implementer = std::nullopt;
@@ -139,6 +147,7 @@ void SystemInfoDataSource::Start() {
       variant = std::nullopt;
       part = std::nullopt;
       revision = std::nullopt;
+      features = 0;
 
       next_cpu_index++;
       continue;
@@ -149,20 +158,30 @@ void SystemInfoDataSource::Start() {
     std::string key =
         base::StripSuffix(base::StripChars(splits[0], "\t", ' '), " ");
     std::string value = base::StripPrefix(splits[1], " ");
-    if (key == kDefaultProcessor)
+    if (key == kDefaultProcessor) {
       default_processor = value;
-    else if (key == kProcessor)
+    } else if (key == kProcessor) {
       cpu_index = value;
-    else if (key == kImplementer)
+    } else if (key == kImplementer) {
       implementer = base::CStringToUInt32(value.data(), 16);
-    else if (key == kArchitecture)
+    } else if (key == kArchitecture) {
       architecture = base::CStringToUInt32(value.data(), 10);
-    else if (key == kVariant)
+    } else if (key == kVariant) {
       variant = base::CStringToUInt32(value.data(), 16);
-    else if (key == kPart)
+    } else if (key == kPart) {
       part = base::CStringToUInt32(value.data(), 16);
-    else if (key == kRevision)
+    } else if (key == kRevision) {
       revision = base::CStringToUInt32(value.data(), 10);
+    } else if (key == kFeatures || key == kFlags) {
+      for (base::StringSplitter ss(value.data(), ' '); ss.Next();) {
+        for (size_t i = 0; i < base::ArraySize(kCpuInfoFeatures); ++i) {
+          if (strcmp(ss.cur_token(), kCpuInfoFeatures[i]) == 0) {
+            static_assert(base::ArraySize(kCpuInfoFeatures) < 64);
+            features |= 1 << i;
+          }
+        }
+      }
+    }
   }
 
   packet->Finalize();

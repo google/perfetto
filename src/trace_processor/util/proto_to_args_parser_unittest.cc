@@ -16,25 +16,37 @@
 
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
-#include "perfetto/ext/base/string_view.h"
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <ios>
+#include <limits>
+#include <map>
+#include <memory>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/status.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "protos/perfetto/common/descriptor.pbzero.h"
-#include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
 #include "src/trace_processor/test_messages.descriptor.h"
+#include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/interned_message_view.h"
 #include "test/gtest_and_gmock.h"
 
-#include <cstdint>
-#include <limits>
-#include <sstream>
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+namespace perfetto::trace_processor::util {
 namespace {
 
 constexpr size_t kChunkSize = 42;
@@ -706,11 +718,11 @@ TEST_F(ProtoToArgsParserTest, AddsDefaults) {
           "big_enum big_enum 0", "field_fixed32 field_fixed32 0",
           "field_sint32 field_sint32 0",
           "signed_enum signed_enum NEUTRAL",  // translates default enum
-          "small_enum small_enum NOT_TO_BE", "field_uint64 field_uint64 0",
-          "field_uint32 field_uint32 0", "field_int64 field_int64 0"));
+          "small_enum small_enum NOT_TO_BE",
+          "very_negative_enum very_negative_enum DEF",
+          "field_uint64 field_uint64 0", "field_uint32 field_uint32 0",
+          "field_int64 field_int64 0"));
 }
 
 }  // namespace
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util

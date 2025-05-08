@@ -17,10 +17,11 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
-import {getOrCreateUserInteractionGroup} from '../../public/standard_groups';
+import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.InputEvents';
+  static readonly dependencies = [StandardGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const cnt = await ctx.engine.query(`
@@ -58,7 +59,9 @@ export default class implements PerfettoPlugin {
       track,
     });
     const node = new TrackNode({uri, title});
-    const group = getOrCreateUserInteractionGroup(ctx.workspace);
+    const group = ctx.plugins
+      .getPlugin(StandardGroupsPlugin)
+      .getOrCreateStandardGroup(ctx.workspace, 'USER_INTERACTION');
     group.addChildInOrder(node);
   }
 }

@@ -17,13 +17,17 @@
 #ifndef SRC_TRACING_CORE_TRACE_WRITER_IMPL_H_
 #define SRC_TRACING_CORE_TRACE_WRITER_IMPL_H_
 
+#include <cstdint>
+#include <functional>
+#include <memory>
+
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/protozero/contiguous_memory_range.h"
 #include "perfetto/protozero/message_handle.h"
-#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/root_message.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
@@ -66,6 +70,7 @@ class TraceWriterImpl : public TraceWriter,
   uint64_t written() const override {
     return protobuf_stream_writer_.written();
   }
+  uint64_t drop_count() const override { return drop_count_; }
 
   bool drop_packets_for_testing() const { return drop_packets_; }
 
@@ -189,6 +194,14 @@ class TraceWriterImpl : public TraceWriter,
   // True for the first packet on sequence. See the comment for
   // TracePacket.first_packet_on_sequence for more details.
   bool first_packet_on_sequence_ = true;
+
+  // Number of times the trace writter entered a
+  // SharedMemory::BufferExhaustedPolicy::kDrop mode (i.e. as indicated by the
+  // `drop_packets_` variable). Note that this does *not* necessarily equal the
+  // number of trace packets dropped as multiple packets could have been dropped
+  // in one entry into kDrop mode (i.e. this variable will be a *lower bound*
+  // but *not* an upper bound).
+  uint64_t drop_count_ = 0;
 };
 
 }  // namespace perfetto

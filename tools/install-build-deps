@@ -62,6 +62,7 @@ CLEANUP_OLD_DIRS = [
     'buildtools/emsdk',  # Moved to buildtools/{mac,linux64}/emsdk
     'buildtools/test_data',  # Moved to test/data by r.android.com/1539381 .
     'buildtools/d8',  # Removed by r.android.com/1424334 .
+    'buildtools/sqlglot',
 
     # Build tools moved to third_party/ by r.android.com/2327602 .
     'buildtools/mac/clang-format',
@@ -110,34 +111,34 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
     # https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/mac/clang-format.arm64.sha1
     Dependency(
         'third_party/clang-format/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/5553d7a3d912b7d49381ad68c9a56740601a57a0',
-        'e077990b2ea6807f6abc71b4cf1e487719d7e40574baddd2b51187fdcc8db803',
+        'https://storage.googleapis.com/chromium-clang-format/8503422f469ae56cc74f0ea2c03f2d872f4a2303',
+        'dabf93691361e8bd1d07466d67584072ece5c24e2b812c16458b8ff801c33e29',
         'darwin', 'arm64'),
     # From
     # https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/mac/clang-format.x64.sha1
     Dependency(
         'third_party/clang-format/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/87d69aeff220c916b85b5d6d162fa5668aa9d64f',
-        '71179a8788a009cfd589636d50f0eb9f95f58b0cfda4351430bed7c0a48c080b',
+        'https://storage.googleapis.com/chromium-clang-format/7d46d237f9664f41ef46b10c1392dcb559250f25',
+        '0c3c13febeb0495ef0086509c24605ecae9e3d968ff9669d12514b8a55c7824e',
         'darwin', 'x64'),
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/linux64/clang-format.sha1
     Dependency(
         'third_party/clang-format/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/1facab3101fc6da6b9467543f27f0622b966bc19',
-        '5e459118d8ac825452e9e1f2717e4de5a36399dc6cc6aec7ec483ad27a0c927e',
+        'https://storage.googleapis.com/chromium-clang-format/79a7b4e5336339c17b828de10d80611ff0f85961',
+        '889266a51681d55bd4b9e02c9a104fa6ee22ecdfa7e8253532e5ea47e2e4cb4a',
         'linux', 'x64'),
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/win/clang-format.exe.sha1
     Dependency(
         'third_party/clang-format/clang-format.exe',
-        'https://storage.googleapis.com/chromium-clang-format/2e569921b9884daf157021d6ae9e21991cd6cf81',
-        '2227376ada89ea832995b832222b722a27c4d5d8d59e9c4d7842877f99a1e30d',
+        'https://storage.googleapis.com/chromium-clang-format/565cab9c66d61360c27c7d4df5defe1a78ab56d3',
+        '5557943a174e3b67cdc389c10b0ceea2195f318c5c665dd77a427ed01a094557',
         'windows', 'x64'),
 
     # Keep the SHA1 in sync with |clang_format_rev| in chromium //buildtools/DEPS.
     Dependency(
         'buildtools/clang_format/script',
         'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/clang/tools/clang-format.git',
-        'f97059df7f8b205064625cdb5f97b56668a125ef', 'all', 'all'),
+        '37f6e68a107df43b7d7e044fd36a13cbae3413f2', 'all', 'all'),
 
     # Ninja
     Dependency(
@@ -324,10 +325,10 @@ BUILD_DEPS_HOST = [
         'https://storage.googleapis.com/perfetto/bloaty-1.1-b3b829de35babc2fe831b9488ad2e50bca939412-mac.zip',
         '2d301bd72a20e3f42888c9274ceb4dca76c103608053572322412c2c65ab8cb8',
         'darwin', 'all'),
-
-    Dependency('buildtools/open_csd',
-            'https://android.googlesource.com/platform/external/OpenCSD.git',
-            '0ce01e934f95efb6a216a6efa35af1245151c779', 'all', 'all'),
+    Dependency(
+        'buildtools/open_csd',
+        'https://android.googlesource.com/platform/external/OpenCSD.git',
+        '0ce01e934f95efb6a216a6efa35af1245151c779', 'all', 'all'),
 ]
 
 # Dependencies required to build code on the host using Bazel build system.
@@ -359,6 +360,7 @@ BUILD_DEPS_BAZEL = [
 # URLs and SHA1s taken from:
 # - https://dl.google.com/android/repository/repository-11.xml
 # - https://dl.google.com/android/repository/sys-img/android/sys-img.xml
+# - https://dl.google.com/android/repository/repository2-2.xml
 BUILD_DEPS_ANDROID = [
     # Android NDK
     Dependency(
@@ -371,6 +373,23 @@ BUILD_DEPS_ANDROID = [
         'https://dl.google.com/android/repository/android-ndk-r26c-linux.zip',
         '6d6e659834d28bb24ba7ae66148ad05115ebbad7dabed1af9b3265674774fcf6',
         'linux', 'x64'),
+    # Android Java SDK.
+    Dependency(
+        'buildtools/android_sdk/platforms/android-35.zip',
+        'https://dl.google.com/android/repository/platform-35_r02.zip',
+        '0988cacad01b38a18a47bac14a0695f246bc76c1b06c0eeb8eb0dc825ab0c8e0',
+        'all', 'all'),
+    # Android build tools.
+    Dependency(
+        'buildtools/android_sdk/build-tools/35.0.1.zip',
+        'https://dl.google.com/android/repository/build-tools_r35.0.1_linux.zip',
+        '5993499f3229a021b89f87088c57242aeefaa62316bf3d69da7de40bfd5350f1',
+        'linux', 'all'),
+    Dependency(
+        'buildtools/android_sdk/build-tools/35.0.1.zip',
+        'https://dl.google.com/android/repository/build-tools_r35.0.1_macosx.zip',
+        'c01e4b763da96ae5ef67e8bdf2abc94fb6cb3e73a42209581feb6a7019a51b9c',
+        'darwin', 'all'),
 ]
 
 # Dependencies required to run Android tests.
@@ -440,7 +459,6 @@ UI_DEPS = [
         'buildtools/typefaces.tgz',
         'https://storage.googleapis.com/perfetto/typefaces-%s.tar.gz' %
         TYPEFACES_SHA256, TYPEFACES_SHA256, 'all', 'all'),
-
     Dependency(
         'third_party/pnpm/pnpm',
         'https://storage.googleapis.com/perfetto/pnpm-linux-arm64-8.6.3',
@@ -469,12 +487,9 @@ BIGTRACE_DEPS = [
         'buildtools/grpc/src',
         'https://chromium.googlesource.com/external/github.com/grpc/grpc.git',
         '4795c5e69b25e8c767b498bea784da0ef8c96fd5', 'all', 'all', True),
-    Dependency(
-      'buildtools/cpp-httplib',
-      'https://github.com/yhirose/cpp-httplib.git',
-      '6c3e8482f7b4e3b307bb42afbb85fd8771da86b8',
-      'all', 'all', True
-    )
+    Dependency('buildtools/cpp-httplib',
+               'https://github.com/yhirose/cpp-httplib.git',
+               '6c3e8482f7b4e3b307bb42afbb85fd8771da86b8', 'all', 'all', True)
 ]
 
 # Sysroots required to cross-compile Linux targets (linux-arm{,64}).
@@ -500,6 +515,12 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_DIR = os.path.join(ROOT_DIR, 'ui')
 TOOLS_DIR = os.path.join(ROOT_DIR, 'tools')
 NODE_MODULES_STATUS_FILE = os.path.join(UI_DIR, 'node_modules', '.last_install')
+PYTHON_VENV_DIR = os.path.join(ROOT_DIR, '.venv')
+PYTHON_VENV_BIN_DIR = os.path.join(
+    PYTHON_VENV_DIR, 'bin') if sys.platform != 'win32' else os.path.join(
+        PYTHON_VENV_DIR, 'Scripts')
+PYTHON_STATUS_FILE = os.path.join(PYTHON_VENV_DIR, '.last_install')
+PYTHON_REQUIREMENTS = os.path.join(ROOT_DIR, 'python', 'requirements.txt')
 TEST_DATA_SCRIPT = os.path.join(TOOLS_DIR, 'test_data')
 
 
@@ -560,7 +581,7 @@ def HashLocalFile(path):
 def ExtractZipfilePreservePermissions(zf, info, path):
   target_path = os.path.join(path, info.filename)
   mode = info.external_attr >> 16
-  S_IFLNK  = 0o120000  # symbolic link
+  S_IFLNK = 0o120000  # symbolic link
   if (mode & S_IFLNK) == S_IFLNK:
     dst = zf.read(info).decode()
     os.symlink(dst, target_path)
@@ -629,7 +650,9 @@ def InstallNodeModules(force_clean=False):
     logging.info('Clearing %s', node_modules)
     subprocess.check_call(['git', 'clean', '-qxffd', node_modules],
                           cwd=ROOT_DIR)
-  logging.info("Running `pnpm install --shamefully-hoist --frozen-lockfile` in {0}".format(UI_DIR))
+  logging.info(
+      "Running `pnpm install --shamefully-hoist --frozen-lockfile` in {0}"
+      .format(UI_DIR))
 
   # Some node modules have postinstall scripts (already bad) but worse
   # sometimes they are in the form: "postinstall: 'node ./scripts/foo'"
@@ -639,12 +662,11 @@ def InstallNodeModules(force_clean=False):
   env['PATH'] = TOOLS_DIR + ':' + env['PATH']
 
   subprocess.check_call([
-    os.path.join(TOOLS_DIR, 'pnpm'),
-    'install',
-    '--shamefully-hoist',
-    '--frozen-lockfile'],
-    cwd=UI_DIR,
-    env=env)
+      os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--shamefully-hoist',
+      '--frozen-lockfile'
+  ],
+                        cwd=UI_DIR,
+                        env=env)
   # pbjs has the bad habit of installing extra packages on its first
   # run. Run it here, so we avoid fetches while building.
   pbjs = ['node_modules/.bin/pbjs', '/dev/null', '-o', '/dev/null']
@@ -665,6 +687,31 @@ def CheckNodeModules():
     actual = f.read()
   expected = HashLocalFile(os.path.join(UI_DIR, 'pnpm-lock.yaml'))
   return expected == actual
+
+
+def CheckPythonVenv():
+  """Returns True if the python venv is up-to-date."""
+  if not os.path.exists(PYTHON_STATUS_FILE):
+    return False
+  with open(PYTHON_STATUS_FILE, 'r') as f:
+    actual = f.read()
+  expected = HashLocalFile(PYTHON_REQUIREMENTS)
+  return expected == actual
+
+
+def InstallPythonVenv():
+  venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
+  cur_python_interpreter = sys.executable
+  if not os.path.exists(venv_pip):
+    cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
+    logging.info(f'Installing python venv {" ".join(cmd)}')
+    subprocess.check_call(cmd)
+
+  cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
+  logging.info(f'Updating pythong packages {" ".join(cmd)}')
+  subprocess.check_call(cmd)
+  with open(PYTHON_STATUS_FILE, 'w') as f:
+    f.write(HashLocalFile(PYTHON_REQUIREMENTS))
 
 
 def CheckHashes():
@@ -724,6 +771,10 @@ def Main():
   parser.add_argument(
       '--no-toolchain', help='Do not download toolchain', action='store_true')
   parser.add_argument(
+      '--no-dev-tools',
+      help='Some tools are required exclusively when changing the source code (they are not required when just building it, e.g. in CI). Do not install those tools',
+      action='store_true')
+  parser.add_argument(
       '--build-os',
       default=system().lower(),
       choices=['windows', 'darwin', 'linux'],
@@ -750,7 +801,9 @@ def Main():
   if not args.no_toolchain:
     deps += BUILD_DEPS_TOOLCHAIN_HOST
   if args.bazel:
-    deps += BUILD_DEPS_BAZEL
+    # We build Android Java SDK using Bazel, so we need Android build and test
+    # deps to do build ":all" targets and run tests.
+    deps += BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
   if args.android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
   if args.linux_arm:
@@ -779,9 +832,12 @@ def Main():
       deps_updated |= CheckoutGitRepo(local_path, dep.source_url, dep.checksum,
                                       args.check_only)
       continue
-    is_compressed = any([local_path.endswith(ext) for ext in ['.zip', '.tgz', '.tbz2']])
-    compressed_target_dir = os.path.splitext(local_path)[0] if is_compressed else None
-    compressed_dir_stamp = os.path.join(compressed_target_dir, '.stamp') if is_compressed else None
+    is_compressed = any(
+        [local_path.endswith(ext) for ext in ['.zip', '.tgz', '.tbz2']])
+    compressed_target_dir = os.path.splitext(
+        local_path)[0] if is_compressed else None
+    compressed_dir_stamp = os.path.join(compressed_target_dir,
+                                        '.stamp') if is_compressed else None
 
     if ((not is_compressed and HashLocalFile(local_path) == dep.checksum) or
         (is_compressed and ReadFile(compressed_dir_stamp) == dep.checksum)):
@@ -808,14 +864,17 @@ def Main():
     assert (HashLocalFile(local_path) == dep.checksum)
 
     if is_compressed:
-      logging.info('Extracting %s into %s' % (local_path, compressed_target_dir))
-      assert (os.path.commonprefix((ROOT_DIR, compressed_target_dir)) == ROOT_DIR)
+      logging.info('Extracting %s into %s' %
+                   (local_path, compressed_target_dir))
+      assert (os.path.commonprefix(
+          (ROOT_DIR, compressed_target_dir)) == ROOT_DIR)
       RmtreeIfExists(compressed_target_dir)
 
       # Decompress the archive.
       if local_path.endswith('.tgz'):
         MkdirRecursive(compressed_target_dir)
-        subprocess.check_call(['tar', '-oxf', local_path], cwd=compressed_target_dir)
+        subprocess.check_call(['tar', '-oxf', local_path],
+                              cwd=compressed_target_dir)
       elif local_path.endswith('.zip'):
         with zipfile.ZipFile(local_path, 'r') as zf:
           for info in zf.infolist():
@@ -826,7 +885,8 @@ def Main():
           with bz2.open(local_path, 'r') as bf:
             f.write(bf.read())
         MkdirRecursive(compressed_target_dir)
-        subprocess.check_call(['tar', '-oxf', tar_path], cwd=compressed_target_dir)
+        subprocess.check_call(['tar', '-oxf', tar_path],
+                              cwd=compressed_target_dir)
 
       # If the zip contains one root folder, rebase one level up moving all
       # its sub files and folders inside |target_dir|.
@@ -849,6 +909,25 @@ def Main():
       deps_updated |= not CheckNodeModules()
     else:
       InstallNodeModules(force_clean=nodejs_updated)
+
+  if not args.no_dev_tools:
+    # Check the python venv
+    venv_needs_update = not CheckPythonVenv()
+    if args.check_only:
+      deps_updated |= venv_needs_update
+    elif venv_needs_update:
+      InstallPythonVenv()
+
+  # Install the pre-push hook if the .git/hooks directory exists and it's a
+  # non check-only invocation. Not on windows (symlinks are not supported
+  # there).
+  if sys.platform != 'win32':
+    git_hook_dir = os.path.join(ROOT_DIR, '.git', 'hooks')
+    if not args.check_only and os.path.exists(git_hook_dir):
+      git_hook_path = os.path.join(git_hook_dir, 'pre-push')
+      if not os.path.exists(git_hook_path):
+        tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'run_presubmit')
+        os.symlink(tools_hook_path, git_hook_path)
 
   cur_python_interpreter = sys.executable
   test_data_synced = 0 == subprocess.call([

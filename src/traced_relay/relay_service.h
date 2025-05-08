@@ -74,6 +74,7 @@ class RelayClient : private base::UnixSocket::EventListener,
 
   void NotifyError();
   void Connect();
+  void InitRelayRequest();
   void SendSyncClockRequest();
 
   // RelayIPCClient::EventListener implementation.
@@ -108,13 +109,13 @@ class RelayService : public base::UnixSocket::EventListener {
 
   // Starts the service relay that forwards messages between the
   // |server_socket_name| and |client_socket_name| ports.
-  void Start(const char* server_socket_name, const char* client_socket_name);
+  void Start(const char* server_socket_name, std::string client_socket_name);
 
   // Starts the service relay that forwards messages between the
   // |server_socket_handle| and |client_socket_name| ports. Called when the
   // service is started by Android init.
   void Start(base::ScopedSocketHandle server_socket_handle,
-             const char* client_socket_name);
+             std::string client_socket_name);
 
   static std::string GetMachineIdHint(
       bool use_pseudo_boot_id_for_testing = false);

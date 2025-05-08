@@ -103,8 +103,9 @@ body > main {
   grid-template-areas:
     "sidebar topbar"
     "sidebar alerts"
-    "sidebar page";
-  grid-template-rows: auto auto 1fr;
+    "sidebar page"
+    "statusbar statusbar";
+  grid-template-rows: auto auto 1fr auto;
   grid-template-columns: auto 1fr;
   color: #121212;
   overflow: hidden;
@@ -200,7 +201,7 @@ $bottom-tab-padding: 10px;
       font-size: 16px;
     }
 
-    has-left-border {
+    &.has-left-border {
       border-left: 1px solid rgba(60, 76, 92, 0.4);
     }
   }
@@ -503,6 +504,7 @@ button.query-ctrl {
   .total-values {
     text-align: right;
     padding-right: 10px;
+    font-weight: bolder;
   }
 
   .empty-result {
@@ -511,6 +513,11 @@ button.query-ctrl {
 
   td.menu {
     text-align: left;
+  }
+
+  td.action-button {
+    min-width: fit-content;
+    width: 1px;
   }
 
   td {

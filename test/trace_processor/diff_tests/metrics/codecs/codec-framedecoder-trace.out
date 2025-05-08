@@ -1,84 +1,175 @@
 codec_metrics {
   cpu_usage {
     process_name: "/system/bin/mediaserver"
-    thread_name: "CodecLooper"
-    thread_cpu_ns: 40782760
-    core_data {
-      type: "bigger"
-      metrics {
-        mcycles: 14
-        runtime_ns: 6151247
-        min_freq_khz: 1996800
-        max_freq_khz: 2400000
-        avg_freq_khz: 2399000
-      }
-    }
-    core_data {
-      type: "little"
-      metrics {
-        mcycles: 60
-        runtime_ns: 34631513
-        min_freq_khz: 1804800
-        max_freq_khz: 1804800
-        avg_freq_khz: 1804000
+    thread {
+      name: "CodecLooper"
+      info {
+        thread_cpu_ns: 40782760
+        core_data {
+          type: "bigger"
+          metrics {
+            mcycles: 14
+            runtime_ns: 6151247
+            min_freq_khz: 1996800
+            max_freq_khz: 2400000
+            avg_freq_khz: 2399000
+          }
+        }
+        core_data {
+          type: "little"
+          metrics {
+            mcycles: 60
+            runtime_ns: 34631513
+            min_freq_khz: 1804800
+            max_freq_khz: 1804800
+            avg_freq_khz: 1804000
+          }
+        }
       }
     }
   }
   codec_function {
     codec_string: "C2PooledBlockPool::fetchLinearBlock"
-    process_name: "/system/bin/mediaserver"
-    detail {
-      thread_name: "CodecLooper"
-      total_cpu_ns: 6505730
-      running_cpu_ns: 6224689
-      cpu_cycles: 4
+    process {
+      name: "/system/bin/mediaserver"
+      thread {
+        name: "CodecLooper"
+        detail {
+          total_cpu_ns: 6505730
+          running_cpu_ns: 6224689
+          avg_running_cpu_ns: 889241
+          avg_time_ns: 929390
+          total_cpu_cycles: 6176471001
+          avg_cpu_cycles: 882353000
+          count: 7
+          self {
+            max_us: 2130
+            min_us: 27
+            avg_us: 897
+            agg_us: 6285
+            count: 7
+          }
+        }
+      }
     }
   }
   codec_function {
     codec_string: "C2PooledBlockPool::fetchLinearBlock"
-    process_name: "/system/bin/mediaserver"
-    detail {
-      thread_name: "HwBinder:1465_4"
-      total_cpu_ns: 805417
-      running_cpu_ns: 805417
-      cpu_cycles: 1
+    process {
+      name: "/system/bin/mediaserver"
+      thread {
+        name: "HwBinder:1465_4"
+        detail {
+          total_cpu_ns: 805417
+          running_cpu_ns: 805417
+          avg_running_cpu_ns: 402708
+          avg_time_ns: 402708
+          total_cpu_cycles: 1453616601
+          avg_cpu_cycles: 726808300
+          count: 2
+          self {
+            max_us: 727
+            min_us: 77
+            avg_us: 402
+            agg_us: 805
+            count: 2
+          }
+        }
+      }
     }
   }
   codec_function {
-    codec_string: "CCodecBufferChannel::onWorkDone(c2.android.hevc.decoder#264"
-    process_name: "/system/bin/mediaserver"
-    detail {
-      thread_name: "CodecLooper"
-      total_cpu_ns: 34476253
-      running_cpu_ns: 19314740
-      cpu_cycles: 0
+    codec_string: "CCodecBufferChannel::onWorkDone"
+    process {
+      name: "/system/bin/mediaserver"
+      thread {
+        name: "CodecLooper"
+        detail {
+          total_cpu_ns: 34476253
+          running_cpu_ns: 19314740
+          avg_running_cpu_ns: 6438246
+          avg_time_ns: 11492084
+          total_cpu_cycles: 26694796
+          avg_cpu_cycles: 8898265
+          count: 3
+          self {
+            max_us: 180
+            min_us: 14
+            avg_us: 85
+            agg_us: 257
+            count: 3
+          }
+        }
+      }
     }
   }
   codec_function {
-    codec_string: "CCodecBufferChannel::queue(c2.android.hevc.decoder#264"
-    process_name: "/system/bin/mediaserver"
-    detail {
-      thread_name: "ALooper"
-      total_cpu_ns: 6599844
-      running_cpu_ns: 2656718
+    codec_string: "CCodecBufferChannel::queue"
+    process {
+      name: "/system/bin/mediaserver"
+      thread {
+        name: "ALooper"
+        detail {
+          total_cpu_ns: 6599844
+          running_cpu_ns: 2656718
+          avg_running_cpu_ns: 379531
+          avg_time_ns: 942834
+          count: 7
+          self {
+            max_us: 186
+            min_us: 92
+            avg_us: 109
+            agg_us: 769
+            count: 7
+          }
+        }
+      }
     }
   }
   codec_function {
     codec_string: "FrameDecoder::ColorConverter"
-    process_name: "/system/bin/mediaserver"
-    detail {
-      thread_name: "binder:1465_4"
-      total_cpu_ns: 18414272
-      running_cpu_ns: 10807813
+    process {
+      name: "/system/bin/mediaserver"
+      thread {
+        name: "binder"
+        detail {
+          total_cpu_ns: 18414272
+          running_cpu_ns: 10807813
+          avg_running_cpu_ns: 10807813
+          avg_time_ns: 18414272
+          count: 1
+          self {
+            max_us: 18396
+            min_us: 18396
+            avg_us: 18396
+            agg_us: 18396
+            count: 1
+          }
+        }
+      }
     }
   }
   codec_function {
     codec_string: "FrameDecoder::ExtractFrame"
-    process_name: "/system/bin/mediaserver"
-    detail {
-      thread_name: "binder:1465_4"
-      total_cpu_ns: 226664606
-      running_cpu_ns: 17917404
+    process {
+      name: "/system/bin/mediaserver"
+      thread {
+        name: "binder"
+        detail {
+          total_cpu_ns: 226664606
+          running_cpu_ns: 17917404
+          avg_running_cpu_ns: 17917404
+          avg_time_ns: 226664606
+          count: 1
+          self {
+            max_us: 204168
+            min_us: 204168
+            avg_us: 204168
+            agg_us: 204168
+            count: 1
+          }
+        }
+      }
     }
   }
   energy {

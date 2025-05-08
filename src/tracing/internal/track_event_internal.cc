@@ -488,7 +488,7 @@ void TrackEventInternal::ResetIncrementalState(
     }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_MAC)
-    // Emit a MacOS point-of-interest signpost to synchonize Mac profiler time
+    // Emit a MacOS point-of-interest signpost to synchronize Mac profiler time
     // with boot time.
     // TODO(leszeks): Consider allowing synchronization against other clocks
     // than boot time.

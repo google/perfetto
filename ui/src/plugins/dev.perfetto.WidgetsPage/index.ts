@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {WidgetsPage} from './widgets_page';
@@ -22,8 +23,7 @@ export default class implements PerfettoPlugin {
   static onActivate(app: App): void {
     app.pages.registerPage({
       route: '/widgets',
-      page: WidgetsPage,
-      traceless: true,
+      render: () => m(WidgetsPage, {app}),
     });
     app.sidebar.addMenuItem({
       section: 'navigation',

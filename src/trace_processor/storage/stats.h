@@ -90,7 +90,12 @@ namespace perfetto::trace_processor::stats {
                                           kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_non_numeric_counters,         kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_timestamp_overflow,           kSingle,  kError,    kAnalysis, ""), \
+  F(fuchsia_record_read_error,            kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_invalid_event,                kSingle,  kError,    kAnalysis, ""), \
+  F(fuchsia_invalid_event_arg_type,       kSingle,  kError,    kAnalysis, ""), \
+  F(fuchsia_invalid_event_arg_name,       kSingle,  kError,    kAnalysis, ""), \
+  F(fuchsia_unknown_event_arg,            kSingle,  kError,    kAnalysis, ""), \
+  F(fuchsia_invalid_string_ref,           kSingle,  kError,    kAnalysis, ""), \
   F(gpu_counters_invalid_spec,            kSingle,  kError,    kAnalysis, ""), \
   F(gpu_counters_missing_spec,            kSingle,  kError,    kAnalysis, ""), \
   F(gpu_render_stage_parser_errors,       kSingle,  kError,    kAnalysis, ""), \
@@ -99,6 +104,21 @@ namespace perfetto::trace_processor::stats {
   F(interned_data_tokenizer_errors,       kSingle,  kInfo,     kAnalysis, ""), \
   F(invalid_clock_snapshots,              kSingle,  kError,    kAnalysis, ""), \
   F(invalid_cpu_times,                    kSingle,  kError,    kAnalysis, ""), \
+  F(kernel_wakelock_reused_id,            kSingle,  kError,    kAnalysis,      \
+       "Duplicated interning ID seen. Should never happen."),                  \
+  F(kernel_wakelock_unknown_id,           kSingle,  kError,    kAnalysis,      \
+       "Interning ID not found. Should never happen."),                        \
+  F(kernel_wakelock_zero_value_reported,  kSingle,  kDataLoss, kTrace,         \
+       "Zero value received from SuspendControlService. Indicates a transient "\
+       "error in SuspendControlService."),                                     \
+  F(kernel_wakelock_non_monotonic_value_reported,                              \
+                                          kSingle,  kDataLoss, kTrace,         \
+       "Decreased value received from SuspendControlService. Indicates a "     \
+       "transient error in SuspendControlService."),                           \
+  F(app_wakelock_parse_error,             kSingle,  kError,    kAnalysis,      \
+       "Parsing packed repeated field. Should never happen."),                 \
+  F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis,      \
+       "Interning ID not found. Should never happen."),                        \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, ""), \
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, ""), \
@@ -188,6 +208,9 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace,    ""), \
   F(traced_clone_started_timestamp_ns,    kSingle,  kInfo,     kTrace,         \
     "The timestamp when the clone snapshot operation for this trace started"), \
+  F(traced_clone_trigger_timestamp_ns,    kSingle,  kInfo,     kTrace,         \
+    "The timestamp when trigger for the clone snapshot operation for this "    \
+    "trace was received"), \
   F(traced_chunks_discarded,              kSingle,  kInfo,     kTrace,    ""), \
   F(traced_data_sources_registered,       kSingle,  kInfo,     kTrace,    ""), \
   F(traced_data_sources_seen,             kSingle,  kInfo,     kTrace,    ""), \
@@ -453,11 +476,13 @@ namespace perfetto::trace_processor::stats {
       "An invalid Mali GPU MCU state ID was detected."),                       \
   F(pixel_modem_negative_timestamp,       kSingle,  kError,   kAnalysis,       \
       "A negative timestamp was received from a Pixel modem event."),          \
-  F(legacy_v8_cpu_profile_invalid_callsite, kSingle,  kInfo,  kAnalysis,       \
-      "Indicates a callsite in legacy v8 CPU profiling is invalid."),          \
-  F(legacy_v8_cpu_profile_invalid_sample, kSingle,  kError,  kAnalysis,        \
+  F(legacy_v8_cpu_profile_invalid_callsite, kSingle, kError,  kTrace,          \
+      "Indicates a callsite in legacy v8 CPU profiling is invalid. This is "   \
+      "a sign that the trace is malformed."),                                  \
+  F(legacy_v8_cpu_profile_invalid_sample, kSingle,  kError,  kTrace,           \
       "Indicates a sample in legacy v8 CPU profile is invalid. This will "     \
-      "cause CPU samples to be missing in the UI."),                           \
+      "cause CPU samples to be missing in the UI. This is a sign that the "    \
+      "trace is malformed."),                                                  \
   F(config_write_into_file_no_flush,      kSingle,  kError,  kTrace,           \
       "The trace was collected with the `write_into_file` option set but "     \
       "*without* `flush_period_ms` being set. This will cause the trace to "   \
@@ -492,9 +517,19 @@ enum Source {
   kAnalysis
 };
 
-// Ignore GCC warning about a missing argument for a variadic macro parameter.
 #if defined(__GNUC__) || defined(__clang__)
+#if defined(__clang__)
+#pragma clang diagnostic push
+// Fix 'error: #pragma system_header ignored in main file' for clang in Google3.
+#pragma clang diagnostic ignored "-Wpragma-system-header-outside-header"
+#endif
+
+// Ignore GCC warning about a missing argument for a variadic macro parameter.
 #pragma GCC system_header
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 #endif
 
 // Declares an enum of literals (one for each stat). The enum values of each

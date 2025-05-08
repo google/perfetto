@@ -30,7 +30,6 @@ export interface RecordingTarget extends WithPreflightChecks {
   readonly id: string;
   readonly platform: TargetPlatformId;
   readonly name: string;
-  readonly transportType: string;
   readonly connected: boolean;
 
   // If true, the output file is gzip-compressed as a whole (!= than setting

@@ -210,7 +210,7 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
           tracks::Dimensions(cpu, session_id.value, follower_name),
           tracks::DynamicName(follower_name_id),
           [this](ArgsTracker::BoundInserter& inserter) {
-            inserter.AddArg(is_timebase_id_, Variadic::Boolean(true));
+            inserter.AddArg(is_timebase_id_, Variadic::Boolean(false));
           }));
     }
   }

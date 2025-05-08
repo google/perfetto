@@ -48,9 +48,13 @@ constexpr char kRssStatThrottledTrigger[] =
     "hist:keys=mm_id,member:bucket=size/0x80000"
     ":onchange($bucket).rss_stat_throttled(mm_id,curr,member,size)";
 
+// Kernel tracepoints |syscore_resume| and |timekeeping_freeze| are mutually
+// exclusive: for any given suspend, one event (but not both) will be emitted
+// depending on whether it is |S2RAM| vs |S2idle| codepath respectively.
 constexpr char kSuspendResumeMinimalTrigger[] =
     "hist:keys=start:size=128:onmatch(power.suspend_resume)"
-    ".trace(suspend_resume_minimal, start) if action == 'syscore_resume'";
+    ".trace(suspend_resume_minimal, start) if (action == 'syscore_resume')"
+    "||(action == 'timekeeping_freeze')";
 }  // namespace
 
 void KernelLogWrite(const char* s) {
@@ -457,6 +461,30 @@ bool FtraceProcfs::WriteTraceMarker(const std::string& str) {
 bool FtraceProcfs::SetCpuBufferSizeInPages(size_t pages) {
   std::string path = root_ + "buffer_size_kb";
   return WriteNumberToFile(path, pages * (base::GetSysPageSize() / 1024ul));
+}
+
+// This returns the rounded up pages of the cpu buffer size.
+// In case of any error, this returns 1.
+size_t FtraceProcfs::GetCpuBufferSizeInPages() {
+  std::string path = root_ + "buffer_size_kb";
+  auto str = ReadFileIntoString(path);
+
+  if (str.size() == 0) {
+    PERFETTO_ELOG("Failed to read per-cpu buffer size.");
+    return 1;
+  }
+
+  // For the root instance, before starting tracing, the buffer_size_kb
+  // returns something like "7 (expanded: 1408)". We also cut off the
+  // last newline('\n').
+  std::size_t found = str.find_first_not_of("0123456789");
+  if (found != std::string::npos) {
+    str.resize(found);
+  }
+
+  uint32_t page_in_kb = base::GetSysPageSize() / 1024ul;
+  std::optional<uint32_t> size_kb = base::StringToUInt32(str);
+  return (size_kb.value_or(1) + page_in_kb - 1) / page_in_kb;
 }
 
 bool FtraceProcfs::GetTracingOn() {

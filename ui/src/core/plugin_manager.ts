@@ -53,7 +53,19 @@ export interface PluginWrapper {
   // be enabled or not.
   readonly enableFlag: Flag;
 
-  // Keeps track of whether the plugin has been activated or not.
+  // Record whether this plugin was enabled for this session, regardless of the
+  // current flag setting. I.e. this captures the state of the enabled flag at
+  // boot time.
+  readonly enabled: boolean;
+
+  // Keeps track of whether this plugin is active. A plugin can be active even
+  // if it's disabled, if another plugin depends on it.
+  //
+  // In summary, a plugin can be in one of three states:
+  // - Inactive: Disabled and no active plugins depend on it.
+  // - Transitively active: Disabled but active because another plugin depends
+  //   on it.
+  // - Explicitly active: Active because it was explicitly enabled by the user.
   active?: boolean;
 
   // If a trace has been loaded, this object stores the relevant trace-scoped
@@ -85,6 +97,7 @@ export class PluginManagerImpl {
     this.registry.register({
       desc,
       enableFlag: flag,
+      enabled: flag.get(),
     });
   }
 

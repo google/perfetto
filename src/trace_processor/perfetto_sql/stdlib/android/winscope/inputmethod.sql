@@ -14,64 +14,46 @@
 -- limitations under the License.
 
 -- Android inputmethod clients state dumps (from android.inputmethod data source).
-CREATE PERFETTO VIEW android_inputmethod_clients(
+CREATE PERFETTO VIEW android_inputmethod_clients (
   -- Dump id
   id LONG,
   -- Timestamp when the dump was triggered
   ts TIMESTAMP,
   -- Extra args parsed from the proto message
-  arg_set_id ARGSETID,
-  -- Raw proto message encoded in base64
-  base64_proto STRING,
-  -- String id for raw proto message
-  base64_proto_id LONG
+  arg_set_id ARGSETID
 ) AS
 SELECT
   id,
   ts,
-  arg_set_id,
-  base64_proto,
-  base64_proto_id
+  arg_set_id
 FROM __intrinsic_inputmethod_clients;
 
 -- Android inputmethod manager service state dumps (from android.inputmethod data source).
-CREATE PERFETTO VIEW android_inputmethod_manager_service(
+CREATE PERFETTO VIEW android_inputmethod_manager_service (
   -- Dump id
   id LONG,
   -- Timestamp when the dump was triggered
   ts TIMESTAMP,
   -- Extra args parsed from the proto message
-  arg_set_id ARGSETID,
-  -- Raw proto message encoded in base64
-  base64_proto STRING,
-  -- String id for raw proto message
-  base64_proto_id LONG
+  arg_set_id ARGSETID
 ) AS
 SELECT
   id,
   ts,
-  arg_set_id,
-  base64_proto,
-  base64_proto_id
+  arg_set_id
 FROM __intrinsic_inputmethod_manager_service;
 
 -- Android inputmethod service state dumps (from android.inputmethod data source).
-CREATE PERFETTO VIEW android_inputmethod_service(
+CREATE PERFETTO VIEW android_inputmethod_service (
   -- Dump id
   id LONG,
   -- Timestamp when the dump was triggered
   ts TIMESTAMP,
   -- Extra args parsed from the proto message
-  arg_set_id ARGSETID,
-  -- Raw proto message encoded in base64
-  base64_proto STRING,
-  -- String id for raw proto message
-  base64_proto_id LONG
+  arg_set_id ARGSETID
 ) AS
 SELECT
   id,
   ts,
-  arg_set_id,
-  base64_proto,
-  base64_proto_id
+  arg_set_id
 FROM __intrinsic_inputmethod_service;

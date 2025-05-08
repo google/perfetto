@@ -51,7 +51,7 @@ class AndroidGameInterventionListDataSource : public ProbesDataSource {
 
   ~AndroidGameInterventionListDataSource() override;
 
-  // ProbesDataSource implementaion.
+  // ProbesDataSource implementation.
   void Start() override;
   void Flush(FlushRequestID, std::function<void()> callback) override;
 

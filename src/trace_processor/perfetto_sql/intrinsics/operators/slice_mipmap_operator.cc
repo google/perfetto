@@ -31,7 +31,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/implicit_segment_forest.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
-#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
@@ -97,8 +97,13 @@ int SliceMipmapOperator::Create(sqlite3* db,
     return SQLITE_ERROR;
   }
   do {
-    auto id =
-        static_cast<uint32_t>(sqlite3_column_int64(res->stmt.sqlite_stmt(), 0));
+    int64_t rawId = sqlite3_column_int64(res->stmt.sqlite_stmt(), 0);
+    uint32_t id = static_cast<uint32_t>(rawId);
+    if (PERFETTO_UNLIKELY(rawId != id)) {
+      *zErr = sqlite3_mprintf(
+          "slice_mipmap: id %lld is too large to fit in 32 bits", rawId);
+      return SQLITE_ERROR;
+    }
     int64_t ts = sqlite3_column_int64(res->stmt.sqlite_stmt(), 1);
     int64_t dur = sqlite3_column_int64(res->stmt.sqlite_stmt(), 2);
     auto depth =
@@ -117,7 +122,7 @@ int SliceMipmapOperator::Create(sqlite3* db,
   }
 
   std::unique_ptr<Vtab> vtab_res = std::make_unique<Vtab>();
-  vtab_res->state = ctx->manager.OnCreate(argv, std::move(state));
+  vtab_res->state = ctx->OnCreate(argc, argv, std::move(state));
   *vtab = vtab_res.release();
   return SQLITE_OK;
 }
@@ -140,14 +145,13 @@ int SliceMipmapOperator::Connect(sqlite3* db,
   }
   auto* ctx = GetContext(raw_ctx);
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = ctx->manager.OnConnect(argv);
+  res->state = ctx->OnConnect(argc, argv);
   *vtab = res.release();
   return SQLITE_OK;
 }
 
 int SliceMipmapOperator::Disconnect(sqlite3_vtab* vtab) {
   std::unique_ptr<Vtab> tab(GetVtab(vtab));
-  sqlite::ModuleStateManager<SliceMipmapOperator>::OnDisconnect(tab->state);
   return SQLITE_OK;
 }
 
@@ -191,10 +195,6 @@ int SliceMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
   int64_t start = sqlite3_value_int64(argv[0]);
   int64_t end = sqlite3_value_int64(argv[1]);
   int64_t step = sqlite3_value_int64(argv[2]);
-
-  if (start == end) {
-    return sqlite::utils::SetError(t, "slice_mipmap: empty range provided");
-  }
 
   for (uint32_t depth = 0; depth < state->by_depth.size(); ++depth) {
     auto& by_depth = state->by_depth[depth];

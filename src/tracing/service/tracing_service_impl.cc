@@ -84,12 +84,12 @@
 
 #include "protos/perfetto/common/builtin_clock.gen.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/common/system_info.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
-#include "protos/perfetto/trace/system_info.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_uuid.pbzero.h"
 #include "protos/perfetto/trace/trigger.pbzero.h"
@@ -125,6 +125,8 @@ constexpr uint32_t kGuardrailsMaxTracingBufferSizeKb = 128 * 1024;
 constexpr uint32_t kGuardrailsMaxTracingDurationMillis = 24 * kMillisPerHour;
 
 constexpr size_t kMaxLifecycleEventsListedDataSources = 32;
+
+constexpr uint32_t kTracePacketSystemInfoFieldId = 45;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
 struct iovec {
@@ -1731,7 +1733,9 @@ void TracingServiceImpl::ActivateTriggers(
       const bool triggers_already_received =
           !tracing_session.received_triggers.empty();
       const TriggerInfo trigger = {static_cast<uint64_t>(now_ns), iter->name(),
-                                   producer->name_, producer->uid()};
+                                   producer->name_, producer->uid(),
+                                   iter->stop_delay_ms()};
+      MaybeSnapshotClocksIntoRingBuffer(&tracing_session);
       tracing_session.received_triggers.push_back(trigger);
       switch (trigger_mode) {
         case TraceConfig::TriggerConfig::START_TRACING:
@@ -1985,7 +1989,7 @@ void TracingServiceImpl::NotifyFlushDoneForProducer(
         it++;
       }
     }  // for (pending_flushes)
-  }    // for (tracing_session)
+  }  // for (tracing_session)
 }
 
 void TracingServiceImpl::OnFlushTimeout(TracingSessionID tsid,
@@ -2468,8 +2472,11 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
   if (!tracing_session->did_emit_initial_packets) {
     EmitUuid(tracing_session, &packets);
-    if (!tracing_session->config.builtin_data_sources().disable_system_info())
+    if (!tracing_session->config.builtin_data_sources().disable_system_info()) {
       EmitSystemInfo(&packets);
+      if (!relay_clients_.empty())
+        MaybeEmitRemoteSystemInfo(&packets);
+    }
   }
   tracing_session->did_emit_initial_packets = true;
 
@@ -2563,7 +2570,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       did_hit_threshold = packets_bytes >= threshold;
       packets.emplace_back(std::move(packet));
     }  // for(packets...)
-  }    // for(buffers...)
+  }  // for(buffers...)
 
   *has_more = did_hit_threshold;
 
@@ -3692,8 +3699,8 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
           wri_stats->add_chunk_payload_histogram_sum(hist.GetBucketSum(i));
         }
       }  // for each sequence (writer).
-    }    // for each buffer.
-  }      // if (!disable_chunk_usage_histograms)
+    }  // for each buffer.
+  }  // if (!disable_chunk_usage_histograms)
 
   return trace_stats;
 }
@@ -3724,88 +3731,79 @@ void TracingServiceImpl::MaybeEmitTraceConfig(
 void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
   auto* info = packet->set_system_info();
+
+  base::SystemInfo sys_info = base::GetSystemInfo();
   info->set_tracing_service_version(base::GetVersionString());
 
-  std::optional<int32_t> tzoff = base::GetTimezoneOffsetMins();
-  if (tzoff.has_value())
-    info->set_timezone_off_mins(*tzoff);
+  if (sys_info.timezone_off_mins.has_value())
+    info->set_timezone_off_mins(*sys_info.timezone_off_mins);
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
-  struct utsname uname_info;
-  if (uname(&uname_info) == 0) {
+  if (sys_info.utsname_info.has_value()) {
     auto* utsname_info = info->set_utsname();
-    utsname_info->set_sysname(uname_info.sysname);
-    utsname_info->set_version(uname_info.version);
-    utsname_info->set_machine(uname_info.machine);
-    utsname_info->set_release(uname_info.release);
-  }
-  info->set_page_size(static_cast<uint32_t>(sysconf(_SC_PAGESIZE)));
-  info->set_num_cpus(static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF)));
-#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  std::string fingerprint_value = base::GetAndroidProp("ro.build.fingerprint");
-  if (!fingerprint_value.empty()) {
-    info->set_android_build_fingerprint(fingerprint_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.build.fingerprint");
+    utsname_info->set_sysname(sys_info.utsname_info->sysname);
+    utsname_info->set_version(sys_info.utsname_info->version);
+    utsname_info->set_machine(sys_info.utsname_info->machine);
+    utsname_info->set_release(sys_info.utsname_info->release);
   }
 
-  std::string device_manufacturer_value =
-      base::GetAndroidProp("ro.product.manufacturer");
-  if (!device_manufacturer_value.empty()) {
-    info->set_android_device_manufacturer(device_manufacturer_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.product.manufacturer");
-  }
+  if (sys_info.page_size.has_value())
+    info->set_page_size(*sys_info.page_size);
+  if (sys_info.num_cpus.has_value())
+    info->set_num_cpus(*sys_info.num_cpus);
 
-  std::string sdk_str_value = base::GetAndroidProp("ro.build.version.sdk");
-  std::optional<uint64_t> sdk_value = base::StringToUInt64(sdk_str_value);
-  if (sdk_value.has_value()) {
-    info->set_android_sdk_version(*sdk_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.build.version.sdk");
-  }
+  if (!sys_info.android_build_fingerprint.empty())
+    info->set_android_build_fingerprint(sys_info.android_build_fingerprint);
+  if (!sys_info.android_device_manufacturer.empty())
+    info->set_android_device_manufacturer(sys_info.android_device_manufacturer);
+  if (sys_info.android_sdk_version.has_value())
+    info->set_android_sdk_version(*sys_info.android_sdk_version);
+  if (!sys_info.android_soc_model.empty())
+    info->set_android_soc_model(sys_info.android_soc_model);
+  if (!sys_info.android_guest_soc_model.empty())
+    info->set_android_guest_soc_model(sys_info.android_guest_soc_model);
+  if (!sys_info.android_hardware_revision.empty())
+    info->set_android_hardware_revision(sys_info.android_hardware_revision);
+  if (!sys_info.android_storage_model.empty())
+    info->set_android_storage_model(sys_info.android_storage_model);
+  if (!sys_info.android_ram_model.empty())
+    info->set_android_ram_model(sys_info.android_ram_model);
+  if (!sys_info.android_serial_console.empty())
+    info->set_android_serial_console(sys_info.android_serial_console);
 
-  std::string soc_model_value = base::GetAndroidProp("ro.soc.model");
-  if (!soc_model_value.empty()) {
-    info->set_android_soc_model(soc_model_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.soc.model");
-  }
-
-  // guest_soc model is not always present
-  std::string guest_soc_model_value =
-      base::GetAndroidProp("ro.boot.guest_soc.model");
-  if (!guest_soc_model_value.empty()) {
-    info->set_android_guest_soc_model(guest_soc_model_value);
-  }
-
-  std::string hw_rev_value = base::GetAndroidProp("ro.boot.hardware.revision");
-  if (!hw_rev_value.empty()) {
-    info->set_android_hardware_revision(hw_rev_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.boot.hardware.revision");
-  }
-
-  std::string hw_ufs_value = base::GetAndroidProp("ro.boot.hardware.ufs");
-  if (!hw_ufs_value.empty()) {
-    info->set_android_storage_model(hw_ufs_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.boot.hardware.ufs");
-  }
-
-  std::string hw_ddr_value = base::GetAndroidProp("ro.boot.hardware.ddr");
-  if (!hw_ddr_value.empty()) {
-    info->set_android_ram_model(hw_ddr_value);
-  } else {
-    PERFETTO_ELOG("Unable to read ro.boot.hardware.ddr");
-  }
-
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+}
+
+void TracingServiceImpl::MaybeEmitRemoteSystemInfo(
+    std::vector<TracePacket>* packets) {
+  std::unordered_set<MachineID> did_emit_machines;
+  for (const auto& id_and_relay_client : relay_clients_) {
+    const auto& relay_client = id_and_relay_client.second;
+    auto machine_id = relay_client->machine_id();
+    if (did_emit_machines.find(machine_id) != did_emit_machines.end())
+      continue;  // Already emitted for the machine (e.g. multiple clients).
+
+    if (relay_client->serialized_system_info().empty()) {
+      PERFETTO_DLOG("System info not provided for machine ID = %" PRIu32,
+                    machine_id);
+      continue;
+    }
+
+    // Don't emit twice for the same machine.
+    did_emit_machines.insert(machine_id);
+
+    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+    auto& system_info = relay_client->serialized_system_info();
+
+    packet->AppendBytes(kTracePacketSystemInfoFieldId, system_info.data(),
+                        system_info.size());
+
+    packet->set_machine_id(machine_id);
+    packet->set_trusted_uid(static_cast<int32_t>(uid_));
+    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+  }
 }
 
 void TracingServiceImpl::EmitLifecycleEvents(
@@ -3923,6 +3921,9 @@ void TracingServiceImpl::MaybeEmitRemoteClockSync(
 void TracingServiceImpl::MaybeEmitCloneTrigger(
     TracingSession* tracing_session,
     std::vector<TracePacket>* packets) {
+  if (tracing_session->did_emit_initial_packets)
+    return;
+
   if (tracing_session->clone_trigger.has_value()) {
     protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
     auto* trigger = packet->set_clone_snapshot_trigger();
@@ -3930,6 +3931,7 @@ void TracingServiceImpl::MaybeEmitCloneTrigger(
     trigger->set_trigger_name(info.trigger_name);
     trigger->set_producer_name(info.producer_name);
     trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
+    trigger->set_stop_delay_ms(info.trigger_delay_ms);
 
     packet->set_timestamp(info.boot_time_ns);
     packet->set_trusted_uid(static_cast<int32_t>(uid_));
@@ -3951,6 +3953,7 @@ void TracingServiceImpl::MaybeEmitReceivedTriggers(
     trigger->set_trigger_name(info.trigger_name);
     trigger->set_producer_name(info.producer_name);
     trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
+    trigger->set_stop_delay_ms(info.trigger_delay_ms);
 
     packet->set_timestamp(info.boot_time_ns);
     packet->set_trusted_uid(static_cast<int32_t>(uid_));
@@ -4090,10 +4093,10 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
   clone_op.weak_consumer = weak_consumer;
   clone_op.skip_trace_filter = args.skip_trace_filter;
   if (!args.clone_trigger_name.empty()) {
-    clone_op.clone_trigger = {args.clone_trigger_boot_time_ns,
-                              args.clone_trigger_name,
-                              args.clone_trigger_producer_name,
-                              args.clone_trigger_trusted_producer_uid};
+    clone_op.clone_trigger = {
+        args.clone_trigger_boot_time_ns, args.clone_trigger_name,
+        args.clone_trigger_producer_name,
+        args.clone_trigger_trusted_producer_uid, args.clone_trigger_delay_ms};
   }
 
   // Issue separate flush requests for separate buffer groups. The buffer marked
@@ -4114,7 +4117,7 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
 
   SnapshotLifecycleEvent(
       session, protos::pbzero::TracingServiceEvent::kFlushStartedFieldNumber,
-      false /* snapshot_clocks */);
+      /*snapshot_clocks=*/true);
   clone_op.pending_flush_cnt = bufs_groups.size();
   clone_op.clone_started_timestamp_ns = clock_->GetBootTimeNs().count();
   for (const std::set<BufferID>& buf_group : bufs_groups) {
@@ -4598,6 +4601,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::NotifyCloneSnapshotTrigger(
   clone_trig->set_producer_name(trigger.producer_name);
   clone_trig->set_producer_uid(static_cast<uint32_t>(trigger.producer_uid));
   clone_trig->set_boot_time_ns(trigger.boot_time_ns);
+  clone_trig->set_trigger_delay_ms(trigger.trigger_delay_ms);
 }
 
 ObservableEvents*
@@ -5041,20 +5045,38 @@ bool TracingServiceImpl::ProducerEndpointImpl::IsAndroidProcessFrozen() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (in_process_ || uid() == base::kInvalidUid || pid() == base::kInvalidPid)
     return false;
-  base::StackString<255> path(
+
+  // As per aosp/3406861, there are three possible mount points for the cgroup.
+  // Look at all of them.
+  // - Historically everything was in /uid_xxx/pid_yyy (and still is if
+  //   PRODUCT_CGROUP_V2_SYS_APP_ISOLATION_ENABLED = false)
+  // - cgroup isolation introduces /apps /system subdirectories.
+  base::StackString<255> path_v1(
       "/sys/fs/cgroup/uid_%" PRIu32 "/pid_%" PRIu32 "/cgroup.freeze",
       static_cast<uint32_t>(uid()), static_cast<uint32_t>(pid()));
-  char frozen = '0';
-  auto fd = base::OpenFile(path.c_str(), O_RDONLY);
-  ssize_t rsize = 0;
-  if (fd) {
-    rsize = base::Read(*fd, &frozen, sizeof(frozen));
-    if (rsize > 0) {
-      return frozen == '1';
+  base::StackString<255> path_v2_app(
+      "/sys/fs/cgroup/apps/uid_%" PRIu32 "/pid_%" PRIu32 "/cgroup.freeze",
+      static_cast<uint32_t>(uid()), static_cast<uint32_t>(pid()));
+  base::StackString<255> path_v2_system(
+      "/sys/fs/cgroup/system/uid_%" PRIu32 "/pid_%" PRIu32 "/cgroup.freeze",
+      static_cast<uint32_t>(uid()), static_cast<uint32_t>(pid()));
+  const char* paths[] = {path_v1.c_str(), path_v2_app.c_str(),
+                         path_v2_system.c_str()};
+
+  for (const char* path : paths) {
+    char frozen = '0';
+    auto fd = base::OpenFile(path, O_RDONLY);
+    ssize_t rsize = 0;
+    if (fd) {
+      rsize = base::Read(*fd, &frozen, sizeof(frozen));
+      if (rsize > 0) {
+        return frozen == '1';
+      }
     }
   }
-  PERFETTO_DLOG("Failed to read %s (fd=%d, rsize=%d)", path.c_str(), !!fd,
-                static_cast<int>(rsize));
+  PERFETTO_DLOG("Failed to read cgroup.freeze from [%s, %s, %s]",
+                path_v1.c_str(), path_v2_app.c_str(), path_v2_system.c_str());
+
 #endif
   return false;
 }
@@ -5091,7 +5113,9 @@ TracingServiceImpl::TracingSession::TracingSession(
 TracingServiceImpl::RelayEndpointImpl::RelayEndpointImpl(
     RelayClientID relay_client_id,
     TracingServiceImpl* service)
-    : relay_client_id_(relay_client_id), service_(service) {}
+    : relay_client_id_(relay_client_id),
+      service_(service),
+      serialized_system_info_({}) {}
 TracingServiceImpl::RelayEndpointImpl::~RelayEndpointImpl() = default;
 
 void TracingServiceImpl::RelayEndpointImpl::SyncClocks(

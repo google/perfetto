@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {exists} from '../../base/utils';
-import {ColumnDef, Sorting} from '../../public/aggregation';
 import {AreaSelection, AreaSelectionAggregator} from '../../public/selection';
+import {ColumnDef, Sorting} from '../../public/aggregation';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
+import {exists} from '../../base/utils';
 
 export class WattsonProcessSelectionAggregator
   implements AreaSelectionAggregator
 {
-  readonly id = 'wattson_process_aggregation';
+  readonly id = 'wattson_plugin_process_aggregation';
 
   async createAggregateView(engine: Engine, area: AreaSelection) {
     await engine.query(`drop view if exists ${this.id};`);
@@ -45,29 +45,42 @@ export class WattsonProcessSelectionAggregator
 
       -- Only get idle attribution in user defined window and filter by selected
       -- CPUs and GROUP BY process
-      CREATE OR REPLACE PERFETTO TABLE _per_process_idle_attribution AS
+      CREATE OR REPLACE PERFETTO TABLE
+      wattson_plugin_per_process_idle_attribution AS
       SELECT
-        ROUND(SUM(idle_cost_mws), 2) as idle_cost_mws,
+        SUM(idle_cost_mws) as idle_cost_mws,
         upid
       FROM _filter_idle_attribution(${area.start}, ${duration})
       WHERE cpu in ${cpusCsv}
       GROUP BY upid;
 
       -- Grouped by UPID and made CPU agnostic
-      CREATE VIEW ${this.id} AS
-      SELECT
-        ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
-        ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
-        COALESCE(idle_cost_mws, 0) as idle_cost_mws,
-        ROUND(
-          COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
-          2
-        ) as total_mws,
-        pid,
-        process_name
-      FROM _unioned_per_cpu_total
-      LEFT JOIN _per_process_idle_attribution USING (upid)
-      GROUP BY upid;
+      CREATE PERFETTO VIEW ${this.id} AS
+      WITH base AS (
+        SELECT
+          ROUND(SUM(total_pws) / ${duration}, 3) as active_mw,
+          ROUND(SUM(total_pws) / 1000000000, 3) as active_mws,
+          ROUND(COALESCE(idle_cost_mws, 0), 3) as idle_cost_mws,
+          ROUND(
+            COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
+            3
+          ) as total_mws,
+          pid,
+          process_name
+        FROM wattson_plugin_unioned_per_cpu_total
+        LEFT JOIN wattson_plugin_per_process_idle_attribution USING (upid)
+        GROUP BY upid
+      ),
+      secondary AS (
+        SELECT pid,
+          ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 3)
+            AS percent_of_total_energy
+        FROM base
+        GROUP BY pid
+      )
+      select *
+        from base INNER JOIN secondary
+        USING (pid);
     `);
 
     return true;
@@ -106,7 +119,7 @@ export class WattsonProcessSelectionAggregator
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'idle_cost_mws',
-        sum: true,
+        sum: false,
       },
       {
         title: 'Total energy (estimated mWs)',
@@ -114,6 +127,13 @@ export class WattsonProcessSelectionAggregator
         columnConstructor: Float64Array,
         columnId: 'total_mws',
         sum: true,
+      },
+      {
+        title: '% of total energy',
+        kind: 'PERCENT',
+        columnConstructor: Float64Array,
+        columnId: 'percent_of_total_energy',
+        sum: false,
       },
     ];
   }

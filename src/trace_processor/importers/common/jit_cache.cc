@@ -108,6 +108,30 @@ tables::JitCodeTable::Id JitCache::LoadCode(
   return jit_code_id;
 }
 
+tables::JitCodeTable::Id JitCache::MoveCode(int64_t timestamp,
+                                            UniqueTid,
+                                            uint64_t from_code_start,
+                                            uint64_t to_code_start) {
+  auto* jit_code_table = context_->storage->mutable_jit_code_table();
+
+  auto it = functions_.Find(from_code_start);
+  AddressRange old_code_range = it->first;
+  JittedFunction func = std::move(it->second);
+  functions_.erase(it);
+
+  auto code_id = func.jit_code_id();
+  AddressRange new_code_range(to_code_start, old_code_range.size());
+
+  functions_.DeleteOverlapsAndEmplace(
+      [&](std::pair<const AddressRange, JittedFunction>& entry) {
+        jit_code_table->FindById(entry.second.jit_code_id())
+            ->set_estimated_delete_ts(timestamp);
+      },
+      new_code_range, std::move(func));
+
+  return code_id;
+}
+
 std::pair<FrameId, bool> JitCache::InternFrame(VirtualMemoryMapping* mapping,
                                                uint64_t rel_pc,
                                                base::StringView function_name) {

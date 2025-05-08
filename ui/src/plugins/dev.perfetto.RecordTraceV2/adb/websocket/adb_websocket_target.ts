@@ -65,7 +65,7 @@ export class AdbWebsocketTarget implements RecordingTarget {
 
   private async connectIfNeeded(): Promise<Result<AdbWebsocketDevice>> {
     return this.adbDevice.getOrCreate(() =>
-      AdbWebsocketDevice.connect(this.wsUrl, this.serial),
+      AdbWebsocketDevice.connect(this.wsUrl, this.serial, 'WEBSOCKET_BRIDGE'),
     );
   }
 

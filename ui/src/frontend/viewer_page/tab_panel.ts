@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {TraceImpl} from '../../core/trace_impl';
 import {Button} from '../../widgets/button';
-import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Tab, TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
 import {DEFAULT_DETAILS_CONTENT_HEIGHT} from '../css_constants';
 import {CurrentSelectionTab} from './current_selection_tab';
@@ -98,7 +98,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
       });
 
     return m(
-      PopupMenu2,
+      PopupMenu,
       {
         trigger: m(Button, {
           compact: true,

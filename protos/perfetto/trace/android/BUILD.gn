@@ -24,11 +24,14 @@ perfetto_proto_library("@TYPE@") {
     "android_game_intervention_list.proto",
     "android_log.proto",
     "android_system_property.proto",
+    "app_wakelock_data.proto",
+    "bluetooth_trace.proto",
     "camera_event.proto",
     "frame_timeline_event.proto",
     "gpu_mem_event.proto",
     "graphics_frame_event.proto",
     "initial_display_state.proto",
+    "kernel_wakelock_data.proto",
     "network_trace.proto",
     "packages_list.proto",
     "pixel_modem_events.proto",
@@ -121,6 +124,7 @@ perfetto_proto_library("winscope_@TYPE@") {
   ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
   generate_descriptor = "winscope.descriptor"
+  generator_visibility = [ "../../../../src/trace_processor/importers/proto/winscope:gen_cc_winscope_descriptor" ]
   descriptor_root_source = "winscope.proto"
 }
 
@@ -128,7 +132,7 @@ perfetto_proto_library("winscope_@TYPE@") {
 perfetto_proto_library("android_track_event_@TYPE@") {
   sources = [ "android_track_event.proto" ]
   public_deps = [ "../track_event:@TYPE@" ]
-
+  generator_visibility = [ "../../../../src/trace_processor/importers/proto:gen_cc_android_track_event_descriptor" ]
   generate_descriptor = "android_track_event.descriptor"
   descriptor_root_source = "android_track_event.proto"
 

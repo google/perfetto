@@ -49,9 +49,16 @@ function atrace(): RecordProbe {
         ]),
       ),
     }),
+    apps: new Textarea({
+      title: 'Process / package names to trace',
+      placeholder: 'e.g. system_server\ncom.android.settings',
+    }),
     allApps: new Toggle({
       title: 'Record events from all Android apps and services',
       cssClass: '.thin',
+      onChange(allAppsEnabled: boolean) {
+        settings.apps.attrs.disabled = allAppsEnabled;
+      },
     }),
   };
   return {
@@ -66,6 +73,10 @@ function atrace(): RecordProbe {
       tc.addAtraceCategories(...settings.categories.selectedValues());
       if (settings.allApps.enabled) {
         tc.addAtraceApps('*');
+      } else {
+        for (const line of splitLinesNonEmpty(settings.apps.text)) {
+          tc.addAtraceApps(line);
+        }
       }
       if (
         settings.categories.selectedKeys().length > 0 ||
@@ -156,6 +167,8 @@ function netTracing(): RecordProbe {
       tc.addDataSource('android.network_packets').networkPacketTraceConfig = {
         pollMs: settings.pollMs.value,
       };
+      // Allows mapping packet uids to package names.
+      tc.addDataSource('android.packages_list');
     },
   };
 }
@@ -207,7 +220,7 @@ function statsdAtoms(): RecordProbe {
       const rawPullIds = splitLinesNonEmpty(settings.rawPullIds.text).map((l) =>
         parseInt(l.trim()),
       );
-      const hasPull = pullIds.length > 0 && rawPullIds.length > 0;
+      const hasPull = pullIds.length > 0 || rawPullIds.length > 0;
       tc.addDataSource('android.statsd').statsdTracingConfig = {
         pushAtomId: settings.pushAtoms.selectedValues(),
         rawPushAtomId: splitLinesNonEmpty(settings.rawPushIds.text).map((l) =>

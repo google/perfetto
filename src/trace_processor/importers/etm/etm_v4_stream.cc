@@ -71,7 +71,9 @@ base::Status EtmV4Stream::ParseFramedData(uint64_t offset, TraceBlobView data) {
                                    data.data(), &num_bytes_processed));
   PERFETTO_CHECK(keep_going);
   PERFETTO_CHECK(num_bytes_processed == data_block_size);
-  PERFETTO_CHECK(perf_importer::SafeAdd(index_, data_block_size, &index_));
+  PERFETTO_CHECK(index_ <= std::numeric_limits<decltype(index_)>::max() -
+                               data_block_size);
+  index_ += data_block_size;
 
   ASSIGN_OR_RETURN(keep_going, frame_decoder_->TraceDataIn(
                                    OCSD_OP_EOT, index_, 0, nullptr, nullptr));

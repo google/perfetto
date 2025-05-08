@@ -25,10 +25,11 @@ import {Section} from '../../../widgets/section';
 import {
   MultiSelect,
   MultiSelectDiff,
-  Option as MultiSelectOption,
+  MultiSelectOption,
 } from '../../../widgets/multiselect';
+import {Result} from '../../../base/result';
 
-type ChromeCatFunction = () => Promise<string[]>;
+type ChromeCatFunction = () => Promise<Result<string[]>>;
 
 export function chromeRecordSection(
   chromeCategoryGetter: ChromeCatFunction,
@@ -135,6 +136,11 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
         tc.addDataSource('org.chromium.system_metrics').chromeConfig =
           chromeConfig;
       }
+      if (cats.has('disabled-by-default-histogram_samples')) {
+        const histogram = tc.addDataSource('org.chromium.histogram_sample');
+        const histogramCfg = (histogram.chromiumHistogramSamples ??= {});
+        histogramCfg.filterHistogramNames = privacyFilteringEnabled;
+      }
     },
   };
 }
@@ -143,9 +149,22 @@ const DISAB_PREFIX = 'disabled-by-default-';
 
 export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
+  private fetchedRuntimeCategories = false;
 
   constructor(private chromeCategoryGetter: ChromeCatFunction) {
+    // Initialize first with the static list of builtin categories (in case
+    // something goes wrong with the extension).
     this.initializeCategories(BUILTIN_CATEGORIES);
+  }
+
+  private async fetchRuntimeCategoriesIfNeeded() {
+    if (this.fetchedRuntimeCategories) return;
+    const runtimeCategories = await this.chromeCategoryGetter();
+    if (runtimeCategories.ok) {
+      this.initializeCategories(runtimeCategories.value);
+      m.redraw();
+    }
+    this.fetchedRuntimeCategories = true;
   }
 
   private initializeCategories(cats: string[]) {
@@ -153,7 +172,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       .map((cat) => ({
         id: cat,
         name: cat.replace(DISAB_PREFIX, ''),
-        checked: false,
+        checked: this.options.find((o) => o.id === cat)?.checked ?? false,
       }))
       .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
   }
@@ -187,8 +206,11 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     return m(
       'div.chrome-categories',
       {
-        oninit: async () =>
-          this.initializeCategories(await this.chromeCategoryGetter()),
+        // This shouldn't be necessary in most cases. It's only needed:
+        // 1. The first time the user installs the extension.
+        // 2. In rare cases if the extension fails to respond to the call in the
+        //    constructor, to deal with its flakiness.
+        oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
       m(
         Section,
@@ -216,6 +238,10 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       ),
     );
   }
+}
+
+function defaultAndDisabled(category: string) {
+  return [category, 'disabled-by-default-' + category];
 }
 
 const GROUPS = {
@@ -263,20 +289,20 @@ const GROUPS = {
   ],
   'Audio': [
     'base',
-    'disabled-by-default-audio',
-    'disabled-by-default-webaudio',
-    'disabled-by-default-webaudio.audionode',
-    'disabled-by-default-webrtc',
-    'disabled-by-default-audio-worklet',
-    'disabled-by-default-mediastream',
-    'disabled-by-default-v8.gc',
-    'disabled-by-default-toplevel',
-    'disabled-by-default-toplevel.flow',
-    'disabled-by-default-wakeup.flow',
-    'disabled-by-default-cpu_profiler',
-    'disabled-by-default-scheduler',
-    'disabled-by-default-p2p',
-    'disabled-by-default-net',
+    ...defaultAndDisabled('audio'),
+    ...defaultAndDisabled('webaudio'),
+    ...defaultAndDisabled('webaudio.audionode'),
+    ...defaultAndDisabled('webrtc'),
+    ...defaultAndDisabled('audio-worklet'),
+    ...defaultAndDisabled('mediastream'),
+    ...defaultAndDisabled('v8.gc'),
+    ...defaultAndDisabled('toplevel'),
+    ...defaultAndDisabled('toplevel.flow'),
+    ...defaultAndDisabled('wakeup.flow'),
+    ...defaultAndDisabled('cpu_profiler'),
+    ...defaultAndDisabled('scheduler'),
+    ...defaultAndDisabled('p2p'),
+    ...defaultAndDisabled('net'),
   ],
   'Video': [
     'base',

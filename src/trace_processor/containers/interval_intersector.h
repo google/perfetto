@@ -42,7 +42,7 @@ class IntervalIntersector {
     // Use `IntervalTree` as an underlying implementation.. Would create an
     // interval tree - with complexity of O(N) and memory complexity of O(N).
     // Query cost is O(logN).
-    // NOTE: Only use if intevals are overlapping and tree would be queried
+    // NOTE: Only use if intervals are overlapping and tree would be queried
     // multiple times.
     kIntervalTree,
     // If the intervals are non overlapping we can use simple binary search.
@@ -79,34 +79,47 @@ class IntervalIntersector {
       return;
     }
 
-    // Find the first interval that ends after |s|.
-    auto overlap =
-        std::lower_bound(intervals_.begin(), intervals_.end(), s,
-                         [](const Interval& interval, uint64_t start) {
-                           return interval.end <= start;
-                         });
-
     if (mode_ == kBinarySearch) {
+      // Find the first interval that ends after |s|.
+      auto overlap =
+          std::lower_bound(intervals_.begin(), intervals_.end(), s,
+                           [](const Interval& interval, uint64_t start) {
+                             return interval.end <= start;
+                           });
+
       for (; overlap != intervals_.end() && overlap->start < e; ++overlap) {
         UpdateResultVector(s, e, *overlap, res);
       }
       return;
     }
 
+    // When using linear scan, we know only that the that if interval starts
+    // after the |e|, it will not overlap. We need to go through all intervals
+    // up to this point, as we don't know if any of the previous one is not
+    // overlapping.
     PERFETTO_CHECK(mode_ == kLinearScan);
 
-    for (; overlap != intervals_.end() && overlap->start < e; ++overlap) {
-      if (overlap->end <= s) {
+    auto cur_interval = intervals_.begin();
+
+    // Go through all intervals that start before |s|.
+    for (; cur_interval != intervals_.end(); ++cur_interval) {
+      // An interval that ends before |s| can't overlap.
+      if (cur_interval->end <= s) {
         continue;
       }
-      if (overlap->start > s) {
+
+      // Escape if the interval starts after |s|.
+      if (cur_interval->start > s) {
         break;
       }
-      UpdateResultVector(s, e, *overlap, res);
+
+      UpdateResultVector(s, e, *cur_interval, res);
     }
 
-    for (; overlap != intervals_.end() && overlap->start < e; ++overlap) {
-      UpdateResultVector(s, e, *overlap, res);
+    // Go through all intervals that start after |s| and before |e|.
+    for (; cur_interval != intervals_.end() && cur_interval->start < e;
+         ++cur_interval) {
+      UpdateResultVector(s, e, *cur_interval, res);
     }
   }
 

@@ -24,7 +24,7 @@ CREATE PERFETTO VIEW GestureLegacyEvents AS
 SELECT
   ts,
   EXTRACT_ARG(arg_set_id, 'legacy_event.phase') AS phase
-FROM raw
+FROM __intrinsic_chrome_raw
 WHERE EXTRACT_ARG(arg_set_id, 'legacy_event.name') = 'SyntheticGestureController::running';
 
 -- Convert pairs of 'S' and 'F' events into slices with ts and dur.

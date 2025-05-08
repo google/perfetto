@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {EvtSource} from '../../../base/events';
+import {Result} from '../../../base/result';
 import {PreflightCheck} from '../interfaces/connection_check';
 import {RecordingTargetProvider} from '../interfaces/recording_target_provider';
 import {TargetPlatformId} from '../interfaces/target_platform';
@@ -37,7 +38,7 @@ export class ChromeExtensionTargetProvider implements RecordingTargetProvider {
     return [this.target];
   }
 
-  getChromeCategories(): Promise<string[]> {
+  getChromeCategories(): Promise<Result<string[]>> {
     return this.target.getChromeCategories();
   }
 }

@@ -1,0 +1,270 @@
+/*
+ * Copyright (C) 2025 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+import "protos/perfetto/perfetto_sql/structured_query.proto";
+
+// The spec for a v2 trace-based metric.
+//
+// Conceptually, a v2 trace-based metric is very similar to metrics in other
+// analytics system: it corresponds to a "value", some numerical property of
+// the trace which can be measured and a set of "dimensions" which correspond to
+// extra context about that value. Metrics also have an "id" which uniquely
+// identifies them within a single trace summary.
+//
+// Finally, the `query` field specified how trace processor should compute the
+// metric from the trace. We use the standard `PerfettoSqlStructuredQuery` proto
+// for this: please see the documentation there for more details on writing it.
+//
+// For a simple example: suppose you wanted to average memory usage broken down
+// by process name. Since the PerfettoSQL Standard Library already has
+// primitives for this, this is easily accomplished with the following spec:
+//
+// ```
+// id: "memory_per_process"
+// dimensions: "process_name"
+// value: "avg_rss_and_swap"
+// query: {
+//   table: {
+//     table_name: "memory_rss_and_swap_per_process"
+//     module_name: "linux.memory.process"
+//   }
+//   group_by: {
+//     column_names: "process_name"
+//     aggregates: {
+//       column_name: "rss_and_swap"
+//       op: DURATION_WEIGHTED_MEAN
+//       result_column_name: "avg_rss_and_swap"
+//     }
+//   }
+// }
+// ```
+//
+// A common usecase is to restrict the period of interest to only certain time
+// periods of interest, for example, only the time spaned by a test run or a
+// Critical User Journey (CUJ). We can use the `interval_intersect` operation
+// for this.
+//
+// Suppose the CUJ of interest was represented by a slice matched by the glob
+// `<J>Cuj*`. The spec would look like:
+//
+// ```
+// id: "memory_per_process_and_cuj"
+// dimensions: "process_name"
+// dimensions: "cuj_name"
+// value: "avg_rss_and_swap"
+// query: {
+//   interval_intersect: {
+//      base: {
+//        table: {
+//          table_name: "memory_rss_and_swap_per_process"
+//          module_name: "linux.memory.process"
+//        }
+//      }
+//      interval_intersect: {
+//        simple_slices: {
+//          slice_name_glob: "<J>Cuj*"
+//        }
+//        select_columns: {
+//          column_name: "slice_name"
+//          alias: "cuj_name"
+//        }
+//      }
+//   }
+//   group_by: {
+//     column_names: "process_name"
+//     column_names: "cuj_name"
+//     aggregates: {
+//       column_name: "rss_and_swap"
+//       op: DURATION_WEIGHTED_MEAN
+//       result_column_name: "avg_rss_and_swap"
+//     }
+//   }
+// }
+// ```
+//
+// A more complex example might: suppose you wanted to find the total CPU time
+// of the `foo` slice in the `bar` thread while the `baz` CUJ (represented by
+// a slice in `system_server`) was happening. You can accomplish that with the
+// spec:
+// ```
+// id: "sum_foo_cpu_time_during_baz"
+// value: "sum_cpu_time"
+// query: {
+//   interval_intersect: {
+//      base: {
+//        table: {
+//          table_name: "thread_slice_cpu_time"
+//          module_name: "linux.memory.process"
+//        }
+//        filters: {
+//          column_name: "thread_name"
+//          op: EQUAL
+//          string_rhs: "bar"
+//        }
+//      }
+//      interval_intersect: {
+//        simple_slices: {
+//          slice_name_glob: "baz"
+//          process_name_glob: "system_server"
+//        }
+//      }
+//   }
+//   group_by: {
+//     aggregates: {
+//       column_name: "cpu_time"
+//       op: SUM
+//       result_column_name: "sum_cpu_time"
+//     }
+//   }
+// }
+// ```
+//
+//
+// Note: if you are familiar with v1 trace-based metrics, there is a pretty big
+// difference between the two: while v1 metrics were very flexible with respect
+// to their output schema, v2 metrics give up that flexibility in exchange for
+// being able to build general pupose systems which consume the result of
+// metrics. This makes it possible e.g. to have an automatic metric viewer in
+// the Perfetto UI visualizing the results of running a metric.
+message TraceMetricV2Spec {
+  // The id of the metric. An opaque field but the convention is to use
+  // lowecase + underscores (i.e. foo_bar). Note however this is not enforced.
+  // Required.
+  optional string id = 1;
+
+  enum DimensionType {
+    DIMENSION_TYPE_UNSPECIFIED = 0;
+    STRING = 1;
+    INT64 = 2;
+    DOUBLE = 3;
+  }
+
+  message DimensionSpec {
+    optional string name = 1;
+    // The type of the dimension. Must be specified.
+    optional DimensionType type = 2;
+  }
+  // The columns from `query` which will act as the "dimensions" for the metric.
+  // For a given set of dimensions, there must be exactly *one* value emitted.
+  // Optional.
+  // If the `dimensions_specs` field is defined, then the type of each
+  // dimension must be specified.
+  repeated DimensionSpec dimensions_specs = 5;
+  // Either dimensions or dimensions_specs should be defined, but not both.
+  repeated string dimensions = 2;
+
+  // The column from `query` which will act as the "value" for the metric. This
+  // must be a column containing only integers/doubles/nulls. Strings are *not*
+  // supported: prefer making the string a dimension and then *counting* the
+  // number of strings as the value.
+  // Required.
+  optional string value = 3;
+
+  // The structured query which will be used to compute the metric. See the
+  // documentation of `PerfettoSqlStructuredQuery` for more information.
+  // Required.
+  optional PerfettoSqlStructuredQuery query = 4;
+}
+
+// The output containing all the values for a single v2 trace-based metric.
+//
+// Note: see `TraceMetricV2Spec` for commentary on what a trace-based metric
+// is.
+//
+// For the `memory_per_process` example above, the output proto might look
+// something like:
+// ```
+// row: {
+//   value: 123456
+//   dimensions: {
+//     string_value: "my_special_process"
+//   }
+// }
+// row: {
+//   value: 9876
+//   dimensions: {
+//     string_value: "/bin/init"
+//   }
+// }
+// spec {
+//   id: "memory_per_process"
+//   dimensions: "process_name"
+//   value: "rss_and_swap"
+//   query: {
+//     table: {
+//       table_name: "memory_rss_and_swap_per_process"
+//       module_name: "linux.memory.process"
+//     }
+//   }
+// }
+// ```
+//
+// And for the `memory_per_process_and_cuj` example:
+// ```
+// row: {
+//   value: 123456
+//   dimensions: {
+//     string_value: "<J>CujFoo"
+//     string_value: "my_special_process"
+//   }
+// }
+// row: {
+//   value: 9876
+//   dimensions: {
+//     string_value: "<J>CujBar"
+//     string_value: "/bin/init"
+//   }
+// }
+// spec {
+//   ...(contents of spec)
+// }
+// ```
+// Note: if value of a row is NULL, the row will not be emitted.
+message TraceMetricV2 {
+  // A single metric row corresponding to a value associated with a (unique) set
+  // of dimensions
+  message MetricRow {
+    // The value of the metric associated with the `dimensions`.
+    optional double value = 1;
+
+    // The dimensions that `value` should be associated with. The order of
+    // dimensions matches precisely the order of dimension names given by the
+    // `spec`.
+    // The type of the dimension is infered from the sql column type.
+    // In case dimensionSpec is specified, the dimension type must match the
+    // type specified in the spec.
+    message Dimension {
+      message Null {}
+      oneof value_oneof {
+        string string_value = 1;
+        int64 int64_value = 2;
+        double double_value = 3;
+        Null null_value = 4;
+      }
+    }
+    repeated Dimension dimension = 2;
+  }
+  repeated MetricRow row = 1;
+
+  // The spec for the metric. This is simply an echo of the spec which was
+  // passed in to compute the metric. Useful for knowing what the dimension
+  // names/value names are.
+  optional TraceMetricV2Spec spec = 2;
+}

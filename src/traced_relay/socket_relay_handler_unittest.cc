@@ -108,7 +108,7 @@ TEST(SocketWithBufferTest, EnqueueDequeue) {
   EXPECT_EQ(buffered_data, "678901234567890");
 }
 
-// Test the SocketRelayHander with randomized request and response data.
+// Test the SocketRelayHandler with randomized request and response data.
 TEST_P(SocketRelayHandlerTest, RandomizedRequestResponse) {
 #if defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER) || \
     defined(MEMORY_SANITIZER) || defined(LEAK_SANITIZER)

@@ -14,7 +14,7 @@
 
 import {time} from '../base/time';
 
-export type SearchSource = 'cpu' | 'log' | 'slice' | 'track';
+export type SearchSource = 'cpu' | 'log' | 'slice' | 'track' | 'event';
 
 export interface SearchResult {
   eventId: number;
