@@ -394,12 +394,25 @@ export class SelectionManagerImpl implements SelectionManager {
     opts?: SelectionOpts,
     serializedDetailsPanel?: unknown,
   ) {
-    const details = await this.trackManager
-      .getTrack(trackUri)
-      ?.track.getSelectionDetails?.(eventId);
+    const track = this.trackManager.getTrack(trackUri);
+    if (!track) {
+      throw new Error(
+        `Unable to resolve selection details: Track ${trackUri} not found`,
+      );
+    }
 
+    const trackRenderer = track.track;
+    if (!trackRenderer.getSelectionDetails) {
+      throw new Error(
+        `Unable to resolve selection details: Track ${trackUri} does not support selection details`,
+      );
+    }
+
+    const details = await trackRenderer.getSelectionDetails(eventId);
     if (!exists(details)) {
-      throw new Error('Unable to resolve selection details');
+      throw new Error(
+        `Unable to resolve selection details: Track ${trackUri} returned no details for event ${eventId}`,
+      );
     }
 
     const selection: TrackEventSelection = {
