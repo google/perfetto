@@ -1154,6 +1154,10 @@ class TrackEventParser::EventImporter {
 
     if (event_.has_source_location_iid()) {
       log_errors(AddSourceLocationArgs(event_.source_location_iid(), inserter));
+    } else if (event_.has_source_location()) {
+      protos::pbzero::SourceLocation::Decoder source_location(
+          event_.source_location());
+      AddSourceLocationArgs(&source_location, inserter);
     }
 
     if (event_.has_task_execution()) {
@@ -1231,6 +1235,19 @@ class TrackEventParser::EventImporter {
     return base::OkStatus();
   }
 
+  void AddSourceLocationArgs(protos::pbzero::SourceLocation::Decoder* decoder,
+                             BoundInserter* inserter) {
+    std::string file_name = NormalizePathSeparators(decoder->file_name());
+    inserter->AddArg(
+        parser_->source_location_file_name_key_id_,
+        Variadic::String(storage_->InternString(base::StringView(file_name))));
+    inserter->AddArg(
+        parser_->source_location_function_name_key_id_,
+        Variadic::String(storage_->InternString(decoder->function_name())));
+    inserter->AddArg(parser_->source_location_line_number_key_id_,
+                     Variadic::UnsignedInteger(decoder->line_number()));
+  }
+
   base::Status AddSourceLocationArgs(uint64_t iid, BoundInserter* inserter) {
     if (!iid)
       return base::ErrStatus("SourceLocation with invalid iid");
@@ -1241,21 +1258,7 @@ class TrackEventParser::EventImporter {
     if (!decoder)
       return base::ErrStatus("SourceLocation with invalid iid");
 
-    StringId file_name_id = kNullStringId;
-    StringId function_name_id = kNullStringId;
-    uint32_t line_number = 0;
-
-    std::string file_name = NormalizePathSeparators(decoder->file_name());
-    file_name_id = storage_->InternString(base::StringView(file_name));
-    function_name_id = storage_->InternString(decoder->function_name());
-    line_number = decoder->line_number();
-
-    inserter->AddArg(parser_->source_location_file_name_key_id_,
-                     Variadic::String(file_name_id));
-    inserter->AddArg(parser_->source_location_function_name_key_id_,
-                     Variadic::String(function_name_id));
-    inserter->AddArg(parser_->source_location_line_number_key_id_,
-                     Variadic::UnsignedInteger(line_number));
+    AddSourceLocationArgs(decoder, inserter);
     return base::OkStatus();
   }
 
