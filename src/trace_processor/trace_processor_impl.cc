@@ -160,6 +160,7 @@
 #include "src/trace_processor/importers/etm/file_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/symbolize_vtable.h"
 #endif
 
 namespace perfetto::trace_processor {
@@ -1350,6 +1351,10 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
       "__intrinsic_etm_decode_trace", storage);
   engine->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
       "__intrinsic_etm_iterate_instruction_range", storage);
+  if (config.dev_flags.count("llmv-symbolizer")) {
+    engine->RegisterVirtualTableModule<etm::SymbolizeVtable>(
+        "__intrinsic_etm_symbolize", storage);
+  }
 #endif
 
   // Register metrics functions.
