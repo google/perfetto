@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/art_hprof/art_hprof_tokenizer.h"
-#include "src/trace_processor/importers/art_hprof/art_hprof_heap_graph.h"
+#include "src/trace_processor/importers/art_hprof/art_hprof_event.h"
 
 #include <cstdint>
 #include <memory>

@@ -14,873 +14,1425 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/art_hprof/art_hprof_tokenizer.h"
-
+#include "src/trace_processor/importers/art_hprof/art_hprof_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 
-#include <algorithm>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
 #include <cinttypes>
-#include <cstdint>
-#include <cstring>
+#include <algorithm>
 #include <memory>
-#include <optional>
+#include <vector>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
-#include <vector>
+#include <iostream>
+
+// At the top of hprof.cpp
+#include <iostream>
+#include <cstdio>
+#include <cstdlib>
+
+#include "perfetto/base/logging.h"
 
 namespace perfetto::trace_processor::art_hprof {
+    ByteIterator::~ByteIterator() = default;
 
-constexpr uint8_t HPROF_ROOT_RECORD_MIN = 0x01;
-constexpr uint8_t HPROF_ROOT_RECORD_MAX = 0x0A;
+// Field implementation
+size_t Field::GetSize() const {
+    switch (type_) {
+        case FIELD_TYPE_OBJECT: return sizeof(uint64_t);  // ID size (variable)
+        case FIELD_TYPE_BOOLEAN: return 1;
+        case FIELD_TYPE_CHAR: return 2;
+        case FIELD_TYPE_FLOAT: return 4;
+        case FIELD_TYPE_DOUBLE: return 8;
+        case FIELD_TYPE_BYTE: return 1;
+        case FIELD_TYPE_SHORT: return 2;
+        case FIELD_TYPE_INT: return 4;
+        case FIELD_TYPE_LONG: return 8;
+    }
+}
+
+// ArtHprofTokenizer implementation
+ArtHprofTokenizer::ArtHprofTokenizer(TraceProcessorContext* ctx)
+    : context_(ctx), sub_parser_(Detect{this}) {}
+
+ArtHprofTokenizer::~ArtHprofTokenizer() = default;
+
+base::Status ArtHprofTokenizer::Parse(TraceBlobView blob) {
+  reader_.PushBack(std::move(blob));
+
+  if (std::holds_alternative<Detect>(sub_parser_)) {
+    return std::get<Detect>(sub_parser_).Parse();
+  } else if (std::holds_alternative<Streaming>(sub_parser_)) {
+    return std::get<Streaming>(sub_parser_).Parse();
+  } else {
+    return std::get<NonStreaming>(sub_parser_).Parse();
+  }
+}
+
+base::Status ArtHprofTokenizer::InitializeParserIfNeeded() {
+  if (is_initialized_)
+    return base::OkStatus();
+
+  // Create the ByteIterator that wraps our reader
+  byte_iterator_ = std::make_unique<TraceBlobViewIterator>(std::move(reader_));
+
+  // Initialize the parser with our iterator
+  parser_ = std::make_unique<HprofParser>(std::unique_ptr<ByteIterator>(byte_iterator_.release()));
+
+  is_initialized_ = true;
+  return base::OkStatus();
+}
+
+base::Status ArtHprofTokenizer::ProcessParsingResults() {
+  // Initialize parser if needed
+  auto status = InitializeParserIfNeeded();
+  if (!status.ok())
+    return status;
+
+  if (!parser_result_) {
+      parser_result_ = parser_->Parse();
+  }
+
+  if (!parser_result_) {
+      return base::ErrStatus("Parsing failed");
+  }
+
+  if (parser_result_) {
+      // Create and push the event - use std::move to transfer ownership
+      ArtHprofEvent event(std::move(*parser_result_));
+      context_->sorter->PushArtHprofEvent(0, std::move(event));
+  }
+
+  return base::OkStatus();
+}
+
+base::Status ArtHprofTokenizer::NotifyEndOfFile() {
+  is_complete_ = true;
+
+  if (std::holds_alternative<Detect>(sub_parser_)) {
+    return std::get<Detect>(sub_parser_).NotifyEndOfFile();
+  } else if (std::holds_alternative<Streaming>(sub_parser_)) {
+    return std::get<Streaming>(sub_parser_).NotifyEndOfFile();
+  } else {
+    return std::get<NonStreaming>(sub_parser_).NotifyEndOfFile();
+  }
+}
+
+// Detect implementation
+base::Status ArtHprofTokenizer::Detect::Parse() {
+  auto it = tokenizer_->reader_.GetIterator();
+
+  // Try to read the magic number to detect format
+  auto header = it.MaybeRead(4);
+  if (!header) {
+    return base::OkStatus();  // Not enough data yet
+  }
+
+  uint32_t magic = 0;
+  memcpy(&magic, header->data(), 4);
+
+  // Check the endianness and set the correct parser
+  if (magic == kHprofHeaderMagic) {
+    tokenizer_->sub_parser_ = NonStreaming{tokenizer_};
+    return std::get<NonStreaming>(tokenizer_->sub_parser_).Parse();
+  } else {
+    // Try to read as streaming format or use another detection method
+    tokenizer_->sub_parser_ = Streaming{tokenizer_};
+    return std::get<Streaming>(tokenizer_->sub_parser_).Parse();
+  }
+}
+
+base::Status ArtHprofTokenizer::Detect::NotifyEndOfFile() const {
+  return base::ErrStatus("HPROF format detection incomplete");
+}
+
+// NonStreaming implementation
+base::Status ArtHprofTokenizer::NonStreaming::Parse() {
+  if (is_parsing_)
+    return base::OkStatus();  // Already parsing
+
+  is_parsing_ = true;
+
+  auto status = tokenizer_->ProcessParsingResults();
+  if (!status.ok())
+    return status;
+
+  is_parsing_ = false;
+  return base::OkStatus();
+}
+
+base::Status ArtHprofTokenizer::NonStreaming::NotifyEndOfFile() const {
+  return tokenizer_->ProcessParsingResults();
+}
+
+// Streaming implementation
+base::Status ArtHprofTokenizer::Streaming::Parse() {
+  // In streaming mode, we might need to handle chunked data
+  if (!header_parsed_) {
+    auto it = tokenizer_->reader_.GetIterator();
+    PERFETTO_CHECK(it.MaybeAdvance(it_offset_));
+
+    // Read and validate header
+    auto header = it.MaybeRead(kHprofHeaderLength);
+    if (!header) {
+      return base::OkStatus();  // Not enough data yet
+    }
+
+    // Process header and update state
+    header_parsed_ = true;
+    it_offset_ = it.file_offset();
+  }
+
+  // Process the rest of the data
+  return tokenizer_->ProcessParsingResults();
+}
+
+base::Status ArtHprofTokenizer::Streaming::NotifyEndOfFile() {
+  return tokenizer_->ProcessParsingResults();
+}
+
+// TraceBlobViewIterator implementation
+ArtHprofTokenizer::TraceBlobViewIterator::TraceBlobViewIterator(
+    util::TraceBlobViewReader&& reader)
+    : reader_(std::move(reader)), current_offset_(0) {}
+
+ArtHprofTokenizer::TraceBlobViewIterator::~TraceBlobViewIterator() = default;
+
+bool ArtHprofTokenizer::TraceBlobViewIterator::ReadU1(uint8_t& value) {
+  auto slice = reader_.SliceOff(current_offset_, 1);
+  if (!slice)
+    return false;
+  value = *slice->data();
+  current_offset_ += 1;
+  return true;
+}
+
+bool ArtHprofTokenizer::TraceBlobViewIterator::ReadU2(uint16_t& value) {
+  uint8_t b1, b2;
+  if (!ReadU1(b1) || !ReadU1(b2))
+    return false;
+  value = static_cast<uint16_t>((static_cast<uint16_t>(b1) << 8) |
+                                static_cast<uint16_t>(b2));
+  return true;
+}
+
+bool ArtHprofTokenizer::TraceBlobViewIterator::ReadU4(uint32_t& value) {
+  uint8_t b1, b2, b3, b4;
+  if (!ReadU1(b1) || !ReadU1(b2) || !ReadU1(b3) || !ReadU1(b4))
+    return false;
+  value = (static_cast<uint32_t>(b1) << 24) |
+          (static_cast<uint32_t>(b2) << 16) | (static_cast<uint32_t>(b3) << 8) |
+          static_cast<uint32_t>(b4);
+  return true;
+}
+
+bool ArtHprofTokenizer::TraceBlobViewIterator::ReadId(uint64_t& value,
+                                                      uint32_t id_size) {
+  if (id_size == 4) {
+    uint32_t id;
+    if (!ReadU4(id))
+      return false;
+    value = id;
+    return true;
+  } else if (id_size == 8) {
+    uint32_t high, low;
+    if (!ReadU4(high) || !ReadU4(low))
+      return false;
+    value = (static_cast<uint64_t>(high) << 32) | low;
+    return true;
+  }
+  return false;
+}
+
+bool ArtHprofTokenizer::TraceBlobViewIterator::ReadString(std::string& str,
+                                                          size_t length) {
+  auto slice = reader_.SliceOff(current_offset_, length);
+  if (!slice)
+    return false;
+
+  str.resize(length);
+  std::memcpy(&str[0], slice->data(), length);
+  current_offset_ += length;
+  return true;
+}
+
+bool ArtHprofTokenizer::TraceBlobViewIterator::ReadBytes(
+    std::vector<uint8_t>& data,
+    size_t length) {
+  auto slice = reader_.SliceOff(current_offset_, length);
+  if (!slice)
+    return false;
+
+  data.resize(length);
+  std::memcpy(data.data(), slice->data(), length);
+  current_offset_ += length;
+  return true;
+}
+
+bool ArtHprofTokenizer::TraceBlobViewIterator::SkipBytes(size_t count) {
+  auto slice = reader_.SliceOff(current_offset_, count);
+  if (!slice)
+    return false;
+
+  current_offset_ += count;
+  return true;
+}
+
+size_t ArtHprofTokenizer::TraceBlobViewIterator::GetPosition() {
+  return current_offset_;
+}
+
+bool ArtHprofTokenizer::TraceBlobViewIterator::IsEof() const {
+  return !reader_.SliceOff(current_offset_, 1);
+}
+
+bool ArtHprofTokenizer::TraceBlobViewIterator::IsValid() const {
+  return true;
+}
+
+// HeapGraph implementation
+void HeapGraph::AddObject(HprofObject object) {
+    objects_[object.id()] = object;
+}
+
+void HeapGraph::AddClass(ClassDefinition cls) {
+    classes_[cls.id()] = cls;
+}
+
+void HeapGraph::AddString(uint64_t id, std::string string) {
+    strings_[id] = string;
+}
+
+std::string HeapGraph::GetString(uint64_t id) const {
+    auto it = strings_.find(id);
+    if (it != strings_.end()) {
+        return it->second;
+    }
+    return "[unknown string]";
+}
+
+const std::unordered_map<uint64_t, HprofObject>& HeapGraph::GetObjects() const {
+    return objects_;
+}
+
+const std::unordered_map<uint64_t, ClassDefinition>& HeapGraph::GetClasses() const {
+    return classes_;
+}
+
+size_t HeapGraph::GetObjectCount() const {
+    return objects_.size();
+}
+
+size_t HeapGraph::GetClassCount() const {
+    return classes_.size();
+}
+
+size_t HeapGraph::GetStringCount() const {
+    return strings_.size();
+}
 
 // HprofParser implementation
+HprofParser::HprofParser(std::unique_ptr<ByteIterator> iterator)
+    : iterator_(std::move(iterator)) {
+    // Initialize heap names
+    heap_names_[HeapType::HEAP_TYPE_DEFAULT] = "default";
+    heap_names_[HeapType::HEAP_TYPE_APP] = "app";
+    heap_names_[HeapType::HEAP_TYPE_ZYGOTE] = "zygote";
+    heap_names_[HeapType::HEAP_TYPE_IMAGE] = "image";
+    heap_names_[HeapType::HEAP_TYPE_JIT] = "jit";
+    heap_names_[HeapType::HEAP_TYPE_APP_CACHE] = "app-cache";
+    heap_names_[HeapType::HEAP_TYPE_SYSTEM] = "system";
+}
+
 HprofParser::~HprofParser() = default;
 
-// Define the virtual destructor out-of-line to fix weak vtable warning
-ByteIterator::~ByteIterator() = default;
+HeapGraph HprofParser::Parse() {
+    if (!ParseHeader()) {
+        PERFETTO_FATAL("Failed to parse header");
+    }
 
-HprofData HprofParser::Parse() {
-  PERFETTO_DLOG("Beginning to parse HPROF");
+    PERFETTO_LOG("Format: %s", header_.format().c_str());
+    PERFETTO_LOG("ID Size: %u", header_.id_size());
+    PERFETTO_LOG("Timestamp: %" PRIu64, header_.timestamp());
 
-  data_ = HprofData{};  // Reset the member variable
+    // Parse records until end of file
+    while (iterator_->IsValid() && !iterator_->IsEof()) {
+        if (!ParseRecord()) {
+            break;
+        }
+    }
 
-  ParseHeader();
+    // Print stats
+    PERFETTO_LOG("\nParsing complete.");
+    PERFETTO_LOG("Strings: %zu", string_count_);
+    PERFETTO_LOG("Classes: %zu", class_count_);
+    PERFETTO_LOG("Heap dumps: %zu", heap_dump_count_);
+    PERFETTO_LOG("Instances: %zu", instance_count_);
+    PERFETTO_LOG("Object arrays: %zu", object_array_count_);
+    PERFETTO_LOG("Primitive arrays: %zu", primitive_array_count_);
+    PERFETTO_LOG("Roots: %zu", root_count_);
+    PERFETTO_LOG("References: %zu", reference_count_);
 
-  while (HasMoreData()) {
-    RecordHeader header = ReadRecordHeader();
-    ParseRecordByType(header);
+    FixupObjectReferencesAndRoots();
+    // Build and return the heap graph
+    HeapGraph graph = BuildHeapGraph();
+    graph.PrintDetailedStats();
+    return graph;
+}
+
+bool HprofParser::ParseHeader() {
+    // Read format string (null-terminated)
+    std::string format;
+    uint8_t byte;
+    while (iterator_->ReadU1(byte) && byte != 0) {
+        format.push_back(static_cast<char>(byte));
+    }
+
+    header_.SetFormat(format);
+
+    // Read identifier size
+    uint32_t id_size;
+    if (!iterator_->ReadU4(id_size)) {
+        return false;
+    }
+    header_.SetIdSize(id_size);
+
+    // Read timestamp (high and low 32-bit values)
+    uint32_t high_time, low_time;
+    if (!iterator_->ReadU4(high_time) || !iterator_->ReadU4(low_time)) {
+        return false;
+    }
+
+    uint64_t timestamp = (static_cast<uint64_t>(high_time) << 32) | low_time;
+    header_.SetTimestamp(timestamp);
+
+    return true;
+}
+
+bool HprofParser::ParseRecord() {
+    // Read record header
+    uint8_t tag;
+    if (!iterator_->ReadU1(tag)) {
+        return false;
+    }
+
+    uint32_t time;
+    if (!iterator_->ReadU4(time)) {
+        return false;
+    }
+
+    uint32_t length;
+    if (!iterator_->ReadU4(length)) {
+        return false;
+    }
+
+    // Handle record based on tag
+    switch (tag) {
+        case HPROF_TAG_UTF8:
+            return HandleUtf8Record(length);
+
+        case HPROF_TAG_LOAD_CLASS:
+            return HandleLoadClassRecord();
+
+        case HPROF_TAG_HEAP_DUMP:
+        case HPROF_TAG_HEAP_DUMP_SEGMENT:
+            heap_dump_count_++;
+            return ParseHeapDump(length);
+
+        case HPROF_TAG_HEAP_DUMP_END:
+            // Nothing to do for this tag
+            return true;
+
+        default:
+            // Skip unknown tags
+            return iterator_->SkipBytes(length);
+    }
+}
+
+bool HprofParser::HandleUtf8Record(uint32_t length) {
+    // String ID
+    uint64_t id;
+    if (!iterator_->ReadId(id, header_.id_size())) {
+        return false;
+    }
+
+    // String data (length minus id_size)
+    std::string str;
+    if (!iterator_->ReadString(str, length - header_.id_size())) {
+        return false;
+    }
+
+    strings_[id] = str;
+    string_count_++;
+
+    return true;
+}
+
+bool HprofParser::HandleLoadClassRecord() {
+    // Serial number (not used)
+    uint32_t serial_num;
+    if (!iterator_->ReadU4(serial_num)) {
+        return false;
+    }
+
+    // Class object ID
+    uint64_t class_obj_id;
+    if (!iterator_->ReadId(class_obj_id, header_.id_size())) {
+        return false;
+    }
+
+    // Stack trace serial number (not used)
+    uint32_t stack_trace;
+    if (!iterator_->ReadU4(stack_trace)) {
+        return false;
+    }
+
+    // Class name string ID
+    uint64_t name_id;
+    if (!iterator_->ReadId(name_id, header_.id_size())) {
+        return false;
+    }
+
+    // Get class name from strings map
+    std::string class_name = GetString(name_id);
+
+    // Create class definition (will be populated later in CLASS_DUMP)
+    ClassDefinition class_def(class_obj_id, class_name);
+    classes_[class_obj_id] = class_def;
+    class_count_++;
+
+    return true;
+}
+
+bool HprofParser::ParseHeapDump(size_t length) {
+    size_t end_position = iterator_->GetPosition() + length;
+
+    // Parse heap dump records until we reach the end of the segment
+    while (iterator_->GetPosition() < end_position && !iterator_->IsEof()) {
+        if (!ParseHeapDumpRecord()) {
+            return false;
+        }
+    }
+
+    // Ensure we're at the exact end position
+    if (iterator_->GetPosition() != end_position) {
+        size_t current = iterator_->GetPosition();
+        if (current < end_position) {
+            // Skip any remaining bytes
+            iterator_->SkipBytes(end_position - current);
+        } else {
+            // We went too far, which is an error
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool HprofParser::ParseHeapDumpRecord() {
+    // Read sub-record type
+    uint8_t tag;
+    if (!iterator_->ReadU1(tag)) {
+        return false;
+    }
+
+    // Handle sub-record based on tag
+    switch (tag) {
+        case HPROF_HEAP_TAG_ROOT_JNI_GLOBAL:
+        case HPROF_HEAP_TAG_ROOT_JNI_LOCAL:
+        case HPROF_HEAP_TAG_ROOT_JAVA_FRAME:
+        case HPROF_HEAP_TAG_ROOT_NATIVE_STACK:
+        case HPROF_HEAP_TAG_ROOT_STICKY_CLASS:
+        case HPROF_HEAP_TAG_ROOT_THREAD_BLOCK:
+        case HPROF_HEAP_TAG_ROOT_MONITOR_USED:
+        case HPROF_HEAP_TAG_ROOT_THREAD_OBJ:
+        case HPROF_HEAP_TAG_ROOT_INTERNED_STRING:
+        case HPROF_HEAP_TAG_ROOT_FINALIZING:
+        case HPROF_HEAP_TAG_ROOT_DEBUGGER:
+        case HPROF_HEAP_TAG_ROOT_VM_INTERNAL:
+        case HPROF_HEAP_TAG_ROOT_JNI_MONITOR:
+        case HPROF_HEAP_TAG_ROOT_UNKNOWN:
+            return HandleRootRecord(static_cast<HprofHeapTag>(tag));
+
+        case HPROF_HEAP_TAG_CLASS_DUMP:
+            return HandleClassDumpRecord();
+
+        case HPROF_HEAP_TAG_INSTANCE_DUMP:
+            return HandleInstanceDumpRecord();
+
+        case HPROF_HEAP_TAG_OBJ_ARRAY_DUMP:
+            return HandleObjectArrayDumpRecord();
+
+        case HPROF_HEAP_TAG_PRIM_ARRAY_DUMP:
+            return HandlePrimitiveArrayDumpRecord();
+
+        case HPROF_HEAP_TAG_HEAP_DUMP_INFO:
+            return HandleHeapDumpInfoRecord();
+
+        default:
+            return false;
+    }
+}
+
+bool HprofParser::HandleHeapDumpInfoRecord() {
+    // Heap ID
+    uint32_t heap_id;
+    if (!iterator_->ReadU4(heap_id)) {
+        return false;
+    }
+
+    // Heap name string ID
+    uint64_t name_string_id;
+    if (!iterator_->ReadId(name_string_id, header_.id_size())) {
+        return false;
+    }
+
+    // Set current heap type
+    current_heap_ = static_cast<HeapType>(heap_id);
+
+    // Get heap name from string table
+    std::string heap_name = GetString(name_string_id);
+    heap_names_[current_heap_] = heap_name;
+
+    return true;
+}
+
+bool HprofParser::HandleClassDumpRecord() {
+  // Class object ID
+  uint64_t class_id;
+  if (!iterator_->ReadId(class_id, header_.id_size())) return false;
+
+  // Stack trace serial number (unused)
+  uint32_t stack_trace;
+  if (!iterator_->ReadU4(stack_trace)) return false;
+
+  // Super class ID
+  uint64_t super_class_id;
+  if (!iterator_->ReadId(super_class_id, header_.id_size())) return false;
+
+  // Class loader ID, signers ID, protection domain ID
+  uint64_t class_loader_id, signers_id, protection_domain_id;
+  if (!iterator_->ReadId(class_loader_id, header_.id_size())) return false;
+  if (!iterator_->ReadId(signers_id, header_.id_size())) return false;
+  if (!iterator_->ReadId(protection_domain_id, header_.id_size())) return false;
+
+  // Reserved (2 IDs)
+  uint64_t reserved1, reserved2;
+  if (!iterator_->ReadId(reserved1, header_.id_size())) return false;
+  if (!iterator_->ReadId(reserved2, header_.id_size())) return false;
+
+  // Instance size
+  uint32_t instance_size;
+  if (!iterator_->ReadU4(instance_size)) return false;
+
+  // Get class definition
+  auto it = classes_.find(class_id);
+  if (it == classes_.end()) {
+    PERFETTO_FATAL("Class not found in LOAD_CLASS");
   }
 
-  PERFETTO_LOG(
-      "Parsing Summary - String count: %zu, Class count: %zu, "
-      "Heap dump count: %zu, Class instance count: %zu, "
-      "Object array count: %zu, Primitive array count: %zu, "
-      "Root count: %zu, Field reference count: %zu, "
-      "Heap info count: %zu",
-      data_.string_count, data_.class_count, data_.heap_dump_count,
-      data_.class_instance_count, data_.object_array_count,
-      data_.primitive_array_count, data_.root_count,
-      data_.field_reference_count, data_.heap_info_count);
+  ClassDefinition& cls = it->second;
+  cls.SetSuperClassId(super_class_id);
+  cls.SetInstanceSize(instance_size);
 
-  return data_;
-}
-
-void HprofParser::ParseHeader() {
-  PERFETTO_DLOG("Parsing HPROF header");
-
-  char c;
-  data_.header.format = "";
-  while (byte_iterator_->ReadU1(reinterpret_cast<uint8_t&>(c)) && c != 0) {
-    data_.header.format.push_back(c);
+  // Constant pool (ignored)
+  uint16_t constant_pool_size;
+  if (!iterator_->ReadU2(constant_pool_size)) return false;
+  for (uint16_t i = 0; i < constant_pool_size; ++i) {
+    uint16_t index;
+    uint8_t type;
+    if (!iterator_->ReadU2(index)) return false;
+    if (!iterator_->ReadU1(type)) return false;
+    size_t size = GetFieldTypeSize(static_cast<FieldType>(type));
+    if (!iterator_->SkipBytes(size)) return false;
   }
 
-  if (!byte_iterator_->ReadU4(data_.header.identifier_size)) {
-    PERFETTO_FATAL("Error: Failed to read ID size");
+  // Static fields
+  uint16_t static_field_count;
+  if (!iterator_->ReadU2(static_field_count)) return false;
+  for (uint16_t i = 0; i < static_field_count; ++i) {
+    uint64_t name_id;
+    uint8_t type;
+
+    if (!iterator_->ReadId(name_id, header_.id_size())) return false;
+    if (!iterator_->ReadU1(type)) return false;
+
+    FieldType field_type = static_cast<FieldType>(type);
+    std::string field_name = GetString(name_id);
+
+    if (field_type == FIELD_TYPE_OBJECT) {
+      // Read object ID
+      uint64_t target_id = 0;
+      if (!iterator_->ReadId(target_id, header_.id_size())) return false;
+
+      if (target_id != 0) {
+        HprofObject& class_obj = objects_[class_id];
+        if (class_obj.id() == 0) {
+          class_obj = HprofObject(class_id, class_id, current_heap_,
+                                  ObjectType::OBJECT_TYPE_CLASS);
+        }
+        class_obj.AddReference("static_field:" + field_name, /*field_class_id=*/0, target_id);
+        reference_count_++;
+      }
+    } else {
+      // Skip non-object value
+      size_t type_size = GetFieldTypeSize(field_type);
+      if (!iterator_->SkipBytes(type_size)) return false;
+    }
   }
 
-  identifier_size_ = data_.header.identifier_size;
+  // Instance fields
+  uint16_t instance_field_count;
+  if (!iterator_->ReadU2(instance_field_count)) return false;
 
-  uint32_t high_time, low_time;
-  if (!byte_iterator_->ReadU4(high_time) || !byte_iterator_->ReadU4(low_time)) {
-    PERFETTO_FATAL("Error: Failed to read timestamp");
+  std::vector<Field> fields;
+  for (uint16_t i = 0; i < instance_field_count; ++i) {
+    uint64_t name_id;
+    uint8_t type;
+    if (!iterator_->ReadId(name_id, header_.id_size())) return false;
+    if (!iterator_->ReadU1(type)) return false;
+
+    std::string field_name = GetString(name_id);
+    fields.emplace_back(field_name, static_cast<FieldType>(type));
   }
 
-  data_.header.timestamp = (static_cast<uint64_t>(high_time) << 32) | low_time;
-
-  PERFETTO_DLOG("HPROF header: format=%s, idSize=%u",
-                data_.header.format.c_str(), identifier_size_);
+  cls.SetInstanceFields(fields);
+  return true;
 }
 
-bool HprofParser::HasMoreData() const {
-  return byte_iterator_->IsValid() && !byte_iterator_->IsEof();
-}
-
-size_t HprofParser::GetPosition() const {
-  return byte_iterator_->GetPosition();
-}
-
-bool HprofParser::IsEof() const {
-  return byte_iterator_->IsEof();
-}
-
-HprofParser::RecordHeader HprofParser::ReadRecordHeader() {
-  RecordHeader header;
-
-  if (!byte_iterator_->ReadU1(header.tag)) {
-    PERFETTO_FATAL("Failed to read record tag");
+bool HprofParser::HandleInstanceDumpRecord() {
+  // Object ID
+  uint64_t object_id;
+  if (!iterator_->ReadId(object_id, header_.id_size())) {
+    return false;
   }
 
-  if (!byte_iterator_->ReadU4(header.time) ||
-      !byte_iterator_->ReadU4(header.length)) {
-    PERFETTO_FATAL("Failed to read record time/length");
+  // Stack trace serial number (not used)
+  uint32_t stack_trace;
+  if (!iterator_->ReadU4(stack_trace)) {
+    return false;
   }
 
-  PERFETTO_DLOG("Reading record with tag: 0x%x, time: %u, length: %u",
-                static_cast<int>(header.tag), header.time, header.length);
-
-  return header;
-}
-
-void HprofParser::SkipRecord(uint32_t length) {
-  if (!byte_iterator_->SkipBytes(length)) {
-    PERFETTO_FATAL("Failed to skip record payload");
+  // Class ID
+  uint64_t class_id;
+  if (!iterator_->ReadId(class_id, header_.id_size())) {
+    return false;
   }
-}
 
-template <typename T>
-void HprofParser::AddMainRecord(const RecordHeader& header, T&& record_data) {
-  HprofRecord record;
-  record.tag = header.tag;
-  record.time = header.time;
-  record.length = header.length;
-  record.data = std::forward<T>(record_data);
-  data_.records.push_back(record);
-}
+  // Instance data length
+  uint32_t data_length;
+  if (!iterator_->ReadU4(data_length)) {
+    return false;
+  }
 
-template <typename T>
-void HprofParser::AddHeapRecord(HprofHeapTag tag, T&& record_data) {
-  HprofHeapRecord heap_record;
-  heap_record.tag = tag;
-  heap_record.data = std::forward<T>(record_data);
+  // Read instance data
+  std::vector<uint8_t> data;
+  if (!iterator_->ReadBytes(data, data_length)) {
+    return false;
+  }
 
-  if (!data_.records.empty() &&
-      std::holds_alternative<HeapDumpData>(data_.records.back().data)) {
-    std::get<HeapDumpData>(data_.records.back().data)
-        .records.push_back(heap_record);
+  // Check if object already exists (e.g., created as a root placeholder)
+  auto it = objects_.find(object_id);
+  if (it != objects_.end()) {
+    HprofObject& obj = it->second;
+
+    // Preserve root flags if previously set
+    bool was_root = obj.is_root();
+    std::optional<HprofHeapTag> root_type = obj.root_type();
+
+    // Overwrite with new instance info
+    obj = HprofObject(object_id, class_id, current_heap_, ObjectType::OBJECT_TYPE_INSTANCE);
+    obj.SetRawData(std::move(data));
+
+    if (was_root && root_type.has_value()) {
+      obj.SetRootType(root_type.value());
+    }
   } else {
-    // This should not happen if the parsing logic is correct, as heap records
-    // should only appear within a HEAP_DUMP or HEAP_DUMP_SEGMENT.
-    PERFETTO_FATAL("Heap record encountered outside of a heap dump segment");
+    HprofObject obj(object_id, class_id, current_heap_, ObjectType::OBJECT_TYPE_INSTANCE);
+    obj.SetRawData(std::move(data));
+    objects_[object_id] = std::move(obj);
+  }
+
+  instance_count_++;
+  return true;
+}
+
+bool HprofParser::HandleObjectArrayDumpRecord() {
+    // Array ID
+    uint64_t array_id;
+    if (!iterator_->ReadId(array_id, header_.id_size())) {
+        return false;
+    }
+
+    // Stack trace serial number
+    uint32_t stack_trace;
+    if (!iterator_->ReadU4(stack_trace)) {
+        return false;
+    }
+
+    // Number of elements
+    uint32_t element_count;
+    if (!iterator_->ReadU4(element_count)) {
+        return false;
+    }
+
+    // Array class ID
+    uint64_t array_class_id;
+    if (!iterator_->ReadId(array_class_id, header_.id_size())) {
+        return false;
+    }
+
+    // Read elements
+    std::vector<uint64_t> elements;
+    elements.reserve(element_count);
+
+    for (uint32_t i = 0; i < element_count; i++) {
+        uint64_t element_id;
+        if (!iterator_->ReadId(element_id, header_.id_size())) {
+            return false;
+        }
+        elements.push_back(element_id);
+    }
+
+    // Create array object
+    HprofObject obj{
+        array_id, array_class_id, current_heap_, ObjectType::OBJECT_TYPE_OBJECT_ARRAY};
+    obj.SetArrayElements(std::move(elements));
+    obj.SetArrayElementType(FieldType::FIELD_TYPE_OBJECT);
+
+    // Add object to collection
+    objects_[array_id] = obj;
+    object_array_count_++;
+
+    return true;
+}
+
+bool HprofParser::HandlePrimitiveArrayDumpRecord() {
+    // Array ID
+    uint64_t array_id;
+    if (!iterator_->ReadId(array_id, header_.id_size())) {
+        return false;
+    }
+
+    // Stack trace serial number
+    uint32_t stack_trace;
+    if (!iterator_->ReadU4(stack_trace)) {
+        return false;
+    }
+
+    // Number of elements
+    uint32_t element_count;
+    if (!iterator_->ReadU4(element_count)) {
+        return false;
+    }
+
+    // Element type
+    uint8_t element_type;
+    if (!iterator_->ReadU1(element_type)) {
+        return false;
+    }
+
+    // Determine element size
+    size_t type_size = GetFieldTypeSize(static_cast<FieldType>(element_type));
+
+    // Read array data
+    std::vector<uint8_t> data;
+    if (!iterator_->ReadBytes(data, element_count * type_size)) {
+        return false;
+    }
+
+    // Create array object
+    HprofObject obj{
+        array_id, 0, current_heap_, ObjectType::OBJECT_TYPE_PRIMITIVE_ARRAY};
+    obj.SetRawData(data);
+    obj.SetArrayElementType(static_cast<FieldType>(element_type));
+
+    // Add object to collection
+    objects_[array_id] = obj;
+    primitive_array_count_++;
+
+    return true;
+}
+
+bool HprofParser::HandleRootRecord(uint8_t tag) {
+  // Object ID
+  uint64_t object_id;
+  if (!iterator_->ReadId(object_id, header_.id_size())) {
+    return false;
+  }
+
+  // Skip any tag-specific metadata
+  switch (tag) {
+    case HPROF_HEAP_TAG_ROOT_JNI_GLOBAL:
+      if (!iterator_->SkipBytes(header_.id_size())) return false;
+      break;
+
+    case HPROF_HEAP_TAG_ROOT_JNI_LOCAL:
+    case HPROF_HEAP_TAG_ROOT_JAVA_FRAME:
+    case HPROF_HEAP_TAG_ROOT_JNI_MONITOR:
+      if (!iterator_->SkipBytes(8)) return false;
+      break;
+
+    case HPROF_HEAP_TAG_ROOT_NATIVE_STACK:
+    case HPROF_HEAP_TAG_ROOT_THREAD_BLOCK:
+      if (!iterator_->SkipBytes(4)) return false;
+      break;
+
+    case HPROF_HEAP_TAG_ROOT_THREAD_OBJ:
+      if (!iterator_->SkipBytes(8)) return false;
+      break;
+
+    default:
+      // No extra data
+      break;
+  }
+
+  // Either mark existing object as root, or create placeholder
+  auto it = objects_.find(object_id);
+  if (it != objects_.end()) {
+    it->second.SetRootType(static_cast<HprofHeapTag>(tag));
+  } else {
+    HprofObject obj(object_id, /*class_id=*/0, current_heap_, ObjectType::OBJECT_TYPE_INSTANCE);
+    obj.SetRootType(static_cast<HprofHeapTag>(tag));
+    objects_[object_id] = std::move(obj);
+  }
+
+  root_count_++;
+  return true;
+}
+
+void HprofObject::AddReference(const std::string& field_name, uint64_t field_class_id, uint64_t target_id) {
+  references_.emplace_back(id_, field_name, field_class_id, target_id);
+}
+
+bool HprofParser::ExtractReferences(HprofObject& obj, const ClassDefinition& cls) {
+  const std::vector<uint8_t>& data = obj.raw_data();
+  if (data.empty()) {
+    return true;  // Nothing to extract
+  }
+
+  // Get all fields from the class hierarchy
+  std::vector<Field> fields = GetFieldsForClassHierarchy(cls.id());
+
+  size_t offset = 0;
+  for (const auto& field : fields) {
+    // Check if we've reached the end of the data
+    if (offset >= data.size()) {
+      break;
+    }
+
+    // Only process object references
+    if (field.type() == FieldType::FIELD_TYPE_OBJECT) {
+      // Extract object reference (ID)
+      uint64_t target_id = 0;
+
+      // Read ID based on header id_size
+      if (header_.id_size() == 4 && offset + 4 <= data.size()) {
+        target_id =
+            (static_cast<uint64_t>(data[offset]) << 24) |
+            (static_cast<uint64_t>(data[offset + 1]) << 16) |
+            (static_cast<uint64_t>(data[offset + 2]) << 8) |
+            static_cast<uint64_t>(data[offset + 3]);
+        offset += 4;
+      } else if (header_.id_size() == 8 && offset + 8 <= data.size()) {
+        target_id = 0;
+        for (int i = 0; i < 8; i++) {
+          target_id = (target_id << 8) | data[offset + static_cast<size_t>(i)];
+        }
+        offset += 8;
+      } else {
+        // Invalid ID size or not enough data
+        break;
+      }
+
+      // Add reference if target is not null
+      if (target_id != 0) {
+        // Get class ID for this target if available, otherwise use 0
+        uint64_t field_class_id = 0;
+        auto it = objects_.find(target_id);
+        if (it != objects_.end()) {
+          field_class_id = it->second.class_id();
+        }
+
+        obj.AddReference(field.name(), field_class_id, target_id);
+        reference_count_++;
+      }
+    } else {
+      // Skip non-object fields
+      offset += field.GetSize();
+    }
+  }
+
+  return true;
+}
+
+std::vector<Field> HprofParser::GetFieldsForClassHierarchy(uint64_t class_id) {
+    std::vector<Field> result;
+
+    // Follow class hierarchy to collect all fields
+    uint64_t current_class_id = class_id;
+    while (current_class_id != 0) {
+        auto it = classes_.find(current_class_id);
+        if (it == classes_.end()) {
+            break;
+        }
+
+        const auto& cls = it->second;
+        const auto& fields = cls.instance_fields();
+
+        // Add fields from this class
+        result.insert(result.end(), fields.begin(), fields.end());
+
+        // Move up to superclass
+        current_class_id = cls.super_class_id();
+    }
+
+    return result;
+}
+
+size_t HprofParser::GetFieldTypeSize(FieldType type) const {
+  switch (type) {
+    case FIELD_TYPE_OBJECT: return header_.id_size();
+    case FIELD_TYPE_BOOLEAN: return 1;
+    case FIELD_TYPE_CHAR: return 2;
+    case FIELD_TYPE_FLOAT: return 4;
+    case FIELD_TYPE_DOUBLE: return 8;
+    case FIELD_TYPE_BYTE: return 1;
+    case FIELD_TYPE_SHORT: return 2;
+    case FIELD_TYPE_INT: return 4;
+    case FIELD_TYPE_LONG: return 8;
   }
 }
 
 std::string HprofParser::GetString(uint64_t id) const {
-  auto it = data_.id_to_string_map.find(id);
-  if (it != data_.id_to_string_map.end()) {
-    return it->second;
-  }
-  PERFETTO_DLOG("Warning: String ID %" PRIu64 " not found", id);
-  return "???";
+    auto it = strings_.find(id);
+    if (it != strings_.end()) {
+        return it->second;
+    }
+    return "[unknown string ID: " + std::to_string(id) + "]";
 }
 
-void HprofParser::ParseRecordByType(const RecordHeader& header) {
-  uint32_t count = 0;  // Used in HPROF_TRACE case
-  switch (header.tag) {
-    case HPROF_UTF8:
-      ParseUtf8Record(header);
-      break;
-    case HPROF_LOAD_CLASS:
-      ParseLoadClassRecord(header);
-      break;
-    case HPROF_HEAP_DUMP:
-    case HPROF_HEAP_DUMP_SEGMENT:
-      ParseHeapDumpRecord(header);
-      break;
-    case HPROF_HEAP_DUMP_END:
-      AddMainRecord(header, std::monostate{});
-      break;
-    case HPROF_FRAME:
-      SkipRecord(identifier_size_);  // stack frame id
-      SkipRecord(identifier_size_);  // method frame id
-      SkipRecord(identifier_size_);  // source file string id
-      SkipRecord(identifier_size_);  // source file string id
-      SkipRecord(4);                 // class serial number
-      SkipRecord(4);                 // line number
-      break;
-    case HPROF_TRACE:
-      SkipRecord(4);                         // trace serial number
-      SkipRecord(4);                         // thread serial number
-      byte_iterator_->ReadU4(count);         // number of frames
-      SkipRecord(identifier_size_ * count);  // frame ids
-      break;
+std::string HprofParser::GetHeapName(HeapType type) const {
+    auto it = heap_names_.find(type);
+    if (it != heap_names_.end()) {
+        return it->second;
+    }
+    return "unknown heap";
+}
+
+// Convert root type ID to string
+std::string HeapGraph::GetRootType(uint8_t root_type) {
+  switch (root_type) {
+    case HPROF_HEAP_TAG_ROOT_JNI_GLOBAL:
+      return "jni_global";
+    case HPROF_HEAP_TAG_ROOT_JNI_LOCAL:
+      return "jni_local";
+    case HPROF_HEAP_TAG_ROOT_JAVA_FRAME:
+      return "java_frame";
+    case HPROF_HEAP_TAG_ROOT_NATIVE_STACK:
+      return "native_stack";
+    case HPROF_HEAP_TAG_ROOT_STICKY_CLASS:
+      return "sticky_class";
+    case HPROF_HEAP_TAG_ROOT_THREAD_BLOCK:
+      return "thread_block";
+    case HPROF_HEAP_TAG_ROOT_MONITOR_USED:
+      return "monitor_used";
+    case HPROF_HEAP_TAG_ROOT_THREAD_OBJ:
+      return "thread_object";
+    case HPROF_HEAP_TAG_ROOT_INTERNED_STRING:
+      return "interned_string";
+    case HPROF_HEAP_TAG_ROOT_FINALIZING:
+      return "finalizing";
+    case HPROF_HEAP_TAG_ROOT_DEBUGGER:
+      return "debugger";
+    case HPROF_HEAP_TAG_ROOT_VM_INTERNAL:
+      return "vm_internal";
+    case HPROF_HEAP_TAG_ROOT_JNI_MONITOR:
+      return "jni_monitor";
     default:
-      PERFETTO_LOG("Skipping unknown record payload of length %u and tag %u",
-                   header.length, header.tag);
-      SkipRecord(header.length);
-      AddMainRecord(header, std::monostate{});
-      break;
+      return "unknown";
   }
 }
 
-void HprofParser::ParseUtf8Record(const RecordHeader& header) {
-  PERFETTO_DLOG("Parsing UTF8 record");
-
-  Utf8StringData utf8_data;
-
-  if (!byte_iterator_->ReadId(utf8_data.name_id, identifier_size_)) {
-    PERFETTO_FATAL("Failed to read string ID");
-  }
-
-  size_t string_length = header.length - identifier_size_;
-  if (!byte_iterator_->ReadString(utf8_data.utf8_string, string_length)) {
-    PERFETTO_FATAL("Failed to read string data");
-  }
-
-  // Always store 0 as "???" like in the Java implementation
-  if (utf8_data.name_id == 0) {
-    utf8_data.utf8_string = "???";
-  }
-
-  PERFETTO_DLOG("Read UTF8 string: ID=%" PRIu64 ", string='%s'",
-                utf8_data.name_id, utf8_data.utf8_string.c_str());
-
-  AddMainRecord(header, utf8_data);
-
-  data_.id_to_string_map[utf8_data.name_id] = utf8_data.utf8_string;
-  data_.string_count++;
-}
-
-void HprofParser::ParseLoadClassRecord(const RecordHeader& header) {
-  PERFETTO_DLOG("Parsing LOAD_CLASS record");
-
-  LoadClassData class_data_record;
-
-  if (!byte_iterator_->ReadU4(class_data_record.class_serial_num) ||
-      !byte_iterator_->ReadId(class_data_record.class_object_id,
-                              identifier_size_) ||
-      !byte_iterator_->ReadU4(class_data_record.stack_trace_serial_num) ||
-      !byte_iterator_->ReadId(class_data_record.class_name_id,
-                              identifier_size_)) {
-    PERFETTO_FATAL("Failed to read load class record data");
-  }
-
-  class_data_record.class_name = GetString(class_data_record.class_name_id);
-
-  PERFETTO_DLOG(
-      "Class loaded: serial=%u, obj_id=%" PRIu64 ", name_id=%" PRIu64
-      ", name='%s'",
-      class_data_record.class_serial_num, class_data_record.class_object_id,
-      class_data_record.class_name_id, class_data_record.class_name.c_str());
-
-  // Update the class info with the name
-  ClassInfo& class_info = data_.classes[class_data_record.class_object_id];
-  class_info.name = class_data_record.class_name;
-  class_info.class_object_id = class_data_record.class_object_id;
-
-  class_info.is_string_class = IsStringClass(class_info.name);
-
-  if (class_info.name == "java.lang.Class") {
-    data_.java_lang_class_object_id = class_data_record.class_object_id;
-  }
-
-  AddMainRecord(header, class_data_record);
-  data_.class_count++;
-}
-
-void HprofParser::ParseHeapDumpRecord(const RecordHeader& header) {
-  PERFETTO_DLOG("Parsing HEAP_DUMP or HEAP_DUMP_SEGMENT record");
-
-  // Create the HeapDumpData record immediately
-  HeapDumpData heap_data;
-  AddMainRecord(header, heap_data);
-
-  size_t end_pos = GetPosition() + header.length;
-
-  while (GetPosition() < end_pos && !IsEof()) {
-    uint8_t sub_tag;
-    if (!byte_iterator_->ReadU1(sub_tag)) {
-      if (IsEof()) {
-        break;
-      }
-      PERFETTO_FATAL("Failed to read heap dump sub-record tag");
-    }
-
-    PERFETTO_DLOG("Parsing heap sub-record with tag: 0x%x",
-                  static_cast<int>(sub_tag));
-
-    switch (sub_tag) {
-      case HPROF_ROOT_JNI_GLOBAL:
-        ParseRootJniGlobal();
-        break;
-      case HPROF_ROOT_JNI_LOCAL:
-      case HPROF_ROOT_JAVA_FRAME:
-      case HPROF_ROOT_THREAD_BLOCK:  // HPROF_ROOT_THREAD_BLOCK also includes
-                                     // thread/frame info
-        ParseThreadObjectRoot(sub_tag);
-        break;
-      case HPROF_ROOT_NATIVE_STACK:
-      case HPROF_ROOT_STICKY_CLASS:
-      case HPROF_ROOT_MONITOR_USED:
-      case HPROF_ROOT_INTERNED_STRING:
-      case HPROF_ROOT_FINALIZING:
-      case HPROF_ROOT_DEBUGGER:
-      case HPROF_ROOT_VM_INTERNAL:
-      case HPROF_ROOT_JNI_MONITOR:
-      case HPROF_ROOT_UNKNOWN:
-        ParseSimpleRoot(sub_tag);
-        break;
-      case HPROF_ROOT_THREAD_OBJ:
-        // This specific tag has object ID, thread ID, AND frame number
-        ParseThreadObjectRoot(sub_tag);
-        break;
-      case HPROF_HEAP_DUMP_INFO:
-        ParseHeapDumpInfo();
-        break;
-      case HPROF_CLASS_DUMP:
-        ParseClassDump();
-        break;
-      case HPROF_INSTANCE_DUMP:
-        ParseInstanceDump();
-        break;
-      case HPROF_OBJ_ARRAY_DUMP:
-        ParseObjectArrayDump();
-        break;
-      case HPROF_PRIM_ARRAY_DUMP:
-        ParsePrimitiveArrayDump();
-        break;
-      default:
-        PERFETTO_LOG("Unknown sub-record tag: 0x%x", static_cast<int>(sub_tag));
-        SkipUnknownSubRecord(sub_tag);
-        break;
-    }
-
-    if (GetPosition() > end_pos && !IsEof()) {
-      PERFETTO_FATAL("Parsed past expected end of heap dump segment");
-    }
-
-    if (GetPosition() == end_pos && !IsEof() &&
-        sub_tag != HPROF_HEAP_DUMP_END && header.tag != HPROF_HEAP_DUMP) {
-      // Android HPROF sometimes puts a HEAP_DUMP_END *after* the expected
-      // end_pos if this is a segment. We check here to avoid errors if we are
-      // exactly at the end and the next tag *might* be HEAP_DUMP_END. This is a
-      // heuristic based on observed behavior, actual spec compliance might
-      // require a peek function or different loop condition. For simplicity
-      // here, we just check if we are *past* the end.
-    }
-
-    // If we've reached or passed the expected end of the current heap dump
-    // segment, break.
-    if (GetPosition() >= end_pos || IsEof()) {
-      break;
-    }
-  }
-
-  data_.heap_dump_count++;
-}
-
-void HprofParser::SkipUnknownSubRecord(uint8_t sub_tag) {
-  PERFETTO_DLOG("Skipping unknown sub-record with tag: 0x%x",
-                static_cast<int>(sub_tag));
-
-  // Simple root records with just an object ID
-  if (sub_tag >= HPROF_ROOT_RECORD_MIN && sub_tag <= HPROF_ROOT_RECORD_MAX) {
-    byte_iterator_->SkipBytes(identifier_size_);
-  } else {
-    // For other unknown tags, skip a byte
-    byte_iterator_->SkipBytes(1);
-  }
-}
-
-void HprofParser::ParseRootJniGlobal() {
-  PERFETTO_DLOG("Parsing JNI GLOBAL root");
-
-  RootRecordData record_data;
-  record_data.root_type = HPROF_ROOT_JNI_GLOBAL;
-
-  uint64_t global_ref_id;  // Temporary variable for the second ID
-  if (!byte_iterator_->ReadId(record_data.object_id, identifier_size_) ||
-      !byte_iterator_->ReadId(global_ref_id, identifier_size_)) {
-    PERFETTO_FATAL("Failed to read JNI GLOBAL root");
-  }
-
-  AddHeapRecord(HPROF_ROOT_JNI_GLOBAL, record_data);
-
-  data_.root_objects[record_data.object_id] = HPROF_ROOT_JNI_GLOBAL;
-  data_.root_count++;
-}
-
-void HprofParser::ParseThreadObjectRoot(uint8_t sub_tag_value) {
-  PERFETTO_DLOG("Parsing thread object root with tag 0x%x", sub_tag_value);
-
-  RootRecordData record_data;
-  record_data.root_type = sub_tag_value;
-
-  if (!byte_iterator_->ReadId(record_data.object_id, identifier_size_) ||
-      !byte_iterator_->ReadU4(record_data.thread_id)) {
-    PERFETTO_FATAL(
-        "Failed to read thread object root header (object/thread id)");
-  }
-
-  // HPROF_ROOT_THREAD_OBJ, HPROF_ROOT_JNI_LOCAL, HPROF_ROOT_JAVA_FRAME have
-  // frame number
-  if (sub_tag_value == HPROF_ROOT_THREAD_OBJ ||
-      sub_tag_value == HPROF_ROOT_JNI_LOCAL ||
-      sub_tag_value == HPROF_ROOT_JAVA_FRAME) {
-    if (!byte_iterator_->ReadU4(record_data.frame_number)) {
-      PERFETTO_FATAL("Failed to read thread object root frame number");
-    }
-    PERFETTO_DLOG("Thread-related root (tag 0x%x): objectID=%" PRIu64
-                  ", threadID=%u, frameNumber=%u",
-                  sub_tag_value, record_data.object_id, record_data.thread_id,
-                  record_data.frame_number);
-  } else {
-    PERFETTO_DLOG("Thread-related root (tag 0x%x): objectID=%" PRIu64
-                  ", threadID=%u",
-                  sub_tag_value, record_data.object_id, record_data.thread_id);
-  }
-
-  AddHeapRecord(static_cast<HprofHeapTag>(record_data.root_type), record_data);
-
-  data_.root_objects[record_data.object_id] = record_data.root_type;
-  data_.root_count++;
-}
-
-void HprofParser::ParseSimpleRoot(uint8_t sub_tag_value) {
-  PERFETTO_DLOG("Parsing simple root with tag 0x%x", sub_tag_value);
-
-  RootRecordData record_data;
-  record_data.root_type = sub_tag_value;
-
-  if (!byte_iterator_->ReadId(record_data.object_id, identifier_size_)) {
-    PERFETTO_FATAL("Failed to read simple root");
-  }
-
-  PERFETTO_DLOG("Simple root (tag 0x%x): objectID=%" PRIu64, sub_tag_value,
-                record_data.object_id);
-
-  AddHeapRecord(static_cast<HprofHeapTag>(record_data.root_type), record_data);
-
-  data_.root_objects[record_data.object_id] = record_data.root_type;
-  data_.root_count++;
-}
-
-void HprofParser::ParseHeapDumpInfo() {
-  PERFETTO_DLOG("Parsing heap dump info");
-
-  HeapDumpInfoData heap_data;
-
-  if (!byte_iterator_->ReadU4(heap_data.heap_id) ||
-      !byte_iterator_->ReadId(heap_data.heap_name_string_id,
-                              identifier_size_)) {
-    PERFETTO_FATAL("Failed to read heap dump info");
-  }
-
-  heap_data.heap_name = GetString(heap_data.heap_name_string_id);
-  if (heap_data.heap_name == "???") {
-    // Fallback name based on heap ID if string ID not found
-    heap_data.heap_name = "unknown-heap-" + std::to_string(heap_data.heap_id);
-  }
-
-  PERFETTO_DLOG("Heap dump info: heapID=%u, heapName='%s'", heap_data.heap_id,
-                heap_data.heap_name.c_str());
-
-  current_heap_ = static_cast<HprofHeapId>(heap_data.heap_id);
-
-  AddHeapRecord(HPROF_HEAP_DUMP_INFO, heap_data);
-  data_.heap_info_count++;
-}
-
-void HprofParser::ParseClassDump() {
-  PERFETTO_DLOG("Starting to parse class dump");
-
-  ClassDumpData class_data;
-
-  uint64_t reserved1, reserved2;
-  if (!byte_iterator_->ReadId(class_data.class_object_id, identifier_size_) ||
-      !byte_iterator_->ReadU4(class_data.stack_trace_serial_num) ||
-      !byte_iterator_->ReadId(class_data.super_class_object_id,
-                              identifier_size_) ||
-      !byte_iterator_->ReadId(class_data.class_loader_object_id,
-                              identifier_size_) ||
-      !byte_iterator_->ReadId(class_data.signers_object_id, identifier_size_) ||
-      !byte_iterator_->ReadId(class_data.protection_domain_object_id,
-                              identifier_size_) ||
-      !byte_iterator_->ReadId(reserved1, identifier_size_) ||
-      !byte_iterator_->ReadId(reserved2, identifier_size_) ||
-      !byte_iterator_->ReadU4(class_data.instance_size)) {
-    PERFETTO_FATAL("Failed to read class dump header");
-  }
-
-  PERFETTO_DLOG("Class dump: classID=%" PRIu64 ", superClassID=%" PRIu64,
-                class_data.class_object_id, class_data.super_class_object_id);
-
-  class_data.heap_id = current_heap_;
-
-  ClassInfo& class_info = data_.classes[class_data.class_object_id];
-  class_info.super_class_id = class_data.super_class_object_id;
-  class_info.instance_size = class_data.instance_size;
-
-  // Name might have been populated by LOAD_CLASS record, but set object ID
-  // here explicitly as this is the definitive class definition.
-  class_info.class_object_id = class_data.class_object_id;
-
-  // Check if this is a String class (name might be available from LOAD_CLASS)
-  if (IsStringClass(class_info.name)) {
-    class_info.is_string_class = true;
-    class_data.is_string_class = true;
-  }
-
-  uint16_t constant_pool_size;
-  if (!byte_iterator_->ReadU2(constant_pool_size)) {
-    PERFETTO_FATAL("Failed to read constant pool size");
-  }
-
-  PERFETTO_DLOG("Constant pool size: %u", constant_pool_size);
-
-  for (uint16_t i = 0; i < constant_pool_size; i++) {
-    uint16_t index;
-    uint8_t type;
-    if (!byte_iterator_->ReadU2(index) || !byte_iterator_->ReadU1(type)) {
-      PERFETTO_FATAL("Failed to read constant pool entry");
-    }
-    if (!byte_iterator_->SkipBytes(GetFieldTypeSize(type))) {
-      PERFETTO_FATAL("Failed to skip constant pool value");
-    }
-  }
-
-  uint16_t static_field_count;
-  if (!byte_iterator_->ReadU2(static_field_count)) {
-    PERFETTO_FATAL("Failed to read static field count");
-  }
-
-  PERFETTO_DLOG("Static field count: %u", static_field_count);
-  class_data.static_fields.reserve(static_field_count);
-
-  for (uint16_t i = 0; i < static_field_count; i++) {
-    uint64_t name_string_id;
-    uint8_t type;
-    if (!byte_iterator_->ReadId(name_string_id, identifier_size_) ||
-        !byte_iterator_->ReadU1(type)) {
-      PERFETTO_FATAL("Failed to read static field entry");
-    }
-
-    FieldInfo field;
-    field.name = GetString(name_string_id);
-    field.type = type;
-    class_data.static_fields.push_back(field);
-
-    if (!byte_iterator_->SkipBytes(GetFieldTypeSize(type))) {
-      PERFETTO_FATAL("Failed to skip static field value");
-    }
-  }
-
-  uint16_t numInstanceFields;
-  if (!byte_iterator_->ReadU2(numInstanceFields)) {
-    PERFETTO_FATAL("Failed to read number of instance fields");
-  }
-
-  PERFETTO_DLOG("Instance field count: %u", numInstanceFields);
-  class_data.instance_fields.reserve(numInstanceFields);
-  class_info.fields.clear();
-  class_info.fields.reserve(numInstanceFields);
-
-  for (uint16_t i = 0; i < numInstanceFields; ++i) {
-    uint64_t fieldNameId;
-    if (!byte_iterator_->ReadId(fieldNameId, identifier_size_)) {
-      PERFETTO_FATAL("Failed to read instance field name ID");
-    }
-
-    uint8_t type;
-    if (!byte_iterator_->ReadU1(type)) {
-      PERFETTO_FATAL("Failed to read instance field type");
-    }
-
-    FieldInfo field;
-    field.name = GetString(fieldNameId);
-    field.type = type;
-    class_data.instance_fields.push_back(field);
-    class_info.fields.push_back(field);
-
-    if (type == TYPE_OBJECT) {
-      data_.field_reference_count++;
-    }
-  }
-
-  if (data_.java_lang_class_object_id == 0) {
-    PERFETTO_LOG("Warning: No class definition found for java.lang.Class");
-  }
-
-  AddHeapRecord(HPROF_CLASS_DUMP, class_data);
-}
-
-void HprofParser::ParseInstanceDump() {
-  PERFETTO_DLOG("Parsing instance dump");
-
-  InstanceDumpData instance_data;
-  uint32_t data_length;
-
-  if (!byte_iterator_->ReadId(instance_data.object_id, identifier_size_) ||
-      !byte_iterator_->ReadU4(instance_data.stack_trace_serial_num) ||
-      !byte_iterator_->ReadId(instance_data.class_object_id,
-                              identifier_size_) ||
-      !byte_iterator_->ReadU4(data_length)) {
-    PERFETTO_FATAL("Failed to read instance dump header");
-  }
-
-  PERFETTO_DLOG(
-      "Instance dump: objectID=%" PRIu64 ", classID=%" PRIu64 ", dataLength=%u",
-      instance_data.object_id, instance_data.class_object_id, data_length);
-
-  // Set heap ID (from current heap context)
-  instance_data.heap_id = current_heap_;
-
-  // Store object to class mapping
-  data_.object_to_class[instance_data.object_id] =
-      instance_data.class_object_id;
-
-  // Read instance data
-  if (!byte_iterator_->ReadBytes(instance_data.raw_instance_data,
-                                 data_length)) {
-    PERFETTO_FATAL("Failed to read instance data");
-  }
-
-  // Get class info and process fields
-  auto class_it = data_.classes.find(instance_data.class_object_id);
-  if (class_it == data_.classes.end()) {
-    PERFETTO_DLOG("Warning: Class info not found for class ID: %" PRIu64,
-                  instance_data.class_object_id);
-    // Add record even if class info is missing
-    AddHeapRecord(HPROF_INSTANCE_DUMP, instance_data);
-    data_.class_instance_count++;
-    return;
-  }
-
-  const ClassInfo& class_info = class_it->second;
-  bool is_string_class = class_info.is_string_class;
-
-  PERFETTO_DLOG("Processing instance of class: %s%s", class_info.name.c_str(),
-                is_string_class ? " (String class)" : "");
-
-  // Get all instance fields from class hierarchy
-  std::vector<FieldInfo> instance_fields =
-      GetFieldsForClassHierarchy(instance_data.class_object_id);
-
-  // Process instance fields
-  size_t offset = 0;
-  for (const auto& field : instance_fields) {
-    if (offset >= data_length) {
-      PERFETTO_DLOG("Warning: Instance data too short for field '%s'",
-                    field.name.c_str());
-      break;
-    }
-
-    // Handle reference fields (TYPE_OBJECT)
-    if (field.type == TYPE_OBJECT) {
-      uint64_t target_id = 0;
-
-      // Read object ID based on identifier size
-      if (identifier_size_ == 4 && offset + 4 <= data_length) {
-        uint32_t id_val = 0;
-        memcpy(&id_val, &instance_data.raw_instance_data[offset], 4);
-        // Convert from big-endian
-        id_val = ((id_val & 0xFF000000) >> 24) | ((id_val & 0x00FF0000) >> 8) |
-                 ((id_val & 0x0000FF00) << 8) | ((id_val & 0x000000FF) << 24);
-        target_id = id_val;
-      } else if (identifier_size_ == 8 && offset + 8 <= data_length) {
-        uint64_t id_val = 0;
-        memcpy(&id_val, &instance_data.raw_instance_data[offset], 8);
-        // Convert from big-endian
-        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(
-            &instance_data.raw_instance_data[offset]);
-        id_val = (static_cast<uint64_t>(bytes[0]) << 56) |
-                 (static_cast<uint64_t>(bytes[1]) << 48) |
-                 (static_cast<uint64_t>(bytes[2]) << 40) |
-                 (static_cast<uint64_t>(bytes[3]) << 32) |
-                 (static_cast<uint64_t>(bytes[4]) << 24) |
-                 (static_cast<uint64_t>(bytes[5]) << 16) |
-                 (static_cast<uint64_t>(bytes[6]) << 8) |
-                 static_cast<uint64_t>(bytes[7]);
-        target_id = id_val;
-      }
-
-      // Add reference if target is non-null
-      if (target_id != 0) {
-        ObjectReference ref;
-        ref.field_name = field.name;
-        ref.target_object_id = target_id;
-
-        // Add reference to instance and global maps
-        instance_data.references.push_back(ref);
-        data_.owner_to_owned[instance_data.object_id].push_back(ref);
-
-        PERFETTO_DLOG("Added reference: owner=%" PRIu64
-                      ", field=%s, target=%" PRIu64,
-                      instance_data.object_id, field.name.c_str(), target_id);
-      }
-    }
-
-    // Move to next field
-    offset += GetFieldTypeSize(field.type);
-  }
-
-  // Special handling for String class
-  if (is_string_class) {
-    // Look for char array reference in "value" field
-    for (const auto& ref : instance_data.references) {
-      if (ref.field_name == "value") {
-        // Add special stringValue reference
-        ObjectReference string_value_ref;
-        string_value_ref.field_name = "stringValue";
-        string_value_ref.target_object_id = ref.target_object_id;
-
-        instance_data.references.push_back(string_value_ref);
-        data_.owner_to_owned[instance_data.object_id].push_back(
-            string_value_ref);
-
-        PERFETTO_DLOG("Added stringValue reference for String object %" PRIu64,
-                      instance_data.object_id);
-        break;
-      }
-    }
-  }
-
-  // Add the instance dump record
-  AddHeapRecord(HPROF_INSTANCE_DUMP, instance_data);
-  data_.class_instance_count++;
-}
-
-void HprofParser::ParseObjectArrayDump() {
-  PERFETTO_DLOG("Parsing object array dump");
-
-  ObjArrayDumpData array_data;
-  uint32_t size;
-
-  if (!byte_iterator_->ReadId(array_data.array_object_id, identifier_size_) ||
-      !byte_iterator_->ReadU4(array_data.stack_trace_serial_num) ||
-      !byte_iterator_->ReadU4(size) ||
-      !byte_iterator_->ReadId(array_data.array_class_object_id,
-                              identifier_size_)) {
-    PERFETTO_FATAL("Failed to read object array dump header");
-  }
-
-  PERFETTO_DLOG(
-      "Object array: objectID=%" PRIu64 ", classID=%" PRIu64 ", size=%u",
-      array_data.array_object_id, array_data.array_class_object_id, size);
-
-  array_data.heap_id = current_heap_;
-  data_.object_to_class[array_data.array_object_id] =
-      array_data.array_class_object_id;
-
-  array_data.elements.reserve(size);
-  for (uint32_t i = 0; i < size; i++) {
-    uint64_t element_id;
-    if (!byte_iterator_->ReadId(element_id, identifier_size_)) {
-      PERFETTO_FATAL("Failed to read array element");
-    }
-    array_data.elements.push_back(element_id);
-
-    if (element_id != 0) {
-      // Create reference for non-null array element
-      ObjectReference ref;
-      ref.field_name = "[" + std::to_string(i) + "]";
-      ref.target_object_id = element_id;
-
-      data_.owner_to_owned[array_data.array_object_id].push_back(ref);
-
-      data_.field_reference_count++;
-    }
-  }
-
-  AddHeapRecord(HPROF_OBJ_ARRAY_DUMP, array_data);
-  data_.object_array_count++;
-}
-
-void HprofParser::ParsePrimitiveArrayDump() {
-  PERFETTO_DLOG("Parsing primitive array dump");
-
-  PrimArrayDumpData array_data;
-  uint32_t size;
-
-  if (!byte_iterator_->ReadId(array_data.array_object_id, identifier_size_) ||
-      !byte_iterator_->ReadU4(array_data.stack_trace_serial_num) ||
-      !byte_iterator_->ReadU4(size) ||
-      !byte_iterator_->ReadU1(array_data.element_type)) {
-    PERFETTO_FATAL("Failed to read primitive array dump header");
-  }
-
-  PERFETTO_DLOG("Primitive array: objectID=%" PRIu64 ", type=%d, size=%u",
-                array_data.array_object_id,
-                static_cast<int>(array_data.element_type), size);
-
-  array_data.heap_id = current_heap_;
-
-  size_t element_size = GetFieldTypeSize(array_data.element_type);
-  size_t bytes_to_read = size * element_size;
-
-  PERFETTO_DLOG("Reading %zu bytes of array data", bytes_to_read);
-
-  array_data.elements.resize(bytes_to_read);
-  if (!byte_iterator_->ReadBytes(array_data.elements, bytes_to_read)) {
-    PERFETTO_FATAL("Failed to read primitive array data");
-  }
-
-  AddHeapRecord(HPROF_PRIM_ARRAY_DUMP, array_data);
-  data_.primitive_array_count++;
-}
-
-bool HprofParser::IsStringClass(const std::string& class_name) const {
-  return class_name == "java.lang.String";
-}
-
-size_t HprofParser::GetFieldTypeSize(uint8_t type) const {
-  switch (type) {
-    case TYPE_BOOLEAN:
-    case TYPE_BYTE:
-      return 1;
-    case TYPE_CHAR:
-    case TYPE_SHORT:
-      return 2;
-    case TYPE_FLOAT:
-    case TYPE_INT:
-      return 4;
-    case TYPE_DOUBLE:
-    case TYPE_LONG:
-      return 8;
-    case TYPE_OBJECT:
-      return identifier_size_;
+// Convert heap type ID to string
+std::string HeapGraph::GetHeapType(uint8_t heap_type) {
+  switch (heap_type) {
+    case HEAP_TYPE_APP:
+      return "app";
+    case HEAP_TYPE_ZYGOTE:
+      return "zygote";
+    case HEAP_TYPE_IMAGE:
+      return "image";
+    case HEAP_TYPE_JIT:
+      return "jit";
+    case HEAP_TYPE_APP_CACHE:
+      return "app-cache";
+    case HEAP_TYPE_SYSTEM:
+      return "system";
+    case HEAP_TYPE_DEFAULT:
+      return "default";
     default:
-      PERFETTO_FATAL("Unknown HPROF field type: %u", type);
-      return 0;  // Should not be reached
+      return "unknown";
   }
 }
 
-std::vector<FieldInfo> HprofParser::GetFieldsForClassHierarchy(
-    uint64_t class_object_id) {
-  std::vector<FieldInfo> all_fields;
-  std::unordered_set<uint64_t> visited_classes;
+HeapGraph HprofParser::BuildHeapGraph() {
+    HeapGraph graph;
 
-  // Start with the current class
-  uint64_t current_class_id = class_object_id;
-
-  // Build the class hierarchy (superclass-first order)
-  std::vector<uint64_t> class_hierarchy;
-
-  while (current_class_id != 0) {
-    // Check for cycles
-    if (visited_classes.count(current_class_id) > 0) {
-      PERFETTO_DLOG("Cycle detected in class hierarchy for class %" PRIu64,
-                    class_object_id);
-      break;
+    // Add strings
+    for (const auto& entry : strings_) {
+        graph.AddString(entry.first, entry.second);
     }
 
-    visited_classes.insert(current_class_id);
-
-    // Find class info
-    auto it = data_.classes.find(current_class_id);
-    if (it == data_.classes.end()) {
-      break;  // Class not found
+    // Add classes
+    for (auto& entry : classes_) {
+        graph.AddClass(entry.second);
     }
 
-    // Add to hierarchy
-    class_hierarchy.push_back(current_class_id);
-
-    // Move to superclass
-    current_class_id = it->second.super_class_id;
-  }
-
-  // Reverse to get superclass-first order
-  std::reverse(class_hierarchy.begin(), class_hierarchy.end());
-
-  // Collect fields from all classes in the hierarchy
-  for (uint64_t class_id : class_hierarchy) {
-    auto it = data_.classes.find(class_id);
-    if (it != data_.classes.end()) {
-      const std::vector<FieldInfo>& fields = it->second.fields;
-      all_fields.insert(all_fields.end(), fields.begin(), fields.end());
+    // Add objects
+    for (auto& entry : objects_) {
+        graph.AddObject(entry.second);
     }
-  }
 
-  return all_fields;
+    return graph;
 }
-}  // namespace perfetto::trace_processor::art_hprof
+
+void HprofParser::FixupObjectReferencesAndRoots() {
+  for (auto& [id, obj] : objects_) {
+    // If this was marked as root earlier, preserve it
+    if (obj.is_root()) {
+      root_count_++;
+    }
+
+    // Extract references for instance objects
+    if (obj.object_type() == ObjectType::OBJECT_TYPE_INSTANCE &&
+        !obj.raw_data().empty()) {
+      auto cls_it = classes_.find(obj.class_id());
+      if (cls_it != classes_.end()) {
+        ExtractReferences(obj, cls_it->second);
+      }
+    }
+
+    // Extract references from object arrays
+    if (obj.object_type() == ObjectType::OBJECT_TYPE_OBJECT_ARRAY) {
+      for (uint64_t target_id : obj.array_elements()) {
+        if (target_id == 0) continue;
+
+        // Look up class id of the referenced object, if known
+        uint64_t field_class_id = 0;
+        auto it = objects_.find(target_id);
+        if (it != objects_.end()) {
+          field_class_id = it->second.class_id();
+        }
+
+        obj.AddReference("[element]", field_class_id, target_id);
+        reference_count_++;
+      }
+    }
+  }
+}
+
+void HeapGraph::PrintObjectTypeDistribution() const {
+    std::unordered_map<ObjectType, size_t> type_counts;
+    std::unordered_map<HeapType, size_t> heap_counts;
+    size_t total_size = 0;
+
+    for (const auto& entry : objects_) {
+        const auto& obj = entry.second;
+        type_counts[obj.object_type()]++;
+        heap_counts[obj.heap_type()]++;
+        total_size += obj.GetSize();
+    }
+
+    PERFETTO_LOG("\n--- Object Type Distribution ---");
+    PERFETTO_LOG("Class objects: %zu", type_counts[ObjectType::OBJECT_TYPE_CLASS]);
+    PERFETTO_LOG("Instance objects: %zu", type_counts[ObjectType::OBJECT_TYPE_INSTANCE]);
+    PERFETTO_LOG("Object arrays: %zu", type_counts[ObjectType::OBJECT_TYPE_OBJECT_ARRAY]);
+    PERFETTO_LOG("Primitive arrays: %zu", type_counts[ObjectType::OBJECT_TYPE_PRIMITIVE_ARRAY]);
+
+    PERFETTO_LOG("\n--- Heap Distribution ---");
+    for (const auto& entry : heap_counts) {
+        PERFETTO_LOG("Heap type %d: %zu objects", static_cast<int>(entry.first), entry.second);
+    }
+
+    PERFETTO_LOG("\n--- Size Statistics ---");
+    PERFETTO_LOG("Total object size: %zu bytes", total_size);
+    if (!objects_.empty()) {
+        PERFETTO_LOG("Average object size: %zu bytes", total_size / objects_.size());
+    }
+}
+
+void HeapGraph::PrintRootDistribution() const {
+    std::unordered_map<HprofHeapTag, size_t> root_counts;
+    size_t total_roots = 0;
+
+    for (const auto& entry : objects_) {
+        const auto& obj = entry.second;
+        if (obj.is_root() && obj.root_type().has_value()) {
+            root_counts[obj.root_type().value()]++;
+            total_roots++;
+        }
+    }
+
+    PERFETTO_LOG("\n--- Root Distribution ---");
+    PERFETTO_LOG("Total roots: %zu", total_roots);
+
+    // Helper function to print a root type
+    auto print_root_type = [&](HprofHeapTag tag, const char* name) {
+        auto it = root_counts.find(tag);
+        if (it != root_counts.end() && it->second > 0) {
+            PERFETTO_LOG("%s: %zu", name, it->second);
+        }
+    };
+
+    print_root_type(HPROF_HEAP_TAG_ROOT_JNI_GLOBAL, "JNI Global");
+    print_root_type(HPROF_HEAP_TAG_ROOT_JNI_LOCAL, "JNI Local");
+    print_root_type(HPROF_HEAP_TAG_ROOT_JAVA_FRAME, "Java Frame");
+    print_root_type(HPROF_HEAP_TAG_ROOT_NATIVE_STACK, "Native Stack");
+    print_root_type(HPROF_HEAP_TAG_ROOT_STICKY_CLASS, "Sticky Class");
+    print_root_type(HPROF_HEAP_TAG_ROOT_THREAD_BLOCK, "Thread Block");
+    print_root_type(HPROF_HEAP_TAG_ROOT_MONITOR_USED, "Monitor Used");
+    print_root_type(HPROF_HEAP_TAG_ROOT_THREAD_OBJ, "Thread Object");
+    print_root_type(HPROF_HEAP_TAG_ROOT_INTERNED_STRING, "Interned String (Android)");
+    print_root_type(HPROF_HEAP_TAG_ROOT_FINALIZING, "Finalizing (Android)");
+    print_root_type(HPROF_HEAP_TAG_ROOT_DEBUGGER, "Debugger (Android)");
+    print_root_type(HPROF_HEAP_TAG_ROOT_VM_INTERNAL, "VM Internal (Android)");
+    print_root_type(HPROF_HEAP_TAG_ROOT_JNI_MONITOR, "JNI Monitor (Android)");
+    print_root_type(HPROF_HEAP_TAG_ROOT_UNKNOWN, "Unknown");
+}
+
+void HeapGraph::PrintTopClasses(size_t top_n) const {
+    std::unordered_map<uint64_t, size_t> instance_counts;
+    std::unordered_map<uint64_t, size_t> class_total_size;
+
+    for (const auto& entry : objects_) {
+        const auto& obj = entry.second;
+        if (obj.object_type() == ObjectType::OBJECT_TYPE_INSTANCE) {
+            instance_counts[obj.class_id()]++;
+            class_total_size[obj.class_id()] += obj.GetSize();
+        }
+    }
+
+    std::vector<std::pair<uint64_t, size_t>> class_counts(instance_counts.begin(), instance_counts.end());
+    std::sort(class_counts.begin(), class_counts.end(),
+          [](const auto& a, const auto& b) { return a.second > b.second; });
+
+    if (class_counts.size() > top_n) {
+        class_counts.resize(top_n);
+    }
+
+    PERFETTO_LOG("\n--- Top %zu Classes by Instance Count ---", top_n);
+    PERFETTO_LOG("Rank | Count | Total Size | Class Name");
+    PERFETTO_LOG("-----|-------|------------|------------");
+
+    for (size_t i = 0; i < class_counts.size(); i++) {
+        uint64_t class_id = class_counts[i].first;
+        size_t count = class_counts[i].second;
+        size_t total_size = class_total_size[class_id];
+
+        std::string class_name = "[unknown]";
+        auto it = classes_.find(class_id);
+        if (it != classes_.end()) {
+            class_name = it->second.name();
+        }
+
+        PERFETTO_LOG("%-4zu | %-5zu | %-10zu | %s",
+            i + 1, count, total_size, class_name.c_str());
+    }
+}
+
+bool HeapGraph::ValidateReferences() const {
+    size_t total_refs = 0;
+    size_t invalid_refs = 0;
+    size_t self_refs = 0;
+    size_t null_owner_refs = 0;
+
+    // Track root objects specifically
+    size_t total_root_objects = 0;
+    size_t roots_with_refs = 0;
+    size_t roots_without_refs = 0;
+    std::vector<uint64_t> root_ids_without_refs;
+
+    for (const auto& entry : objects_) {
+        const auto& obj = entry.second;
+
+        // Check if this is a root object
+        if (obj.is_root() && obj.root_type().has_value()) {
+            total_root_objects++;
+            if (obj.references().empty()) {
+                roots_without_refs++;
+                if (root_ids_without_refs.size() < 10) {
+                    root_ids_without_refs.push_back(obj.id());
+                }
+            } else {
+                roots_with_refs++;
+            }
+        }
+
+        // Regular reference validation
+        for (const auto& ref : obj.references()) {
+            total_refs++;
+
+            if (ref.owner_id != obj.id()) {
+                null_owner_refs++;
+                if (null_owner_refs <= 10) {
+                    PERFETTO_LOG("Inconsistent owner: ref owner=%" PRIu64 ", obj ID=%" PRIu64,
+                                ref.owner_id, obj.id());
+                }
+            }
+
+            if (ref.owner_id == ref.target_id) {
+                self_refs++;
+            }
+
+            if (objects_.find(ref.target_id) == objects_.end()) {
+                invalid_refs++;
+                if (invalid_refs <= 10) {
+                    PERFETTO_LOG("Invalid target: ref from %" PRIu64 " -> target %" PRIu64 " not found",
+                                ref.owner_id, ref.target_id);
+                }
+            }
+        }
+    }
+
+    PERFETTO_LOG("\n--- Reference Validation ---");
+    PERFETTO_LOG("Total references: %zu", total_refs);
+    PERFETTO_LOG("Invalid references (target not found): %zu", invalid_refs);
+    PERFETTO_LOG("Self-references: %zu", self_refs);
+    PERFETTO_LOG("Inconsistent owner IDs: %zu", null_owner_refs);
+
+    // Root object validation
+    PERFETTO_LOG("\n--- Root Object Validation ---");
+    PERFETTO_LOG("Total root objects: %zu", total_root_objects);
+    PERFETTO_LOG("Root objects with outgoing references: %zu", roots_with_refs);
+    PERFETTO_LOG("Root objects without outgoing references: %zu", roots_without_refs);
+
+    // Print some example root object IDs
+    if (!root_ids_without_refs.empty()) {
+        PERFETTO_LOG("Sample root object IDs without refs:");
+        for (size_t i = 0; i < root_ids_without_refs.size(); i++) {
+            uint64_t root_id = root_ids_without_refs[i];
+            auto it = objects_.find(root_id);
+            if (it != objects_.end()) {
+                const auto& root_obj = it->second;
+                std::string root_type = "unknown";
+                if (root_obj.root_type().has_value()) {
+                    root_type = GetRootType(root_obj.root_type().value());
+                }
+
+                std::string class_name = "[unknown class]";
+                auto class_it = classes_.find(root_obj.class_id());
+                if (class_it != classes_.end()) {
+                    class_name = class_it->second.name();
+                }
+
+                PERFETTO_LOG("  Root ID: %" PRIu64 ", Type: %s, Class: %s",
+                           root_id, root_type.c_str(), class_name.c_str());
+            }
+        }
+    }
+
+    // Check if references from root objects are being added properly
+    bool roots_without_refs_problem = (total_root_objects > 0 && roots_with_refs == 0);
+    if (roots_without_refs_problem) {
+        PERFETTO_LOG("\nWARNING: None of the root objects have outgoing references!");
+        PERFETTO_LOG("This suggests an issue in HandleRootRecord or ExtractReferences for root objects.");
+        PERFETTO_LOG("Check if references are being properly identified during parsing.");
+    }
+
+    return invalid_refs == 0 && null_owner_refs == 0 && !roots_without_refs_problem;
+}
+
+void HeapGraph::PrintReferenceStats() const {
+    size_t total_refs = 0;
+    size_t max_refs_from_object = 0;
+    uint64_t max_refs_object_id = 0;
+    std::string max_refs_class_name = "[unknown]";
+
+    std::unordered_map<uint64_t, size_t> refs_to_object;
+
+    for (const auto& entry : objects_) {
+        const auto& obj = entry.second;
+        size_t ref_count = obj.references().size();
+        total_refs += ref_count;
+
+        for (const auto& ref : obj.references()) {
+            refs_to_object[ref.target_id]++;
+        }
+
+        if (ref_count > max_refs_from_object) {
+            max_refs_from_object = ref_count;
+            max_refs_object_id = obj.id();
+
+            auto class_it = classes_.find(obj.class_id());
+            if (class_it != classes_.end()) {
+                max_refs_class_name = class_it->second.name();
+            }
+        }
+    }
+
+    uint64_t most_referenced_id = 0;
+    size_t most_referenced_count = 0;
+    std::string most_referenced_class_name = "[unknown]";
+
+    for (const auto& entry : refs_to_object) {
+        if (entry.second > most_referenced_count) {
+            most_referenced_count = entry.second;
+            most_referenced_id = entry.first;
+
+            auto obj_it = objects_.find(most_referenced_id);
+            if (obj_it != objects_.end()) {
+                auto class_it = classes_.find(obj_it->second.class_id());
+                if (class_it != classes_.end()) {
+                    most_referenced_class_name = class_it->second.name();
+                }
+            }
+        }
+    }
+
+    double avg_refs_per_obj = static_cast<double>(total_refs) / static_cast<double>(objects_.size());
+
+    size_t objects_with_no_refs = 0;
+    for (const auto& entry : objects_) {
+        if (entry.second.references().empty()) {
+            objects_with_no_refs++;
+        }
+    }
+
+    PERFETTO_LOG("\n--- Reference Statistics ---");
+    PERFETTO_LOG("Average references per object: %.2f", avg_refs_per_obj);
+    PERFETTO_LOG("Objects with no outgoing references: %zu (%.1f%%)",
+                 objects_with_no_refs,
+                 (static_cast<double>(objects_with_no_refs) * 100.0 / static_cast<double>(objects_.size())));
+
+    PERFETTO_LOG("\nObject with most outgoing references:");
+    PERFETTO_LOG("  ID: 0x%" PRIx64, max_refs_object_id);
+    PERFETTO_LOG("  Class: %s", max_refs_class_name.c_str());
+    PERFETTO_LOG("  Reference count: %zu", max_refs_from_object);
+
+    PERFETTO_LOG("\nMost referenced object:");
+    PERFETTO_LOG("  ID: 0x%" PRIx64, most_referenced_id);
+    PERFETTO_LOG("  Class: %s", most_referenced_class_name.c_str());
+    PERFETTO_LOG("  Referenced by: %zu objects", most_referenced_count);
+}
+
+void HeapGraph::PrintDetailedStats() const {
+    PERFETTO_LOG("\n======= HPROF Heap Analysis =======");
+
+    PERFETTO_LOG("\n--- Basic Statistics ---");
+    PERFETTO_LOG("Total objects: %zu", GetObjectCount());
+    PERFETTO_LOG("Total classes: %zu", GetClassCount());
+    PERFETTO_LOG("Total strings: %zu", GetStringCount());
+
+    PrintObjectTypeDistribution();
+    PrintRootDistribution();
+    PrintTopClasses();
+    ValidateReferences();
+    PrintReferenceStats();
+
+    PERFETTO_LOG("\n======= End of Analysis =======");
+}
+}

@@ -24,12 +24,10 @@ source_set("art_hprof_event") {
 
 source_set("art_hprof") {
   sources = [
-    "art_hprof_heap_graph.cc",
-    "art_hprof_heap_graph.h",
     "art_hprof_parser_impl.cc",
     "art_hprof_parser_impl.h",
     "art_hprof_tokenizer.cc",
-    "art_hprof_tokenizer.h",
+    "art_hprof_event.h",
   ]
   deps = [
     ":art_hprof_event",
