@@ -25,6 +25,7 @@ import {FtraceFilter} from './common';
 import {Monitor} from '../../base/monitor';
 import {TrackRenderContext} from '../../public/track';
 import {SourceDataset} from '../../trace_processor/dataset';
+import {TrackEventDetails} from '../../public/selection';
 
 const MARGIN = 2;
 const RECT_HEIGHT = 18;
@@ -74,6 +75,28 @@ export class FtraceRawTrack implements TrackRenderer {
         eq: this.ucpu,
       },
     });
+  }
+
+  async getSelectionDetails(
+    eventId: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const queryRes = await this.engine.query(`
+      SELECT
+        ts
+      FROM ftrace_event
+      WHERE id = ${eventId}
+    `);
+
+    if (queryRes.numRows() === 0) {
+      return undefined;
+    }
+
+    const firstRow = queryRes.maybeFirstRow({ts: LONG});
+    if (!firstRow) return undefined;
+
+    return {
+      ts: Time.fromRaw(firstRow.ts),
+    };
   }
 
   async onUpdate({
