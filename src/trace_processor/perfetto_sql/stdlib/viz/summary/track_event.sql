@@ -43,6 +43,8 @@ SELECT
   track_id AS id,
   min(ts) AS min_ts
 FROM counter
+JOIN _track_event_tracks_unordered AS t
+  ON counter.track_id = t.id
 GROUP BY
   track_id
 UNION ALL
@@ -50,6 +52,8 @@ SELECT
   track_id AS id,
   min(ts) AS min_ts
 FROM slice
+JOIN _track_event_tracks_unordered AS t
+  ON slice.track_id = t.id
 GROUP BY
   track_id;
 
