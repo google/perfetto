@@ -50,8 +50,8 @@ void ArtHprofParserImpl::ParseArtHprofEvent(int64_t ts, ArtHprofEvent event) {
     return;
   }
 
-  PERFETTO_DLOG("Processing heap graph with %zu classes and %zu objects",
-                graph.GetClassCount(), graph.GetObjectCount());
+  PERFETTO_LOG("Processing heap graph for PID %u: %zu classes, %zu objects",
+               os_pid, graph.GetClassCount(), graph.GetObjectCount());
 
   // Map from HPROF object IDs to table IDs
   std::unordered_map<uint64_t, tables::HeapGraphClassTable::Id> class_map;
@@ -81,7 +81,7 @@ void ArtHprofParserImpl::PopulateClasses(
     StringId name_id =
         context_->storage->InternString(base::StringView(class_def.name()));
     StringId kind_id = context_->storage->InternString(
-        base::StringView("runtime class"));  // Default kind for Java classes
+        base::StringView(kUnknownClassKind));  // Default kind for Java classes
 
     // Create and insert the class row
     tables::HeapGraphClassTable::Row class_row;
@@ -94,13 +94,6 @@ void ArtHprofParserImpl::PopulateClasses(
 
     tables::HeapGraphClassTable::Id table_id = class_table.Insert(class_row).id;
     class_map[class_id] = table_id;
-
-    // Log sampling
-    if (classes_processed <= 10 || classes_processed % 1000 == 0) {
-      PERFETTO_DLOG("Inserted class %zu: ID=%" PRIu64 ", name=%s, table_id=%u",
-                    classes_processed, class_id, class_def.name().c_str(),
-                    table_id.value);
-    }
   }
 
   // Update superclass relationships
@@ -133,7 +126,6 @@ void ArtHprofParserImpl::PopulateObjects(
 
   // Create fallback unknown class if needed
   tables::HeapGraphClassTable::Id unknown_class_id;
-  // bool created_unknown_class = false;
 
   for (const auto& [obj_id, obj] : graph.GetObjects()) {
     objects_processed++;
@@ -141,9 +133,9 @@ void ArtHprofParserImpl::PopulateObjects(
     // Resolve object's type
     auto type_it = class_map.find(obj.class_id());
     if (type_it == class_map.end() &&
-        obj.object_type() != ObjectType::OBJECT_TYPE_PRIMITIVE_ARRAY) {
+        obj.object_type() != ObjectType::PRIMITIVE_ARRAY) {
       PERFETTO_FATAL("Unknown class: %" PRIu64 ". Object type: %" PRIu8,
-                     obj.class_id(), obj.object_type());
+                     obj.class_id(), static_cast<uint8_t>(obj.object_type()));
     }
 
     // Create object row
@@ -152,8 +144,7 @@ void ArtHprofParserImpl::PopulateObjects(
     object_row.graph_sample_ts = ts;
     object_row.self_size = static_cast<int64_t>(obj.GetSize());
     object_row.native_size = 0;
-    object_row.reference_set_id =
-        std::nullopt;  // Will be set during reference processing
+    object_row.reference_set_id = std::nullopt;
     object_row.reachable = 1;
     object_row.type_id =
         type_it != class_map.end() ? type_it->second : unknown_class_id;
@@ -163,19 +154,14 @@ void ArtHprofParserImpl::PopulateObjects(
         context_->storage->InternString(base::StringView(obj.heap_type()));
     object_row.heap_type = heap_type_id;
 
-    // Handle root type - FIXED: Check if it's a root and properly set the
-    // root_type
+    // Handle root type
     if (obj.is_root() && obj.root_type().has_value()) {
       // Convert root type enum to string
-      std::string root_type_str =
-          HeapGraph::GetRootType(obj.root_type().value());
-      StringId root_type_id =
-          context_->storage->InternString(base::StringView(root_type_str));
+      std::string_view root_type_str =
+          HeapGraph::GetRootTypeName(obj.root_type().value());
+      StringId root_type_id = context_->storage->InternString(
+          base::StringView(root_type_str.data(), root_type_str.size()));
       object_row.root_type = root_type_id;
-
-      // Log root types for debugging
-      PERFETTO_DLOG("Setting root type for object ID=%" PRIu64 ": %s", obj_id,
-                    root_type_str.c_str());
     }
 
     object_row.root_distance = -1;  // Will be calculated later
@@ -184,11 +170,6 @@ void ArtHprofParserImpl::PopulateObjects(
     tables::HeapGraphObjectTable::Id table_id =
         object_table.Insert(object_row).id;
     object_map[obj_id] = table_id;
-
-    if (objects_processed <= 10 || objects_processed % 10000 == 0) {
-      PERFETTO_DLOG("Inserted object %zu: HPROF ID=%" PRIu64 ", table_id=%u",
-                    objects_processed, obj_id, table_id.value);
-    }
   }
 
   PERFETTO_DLOG("Processed %zu objects", objects_processed);
@@ -196,25 +177,26 @@ void ArtHprofParserImpl::PopulateObjects(
 
 std::string ArtHprofParserImpl::GetFieldTypeName(FieldType type) {
   switch (type) {
-    case FIELD_TYPE_OBJECT:
-      return "java.lang.Object";
-    case FIELD_TYPE_BOOLEAN:
+    case FieldType::OBJECT:
+      return kJavaLangObject;
+    case FieldType::BOOLEAN:
       return "boolean";
-    case FIELD_TYPE_CHAR:
+    case FieldType::CHAR:
       return "char";
-    case FIELD_TYPE_FLOAT:
+    case FieldType::FLOAT:
       return "float";
-    case FIELD_TYPE_DOUBLE:
+    case FieldType::DOUBLE:
       return "double";
-    case FIELD_TYPE_BYTE:
+    case FieldType::BYTE:
       return "byte";
-    case FIELD_TYPE_SHORT:
+    case FieldType::SHORT:
       return "short";
-    case FIELD_TYPE_INT:
+    case FieldType::INT:
       return "int";
-    case FIELD_TYPE_LONG:
+    case FieldType::LONG:
       return "long";
   }
+  return "unknown";
 }
 
 void ArtHprofParserImpl::PopulateReferences(
@@ -231,7 +213,7 @@ void ArtHprofParserImpl::PopulateReferences(
   size_t total_reference_count = 0;
 
   // Step 1: Collect all references
-  PERFETTO_LOG("Collecting all references from objects...");
+  PERFETTO_DLOG("Collecting references from objects...");
   for (const auto& [obj_id, obj] : graph.GetObjects()) {
     const auto& refs = obj.references();
     if (!refs.empty()) {
@@ -241,7 +223,7 @@ void ArtHprofParserImpl::PopulateReferences(
     }
   }
 
-  PERFETTO_LOG("Found %zu total references from %zu owners",
+  PERFETTO_LOG("Found %zu total references from %zu objects",
                total_reference_count, refs_by_owner.size());
 
   // Step 2: Validate we have reference owners in our object map
@@ -249,21 +231,15 @@ void ArtHprofParserImpl::PopulateReferences(
   for (const auto& [owner_id, refs] : refs_by_owner) {
     if (object_map.find(owner_id) == object_map.end()) {
       missing_owners++;
-      if (missing_owners <= 10) {
-        PERFETTO_LOG("Warning: Reference owner %" PRIu64
-                     " not found in object map",
-                     owner_id);
-      }
     }
   }
 
   if (missing_owners > 0) {
-    PERFETTO_LOG("Warning: %zu reference owners are missing from object map",
-                 missing_owners);
+    PERFETTO_DLOG("Warning: %zu reference owners are missing from object map",
+                  missing_owners);
   }
 
   // Step 3: Build class map for type resolution
-  PERFETTO_LOG("Building class map for type resolution...");
   std::unordered_map<uint64_t, tables::HeapGraphClassTable::Id> class_map;
   for (const auto& [class_id, class_def] : graph.GetClasses()) {
     StringId name_id =
@@ -277,19 +253,11 @@ void ArtHprofParserImpl::PopulateReferences(
       }
     }
   }
-  PERFETTO_LOG("Built class map with %zu classes", class_map.size());
 
   // Step 4: Process references and create reference sets
-  PERFETTO_LOG("Creating reference sets and populating reference table...");
   uint32_t next_reference_set_id = 1;
-  size_t refs_processed = 0;
   size_t valid_refs = 0;
   size_t dangling_refs = 0;
-  size_t self_refs = 0;
-
-  // Stats for troubleshooting
-  std::unordered_map<std::string, size_t> ref_type_stats;
-  size_t owners_with_refs_in_db = 0;
 
   for (const auto& [owner_id, refs] : refs_by_owner) {
     // Skip if no references
@@ -308,20 +276,8 @@ void ArtHprofParserImpl::PopulateReferences(
     object_table.mutable_reference_set_id()->Set(owner_it->second.value,
                                                  reference_set_id);
 
-    // Track owners with references
-    owners_with_refs_in_db++;
-
-    bool has_valid_refs = false;
-
     // Process all references from this owner
     for (const auto& ref : refs) {
-      refs_processed++;
-
-      // Self-reference check
-      if (ref.owner_id == ref.target_id) {
-        self_refs++;
-      }
-
       // Get owned object's table ID if it exists
       std::optional<tables::HeapGraphObjectTable::Id> owned_table_id;
       if (ref.target_id != 0) {
@@ -329,23 +285,14 @@ void ArtHprofParserImpl::PopulateReferences(
         if (owned_it != object_map.end()) {
           owned_table_id = owned_it->second;
           valid_refs++;
-          has_valid_refs = true;
         } else {
           dangling_refs++;
-          if (dangling_refs <= 10) {
-            PERFETTO_LOG("Warning: Target object %" PRIu64
-                         " not found for reference from %" PRIu64,
-                         ref.target_id, owner_id);
-          }
         }
       }
 
       // Get the field name
       StringId field_name_id =
           context_->storage->InternString(base::StringView(ref.field_name));
-
-      // Track reference types for debugging
-      ref_type_stats[ref.field_name]++;
 
       // Resolve field type from class ID
       StringId field_type_id;
@@ -358,12 +305,12 @@ void ArtHprofParserImpl::PopulateReferences(
         } else {
           // Class not found, use default
           field_type_id = context_->storage->InternString(
-              base::StringView("java.lang.Object"));
+              base::StringView(kJavaLangObject));
         }
       } else {
         // No class ID, use default
-        field_type_id = context_->storage->InternString(
-            base::StringView("java.lang.Object"));
+        field_type_id =
+            context_->storage->InternString(base::StringView(kJavaLangObject));
       }
 
       // Create reference record
@@ -375,47 +322,8 @@ void ArtHprofParserImpl::PopulateReferences(
       reference_row.field_type_name = field_type_id;
 
       reference_table.Insert(reference_row);
-
-      // Progress logging
-      if (refs_processed <= 10 || refs_processed % 50000 == 0) {
-        PERFETTO_LOG("Reference %zu: owner=%" PRIu64 " -> target=%" PRIu64
-                     " (field=%s, valid=%d)",
-                     refs_processed, owner_id, ref.target_id,
-                     ref.field_name.c_str(), owned_table_id.has_value());
-      }
-    }
-
-    // Handle objects with no valid refs (could be an issue for flamegraph)
-    if (!has_valid_refs) {
-      PERFETTO_DLOG("Object %" PRIu64
-                    " has references but none are valid objects",
-                    owner_id);
     }
   }
-
-  // Step 5: Final validation and statistics
-  PERFETTO_LOG("=== Reference Processing Complete ===");
-  PERFETTO_LOG("Total references processed: %zu", refs_processed);
-
-  // Fix the type conversion issues by explicitly casting to double
-  if (refs_processed > 0) {
-    double valid_percentage = static_cast<double>(valid_refs) * 100.0 /
-                              static_cast<double>(refs_processed);
-    double dangling_percentage = static_cast<double>(dangling_refs) * 100.0 /
-                                 static_cast<double>(refs_processed);
-
-    PERFETTO_LOG("Valid references: %zu (%.1f%%)", valid_refs,
-                 valid_percentage);
-    PERFETTO_LOG("Dangling references: %zu (%.1f%%)", dangling_refs,
-                 dangling_percentage);
-  } else {
-    PERFETTO_LOG("Valid references: %zu (0.0%%)", valid_refs);
-    PERFETTO_LOG("Dangling references: %zu (0.0%%)", dangling_refs);
-  }
-
-  PERFETTO_LOG("Self-references: %zu", self_refs);
-  PERFETTO_LOG("Objects with reference sets in DB: %zu",
-               owners_with_refs_in_db);
 
   // Check for root objects with references (important for flamegraph)
   size_t roots_with_refs = 0;
@@ -431,28 +339,14 @@ void ArtHprofParserImpl::PopulateReferences(
     }
   }
 
-  PERFETTO_LOG("Root objects with references: %zu", roots_with_refs);
-  PERFETTO_LOG("Root objects without references: %zu", roots_without_refs);
+  // Final statistics and warnings
+  PERFETTO_LOG("Reference processing complete: %zu valid, %zu dangling",
+               valid_refs, dangling_refs);
 
-  // Print top reference types for debugging
-  PERFETTO_LOG("Top reference types:");
-  std::vector<std::pair<std::string, size_t>> sorted_ref_types(
-      ref_type_stats.begin(), ref_type_stats.end());
-  std::sort(sorted_ref_types.begin(), sorted_ref_types.end(),
-            [](const auto& a, const auto& b) { return a.second > b.second; });
-
-  const size_t max_types_to_show = 10;
-  for (size_t i = 0; i < std::min(max_types_to_show, sorted_ref_types.size());
-       i++) {
-    PERFETTO_LOG("  %s: %zu", sorted_ref_types[i].first.c_str(),
-                 sorted_ref_types[i].second);
-  }
-
-  // Final check for reference integrity
   if (valid_refs == 0) {
     PERFETTO_LOG(
         "WARNING: No valid references found! Flamegraph will not render.");
-  } else if (roots_with_refs == 0) {
+  } else if (roots_with_refs == 0 && roots_without_refs > 0) {
     PERFETTO_LOG(
         "WARNING: No root objects have references! Flamegraph may not render "
         "properly.");
