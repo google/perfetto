@@ -14,7 +14,7 @@
 
 import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
-import initTraceProcessor from '../gen/trace_processor';
+import {Module, InitWasm} from '../gen/trace_processor_memory64';
 
 // The Initialize() call will allocate a buffer of REQ_BUF_SIZE bytes which
 // will be used to copy the input request data. This is to avoid passing the
@@ -37,29 +37,28 @@ export class WasmBridge {
   whenInitialized: Promise<void>;
 
   private aborted: boolean;
-  private connection: initTraceProcessor.Module;
-  private reqBufferAddr = 0;
+  private connection: Module;
+  private reqBufferAddr = BigInt(0);
   private lastStderr: string[] = [];
   private messagePort?: MessagePort;
 
-  constructor() {
+  constructor(init: InitWasm) {
     this.aborted = false;
     const deferredRuntimeInitialized = defer<void>();
-    this.connection = initTraceProcessor({
+    this.connection = init({
       locateFile: (s: string) => s,
       print: (line: string) => console.log(line),
       printErr: (line: string) => this.appendAndLogErr(line),
       onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
     });
     this.whenInitialized = deferredRuntimeInitialized.then(() => {
-      const fn = this.connection.addFunction(this.onReply.bind(this), 'vii');
-      this.reqBufferAddr =
-        this.connection.ccall(
-          'trace_processor_rpc_init',
-          /* return=*/ 'number',
-          /* args=*/ ['number', 'number'],
-          [fn, REQ_BUF_SIZE],
-        ) >>> 0; // >>> 0 = static_cast<uint32_t> (see comment in onReply()).
+      const fn = this.connection.addFunction(this.onReply.bind(this), 'vpi');
+      this.reqBufferAddr = this.connection.ccall(
+        'trace_processor_rpc_init',
+        /* return=*/ 'pointer',
+        /* args=*/ ['pointer', 'number'],
+        [fn, REQ_BUF_SIZE],
+      ) as unknown as bigint;
     });
   }
 
@@ -85,7 +84,7 @@ export class WasmBridge {
     while (wrSize < data.length) {
       const sliceLen = Math.min(data.length - wrSize, REQ_BUF_SIZE);
       const dataSlice = data.subarray(wrSize, wrSize + sliceLen);
-      this.connection.HEAPU8.set(dataSlice, this.reqBufferAddr);
+      this.connection.HEAPU8.set(dataSlice, Number(this.reqBufferAddr));
       wrSize += sliceLen;
       try {
         this.connection.ccall(
@@ -108,16 +107,11 @@ export class WasmBridge {
 
   // This function is bound and passed to Initialize and is called by the C++
   // code while in the ccall(trace_processor_on_rpc_request).
-  private onReply(heapPtr: number, size: number) {
-    // Force heapPtr to be a positive using an unsigned right shift.
-    // The issue here is the following: the matching code in wasm_bridge.cc
-    // invokes this function passing  arguments as uint32_t. However, in the
-    // wasm<>JS interop bindings, the uint32 args become Js numbers. If the
-    // pointer is > 2GB, this number will be negative, which causes the wrong
-    // behaviour on slice().
-    heapPtr = heapPtr >>> 0; // This is static_cast<uint32_t>(heapPtr).
-    size = size >>> 0;
-    const data = this.connection.HEAPU8.slice(heapPtr, heapPtr + size);
+  private onReply(heapPtr: bigint, size: number) {
+    const data = this.connection.HEAPU8.slice(
+      Number(heapPtr),
+      Number(heapPtr) + size,
+    );
     assertExists(this.messagePort).postMessage(data, [data.buffer]);
   }
 
