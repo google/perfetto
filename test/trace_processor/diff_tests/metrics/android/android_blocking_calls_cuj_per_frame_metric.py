@@ -39,38 +39,6 @@ FIRST_CUJ = "J<BACK_PANEL_ARROW>"
 SECOND_CUJ = "J<CUJ_NAME>"
 
 
-def add_async_trace(trace, ts, ts_end, buf, pid, tid):
-  trace.add_atrace_async_begin(ts=ts, tid=tid, pid=pid, buf=buf)
-  trace.add_atrace_async_end(ts=ts_end, tid=tid, pid=pid, buf=buf)
-
-
-def add_ui_thread_atrace(trace, ts, ts_end, buf, tid, pid):
-  trace.add_atrace_begin(ts=ts, tid=tid, pid=pid, buf=buf)
-  trace.add_atrace_end(ts=ts_end, tid=tid, pid=pid)
-
-
-def add_instant_event_in_thread(trace, ts, buf, pid, tid):
-  trace.add_atrace_instant(ts=ts, tid=tid, pid=pid, buf=buf)
-
-
-def add_render_thread_atrace_begin(trace, ts, buf, rtid, pid):
-  trace.add_atrace_begin(ts=ts, tid=rtid, pid=pid, buf=buf)
-
-
-def add_render_thread_atrace_end(trace, ts_end, rtid, pid):
-  trace.add_atrace_end(ts=ts_end, tid=rtid, pid=pid)
-
-
-def add_frame(trace, vsync, ts_do_frame, ts_end_do_frame, tid, pid):
-  add_ui_thread_atrace(
-      trace,
-      ts=ts_do_frame,
-      ts_end=ts_end_do_frame,
-      buf="Choreographer#doFrame %d" % vsync,
-      tid=tid,
-      pid=pid)
-
-
 def add_expected_surface_frame_events(ts, dur, token, pid):
   trace.add_expected_surface_frame_start_event(
       ts=ts,
@@ -102,18 +70,28 @@ def add_actual_surface_frame_events(ts, dur, token, layer, pid):
 def add_blocking_calls_per_frame_multiple_cuj_instance(trace, cuj_name):
 
   # add a new CUJ in trace.
-  add_async_trace(
-      trace,
+  trace.add_async_atrace_for_thread(
       ts=25_000_000,
       ts_end=77_000_000,
       buf=cuj_name,
       pid=SYSUI_PID,
       tid=SYSUI_UI_TID)
-  add_async_trace(
-      trace,
+  trace.add_async_atrace_for_thread(
       ts=83_000_000,
       ts_end=102_000_000,
       buf=cuj_name,
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID)
+
+  trace.add_atrace_instant(
+      ts=25_000_001,
+      buf=cuj_name + "#UIThread",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID)
+
+  trace.add_atrace_instant(
+      ts=83_000_001,
+      buf=cuj_name + "#UIThread",
       pid=SYSUI_PID,
       tid=SYSUI_UI_TID)
 
@@ -161,71 +139,77 @@ def add_blocking_calls_per_frame_multiple_cuj_instance(trace, cuj_name):
 
   # Add Choreographer#doFrame outside CUJ boundary. This frame will not be considered during
   # metric calculation.
-  add_frame(
-      trace,
+
+  trace.add_frame(
       vsync=15,
       ts_do_frame=9_000_000,
       ts_end_do_frame=15_000_000,
       tid=SYSUI_UI_TID,
       pid=SYSUI_PID)
 
-  add_render_thread_atrace_begin(
-      trace, ts=10_000_000, buf="DrawFrames 15", rtid=SYSUI_RTID, pid=SYSUI_PID)
-  add_render_thread_atrace_end(
-      trace, ts_end=12_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
+  trace.add_atrace_for_thread(
+      ts=10_000_000,
+      ts_end=12_000_000,
+      buf="DrawFrames 15",
+      tid=SYSUI_RTID,
+      pid=SYSUI_PID)
 
   # Add Choreographer#doFrame slices within CUJ boundary.
-  add_frame(
-      trace,
+  trace.add_frame(
       vsync=20,
       ts_do_frame=26_000_000,
       ts_end_do_frame=32_000_000,
       tid=SYSUI_UI_TID,
       pid=SYSUI_PID)
 
-  add_render_thread_atrace_begin(
-      trace, ts=27_000_000, buf="DrawFrames 20", rtid=SYSUI_RTID, pid=SYSUI_PID)
-  add_render_thread_atrace_end(
-      trace, ts_end=28_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
+  trace.add_atrace_for_thread(
+      ts=27_000_000,
+      ts_end=28_000_000,
+      buf="DrawFrames 20",
+      tid=SYSUI_RTID,
+      pid=SYSUI_PID)
 
-  add_frame(
-      trace,
+  trace.add_frame(
       vsync=22,
       ts_do_frame=43_000_000,
       ts_end_do_frame=49_000_000,
       tid=SYSUI_UI_TID,
       pid=SYSUI_PID)
 
-  add_render_thread_atrace_begin(
-      trace, ts=44_000_000, buf="DrawFrames 22", rtid=SYSUI_RTID, pid=SYSUI_PID)
-  add_render_thread_atrace_end(
-      trace, ts_end=45_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
+  trace.add_atrace_for_thread(
+      ts=44_000_000,
+      ts_end=45_000_000,
+      buf="DrawFrames 22",
+      tid=SYSUI_RTID,
+      pid=SYSUI_PID)
 
-  add_frame(
-      trace,
+  trace.add_frame(
       vsync=24,
       ts_do_frame=60_000_000,
       ts_end_do_frame=65_000_000,
       tid=SYSUI_UI_TID,
       pid=SYSUI_PID)
 
-  add_render_thread_atrace_begin(
-      trace, ts=61_000_000, buf="DrawFrames 24", rtid=SYSUI_RTID, pid=SYSUI_PID)
-  add_render_thread_atrace_end(
-      trace, ts_end=62_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
+  trace.add_atrace_for_thread(
+      ts=61_000_000,
+      ts_end=62_000_000,
+      buf="DrawFrames 24",
+      tid=SYSUI_RTID,
+      pid=SYSUI_PID)
 
-  add_frame(
-      trace,
+  trace.add_frame(
       vsync=65,
       ts_do_frame=84_000_000,
       ts_end_do_frame=89_000_000,
       tid=SYSUI_UI_TID,
       pid=SYSUI_PID)
 
-  add_render_thread_atrace_begin(
-      trace, ts=85_000_000, buf="DrawFrames 65", rtid=SYSUI_RTID, pid=SYSUI_PID)
-  add_render_thread_atrace_end(
-      trace, ts_end=86_000_000, rtid=SYSUI_RTID, pid=SYSUI_PID)
+  trace.add_atrace_for_thread(
+      ts=85_000_000,
+      ts_end=86_000_000,
+      buf="DrawFrames 65",
+      tid=SYSUI_RTID,
+      pid=SYSUI_PID)
 
   trace.add_atrace_begin(
       ts=28_000_000, buf="binder transaction", tid=SYSUI_UI_TID, pid=SYSUI_PID)
@@ -273,16 +257,14 @@ def add_blocking_calls_per_frame_multiple_cuj_instance(trace, cuj_name):
 def add_blocking_call_crossing_frame_boundary(trace, cuj_name):
 
   # add a new CUJ in trace.
-  add_async_trace(
-      trace,
+  trace.add_async_atrace_for_thread(
       ts=120_000_000,
       ts_end=145_000_000,
       buf=cuj_name,
       pid=LAUNCHER_PID,
       tid=LAUNCHER_UI_TID)
 
-  add_instant_event_in_thread(
-      trace,
+  trace.add_atrace_instant(
       ts=120_000_001,
       buf=cuj_name + "#UIThread",
       pid=LAUNCHER_PID,
@@ -311,57 +293,48 @@ def add_blocking_call_crossing_frame_boundary(trace, cuj_name):
 
   # Add Choreographer#doFrame outside CUJ boundary. This frame will not be considered during
   # metric calculation.
-  add_frame(
-      trace,
+  trace.add_frame(
       vsync=75,
       ts_do_frame=103_000_000,
       ts_end_do_frame=110_000_000,
       tid=LAUNCHER_UI_TID,
       pid=LAUNCHER_PID)
 
-  add_render_thread_atrace_begin(
-      trace,
+  trace.add_atrace_for_thread(
       ts=104_000_000,
+      ts_end=105_000_000,
       buf="DrawFrames 75",
-      rtid=LAUNCHER_RTID,
+      tid=LAUNCHER_RTID,
       pid=LAUNCHER_PID)
-  add_render_thread_atrace_end(
-      trace, ts_end=105_000_000, rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
 
   # Add Choreographer#doFrame slices within CUJ boundary.
-  add_frame(
-      trace,
+  trace.add_frame(
       vsync=80,
       ts_do_frame=120_000_000,
       ts_end_do_frame=126_000_000,
       tid=LAUNCHER_UI_TID,
       pid=LAUNCHER_PID)
 
-  add_render_thread_atrace_begin(
-      trace,
+  trace.add_atrace_for_thread(
       ts=121_000_000,
+      ts_end=122_000_000,
       buf="DrawFrames 80",
-      rtid=LAUNCHER_RTID,
+      tid=LAUNCHER_RTID,
       pid=LAUNCHER_PID)
-  add_render_thread_atrace_end(
-      trace, ts_end=122_000_000, rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
 
-  add_frame(
-      trace,
+  trace.add_frame(
       vsync=82,
       ts_do_frame=141_000_000,
       ts_end_do_frame=143_000_000,
       tid=LAUNCHER_UI_TID,
       pid=LAUNCHER_PID)
 
-  add_render_thread_atrace_begin(
-      trace,
+  trace.add_atrace_for_thread(
       ts=142_000_000,
+      ts_end=142_500_000,
       buf="DrawFrames 82",
-      rtid=LAUNCHER_RTID,
+      tid=LAUNCHER_RTID,
       pid=LAUNCHER_PID)
-  add_render_thread_atrace_end(
-      trace, ts_end=142_500_000, rtid=LAUNCHER_RTID, pid=LAUNCHER_PID)
 
   trace.add_atrace_begin(
       ts=127_000_000, buf="animation", tid=LAUNCHER_UI_TID, pid=LAUNCHER_PID)
@@ -382,6 +355,71 @@ def add_blocking_call_crossing_frame_boundary(trace, cuj_name):
       ts=138_000_000, dur=16_000_000, token=82, pid=LAUNCHER_PID)
   add_actual_surface_frame_events(
       ts=138_000_000, dur=6_000_000, token=82, layer=LAYER_2, pid=LAUNCHER_PID)
+
+
+def add_ignored_latency_cujs(trace):
+  cuj_1 = "L<IGNORED_CUJ_1>"
+  cuj_2 = "L<IGNORED_CUJ_2>"
+  trace.add_async_atrace_for_thread(
+      ts=150_000_000,
+      ts_end=155_000_000,
+      buf=cuj_1,
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID)
+  trace.add_async_atrace_for_thread(
+      ts=156_000_000,
+      ts_end=160_000_000,
+      buf=cuj_2,
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID)
+
+  trace.add_atrace_instant(
+      ts=150_000_001, buf=cuj_1 + "#UIThread", pid=SYSUI_PID, tid=SYSUI_UI_TID)
+
+  trace.add_atrace_instant(
+      ts=156_000_001, buf=cuj_2 + "#UIThread", pid=SYSUI_PID, tid=SYSUI_UI_TID)
+
+  trace.add_atrace_instant_for_track(
+      ts=150_000_002,
+      buf="FT#beginVsync#90",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_1)
+
+  trace.add_atrace_instant_for_track(
+      ts=150_000_010,
+      buf="FT#layerId#0",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_1)
+
+  trace.add_atrace_instant_for_track(
+      ts=154_000_001,
+      buf="FT#endVsync#92",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_1)
+
+  trace.add_atrace_instant_for_track(
+      ts=156_000_002,
+      buf="FT#beginVsync#94",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_2)
+
+  trace.add_atrace_instant_for_track(
+      ts=156_000_010,
+      buf="FT#layerId#0",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_2)
+
+  trace.add_atrace_instant_for_track(
+      ts=156_000_001,
+      buf="FT#endVsync#96",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_2)
 
 
 def add_process(trace, package_name, uid, pid):
@@ -411,4 +449,6 @@ trace = setup_trace()
 add_blocking_calls_per_frame_multiple_cuj_instance(trace, FIRST_CUJ)
 trace.add_ftrace_packet(cpu=0)
 add_blocking_call_crossing_frame_boundary(trace, SECOND_CUJ)
+trace.add_ftrace_packet(cpu=0)
+add_ignored_latency_cujs(trace)
 sys.stdout.buffer.write(trace.trace.SerializeToString())
