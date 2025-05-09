@@ -92,3 +92,19 @@ class Etm(TestSuite):
           WHERE trace_id = 0 AND mapping_id = 1
         ''',
         out=Path('iterate_instructions.out'))
+
+  def test_symbolization(self):
+    return DiffTestBlueprint(
+        index_path=DataPath('simpleperf/bin'),
+        trace=DataPath('simpleperf/cs_etm_u.perf'),
+        query='''
+          SELECT d.element_index, i.instruction_index, s.*
+          FROM
+            __intrinsic_etm_decode_trace d,
+            __intrinsic_etm_iterate_instruction_range i
+            USING(instruction_range),
+            __intrinsic_etm_symbolize s
+            USING(mapping_id, address)
+          WHERE trace_id = 0 AND mapping_id = 1
+        ''',
+        out=Path('symbolization.out'))
