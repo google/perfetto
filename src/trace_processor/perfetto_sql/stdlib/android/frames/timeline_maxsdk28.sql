@@ -46,13 +46,6 @@ CREATE PERFETTO TABLE _frames_maxsdk_28 (
   process_name STRING
 ) AS
 WITH
-  choreographer AS (
-    SELECT
-      id
-    FROM slice
-    WHERE
-      name = 'Choreographer#doFrame'
-  ),
   do_frames AS (
     SELECT
       id,
@@ -60,11 +53,9 @@ WITH
       lead(ts, 1, trace_end()) OVER (PARTITION BY upid ORDER BY ts) AS next_do_frame,
       utid,
       upid
-    FROM choreographer
-    JOIN thread_slice
-      USING (id)
+    FROM thread_slice
     WHERE
-      is_main_thread = 1
+      is_main_thread = 1 AND name = 'Choreographer#doFrame'
     ORDER BY
       ts
   ),
