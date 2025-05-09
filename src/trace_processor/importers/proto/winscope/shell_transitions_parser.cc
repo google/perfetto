@@ -48,11 +48,6 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   // Track transition args as the come in through different packets
   auto transition_tracker = ShellTransitionsTracker::GetOrCreate(context_);
 
-  if (transition.has_dispatch_time_ns()) {
-    transition_tracker->SetTimestamp(transition.id(),
-                                     transition.dispatch_time_ns());
-  }
-
   auto inserter = transition_tracker->AddArgsTo(transition.id());
   ArgsParser writer(/*timestamp=*/0, inserter, *context_->storage.get());
   base::Status status = args_parser_.ParseMessage(
@@ -64,6 +59,11 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   if (!status.ok()) {
     context_->storage->IncrementStats(
         stats::winscope_shell_transitions_parse_errors);
+  }
+
+  if (transition.has_dispatch_time_ns()) {
+    transition_tracker->SetTimestamp(transition.id(),
+                                     transition.dispatch_time_ns());
   }
 }
 

@@ -19,6 +19,7 @@ perfetto_sql_source_set("android") {
     "auto",
     "battery",
     "cpu",
+    "cujs",
     "dumpsys",
     "frames",
     "gpu",
