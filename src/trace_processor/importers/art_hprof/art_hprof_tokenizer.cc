@@ -38,6 +38,16 @@
 
 namespace perfetto::trace_processor::art_hprof {
 ByteIterator::~ByteIterator() = default;
+const static std::unordered_map<std::string, FieldType>&
+GetPrimitiveArrayNameMap() {
+  static const auto* kMap = new std::unordered_map<std::string, FieldType>{
+      {"boolean[]", FIELD_TYPE_BOOLEAN}, {"char[]", FIELD_TYPE_CHAR},
+      {"float[]", FIELD_TYPE_FLOAT},     {"double[]", FIELD_TYPE_DOUBLE},
+      {"byte[]", FIELD_TYPE_BYTE},       {"short[]", FIELD_TYPE_SHORT},
+      {"int[]", FIELD_TYPE_INT},         {"long[]", FIELD_TYPE_LONG},
+  };
+  return *kMap;
+}
 
 // Field implementation
 size_t Field::GetSize() const {
@@ -74,9 +84,10 @@ base::Status ArtHprofTokenizer::Parse(TraceBlobView blob) {
                blob.size(), blob.offset());
   reader_.PushBack(std::move(blob));
   byte_iterator_ = std::make_unique<TraceBlobViewIterator>(std::move(reader_));
-  parser_ = std::make_unique<HprofParser>(
-      std::unique_ptr<ByteIterator>(byte_iterator_.release()));
-
+  if (!parser_) {
+    parser_ = std::make_unique<HprofParser>(
+        std::unique_ptr<ByteIterator>(byte_iterator_.release()));
+  }
   parser_->Parse();
 
   return base::OkStatus();
@@ -370,35 +381,39 @@ bool HprofParser::HandleUtf8Record(uint32_t length) {
 bool HprofParser::HandleLoadClassRecord() {
   // Serial number (not used)
   uint32_t serial_num;
-  if (!iterator_->ReadU4(serial_num)) {
+  if (!iterator_->ReadU4(serial_num))
     return false;
-  }
 
   // Class object ID
   uint64_t class_obj_id;
-  if (!iterator_->ReadId(class_obj_id, header_.id_size())) {
+  if (!iterator_->ReadId(class_obj_id, header_.id_size()))
     return false;
-  }
 
   // Stack trace serial number (not used)
   uint32_t stack_trace;
-  if (!iterator_->ReadU4(stack_trace)) {
+  if (!iterator_->ReadU4(stack_trace))
     return false;
-  }
 
   // Class name string ID
   uint64_t name_id;
-  if (!iterator_->ReadId(name_id, header_.id_size())) {
+  if (!iterator_->ReadId(name_id, header_.id_size()))
     return false;
-  }
 
   // Get class name from strings map
   std::string class_name = GetString(name_id);
 
-  // Create class definition (will be populated later in CLASS_DUMP)
+  // Store class definition
   ClassDefinition class_def(class_obj_id, class_name);
   classes_[class_obj_id] = class_def;
   class_count_++;
+
+  const auto& primitive_map = GetPrimitiveArrayNameMap();
+  auto it = primitive_map.find(class_name);
+  if (it != primitive_map.end()) {
+    prim_array_class_ids_[static_cast<size_t>(it->second)] = class_obj_id;
+    PERFETTO_LOG("Registered class ID %" PRIu64 " for primitive array type %s",
+                 class_obj_id, class_name.c_str());
+  }
 
   return true;
 }
@@ -488,7 +503,7 @@ bool HprofParser::HandleHeapDumpInfoRecord() {
   }
 
   // Set current heap type
-  current_heap_ = static_cast<HeapType>(heap_id);
+  current_heap_ = GetString(name_string_id);
   return true;
 }
 
@@ -557,9 +572,24 @@ bool HprofParser::HandleClassDumpRecord() {
   }
 
   // Static fields
+  // Ensure the class object exists in the heap graph
+  HprofObject& class_obj = objects_[class_id];
+  if (class_obj.id() == 0) {
+    class_obj = HprofObject(class_id, class_id, current_heap_,
+                            ObjectType::OBJECT_TYPE_CLASS);
+    class_obj.SetHeapType(current_heap_);
+  }
+
+  auto pending_it = pending_roots_.find(class_obj.id());
+  if (pending_it != pending_roots_.end()) {
+    class_obj.SetRootType(pending_it->second);
+    pending_roots_.erase(pending_it);
+  }
+
   uint16_t static_field_count;
   if (!iterator_->ReadU2(static_field_count))
     return false;
+
   for (uint16_t i = 0; i < static_field_count; ++i) {
     uint64_t name_id;
     uint8_t type;
@@ -573,23 +603,22 @@ bool HprofParser::HandleClassDumpRecord() {
     std::string field_name = GetString(name_id);
 
     if (field_type == FIELD_TYPE_OBJECT) {
-      // Read object ID
       uint64_t target_id = 0;
       if (!iterator_->ReadId(target_id, header_.id_size()))
         return false;
 
       if (target_id != 0) {
-        HprofObject& class_obj = objects_[class_id];
-        if (class_obj.id() == 0) {
-          class_obj = HprofObject(class_id, class_id, current_heap_,
-                                  ObjectType::OBJECT_TYPE_CLASS);
+        // Optional: infer the class of the referenced object
+        uint64_t field_class_id = 0;
+        auto it_o = objects_.find(target_id);
+        if (it_o != objects_.end()) {
+          field_class_id = it_o->second.class_id();
         }
-        class_obj.AddReference(field_name,
-                               /*field_class_id=*/0, target_id);
+
+        class_obj.AddReference(field_name, field_class_id, target_id);
         reference_count_++;
       }
     } else {
-      // Skip non-object value
       size_t type_size = GetFieldTypeSize(field_type);
       if (!iterator_->SkipBytes(type_size))
         return false;
@@ -663,9 +692,16 @@ bool HprofParser::HandleInstanceDumpRecord() {
   HprofObject obj(object_id, class_id, current_heap_,
                   ObjectType::OBJECT_TYPE_INSTANCE);
   obj.SetRawData(std::move(data));
+  obj.SetHeapType(current_heap_);
 
   if (was_root && root_type.has_value()) {
     obj.SetRootType(root_type.value());
+  }
+
+  auto pending_it = pending_roots_.find(object_id);
+  if (pending_it != pending_roots_.end()) {
+    obj.SetRootType(pending_it->second);
+    pending_roots_.erase(pending_it);
   }
 
   objects_[object_id] = std::move(obj);
@@ -715,6 +751,13 @@ bool HprofParser::HandleObjectArrayDumpRecord() {
                   ObjectType::OBJECT_TYPE_OBJECT_ARRAY};
   obj.SetArrayElements(std::move(elements));
   obj.SetArrayElementType(FieldType::FIELD_TYPE_OBJECT);
+  obj.SetHeapType(current_heap_);
+
+  auto pending_it = pending_roots_.find(obj.id());
+  if (pending_it != pending_roots_.end()) {
+    obj.SetRootType(pending_it->second);
+    pending_roots_.erase(pending_it);
+  }
 
   // Add object to collection
   objects_[array_id] = obj;
@@ -743,13 +786,14 @@ bool HprofParser::HandlePrimitiveArrayDumpRecord() {
   }
 
   // Element type
-  uint8_t element_type;
-  if (!iterator_->ReadU1(element_type)) {
+  uint8_t element_type_u8;
+  if (!iterator_->ReadU1(element_type_u8)) {
     return false;
   }
+  FieldType element_type = static_cast<FieldType>(element_type_u8);
 
   // Determine element size
-  size_t type_size = GetFieldTypeSize(static_cast<FieldType>(element_type));
+  size_t type_size = GetFieldTypeSize(element_type);
 
   // Read array data
   std::vector<uint8_t> data;
@@ -757,14 +801,32 @@ bool HprofParser::HandlePrimitiveArrayDumpRecord() {
     return false;
   }
 
-  // Create array object
-  HprofObject obj{array_id, 0, current_heap_,
-                  ObjectType::OBJECT_TYPE_PRIMITIVE_ARRAY};
-  obj.SetRawData(data);
-  obj.SetArrayElementType(static_cast<FieldType>(element_type));
+  // Lookup proper class ID for this primitive array type
+  uint64_t class_id = 0;
+  if (element_type >= prim_array_class_ids_.size()) {
+    PERFETTO_FATAL("Invalid element type: %u", element_type_u8);
+  } else {
+    class_id = prim_array_class_ids_[static_cast<size_t>(element_type)];
+    if (class_id == 0) {
+      PERFETTO_FATAL("Unknown class ID for primitive array type: %u",
+                     element_type_u8);
+    }
+  }
 
-  // Add object to collection
-  objects_[array_id] = obj;
+  // Create array object with correct class_id
+  HprofObject obj{array_id, class_id, current_heap_,
+                  ObjectType::OBJECT_TYPE_PRIMITIVE_ARRAY};
+  obj.SetRawData(std::move(data));
+  obj.SetArrayElementType(element_type);
+
+  auto pending_it = pending_roots_.find(obj.id());
+  if (pending_it != pending_roots_.end()) {
+    obj.SetRootType(pending_it->second);
+    pending_roots_.erase(pending_it);
+  }
+
+  // Add to heap
+  objects_[array_id] = std::move(obj);
   primitive_array_count_++;
 
   return true;
@@ -806,18 +868,8 @@ bool HprofParser::HandleRootRecord(uint8_t tag) {
       break;
   }
 
-  // Either mark existing object as root, or create placeholder
-  auto it = objects_.find(object_id);
-  if (it != objects_.end()) {
-    it->second.SetRootType(static_cast<HprofHeapRootTag>(tag));
-  } else {
-    HprofObject obj(object_id, /*class_id=*/0, current_heap_,
-                    ObjectType::OBJECT_TYPE_INSTANCE);
-    obj.SetRootType(static_cast<HprofHeapRootTag>(tag));
-    objects_[object_id] = std::move(obj);
-  }
-
   root_count_++;
+  pending_roots_[object_id] = static_cast<HprofHeapRootTag>(tag);
   return true;
 }
 
@@ -969,28 +1021,6 @@ std::string HeapGraph::GetRootType(uint8_t root_type) {
   }
 }
 
-// Convert heap type ID to string
-std::string HeapGraph::GetHeapType(uint8_t heap_type) {
-  switch (heap_type) {
-    case HEAP_TYPE_APP:
-      return "app";
-    case HEAP_TYPE_ZYGOTE:
-      return "zygote";
-    case HEAP_TYPE_IMAGE:
-      return "image";
-    case HEAP_TYPE_JIT:
-      return "jit";
-    case HEAP_TYPE_APP_CACHE:
-      return "app-cache";
-    case HEAP_TYPE_SYSTEM:
-      return "system";
-    case HEAP_TYPE_DEFAULT:
-      return "default";
-    default:
-      return "unknown";
-  }
-}
-
 HeapGraph HprofParser::BuildHeapGraph() {
   HeapGraph graph;
 
@@ -1059,7 +1089,7 @@ void HprofParser::FixupObjectReferencesAndRoots() {
 
 void HeapGraph::PrintObjectTypeDistribution() const {
   std::unordered_map<ObjectType, size_t> type_counts;
-  std::unordered_map<HeapType, size_t> heap_counts;
+  std::unordered_map<std::string, size_t> heap_counts;
   size_t total_size = 0;
 
   for (const auto& entry : objects_) {
@@ -1081,7 +1111,7 @@ void HeapGraph::PrintObjectTypeDistribution() const {
 
   PERFETTO_LOG("\n--- Heap Distribution ---");
   for (const auto& entry : heap_counts) {
-    PERFETTO_LOG("Heap type %d: %zu objects", static_cast<int>(entry.first),
+    PERFETTO_LOG("Heap type %s: %zu objects", entry.first.c_str(),
                  entry.second);
   }
 

@@ -133,29 +133,17 @@ void ArtHprofParserImpl::PopulateObjects(
 
   // Create fallback unknown class if needed
   tables::HeapGraphClassTable::Id unknown_class_id;
-  bool created_unknown_class = false;
+  // bool created_unknown_class = false;
 
   for (const auto& [obj_id, obj] : graph.GetObjects()) {
     objects_processed++;
 
     // Resolve object's type
     auto type_it = class_map.find(obj.class_id());
-    if (type_it == class_map.end()) {
-      if (!created_unknown_class) {
-        // Create fallback unknown class
-        auto& class_table =
-            *context_->storage->mutable_heap_graph_class_table();
-        StringId unknown_name =
-            context_->storage->InternString(base::StringView("unknown"));
-        StringId unknown_kind =
-            context_->storage->InternString(base::StringView("unknown"));
-
-        tables::HeapGraphClassTable::Row unknown_row;
-        unknown_row.name = unknown_name;
-        unknown_row.kind = unknown_kind;
-        unknown_class_id = class_table.Insert(unknown_row).id;
-        created_unknown_class = true;
-      }
+    if (type_it == class_map.end() &&
+        obj.object_type() != ObjectType::OBJECT_TYPE_PRIMITIVE_ARRAY) {
+      PERFETTO_FATAL("Unknown class: %" PRIu64 ". Object type: %" PRIu8,
+                     obj.class_id(), obj.object_type());
     }
 
     // Create object row
@@ -171,11 +159,9 @@ void ArtHprofParserImpl::PopulateObjects(
         type_it != class_map.end() ? type_it->second : unknown_class_id;
 
     // Handle heap type
-    if (obj.heap_type() != HeapType::HEAP_TYPE_DEFAULT) {
-      StringId heap_type_id = context_->storage->InternString(
-          base::StringView(HeapGraph::GetHeapType(obj.heap_type())));
-      object_row.heap_type = heap_type_id;
-    }
+    StringId heap_type_id =
+        context_->storage->InternString(base::StringView(obj.heap_type()));
+    object_row.heap_type = heap_type_id;
 
     // Handle root type - FIXED: Check if it's a root and properly set the
     // root_type

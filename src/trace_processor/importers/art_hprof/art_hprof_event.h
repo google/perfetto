@@ -90,16 +90,6 @@ enum FieldType : uint8_t {
   FIELD_TYPE_LONG = 11
 };
 
-enum HeapType : uint8_t {
-  HEAP_TYPE_DEFAULT = 0,
-  HEAP_TYPE_APP = 1,
-  HEAP_TYPE_ZYGOTE = 2,
-  HEAP_TYPE_IMAGE = 3,
-  HEAP_TYPE_JIT = 4,
-  HEAP_TYPE_APP_CACHE = 5,
-  HEAP_TYPE_SYSTEM = 6
-};
-
 enum ObjectType : uint8_t {
   OBJECT_TYPE_CLASS = 0,
   OBJECT_TYPE_INSTANCE = 1,
@@ -195,15 +185,15 @@ class ClassDefinition {
 // HPROF object representation
 class HprofObject {
  public:
-  HprofObject(uint64_t id, uint64_t class_id, HeapType heap, ObjectType type)
-      : id_(id), class_id_(class_id), heap_(heap), type_(type) {}
+  HprofObject(uint64_t id, uint64_t class_id, std::string heap, ObjectType type)
+      : id_(id), class_id_(class_id), type_(type), heap_type_(heap) {}
 
   HprofObject() = default;
 
   // Core properties
   uint64_t id() const { return id_; }
   uint64_t class_id() const { return class_id_; }
-  HeapType heap_type() const { return heap_; }
+  std::string heap_type() const { return heap_type_; }
   ObjectType object_type() const { return type_; }
 
   // Root handling
@@ -211,6 +201,8 @@ class HprofObject {
     root_type_ = root_type;
     is_root_ = true;
   }
+
+  void SetHeapType(std::string heap_type) { heap_type_ = heap_type; }
 
   bool is_root() const { return is_root_; }
   std::optional<HprofHeapRootTag> root_type() const { return root_type_; }
@@ -266,10 +258,10 @@ class HprofObject {
  private:
   uint64_t id_;
   uint64_t class_id_;
-  HeapType heap_;
   ObjectType type_;
   bool is_root_ = false;
   std::optional<HprofHeapRootTag> root_type_;
+  std::string heap_type_;
 
   // Data storage - used differently based on object type
   std::vector<uint8_t> raw_data_;
@@ -344,12 +336,14 @@ class HprofParser {
   std::vector<std::string> errors_;
 
   // Current parsing state
-  HeapType current_heap_ = HeapType::HEAP_TYPE_DEFAULT;
+  std::string current_heap_;
 
   // Data collections
   std::unordered_map<uint64_t, std::string> strings_;
   std::unordered_map<uint64_t, ClassDefinition> classes_;
   std::unordered_map<uint64_t, HprofObject> objects_;
+  std::array<uint64_t, 12> prim_array_class_ids_ = {};
+  std::unordered_map<uint64_t, HprofHeapRootTag> pending_roots_;
 
   // Stats
   size_t string_count_ = 0;
@@ -380,7 +374,6 @@ class HeapGraph {
   size_t GetClassCount() const;
   size_t GetStringCount() const;
   static std::string GetRootType(uint8_t root_type_id);
-  static std::string GetHeapType(uint8_t heap_id);
 
   // Analysis methods
   void PrintObjectTypeDistribution() const;
@@ -394,6 +387,7 @@ class HeapGraph {
   std::unordered_map<uint64_t, HprofObject> objects_;
   std::unordered_map<uint64_t, ClassDefinition> classes_;
   std::unordered_map<uint64_t, std::string> strings_;
+  std::unordered_map<uint32_t, std::string> heap_id_to_name_;
 };
 
 /**
