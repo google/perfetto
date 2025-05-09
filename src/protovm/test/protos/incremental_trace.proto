@@ -29,8 +29,15 @@ message TraceEntry {
   repeated Element elements = 1;
 }
 
+message ElementAndIndex {
+  optional Element element = 1;
+  optional int32 index = 2;
+}
+
 message Patch {
-  repeated int32 elements_to_delete = 1;
+  repeated int32 elements_to_delete_by_id = 1;
   repeated Element elements_to_merge = 2;
   repeated Element elements_to_set = 3;
-};
+  repeated int32 elements_to_delete_by_index = 4;
+  repeated ElementAndIndex elements_to_insert_by_index = 5;
+}
