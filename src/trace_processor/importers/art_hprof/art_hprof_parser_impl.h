@@ -31,17 +31,23 @@ class ArtHprofParserImpl : public ArtHprofParser {
   void ParseArtHprofEvent(int64_t ts, ArtHprofEvent) override;
 
  private:
-  void PopulateClasses(const HeapGraph& graph,
-                      std::unordered_map<uint64_t, tables::HeapGraphClassTable::Id>& class_map);
+  void PopulateClasses(
+      const HeapGraph& graph,
+      std::unordered_map<uint64_t, tables::HeapGraphClassTable::Id>& class_map);
 
-  void PopulateObjects(const HeapGraph& graph,
-                      int64_t ts,
-                      UniquePid upid,
-                      const std::unordered_map<uint64_t, tables::HeapGraphClassTable::Id>& class_map,
-                      std::unordered_map<uint64_t, tables::HeapGraphObjectTable::Id>& object_map);
+  void PopulateObjects(
+      const HeapGraph& graph,
+      int64_t ts,
+      UniquePid upid,
+      const std::unordered_map<uint64_t, tables::HeapGraphClassTable::Id>&
+          class_map,
+      std::unordered_map<uint64_t, tables::HeapGraphObjectTable::Id>&
+          object_map);
 
-  void PopulateReferences(const HeapGraph& graph,
-                         const std::unordered_map<uint64_t, tables::HeapGraphObjectTable::Id>& object_map);
+  void PopulateReferences(
+      const HeapGraph& graph,
+      const std::unordered_map<uint64_t, tables::HeapGraphObjectTable::Id>&
+          object_map);
 
   std::string GetFieldTypeName(FieldType type);
 

@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_EVENT_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_EVENT_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HPROF_EVENT_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HPROF_EVENT_H_
 
-#include "src/trace_processor/sorter/trace_sorter.h"
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_event.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
@@ -35,8 +35,8 @@
 
 namespace perfetto::trace_processor::art_hprof {
 // HPROF format constants
-constexpr uint32_t kHprofHeaderMagic = 0x4A415641; // "JAVA" in ASCII
-constexpr size_t kHprofHeaderLength = 20; // Header size in bytes
+constexpr uint32_t kHprofHeaderMagic = 0x4A415641;  // "JAVA" in ASCII
+constexpr size_t kHprofHeaderLength = 20;           // Header size in bytes
 
 // Forward declarations
 class ByteIterator;
@@ -68,10 +68,10 @@ enum HprofHeapTag : uint8_t {
   HPROF_HEAP_TAG_PRIM_ARRAY_DUMP = 0x23,
   HPROF_HEAP_TAG_HEAP_DUMP_INFO = 0xFE,
   HPROF_HEAP_TAG_ROOT_INTERNED_STRING = 0x89,  // Android
-  HPROF_HEAP_TAG_ROOT_FINALIZING = 0x8A,      // Android
-  HPROF_HEAP_TAG_ROOT_DEBUGGER = 0x8B,        // Android
-  HPROF_HEAP_TAG_ROOT_VM_INTERNAL = 0x8D,     // Android
-  HPROF_HEAP_TAG_ROOT_JNI_MONITOR = 0x8E,     // Android
+  HPROF_HEAP_TAG_ROOT_FINALIZING = 0x8A,       // Android
+  HPROF_HEAP_TAG_ROOT_DEBUGGER = 0x8B,         // Android
+  HPROF_HEAP_TAG_ROOT_VM_INTERNAL = 0x8D,      // Android
+  HPROF_HEAP_TAG_ROOT_JNI_MONITOR = 0x8E,      // Android
   HPROF_HEAP_TAG_ROOT_UNKNOWN = 0xFF
 };
 
@@ -110,14 +110,21 @@ struct Reference {
   std::string field_name;
   uint64_t field_class_id;  // Store class ID instead of field type
 
-  Reference(uint64_t owner, const std::string& name, uint64_t class_id, uint64_t target)
-      : owner_id(owner), target_id(target), field_name(name), field_class_id(class_id) {}
+  Reference(uint64_t owner,
+            const std::string& name,
+            uint64_t class_id,
+            uint64_t target)
+      : owner_id(owner),
+        target_id(target),
+        field_name(name),
+        field_class_id(class_id) {}
 };
 
 // Field definition
 class Field {
  public:
-  Field(std::string name, FieldType type) : name_(std::move(name)), type_(type) {}
+  Field(std::string name, FieldType type)
+      : name_(std::move(name)), type_(type) {}
 
   const std::string& name() const { return name_; }
   FieldType type() const { return type_; }
@@ -185,10 +192,7 @@ class ClassDefinition {
 // HPROF object representation
 class HprofObject {
  public:
-  HprofObject(uint64_t id,
-              uint64_t class_id,
-              HeapType heap,
-              ObjectType type)
+  HprofObject(uint64_t id, uint64_t class_id, HeapType heap, ObjectType type)
       : id_(id), class_id_(class_id), heap_(heap), type_(type) {}
 
   HprofObject() = default;
@@ -213,7 +217,9 @@ class HprofObject {
   const std::vector<uint8_t>& raw_data() const { return raw_data_; }
 
   // References
-  void AddReference(const std::string& field_name, uint64_t field_class_id, uint64_t target_id);
+  void AddReference(const std::string& field_name,
+                    uint64_t field_class_id,
+                    uint64_t target_id);
 
   const std::vector<Reference>& references() const { return references_; }
 
@@ -224,14 +230,17 @@ class HprofObject {
 
   void SetArrayElementType(FieldType type) { array_element_type_ = type; }
 
-  const std::vector<uint64_t>& array_elements() const { return array_elements_; }
+  const std::vector<uint64_t>& array_elements() const {
+    return array_elements_;
+  }
   FieldType array_element_type() const { return array_element_type_; }
 
   // Size calculation
   size_t GetSize() const {
     // For instances and primitive arrays, use raw data size
     if (type_ == ObjectType::OBJECT_TYPE_INSTANCE ||
-        (type_ == ObjectType::OBJECT_TYPE_PRIMITIVE_ARRAY && !raw_data_.empty())) {
+        (type_ == ObjectType::OBJECT_TYPE_PRIMITIVE_ARRAY &&
+         !raw_data_.empty())) {
       return raw_data_.size();
     }
 
@@ -293,6 +302,7 @@ class HprofParser {
 
   // Parse the HPROF file and build heap graph
   HeapGraph Parse();
+
  private:
   // Parsing helper methods
   bool ParseHeader();
@@ -351,35 +361,35 @@ class HprofParser {
 
 // Heap graph implementation
 class HeapGraph {
-public:
-    HeapGraph() = default;
+ public:
+  HeapGraph() = default;
 
-    void AddObject(HprofObject object);
-    void AddClass(ClassDefinition cls);
-    void AddString(uint64_t id, std::string string);
-    std::string GetString(uint64_t id) const;
+  void AddObject(HprofObject object);
+  void AddClass(ClassDefinition cls);
+  void AddString(uint64_t id, std::string string);
+  std::string GetString(uint64_t id) const;
 
-    const std::unordered_map<uint64_t, HprofObject>& GetObjects() const;
-    const std::unordered_map<uint64_t, ClassDefinition>& GetClasses() const;
+  const std::unordered_map<uint64_t, HprofObject>& GetObjects() const;
+  const std::unordered_map<uint64_t, ClassDefinition>& GetClasses() const;
 
-    size_t GetObjectCount() const;
-    size_t GetClassCount() const;
-    size_t GetStringCount() const;
-    static std::string GetRootType(uint8_t root_type_id);
-    static std::string GetHeapType(uint8_t heap_id);
+  size_t GetObjectCount() const;
+  size_t GetClassCount() const;
+  size_t GetStringCount() const;
+  static std::string GetRootType(uint8_t root_type_id);
+  static std::string GetHeapType(uint8_t heap_id);
 
-    // Analysis methods
-    void PrintObjectTypeDistribution() const;
-    void PrintRootDistribution() const;
-    void PrintTopClasses(size_t top_n = 10) const;
-    bool ValidateReferences() const;
-    void PrintReferenceStats() const;
-    void PrintDetailedStats() const;
+  // Analysis methods
+  void PrintObjectTypeDistribution() const;
+  void PrintRootDistribution() const;
+  void PrintTopClasses(size_t top_n = 10) const;
+  bool ValidateReferences() const;
+  void PrintReferenceStats() const;
+  void PrintDetailedStats() const;
 
-private:
-    std::unordered_map<uint64_t, HprofObject> objects_;
-    std::unordered_map<uint64_t, ClassDefinition> classes_;
-    std::unordered_map<uint64_t, std::string> strings_;
+ private:
+  std::unordered_map<uint64_t, HprofObject> objects_;
+  std::unordered_map<uint64_t, ClassDefinition> classes_;
+  std::unordered_map<uint64_t, std::string> strings_;
 };
 
 /**
@@ -526,4 +536,4 @@ class ArtHprofTokenizer : public ChunkedTraceReader {
 
 }  // namespace perfetto::trace_processor::art_hprof
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_EVENT_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HPROF_EVENT_H_
