@@ -39,3 +39,24 @@ class EntityStateResidency(TestSuite):
         1,"Entity residency: PCIe-Modem is DOWN",20000
         2,"Entity residency: PCIe-Modem is DOWN",40000
         """))
+
+  def test_standard_library(self):
+    return DiffTestBlueprint(
+        trace=Path('entity_state_residency.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.entity_state_residency;
+        select
+          ts, entity_name, state_name, state_time_since_boot
+        from android_entity_state_residency
+        """,
+        out=Csv("""
+        "ts","entity_name","state_name","state_time_since_boot"
+        1,"Bluetooth","Idle",1000000000
+        2,"Bluetooth","Idle",3000000000
+        1,"Bluetooth","Active",2000000000
+        2,"Bluetooth","Active",4000000000
+        1,"PCIe-Modem","UP",10000000000
+        2,"PCIe-Modem","UP",30000000000
+        1,"PCIe-Modem","DOWN",20000000000
+        2,"PCIe-Modem","DOWN",40000000000
+        """))
