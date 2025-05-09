@@ -17,32 +17,13 @@
 -- found in the trace.
 -- This script will use the `android_jank_cuj_main_thread_frame_boundary`,
 -- containing bounds of frames within jank CUJs.
-SELECT RUN_METRIC('android/android_jank_cuj.sql');
+SELECT RUN_METRIC('android/process_metadata.sql');
 
 INCLUDE PERFETTO MODULE android.slices;
 INCLUDE PERFETTO MODULE android.binder;
 INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 INCLUDE PERFETTO MODULE android.frames.timeline;
-
--- TODO(b/296349525): Add this to the perfetto standard library.
-DROP TABLE IF EXISTS android_cujs;
-CREATE TABLE android_cujs AS
-    SELECT
-        cuj_id,
-        cuj.upid,
-        t.utid AS ui_thread,
-        process_name,
-        process_metadata,
-        cuj_name,
-        cuj.layer_id,
-        tb.ts,
-        tb.dur,
-        tb.ts_end,
-        begin_vsync,
-        end_vsync
-    FROM android_jank_cuj_main_thread_cuj_boundary tb
-    JOIN android_jank_cuj cuj USING (cuj_id)
-    JOIN android_jank_cuj_main_thread t USING (cuj_id);
+INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 
 -- While calculating the metric, there are two possibilities for a blocking call:
 -- 1. Blocking call is completely within a frame boundary.
@@ -91,7 +72,7 @@ SELECT
         frame.ts_end - cuj.ts
     ) AS dur
 FROM android_frames_layers frame
-JOIN android_cujs cuj
+JOIN android_sysui_jank_cujs cuj
 ON frame.upid = cuj.upid
    AND frame.layer_id = cuj.layer_id
    AND frame.ui_thread_utid = cuj.ui_thread
@@ -170,7 +151,7 @@ SELECT AndroidCujBlockingCallsPerFrameMetric('cuj', (
     SELECT RepeatedField(
         AndroidCujBlockingCallsPerFrameMetric_Cuj(
             'name', cuj_name,
-            'process', process_metadata,
+            'process', process_metadata_proto(cuj.upid),
             'blocking_calls', (
                 SELECT RepeatedField(
                     AndroidBlockingCallPerFrame(
@@ -189,5 +170,5 @@ SELECT AndroidCujBlockingCallsPerFrameMetric('cuj', (
             )
         )
     )
-    FROM (SELECT DISTINCT cuj_name, upid, process_metadata FROM android_cujs) cuj
+    FROM (SELECT DISTINCT cuj_name, upid FROM android_sysui_jank_cujs) cuj
 ));
