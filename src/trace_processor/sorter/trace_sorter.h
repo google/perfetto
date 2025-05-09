@@ -243,12 +243,6 @@ class TraceSorter {
                          event);
   }
 
-  void PushArtHprofEvent(int64_t timestamp,
-                         const art_hprof::ArtHprofEvent& event) {
-    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kArtHprofEvent,
-                         event);
-  }
-
   void PushPerfTextEvent(int64_t timestamp,
                          const perf_text_importer::PerfTextEvent& event) {
     AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kPerfTextEvent,
@@ -373,7 +367,6 @@ class TraceSorter {
       kTrackEvent,
       kGeckoEvent,
       kArtMethodEvent,
-      kArtHprofEvent,
       kPerfTextEvent,
       kMax = kPerfTextEvent,
     };

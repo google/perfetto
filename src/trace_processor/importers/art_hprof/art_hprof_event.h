@@ -53,7 +53,7 @@ enum HprofTag : uint8_t {
   HPROF_TAG_HEAP_DUMP_END = 0x2C
 };
 
-enum HprofHeapTag : uint8_t {
+enum HprofHeapRootTag : uint8_t {
   HPROF_HEAP_TAG_ROOT_JNI_GLOBAL = 0x01,
   HPROF_HEAP_TAG_ROOT_JNI_LOCAL = 0x02,
   HPROF_HEAP_TAG_ROOT_JAVA_FRAME = 0x03,
@@ -62,17 +62,20 @@ enum HprofHeapTag : uint8_t {
   HPROF_HEAP_TAG_ROOT_THREAD_BLOCK = 0x06,
   HPROF_HEAP_TAG_ROOT_MONITOR_USED = 0x07,
   HPROF_HEAP_TAG_ROOT_THREAD_OBJ = 0x08,
-  HPROF_HEAP_TAG_CLASS_DUMP = 0x20,
-  HPROF_HEAP_TAG_INSTANCE_DUMP = 0x21,
-  HPROF_HEAP_TAG_OBJ_ARRAY_DUMP = 0x22,
-  HPROF_HEAP_TAG_PRIM_ARRAY_DUMP = 0x23,
-  HPROF_HEAP_TAG_HEAP_DUMP_INFO = 0xFE,
   HPROF_HEAP_TAG_ROOT_INTERNED_STRING = 0x89,  // Android
   HPROF_HEAP_TAG_ROOT_FINALIZING = 0x8A,       // Android
   HPROF_HEAP_TAG_ROOT_DEBUGGER = 0x8B,         // Android
   HPROF_HEAP_TAG_ROOT_VM_INTERNAL = 0x8D,      // Android
   HPROF_HEAP_TAG_ROOT_JNI_MONITOR = 0x8E,      // Android
   HPROF_HEAP_TAG_ROOT_UNKNOWN = 0xFF
+};
+
+enum HprofHeapTag : uint8_t {
+  HPROF_HEAP_TAG_CLASS_DUMP = 0x20,
+  HPROF_HEAP_TAG_INSTANCE_DUMP = 0x21,
+  HPROF_HEAP_TAG_OBJ_ARRAY_DUMP = 0x22,
+  HPROF_HEAP_TAG_PRIM_ARRAY_DUMP = 0x23,
+  HPROF_HEAP_TAG_HEAP_DUMP_INFO = 0xFE
 };
 
 enum FieldType : uint8_t {
@@ -204,13 +207,13 @@ class HprofObject {
   ObjectType object_type() const { return type_; }
 
   // Root handling
-  void SetRootType(HprofHeapTag root_type) {
+  void SetRootType(HprofHeapRootTag root_type) {
     root_type_ = root_type;
     is_root_ = true;
   }
 
   bool is_root() const { return is_root_; }
-  std::optional<HprofHeapTag> root_type() const { return root_type_; }
+  std::optional<HprofHeapRootTag> root_type() const { return root_type_; }
 
   // Instance-specific data
   void SetRawData(std::vector<uint8_t> data) { raw_data_ = std::move(data); }
@@ -266,7 +269,7 @@ class HprofObject {
   HeapType heap_;
   ObjectType type_;
   bool is_root_ = false;
-  std::optional<HprofHeapTag> root_type_;
+  std::optional<HprofHeapRootTag> root_type_;
 
   // Data storage - used differently based on object type
   std::vector<uint8_t> raw_data_;
@@ -301,7 +304,9 @@ class HprofParser {
   ~HprofParser();
 
   // Parse the HPROF file and build heap graph
-  HeapGraph Parse();
+  void Parse();
+
+  HeapGraph BuildGraph();
 
  private:
   // Parsing helper methods
@@ -327,7 +332,6 @@ class HprofParser {
   std::vector<Field> GetFieldsForClassHierarchy(uint64_t class_id);
   size_t GetFieldTypeSize(FieldType type) const;
   std::string GetString(uint64_t id) const;
-  std::string GetHeapName(HeapType type) const;
 
   // Heap graph building
   HeapGraph BuildHeapGraph();
@@ -346,7 +350,6 @@ class HprofParser {
   std::unordered_map<uint64_t, std::string> strings_;
   std::unordered_map<uint64_t, ClassDefinition> classes_;
   std::unordered_map<uint64_t, HprofObject> objects_;
-  std::unordered_map<HeapType, std::string> heap_names_;
 
   // Stats
   size_t string_count_ = 0;
@@ -357,6 +360,7 @@ class HprofParser {
   size_t primitive_array_count_ = 0;
   size_t root_count_ = 0;
   size_t reference_count_ = 0;
+  size_t cli = 0;
 };
 
 // Heap graph implementation
@@ -411,41 +415,13 @@ struct ArtHprofEvent {
  */
 class ArtHprofTokenizer : public ChunkedTraceReader {
  public:
-  /**
-   * Creates a new ArtHprofTokenizer with the given context.
-   *
-   * @param context Trace processor context
-   */
   explicit ArtHprofTokenizer(TraceProcessorContext* context);
 
-  /**
-   * Destructor.
-   */
   ~ArtHprofTokenizer() override;
 
-  /**
-   * Parse a chunk of HPROF data.
-   *
-   * @param blob The blob view containing the chunk
-   * @return Status of the parsing operation
-   */
   base::Status Parse(TraceBlobView blob) override;
 
-  /**
-   * Notifies that the end of the file has been reached.
-   *
-   * @return Status of the finalization
-   */
   base::Status NotifyEndOfFile() override;
-
-  /**
-   * Sets the parser implementation.
-   *
-   * @param parser_impl The parser implementation to use
-   */
-  void SetParserImpl(ArtHprofParser* parser_impl) {
-    parser_impl_ = parser_impl;
-  }
 
  private:
   using Iterator = util::TraceBlobViewReader::Iterator;
@@ -474,64 +450,12 @@ class ArtHprofTokenizer : public ChunkedTraceReader {
     size_t current_offset_ = 0;
   };
 
-  /**
-   * Detection sub-parser.
-   */
-  struct Detect {
-    base::Status Parse();
-    base::Status NotifyEndOfFile() const;
-    ArtHprofTokenizer* tokenizer_;
-  };
-
-  /**
-   * Non-streaming sub-parser.
-   */
-  struct NonStreaming {
-    base::Status Parse();
-    base::Status NotifyEndOfFile() const;
-    ArtHprofTokenizer* tokenizer_;
-    bool is_parsing_ = false;
-  };
-
-  /**
-   * Streaming sub-parser.
-   */
-  struct Streaming {
-    base::Status Parse();
-    base::Status NotifyEndOfFile();
-    ArtHprofTokenizer* tokenizer_;
-    size_t it_offset_ = 0;
-    bool header_parsed_ = false;
-  };
-
-  using SubParser = std::variant<Detect, NonStreaming, Streaming>;
-
-  /**
-   * Initialize parsers if needed.
-   *
-   * @return Status of the initialization
-   */
-  base::Status InitializeParserIfNeeded();
-
-  /**
-   * Process parsing results and generate events.
-   *
-   * @return Status of the processing
-   */
-  base::Status ProcessParsingResults();
-
   TraceProcessorContext* const context_;
   util::TraceBlobViewReader reader_;
-  SubParser sub_parser_ = Detect{this};
-  ArtHprofParser* parser_impl_ = nullptr;
 
   // Parser components
   std::unique_ptr<ByteIterator> byte_iterator_;
   std::unique_ptr<HprofParser> parser_;
-  std::optional<HeapGraph> parser_result_;
-
-  bool is_initialized_ = false;
-  bool is_complete_ = false;
 };
 
 }  // namespace perfetto::trace_processor::art_hprof

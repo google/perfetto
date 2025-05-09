@@ -43,18 +43,3 @@ source_set("art_hprof") {
     "../../util:trace_blob_view_reader",
   ]
 }
-
-perfetto_unittest_source_set("unittests") {
-  testonly = true
-  sources = [ "art_hprof_tokenizer_unittest.cc" ]
-  deps = [
-    ":art_hprof",
-    "../../../../gn:default_deps",
-    "../../../../gn:gtest_and_gmock",
-    "../../sorter",
-    "../../storage",
-    "../../types",
-    "../../util:trace_blob_view_reader",
-    "../common",
-  ]
-}

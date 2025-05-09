@@ -29,7 +29,6 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
-#include "src/trace_processor/importers/art_hprof/art_hprof_event.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
@@ -291,10 +290,6 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
       context.art_method_parser->ParseArtMethodEvent(
           event.ts, token_buffer_.Extract<art_method::ArtMethodEvent>(id));
       return;
-    case TimestampedEvent::Type::kArtHprofEvent:
-      context.art_hprof_parser->ParseArtHprofEvent(
-          event.ts, token_buffer_.Extract<art_hprof::ArtHprofEvent>(id));
-      return;
     case TimestampedEvent::Type::kPerfTextEvent:
       context.perf_text_parser->ParsePerfTextEvent(
           event.ts,
@@ -334,7 +329,6 @@ void TraceSorter::ParseEtwPacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kLegacyV8CpuProfileEvent:
     case TimestampedEvent::Type::kGeckoEvent:
     case TimestampedEvent::Type::kArtMethodEvent:
-    case TimestampedEvent::Type::kArtHprofEvent:
     case TimestampedEvent::Type::kPerfTextEvent:
       PERFETTO_FATAL("Invalid event type");
   }
@@ -372,7 +366,6 @@ void TraceSorter::ParseFtracePacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kLegacyV8CpuProfileEvent:
     case TimestampedEvent::Type::kGeckoEvent:
     case TimestampedEvent::Type::kArtMethodEvent:
-    case TimestampedEvent::Type::kArtHprofEvent:
     case TimestampedEvent::Type::kPerfTextEvent:
       PERFETTO_FATAL("Invalid event type");
   }
@@ -431,9 +424,6 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
     case TimestampedEvent::Type::kArtMethodEvent:
       base::ignore_result(
           token_buffer_.Extract<art_method::ArtMethodEvent>(id));
-      return;
-    case TimestampedEvent::Type::kArtHprofEvent:
-      base::ignore_result(token_buffer_.Extract<art_hprof::ArtHprofEvent>(id));
       return;
     case TimestampedEvent::Type::kPerfTextEvent:
       base::ignore_result(

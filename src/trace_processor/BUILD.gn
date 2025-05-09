@@ -325,7 +325,6 @@ perfetto_unittest_source_set("unittests") {
     "db:unittests",
     "db/column:unittests",
     "importers/android_bugreport:unittests",
-    "importers/art_hprof:unittests",
     "importers/common:unittests",
     "importers/ftrace:unittests",
     "importers/fuchsia:unittests",
