@@ -4145,6 +4145,8 @@ perfetto_filegroup(
         "src/traced/probes/ftrace/event_info.h",
         "src/traced/probes/ftrace/event_info_constants.cc",
         "src/traced/probes/ftrace/event_info_constants.h",
+        "src/traced/probes/ftrace/frozen_ftrace_data_source.cc",
+        "src/traced/probes/ftrace/frozen_ftrace_data_source.h",
         "src/traced/probes/ftrace/ftrace_config_muxer.cc",
         "src/traced/probes/ftrace/ftrace_config_muxer.h",
         "src/traced/probes/ftrace/ftrace_config_utils.cc",
@@ -5347,6 +5349,7 @@ perfetto_cc_protocpp_library(
 perfetto_proto_library(
     name = "protos_perfetto_config_ftrace_protos",
     srcs = [
+        "protos/perfetto/config/ftrace/frozen_ftrace_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
     ],
     visibility = [

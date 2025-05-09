@@ -20,8 +20,6 @@
 #include <cstdlib>
 #include <new>
 
-#include <sys/mman.h>
-
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/paged_memory.h"

@@ -1,30 +1,12 @@
 packet {
   clock_snapshot {
     primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
-    clocks {
-      clock_id: 6
-      timestamp: 0
-    }
-    clocks {
-      clock_id: 2
-      timestamp: 1682359234732002451
-    }
-    clocks {
-      clock_id: 4
-      timestamp: 0
-    }
-    clocks {
-      clock_id: 1
-      timestamp: 1682359234732002451
-    }
-    clocks {
-      clock_id: 3
-      timestamp: 0
-    }
-    clocks {
-      clock_id: 5
-      timestamp: 0
-    }
+    clocks { clock_id: 6 timestamp: 0 }
+    clocks { clock_id: 2 timestamp: 1682359234732002451 }
+    clocks { clock_id: 4 timestamp: 0 }
+    clocks { clock_id: 1 timestamp: 1682359234732002451 }
+    clocks { clock_id: 3 timestamp: 0 }
+    clocks { clock_id: 5 timestamp: 0 }
   }
   trusted_uid: 9999
   trusted_packet_sequence_id: 1
@@ -60,18 +42,8 @@ packet {
           usage: 2816
         }
         auto_refresh: false
-        buffer_crop {
-          left: 0
-          top: 0
-          right: 0
-          bottom: 0
-        }
-        destination_frame {
-          left: 0
-          top: 0
-          right: 1080
-          bottom: 2400
-        }
+        buffer_crop { left: 0 top: 0 right: 0 bottom: 0 }
+        destination_frame { left: 0 top: 0 right: 1080 bottom: 2400 }
       }
     }
     displays_changed: false
@@ -111,21 +83,43 @@ packet {
           usage: 2816
         }
         auto_refresh: false
-        buffer_crop {
-          left: 0
-          top: 0
-          right: 0
-          bottom: 0
-        }
-        destination_frame {
-          left: 0
-          top: 0
-          right: 1080
-          bottom: 2400
-        }
+        buffer_crop { left: 0 top: 0 right: 0 bottom: 0 }
+        destination_frame { left: 0 top: 0 right: 1080 bottom: 2400 }
       }
     }
     displays_changed: false
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  trusted_pid: 592
+}
+
+packet {
+  timestamp: 2749578184041
+  timestamp_clock_id: 3
+  surfaceflinger_transactions {
+    elapsed_realtime_nanos: 2749578184041
+    vsync_id: 24900
+    transactions {
+      pid: 3
+      uid: 415
+      vsync_id: 24784
+      transaction_id: 10518374908660
+      display_changes { id: 1234 what: 22 flags: 8 }
+    }
+    transactions {
+      pid: 3
+      uid: 415
+      vsync_id: 24785
+      transaction_id: 10518374908661
+    }
+    added_layers { layer_id: 4 }
+    destroyed_layers: 5
+    destroyed_layers: 6
+    added_displays { id: 5678 what: 8 flags: 22 }
+    removed_displays: 5
+    removed_displays: 7
+    destroyed_layer_handles: 9
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 3
