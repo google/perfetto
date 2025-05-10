@@ -34,7 +34,7 @@ import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 import {exists} from '../../base/utils';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
-import {SourceDataset} from '../../trace_processor/dataset';
+import {PartitionedDataset, SourceDataset} from '../../trace_processor/dataset';
 import {Cpu} from '../../base/multi_machine_trace';
 
 export interface Data extends TrackData {
@@ -53,6 +53,26 @@ const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
 const CPU_SLICE_FLAGS_INCOMPLETE = 1;
 const CPU_SLICE_FLAGS_REALTIME = 2;
+
+const schedTable = new SourceDataset({
+  src: `
+    SELECT
+      id,
+      ts,
+      dur,
+      ucpu,
+      utid
+    FROM sched
+    WHERE NOT utid IN (select utid from thread where is_idle)
+  `,
+  schema: {
+    id: NUM,
+    ts: LONG,
+    dur: LONG,
+    ucpu: NUM,
+    utid: NUM,
+  },
+});
 
 export class CpuSliceTrack implements TrackRenderer {
   private mousePos?: Point2D;
@@ -95,13 +115,11 @@ export class CpuSliceTrack implements TrackRenderer {
   }
 
   getDataset() {
-    return new SourceDataset({
+    return new PartitionedDataset({
       // TODO(stevegolton): Once we allow datasets to have more than one filter,
       // move this where clause to a dataset filter and change this src to
       // 'sched'.
-      src: `select id, ts, dur, ucpu, utid
-            from sched
-            where not utid in (select utid from thread where is_idle)`,
+      base: schedTable,
       schema: {
         id: NUM,
         ts: LONG,
@@ -109,7 +127,7 @@ export class CpuSliceTrack implements TrackRenderer {
         ucpu: NUM,
         utid: NUM,
       },
-      filter: {
+      partition: {
         col: 'ucpu',
         eq: this.cpu.ucpu,
       },
@@ -437,7 +455,7 @@ export class CpuSliceTrack implements TrackRenderer {
     return true;
   }
 
-  async getSelectionDetails?(
+  async getSelectionDetails(
     eventId: number,
   ): Promise<TrackEventDetails | undefined> {
     const dataset = this.getDataset();

@@ -23,17 +23,20 @@ import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {getTrackName} from '../../public/utils';
+import SliceTablePlugin from '../dev.perfetto.SliceTable';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TrackEvent';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
     TraceProcessorTrackPlugin,
+    SliceTablePlugin,
   ];
 
   private parentTrackNodes = new Map<string, TrackNode>();
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const sliceTable = ctx.plugins.getPlugin(SliceTablePlugin).sliceTable;
     const res = await ctx.engine.query(`
       include perfetto module viz.summary.track_event;
       select
@@ -153,7 +156,12 @@ export default class implements PerfettoPlugin {
             upid: upid ?? undefined,
             utid: utid ?? undefined,
           },
-          track: createTraceProcessorSliceTrack({trace: ctx, uri, trackIds}),
+          track: createTraceProcessorSliceTrack({
+            trace: ctx,
+            uri,
+            trackIds,
+            sliceTable,
+          }),
         });
       }
       const parent = this.findParentTrackNode(

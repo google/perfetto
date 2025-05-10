@@ -15,14 +15,24 @@
 import {HEAP_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {NUM} from '../../trace_processor/query_result';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {Track} from '../../public/track';
+import {SourceDataset} from '../../trace_processor/dataset';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
+
+const sourceDatasetSchema = {
+  id: NUM,
+  ts: LONG,
+  upid: NUM,
+  dur: NUM,
+  depth: NUM,
+  type: STR,
+};
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.HeapProfile';
@@ -31,8 +41,8 @@ export default class implements PerfettoPlugin {
   private readonly trackMap = new Map<number, Track>();
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    await this.createHeapProfileTable(trace);
-    await this.addProcessTracks(trace);
+    const sourceDataset = await this.createHeapProfileTable(trace);
+    await this.addProcessTracks(trace, sourceDataset);
 
     trace.onTraceReady.addListener(async () => {
       await this.selectFirstHeapProfile(trace);
@@ -67,9 +77,17 @@ export default class implements PerfettoPlugin {
         GROUP BY ts, upid
       `,
     );
+
+    return new SourceDataset({
+      src: EVENT_TABLE_NAME,
+      schema: sourceDatasetSchema,
+    });
   }
 
-  private async addProcessTracks(trace: Trace) {
+  private async addProcessTracks(
+    trace: Trace,
+    sourceDataset: SourceDataset<typeof sourceDatasetSchema>,
+  ) {
     const trackGroupsPlugin = trace.plugins.getPlugin(
       ProcessThreadGroupsPlugin,
     );
@@ -94,7 +112,7 @@ export default class implements PerfettoPlugin {
         track: createHeapProfileTrack(
           trace,
           uri,
-          EVENT_TABLE_NAME,
+          sourceDataset,
           upid,
           incomplete,
         ),

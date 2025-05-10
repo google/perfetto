@@ -20,7 +20,7 @@ import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {ColorScheme} from '../base/color_scheme';
 import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails, TrackEventSelection} from './selection';
-import {SourceDataset} from '../trace_processor/dataset';
+import {PartitionedDataset, SourceDataset} from '../trace_processor/dataset';
 import {TrackNode} from './workspace';
 
 export interface TrackFilterCriteria {
@@ -222,7 +222,7 @@ export interface TrackRenderer {
    * Optional: Returns a dataset that represents the events displayed on this
    * track.
    */
-  getDataset?(): SourceDataset | undefined;
+  getDataset?(): SourceDataset | PartitionedDataset | undefined;
 
   /**
    * Optional: Get details of a track event given by eventId on this track.

@@ -17,7 +17,7 @@ import {makeColorScheme} from '../../components/colorizer';
 import {ColorScheme} from '../../base/color_scheme';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
-import {SourceDataset} from '../../trace_processor/dataset';
+import {PartitionedDataset, SourceDataset} from '../../trace_processor/dataset';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 
@@ -37,6 +37,20 @@ const LIGHT_GREEN_100 = makeColorScheme(new HSLColor('#DCEDC8'));
 const PINK_500 = makeColorScheme(new HSLColor('#F515E0'));
 const PINK_200 = makeColorScheme(new HSLColor('#F48FB1'));
 
+const expectedActualFramesTimelineTable = new SourceDataset({
+  schema: {
+    id: NUM,
+    name: STR,
+    ts: LONG,
+    dur: LONG,
+    jank_type: STR,
+    jank_tag: STR_NULL,
+    jank_severity_type: STR_NULL,
+    track_id: NUM,
+  },
+  src: 'actual_frame_timeline_slice',
+});
+
 export function createActualFramesTrack(
   trace: Trace,
   uri: string,
@@ -46,8 +60,12 @@ export function createActualFramesTrack(
   return new DatasetSliceTrack({
     trace,
     uri,
-    dataset: new SourceDataset({
-      src: 'actual_frame_timeline_slice',
+    dataset: new PartitionedDataset({
+      base: expectedActualFramesTimelineTable,
+      partition: {
+        col: 'track_id',
+        in: trackIds,
+      },
       schema: {
         id: NUM,
         name: STR,
@@ -56,10 +74,6 @@ export function createActualFramesTrack(
         jank_type: STR,
         jank_tag: STR_NULL,
         jank_severity_type: STR_NULL,
-      },
-      filter: {
-        col: 'track_id',
-        in: trackIds,
       },
     }),
     colorizer: (row) => {

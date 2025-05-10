@@ -21,12 +21,18 @@ import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {SuspendResumeDetailsPanel} from './suspend_resume_details';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
+import SliceTablePlugin from '../dev.perfetto.SliceTable';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.kernel.SuspendResumeLatency';
-  static readonly dependencies = [ThreadPlugin, TraceProcessorTrackPlugin];
+  static readonly dependencies = [
+    ThreadPlugin,
+    TraceProcessorTrackPlugin,
+    SliceTablePlugin,
+  ];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const sliceTable = ctx.plugins.getPlugin(SliceTablePlugin).sliceTable;
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
     const {engine} = ctx;
     const rawGlobalAsyncTracks = await engine.query(`
@@ -76,6 +82,7 @@ export default class implements PerfettoPlugin {
         maxDepth,
         trackIds,
         detailsPanel: () => new SuspendResumeDetailsPanel(ctx, threads),
+        sliceTable,
       }),
     });
 

@@ -17,7 +17,18 @@ import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {Trace} from '../../public/trace';
 import {ChromeTasksDetailsPanel} from './details';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {SourceDataset} from '../../trace_processor/dataset';
+import {PartitionedDataset, SourceDataset} from '../../trace_processor/dataset';
+
+const chromeTasksTable = new SourceDataset({
+  src: 'chrome_tasks',
+  schema: {
+    id: NUM,
+    ts: LONG,
+    dur: LONG,
+    name: STR,
+    utid: NUM,
+  },
+});
 
 export function createChromeTasksThreadTrack(
   trace: Trace,
@@ -27,15 +38,15 @@ export function createChromeTasksThreadTrack(
   return new DatasetSliceTrack({
     trace,
     uri,
-    dataset: new SourceDataset({
+    dataset: new PartitionedDataset({
+      base: chromeTasksTable,
       schema: {
         id: NUM,
         ts: LONG,
         dur: LONG,
         name: STR,
       },
-      src: 'chrome_tasks',
-      filter: {
+      partition: {
         col: 'utid',
         eq: utid,
       },

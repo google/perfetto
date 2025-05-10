@@ -80,7 +80,7 @@ export interface SliceColumnMapping {
  */
 export async function createQuerySliceTrack(args: QuerySliceTrackArgs) {
   const tableName = `__query_slice_track_${sqlNameSafe(args.uri)}`;
-  await createPerfettoTableForTrack(
+  const dataset = await createPerfettoTableForTrack(
     args.trace.engine,
     tableName,
     args.data,
@@ -90,17 +90,9 @@ export async function createQuerySliceTrack(args: QuerySliceTrackArgs) {
   return new DatasetSliceTrack({
     trace: args.trace,
     uri: args.uri,
-    dataset: new SourceDataset({
-      schema: {
-        id: NUM,
-        ts: LONG,
-        dur: LONG,
-        name: STR,
-      },
-      src: tableName,
-    }),
+    dataset,
     detailsPanel: (row) => {
-      return new DebugSliceTrackDetailsPanel(args.trace, tableName, row.id);
+      return new DebugSliceTrackDetailsPanel(args.trace, dataset, row.id);
     },
   });
 }
@@ -141,5 +133,15 @@ async function createPerfettoTableForTrack(
     order by ts
   `;
 
-  return await createPerfettoTable(engine, tableName, query);
+  await createPerfettoTable(engine, tableName, query);
+
+  return new SourceDataset({
+    schema: {
+      id: NUM,
+      ts: LONG,
+      dur: LONG,
+      name: STR,
+    },
+    src: tableName,
+  });
 }

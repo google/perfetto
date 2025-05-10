@@ -24,8 +24,8 @@ import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {FtraceFilter} from './common';
 import {Monitor} from '../../base/monitor';
 import {TrackRenderContext} from '../../public/track';
-import {SourceDataset} from '../../trace_processor/dataset';
 import {TrackEventDetails} from '../../public/selection';
+import {PartitionedDataset, SourceDataset} from '../../trace_processor/dataset';
 
 const MARGIN = 2;
 const RECT_HEIGHT = 18;
@@ -43,34 +43,32 @@ export interface Config {
   cpu?: number;
 }
 
+const ftraceEventTable = new SourceDataset({
+  src: 'ftrace_event',
+  schema: {id: NUM, name: STR, ts: LONG, ucpu: NUM},
+});
+
 export class FtraceRawTrack implements TrackRenderer {
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
-  private engine: Engine;
-  private ucpu: number;
-  private store: Store<FtraceFilter>;
   private readonly monitor: Monitor;
 
-  constructor(engine: Engine, ucpu: number, store: Store<FtraceFilter>) {
-    this.engine = engine;
-    this.ucpu = ucpu;
-    this.store = store;
-
+  constructor(
+    private readonly engine: Engine,
+    private readonly ucpu: number,
+    private readonly store: Store<FtraceFilter>,
+  ) {
     this.monitor = new Monitor([() => store.state]);
   }
 
   getDataset() {
-    return new SourceDataset({
-      // 'ftrace_event' doesn't have a dur column, but injecting dur=0 (all
-      // ftrace events are effectively 'instant') allows us to participate in
-      // generic slice aggregations
-      src: 'select id, ts, 0 as dur, name, ucpu from ftrace_event',
+    return new PartitionedDataset({
+      base: ftraceEventTable,
       schema: {
         id: NUM,
         name: STR,
         ts: LONG,
-        dur: LONG,
       },
-      filter: {
+      partition: {
         col: 'ucpu',
         eq: this.ucpu,
       },

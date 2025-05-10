@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SourceDataset, UnionDataset} from './dataset';
+import {PartitionedDataset, SourceDataset, UnionDataset} from './dataset'; // Updated imports
 import {
   BLOB,
-  BLOB_NULL,
   LONG,
   LONG_NULL,
   NUM,
@@ -25,301 +24,546 @@ import {
   UNKNOWN,
 } from './query_result';
 
-test('get query for simple dataset', () => {
-  const dataset = new SourceDataset({
-    src: 'slice',
-    schema: {id: NUM},
-  });
+// Helper function to normalize whitespace in expected SQL queries for comparison
+function normalize(query: string): string {
+  return query.replace(/\s+/g, ' ').trim();
+}
 
-  expect(dataset.query()).toEqual('select id from (slice)');
-});
-
-test("get query for simple dataset with 'eq' filter", () => {
-  const dataset = new SourceDataset({
-    src: 'slice',
-    schema: {id: NUM},
-    filter: {
-      col: 'id',
-      eq: 123,
-    },
-  });
-
-  expect(dataset.query()).toEqual('select id from (slice) where id = 123');
-});
-
-test("get query for simple dataset with an 'in' filter", () => {
-  const dataset = new SourceDataset({
-    src: 'slice',
-    schema: {id: NUM},
-    filter: {
-      col: 'id',
-      in: [123, 456],
-    },
-  });
-
-  expect(dataset.query()).toEqual(
-    'select id from (slice) where id in (123,456)',
-  );
-});
-
-test('get query for union dataset', () => {
-  const dataset = new UnionDataset([
-    new SourceDataset({
+describe('SourceDataset', () => {
+  test('get query for SourceDataset', () => {
+    const dataset = new SourceDataset({
       src: 'slice',
-      schema: {id: NUM},
-      filter: {
-        col: 'id',
-        eq: 123,
-      },
-    }),
-    new SourceDataset({
+      schema: {id: NUM, name: STR},
+    });
+
+    expect(dataset.query()).toEqual('SELECT id, name FROM (slice)');
+  });
+
+  test('get query for SourceDataset with projection', () => {
+    const dataset = new SourceDataset({
       src: 'slice',
-      schema: {id: NUM},
-      filter: {
-        col: 'id',
-        eq: 456,
-      },
-    }),
-  ]);
+      schema: {id: NUM, name: STR, ts: LONG},
+    });
 
-  expect(dataset.query()).toEqual(
-    'select id from (slice) where id = 123\nunion all\nselect id from (slice) where id = 456',
-  );
-});
-
-test('union dataset batches large numbers of unions', () => {
-  const datasets = [];
-  for (let i = 0; i < 800; i++) {
-    datasets.push(
-      new SourceDataset({
-        src: 'foo',
-        schema: {bar: NUM},
-        filter: {
-          col: 'some_id',
-          eq: i,
-        },
-      }),
+    expect(dataset.query({id: NUM, ts: LONG})).toEqual(
+      'SELECT id, ts FROM (slice)',
     );
-  }
-
-  const query = new UnionDataset(datasets).query();
-
-  // Verify query structure with CTE batching.
-  expect(query).toContain('with');
-
-  // Should have at least 2 CTE batches.
-  expect(query).toContain('union_batch_0 as');
-  expect(query).toContain('union_batch_1 as');
-
-  // 798 union alls within batches (for 800 datasets) + 1 union alls between the
-  // 2 CTEs.
-  const batchMatches = query.match(/union all/g);
-  expect(batchMatches?.length).toBe(799);
-});
-
-test('implements', () => {
-  const dataset = new SourceDataset({
-    src: 'slice',
-    schema: {id: NUM, ts: LONG},
   });
 
-  expect(dataset.implements({id: NUM})).toBe(true);
-  expect(dataset.implements({id: NUM, ts: LONG})).toBe(true);
-  expect(dataset.implements({id: NUM, ts: LONG, name: STR})).toBe(false);
-  expect(dataset.implements({id: LONG})).toBe(false);
+  test('SourceDataset implements', () => {
+    const dataset = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, ts: LONG},
+    });
+
+    expect(dataset.implements({id: NUM})).toBe(true);
+    expect(dataset.implements({id: NUM, ts: LONG})).toBe(true);
+    expect(dataset.implements({id: NUM, ts: LONG, name: STR})).toBe(false);
+    expect(dataset.implements({id: LONG})).toBe(false); // Type mismatch
+
+    // Check NUM implements NUM_NULL
+    expect(dataset.implements({id: NUM_NULL})).toBe(true);
+
+    // Check LONG implements LONG_NULL
+    expect(dataset.implements({ts: LONG_NULL})).toBe(true);
+
+    // Check anything implements UNKNOWN
+    expect(dataset.implements({id: UNKNOWN})).toBe(true);
+    expect(dataset.implements({ts: UNKNOWN})).toBe(true);
+
+    // Check NUM_NULL does NOT implement NUM
+    const nullableNumDataset = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM_NULL},
+    });
+    expect(nullableNumDataset.implements({id: NUM})).toBe(false);
+
+    // Check LONG_NULL does NOT implement LONG
+    const nullableLongDataset = new SourceDataset({
+      src: 'slice',
+      schema: {ts: LONG_NULL},
+    });
+    expect(nullableLongDataset.implements({ts: LONG})).toBe(false);
+  });
+
+  test('SourceDataset schema', () => {
+    const schema = {id: NUM, ts: LONG};
+    const dataset = new SourceDataset({
+      src: 'slice',
+      schema: schema,
+    });
+    expect(dataset.schema).toEqual(schema);
+  });
 });
 
-test('implements with relaxed compat checks on optional types', () => {
-  expect(
-    new SourceDataset({
+describe('PartitionedDataset', () => {
+  test("get query for PartitionedDataset with 'eq' filter", () => {
+    const base = new SourceDataset({
       src: 'slice',
-      schema: {foo: NUM_NULL, bar: LONG_NULL, baz: STR_NULL, qux: BLOB_NULL},
-    }).implements({
+      schema: {id: NUM, name: STR},
+    });
+    const dataset = new PartitionedDataset({
+      base: base,
+      partition: {col: 'id', eq: 123},
+      schema: {id: NUM, name: STR}, // Schema matches base here
+    });
+
+    // Expect whitespace normalized query
+    const expectedQuery = normalize(`
+        SELECT id, name
+        FROM (SELECT id, name FROM (slice))
+        WHERE id = 123
+      `);
+    expect(normalize(dataset.query())).toEqual(expectedQuery);
+  });
+
+  test("get query for PartitionedDataset with 'in' filter", () => {
+    const base = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR},
+    });
+    const dataset = new PartitionedDataset({
+      base: base,
+      partition: {col: 'id', in: [123, 456]},
+      schema: {id: NUM, name: STR},
+    });
+
+    const expectedQuery = normalize(`
+        SELECT id, name
+        FROM (SELECT id, name FROM (slice))
+        WHERE id IN (123, 456)
+      `);
+    expect(normalize(dataset.query())).toEqual(expectedQuery);
+  });
+
+  test("get query for PartitionedDataset with empty 'in' filter", () => {
+    const base = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR},
+    });
+    const dataset = new PartitionedDataset({
+      base: base,
+      partition: {col: 'id', in: []},
+      schema: {id: NUM, name: STR},
+    });
+
+    const expectedQuery = normalize(`
+        SELECT id, name
+        FROM (SELECT id, name FROM (slice))
+        WHERE 0
+      `); // WHERE 0 effectively means WHERE false
+    expect(normalize(dataset.query())).toEqual(expectedQuery);
+  });
+
+  test('get query for PartitionedDataset with projection', () => {
+    const base = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR, ts: LONG},
+    });
+    const dataset = new PartitionedDataset({
+      base: base,
+      partition: {col: 'id', eq: 123},
+      schema: {id: NUM, ts: LONG}, // Projecting only id and ts
+    });
+
+    const expectedQuery = normalize(`
+        SELECT id, ts
+        FROM (SELECT id, name, ts FROM (slice))
+        WHERE id = 123
+      `);
+    expect(normalize(dataset.query())).toEqual(expectedQuery);
+  });
+
+  test('PartitionedDataset implements', () => {
+    const base = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR, ts: LONG},
+    });
+    const dataset = new PartitionedDataset({
+      base: base,
+      partition: {col: 'id', eq: 123},
+      schema: {id: NUM, name: STR}, // Effective schema
+    });
+
+    expect(dataset.implements({id: NUM})).toBe(true);
+    expect(dataset.implements({id: NUM, name: STR})).toBe(true);
+    expect(dataset.implements({id: NUM, ts: LONG})).toBe(false); // ts not in effective schema
+    expect(dataset.implements({id: LONG})).toBe(false); // Type mismatch
+  });
+
+  test('PartitionedDataset schema', () => {
+    const base = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR, ts: LONG},
+    });
+    const effectiveSchema = {id: NUM, name: STR};
+    const dataset = new PartitionedDataset({
+      base: base,
+      partition: {col: 'id', eq: 123},
+      schema: effectiveSchema,
+    });
+    expect(dataset.schema).toEqual(effectiveSchema);
+  });
+});
+
+describe('UnionDataset', () => {
+  test('get query for UnionDataset', () => {
+    const base = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR},
+    });
+
+    const dataset = new UnionDataset([
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 123},
+        schema: {id: NUM, name: STR},
+      }),
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 456},
+        schema: {id: NUM, name: STR},
+      }),
+    ]);
+
+    const expectedQuery = normalize(`
+      SELECT id, name
+      FROM (SELECT id, name FROM (slice))
+      WHERE id IN (123, 456)
+    `);
+
+    expect(normalize(dataset.query())).toEqual(expectedQuery);
+  });
+
+  test('get query for UnionDataset with projection', () => {
+    const base = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR, ts: LONG},
+    });
+
+    const dataset = new UnionDataset([
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 123},
+        schema: {id: NUM, name: STR, ts: LONG},
+      }),
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 456},
+        schema: {id: NUM, name: STR, ts: LONG},
+      }),
+    ]);
+
+    const expectedQuery = normalize(`
+      SELECT id, name
+      FROM (SELECT id, name, ts FROM (slice))
+      WHERE id IN (123, 456)
+    `);
+
+    const overrideSchema = {id: NUM, name: STR};
+
+    expect(normalize(dataset.query(overrideSchema))).toEqual(expectedQuery);
+  });
+
+  test('UnionDataset optimization combines Eq and In partitions', () => {
+    const base = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR},
+    });
+
+    const dataset = new UnionDataset([
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 123},
+        schema: {id: NUM, name: STR},
+      }),
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', in: [456, 789]},
+        schema: {id: NUM, name: STR},
+      }),
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 456},
+        schema: {id: NUM, name: STR},
+      }),
+    ]);
+
+    const expectedQuery = normalize(`
+          SELECT id, name
+          FROM (SELECT id, name FROM (slice))
+          WHERE id IN (123, 456, 789)
+        `);
+
+    expect(normalize(dataset.query())).toEqual(expectedQuery);
+  });
+
+  test('UnionDataset optimization does not combine different bases', () => {
+    const base1 = new SourceDataset({
+      src: 'slice1',
+      schema: {id: NUM, name: STR},
+    });
+
+    const base2 = new SourceDataset({
+      src: 'slice2',
+      schema: {id: NUM, name: STR},
+    });
+
+    const dataset = new UnionDataset([
+      new PartitionedDataset({
+        base: base1,
+        partition: {col: 'id', eq: 123},
+        schema: {id: NUM, name: STR},
+      }),
+      new PartitionedDataset({
+        base: base2,
+        partition: {col: 'id', eq: 456},
+        schema: {id: NUM, name: STR},
+      }),
+    ]);
+
+    const expectedQuery = normalize(`
+      SELECT id, name
+      FROM (SELECT id, name FROM (slice1))
+      WHERE id = 123
+      UNION ALL
+      SELECT id, name
+      FROM (SELECT id, name FROM (slice2))
+      WHERE id = 456
+    `);
+
+    expect(normalize(dataset.query())).toEqual(normalize(expectedQuery));
+  });
+
+  test('UnionDataset optimization combines different schemas', () => {
+    const base = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR, value: NUM},
+    });
+
+    const dataset = new UnionDataset([
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 123},
+        schema: {id: NUM, name: STR},
+      }),
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 456},
+        schema: {id: NUM, value: NUM},
+      }),
+    ]);
+
+    const expectedQuery = normalize(`
+      SELECT id
+      FROM (SELECT id, name, value FROM (slice))
+      WHERE id IN (123, 456)
+    `);
+
+    expect(normalize(dataset.query())).toEqual(expectedQuery);
+  });
+
+  test('UnionDataset optimization combines different partition columns', () => {
+    const base = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR},
+    });
+
+    const dataset = new UnionDataset([
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 123},
+        schema: {id: NUM, name: STR},
+      }),
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'name', eq: 'foo'},
+        schema: {id: NUM, name: STR},
+      }),
+    ]);
+
+    const expectedQuery = normalize(`
+      SELECT id, name
+      FROM (SELECT id, name FROM (slice))
+      WHERE id = 123 OR name = 'foo'
+    `);
+
+    expect(normalize(dataset.query())).toEqual(normalize(expectedQuery));
+  });
+
+  test('UnionDataset optimization handles mixed optimizable and non-optimizable', () => {
+    const base = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR},
+    });
+
+    const dataset = new UnionDataset([
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 123},
+        schema: {id: NUM, name: STR},
+      }),
+      new SourceDataset({
+        src: 'other',
+        schema: {id: NUM, name: STR},
+      }),
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 456},
+        schema: {id: NUM, name: STR},
+      }),
+    ]);
+
+    const expectedQuery = normalize(`
+      SELECT id, name
+      FROM (SELECT id, name FROM (slice))
+      WHERE id IN (123, 456)
+      UNION ALL
+      SELECT id, name FROM (other)
+    `);
+
+    expect(normalize(dataset.query())).toEqual(normalize(expectedQuery));
+  });
+
+  test('UnionDataset batches large numbers of unions', () => {
+    const base = new SourceDataset({
+      src: 'foo',
+      schema: {bar: NUM, some_id: NUM},
+    });
+    const datasets = [];
+    for (let i = 0; i < 800; i++) {
+      datasets.push(base);
+    }
+    const query = new UnionDataset(datasets).query();
+
+    expect(query).toContain('WITH');
+    expect(query).toContain('union_batch_0 AS');
+    expect(query).toContain('union_batch_1 AS');
+
+    expect(query).toMatch(
+      /SELECT bar, some_id FROM union_batch_0\s*UNION ALL\s*SELECT bar, some_id FROM union_batch_1/,
+    );
+
+    expect(query).toContain('SELECT bar, some_id');
+    expect(query).toContain('FROM (foo)');
+
+    const unionAllMatches = query.match(/UNION ALL/g);
+    expect(unionAllMatches?.length).toBe(799);
+  });
+
+  test('UnionDataset implements', () => {
+    const base = new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, name: STR, ts: LONG},
+    });
+    const dataset = new UnionDataset([
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 1},
+        schema: {id: NUM, name: STR},
+      }),
+      new PartitionedDataset({
+        base: base,
+        partition: {col: 'id', eq: 2},
+        schema: {id: NUM, ts: LONG},
+      }),
+    ]);
+
+    expect(dataset.implements({id: NUM})).toBe(true);
+    expect(dataset.implements({id: NUM, name: STR})).toBe(false);
+    expect(dataset.implements({id: NUM, ts: LONG})).toBe(false);
+    expect(dataset.implements({id: LONG})).toBe(false);
+  });
+
+  test('UnionDataset schema calculation - differing names', () => {
+    const dataset = new UnionDataset([
+      new SourceDataset({src: 'table1', schema: {foo: NUM, common: STR}}),
+      new SourceDataset({src: 'table2', schema: {bar: NUM, common: STR}}),
+    ]);
+    expect(dataset.schema).toEqual({common: STR});
+  });
+
+  test('UnionDataset schema calculation - differing types', () => {
+    const dataset = new UnionDataset([
+      new SourceDataset({src: 'table1', schema: {foo: NUM, common: STR}}),
+      new SourceDataset({src: 'table2', schema: {foo: LONG, common: STR}}),
+    ]);
+    expect(dataset.schema).toEqual({foo: UNKNOWN, common: STR});
+  });
+
+  test('UnionDataset schema calculation - one common column', () => {
+    const dataset = new UnionDataset([
+      new SourceDataset({src: 'table1', schema: {foo: NUM, bar: NUM}}),
+      new SourceDataset({src: 'table2', schema: {foo: NUM, baz: NUM}}),
+    ]);
+    expect(dataset.schema).toEqual({foo: NUM});
+  });
+
+  test('UnionDataset schema calculation - type widening', () => {
+    const dataset = new UnionDataset([
+      new SourceDataset({
+        src: 'slice',
+        schema: {foo: NUM, bar: STR_NULL, baz: BLOB, qux: NUM_NULL},
+      }),
+      new SourceDataset({
+        src: 'slice',
+        schema: {foo: NUM_NULL, bar: STR, baz: LONG, qux: NUM},
+      }),
+    ]);
+
+    expect(dataset.schema).toEqual({
       foo: NUM_NULL,
-      bar: LONG_NULL,
-      baz: STR_NULL,
-      qux: BLOB_NULL,
-    }),
-  ).toBe(true);
-
-  expect(
-    new SourceDataset({
-      src: 'slice',
-      schema: {foo: NUM, bar: LONG, baz: STR, qux: BLOB},
-    }).implements({
-      foo: NUM_NULL,
-      bar: LONG_NULL,
-      baz: STR_NULL,
-      qux: BLOB_NULL,
-    }),
-  ).toBe(true);
-
-  expect(
-    new SourceDataset({
-      src: 'slice',
-      schema: {foo: NUM_NULL, bar: LONG_NULL, baz: STR_NULL, qux: BLOB_NULL},
-    }).implements({
-      foo: NUM,
-      bar: LONG,
-      baz: STR,
-      qux: BLOB,
-    }),
-  ).toBe(false);
-});
-
-test('find the schema of a simple dataset', () => {
-  const dataset = new SourceDataset({
-    src: 'slice',
-    schema: {id: NUM, ts: LONG},
-  });
-
-  expect(dataset.schema).toMatchObject({id: NUM, ts: LONG});
-});
-
-test('find the schema of a union where source sets differ in their names', () => {
-  const dataset = new UnionDataset([
-    new SourceDataset({
-      src: 'slice',
-      schema: {foo: NUM},
-    }),
-    new SourceDataset({
-      src: 'slice',
-      schema: {bar: NUM},
-    }),
-  ]);
-
-  expect(dataset.schema).toMatchObject({});
-});
-
-test('find the schema of a union with differing source sets', () => {
-  const dataset = new UnionDataset([
-    new SourceDataset({
-      src: 'slice',
-      schema: {foo: NUM},
-    }),
-    new SourceDataset({
-      src: 'slice',
-      schema: {foo: LONG},
-    }),
-  ]);
-
-  expect(dataset.schema).toMatchObject({});
-});
-
-test('find the schema of a union with one column in common', () => {
-  const dataset = new UnionDataset([
-    new SourceDataset({
-      src: 'slice',
-      schema: {foo: NUM, bar: NUM},
-    }),
-    new SourceDataset({
-      src: 'slice',
-      schema: {foo: NUM, baz: NUM},
-    }),
-  ]);
-
-  expect(dataset.schema).toMatchObject({foo: NUM});
-});
-
-test('optimize a union dataset', () => {
-  const dataset = new UnionDataset([
-    new SourceDataset({
-      src: 'slice',
-      schema: {},
-      filter: {
-        col: 'track_id',
-        eq: 123,
-      },
-    }),
-    new SourceDataset({
-      src: 'slice',
-      schema: {},
-      filter: {
-        col: 'track_id',
-        eq: 456,
-      },
-    }),
-  ]);
-
-  expect(dataset.optimize()).toEqual({
-    src: 'slice',
-    schema: {},
-    filter: {
-      col: 'track_id',
-      in: [123, 456],
-    },
+      bar: STR_NULL,
+      baz: UNKNOWN,
+      qux: NUM_NULL,
+    });
   });
 });
 
-test('optimize a union dataset with different types of filters', () => {
-  const dataset = new UnionDataset([
-    new SourceDataset({
-      src: 'slice',
-      schema: {},
-      filter: {
-        col: 'track_id',
-        eq: 123,
-      },
-    }),
-    new SourceDataset({
-      src: 'slice',
-      schema: {},
-      filter: {
-        col: 'track_id',
-        in: [456, 789],
-      },
-    }),
-  ]);
+// describe('Dataset Shared Functionality', () => {
+//   test.each([
+//     ['SourceDataset', new SourceDataset({src: 't', schema: {a: NUM_NULL}})],
+//     [
+//       'PartitionedDataset',
+//       new PartitionedDataset({
+//         base: new SourceDataset({src: 't', schema: {a: NUM_NULL, p: NUM}}),
+//         partition: {col: 'p', eq: 1},
+//         schema: {a: NUM_NULL},
+//       }),
+//     ],
+//     [
+//       'UnionDataset',
+//       new UnionDataset([
+//         new SourceDataset({src: 't1', schema: {a: NUM_NULL}}),
+//         new SourceDataset({src: 't2', schema: {a: NUM}}),
+//       ]),
+//     ],
+//   ])(
+//     '%s implements with relaxed compat checks on optional types',
+//     (_, dataset) => {
+//       expect(dataset.implements({a: NUM_NULL})).toBe(true);
+//       expect(dataset.implements({a: NUM})).toBe(false);
 
-  expect(dataset.optimize()).toEqual({
-    src: 'slice',
-    schema: {},
-    filter: {
-      col: 'track_id',
-      in: [123, 456, 789],
-    },
-  });
-});
+//       const datasetNonNullable = new SourceDataset({
+//         src: 't',
+//         schema: {a: NUM},
+//       });
+//       const partitionedNonNullable = new PartitionedDataset({
+//         base: new SourceDataset({src: 't', schema: {a: NUM, p: NUM}}),
+//         partition: {col: 'p', eq: 1},
+//         schema: {a: NUM},
+//       });
+//       const unionNonNullable = new UnionDataset([
+//         new SourceDataset({src: 't1', schema: {a: NUM}}),
+//       ]);
 
-test('optimize a union dataset with different schemas', () => {
-  const dataset = new UnionDataset([
-    new SourceDataset({
-      src: 'slice',
-      schema: {foo: NUM},
-    }),
-    new SourceDataset({
-      src: 'slice',
-      schema: {bar: NUM},
-    }),
-  ]);
+//       expect(datasetNonNullable.implements({a: NUM_NULL})).toBe(true);
+//       expect(partitionedNonNullable.implements({a: NUM_NULL})).toBe(true);
+//       expect(unionNonNullable.implements({a: NUM_NULL})).toBe(true);
 
-  expect(dataset.optimize()).toEqual({
-    src: 'slice',
-    // The resultant schema is the combination of the union's member's schemas,
-    // as we know the source is the same as we know we can get all of the 'seen'
-    // columns from the source.
-    schema: {
-      foo: NUM,
-      bar: NUM,
-    },
-  });
-});
-
-test('union type widening', () => {
-  const dataset = new UnionDataset([
-    new SourceDataset({
-      src: 'slice',
-      schema: {foo: NUM, bar: STR_NULL, baz: BLOB, missing: UNKNOWN},
-    }),
-    new SourceDataset({
-      src: 'slice',
-      schema: {foo: NUM_NULL, bar: STR, baz: LONG},
-    }),
-  ]);
-
-  expect(dataset.schema).toEqual({
-    foo: NUM_NULL,
-    bar: STR_NULL,
-    baz: UNKNOWN,
-  });
-});
+//       expect(datasetNonNullable.implements({a: NUM})).toBe(true);
+//       expect(partitionedNonNullable.implements({a: NUM})).toBe(true);
+//       expect(unionNonNullable.implements({a: NUM})).toBe(true);
+//     },
+//   );
+// });

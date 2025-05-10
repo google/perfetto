@@ -15,12 +15,23 @@
 import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
 import {Trace} from '../../public/trace';
-import {SourceDataset} from '../../trace_processor/dataset';
+import {PartitionedDataset, SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 
 const GREEN = makeColorScheme(new HSLColor('#4CAF50')); // Green 500
+
+const expectedActualFramesTimelineTable = new SourceDataset({
+  schema: {
+    ts: LONG,
+    dur: LONG,
+    name: STR,
+    id: NUM,
+    track_id: NUM,
+  },
+  src: 'expected_frame_timeline_slice',
+});
 
 export function createExpectedFramesTrack(
   trace: Trace,
@@ -33,17 +44,17 @@ export function createExpectedFramesTrack(
     uri,
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
-    dataset: new SourceDataset({
-      src: 'expected_frame_timeline_slice',
+    dataset: new PartitionedDataset({
+      base: expectedActualFramesTimelineTable,
+      partition: {
+        col: 'track_id',
+        in: trackIds,
+      },
       schema: {
         ts: LONG,
         dur: LONG,
         name: STR,
         id: NUM,
-      },
-      filter: {
-        col: 'track_id',
-        in: trackIds,
       },
     }),
     colorizer: () => GREEN,

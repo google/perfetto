@@ -27,12 +27,14 @@ import {COUNTER_TRACK_SCHEMAS} from './counter_tracks';
 import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
 import {TopLevelTrackGroup, TrackGroupSchema} from './types';
 import {removeFalsyValues} from '../../base/array_utils';
+import SliceTablePlugin from '../dev.perfetto.SliceTable';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceProcessorTrack';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
     StandardGroupsPlugin,
+    SliceTablePlugin,
   ];
 
   private groups = new Map<string, TrackNode>();
@@ -199,6 +201,7 @@ export default class implements PerfettoPlugin {
       order by lower(s.name)
     `);
 
+    const sliceTable = ctx.plugins.getPlugin(SliceTablePlugin).sliceTable;
     const schemas = new Map(SLICE_TRACK_SCHEMAS.map((x) => [x.type, x]));
     const it = result.iter({
       type: STR,
@@ -266,6 +269,7 @@ export default class implements PerfettoPlugin {
           uri,
           maxDepth,
           trackIds,
+          sliceTable,
         }),
       });
       this.addTrack(
