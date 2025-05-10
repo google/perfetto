@@ -211,11 +211,11 @@ class Trace(object):
 
   def add_frame(self, vsync, ts_do_frame, ts_end_do_frame, tid, pid):
     self.add_atrace_for_thread(
-      ts=ts_do_frame,
-      ts_end=ts_end_do_frame,
-      buf="Choreographer#doFrame %d" % vsync,
-      tid=tid,
-      pid=pid)
+        ts=ts_do_frame,
+        ts_end=ts_end_do_frame,
+        buf="Choreographer#doFrame %d" % vsync,
+        tid=tid,
+        pid=pid)
 
   def add_process(self, pid, ppid, cmdline, uid=None):
     process = self.packet.process_tree.processes.add()
