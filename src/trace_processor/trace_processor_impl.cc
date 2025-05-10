@@ -1077,7 +1077,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
       "__intrinsic_etm_iterate_instruction_range", storage);
   if (config_.dev_flags.count("llmv-symbolizer")) {
-    engine_->sqlite_engine()->RegisterVirtualTableModule<etm::SymbolizeVtable>(
+    engine_->RegisterVirtualTableModule<etm::SymbolizeVtable>(
         "__intrinsic_etm_symbolize", storage);
   }
 #endif
