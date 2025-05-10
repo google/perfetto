@@ -443,13 +443,13 @@ UI_DEPS = [
         'linux', 'x64'),
     Dependency(
         'buildtools/mac/emsdk.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-2.0.12-mac.tgz',
-        'aa125f8c8ff8a386d43e18c8ea0c98c875cc19160a899403e8967a5478f96f31',
+        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-mac.tgz',
+        '2682c43580ae2265b4c7f3c7963629f7f501eb24a8ffa01be0059f9f5b3b8cd0',
         'darwin', 'all'),
     Dependency(
         'buildtools/linux64/emsdk.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-2.0.12-linux.tgz',
-        'bfff9fb0326363c12e19b542f27a5f12cedbfc310f30621dc497c9af51d2d2e3',
+        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-linux.tgz',
+        '2fd3e39b5e233bad39799c31029b6d6d5295135cb00c1bb2fd9a4b2c4b7c264b',
         'linux', 'x64'),
     Dependency(
         'buildtools/catapult_trace_viewer.tgz',
