@@ -536,7 +536,7 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
     case StructuredQuery::GroupBy::Aggregate::MEAN:
       return "AVG(" + column_name + ")";
     case StructuredQuery::GroupBy::Aggregate::MEDIAN:
-      return "MEDIAN(" + column_name + ")";
+      return "PERCENTILE(" + column_name + ", 50)";
     case StructuredQuery::GroupBy::Aggregate::DURATION_WEIGHTED_MEAN:
       return "SUM(cast_double!(" + column_name +
              " * dur)) / cast_double!(SUM(dur))";
