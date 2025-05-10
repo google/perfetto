@@ -324,9 +324,6 @@ void SurfaceFlingerTransactionsParser::ParseDisplayState(
           ->InternString(
               base::StringView(base::Base64Encode(blob.data, blob.size)))
           .raw_id();
-  auto row_id = context_->storage->mutable_surfaceflinger_transaction_table()
-                    ->Insert(transaction)
-                    .id;
 
   if (state_decoder.has_what()) {
     auto what = state_decoder.what();
@@ -355,6 +352,10 @@ void SurfaceFlingerTransactionsParser::ParseDisplayState(
       AddFlags(translated, transaction.flags_id.value());
     }
   }
+
+  auto row_id = context_->storage->mutable_surfaceflinger_transaction_table()
+                    ->Insert(transaction)
+                    .id;
 
   AddArgs(timestamp, blob, row_id, ".perfetto.protos.DisplayState");
 }
