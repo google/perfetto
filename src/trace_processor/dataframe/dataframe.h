@@ -17,16 +17,22 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_DATAFRAME_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_DATAFRAME_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
@@ -47,11 +53,60 @@ class Dataframe {
  public:
   // Defines the properties of a column in the dataframe.
   struct ColumnSpec {
-    std::string name;
     StorageType type;
     Nullability nullability;
     SortState sort_state;
   };
+  // Defines the properties of the dataframe.
+  struct Spec {
+    std::vector<std::string> column_names;
+    std::vector<ColumnSpec> column_specs;
+  };
+
+  // Same as ColumnSpec but for cases where the spec is known at compile time.
+  template <typename T, typename N, typename S>
+  struct TypedColumnSpec {
+   public:
+    using type = T;
+    using null_storage_type = N;
+    using sort_state = S;
+    ColumnSpec spec;
+
+    // Inferred properties from the above.
+    using variant = std::variant<std::monostate,
+                                 uint32_t,
+                                 int32_t,
+                                 int64_t,
+                                 double,
+                                 StringPool::Id>;
+    using non_null_data_type = StorageType::VariantTypeAtIndex<T, variant>;
+    using data_type = std::conditional_t<std::is_same_v<N, NonNull>,
+                                         non_null_data_type,
+                                         std::optional<non_null_data_type>>;
+  };
+  // Same as Spec but for cases where the spec is known at compile time.
+  template <typename... C>
+  struct TypedSpec {
+    static constexpr uint32_t kColumnCount = sizeof...(C);
+    using columns = std::tuple<C...>;
+    using data_types = std::tuple<typename C::data_type...>;
+
+    static_assert(kColumnCount > 0,
+                  "TypedSpec must have at least one column type");
+
+    std::array<const char*, kColumnCount> column_names;
+    std::array<ColumnSpec, kColumnCount> column_specs;
+  };
+  template <typename... C>
+  static constexpr TypedSpec<C...> CreateTypedSpec(
+      std::array<const char*, sizeof...(C)> _column_names,
+      C... _columns) {
+    return TypedSpec<C...>{_column_names, {_columns.spec...}};
+  }
+  template <typename T, typename N, typename S>
+  static constexpr TypedColumnSpec<T, N, S> CreateTypedColumnSpec(T, N, S) {
+    return TypedColumnSpec<T, N, S>{ColumnSpec{T{}, N{}, S{}}};
+  }
 
   // Represents an index to speed up operations on the dataframe.
   struct Index {
@@ -109,9 +164,47 @@ class Dataframe {
     impl::QueryPlan plan_;
   };
 
+  // Constructs a Dataframe with the specified column names and types.
+  Dataframe(StringPool* string_pool,
+            uint32_t column_count,
+            const char* const* column_names,
+            const ColumnSpec* column_specs);
+
+  // Creates a dataframe from a typed spec object.
+  //
+  // The spec specifies the column names and types of the dataframe.
+  template <typename S>
+  static Dataframe CreateFromTypedSpec(const S& spec, StringPool* pool) {
+    static_assert(S::kColumnCount > 0,
+                  "Dataframe must have at least one column type");
+    return Dataframe(pool, S::kColumnCount, spec.column_names.data(),
+                     spec.column_specs.data());
+  }
+
   // Movable
   Dataframe(Dataframe&&) = default;
   Dataframe& operator=(Dataframe&&) = default;
+
+  // Adds a new row to the dataframe with the specified values.
+  //
+  // Note: This function does not check the types of the values against the
+  // column types. It is the caller's responsibility to ensure that the types
+  // match. If the types do not match, the behavior is undefined.
+  //
+  // Generally, this function is only safe to call if the dataframe was
+  // constructed using the public Dataframe constructor and not in other ways.
+  //
+  // Note: this function cannot be called on a finalized dataframe.
+  //       See `MarkFinalized()` for more details.
+  template <typename D, typename... Args>
+  PERFETTO_ALWAYS_INLINE void InsertUnchecked(const D&, Args... ts) {
+    static_assert(
+        std::is_convertible_v<std::tuple<Args...>, typename D::data_types>,
+        "Insert types do not match the column types");
+    PERFETTO_DCHECK(!finalized_);
+    InsertUncheckedInternal<D>(std::make_index_sequence<sizeof...(Args)>(),
+                               ts...);
+  }
 
   // Creates an execution plan for querying the dataframe with specified filters
   // and column selection.
@@ -145,8 +238,8 @@ class Dataframe {
   template <typename FilterValueFetcherImpl>
   void PrepareCursor(QueryPlan plan,
                      std::optional<Cursor<FilterValueFetcherImpl>>& c) const {
-    c.emplace(std::move(plan.plan_), column_ptrs_.data(),
-              column_storage_data_ptrs_.data(), string_pool_);
+    c.emplace(std::move(plan.plan_), uint32_t(column_ptrs_.size()),
+              column_ptrs_.data(), string_pool_);
   }
 
   // Makes an index which can speed up operations on this table. Note that
@@ -159,10 +252,23 @@ class Dataframe {
                                    const uint32_t* columns_end) const;
 
   // Adds an index to the dataframe.
+  //
+  // Note: indexes can only be added to a finalized dataframe; it's
+  // undefined behavior to call this on a non-finalized dataframe.
   void AddIndex(Index index);
 
   // Removes the index at the specified position.
+  //
+  // Note: indexes can only be removed from a finalized dataframe;it's
+  // undefined behavior to call this on a non-finalized dataframe.
   void RemoveIndexAt(uint32_t);
+
+  // Marks the dataframe as "finalized": a finalized dataframe cannot have any
+  // more rows added to it (note this is different from being immutable as
+  // indexes can be freely added and removed).
+  //
+  // If the dataframe is already finalized, this function does nothing.
+  void MarkFinalized() { finalized_ = true; }
 
   // Makes a copy of the dataframe.
   //
@@ -170,18 +276,8 @@ class Dataframe {
   // are not duplicated, but the dataframe itself is a new instance.
   dataframe::Dataframe Copy() const;
 
-  // Creates a vector of ColumnSpec objects that describe the columns in the
-  // dataframe.
-  std::vector<ColumnSpec> CreateColumnSpecs() const {
-    std::vector<ColumnSpec> specs;
-    specs.reserve(columns_.size());
-    for (uint32_t i = 0; i < columns_.size(); ++i) {
-      const auto& col = columns_[i];
-      specs.push_back({column_names_[i], col->storage.type(),
-                       col->null_storage.nullability(), col->sort_state});
-    }
-    return specs;
-  }
+  // Creates a spec object for this dataframe.
+  Spec CreateSpec() const;
 
   // Returns the column names of the dataframe.
   const std::vector<std::string>& column_names() const { return column_names_; }
@@ -193,21 +289,69 @@ class Dataframe {
   // dataframe.
   friend class DataframeBytecodeTest;
 
-  Dataframe(std::vector<std::string> column_names,
+  Dataframe(bool finalized,
+            std::vector<std::string> column_names,
             std::vector<std::shared_ptr<impl::Column>> columns,
             uint32_t row_count,
-            StringPool* string_pool)
-      : column_names_(std::move(column_names)),
-        columns_(std::move(columns)),
-        row_count_(row_count),
-        string_pool_(string_pool) {
-    column_ptrs_.reserve(columns_.size());
-    column_storage_data_ptrs_.reserve(columns_.size());
-    for (const auto& col : columns_) {
-      column_ptrs_.emplace_back(col.get());
-      column_storage_data_ptrs_.push_back(col->storage.data());
+            StringPool* string_pool);
+
+  template <typename D, typename... Args, size_t... Is>
+  PERFETTO_ALWAYS_INLINE void InsertUncheckedInternal(
+      std::index_sequence<Is...>,
+      Args... ts) {
+    PERFETTO_DCHECK(column_ptrs_.size() == sizeof...(ts));
+    (InsertUncheckedColumn<
+         typename std::tuple_element_t<Is, typename D::columns>, Is>(ts),
+     ...);
+    ++row_count_;
+    ++row_mutations_;
+  }
+
+  template <typename D, size_t I>
+  PERFETTO_ALWAYS_INLINE void InsertUncheckedColumn(
+      typename D::non_null_data_type t) {
+    static_assert(std::is_same_v<typename D::null_storage_type, NonNull>);
+    using type = typename D::type;
+    if constexpr (std::is_same_v<type, Id>) {
+      columns_[I]->storage.unchecked_get<type>().size++;
+    } else {
+      columns_[I]->storage.unchecked_get<type>().push_back(t);
     }
   }
+
+  template <typename D, size_t I>
+  PERFETTO_ALWAYS_INLINE void InsertUncheckedColumn(
+      std::optional<typename D::non_null_data_type> t) {
+    using type = typename D::type;
+    using null_storage_type = typename D::null_storage_type;
+    static_assert(std::is_same_v<null_storage_type, DenseNull> ||
+                  std::is_same_v<null_storage_type, SparseNull>);
+    auto& null_storage =
+        columns_[I]->null_storage.unchecked_get<null_storage_type>();
+    auto& storage = columns_[I]->storage;
+    if (t.has_value()) {
+      null_storage.bit_vector.push_back(true);
+      if constexpr (std::is_same_v<type, Id>) {
+        storage.unchecked_get<type>().size++;
+      } else {
+        storage.unchecked_get<type>().push_back(*t);
+      }
+    } else {
+      null_storage.bit_vector.push_back(false);
+      if constexpr (std::is_same_v<null_storage_type,
+                                   impl::NullStorage::DenseNull>) {
+        if constexpr (std::is_same_v<type, Id>) {
+          storage.unchecked_get<type>().size++;
+        } else {
+          storage.unchecked_get<type>().push_back({});
+        }
+      }
+    }
+  }
+
+  static std::vector<std::shared_ptr<impl::Column>> CreateColumnVector(
+      const ColumnSpec*,
+      uint32_t);
 
   // Private copy constructor for special methods.
   Dataframe(const Dataframe&) = default;
@@ -224,10 +368,6 @@ class Dataframe {
   // Should have same size as `column_names_`.
   std::vector<impl::Column*> column_ptrs_;
 
-  // Variant of pointers to the storage data for consumption by the cursor.
-  // Should have same size as `column_names_`.
-  std::vector<impl::Storage::DataPointer> column_storage_data_ptrs_;
-
   // List of indexes associated with the dataframe.
   std::vector<Index> indexes_;
 
@@ -236,6 +376,15 @@ class Dataframe {
 
   // String pool for efficient string storage and interning.
   StringPool* string_pool_;
+
+  // A count of the number of mutations to rows in the dataframe. This includes
+  // both row insertions and updates to existing rows. This will be used to
+  // determine if a non-finalized dataframe is "dirty" and needs to be
+  // re-evaluated when a query is executed.
+  uint32_t row_mutations_ = 0;
+
+  // Whether the dataframe is "finalized". See `MarkFinalized()`.
+  bool finalized_ = false;
 };
 
 }  // namespace perfetto::trace_processor::dataframe
