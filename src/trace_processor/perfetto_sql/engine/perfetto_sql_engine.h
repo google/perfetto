@@ -305,13 +305,17 @@ class PerfettoSqlEngine {
 
   base::Status ExecuteCreateIndex(const PerfettoSqlParser::CreateIndex&);
 
+  base::Status DropIndexBeforeCreate(const PerfettoSqlParser::CreateIndex&);
+
+  static base::Status ExecuteCreateIndexUsingTable(
+      const PerfettoSqlParser::CreateIndex&,
+      Table&);
+
   base::Status ExecuteDropIndex(const PerfettoSqlParser::DropIndex&);
 
-  base::Status ExecuteCreateTableUsingDataframe(
-      const PerfettoSqlParser::CreateTable& create_table,
-      SqliteEngine::PreparedStatement stmt,
-      std::vector<std::string> column_names,
-      const std::vector<sql_argument::ArgumentDefinition>& effective_schema);
+  static base::Status ExecuteDropIndexUsingTable(
+      const PerfettoSqlParser::DropIndex&,
+      Table&);
 
   base::Status ExecuteCreateTableUsingRuntimeTable(
       const PerfettoSqlParser::CreateTable& create_table,
