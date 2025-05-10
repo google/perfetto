@@ -544,3 +544,11 @@ block/block_io_done
 mali/gpu_power_state
 dpu/disp_dpu_underrun
 dpu/disp_vblank_irq_enable
+timer/hrtimer_start
+timer/hrtimer_cancel
+timer/hrtimer_expire_entry
+timer/hrtimer_expire_exit
+timer/timer_start
+timer/timer_cancel
+timer/timer_expire_entry
+timer/timer_expire_exit

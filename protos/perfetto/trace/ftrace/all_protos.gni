@@ -86,6 +86,7 @@ ftrace_proto_names = [
   "tcp.proto",
   "thermal.proto",
   "thermal_exynos.proto",
+  "timer.proto",
   "trusty.proto",
   "ufs.proto",
   "v4l2.proto",
