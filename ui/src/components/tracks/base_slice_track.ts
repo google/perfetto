@@ -386,7 +386,11 @@ export abstract class BaseSliceTrack<
     await this.engine.query(`
       create virtual table ${this.getTableName()}
       using __intrinsic_slice_mipmap((
-        select id, ts, dur, depth
+        select
+          id,
+          ts,
+          dur,
+          iif (dur == 0, depth + 16, depth) as depth
         from (${this.getSqlSource()})
         where dur != -1
       ));
@@ -701,14 +705,14 @@ export abstract class BaseSliceTrack<
         s.ts as ts,
         s.dur as dur,
         s.id,
-        z.depth
+        s.depth
         ${extraCols ? ',' + extraCols : ''}
       FROM ${this.getTableName()}(
         ${slicesKey.start},
         ${slicesKey.end},
         ${resolution}
       ) z
-      CROSS JOIN (${this.getJoinSqlSource()}) s using (id)
+      CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
 
     const it = queryRes.iter(this.rowSpec);
