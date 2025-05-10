@@ -13,6 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {DataGridDataSource} from '../../components/widgets/data_grid/common';
+import {DataGrid} from '../../components/widgets/data_grid/data_grid';
+import {SQLDataSource} from '../../components/widgets/data_grid/sql_data_source';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {QueryPage} from './query_page';
@@ -32,5 +35,26 @@ export default class implements PerfettoPlugin {
       icon: 'database',
       sortOrder: 1,
     });
+
+    const datasource = new SQLDataSource(
+      trace.engine,
+      'select * from ftrace_event',
+    );
+
+    trace.tabs.registerTab({
+      uri: 'testtab',
+      content: {
+        getTitle: () => 'Test',
+        render: () => renderTab(datasource),
+      },
+      isEphemeral: false,
+    });
   }
+}
+
+function renderTab(datasource: DataGridDataSource) {
+  return m(DataGrid, {
+    dataSource: datasource,
+    columns: [{name: 'id'}, {name: 'ts'}, {name: 'name'}, {name: 'dur'}],
+  });
 }
