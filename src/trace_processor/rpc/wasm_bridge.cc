@@ -85,8 +85,8 @@ int main(int, char**) {
   // - We need the callMain() Emscripten JS helper function for traceconv (but
   //   not for trace_processor).
   // - Newer versions of emscripten require that callMain is explicitly exported
-  //   via EXTRA_EXPORTED_RUNTIME_METHODS = ['callMain'].
-  // - We have one set of EXTRA_EXPORTED_RUNTIME_METHODS for both
+  //   via EXPORTED_RUNTIME_METHODS = ['callMain'].
+  // - We have one set of EXPORTED_RUNTIME_METHODS for both
   //   trace_processor.wasm (which does not need a main()) and traceconv (which
   //   does).
   // - Without this main(), the Wasm bootstrap code will cause a JS error at

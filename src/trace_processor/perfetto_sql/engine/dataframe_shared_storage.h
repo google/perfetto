@@ -18,20 +18,22 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_SHARED_STORAGE_H_
 
 #include <cstdint>
-#include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/thread_annotations.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/uuid.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 
 namespace perfetto::trace_processor {
 
-// Shared storage for Dataframe objects.
+// Shared storage for Dataframe objects and Dataframe indexes.
 //
 // The problem we are trying to solve is as follows:
 //  1) We want to have multiple PerfettoSqlEngine instances which are working
@@ -44,87 +46,180 @@ namespace perfetto::trace_processor {
 //  4) So we need some shared storage for such dataframe objects: that's where
 //     this class comes in.
 //
-// Specifically, this class works by having the notion of a "Tag" which is a
+// Specifically, this class works by having the notion of a "key" which is a
 // unique identifier for a dataframe *before* any dataframe is created. The
-// engines will use the tag to lookup whether the dataframe has already been
+// engines will use the key to lookup whether the dataframe has already been
 // created. If it has, then the engine will use the existing dataframe. If it
 // hasn't, then the engine will create a new dataframe and insert it into the
 // shared storage for others to use.
 //
 // For convenience, even dataframes which we don't want to share can be stored
-// to reduce complexity. We just given them a unique tag with a random UUID.
+// to reduce complexity. We just given them a unique key with a random UUID.
 //
 // Usage:
-//  auto tag = DataframeSharedStorage::MakeTagForSqlModuleTable(
+//  auto key = DataframeSharedStorage::MakeKeyForSqlModuleTable(
 //      "sql_module_name", "table_name");
-//  auto df = DataframeSharedStorage::Find(tag);
+//  auto df = DataframeSharedStorage::Find(key);
 //  if (!df) {
-//    df = DataframeSharedStorage::Insert(tag, ComputeDataframe());
+//    df = DataframeSharedStorage::Insert(key, ComputeDataframe());
 //  }
 //
 // This class is thread-safe.
 class DataframeSharedStorage {
- public:
-  // Identifies a dataframe. See the `MakeTag` methods below.
-  struct Tag {
-    uint64_t hash;
+ private:
+  template <typename T>
+  struct Refcounted {
+    T value;
+    uint32_t refcount = 0;
   };
 
-  // Checks whether a dataframe with the given tag has already been created.
-  //
-  // Returns nullptr if no such dataframe exists.
-  std::shared_ptr<const dataframe::Dataframe> Find(Tag tag) {
-    std::lock_guard<std::mutex> mu(mutex_);
-    auto* it = dataframes_.Find(tag.hash);
-    if (!it) {
-      return nullptr;
+ public:
+  template <typename T>
+  struct Handle {
+   public:
+    Handle(Handle&&) = default;
+    Handle& operator=(Handle&&) = default;
+
+    ~Handle() {
+      if (storage_) {
+        storage_.get()->template Erase<T>(key_);
+      }
     }
-    return it->lock();
+    T& value() { return value_; }
+    const T& value() const { return value_; }
+
+    T* operator->() { return &value(); }
+    const T* operator->() const { return &value(); }
+    T& operator*() { return value(); }
+    const T& operator*() const { return value(); }
+
+    const std::string& key() const { return key_; }
+
+   private:
+    friend class DataframeSharedStorage;
+    Handle(std::string key, T value, DataframeSharedStorage& storage)
+        : key_(std::move(key)), value_(std::move(value)), storage_(&storage) {}
+    static int Close(DataframeSharedStorage*) { return 0; }
+
+    std::string key_;
+    T value_;
+    base::ScopedResource<DataframeSharedStorage*, &Close, nullptr> storage_;
+  };
+  using DataframeHandle = Handle<dataframe::Dataframe>;
+  using IndexHandle = Handle<dataframe::Dataframe::Index>;
+
+  // Checks whether a dataframe with the given key has already been created.
+  //
+  // Returns nullopt if no such dataframe exists.
+  std::optional<DataframeHandle> Find(const std::string& key) {
+    return Find<dataframe::Dataframe>(key);
   }
 
   // Inserts a dataframe into the shared storage to be associated with the given
-  // tag.
+  // key.
   //
   // Returns the dataframe which is now owned by the shared storage. This might
   // be the same dataframe which was passed in as the argument or it might be a
   // a dataframe which is already stored in the shared storage.
-  std::shared_ptr<const dataframe::Dataframe> Insert(
-      Tag tag,
-      std::unique_ptr<dataframe::Dataframe> df) {
-    std::shared_ptr<dataframe::Dataframe> shared_df(std::move(df));
-    std::lock_guard<std::mutex> mu(mutex_);
-    auto [it, inserted] = dataframes_.Insert(tag.hash, shared_df);
-    if (inserted) {
-      return shared_df;
+  DataframeHandle Insert(std::string key, dataframe::Dataframe df) {
+    return Insert<dataframe::Dataframe>(std::move(key), std::move(df));
+  }
+
+  // Checks whether a index with the given key has already been created.
+  //
+  // Returns nullptr if no such index exists.
+  std::optional<IndexHandle> FindIndex(const std::string& key) {
+    return Find<dataframe::Dataframe::Index>(key);
+  }
+
+  // Inserts a dataframe index into the shared storage to be associated with the
+  // given key.
+  //
+  // Returns the index which is now owned by the shared storage. This might
+  // be the same index which was passed in as the argument or it might be a
+  // a index which is already stored in the shared storage.
+  IndexHandle InsertIndex(std::string key, dataframe::Dataframe::Index raw) {
+    return Insert<dataframe::Dataframe::Index>(std::move(key), std::move(raw));
+  }
+
+  static std::string MakeKeyForSqlModuleTable(const std::string& module_name,
+                                              const std::string& table_name) {
+    return "sql_module:" + module_name + ":" + table_name;
+  }
+  static std::string MakeKeyForStaticTable(const std::string& table_name) {
+    return "static_table:" + table_name;
+  }
+  static std::string MakeUniqueKey() {
+    return "unique:" + base::Uuidv4().ToPrettyString();
+  }
+  static std::string MakeIndexKey(const std::string& key,
+                                  const uint32_t* col_start,
+                                  const uint32_t* col_end) {
+    std::string index_serialized = key + ":";
+    for (const auto* it = col_start; it != col_end; ++it) {
+      index_serialized += std::to_string(*it);
     }
-    std::shared_ptr<dataframe::Dataframe> existing_shared_df = it->lock();
-    if (existing_shared_df) {
-      return existing_shared_df;
-    }
-    *it = shared_df;
-    return shared_df;
-  }
-
-  static Tag MakeTagForSqlModuleTable(const std::string& module_name,
-                                      const std::string& table_name) {
-    return Tag{base::Hasher::Combine(module_name, table_name)};
-  }
-
-  static Tag MakeTagForStaticTable(const std::string& table_name) {
-    return Tag{base::Hasher::Combine(table_name)};
-  }
-
-  static Tag MakeUniqueTag() {
-    return Tag{base::Hasher::Combine(base::Uuidv4().ToPrettyString())};
+    return index_serialized;
   }
 
  private:
-  using DataframeMap = base::FlatHashMap<uint64_t,
-                                         std::weak_ptr<dataframe::Dataframe>,
-                                         base::AlreadyHashed<uint64_t>>;
+  using DataframeMap =
+      base::FlatHashMap<std::string, Refcounted<dataframe::Dataframe>>;
+  using IndexMap =
+      base::FlatHashMap<std::string, Refcounted<dataframe::Dataframe::Index>>;
+
+  template <typename V>
+  std::optional<Handle<V>> Find(const std::string& key) {
+    std::lock_guard<std::mutex> mu(mutex_);
+    auto& map = GetMap<V>();
+    auto* it = map.Find(key);
+    if (!it) {
+      return std::nullopt;
+    }
+    it->refcount++;
+    return Handle<V>(key, it->value.Copy(), *this);
+  }
+
+  template <typename V>
+  Handle<V> Insert(std::string key, V value) {
+    std::lock_guard<std::mutex> mu(mutex_);
+    auto& map = GetMap<V>();
+    if (auto* it = map.Find(key); it) {
+      it->refcount++;
+      return Handle<V>(std::move(key), it->value.Copy(), *this);
+    }
+    auto [it, inserted] = map.Insert(key, Refcounted<V>{std::move(value)});
+    PERFETTO_CHECK(inserted);
+    it->refcount++;
+    return Handle<V>(std::move(key), it->value.Copy(), *this);
+  }
+
+  template <typename V>
+  void Erase(const std::string& key) {
+    std::lock_guard<std::mutex> mu(mutex_);
+    auto& map = GetMap<V>();
+    auto* it = map.Find(key);
+    PERFETTO_CHECK(it);
+    PERFETTO_CHECK(it->refcount > 0);
+    if (--it->refcount == 0) {
+      map.Erase(key);
+    }
+  }
+
+  template <typename T>
+  auto& GetMap() PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+    if constexpr (std::is_same_v<T, dataframe::Dataframe>) {
+      return dataframes_;
+    } else if constexpr (std::is_same_v<T, dataframe::Dataframe::Index>) {
+      return indexes_;
+    } else {
+      static_assert(!std::is_same_v<T, T>, "Unsupported type");
+    }
+  }
 
   std::mutex mutex_;
   DataframeMap dataframes_ PERFETTO_GUARDED_BY(mutex_);
+  IndexMap indexes_ PERFETTO_GUARDED_BY(mutex_);
 };
 
 }  // namespace perfetto::trace_processor

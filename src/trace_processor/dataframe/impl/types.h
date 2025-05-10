@@ -128,6 +128,13 @@ class Storage {
   using Double = FlexVector<double>;
   using String = FlexVector<StringPool::Id>;
 
+  using DataPointer = std::variant<nullptr_t,
+                                   const uint32_t*,
+                                   const int32_t*,
+                                   const int64_t*,
+                                   const double*,
+                                   const StringPool::Id*>;
+
   Storage(Storage::Id data) : type_(dataframe::Id{}), data_(data) {}
   Storage(Storage::Uint32 data)
       : type_(dataframe::Uint32{}), data_(std::move(data)) {}
@@ -164,6 +171,27 @@ class Storage {
     return unchecked_get<T>().data();
   }
 
+  // Returns a variant containing pointer to the underlying data.
+  // Returns nullptr if the storage type is Id (which has no buffer).
+  DataPointer data() const {
+    switch (type_.index()) {
+      case StorageType::GetTypeIndex<dataframe::Id>():
+        return nullptr;
+      case StorageType::GetTypeIndex<dataframe::Uint32>():
+        return base::unchecked_get<Storage::Uint32>(data_).data();
+      case StorageType::GetTypeIndex<dataframe::Int32>():
+        return base::unchecked_get<Storage::Int32>(data_).data();
+      case StorageType::GetTypeIndex<dataframe::Int64>():
+        return base::unchecked_get<Storage::Int64>(data_).data();
+      case StorageType::GetTypeIndex<dataframe::Double>():
+        return base::unchecked_get<Storage::Double>(data_).data();
+      case StorageType::GetTypeIndex<dataframe::String>():
+        return base::unchecked_get<Storage::String>(data_).data();
+      default:
+        PERFETTO_FATAL("Should not reach here");
+    }
+  }
+
   // Returns a raw byte pointer to the underlying data.
   // Returns nullptr if the storage type is Id (which has no buffer).
   const uint8_t* byte_data() const {
@@ -188,6 +216,12 @@ class Storage {
       default:
         PERFETTO_FATAL("Should not reach here");
     }
+  }
+
+  template <typename T>
+  static auto* CastDataPtr(const DataPointer& ptr) {
+    using U = StorageType::VariantTypeAtIndex<T, DataPointer>;
+    return base::unchecked_get<U>(ptr);
   }
 
   StorageType type() const { return type_; }

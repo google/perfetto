@@ -106,12 +106,15 @@ class DataframeBytecodeTest : public ::testing::Test {
     uint64_t sanitized_cols_used = cols_used & ((1ull << cols.size()) - 1ull);
 
     std::vector<std::string> col_names;
+    col_names.reserve(cols.size());
     for (uint32_t i = 0; i < cols.size(); ++i) {
       col_names.emplace_back("col" + std::to_string(i));
     }
-    std::vector<impl::Column> col_fixed_vec;
+    std::vector<std::shared_ptr<impl::Column>> col_fixed_vec;
+    col_fixed_vec.reserve(cols.size());
     for (auto& col : cols) {
-      col_fixed_vec.emplace_back(std::move(col));
+      col_fixed_vec.emplace_back(
+          std::make_shared<impl::Column>(std::move(col)));
     }
     std::unique_ptr<Dataframe> df(new Dataframe(
         std::move(col_names), std::move(col_fixed_vec), 0, &string_pool_));

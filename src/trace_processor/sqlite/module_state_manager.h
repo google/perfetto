@@ -90,7 +90,6 @@ class ModuleStateManagerBase {
   static void* GetState(PerVtabState* s);
   void* GetStateByName(const std::string& name);
 
- private:
   using StateMap =
       base::FlatHashMap<std::string, std::unique_ptr<PerVtabState>>;
 
@@ -186,6 +185,22 @@ class ModuleStateManager : public ModuleStateManagerBase {
   typename Module::State* GetStateByName(const std::string& name) {
     return static_cast<typename Module::State*>(
         ModuleStateManagerBase::GetStateByName(name));
+  }
+
+  // Returns all the states managed by this manager.
+  //
+  // This function should only be called for speculative lookups from outside
+  // the module implementation: use `GetState` inside the sqlite::Module
+  // implementation.
+  std::vector<typename Module::State*> GetAllStates() {
+    std::vector<typename Module::State*> states;
+    states.reserve(state_by_name_.size());
+    for (auto it = state_by_name_.GetIterator(); it; ++it) {
+      if (auto* state = GetState(it.value().get()); state) {
+        states.push_back(state);
+      }
+    }
+    return states;
   }
 
  protected:

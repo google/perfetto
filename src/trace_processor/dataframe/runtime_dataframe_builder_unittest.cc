@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <initializer_list>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -159,22 +160,25 @@ class DataframeBuilderTest : public ::testing::Test {
                          df.PlanQuery(filter_specs, {}, {}, {}, cols_bitmap));
 
     TestRowFetcher execute_fetcher;
-    std::optional<Cursor<TestRowFetcher>> cursor;
-    df.PrepareCursor(std::move(plan), cursor);
-    cursor->Execute(execute_fetcher);
+
+    // Heap allocate to avoid potential stack overflows due to large cursor
+    // object.
+    auto cursor = std::make_unique<std::optional<Cursor<TestRowFetcher>>>();
+    df.PrepareCursor(std::move(plan), *cursor);
+    cursor->value().Execute(execute_fetcher);
 
     size_t row_index = 0;
     for (const auto& row : expected) {
       ValueVerifier verifier;
-      ASSERT_FALSE(cursor->Eof())
+      ASSERT_FALSE(cursor->value().Eof())
           << "Cursor finished early at row " << row_index;
-      verifier.Fetch(&cursor.value(), num_cols_selected);
+      verifier.Fetch(&cursor->value(), num_cols_selected);
       EXPECT_THAT(verifier.values, ElementsAreArray(row))
           << "Mismatch in data for row " << row_index;
-      cursor->Next();
+      cursor->value().Next();
       row_index++;
     }
-    ASSERT_TRUE(cursor->Eof())
+    ASSERT_TRUE(cursor->value().Eof())
         << "Cursor has more rows than expected. Expected " << expected.size()
         << " rows.";
     ASSERT_EQ(row_index, expected.size())

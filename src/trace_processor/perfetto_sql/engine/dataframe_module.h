@@ -21,12 +21,15 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -44,9 +47,14 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   static constexpr bool kDoesSupportTransactions = true;
 
   struct State {
-    explicit State(std::shared_ptr<const dataframe::Dataframe> _dataframe)
-        : dataframe(std::move(_dataframe)) {}
-    std::shared_ptr<const dataframe::Dataframe> dataframe;
+    explicit State(DataframeSharedStorage::DataframeHandle _handle)
+        : handle(std::move(_handle)) {}
+    struct NamedIndex {
+      std::string name;
+      DataframeSharedStorage::IndexHandle index;
+    };
+    DataframeSharedStorage::DataframeHandle handle;
+    std::vector<NamedIndex> named_indexes;
   };
   struct Context : sqlite::ModuleStateManager<DataframeModule> {
     std::unique_ptr<State> temporary_create_state;

@@ -19,6 +19,7 @@ FROM ubuntu:20.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN set -ex; \
+    dpkg --add-architecture i386; \
     apt-get update; \
     apt-get -y install --no-install-recommends \
         python3.8 \
@@ -37,6 +38,8 @@ RUN set -ex; \
         libgl1 \
         libxml2 \
         libc6-dev-i386 \
+        linux-libc-dev:i386 \
+        linux-libc-dev \
         libtinfo5 \
         gnupg2 \
         pkg-config \
@@ -46,6 +49,7 @@ RUN set -ex; \
         unzip \
         gcc-8 \
         g++-8 \
+        gcc-8-multilib \
         openjdk-11-jdk \
         clang-8 \
         libc++-8-dev \

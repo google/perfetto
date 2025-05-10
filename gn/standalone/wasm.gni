@@ -35,7 +35,7 @@ template("wasm_lib") {
   assert(invoker.name + "_wasm" == target_name)
   _lib_name = invoker.name
   if (is_wasm) {
-    _exports = "['ccall', 'callMain', 'addFunction', 'FS']"
+    _exports = "['ccall', 'callMain', 'addFunction', 'FS', 'HEAPU8']"
     _target_ldflags = [
       "-s",
       "WASM=1",
@@ -56,7 +56,7 @@ template("wasm_lib") {
       "-s",
       "WASM_ASYNC_COMPILATION=0",
       "-s",
-      "EXTRA_EXPORTED_RUNTIME_METHODS=" + _exports,
+      "EXPORTED_RUNTIME_METHODS=" + _exports,
 
       # This forces the MEMFS filesystem library to always use typed arrays
       # instead of building strings/arrays when appending to a file. This allows
