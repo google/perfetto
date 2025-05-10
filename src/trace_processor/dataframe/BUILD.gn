@@ -48,6 +48,7 @@ source_set("specs") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "dataframe_test_utils.h",
     "dataframe_unittest.cc",
     "runtime_dataframe_builder_unittest.cc",
     "type_set_unittest.cc",

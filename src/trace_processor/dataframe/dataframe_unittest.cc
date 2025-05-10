@@ -23,12 +23,14 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/dataframe_test_utils.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
@@ -123,6 +125,18 @@ class DataframeBytecodeTest : public ::testing::Test {
                                        limit_spec, sanitized_cols_used));
     EXPECT_THAT(FormatBytecode(plan),
                 EqualsIgnoringWhitespace(expected_bytecode));
+  }
+
+  std::unique_ptr<Dataframe> MakeDatafame(std::vector<std::string> col_names,
+                                          std::vector<impl::Column> cols) {
+    std::vector<std::shared_ptr<impl::Column>> col_fixed_vec;
+    col_fixed_vec.reserve(cols.size());
+    for (auto& col : cols) {
+      col_fixed_vec.emplace_back(
+          std::make_shared<impl::Column>(std::move(col)));
+    }
+    return std::unique_ptr<Dataframe>(new Dataframe(
+        std::move(col_names), std::move(col_fixed_vec), 0, &string_pool_));
   }
 
   StringPool string_pool_;
@@ -811,6 +825,25 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
 
   RunBytecodeTest(cols, filters, distinct_specs, sort_specs, limit_spec,
                   expected_bytecode, /*cols_used=*/1);
+}
+
+TEST(DataframeTest, Insert) {
+  using D = Dataframe;
+  static constexpr auto kSpec = D::TypedSpec<
+      D::TypedColumnSpec<Id, NonNull, IdSorted>,
+      D::TypedColumnSpec<Uint32, NonNull, Unsorted>,
+      D::TypedColumnSpec<Int64, DenseNull, Unsorted>,
+      D::TypedColumnSpec<String, SparseNull, Unsorted>>::Create({"id", "col2",
+                                                                 "col3",
+                                                                 "col4"});
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u, std::make_optional(0l),
+                     std::make_optional(pool.InternString("foo")));
+  df.InsertUnchecked(kSpec, std::monostate(), 20u, std::nullopt, std::nullopt);
+
+  VerifyData(df, 0b1111,
+             Rows(Row(0u, 10u, 0l, "foo"), Row(1u, 20u, nullptr, nullptr)));
 }
 
 }  // namespace perfetto::trace_processor::dataframe

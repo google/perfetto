@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <limits>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
@@ -54,13 +55,17 @@ class Cursor {
 
   // Constructs a cursor from a query plan and dataframe columns.
   Cursor(impl::QueryPlan plan,
+         uint32_t column_count,
          const impl::Column* const* column_ptrs,
-         const impl::Storage::DataPointer* storage_data_ptrs,
          const StringPool* pool)
       : interpreter_(std::move(plan.bytecode), column_ptrs, pool),
         params_(plan.params),
-        storage_data_ptrs_(storage_data_ptrs),
-        pool_(pool) {}
+        pool_(pool) {
+    column_storage_data_ptrs_.reserve(column_count);
+    for (uint32_t i = 0; i < column_count; ++i) {
+      column_storage_data_ptrs_.push_back(column_ptrs[i]->storage.data());
+    }
+  }
 
   // Executes the query and prepares the cursor for iteration.
   // This initializes the cursor's position to the first row of results.
@@ -104,7 +109,7 @@ class Cursor {
                                    CellCallbackImpl& cell_callback_impl) {
     static_assert(std::is_base_of_v<CellCallback, CellCallbackImpl>,
                   "CellCallbackImpl must be a subclass of CellCallback");
-    const impl::Storage::DataPointer& p = storage_data_ptrs_[col];
+    const impl::Storage::DataPointer& p = column_storage_data_ptrs_[col];
     uint32_t idx = pos_[params_.col_to_output_offset[col]];
     if (idx == std::numeric_limits<uint32_t>::max()) {
       cell_callback_impl.OnCell(nullptr);
@@ -140,8 +145,8 @@ class Cursor {
   impl::bytecode::Interpreter<FilterValueFetcherImpl> interpreter_;
   // Parameters for query execution.
   impl::QueryPlan::ExecutionParams params_;
-  // Pointer to the storage data pointers.
-  const impl::Storage::DataPointer* storage_data_ptrs_;
+  // Variant of pointers to the storage data.
+  std::vector<impl::Storage::DataPointer> column_storage_data_ptrs_;
   // String pool for string values.
   const StringPool* pool_;
 

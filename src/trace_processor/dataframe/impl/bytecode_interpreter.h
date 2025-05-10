@@ -582,8 +582,7 @@ class Interpreter {
       const bytecode::TranslateSparseNullIndices& bytecode) {
     using B = bytecode::TranslateSparseNullIndices;
     const auto& overlay = GetColumn(bytecode.arg<B::col>()).null_storage;
-    const auto& bv =
-        overlay.template unchecked_get<NullStorage::SparseNull>().bit_vector;
+    const auto& bv = overlay.template unchecked_get<SparseNull>().bit_vector;
 
     const auto& source = ReadFromRegister(bytecode.arg<B::source_register>());
     auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
@@ -604,8 +603,7 @@ class Interpreter {
       const bytecode::StrideTranslateAndCopySparseNullIndices& bytecode) {
     using B = bytecode::StrideTranslateAndCopySparseNullIndices;
     const auto& overlay = GetColumn(bytecode.arg<B::col>()).null_storage;
-    const auto& bv =
-        overlay.template unchecked_get<NullStorage::SparseNull>().bit_vector;
+    const auto& bv = overlay.template unchecked_get<SparseNull>().bit_vector;
 
     auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
     uint32_t stride = bytecode.arg<B::stride>();
@@ -627,8 +625,7 @@ class Interpreter {
       const bytecode::StrideCopyDenseNullIndices& bytecode) {
     using B = bytecode::StrideCopyDenseNullIndices;
     const auto& overlay = GetColumn(bytecode.arg<B::col>()).null_storage;
-    const auto& bv =
-        overlay.template unchecked_get<NullStorage::DenseNull>().bit_vector;
+    const auto& bv = overlay.template unchecked_get<DenseNull>().bit_vector;
 
     auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
     uint32_t stride = bytecode.arg<B::stride>();
