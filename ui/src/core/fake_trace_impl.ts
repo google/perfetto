@@ -47,6 +47,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     realtimeOffset: Time.ZERO,
     utcOffset: Time.ZERO,
     traceTzOffset: Time.ZERO,
+    tzOffMin: 0,
     cpus: [],
     importErrors: 0,
     traceType: 'proto',

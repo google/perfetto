@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -50,6 +51,23 @@ class Dataframe {
     StorageType type;
     Nullability nullability;
     SortState sort_state;
+  };
+
+  // Represents an index to speed up operations on the dataframe.
+  struct Index {
+   public:
+    Index Copy() const { return *this; }
+
+   private:
+    friend class Dataframe;
+
+    Index(std::vector<uint32_t> _columns,
+          std::shared_ptr<std::vector<uint32_t>> _permutation_vector)
+        : columns(std::move(_columns)),
+          permutation_vector(std::move(_permutation_vector)) {}
+
+    std::vector<uint32_t> columns;
+    std::shared_ptr<std::vector<uint32_t>> permutation_vector;
   };
 
   // QueryPlan encapsulates an executable, serializable representation of a
@@ -91,10 +109,6 @@ class Dataframe {
     impl::QueryPlan plan_;
   };
 
-  // Non-copyable
-  Dataframe(const Dataframe&) = delete;
-  Dataframe& operator=(const Dataframe&) = delete;
-
   // Movable
   Dataframe(Dataframe&&) = default;
   Dataframe& operator=(Dataframe&&) = default;
@@ -131,8 +145,30 @@ class Dataframe {
   template <typename FilterValueFetcherImpl>
   void PrepareCursor(QueryPlan plan,
                      std::optional<Cursor<FilterValueFetcherImpl>>& c) const {
-    c.emplace(std::move(plan.plan_), columns_.data(), string_pool_);
+    c.emplace(std::move(plan.plan_), column_ptrs_.data(),
+              column_storage_data_ptrs_.data(), string_pool_);
   }
+
+  // Makes an index which can speed up operations on this table. Note that
+  // this function does *not* actually cause the index to be added or used, it
+  // just returns it. Use `AddIndex` to add the index to the dataframe.
+  //
+  // Note that this index can be added to any dataframe with the same contents
+  // (i.e. copies of this dataframe) not just the one it was created from.
+  base::StatusOr<Index> BuildIndex(const uint32_t* columns_start,
+                                   const uint32_t* columns_end) const;
+
+  // Adds an index to the dataframe.
+  void AddIndex(Index index);
+
+  // Removes the index at the specified position.
+  void RemoveIndexAt(uint32_t);
+
+  // Makes a copy of the dataframe.
+  //
+  // This is a shallow copy, meaning that the contents of columns and indexes
+  // are not duplicated, but the dataframe itself is a new instance.
+  dataframe::Dataframe Copy() const;
 
   // Creates a vector of ColumnSpec objects that describe the columns in the
   // dataframe.
@@ -141,11 +177,14 @@ class Dataframe {
     specs.reserve(columns_.size());
     for (uint32_t i = 0; i < columns_.size(); ++i) {
       const auto& col = columns_[i];
-      specs.push_back({column_names_[i], col.storage.type(),
-                       col.null_storage.nullability(), col.sort_state});
+      specs.push_back({column_names_[i], col->storage.type(),
+                       col->null_storage.nullability(), col->sort_state});
     }
     return specs;
   }
+
+  // Returns the column names of the dataframe.
+  const std::vector<std::string>& column_names() const { return column_names_; }
 
  private:
   friend class RuntimeDataframeBuilder;
@@ -155,21 +194,42 @@ class Dataframe {
   friend class DataframeBytecodeTest;
 
   Dataframe(std::vector<std::string> column_names,
-            std::vector<impl::Column> columns,
+            std::vector<std::shared_ptr<impl::Column>> columns,
             uint32_t row_count,
             StringPool* string_pool)
       : column_names_(std::move(column_names)),
         columns_(std::move(columns)),
         row_count_(row_count),
-        string_pool_(string_pool) {}
+        string_pool_(string_pool) {
+    column_ptrs_.reserve(columns_.size());
+    column_storage_data_ptrs_.reserve(columns_.size());
+    for (const auto& col : columns_) {
+      column_ptrs_.emplace_back(col.get());
+      column_storage_data_ptrs_.push_back(col->storage.data());
+    }
+  }
+
+  // Private copy constructor for special methods.
+  Dataframe(const Dataframe&) = default;
+  Dataframe& operator=(const Dataframe&) = default;
 
   // The names of all columns.
-  // `column_names_` and `columns_` should always have the same size.
   std::vector<std::string> column_names_;
 
   // Internal storage for columns in the dataframe.
-  // `column_names_` and `columns_` should always have the same size.
-  std::vector<impl::Column> columns_;
+  // Should have same size as `column_names_`.
+  std::vector<std::shared_ptr<impl::Column>> columns_;
+
+  // Simple pointers to the columns for consumption by the cursor.
+  // Should have same size as `column_names_`.
+  std::vector<impl::Column*> column_ptrs_;
+
+  // Variant of pointers to the storage data for consumption by the cursor.
+  // Should have same size as `column_names_`.
+  std::vector<impl::Storage::DataPointer> column_storage_data_ptrs_;
+
+  // List of indexes associated with the dataframe.
+  std::vector<Index> indexes_;
 
   // Number of rows in the dataframe.
   uint32_t row_count_ = 0;

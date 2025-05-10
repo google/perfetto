@@ -16,6 +16,7 @@
 
 #include <unistd.h>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -481,7 +482,7 @@ TEST_F(SysStatsDataSourceTest, ThermalZones) {
     mkdir(path.c_str(), 0755);
     base::StackString<256> sym_path("%s/%s", sym_dir.path().c_str(), name);
     symlinks_to_delete.push_back(sym_path.ToStdString());
-    symlink(path.c_str(), sym_path.c_str());
+    base::ignore_result(symlink(path.c_str(), sym_path.c_str()));
   };
   auto fake_thermal = base::TempDir::Create();
   auto fake_thermal_symdir = base::TempDir::Create();
@@ -650,7 +651,7 @@ TEST_F(SysStatsDataSourceTest, DevfreqAll) {
     mkdir(path.c_str(), 0755);
     base::StackString<256> sym_path("%s/%s", sym_dir.path().c_str(), name);
     symlinks_to_delete.push_back(sym_path.ToStdString());
-    symlink(path.c_str(), sym_path.c_str());
+    base::ignore_result(symlink(path.c_str(), sym_path.c_str()));
   };
   auto fake_devfreq = base::TempDir::Create();
   auto fake_devfreq_symdir = base::TempDir::Create();
