@@ -329,6 +329,13 @@ config("default") {
     cflags += [ "-msimd128" ]
   }
 
+  if (is_wasm_memory64) {
+    cflags += [
+      "-s",
+      "MEMORY64=1",
+    ]
+  }
+
   if (is_linux) {
     # Enable LFS (large file support) for stat() and other syscalls.
     cflags += [

@@ -24,6 +24,7 @@ group("ui") {
     ":ui_build($host_toolchain)",
     "../src/trace_config_utils:trace_config_utils.wasm($wasm_toolchain)",
     "../src/trace_processor:trace_processor.wasm($wasm_toolchain)",
+    "../src/trace_processor:trace_processor_memory64.wasm($wasm_memory64_toolchain)",
     "../src/traceconv:traceconv.wasm($wasm_toolchain)",
   ]
 }
