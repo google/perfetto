@@ -182,8 +182,13 @@ struct TrackEventIncrementalState {
 // namespaces.
 class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
  public:
+  static std::vector<const TrackEventCategoryRegistry*> GetRegistries();
+  static std::vector<const TrackEventCategoryRegistry*> AddRegistry(
+      const TrackEventCategoryRegistry*);
+  static void ResetRegistriesForTesting();
+
   static bool Initialize(
-      const TrackEventCategoryRegistry&,
+      const std::vector<const TrackEventCategoryRegistry*> registries,
       bool (*register_data_source)(const DataSourceDescriptor&));
 
   static bool AddSessionObserver(const TrackEventCategoryRegistry&,
@@ -191,17 +196,24 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
   static void RemoveSessionObserver(const TrackEventCategoryRegistry&,
                                     TrackEventSessionObserver*);
 
-  static void EnableTracing(const TrackEventCategoryRegistry& registry,
-                            const protos::gen::TrackEventConfig& config,
-                            const DataSourceBase::SetupArgs&);
-  static void OnStart(const TrackEventCategoryRegistry&,
-                      const DataSourceBase::StartArgs&);
-  static void OnStop(const TrackEventCategoryRegistry&,
-                     const DataSourceBase::StopArgs&);
-  static void DisableTracing(const TrackEventCategoryRegistry& registry,
+  static void EnableRegistry(const TrackEventCategoryRegistry* registry,
+                             const protos::gen::TrackEventConfig& config,
                              uint32_t internal_instance_index);
+  static void EnableTracing(
+      const std::vector<const TrackEventCategoryRegistry*> registries,
+      const protos::gen::TrackEventConfig& config,
+      const DataSourceBase::SetupArgs&);
+  static void OnStart(
+      const std::vector<const TrackEventCategoryRegistry*> registries,
+      const DataSourceBase::StartArgs&);
+  static void OnStop(
+      const std::vector<const TrackEventCategoryRegistry*> registries,
+      const DataSourceBase::StopArgs&);
+  static void DisableTracing(
+      const std::vector<const TrackEventCategoryRegistry*> registries,
+      uint32_t internal_instance_index);
   static void WillClearIncrementalState(
-      const TrackEventCategoryRegistry&,
+      const std::vector<const TrackEventCategoryRegistry*> registries,
       const DataSourceBase::ClearIncrementalStateArgs&);
 
   static bool IsCategoryEnabled(const TrackEventCategoryRegistry& registry,
