@@ -53,15 +53,9 @@ class Dataframe {
     SortState sort_state;
   };
 
-  // Represents an index
+  // Represents an index to speed up operations on the dataframe.
   struct Index {
    public:
-    Index(Index&&) = default;
-    Index& operator=(Index&&) = default;
-
-    Index(const Index&) = default;
-    Index& operator=(const Index&) = default;
-
     Index Copy() const { return *this; }
 
    private:
@@ -189,7 +183,7 @@ class Dataframe {
     return specs;
   }
 
-  // Returns the number of rows in the dataframe.
+  // Returns the column names of the dataframe.
   const std::vector<std::string>& column_names() const { return column_names_; }
 
  private:

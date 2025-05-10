@@ -132,15 +132,15 @@ int DataframeModule::Connect(sqlite3* db,
   PERFETTO_CHECK(argc == 3);
 
   auto* vtab_state = GetContext(raw_ctx)->OnConnect(argc, argv);
-  auto* state =
+  auto* df_state =
       sqlite::ModuleStateManager<DataframeModule>::GetState(vtab_state);
   std::string create_stmt =
-      CreateTableStmt(state->handle->CreateColumnSpecs());
+      CreateTableStmt(df_state->handle->CreateColumnSpecs());
   if (int r = sqlite3_declare_vtab(db, create_stmt.c_str()); r != SQLITE_OK) {
     return r;
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->dataframe = &*state->handle;
+  res->dataframe = &*df_state->handle;
   res->state = vtab_state;
   *vtab = res.release();
   return SQLITE_OK;

@@ -33,7 +33,7 @@
 
 namespace perfetto::trace_processor {
 
-// Shared storage for Dataframe objects.
+// Shared storage for Dataframe objects and Dataframe indexes.
 //
 // The problem we are trying to solve is as follows:
 //  1) We want to have multiple PerfettoSqlEngine instances which are working
@@ -57,7 +57,7 @@ namespace perfetto::trace_processor {
 // to reduce complexity. We just given them a unique key with a random UUID.
 //
 // Usage:
-//  auto key = DataframeSharedStorage::MakekeyForSqlModuleTable(
+//  auto key = DataframeSharedStorage::MakeKeyForSqlModuleTable(
 //      "sql_module_name", "table_name");
 //  auto df = DataframeSharedStorage::Find(key);
 //  if (!df) {
