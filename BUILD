@@ -3081,6 +3081,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/android/cujs:cujs
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_android_cujs_cujs",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cujs.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/android/dumpsys:dumpsys
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_dumpsys_dumpsys",
@@ -3489,6 +3497,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_android_auto_auto",
         ":src_trace_processor_perfetto_sql_stdlib_android_battery_battery",
         ":src_trace_processor_perfetto_sql_stdlib_android_cpu_cpu",
+        ":src_trace_processor_perfetto_sql_stdlib_android_cujs_cujs",
         ":src_trace_processor_perfetto_sql_stdlib_android_dumpsys_dumpsys",
         ":src_trace_processor_perfetto_sql_stdlib_android_frames_frames",
         ":src_trace_processor_perfetto_sql_stdlib_android_gpu_gpu",
@@ -5167,6 +5176,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_gpu_zero_h",
         ":protos_perfetto_trace_interned_data_zero_h",
         ":protos_perfetto_trace_minimal_zero_h",
+        ":protos_perfetto_trace_non_minimal_zero_h",
         ":protos_perfetto_trace_perfetto_zero_h",
         ":protos_perfetto_trace_power_zero_h",
         ":protos_perfetto_trace_profiling_zero_h",
@@ -5203,6 +5213,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_gpu_zero",
         ":protos_perfetto_trace_interned_data_zero",
         ":protos_perfetto_trace_minimal_zero",
+        ":protos_perfetto_trace_non_minimal_zero",
         ":protos_perfetto_trace_perfetto_zero",
         ":protos_perfetto_trace_power_zero",
         ":protos_perfetto_trace_profiling_zero",
@@ -5212,6 +5223,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_system_info_zero",
         ":protos_perfetto_trace_track_event_zero",
         ":protos_perfetto_trace_translation_zero",
+        ":protozero",
     ],
 )
 
@@ -6382,6 +6394,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
         "protos/perfetto/trace/ftrace/thermal.proto",
         "protos/perfetto/trace/ftrace/thermal_exynos.proto",
+        "protos/perfetto/trace/ftrace/timer.proto",
         "protos/perfetto/trace/ftrace/trusty.proto",
         "protos/perfetto/trace/ftrace/ufs.proto",
         "protos/perfetto/trace/ftrace/v4l2.proto",

@@ -355,5 +355,37 @@ TEST(StructuredQueryGeneratorTest, ColumnSelection) {
   )"));
 }
 
+TEST(StructuredQueryGeneratorTest, Median) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    id: "table_source_thread_slice"
+    table: {
+      table_name: "thread_slice"
+      module_name: "slices.with_context"
+      column_names: "name"
+      column_names: "dur"
+    }
+    group_by: {
+      column_names: "name"
+      aggregates: {
+        column_name: "dur"
+        op: MEDIAN
+        result_column_name: "cheese"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+    WITH sq_table_source_thread_slice AS
+      (SELECT
+        name,
+        PERCENTILE(dur, 50) AS cheese
+      FROM thread_slice
+      GROUP BY name)
+    SELECT * FROM sq_table_source_thread_slice
+  )"));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

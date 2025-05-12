@@ -925,18 +925,21 @@ def gen_target_helper(gn_target: GnParser.Target,
 def gen_protozero_group_target(gn: GnParser):
   label = BazelLabel('trace_zero', 'perfetto_cc_library')
 
-  minimal = '//protos/perfetto/trace:minimal_zero'
-  for dep in gn.get_target(minimal).transitive_proto_deps():
-    label.deps += [':' + get_bazel_label_name(dep.name)]
-    label.hdrs += [':' + get_bazel_label_name(dep.name) + '_h']
+  deps = set()
+  for ss in [
+      '//protos/perfetto/trace:minimal_zero',
+      '//protos/perfetto/trace:non_minimal_zero',
+  ]:
+    deps.add(ss)
+    deps.update(t.name for t in gn.get_target(ss).transitive_proto_deps())
 
-  non_minimal = '//protos/perfetto/trace:non_minimal_zero'
-  for dep in gn.get_target(non_minimal).transitive_proto_deps():
-    label.deps += [':' + get_bazel_label_name(dep.name)]
-    label.hdrs += [':' + get_bazel_label_name(dep.name) + '_h']
+  for dep in deps:
+    label.deps.append(':' + get_bazel_label_name(dep))
+    label.hdrs.append(':' + get_bazel_label_name(dep) + '_h')
+  label.deps.append(":protozero")
 
-  label.deps = sorted(set(label.deps))
-  label.hdrs = sorted(set(label.hdrs))
+  label.deps = sorted(label.deps)
+  label.hdrs = sorted(label.hdrs)
   label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
 
   return [label]

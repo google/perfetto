@@ -813,6 +813,24 @@ class TraceStorage {
     return &surfaceflinger_transactions_table_;
   }
 
+  const tables::SurfaceFlingerTransactionTable&
+  surfaceflinger_transaction_table() const {
+    return surfaceflinger_transaction_table_;
+  }
+  tables::SurfaceFlingerTransactionTable*
+  mutable_surfaceflinger_transaction_table() {
+    return &surfaceflinger_transaction_table_;
+  }
+
+  const tables::SurfaceFlingerTransactionFlagTable&
+  surfaceflinger_transaction_flag_table() const {
+    return surfaceflinger_transaction_flag_table_;
+  }
+  tables::SurfaceFlingerTransactionFlagTable*
+  mutable_surfaceflinger_transaction_flag_table() {
+    return &surfaceflinger_transaction_flag_table_;
+  }
+
   const tables::ViewCaptureTable& viewcapture_table() const {
     return viewcapture_table_;
   }
@@ -1138,6 +1156,10 @@ class TraceStorage {
   tables::SurfaceFlingerLayerTable surfaceflinger_layer_table_{&string_pool_};
   tables::SurfaceFlingerTransactionsTable surfaceflinger_transactions_table_{
       &string_pool_};
+  tables::SurfaceFlingerTransactionTable surfaceflinger_transaction_table_{
+      &string_pool_};
+  tables::SurfaceFlingerTransactionFlagTable
+      surfaceflinger_transaction_flag_table_{&string_pool_};
   tables::ViewCaptureTable viewcapture_table_{&string_pool_};
   tables::ViewCaptureViewTable viewcapture_view_table_{&string_pool_};
   tables::ViewCaptureInternedDataTable viewcapture_interned_data_table_{

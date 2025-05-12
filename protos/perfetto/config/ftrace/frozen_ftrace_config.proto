@@ -19,6 +19,6 @@ syntax = "proto2";
 package perfetto.protos;
 
 message FrozenFtraceConfig {
-  // The instance name which stores the previous boot ftrace data.
-  required string instance_name = 1;
+  // The instance name which stores the previous boot ftrace data. Required.
+  optional string instance_name = 1;
 }
