@@ -309,9 +309,10 @@ BUILD_DEPS_HOST = [
     # Zlib used both in the tracing binaries, as well as the trace processor and
     # assorted tools.
     # If updating the version, also update bazel/deps.bzl.
-    Dependency('buildtools/zlib',
-               'https://android.googlesource.com/platform/external/zlib.git',
-               '6d3f6aa0f87c9791ca7724c279ef61384f331dfd', 'all', 'all'),
+    Dependency(
+        'buildtools/zlib',
+        'https://chromium.googlesource.com/chromium/src/third_party/zlib.git',
+        '6f9b4e61924021237d474569027cfb8ac7933ee6', 'all', 'all'),
 
     # Linenoise, used only by trace_processor in standalone builds.
     # If updating the version, also update bazel/deps.bzl.
