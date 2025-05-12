@@ -19,11 +19,12 @@ import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrac
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
+import SliceTablePlugin from '../dev.perfetto.SliceTable';
 
 // This plugin renders visualizations of subsystems of the Linux kernel.
 export default class implements PerfettoPlugin {
   static readonly id = 'org.kernel.LinuxKernelSubsystems';
-  static readonly dependencies = [TraceProcessorTrackPlugin];
+  static readonly dependencies = [TraceProcessorTrackPlugin, SliceTablePlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const kernel = new TrackNode({
@@ -40,6 +41,7 @@ export default class implements PerfettoPlugin {
   // Add tracks to visualize the runtime power state transitions for Linux
   // kernel devices (devices managed by Linux drivers).
   async addRpmTracks(ctx: Trace) {
+    const sliceTable = ctx.plugins.getPlugin(SliceTablePlugin).sliceTable;
     const result = await ctx.engine.query(`
       select
         t.id as trackId,
@@ -70,6 +72,7 @@ export default class implements PerfettoPlugin {
           trace: ctx,
           uri,
           trackIds: [trackId],
+          sliceTable,
         }),
         tags: {
           kind: SLICE_TRACK_KIND,

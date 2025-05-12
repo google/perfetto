@@ -16,22 +16,32 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {CpuProfileSampleFlamegraphDetailsPanel} from './cpu_profile_details_panel';
 import {Trace} from '../../public/trace';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
-import {SourceDataset} from '../../trace_processor/dataset';
+import {PartitionedDataset, SourceDataset} from '../../trace_processor/dataset';
 import {Time} from '../../base/time';
 import {getColorForSample} from '../../components/colorizer';
+
+const cpuProfileStackSampleTable = new SourceDataset({
+  src: 'cpu_profile_stack_sample',
+  schema: {
+    id: NUM,
+    ts: LONG,
+    callsite_id: NUM,
+    utid: NUM,
+  },
+});
 
 export function createCpuProfileTrack(trace: Trace, uri: string, utid: number) {
   return new DatasetSliceTrack({
     trace,
     uri,
-    dataset: new SourceDataset({
+    dataset: new PartitionedDataset({
+      base: cpuProfileStackSampleTable,
       schema: {
         id: NUM,
         ts: LONG,
         callsite_id: NUM,
       },
-      src: `cpu_profile_stack_sample`,
-      filter: {
+      partition: {
         col: 'utid',
         eq: utid,
       },

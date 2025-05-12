@@ -17,8 +17,21 @@ import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {translateState} from '../../components/sql_utils/thread_state';
 import {ThreadStateDetailsPanel} from './thread_state_details_panel';
 import {Trace} from '../../public/trace';
-import {SourceDataset} from '../../trace_processor/dataset';
+import {PartitionedDataset, SourceDataset} from '../../trace_processor/dataset';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+
+const threadStateTable = new SourceDataset({
+  src: 'thread_state',
+  schema: {
+    id: NUM,
+    ts: LONG,
+    dur: LONG,
+    cpu: NUM_NULL,
+    state: STR,
+    io_wait: NUM_NULL,
+    utid: NUM,
+  },
+});
 
 export function createThreadStateTrack(
   trace: Trace,
@@ -28,7 +41,8 @@ export function createThreadStateTrack(
   return new DatasetSliceTrack({
     trace,
     uri,
-    dataset: new SourceDataset({
+    dataset: new PartitionedDataset({
+      base: threadStateTable,
       schema: {
         id: NUM,
         ts: LONG,
@@ -38,8 +52,7 @@ export function createThreadStateTrack(
         io_wait: NUM_NULL,
         utid: NUM,
       },
-      src: 'thread_state',
-      filter: {
+      partition: {
         col: 'utid',
         eq: utid,
       },

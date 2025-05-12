@@ -15,16 +15,9 @@
 import {Time, time} from '../base/time';
 import {getOrCreate} from '../base/utils';
 import {Track} from '../public/track';
-import {SourceDataset} from '../trace_processor/dataset';
+import {PartitionedDataset, SourceDataset} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
-import {
-  ColumnType,
-  LONG,
-  NUM,
-  SqlValue,
-  STR_NULL,
-  UNKNOWN,
-} from '../trace_processor/query_result';
+import {LONG, NUM, SqlValue, STR_NULL} from '../trace_processor/query_result';
 import {escapeSearchQuery} from '../trace_processor/query_utils';
 
 // Type alias for search results
@@ -39,8 +32,6 @@ type PartitionMap = Map<string, Map<SqlValue, Track[]>>;
 // Defines a group of tracks that use the same dataset source, including a LUT
 // to find the corresponding track.
 export interface TrackGroup {
-  readonly src: string;
-  readonly schema: Record<string, ColumnType>;
   readonly nonPartitioned: Track[];
   readonly partitioned: PartitionMap;
 }
@@ -55,24 +46,30 @@ export async function searchTrackEvents(
   const searchLiteral = escapeSearchQuery(searchTerm);
   // TODO(stevegolton): We currently only search for names but in the future we
   // will allow more search facets to be defined.
-  return await searchNames(trackGroups, searchLiteral, engine);
+  return await searchNames(engine, trackGroups, searchLiteral);
 }
 
-function buildTrackGroups(
+export function buildTrackGroups(
   tracks: ReadonlyArray<Track>,
-): Map<string, TrackGroup> {
-  const trackGroups = new Map<string, TrackGroup>();
+): Map<SourceDataset, TrackGroup> {
+  const trackGroups = new Map<SourceDataset, TrackGroup>();
   for (const track of tracks) {
     const dataset = track.track.getDataset?.();
     if (dataset) {
-      const src = dataset.src;
-      const trackGroup = getOrCreate(trackGroups, src, () => ({
-        src,
-        schema: {},
-        nonPartitioned: [],
-        partitioned: new Map(),
-      }));
-      addTrackToTrackGroup(trackGroup, track, dataset);
+      if (dataset instanceof PartitionedDataset) {
+        const base = dataset.base;
+        const trackGroup = getOrCreate(trackGroups, base, () => ({
+          nonPartitioned: [],
+          partitioned: new Map(),
+        }));
+        addTrackToTrackGroup(trackGroup, track, dataset);
+      } else {
+        const trackGroup = getOrCreate(trackGroups, dataset, () => ({
+          nonPartitioned: [],
+          partitioned: new Map(),
+        }));
+        trackGroup.nonPartitioned.push(track);
+      }
     }
   }
   return trackGroups;
@@ -81,73 +78,47 @@ function buildTrackGroups(
 function addTrackToTrackGroup(
   trackGroup: TrackGroup,
   track: Track,
-  dataset: SourceDataset,
+  dataset: PartitionedDataset,
 ): void {
-  const filter = dataset.filter;
-  const schema = dataset.schema;
+  const partition = dataset.partition;
 
-  // Combine schemas from all datasets in the group.
-  for (const [col, type] of Object.entries(schema)) {
-    // TODO(stevegolton): This is a bit of a hack as the data types could
-    // conflict. In the future we will probably switch to a centralized
-    // datasource approach which tracks will point to that has its own schema.
-    trackGroup.schema[col] = type;
-  }
+  const partitions = getOrCreate(
+    trackGroup.partitioned,
+    partition.col,
+    () => new Map<SqlValue, Track[]>(),
+  );
+  const addTrackToPartition = (value: SqlValue) => {
+    const partition = getOrCreate(partitions, value, () => []);
+    partition.push(track);
+  };
 
-  if (filter === undefined) {
-    trackGroup.nonPartitioned.push(track);
+  if ('eq' in partition) {
+    addTrackToPartition(partition.eq);
   } else {
-    const partitions = getOrCreate(
-      trackGroup.partitioned,
-      filter.col,
-      () => new Map<SqlValue, Track[]>(),
-    );
-    const addTrackToPartition = (value: SqlValue) => {
-      const key = normalizeMapKey(value);
-      const partition = getOrCreate(partitions, key, () => []);
-      partition.push(track);
-    };
-
-    if ('eq' in filter) {
-      addTrackToPartition(filter.eq);
-    } else {
-      for (const value of filter.in) {
-        addTrackToPartition(value);
-      }
+    for (const value of partition.in) {
+      addTrackToPartition(value);
     }
   }
 }
 
-// Normalizes values used as keys in the partition map.
-// This is necessary because SQL queries might return integer values as BigInts
-// (e.g., for LONG types), while filter definitions might use standard numbers.
-// This ensures consistent key types (BigInt for integers, others as-is)
-// for reliable lookups in the JavaScript Map.
-function normalizeMapKey(value: SqlValue): SqlValue {
-  if (typeof value === 'number' && Number.isInteger(value)) {
-    return BigInt(value);
-  } else {
-    return value;
-  }
-}
-
 async function searchNames(
-  trackGroups: Map<string, TrackGroup>,
-  searchLiteral: string,
   engine: Engine,
+  trackGroups: Map<SourceDataset, TrackGroup>,
+  searchLiteral: string,
 ): Promise<SearchResult[]> {
   const searchResults: SearchResult[] = [];
 
   // Process each track group
-  for (const trackGroup of trackGroups.values()) {
+  for (const [dataset, trackGroup] of trackGroups.entries()) {
     // Only search track groups that implement the required schema
     // The schema check ensures 'id', 'ts', and 'name' columns exist.
-    const groupDataset = new SourceDataset({
-      src: trackGroup.src,
-      schema: trackGroup.schema,
-    });
-    if (groupDataset.implements({id: NUM, ts: LONG, name: STR_NULL})) {
-      const results = await searchTrackGroup(trackGroup, searchLiteral, engine);
+    if (dataset.implements({id: NUM, ts: LONG, name: STR_NULL})) {
+      const results = await searchTrackGroup(
+        engine,
+        dataset,
+        trackGroup,
+        searchLiteral,
+      );
       searchResults.push(...results);
     }
   }
@@ -156,14 +127,15 @@ async function searchNames(
 }
 
 async function searchTrackGroup(
+  engine: Engine,
+  dataset: SourceDataset,
   trackGroup: TrackGroup,
   searchLiteral: string,
-  engine: Engine,
 ): Promise<SearchResult[]> {
   const results: SearchResult[] = [];
   const partitionCols = Array.from(trackGroup.partitioned.keys());
   const partitionColSchema = Object.fromEntries(
-    partitionCols.map((key) => [key, UNKNOWN]),
+    partitionCols.map((key) => [key, dataset.schema[key]]),
   );
 
   // Ensure required columns plus any partition columns are selected.
@@ -174,7 +146,7 @@ async function searchTrackGroup(
   const query = `
     SELECT
       ${selectCols.join(', ')}
-    FROM (${trackGroup.src})
+    FROM (${dataset.query()})
     WHERE name GLOB ${searchLiteral}
   `;
   const result = await engine.query(query);
