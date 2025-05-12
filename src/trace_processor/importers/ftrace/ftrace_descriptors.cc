@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 551> descriptors{{
+std::array<FtraceMessageDescriptor, 559> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6092,6 +6092,85 @@ std::array<FtraceMessageDescriptor, 551> descriptors{{
             {"id", ProtoSchemaType::kInt32},
             {"output_id", ProtoSchemaType::kInt32},
             {"enable", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "hrtimer_start",
+        5,
+        {
+            {},
+            {"hrtimer", ProtoSchemaType::kUint64},
+            {"function", ProtoSchemaType::kUint64},
+            {"expires", ProtoSchemaType::kInt64},
+            {"softexpires", ProtoSchemaType::kInt64},
+            {"mode", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "hrtimer_cancel",
+        1,
+        {
+            {},
+            {"hrtimer", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "hrtimer_expire_entry",
+        3,
+        {
+            {},
+            {"hrtimer", ProtoSchemaType::kUint64},
+            {"now", ProtoSchemaType::kInt64},
+            {"function", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "hrtimer_expire_exit",
+        1,
+        {
+            {},
+            {"hrtimer", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "timer_start",
+        7,
+        {
+            {},
+            {"timer", ProtoSchemaType::kUint64},
+            {"function", ProtoSchemaType::kUint64},
+            {"expires", ProtoSchemaType::kUint64},
+            {"now", ProtoSchemaType::kUint64},
+            {"deferrable", ProtoSchemaType::kUint32},
+            {"flags", ProtoSchemaType::kUint32},
+            {"bucket_expiry", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "timer_cancel",
+        1,
+        {
+            {},
+            {"timer", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "timer_expire_entry",
+        4,
+        {
+            {},
+            {"timer", ProtoSchemaType::kUint64},
+            {"now", ProtoSchemaType::kUint64},
+            {"function", ProtoSchemaType::kUint64},
+            {"baseclk", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "timer_expire_exit",
+        1,
+        {
+            {},
+            {"timer", ProtoSchemaType::kUint64},
         },
     },
 }};
