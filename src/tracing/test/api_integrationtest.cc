@@ -4067,17 +4067,6 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 
-  // Enable explicit category with no wildcard.
-  // TODO(crbug.com/260418655): Fix once API changes are announced.
-  {
-    perfetto::protos::gen::TrackEventConfig te_cfg;
-    te_cfg.add_enabled_categories("foo");
-    run_config(te_cfg, []() {
-      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
-      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("bar"));
-    });
-  }
-
   // Disable explicit category.
   {
     perfetto::protos::gen::TrackEventConfig te_cfg;
@@ -4117,6 +4106,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.add_disabled_categories("slow_category");
     te_cfg.add_enabled_tags("slow");
+    te_cfg.add_disabled_categories("*");
     run_config(te_cfg, []() {
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("slow_category"));
     });
@@ -4128,6 +4118,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.add_enabled_tags("tag");
     te_cfg.add_disabled_tags("slow");
+    te_cfg.add_disabled_categories("*");
     run_config(te_cfg, []() {
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("test"));
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("test.verbose"));
