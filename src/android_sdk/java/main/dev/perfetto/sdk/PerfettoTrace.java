@@ -96,12 +96,18 @@ public final class PerfettoTrace {
     /** Create the native category object and register it. */
     public synchronized Category register() {
       if (mPtr == 0) {
-        mPtr = native_init(mName, mTags.toArray(new String[0]));
-        sNativeMemoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
-      }
-      if (!mIsRegistered) {
-        native_register(mPtr);
+        long ptr = native_init(mName, mTags.toArray(new String[0]));
+        sNativeMemoryCleaner.registerNativeAllocation(this, ptr, native_delete());
+        native_register(ptr);
+        // There is not much sense in the created, but not yet registered category,
+        // so we make the `ptr` visible to other threads only after registration.
+        mPtr = ptr;
         mIsRegistered = true;
+      } else {
+        if (!mIsRegistered) {
+          native_register(mPtr);
+          mIsRegistered = true;
+        }
       }
       return this;
     }
@@ -133,7 +139,7 @@ public final class PerfettoTrace {
       return mIsRegistered;
     }
 
-    /** Returns the native pointer for the category. */
+    /** Returns the pointer to the native category object. */
     @Override
     public long getPtr() {
       // mPtr is volatile and is set only from `#register()` method.
