@@ -77,7 +77,7 @@ void Dataframe::AddIndex(Index index) {
 }
 
 void Dataframe::RemoveIndexAt(uint32_t index) {
-  indexes_.erase(indexes_.begin() + index);
+  indexes_.erase(indexes_.begin() + static_cast<std::ptrdiff_t>(index));
 }
 
 dataframe::Dataframe Dataframe::Copy() const {
