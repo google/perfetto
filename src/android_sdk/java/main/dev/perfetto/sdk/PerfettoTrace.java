@@ -51,10 +51,9 @@ public final class PerfettoTrace {
    * events within the category, it must also be enabled in the trace config.
    */
   public static class Category implements PerfettoTrackEventExtra.PerfettoPointer {
-    private long mPtr;
-    private long mExtraPtr;
     private final String mName;
     private final List<String> mTags;
+    private volatile long mPtr;
     private volatile boolean mIsRegistered;
 
     /**
@@ -76,7 +75,6 @@ public final class PerfettoTrace {
       mName = name;
       mTags = tags;
       mPtr = 0;
-      mExtraPtr = 0;
       mIsRegistered = false;
     }
 
@@ -95,14 +93,10 @@ public final class PerfettoTrace {
     @CriticalNative
     private static native boolean native_is_enabled(long ptr);
 
-    @CriticalNative
-    private static native long native_get_extra_ptr(long ptr);
-
     /** Create the native category object and register it. */
     public synchronized Category register() {
       if (mPtr == 0) {
         mPtr = native_init(mName, mTags.toArray(new String[0]));
-        mExtraPtr = native_get_extra_ptr(mPtr);
         sNativeMemoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
       }
       if (!mIsRegistered) {
@@ -141,8 +135,9 @@ public final class PerfettoTrace {
 
     /** Returns the native pointer for the category. */
     @Override
-    public synchronized long getPtr() {
-      return mExtraPtr;
+    public long getPtr() {
+      // mPtr is volatile and is set only from `#register()` method.
+      return mPtr;
     }
 
     public String getName() {
