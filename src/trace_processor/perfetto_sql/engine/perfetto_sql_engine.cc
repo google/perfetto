@@ -971,7 +971,8 @@ base::Status PerfettoSqlEngine::DropIndexBeforeCreate(
               create_index.name.c_str());
         }
         state->handle->RemoveIndexAt(i);
-        state->named_indexes.erase(state->named_indexes.begin() + i);
+        state->named_indexes.erase(state->named_indexes.begin() +
+                                   static_cast<std::ptrdiff_t>(i));
         return base::OkStatus();
       }
     }
@@ -1011,7 +1012,8 @@ base::Status PerfettoSqlEngine::ExecuteDropIndex(
     for (uint32_t i = 0; i < state->named_indexes.size(); ++i) {
       if (state->named_indexes[i].name == index.name) {
         state->handle->RemoveIndexAt(i);
-        state->named_indexes.erase(state->named_indexes.begin() + i);
+        state->named_indexes.erase(state->named_indexes.begin() +
+                                   static_cast<std::ptrdiff_t>(i));
         return base::OkStatus();
       }
     }

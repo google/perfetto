@@ -48,8 +48,6 @@ template("wasm_lib") {
       "-s",
       "INITIAL_MEMORY=33554432",
       "-s",
-      "MAXIMUM_MEMORY=4GB",
-      "-s",
       "ALLOW_MEMORY_GROWTH=1",
       "-s",
       "ALLOW_TABLE_GROWTH=1",
@@ -116,7 +114,21 @@ template("wasm_lib") {
 
     executable("${_lib_name}.js") {
       forward_variables_from(invoker, _vars_to_forward)
-      ldflags = _target_ldflags
+      ldflags = _target_ldflags + [
+                  "-s",
+                  "MAXIMUM_MEMORY=4GB",
+                ]
+      output_extension = ""
+    }
+    executable("${_lib_name}_memory64.js") {
+      forward_variables_from(invoker, _vars_to_forward)
+      ldflags = _target_ldflags + [
+                  "-s",
+                  "MEMORY64=1",
+                  "-s",
+                  "MAXIMUM_MEMORY=16GB",
+                  "-mwasm64",
+                ]
       output_extension = ""
     }
 
@@ -135,10 +147,24 @@ template("wasm_lib") {
       args = [ "--noop" ]
       script = "//gn/standalone/build_tool_wrapper.py"
     }
+    action("${_lib_name}_memory64.wasm") {
+      inputs = []
+      deps = [ ":${_lib_name}_memory64.js" ]
+      outputs = [ "$root_out_dir/${_lib_name}_memory64.wasm" ]
+      if (is_debug) {
+        outputs += [ "$root_out_dir/${_lib_name}_memory64.wasm.map" ]
+      }
+      args = [ "--noop" ]
+      script = "//gn/standalone/build_tool_wrapper.py"
+    }
 
     copy("${_lib_name}.d.ts") {
       sources = [ "//gn/standalone/wasm_typescript_declaration.d.ts" ]
       outputs = [ "$root_out_dir/$_lib_name.d.ts" ]
+    }
+    copy("${_lib_name}_memory64.d.ts") {
+      sources = [ "//gn/standalone/wasm_typescript_declaration.d.ts" ]
+      outputs = [ "$root_out_dir/${_lib_name}_memory64.d.ts" ]
     }
   } else {  # is_wasm
     not_needed(invoker, "*")
@@ -149,6 +175,13 @@ template("wasm_lib") {
       ":${_lib_name}.d.ts($wasm_toolchain)",
       ":${_lib_name}.js($wasm_toolchain)",
       ":${_lib_name}.wasm($wasm_toolchain)",
+    ]
+  }
+  group(invoker.name + "_memory64_wasm") {
+    deps = [
+      ":${_lib_name}_memory64.d.ts($wasm_memory64_toolchain)",
+      ":${_lib_name}_memory64.wasm($wasm_memory64_toolchain)",
+      ":${_lib_name}_memory64.js($wasm_memory64_toolchain)",
     ]
   }
 }  # template

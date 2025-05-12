@@ -14,5 +14,4 @@
 # limitations under the License.
 
 UI_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
-
-$UI_DIR/node $UI_DIR/build.js --run-unittests "$@"
+$UI_DIR/node $UI_DIR/build.js --only-wasm-memory64 --run-unittests "$@"
