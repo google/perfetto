@@ -59,10 +59,6 @@ import perfetto.protos.TrackEventOuterClass.TrackEvent;
  */
 @RunWith(AndroidJUnit4.class)
 public class PerfettoTraceTest {
-  static {
-    System.loadLibrary("perfetto_jni_lib");
-  }
-
   private static final String TAG = "PerfettoTraceTest";
   private static final String FOO = "foo";
   private static final String BAR = "bar";
@@ -79,6 +75,7 @@ public class PerfettoTraceTest {
 
   @Before
   public void setUp() {
+    System.loadLibrary("perfetto_jni_lib");
     PerfettoTrace.registerWithDebugChecks(true);
     // 'var unused' suppress error-prone warning
     var unused = FOO_CATEGORY.register();
@@ -632,6 +629,26 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testCategoryIsRegisteredAndEnabled() {
+    Category barCategory = new Category(BAR);
+    assertThat(barCategory.getPtr()).isEqualTo(0L);
+    assertThat(barCategory.isRegistered()).isFalse();
+    assertThat(barCategory.isRegisteredAndEnabled()).isFalse();
+
+    barCategory.register();
+    assertThat(barCategory.getPtr()).isNotEqualTo(0L);
+    assertThat(barCategory.isRegistered()).isTrue();
+    assertThat(barCategory.isRegisteredAndEnabled()).isFalse();
+
+    TraceConfig traceConfig = getTraceConfig(BAR);
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+    assertThat(barCategory.isRegisteredAndEnabled()).isTrue();
+
+    session.close();
+    assertThat(barCategory.isRegisteredAndEnabled()).isFalse();
+  }
+
+  @Test
   public void testDisabledCategory() throws Exception {
     class DisabledCategory extends Category {
       public DisabledCategory(String name) {
@@ -639,7 +656,7 @@ public class PerfettoTraceTest {
       }
 
       @Override
-      public boolean isEnabled() {
+      public boolean isRegisteredAndEnabled() {
         return false;
       }
     }

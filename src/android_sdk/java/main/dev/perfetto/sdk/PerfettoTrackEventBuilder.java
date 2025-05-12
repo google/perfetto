@@ -158,7 +158,7 @@ public final class PerfettoTrackEventBuilder {
 
   public static PerfettoTrackEventBuilder newEvent(
       int traceType, Category category, boolean isDebug) {
-    if (category.isEnabled()) {
+    if (category.isRegisteredAndEnabled()) {
       return sThreadLocalBuilder.get().initNewEvent(traceType, category, isDebug);
     }
     return NO_OP_BUILDER;
