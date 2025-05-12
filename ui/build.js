@@ -86,9 +86,8 @@ const cfg = {
   startHttpServer: false,
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: 10000,
-  wasmOnlyMemory64: false,
-  wasmMemory32Modules: [],
-  wasmMemory64Modules: [],
+  onlyWasmMemory64: false,
+  wasmModules: [],
   crossOriginIsolation: false,
   testFilter: '',
   noOverrideGnArgs: false,
@@ -208,16 +207,11 @@ async function main() {
   if (args.cross_origin_isolation) {
     cfg.crossOriginIsolation = true;
   }
-  if (args.only_wasm_memory64) {
-    cfg.wasmMemory32Modules = ['traceconv', 'trace_config_utils'];
-    cfg.wasmMemory64Modules = ['trace_processor_memory64'];
-  } else {
-    cfg.wasmMemory32Modules = [
-      'traceconv', 'trace_config_utils', 'trace_processor'
-    ];
-    cfg.wasmMemory64Modules = ['trace_processor_memory64'];
+  cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
+  cfg.wasmModules = ['traceconv', 'trace_config_utils', 'trace_processor_memory64'];
+  if (!cfg.onlyWasmMemory64) {
+    cfg.wasmModules.push('trace_processor');
   }
-  cfg.wasmOnlyMemory64 = !!args.only_wasm_memory64;
 
   process.on('SIGINT', () => {
     console.log('\nSIGINT received. Killing all child processes and exiting');
@@ -526,25 +520,22 @@ function buildWasm(skipWasmBuild) {
       addTask(exec, [pjoin(ROOT_DIR, 'tools/gn'), gnArgs]);
     }
     const ninjaArgs = ['-C', cfg.outDir];
-    ninjaArgs.push(...cfg.wasmMemory32Modules.map((x) => `${x}_wasm`));
-    ninjaArgs.push(...cfg.wasmMemory64Modules.map((x) => `${x}_wasm`));
+    ninjaArgs.push(...cfg.wasmModules.map((x) => `${x}_wasm`));
     addTask(exec, [pjoin(ROOT_DIR, 'tools/ninja'), ninjaArgs]);
   }
-  copyWasmModules(pjoin(cfg.outDir, 'wasm'), cfg.wasmMemory32Modules);
-  copyWasmModules(pjoin(cfg.outDir, 'wasm_memory64'), cfg.wasmMemory64Modules);
-}
 
-function copyWasmModules(wasmDir, modules) {
-  for (const wasmMod of modules) {
+  for (const wasmMod of cfg.wasmModules) {
+    const isMem64 = wasmMod.endsWith('_memory64');
+    const wasmOutDir = pjoin(cfg.outDir, isMem64 ? 'wasm_memory64' : 'wasm');
     // The .wasm file goes directly into the dist dir (also .map in debug)
     for (const ext of ['.wasm'].concat(cfg.debug ? ['.wasm.map'] : [])) {
-      const src = `${wasmDir}/${wasmMod}${ext}`;
+      const src = `${wasmOutDir}/${wasmMod}${ext}`;
       addTask(cp, [src, pjoin(cfg.outDistDir, wasmMod + ext)]);
     }
     // The .js / .ts go into intermediates, they will be bundled by rollup.
     for (const ext of ['.js', '.d.ts']) {
       const fname = `${wasmMod}${ext}`;
-      addTask(cp, [pjoin(wasmDir, fname), pjoin(cfg.outGenDir, fname)]);
+      addTask(cp, [pjoin(wasmOutDir, fname), pjoin(cfg.outGenDir, fname)]);
     }
   }
 }
@@ -575,8 +566,8 @@ function bundleJs(cfgName) {
   if (cfg.minifyJs) {
     args.push('--environment', `MINIFY_JS:${cfg.minifyJs}`);
   }
-  if (cfg.wasmOnlyMemory64) {
-    args.push('--environment', `IS_MEMORY64_ONLY:${cfg.wasmOnlyMemory64}`);
+  if (cfg.onlyWasmMemory64) {
+    args.push('--environment', `IS_MEMORY64_ONLY:${cfg.onlyWasmMemory64}`);
   }
   args.push(...(cfg.verbose ? [] : ['--silent']));
   if (cfg.watch) {
@@ -691,13 +682,8 @@ function isDistComplete() {
     'engine_bundle.js',
     'traceconv_bundle.js',
     'perfetto.css',
+    ...cfg.wasmModules.map((wasmMod) => `${wasmMod}.wasm`),
   ];
-  for (const wasmMod of cfg.wasmMemory32Modules) {
-    requiredArtifacts.push(`${wasmMod}.wasm`);
-  }
-  for (const wasmMod of cfg.wasmMemory64Modules) {
-    requiredArtifacts.push(`${wasmMod}.wasm`);
-  }
   const relPaths = new Set();
   walk(cfg.outDistDir, (absPath) => {
     relPaths.add(path.relative(cfg.outDistDir, absPath));
