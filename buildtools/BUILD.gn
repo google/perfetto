@@ -1183,6 +1183,7 @@ config("zlib_config") {
     cflags += [
       "-Wno-unknown-warning-option",
       "-Wno-deprecated-non-prototype",
+      "-Wno-macro-redefined",
     ]
   }
 }
