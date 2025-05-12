@@ -1691,20 +1691,23 @@ TEST_P(PerfettoApiTest, TrackEventDescriptor) {
 
   // Check that the advertised categories match PERFETTO_DEFINE_CATEGORIES (see
   // above).
-  EXPECT_EQ(7, desc.available_categories_size());
+  EXPECT_EQ(9, desc.available_categories_size());
   EXPECT_EQ("test", desc.available_categories()[0].name());
   EXPECT_EQ("This is a test category",
             desc.available_categories()[0].description());
   EXPECT_EQ("tag", desc.available_categories()[0].tags()[0]);
-  EXPECT_EQ("foo", desc.available_categories()[1].name());
-  EXPECT_EQ("bar", desc.available_categories()[2].name());
-  EXPECT_EQ("cat", desc.available_categories()[3].name());
-  EXPECT_EQ("slow", desc.available_categories()[3].tags()[0]);
-  EXPECT_EQ("cat.verbose", desc.available_categories()[4].name());
-  EXPECT_EQ("debug", desc.available_categories()[4].tags()[0]);
-  EXPECT_EQ("cat-with-dashes", desc.available_categories()[5].name());
-  EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[6].name());
-  EXPECT_EQ("slow", desc.available_categories()[6].tags()[0]);
+  EXPECT_EQ("test.verbose", desc.available_categories()[1].name());
+  EXPECT_EQ("foo", desc.available_categories()[2].name());
+  EXPECT_EQ("bar", desc.available_categories()[3].name());
+  EXPECT_EQ("cat", desc.available_categories()[4].name());
+  EXPECT_EQ("slow", desc.available_categories()[4].tags()[0]);
+  EXPECT_EQ("cat.verbose", desc.available_categories()[5].name());
+  EXPECT_EQ("debug", desc.available_categories()[5].tags()[0]);
+  EXPECT_EQ("cat-with-dashes", desc.available_categories()[6].name());
+  EXPECT_EQ("slow_category", desc.available_categories()[7].name());
+  EXPECT_EQ("slow", desc.available_categories()[7].tags()[0]);
+  EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[8].name());
+  EXPECT_EQ("slow", desc.available_categories()[8].tags()[0]);
 }
 
 TEST_P(PerfettoApiTest, TrackEventSharedIncrementalState) {
