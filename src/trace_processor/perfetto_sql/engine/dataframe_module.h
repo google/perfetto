@@ -98,7 +98,7 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
     const dataframe::Dataframe* dataframe;
-    std::optional<DfCursor> df_cursor;
+    DfCursor df_cursor;
     const char* last_idx_str = nullptr;
   };
 
