@@ -19,7 +19,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -31,6 +30,7 @@
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -78,9 +78,8 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
   return QueryPlan(std::move(plan));
 }
 
-base::StatusOr<Dataframe::Index> Dataframe::BuildIndex(
-    const uint32_t* columns_start,
-    const uint32_t* columns_end) const {
+base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
+                                            const uint32_t* columns_end) const {
   std::vector<uint32_t> cols(columns_start, columns_end);
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts;
@@ -178,8 +177,8 @@ dataframe::Dataframe Dataframe::Copy() const {
   return *this;
 }
 
-Dataframe::Spec Dataframe::CreateSpec() const {
-  Spec spec{column_names_, {}};
+DataframeSpec Dataframe::CreateSpec() const {
+  DataframeSpec spec{column_names_, {}};
   spec.column_specs.reserve(columns_.size());
   for (const auto& c : columns_) {
     spec.column_specs.push_back(

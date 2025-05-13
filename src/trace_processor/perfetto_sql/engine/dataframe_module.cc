@@ -80,7 +80,7 @@ std::string ToSqliteCreateTableType(dataframe::StorageType type) {
   }
 }
 
-std::string CreateTableStmt(const dataframe::Dataframe::Spec& spec) {
+std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
   std::string create_stmt = "CREATE TABLE x(";
   for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
     create_stmt += spec.column_names[i] + " " +

@@ -37,6 +37,7 @@ source_set("specs") {
   sources = [
     "specs.h",
     "type_set.h",
+    "types.h",
     "value_fetcher.h",
   ]
   deps = [
