@@ -99,8 +99,13 @@ void Response::Send(Rpc::RpcResponseFunction send_fn) {
 
 Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance)
     : trace_processor_(std::move(preloaded_instance)) {
-  if (!trace_processor_)
+  if (trace_processor_) {
+    // If the trace processor is preloaded, we need to reset the trace
+    // processor on any further Parse() calls.
+    eof_ = true;
+  } else {
     ResetTraceProcessorInternal(Config());
+  }
 }
 
 Rpc::Rpc() : Rpc(nullptr) {}

@@ -291,7 +291,8 @@ class Dataframe {
           "that supports it. Please use SparseNullSupportingCellGetAlways or "
           "SparseNullSupportingCellGetUntilFinalization as appropriate.");
     } else {
-      static_assert(false, "Unsupported null storage type");
+      static_assert(std::is_same_v<null_storage_type, NonNull>,
+                    "Unsupported null storage type");
     }
   }
 
@@ -347,7 +348,8 @@ class Dataframe {
                     "Trying to set a column with sparse nulls. This is not "
                     "supported, please use dense nulls.");
     } else {
-      static_assert(false, "Unsupported null storage type");
+      static_assert(std::is_same_v<null_storage_type, NonNull>,
+                    "Unsupported null storage type");
     }
   }
 

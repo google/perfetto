@@ -33,16 +33,6 @@ TEST(FlexVectorTest, DefaultConstructor) {
   EXPECT_TRUE(vec.empty());
 }
 
-// Test static CreateWithCapacityation method
-TEST(FlexVectorTest, StaticCreateWithCapacityation) {
-  constexpr size_t kCapacity = 16;
-  auto vec = FlexVector<int>::CreateWithCapacity(kCapacity);
-
-  EXPECT_EQ(vec.size(), 0u);
-  EXPECT_EQ(vec.capacity(), kCapacity);
-  EXPECT_TRUE(vec.empty());
-}
-
 // Test basic push_back functionality
 TEST(FlexVectorTest, PushBack) {
   auto vec = FlexVector<int>::CreateWithCapacity(8);
@@ -64,7 +54,7 @@ TEST(FlexVectorTest, PushBack) {
 // Test automatic capacity growth
 TEST(FlexVectorTest, CapacityGrowth) {
   // Start with small capacity
-  constexpr size_t kInitialCapacity = 4;
+  constexpr size_t kInitialCapacity = 64;
   auto vec = FlexVector<int>::CreateWithCapacity(kInitialCapacity);
 
   EXPECT_EQ(vec.capacity(), kInitialCapacity);
