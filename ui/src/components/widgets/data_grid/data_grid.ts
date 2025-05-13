@@ -113,15 +113,6 @@ export interface DataGridAttrs {
   ) => m.Children;
 
   /**
-   * Show filters in the toolbar and filtering options in dropdown menus. If
-   * false, filtering can still be applied externally, but the UI for filtering
-   * will not be visible to the user.
-   *
-   * Defaults to true.
-   */
-  readonly enableFiltering?: boolean;
-
-  /**
    * Display applied filters in the toolbar. Set to false to hide them, for
    * example, if filters are displayed elsewhere in the UI. This does not
    * disable filtering functionality.
@@ -142,14 +133,20 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       columns,
       dataSource,
       sortBy = this.internalSortBy,
-      filters = this.internalFilters,
+      filters: externalFilters,
       onSortByChange,
       onFilterChange,
       cellRenderer,
       maxRowsPerPage = DEFAULT_ROWS_PER_PAGE,
-      enableFiltering: enableFilters = true,
       showFiltersInToolbar = true,
     } = attrs;
+
+    // If filters are passed in from outside but no onFilterChange handler
+    // specified, then there is no way to edit the filters so we hide the
+    // options to specify filters.
+    const filtersAreEditable = Boolean(!externalFilters || onFilterChange);
+
+    const filters = externalFilters || this.internalFilters;
 
     const currentPage = this.currentPage;
     this.updateDataSource(
@@ -181,7 +178,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         onSortByChange,
         onFilterChange,
         maxRowsPerPage,
-        enableFilters && showFiltersInToolbar,
+        showFiltersInToolbar,
       ),
       m(
         'table',
@@ -189,14 +186,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           columns,
           sortBy,
           onSortByChange,
-          enableFilters,
+          filtersAreEditable,
           filters,
           onFilterChange,
         ),
         this.renderTableBody(
           columns,
           rowData,
-          enableFilters,
+          filtersAreEditable,
           filters,
           onFilterChange,
           cellRenderer,

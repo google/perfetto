@@ -197,7 +197,9 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       Router.parseUrl(window.location.href).page === '/viewer';
 
     return m(DataGrid, {
-      enableFiltering: false,
+      // If filters are defined by no onFilterChanged handler, the grid operates
+      // in filter read only mode.
+      filters: [],
       columns: resp.columns.map((c) => ({name: c})),
       dataSource,
       cellRenderer: (value, name, row) => {
