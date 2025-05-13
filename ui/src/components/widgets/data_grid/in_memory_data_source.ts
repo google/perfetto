@@ -128,9 +128,9 @@ export class InMemoryDataSource implements DataGridDataSource {
 
         switch (filter.op) {
           case '=':
-            return value === filter.value;
+            return valuesEqual(value, filter.value);
           case '!=':
-            return value !== filter.value;
+            return !valuesEqual(value, filter.value);
           case '<':
             return compareNumeric(value, filter.value) < 0;
           case '<=':
@@ -214,6 +214,29 @@ export class InMemoryDataSource implements DataGridDataSource {
   }
 }
 
+// Compare values, using a special deep comparison for Uint8Arrays.
+function valuesEqual(a: SqlValue, b: SqlValue): boolean {
+  if (a === b) {
+    return true;
+  }
+
+  if (a instanceof Uint8Array && b instanceof Uint8Array) {
+    if (a.length !== b.length) {
+      return false;
+    }
+
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
 function isNumeric(value: SqlValue): value is number | bigint {
   return typeof value === 'number' || typeof value === 'bigint';
 }
@@ -224,6 +247,12 @@ function isNumeric(value: SqlValue): value is number | bigint {
  * @returns Returns > 0 if a > b, < 0 if a < b, 0 if a == b.
  */
 function compareNumeric(a: SqlValue, b: SqlValue): number {
+  // Handle the null cases - null is always considered smaller than a numerical
+  // value to match sqlite.
+  if (a === null && b === null) return 0;
+  if (a === null) return -1;
+  if (b === null) return 1;
+
   if (!isNumeric(a) || !isNumeric(b)) {
     throw new Error('Cannot compare non-numeric values');
   }
