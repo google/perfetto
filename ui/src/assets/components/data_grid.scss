@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-$border: 1px solid white;
+$border: 1px solid rgb(225, 225, 225);
 
 .pf-data-grid {
   font-weight: 300;
@@ -23,28 +23,36 @@ $border: 1px solid white;
 
     td,
     th {
-      padding: 1px 2px;
+      padding: 0.2em 0.4em;
       border-right: $border;
       border-bottom: $border;
       white-space: nowrap;
+
+      &:first-child {
+        border-left: $border;
+      }
     }
 
     th {
       font-weight: 400;
+      border-top: $border;
+    }
+
+    tr {
+      &:hover {
+        background-color: rgb(239, 241, 244);
+      }
     }
 
     thead {
       position: sticky;
       top: 0;
-      background-color: hsl(214, 22%, 90%);
-    }
+      background-color: white;
 
-    tr {
-      &:nth-child(even) {
-        background-color: hsl(214, 22%, 95%);
-      }
-      &:hover {
-        background-color: hsl(214, 22%, 90%);
+      tr {
+        &:hover {
+          background-color: unset;
+        }
       }
     }
   }
@@ -52,6 +60,7 @@ $border: 1px solid white;
   &__toolbar {
     display: flex;
     padding: 2px;
+    align-items: baseline;
   }
 
   &__toolbar-filters {
@@ -76,9 +85,9 @@ $border: 1px solid white;
   &__cell {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: 2px;
+    gap: 0.4em;
     align-items: center;
-    text-align: left;
+    // text-align: left;
 
     &-button {
       visibility: hidden;

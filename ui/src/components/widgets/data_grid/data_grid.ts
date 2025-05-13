@@ -132,7 +132,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const {
       columns,
       dataSource,
-      sortBy = this.internalSortBy,
+      sortBy: externalSorting,
       filters: externalFilters,
       onSortByChange,
       onFilterChange,
@@ -157,6 +157,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const filtersAreEditable =
       !areFiltersControlled || onFilterChange !== undefined;
 
+    const isSortingControlled = externalSorting !== undefined;
+    const sortBy = isSortingControlled ? externalSorting : this.internalSortBy;
+    const sortingIsEditable =
+      !isSortingControlled || onSortByChange !== undefined;
+
     const currentPage = this.currentPage;
     this.updateDataSource(
       dataSource,
@@ -177,6 +182,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       this.currentPage = Math.max(0, totalPages - 1);
     }
 
+    const addFilter = filtersAreEditable
+      ? (filter: FilterDefinition) =>
+          this.addFilter(filters, filter, onFilterChange)
+      : undefined;
+
+    const updateSorting = sortingIsEditable
+      ? (sortBy: SortBy) => {
+          this.internalSortBy = sortBy;
+          onSortByChange?.(sortBy);
+        }
+      : undefined;
+
     return m(
       '.pf-data-grid',
       this.renderTableToolbar(
@@ -191,14 +208,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       ),
       m(
         'table',
-        this.renderTableHeader(
-          columns,
-          sortBy,
-          onSortByChange,
-          filtersAreEditable,
-          filters,
-          onFilterChange,
-        ),
+        this.renderTableHeader(columns, sortBy, updateSorting, addFilter),
         this.renderTableBody(
           columns,
           rowData,
@@ -239,6 +249,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     return m('.pf-data-grid__toolbar', [
       m(Button, {
         icon: Icons.ResetState,
+        label: 'Reset',
         disabled: filters.length === 0 && sortBy.direction === 'unsorted',
         title: 'Reset filters and sorting',
         onclick: () => {
@@ -332,18 +343,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const endRowStr = endRow.toLocaleString();
     const totalRowsStr = totalRows.toLocaleString();
 
-    return `${startRowStr}-${endRowStr} of ${totalRowsStr} rows`;
+    return `${startRowStr}-${endRowStr} of ${totalRowsStr}`;
   }
 
   private renderTableHeader(
     columns: ReadonlyArray<ColumnDefinition>,
     currentSortBy: SortBy,
-    onSortByChange: ((sortBy: SortBy) => void) | undefined,
-    enableFilters: boolean,
-    filters: ReadonlyArray<FilterDefinition>,
-    onFilterChange:
-      | ((filters: ReadonlyArray<FilterDefinition>) => void)
-      | undefined,
+    updateSorting: ((sortBy: SortBy) => void) | undefined,
+    addFilter: ((filter: FilterDefinition) => void) | undefined,
   ) {
     return m(
       'thead',
@@ -372,92 +379,68 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     : m(Icon, {icon: Icons.SortDesc})
                   : undefined,
               ),
-              m(
-                PopupMenu,
-                {
-                  trigger: m(Button, {
-                    className: 'pf-data-grid__cell-button',
-                    icon: Icons.ContextMenuAlt,
-                    compact: true,
-                  }),
-                },
-                (!isCurrentSortColumn || currentDirection === 'desc') &&
-                  m(MenuItem, {
-                    label: 'Sort Ascending',
-                    icon: Icons.SortAsc,
-                    onclick: () => {
-                      // Update internal state
-                      this.internalSortBy = {
-                        column: column.name,
-                        direction: 'asc',
-                      };
-                      // Notify parent if callback provided
-                      onSortByChange?.(this.internalSortBy);
-                      // Reset to first page when sort changes
-                      this.currentPage = 0;
-                    },
-                  }),
-                (!isCurrentSortColumn || currentDirection === 'asc') &&
-                  m(MenuItem, {
-                    label: 'Sort Descending',
-                    icon: Icons.SortDesc,
-                    onclick: () => {
-                      // Update internal state
-                      this.internalSortBy = {
-                        column: column.name,
-                        direction: 'desc',
-                      };
-                      // Notify parent if callback provided
-                      onSortByChange?.(this.internalSortBy);
-                      // Reset to first page when sort changes
-                      this.currentPage = 0;
-                    },
-                  }),
-                isCurrentSortColumn &&
-                  m(MenuItem, {
-                    label: 'Clear Sort',
-                    icon: Icons.Remove,
-                    onclick: () => {
-                      // Update internal state
-                      this.internalSortBy = {direction: 'unsorted'};
-                      // Notify parent if callback provided
-                      onSortByChange?.(this.internalSortBy);
-                      // Reset to first page when sort changes
-                      this.currentPage = 0;
-                    },
-                  }),
-
-                enableFilters && [
-                  m(MenuDivider),
-
-                  m(MenuItem, {
-                    label: 'Filter out nulls',
-                    onclick: () => {
-                      this.addFilter(
-                        filters,
-                        {
-                          column: column.name,
-                          op: 'is not null',
+              (updateSorting || addFilter) &&
+                m(
+                  PopupMenu,
+                  {
+                    trigger: m(Button, {
+                      className: 'pf-data-grid__cell-button',
+                      icon: Icons.ContextMenuAlt,
+                      // compact: true,
+                    }),
+                  },
+                  updateSorting && [
+                    (!isCurrentSortColumn || currentDirection === 'desc') &&
+                      m(MenuItem, {
+                        label: 'Sort Ascending',
+                        icon: Icons.SortAsc,
+                        onclick: () => {
+                          updateSorting?.({
+                            column: column.name,
+                            direction: 'asc',
+                          });
                         },
-                        onFilterChange,
-                      );
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: 'Only show nulls',
-                    onclick: () => {
-                      this.addFilter(
-                        filters,
-                        {
-                          column: column.name,
-                          op: 'is null',
+                      }),
+                    (!isCurrentSortColumn || currentDirection === 'asc') &&
+                      m(MenuItem, {
+                        label: 'Sort Descending',
+                        icon: Icons.SortDesc,
+                        onclick: () => {
+                          updateSorting?.({
+                            column: column.name,
+                            direction: 'desc',
+                          });
                         },
-                        onFilterChange,
-                      );
-                    },
-                  }),
-                ],
-              ),
+                      }),
+                    isCurrentSortColumn &&
+                      m(MenuItem, {
+                        label: 'Clear Sort',
+                        icon: Icons.Remove,
+                        onclick: () => {
+                          updateSorting?.({
+                            direction: 'unsorted',
+                          });
+                        },
+                      }),
+                  ],
+
+                  addFilter && updateSorting && m(MenuDivider),
+
+                  addFilter && [
+                    m(MenuItem, {
+                      label: 'Filter out nulls',
+                      onclick: () => {
+                        addFilter({column: column.name, op: 'is not null'});
+                      },
+                    }),
+                    m(MenuItem, {
+                      label: 'Only show nulls',
+                      onclick: () => {
+                        addFilter({column: column.name, op: 'is null'});
+                      },
+                    }),
+                  ],
+                ),
             ),
           );
         }),

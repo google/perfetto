@@ -1584,27 +1584,30 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       renderWidgetShowcase({
         label: 'DataGrid (memory backed)',
         description: `An interactive data explorer and viewer.`,
-        renderWidget: ({readonlyFilters, ...rest}) =>
+        renderWidget: ({readonlyFilters, readonlySorting, ...rest}) =>
           m(DataGridShowcase, {
             ...rest,
             filters: readonlyFilters ? [] : undefined,
+            sortBy: readonlySorting ? {direction: 'unsorted'} : undefined,
           }),
         initialOpts: {
           showFiltersInToolbar: true,
           readonlyFilters: false,
+          readonlySorting: false,
         },
       }),
 
       renderWidgetShowcase({
         label: 'DataGrid (query backed)',
         description: `An interactive data explorer and viewer - fetched from SQL.`,
-        renderWidget: ({readonlyFilters, ...rest}) => {
+        renderWidget: ({readonlyFilters, readonlySorting, ...rest}) => {
           const trace = attrs.app.trace;
           if (trace) {
             return m(DataGridSqlShowcase, {
               ...rest,
               engine: trace.engine,
               filters: readonlyFilters ? [] : undefined,
+              sortBy: readonlySorting ? {direction: 'unsorted'} : undefined,
             });
           } else {
             return 'Load a trace to start';
@@ -1613,6 +1616,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         initialOpts: {
           showFiltersInToolbar: true,
           readonlyFilters: false,
+          readonlySorting: false,
         },
       }),
     );
@@ -1698,7 +1702,7 @@ function DataGridShowcase() {
       name: 'bar',
       ts: 185n,
       dur: 4n,
-      data: new Uint8Array(),
+      data: new Uint8Array([1, 2, 3]),
       maybe_null: 'Non null',
     },
     {
@@ -1706,7 +1710,7 @@ function DataGridShowcase() {
       name: 'baz',
       ts: 575n,
       dur: 12n,
-      data: new Uint8Array(),
+      data: new Uint8Array([1, 2, 3]),
       maybe_null: null,
     },
   ]);
