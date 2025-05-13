@@ -30,6 +30,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
@@ -422,6 +423,7 @@ class Dataframe {
     using type = typename D::type;
     auto& storage = columns_[I]->storage;
     if constexpr (std::is_same_v<type, Id>) {
+      base::ignore_result(t);
       storage.unchecked_get<type>().size++;
     } else {
       storage.unchecked_get<type>().push_back(t);
