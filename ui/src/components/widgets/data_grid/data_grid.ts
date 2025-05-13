@@ -29,6 +29,9 @@ import {
 import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
+import {Icons} from '../../../base/semantic_icons';
+
+const DEFAULT_ROWS_PER_PAGE = 50;
 
 export interface DataGridAttrs {
   /**
@@ -127,8 +130,6 @@ export interface DataGridAttrs {
    */
   readonly showFiltersInToolbar?: boolean;
 }
-
-const DEFAULT_ROWS_PER_PAGE = 50;
 
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   // Internal state
@@ -231,7 +232,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   ) {
     return m('.pf-data-grid__toolbar', [
       m(Button, {
-        icon: 'restart_alt',
+        icon: Icons.ResetState,
         disabled: filters.length === 0 && sortBy.direction === 'unsorted',
         title: 'Reset filters and sorting',
         onclick: () => {
@@ -262,7 +263,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       ),
       m('.pf-data-grid__toolbar-pagination', [
         m(Button, {
-          icon: 'first_page',
+          icon: Icons.FirstPage,
           disabled: this.currentPage === 0,
           onclick: () => {
             if (this.currentPage !== 0) {
@@ -271,7 +272,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           },
         }),
         m(Button, {
-          icon: 'chevron_left',
+          icon: Icons.PrevPage,
           disabled: this.currentPage === 0,
           onclick: () => {
             if (this.currentPage > 0) {
@@ -289,7 +290,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           } of ${totalRows.toLocaleString()} rows`,
         ),
         m(Button, {
-          icon: 'chevron_right',
+          icon: Icons.NextPage,
           disabled: this.currentPage >= totalPages - 1,
           onclick: () => {
             if (this.currentPage < totalPages - 1) {
@@ -298,7 +299,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           },
         }),
         m(Button, {
-          icon: 'last_page',
+          icon: Icons.LastPage,
           disabled: this.currentPage >= totalPages - 1,
           onclick: () => {
             if (this.currentPage < totalPages - 1) {
@@ -351,8 +352,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 column.name,
                 isCurrentSortColumn
                   ? currentDirection === 'asc'
-                    ? m(Icon, {icon: 'arrow_upward'})
-                    : m(Icon, {icon: 'arrow_downward'})
+                    ? m(Icon, {icon: Icons.SortAsc})
+                    : m(Icon, {icon: Icons.SortDesc})
                   : undefined,
               ),
               m(
@@ -360,14 +361,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 {
                   trigger: m(Button, {
                     className: 'pf-data-grid__cell-button',
-                    icon: 'more_vert',
+                    icon: Icons.ContextMenuAlt,
                     compact: true,
                   }),
                 },
                 (!isCurrentSortColumn || currentDirection === 'desc') &&
                   m(MenuItem, {
                     label: 'Sort Ascending',
-                    icon: 'arrow_upward',
+                    icon: Icons.SortAsc,
                     onclick: () => {
                       // Update internal state
                       this.internalSortBy = {
@@ -383,7 +384,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 (!isCurrentSortColumn || currentDirection === 'asc') &&
                   m(MenuItem, {
                     label: 'Sort Descending',
-                    icon: 'arrow_downward',
+                    icon: Icons.SortDesc,
                     onclick: () => {
                       // Update internal state
                       this.internalSortBy = {
@@ -399,7 +400,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 isCurrentSortColumn &&
                   m(MenuItem, {
                     label: 'Clear Sort',
-                    icon: 'clear',
+                    icon: Icons.Remove,
                     onclick: () => {
                       // Update internal state
                       this.internalSortBy = {direction: 'unsorted'};
@@ -504,7 +505,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                       {
                         trigger: m(Button, {
                           className: 'pf-data-grid__cell-button',
-                          icon: 'more_vert',
+                          icon: Icons.ContextMenuAlt,
                           compact: true,
                         }),
                       },
