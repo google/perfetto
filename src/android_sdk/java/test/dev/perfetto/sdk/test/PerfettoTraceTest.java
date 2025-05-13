@@ -629,23 +629,23 @@ public class PerfettoTraceTest {
   }
 
   @Test
-  public void testCategoryIsRegisteredAndEnabled() {
+  public void testCategoryRegisterAndEnable() {
     Category barCategory = new Category(BAR);
     assertThat(barCategory.getPtr()).isEqualTo(0L);
     assertThat(barCategory.isRegistered()).isFalse();
-    assertThat(barCategory.isRegisteredAndEnabled()).isFalse();
+    assertThat(barCategory.isEnabled()).isFalse();
 
     barCategory.register();
     assertThat(barCategory.getPtr()).isNotEqualTo(0L);
     assertThat(barCategory.isRegistered()).isTrue();
-    assertThat(barCategory.isRegisteredAndEnabled()).isFalse();
+    assertThat(barCategory.isEnabled()).isFalse();
 
     TraceConfig traceConfig = getTraceConfig(BAR);
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
-    assertThat(barCategory.isRegisteredAndEnabled()).isTrue();
+    assertThat(barCategory.isEnabled()).isTrue();
 
     session.close();
-    assertThat(barCategory.isRegisteredAndEnabled()).isFalse();
+    assertThat(barCategory.isEnabled()).isFalse();
   }
 
   @Test
@@ -656,7 +656,7 @@ public class PerfettoTraceTest {
       }
 
       @Override
-      public boolean isRegisteredAndEnabled() {
+      public boolean isEnabled() {
         return false;
       }
     }

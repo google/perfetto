@@ -123,15 +123,9 @@ public final class PerfettoTrace {
     }
 
     /** Whether the category is registered and enabled or not. */
-    public boolean isRegisteredAndEnabled() {
-      // This method is explicitly not synchronized, because we want it to be as fast as possible.
-      // mIsRegistered is volatile and is set only from `#register()` or `#unregister()` methods,
-      // both of them are synchronized.
-      if (mIsRegistered) {
-        // mIsRegistered == true implies mPtr != 0
-        return native_is_enabled(mPtr);
-      }
-      return false;
+    public boolean isEnabled() {
+      // mPtr is volatile and is set only from `#register()` method.
+      return mPtr != 0 && native_is_enabled(mPtr);
     }
 
     /** Whether the category is registered or not. */
