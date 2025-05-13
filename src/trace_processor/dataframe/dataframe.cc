@@ -55,11 +55,13 @@ Dataframe::Dataframe(bool finalized,
     : column_names_(std::move(column_names)),
       columns_(std::move(columns)),
       row_count_(row_count),
-      string_pool_(string_pool),
-      finalized_(finalized) {
+      string_pool_(string_pool) {
   column_ptrs_.reserve(columns_.size());
   for (const auto& col : columns_) {
     column_ptrs_.emplace_back(col.get());
+  }
+  if (finalized) {
+    MarkFinalized();
   }
 }
 
@@ -107,11 +109,69 @@ base::StatusOr<Dataframe::Index> Dataframe::BuildIndex(
 void Dataframe::AddIndex(Index index) {
   PERFETTO_CHECK(finalized_);
   indexes_.emplace_back(std::move(index));
+  ++mutations_;
 }
 
 void Dataframe::RemoveIndexAt(uint32_t index) {
   PERFETTO_CHECK(finalized_);
   indexes_.erase(indexes_.begin() + static_cast<std::ptrdiff_t>(index));
+  ++mutations_;
+}
+
+void Dataframe::MarkFinalized() {
+  if (finalized_) {
+    return;
+  }
+  finalized_ = true;
+  for (const auto& c : columns_) {
+    switch (c->storage.type().index()) {
+      case StorageType::GetTypeIndex<Uint32>():
+        c->storage.unchecked_get<Uint32>().shrink_to_fit();
+        break;
+      case StorageType::GetTypeIndex<Int32>():
+        c->storage.unchecked_get<Int32>().shrink_to_fit();
+        break;
+      case StorageType::GetTypeIndex<Int64>():
+        c->storage.unchecked_get<Int64>().shrink_to_fit();
+        break;
+      case StorageType::GetTypeIndex<Double>():
+        c->storage.unchecked_get<Double>().shrink_to_fit();
+        break;
+      case StorageType::GetTypeIndex<String>():
+        c->storage.unchecked_get<String>().shrink_to_fit();
+        break;
+      case StorageType::GetTypeIndex<Id>():
+        break;
+      default:
+        PERFETTO_FATAL("Invalid storage type");
+    }
+    switch (c->null_storage.nullability().index()) {
+      case Nullability::GetTypeIndex<NonNull>():
+        break;
+      case Nullability::GetTypeIndex<SparseNull>():
+        c->null_storage.unchecked_get<SparseNull>().bit_vector.shrink_to_fit();
+        break;
+      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>(): {
+        auto& null = c->null_storage.unchecked_get<SparseNull>();
+        null.bit_vector.shrink_to_fit();
+        null.prefix_popcount_for_cell_get.shrink_to_fit();
+        break;
+      }
+      case Nullability::GetTypeIndex<
+          SparseNullSupportingCellGetUntilFinalization>(): {
+        auto& null = c->null_storage.unchecked_get<SparseNull>();
+        null.bit_vector.shrink_to_fit();
+        null.prefix_popcount_for_cell_get.clear();
+        null.prefix_popcount_for_cell_get.shrink_to_fit();
+        break;
+      }
+      case Nullability::GetTypeIndex<DenseNull>():
+        c->null_storage.unchecked_get<DenseNull>().bit_vector.shrink_to_fit();
+        break;
+      default:
+        PERFETTO_FATAL("Invalid nullability type");
+    }
+  }
 }
 
 dataframe::Dataframe Dataframe::Copy() const {
@@ -121,10 +181,9 @@ dataframe::Dataframe Dataframe::Copy() const {
 Dataframe::Spec Dataframe::CreateSpec() const {
   Spec spec{column_names_, {}};
   spec.column_specs.reserve(columns_.size());
-  for (const auto& col : columns_) {
-    spec.column_specs.push_back({col->storage.type(),
-                                 col->null_storage.nullability(),
-                                 col->sort_state});
+  for (const auto& c : columns_) {
+    spec.column_specs.push_back(
+        {c->storage.type(), c->null_storage.nullability(), c->sort_state});
   }
   return spec;
 }
@@ -146,19 +205,29 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
         return impl::Storage(impl::Storage::Double{});
       case StorageType::GetTypeIndex<String>():
         return impl::Storage(impl::Storage::String{});
+      default:
+        PERFETTO_FATAL("Invalid storage type");
     }
-    PERFETTO_FATAL("Invalid storage type");
   };
   auto make_null_storage = [](const ColumnSpec& spec) {
     switch (spec.nullability.index()) {
       case Nullability::GetTypeIndex<NonNull>():
         return impl::NullStorage(impl::NullStorage::NonNull{});
       case Nullability::GetTypeIndex<SparseNull>():
-        return impl::NullStorage(impl::NullStorage::SparseNull{});
+        return impl::NullStorage(impl::NullStorage::SparseNull{}, SparseNull{});
+      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+        return impl::NullStorage(impl::NullStorage::SparseNull{},
+                                 SparseNullSupportingCellGetAlways{});
+      case Nullability::GetTypeIndex<
+          SparseNullSupportingCellGetUntilFinalization>():
+        return impl::NullStorage(
+            impl::NullStorage::SparseNull{},
+            SparseNullSupportingCellGetUntilFinalization{});
       case Nullability::GetTypeIndex<DenseNull>():
         return impl::NullStorage(impl::NullStorage::DenseNull{});
+      default:
+        PERFETTO_FATAL("Invalid nullability type");
     }
-    PERFETTO_FATAL("Invalid nullability type");
   };
   std::vector<std::shared_ptr<impl::Column>> columns;
   columns.reserve(column_count);

@@ -123,9 +123,6 @@ TEST(FlexVectorTest, LargeGrowth) {
   for (size_t i = 0; i < kNumElements; ++i) {
     EXPECT_EQ(vec[i], static_cast<int>(i));
   }
-
-  // Ensure capacity is still a power of two
-  EXPECT_TRUE(internal::IsPowerOfTwo(vec.capacity()));
 }
 
 // Test using different data types

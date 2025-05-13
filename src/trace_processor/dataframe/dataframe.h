@@ -38,6 +38,7 @@
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/type_set.h"
 
 namespace perfetto::trace_processor::dataframe {
 
@@ -90,6 +91,9 @@ class Dataframe {
     static constexpr uint32_t kColumnCount = sizeof...(C);
     using columns = std::tuple<C...>;
     using data_types = std::tuple<typename C::data_type...>;
+
+    template <size_t I>
+    using column_spec = typename std::tuple_element_t<I, columns>;
 
     static_assert(kColumnCount > 0,
                   "TypedSpec must have at least one column type");
@@ -242,6 +246,110 @@ class Dataframe {
               column_ptrs_.data(), string_pool_);
   }
 
+  // Given a typed spec, a column index and a row index, returns the value
+  // stored in the dataframe at that position.
+  //
+  // Note: This function does not check the column type is compatible with the
+  // specified spec. It is the caller's responsibility to ensure that the type
+  // matches.
+  //
+  // Generally, this function is only safe to call if the dataframe was
+  // constructed using the public Dataframe constructor and not in other ways.
+  template <size_t column, typename D>
+  PERFETTO_ALWAYS_INLINE auto GetCellUnchecked(const D&, uint32_t row) const {
+    using ColumnSpec = std::tuple_element_t<column, typename D::columns>;
+    using type = typename ColumnSpec::type;
+    using null_storage_type = typename ColumnSpec::null_storage_type;
+    static constexpr bool is_sparse_null_supporting_get_always =
+        std::is_same_v<null_storage_type, SparseNullSupportingCellGetAlways>;
+    static constexpr bool is_sparse_null_supporting_get_until_finalization =
+        std::is_same_v<null_storage_type,
+                       SparseNullSupportingCellGetUntilFinalization>;
+    const auto& col = *column_ptrs_[column];
+    const auto& storage = col.storage.unchecked_get<type>();
+    const auto& nulls = col.null_storage.unchecked_get<null_storage_type>();
+    if constexpr (std::is_same_v<null_storage_type, NonNull>) {
+      return GetCellUncheckedFromStorage(storage, row);
+    } else if constexpr (std::is_same_v<null_storage_type, DenseNull>) {
+      return nulls.bit_vector.is_set(row)
+                 ? std::make_optional(GetCellUncheckedFromStorage(storage, row))
+                 : std::nullopt;
+    } else if constexpr (is_sparse_null_supporting_get_always ||
+                         is_sparse_null_supporting_get_until_finalization) {
+      PERFETTO_DCHECK(is_sparse_null_supporting_get_always || !finalized_);
+      return nulls.bit_vector.is_set(row)
+                 ? std::make_optional(GetCellUncheckedFromStorage(
+                       storage,
+                       nulls.prefix_popcount_for_cell_get[row / 64] +
+                           nulls.bit_vector.count_set_bits_until_in_word(row)))
+                 : std::nullopt;
+    } else if constexpr (std::is_same_v<null_storage_type, SparseNull>) {
+      static_assert(
+          !std::is_same_v<null_storage_type, null_storage_type>,
+          "Trying to access a column with sparse nulls but without an approach "
+          "that supports it. Please use SparseNullSupportingCellGetAlways or "
+          "SparseNullSupportingCellGetUntilFinalization as appropriate.");
+    } else {
+      static_assert(false, "Unsupported null storage type");
+    }
+  }
+
+  // Given a typed spec, a column index and a row index, returns the value
+  // stored in the dataframe at that position.
+  //
+  // Note: This function does not check the column type is compatible with the
+  // specified spec. It is the caller's responsibility to ensure that the type
+  // matches.
+  //
+  // Generally, this function is only safe to call if the dataframe was
+  // constructed using the public Dataframe constructor and not in other ways.
+  //
+  // Note: this function cannot be called on a finalized dataframe.
+  //       See `MarkFinalized()` for more details.
+  template <size_t column, typename D>
+  PERFETTO_ALWAYS_INLINE void SetCellUnchecked(
+      const D&,
+      uint32_t row,
+      const typename D::template column_spec<column>::data_type& value) {
+    PERFETTO_DCHECK(!finalized_);
+
+    using ColumnSpec = typename D::template column_spec<column>;
+    using type = typename ColumnSpec::type;
+    using null_storage_type = typename ColumnSpec::null_storage_type;
+
+    // Changing the value of an Id column is not supported.
+    static_assert(!std::is_same_v<type, Id>, "Cannot call set on Id column");
+
+    // Make sure to increment the mutation count. This is important to let
+    // others know that the dataframe has been modified.
+    ++mutations_;
+
+    auto& col = *column_ptrs_[column];
+    auto& storage = col.storage.unchecked_get<type>();
+    auto& nulls = col.null_storage.unchecked_get<null_storage_type>();
+    if constexpr (std::is_same_v<null_storage_type, NonNull>) {
+      storage[row] = value;
+    } else if constexpr (std::is_same_v<null_storage_type, DenseNull>) {
+      if (value.has_value()) {
+        nulls.bit_vector.set(row);
+        storage[row] = *value;
+      } else {
+        nulls.bit_vector.clear(row);
+      }
+    } else if constexpr (std::is_same_v<null_storage_type, SparseNull> ||
+                         std::is_same_v<null_storage_type,
+                                        SparseNullSupportingCellGetAlways> ||
+                         std::is_same_v<
+                             null_storage_type,
+                             SparseNullSupportingCellGetUntilFinalization>) {
+      static_assert(!std::is_same_v<null_storage_type, null_storage_type>,
+                    "Trying to set a column with sparse nulls. This is not "
+                    "supported, please use dense nulls.");
+    } else {
+      static_assert(false, "Unsupported null storage type");
+    }
+  }
+
   // Makes an index which can speed up operations on this table. Note that
   // this function does *not* actually cause the index to be added or used, it
   // just returns it. Use `AddIndex` to add the index to the dataframe.
@@ -268,7 +376,7 @@ class Dataframe {
   // indexes can be freely added and removed).
   //
   // If the dataframe is already finalized, this function does nothing.
-  void MarkFinalized() { finalized_ = true; }
+  void MarkFinalized();
 
   // Makes a copy of the dataframe.
   //
@@ -304,7 +412,7 @@ class Dataframe {
          typename std::tuple_element_t<Is, typename D::columns>, Is>(ts),
      ...);
     ++row_count_;
-    ++row_mutations_;
+    ++mutations_;
   }
 
   template <typename D, size_t I>
@@ -312,10 +420,11 @@ class Dataframe {
       typename D::non_null_data_type t) {
     static_assert(std::is_same_v<typename D::null_storage_type, NonNull>);
     using type = typename D::type;
+    auto& storage = columns_[I]->storage;
     if constexpr (std::is_same_v<type, Id>) {
-      columns_[I]->storage.unchecked_get<type>().size++;
+      storage.unchecked_get<type>().size++;
     } else {
-      columns_[I]->storage.unchecked_get<type>().push_back(t);
+      storage.unchecked_get<type>().push_back(t);
     }
   }
 
@@ -324,28 +433,51 @@ class Dataframe {
       std::optional<typename D::non_null_data_type> t) {
     using type = typename D::type;
     using null_storage_type = typename D::null_storage_type;
-    static_assert(std::is_same_v<null_storage_type, DenseNull> ||
-                  std::is_same_v<null_storage_type, SparseNull>);
-    auto& null_storage =
-        columns_[I]->null_storage.unchecked_get<null_storage_type>();
+    static_assert(!std::is_same_v<typename D::null_storage_type, NonNull>);
+
+    auto& nulls = columns_[I]->null_storage.unchecked_get<null_storage_type>();
     auto& storage = columns_[I]->storage;
+
     if (t.has_value()) {
-      null_storage.bit_vector.push_back(true);
       if constexpr (std::is_same_v<type, Id>) {
         storage.unchecked_get<type>().size++;
       } else {
         storage.unchecked_get<type>().push_back(*t);
       }
     } else {
-      null_storage.bit_vector.push_back(false);
-      if constexpr (std::is_same_v<null_storage_type,
-                                   impl::NullStorage::DenseNull>) {
+      if constexpr (std::is_same_v<null_storage_type, DenseNull>) {
         if constexpr (std::is_same_v<type, Id>) {
           storage.unchecked_get<type>().size++;
         } else {
           storage.unchecked_get<type>().push_back({});
         }
       }
+    }
+
+    static constexpr bool kIsSparseNullWithCellGet =
+        std::is_same_v<null_storage_type, SparseNullSupportingCellGetAlways> ||
+        std::is_same_v<null_storage_type,
+                       SparseNullSupportingCellGetUntilFinalization>;
+    if constexpr (kIsSparseNullWithCellGet) {
+      if (nulls.bit_vector.size() % 64 == 0) {
+        auto prefix_popcount =
+            static_cast<uint32_t>(nulls.bit_vector.size() == 0
+                                      ? 0
+                                      : nulls.bit_vector.count_set_bits_in_word(
+                                            nulls.bit_vector.size() - 1));
+        nulls.prefix_popcount_for_cell_get.push_back(prefix_popcount);
+      }
+    }
+    nulls.bit_vector.push_back(t.has_value());
+  }
+
+  template <typename C>
+  PERFETTO_ALWAYS_INLINE auto GetCellUncheckedFromStorage(const C& column,
+                                                          uint64_t row) const {
+    if constexpr (std::is_same_v<C, impl::Storage::Id>) {
+      return row;
+    } else {
+      return column[row];
     }
   }
 
@@ -377,11 +509,13 @@ class Dataframe {
   // String pool for efficient string storage and interning.
   StringPool* string_pool_;
 
-  // A count of the number of mutations to rows in the dataframe. This includes
-  // both row insertions and updates to existing rows. This will be used to
-  // determine if a non-finalized dataframe is "dirty" and needs to be
-  // re-evaluated when a query is executed.
-  uint32_t row_mutations_ = 0;
+  // A count of the number of mutations to the dataframe. This includes adding
+  // rows, setting cells to new values, adding indexes and removing indexes.
+  //
+  // This is used to determine if the dataframe has changed since the
+  // last time an external caller looked at it. This can allow invalidation of
+  // external caches of things inside this dataframe.
+  uint32_t mutations_ = 0;
 
   // Whether the dataframe is "finalized". See `MarkFinalized()`.
   bool finalized_ = false;
