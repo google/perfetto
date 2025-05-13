@@ -15,6 +15,8 @@
 $border: 1px solid white;
 
 .pf-data-grid {
+  font-weight: 300;
+
   table {
     min-width: 100%;
     border-spacing: 0;
@@ -25,6 +27,10 @@ $border: 1px solid white;
       border-right: $border;
       border-bottom: $border;
       white-space: nowrap;
+    }
+
+    th {
+      font-weight: 400;
     }
 
     thead {
