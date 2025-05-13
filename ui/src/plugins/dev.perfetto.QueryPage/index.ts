@@ -18,12 +18,12 @@ import {
   runQueryForQueryTable,
 } from '../../components/query_table/queries';
 import {QueryTable} from '../../components/query_table/query_table';
+import {App} from '../../public/app';
+import {Flag} from '../../public/feature_flag';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {Editor} from '../../widgets/editor';
 import {QueryPage} from './query_page';
-import {App} from '../../public/app';
-import {Flag} from '../../public/feature_flag';
 
 export default class QueryPagePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.QueryPage';
