@@ -265,7 +265,7 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseMetadata() {
   // `buffer_.SliceOff` (which take `size_t`) may cause overflow if it exceeds
   // the max representable `size_t` value.
   const uint64_t max_size = std::numeric_limits<size_t>::max();
-  if ((size.value() & (~(max_size))) != 0) {
+  if (std::greater<>()(size.value(), max_size)) {
     // Return this specific message to ensure it is captured by the error
     // dialog.
     return base::ErrStatus("out of memory");
