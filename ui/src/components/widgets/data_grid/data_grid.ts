@@ -144,9 +144,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     // If filters are passed in from outside but no onFilterChange handler
     // specified, then there is no way to edit the filters so we hide the
     // options to specify filters.
-    const filtersAreEditable = Boolean(!externalFilters || onFilterChange);
+    const areFiltersControlled = externalFilters !== undefined;
+    const filters = areFiltersControlled
+      ? externalFilters
+      : this.internalFilters;
 
-    const filters = externalFilters || this.internalFilters;
+    // If filters are not controlled, they are always editable because the
+    // filter state is stored internally so we don't need a callback to modify
+    // the filters. If the filters are controlled and we have a callback then
+    // filters are similarly editable, however if we don't have a callback then
+    // filters cannot be changed so we consider them readonly.
+    const filtersAreEditable =
+      !areFiltersControlled || onFilterChange !== undefined;
 
     const currentPage = this.currentPage;
     this.updateDataSource(
@@ -279,12 +288,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         }),
         m(
           'span.pf-data-grid__toolbar-page',
-          `${(this.currentPage * maxRowsPerPage + 1).toLocaleString()}-${
-            Math.min(
-              (this.currentPage + 1) * maxRowsPerPage,
-              totalRows,
-            ).toLocaleString() || '0'
-          } of ${totalRows.toLocaleString()} rows`,
+          this.renderPageInfo(this.currentPage, maxRowsPerPage, totalRows),
         ),
         m(Button, {
           icon: Icons.NextPage,
@@ -314,6 +318,21 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     } else {
       return `${filter.column} ${filter.op}`;
     }
+  }
+
+  private renderPageInfo(
+    currentPage: number,
+    maxRowsPerPage: number,
+    totalRows: number,
+  ): string {
+    const startRow = Math.min(currentPage * maxRowsPerPage + 1, totalRows);
+    const endRow = Math.min((currentPage + 1) * maxRowsPerPage, totalRows);
+
+    const startRowStr = startRow.toLocaleString();
+    const endRowStr = endRow.toLocaleString();
+    const totalRowsStr = totalRows.toLocaleString();
+
+    return `${startRowStr}-${endRowStr} of ${totalRowsStr} rows`;
   }
 
   private renderTableHeader(
