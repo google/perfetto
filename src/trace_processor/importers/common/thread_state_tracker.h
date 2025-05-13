@@ -63,7 +63,6 @@ class ThreadStateTracker : public Destructible {
                          std::optional<bool> io_wait,
                          std::optional<StringId> blocked_function);
 
- private:
   void AddOpenState(int64_t ts,
                     UniqueTid utid,
                     StringId state,
@@ -72,6 +71,7 @@ class ThreadStateTracker : public Destructible {
                     std::optional<uint16_t> common_flags = std::nullopt);
   void ClosePendingState(int64_t end_ts, UniqueTid utid, bool data_loss);
 
+ private:
   uint32_t CommonFlagsToIrqContext(uint32_t common_flags);
 
   bool IsRunning(StringId state);

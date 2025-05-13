@@ -60,9 +60,26 @@ class SchedEventState {
     return &pending_sched_per_cpu_[cpu];
   }
 
+  void InsertHangingSchedInfoForTid(UniqueTid utid,
+                                    PendingSchedInfo sched_info) {
+    // Overrides any old hanging slice for the utid
+    hanging_sched_slices_[utid] = sched_info;
+  }
+
+  PendingSchedInfo* GetHangingSchedInfoForTid(UniqueTid utid) {
+    return hanging_sched_slices_.find(utid) != hanging_sched_slices_.end()
+               ? &hanging_sched_slices_[utid]
+               : NULL;
+  }
+
+  void EraseHangingSchedInfoForTid(UniqueTid utid) {
+    hanging_sched_slices_.erase(utid);
+  }
+
  private:
   // Information retained from the preceding sched_switch seen on a given cpu.
   std::vector<PendingSchedInfo> pending_sched_per_cpu_;
+  std::map<UniqueTid, PendingSchedInfo> hanging_sched_slices_;
 };
 
 }  // namespace trace_processor

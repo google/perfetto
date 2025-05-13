@@ -106,6 +106,7 @@ source_set("minimal") {
     "../common:parser_types",
     "../etw:minimal",
     "../ftrace:minimal",
+    "../generic_kernel:minimal",
     "../json:minimal",
     "../memory_tracker:graph_processor",
   ]

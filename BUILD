@@ -356,6 +356,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_fuchsia_minimal",
         ":src_trace_processor_importers_gecko_gecko",
         ":src_trace_processor_importers_gecko_gecko_event",
+        ":src_trace_processor_importers_generic_kernel_minimal",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
@@ -483,6 +484,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_etw_zero",
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
+               ":protos_perfetto_trace_generic_kernel_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
                ":protos_perfetto_trace_minimal_zero",
@@ -2128,6 +2130,17 @@ perfetto_filegroup(
     name = "src_trace_processor_importers_gecko_gecko_event",
     srcs = [
         "src/trace_processor/importers/gecko/gecko_event.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/generic_kernel:minimal
+perfetto_filegroup(
+    name = "src_trace_processor_importers_generic_kernel_minimal",
+    srcs = [
+        "src/trace_processor/importers/generic_kernel/generic_kernel_module.cc",
+        "src/trace_processor/importers/generic_kernel/generic_kernel_module.h",
+        "src/trace_processor/importers/generic_kernel/generic_kernel_parser.cc",
+        "src/trace_processor/importers/generic_kernel/generic_kernel_parser.h",
     ],
 )
 
@@ -6417,6 +6430,25 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/generic_kernel:source_set
+perfetto_proto_library(
+    name = "protos_perfetto_trace_generic_kernel_protos",
+    srcs = [
+        "protos/perfetto/trace/generic_kernel/generic_event.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+)
+
+# GN target: //protos/perfetto/trace/generic_kernel:zero
+perfetto_cc_protozero_library(
+    name = "protos_perfetto_trace_generic_kernel_zero",
+    deps = [
+        ":protos_perfetto_trace_generic_kernel_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/gpu:source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_gpu_protos",
@@ -7346,6 +7378,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_fuchsia_minimal",
         ":src_trace_processor_importers_gecko_gecko",
         ":src_trace_processor_importers_gecko_gecko_event",
+        ":src_trace_processor_importers_generic_kernel_minimal",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
@@ -7473,6 +7506,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_etw_zero",
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
+               ":protos_perfetto_trace_generic_kernel_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
                ":protos_perfetto_trace_minimal_zero",
@@ -7573,6 +7607,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_fuchsia_minimal",
         ":src_trace_processor_importers_gecko_gecko",
         ":src_trace_processor_importers_gecko_gecko_event",
+        ":src_trace_processor_importers_generic_kernel_minimal",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
@@ -7686,6 +7721,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_etw_zero",
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
+               ":protos_perfetto_trace_generic_kernel_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
                ":protos_perfetto_trace_minimal_zero",
@@ -7789,6 +7825,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_fuchsia_minimal",
         ":src_trace_processor_importers_gecko_gecko",
         ":src_trace_processor_importers_gecko_gecko_event",
+        ":src_trace_processor_importers_generic_kernel_minimal",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
@@ -7902,6 +7939,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_etw_zero",
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
+               ":protos_perfetto_trace_generic_kernel_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
                ":protos_perfetto_trace_minimal_zero",
