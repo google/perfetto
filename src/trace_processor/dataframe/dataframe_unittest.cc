@@ -835,8 +835,9 @@ TEST(DataframeTest, Insert) {
                      std::make_optional(pool.InternString("foo")));
   df.InsertUnchecked(kSpec, std::monostate(), 20u, std::nullopt, std::nullopt);
 
-  VerifyData(df, 0b1111,
-             Rows(Row(0u, 10u, 0l, "foo"), Row(1u, 20u, nullptr, nullptr)));
+  VerifyData(
+      df, 0b1111,
+      Rows(Row(0u, 10u, int64_t(0l), "foo"), Row(1u, 20u, nullptr, nullptr)));
 }
 
 TEST(DataframeTest, GetAndSet) {
