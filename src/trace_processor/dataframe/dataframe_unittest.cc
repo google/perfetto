@@ -795,7 +795,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
   auto bv = impl::BitVector::CreateWithSize(0);
   std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
       impl::Storage::Uint32{},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv)}},
+      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
       Unsorted{}});
 
   std::vector<FilterSpec> filters;
@@ -838,6 +838,37 @@ TEST(DataframeTest, Insert) {
   VerifyData(
       df, 0b1111,
       Rows(Row(0u, 10u, int64_t(0l), "foo"), Row(1u, 20u, nullptr, nullptr)));
+}
+
+TEST(DataframeTest, GetAndSet) {
+  static constexpr auto kSpec = Dataframe::CreateTypedSpec(
+      {"id", "col2", "col3", "col4"},
+      Dataframe::CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      Dataframe::CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      Dataframe::CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
+      Dataframe::CreateTypedColumnSpec(
+          String(), SparseNullSupportingCellGetAlways(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u, std::make_optional(0l),
+                     std::make_optional(pool.InternString("foo")));
+  df.InsertUnchecked(kSpec, std::monostate(), 20u, std::nullopt, std::nullopt);
+
+  ASSERT_EQ(df.GetCellUnchecked<0>(kSpec, 0), 0u);
+  ASSERT_EQ(df.GetCellUnchecked<1>(kSpec, 0), 10u);
+  ASSERT_EQ(df.GetCellUnchecked<2>(kSpec, 0), 0l);
+  ASSERT_EQ(df.GetCellUnchecked<3>(kSpec, 0), pool.InternString("foo"));
+
+  ASSERT_EQ(df.GetCellUnchecked<0>(kSpec, 1), 1u);
+  ASSERT_EQ(df.GetCellUnchecked<1>(kSpec, 1), 20u);
+  ASSERT_EQ(df.GetCellUnchecked<2>(kSpec, 1), std::nullopt);
+  ASSERT_EQ(df.GetCellUnchecked<3>(kSpec, 1), std::nullopt);
+
+  df.SetCellUnchecked<1>(kSpec, 0, 9u);
+  ASSERT_EQ(df.GetCellUnchecked<1>(kSpec, 0), 9u);
+
+  df.SetCellUnchecked<2>(kSpec, 0, std::nullopt);
+  ASSERT_EQ(df.GetCellUnchecked<2>(kSpec, 0), std::nullopt);
 }
 
 }  // namespace perfetto::trace_processor::dataframe

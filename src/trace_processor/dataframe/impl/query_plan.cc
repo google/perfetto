@@ -37,6 +37,7 @@
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/type_set.h"
 #include "src/trace_processor/util/regex.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -258,7 +259,10 @@ void QueryPlanBuilder::Distinct(
         bc.arg<B::copy_size>() = data_size;
         break;
       }
-      case Nullability::GetTypeIndex<SparseNull>(): {
+      case Nullability::GetTypeIndex<SparseNull>():
+      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+      case Nullability::GetTypeIndex<
+          SparseNullSupportingCellGetUntilFinalization>(): {
         auto popcount_reg = PrefixPopcountRegisterFor(spec.col);
         using B = bytecode::CopyToRowLayoutSparseNull;
         auto& bc = AddOpcode<B>(UnchangedRowCount{});
@@ -332,6 +336,9 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
     bytecode::reg::RwHandle<Span<uint32_t>> sort_indices;
     switch (nullability_type_index) {
       case Nullability::GetTypeIndex<SparseNull>():
+      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+      case Nullability::GetTypeIndex<
+          SparseNullSupportingCellGetUntilFinalization>():
       case Nullability::GetTypeIndex<DenseNull>(): {
         sort_indices =
             bytecode::reg::RwHandle<Span<uint32_t>>{register_count_++};
@@ -345,8 +352,12 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
         bc.arg<B::partition_register>() = indices;
         bc.arg<B::dest_non_null_register>() = sort_indices;
 
+        using SparseTypeSet =
+            TypeSet<SparseNull, SparseNullSupportingCellGetAlways,
+                    SparseNullSupportingCellGetUntilFinalization>;
+
         // If in sparse mode, we also need to translate all the indices.
-        if (nullability_type_index == Nullability::GetTypeIndex<SparseNull>()) {
+        if (sort_col.null_storage.nullability().IsAnyOf<SparseTypeSet>()) {
           auto popcount_reg = PrefixPopcountRegisterFor(sort_spec.col);
           {
             using BI = bytecode::TranslateSparseNullIndices;
@@ -413,6 +424,9 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
     const auto& col = GetColumn(i);
     switch (col.null_storage.nullability().index()) {
       case Nullability::GetTypeIndex<SparseNull>():
+      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+      case Nullability::GetTypeIndex<
+          SparseNullSupportingCellGetUntilFinalization>():
       case Nullability::GetTypeIndex<DenseNull>():
         null_cols.emplace_back(ColAndOffset{i, plan_.params.output_per_row});
         plan_.params.col_to_output_offset[i] = plan_.params.output_per_row++;
@@ -460,7 +474,10 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
     for (auto [col, offset] : null_cols) {
       const auto& c = GetColumn(col);
       switch (c.null_storage.nullability().index()) {
-        case Nullability::GetTypeIndex<SparseNull>(): {
+        case Nullability::GetTypeIndex<SparseNull>():
+        case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+        case Nullability::GetTypeIndex<
+            SparseNullSupportingCellGetUntilFinalization>(): {
           using B = bytecode::StrideTranslateAndCopySparseNullIndices;
           auto reg = PrefixPopcountRegisterFor(col);
           auto& bc = AddOpcode<B>(UnchangedRowCount{});
@@ -547,6 +564,9 @@ void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
   uint32_t nullability_type_index = col.null_storage.nullability().index();
   switch (nullability_type_index) {
     case Nullability::GetTypeIndex<SparseNull>():
+    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+    case Nullability::GetTypeIndex<
+        SparseNullSupportingCellGetUntilFinalization>():
     case Nullability::GetTypeIndex<DenseNull>(): {
       auto indices = EnsureIndicesAreInSlab();
       {
@@ -633,7 +653,10 @@ QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
   const auto& col = GetColumn(c.col);
   uint32_t nullability_type_index = col.null_storage.nullability().index();
   switch (nullability_type_index) {
-    case Nullability::GetTypeIndex<SparseNull>(): {
+    case Nullability::GetTypeIndex<SparseNull>():
+    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+    case Nullability::GetTypeIndex<
+        SparseNullSupportingCellGetUntilFinalization>(): {
       bytecode::reg::RwHandle<Slab<uint32_t>> scratch_slab{register_count_++};
       bytecode::reg::RwHandle<Span<uint32_t>> scratch_span{register_count_++};
       {

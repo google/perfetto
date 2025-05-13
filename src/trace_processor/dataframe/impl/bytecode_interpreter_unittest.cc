@@ -298,7 +298,7 @@ Column CreateSparseNullableColumn(
   }
   return impl::Column{
       impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv)}},
+      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
       sort_state};
 }
 
@@ -317,7 +317,7 @@ Column CreateSparseNullableStringColumn(
   }
   return impl::Column{
       impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv)}},
+      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
       sort_state};
 }
 
@@ -1175,7 +1175,7 @@ TEST_F(BytecodeInterpreterTest, PrefixPopcount) {
 
   AddColumn(impl::Column{
       Storage{Storage::Uint32{}},  // Storage type doesn't matter
-      NullStorage{NullStorage::SparseNull{std::move(bv)}}, Unsorted{}});
+      NullStorage{NullStorage::SparseNull{std::move(bv), {}}}, Unsorted{}});
   SetRegistersAndExecute("PrefixPopcount: [col=0, dest_register=Register(0)]");
 
   const auto& result_slab = GetRegister<Slab<uint32_t>>(0);
@@ -1224,7 +1224,7 @@ TEST_F(BytecodeInterpreterTest, TranslateSparseNullIndices) {
 
   AddColumn(impl::Column{
       Storage{Storage::Uint32{}},  // Storage type doesn't matter
-      NullStorage{NullStorage::SparseNull{std::move(bv)}}, Unsorted{}});
+      NullStorage{NullStorage::SparseNull{std::move(bv), {}}}, Unsorted{}});
 
   // Precomputed PrefixPopcount Slab (from previous test)
   auto popcount_slab = Slab<uint32_t>::Alloc(4);
@@ -1280,7 +1280,7 @@ TEST_F(BytecodeInterpreterTest, StrideTranslateAndCopySparseNullIndices) {
   // Create a dummy column with the BitVector (SparseNull overlay)
   AddColumn(impl::Column{
       Storage{Storage::Uint32{}},  // Storage type doesn't matter
-      NullStorage{NullStorage::SparseNull{std::move(bv)}}, Unsorted{}});
+      NullStorage{NullStorage::SparseNull{std::move(bv), {}}}, Unsorted{}});
 
   // Input/Output buffer setup: Stride = 3, Offset for this column = 1
   // We pre-populate offset 0 with the original indices to simulate the state
@@ -1589,7 +1589,7 @@ TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionNullsAtStart) {
   bv.set(6);
   AddColumn(impl::Column{
       impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv)}},
+      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
       Unsorted{}});
 
   std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4, 5, 6};
@@ -1611,7 +1611,7 @@ TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionNullsAtEnd) {
   bv.set(6);
   AddColumn(impl::Column{
       impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv)}},
+      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
       Unsorted{}});
 
   std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4, 5, 6};
@@ -1629,7 +1629,7 @@ TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionAllNulls) {
   auto bv = BitVector::CreateWithSize(3);
   AddColumn(impl::Column{
       impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv)}},
+      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
       Unsorted{}});
 
   std::vector<uint32_t> initial_indices = {0, 1, 2};
@@ -1647,7 +1647,7 @@ TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionEmptyInput) {
   auto bv = BitVector::CreateWithSize(0);
   AddColumn(impl::Column{
       impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv)}},
+      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
       Unsorted{}});
 
   std::vector<uint32_t> initial_indices = {};

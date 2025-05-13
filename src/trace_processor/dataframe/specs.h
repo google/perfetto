@@ -114,12 +114,26 @@ struct NonNull {};
 // containing data for non-NULL values.
 struct SparseNull {};
 
+// Represents a column that contains NULL values with the storage only
+// containing data for non-NULL values while still needing to access the
+// non-null values in O(1) time at any time.
+struct SparseNullSupportingCellGetAlways {};
+
+// Represents a column that contains NULL values with the storage only
+// containing data for non-NULL values while still needing to access the
+// non-null values in O(1) time only until the dataframe is finalized.
+struct SparseNullSupportingCellGetUntilFinalization {};
+
 // Represents a column that contains NULL values with the storage containing
 // data for all values (with undefined values at positions that would be NULL).
 struct DenseNull {};
 
 // TypeSet of all possible column nullability states.
-using Nullability = TypeSet<NonNull, SparseNull, DenseNull>;
+using Nullability = TypeSet<NonNull,
+                            SparseNull,
+                            SparseNullSupportingCellGetAlways,
+                            SparseNullSupportingCellGetUntilFinalization,
+                            DenseNull>;
 
 // -----------------------------------------------------------------------------
 // Filter Specifications

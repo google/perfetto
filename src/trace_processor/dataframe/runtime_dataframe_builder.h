@@ -336,7 +336,7 @@ class RuntimeDataframeBuilder {
       std::optional<impl::BitVector> bit_vector) {
     if (bit_vector) {
       return impl::NullStorage{
-          impl::NullStorage::SparseNull{*std::move(bit_vector)}};
+          impl::NullStorage::SparseNull{*std::move(bit_vector), {}}};
     }
     return impl::NullStorage{impl::NullStorage::NonNull{}};
   }
