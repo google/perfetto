@@ -38,6 +38,7 @@ import "protos/perfetto/config/chrome/v8_config.proto";
 import "protos/perfetto/config/etw/etw_config.proto";
 import "protos/perfetto/config/chrome/system_metrics.proto";
 import "protos/perfetto/config/ftrace/ftrace_config.proto";
+import "protos/perfetto/config/ftrace/frozen_ftrace_config.proto";
 import "protos/perfetto/config/gpu/gpu_counter_config.proto";
 import "protos/perfetto/config/gpu/vulkan_memory_config.proto";
 import "protos/perfetto/config/gpu/gpu_renderstages_config.proto";
@@ -56,7 +57,7 @@ import "protos/perfetto/config/system_info/system_info_config.proto";
 import "protos/perfetto/config/chrome/histogram_samples.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 136
+// Next id: 137
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -178,6 +179,8 @@ message DataSourceConfig {
   optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
   // Data source name: linux.system_info
   optional SystemInfoConfig system_info_config = 119;
+  // Data source name: linux.frozen_ftrace
+  optional FrozenFtraceConfig frozen_ftrace_config = 136 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would

@@ -13,12 +13,11 @@
 // limitations under the License.
 
 import {colorForState} from '../../components/colorizer';
-import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
-import {translateState} from '../../components/sql_utils/thread_state';
-import {ThreadStateDetailsPanel} from './thread_state_details_panel';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
+import {ThreadStateDetailsPanel} from './thread_state_details_panel';
 
 export function createThreadStateTrack(
   trace: Trace,
@@ -37,8 +36,20 @@ export function createThreadStateTrack(
         state: STR,
         io_wait: NUM_NULL,
         utid: NUM,
+        name: STR,
       },
-      src: 'thread_state',
+      src: `
+        SELECT
+          id,
+          ts,
+          dur,
+          cpu,
+          state,
+          io_wait,
+          utid,
+          sched_state_io_to_human_readable_string(state, io_wait) AS name
+        FROM thread_state
+      `,
       filter: {
         col: 'utid',
         eq: utid,
@@ -74,19 +85,8 @@ export function createThreadStateTrack(
         where state not in ('S', 'I')
       `;
     },
-    colorizer: (row) => {
-      const title = getState(row);
-      return colorForState(title);
-    },
-    sliceName: (row) => {
-      return getState(row);
-    },
+    colorizer: (row) => colorForState(row.name),
     detailsPanel: (row) => new ThreadStateDetailsPanel(trace, row.id),
     rootTableName: 'thread_state',
   });
-}
-
-function getState(row: {io_wait: number | null; state: string}) {
-  const ioWait = row.io_wait === null ? undefined : Boolean(row.io_wait);
-  return translateState(row.state, ioWait);
 }

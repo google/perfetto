@@ -110,13 +110,14 @@ PERFETTO_DEFINE_CATEGORIES(
         .SetDescription("This is a test category")
         .SetTags("tag"),
     perfetto::Category("test.verbose")
-        .SetDescription("This is a test category")
+        .SetDescription("This is a debug test category")
         .SetTags("tag", "debug"),
     perfetto::Category("foo"),
     perfetto::Category("bar"),
     perfetto::Category("cat").SetTags("slow"),
     perfetto::Category("cat.verbose").SetTags("debug"),
     perfetto::Category("cat-with-dashes"),
+    perfetto::Category("slow_category").SetTags("slow"),
     perfetto::Category::Group("foo,bar"),
     perfetto::Category::Group("baz,bar,quux"),
     perfetto::Category::Group("red,green,blue,foo"),
@@ -1690,14 +1691,12 @@ TEST_P(PerfettoApiTest, TrackEventDescriptor) {
 
   // Check that the advertised categories match PERFETTO_DEFINE_CATEGORIES (see
   // above).
-  EXPECT_EQ(8, desc.available_categories_size());
+  EXPECT_EQ(9, desc.available_categories_size());
   EXPECT_EQ("test", desc.available_categories()[0].name());
   EXPECT_EQ("This is a test category",
             desc.available_categories()[0].description());
   EXPECT_EQ("tag", desc.available_categories()[0].tags()[0]);
   EXPECT_EQ("test.verbose", desc.available_categories()[1].name());
-  EXPECT_EQ("tag", desc.available_categories()[1].tags()[0]);
-  EXPECT_EQ("debug", desc.available_categories()[1].tags()[1]);
   EXPECT_EQ("foo", desc.available_categories()[2].name());
   EXPECT_EQ("bar", desc.available_categories()[3].name());
   EXPECT_EQ("cat", desc.available_categories()[4].name());
@@ -1705,8 +1704,10 @@ TEST_P(PerfettoApiTest, TrackEventDescriptor) {
   EXPECT_EQ("cat.verbose", desc.available_categories()[5].name());
   EXPECT_EQ("debug", desc.available_categories()[5].tags()[0]);
   EXPECT_EQ("cat-with-dashes", desc.available_categories()[6].name());
-  EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[7].name());
+  EXPECT_EQ("slow_category", desc.available_categories()[7].name());
   EXPECT_EQ("slow", desc.available_categories()[7].tags()[0]);
+  EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[8].name());
+  EXPECT_EQ("slow", desc.available_categories()[8].tags()[0]);
 }
 
 TEST_P(PerfettoApiTest, TrackEventSharedIncrementalState) {
@@ -3852,7 +3853,8 @@ TEST_P(PerfettoApiTest, TrackEventArgumentsNotEvaluatedWhenDisabled) {
 }
 
 TEST_P(PerfettoApiTest, TrackEventConfig) {
-  auto check_config = [&](perfetto::protos::gen::TrackEventConfig te_cfg) {
+  auto run_config = [&](perfetto::protos::gen::TrackEventConfig te_cfg,
+                        auto check_fcn) {
     perfetto::TraceConfig cfg;
     cfg.set_duration_ms(500);
     cfg.add_buffers()->set_size_kb(1024);
@@ -3862,6 +3864,8 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
 
     auto* tracing_session = NewTrace(cfg);
     tracing_session->get()->StartBlocking();
+
+    check_fcn();
 
     TRACE_EVENT_BEGIN("foo", "FooEvent");
     TRACE_EVENT_BEGIN("bar", "BarEvent");
@@ -3874,9 +3878,10 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     TRACE_EVENT_BEGIN("test", "TagEvent");
     TRACE_EVENT_BEGIN("test.verbose", "VerboseTagEvent");
     TRACE_EVENT_BEGIN(TRACE_DISABLED_BY_DEFAULT("cat"), "SlowDisabledEvent");
-    TRACE_EVENT_BEGIN("dynamic,foo", "DynamicGroupFooEvent");
-    perfetto::DynamicCategory dyn{"dynamic,bar"};
-    TRACE_EVENT_BEGIN(dyn, "DynamicGroupBarEvent");
+    perfetto::DynamicCategory dyn_foo{"dynamic,foo"};
+    TRACE_EVENT_BEGIN(dyn_foo, "DynamicGroupFooEvent");
+    perfetto::DynamicCategory dyn_bar{"dynamic,bar"};
+    TRACE_EVENT_BEGIN(dyn_bar, "DynamicGroupBarEvent");
 
     auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
     tracing_session->session.reset();
@@ -3886,7 +3891,16 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
   // Empty config should enable all categories except slow ones.
   {
     perfetto::protos::gen::TrackEventConfig te_cfg;
-    auto slices = check_config(te_cfg);
+    auto slices = run_config(te_cfg, []() {
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("bar"));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo,bar"));
+      perfetto::DynamicCategory dyn{"dynamic"};
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED(dyn));
+      EXPECT_FALSE(
+          TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("cat")));
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("cat.verbose"));
+    });
     EXPECT_THAT(
         slices,
         ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
@@ -3901,7 +3915,13 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.add_disabled_categories("*");
     te_cfg.add_enabled_categories("foo");
-    auto slices = check_config(te_cfg);
+    auto slices = run_config(te_cfg, []() {
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("bar"));
+      perfetto::DynamicCategory dyn{"dynamic"};
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED(dyn));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo,bar"));
+    });
     EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "B:foo,bar.MultiFooBar",
                                     "B:red,green,blue,foo.MultiFoo",
                                     "B:$dynamic,$foo.DynamicGroupFooEvent"));
@@ -3912,7 +3932,14 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.add_disabled_categories("*");
     te_cfg.add_enabled_categories("dynamic");
-    auto slices = check_config(te_cfg);
+    auto slices = run_config(te_cfg, []() {
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      perfetto::DynamicCategory dyn{"dynamic"};
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED(dyn));
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("foo,bar"));
+      perfetto::DynamicCategory dyn_bar{"dynamic,bar"};
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED(dyn_bar));
+    });
     EXPECT_THAT(slices, ElementsAre("B:$dynamic,$foo.DynamicGroupFooEvent",
                                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
@@ -3924,7 +3951,17 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     te_cfg.add_enabled_categories("foo");
     te_cfg.add_enabled_categories("baz");
     te_cfg.add_enabled_categories("bar");
-    auto slices = check_config(te_cfg);
+    auto slices = run_config(te_cfg, []() {
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("bar"));
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("test"));
+      perfetto::DynamicCategory dyn{"dynamic"};
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED(dyn));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo,bar"));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("baz,bar,quux"));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("red,green,blue,foo"));
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("red,green,blue,yellow"));
+    });
     EXPECT_THAT(
         slices,
         ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
@@ -3937,7 +3974,12 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
   {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.add_enabled_categories("*");
-    auto slices = check_config(te_cfg);
+    auto slices = run_config(te_cfg, []() {
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      EXPECT_FALSE(
+          TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("cat")));
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("cat.verbose"));
+    });
     EXPECT_THAT(
         slices,
         ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
@@ -3952,7 +3994,11 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.add_disabled_categories("*");
     te_cfg.add_enabled_categories("fo*");
-    auto slices = check_config(te_cfg);
+    auto slices = run_config(te_cfg, []() {
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("bar"));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo,bar"));
+    });
     EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "B:foo,bar.MultiFooBar",
                                     "B:red,green,blue,foo.MultiFoo",
                                     "B:$dynamic,$foo.DynamicGroupFooEvent"));
@@ -3963,19 +4009,12 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.add_disabled_categories("*");
     te_cfg.add_enabled_tags("tag");
-    auto slices = check_config(te_cfg);
+    auto slices = run_config(te_cfg, []() {
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("test"));
+    });
     EXPECT_THAT(slices, ElementsAre("B:test.TagEvent",
                                     "B:test.verbose.VerboseTagEvent"));
-  }
-
-  // Enable a tag and disable another.
-  {
-    perfetto::protos::gen::TrackEventConfig te_cfg;
-    te_cfg.add_disabled_categories("*");
-    te_cfg.add_enabled_tags("tag");
-    te_cfg.add_disabled_tags("debug");
-    auto slices = check_config(te_cfg);
-    EXPECT_THAT(slices, ElementsAre("B:test.TagEvent"));
   }
 
   // Enable just slow categories.
@@ -3983,7 +4022,10 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.add_disabled_categories("*");
     te_cfg.add_enabled_tags("slow");
-    auto slices = check_config(te_cfg);
+    auto slices = run_config(te_cfg, []() {
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("cat"));
+    });
     EXPECT_THAT(slices,
                 ElementsAre("B:cat.SlowEvent",
                             "B:disabled-by-default-cat.SlowDisabledEvent"));
@@ -3994,7 +4036,11 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.add_disabled_categories("*");
     te_cfg.add_enabled_categories("disabled-by-default-*");
-    auto slices = check_config(te_cfg);
+    auto slices = run_config(te_cfg, []() {
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      EXPECT_TRUE(
+          TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("cat")));
+    });
     EXPECT_THAT(slices,
                 ElementsAre("B:disabled-by-default-cat.SlowDisabledEvent"));
   }
@@ -4005,7 +4051,13 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     te_cfg.add_enabled_categories("*");
     te_cfg.add_enabled_tags("slow");
     te_cfg.add_enabled_tags("debug");
-    auto slices = check_config(te_cfg);
+    auto slices = run_config(te_cfg, []() {
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("cat"));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("cat.verbose"));
+      EXPECT_TRUE(
+          TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("cat")));
+    });
     EXPECT_THAT(
         slices,
         ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
@@ -4016,6 +4068,61 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
                     "B:disabled-by-default-cat.SlowDisabledEvent",
                     "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
+  }
+
+  // Disable explicit category.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_enabled_categories("*");
+    te_cfg.add_disabled_categories("foo");
+    run_config(te_cfg, []() {
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("bar"));
+    });
+  }
+
+  // Disable category with a pattern.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_enabled_categories("*");
+    te_cfg.add_disabled_categories("fo*");
+    run_config(te_cfg, []() {
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("bar"));
+    });
+  }
+
+  // Enable tag and disable category with a pattern.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_enabled_categories("slow_*");
+    te_cfg.add_disabled_tags("slow");
+    run_config(te_cfg, []() {
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("slow_category"));
+    });
+  }
+
+  // Enable tag and disable category explicitly.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("slow_category");
+    te_cfg.add_enabled_tags("slow");
+    te_cfg.add_disabled_categories("*");
+    run_config(te_cfg, []() {
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("slow_category"));
+    });
+  }
+
+  // Enable tag and disable another.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_enabled_tags("tag");
+    te_cfg.add_disabled_tags("debug");
+    te_cfg.add_disabled_categories("*");
+    run_config(te_cfg, []() {
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("test"));
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("test.verbose"));
+    });
   }
 }
 

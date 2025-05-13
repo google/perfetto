@@ -106,7 +106,7 @@ export class QueryNodeExplorer
         PopupMenu,
         {
           trigger: m(Button, {
-            icon: Icons.MoreVert,
+            icon: Icons.ContextMenuAlt,
           }),
         },
         [

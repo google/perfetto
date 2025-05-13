@@ -464,6 +464,7 @@ async function getTraceInfo(
     ...traceTime,
     traceTitle,
     traceUrl,
+    tzOffMin,
     realtimeOffset,
     utcOffset,
     traceTzOffset,

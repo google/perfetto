@@ -160,6 +160,11 @@ class ArgsTracker {
         context_->storage->mutable_surfaceflinger_transactions_table(), id);
   }
 
+  BoundInserter AddArgsTo(tables::SurfaceFlingerTransactionTable::Id id) {
+    return AddArgsTo(
+        context_->storage->mutable_surfaceflinger_transaction_table(), id);
+  }
+
   BoundInserter AddArgsTo(tables::ViewCaptureTable::Id id) {
     return AddArgsTo(context_->storage->mutable_viewcapture_table(), id);
   }

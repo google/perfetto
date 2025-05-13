@@ -322,6 +322,13 @@ class FtraceParser {
                        uint32_t cpu,
                        protozero::ConstBytes blob);
   void ParseCpuhpExit(int64_t ts, protozero::ConstBytes blob);
+  void ParseHrtimerExpireEntry(uint32_t cpu,
+                               int64_t timestamp,
+                               protozero::ConstBytes blob,
+                               PacketSequenceStateGeneration* seq_state);
+  void ParseHrtimerExpireExit(uint32_t cpu,
+                              int64_t timestamp,
+                              protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -411,6 +418,7 @@ class FtraceParser {
   const StringId cpuhp_idx_id_;
   const StringId disp_vblank_irq_enable_id_;
   const StringId disp_vblank_irq_enable_output_id_arg_name_;
+  const StringId hrtimer_id_;
 
   std::vector<StringId> syscall_arg_name_ids_;
 
