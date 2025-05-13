@@ -80,11 +80,11 @@ std::string ToSqliteCreateTableType(dataframe::StorageType type) {
   }
 }
 
-std::string CreateTableStmt(
-    const std::vector<dataframe::Dataframe::ColumnSpec>& specs) {
+std::string CreateTableStmt(const dataframe::Dataframe::Spec& spec) {
   std::string create_stmt = "CREATE TABLE x(";
-  for (const auto& spec : specs) {
-    create_stmt += spec.name + " " + ToSqliteCreateTableType(spec.type) + ", ";
+  for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
+    create_stmt += spec.column_names[i] + " " +
+                   ToSqliteCreateTableType(spec.column_specs[i].type) + ", ";
   }
   create_stmt += "PRIMARY KEY(id)) WITHOUT ROWID";
   return create_stmt;
@@ -104,8 +104,7 @@ int DataframeModule::Create(sqlite3* db,
   auto create_state = std::move(ctx->temporary_create_state);
   PERFETTO_CHECK(create_state);
 
-  std::string create_stmt =
-      CreateTableStmt(create_state->handle->CreateColumnSpecs());
+  std::string create_stmt = CreateTableStmt(create_state->handle->CreateSpec());
   if (int r = sqlite3_declare_vtab(db, create_stmt.c_str()); r != SQLITE_OK) {
     *err = sqlite3_mprintf("failed to declare vtab %s", create_stmt.c_str());
     return r;
@@ -134,8 +133,7 @@ int DataframeModule::Connect(sqlite3* db,
   auto* vtab_state = GetContext(raw_ctx)->OnConnect(argc, argv);
   auto* df_state =
       sqlite::ModuleStateManager<DataframeModule>::GetState(vtab_state);
-  std::string create_stmt =
-      CreateTableStmt(df_state->handle->CreateColumnSpecs());
+  std::string create_stmt = CreateTableStmt(df_state->handle->CreateSpec());
   if (int r = sqlite3_declare_vtab(db, create_stmt.c_str()); r != SQLITE_OK) {
     return r;
   }

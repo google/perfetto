@@ -270,8 +270,8 @@ class RuntimeDataframeBuilder {
         }
       }
     }
-    return Dataframe(std::move(column_names_), std::move(columns), row_count_,
-                     string_pool_);
+    return Dataframe(true, std::move(column_names_), std::move(columns),
+                     row_count_, string_pool_);
   }
 
   // Returns the current status of the builder.

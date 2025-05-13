@@ -267,21 +267,23 @@ class NullStorage {
 
   // Type-safe unchecked access to variant data.
   template <typename T>
-  T& unchecked_get() {
-    return base::unchecked_get<T>(data_);
+  auto& unchecked_get() {
+    using U = Nullability::VariantTypeAtIndex<T, Variant>;
+    return base::unchecked_get<U>(data_);
   }
 
   template <typename T>
-  const T& unchecked_get() const {
-    return base::unchecked_get<T>(data_);
+  const auto& unchecked_get() const {
+    using U = Nullability::VariantTypeAtIndex<T, Variant>;
+    return base::unchecked_get<U>(data_);
   }
 
   BitVector& GetNullBitVector() {
     switch (data_.index()) {
       case TypeIndex<SparseNull>():
-        return unchecked_get<SparseNull>().bit_vector;
+        return unchecked_get<dataframe::SparseNull>().bit_vector;
       case TypeIndex<DenseNull>():
-        return unchecked_get<DenseNull>().bit_vector;
+        return unchecked_get<dataframe::DenseNull>().bit_vector;
       default:
         PERFETTO_FATAL("Unsupported overlay type");
     }
@@ -289,9 +291,9 @@ class NullStorage {
   const BitVector& GetNullBitVector() const {
     switch (data_.index()) {
       case TypeIndex<SparseNull>():
-        return unchecked_get<SparseNull>().bit_vector;
+        return unchecked_get<dataframe::SparseNull>().bit_vector;
       case TypeIndex<DenseNull>():
-        return unchecked_get<DenseNull>().bit_vector;
+        return unchecked_get<dataframe::DenseNull>().bit_vector;
       default:
         PERFETTO_FATAL("Unsupported overlay type");
     }

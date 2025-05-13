@@ -16,20 +16,52 @@
 
 #include "src/trace_processor/dataframe/dataframe.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
+#include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe {
+
+Dataframe::Dataframe(StringPool* string_pool,
+                     uint32_t column_count,
+                     const char* const* column_names,
+                     const ColumnSpec* column_specs)
+    : Dataframe(
+          false,
+          std::vector<std::string>(column_names, column_names + column_count),
+          CreateColumnVector(column_specs, column_count),
+          0,
+          string_pool) {}
+
+Dataframe::Dataframe(bool finalized,
+                     std::vector<std::string> column_names,
+                     std::vector<std::shared_ptr<impl::Column>> columns,
+                     uint32_t row_count,
+                     StringPool* string_pool)
+    : column_names_(std::move(column_names)),
+      columns_(std::move(columns)),
+      row_count_(row_count),
+      string_pool_(string_pool),
+      finalized_(finalized) {
+  column_ptrs_.reserve(columns_.size());
+  for (const auto& col : columns_) {
+    column_ptrs_.emplace_back(col.get());
+  }
+}
 
 base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     std::vector<FilterSpec>& filter_specs,
@@ -73,15 +105,69 @@ base::StatusOr<Dataframe::Index> Dataframe::BuildIndex(
 }
 
 void Dataframe::AddIndex(Index index) {
+  PERFETTO_CHECK(finalized_);
   indexes_.emplace_back(std::move(index));
 }
 
 void Dataframe::RemoveIndexAt(uint32_t index) {
+  PERFETTO_CHECK(finalized_);
   indexes_.erase(indexes_.begin() + static_cast<std::ptrdiff_t>(index));
 }
 
 dataframe::Dataframe Dataframe::Copy() const {
   return *this;
+}
+
+Dataframe::Spec Dataframe::CreateSpec() const {
+  Spec spec{column_names_, {}};
+  spec.column_specs.reserve(columns_.size());
+  for (const auto& col : columns_) {
+    spec.column_specs.push_back({col->storage.type(),
+                                 col->null_storage.nullability(),
+                                 col->sort_state});
+  }
+  return spec;
+}
+
+std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
+    const ColumnSpec* column_specs,
+    uint32_t column_count) {
+  auto make_storage = [](const ColumnSpec& spec) {
+    switch (spec.type.index()) {
+      case StorageType::GetTypeIndex<Id>():
+        return impl::Storage(impl::Storage::Id{});
+      case StorageType::GetTypeIndex<Uint32>():
+        return impl::Storage(impl::Storage::Uint32{});
+      case StorageType::GetTypeIndex<Int32>():
+        return impl::Storage(impl::Storage::Int32{});
+      case StorageType::GetTypeIndex<Int64>():
+        return impl::Storage(impl::Storage::Int64{});
+      case StorageType::GetTypeIndex<Double>():
+        return impl::Storage(impl::Storage::Double{});
+      case StorageType::GetTypeIndex<String>():
+        return impl::Storage(impl::Storage::String{});
+    }
+    PERFETTO_FATAL("Invalid storage type");
+  };
+  auto make_null_storage = [](const ColumnSpec& spec) {
+    switch (spec.nullability.index()) {
+      case Nullability::GetTypeIndex<NonNull>():
+        return impl::NullStorage(impl::NullStorage::NonNull{});
+      case Nullability::GetTypeIndex<SparseNull>():
+        return impl::NullStorage(impl::NullStorage::SparseNull{});
+      case Nullability::GetTypeIndex<DenseNull>():
+        return impl::NullStorage(impl::NullStorage::DenseNull{});
+    }
+    PERFETTO_FATAL("Invalid nullability type");
+  };
+  std::vector<std::shared_ptr<impl::Column>> columns;
+  columns.reserve(column_count);
+  for (uint32_t i = 0; i < column_count; ++i) {
+    columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
+        make_storage(column_specs[i]), make_null_storage(column_specs[i]),
+        column_specs[i].sort_state}));
+  }
+  return columns;
 }
 
 }  // namespace perfetto::trace_processor::dataframe

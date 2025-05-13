@@ -90,14 +90,7 @@ class FlexVector {
     PERFETTO_DCHECK(internal::IsPowerOfTwo(capacity()));
     PERFETTO_DCHECK(size_ <= capacity());
     if (PERFETTO_UNLIKELY(size_ == capacity())) {
-      // Grow by doubling, at least to capacity 64
-      uint64_t new_capacity = std::max<uint64_t>(capacity() * 2, 64ul);
-      Slab<T, kAlignment> new_slab = Slab<T, kAlignment>::Alloc(new_capacity);
-      if (slab_.size() > 0) {
-        // Copy from the original slab data
-        memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));
-      }
-      slab_ = std::move(new_slab);
+      IncreaseCapacity();
     }
     slab_[size_++] = value;
   }
@@ -152,6 +145,17 @@ class FlexVector {
   // Constructor used by Alloc.
   explicit FlexVector(uint64_t capacity, uint64_t size)
       : slab_(Slab<T, kAlignment>::Alloc(capacity)), size_(size) {}
+
+  PERFETTO_NO_INLINE void IncreaseCapacity() {
+    // Grow by doubling, at least to capacity 64
+    uint64_t new_capacity = std::max<uint64_t>(capacity() * 2, 64ul);
+    Slab<T, kAlignment> new_slab = Slab<T, kAlignment>::Alloc(new_capacity);
+    if (slab_.size() > 0) {
+      // Copy from the original slab data
+      memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));
+    }
+    slab_ = std::move(new_slab);
+  }
 
   // The underlying memory slab.
   Slab<T, kAlignment> slab_;
