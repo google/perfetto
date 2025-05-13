@@ -86,6 +86,7 @@ import "protos/perfetto/trace/ftrace/task.proto";
 import "protos/perfetto/trace/ftrace/tcp.proto";
 import "protos/perfetto/trace/ftrace/thermal.proto";
 import "protos/perfetto/trace/ftrace/thermal_exynos.proto";
+import "protos/perfetto/trace/ftrace/timer.proto";
 import "protos/perfetto/trace/ftrace/trusty.proto";
 import "protos/perfetto/trace/ftrace/ufs.proto";
 import "protos/perfetto/trace/ftrace/v4l2.proto";
@@ -694,5 +695,13 @@ message FtraceEvent {
     MaliGpuPowerStateFtraceEvent mali_gpu_power_state = 548;
     DpuDispDpuUnderrunFtraceEvent dpu_disp_dpu_underrun = 549;
     DpuDispVblankIrqEnableFtraceEvent dpu_disp_vblank_irq_enable = 550;
+    HrtimerStartFtraceEvent hrtimer_start = 551;
+    HrtimerCancelFtraceEvent hrtimer_cancel = 552;
+    HrtimerExpireEntryFtraceEvent hrtimer_expire_entry = 553;
+    HrtimerExpireExitFtraceEvent hrtimer_expire_exit = 554;
+    TimerStartFtraceEvent timer_start = 555;
+    TimerCancelFtraceEvent timer_cancel = 556;
+    TimerExpireEntryFtraceEvent timer_expire_entry = 557;
+    TimerExpireExitFtraceEvent timer_expire_exit = 558;
   }
 }

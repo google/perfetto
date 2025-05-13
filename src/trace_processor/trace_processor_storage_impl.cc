@@ -72,6 +72,10 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
   if (unrecoverable_parse_error_)
     return base::ErrStatus(
         "Failed unrecoverably while parsing in a previous Parse call");
+  if (eof_) {
+    return base::ErrStatus("Parse() called after NotifyEndOfFile()");
+  }
+
   if (!parser_) {
     auto parser = std::make_unique<ForwardingTraceParser>(
         &context_, context_.trace_file_tracker->AddFile());
@@ -115,6 +119,7 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
   if (unrecoverable_parse_error_) {
     return base::ErrStatus("Unrecoverable parsing error already occurred");
   }
+  eof_ = true;
   Flush();
   RETURN_IF_ERROR(parser_->NotifyEndOfFile());
   // NotifyEndOfFile might have pushed packets to the sorter.
