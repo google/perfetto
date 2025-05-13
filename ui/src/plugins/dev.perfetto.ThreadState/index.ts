@@ -42,6 +42,7 @@ export default class implements PerfettoPlugin {
     const result = await engine.query(`
       include perfetto module viz.threads;
       include perfetto module viz.summary.threads;
+      include perfetto module sched.states;
 
       select
         utid,

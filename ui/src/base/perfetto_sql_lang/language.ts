@@ -36,6 +36,7 @@ export const language = LRLanguage.define({
       styleTags({
         'Keyword': t.keyword,
         'Boolean': t.bool,
+        'Null': t.null,
         'String': t.string,
         'Number': t.number,
         'LineComment': t.lineComment,

@@ -97,7 +97,7 @@ DEPS_ALLOWLIST = [
     # Misc legitimate deps.
     ('/frontend/index', ['/gen/*']),
     ('/traceconv/index', '/gen/traceconv'),
-    ('/engine/wasm_bridge', '/gen/trace_processor'),
+    ('/engine/wasm_bridge', '/gen/trace_processor_memory*'),
     ('/trace_processor/sql_utils/*', '/trace_processor/*'),
     ('/protos/index', '/gen/protos'),
 
