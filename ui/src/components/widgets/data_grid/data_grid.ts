@@ -386,7 +386,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     trigger: m(Button, {
                       className: 'pf-data-grid__cell-button',
                       icon: Icons.ContextMenuAlt,
-                      // compact: true,
+                      compact: true,
                     }),
                   },
                   updateSorting && [

@@ -85,9 +85,9 @@ $border: 1px solid rgb(225, 225, 225);
   &__cell {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: 0.4em;
+    gap: 0.3em;
     align-items: center;
-    // text-align: left;
+    text-align: left;
 
     &-button {
       visibility: hidden;
