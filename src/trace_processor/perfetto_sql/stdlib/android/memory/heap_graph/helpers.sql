@@ -113,7 +113,7 @@ RETURNS TableOrSubquery AS
     path_hash AS parent_path_hash,
     '[native] ' || x.name AS name,
     root_type,
-    'native' AS heap_type,
+    'HEAP_TYPE_NATIVE' AS heap_type,
     sum(x.self_native_count) AS self_count,
     sum(x.self_native_size) AS self_size
   FROM x
