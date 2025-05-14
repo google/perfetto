@@ -84,7 +84,7 @@ export interface RecordProbe {
   readonly title: string;
 
   /** (optional) decription. */
-  readonly description?: string | m.Children;
+  readonly description?: string;
 
   /** (optional) file name of a .png file under assets/. */
   readonly image?: string;
