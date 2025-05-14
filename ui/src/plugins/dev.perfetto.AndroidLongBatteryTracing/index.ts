@@ -1738,28 +1738,6 @@ export default class implements PerfettoPlugin {
     return features;
   }
 
-  async addTracks(ctx: Trace, features: Set<string>): Promise<void> {
-    const containedTraces = (ctx.openerPluginArgs?.containedTraces ??
-      []) as ContainedTrace[];
-
-    await ctx.engine.query(PACKAGE_LOOKUP);
-    await this.addNetworkSummary(ctx, features);
-    await this.addBluetooth(ctx, features);
-    await this.addModemRil(ctx, features);
-    await this.addKernelWakelocks(ctx);
-    await this.addKernelWakelocksStatsd(ctx, features);
-    await this.addWakeups(ctx, features);
-    await this.addDeviceState(ctx, features);
-    await this.addHighCpu(ctx, features);
-    await this.addContainedTraces(ctx, containedTraces);
-
-    if (features.has('google3')) {
-      await this.addAtomCounters(ctx);
-      await this.addAtomSlices(ctx);
-      await this.addModemTeaData(ctx);
-    }
-  }
-
   private readonly DAY_EXPLORER_TABLES = {
     day_explorer_screen_off_category: 'DE Screen Off: Category',
     day_explorer_screen_off_category_package: 'DE Screen Off: Cat / Pkg',
@@ -1805,7 +1783,25 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const features: Set<string> = await this.findFeatures(ctx.engine);
-    await this.addTracks(ctx, features);
-    await this.addDayExplorerCommand(ctx, features);
+    const containedTraces = (ctx.openerPluginArgs?.containedTraces ??
+      []) as ContainedTrace[];
+
+    await ctx.engine.query(PACKAGE_LOOKUP);
+    await this.addNetworkSummary(ctx, features);
+    await this.addBluetooth(ctx, features);
+    await this.addModemRil(ctx, features);
+    await this.addKernelWakelocks(ctx);
+    await this.addKernelWakelocksStatsd(ctx, features);
+    await this.addWakeups(ctx, features);
+    await this.addDeviceState(ctx, features);
+    await this.addHighCpu(ctx, features);
+    await this.addContainedTraces(ctx, containedTraces);
+
+    if (features.has('google3')) {
+      await this.addAtomCounters(ctx);
+      await this.addAtomSlices(ctx);
+      await this.addModemTeaData(ctx);
+      await this.addDayExplorerCommand(ctx, features);
+    }
   }
 }
