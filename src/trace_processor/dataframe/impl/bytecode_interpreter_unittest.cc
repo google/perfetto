@@ -45,6 +45,7 @@
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
 #include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
@@ -388,7 +389,8 @@ class BytecodeInterpreterTest : public testing::Test {
 
   void SetupInterpreterWithBytecode(const BytecodeVector& bytecode) {
     interpreter_ = std::make_unique<Interpreter<Fetcher>>();
-    interpreter_->Initialize(bytecode, column_ptrs_.data(), &spool_);
+    interpreter_->Initialize(bytecode, column_ptrs_.data(), indexes_.data(),
+                             &spool_);
   }
 
   template <typename T>
@@ -407,6 +409,7 @@ class BytecodeInterpreterTest : public testing::Test {
   StringPool spool_;
   std::vector<std::unique_ptr<Column>> columns_vec_;
   std::vector<Column*> column_ptrs_;
+  std::vector<dataframe::Index> indexes_;
   std::unique_ptr<Interpreter<Fetcher>> interpreter_;
 };
 
@@ -2078,6 +2081,122 @@ TEST_F(BytecodeInterpreterTest, FindMinMaxIndexString) {
     SetRegistersAndExecute(bytecode, GetSpan(indices));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(3u));
   }
+}
+
+TEST_F(BytecodeInterpreterTest, IndexPermutationVectorToSpan) {
+  std::vector<uint32_t> p_vec = {2, 0, 4, 1, 3};
+  auto shared_p_vec = std::make_shared<std::vector<uint32_t>>(p_vec);
+  indexes_.emplace_back(std::vector<uint32_t>{0}, shared_p_vec);
+
+  std::string bytecode_str =
+      "IndexPermutationVectorToSpan: [index=0, write_register=Register(0)]";
+  SetRegistersAndExecute(bytecode_str);
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), testing::ElementsAreArray(p_vec));
+}
+
+TEST_F(BytecodeInterpreterTest, IndexPermutationVectorToSpan_Empty) {
+  std::vector<uint32_t> p_vec = {};
+  auto shared_p_vec = std::make_shared<std::vector<uint32_t>>(p_vec);
+  indexes_.emplace_back(std::vector<uint32_t>{0}, shared_p_vec);
+
+  std::string bytecode_str =
+      "IndexPermutationVectorToSpan: [index=0, write_register=Register(0)]";
+  SetRegistersAndExecute(bytecode_str);
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), IsEmpty());
+}
+
+TEST_F(BytecodeInterpreterTest, IndexedFilterEq_Uint32_NonNull_ValueExists) {
+  AddColumn(
+      CreateNonNullUnsortedColumn<uint32_t>({10u, 20u, 20u, 30u, 20u, 40u}));
+
+  std::vector<uint32_t> p_vec = {0, 1, 4, 2, 3, 5};
+  indexes_.emplace_back(std::vector<uint32_t>{0},
+                        std::make_shared<std::vector<uint32_t>>(p_vec));
+
+  std::string bytecode_str = R"(
+    IndexedFilterEq<Uint32, NonNull>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), update_register=Register(2)]
+  )";
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid(20u),
+                         Slab<uint32_t>::Alloc(0), GetSpan(p_vec));
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(1, 4, 2));
+}
+
+TEST_F(BytecodeInterpreterTest, IndexedFilterEq_Uint32_NonNull_ValueNotExists) {
+  AddColumn(
+      CreateNonNullUnsortedColumn<uint32_t>({10u, 20u, 20u, 30u, 20u, 40u}));
+  std::vector<uint32_t> p_vec = {0, 1, 4, 2, 3, 5};
+  indexes_.emplace_back(std::vector<uint32_t>{0},
+                        std::make_shared<std::vector<uint32_t>>(p_vec));
+
+  std::string bytecode_str = R"(
+    IndexedFilterEq<Uint32, NonNull>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), update_register=Register(2)]
+  )";
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid(25u),
+                         Slab<uint32_t>::Alloc(0), GetSpan(p_vec));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+}
+
+TEST_F(BytecodeInterpreterTest, IndexedFilterEq_String_SparseNull_ValueExists) {
+  AddColumn(CreateSparseNullableStringColumn(
+      {std::make_optional("apple"), std::nullopt, std::make_optional("banana"),
+       std::make_optional("apple"), std::nullopt},
+      &spool_));
+
+  std::vector<uint32_t> p_vec = {1, 4, 0, 3, 2};
+  indexes_.emplace_back(std::vector<uint32_t>{0},
+                        std::make_shared<std::vector<uint32_t>>(p_vec));
+
+  std::string bytecode_str = R"(
+    PrefixPopcount: [col=0, dest_register=Register(1)]
+    IndexedFilterEq<String, SparseNull>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), update_register=Register(2)]
+  )";
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("apple"),
+                         reg::Empty(), GetSpan(p_vec));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(0, 3));
+}
+
+TEST_F(BytecodeInterpreterTest,
+       IndexedFilterEq_String_SparseNull_ValueNotExists) {
+  AddColumn(CreateSparseNullableStringColumn(
+      {std::make_optional("cat"), std::nullopt, std::make_optional("dog")},
+      &spool_));
+
+  std::vector<uint32_t> p_vec = {1, 0, 2};
+  indexes_.emplace_back(std::vector<uint32_t>{0},
+                        std::make_shared<std::vector<uint32_t>>(p_vec));
+
+  std::string bytecode_str = R"(
+    PrefixPopcount: [col=0, dest_register=Register(1)]
+    IndexedFilterEq<String, SparseNull>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), update_register=Register(2)]
+  )";
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("bird"),
+                         reg::Empty(), GetSpan(p_vec));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+}
+
+TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_PartialOverlap) {
+  std::vector<uint32_t> source_span_data = {10, 20, 30, 40, 50};
+  std::vector<uint32_t> update_buffer(source_span_data.size());
+
+  std::string bytecode_str = R"(
+    CopySpanIntersectingRange: [source_register=Register(0), source_range_register=Register(1), update_register=Register(2)]
+  )";
+  SetRegistersAndExecute(bytecode_str, GetSpan(source_span_data), Range{25, 45},
+                         GetSpan(update_buffer));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(30, 40));
+}
+
+TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_NoOverlap) {
+  std::vector<uint32_t> source_span_data = {10, 20, 30};
+  std::vector<uint32_t> update_buffer(source_span_data.size());
+
+  std::string bytecode_str = R"(
+    CopySpanIntersectingRange: [source_register=Register(0), source_range_register=Register(1), update_register=Register(2)]
+  )";
+  SetRegistersAndExecute(bytecode_str, GetSpan(source_span_data),
+                         Range{100, 200}, GetSpan(update_buffer));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
 }
 
 }  // namespace

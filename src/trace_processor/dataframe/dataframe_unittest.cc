@@ -16,14 +16,13 @@
 
 #include "src/trace_processor/dataframe/dataframe.h"
 
-#include <array>
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -38,6 +37,7 @@
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
 
@@ -105,19 +105,31 @@ class DataframeBytecodeTest : public ::testing::Test {
                        LimitSpec limit_spec,
                        const std::string& expected_bytecode,
                        uint64_t cols_used = 0xFFFFFFFF) {
-    // Sanitize cols_used to ensure it only references valid columns.
-    PERFETTO_CHECK(cols.size() < 64);
-    uint64_t sanitized_cols_used = cols_used & ((1ull << cols.size()) - 1ull);
-
     std::vector<std::string> col_names;
     col_names.reserve(cols.size());
     for (uint32_t i = 0; i < cols.size(); ++i) {
       col_names.emplace_back("col" + std::to_string(i));
     }
     auto df = MakeDatafame(col_names, std::move(cols));
+    RunBytecodeTest(*df, filters, distinct_specs, sort_specs, limit_spec,
+                    expected_bytecode, cols_used);
+  }
+
+  static void RunBytecodeTest(const Dataframe& df,
+                              std::vector<FilterSpec>& filters,
+                              const std::vector<DistinctSpec>& distinct_specs,
+                              const std::vector<SortSpec>& sort_specs,
+                              LimitSpec limit_spec,
+                              const std::string& expected_bytecode,
+                              uint64_t cols_used = 0xFFFFFFFF) {
+    // Sanitize cols_used to ensure it only references valid columns.
+    PERFETTO_CHECK(df.column_names().size() < 64);
+    uint64_t sanitized_cols_used =
+        cols_used & ((1ull << df.column_names().size()) - 1ull);
+
     ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
-                         df->PlanQuery(filters, distinct_specs, sort_specs,
-                                       limit_spec, sanitized_cols_used));
+                         df.PlanQuery(filters, distinct_specs, sort_specs,
+                                      limit_spec, sanitized_cols_used));
     EXPECT_THAT(FormatBytecode(plan),
                 EqualsIgnoringWhitespace(expected_bytecode));
   }
@@ -818,9 +830,104 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
     StrideCopy: [source_register=Register(2), update_register=Register(6), stride=2]
     StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(4), update_register=Register(6), offset=1, stride=2]
   )";
-
   RunBytecodeTest(cols, filters, distinct_specs, sort_specs, limit_spec,
                   expected_bytecode, /*cols_used=*/1);
+}
+
+TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_NonNullInt) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"col1"}, CreateTypedColumnSpec(Uint32{}, NonNull{}, Unsorted{}));
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  for (uint32_t i = 0; i < 100; ++i) {
+    df.InsertUnchecked(kSpec, i);
+  }
+  df.MarkFinalized();
+
+  std::vector<uint32_t> p_vec(100);
+  std::iota(p_vec.begin(), p_vec.end(), 0);
+  df.AddIndex(
+      Index({0}, std::make_shared<std::vector<uint32_t>>(std::move(p_vec))));
+
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+  std::string expected_bytecode = R"(
+    InitRange: [size=100, dest_register=Register(0)]
+    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, NonNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
+    AllocateIndices: [size=100, dest_slab_register=Register(4), dest_span_register=Register(5)]
+    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(5)]
+  )";
+  RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode,
+                  /*cols_used=*/1);
+}
+
+TEST_F(DataframeBytecodeTest,
+       PlanQuery_SingleColIndex_EqFilter_NullableString) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"col_str_nullable"},
+      CreateTypedColumnSpec(String(), SparseNull(), Unsorted()));
+
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  df.InsertUnchecked(kSpec,
+                     std::make_optional(string_pool_.InternString("apple")));
+  df.InsertUnchecked(kSpec, std::nullopt);
+  df.InsertUnchecked(kSpec,
+                     std::make_optional(string_pool_.InternString("banana")));
+  df.InsertUnchecked(kSpec,
+                     std::make_optional(string_pool_.InternString("apple")));
+  df.MarkFinalized();
+  df.AddIndex(Index({0}, std::make_shared<std::vector<uint32_t>>(
+                             std::vector<uint32_t>{1, 0, 3, 2})));
+
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+  std::string expected_bytecode = R"(
+    InitRange: [size=4, dest_register=Register(0)]
+    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
+    CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
+    PrefixPopcount: [col=0, dest_register=Register(3)]
+    IndexedFilterEq<String, SparseNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
+    AllocateIndices: [size=4, dest_slab_register=Register(4), dest_span_register=Register(5)]
+    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(5)]
+    AllocateIndices: [size=8, dest_slab_register=Register(6), dest_span_register=Register(7)]
+    StrideCopy: [source_register=Register(5), update_register=Register(7), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(3), update_register=Register(7), offset=1, stride=2]
+  )";
+  RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
+}
+
+TEST_F(DataframeBytecodeTest, PlanQuery_MultiColIndex_PrefixEqFilters) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"col0_uint32", "col1_uint32"},
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()));
+
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  df.InsertUnchecked(kSpec, 10u, 100u);
+  df.InsertUnchecked(kSpec, 10u, 200u);
+  df.InsertUnchecked(kSpec, 20u, 100u);
+  df.InsertUnchecked(kSpec, 10u, 100u);
+  df.MarkFinalized();
+
+  std::vector<uint32_t> p_vec(4);
+  std::iota(p_vec.begin(), p_vec.end(), 0);
+  df.AddIndex(
+      Index({0, 1}, std::make_shared<std::vector<uint32_t>>(std::move(p_vec))));
+
+  std::vector<FilterSpec> filters = {
+      {0, 0, Eq{}, std::nullopt},
+      {1, 1, Eq{}, std::nullopt},
+  };
+  std::string expected_bytecode = R"(
+    InitRange: [size=4, dest_register=Register(0)]
+    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, NonNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(4), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, NonNull>: [col=1, filter_value_reg=Register(4), popcount_register=Register(5), update_register=Register(1)]
+    AllocateIndices: [size=4, dest_slab_register=Register(6), dest_span_register=Register(7)]
+    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(7)]
+  )";
+  RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
 }
 
 TEST(DataframeTest, Insert) {

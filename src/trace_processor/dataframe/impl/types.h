@@ -111,6 +111,17 @@ struct MaxOp {};
 // TypeSet combining Min and Max operations.
 using MinMaxOp = TypeSet<MinOp, MaxOp>;
 
+// TypeSet containing all the non-id storage types.
+using NonIdStorageType = TypeSet<Uint32, Int32, Int64, Double, String>;
+
+// Typeset containing a simplified view of nullability for columns.
+using SimpleNullability = TypeSet<NonNull, SparseNull, DenseNull>;
+
+// TypeSet of all possible sparse nullability states.
+using SparseNullTypes = TypeSet<SparseNull,
+                                SparseNullSupportingCellGetAlways,
+                                SparseNullSupportingCellGetUntilFinalization>;
+
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.
 class Storage {

@@ -280,7 +280,7 @@ class Dataframe {
   void PrepareCursor(const QueryPlan& plan,
                      Cursor<FilterValueFetcherImpl>& c) const {
     c.Initialize(plan.plan_, uint32_t(column_ptrs_.size()), column_ptrs_.data(),
-                 string_pool_);
+                 indexes_.data(), string_pool_);
   }
 
   // Given a typed spec, a column index and a row index, returns the value
