@@ -119,7 +119,7 @@ function gpuMaliCounters(): RecordProbe {
     id: 'gpu_mali_counters',
     title: 'Mali GPU Counters',
     description: m('div', [
-      m('p', 'Records Mali GPU performance counters. (Available on Valhal+)'),
+      m('p', 'Records Mali GPU performance counters. (Available on Valhall+)'),
       m('p', 'To enable the event producer, run'),
       codeSnippet('adb shell start gpu_probe'),
     ]),
@@ -169,7 +169,7 @@ function gpuMaliFenceEvents(): RecordProbe {
     id: 'gpu_mali_fence_events',
     title: 'Mali Fence Events',
     description: m('div', [
-      m('p', 'Records Mali fence events (Available on Valhal+)'),
+      m('p', 'Records Mali fence events (Available on Valhall+)'),
       m('p', 'To enable the event producer, run'),
       codeSnippet('adb shell start gpu_probe'),
     ]),
