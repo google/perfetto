@@ -6,4 +6,5 @@ recording system-level and app-level traces, native + java heap profiling, a
 library for analyzing traces using SQL and a web-based UI to visualize and
 explore multi-GB traces.
 
+
 See https://perfetto.dev/docs or the /docs/ directory for documentation.
