@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -36,6 +37,7 @@
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/type_set.h"
 #include "src/trace_processor/util/regex.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -128,8 +130,9 @@ inline uint8_t GetDataSize(StorageType type) {
 
 }  // namespace
 
-QueryPlanBuilder::QueryPlanBuilder(uint32_t row_count,
-                                   const std::vector<Column>& columns)
+QueryPlanBuilder::QueryPlanBuilder(
+    uint32_t row_count,
+    const std::vector<std::shared_ptr<Column>>& columns)
     : columns_(columns) {
   for (uint32_t i = 0; i < columns_.size(); ++i) {
     column_states_.emplace_back();
@@ -153,15 +156,15 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
   // Sort filters by efficiency (most selective/cheapest first)
   std::stable_sort(specs.begin(), specs.end(),
                    [this](const FilterSpec& a, const FilterSpec& b) {
-                     const auto& a_col = columns_[a.col];
-                     const auto& b_col = columns_[b.col];
+                     const auto& a_col = GetColumn(a.col);
+                     const auto& b_col = GetColumn(b.col);
                      return FilterPreference(a, a_col) <
                             FilterPreference(b, b_col);
                    });
 
   // Apply each filter in the optimized order
   for (FilterSpec& c : specs) {
-    const Column& col = columns_[c.col];
+    const Column& col = GetColumn(c.col);
     StorageType ct = col.storage.type();
 
     // Get the non-null operation (all our ops are non-null at this point)
@@ -214,7 +217,7 @@ void QueryPlanBuilder::Distinct(
   bytecode::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
   uint16_t total_row_stride = 0;
   for (const auto& spec : distinct_specs) {
-    const Column& col = columns_[spec.col];
+    const Column& col = GetColumn(spec.col);
     bool is_nullable = !col.null_storage.nullability().Is<NonNull>();
     total_row_stride +=
         (is_nullable ? 1u : 0u) + GetDataSize(col.storage.type());
@@ -230,7 +233,7 @@ void QueryPlanBuilder::Distinct(
   }
   uint16_t current_offset = 0;
   for (const auto& spec : distinct_specs) {
-    const Column& col = columns_[spec.col];
+    const Column& col = GetColumn(spec.col);
     const auto& nullability = col.null_storage.nullability();
     uint8_t data_size = GetDataSize(col.storage.type());
     switch (nullability.index()) {
@@ -256,7 +259,10 @@ void QueryPlanBuilder::Distinct(
         bc.arg<B::copy_size>() = data_size;
         break;
       }
-      case Nullability::GetTypeIndex<SparseNull>(): {
+      case Nullability::GetTypeIndex<SparseNull>():
+      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+      case Nullability::GetTypeIndex<
+          SparseNullSupportingCellGetUntilFinalization>(): {
         auto popcount_reg = PrefixPopcountRegisterFor(spec.col);
         using B = bytecode::CopyToRowLayoutSparseNull;
         auto& bc = AddOpcode<B>(UnchangedRowCount{});
@@ -322,7 +328,7 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
   bytecode::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
   for (auto it = sort_specs.rbegin(); it != sort_specs.rend(); ++it) {
     const SortSpec& sort_spec = *it;
-    const Column& sort_col = columns_[sort_spec.col];
+    const Column& sort_col = GetColumn(sort_spec.col);
     StorageType sort_col_type = sort_col.storage.type();
 
     uint32_t nullability_type_index =
@@ -330,6 +336,9 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
     bytecode::reg::RwHandle<Span<uint32_t>> sort_indices;
     switch (nullability_type_index) {
       case Nullability::GetTypeIndex<SparseNull>():
+      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+      case Nullability::GetTypeIndex<
+          SparseNullSupportingCellGetUntilFinalization>():
       case Nullability::GetTypeIndex<DenseNull>(): {
         sort_indices =
             bytecode::reg::RwHandle<Span<uint32_t>>{register_count_++};
@@ -343,8 +352,12 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
         bc.arg<B::partition_register>() = indices;
         bc.arg<B::dest_non_null_register>() = sort_indices;
 
+        using SparseTypeSet =
+            TypeSet<SparseNull, SparseNullSupportingCellGetAlways,
+                    SparseNullSupportingCellGetUntilFinalization>;
+
         // If in sparse mode, we also need to translate all the indices.
-        if (nullability_type_index == Nullability::GetTypeIndex<SparseNull>()) {
+        if (sort_col.null_storage.nullability().IsAnyOf<SparseTypeSet>()) {
           auto popcount_reg = PrefixPopcountRegisterFor(sort_spec.col);
           {
             using BI = bytecode::TranslateSparseNullIndices;
@@ -377,7 +390,7 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
 
 void QueryPlanBuilder::MinMax(const SortSpec& sort_spec) {
   uint32_t col_idx = sort_spec.col;
-  const auto& col = columns_[col_idx];
+  const auto& col = GetColumn(col_idx);
   StorageType storage_type = col.storage.type();
 
   MinMaxOp mmop = sort_spec.direction == SortDirection::kAscending
@@ -408,9 +421,12 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
     if ((cols_used & 1u) == 0) {
       continue;
     }
-    const auto& col = columns_[i];
+    const auto& col = GetColumn(i);
     switch (col.null_storage.nullability().index()) {
       case Nullability::GetTypeIndex<SparseNull>():
+      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+      case Nullability::GetTypeIndex<
+          SparseNullSupportingCellGetUntilFinalization>():
       case Nullability::GetTypeIndex<DenseNull>():
         null_cols.emplace_back(ColAndOffset{i, plan_.params.output_per_row});
         plan_.params.col_to_output_offset[i] = plan_.params.output_per_row++;
@@ -456,9 +472,12 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
       storage_update_register = span_register;
     }
     for (auto [col, offset] : null_cols) {
-      const auto& c = columns_[col];
+      const auto& c = GetColumn(col);
       switch (c.null_storage.nullability().index()) {
-        case Nullability::GetTypeIndex<SparseNull>(): {
+        case Nullability::GetTypeIndex<SparseNull>():
+        case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+        case Nullability::GetTypeIndex<
+            SparseNullSupportingCellGetUntilFinalization>(): {
           using B = bytecode::StrideTranslateAndCopySparseNullIndices;
           auto reg = PrefixPopcountRegisterFor(col);
           auto& bc = AddOpcode<B>(UnchangedRowCount{});
@@ -541,10 +560,13 @@ void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
   // the caller (i.e. SQLite) knows that we are able to handle the constraint.
   c.value_index = plan_.params.filter_value_count++;
 
-  const auto& col = columns_[c.col];
+  const auto& col = GetColumn(c.col);
   uint32_t nullability_type_index = col.null_storage.nullability().index();
   switch (nullability_type_index) {
     case Nullability::GetTypeIndex<SparseNull>():
+    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+    case Nullability::GetTypeIndex<
+        SparseNullSupportingCellGetUntilFinalization>():
     case Nullability::GetTypeIndex<DenseNull>(): {
       auto indices = EnsureIndicesAreInSlab();
       {
@@ -573,7 +595,7 @@ bool QueryPlanBuilder::TrySortedConstraint(
     const StorageType& ct,
     const NonNullOp& op,
     const bytecode::reg::RwHandle<CastFilterValueResult>& result) {
-  const auto& col = columns_[fs.col];
+  const auto& col = GetColumn(fs.col);
   const auto& nullability = col.null_storage.nullability();
   if (!nullability.Is<NonNull>() || col.sort_state.Is<Unsorted>()) {
     return false;
@@ -628,10 +650,13 @@ bool QueryPlanBuilder::TrySortedConstraint(
 bytecode::reg::RwHandle<Span<uint32_t>>
 QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
   bytecode::reg::RwHandle<Span<uint32_t>> main = EnsureIndicesAreInSlab();
-  const auto& col = columns_[c.col];
+  const auto& col = GetColumn(c.col);
   uint32_t nullability_type_index = col.null_storage.nullability().index();
   switch (nullability_type_index) {
-    case Nullability::GetTypeIndex<SparseNull>(): {
+    case Nullability::GetTypeIndex<SparseNull>():
+    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+    case Nullability::GetTypeIndex<
+        SparseNullSupportingCellGetUntilFinalization>(): {
       bytecode::reg::RwHandle<Slab<uint32_t>> scratch_slab{register_count_++};
       bytecode::reg::RwHandle<Span<uint32_t>> scratch_span{register_count_++};
       {
@@ -827,7 +852,9 @@ bool QueryPlanBuilder::CanUseMinMaxOptimization(
     const std::vector<SortSpec>& sort_specs,
     const LimitSpec& limit_spec) {
   return sort_specs.size() == 1 &&
-         columns_[sort_specs[0].col].null_storage.nullability().Is<NonNull>() &&
+         GetColumn(sort_specs[0].col)
+             .null_storage.nullability()
+             .Is<NonNull>() &&
          limit_spec.limit == 1 && limit_spec.offset.value_or(0) == 0;
 }
 

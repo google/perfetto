@@ -15,6 +15,6 @@
 
 UI_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
 
-$UI_DIR/node $UI_DIR/build.js "$@"  # Build just once.
+$UI_DIR/node $UI_DIR/build.js --only-wasm-memory64 "$@"  # Build just once.
 $UI_DIR/node $UI_DIR/build.js --no-build --run-unittests "$@"
 $UI_DIR/node $UI_DIR/build.js --no-build --run-integrationtests "$@"

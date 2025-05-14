@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <limits>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
@@ -54,12 +55,17 @@ class Cursor {
 
   // Constructs a cursor from a query plan and dataframe columns.
   Cursor(impl::QueryPlan plan,
-         const impl::Column* columns,
+         uint32_t column_count,
+         const impl::Column* const* column_ptrs,
          const StringPool* pool)
-      : interpreter_(std::move(plan.bytecode), columns, pool),
+      : interpreter_(std::move(plan.bytecode), column_ptrs, pool),
         params_(plan.params),
-        columns_(columns),
-        pool_(pool) {}
+        pool_(pool) {
+    column_storage_data_ptrs_.reserve(column_count);
+    for (uint32_t i = 0; i < column_count; ++i) {
+      column_storage_data_ptrs_.push_back(column_ptrs[i]->storage.data());
+    }
+  }
 
   // Executes the query and prepares the cursor for iteration.
   // This initializes the cursor's position to the first row of results.
@@ -77,6 +83,9 @@ class Cursor {
     pos_ = span.b;
     end_ = span.e;
   }
+
+  // Returns the index of the row in the table this cursor is pointing to.
+  PERFETTO_ALWAYS_INLINE uint32_t RowIndex() { return *pos_; }
 
   // Advances the cursor to the next row of results.
   PERFETTO_ALWAYS_INLINE void Next() {
@@ -100,31 +109,31 @@ class Cursor {
                                    CellCallbackImpl& cell_callback_impl) {
     static_assert(std::is_base_of_v<CellCallback, CellCallbackImpl>,
                   "CellCallbackImpl must be a subclass of CellCallback");
-    const impl::Column& c = columns_[col];
+    const impl::Storage::DataPointer& p = column_storage_data_ptrs_[col];
     uint32_t idx = pos_[params_.col_to_output_offset[col]];
     if (idx == std::numeric_limits<uint32_t>::max()) {
       cell_callback_impl.OnCell(nullptr);
       return;
     }
-    switch (c.storage.type().index()) {
+    switch (p.index()) {
       case StorageType::GetTypeIndex<Id>():
         cell_callback_impl.OnCell(idx);
         break;
       case StorageType::GetTypeIndex<Uint32>():
-        cell_callback_impl.OnCell(c.storage.unchecked_data<Uint32>()[idx]);
+        cell_callback_impl.OnCell(impl::Storage::CastDataPtr<Uint32>(p)[idx]);
         break;
       case StorageType::GetTypeIndex<Int32>():
-        cell_callback_impl.OnCell(c.storage.unchecked_data<Int32>()[idx]);
+        cell_callback_impl.OnCell(impl::Storage::CastDataPtr<Int32>(p)[idx]);
         break;
       case StorageType::GetTypeIndex<Int64>():
-        cell_callback_impl.OnCell(c.storage.unchecked_data<Int64>()[idx]);
+        cell_callback_impl.OnCell(impl::Storage::CastDataPtr<Int64>(p)[idx]);
         break;
       case StorageType::GetTypeIndex<Double>():
-        cell_callback_impl.OnCell(c.storage.unchecked_data<Double>()[idx]);
+        cell_callback_impl.OnCell(impl::Storage::CastDataPtr<Double>(p)[idx]);
         break;
       case StorageType::GetTypeIndex<String>():
         cell_callback_impl.OnCell(
-            pool_->Get(c.storage.unchecked_data<String>()[idx]));
+            pool_->Get(impl::Storage::CastDataPtr<String>(p)[idx]));
         break;
       default:
         PERFETTO_FATAL("Invalid storage spec");
@@ -136,8 +145,8 @@ class Cursor {
   impl::bytecode::Interpreter<FilterValueFetcherImpl> interpreter_;
   // Parameters for query execution.
   impl::QueryPlan::ExecutionParams params_;
-  // Pointer to the dataframe columns.
-  const impl::Column* columns_;
+  // Variant of pointers to the storage data.
+  std::vector<impl::Storage::DataPointer> column_storage_data_ptrs_;
   // String pool for string values.
   const StringPool* pool_;
 

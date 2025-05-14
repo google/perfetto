@@ -23,20 +23,33 @@ def main():
       '-p',
       '--parent',
       metavar='parent_branch',
-      help='Parent branch (default: current)')
+      help='Parent branch (default: origin/main)')
+  parser.add_argument(
+      '--current-parent',
+      help='Sets the parent branch to the current branch. '
+      'Mutually exclusive with --parent.',
+      action='store_true',
+  )
   args = parser.parse_args()
 
-  parent_branch = args.parent
-  if not parent_branch:
+  if args.current_parent and args.parent:
+    print('Error: --current-parent and --parent are mutually exclusive.')
+    return 1
+
+  parent_branch = 'origin/main'
+  if args.parent:
+    parent_branch = args.parent
+  if args.current_parent:
     parent_branch = get_current_branch()
     if not parent_branch:
-      parent_branch = 'origin/main'
-      print(f"Warning: not on branch, using '{parent_branch}' as parent.")
+      print('Error: Unable to determine the current branch.')
+      return 1
 
-  run_git_command(['checkout', '-b', args.new_branch_name, parent_branch])
+  run_git_command(
+      ['checkout', '--no-track', '-b', args.new_branch_name, parent_branch])
   run_git_command(
       ['config', f'branch.{args.new_branch_name}.parent', parent_branch])
 
 
 if __name__ == "__main__":
-  main()
+  sys.exit(main())

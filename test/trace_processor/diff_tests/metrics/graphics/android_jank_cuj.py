@@ -199,15 +199,23 @@ def add_actual_surface_frame_events(ts,
   trace.add_frame_end_event(ts=ts + dur, cookie=100002 + cookie)
 
 
+def add_instant_event_in_thread(trace, ts, buf, pid, tid):
+  trace.add_atrace_instant(ts=ts, tid=tid, pid=pid, buf=buf)
+
+
 trace = synth_common.create_trace()
+first_cuj = "J<FIRST_CUJ>"
+shade_cuj = "J<SHADE_ROW_EXPAND>"
 
 trace.add_packet()
 trace.add_package_list(
     ts=0, name="com.android.systemui", uid=10001, version_code=1)
 trace.add_package_list(ts=0, name="android", uid=1000, version_code=1)
+
 trace.add_process(pid=PID, ppid=1, cmdline="com.android.systemui", uid=10001)
 trace.add_process(
     pid=SF_PID, ppid=1, cmdline="/system/bin/surfaceflinger", uid=1000)
+
 trace.add_thread(
     tid=RTID, tgid=PID, cmdline="RenderThread", name="RenderThread")
 trace.add_thread(
@@ -216,17 +224,36 @@ trace.add_thread(
     tid=JITID, tgid=PID, cmdline="Jit thread pool", name="Jit thread pool")
 trace.add_thread(
     tid=SF_RETID, tgid=SF_PID, cmdline="RenderEngine", name="RenderEngine")
+
 trace.add_process_track_descriptor(PROCESS_TRACK, pid=PID)
 trace.add_track_descriptor(FIRST_CUJ_TRACK, parent=PROCESS_TRACK)
 trace.add_track_descriptor(SHADE_CUJ_TRACK, parent=PROCESS_TRACK)
 trace.add_track_descriptor(CANCELED_CUJ_TRACK, parent=PROCESS_TRACK)
-trace.add_track_event_slice_begin(
-    ts=5, track=FIRST_CUJ_TRACK, name="J<FIRST_CUJ>")
-trace.add_track_event_slice_end(ts=100_000_000, track=FIRST_CUJ_TRACK)
-trace.add_track_event_slice_begin(
-    ts=10, track=SHADE_CUJ_TRACK, name="J<SHADE_ROW_EXPAND>")
-trace.add_track_event_slice_end(ts=901_000_010, track=SHADE_CUJ_TRACK)
-add_instant_for_track(trace, ts=11, track=SHADE_CUJ_TRACK, name="FT#layerId#0")
+trace.add_ftrace_packet(cpu=0)
+
+##############################
+add_instant_event_in_thread(
+    trace, ts=6, buf=first_cuj + "#UIThread", pid=PID, tid=PID)
+
+add_instant_event_in_thread(
+    trace, ts=11, buf=shade_cuj + "#UIThread", pid=PID, tid=PID)
+
+add_instant_for_track(
+    trace, ts=7, track=FIRST_CUJ_TRACK, name="FT#beginVsync#10")
+
+add_instant_for_track(trace, ts=15, track=FIRST_CUJ_TRACK, name="FT#layerId#0")
+
+add_instant_for_track(
+    trace, ts=100_000_000 - 1, track=FIRST_CUJ_TRACK, name="FT#endVsync#90")
+
+add_instant_for_track(
+    trace, ts=12, track=SHADE_CUJ_TRACK, name="FT#beginVsync#10")
+
+add_instant_for_track(trace, ts=20, track=SHADE_CUJ_TRACK, name="FT#layerId#0")
+
+add_instant_for_track(
+    trace, ts=900_000_000 - 1, track=SHADE_CUJ_TRACK, name="FT#endVsync#160")
+##############################
 add_instant_for_track(
     trace,
     ts=950_100_000,
@@ -237,6 +264,11 @@ add_instant_for_track(
     ts=950_100_000,
     track=SHADE_CUJ_TRACK,
     name="FT#MissedSFCallback#150")
+
+trace.add_track_event_slice_begin(ts=5, track=FIRST_CUJ_TRACK, name=first_cuj)
+trace.add_track_event_slice_end(ts=100_000_000, track=FIRST_CUJ_TRACK)
+trace.add_track_event_slice_begin(ts=10, track=SHADE_CUJ_TRACK, name=shade_cuj)
+trace.add_track_event_slice_end(ts=901_000_010, track=SHADE_CUJ_TRACK)
 
 trace.add_track_event_slice_begin(
     ts=100_100_000, track=CANCELED_CUJ_TRACK, name="J<CANCELED>")

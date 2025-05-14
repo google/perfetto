@@ -13,4 +13,9 @@
 # limitations under the License.
 
 wasm_toolchain = "//gn/standalone/toolchain:wasm"
-is_wasm = current_toolchain == wasm_toolchain
+wasm_memory64_toolchain = "//gn/standalone/toolchain:wasm_memory64"
+
+is_wasm = current_toolchain == wasm_toolchain ||
+          current_toolchain == wasm_memory64_toolchain
+is_wasm_memory32 = current_toolchain == wasm_toolchain
+is_wasm_memory64 = current_toolchain == wasm_memory64_toolchain
