@@ -34,6 +34,7 @@ template("wasm_lib") {
   # If the name is foo the target_name must be foo_wasm.
   assert(invoker.name + "_wasm" == target_name)
   _lib_name = invoker.name
+  _is_memory64 = defined(invoker.is_memory64) && invoker.is_memory64
   if (is_wasm) {
     _exports = "['ccall', 'callMain', 'addFunction', 'FS', 'HEAPU8']"
     _target_ldflags = [
@@ -114,21 +115,20 @@ template("wasm_lib") {
 
     executable("${_lib_name}.js") {
       forward_variables_from(invoker, _vars_to_forward)
-      ldflags = _target_ldflags + [
-                  "-s",
-                  "MAXIMUM_MEMORY=4GB",
-                ]
-      output_extension = ""
-    }
-    executable("${_lib_name}_memory64.js") {
-      forward_variables_from(invoker, _vars_to_forward)
-      ldflags = _target_ldflags + [
-                  "-s",
-                  "MEMORY64=1",
-                  "-s",
-                  "MAXIMUM_MEMORY=16GB",
-                  "-mwasm64",
-                ]
+      if (_is_memory64) {
+        ldflags = _target_ldflags + [
+                    "-s",
+                    "MEMORY64=1",
+                    "-s",
+                    "MAXIMUM_MEMORY=16GB",
+                    "-mwasm64",
+                  ]
+      } else {
+        ldflags = _target_ldflags + [
+                    "-s",
+                    "MAXIMUM_MEMORY=4GB",
+                  ]
+      }
       output_extension = ""
     }
 
@@ -147,41 +147,24 @@ template("wasm_lib") {
       args = [ "--noop" ]
       script = "//gn/standalone/build_tool_wrapper.py"
     }
-    action("${_lib_name}_memory64.wasm") {
-      inputs = []
-      deps = [ ":${_lib_name}_memory64.js" ]
-      outputs = [ "$root_out_dir/${_lib_name}_memory64.wasm" ]
-      if (is_debug) {
-        outputs += [ "$root_out_dir/${_lib_name}_memory64.wasm.map" ]
-      }
-      args = [ "--noop" ]
-      script = "//gn/standalone/build_tool_wrapper.py"
-    }
-
     copy("${_lib_name}.d.ts") {
       sources = [ "//gn/standalone/wasm_typescript_declaration.d.ts" ]
       outputs = [ "$root_out_dir/$_lib_name.d.ts" ]
-    }
-    copy("${_lib_name}_memory64.d.ts") {
-      sources = [ "//gn/standalone/wasm_typescript_declaration.d.ts" ]
-      outputs = [ "$root_out_dir/${_lib_name}_memory64.d.ts" ]
     }
   } else {  # is_wasm
     not_needed(invoker, "*")
   }
 
   group(target_name) {
+    if (_is_memory64) {
+      _wasm_32_or_64_toolchain = wasm_memory64_toolchain
+    } else {
+      _wasm_32_or_64_toolchain = wasm_toolchain
+    }
     deps = [
-      ":${_lib_name}.d.ts($wasm_toolchain)",
-      ":${_lib_name}.js($wasm_toolchain)",
-      ":${_lib_name}.wasm($wasm_toolchain)",
-    ]
-  }
-  group(invoker.name + "_memory64_wasm") {
-    deps = [
-      ":${_lib_name}_memory64.d.ts($wasm_memory64_toolchain)",
-      ":${_lib_name}_memory64.wasm($wasm_memory64_toolchain)",
-      ":${_lib_name}_memory64.js($wasm_memory64_toolchain)",
+      ":${_lib_name}.d.ts($_wasm_32_or_64_toolchain)",
+      ":${_lib_name}.js($_wasm_32_or_64_toolchain)",
+      ":${_lib_name}.wasm($_wasm_32_or_64_toolchain)",
     ]
   }
 }  # template
