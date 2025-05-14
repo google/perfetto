@@ -15,6 +15,7 @@
 source_set("art_hprof") {
   sources = [
     "art_heap_graph_builder.cc",
+    "art_heap_graph_resolver.cc",
     "art_hprof_parser.cc",
   ]
   deps = [ "../../../../gn:default_deps" ]

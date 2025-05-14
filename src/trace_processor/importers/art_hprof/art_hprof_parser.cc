@@ -20,7 +20,6 @@
 
 namespace perfetto::trace_processor::art_hprof {
 
-// ArtHprofTokenizer implementation
 ArtHprofParser::ArtHprofParser(TraceProcessorContext* ctx) : context_(ctx) {}
 
 ArtHprofParser::~ArtHprofParser() = default;
@@ -42,7 +41,6 @@ base::Status ArtHprofParser::Parse(TraceBlobView blob) {
 base::Status ArtHprofParser::NotifyEndOfFile() {
   const HeapGraph graph = parser_->BuildGraph();
 
-  // Get or create the process for this pid
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(0);
 
   if (graph.GetClassCount() == 0 || graph.GetObjectCount() == 0) {
@@ -177,7 +175,7 @@ void ArtHprofParser::PopulateClasses(
 
     // Intern strings for class metadata
     StringId name_id =
-        context_->storage->InternString(base::StringView(class_def.name()));
+        context_->storage->InternString(base::StringView(class_def.GetName()));
     StringId kind_id =
         context_->storage->InternString(base::StringView(kUnknownClassKind));
 
@@ -196,7 +194,7 @@ void ArtHprofParser::PopulateClasses(
 
   // Update superclass relationships
   for (const auto& [class_id, class_def] : graph.GetClasses()) {
-    uint64_t super_id = class_def.super_class_id();
+    uint64_t super_id = class_def.GetSuperClassId();
     if (super_id != 0) {
       auto current_it = class_map.find(class_id);
       auto super_it = class_map.find(super_id);
@@ -229,11 +227,12 @@ void ArtHprofParser::PopulateObjects(
     objects_processed++;
 
     // Resolve object's type
-    auto type_it = class_map.find(obj.class_id());
+    auto type_it = class_map.find(obj.GetClassId());
     if (type_it == class_map.end() &&
-        obj.object_type() != ObjectType::PRIMITIVE_ARRAY) {
+        obj.GetObjectType() != ObjectType::kPrimitiveArray) {
       PERFETTO_FATAL("Unknown class: %" PRIu64 ". Object type: %" PRIu8,
-                     obj.class_id(), static_cast<uint8_t>(obj.object_type()));
+                     obj.GetClassId(),
+                     static_cast<uint8_t>(obj.GetObjectType()));
     }
 
     // Create object row
@@ -241,22 +240,22 @@ void ArtHprofParser::PopulateObjects(
     object_row.upid = upid;
     object_row.graph_sample_ts = ts;
     object_row.self_size = static_cast<int64_t>(obj.GetSize());
-    object_row.native_size = 0;
+    object_row.native_size = obj.GetNativeSize();
     object_row.reference_set_id = std::nullopt;
-    object_row.reachable = obj.is_reachable();
+    object_row.reachable = obj.IsReachable();
     object_row.type_id =
         type_it != class_map.end() ? type_it->second : unknown_class_id;
 
     // Handle heap type
     StringId heap_type_id =
-        context_->storage->InternString(base::StringView(obj.heap_type()));
+        context_->storage->InternString(base::StringView(obj.GetHeapType()));
     object_row.heap_type = heap_type_id;
 
     // Handle root type
-    if (obj.is_root() && obj.root_type().has_value()) {
+    if (obj.IsRoot() && obj.GetRootType().has_value()) {
       // Convert root type enum to string
       std::string root_type_str =
-          HeapGraph::GetRootTypeName(obj.root_type().value());
+          HeapGraph::GetRootTypeName(obj.GetRootType().value());
       StringId root_type_id = context_->storage->InternString(
           base::StringView(root_type_str.data(), root_type_str.size()));
       object_row.root_type = root_type_id;
@@ -289,7 +288,7 @@ void ArtHprofParser::PopulateReferences(
   // Step 1: Collect all references
   PERFETTO_DLOG("Collecting references from objects...");
   for (const auto& [obj_id, obj] : graph.GetObjects()) {
-    const auto& refs = obj.references();
+    const auto& refs = obj.GetReferences();
     if (!refs.empty()) {
       refs_by_owner[obj_id].insert(refs_by_owner[obj_id].end(), refs.begin(),
                                    refs.end());
@@ -317,7 +316,7 @@ void ArtHprofParser::PopulateReferences(
   std::unordered_map<uint64_t, tables::HeapGraphClassTable::Id> class_map;
   for (const auto& [class_id, class_def] : graph.GetClasses()) {
     StringId name_id =
-        context_->storage->InternString(base::StringView(class_def.name()));
+        context_->storage->InternString(base::StringView(class_def.GetName()));
 
     // Find the class ID in the table
     for (uint32_t i = 0; i < class_table.row_count(); i++) {

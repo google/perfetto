@@ -22,28 +22,21 @@
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
-#include <cstdint>
-#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include <cstdint>
-#include <memory>
-#include <optional>
+#include <cinttypes>
 #include <string>
-#include <string_view>
 #include <unordered_map>
-#include <vector>
 
 namespace perfetto::trace_processor::art_hprof {
+constexpr const char* kJavaLangObject = "java.lang.Object";
+constexpr const char* kUnknownClassKind = "[unknown class kind]";
 
-/**
- * Tokenizer for ART HPROF data that handles chunked input.
- */
 class ArtHprofParser : public ChunkedTraceReader {
  public:
   explicit ArtHprofParser(TraceProcessorContext* context);
@@ -71,9 +64,6 @@ class ArtHprofParser : public ChunkedTraceReader {
       const std::unordered_map<uint64_t, tables::HeapGraphObjectTable::Id>&
           object_map);
 
-  /**
-   * ByteIterator implementation for TraceBlobView.
-   */
   class TraceBlobViewIterator : public ByteIterator {
    public:
     explicit TraceBlobViewIterator(util::TraceBlobViewReader&& reader);
