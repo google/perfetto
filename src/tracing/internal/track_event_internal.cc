@@ -265,9 +265,10 @@ void TrackEventInternal::EnableRegistry(
 
 // static
 void TrackEventInternal::EnableTracing(
-    const std::vector<const TrackEventCategoryRegistry*> registries,
     const protos::gen::TrackEventConfig& config,
     const DataSourceBase::SetupArgs& args) {
+  std::unique_lock<std::mutex> lock(GetTrackEventCategoryMutex());
+  auto registries = GetTrackEventCategoryRegistries();
   for (const auto& registry : registries) {
     for (size_t i = 0; i < registry->category_count(); i++) {
       if (IsCategoryEnabled(*registry, config, *registry->GetCategory(i)))

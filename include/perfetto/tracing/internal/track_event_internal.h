@@ -199,10 +199,8 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
   static void EnableRegistry(const TrackEventCategoryRegistry* registry,
                              const protos::gen::TrackEventConfig& config,
                              uint32_t internal_instance_index);
-  static void EnableTracing(
-      const std::vector<const TrackEventCategoryRegistry*> registries,
-      const protos::gen::TrackEventConfig& config,
-      const DataSourceBase::SetupArgs&);
+  static void EnableTracing(const protos::gen::TrackEventConfig& config,
+                            const DataSourceBase::SetupArgs&);
   static void OnStart(
       const std::vector<const TrackEventCategoryRegistry*> registries,
       const DataSourceBase::StartArgs&);

@@ -233,8 +233,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
     auto config_raw = args.config->track_event_config_raw();
     bool ok = config_.ParseFromArray(config_raw.data(), config_raw.size());
     PERFETTO_DCHECK(ok);
-    TrackEventInternal::EnableTracing(TrackEventInternal::GetRegistries(),
-                                      config_, args);
+    TrackEventInternal::EnableTracing(config_, args);
   }
 
   void OnStart(const DataSourceBase::StartArgs& args) override;
