@@ -71,7 +71,7 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
             `div${probe.image ? '' : '.extended-desc'}`,
             m(
               'div',
-              probe.description,
+              formatDescription(probe.description),
               probe.docsLink && m(DocsChip, {href: probe.docsLink}),
             ),
             m(
@@ -83,4 +83,36 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
           ),
     );
   }
+}
+
+/** Formats the probe.description turning ``` blocks into code snippets */
+function formatDescription(input: string | undefined): m.Children {
+  if (input === undefined) return [];
+
+  const result: m.Children = [];
+  const regex = /```(.*?)```/gs;
+  let lastIndex = 0;
+
+  for (const match of input.matchAll(regex)) {
+    const [fullMatch, codeContent] = match;
+    const matchStart = match.index ?? 0;
+
+    // Add preceding plain text
+    if (matchStart > lastIndex) {
+      const text = input.slice(lastIndex, matchStart);
+      result.push(m('div', text));
+    }
+
+    // Add code block
+    result.push(m('code', codeContent));
+
+    lastIndex = matchStart + fullMatch.length;
+  }
+
+  // Add remaining text after last match
+  if (lastIndex < input.length) {
+    result.push(m('div', input.slice(lastIndex)));
+  }
+
+  return result;
 }
