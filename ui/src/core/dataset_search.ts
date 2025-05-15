@@ -52,10 +52,28 @@ export async function searchTrackEvents(
   searchTerm: string,
 ): Promise<SearchResult[]> {
   const trackGroups = buildTrackGroups(tracks);
-  const searchLiteral = escapeSearchQuery(searchTerm);
+
   // TODO(stevegolton): We currently only search for names but in the future we
   // will allow more search facets to be defined.
-  return await searchNames(trackGroups, searchLiteral, engine);
+  const names = await searchNames(trackGroups, searchTerm, engine);
+  const ids = await searchIds(trackGroups, searchTerm, engine);
+  const results = names.concat(ids);
+
+  // Remove duplicates from the results
+  const uniqueResults = new Map<string, SearchResult>();
+  for (const result of results) {
+    const key = `${result.id}-${result.ts}`;
+    if (!uniqueResults.has(key)) {
+      uniqueResults.set(key, result);
+    }
+  }
+
+  // Sort the results by timestamp
+  const sortedResults = Array.from(uniqueResults.values()).sort((a, b) =>
+    Number(a.ts - b.ts),
+  );
+
+  return sortedResults;
 }
 
 function buildTrackGroups(
@@ -133,10 +151,10 @@ function normalizeMapKey(value: SqlValue): SqlValue {
 
 async function searchNames(
   trackGroups: Map<string, TrackGroup>,
-  searchLiteral: string,
+  searchTerm: string,
   engine: Engine,
 ): Promise<SearchResult[]> {
-  const searchResults: SearchResult[] = [];
+  let searchResults: SearchResult[] = [];
 
   // Process each track group
   for (const trackGroup of trackGroups.values()) {
@@ -147,8 +165,42 @@ async function searchNames(
       schema: trackGroup.schema,
     });
     if (groupDataset.implements({id: NUM, ts: LONG, name: STR_NULL})) {
-      const results = await searchTrackGroup(trackGroup, searchLiteral, engine);
-      searchResults.push(...results);
+      const results = await searchTrackGroup(
+        trackGroup,
+        `name GLOB ${escapeSearchQuery(searchTerm)}`,
+        engine,
+      );
+      searchResults = searchResults.concat(results);
+    }
+  }
+
+  return searchResults;
+}
+
+async function searchIds(
+  trackGroups: Map<string, TrackGroup>,
+  searchTerm: string,
+  engine: Engine,
+): Promise<SearchResult[]> {
+  // Check if the search term is can be parsed into a number.
+  const id = Number(searchTerm);
+  if (isNaN(id)) {
+    return [];
+  }
+
+  let searchResults: SearchResult[] = [];
+
+  // Process each track group
+  for (const trackGroup of trackGroups.values()) {
+    // Only search track groups that implement the required schema
+    // The schema check ensures 'id', 'ts' columns exist.
+    const groupDataset = new SourceDataset({
+      src: trackGroup.src,
+      schema: trackGroup.schema,
+    });
+    if (groupDataset.implements({id: NUM, ts: LONG})) {
+      const results = await searchTrackGroup(trackGroup, `id = ${id}`, engine);
+      searchResults = searchResults.concat(results);
     }
   }
 
@@ -157,7 +209,7 @@ async function searchNames(
 
 async function searchTrackGroup(
   trackGroup: TrackGroup,
-  searchLiteral: string,
+  condition: string,
   engine: Engine,
 ): Promise<SearchResult[]> {
   const results: SearchResult[] = [];
@@ -175,7 +227,7 @@ async function searchTrackGroup(
     SELECT
       ${selectCols.join(', ')}
     FROM (${trackGroup.src})
-    WHERE name GLOB ${searchLiteral}
+    WHERE ${condition}
   `;
   const result = await engine.query(query);
 
