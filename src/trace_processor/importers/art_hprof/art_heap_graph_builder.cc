@@ -15,10 +15,8 @@
  */
 
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
-#include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
+#include <cinttypes>
 
-#include <unordered_map>
 namespace perfetto::trace_processor::art_hprof {
 
 constexpr std::array<std::pair<const char*, FieldType>, 8> kPrimitiveArrayTypes{

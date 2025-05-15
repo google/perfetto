@@ -18,5 +18,8 @@ source_set("art_hprof") {
     "art_heap_graph_resolver.cc",
     "art_hprof_parser.cc",
   ]
-  deps = [ "../../../../gn:default_deps" ]
+  deps = [
+    "../../../../gn:base_platform",
+    "../../../../gn:default_deps",
+  ]
 }
