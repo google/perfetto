@@ -8,6 +8,8 @@ explore multi-GB traces.
 
 ![Perfetto stack](/docs/images/perfetto-stack.svg)
 
+
+
 ## Recording traces
 
 At its core, Perfetto introduces a novel userspace-to-userspace
