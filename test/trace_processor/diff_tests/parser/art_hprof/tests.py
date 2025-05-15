@@ -104,7 +104,7 @@ class ArtHprofParser(TestSuite):
         trace=DataPath('test-dump.hprof'),
         query="""
           SELECT * FROM heap_graph_reference
-          ORDER BY field_name, id
+          ORDER BY field_name, id, reference_set_id, owner_id
           LIMIT 10
         """,
         out=Csv('''
