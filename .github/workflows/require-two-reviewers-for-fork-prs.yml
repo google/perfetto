@@ -16,18 +16,20 @@
 # non-googlers) have 2 reviews from repo collaborators.
 
 name: Enforce 2 collaborator reviews for fork PRs
+run-name: Check reviewers on ${{ github.event.pull_request.number }}
 
 on:
   pull_request_review:
     types: [submitted, edited, dismissed]
   pull_request_target:
-    types: [synchronize]
+    types: [synchronize, opened, reopened, ready_for_review, review_requested, edited]
 
 permissions:
   pull-requests: read
 
 jobs:
   enforce-reviews:
+    name: enforce-reviews
     runs-on: self-hosted
     steps:
       - name: Check if PR is from a fork
