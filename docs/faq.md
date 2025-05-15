@@ -24,7 +24,8 @@ tools/open_trace_in_ui -i /path/to/trace
 
 The JSON trace format is considered a legacy trace format and is supported on a
 best-effort basis. While we try our best to maintain compatibility with the
-chrome://tracing UI and the [format spec](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview#heading=h.nso4gcezn7n1)
+chrome://tracing UI and the
+[format spec](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview#heading=h.nso4gcezn7n1)
 in how events are parsed and displayed, this is not always possible.
 This is especially the case for traces which are programmatically generated
 outside of Chrome and depend on the implementation details of chrome://tracing.
@@ -61,7 +62,6 @@ an existing tracing system.
 The recommended approach for this is to emit Perfetto's native TrackEvent proto
 format. A reference guide for this is available
 [here](/docs/reference/synthetic-track-event.md).
-
 
 ## My app has multiple processes. How can see all of them in the same trace?
 

@@ -48,7 +48,7 @@ using perfetto::base::StripChars;
 using perfetto::base::StripPrefix;
 using perfetto::base::StripSuffix;
 using perfetto::base::ToUpper;
-using perfetto::base::Uppercase;
+using perfetto::base::Uppercasexxx;
 
 // Keep this value in sync with ProtoDecoder::kMaxDecoderFieldId. If they go out
 // of sync pbzero.h files will stop compiling, hitting the at() static_assert.
