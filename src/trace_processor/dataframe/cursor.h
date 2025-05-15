@@ -20,7 +20,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -89,7 +88,7 @@ class Cursor {
   }
 
   // Returns the index of the row in the table this cursor is pointing to.
-  PERFETTO_ALWAYS_INLINE uint32_t RowIndex() { return *pos_; }
+  PERFETTO_ALWAYS_INLINE uint32_t RowIndex() const { return *pos_; }
 
   // Advances the cursor to the next row of results.
   PERFETTO_ALWAYS_INLINE void Next() {
