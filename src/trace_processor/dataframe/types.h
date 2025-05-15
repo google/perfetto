@@ -17,10 +17,14 @@ struct Index {
       : columns_(std::move(_columns)),
         permutation_vector_(std::move(_permutation_vector)) {}
 
+  // Returns a copy of this index.
   Index Copy() const { return *this; }
 
+  // Returns the columns which this index was created on.
   const std::vector<uint32_t>& columns() const { return columns_; }
 
+  // Returns the permutation vector which would to order the `columns` in the
+  // dataframe.
   const std::shared_ptr<std::vector<uint32_t>>& permutation_vector() const {
     return permutation_vector_;
   }

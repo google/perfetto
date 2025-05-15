@@ -114,8 +114,9 @@ using MinMaxOp = TypeSet<MinOp, MaxOp>;
 // TypeSet containing all the non-id storage types.
 using NonIdStorageType = TypeSet<Uint32, Int32, Int64, Double, String>;
 
-// Typeset containing a simplified view of nullability for columns.
-using SimpleNullability = TypeSet<NonNull, SparseNull, DenseNull>;
+// TypeSet which collapses all of the sparse nullability types into a single
+// type.
+using SparseNullCollapsedNullability = TypeSet<NonNull, SparseNull, DenseNull>;
 
 // TypeSet of all possible sparse nullability states.
 using SparseNullTypes = TypeSet<SparseNull,

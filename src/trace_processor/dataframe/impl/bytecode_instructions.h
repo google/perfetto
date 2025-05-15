@@ -521,7 +521,7 @@ struct IndexPermutationVectorToSpan : Bytecode {
 // containing the span of permutation vector to consider. The span is updated
 // to only contain the indices which match the filter.
 struct IndexedFilterEqBase
-    : TemplatedBytecode2<NonIdStorageType, SimpleNullability> {
+    : TemplatedBytecode2<NonIdStorageType, SparseNullCollapsedNullability> {
   // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
   // is plucked from thin air and has no real foundation. Fix this by creating
   // benchmarks and backing it up with actual data.
