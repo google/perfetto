@@ -1842,9 +1842,14 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_art_hprof_art_hprof",
     srcs = [
+        "src/trace_processor/importers/art_hprof/art_heap_graph.h",
         "src/trace_processor/importers/art_hprof/art_heap_graph_builder.cc",
+        "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h",
         "src/trace_processor/importers/art_hprof/art_heap_graph_resolver.cc",
+        "src/trace_processor/importers/art_hprof/art_hprof_model.h",
         "src/trace_processor/importers/art_hprof/art_hprof_parser.cc",
+        "src/trace_processor/importers/art_hprof/art_hprof_parser.h",
+        "src/trace_processor/importers/art_hprof/art_hprof_types.h",
     ],
 )
 

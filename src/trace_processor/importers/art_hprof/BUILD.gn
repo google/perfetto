@@ -14,9 +14,14 @@
 
 source_set("art_hprof") {
   sources = [
+    "art_heap_graph.h",
     "art_heap_graph_builder.cc",
+    "art_heap_graph_builder.h",
     "art_heap_graph_resolver.cc",
+    "art_hprof_model.h",
     "art_hprof_parser.cc",
+    "art_hprof_parser.h",
+    "art_hprof_types.h",
   ]
   deps = [
     "../../../../gn:default_deps",
