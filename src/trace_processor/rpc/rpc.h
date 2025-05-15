@@ -61,7 +61,7 @@ class Rpc {
   // The unique_ptr argument is optional. If non-null it will adopt the passed
   // instance and allow to directly query that. If null, a new instanace will be
   // created internally by calling Parse().
-  explicit Rpc(std::unique_ptr<TraceProcessor>);
+  explicit Rpc(std::unique_ptr<TraceProcessor>, bool has_preloaded_eof);
   Rpc();
   ~Rpc();
 
