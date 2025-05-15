@@ -1043,7 +1043,7 @@ TEST(DataframeTest, TypedCursorSetMultipleTimes) {
   {
     auto cursor =
         df.CreateTypedCursorUnchecked(kSpec, {FilterSpec{1, 0, Eq{}, {}}}, {});
-    cursor.SetFilterValues(20u);
+    cursor.SetFilterValues(int64_t(20));
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
     ASSERT_EQ(cursor.GetCellUnchecked<1>(), 20u);
