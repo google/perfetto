@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -250,6 +251,16 @@ class NullStorage {
     // 1 = non-null element in storage.
     // 0 = null with no corresponding entry in storage.
     BitVector bit_vector;
+
+    // For each word in the bit vector, this contains the indices of the
+    // corresponding elements in `Storage` that are set.
+    //
+    // Note: this vector exists for a *very specific* usecase: when we need to
+    // handle a GetCell() call on a column which is sparsely null. Note that
+    // this *cannot* be used for SetCell columns because that would be O(n) and
+    // very inefficient. In those cases, we need to use DenseNull and accept the
+    // memory bloat.
+    FlexVector<uint32_t> prefix_popcount_for_cell_get;
   };
 
   // Used for nullable columns where nulls reserve a slot in `Storage`.
@@ -260,28 +271,59 @@ class NullStorage {
   };
 
   NullStorage(NonNull n) : nullability_(dataframe::NonNull{}), data_(n) {}
-  NullStorage(SparseNull s)
+  NullStorage(SparseNull s, dataframe::SparseNull = dataframe::SparseNull{})
       : nullability_(dataframe::SparseNull{}), data_(std::move(s)) {}
+  NullStorage(SparseNull s, dataframe::SparseNullSupportingCellGetAlways)
+      : nullability_(dataframe::SparseNullSupportingCellGetAlways{}),
+        data_(std::move(s)) {}
+  NullStorage(SparseNull s,
+              dataframe::SparseNullSupportingCellGetUntilFinalization)
+      : nullability_(dataframe::SparseNullSupportingCellGetUntilFinalization{}),
+        data_(std::move(s)) {}
   NullStorage(DenseNull d)
       : nullability_(dataframe::DenseNull{}), data_(std::move(d)) {}
 
   // Type-safe unchecked access to variant data.
   template <typename T>
-  T& unchecked_get() {
-    return base::unchecked_get<T>(data_);
+  auto& unchecked_get() {
+    if constexpr (std::is_same_v<T, dataframe::NonNull>) {
+      return base::unchecked_get<NonNull>(data_);
+    } else if constexpr (
+        std::is_same_v<T, dataframe::SparseNull> ||
+        std::is_same_v<T, dataframe::SparseNullSupportingCellGetAlways> ||
+        std::is_same_v<
+            T, dataframe::SparseNullSupportingCellGetUntilFinalization>) {
+      return base::unchecked_get<SparseNull>(data_);
+    } else if constexpr (std::is_same_v<T, dataframe::DenseNull>) {
+      return base::unchecked_get<DenseNull>(data_);
+    } else {
+      static_assert(!std::is_same_v<T, T>, "Invalid type");
+    }
   }
 
   template <typename T>
-  const T& unchecked_get() const {
-    return base::unchecked_get<T>(data_);
+  const auto& unchecked_get() const {
+    if constexpr (std::is_same_v<T, dataframe::NonNull>) {
+      return base::unchecked_get<NonNull>(data_);
+    } else if constexpr (
+        std::is_same_v<T, dataframe::SparseNull> ||
+        std::is_same_v<T, dataframe::SparseNullSupportingCellGetAlways> ||
+        std::is_same_v<
+            T, dataframe::SparseNullSupportingCellGetUntilFinalization>) {
+      return base::unchecked_get<SparseNull>(data_);
+    } else if constexpr (std::is_same_v<T, dataframe::DenseNull>) {
+      return base::unchecked_get<DenseNull>(data_);
+    } else {
+      static_assert(!std::is_same_v<T, T>, "Invalid type");
+    }
   }
 
   BitVector& GetNullBitVector() {
     switch (data_.index()) {
       case TypeIndex<SparseNull>():
-        return unchecked_get<SparseNull>().bit_vector;
+        return unchecked_get<dataframe::SparseNull>().bit_vector;
       case TypeIndex<DenseNull>():
-        return unchecked_get<DenseNull>().bit_vector;
+        return unchecked_get<dataframe::DenseNull>().bit_vector;
       default:
         PERFETTO_FATAL("Unsupported overlay type");
     }
@@ -289,9 +331,9 @@ class NullStorage {
   const BitVector& GetNullBitVector() const {
     switch (data_.index()) {
       case TypeIndex<SparseNull>():
-        return unchecked_get<SparseNull>().bit_vector;
+        return unchecked_get<dataframe::SparseNull>().bit_vector;
       case TypeIndex<DenseNull>():
-        return unchecked_get<DenseNull>().bit_vector;
+        return unchecked_get<dataframe::DenseNull>().bit_vector;
       default:
         PERFETTO_FATAL("Unsupported overlay type");
     }

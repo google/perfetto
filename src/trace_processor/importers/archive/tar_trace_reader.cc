@@ -259,6 +259,18 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseMetadata() {
                            size.status().message().c_str());
   }
 
+  // Ensure the size fits within `size_t` to prevent issues on 32-bit platforms
+  // (e.g., in-browser environments) where `size_t` is smaller than `uint64_t`.
+  // `metadata_->size` is a `uint64_t`, but passing it to methods like
+  // `buffer_.SliceOff` (which take `size_t`) may cause overflow if it exceeds
+  // the max representable `size_t` value.
+  const uint64_t max_size = std::numeric_limits<size_t>::max();
+  if (std::greater<>()(size.value(), max_size)) {
+    // Return this specific message to ensure it is captured by the error
+    // dialog.
+    return base::ErrStatus("out of memory");
+  }
+
   metadata_.emplace();
   metadata_->size = size.value();
   metadata_->type_flag = *header.type_flag;
