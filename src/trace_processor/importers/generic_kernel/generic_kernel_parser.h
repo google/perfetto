@@ -60,14 +60,14 @@ class GenericKernelParser {
                                   StringId state_string_id,
                                   int32_t prio);
 
-  void InsertHangingSchedInfoForTid(
+  void InsertPendingStateInfoForTid(
       UniqueTid utid,
       SchedEventState::PendingSchedInfo sched_info);
 
-  std::optional<SchedEventState::PendingSchedInfo> GetHangingSchedInfoForTid(
+  std::optional<SchedEventState::PendingSchedInfo> GetPendingStateInfoForTid(
       UniqueTid utid);
 
-  void RemoveHangingSchedInfoForTid(UniqueTid utid);
+  void RemovePendingStateInfoForTid(UniqueTid utid);
 
   StringId TaskStateToStringId(int32_t state);
 

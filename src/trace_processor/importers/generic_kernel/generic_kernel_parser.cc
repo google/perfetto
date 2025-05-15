@@ -42,7 +42,7 @@ StringId GenericKernelParser::TaskStateToStringId(int32_t state) {
 }
 
 PERFETTO_ALWAYS_INLINE
-void GenericKernelParser::InsertHangingSchedInfoForTid(
+void GenericKernelParser::InsertPendingStateInfoForTid(
     UniqueTid utid,
     SchedEventState::PendingSchedInfo sched_info) {
   if (utid >= pending_state_per_utid_.size()) {
@@ -54,13 +54,13 @@ void GenericKernelParser::InsertHangingSchedInfoForTid(
 
 PERFETTO_ALWAYS_INLINE
 std::optional<SchedEventState::PendingSchedInfo>
-GenericKernelParser::GetHangingSchedInfoForTid(UniqueTid utid) {
+GenericKernelParser::GetPendingStateInfoForTid(UniqueTid utid) {
   return utid < pending_state_per_utid_.size() ? pending_state_per_utid_[utid]
                                                : std::nullopt;
 }
 
 PERFETTO_ALWAYS_INLINE
-void GenericKernelParser::RemoveHangingSchedInfoForTid(UniqueTid utid) {
+void GenericKernelParser::RemovePendingStateInfoForTid(UniqueTid utid) {
   if (utid < pending_state_per_utid_.size()) {
     pending_state_per_utid_[utid].reset();
   }
@@ -162,7 +162,7 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
     if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
       context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
                                                        kNullStringId);
-      InsertHangingSchedInfoForTid(pending_sched->last_utid, *pending_sched);
+      InsertPendingStateInfoForTid(pending_sched->last_utid, *pending_sched);
       rc = SCHED_SWITCH_START_WITH_PENDING;
     }
     // Start a new sched slice for the new task.
@@ -187,7 +187,7 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
   // Add end state to a previously ended context switch if applicable.
   // For the end state to be added the timestamp of the event must match
   // the timestamp of the previous context switch.
-  auto hanging_sched = GetHangingSchedInfoForTid(utid);
+  auto hanging_sched = GetPendingStateInfoForTid(utid);
   if (hanging_sched.has_value()) {
     auto sched_slice_idx = hanging_sched->pending_slice_storage_idx;
     auto close_ts =
@@ -195,7 +195,7 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
     if (ts == close_ts) {
       context_->sched_event_tracker->SetEndStateToSlice(sched_slice_idx,
                                                         state_string_id);
-      RemoveHangingSchedInfoForTid(utid);
+      RemovePendingStateInfoForTid(utid);
       return SCHED_SWITCH_UPDATE_END_STATE;
     }
   }
