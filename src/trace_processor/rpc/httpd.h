@@ -33,6 +33,7 @@ class TraceProcessor;
 // it can be an ipv4 or an ipv6 or a domain.
 // port_number is the port which http server will listen on.
 void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
+                      bool is_preloaded_eof,
                       const std::string& listen_ip,
                       const std::string& port_number);
 
