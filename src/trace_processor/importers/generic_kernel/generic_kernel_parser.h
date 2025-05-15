@@ -54,7 +54,7 @@ class GenericKernelParser {
   };
 
   SchedSwitchType PushSchedSwitch(int64_t ts,
-                                  int32_t cpu,
+                                  uint32_t cpu,
                                   uint32_t tid,
                                   UniqueTid utid,
                                   StringId state_string_id,
@@ -69,7 +69,7 @@ class GenericKernelParser {
 
   void RemovePendingStateInfoForTid(UniqueTid utid);
 
-  StringId TaskStateToStringId(int32_t state);
+  StringId TaskStateToStringId(size_t state);
 
   TraceProcessorContext* context_;
   // Keeps track of the latest context switches

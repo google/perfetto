@@ -22,7 +22,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "protos/perfetto/trace/generic/generic_event.pbzero.h"
+#include "protos/perfetto/trace/generic_kernel/generic_event.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -35,8 +35,8 @@ constexpr std::array<const char*, 8> kTaskStates = {
     "Created", "R", "Running", "S", "D", "T", "Z", "X"};
 
 PERFETTO_ALWAYS_INLINE
-StringId GenericKernelParser::TaskStateToStringId(int32_t state) {
-  return static_cast<uint32_t>(state) < kTaskStates.size()
+StringId GenericKernelParser::TaskStateToStringId(size_t state) {
+  return state < kTaskStates.size()
              ? context_->storage->InternString(kTaskStates[state])
              : kNullStringId;
 }
@@ -76,7 +76,7 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
   protos::pbzero::GenericTaskStateEvent::Decoder task_event(data);
 
   StringId comm_id = context_->storage->InternString(task_event.comm());
-  const int32_t cpu = task_event.cpu();
+  const uint32_t cpu = static_cast<uint32_t>(task_event.cpu());
   const uint32_t tid = static_cast<uint32_t>(task_event.tid());
   const int32_t prio = task_event.prio();
 
@@ -85,7 +85,8 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
   UniqueTid utid = context_->process_tracker->UpdateThreadName(
       tid, comm_id, ThreadNamePriority::kGenericKernelTask);
 
-  StringId state_string_id = TaskStateToStringId(task_event.state());
+  StringId state_string_id =
+      TaskStateToStringId(static_cast<size_t>(task_event.state()));
   if (state_string_id == kNullStringId) {
     context_->storage->IncrementStats(stats::task_state_invalid);
   }
@@ -117,7 +118,9 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
       // proceed to update the current thread's state.
       [[fallthrough]];
     }
-    default: {
+    case SCHED_SWITCH_START:
+    case SCHED_SWITCH_CLOSE:
+    case SCHED_SWITCH_NONE: {
       ThreadStateTracker::GetOrCreate(context_)->ClosePendingState(
           ts, utid, false /*data_loss*/);
 
@@ -149,7 +152,7 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
 // sched_slice table.
 GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
     int64_t ts,
-    int32_t cpu,
+    uint32_t cpu,
     uint32_t tid,
     UniqueTid utid,
     StringId state_string_id,
