@@ -730,6 +730,15 @@
       line-height: 20px;
     }
 
+    code {
+      background: #eee;
+      display: block;
+      padding: 5px;
+      margin: 5px 0;
+      border: 1px dotted #999;
+      white-space: pre-wrap;
+    }
+
     // .probe-config is showed only when the probe is enabled.
     .probe-config {
       @include transition(0.3s);
