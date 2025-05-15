@@ -824,12 +824,12 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
 }
 
 TEST(DataframeTest, Insert) {
-  static constexpr auto kSpec = Dataframe::CreateTypedSpec(
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
       {"id", "col2", "col3", "col4"},
-      Dataframe::CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
-      Dataframe::CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
-      Dataframe::CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
-      Dataframe::CreateTypedColumnSpec(String(), SparseNull(), Unsorted()));
+      CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
+      CreateTypedColumnSpec(String(), SparseNull(), Unsorted()));
   StringPool pool;
   Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
   df.InsertUnchecked(kSpec, std::monostate(), 10u, std::make_optional(0l),
@@ -842,13 +842,13 @@ TEST(DataframeTest, Insert) {
 }
 
 TEST(DataframeTest, GetCellAndSetCell) {
-  static constexpr auto kSpec = Dataframe::CreateTypedSpec(
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
       {"id", "col2", "col3", "col4"},
-      Dataframe::CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
-      Dataframe::CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
-      Dataframe::CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
-      Dataframe::CreateTypedColumnSpec(
-          String(), SparseNullSupportingCellGetAlways(), Unsorted()));
+      CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
+      CreateTypedColumnSpec(String(), SparseNullSupportingCellGetAlways(),
+                            Unsorted()));
   StringPool pool;
   Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
   df.InsertUnchecked(kSpec, std::monostate(), 10u, std::make_optional(0l),
@@ -873,13 +873,13 @@ TEST(DataframeTest, GetCellAndSetCell) {
 }
 
 TEST(DataframeTest, TypedCursor) {
-  static constexpr auto kSpec = Dataframe::CreateTypedSpec(
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
       {"id", "col2", "col3", "col4"},
-      Dataframe::CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
-      Dataframe::CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
-      Dataframe::CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
-      Dataframe::CreateTypedColumnSpec(
-          String(), SparseNullSupportingCellGetAlways(), Unsorted()));
+      CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
+      CreateTypedColumnSpec(String(), SparseNullSupportingCellGetAlways(),
+                            Unsorted()));
   StringPool pool;
   Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
   df.InsertUnchecked(kSpec, std::monostate(), 10u, std::make_optional(0l),
@@ -913,13 +913,13 @@ TEST(DataframeTest, TypedCursor) {
 }
 
 TEST(DataframeTest, TypedCursorSetMultipleTimes) {
-  static constexpr auto kSpec = Dataframe::CreateTypedSpec(
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
       {"id", "col2", "col3", "col4"},
-      Dataframe::CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
-      Dataframe::CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
-      Dataframe::CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
-      Dataframe::CreateTypedColumnSpec(
-          String(), SparseNullSupportingCellGetAlways(), Unsorted()));
+      CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
+      CreateTypedColumnSpec(String(), SparseNullSupportingCellGetAlways(),
+                            Unsorted()));
   StringPool pool;
   Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
   df.InsertUnchecked(kSpec, std::monostate(), 10u, std::make_optional(0l),
