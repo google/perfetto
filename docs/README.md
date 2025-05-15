@@ -10,6 +10,7 @@ explore multi-GB traces.
 
 
 
+
 ## Recording traces
 
 At its core, Perfetto introduces a novel userspace-to-userspace
