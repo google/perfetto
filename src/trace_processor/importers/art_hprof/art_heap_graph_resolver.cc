@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
 
-#include <unordered_map>
 #include <unordered_set>
 namespace perfetto::trace_processor::art_hprof {
 
@@ -25,8 +25,9 @@ T ReadBigEndian(const std::vector<uint8_t>& data,
                 size_t offset,
                 size_t length) {
   if (offset + length > data.size()) {
-    PERFETTO_FATAL("Out-of-bounds read: offset=%zu length=%zu data.size=%zu",
-                   offset, length, data.size());
+    PERFETTO_ELOG("Out-of-bounds read: offset=%zu length=%zu data.size=%zu",
+                  offset, length, data.size());
+    return 0;
   }
 
   T result = 0;
@@ -43,8 +44,8 @@ T ReadBigEndian(const std::vector<uint8_t>& data, size_t offset) {
 
 HeapGraphResolver::HeapGraphResolver(
     HprofHeader& header,
-    std::unordered_map<uint64_t, Object>& objects,
-    std::unordered_map<uint64_t, ClassDefinition>& classes,
+    base::FlatHashMap<uint64_t, Object>& objects,
+    base::FlatHashMap<uint64_t, ClassDefinition>& classes,
     DebugStats& stats)
     : header_(header), objects_(objects), classes_(classes), stats_(stats) {}
 
@@ -57,19 +58,18 @@ void HeapGraphResolver::ResolveGraph() {
 
   // Set native_size for native objects. See:
   CalculateNativeSizes();
-
-  stats_.Print();
 }
 
 void HeapGraphResolver::ExtractAllObjectData() {
-  for (auto& [id, obj] : objects_) {
+  for (auto it = objects_.GetIterator(); it; ++it) {
+    auto& obj = it.value();
     // Extract data based on object type
     if (obj.GetObjectType() == ObjectType::kInstance &&
         !obj.GetRawData().empty()) {
-      auto cls_it = classes_.find(obj.GetClassId());
-      if (cls_it != classes_.end()) {
-        ExtractObjectReferences(obj, cls_it->second);
-        ExtractFieldValues(obj, cls_it->second);
+      auto cls = classes_.Find(obj.GetClassId());
+      if (cls) {
+        ExtractObjectReferences(obj, *cls);
+        ExtractFieldValues(obj, *cls);
       }
     } else if (obj.GetObjectType() == ObjectType::kObjectArray) {
       ExtractArrayElementReferences(obj);
@@ -84,7 +84,9 @@ void HeapGraphResolver::MarkReachableObjects() {
   std::vector<uint64_t> processing_stack;
 
   // Add all root objects to the stack
-  for (auto& [id, obj] : objects_) {
+  for (auto it = objects_.GetIterator(); it; ++it) {
+    auto id = it.key();
+    auto& obj = it.value();
     if (obj.IsRoot()) {
       processing_stack.push_back(id);
       obj.SetReachable();
@@ -104,10 +106,10 @@ void HeapGraphResolver::MarkReachableObjects() {
 
     // Add reference targets to stack and mark them as reachable
     for (const auto& ref : obj.GetReferences()) {
-      auto it = objects_.find(ref.target_id);
-      if (it != objects_.end() && !it->second.IsReachable()) {
+      auto it = objects_.Find(ref.target_id);
+      if (it && !it->IsReachable()) {
         // Mark target as reachable
-        it->second.SetReachable();
+        it->SetReachable();
 
         // Add to processing stack
         processing_stack.push_back(ref.target_id);
@@ -153,9 +155,9 @@ bool HeapGraphResolver::ExtractObjectReferences(Object& obj,
 
         if (target_id != 0) {
           uint64_t field_class_id = 0;
-          auto it = objects_.find(target_id);
-          if (it != objects_.end()) {
-            field_class_id = it->second.GetClassId();
+          auto it = objects_.Find(target_id);
+          if (it) {
+            field_class_id = it->GetClassId();
           }
 
           obj.AddReference(field.GetName(), field_class_id, target_id);
@@ -408,8 +410,8 @@ void HeapGraphResolver::ExtractPrimitiveArrayValues(Object& obj) {
 std::optional<std::string> HeapGraphResolver::DecodeJavaString(
     const Object& string_obj) const {
   // 1. Verify it's a java.lang.String object
-  auto cls_it = classes_.find(string_obj.GetClassId());
-  if (cls_it == classes_.end() || cls_it->second.GetName() != kJavaLangString)
+  auto cls = classes_.Find(string_obj.GetClassId());
+  if (!cls || cls->GetName() != kJavaLangString)
     return std::nullopt;
 
   uint64_t value_array_id = 0;
@@ -435,12 +437,11 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
     return std::nullopt;
 
   // 3. Get the backing array
-  auto arr_it = objects_.find(value_array_id);
-  if (arr_it == objects_.end())
+  auto array = objects_.Find(value_array_id);
+  if (!array)
     return std::nullopt;
 
-  const auto& array = arr_it->second;
-  size_t array_len = array.GetArrayElementCount();
+  size_t array_len = array->GetArrayElementCount();
   int32_t offset = offset_opt.value_or(0);
   int32_t count = count_opt.value_or(static_cast<int32_t>(array_len) - offset);
 
@@ -465,16 +466,16 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
     }
   };
 
-  switch (array.GetArrayElementType()) {
+  switch (array->GetArrayElementType()) {
     case FieldType::kByte: {
-      const auto& bytes = array.GetArrayData<uint8_t>();
+      const auto& bytes = array->GetArrayData<uint8_t>();
       for (int32_t i = 0; i < count; ++i)
         result.push_back(
             static_cast<char>(bytes[static_cast<size_t>(offset + i)]));
       return result;
     }
     case FieldType::kChar: {
-      const auto& chars = array.GetArrayData<uint16_t>();
+      const auto& chars = array->GetArrayData<uint16_t>();
       for (int32_t i = 0; i < count; ++i)
         append_utf8_from_utf16(chars[static_cast<size_t>(offset + i)]);
       return result;
@@ -517,19 +518,18 @@ std::vector<Field> HeapGraphResolver::GetClassHierarchyFields(
   // Follow class hierarchy to collect all fields
   uint64_t current_class_id = class_id;
   while (current_class_id != 0) {
-    auto it = classes_.find(current_class_id);
-    if (it == classes_.end()) {
+    auto cls = classes_.Find(current_class_id);
+    if (!cls) {
       break;
     }
 
-    const auto& cls = it->second;
-    const auto& fields = cls.GetInstanceFields();
+    const auto& fields = cls->GetInstanceFields();
 
     // Add fields from this class
     result.insert(result.end(), fields.begin(), fields.end());
 
     // Move up to superclass
-    current_class_id = cls.GetSuperClassId();
+    current_class_id = cls->GetSuperClassId();
   }
 
   return result;
@@ -540,13 +540,15 @@ void HeapGraphResolver::CalculateNativeSizes() {
       cleaners;  // (referent_id, thunk_id)
 
   // Find sun.misc.Cleaner objects
-  for (const auto& [obj_id, obj] : objects_) {
-    auto cls_it = classes_.find(obj.GetClassId());
-    if (cls_it == classes_.end()) {
+  for (auto it = objects_.GetIterator(); it; ++it) {
+    auto obj_id = it.key();
+    auto& obj = it.value();
+    auto cls = classes_.Find(obj.GetClassId());
+    if (!cls) {
       continue;
     }
 
-    if (cls_it->second.GetName() != kSunMiscCleaner) {
+    if (cls->GetName() != kSunMiscCleaner) {
       continue;
     }
 
@@ -578,13 +580,13 @@ void HeapGraphResolver::CalculateNativeSizes() {
 
   // Traverse cleaner chains to find NativeAllocationRegistry and attribute size
   for (const auto& [referent_id, thunk_id] : cleaners) {
-    auto thunk_it = objects_.find(thunk_id);
-    if (thunk_it == objects_.end()) {
+    auto thunk = objects_.Find(thunk_id);
+    if (!thunk) {
       continue;
     }
 
     std::optional<uint64_t> registry_id;
-    for (const auto& ref : thunk_it->second.GetReferences()) {
+    for (const auto& ref : thunk->GetReferences()) {
       if (ref.field_name == "this$0") {
         registry_id = ref.target_id;
         break;
@@ -595,12 +597,12 @@ void HeapGraphResolver::CalculateNativeSizes() {
       continue;
     }
 
-    auto registry_it = objects_.find(*registry_id);
-    if (registry_it == objects_.end()) {
+    auto registry = objects_.Find(*registry_id);
+    if (!registry) {
       continue;
     }
 
-    auto size_field_opt = registry_it->second.FindField("size");
+    auto size_field_opt = registry->FindField("size");
     if (!size_field_opt) {
       continue;
     }
@@ -610,9 +612,9 @@ void HeapGraphResolver::CalculateNativeSizes() {
       continue;
     }
 
-    auto referent_it = objects_.find(referent_id);
-    if (referent_it != objects_.end()) {
-      referent_it->second.AddNativeSize(native_size);
+    auto referent = objects_.Find(referent_id);
+    if (referent) {
+      referent->AddNativeSize(native_size);
     }
   }
 }

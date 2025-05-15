@@ -18,36 +18,35 @@
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 
+#include <unordered_map>
 namespace perfetto::trace_processor::art_hprof {
 
-const static std::unordered_map<std::string, FieldType>&
-GetPrimitiveArrayNameMap() {
-  static const auto* kMap = new std::unordered_map<std::string, FieldType>{
-      {"boolean[]", FieldType::kBoolean}, {"char[]", FieldType::kChar},
-      {"float[]", FieldType::kFloat},     {"double[]", FieldType::kDouble},
-      {"byte[]", FieldType::kByte},       {"short[]", FieldType::kShort},
-      {"int[]", FieldType::kInt},         {"long[]", FieldType::kLong},
-  };
-  return *kMap;
-}
+constexpr std::array<std::pair<const char*, FieldType>, 8> kPrimitiveArrayTypes{
+    {
+        {"boolean[]", FieldType::kBoolean},
+        {"char[]", FieldType::kChar},
+        {"float[]", FieldType::kFloat},
+        {"double[]", FieldType::kDouble},
+        {"byte[]", FieldType::kByte},
+        {"short[]", FieldType::kShort},
+        {"int[]", FieldType::kInt},
+        {"long[]", FieldType::kLong},
+    }};
 
 ByteIterator::~ByteIterator() = default;
 
-HeapGraphBuilder::HeapGraphBuilder(std::unique_ptr<ByteIterator> iterator)
-    : iterator_(std::move(iterator)) {}
+HeapGraphBuilder::HeapGraphBuilder(std::unique_ptr<ByteIterator> iterator,
+                                   TraceProcessorContext* context)
+    : iterator_(std::move(iterator)), context_(context) {}
 
 HeapGraphBuilder::~HeapGraphBuilder() = default;
 
 bool HeapGraphBuilder::Parse() {
   // Phase 1: Parse header
   if (!ParseHeader()) {
-    PERFETTO_FATAL("Failed to parse header");
+    PERFETTO_ELOG("Failed to parse header");
     return false;
   }
-
-  PERFETTO_DLOG("Format: %s", header_.GetFormat().c_str());
-  PERFETTO_DLOG("ID Size: %u", header_.GetIdSize());
-  PERFETTO_DLOG("Timestamp: %" PRIu64, header_.GetTimestamp());
 
   // Phase 2: Parse records until end of file
   size_t record_count = 0;
@@ -58,7 +57,7 @@ bool HeapGraphBuilder::Parse() {
     }
   }
 
-  PERFETTO_DLOG("Record count: %zu", record_count);
+  stats_.AddRecordCount(record_count);
 
   return true;
 }
@@ -69,18 +68,19 @@ HeapGraph HeapGraphBuilder::BuildGraph() {
       std::make_unique<HeapGraphResolver>(header_, objects_, classes_, stats_);
   resolver_->ResolveGraph();
 
+  stats_.Write(*context_->storage->mutable_hprof_stats_table());
   HeapGraph graph(header_.GetTimestamp());
 
-  for (const auto& entry : strings_) {
-    graph.AddString(entry.first, entry.second);
+  for (auto it = strings_.GetIterator(); it; ++it) {
+    graph.AddString(it.key(), it.value());
   }
 
-  for (auto& entry : classes_) {
-    graph.AddClass(entry.second);
+  for (auto it = classes_.GetIterator(); it; ++it) {
+    graph.AddClass(it.value());
   }
 
-  for (auto& entry : objects_) {
-    graph.AddObject(entry.second);
+  for (auto it = objects_.GetIterator(); it; ++it) {
+    graph.AddObject(it.value());
   }
 
   return graph;
@@ -170,9 +170,8 @@ bool HeapGraphBuilder::ParseUtf8StringRecord(uint32_t length) {
     return false;
   }
 
-  strings_[id] = str;
+  StoreString(id, str);
   stats_.string_count++;
-
   return true;
 }
 
@@ -200,11 +199,14 @@ bool HeapGraphBuilder::ParseClassDefinition() {
   classes_[class_obj_id] = class_def;
   stats_.class_count++;
 
-  const auto& primitive_map = GetPrimitiveArrayNameMap();
-  if (auto it = primitive_map.find(class_name); it != primitive_map.end()) {
-    prim_array_class_ids_[static_cast<size_t>(it->second)] = class_obj_id;
-    PERFETTO_DLOG("Registered class ID %" PRIu64 " for primitive array type %s",
-                  class_obj_id, class_name.c_str());
+  for (const auto& [type_name, field_type] : kPrimitiveArrayTypes) {
+    if (class_name == type_name) {
+      prim_array_class_ids_[static_cast<size_t>(field_type)] = class_obj_id;
+      PERFETTO_DLOG("Registered class ID %" PRIu64
+                    " for primitive array type %s",
+                    class_obj_id, class_name.c_str());
+      break;  // Found the match, no need to continue searching
+    }
   }
 
   return true;
@@ -271,7 +273,7 @@ bool HeapGraphBuilder::ParseHeapDumpRecord() {
   }
 
   // This should be unreachable given the logic above, but keeping it for safety
-  PERFETTO_FATAL("Unknown HEAP_DUMP sub-record tag: 0x%02x", tag_value);
+  PERFETTO_ELOG("Unknown HEAP_DUMP sub-record tag: 0x%02x", tag_value);
   return false;
 }
 
@@ -354,14 +356,14 @@ bool HeapGraphBuilder::ParseClassStructure() {
     return false;
 
   // Get class definition
-  auto it = classes_.find(class_id);
-  if (it == classes_.end()) {
-    PERFETTO_FATAL("Class not found in LOAD_CLASS");
+  auto cls = classes_.Find(class_id);
+  if (!cls) {
+    PERFETTO_ELOG("Class not found in LOAD_CLASS");
+    return false;
   }
 
-  ClassDefinition& cls = it->second;
-  cls.SetSuperClassId(super_class_id);
-  cls.SetInstanceSize(instance_size);
+  cls->SetSuperClassId(super_class_id);
+  cls->SetInstanceSize(instance_size);
 
   // Constant pool (ignored)
   uint16_t constant_pool_size;
@@ -388,10 +390,10 @@ bool HeapGraphBuilder::ParseClassStructure() {
     class_obj.SetHeapType(current_heap_);
   }
 
-  auto pending_it = pending_roots_.find(class_obj.GetId());
-  if (pending_it != pending_roots_.end()) {
-    class_obj.SetRootType(pending_it->second);
-    pending_roots_.erase(pending_it);
+  auto pending_root = pending_roots_.Find(class_obj.GetId());
+  if (pending_root) {
+    class_obj.SetRootType(*pending_root);
+    pending_roots_.Erase(class_obj.GetId());
   }
 
   uint16_t static_field_count;
@@ -418,9 +420,9 @@ bool HeapGraphBuilder::ParseClassStructure() {
       if (target_id != 0) {
         // Optional: infer the class of the referenced object
         uint64_t field_class_id = 0;
-        auto it_o = objects_.find(target_id);
-        if (it_o != objects_.end()) {
-          field_class_id = it_o->second.GetClassId();
+        auto it_o = objects_.Find(target_id);
+        if (it_o) {
+          field_class_id = it_o->GetClassId();
         }
 
         class_obj.AddReference(field_name, field_class_id, target_id);
@@ -453,7 +455,7 @@ bool HeapGraphBuilder::ParseClassStructure() {
     fields.emplace_back(field_name, static_cast<FieldType>(type_value));
   }
 
-  cls.SetInstanceFields(std::move(fields));
+  cls->SetInstanceFields(std::move(fields));
   return true;
 }
 
@@ -487,10 +489,10 @@ bool HeapGraphBuilder::ParseInstanceObject() {
   bool was_root = false;
   std::optional<HprofHeapRootTag> root_type;
 
-  auto it = objects_.find(object_id);
-  if (it != objects_.end()) {
-    was_root = it->second.IsRoot();
-    root_type = it->second.GetRootType();
+  auto it = objects_.Find(object_id);
+  if (it) {
+    was_root = it->IsRoot();
+    root_type = it->GetRootType();
   }
 
   // Overwrite or create object
@@ -502,10 +504,10 @@ bool HeapGraphBuilder::ParseInstanceObject() {
     obj.SetRootType(root_type.value());
   }
 
-  auto pending_it = pending_roots_.find(object_id);
-  if (pending_it != pending_roots_.end()) {
-    obj.SetRootType(pending_it->second);
-    pending_roots_.erase(pending_it);
+  auto pending = pending_roots_.Find(object_id);
+  if (pending) {
+    obj.SetRootType(*pending);
+    pending_roots_.Erase(object_id);
   }
 
   objects_[object_id] = std::move(obj);
@@ -551,10 +553,10 @@ bool HeapGraphBuilder::ParseObjectArrayObject() {
   obj.SetArrayElementType(FieldType::kObject);
   obj.SetHeapType(current_heap_);
 
-  auto pending_it = pending_roots_.find(obj.GetId());
-  if (pending_it != pending_roots_.end()) {
-    obj.SetRootType(pending_it->second);
-    pending_roots_.erase(pending_it);
+  auto pending = pending_roots_.Find(obj.GetId());
+  if (pending) {
+    obj.SetRootType(*pending);
+    pending_roots_.Erase(obj.GetId());
   }
 
   objects_[array_id] = std::move(obj);
@@ -595,12 +597,14 @@ bool HeapGraphBuilder::ParsePrimitiveArrayObject() {
   uint64_t class_id = 0;
   size_t element_type_index = static_cast<size_t>(element_type);
   if (element_type_index >= prim_array_class_ids_.size()) {
-    PERFETTO_FATAL("Invalid element type: %u", element_type_value);
+    PERFETTO_ELOG("Invalid element type: %u", element_type_value);
+    return false;
   } else {
     class_id = prim_array_class_ids_[element_type_index];
     if (class_id == 0) {
-      PERFETTO_FATAL("Unknown class ID for primitive array type: %u",
-                     element_type_value);
+      PERFETTO_ELOG("Unknown class ID for primitive array type: %u",
+                    element_type_value);
+      return false;
     }
   }
 
@@ -609,10 +613,10 @@ bool HeapGraphBuilder::ParsePrimitiveArrayObject() {
   obj.SetArrayElementType(element_type);
   obj.SetHeapType(current_heap_);
 
-  auto pending_it = pending_roots_.find(obj.GetId());
-  if (pending_it != pending_roots_.end()) {
-    obj.SetRootType(pending_it->second);
-    pending_roots_.erase(pending_it);
+  auto pending = pending_roots_.Find(obj.GetId());
+  if (pending) {
+    obj.SetRootType(*pending);
+    pending_roots_.Erase(obj.GetId());
   }
 
   objects_[array_id] = std::move(obj);
@@ -637,11 +641,16 @@ bool HeapGraphBuilder::ParseHeapName() {
 }
 
 std::string HeapGraphBuilder::LookupString(uint64_t id) const {
-  auto it = strings_.find(id);
-  if (it != strings_.end()) {
-    return it->second;
+  auto it = strings_.Find(id);
+  if (!it) {
+    return "[unknown string ID: " + std::to_string(id) + "]";
   }
-  return "[unknown string ID: " + std::to_string(id) + "]";
+  return context_->storage->GetString(*it).c_str();
+}
+
+void HeapGraphBuilder::StoreString(uint64_t id, const std::string& str) {
+  StringId interned_id = context_->storage->InternString(str);
+  strings_[id] = interned_id;
 }
 
 // ART outputs class names such as:
@@ -666,7 +675,8 @@ std::string HeapGraphBuilder::NormalizeClassName(const std::string& name) {
     // If there was an array type signature to start, then interpret the
     // class name as a type signature.
     if (normalized_name.empty()) {
-      PERFETTO_FATAL("Invalid type signature: empty after array dimensions");
+      PERFETTO_ELOG("Invalid type signature: empty after array dimensions");
+      return name;
     }
 
     char type_char = normalized_name[0];
@@ -698,14 +708,16 @@ std::string HeapGraphBuilder::NormalizeClassName(const std::string& name) {
       case 'L':
         // Remove the leading 'L' and trailing ';'
         if (normalized_name.back() != ';') {
-          PERFETTO_FATAL("Invalid object type signature: missing semicolon");
+          PERFETTO_ELOG("Invalid object type signature: missing semicolon");
+          return name;
         }
         normalized_name =
             normalized_name.substr(1, normalized_name.length() - 2);
         break;
       default:
-        PERFETTO_FATAL("Invalid type signature in class name: %s",
-                       normalized_name.c_str());
+        PERFETTO_ELOG("Invalid type signature in class name: %s",
+                      normalized_name.c_str());
+        return name;
     }
   }
 

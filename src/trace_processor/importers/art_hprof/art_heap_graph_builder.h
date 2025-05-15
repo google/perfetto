@@ -18,15 +18,17 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HEAP_GRAPH_BUILDER_H_
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_model.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_types.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace perfetto::trace_processor::art_hprof {
@@ -62,8 +64,9 @@ struct DebugStats {
   size_t primitive_array_count = 0;
   size_t root_count = 0;
   size_t reference_count = 0;
+  size_t record_count = 0;
 
-  void Print() {
+  void Write(tables::HprofStatsTable& table) {
     PERFETTO_DLOG(
         "DebugStats:\n"
         "  string_count: %zu\n"
@@ -73,10 +76,28 @@ struct DebugStats {
         "  object_array_count: %zu\n"
         "  primitive_array_count: %zu\n"
         "  root_count: %zu\n"
-        "  reference_count: %zu",
+        "  reference_count: %zu"
+        "  record_count: %zu",
         string_count, class_count, heap_dump_count, instance_count,
-        object_array_count, primitive_array_count, root_count, reference_count);
+        object_array_count, primitive_array_count, root_count, reference_count,
+        record_count);
+
+    tables::HprofStatsTable::Row stats_row;
+    stats_row.string_count = static_cast<int64_t>(string_count);
+    stats_row.class_count = static_cast<int64_t>(class_count);
+    stats_row.heap_dump_count = static_cast<int64_t>(heap_dump_count);
+    stats_row.instance_count = static_cast<int64_t>(instance_count);
+    stats_row.object_array_count = static_cast<int64_t>(object_array_count);
+    stats_row.primitive_array_count =
+        static_cast<int64_t>(primitive_array_count);
+    stats_row.root_count = static_cast<int64_t>(root_count);
+    stats_row.reference_count = static_cast<int64_t>(reference_count);
+    stats_row.record_count = static_cast<int64_t>(record_count);
+
+    table.Insert(stats_row);
   }
+
+  void AddRecordCount(size_t count) { record_count += count; }
 };
 
 // Resolves references, extracts field values, and builds the complete object
@@ -84,8 +105,8 @@ struct DebugStats {
 class HeapGraphResolver {
  public:
   HeapGraphResolver(HprofHeader& header,
-                    std::unordered_map<uint64_t, Object>& objects,
-                    std::unordered_map<uint64_t, ClassDefinition>& classes,
+                    base::FlatHashMap<uint64_t, Object>& objects,
+                    base::FlatHashMap<uint64_t, ClassDefinition>& classes,
                     DebugStats& stats);
 
   // Build the complete object graph with references and field values
@@ -115,15 +136,16 @@ class HeapGraphResolver {
 
   // Data references (not owned)
   HprofHeader& header_;
-  std::unordered_map<uint64_t, Object>& objects_;
-  std::unordered_map<uint64_t, ClassDefinition>& classes_;
+  base::FlatHashMap<uint64_t, Object>& objects_;
+  base::FlatHashMap<uint64_t, ClassDefinition>& classes_;
   DebugStats& stats_;
 };
 
 // Main parser class that builds a heap graph from HPROF data
 class HeapGraphBuilder {
  public:
-  explicit HeapGraphBuilder(std::unique_ptr<ByteIterator> iterator);
+  explicit HeapGraphBuilder(std::unique_ptr<ByteIterator> iterator,
+                            TraceProcessorContext* context);
   ~HeapGraphBuilder();
 
   // Disallow copy and move
@@ -185,6 +207,8 @@ class HeapGraphBuilder {
   // Look up a string by ID
   std::string LookupString(uint64_t id) const;
 
+  void StoreString(uint64_t id, const std::string& str);
+
   // Convert JVM class name to Java format
   static std::string NormalizeClassName(const std::string& name);
 
@@ -201,19 +225,20 @@ class HeapGraphBuilder {
   std::string current_heap_;
 
   // Data collections
-  std::unordered_map<uint64_t, std::string> strings_;
-  std::unordered_map<uint64_t, ClassDefinition> classes_;
-  std::unordered_map<uint64_t, Object> objects_;
+  base::FlatHashMap<uint64_t, StringId> strings_;
+  base::FlatHashMap<uint64_t, ClassDefinition> classes_;
+  base::FlatHashMap<uint64_t, Object> objects_;
 
   // Type mapping and root tracking
   std::array<uint64_t, 12> prim_array_class_ids_ = {};
-  std::unordered_map<uint64_t, HprofHeapRootTag> pending_roots_;
+  base::FlatHashMap<uint64_t, HprofHeapRootTag> pending_roots_;
 
   // Debug statistics
   DebugStats stats_;
 
   // Resolver for building the object graph
   std::unique_ptr<HeapGraphResolver> resolver_;
+  TraceProcessorContext* context_;
 };
 
 // Helper method

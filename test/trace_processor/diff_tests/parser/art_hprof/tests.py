@@ -43,16 +43,16 @@ class ArtHprofParser(TestSuite):
         """,
         out=Csv('''
                 "id","name","deobfuscated_name","location","superclass_id","classloader_id","kind"
-                 654,"DumpedStuff","[NULL]","[NULL]",1018,0,"[unknown class kind]"
-                 882,"Main","[NULL]","[NULL]",206,0,"[unknown class kind]"
-                 1018,"SuperDumpedStuff","[NULL]","[NULL]",206,0,"[unknown class kind]"
-                 794,"a","[NULL]","[NULL]",206,0,"[unknown class kind]"
-                 484,"a.a","[NULL]","[NULL]",206,0,"[unknown class kind]"
-                 1092,"a.b","[NULL]","[NULL]",206,0,"[unknown class kind]"
-                 4,"a.c","[NULL]","[NULL]",206,0,"[unknown class kind]"
-                 535,"android.compat.Compatibility","[NULL]","[NULL]",206,0,"[unknown class kind]"
-                 959,"android.graphics.a","[NULL]","[NULL]",206,0,"[unknown class kind]"
-                 436,"android.graphics.b","[NULL]","[NULL]",206,0,"[unknown class kind]"
+                 827,"DumpedStuff","[NULL]","[NULL]",264,0,"[unknown class kind]"
+                 50,"Main","[NULL]","[NULL]",346,0,"[unknown class kind]"
+                 264,"SuperDumpedStuff","[NULL]","[NULL]",346,0,"[unknown class kind]"
+                 488,"a","[NULL]","[NULL]",346,0,"[unknown class kind]"
+                 332,"a.a","[NULL]","[NULL]",346,0,"[unknown class kind]"
+                 1096,"a.b","[NULL]","[NULL]",346,0,"[unknown class kind]"
+                 365,"a.c","[NULL]","[NULL]",346,0,"[unknown class kind]"
+                 656,"android.compat.Compatibility","[NULL]","[NULL]",346,0,"[unknown class kind]"
+                 46,"android.graphics.a","[NULL]","[NULL]",346,0,"[unknown class kind]"
+                 483,"android.graphics.b","[NULL]","[NULL]",346,0,"[unknown class kind]"
         '''))
 
   def test_art_hprof_object_count_smoke(self):
@@ -76,16 +76,16 @@ class ArtHprofParser(TestSuite):
         """,
         out=Csv('''
                 "id","upid","graph_sample_ts","self_size","native_size","reference_set_id","reachable","heap_type","type_id","root_type","root_distance"
-                16663,1,1740172787560,0,0,8866,1,"app",0,"STICKY_CLASS",-1
-                6693,1,1740172787560,0,0,17071,1,"app",1,"STICKY_CLASS",-1
-                4422,1,1740172787560,0,0,19158,1,"app",2,"STICKY_CLASS",-1
-                10266,1,1740172787560,0,0,14116,1,"app",3,"STICKY_CLASS",-1
-                5038,1,1740172787560,0,0,18591,1,"app",4,"[NULL]",-1
-                11779,1,1740172787560,0,0,15731,1,"app",5,"STICKY_CLASS",-1
-                538,1,1740172787560,0,0,18355,1,"app",6,"STICKY_CLASS",-1
-                5603,1,1740172787560,9,0,17976,1,"app",6,"[NULL]",-1
-                12227,1,1740172787560,9,0,12456,1,"app",6,"[NULL]",-1
-                12429,1,1740172787560,0,0,12334,1,"app",7,"STICKY_CLASS",-1
+                 4239,1,1740172787560,20,0,3879,1,"app",0,"[NULL]",-1
+                 5646,1,1740172787560,20,0,5168,1,"app",0,"[NULL]",-1
+                 8855,1,1740172787560,20,0,8142,1,"app",0,"[NULL]",-1
+                 12738,1,1740172787560,20,0,11741,1,"app",0,"[NULL]",-1
+                 20760,1,1740172787560,20,0,19092,1,"app",0,"[NULL]",-1
+                 22693,1,1740172787560,0,0,20865,1,"app",0,"STICKY_CLASS",-1
+                 3237,1,1740172787560,0,0,2967,1,"app",1,"STICKY_CLASS",-1
+                 3238,1,1740172787560,0,0,2968,1,"app",2,"STICKY_CLASS",-1
+                 6399,1,1740172787560,0,0,5877,1,"app",3,"STICKY_CLASS",-1
+                 12854,1,1740172787560,0,0,11848,1,"app",4,"STICKY_CLASS",-1
         '''))
 
   def test_art_hprof_reference_count_smoke(self):
@@ -109,14 +109,14 @@ class ArtHprofParser(TestSuite):
         """,
         out=Csv('''
                 "id","reference_set_id","owner_id","owned_id","field_name","field_type_name","deobfuscated_field_name"
-                12090,5754,19835,5664,"$VALUES","java.lang.Object","[NULL]"
-                44178,19781,5496,4212,"$VALUES","java.lang.Object","[NULL]"
-                52626,23232,616,5418,"$VALUES","java.lang.Object","[NULL]"
-                5802,2828,22914,20708,"$class$classLoader","java.lang.Object","[NULL]"
-                9986,4794,20831,20708,"$class$classLoader","dalvik.system.PathClassLoader","[NULL]"
-                10080,4839,20783,20708,"$class$classLoader","dalvik.system.PathClassLoader","[NULL]"
-                10147,4870,20753,20708,"$class$classLoader","dalvik.system.PathClassLoader","[NULL]"
-                10374,4975,20641,20708,"$class$classLoader","java.lang.Object","[NULL]"
-                10440,5006,20608,20708,"$class$classLoader","java.lang.Object","[NULL]"
-                10496,5032,20582,20708,"$class$classLoader","java.lang.Object","[NULL]"
+                 44126,19995,21757,3576,"$VALUES","java.lang.Object","[NULL]"
+                 48070,21647,23537,4527,"$VALUES","java.lang.Object","[NULL]"
+                 52188,23204,25236,5788,"$VALUES","java.lang.Object","[NULL]"
+                 204,96,101,23897,"$class$classLoader","java.lang.Object","[NULL]"
+                 373,172,178,23897,"$class$classLoader","java.lang.Object","[NULL]"
+                 956,407,433,23897,"$class$classLoader","dalvik.system.PathClassLoader","[NULL]"
+                 3222,1465,1597,23897,"$class$classLoader","dalvik.system.PathClassLoader","[NULL]"
+                 4802,2185,2374,23897,"$class$classLoader","java.lang.Object","[NULL]"
+                 12957,5795,6310,23897,"$class$classLoader","java.lang.Object","[NULL]"
+                 14820,6545,7117,23897,"$class$classLoader","java.lang.Object","[NULL]"
         '''))

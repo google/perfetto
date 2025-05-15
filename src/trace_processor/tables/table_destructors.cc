@@ -93,6 +93,7 @@ ExperimentalFlamegraphTable::~ExperimentalFlamegraphTable() = default;
 HeapGraphObjectTable::~HeapGraphObjectTable() = default;
 HeapGraphClassTable::~HeapGraphClassTable() = default;
 HeapGraphReferenceTable::~HeapGraphReferenceTable() = default;
+HprofStatsTable::~HprofStatsTable() = default;
 VulkanMemoryAllocationsTable::~VulkanMemoryAllocationsTable() = default;
 PackageListTable::~PackageListTable() = default;
 ProfilerSmapsTable::~ProfilerSmapsTable() = default;

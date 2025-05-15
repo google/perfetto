@@ -17,11 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HEAP_GRAPH_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HEAP_GRAPH_H_
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_model.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 #include <cstdint>
 #include <string>
-#include <unordered_map>
 
 namespace perfetto::trace_processor::art_hprof {
 constexpr const char* kUnknownString = "[unknown string]";
@@ -30,8 +31,9 @@ class HeapGraph {
  public:
   HeapGraph(uint64_t timestamp) : timestamp_(timestamp) {}
 
-  HeapGraph(const HeapGraph&) = default;
-  HeapGraph& operator=(const HeapGraph&) = default;
+  // Delete copy constructor and assignment operator
+  HeapGraph(const HeapGraph&) = delete;
+  HeapGraph& operator=(const HeapGraph&) = delete;
   HeapGraph(HeapGraph&&) = default;
   HeapGraph& operator=(HeapGraph&&) = default;
   ~HeapGraph() = default;
@@ -42,23 +44,15 @@ class HeapGraph {
 
   void AddClass(ClassDefinition cls) { classes_[cls.GetId()] = std::move(cls); }
 
-  void AddString(uint64_t id, std::string string) {
-    strings_[id] = std::move(string);
+  void AddString(uint64_t id, StringId interned_id) {
+    strings_[id] = interned_id;
   }
 
-  std::string GetString(uint64_t id) const {
-    auto it = strings_.find(id);
-    if (it != strings_.end()) {
-      return it->second;
-    }
-    return kUnknownString;
-  }
-
-  const std::unordered_map<uint64_t, Object>& GetObjects() const {
+  const base::FlatHashMap<uint64_t, Object>& GetObjects() const {
     return objects_;
   }
 
-  const std::unordered_map<uint64_t, ClassDefinition>& GetClasses() const {
+  const base::FlatHashMap<uint64_t, ClassDefinition>& GetClasses() const {
     return classes_;
   }
 
@@ -101,10 +95,10 @@ class HeapGraph {
   }
 
  private:
-  std::unordered_map<uint64_t, Object> objects_;
-  std::unordered_map<uint64_t, ClassDefinition> classes_;
-  std::unordered_map<uint64_t, std::string> strings_;
-  std::unordered_map<uint32_t, std::string> heap_id_to_name_;
+  base::FlatHashMap<uint64_t, Object> objects_;
+  base::FlatHashMap<uint64_t, ClassDefinition> classes_;
+  base::FlatHashMap<uint64_t, StringId> strings_;
+  base::FlatHashMap<uint32_t, std::string> heap_id_to_name_;
   uint64_t timestamp_;
 };
 }  // namespace perfetto::trace_processor::art_hprof

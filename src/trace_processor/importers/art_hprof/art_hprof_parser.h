@@ -31,7 +31,6 @@
 
 #include <cinttypes>
 #include <string>
-#include <unordered_map>
 
 namespace perfetto::trace_processor::art_hprof {
 constexpr const char* kJavaLangObject = "java.lang.Object";
@@ -48,20 +47,20 @@ class ArtHprofParser : public ChunkedTraceReader {
  private:
   void PopulateClasses(
       const HeapGraph& graph,
-      std::unordered_map<uint64_t, tables::HeapGraphClassTable::Id>& class_map);
+      base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id>& class_map);
 
   void PopulateObjects(
       const HeapGraph& graph,
       int64_t ts,
       UniquePid upid,
-      const std::unordered_map<uint64_t, tables::HeapGraphClassTable::Id>&
+      const base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id>&
           class_map,
-      std::unordered_map<uint64_t, tables::HeapGraphObjectTable::Id>&
+      base::FlatHashMap<uint64_t, tables::HeapGraphObjectTable::Id>&
           object_map);
 
   void PopulateReferences(
       const HeapGraph& graph,
-      const std::unordered_map<uint64_t, tables::HeapGraphObjectTable::Id>&
+      const base::FlatHashMap<uint64_t, tables::HeapGraphObjectTable::Id>&
           object_map);
 
   class TraceBlobViewIterator : public ByteIterator {

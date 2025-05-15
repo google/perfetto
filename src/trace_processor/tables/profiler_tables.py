@@ -581,6 +581,47 @@ HEAP_GRAPH_REFERENCE_TABLE = Table(
                 deobfuscation mapping was provided for it.'''
         }))
 
+HPROF_STATS_TABLE = Table(
+    python_module=__file__,
+    class_name='HprofStatsTable',
+    sql_name='hprof_stats',
+    columns=[
+        C('string_count', CppInt64()),
+        C('class_count', CppInt64()),
+        C('heap_dump_count', CppInt64()),
+        C('instance_count', CppInt64()),
+        C('object_array_count', CppInt64()),
+        C('primitive_array_count', CppInt64()),
+        C('root_count', CppInt64()),
+        C('reference_count', CppInt64()),
+        C('record_count', CppInt64()),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+        Statistics gathered during HPROF parsing.
+        ''',
+        group='ART Heap Graphs',
+        columns={
+            'string_count':
+                '''Number of strings encountered.''',
+            'class_count':
+                '''Number of classes encountered.''',
+            'heap_dump_count':
+                '''Number of heap dumps encountered.''',
+            'instance_count':
+                '''Number of instances encountered.''',
+            'object_array_count':
+                '''Number of object arrays encountered.''',
+            'primitive_array_count':
+                '''Number of primitive arrays encountered.''',
+            'root_count':
+                '''Number of roots encountered.''',
+            'reference_count':
+                '''Number of references encountered.''',
+            'record_count':
+                '''Total number of records parsed from the HPROF dump.'''
+        }))
+
 VULKAN_MEMORY_ALLOCATIONS_TABLE = Table(
     python_module=__file__,
     class_name='VulkanMemoryAllocationsTable',
@@ -645,6 +686,7 @@ ALL_TABLES = [
     HEAP_GRAPH_CLASS_TABLE,
     HEAP_GRAPH_OBJECT_TABLE,
     HEAP_GRAPH_REFERENCE_TABLE,
+    HPROF_STATS_TABLE,
     INSTRUMENTS_SAMPLE_TABLE,
     HEAP_PROFILE_ALLOCATION_TABLE,
     PACKAGE_LIST_TABLE,
