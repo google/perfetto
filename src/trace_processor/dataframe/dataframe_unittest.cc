@@ -20,20 +20,24 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/dataframe_test_utils.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
 
@@ -101,28 +105,46 @@ class DataframeBytecodeTest : public ::testing::Test {
                        LimitSpec limit_spec,
                        const std::string& expected_bytecode,
                        uint64_t cols_used = 0xFFFFFFFF) {
-    // Sanitize cols_used to ensure it only references valid columns.
-    PERFETTO_CHECK(cols.size() < 64);
-    uint64_t sanitized_cols_used = cols_used & ((1ull << cols.size()) - 1ull);
-
     std::vector<std::string> col_names;
     col_names.reserve(cols.size());
     for (uint32_t i = 0; i < cols.size(); ++i) {
       col_names.emplace_back("col" + std::to_string(i));
     }
+    auto df = MakeDatafame(col_names, std::move(cols));
+    RunBytecodeTest(*df, filters, distinct_specs, sort_specs, limit_spec,
+                    expected_bytecode, cols_used);
+  }
+
+  static void RunBytecodeTest(const Dataframe& df,
+                              std::vector<FilterSpec>& filters,
+                              const std::vector<DistinctSpec>& distinct_specs,
+                              const std::vector<SortSpec>& sort_specs,
+                              LimitSpec limit_spec,
+                              const std::string& expected_bytecode,
+                              uint64_t cols_used = 0xFFFFFFFF) {
+    // Sanitize cols_used to ensure it only references valid columns.
+    PERFETTO_CHECK(df.column_names().size() < 64);
+    uint64_t sanitized_cols_used =
+        cols_used & ((1ull << df.column_names().size()) - 1ull);
+
+    ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
+                         df.PlanQuery(filters, distinct_specs, sort_specs,
+                                      limit_spec, sanitized_cols_used));
+    EXPECT_THAT(FormatBytecode(plan),
+                EqualsIgnoringWhitespace(expected_bytecode));
+  }
+
+  std::unique_ptr<Dataframe> MakeDatafame(std::vector<std::string> col_names,
+                                          std::vector<impl::Column> cols) {
     std::vector<std::shared_ptr<impl::Column>> col_fixed_vec;
     col_fixed_vec.reserve(cols.size());
     for (auto& col : cols) {
       col_fixed_vec.emplace_back(
           std::make_shared<impl::Column>(std::move(col)));
     }
-    std::unique_ptr<Dataframe> df(new Dataframe(
-        std::move(col_names), std::move(col_fixed_vec), 0, &string_pool_));
-    ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
-                         df->PlanQuery(filters, distinct_specs, sort_specs,
-                                       limit_spec, sanitized_cols_used));
-    EXPECT_THAT(FormatBytecode(plan),
-                EqualsIgnoringWhitespace(expected_bytecode));
+    return std::unique_ptr<Dataframe>(new Dataframe(false, std::move(col_names),
+                                                    std::move(col_fixed_vec), 0,
+                                                    &string_pool_));
   }
 
   StringPool string_pool_;
@@ -786,7 +808,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
   auto bv = impl::BitVector::CreateWithSize(0);
   std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
       impl::Storage::Uint32{},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv)}},
+      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
       Unsorted{}});
 
   std::vector<FilterSpec> filters;
@@ -808,9 +830,226 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
     StrideCopy: [source_register=Register(2), update_register=Register(6), stride=2]
     StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(4), update_register=Register(6), offset=1, stride=2]
   )";
-
   RunBytecodeTest(cols, filters, distinct_specs, sort_specs, limit_spec,
                   expected_bytecode, /*cols_used=*/1);
+}
+
+TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_NonNullInt) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"col1"}, CreateTypedColumnSpec(Uint32{}, NonNull{}, Unsorted{}));
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  for (uint32_t i = 0; i < 100; ++i) {
+    df.InsertUnchecked(kSpec, i);
+  }
+  df.MarkFinalized();
+
+  std::vector<uint32_t> p_vec(100);
+  std::iota(p_vec.begin(), p_vec.end(), 0);
+  df.AddIndex(
+      Index({0}, std::make_shared<std::vector<uint32_t>>(std::move(p_vec))));
+
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+  std::string expected_bytecode = R"(
+    InitRange: [size=100, dest_register=Register(0)]
+    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, NonNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
+    AllocateIndices: [size=100, dest_slab_register=Register(4), dest_span_register=Register(5)]
+    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(5)]
+  )";
+  RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode,
+                  /*cols_used=*/1);
+}
+
+TEST_F(DataframeBytecodeTest,
+       PlanQuery_SingleColIndex_EqFilter_NullableString) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"col_str_nullable"},
+      CreateTypedColumnSpec(String(), SparseNull(), Unsorted()));
+
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  df.InsertUnchecked(kSpec,
+                     std::make_optional(string_pool_.InternString("apple")));
+  df.InsertUnchecked(kSpec, std::nullopt);
+  df.InsertUnchecked(kSpec,
+                     std::make_optional(string_pool_.InternString("banana")));
+  df.InsertUnchecked(kSpec,
+                     std::make_optional(string_pool_.InternString("apple")));
+  df.MarkFinalized();
+  df.AddIndex(Index({0}, std::make_shared<std::vector<uint32_t>>(
+                             std::vector<uint32_t>{1, 0, 3, 2})));
+
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+  std::string expected_bytecode = R"(
+    InitRange: [size=4, dest_register=Register(0)]
+    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
+    CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
+    PrefixPopcount: [col=0, dest_register=Register(3)]
+    IndexedFilterEq<String, SparseNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
+    AllocateIndices: [size=4, dest_slab_register=Register(4), dest_span_register=Register(5)]
+    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(5)]
+    AllocateIndices: [size=8, dest_slab_register=Register(6), dest_span_register=Register(7)]
+    StrideCopy: [source_register=Register(5), update_register=Register(7), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(3), update_register=Register(7), offset=1, stride=2]
+  )";
+  RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
+}
+
+TEST_F(DataframeBytecodeTest, PlanQuery_MultiColIndex_PrefixEqFilters) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"col0_uint32", "col1_uint32"},
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()));
+
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  df.InsertUnchecked(kSpec, 10u, 100u);
+  df.InsertUnchecked(kSpec, 10u, 200u);
+  df.InsertUnchecked(kSpec, 20u, 100u);
+  df.InsertUnchecked(kSpec, 10u, 100u);
+  df.MarkFinalized();
+
+  std::vector<uint32_t> p_vec(4);
+  std::iota(p_vec.begin(), p_vec.end(), 0);
+  df.AddIndex(
+      Index({0, 1}, std::make_shared<std::vector<uint32_t>>(std::move(p_vec))));
+
+  std::vector<FilterSpec> filters = {
+      {0, 0, Eq{}, std::nullopt},
+      {1, 1, Eq{}, std::nullopt},
+  };
+  std::string expected_bytecode = R"(
+    InitRange: [size=4, dest_register=Register(0)]
+    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, NonNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(4), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, NonNull>: [col=1, filter_value_reg=Register(4), popcount_register=Register(5), update_register=Register(1)]
+    AllocateIndices: [size=4, dest_slab_register=Register(6), dest_span_register=Register(7)]
+    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(7)]
+  )";
+  RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
+}
+
+TEST(DataframeTest, Insert) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "col2", "col3", "col4"},
+      CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
+      CreateTypedColumnSpec(String(), SparseNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u, std::make_optional(0l),
+                     std::make_optional(pool.InternString("foo")));
+  df.InsertUnchecked(kSpec, std::monostate(), 20u, std::nullopt, std::nullopt);
+
+  VerifyData(
+      df, 0b1111,
+      Rows(Row(0u, 10u, int64_t(0l), "foo"), Row(1u, 20u, nullptr, nullptr)));
+}
+
+TEST(DataframeTest, GetCellAndSetCell) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "col2", "col3", "col4"},
+      CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
+      CreateTypedColumnSpec(String(), SparseNullSupportingCellGetAlways(),
+                            Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u, std::make_optional(0l),
+                     std::make_optional(pool.InternString("foo")));
+  df.InsertUnchecked(kSpec, std::monostate(), 20u, std::nullopt, std::nullopt);
+
+  ASSERT_EQ(df.GetCellUnchecked<0>(kSpec, 0), 0u);
+  ASSERT_EQ(df.GetCellUnchecked<1>(kSpec, 0), 10u);
+  ASSERT_EQ(df.GetCellUnchecked<2>(kSpec, 0), 0l);
+  ASSERT_EQ(df.GetCellUnchecked<3>(kSpec, 0), pool.InternString("foo"));
+
+  ASSERT_EQ(df.GetCellUnchecked<0>(kSpec, 1), 1u);
+  ASSERT_EQ(df.GetCellUnchecked<1>(kSpec, 1), 20u);
+  ASSERT_EQ(df.GetCellUnchecked<2>(kSpec, 1), std::nullopt);
+  ASSERT_EQ(df.GetCellUnchecked<3>(kSpec, 1), std::nullopt);
+
+  df.SetCellUnchecked<1>(kSpec, 0, 9u);
+  ASSERT_EQ(df.GetCellUnchecked<1>(kSpec, 0), 9u);
+
+  df.SetCellUnchecked<2>(kSpec, 0, std::nullopt);
+  ASSERT_EQ(df.GetCellUnchecked<2>(kSpec, 0), std::nullopt);
+}
+
+TEST(DataframeTest, TypedCursor) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "col2", "col3", "col4"},
+      CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
+      CreateTypedColumnSpec(String(), SparseNullSupportingCellGetAlways(),
+                            Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u, std::make_optional(0l),
+                     std::make_optional(pool.InternString("foo")));
+  df.InsertUnchecked(kSpec, std::monostate(), 20u, std::nullopt, std::nullopt);
+
+  auto cursor =
+      df.CreateTypedCursorUnchecked(kSpec, {FilterSpec{0, 0, Eq{}, {}}}, {});
+  {
+    cursor.SetFilterValues(0l);
+    cursor.ExecuteUnchecked();
+    ASSERT_FALSE(cursor.Eof());
+    ASSERT_EQ(cursor.GetCellUnchecked<0>(), 0u);
+    ASSERT_EQ(cursor.GetCellUnchecked<1>(), 10u);
+    ASSERT_EQ(cursor.GetCellUnchecked<2>(), 0l);
+    ASSERT_EQ(cursor.GetCellUnchecked<3>(), pool.InternString("foo"));
+    cursor.Next();
+    ASSERT_TRUE(cursor.Eof());
+  }
+  {
+    cursor.SetFilterValues(1l);
+    cursor.ExecuteUnchecked();
+    ASSERT_FALSE(cursor.Eof());
+    ASSERT_EQ(cursor.GetCellUnchecked<0>(), 1u);
+    ASSERT_EQ(cursor.GetCellUnchecked<1>(), 20u);
+    ASSERT_EQ(cursor.GetCellUnchecked<2>(), std::nullopt);
+    ASSERT_EQ(cursor.GetCellUnchecked<3>(), std::nullopt);
+    cursor.Next();
+    ASSERT_TRUE(cursor.Eof());
+  }
+}
+
+TEST(DataframeTest, TypedCursorSetMultipleTimes) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "col2", "col3", "col4"},
+      CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()),
+      CreateTypedColumnSpec(String(), SparseNullSupportingCellGetAlways(),
+                            Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u, std::make_optional(0l),
+                     std::make_optional(pool.InternString("foo")));
+  df.InsertUnchecked(kSpec, std::monostate(), 20u, std::nullopt, std::nullopt);
+  {
+    auto cursor = df.CreateTypedCursorUnchecked(kSpec, {}, {});
+    cursor.ExecuteUnchecked();
+    ASSERT_FALSE(cursor.Eof());
+    ASSERT_EQ(cursor.GetCellUnchecked<1>(), 10u);
+    cursor.SetCellUnchecked<1>(20u);
+    ASSERT_EQ(cursor.GetCellUnchecked<1>(), 20u);
+  }
+  {
+    auto cursor =
+        df.CreateTypedCursorUnchecked(kSpec, {FilterSpec{1, 0, Eq{}, {}}}, {});
+    cursor.SetFilterValues(int64_t(20));
+    cursor.ExecuteUnchecked();
+    ASSERT_FALSE(cursor.Eof());
+    ASSERT_EQ(cursor.GetCellUnchecked<1>(), 20u);
+    cursor.SetCellUnchecked<1>(20u);
+    ASSERT_EQ(cursor.GetCellUnchecked<1>(), 20u);
+  }
 }
 
 }  // namespace perfetto::trace_processor::dataframe

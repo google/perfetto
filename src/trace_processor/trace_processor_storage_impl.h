@@ -45,6 +45,7 @@ class TraceProcessorStorageImpl : public TraceProcessorStorage {
   base::Hasher trace_hash_;
   TraceProcessorContext context_;
   bool unrecoverable_parse_error_ = false;
+  bool eof_ = false;
   size_t hash_input_size_remaining_ = 4096;
   ForwardingTraceParser* parser_ = nullptr;
 };

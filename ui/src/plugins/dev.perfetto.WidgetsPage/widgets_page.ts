@@ -62,6 +62,14 @@ import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
 import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
 import {MultiselectInput} from '../../widgets/multiselect_input';
+import {
+  DataGrid,
+  DataGridAttrs,
+} from '../../components/widgets/data_grid/data_grid';
+import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
+import {SQLDataSource} from '../../components/widgets/data_grid/sql_data_source';
+import {App} from '../../public/app';
+import {Engine} from '../../trace_processor/engine';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -667,8 +675,8 @@ function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
   };
 }
 
-export class WidgetsPage implements m.ClassComponent {
-  view() {
+export class WidgetsPage implements m.ClassComponent<{app: App}> {
+  view({attrs}: m.Vnode<{app: App}>) {
     return m(
       '.widgets-page',
       m('h1', 'Widgets'),
@@ -1572,8 +1580,57 @@ export class WidgetsPage implements m.ClassComponent {
           showCloseButtons: true,
         },
       }),
+
+      renderWidgetShowcase({
+        label: 'DataGrid (memory backed)',
+        description: `An interactive data explorer and viewer.`,
+        renderWidget: ({readonlyFilters, readonlySorting, ...rest}) =>
+          m(DataGridShowcase, {
+            ...rest,
+            filters: readonlyFilters ? [] : undefined,
+            sortBy: readonlySorting ? {direction: 'unsorted'} : undefined,
+          }),
+        initialOpts: {
+          showFiltersInToolbar: true,
+          readonlyFilters: false,
+          readonlySorting: false,
+        },
+      }),
+
+      renderWidgetShowcase({
+        label: 'DataGrid (query backed)',
+        description: `An interactive data explorer and viewer - fetched from SQL.`,
+        renderWidget: ({readonlyFilters, readonlySorting, ...rest}) => {
+          const trace = attrs.app.trace;
+          if (trace) {
+            return m(DataGridSqlShowcase, {
+              ...rest,
+              engine: trace.engine,
+              filters: readonlyFilters ? [] : undefined,
+              sortBy: readonlySorting ? {direction: 'unsorted'} : undefined,
+            });
+          } else {
+            return 'Load a trace to start';
+          }
+        },
+        initialOpts: {
+          showFiltersInToolbar: true,
+          readonlyFilters: false,
+          readonlySorting: false,
+        },
+      }),
     );
   }
+}
+
+function renderWidgetShowcase<T extends Options = {}>(attrs: {
+  label: string;
+  description?: string;
+  renderWidget(opts: T): m.Children;
+  initialOpts?: T;
+  wide?: boolean;
+}) {
+  return m(WidgetShowcase, attrs);
 }
 
 function CursorTooltipShowcase() {
@@ -1625,6 +1682,72 @@ function MultiselectInputDemo() {
         onOptionRemove: (key) => {
           selectedOptions = selectedOptions.filter((x) => x !== key);
         },
+      });
+    },
+  };
+}
+
+function DataGridShowcase() {
+  const dataSource = new InMemoryDataSource([
+    {
+      id: 1,
+      name: 'foo',
+      ts: 123n,
+      dur: 16n,
+      data: new Uint8Array(),
+      maybe_null: null,
+    },
+    {
+      id: 2,
+      name: 'bar',
+      ts: 185n,
+      dur: 4n,
+      data: new Uint8Array([1, 2, 3]),
+      maybe_null: 'Non null',
+    },
+    {
+      id: 3,
+      name: 'baz',
+      ts: 575n,
+      dur: 12n,
+      data: new Uint8Array([1, 2, 3]),
+      maybe_null: null,
+    },
+  ]);
+
+  return {
+    view({attrs}: m.Vnode<Partial<DataGridAttrs>>) {
+      return m(DataGrid, {
+        ...attrs,
+        columns: [
+          {name: 'id'},
+          {name: 'ts'},
+          {name: 'dur'},
+          {name: 'name'},
+          {name: 'data'},
+          {name: 'maybe_null'},
+        ],
+        dataSource,
+      });
+    },
+  };
+}
+
+function DataGridSqlShowcase(
+  vnode: m.Vnode<Partial<DataGridAttrs> & {engine: Engine}>,
+) {
+  const dataSource = new SQLDataSource(
+    vnode.attrs.engine,
+    'SELECT * FROM slice',
+  );
+
+  return {
+    view({attrs}: m.Vnode<Partial<DataGridAttrs> & {engine: Engine}>) {
+      return m(DataGrid, {
+        ...attrs,
+        columns: [{name: 'id'}, {name: 'ts'}, {name: 'dur'}],
+        dataSource,
+        maxRowsPerPage: 10,
       });
     },
   };

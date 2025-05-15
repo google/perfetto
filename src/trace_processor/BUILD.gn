@@ -32,14 +32,22 @@ if (enable_perfetto_trace_processor_sqlite) {
 }
 
 if (enable_perfetto_ui) {
+  trace_processor_wasm_deps = [
+    ":lib",
+    "../../gn:default_deps",
+    "../base",
+    "rpc:wasm_bridge",
+  ]
+
   wasm_lib("trace_processor_wasm") {
     name = "trace_processor"
-    deps = [
-      ":lib",
-      "../../gn:default_deps",
-      "../base",
-      "rpc:wasm_bridge",
-    ]
+    deps = trace_processor_wasm_deps
+  }
+
+  wasm_lib("trace_processor_memory64_wasm") {
+    name = "trace_processor_memory64"
+    is_memory64 = true
+    deps = trace_processor_wasm_deps
   }
 }
 

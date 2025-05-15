@@ -20,7 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
@@ -30,6 +30,7 @@
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
 
 namespace perfetto::trace_processor::dataframe {
@@ -52,15 +53,24 @@ class Cursor {
   static_assert(std::is_base_of_v<ValueFetcher, FilterValueFetcherImpl>,
                 "FilterValueFetcherImpl must be a subclass of ValueFetcher");
 
-  // Constructs a cursor from a query plan and dataframe columns.
-  Cursor(impl::QueryPlan plan,
-         const impl::Column* const* column_ptrs,
-         const impl::Storage::DataPointer* storage_data_ptrs,
-         const StringPool* pool)
-      : interpreter_(std::move(plan.bytecode), column_ptrs, pool),
-        params_(plan.params),
-        storage_data_ptrs_(storage_data_ptrs),
-        pool_(pool) {}
+  Cursor() = default;
+
+  // Initializes the cursor from a query plan and dataframe columns.
+  void Initialize(const impl::QueryPlan& plan,
+                  uint32_t column_count,
+                  const impl::Column* const* column_ptrs,
+                  const Index* indexes,
+                  const StringPool* pool) {
+    interpreter_.Initialize(plan.bytecode, column_ptrs, indexes, pool);
+    params_ = plan.params;
+    pool_ = pool;
+
+    column_storage_data_ptrs_.clear();
+    column_storage_data_ptrs_.reserve(column_count);
+    for (uint32_t i = 0; i < column_count; ++i) {
+      column_storage_data_ptrs_.push_back(column_ptrs[i]->storage.data());
+    }
+  }
 
   // Executes the query and prepares the cursor for iteration.
   // This initializes the cursor's position to the first row of results.
@@ -80,7 +90,7 @@ class Cursor {
   }
 
   // Returns the index of the row in the table this cursor is pointing to.
-  PERFETTO_ALWAYS_INLINE uint32_t RowIndex() { return *pos_; }
+  PERFETTO_ALWAYS_INLINE uint32_t RowIndex() const { return *pos_; }
 
   // Advances the cursor to the next row of results.
   PERFETTO_ALWAYS_INLINE void Next() {
@@ -104,7 +114,7 @@ class Cursor {
                                    CellCallbackImpl& cell_callback_impl) {
     static_assert(std::is_base_of_v<CellCallback, CellCallbackImpl>,
                   "CellCallbackImpl must be a subclass of CellCallback");
-    const impl::Storage::DataPointer& p = storage_data_ptrs_[col];
+    const impl::Storage::DataPointer& p = column_storage_data_ptrs_[col];
     uint32_t idx = pos_[params_.col_to_output_offset[col]];
     if (idx == std::numeric_limits<uint32_t>::max()) {
       cell_callback_impl.OnCell(nullptr);
@@ -140,8 +150,8 @@ class Cursor {
   impl::bytecode::Interpreter<FilterValueFetcherImpl> interpreter_;
   // Parameters for query execution.
   impl::QueryPlan::ExecutionParams params_;
-  // Pointer to the storage data pointers.
-  const impl::Storage::DataPointer* storage_data_ptrs_;
+  // Variant of pointers to the storage data.
+  std::vector<impl::Storage::DataPointer> column_storage_data_ptrs_;
   // String pool for string values.
   const StringPool* pool_;
 

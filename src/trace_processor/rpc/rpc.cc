@@ -97,13 +97,16 @@ void Response::Send(Rpc::RpcResponseFunction send_fn) {
 
 }  // namespace
 
-Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance)
-    : trace_processor_(std::move(preloaded_instance)) {
-  if (!trace_processor_)
+Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
+         bool has_preloaded_eof)
+    : trace_processor_(std::move(preloaded_instance)),
+      eof_(trace_processor_ ? has_preloaded_eof : false) {
+  if (!trace_processor_) {
     ResetTraceProcessorInternal(Config());
+  }
 }
 
-Rpc::Rpc() : Rpc(nullptr) {}
+Rpc::Rpc() : Rpc(nullptr, false) {}
 Rpc::~Rpc() = default;
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
@@ -136,7 +139,6 @@ void Rpc::OnRpcRequest(const void* data, size_t len) {
 }
 
 namespace {
-
 using ProtoEnum = protos::pbzero::MetatraceCategories;
 TraceProcessor::MetatraceCategories MetatraceCategoriesToPublicEnum(
     ProtoEnum categories) {

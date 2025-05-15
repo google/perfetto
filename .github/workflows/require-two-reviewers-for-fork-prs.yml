@@ -16,18 +16,20 @@
 # non-googlers) have 2 reviews from repo collaborators.
 
 name: Enforce 2 collaborator reviews for fork PRs
+run-name: Check reviewers on ${{ github.event.pull_request.number }}
 
 on:
   pull_request_review:
-    types: [submitted]
+    types: [submitted, edited, dismissed]
   pull_request_target:
-    types: [synchronize]
+    types: [synchronize, opened, reopened, ready_for_review, review_requested, edited]
 
 permissions:
   pull-requests: read
 
 jobs:
   enforce-reviews:
+    name: enforce-reviews
     runs-on: self-hosted
     steps:
       - name: Check if PR is from a fork
@@ -58,5 +60,11 @@ jobs:
           echo "Collaborator/member approvals for latest commit ($LATEST_SHA): $COUNT"
           if [ "$COUNT" -lt 2 ]; then
           echo "❌ PR from fork requires 2 collaborator approvals on the latest commit."
+          echo ""
+          echo "API Output for debug:"
+          echo "---------------------------------------------------------------"
+          echo "$REVIEWS"
+          echo "---------------------------------------------------------------"
+          echo "Triggered by: ${{ github.event.review.state }} by ${{ github.event.review.user.login }}"
           exit 1
           fi
