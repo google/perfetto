@@ -88,7 +88,6 @@ perfetto_sql_source_set("android") {
     "jank/internal/counters.sql",
     "jank/internal/query_base.sql",
     "jank/internal/query_frame_slice.sql",
-    "jank/params.sql",
     "jank/query_functions.sql",
     "jank/relevant_slices.sql",
     "jank/relevant_threads.sql",
