@@ -20,6 +20,8 @@ source_set("art_hprof") {
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base:base",
+    "../../../../src/trace_processor/importers/common:common",
     "../../../base",
     "../../containers",
     "../../importers/common",
