@@ -19,7 +19,7 @@ name: Enforce 2 collaborator reviews for fork PRs
 
 on:
   pull_request_review:
-    types: [submitted]
+    types: [submitted, edited, dismissed]
   pull_request_target:
     types: [synchronize]
 
@@ -58,5 +58,11 @@ jobs:
           echo "Collaborator/member approvals for latest commit ($LATEST_SHA): $COUNT"
           if [ "$COUNT" -lt 2 ]; then
           echo "❌ PR from fork requires 2 collaborator approvals on the latest commit."
+          echo ""
+          echo "API Output for debug:"
+          echo "---------------------------------------------------------------"
+          echo "$REVIEWS"
+          echo "---------------------------------------------------------------"
+          echo "Triggered by: ${{ github.event.review.state }} by ${{ github.event.review.user.login }}"
           exit 1
           fi
