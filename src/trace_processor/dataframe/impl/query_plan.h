@@ -261,7 +261,7 @@ class QueryPlanBuilder {
   // Returns true if the optimization was applied.
   bool TrySortedConstraint(FilterSpec& fs,
                            const StorageType& ct,
-                           const NonNullOp& opF);
+                           const NonNullOp& op);
 
   // Adds overlay translation for handling special column properties like
   // nullability.

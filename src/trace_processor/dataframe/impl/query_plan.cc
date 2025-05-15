@@ -130,7 +130,8 @@ uint8_t GetDataSize(StorageType type) {
   }
 }
 
-SimpleNullability NullabilityToSimpleNullability(Nullability nullability) {
+SparseNullCollapsedNullability NullabilityToSparseNullCollapsedNullability(
+    Nullability nullability) {
   switch (nullability.index()) {
     case Nullability::GetTypeIndex<NonNull>():
       return NonNull{};
@@ -702,7 +703,7 @@ void QueryPlanBuilder::IndexConstraints(
       }
       auto& bc =
           AddOpcode<B>(bytecode::Index<bytecode::IndexedFilterEq>(
-                           *non_id, NullabilityToSimpleNullability(
+                           *non_id, NullabilityToSparseNullCollapsedNullability(
                                         column.null_storage.nullability())),
                        Div2RowCount{});
       bc.arg<B::col>() = fs.col;
