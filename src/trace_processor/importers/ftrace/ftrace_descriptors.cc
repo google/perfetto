@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 559> descriptors{{
+std::array<FtraceMessageDescriptor, 561> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6171,6 +6171,22 @@ std::array<FtraceMessageDescriptor, 559> descriptors{{
         {
             {},
             {"timer", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "local_timer_entry",
+        1,
+        {
+            {},
+            {"vector", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "local_timer_exit",
+        1,
+        {
+            {},
+            {"vector", ProtoSchemaType::kInt32},
         },
     },
 }};
