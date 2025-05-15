@@ -20,6 +20,7 @@ From the Perfetto root, run:
 tools/open_trace_in_ui -i /path/to/trace
 ```
 
+
 ## Why does Perfetto not support \<some obscure JSON format feature\>?
 
 The JSON trace format is considered a legacy trace format and is supported on a
