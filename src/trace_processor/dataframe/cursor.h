@@ -30,6 +30,7 @@
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
 
 namespace perfetto::trace_processor::dataframe {
@@ -58,8 +59,9 @@ class Cursor {
   void Initialize(const impl::QueryPlan& plan,
                   uint32_t column_count,
                   const impl::Column* const* column_ptrs,
+                  const Index* indexes,
                   const StringPool* pool) {
-    interpreter_.Initialize(plan.bytecode, column_ptrs, pool);
+    interpreter_.Initialize(plan.bytecode, column_ptrs, indexes, pool);
     params_ = plan.params;
     pool_ = pool;
 

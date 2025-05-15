@@ -73,8 +73,8 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     uint64_t cols_used) const {
   ASSIGN_OR_RETURN(auto plan,
                    impl::QueryPlanBuilder::Build(
-                       row_count_, columns_, filter_specs, distinct_specs,
-                       sort_specs, limit_spec, cols_used));
+                       row_count_, columns_, indexes_, filter_specs,
+                       distinct_specs, sort_specs, limit_spec, cols_used));
   return QueryPlan(std::move(plan));
 }
 

@@ -19,9 +19,9 @@
 
 #include <cstdint>
 #include <string>
-#include <type_traits>
 #include <variant>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
@@ -503,6 +503,62 @@ struct FindMinMaxIndex : FindMinMaxIndexBase {
   static_assert(TS2::Contains<Op>());
 };
 
+// Given an index, creates a span of indices that point to the permutation
+// vector of the index.
+struct IndexPermutationVectorToSpan : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = FixedCost{5};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
+                                     index,
+                                     reg::WriteHandle<Span<uint32_t>>,
+                                     write_register);
+};
+
+// Filters a column which is sorted by the given index with `update_register`
+// containing the span of permutation vector to consider. The span is updated
+// to only contain the indices which match the filter.
+struct IndexedFilterEqBase
+    : TemplatedBytecode2<NonIdStorageType, SimpleNullability> {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LogPerRowCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
+                                     col,
+                                     reg::ReadHandle<CastFilterValueResult>,
+                                     filter_value_reg,
+                                     reg::ReadHandle<Slab<uint32_t>>,
+                                     popcount_register,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+template <typename T, typename N>
+struct IndexedFilterEq : IndexedFilterEqBase {
+  static_assert(TS1::Contains<T>());
+  static_assert(TS2::Contains<N>());
+};
+
+// Given a source span and a source range, copies all indices in the span which
+// are in bounds in then range to the destiation span. The destination span must
+// be large enough to hold all the indices in the source span.
+struct CopySpanIntersectingRange : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LinearPerRowCost{5};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(reg::ReadHandle<Span<uint32_t>>,
+                                     source_register,
+                                     reg::ReadHandle<Range>,
+                                     source_range_register,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+
 // List of all bytecode instruction types for variant definition.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X)  \
   X(InitRange)                               \
@@ -596,7 +652,24 @@ struct FindMinMaxIndex : FindMinMaxIndexBase {
   X(FindMinMaxIndex<Double, MinOp>)          \
   X(FindMinMaxIndex<Double, MaxOp>)          \
   X(FindMinMaxIndex<String, MinOp>)          \
-  X(FindMinMaxIndex<String, MaxOp>)
+  X(FindMinMaxIndex<String, MaxOp>)          \
+  X(IndexPermutationVectorToSpan)            \
+  X(IndexedFilterEq<Uint32, NonNull>)        \
+  X(IndexedFilterEq<Uint32, SparseNull>)     \
+  X(IndexedFilterEq<Uint32, DenseNull>)      \
+  X(IndexedFilterEq<Int32, NonNull>)         \
+  X(IndexedFilterEq<Int32, SparseNull>)      \
+  X(IndexedFilterEq<Int32, DenseNull>)       \
+  X(IndexedFilterEq<Int64, NonNull>)         \
+  X(IndexedFilterEq<Int64, SparseNull>)      \
+  X(IndexedFilterEq<Int64, DenseNull>)       \
+  X(IndexedFilterEq<Double, NonNull>)        \
+  X(IndexedFilterEq<Double, SparseNull>)     \
+  X(IndexedFilterEq<Double, DenseNull>)      \
+  X(IndexedFilterEq<String, NonNull>)        \
+  X(IndexedFilterEq<String, SparseNull>)     \
+  X(IndexedFilterEq<String, DenseNull>)      \
+  X(CopySpanIntersectingRange)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 
