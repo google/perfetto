@@ -1,8 +1,8 @@
 # What is Perfetto?
 
-Perfetto is an open-source suite of debugging tools focusing on the use
+Perfetto is an open-source suite of SDKs, daemons and tools which use
 **tracing** to help developers understand the behaviour of the complex systems
-and root-cause functional and performance issues.
+and root-cause functional and performance issues on client-side systems.
 
 NOTE: if you are unfamiliar with the word "tracing" or in general, are new to
 the world of performance, we suggest reading the
@@ -11,10 +11,10 @@ the world of performance, we suggest reading the
 It consists of:
 
 - **High-performance tracing daemon** for capturing tracing information from
-  many processes into a unified trace file for offline analysis and
-  visualization.
+  many processes on a single machine into a unified trace file for offline
+  analysis and visualization.
 - **Low-overhead tracing SDK** for annotating C/C++/Rust code to capture the
-  execution of functions and the changes in system state over time.
+  execution of functions and the changes in program state over time.
 - **Extensive OS-level probes on Android and Linux** for capturing wider system
   level (e.g. scheduling states, CPU frequencies, memory counters, IO events)
   context during the trace.
@@ -82,12 +82,12 @@ explicltly unsupported.
 
   - Perfetto is **not** a distributed tracer in the vein of OpenTelemetry,
     Jaeger, Datadog etc. Perfetto's recording tools are entirely for recording
-    _client side tracing_ espeically at the system level.
+    client side traces, especially at the system level.
   - However, the Perfetto UI _can_ be used to visualize distributed traces if
-    traces are converted to the Perfetto format; we are aware of teams doing
-    this in Google.
+    traces are converted to a format that Perfetto supports. In fact, this is
+    commonly done inside Google.
 
-- **Recording system tracing on Windows or macOS**
+- **Recording system traces on Windows or macOS**
 
   - Perfetto's recording tools do **not** integrate with any system level data
     sources on Windows or macOS.
@@ -95,12 +95,12 @@ explicltly unsupported.
     collected with Instruments as we natively support the Instruments XML
     format.
 
-- **Recording low latency traces end-to-end**
+- **Recording end-to-end low latency traces**
 
   - Perfetto's producer code is optimized for low-overhead trace writing but the
     consumer side is _not_ optimized for low-latency readback.
   - This means it is _not_ advised to use Perfetto for situations where you want
-    low-latency tracing end-to-end.
+    end-to-end low-latency tracing.
 
 - **Recording traces with the lowest overhead possible**
 
@@ -143,10 +143,9 @@ teams in Google, both to proactively identify performance improvements and
 reactively to debug/root-cause issues locally, in the lab and even from the
 field.
 
-There are also many other teams in Google who use Perfetto in a diverse and
-creative ways, including several in a "non-traditional" way for a tracing
-system. Perfetto has also been used and adopted widely in the wider industry by
-many other companies.
+There are also many other teams in Google who use Perfetto in diverse ways. This
+includes including "non-traditional" uses of a tracing system. Perfetto has also
+been used and adopted widely in the wider industry by many other companies.
 
 The following is a non-exhaustive list of public mentions of Perfetto in blog
 posts, articles and videos:
@@ -175,19 +174,16 @@ posts, articles and videos:
   tests and finally in production."
 - [Microsoft: Perfetto tooling for analyzing Android, Linux, and Chromium browser performance](https://devblogs.microsoft.com/performance-diagnostics/perfetto-tooling-for-analyzing-android-linux-and-chromium-browser-performance-microsoft-performance-tools-linux-android/)
 
-## How do I get help?
+## Where do I find more information and get help with Perfetto?
 
-For the open source community, the Perfetto team can be reached on our
-[Discord channel](https://discord.gg/35ShE3A). Inside Google, please see
-[this internal page](http://go/perfetto-project) for contact information.
+For our source code and project home:
+[Github](https://github.com/google/perfetto)
 
-We also have a public mailing list:
-https://groups.google.com/forum/#!forum/perfetto-dev.
+For Q/A:
 
-Perfetto follows
-[Google's Open Source Community Guidelines](https://opensource.google/conduct/).
-
-## How do I report bugs?
+- **Googlers**: use [YAQS](https://go/perfetto-yaqs)
+- **Non-Googlers** use
+  [Github Discussions](https://github.com/google/perfetto/discussions/categories/q-a)
 
 For bugs affecting any part of Perfetto **except** Chrome tracing:
 
@@ -199,3 +195,12 @@ For bugs affecting any part of Perfetto **except** Chrome tracing:
 For bugs affecting Chrome Tracing:
 
 - Use http://crbug.com `Component:Speed>Tracing label:Perfetto`.
+
+For chatting directly with the Perfetto team:
+
+- **Googlers**: see [this page](http://go/perfetto-project)
+- **Non-Googlers**: use [Discord](https://discord.gg/35ShE3A) or our
+  [public mailing list](https://groups.google.com/forum/#!forum/perfetto-dev).
+
+Perfetto follows
+[Google's Open Source Community Guidelines](https://opensource.google/conduct/).

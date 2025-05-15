@@ -3,6 +3,13 @@
 This page provides a birds-eye view of performance analysis. The aim is to
 orient people who have no idea what "tracing" is.
 
+NOTE: the word "tracing" in this document is used in the context of **client-side**
+side software (e.g. programs running on a single machine). In the server world,
+**tracing** is usually short for *distributed tracing*, a way to collect data from
+many different servers to understand the flow of a "request" throughout multiple
+services. As such, this document will *not* be useful to you if you are interested
+in such traces.
+
 ## Introduction to Performance
 
 Performance analysis is concerned with making software run _better_. The
@@ -21,8 +28,7 @@ engineers understand the execution of a system and pinpoint issues that are
 critical.
 
 **Tracing** and **profiling** are two such widely-used techniques for
-performance analysis. **Perfetto** is an open-source suite of tools, combining
-tracing and profiling to give users powerful insights into their system.
+performance analysis.
 
 ## Introduction to Tracing
 
