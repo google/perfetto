@@ -412,17 +412,7 @@ bool HeapGraphBuilder::ParseClassStructure() {
       if (!iterator_->ReadId(target_id, header_.GetIdSize()))
         return false;
 
-      if (target_id != 0) {
-        // Optional: infer the class of the referenced object
-        uint64_t field_class_id = 0;
-        auto it_o = objects_.Find(target_id);
-        if (it_o) {
-          field_class_id = it_o->GetClassId();
-        }
-
-        class_obj.AddReference(field_name, field_class_id, target_id);
-        stats_.reference_count++;
-      }
+      class_obj.AddPendingReference(field_name, std::nullopt, target_id);
     } else {
       size_t type_size = GetFieldTypeSize(field_type, header_.GetIdSize());
       if (!iterator_->SkipBytes(type_size))

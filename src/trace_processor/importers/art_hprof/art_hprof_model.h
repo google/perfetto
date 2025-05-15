@@ -135,19 +135,14 @@ class Field {
 };
 
 struct Reference {
-  uint64_t owner_id;
-  uint64_t target_id;
   std::string field_name;
-  uint64_t field_class_id;
+  std::optional<uint64_t> field_class_id;
+  uint64_t target_id;
 
-  Reference(uint64_t owner,
-            std::string_view name,
-            uint64_t class_id,
+  Reference(std::string_view name,
+            std::optional<uint64_t> class_id,
             uint64_t target)
-      : owner_id(owner),
-        target_id(target),
-        field_name(name),
-        field_class_id(class_id) {}
+      : field_name(name), field_class_id(class_id), target_id(target) {}
 };
 
 class ClassDefinition {
@@ -228,12 +223,22 @@ class Object {
   const std::vector<uint8_t>& GetRawData() const { return raw_data_; }
 
   void AddReference(std::string_view field_name,
-                    uint64_t field_class_id,
+                    std::optional<uint64_t> field_class_id,
                     uint64_t target_id) {
-    references_.emplace_back(id_, field_name, field_class_id, target_id);
+    references_.emplace_back(field_name, field_class_id, target_id);
+  }
+
+  void AddPendingReference(std::string_view field_name,
+                           std::optional<uint64_t> field_class_id,
+                           uint64_t target_id) {
+    pending_references_.emplace_back(field_name, field_class_id, target_id);
   }
 
   const std::vector<Reference>& GetReferences() const { return references_; }
+
+  const std::vector<Reference>& GetPendingReferences() const {
+    return pending_references_;
+  }
 
   // Array-specific data
   void SetArrayElements(std::vector<uint64_t> elements) {
@@ -324,6 +329,7 @@ class Object {
   // Data storage - used differently based on object type
   std::vector<uint8_t> raw_data_;
   std::vector<Reference> references_;
+  std::vector<Reference> pending_references_;
   std::vector<uint64_t> array_elements_;
   FieldType array_element_type_ = FieldType::kObject;
 

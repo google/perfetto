@@ -374,19 +374,14 @@ void ArtHprofParser::PopulateReferences(
 
       // Resolve field type from class ID
       StringId field_type_id;
-      if (ref.field_class_id != 0) {
-        auto cls = class_map.Find(ref.field_class_id);
-        if (cls) {
-          // Get class name from class table
-          StringId class_name_id = class_table.name()[cls->value];
-          field_type_id = class_name_id;
-        } else {
-          // Class not found, use default
-          field_type_id = context_->storage->InternString(kJavaLangObject);
-        }
+      auto cls = class_map.Find(*ref.field_class_id);
+      if (cls) {
+        // Get class name from class table
+        StringId class_name_id = class_table.name()[cls->value];
+        field_type_id = class_name_id;
       } else {
-        // No class ID, use default
-        field_type_id = context_->storage->InternString(kJavaLangObject);
+        context_->storage->IncrementStats(stats::hprof_unknown_class_errors);
+        continue;
       }
 
       // Create reference record

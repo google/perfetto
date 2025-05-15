@@ -71,8 +71,8 @@ void HeapGraphResolver::ExtractAllObjectData() {
   for (auto it = objects_.GetIterator(); it; ++it) {
     auto& obj = it.value();
     // Extract data based on object type
-    if (obj.GetObjectType() == ObjectType::kInstance &&
-        !obj.GetRawData().empty()) {
+    if (obj.GetObjectType() == ObjectType::kInstance ||
+        obj.GetObjectType() == ObjectType::kClass) {
       auto cls = classes_.Find(obj.GetClassId());
       if (cls) {
         ExtractObjectReferences(obj, *cls);
@@ -131,14 +131,29 @@ void HeapGraphResolver::ExtractArrayElementReferences(Object& obj) {
     uint64_t element_id = elements[i];
     if (element_id != 0) {
       std::string ref_name = "[" + std::to_string(i) + "]";
-      obj.AddReference(ref_name, 0, element_id);
-      stats_.reference_count++;
+      auto owned_obj = objects_.Find(element_id);
+      if (owned_obj) {
+        obj.AddReference(ref_name, owned_obj->GetClassId(), element_id);
+        stats_.reference_count++;
+      }
     }
   }
 }
 
 bool HeapGraphResolver::ExtractObjectReferences(Object& obj,
                                                 const ClassDefinition& cls) {
+  // Handle static fields of class objects. Now that we have all objects and
+  // classes available
+  for (const auto& ref : obj.GetPendingReferences()) {
+    if (!ref.field_class_id) {
+      auto it = objects_.Find(ref.target_id);
+      if (it) {
+        obj.AddReference(ref.field_name, it->GetClassId(), ref.target_id);
+        stats_.reference_count++;
+      }
+    }
+  }
+
   const std::vector<uint8_t>& data = obj.GetRawData();
   if (data.empty()) {
     return true;
@@ -471,33 +486,24 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
       result.push_back(static_cast<char>(0x80 | ((ch >> 6) & 0x3F)));
       result.push_back(static_cast<char>(0x80 | (ch & 0x3F)));
     }
-
-    return result;
   };
 
-  switch (array->GetArrayElementType()) {
-    case FieldType::kByte: {
-      const auto& bytes = array->GetArrayData<uint8_t>();
-      for (int32_t i = 0; i < count; ++i)
-        result.push_back(
-            static_cast<char>(bytes[static_cast<size_t>(offset + i)]));
-      return result;
-    }
-    case FieldType::kChar: {
-      const auto& chars = array->GetArrayData<uint16_t>();
-      for (int32_t i = 0; i < count; ++i)
-        append_utf8_from_utf16(chars[static_cast<size_t>(offset + i)]);
-      return result;
-    }
-    case FieldType::kBoolean:
-    case FieldType::kFloat:
-    case FieldType::kDouble:
-    case FieldType::kShort:
-    case FieldType::kInt:
-    case FieldType::kLong:
-    case FieldType::kObject:
-      return std::nullopt;
+  const auto type = array->GetArrayElementType();
+
+  if (type == FieldType::kByte) {
+    const auto& bytes = array->GetArrayData<uint8_t>();
+    for (int32_t i = 0; i < count; ++i)
+      result.push_back(
+          static_cast<char>(bytes[static_cast<size_t>(offset + i)]));
+    return result;
+  } else if (type == FieldType::kChar) {
+    const auto& chars = array->GetArrayData<uint16_t>();
+    for (int32_t i = 0; i < count; ++i)
+      append_utf8_from_utf16(chars[static_cast<size_t>(offset + i)]);
+    return result;
   }
+
+  return std::nullopt;
 }
 
 //
