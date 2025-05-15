@@ -22,7 +22,7 @@
 #include "src/trace_processor/importers/art_hprof/art_heap_graph.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_model.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_types.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include <cstdint>
@@ -66,7 +66,7 @@ struct DebugStats {
   size_t reference_count = 0;
   size_t record_count = 0;
 
-  void Write(tables::HprofStatsTable& table) {
+  void Write(TraceProcessorContext* context_) {
     PERFETTO_DLOG(
         "DebugStats:\n"
         "  string_count: %zu\n"
@@ -82,19 +82,22 @@ struct DebugStats {
         object_array_count, primitive_array_count, root_count, reference_count,
         record_count);
 
-    tables::HprofStatsTable::Row stats_row;
-    stats_row.string_count = static_cast<int64_t>(string_count);
-    stats_row.class_count = static_cast<int64_t>(class_count);
-    stats_row.heap_dump_count = static_cast<int64_t>(heap_dump_count);
-    stats_row.instance_count = static_cast<int64_t>(instance_count);
-    stats_row.object_array_count = static_cast<int64_t>(object_array_count);
-    stats_row.primitive_array_count =
-        static_cast<int64_t>(primitive_array_count);
-    stats_row.root_count = static_cast<int64_t>(root_count);
-    stats_row.reference_count = static_cast<int64_t>(reference_count);
-    stats_row.record_count = static_cast<int64_t>(record_count);
-
-    table.Insert(stats_row);
+    context_->storage->SetStats(stats::hprof_string_counter,
+                                static_cast<int64_t>(string_count));
+    context_->storage->SetStats(stats::hprof_class_counter,
+                                static_cast<int64_t>(class_count));
+    context_->storage->SetStats(stats::hprof_heap_dump_counter,
+                                static_cast<int64_t>(heap_dump_count));
+    context_->storage->SetStats(stats::hprof_instance_counter,
+                                static_cast<int64_t>(instance_count));
+    context_->storage->SetStats(stats::hprof_object_array_counter,
+                                static_cast<int64_t>(object_array_count));
+    context_->storage->SetStats(stats::hprof_primitive_array_counter,
+                                static_cast<int64_t>(primitive_array_count));
+    context_->storage->SetStats(stats::hprof_reference_counter,
+                                static_cast<int64_t>(reference_count));
+    context_->storage->SetStats(stats::hprof_root_counter,
+                                static_cast<int64_t>(root_count));
   }
 
   void AddRecordCount(size_t count) { record_count += count; }
@@ -104,7 +107,8 @@ struct DebugStats {
 // graph
 class HeapGraphResolver {
  public:
-  HeapGraphResolver(HprofHeader& header,
+  HeapGraphResolver(TraceProcessorContext* context,
+                    HprofHeader& header,
                     base::FlatHashMap<uint64_t, Object>& objects,
                     base::FlatHashMap<uint64_t, ClassDefinition>& classes,
                     DebugStats& stats);
@@ -135,6 +139,7 @@ class HeapGraphResolver {
   void CalculateNativeSizes();
 
   // Data references (not owned)
+  TraceProcessorContext* context_;
   HprofHeader& header_;
   base::FlatHashMap<uint64_t, Object>& objects_;
   base::FlatHashMap<uint64_t, ClassDefinition>& classes_;
@@ -210,7 +215,7 @@ class HeapGraphBuilder {
   void StoreString(uint64_t id, const std::string& str);
 
   // Convert JVM class name to Java format
-  static std::string NormalizeClassName(const std::string& name);
+  std::string NormalizeClassName(const std::string& name) const;
 
   //--------------------------------------------------------------------------
   // Data Members

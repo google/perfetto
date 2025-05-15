@@ -232,9 +232,7 @@ void ArtHprofParser::PopulateObjects(
     // Resolve object's type
     auto type = class_map.Find(obj.GetClassId());
     if (!type && obj.GetObjectType() != ObjectType::kPrimitiveArray) {
-      PERFETTO_ELOG("Unknown class: %" PRIu64 ". Object type: %" PRIu8,
-                    obj.GetClassId(),
-                    static_cast<uint8_t>(obj.GetObjectType()));
+      context_->storage->IncrementStats(stats::hprof_unknown_class_errors);
       continue;
     }
 

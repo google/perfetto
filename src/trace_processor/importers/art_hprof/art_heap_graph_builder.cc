@@ -44,7 +44,7 @@ HeapGraphBuilder::~HeapGraphBuilder() = default;
 bool HeapGraphBuilder::Parse() {
   // Phase 1: Parse header
   if (!ParseHeader()) {
-    PERFETTO_ELOG("Failed to parse header");
+    context_->storage->IncrementStats(stats::hprof_header_errors);
     return false;
   }
 
@@ -64,11 +64,11 @@ bool HeapGraphBuilder::Parse() {
 
 HeapGraph HeapGraphBuilder::BuildGraph() {
   // Phase 3: Resolve the heap graph
-  resolver_ =
-      std::make_unique<HeapGraphResolver>(header_, objects_, classes_, stats_);
+  resolver_ = std::make_unique<HeapGraphResolver>(context_, header_, objects_,
+                                                  classes_, stats_);
   resolver_->ResolveGraph();
 
-  stats_.Write(*context_->storage->mutable_hprof_stats_table());
+  stats_.Write(context_);
   HeapGraph graph(header_.GetTimestamp());
 
   for (auto it = strings_.GetIterator(); it; ++it) {
@@ -202,9 +202,6 @@ bool HeapGraphBuilder::ParseClassDefinition() {
   for (const auto& [type_name, field_type] : kPrimitiveArrayTypes) {
     if (class_name == type_name) {
       prim_array_class_ids_[static_cast<size_t>(field_type)] = class_obj_id;
-      PERFETTO_DLOG("Registered class ID %" PRIu64
-                    " for primitive array type %s",
-                    class_obj_id, class_name.c_str());
       break;  // Found the match, no need to continue searching
     }
   }
@@ -273,7 +270,7 @@ bool HeapGraphBuilder::ParseHeapDumpRecord() {
   }
 
   // This should be unreachable given the logic above, but keeping it for safety
-  PERFETTO_ELOG("Unknown HEAP_DUMP sub-record tag: 0x%02x", tag_value);
+  context_->storage->IncrementStats(stats::hprof_heap_dump_counter);
   return false;
 }
 
@@ -358,7 +355,7 @@ bool HeapGraphBuilder::ParseClassStructure() {
   // Get class definition
   auto cls = classes_.Find(class_id);
   if (!cls) {
-    PERFETTO_ELOG("Class not found in LOAD_CLASS");
+    context_->storage->IncrementStats(stats::hprof_class_not_found_errors);
     return false;
   }
 
@@ -597,13 +594,14 @@ bool HeapGraphBuilder::ParsePrimitiveArrayObject() {
   uint64_t class_id = 0;
   size_t element_type_index = static_cast<size_t>(element_type);
   if (element_type_index >= prim_array_class_ids_.size()) {
-    PERFETTO_ELOG("Invalid element type: %u", element_type_value);
+    context_->storage->IncrementStats(
+        stats::hprof_primitive_array_parsing_errors);
     return false;
   } else {
     class_id = prim_array_class_ids_[element_type_index];
     if (class_id == 0) {
-      PERFETTO_ELOG("Unknown class ID for primitive array type: %u",
-                    element_type_value);
+      context_->storage->IncrementStats(
+          stats::hprof_primitive_array_parsing_errors);
       return false;
     }
   }
@@ -661,7 +659,8 @@ void HeapGraphBuilder::StoreString(uint64_t id, const std::string& str) {
 // This function converts all class names to match the ART format, which is
 // assumed elsewhere in ahat.
 // See: ahat/java/com/android/ahat/heapdump/Parser.java
-std::string HeapGraphBuilder::NormalizeClassName(const std::string& name) {
+std::string HeapGraphBuilder::NormalizeClassName(
+    const std::string& name) const {
   // Count the number of array dimensions
   int num_dimensions = 0;
   std::string normalized_name = name;
@@ -675,7 +674,7 @@ std::string HeapGraphBuilder::NormalizeClassName(const std::string& name) {
     // If there was an array type signature to start, then interpret the
     // class name as a type signature.
     if (normalized_name.empty()) {
-      PERFETTO_ELOG("Invalid type signature: empty after array dimensions");
+      context_->storage->IncrementStats(stats::hprof_class_name_errors);
       return name;
     }
 
@@ -708,15 +707,14 @@ std::string HeapGraphBuilder::NormalizeClassName(const std::string& name) {
       case 'L':
         // Remove the leading 'L' and trailing ';'
         if (normalized_name.back() != ';') {
-          PERFETTO_ELOG("Invalid object type signature: missing semicolon");
+          context_->storage->IncrementStats(stats::hprof_class_name_errors);
           return name;
         }
         normalized_name =
             normalized_name.substr(1, normalized_name.length() - 2);
         break;
       default:
-        PERFETTO_ELOG("Invalid type signature in class name: %s",
-                      normalized_name.c_str());
+        context_->storage->IncrementStats(stats::hprof_class_name_errors);
         return name;
     }
   }

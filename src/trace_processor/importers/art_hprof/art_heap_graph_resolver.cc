@@ -21,12 +21,12 @@
 namespace perfetto::trace_processor::art_hprof {
 
 template <typename T>
-T ReadBigEndian(const std::vector<uint8_t>& data,
+T ReadBigEndian(TraceProcessorContext* context,
+                const std::vector<uint8_t>& data,
                 size_t offset,
                 size_t length) {
   if (offset + length > data.size()) {
-    PERFETTO_ELOG("Out-of-bounds read: offset=%zu length=%zu data.size=%zu",
-                  offset, length, data.size());
+    context->storage->IncrementStats(stats::hprof_oob_read_errors);
     return 0;
   }
 
@@ -38,16 +38,23 @@ T ReadBigEndian(const std::vector<uint8_t>& data,
 }
 
 template <typename T>
-T ReadBigEndian(const std::vector<uint8_t>& data, size_t offset) {
-  return ReadBigEndian<T>(data, offset, sizeof(T));
+T ReadBigEndian(TraceProcessorContext* context,
+                const std::vector<uint8_t>& data,
+                size_t offset) {
+  return ReadBigEndian<T>(context, data, offset, sizeof(T));
 }
 
 HeapGraphResolver::HeapGraphResolver(
+    TraceProcessorContext* context,
     HprofHeader& header,
     base::FlatHashMap<uint64_t, Object>& objects,
     base::FlatHashMap<uint64_t, ClassDefinition>& classes,
     DebugStats& stats)
-    : header_(header), objects_(objects), classes_(classes), stats_(stats) {}
+    : context_(context),
+      header_(header),
+      objects_(objects),
+      classes_(classes),
+      stats_(stats) {}
 
 void HeapGraphResolver::ResolveGraph() {
   // Extract field values and references for all objects
@@ -149,8 +156,8 @@ bool HeapGraphResolver::ExtractObjectReferences(Object& obj,
       // Make sure we have enough data to read the ID
       if (offset + header_.GetIdSize() <= data.size()) {
         // Use the helper function consistently for all ID extractions
-        uint64_t target_id =
-            ReadBigEndian<uint64_t>(data, offset, header_.GetIdSize());
+        uint64_t target_id = ReadBigEndian<uint64_t>(context_, data, offset,
+                                                     header_.GetIdSize());
         offset += header_.GetIdSize();
 
         if (target_id != 0) {
@@ -212,27 +219,27 @@ void HeapGraphResolver::ExtractFieldValues(Object& obj,
         break;
       }
       case FieldType::kChar: {
-        field.SetValue(ReadBigEndian<uint16_t>(data, offset));
+        field.SetValue(ReadBigEndian<uint16_t>(context_, data, offset));
         offset += 2;
         break;
       }
       case FieldType::kShort: {
-        field.SetValue(ReadBigEndian<int16_t>(data, offset));
+        field.SetValue(ReadBigEndian<int16_t>(context_, data, offset));
         offset += 2;
         break;
       }
       case FieldType::kInt: {
-        field.SetValue(ReadBigEndian<int32_t>(data, offset));
+        field.SetValue(ReadBigEndian<int32_t>(context_, data, offset));
         offset += 4;
         break;
       }
       case FieldType::kLong: {
-        field.SetValue(ReadBigEndian<int64_t>(data, offset));
+        field.SetValue(ReadBigEndian<int64_t>(context_, data, offset));
         offset += 8;
         break;
       }
       case FieldType::kFloat: {
-        uint32_t raw = ReadBigEndian<uint32_t>(data, offset);
+        uint32_t raw = ReadBigEndian<uint32_t>(context_, data, offset);
         float value;
         std::memcpy(&value, &raw, sizeof(float));
         field.SetValue(value);
@@ -240,7 +247,7 @@ void HeapGraphResolver::ExtractFieldValues(Object& obj,
         break;
       }
       case FieldType::kDouble: {
-        uint64_t raw = ReadBigEndian<uint64_t>(data, offset);
+        uint64_t raw = ReadBigEndian<uint64_t>(context_, data, offset);
         double value;
         std::memcpy(&value, &raw, sizeof(double));
         field.SetValue(value);
@@ -249,8 +256,8 @@ void HeapGraphResolver::ExtractFieldValues(Object& obj,
       }
       case FieldType::kObject: {
         // Object IDs are based on the ID size
-        uint64_t id =
-            ReadBigEndian<uint64_t>(data, offset, header_.GetIdSize());
+        uint64_t id = ReadBigEndian<uint64_t>(context_, data, offset,
+                                              header_.GetIdSize());
         field.SetValue(id);
         offset += header_.GetIdSize();
         break;

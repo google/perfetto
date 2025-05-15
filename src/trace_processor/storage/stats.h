@@ -492,7 +492,39 @@ namespace perfetto::trace_processor::stats {
       "The trace was collected with the `write_into_file` option set but "     \
       "uses a `DISCARD` buffer. This configuration is strongly discouraged "   \
       "and can cause mysterious data loss in the trace. Please use "           \
-      "`RING_BUFFER` buffers instead.")
+      "`RING_BUFFER` buffers instead."),                                       \
+   F(hprof_string_counter,                 kSingle,  kInfo,   kAnalysis,       \
+         "Number of strings encountered."),                                    \
+   F(hprof_class_counter,                  kSingle,  kInfo,   kAnalysis,       \
+         "Number of classes encountered."),                                    \
+   F(hprof_heap_dump_counter,              kSingle,  kInfo,   kAnalysis,       \
+         "Number of heap dumps encountered."),                                 \
+   F(hprof_instance_counter,               kSingle,  kInfo,   kAnalysis,       \
+         "Number of instances encountered."),                                  \
+   F(hprof_object_array_counter,           kSingle,  kInfo,   kAnalysis,       \
+         "Number of object arrays encountered."),                              \
+  F(hprof_primitive_array_counter,         kSingle,  kInfo,   kAnalysis,       \
+        "Number of primitive arrays encountered."),                            \
+  F(hprof_root_counter,                    kSingle,  kInfo,   kAnalysis,       \
+        "Number of roots encountered."),                                       \
+  F(hprof_reference_counter,               kSingle,  kInfo,   kAnalysis,       \
+        "Number of references encountered."),                                  \
+  F(hprof_record_counter,                  kSingle,  kInfo,   kAnalysis,       \
+        "Total number of records parsed."),                                    \
+  F(hprof_oob_read_errors,                  kSingle,  kError,   kAnalysis,      \
+        "Number of out of bounds reads."),                                     \
+  F(hprof_unknown_class_errors,            kSingle,  kError,   kAnalysis,      \
+        "Number of unknown classes errors"),                                   \
+  F(hprof_header_errors,                   kSingle,  kError,   kAnalysis,      \
+        "Number of header parsing errors"),                                    \
+  F(hprof_heap_dump_errors,                kSingle,  kError,   kAnalysis,      \
+         "Number of heap dump parsing errors"),                                \
+  F(hprof_class_not_found_errors,          kSingle,  kError,   kAnalysis,      \
+         "Number of class not found errors"),                                  \
+  F(hprof_primitive_array_parsing_errors,  kSingle,  kError,   kAnalysis,      \
+        "Number of primitive array parsing errors"),                           \
+  F(hprof_class_name_errors,               kSingle,  kError,   kAnalysis,      \
+        "Number of class name normalization errors")
 // clang-format on
 
 enum Type {
