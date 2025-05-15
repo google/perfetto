@@ -20,7 +20,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -53,14 +52,18 @@ class Cursor {
   static_assert(std::is_base_of_v<ValueFetcher, FilterValueFetcherImpl>,
                 "FilterValueFetcherImpl must be a subclass of ValueFetcher");
 
-  // Constructs a cursor from a query plan and dataframe columns.
-  Cursor(impl::QueryPlan plan,
-         uint32_t column_count,
-         const impl::Column* const* column_ptrs,
-         const StringPool* pool)
-      : interpreter_(std::move(plan.bytecode), column_ptrs, pool),
-        params_(plan.params),
-        pool_(pool) {
+  Cursor() = default;
+
+  // Initializes the cursor from a query plan and dataframe columns.
+  void Initialize(const impl::QueryPlan& plan,
+                  uint32_t column_count,
+                  const impl::Column* const* column_ptrs,
+                  const StringPool* pool) {
+    interpreter_.Initialize(plan.bytecode, column_ptrs, pool);
+    params_ = plan.params;
+    pool_ = pool;
+
+    column_storage_data_ptrs_.clear();
     column_storage_data_ptrs_.reserve(column_count);
     for (uint32_t i = 0; i < column_count; ++i) {
       column_storage_data_ptrs_.push_back(column_ptrs[i]->storage.data());
@@ -85,7 +88,7 @@ class Cursor {
   }
 
   // Returns the index of the row in the table this cursor is pointing to.
-  PERFETTO_ALWAYS_INLINE uint32_t RowIndex() { return *pos_; }
+  PERFETTO_ALWAYS_INLINE uint32_t RowIndex() const { return *pos_; }
 
   // Advances the cursor to the next row of results.
   PERFETTO_ALWAYS_INLINE void Next() {

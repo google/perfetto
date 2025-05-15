@@ -377,7 +377,7 @@ class BytecodeInterpreterTest : public testing::Test {
         bytecode_vector.emplace_back(ParseBytecode(trimmed));
       }
     }
-    SetupInterpreterWithBytecode(std::move(bytecode_vector));
+    SetupInterpreterWithBytecode(bytecode_vector);
 
     uint32_t i = 0;
     (interpreter_->SetRegisterValueForTesting(reg::WriteHandle<Ts>(i++),
@@ -386,9 +386,9 @@ class BytecodeInterpreterTest : public testing::Test {
     interpreter_->Execute(fetcher_);
   }
 
-  void SetupInterpreterWithBytecode(BytecodeVector bytecode) {
-    interpreter_ = std::make_unique<Interpreter<Fetcher>>(
-        std::move(bytecode), column_ptrs_.data(), &spool_);
+  void SetupInterpreterWithBytecode(const BytecodeVector& bytecode) {
+    interpreter_ = std::make_unique<Interpreter<Fetcher>>();
+    interpreter_->Initialize(bytecode, column_ptrs_.data(), &spool_);
   }
 
   template <typename T>
@@ -1569,7 +1569,7 @@ TEST_F(BytecodeInterpreterTest, ExecuteStableSort) {
       "StableSortIndices<Int64>: [col=0, direction=SortDirection(0), "
       "update_register=Register(0)]"));
 
-  SetupInterpreterWithBytecode(std::move(bytecode));
+  SetupInterpreterWithBytecode(bytecode);
 
   std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4};
   interpreter_->SetRegisterValueForTesting(reg::WriteHandle<Span<uint32_t>>(0),
