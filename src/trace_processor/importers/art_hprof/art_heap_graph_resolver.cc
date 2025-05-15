@@ -611,12 +611,12 @@ void HeapGraphResolver::CalculateNativeSizes() {
       continue;
     }
 
-    auto size_field_opt = registry->FindField("size");
-    if (!size_field_opt) {
+    auto size_field = registry->FindField("size");
+    if (!size_field) {
       continue;
     }
 
-    int64_t native_size = size_field_opt->get().GetNumericValue();
+    int64_t native_size = size_field->GetNumericValue();
     if (native_size <= 0) {
       continue;
     }

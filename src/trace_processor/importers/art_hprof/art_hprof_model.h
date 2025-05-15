@@ -20,7 +20,7 @@
 #include "src/trace_processor/importers/art_hprof/art_hprof_types.h"
 
 #include <cstdint>
-#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -269,14 +269,13 @@ class Object {
 
   const std::vector<Field>& GetFields() const { return fields_; }
 
-  std::optional<std::reference_wrapper<const Field>> FindField(
-      const std::string& name) const {
+  const Field* FindField(const std::string& name) const {
     for (const auto& field : fields_) {
       if (field.GetName() == name) {
-        return std::cref(field);
+        return &field;
       }
     }
-    return std::nullopt;
+    return nullptr;
   }
 
   int64_t GetNativeSize() const { return native_size_; }
