@@ -14,14 +14,20 @@
 
 # This workflow requires that pull requests coming from a forked repo (hence
 # non-googlers) have 2 reviews from repo collaborators.
+# This workflow is triggered by trigger-require-two-reviewers-for-fork-prs.yml.
+# The reason for the indirection layer and the split in two workflows is that
+# we have different events triggering the check. GitHub seems to treat each
+# trigger as an independent instance, ending up in a state where a successful
+# check won't override a previously failed check from a different trigger.
 
 name: Enforce 2 collaborator reviews for fork PRs
 
 on:
-  pull_request_review:
-    types: [submitted, edited, dismissed]
-  pull_request_target:
-    types: [synchronize]
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: number
 
 permissions:
   pull-requests: read
@@ -30,18 +36,22 @@ jobs:
   enforce-reviews:
     runs-on: self-hosted
     steps:
-      - name: Check if PR is from a fork
-        id: fork_check
+      - name: Fetch PR info
         run: |
-          echo "is_fork=${{ github.event.pull_request.head.repo.full_name != github.repository }}" >> $GITHUB_ENV
-
-      - name: Fetch approved reviews
-        if: env.is_fork == 'true'
-        run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
           REPO="${{ github.repository }}"
-          LATEST_SHA="${{ github.event.pull_request.head.sha }}"
+          PR_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/$REPO/pulls/${{ inputs.pr_number }}")
+          LATEST_SHA=$(echo "$PR_JSON" | jq -r .head.sha)
+          PR_REPO=$(echo "$PR_JSON" | jq -r .head.repo.full_name)
+          IS_FORK=$([[ "$PR_REPO" == "$REPO" ]] && echo false || echo true)
+          echo "LATEST_SHA=$LATEST_SHA" | tee -a $GITHUB_ENV
+          echo "IS_FORK=$IS_FORK" | tee -a $GITHUB_ENV
 
+      - name: Check reviewers
+        if: env.IS_FORK == 'true'
+        run: |
+          REPO="${{ github.repository }}"
+          PR_NUMBER=${{ inputs.pr_number }}
           REVIEWS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/reviews")
 
@@ -63,6 +73,5 @@ jobs:
           echo "---------------------------------------------------------------"
           echo "$REVIEWS"
           echo "---------------------------------------------------------------"
-          echo "Triggered by: ${{ github.event.review.state }} by ${{ github.event.review.user.login }}"
           exit 1
           fi
