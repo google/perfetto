@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: 'Trigger: Enforce 2 collaborator reviews for fork PRs'
-
-permissions:
-  pull-requests: read
+name: "Trigger: Enforce 2 collaborator reviews for fork PRs"
 
 on:
   pull_request_review:
@@ -23,10 +20,9 @@ on:
   pull_request_target:
     types: [synchronize]
 
+
 jobs:
   invoke-check:
     uses: ./.github/workflows/require-two-reviewers-for-fork-prs.yml
     with:
       pr_number: ${{ github.event.pull_request.number }}
-    permissions:
-      pull-requests: read
