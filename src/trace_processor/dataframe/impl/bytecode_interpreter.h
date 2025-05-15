@@ -878,6 +878,7 @@ class Interpreter {
                       const Column& column,
                       const Slab<uint32_t>* popcnt) {
     if constexpr (std::is_same_v<N, NonNull>) {
+      base::ignore_result(popcnt);
       return index;
     } else if constexpr (std::is_same_v<N, SparseNull>) {
       const auto& null_storage =
@@ -890,6 +891,7 @@ class Interpreter {
       return static_cast<uint32_t>((*popcnt)[index / 64] +
                                    bv.count_set_bits_until_in_word(index));
     } else if constexpr (std::is_same_v<N, DenseNull>) {
+      base::ignore_result(popcnt);
       const auto& null_storage =
           column.null_storage.unchecked_get<dataframe::DenseNull>();
       return null_storage.bit_vector.is_set(index)
