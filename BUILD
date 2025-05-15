@@ -519,8 +519,7 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-           ] + PERFETTO_CONFIG.deps.base_platform +
-           PERFETTO_CONFIG.deps.expat +
+           ] + PERFETTO_CONFIG.deps.expat +
            PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.open_csd +
            PERFETTO_CONFIG.deps.sqlite +
@@ -7519,8 +7518,7 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-           ] + PERFETTO_CONFIG.deps.base_platform +
-           PERFETTO_CONFIG.deps.expat +
+           ] + PERFETTO_CONFIG.deps.expat +
            PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.open_csd +
            PERFETTO_CONFIG.deps.sqlite +
@@ -7736,8 +7734,7 @@ perfetto_cc_binary(
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-           ] + PERFETTO_CONFIG.deps.base_platform +
-           PERFETTO_CONFIG.deps.expat +
+           ] + PERFETTO_CONFIG.deps.expat +
            PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.linenoise +
            PERFETTO_CONFIG.deps.open_csd +
@@ -7955,8 +7952,7 @@ perfetto_cc_binary(
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
                ":src_traceconv_gen_cc_trace_descriptor",
                ":src_traceconv_gen_cc_winscope_descriptor",
-           ] + PERFETTO_CONFIG.deps.base_platform +
-           PERFETTO_CONFIG.deps.expat +
+           ] + PERFETTO_CONFIG.deps.expat +
            PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.open_csd +
            PERFETTO_CONFIG.deps.sqlite +

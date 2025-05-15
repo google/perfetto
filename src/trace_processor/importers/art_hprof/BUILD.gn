@@ -19,7 +19,9 @@ source_set("art_hprof") {
     "art_hprof_parser.cc",
   ]
   deps = [
-    "../../../../gn:base_platform",
     "../../../../gn:default_deps",
+    "../../../base",
+    "../../containers",
+    "../../importers/common",
   ]
 }
