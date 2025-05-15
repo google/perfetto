@@ -8,4 +8,5 @@ explore multi-GB traces.
 
 
 
+
 See https://perfetto.dev/docs or the /docs/ directory for documentation.
