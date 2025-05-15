@@ -9,7 +9,7 @@ explore multi-GB traces.
 ![Perfetto stack](/docs/images/perfetto-stack.svg)
 
 
-EDIT!!!!
+EDIT 2!!!!
 
 ## Recording traces
 
