@@ -9547,6 +9547,17 @@ message IrqHandlerExitFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/irq.proto
 
+// Begin of protos/perfetto/trace/ftrace/irq_vectors.proto
+
+message LocalTimerEntryFtraceEvent {
+  optional int32 vector = 1;
+}
+message LocalTimerExitFtraceEvent {
+  optional int32 vector = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/irq_vectors.proto
+
 // Begin of protos/perfetto/trace/ftrace/kgsl.proto
 
 message KgslGpuFrequencyFtraceEvent {
@@ -11987,6 +11998,8 @@ message FtraceEvent {
     TimerCancelFtraceEvent timer_cancel = 556;
     TimerExpireEntryFtraceEvent timer_expire_entry = 557;
     TimerExpireExitFtraceEvent timer_expire_exit = 558;
+    LocalTimerEntryFtraceEvent local_timer_entry = 559;
+    LocalTimerExitFtraceEvent local_timer_exit = 560;
   }
 }
 

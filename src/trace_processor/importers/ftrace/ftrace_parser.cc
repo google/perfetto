@@ -464,7 +464,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
           context_->storage->InternString("disp_vblank_irq_enable")),
       disp_vblank_irq_enable_output_id_arg_name_(
           context_->storage->InternString("output_id")),
-      hrtimer_id_(context_->storage->InternString("hrtimer")) {
+      hrtimer_id_(context_->storage->InternString("hrtimer")),
+      local_timer_id_(context_->storage->InternString("IRQ (LocalTimer)")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -978,6 +979,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kWorkqueueExecuteEndFieldNumber: {
         ParseWorkqueueExecuteEnd(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kLocalTimerEntryFieldNumber: {
+        ParseLocalTimerEntry(cpu, ts);
+        break;
+      }
+      case FtraceEvent::kLocalTimerExitFieldNumber: {
+        ParseLocalTimerExit(cpu, ts);
         break;
       }
       case FtraceEvent::kIrqHandlerEntryFieldNumber: {
@@ -2745,6 +2754,18 @@ void FtraceParser::ParseIrqHandlerExit(uint32_t cpu,
                          Variadic::String(context_->storage->InternString(
                              evt.ret() == 1 ? "handled" : "unhandled")));
       });
+}
+
+void FtraceParser::ParseLocalTimerEntry(uint32_t cpu, int64_t timestamp) {
+  TrackId track = context_->track_tracker->InternTrack(kIrqBlueprint,
+                                                       tracks::Dimensions(cpu));
+  context_->slice_tracker->Begin(timestamp, track, irq_id_, local_timer_id_);
+}
+
+void FtraceParser::ParseLocalTimerExit(uint32_t cpu, int64_t timestamp) {
+  TrackId track = context_->track_tracker->InternTrack(kIrqBlueprint,
+                                                       tracks::Dimensions(cpu));
+  context_->slice_tracker->End(timestamp, track, irq_id_, {});
 }
 
 namespace {
