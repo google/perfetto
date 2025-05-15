@@ -43,6 +43,7 @@ source_set("specs") {
   deps = [
     "../../../gn:default_deps",
     "../../base",
+    "../containers",
   ]
 }
 
