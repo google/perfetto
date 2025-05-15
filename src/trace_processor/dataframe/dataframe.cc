@@ -92,15 +92,15 @@ base::StatusOr<Dataframe::Index> Dataframe::BuildIndex(
 
   // Heap allocate to avoid potential stack overflows due to large cursor
   // object.
-  auto c = std::make_unique<std::optional<Cursor<ErrorValueFetcher>>>();
-  PrepareCursor(std::move(plan), *c);
+  auto c = std::make_unique<Cursor<ErrorValueFetcher>>();
+  PrepareCursor(plan, *c);
   ErrorValueFetcher vf{};
-  c->value().Execute(vf);
+  c->Execute(vf);
 
   std::vector<uint32_t> permutation;
   permutation.reserve(row_count_);
-  for (; !c->value().Eof(); c->value().Next()) {
-    permutation.push_back(c->value().RowIndex());
+  for (; !c->Eof(); c->Next()) {
+    permutation.push_back(c->RowIndex());
   }
   return Index(std::move(cols),
                std::make_shared<std::vector<uint32_t>>(std::move(permutation)));
@@ -237,6 +237,13 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
         column_specs[i].sort_state}));
   }
   return columns;
+}
+
+void Dataframe::TypedCursorBase::PrepareCursorInternal() {
+  auto plan = dataframe_->PlanQuery(filter_specs_, {}, sort_specs_, {}, 0);
+  PERFETTO_CHECK(plan.ok());
+  dataframe_->PrepareCursor(*plan, cursor_);
+  last_execution_mutation_count_ = dataframe_->mutations_;
 }
 
 }  // namespace perfetto::trace_processor::dataframe

@@ -150,12 +150,15 @@ class Interpreter {
   static_assert(std::is_base_of_v<ValueFetcher, FilterValueFetcherImpl>,
                 "FilterValueFetcherImpl must be a subclass of ValueFetcher");
 
-  Interpreter(BytecodeVector bytecode,
-              const Column* const* columns,
-              const StringPool* string_pool)
-      : bytecode_(std::move(bytecode)),
-        columns_(columns),
-        string_pool_(string_pool) {}
+  Interpreter() = default;
+
+  void Initialize(const BytecodeVector& bytecode,
+                  const Column* const* columns,
+                  const StringPool* string_pool) {
+    bytecode_ = bytecode;
+    columns_ = columns;
+    string_pool_ = string_pool;
+  }
 
   // Not movable because it's a very large object and the move cost would be
   // high. Prefer constructing in place.
