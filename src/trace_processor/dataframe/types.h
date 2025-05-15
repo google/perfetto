@@ -12,18 +12,22 @@ namespace perfetto::trace_processor::dataframe {
 // Represents an index to speed up operations on the dataframe.
 struct Index {
  public:
-  Index Copy() const { return *this; }
-
- private:
-  friend class Dataframe;
-
   Index(std::vector<uint32_t> _columns,
         std::shared_ptr<std::vector<uint32_t>> _permutation_vector)
-      : columns(std::move(_columns)),
-        permutation_vector(std::move(_permutation_vector)) {}
+      : columns_(std::move(_columns)),
+        permutation_vector_(std::move(_permutation_vector)) {}
 
-  std::vector<uint32_t> columns;
-  std::shared_ptr<std::vector<uint32_t>> permutation_vector;
+  Index Copy() const { return *this; }
+
+  const std::vector<uint32_t>& columns() const { return columns_; }
+
+  const std::shared_ptr<std::vector<uint32_t>>& permutation_vector() const {
+    return permutation_vector_;
+  }
+
+ private:
+  std::vector<uint32_t> columns_;
+  std::shared_ptr<std::vector<uint32_t>> permutation_vector_;
 };
 
 }  // namespace perfetto::trace_processor::dataframe

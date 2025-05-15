@@ -42,6 +42,7 @@
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
@@ -144,12 +145,13 @@ class QueryPlanBuilder {
   static base::StatusOr<QueryPlan> Build(
       uint32_t row_count,
       const std::vector<std::shared_ptr<Column>>& columns,
+      const std::vector<Index>& indexes,
       std::vector<FilterSpec>& specs,
       const std::vector<DistinctSpec>& distinct,
       const std::vector<SortSpec>& sort_specs,
       const LimitSpec& limit_spec,
       uint64_t cols_used) {
-    QueryPlanBuilder builder(row_count, columns);
+    QueryPlanBuilder builder(row_count, columns, indexes);
     RETURN_IF_ERROR(builder.Filter(specs));
     builder.Distinct(distinct);
     if (builder.CanUseMinMaxOptimization(sort_specs, limit_spec)) {
@@ -205,7 +207,8 @@ class QueryPlanBuilder {
 
   // Constructs a builder for the given number of rows and columns.
   QueryPlanBuilder(uint32_t row_count,
-                   const std::vector<std::shared_ptr<Column>>& columns);
+                   const std::vector<std::shared_ptr<Column>>& columns,
+                   const std::vector<Index>& indexes);
 
   // Adds filter operations to the query plan based on filter specifications.
   // Optimizes the order of filters for efficiency.
@@ -248,13 +251,17 @@ class QueryPlanBuilder {
   // Processes null filter constraints.
   void NullConstraint(const NullOp&, FilterSpec&);
 
+  // Processes constraints which can be handled with an index.
+  void IndexConstraints(std::vector<FilterSpec>&,
+                        std::vector<uint8_t>& specs_handled,
+                        uint32_t,
+                        const std::vector<uint32_t>&);
+
   // Attempts to apply optimized filtering on sorted data.
   // Returns true if the optimization was applied.
-  bool TrySortedConstraint(
-      const FilterSpec& fs,
-      const StorageType& ct,
-      const NonNullOp& op,
-      const bytecode::reg::RwHandle<CastFilterValueResult>& result);
+  bool TrySortedConstraint(FilterSpec& fs,
+                           const StorageType& ct,
+                           const NonNullOp& opF);
 
   // Adds overlay translation for handling special column properties like
   // nullability.
@@ -294,12 +301,18 @@ class QueryPlanBuilder {
   bytecode::reg::ReadHandle<Slab<uint32_t>> PrefixPopcountRegisterFor(
       uint32_t col);
 
+  bytecode::reg::ReadHandle<CastFilterValueResult>
+  CastFilterValue(FilterSpec& c, const StorageType& ct, NonNullOp non_null_op);
+
   bool CanUseMinMaxOptimization(const std::vector<SortSpec>&, const LimitSpec&);
 
   const Column& GetColumn(uint32_t idx) { return *columns_[idx]; }
 
   // Reference to the columns being queried.
   const std::vector<std::shared_ptr<Column>>& columns_;
+
+  // Reference to the indexes available.
+  const std::vector<Index>& indexes_;
 
   // The query plan being built.
   QueryPlan plan_;
