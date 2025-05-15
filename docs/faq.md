@@ -20,6 +20,7 @@ From the Perfetto root, run:
 tools/open_trace_in_ui -i /path/to/trace
 ```
 
+
 ## Why does Perfetto not support \<some obscure JSON format feature\>?
 
 The JSON trace format is considered a legacy trace format and is supported on a
@@ -37,6 +38,7 @@ instead, Perfetto's native trace format. See
 events can be represented using
 TrackEvent.
 
+
 ## Why are overlapping events in JSON traces not displayed correctly?
 
 The Perfetto UI and trace processor do not support overlapping B/E/X events, in
@@ -50,6 +52,7 @@ instead, Perfetto's native trace format. See
 [this guide](/docs/reference/synthetic-track-event.md) for how common JSON
 events can be represented using
 TrackEvent.
+
 
 ## How can I use Perfetto tooling without instrumenting my program?
 
