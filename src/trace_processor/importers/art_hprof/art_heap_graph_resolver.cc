@@ -471,6 +471,8 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
       result.push_back(static_cast<char>(0x80 | ((ch >> 6) & 0x3F)));
       result.push_back(static_cast<char>(0x80 | (ch & 0x3F)));
     }
+
+    return result;
   };
 
   switch (array->GetArrayElementType()) {

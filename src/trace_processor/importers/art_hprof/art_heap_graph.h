@@ -92,6 +92,8 @@ class HeapGraph {
       case HprofHeapRootTag::kUnknown:
         return "UNKNOWN";
     }
+
+    return "UNKNOWN";
   }
 
  private:

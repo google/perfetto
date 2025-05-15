@@ -38,7 +38,7 @@ class ArtHprofParser(TestSuite):
         query="""
 
           SELECT * FROM heap_graph_class
-          ORDER BY name
+          ORDER BY name, id
           LIMIT 10
         """,
         out=Csv('''
@@ -71,7 +71,7 @@ class ArtHprofParser(TestSuite):
         trace=DataPath('test-dump.hprof'),
         query="""
           SELECT * FROM heap_graph_object
-          ORDER BY type_id
+          ORDER BY type_id, id
           LIMIT 10
         """,
         out=Csv('''
@@ -104,7 +104,7 @@ class ArtHprofParser(TestSuite):
         trace=DataPath('test-dump.hprof'),
         query="""
           SELECT * FROM heap_graph_reference
-          ORDER BY field_name
+          ORDER BY field_name, id
           LIMIT 10
         """,
         out=Csv('''

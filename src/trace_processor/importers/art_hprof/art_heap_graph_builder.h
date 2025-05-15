@@ -264,6 +264,8 @@ inline size_t GetFieldTypeSize(FieldType type, size_t id_size) {
     case FieldType::kLong:
       return 8;
   }
+
+  return 0;
 }
 }  // namespace perfetto::trace_processor::art_hprof
 
