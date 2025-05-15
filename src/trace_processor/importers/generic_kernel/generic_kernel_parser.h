@@ -33,18 +33,49 @@ class GenericKernelParser {
   void ParseGenericTaskStateEvent(int64_t ts, protozero::ConstBytes data);
 
  private:
-  void PushSchedSwitch(int64_t ts,
-                       int32_t cpu,
-                       uint32_t tid,
-                       UniqueTid utid,
-                       StringId state_string_id,
-                       int32_t prio);
+  enum SchedSwitchType {
+    // No context switch event was handled.
+    SCHED_SWITCH_NONE = 0,
+    // A new context switch slice was opened
+    // without any side effects.
+    SCHED_SWITCH_START,
+    // A new context switch slice was opened
+    // and the previous running thread's slice
+    // was closed without knowing the end_state.
+    SCHED_SWITCH_START_WITH_PENDING,
+    // The previously started context switch slice
+    // was closed.
+    SCHED_SWITCH_CLOSE,
+    // A closed context switch with unknown end
+    // state was updated with a new valid end
+    // state. No new context switch slice was
+    // opened/closed.
+    SCHED_SWITCH_UPDATE_END_STATE,
+  };
 
-  StringId TaskStateToStringId(int32_t task_state);
+  SchedSwitchType PushSchedSwitch(int64_t ts,
+                                  int32_t cpu,
+                                  uint32_t tid,
+                                  UniqueTid utid,
+                                  StringId state_string_id,
+                                  int32_t prio);
+
+  void InsertHangingSchedInfoForTid(
+      UniqueTid utid,
+      SchedEventState::PendingSchedInfo sched_info);
+
+  std::optional<SchedEventState::PendingSchedInfo> GetHangingSchedInfoForTid(
+      UniqueTid utid);
+
+  void RemoveHangingSchedInfoForTid(UniqueTid utid);
+
+  StringId TaskStateToStringId(int32_t state);
 
   TraceProcessorContext* context_;
   // Keeps track of the latest context switches
   SchedEventState sched_event_state_;
+  std::vector<std::optional<SchedEventState::PendingSchedInfo>>
+      pending_state_per_utid_;
 
   StringId running_string_id_;
 };

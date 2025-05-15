@@ -29,6 +29,43 @@ namespace perfetto::trace_processor {
 using protos::pbzero::TaskStateEnum;
 using protozero::ConstBytes;
 
+using PendingSchedInfo = SchedEventState::PendingSchedInfo;
+
+constexpr std::array<const char*, 8> kTaskStates = {
+    "Created", "R", "Running", "S", "D", "T", "Z", "X"};
+
+PERFETTO_ALWAYS_INLINE
+StringId GenericKernelParser::TaskStateToStringId(int32_t state) {
+  return static_cast<uint32_t>(state) < kTaskStates.size()
+             ? context_->storage->InternString(kTaskStates[state])
+             : kNullStringId;
+}
+
+PERFETTO_ALWAYS_INLINE
+void GenericKernelParser::InsertHangingSchedInfoForTid(
+    UniqueTid utid,
+    SchedEventState::PendingSchedInfo sched_info) {
+  if (utid >= pending_state_per_utid_.size()) {
+    pending_state_per_utid_.resize(utid + 1);
+  }
+  // Overrides any old hanging slice for the utid
+  pending_state_per_utid_[utid] = sched_info;
+}
+
+PERFETTO_ALWAYS_INLINE
+std::optional<SchedEventState::PendingSchedInfo>
+GenericKernelParser::GetHangingSchedInfoForTid(UniqueTid utid) {
+  return utid < pending_state_per_utid_.size() ? pending_state_per_utid_[utid]
+                                               : std::nullopt;
+}
+
+PERFETTO_ALWAYS_INLINE
+void GenericKernelParser::RemoveHangingSchedInfoForTid(UniqueTid utid) {
+  if (utid < pending_state_per_utid_.size()) {
+    pending_state_per_utid_[utid].reset();
+  }
+}
+
 GenericKernelParser::GenericKernelParser(TraceProcessorContext* context)
     : context_(context),
       running_string_id_(context_->storage->InternString("Running")) {}
@@ -43,6 +80,8 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
   const uint32_t tid = static_cast<uint32_t>(task_event.tid());
   const int32_t prio = task_event.prio();
 
+  // TODO(jahdiel): Handle the TASK_STATE_CREATED in order to set
+  // the thread's creation timestamp.
   UniqueTid utid = context_->process_tracker->UpdateThreadName(
       tid, comm_id, ThreadNamePriority::kGenericKernelTask);
 
@@ -51,18 +90,46 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
     context_->storage->IncrementStats(stats::task_state_invalid);
   }
 
+  // Given |PushSchedSwitch| updates the pending slice, run this
+  // method before it.
+  PendingSchedInfo prev_pending_sched =
+      *sched_event_state_.GetPendingSchedInfoForCpu(cpu);
+
   // Handle context switches
-  PushSchedSwitch(ts, cpu, tid, utid, state_string_id, prio);
+  auto schedSwitchType =
+      PushSchedSwitch(ts, cpu, tid, utid, state_string_id, prio);
 
   // Update the ThreadState table.
-  ThreadStateTracker::GetOrCreate(context_)->ClosePendingState(
-      ts, utid, false /*data_loss*/);
+  switch (schedSwitchType) {
+    case SCHED_SWITCH_UPDATE_END_STATE: {
+      ThreadStateTracker::GetOrCreate(context_)->UpdateOpenState(
+          utid, state_string_id);
+      break;
+    }
+    case SCHED_SWITCH_START_WITH_PENDING: {
+      ThreadStateTracker::GetOrCreate(context_)->ClosePendingState(
+          ts, prev_pending_sched.last_utid, false /*data_loss*/);
 
-  std::optional<uint16_t> cpu_op =
-      state_string_id == running_string_id_ ? std::optional{cpu} : std::nullopt;
+      ThreadStateTracker::GetOrCreate(context_)->AddOpenState(
+          ts, prev_pending_sched.last_utid, kNullStringId);
 
-  ThreadStateTracker::GetOrCreate(context_)->AddOpenState(
-      ts, utid, state_string_id, cpu_op);
+      // Create the unknown thread state for the previous thread and
+      // proceed to update the current thread's state.
+      [[fallthrough]];
+    }
+    default: {
+      ThreadStateTracker::GetOrCreate(context_)->ClosePendingState(
+          ts, utid, false /*data_loss*/);
+
+      std::optional<uint16_t> cpu_op = state_string_id == running_string_id_
+                                           ? std::optional{cpu}
+                                           : std::nullopt;
+
+      ThreadStateTracker::GetOrCreate(context_)->AddOpenState(
+          ts, utid, state_string_id, cpu_op);
+      break;
+    }
+  }
 }
 
 // Handles context switches based on GenericTaskStateEvents.
@@ -80,21 +147,23 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
 // we keep track of any hanging opened slices. When the closing
 // event is received, we then proceed add the end_state to the
 // sched_slice table.
-void GenericKernelParser::PushSchedSwitch(int64_t ts,
-                                          int32_t cpu,
-                                          uint32_t tid,
-                                          UniqueTid utid,
-                                          StringId state_string_id,
-                                          int32_t prio) {
+GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
+    int64_t ts,
+    int32_t cpu,
+    uint32_t tid,
+    UniqueTid utid,
+    StringId state_string_id,
+    int32_t prio) {
   auto* pending_sched = sched_event_state_.GetPendingSchedInfoForCpu(cpu);
   uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
   if (state_string_id == running_string_id_) {
+    auto rc = SCHED_SWITCH_START;
     // Close the previous sched slice
     if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
       context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
                                                        kNullStringId);
-      sched_event_state_.InsertHangingSchedInfoForTid(pending_sched->last_utid,
-                                                      *pending_sched);
+      InsertHangingSchedInfoForTid(pending_sched->last_utid, *pending_sched);
+      rc = SCHED_SWITCH_START_WITH_PENDING;
     }
     // Start a new sched slice for the new task.
     auto new_slice_idx =
@@ -104,41 +173,32 @@ void GenericKernelParser::PushSchedSwitch(int64_t ts,
     pending_sched->last_pid = tid;
     pending_sched->last_utid = utid;
     pending_sched->last_prio = prio;
-  } else {
-    // Close the pending slice if applicable
-    if (pending_slice_idx < std::numeric_limits<uint32_t>::max() &&
-        tid == pending_sched->last_pid) {
-      context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
-                                                       state_string_id);
-      // Clear the pending slice
-      *pending_sched = SchedEventState::PendingSchedInfo();
-    } else {
-      // Close any hanging slice associated with the utid
-      auto* hanging_sched = sched_event_state_.GetHangingSchedInfoForTid(utid);
-      if (hanging_sched) {
-        context_->sched_event_tracker->SetEndStateToSlice(
-            hanging_sched->pending_slice_storage_idx, state_string_id);
-        sched_event_state_.EraseHangingSchedInfoForTid(utid);
-      }
+    return rc;
+  }
+  // Close the pending slice if applicable
+  if (pending_slice_idx < std::numeric_limits<uint32_t>::max() &&
+      tid == pending_sched->last_pid) {
+    context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
+                                                     state_string_id);
+    // Clear the pending slice
+    *pending_sched = SchedEventState::PendingSchedInfo();
+    return SCHED_SWITCH_CLOSE;
+  }
+  // Add end state to a previously ended context switch if applicable.
+  // For the end state to be added the timestamp of the event must match
+  // the timestamp of the previous context switch.
+  auto hanging_sched = GetHangingSchedInfoForTid(utid);
+  if (hanging_sched.has_value()) {
+    auto sched_slice_idx = hanging_sched->pending_slice_storage_idx;
+    auto close_ts =
+        context_->sched_event_tracker->GetCloseTimestamp(sched_slice_idx);
+    if (ts == close_ts) {
+      context_->sched_event_tracker->SetEndStateToSlice(sched_slice_idx,
+                                                        state_string_id);
+      RemoveHangingSchedInfoForTid(utid);
+      return SCHED_SWITCH_UPDATE_END_STATE;
     }
   }
+  return SCHED_SWITCH_NONE;
 }
-
-StringId GenericKernelParser::TaskStateToStringId(
-    [[maybe_unused]] int32_t state) {
-  std::map<uint32_t, base::StringView> task_states_map = {
-      {TaskStateEnum::TASK_STATE_CREATED, "Created"},
-      {TaskStateEnum::TASK_STATE_RUNNABLE, "R"},
-      {TaskStateEnum::TASK_STATE_RUNNING, "Running"},
-      {TaskStateEnum::TASK_STATE_INTERRUPTIBLE_SLEEP, "S"},
-      {TaskStateEnum::TASK_STATE_UNINTERRUPTIBLE_SLEEP, "D"},
-      {TaskStateEnum::TASK_STATE_STOPPED, "T"},
-      {TaskStateEnum::TASK_STATE_DEAD, "Z"},
-      {TaskStateEnum::TASK_STATE_DESTROYED, "X"},
-  };
-  return task_states_map.find(state) != task_states_map.end()
-             ? context_->storage->InternString(task_states_map[state])
-             : kNullStringId;
-}
-
 }  // namespace perfetto::trace_processor

@@ -69,6 +69,13 @@ class ThreadStateTracker : public Destructible {
                     std::optional<uint16_t> cpu = std::nullopt,
                     std::optional<UniqueTid> waker_utid = std::nullopt,
                     std::optional<uint16_t> common_flags = std::nullopt);
+
+  void UpdateOpenState(UniqueTid utid,
+                       StringId new_state,
+                       std::optional<uint16_t> cpu = std::nullopt,
+                       std::optional<UniqueTid> waker_utid = std::nullopt,
+                       std::optional<uint16_t> common_flags = std::nullopt);
+
   void ClosePendingState(int64_t end_ts, UniqueTid utid, bool data_loss);
 
  private:

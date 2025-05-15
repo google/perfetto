@@ -126,7 +126,7 @@ class GenericKernelParser(TestSuite):
           }
         }
         packet {
-          timestamp: 362831239274
+          timestamp: 361831239274
           generic_task_state_event {
             cpu: 0
             comm: "task1"
@@ -177,6 +177,111 @@ class GenericKernelParser(TestSuite):
           }
         }
         packet {
+          timestamp: 361831239274
+          generic_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 101
+            state: 7
+            prio: 100
+          }
+        }
+        """),
+        query="""
+        select
+          ts,
+          dur,
+          cpu,
+          utid,
+          state,
+          ucpu
+        from thread_state
+        """,
+        out=Csv("""
+        "ts","dur","cpu","utid","state","ucpu"
+        360831239274,1000000000,0,1,"Running",0
+        361831239274,-1,"[NULL]",1,"X","[NULL]"
+        361831239274,-1,0,2,"Running",0
+        """))
+
+  # Testing scenario:
+  #   start task1 -> start task2 -> close task1
+  # But the close ts doesn't align with start of task2
+  def test_sched_switch_interleaved_mismatched(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 101
+            state: 2
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 361831239274
+          generic_task_state_event {
+            cpu: 0
+            comm: "task2"
+            tid: 102
+            state: 2
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 362831239274
+          generic_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 101
+            state: 7
+            prio: 100
+          }
+        }
+        """),
+        query="""
+        select
+          ts,
+          dur,
+          cpu,
+          utid,
+          end_state,
+          priority,
+          ucpu
+        from sched_slice
+        """,
+        out=Csv("""
+        "ts","dur","cpu","utid","end_state","priority","ucpu"
+        360831239274,1000000000,0,1,"[NULL]",100,0
+        361831239274,-1,0,2,"[NULL]",100,0
+        """))
+
+  def test_sched_switch_interleaved_mismatched_thread_state(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 101
+            state: 2
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 361831239274
+          generic_task_state_event {
+            cpu: 0
+            comm: "task2"
+            tid: 102
+            state: 2
+            prio: 100
+          }
+        }
+        packet {
           timestamp: 362831239274
           generic_task_state_event {
             cpu: 0
@@ -195,13 +300,115 @@ class GenericKernelParser(TestSuite):
           utid,
           state,
           ucpu
-        from thread_state 
+        from thread_state
         """,
         out=Csv("""
         "ts","dur","cpu","utid","state","ucpu"
-        360831239274,2000000000,0,1,"Running",0
+        360831239274,1000000000,0,1,"Running",0
+        361831239274,1000000000,"[NULL]",1,"[NULL]","[NULL]"
         361831239274,-1,0,2,"Running",0
         362831239274,-1,"[NULL]",1,"X","[NULL]"
+        """))
+
+  def test_sched_switch_multiple_threads(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 1
+            state: 2
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 361831239274
+          generic_task_state_event {
+            cpu: 0
+            comm: "task2"
+            tid: 2
+            state: 2
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 362831239274
+          generic_task_state_event {
+            comm: "task3"
+            tid: 3
+            state: 3
+            prio: 100
+          }
+        }
+        """),
+        query="""
+        select
+          ts,
+          dur,
+          cpu,
+          utid,
+          end_state,
+          priority,
+          ucpu
+        from sched_slice
+        """,
+        out=Csv("""
+        "ts","dur","cpu","utid","end_state","priority","ucpu"
+        360831239274,1000000000,0,1,"[NULL]",100,0
+        361831239274,-1,0,2,"[NULL]",100,0
+        """))
+
+  def test_sched_switch_multiple_threads_thread_state(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 1
+            state: 2
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 361831239274
+          generic_task_state_event {
+            cpu: 0
+            comm: "task2"
+            tid: 2
+            state: 2
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 362831239274
+          generic_task_state_event {
+            comm: "task3"
+            tid: 3
+            state: 3
+            prio: 100
+          }
+        }
+        """),
+        query="""
+        select
+          ts,
+          dur,
+          cpu,
+          utid,
+          state,
+          ucpu
+        from thread_state
+        """,
+        out=Csv("""
+        "ts","dur","cpu","utid","state","ucpu"
+        360831239274,1000000000,0,1,"Running",0
+        361831239274,-1,"[NULL]",1,"[NULL]","[NULL]"
+        361831239274,-1,0,2,"Running",0
+        362831239274,-1,"[NULL]",3,"S","[NULL]"
         """))
 
   def test_thread_state_created(self):
@@ -231,4 +438,42 @@ class GenericKernelParser(TestSuite):
         out=Csv("""
         "ts","dur","cpu","utid","state","ucpu"
         360831239274,-1,"[NULL]",1,"Created","[NULL]"
+        """))
+
+  def test_thread_name(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 101
+            state: 0
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 361831239274
+          generic_task_state_event {
+            cpu: 0
+            comm: "task2"
+            tid: 102
+            state: 0
+            prio: 100
+          }
+        }
+        """),
+        query="""
+        select
+          utid,
+          tid,
+          name
+        from thread
+        """,
+        out=Csv("""
+        "utid","tid","name"
+        0,0,"swapper"
+        1,101,"task1"
+        2,102,"task2"
         """))

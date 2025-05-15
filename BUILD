@@ -356,7 +356,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_fuchsia_minimal",
         ":src_trace_processor_importers_gecko_gecko",
         ":src_trace_processor_importers_gecko_gecko_event",
-        ":src_trace_processor_importers_generic_kernel_minimal",
+        ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
@@ -2133,9 +2133,9 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/importers/generic_kernel:minimal
+# GN target: //src/trace_processor/importers/generic_kernel:full
 perfetto_filegroup(
-    name = "src_trace_processor_importers_generic_kernel_minimal",
+    name = "src_trace_processor_importers_generic_kernel_full",
     srcs = [
         "src/trace_processor/importers/generic_kernel/generic_kernel_module.cc",
         "src/trace_processor/importers/generic_kernel/generic_kernel_module.h",
@@ -7378,7 +7378,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_fuchsia_minimal",
         ":src_trace_processor_importers_gecko_gecko",
         ":src_trace_processor_importers_gecko_gecko_event",
-        ":src_trace_processor_importers_generic_kernel_minimal",
+        ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
@@ -7607,7 +7607,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_fuchsia_minimal",
         ":src_trace_processor_importers_gecko_gecko",
         ":src_trace_processor_importers_gecko_gecko_event",
-        ":src_trace_processor_importers_generic_kernel_minimal",
+        ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
@@ -7825,7 +7825,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_fuchsia_minimal",
         ":src_trace_processor_importers_gecko_gecko",
         ":src_trace_processor_importers_gecko_gecko_event",
-        ":src_trace_processor_importers_generic_kernel_minimal",
+        ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",

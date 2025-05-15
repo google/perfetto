@@ -14,7 +14,7 @@
 
 import("../../../../gn/test.gni")
 
-source_set("minimal") {
+source_set("full") {
   sources = [
     "generic_kernel_module.cc",
     "generic_kernel_module.h",
@@ -23,13 +23,15 @@ source_set("minimal") {
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/generic_kernel:zero",
+    "../../../protozero",
+    "../../storage",
+    "../../types",
+    "../common",
     "../common:parser_types",
     "../common:trace_parser_hdr",
     "../proto:proto_importer_module",
   ]
-}
-
-source_set("full") {
-  deps = [ ":minimal" ]
 }

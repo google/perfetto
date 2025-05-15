@@ -66,6 +66,15 @@ class SchedEventTracker : public Destructible {
   }
 
   PERFETTO_ALWAYS_INLINE
+  int64_t GetCloseTimestamp(uint32_t pending_slice_idx) {
+    auto* slices = context_->storage->mutable_sched_slice_table();
+    auto r = (*slices)[pending_slice_idx];
+    if (r.dur() < 0)
+      return -1;
+    return r.ts() + r.dur();
+  }
+
+  PERFETTO_ALWAYS_INLINE
   void SetEndStateToSlice(uint32_t pending_slice_idx, StringId prev_state) {
     auto* slices = context_->storage->mutable_sched_slice_table();
     auto r = (*slices)[pending_slice_idx];
