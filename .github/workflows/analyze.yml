@@ -52,18 +52,22 @@ jobs:
 
       - name: Check if the change is trivial (docs/infra only)
         run: |
-          if !(git diff --name-only origin/${{ github.base_ref }}...HEAD | egrep -qv '^(docs|infra|tools|.github)/'); then
-          echo "TRIVIAL_CHANGE=1" >> $GITHUB_OUTPUT
+          FILES_CHANGED="$(git diff --name-only origin/${{ github.base_ref }}...HEAD)"
+          echo "Files changed:"
+          echo "$FILES_CHANGED"
+          echo "---------------------------------------------------------------"
+          if !(echo "$FILES_CHANGED" | egrep -qv '^(docs|infra|tools|test/data|[.]github)/'); then
+          echo "TRIVIAL_CHANGE=1" | tee -a $GITHUB_OUTPUT
           else
-          echo "TRIVIAL_CHANGE=0" >> $GITHUB_OUTPUT
+          echo "TRIVIAL_CHANGE=0" | tee -a $GITHUB_OUTPUT
           fi
 
       - name: Check if the change is UI only (skip linux/android tests)
         run: |
-          if !(git diff --name-only origin/${{ github.base_ref }}...HEAD | egrep -qv '^(ui|test/data/ui-screenshots)/'); then
-          echo "UI_ONLY_CHANGE=1" >> $GITHUB_OUTPUT
+          if !(echo "$FILES_CHANGED" | egrep -qv '^(ui|test/data/ui-screenshots)/'); then
+          echo "UI_ONLY_CHANGE=1" | tee -a $GITHUB_OUTPUT
           else
-          echo "UI_ONLY_CHANGE=0" >> $GITHUB_OUTPUT
+          echo "UI_ONLY_CHANGE=0" | tee -a $GITHUB_OUTPUT
           fi
 
   linux:
@@ -101,5 +105,4 @@ jobs:
 
   repo-checks:
     needs: analyze
-    if: needs.analyze.outputs.UI_ONLY_CHANGE == '0'
     uses: ./.github/workflows/repo-checks.yml
