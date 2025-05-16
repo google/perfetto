@@ -19,16 +19,17 @@ import {QueryTable} from '../../../components/query_table/query_table';
 import {runQueryForQueryTable} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 import {QueryNode} from '../query_node';
 import {Section} from '../../../widgets/section';
 import {Engine} from '../../../trace_processor/engine';
 import protos from '../../../protos';
 import {copyToClipboard} from '../../../base/clipboard';
 import {Button} from '../../../widgets/button';
+import {Icon} from '../../../widgets/icon';
 import {Icons} from '../../../base/semantic_icons';
 import {Operator} from './operations/operation_component';
-import {Trace} from 'src/public/trace';
+import {Trace} from '../../../public/trace';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
 
 export interface QueryNodeExplorerAttrs {
   readonly node: QueryNode;
@@ -92,30 +93,43 @@ export class QueryNodeExplorer
       if (this.queryResult.error !== undefined) {
         return m(TextParagraph, {text: `Error: ${this.queryResult.error}`});
       }
-      return (
-        this.currentQuery &&
-        m(QueryTable, {
-          trace: attrs.trace,
-          query: queryToRun(this.currentQuery),
-          resp: this.queryResult,
-          fillParent: false,
-        })
-      );
+      return m(QueryTable, {
+        trace: attrs.trace,
+        query: queryToRun(this.currentQuery),
+        resp: this.queryResult,
+        fillParent: false,
+      });
     };
 
-    const renderSelectedViewButtons = (): m.Child => {
-      return m(SegmentedButtons, {
-        ...attrs,
-        options: [
-          {label: 'Modify'},
-          {label: 'Show SQL'},
-          {label: 'Show proto'},
-        ],
-        selectedOption: this.selectedView,
-        onOptionSelected: (num) => {
-          this.selectedView = num;
+    const renderModeMenu = (): m.Child => {
+      return m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            icon: Icons.ContextMenuAlt,
+          }),
         },
-      });
+        [
+          m(MenuItem, {
+            label: 'Modify',
+            onclick: () => {
+              this.selectedView = SelectedView.kModify;
+            },
+          }),
+          m(MenuItem, {
+            label: 'Show SQL',
+            onclick: () => {
+              this.selectedView = SelectedView.kSql;
+            },
+          }),
+          m(MenuItem, {
+            label: 'Show proto',
+            onclick: () => {
+              this.selectedView = SelectedView.kProto;
+            },
+          }),
+        ],
+      );
     };
 
     this.getAndRunQuery(attrs.node, attrs.trace.engine);
@@ -128,41 +142,54 @@ export class QueryNodeExplorer
 
     return [
       m(
-        Section,
-        {title: attrs.node.getTitle()},
-        attrs.node.getDetails(),
-        renderSelectedViewButtons(),
-        this.selectedView === SelectedView.kSql &&
-          m(
-            '.code-snippet',
-            m(Button, {
-              title: 'Copy to clipboard',
-              onclick: () => copyToClipboard(sql),
-              icon: Icons.Copy,
+        '.pf-node-explorer',
+        m(
+          '.pf-node-explorer__title-row',
+          !attrs.node.validate() &&
+            m(Icon, {
+              icon: Icons.Warning,
+              filled: true,
+              title: 'Invalid node',
             }),
-            m('code', sql),
-          ),
-        this.selectedView === SelectedView.kModify &&
-          m(Operator, {
-            filter: {
-              sourceCols: attrs.node.state.sourceCols,
-              filters: attrs.node.state.filters,
-            },
-            groupby: {
-              groupByColumns: attrs.node.state.groupByColumns,
-              aggregations: attrs.node.state.aggregations,
-            },
-          }),
-        this.selectedView === SelectedView.kProto &&
-          m(
-            '.code-snippet',
-            m(Button, {
-              title: 'Copy to clipboard',
-              onclick: () => copyToClipboard(textproto),
-              icon: Icons.Copy,
+          m('.title', attrs.node.getTitle()),
+          m('span.spacer'), // Added spacer to push menu to the right
+          renderModeMenu(),
+        ),
+        m(
+          'article',
+          attrs.node.getDetails(),
+          this.selectedView === SelectedView.kSql &&
+            m(
+              '.code-snippet',
+              m(Button, {
+                title: 'Copy to clipboard',
+                onclick: () => copyToClipboard(sql),
+                icon: Icons.Copy,
+              }),
+              m('code', sql),
+            ),
+          this.selectedView === SelectedView.kModify &&
+            m(Operator, {
+              filter: {
+                sourceCols: attrs.node.state.sourceCols,
+                filters: attrs.node.state.filters,
+              },
+              groupby: {
+                groupByColumns: attrs.node.state.groupByColumns,
+                aggregations: attrs.node.state.aggregations,
+              },
             }),
-            m('code', textproto),
-          ),
+          this.selectedView === SelectedView.kProto &&
+            m(
+              '.code-snippet',
+              m(Button, {
+                title: 'Copy to clipboard',
+                onclick: () => copyToClipboard(textproto),
+                icon: Icons.Copy,
+              }),
+              m('code', textproto),
+            ),
+        ),
       ),
       m(Section, {title: 'Sample data'}, renderTable()),
     ];

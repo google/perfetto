@@ -91,6 +91,8 @@ class FtraceProcfs {
   bool ClearFunctionFilters();
   bool AppendFunctionGraphFilters(const std::vector<std::string>& filters);
   bool ClearFunctionGraphFilters();
+  bool SetMaxGraphDepth(uint32_t depth);
+  bool ClearMaxGraphDepth();
 
   // Get all triggers for event with the given |group| and |name|.
   std::vector<std::string> ReadEventTriggers(const std::string& group,
@@ -134,6 +136,9 @@ class FtraceProcfs {
   // This size is *per cpu* so for the total size you have to multiply
   // by the number of CPUs.
   bool SetCpuBufferSizeInPages(size_t pages);
+
+  // Returns the current per-cpu buffer size in pages.
+  size_t GetCpuBufferSizeInPages();
 
   // Returns the number of CPUs.
   // This will match the number of tracing/per_cpu/cpuXX directories.

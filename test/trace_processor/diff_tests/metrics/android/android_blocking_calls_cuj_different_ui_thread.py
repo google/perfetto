@@ -27,24 +27,6 @@ CUJ_HARDCODED_UI_THREAD_ASYNC_TRACK = 536
 LAYER = "TX - some_layer#0"
 
 
-def add_ui_thread_atrace(trace, ts, ts_end, buf, tid):
-  trace.add_atrace_begin(ts=ts, tid=tid, pid=CUJ_PID, buf=buf)
-  trace.add_atrace_end(ts=ts_end, tid=tid, pid=CUJ_PID)
-
-
-def add_instant_event_in_thread(trace, ts, buf, pid, tid):
-  trace.add_atrace_instant(ts=ts, tid=tid, pid=pid, buf=buf)
-
-
-def add_frame(trace, vsync, ts_do_frame, ts_end_do_frame, tid):
-  add_ui_thread_atrace(
-      trace,
-      ts=ts_do_frame,
-      ts_end=ts_end_do_frame,
-      buf="Choreographer#doFrame %d" % vsync,
-      tid=tid)
-
-
 def add_expected_surface_frame_events(ts, dur, token):
   trace.add_expected_surface_frame_start_event(
       ts=ts,
@@ -71,6 +53,32 @@ def add_actual_surface_frame_events(ts, dur, token):
       prediction_type=3,
       layer_name=LAYER)
   trace.add_frame_end_event(ts=ts + dur, cookie=100002 + cookie)
+
+
+def add_choreographer_and_draw_frame(trace,
+                                     vsync,
+                                     ch_start_ts,
+                                     ch_end_ts,
+                                     pid,
+                                     tid,
+                                     rtid,
+                                     df_start_ts=None,
+                                     df_end_ts=None):
+  trace.add_frame(
+      vsync=vsync,
+      ts_do_frame=ch_start_ts,
+      ts_end_do_frame=ch_end_ts,
+      tid=tid,
+      pid=pid)
+
+  # Add provision to accept given ts and ts_end for a draw frame. Calculate the
+  # ts and ts_end values based on choreographer frame boundary otherwise.
+  trace.add_atrace_for_thread(
+      ts=df_start_ts if df_start_ts is not None else (ch_start_ts + 1_000_000),
+      ts_end=df_end_ts if df_end_ts is not None else (ch_end_ts - 1_000_000),
+      buf="DrawFrames " + str(vsync),
+      tid=rtid,
+      pid=pid)
 
 
 def setup_trace():
@@ -106,14 +114,58 @@ def setup_cujs(trace):
   back_panel_cuj = "J<BACK_PANEL_ARROW>"
 
   # UI Thread marker, soon after cuj start
-  add_instant_event_in_thread(
-      trace,
-      ts=5_000_001,
-      buf=cuj_name + "#UIThread",
-      pid=CUJ_PID,
-      tid=CUJ_UI_TID)
+  trace.add_atrace_instant(
+      ts=5_000_001, buf=cuj_name + "#UIThread", pid=CUJ_PID, tid=CUJ_UI_TID)
 
-  # The following is a blocking call during theh cuj, on the cuj ui thread.
+  trace.add_atrace_instant(
+      ts=5_000_001,
+      buf=back_panel_cuj + "#UIThread",
+      pid=CUJ_PID,
+      tid=BACK_PANEL_UI_THREAD_TID)
+
+  trace.add_atrace_instant_for_track(
+      ts=5_000_002,
+      buf="FT#beginVsync#20",
+      pid=CUJ_PID,
+      tid=CUJ_UI_TID,
+      track_name=cuj_name)
+
+  trace.add_atrace_instant_for_track(
+      ts=5_000_010,
+      buf="FT#layerId#0",
+      pid=CUJ_PID,
+      tid=CUJ_UI_TID,
+      track_name=cuj_name)
+
+  trace.add_atrace_instant_for_track(
+      ts=20_000_000 - 1,
+      buf="FT#endVsync#24",
+      pid=CUJ_PID,
+      tid=CUJ_UI_TID,
+      track_name=cuj_name)
+
+  trace.add_atrace_instant_for_track(
+      ts=5_000_002,
+      buf="FT#beginVsync#20",
+      pid=CUJ_PID,
+      tid=BACK_PANEL_UI_THREAD_TID,
+      track_name=back_panel_cuj)
+
+  trace.add_atrace_instant_for_track(
+      ts=5_000_010,
+      buf="FT#layerId#0",
+      pid=CUJ_PID,
+      tid=BACK_PANEL_UI_THREAD_TID,
+      track_name=back_panel_cuj)
+
+  trace.add_atrace_instant_for_track(
+      ts=20_000_000 - 1,
+      buf="FT#endVsync#24",
+      pid=CUJ_PID,
+      tid=BACK_PANEL_UI_THREAD_TID,
+      track_name=back_panel_cuj)
+
+  # The following is a blocking call during the cuj, on the cuj ui thread.
   # It is expected to appear in the output
   trace.add_atrace_begin(
       ts=14_000_000, buf="measure", tid=CUJ_UI_TID, pid=CUJ_PID)
@@ -127,19 +179,23 @@ def setup_cujs(trace):
       ts=15_000_000, buf="animation", tid=BACK_PANEL_UI_THREAD_TID, pid=CUJ_PID)
   trace.add_atrace_end(ts=17_000_000, tid=BACK_PANEL_UI_THREAD_TID, pid=CUJ_PID)
 
-  add_frame(
+  add_choreographer_and_draw_frame(
       trace,
       vsync=10,
-      ts_do_frame=10_000_000,
-      ts_end_do_frame=18_000_000,
-      tid=CUJ_UI_TID)
+      ch_start_ts=10_000_000,
+      ch_end_ts=18_000_000,
+      pid=CUJ_PID,
+      tid=CUJ_UI_TID,
+      rtid=CUJ_UI_TID)
 
-  add_frame(
+  add_choreographer_and_draw_frame(
       trace,
       vsync=20,
-      ts_do_frame=10_000_000,
-      ts_end_do_frame=18_000_000,
-      tid=BACK_PANEL_UI_THREAD_TID)
+      ch_start_ts=10_000_000,
+      ch_end_ts=18_000_000,
+      pid=CUJ_PID,
+      tid=BACK_PANEL_UI_THREAD_TID,
+      rtid=BACK_PANEL_UI_THREAD_TID)
 
   trace.add_track_event_slice_begin(
       ts=5_000_000, track=CUJ_ASYNC_TRACK, name=cuj_name)

@@ -1,0 +1,116 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+$border: 1px solid rgb(225, 225, 225);
+
+.pf-data-grid {
+  font-weight: 300;
+
+  table {
+    min-width: 100%;
+    border-spacing: 0;
+
+    td,
+    th {
+      padding: 0.2em 0.4em;
+      border-right: $border;
+      border-bottom: $border;
+      white-space: nowrap;
+
+      &:first-child {
+        border-left: $border;
+      }
+    }
+
+    th {
+      font-weight: 400;
+      border-top: $border;
+    }
+
+    tr {
+      &:hover {
+        background-color: rgb(239, 241, 244);
+      }
+    }
+
+    thead {
+      position: sticky;
+      top: 0;
+      background-color: white;
+
+      tr {
+        &:hover {
+          background-color: unset;
+        }
+      }
+    }
+  }
+
+  &__toolbar {
+    display: flex;
+    padding: 2px;
+    align-items: baseline;
+  }
+
+  &__toolbar-filters {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 2px;
+    flex-grow: 1;
+  }
+
+  &__filter-chip {
+    cursor: pointer;
+  }
+
+  &__toolbar-pagination {
+    display: flex;
+    gap: 4px;
+    align-items: baseline;
+  }
+
+  &__cell {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.3em;
+    align-items: center;
+    text-align: left;
+
+    &-button {
+      visibility: hidden;
+      &.pf-active {
+        visibility: visible;
+      }
+    }
+
+    // When hovering over a cell, show the button
+    &:hover {
+      .pf-data-grid__cell-button {
+        visibility: visible;
+      }
+    }
+
+    &--number {
+      text-align: right;
+    }
+
+    &--null {
+      text-align: center;
+      color: gray;
+      font-style: italic;
+    }
+  }
+}

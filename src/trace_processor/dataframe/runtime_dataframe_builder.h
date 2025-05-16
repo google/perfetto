@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -38,7 +39,6 @@
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
-#include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
@@ -211,15 +211,15 @@ class RuntimeDataframeBuilder {
   // - Construct and return the final `Dataframe` instance.
   base::StatusOr<Dataframe> Build() && {
     RETURN_IF_ERROR(current_status_);
-    std::vector<impl::Column> columns;
+    std::vector<std::shared_ptr<impl::Column>> columns;
     for (uint32_t i = 0; i < column_names_.size(); ++i) {
       auto& state = column_states_[i];
       switch (state.data.index()) {
         case base::variant_index<DataVariant, std::nullopt_t>():
-          columns.emplace_back(impl::Column{
+          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{impl::FlexVector<uint32_t>()},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              Unsorted{}});
+              Unsorted{}}));
           break;
         case base::variant_index<DataVariant, impl::FlexVector<int64_t>>(): {
           auto& data =
@@ -238,11 +238,11 @@ class RuntimeDataframeBuilder {
             max = std::max(max, data[j]);
           }
           bool is_nullable = state.null_overlay.has_value();
-          columns.emplace_back(impl::Column{
+          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               CreateIntegerStorage(std::move(data), is_id_sorted, min, max),
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               GetIntegerSortStateFromProperties(is_nullable, is_id_sorted,
-                                                is_setid_sorted, is_sorted)});
+                                                is_setid_sorted, is_sorted)}));
           break;
         }
         case base::variant_index<DataVariant, impl::FlexVector<double>>(): {
@@ -250,10 +250,10 @@ class RuntimeDataframeBuilder {
               base::unchecked_get<impl::FlexVector<double>>(state.data);
           SortState sort_state =
               GetSortStateForDouble(state.null_overlay.has_value(), data);
-          columns.emplace_back(impl::Column{
+          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{std::move(data)},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              sort_state});
+              sort_state}));
           break;
         }
         case base::variant_index<DataVariant,
@@ -262,16 +262,16 @@ class RuntimeDataframeBuilder {
               base::unchecked_get<impl::FlexVector<StringPool::Id>>(state.data);
           SortState sort_state = GetStringSortState(
               state.null_overlay.has_value(), data, string_pool_);
-          columns.emplace_back(impl::Column{
+          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{std::move(data)},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              sort_state});
+              sort_state}));
           break;
         }
       }
     }
-    return Dataframe(std::move(column_names_), std::move(columns), row_count_,
-                     string_pool_);
+    return Dataframe(true, std::move(column_names_), std::move(columns),
+                     row_count_, string_pool_);
   }
 
   // Returns the current status of the builder.
@@ -336,7 +336,7 @@ class RuntimeDataframeBuilder {
       std::optional<impl::BitVector> bit_vector) {
     if (bit_vector) {
       return impl::NullStorage{
-          impl::NullStorage::SparseNull{*std::move(bit_vector)}};
+          impl::NullStorage::SparseNull{*std::move(bit_vector), {}}};
     }
     return impl::NullStorage{impl::NullStorage::NonNull{}};
   }

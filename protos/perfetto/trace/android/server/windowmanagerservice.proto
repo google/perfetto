@@ -396,6 +396,8 @@ message ActivityRecordProto {
   optional bool should_override_force_resize_app = 44;
   optional bool should_enable_user_aspect_ratio_settings = 45;
   optional bool is_user_fullscreen_override_enabled = 46;
+  optional bool should_allow_simulate_requested_orientation_for_camera_compat =
+      48;
 }
 
 // represents WindowToken

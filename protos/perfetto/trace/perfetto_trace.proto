@@ -922,6 +922,9 @@ message ChromeConfig {
   // If |json_agent_label_filter| is not empty, only data pertaining to
   // the specified tracing agent label (e.g. "traceEvents") will be returned.
   optional string json_agent_label_filter = 5;
+
+  //  When enabled, event names should not contain package names.
+  optional bool event_package_name_filter_enabled = 6;
 }
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
@@ -993,9 +996,18 @@ message EtwConfig {
 }
 // End of protos/perfetto/config/etw/etw_config.proto
 
+// Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
+
+message FrozenFtraceConfig {
+  // The instance name which stores the previous boot ftrace data. Required.
+  optional string instance_name = 1;
+}
+
+// End of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
+
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 33
+// Next id: 34
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1243,6 +1255,17 @@ message FtraceConfig {
 
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;
+
+  // If |enable_function_graph| is true, only trace the specified
+  // number of calls down the stack. Sets the max_graph_depth value
+  // in sys/kernel/tracing/
+  //
+  // Only respected for the first tracing session that enables
+  // function_graph tracing.
+  //
+  // Introduced in: perfetto v51.
+  // Supported on: Android 25Q3+.
+  optional uint32 function_graph_max_depth = 33;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -3773,7 +3796,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 136
+// Next id: 137
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3895,6 +3918,8 @@ message DataSourceConfig {
   optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
   // Data source name: linux.system_info
   optional SystemInfoConfig system_info_config = 119;
+  // Data source name: linux.frozen_ftrace
+  optional FrozenFtraceConfig frozen_ftrace_config = 136 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would
@@ -9533,6 +9558,17 @@ message IrqHandlerExitFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/irq.proto
 
+// Begin of protos/perfetto/trace/ftrace/irq_vectors.proto
+
+message LocalTimerEntryFtraceEvent {
+  optional int32 vector = 1;
+}
+message LocalTimerExitFtraceEvent {
+  optional int32 vector = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/irq_vectors.proto
+
 // Begin of protos/perfetto/trace/ftrace/kgsl.proto
 
 message KgslGpuFrequencyFtraceEvent {
@@ -10968,6 +11004,50 @@ message ThermalExynosAcpmHighOverheadFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/thermal_exynos.proto
 
+// Begin of protos/perfetto/trace/ftrace/timer.proto
+
+message HrtimerStartFtraceEvent {
+  optional uint64 hrtimer = 1;
+  optional uint64 function = 2;
+  optional int64 expires = 3;
+  optional int64 softexpires = 4;
+  optional uint32 mode = 5;
+}
+message HrtimerCancelFtraceEvent {
+  optional uint64 hrtimer = 1;
+}
+message HrtimerExpireEntryFtraceEvent {
+  optional uint64 hrtimer = 1;
+  optional int64 now = 2;
+  optional uint64 function = 3;
+}
+message HrtimerExpireExitFtraceEvent {
+  optional uint64 hrtimer = 1;
+}
+message TimerStartFtraceEvent {
+  optional uint64 timer = 1;
+  optional uint64 function = 2;
+  optional uint64 expires = 3;
+  optional uint64 now = 4;
+  optional uint32 deferrable = 5;
+  optional uint32 flags = 6;
+  optional uint64 bucket_expiry = 7;
+}
+message TimerCancelFtraceEvent {
+  optional uint64 timer = 1;
+}
+message TimerExpireEntryFtraceEvent {
+  optional uint64 timer = 1;
+  optional uint64 now = 2;
+  optional uint64 function = 3;
+  optional uint64 baseclk = 4;
+}
+message TimerExpireExitFtraceEvent {
+  optional uint64 timer = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/timer.proto
+
 // Begin of protos/perfetto/trace/ftrace/trusty.proto
 
 message TrustySmcFtraceEvent {
@@ -11921,6 +12001,16 @@ message FtraceEvent {
     MaliGpuPowerStateFtraceEvent mali_gpu_power_state = 548;
     DpuDispDpuUnderrunFtraceEvent dpu_disp_dpu_underrun = 549;
     DpuDispVblankIrqEnableFtraceEvent dpu_disp_vblank_irq_enable = 550;
+    HrtimerStartFtraceEvent hrtimer_start = 551;
+    HrtimerCancelFtraceEvent hrtimer_cancel = 552;
+    HrtimerExpireEntryFtraceEvent hrtimer_expire_entry = 553;
+    HrtimerExpireExitFtraceEvent hrtimer_expire_exit = 554;
+    TimerStartFtraceEvent timer_start = 555;
+    TimerCancelFtraceEvent timer_cancel = 556;
+    TimerExpireEntryFtraceEvent timer_expire_entry = 557;
+    TimerExpireExitFtraceEvent timer_expire_exit = 558;
+    LocalTimerEntryFtraceEvent local_timer_entry = 559;
+    LocalTimerExitFtraceEvent local_timer_exit = 560;
   }
 }
 

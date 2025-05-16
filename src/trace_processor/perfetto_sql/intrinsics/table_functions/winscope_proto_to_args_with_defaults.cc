@@ -19,7 +19,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -126,7 +128,7 @@ class Delegate : public util::ProtoToArgsParser::Delegate {
     r.set_int_value(res);
   }
   void AddUnsignedInteger(const Key& key, uint64_t res) override {
-    if (TryAddDeinternedString(key, static_cast<uint64_t>(res))) {
+    if (TryAddDeinternedString(key, res)) {
       return;
     }
     RowReference r = GetOrCreateRow(key);
@@ -316,7 +318,7 @@ WinscopeProtoToArgsWithDefaults::ComputeTable(
   }
   std::string table_name = arguments[0].AsString();
 
-  const Table* static_table = engine_->GetTableOrNullSlow(table_name);
+  const Table* static_table = engine_->GetTableOrNull(table_name);
   if (!static_table) {
     return base::ErrStatus("Failed to find %s table.", table_name.c_str());
   }

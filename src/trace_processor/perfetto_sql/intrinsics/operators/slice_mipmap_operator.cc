@@ -152,7 +152,6 @@ int SliceMipmapOperator::Connect(sqlite3* db,
 
 int SliceMipmapOperator::Disconnect(sqlite3_vtab* vtab) {
   std::unique_ptr<Vtab> tab(GetVtab(vtab));
-  sqlite::ModuleStateManager<SliceMipmapOperator>::OnDisconnect(tab->state);
   return SQLITE_OK;
 }
 

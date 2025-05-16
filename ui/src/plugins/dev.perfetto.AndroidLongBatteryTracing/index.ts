@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {z} from 'zod';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
@@ -20,6 +19,7 @@ import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {CounterOptions} from '../../components/tracks/base_counter_track';
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {TrackNode} from '../../public/workspace';
+import {STR, LONG} from '../../trace_processor/query_result';
 
 interface ContainedTrace {
   uuid: string;
@@ -29,8 +29,6 @@ interface ContainedTrace {
   ts: number;
   dur: number;
 }
-
-const SESSION_NAME_ALLOWLIST = ['session_with_lightweight_battery_tracing'];
 
 const PACKAGE_LOOKUP = `
   create or replace perfetto table package_name_lookup as
@@ -838,13 +836,22 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidLongBatteryTracing';
   private readonly groups = new Map<string, TrackNode>();
 
-  private addTrack(ctx: Trace, track: TrackNode, groupName?: string): void {
+  private addTrack(
+    ctx: Trace,
+    track: TrackNode,
+    groupName?: string,
+    groupCollapsed = true,
+  ): void {
     if (groupName) {
       const existingGroup = this.groups.get(groupName);
       if (existingGroup) {
         existingGroup.addChildInOrder(track);
       } else {
-        const group = new TrackNode({title: groupName, isSummary: true});
+        const group = new TrackNode({
+          title: groupName,
+          isSummary: true,
+          collapsed: groupCollapsed,
+        });
         group.addChildInOrder(track);
         this.groups.set(groupName, group);
         ctx.workspace.addChildInOrder(group);
@@ -858,8 +865,9 @@ export default class implements PerfettoPlugin {
     ctx: Trace,
     name: string,
     query: string,
-    groupName?: string,
+    groupName: string,
     columns: string[] = [],
+    groupCollapsed = true,
   ) {
     const uri = `/long_battery_tracing_${name}`;
     const track = await createQuerySliceTrack({
@@ -877,7 +885,7 @@ export default class implements PerfettoPlugin {
       track,
     });
     const trackNode = new TrackNode({uri, title: name});
-    this.addTrack(ctx, trackNode, groupName);
+    this.addTrack(ctx, trackNode, groupName, groupCollapsed);
   }
 
   async addCounterTrack(
@@ -886,6 +894,7 @@ export default class implements PerfettoPlugin {
     query: string,
     groupName: string,
     options?: Partial<CounterOptions>,
+    groupCollapsed = true,
   ) {
     const uri = `/long_battery_tracing_${name}`;
     const track = await createQueryCounterTrack({
@@ -903,7 +912,7 @@ export default class implements PerfettoPlugin {
       track,
     });
     const trackNode = new TrackNode({uri, title: name});
-    this.addTrack(ctx, trackNode, groupName);
+    this.addTrack(ctx, trackNode, groupName, groupCollapsed);
   }
 
   async addBatteryStatsState(
@@ -930,7 +939,7 @@ export default class implements PerfettoPlugin {
     ctx: Trace,
     name: string,
     track: string,
-    groupName: string | undefined,
+    groupName: string,
     features: Set<string>,
   ) {
     if (!features.has(`track.${track}`)) {
@@ -952,8 +961,10 @@ export default class implements PerfettoPlugin {
       return;
     }
 
+    const groupName = 'Device State';
+
     const query = (name: string, track: string) =>
-      this.addBatteryStatsEvent(ctx, name, track, undefined, features);
+      this.addBatteryStatsEvent(ctx, name, track, groupName, features);
 
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
@@ -964,35 +975,40 @@ export default class implements PerfettoPlugin {
 
     await this.addSliceTrack(
       ctx,
-      'Device State: Screen state',
+      'Screen state',
       `SELECT ts, dur, screen_state AS name FROM android_screen_state`,
+      groupName,
     );
     await this.addSliceTrack(
       ctx,
-      'Device State: Charging',
+      'Charging',
       `SELECT ts, dur, charging_state AS name FROM android_charging_states`,
+      groupName,
     );
     await this.addSliceTrack(
       ctx,
-      'Device State: Suspend / resume',
+      'Suspend / resume',
       SUSPEND_RESUME,
+      groupName,
     );
     await this.addSliceTrack(
       ctx,
-      'Device State: Doze light state',
+      'Doze light state',
       `SELECT ts, dur, light_idle_state AS name FROM android_light_idle_state`,
+      groupName,
     );
     await this.addSliceTrack(
       ctx,
-      'Device State: Doze deep state',
+      'Doze deep state',
       `SELECT ts, dur, deep_idle_state AS name FROM android_deep_idle_state`,
+      groupName,
     );
 
-    query('Device State: Top app', 'battery_stats.top');
+    query('Top app', 'battery_stats.top');
 
     await this.addSliceTrack(
       ctx,
-      'Device State: Long wakelocks',
+      'Long wakelocks',
       `SELECT
             ts - 60000000000 as ts,
             safe_dur + 60000000000 as dur,
@@ -1003,18 +1019,19 @@ export default class implements PerfettoPlugin {
           from android_battery_stats_event_slices
           WHERE track_name = "battery_stats.longwake"
         ))`,
-      undefined,
+      groupName,
       ['package'],
     );
 
-    query('Device State: Foreground apps', 'battery_stats.fg');
-    query('Device State: Jobs', 'battery_stats.job');
+    query('Foreground apps', 'battery_stats.fg');
+    query('Jobs', 'battery_stats.job');
 
     if (features.has('atom.thermal_throttling_severity_state_changed')) {
       await this.addSliceTrack(
         ctx,
-        'Device State: Thermal throttling',
+        'Thermal throttling',
         THERMAL_THROTTLING,
+        groupName,
       );
     }
   }
@@ -1022,14 +1039,10 @@ export default class implements PerfettoPlugin {
   async addAtomCounters(ctx: Trace): Promise<void> {
     const e = ctx.engine;
 
-    try {
-      await e.query(
-        `INCLUDE PERFETTO MODULE
-            google3.wireless.android.telemetry.trace_extractor.modules.atom_counters_slices`,
-      );
-    } catch (e) {
-      return;
-    }
+    await e.query(
+      `INCLUDE PERFETTO MODULE
+          google3.wireless.android.telemetry.trace_extractor.modules.atom_counters_slices`,
+    );
 
     const counters = await e.query(
       `select distinct ui_group, ui_name, ui_unit, counter_name
@@ -1037,10 +1050,10 @@ export default class implements PerfettoPlugin {
        where ui_name is not null`,
     );
     const countersIt = counters.iter({
-      ui_group: 'str',
-      ui_name: 'str',
-      ui_unit: 'str',
-      counter_name: 'str',
+      ui_group: STR,
+      ui_name: STR,
+      ui_unit: STR,
+      counter_name: STR,
     });
     for (; countersIt.valid(); countersIt.next()) {
       const unit = countersIt.ui_unit;
@@ -1066,14 +1079,10 @@ export default class implements PerfettoPlugin {
   async addAtomSlices(ctx: Trace): Promise<void> {
     const e = ctx.engine;
 
-    try {
-      await e.query(
-        `INCLUDE PERFETTO MODULE
-            google3.wireless.android.telemetry.trace_extractor.modules.atom_counters_slices`,
-      );
-    } catch (e) {
-      return;
-    }
+    await e.query(
+      `INCLUDE PERFETTO MODULE
+          google3.wireless.android.telemetry.trace_extractor.modules.atom_counters_slices`,
+    );
 
     const sliceTracks = await e.query(
       `select distinct ui_group, ui_name, atom, field
@@ -1082,10 +1091,10 @@ export default class implements PerfettoPlugin {
        order by 1, 2, 3, 4`,
     );
     const slicesIt = sliceTracks.iter({
-      atom: 'str',
-      ui_group: 'str',
-      ui_name: 'str',
-      field: 'str',
+      atom: STR,
+      ui_group: STR,
+      ui_name: STR,
+      field: STR,
     });
 
     const tracks = new Map<
@@ -1135,6 +1144,60 @@ export default class implements PerfettoPlugin {
     }
   }
 
+  async addDayExplorerCounters(
+    ctx: Trace,
+    table: string,
+    groupName: string,
+    limit: number,
+  ): Promise<void> {
+    const e = ctx.engine;
+
+    await e.query(
+      `INCLUDE PERFETTO MODULE
+          google3.wireless.android.telemetry.trace_extractor.modules.day_explorer.perfetto_ui_blames`,
+    );
+
+    const counters = await e.query(
+      `select track_name, cast(round(total_energy_uws / 3600000) as int) as energy_mwh
+      from ${table}_totals order by total_energy_uws desc limit ${limit}`,
+    );
+    const countersIt = counters.iter({
+      track_name: STR,
+      energy_mwh: LONG,
+    });
+    for (; countersIt.valid(); countersIt.next()) {
+      const opts = {unit: 'mW', yRangeSharingKey: `day-explorer-${table}`};
+
+      await this.addCounterTrack(
+        ctx,
+        `${countersIt.track_name} - ${countersIt.energy_mwh} mWh`,
+        `select ts, power_mw as value
+         from ${table}
+         where track_name = '${countersIt.track_name}'`,
+        groupName,
+        opts,
+      );
+    }
+  }
+
+  async addDayExplorerBehaviors(ctx: Trace, groupName: string): Promise<void> {
+    const e = ctx.engine;
+
+    await e.query(
+      `INCLUDE PERFETTO MODULE
+          google3.wireless.android.telemetry.trace_extractor.modules.day_explorer.perfetto_ui_blames`,
+    );
+
+    await this.addSliceTrack(
+      ctx,
+      'Day Explorer Behaviors',
+      `select ts, dur, behavior as name from day_explorer_behaviors`,
+      groupName,
+      [],
+      false,
+    );
+  }
+
   async addNetworkSummary(ctx: Trace, features: Set<string>): Promise<void> {
     if (!features.has('net.modem') && !features.has('net.wifi')) {
       return;
@@ -1169,7 +1232,7 @@ export default class implements PerfettoPlugin {
       const result = await e.query(
         `select pkg, sum(value) from network_summary where dev_type='wifi' group by 1 order by 2 desc limit 10`,
       );
-      const it = result.iter({pkg: 'str'});
+      const it = result.iter({pkg: STR});
       for (; it.valid(); it.next()) {
         await this.addCounterTrack(
           ctx,
@@ -1212,7 +1275,7 @@ export default class implements PerfettoPlugin {
       const result = await e.query(
         `select pkg, sum(value) from network_summary where dev_type='modem' group by 1 order by 2 desc limit 10`,
       );
-      const it = result.iter({pkg: 'str'});
+      const it = result.iter({pkg: STR});
       for (; it.valid(); it.next()) {
         await this.addCounterTrack(
           ctx,
@@ -1245,15 +1308,13 @@ export default class implements PerfettoPlugin {
     );
   }
 
-  async addModemDetail(ctx: Trace, features: Set<string>): Promise<void> {
+  async addModemRil(ctx: Trace, features: Set<string>): Promise<void> {
     const groupName = 'Modem Detail';
-    if (features.has('track.ril')) {
-      await this.addModemRil(ctx, groupName);
-    }
-    await this.addModemTeaData(ctx, groupName);
-  }
 
-  async addModemRil(ctx: Trace, groupName: string): Promise<void> {
+    if (!features.has('track.ril')) {
+      return;
+    }
+
     const rilStrength = async (band: string, value: string) =>
       await this.addSliceTrack(
         ctx,
@@ -1288,22 +1349,19 @@ export default class implements PerfettoPlugin {
     );
   }
 
-  async addModemTeaData(ctx: Trace, groupName: string): Promise<void> {
+  async addModemTeaData(ctx: Trace): Promise<void> {
     const e = ctx.engine;
+    const groupName = 'Modem Detail';
 
-    try {
-      await e.query(
-        `INCLUDE PERFETTO MODULE
-            google3.wireless.android.telemetry.trace_extractor.modules.modem_tea_metrics`,
-      );
-    } catch {
-      return;
-    }
+    await e.query(
+      `INCLUDE PERFETTO MODULE
+          google3.wireless.android.telemetry.trace_extractor.modules.modem_tea_metrics`,
+    );
 
     const counters = await e.query(
       `select distinct name from pixel_modem_counters`,
     );
-    const countersIt = counters.iter({name: 'str'});
+    const countersIt = counters.iter({name: STR});
     for (; countersIt.valid(); countersIt.next()) {
       await this.addCounterTrack(
         ctx,
@@ -1315,7 +1373,7 @@ export default class implements PerfettoPlugin {
     const slices = await e.query(
       `select distinct track_name from pixel_modem_slices`,
     );
-    const slicesIt = slices.iter({track_name: 'str'});
+    const slicesIt = slices.iter({track_name: STR});
     for (; slicesIt.valid(); slicesIt.next()) {
       await this.addSliceTrack(
         ctx,
@@ -1333,7 +1391,7 @@ export default class implements PerfettoPlugin {
     const result = await e.query(
       `SELECT DISTINCT name, type FROM android_kernel_wakelocks`,
     );
-    const it = result.iter({name: 'str', type: 'str'});
+    const it = result.iter({name: STR, type: STR});
     for (; it.valid(); it.next()) {
       await this.addCounterTrack(
         ctx,
@@ -1360,7 +1418,7 @@ export default class implements PerfettoPlugin {
     await e.query(`INCLUDE PERFETTO MODULE android.suspend;`);
     await e.query(KERNEL_WAKELOCKS_STATSD);
     const result = await e.query(KERNEL_WAKELOCKS_STATSD_SUMMARY);
-    const it = result.iter({wakelock_name: 'str'});
+    const it = result.iter({wakelock_name: STR});
     for (; it.valid(); it.next()) {
       await this.addCounterTrack(
         ctx,
@@ -1388,7 +1446,7 @@ export default class implements PerfettoPlugin {
       from android_wakeups
       group by 1
       having sum_dur > 600e9`);
-    const it = result.iter({item: 'str'});
+    const it = result.iter({item: STR});
     const sqlPrefix = `select
                 ts,
                 dur,
@@ -1441,7 +1499,7 @@ export default class implements PerfettoPlugin {
     const result = await e.query(
       `select distinct pkg, cluster from high_cpu where value > 10 order by 1, 2`,
     );
-    const it = result.iter({pkg: 'str', cluster: 'str'});
+    const it = result.iter({pkg: STR, cluster: STR});
     for (; it.valid(); it.next()) {
       await this.addCounterTrack(
         ctx,
@@ -1641,7 +1699,7 @@ export default class implements PerfettoPlugin {
 
     const addFeatures = async (q: string) => {
       const result = await e.query(q);
-      const it = result.iter({feature: 'str'});
+      const it = result.iter({feature: STR});
       for (; it.valid(); it.next()) {
         features.add(it.feature);
       }
@@ -1669,58 +1727,81 @@ export default class implements PerfettoPlugin {
       select distinct 'track.battery_stats.*' as feature
       from track where name like 'battery_stats.%'`);
 
+    try {
+      await e.query(
+        `INCLUDE PERFETTO MODULE
+              google3.wireless.android.telemetry.trace_extractor.modules.atom_counters_slices`,
+      );
+      features.add('google3');
+    } catch (e) {}
+
     return features;
   }
 
-  async addTracks(ctx: Trace): Promise<void> {
-    const features: Set<string> = await this.findFeatures(ctx.engine);
+  private readonly DAY_EXPLORER_TABLES = {
+    day_explorer_screen_off_category: 'DE Screen Off: Category',
+    day_explorer_screen_off_category_package: 'DE Screen Off: Cat / Pkg',
+    day_explorer_screen_off_category_package_level_1:
+      'DE Screen Off: Cat / Pkg / L1',
+    day_explorer_screen_off_category_package_level_1_level_2:
+      'DE Screen Off: Cat / Pkg / L1 / L2',
+    day_explorer_screen_on_category: 'DE Screen On: Category',
+    day_explorer_screen_on_category_package: 'DE Screen On: Cat / Pkg',
+    day_explorer_screen_on_category_package_level_1:
+      'DE Screen On: Cat / Pkg / L1',
+    day_explorer_screen_on_category_package_level_1_level_2:
+      'DE Screen On: Cat / Pkg / L1 / L2',
+  };
 
+  async addDayExplorerCommand(
+    ctx: Trace,
+    features: Set<string>,
+  ): Promise<void> {
+    if (features.has('google3')) {
+      ctx.commands.registerCommand({
+        id: 'perfetto.DayExplorerBlamesByCategory',
+        name: 'Add tracks: Day Explorer',
+        callback: async () => {
+          const limitStr = await ctx.omnibox.prompt(
+            'Maximum results per group',
+          );
+          const limit = Number(limitStr);
+          if (!isFinite(limit) || limit <= 0) {
+            alert('Positive number required');
+            return;
+          }
+          await this.addDayExplorerBehaviors(ctx, 'DE Screen Off: Category');
+          for (const [table, desc] of Object.entries(
+            this.DAY_EXPLORER_TABLES,
+          )) {
+            await this.addDayExplorerCounters(ctx, table, desc, limit);
+          }
+        },
+      });
+    }
+  }
+
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    const features: Set<string> = await this.findFeatures(ctx.engine);
     const containedTraces = (ctx.openerPluginArgs?.containedTraces ??
       []) as ContainedTrace[];
 
     await ctx.engine.query(PACKAGE_LOOKUP);
     await this.addNetworkSummary(ctx, features);
     await this.addBluetooth(ctx, features);
-    await this.addAtomCounters(ctx);
-    await this.addAtomSlices(ctx);
-    await this.addModemDetail(ctx, features);
+    await this.addModemRil(ctx, features);
     await this.addKernelWakelocks(ctx);
     await this.addKernelWakelocksStatsd(ctx, features);
     await this.addWakeups(ctx, features);
     await this.addDeviceState(ctx, features);
     await this.addHighCpu(ctx, features);
     await this.addContainedTraces(ctx, containedTraces);
-  }
 
-  async isAllowListedTrace(e: Engine) {
-    const result = await e.query(`
-      select str_value from metadata where name = 'unique_session_name'`);
-    const it = result.iter({str_value: 'str'});
-    for (; it.valid(); it.next()) {
-      if (SESSION_NAME_ALLOWLIST.includes(it.str_value)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  async onTraceLoad(ctx: Trace): Promise<void> {
-    const enableAllowlist = ctx.settings.register({
-      id: 'dev.perfetto.AndroidLongBatteryTracing#enableAllowlist',
-      name: 'Enable AndroidLongBatteryTracing Session Allowlist',
-      description:
-        'When true, the AndroidLongBatteryTracing plugin first checks ' +
-        'whether the trace has sufficient information, disabling itself on ' +
-        'traces that do not. Disabling this setting can cause the plugin ' +
-        'to report partial or misleading information.',
-      schema: z.boolean(),
-      defaultValue: true,
-      requiresReload: true,
-    });
-
-    if (!enableAllowlist.get() || (await this.isAllowListedTrace(ctx.engine))) {
-      await this.addTracks(ctx);
+    if (features.has('google3')) {
+      await this.addAtomCounters(ctx);
+      await this.addAtomSlices(ctx);
+      await this.addModemTeaData(ctx);
+      await this.addDayExplorerCommand(ctx, features);
     }
   }
 }

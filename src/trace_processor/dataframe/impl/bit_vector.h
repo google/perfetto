@@ -146,6 +146,15 @@ struct BitVector {
         PERFETTO_POPCOUNT(words_[i / 64ull] & ((1ull << (i % 64ull)) - 1ull)));
   }
 
+  // Counts how many bits are set in the same word as the bit position `i`.
+  //
+  // i: The index position of the word of interest.
+  // Returns the number of set bits in the same 64-bit word as the bit at
+  // position i.
+  PERFETTO_ALWAYS_INLINE uint64_t count_set_bits_in_word(uint64_t i) const {
+    return static_cast<uint64_t>(PERFETTO_POPCOUNT(words_[i / 64ull]));
+  }
+
   // Filters a sequence by keeping only elements whose bit is set (or not set).
   //
   // This function takes a source array and copies elements to a target array
@@ -189,6 +198,10 @@ struct BitVector {
     }
     return res;
   }
+
+  // Shrinks the memory allocated by the vector to be as small as possible while
+  // still maintaining the invariants of the class.
+  void shrink_to_fit() { words_.shrink_to_fit(); }
 
   // Returns the number of bits in the vector.
   PERFETTO_ALWAYS_INLINE uint64_t size() const { return size_; }

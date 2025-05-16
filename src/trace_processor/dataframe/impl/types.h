@@ -19,7 +19,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -112,6 +111,18 @@ struct MaxOp {};
 // TypeSet combining Min and Max operations.
 using MinMaxOp = TypeSet<MinOp, MaxOp>;
 
+// TypeSet containing all the non-id storage types.
+using NonIdStorageType = TypeSet<Uint32, Int32, Int64, Double, String>;
+
+// TypeSet which collapses all of the sparse nullability types into a single
+// type.
+using SparseNullCollapsedNullability = TypeSet<NonNull, SparseNull, DenseNull>;
+
+// TypeSet of all possible sparse nullability states.
+using SparseNullTypes = TypeSet<SparseNull,
+                                SparseNullSupportingCellGetAlways,
+                                SparseNullSupportingCellGetUntilFinalization>;
+
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.
 class Storage {
@@ -127,6 +138,13 @@ class Storage {
   using Int64 = FlexVector<int64_t>;
   using Double = FlexVector<double>;
   using String = FlexVector<StringPool::Id>;
+
+  using DataPointer = std::variant<nullptr_t,
+                                   const uint32_t*,
+                                   const int32_t*,
+                                   const int64_t*,
+                                   const double*,
+                                   const StringPool::Id*>;
 
   Storage(Storage::Id data) : type_(dataframe::Id{}), data_(data) {}
   Storage(Storage::Uint32 data)
@@ -164,6 +182,27 @@ class Storage {
     return unchecked_get<T>().data();
   }
 
+  // Returns a variant containing pointer to the underlying data.
+  // Returns nullptr if the storage type is Id (which has no buffer).
+  DataPointer data() const {
+    switch (type_.index()) {
+      case StorageType::GetTypeIndex<dataframe::Id>():
+        return nullptr;
+      case StorageType::GetTypeIndex<dataframe::Uint32>():
+        return base::unchecked_get<Storage::Uint32>(data_).data();
+      case StorageType::GetTypeIndex<dataframe::Int32>():
+        return base::unchecked_get<Storage::Int32>(data_).data();
+      case StorageType::GetTypeIndex<dataframe::Int64>():
+        return base::unchecked_get<Storage::Int64>(data_).data();
+      case StorageType::GetTypeIndex<dataframe::Double>():
+        return base::unchecked_get<Storage::Double>(data_).data();
+      case StorageType::GetTypeIndex<dataframe::String>():
+        return base::unchecked_get<Storage::String>(data_).data();
+      default:
+        PERFETTO_FATAL("Should not reach here");
+    }
+  }
+
   // Returns a raw byte pointer to the underlying data.
   // Returns nullptr if the storage type is Id (which has no buffer).
   const uint8_t* byte_data() const {
@@ -188,6 +227,12 @@ class Storage {
       default:
         PERFETTO_FATAL("Should not reach here");
     }
+  }
+
+  template <typename T>
+  static auto* CastDataPtr(const DataPointer& ptr) {
+    using U = StorageType::VariantTypeAtIndex<T, DataPointer>;
+    return base::unchecked_get<U>(ptr);
   }
 
   StorageType type() const { return type_; }
@@ -216,6 +261,16 @@ class NullStorage {
     // 1 = non-null element in storage.
     // 0 = null with no corresponding entry in storage.
     BitVector bit_vector;
+
+    // For each word in the bit vector, this contains the indices of the
+    // corresponding elements in `Storage` that are set.
+    //
+    // Note: this vector exists for a *very specific* usecase: when we need to
+    // handle a GetCell() call on a column which is sparsely null. Note that
+    // this *cannot* be used for SetCell columns because that would be O(n) and
+    // very inefficient. In those cases, we need to use DenseNull and accept the
+    // memory bloat.
+    FlexVector<uint32_t> prefix_popcount_for_cell_get;
   };
 
   // Used for nullable columns where nulls reserve a slot in `Storage`.
@@ -226,28 +281,59 @@ class NullStorage {
   };
 
   NullStorage(NonNull n) : nullability_(dataframe::NonNull{}), data_(n) {}
-  NullStorage(SparseNull s)
+  NullStorage(SparseNull s, dataframe::SparseNull = dataframe::SparseNull{})
       : nullability_(dataframe::SparseNull{}), data_(std::move(s)) {}
+  NullStorage(SparseNull s, dataframe::SparseNullSupportingCellGetAlways)
+      : nullability_(dataframe::SparseNullSupportingCellGetAlways{}),
+        data_(std::move(s)) {}
+  NullStorage(SparseNull s,
+              dataframe::SparseNullSupportingCellGetUntilFinalization)
+      : nullability_(dataframe::SparseNullSupportingCellGetUntilFinalization{}),
+        data_(std::move(s)) {}
   NullStorage(DenseNull d)
       : nullability_(dataframe::DenseNull{}), data_(std::move(d)) {}
 
   // Type-safe unchecked access to variant data.
   template <typename T>
-  T& unchecked_get() {
-    return base::unchecked_get<T>(data_);
+  auto& unchecked_get() {
+    if constexpr (std::is_same_v<T, dataframe::NonNull>) {
+      return base::unchecked_get<NonNull>(data_);
+    } else if constexpr (
+        std::is_same_v<T, dataframe::SparseNull> ||
+        std::is_same_v<T, dataframe::SparseNullSupportingCellGetAlways> ||
+        std::is_same_v<
+            T, dataframe::SparseNullSupportingCellGetUntilFinalization>) {
+      return base::unchecked_get<SparseNull>(data_);
+    } else if constexpr (std::is_same_v<T, dataframe::DenseNull>) {
+      return base::unchecked_get<DenseNull>(data_);
+    } else {
+      static_assert(!std::is_same_v<T, T>, "Invalid type");
+    }
   }
 
   template <typename T>
-  const T& unchecked_get() const {
-    return base::unchecked_get<T>(data_);
+  const auto& unchecked_get() const {
+    if constexpr (std::is_same_v<T, dataframe::NonNull>) {
+      return base::unchecked_get<NonNull>(data_);
+    } else if constexpr (
+        std::is_same_v<T, dataframe::SparseNull> ||
+        std::is_same_v<T, dataframe::SparseNullSupportingCellGetAlways> ||
+        std::is_same_v<
+            T, dataframe::SparseNullSupportingCellGetUntilFinalization>) {
+      return base::unchecked_get<SparseNull>(data_);
+    } else if constexpr (std::is_same_v<T, dataframe::DenseNull>) {
+      return base::unchecked_get<DenseNull>(data_);
+    } else {
+      static_assert(!std::is_same_v<T, T>, "Invalid type");
+    }
   }
 
   BitVector& GetNullBitVector() {
     switch (data_.index()) {
       case TypeIndex<SparseNull>():
-        return unchecked_get<SparseNull>().bit_vector;
+        return unchecked_get<dataframe::SparseNull>().bit_vector;
       case TypeIndex<DenseNull>():
-        return unchecked_get<DenseNull>().bit_vector;
+        return unchecked_get<dataframe::DenseNull>().bit_vector;
       default:
         PERFETTO_FATAL("Unsupported overlay type");
     }
@@ -255,9 +341,9 @@ class NullStorage {
   const BitVector& GetNullBitVector() const {
     switch (data_.index()) {
       case TypeIndex<SparseNull>():
-        return unchecked_get<SparseNull>().bit_vector;
+        return unchecked_get<dataframe::SparseNull>().bit_vector;
       case TypeIndex<DenseNull>():
-        return unchecked_get<DenseNull>().bit_vector;
+        return unchecked_get<dataframe::DenseNull>().bit_vector;
       default:
         PERFETTO_FATAL("Unsupported overlay type");
     }
