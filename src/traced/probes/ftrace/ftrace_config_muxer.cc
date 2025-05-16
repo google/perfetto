@@ -846,12 +846,20 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
       PERFETTO_PLOG("Failed to clear .../set_graph_function");
       return false;
     }
+    if (!current_state_.funcgraph_on && !ftrace_->ClearMaxGraphDepth()) {
+      PERFETTO_PLOG("Failed to clear .../max_graph_depth");
+      return false;
+    }
     if (!ftrace_->AppendFunctionFilters(request.function_filters())) {
       PERFETTO_PLOG("Failed to append to .../set_ftrace_filter");
       return false;
     }
     if (!ftrace_->AppendFunctionGraphFilters(request.function_graph_roots())) {
       PERFETTO_PLOG("Failed to append to .../set_graph_function");
+      return false;
+    }
+    if (!ftrace_->SetMaxGraphDepth(request.function_graph_max_depth())) {
+      PERFETTO_PLOG("Failed to write to .../max_graph_depth");
       return false;
     }
     if (!current_state_.funcgraph_on &&
