@@ -250,6 +250,15 @@ void ExecuteApply(State* state,
     RewriteIntrinsicMacro(frame, name, rp);
     return;
   }
+  if (!macro.expanded_variables.empty()) {
+    state->stack.emplace_back(
+        Frame::Rewrite{frame.tokenizer, frame.rewriter, name, rp},
+        Frame::kIgnore, state,
+        SqlSource::FromTraceProcessorImplementation(
+            macro.name + "!(" +
+            base::Join(SqlSourceVectorToString(macro.args), ", ") + ")"));
+    return;
+  }
   state->stack.emplace_back(
       Frame::Rewrite{frame.tokenizer, frame.rewriter, name, rp},
       Frame::VariableHandling::kIgnore, state,
