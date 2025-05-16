@@ -54,6 +54,8 @@ CREATE PERFETTO TABLE android_kernel_wakelocks (
   ts TIMESTAMP,
   -- Duration.
   dur DURATION,
+  -- Duration spent awake.
+  awake_dur DURATION,
   -- Kernel or native wakelock name.
   name STRING,
   -- 'kernel' or 'native'.
@@ -73,8 +75,6 @@ WITH
       sum(dur) AS dur,
       sum(iif(power_state = 'awake', dur, 0)) AS awake_dur
     FROM _android_kernel_wakelocks_joined
-    WHERE
-      power_state = 'awake'
     GROUP BY
       1,
       2,
@@ -84,6 +84,7 @@ WITH
 SELECT
   ts,
   dur,
+  awake_dur,
   name,
   type,
   cast_int!(held_dur) AS held_dur,
