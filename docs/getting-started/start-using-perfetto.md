@@ -9,7 +9,7 @@ quickly as possible.
 NOTE: If you are unfamiliar with the word "tracing" or in general, are new to
 the world of performance, we suggest reading the
 [What is Tracing?](/docs/tracing-101.md) page first. If you are not quite sure
-what Perfetto is and why it's useful check out the
+what Perfetto is and why it's useful, check out the
 [What is Perfetto?](/docs/tracing-101.md) page first.
 
 Our docs make use of the terms "Tutorials" and "Case Studies":
@@ -20,7 +20,7 @@ Our docs make use of the terms "Tutorials" and "Case Studies":
 - **Case Studies** are detailed, opinionated guides which take you step-by-step
   how you can debug and root-cause a "vertical" problem using Perfetto. They
   focus more on helping you solve the problem and and less on teaching you
-  Perfetto tools generally. Them may also make signifcant use of non-Perfetto
+  Perfetto tools generally. They may also make signifcant use of non-Perfetto
   based tools or commands where appropriate.
 
 Based on what technology you are interested in, please choose one of the
