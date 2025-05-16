@@ -6112,6 +6112,7 @@ perfetto_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_winscope_common_protos",
     srcs = [
+        "protos/perfetto/trace/android/graphics/insets.proto",
         "protos/perfetto/trace/android/graphics/point.proto",
         "protos/perfetto/trace/android/graphics/rect.proto",
         "protos/perfetto/trace/android/winscope_extensions.proto",
