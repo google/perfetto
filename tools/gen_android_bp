@@ -163,6 +163,12 @@ proto_groups = {
     'trace_summary': {
         'types': ['filegroup'],
         'targets': ['//protos/perfetto/trace_summary:source_set',]
+    },
+    'trace_android_track_event_extension': {
+        'types': ['lite'],
+        'targets': [
+            '//protos/perfetto/trace/android:android_track_event_source_set',
+        ]
     }
 }
 

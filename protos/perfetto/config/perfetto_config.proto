@@ -922,6 +922,9 @@ message ChromeConfig {
   // If |json_agent_label_filter| is not empty, only data pertaining to
   // the specified tracing agent label (e.g. "traceEvents") will be returned.
   optional string json_agent_label_filter = 5;
+
+  //  When enabled, event names should not contain package names.
+  optional bool event_package_name_filter_enabled = 6;
 }
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
@@ -993,9 +996,18 @@ message EtwConfig {
 }
 // End of protos/perfetto/config/etw/etw_config.proto
 
+// Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
+
+message FrozenFtraceConfig {
+  // The instance name which stores the previous boot ftrace data. Required.
+  optional string instance_name = 1;
+}
+
+// End of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
+
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 33
+// Next id: 34
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1243,6 +1255,17 @@ message FtraceConfig {
 
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;
+
+  // If |enable_function_graph| is true, only trace the specified
+  // number of calls down the stack. Sets the max_graph_depth value
+  // in sys/kernel/tracing/
+  //
+  // Only respected for the first tracing session that enables
+  // function_graph tracing.
+  //
+  // Introduced in: perfetto v51.
+  // Supported on: Android 25Q3+.
+  optional uint32 function_graph_max_depth = 33;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -3773,7 +3796,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 136
+// Next id: 137
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3895,6 +3918,8 @@ message DataSourceConfig {
   optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
   // Data source name: linux.system_info
   optional SystemInfoConfig system_info_config = 119;
+  // Data source name: linux.frozen_ftrace
+  optional FrozenFtraceConfig frozen_ftrace_config = 136 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would

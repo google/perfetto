@@ -93,11 +93,6 @@ static jboolean dev_perfetto_sdk_PerfettoTraceCategory_is_enabled(jlong ptr) {
   return category->is_category_enabled();
 }
 
-static jlong dev_perfetto_sdk_PerfettoTraceCategory_get_extra_ptr(jlong ptr) {
-  auto* category = toPointer<sdk_for_jni::Category>(ptr);
-  return toJLong(category->get());
-}
-
 static jlong dev_perfetto_sdk_PerfettoTrace_start_session(
     JNIEnv* env,
     jclass /* obj */,
@@ -145,8 +140,6 @@ static const JNINativeMethod gCategoryMethods[] = {
      (void*)dev_perfetto_sdk_PerfettoTraceCategory_unregister},
     {"native_is_enabled", "(J)Z",
      (void*)dev_perfetto_sdk_PerfettoTraceCategory_is_enabled},
-    {"native_get_extra_ptr", "(J)J",
-     (void*)dev_perfetto_sdk_PerfettoTraceCategory_get_extra_ptr},
 };
 
 static const JNINativeMethod gTraceMethods[] = {

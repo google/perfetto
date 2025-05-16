@@ -85,6 +85,7 @@ struct RuntimeTableFunctionModule
 
   static constexpr bool kSupportsWrites = false;
   static constexpr bool kDoesOverloadFunctions = false;
+  static constexpr bool kDoesSupportTransactions = true;
 
   static int Create(sqlite3*,
                     void*,
@@ -116,6 +117,29 @@ struct RuntimeTableFunctionModule
   static int Eof(sqlite3_vtab_cursor*);
   static int Column(sqlite3_vtab_cursor*, sqlite3_context*, int);
   static int Rowid(sqlite3_vtab_cursor*, sqlite_int64*);
+
+  static int Begin(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Sync(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Commit(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Rollback(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Savepoint(sqlite3_vtab* t, int r) {
+    RuntimeTableFunctionModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<RuntimeTableFunctionModule>::OnSavepoint(
+        vtab->state, r);
+    return SQLITE_OK;
+  }
+  static int Release(sqlite3_vtab* t, int r) {
+    RuntimeTableFunctionModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<RuntimeTableFunctionModule>::OnRelease(
+        vtab->state, r);
+    return SQLITE_OK;
+  }
+  static int RollbackTo(sqlite3_vtab* t, int r) {
+    RuntimeTableFunctionModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<RuntimeTableFunctionModule>::OnRollbackTo(
+        vtab->state, r);
+    return SQLITE_OK;
+  }
 
   // This needs to happen at the end as it depends on the functions
   // defined above.

@@ -40,8 +40,9 @@
 
 namespace perfetto::trace_processor {
 
-base::Status RunStdioRpcServer(std::unique_ptr<TraceProcessor> tp) {
-  Rpc rpc(std::move(tp));
+base::Status RunStdioRpcServer(std::unique_ptr<TraceProcessor> tp,
+                               bool is_preloaded_eof) {
+  Rpc rpc(std::move(tp), is_preloaded_eof);
   char buffer[4096];
   for (;;) {
     ssize_t ret = base::Read(STDIN_FILENO, buffer, base::ArraySize(buffer));

@@ -18,6 +18,7 @@ expression {
   String |
   Number |
   Boolean |
+  Null |
   Keyword |
   Function |
   MacroVariable |
@@ -26,119 +27,80 @@ expression {
 
 Keyword {
   @specialize<Identifier,
-    "select" |
-    "perfetto" |
-    "table" |
-    "from" |
-    "where" |
-    "and" |
-    "or" |
-    "join" |
-    "on" |
-    "as" |
-    "create" |
-    "replace" |
-    "view" |
-    "with" |
-    "limit" |
-    "include" |
-    "module" |
-    "function" |
-    "returns" |
-    "values" |
-    "macro" |
-    "between" |
-    "glob" |
-    "order" |
-    "group" |
-    "by" |
-    "having" |
-    "over" |
-    "partition" |
-    "using" |
-    "union" |
-    "all" |
-
-    "SELECT" |
-    "PERFETTO" |
-    "TABLE" |
-    "FROM" |
-    "WHERE" |
-    "AND" |
-    "OR" |
-    "JOIN" |
-    "ON" |
-    "AS" |
-    "CREATE" |
-    "REPLACE" |
-    "VIEW" |
-    "WITH" |
-    "LIMIT" |
-    "INCLUDE" |
-    "MODULE" |
-    "FUNCTION" |
-    "RETURNS" |
-    "VALUES" |
-    "MACRO" |
-    "BETWEEN" |
-    "GLOB" |
-    "ORDER" |
-    "GROUP" |
-    "BY" |
-    "HAVING" |
-    "OVER" |
-    "PARTITION" |
-    "USING" |
-    "UNION" |
-    "ALL"
+    "ALL" | "all" |
+    "AND" | "and" |
+    "AS" | "as" |
+    "BETWEEN" | "between" |
+    "BY" | "by" |
+    "CASE" | "case" |
+    "CREATE" | "create" |
+    "CROSS" | "cross" |
+    "ELSE" | "else" |
+    "END" | "end" |
+    "FROM" | "from" |
+    "FUNCTION" | "function" |
+    "GLOB" | "glob" |
+    "GROUP" | "group" |
+    "HAVING" | "having" |
+    "INCLUDE" | "include" |
+    "INNER" | "inner" |
+    "IS" | "is" |
+    "JOIN" | "join" |
+    "LEFT" | "left" |
+    "LIMIT" | "limit" |
+    "MACRO" | "macro" |
+    "MODULE" | "module" |
+    "NOT" | "not" |
+    "ON" | "on" |
+    "OR" | "or" |
+    "ORDER" | "order" |
+    "OUTER" | "outer" |
+    "OVER" | "over" |
+    "PARTITION" | "partition" |
+    "PERFETTO" | "perfetto" |
+    "REPLACE" | "replace" |
+    "RETURNS" | "returns" |
+    "RIGHT" | "right" |
+    "SELECT" | "select" |
+    "TABLE" | "table" |
+    "THEN" | "then" |
+    "UNION" | "union" |
+    "USING" | "using" |
+    "VALUES" | "values" |
+    "VIEW" | "view" |
+    "WHEN" | "WHEN" |
+    "WHERE" | "where" |
+    "WITH" | "with"
   >
 }
 
 Function {
   @specialize<Identifier,
-    "sum" |
-    "min" |
-    "max" |
-    "count" |
-    "avg" |
-    "total" |
-    "group_concat" |
-    "first" |
-    "last" |
-    "row_number" |
-    "rank" |
-    "dense_rank" |
-    "percent_rank" |
-    "cume_dist" |
-    "ntile" |
-    "lag" |
-    "lead" |
-    "first_value" |
-    "last_value" |
-    "nth_value" |
-    "ifnull" |
-
-    "SUM" |
-    "MIN" |
-    "MAX" |
-    "COUNT" |
-    "AVG" |
-    "TOTAL" |
-    "GROUP_CONCAT" |
-    "FIRST" |
-    "LAST" |
-    "ROW_NUMBER" |
-    "RANK" |
-    "DENSE_RANK" |
-    "PERCENT_RANK" |
-    "CUME_DIST" |
-    "NTILE" |
-    "LAG" |
-    "LEAD" |
-    "FIRST_VALUE" |
-    "LAST_VALUE" |
-    "NTH_VALUE" |
-    "IFNULL"
+    "AVG" | "avg" |
+    "COUNT" | "count" |
+    "CUME_DIST" | "cume_dist" |
+    "DATETIME" | "datetime" |
+    "DENSE_RANK" | "dense_rank" |
+    "EXISTS" | "exists" |
+    "FIRST_VALUE" | "first_value" |
+    "FIRST" | "first" |
+    "GROUP_CONCAT" | "group_concat" |
+    "IFNULL" | "ifnull" |
+    "IIF" | "iif" |
+    "LAG" | "lag" |
+    "LAST_VALUE" | "last_value" |
+    "LAST" | "last" |
+    "LEAD" | "lead" |
+    "MAX" | "max" |
+    "MIN" | "min" |
+    "NTH_VALUE" | "nth_value" |
+    "NTILE" | "ntile" |
+    "PERCENT_RANK" | "percent_rank" |
+    "RANK" | "rank" |
+    "ROW_NUMBER" | "row_number" |
+    "SUM" | "sum" |
+    "TIME" | "time" |
+    "TOTAL" | "total"
   >
 }
 
@@ -146,6 +108,12 @@ Boolean {
   @specialize<Identifier,
     "TRUE" | "true" |
     "FALSE" | "false"
+  >
+}
+
+Null {
+  @specialize<Identifier,
+    "NULL" | "null"
   >
 }
 

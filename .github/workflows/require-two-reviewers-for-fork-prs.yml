@@ -18,13 +18,15 @@
 name: Enforce 2 collaborator reviews for fork PRs
 
 on:
-  pull_request_review:
-    types: [submitted]
   pull_request_target:
-    types: [synchronize]
+    types: [opened, synchronize, labeled, edited, auto_merge_enabled, auto_merge_disabled]
 
 permissions:
   pull-requests: read
+
+concurrency:
+  group: enforce-reviews-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   enforce-reviews:
@@ -34,6 +36,7 @@ jobs:
         id: fork_check
         run: |
           echo "is_fork=${{ github.event.pull_request.head.repo.full_name != github.repository }}" >> $GITHUB_ENV
+          echo "Triggered by: ${{ github.event_name }}, ${{ github.event.review.state }} by ${{ github.event.review.user.login }}"
 
       - name: Fetch approved reviews
         if: env.is_fork == 'true'
@@ -58,5 +61,10 @@ jobs:
           echo "Collaborator/member approvals for latest commit ($LATEST_SHA): $COUNT"
           if [ "$COUNT" -lt 2 ]; then
           echo "❌ PR from fork requires 2 collaborator approvals on the latest commit."
+          echo ""
+          echo "API Output for debug:"
+          echo "---------------------------------------------------------------"
+          echo "$REVIEWS"
+          echo "---------------------------------------------------------------"
           exit 1
           fi
