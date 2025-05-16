@@ -33,12 +33,17 @@ class DeobfuscationModule : public ProtoImporterModule {
   explicit DeobfuscationModule(TraceProcessorContext* context);
   ~DeobfuscationModule() override;
 
+  // TODO (ddiproietto): Is it better to use TokenizePacket instead?
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
                             int64_t ts,
                             const TracePacketData& data,
                             uint32_t field_id) override;
 
+  void NotifyEndOfFile() override;
+
  private:
+  void StoreDeobfuscationMapping(protozero::ConstBytes);
+
   void DeobfuscateHeapGraphClass(
       std::optional<StringPool::Id> package_name_id,
       StringPool::Id obfuscated_class_id,
@@ -49,7 +54,7 @@ class DeobfuscationModule : public ProtoImporterModule {
       HeapGraphTracker*);
   void ParseDeobfuscationMappingForProfiles(
       const protos::pbzero::DeobfuscationMapping::Decoder&);
-  void ParseDeobfuscationMapping(protozero::ConstBytes);
+  void ParseDeobfuscationMapping(protozero::ConstBytes, HeapGraphTracker*);
 
   TraceProcessorContext* context_;
 };

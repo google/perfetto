@@ -21,6 +21,7 @@
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/proto/deobfuscation_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -44,13 +45,16 @@ void DeobfuscationModule::ParseTracePacketData(
     const TracePacketData&,
     uint32_t field_id) {
   switch (field_id) {
-    case TracePacket::kDeobfuscationMappingFieldNumber: {
-      ParseDeobfuscationMapping(decoder.deobfuscation_mapping());
+    case TracePacket::kDeobfuscationMappingFieldNumber:
+      StoreDeobfuscationMapping(decoder.deobfuscation_mapping());
       return;
-    }
     default:
       break;
   }
+}
+
+void DeobfuscationModule::StoreDeobfuscationMapping(ConstBytes blob) {
+  DeobfuscationTracker::GetOrCreate(context_)->AddDeobfuscationPacket(blob);
 }
 
 void DeobfuscationModule::DeobfuscateHeapGraphClass(
@@ -83,10 +87,9 @@ void DeobfuscationModule::DeobfuscateHeapGraphClass(
   }
 }
 
-void DeobfuscationModule::ParseDeobfuscationMapping(ConstBytes blob) {
-  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
-  heap_graph_tracker->FinalizeAllProfiles();
-
+void DeobfuscationModule::ParseDeobfuscationMapping(
+    ConstBytes blob,
+    HeapGraphTracker* heap_graph_tracker) {
   protos::pbzero::DeobfuscationMapping::Decoder deobfuscation_mapping(
       blob.data, blob.size);
   ParseDeobfuscationMappingForHeapGraph(deobfuscation_mapping,
@@ -222,6 +225,16 @@ void DeobfuscationModule::ParseDeobfuscationMappingForProfiles(
   }
   context_->args_translation_table->AddDeobfuscationMappingTable(
       std::move(deobfuscation_mapping_table));
+}
+
+void DeobfuscationModule::NotifyEndOfFile() {
+  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
+  heap_graph_tracker->FinalizeAllProfiles();
+
+  auto packets = DeobfuscationTracker::GetOrCreate(context_)->packets();
+  for (ConstBytes packet : packets) {
+    ParseDeobfuscationMapping(packet, heap_graph_tracker);
+  }
 }
 
 }  // namespace perfetto::trace_processor

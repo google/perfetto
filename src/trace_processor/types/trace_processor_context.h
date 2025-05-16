@@ -40,6 +40,7 @@ class ClockConverter;
 class ClockTracker;
 class CpuTracker;
 class DeobfuscationMappingTable;
+class DeobfuscationTracker;
 class DescriptorPool;
 class EtwModule;
 class EventTracker;
@@ -169,6 +170,7 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> etm_tracker;                            // EtmTracker
   std::unique_ptr<Destructible> elf_tracker;                            // ElfTracker
   std::unique_ptr<Destructible> file_tracker;                           // FileTracker
+  std::unique_ptr<Destructible> deobfuscation_tracker;                  // DeobfuscationTracker
   // clang-format on
 
   std::unique_ptr<ProtoTraceParser> proto_trace_parser;
