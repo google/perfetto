@@ -41,7 +41,11 @@ const ProbesDataSource::Descriptor FrozenFtraceDataSource::descriptor = {
     /*fill_descriptor_func*/ nullptr,
 };
 
-FrozenFtraceDataSource::~FrozenFtraceDataSource() = default;
+FrozenFtraceDataSource::~FrozenFtraceDataSource() {
+  // Ensure the read data is erased and not recovered in the next boot.
+  if (tracefs_)
+    tracefs_->ClearTrace();
+}
 
 FrozenFtraceDataSource::FrozenFtraceDataSource(
     base::TaskRunner* task_runner,
@@ -190,8 +194,6 @@ void FrozenFtraceDataSource::ReadTask() {
 void FrozenFtraceDataSource::Flush(FlushRequestID,
                                    std::function<void()> callback) {
   writer_->Flush(std::move(callback));
-  // Ensure the read data is erased and not recovered in the next boot.
-  tracefs_->ClearTrace();
 }
 
 }  // namespace perfetto
