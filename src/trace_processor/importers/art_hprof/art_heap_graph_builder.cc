@@ -407,16 +407,72 @@ bool HeapGraphBuilder::ParseClassStructure() {
     FieldType field_type = static_cast<FieldType>(type_value);
     std::string field_name = LookupString(name_id);
 
-    if (field_type == FieldType::kObject) {
-      uint64_t target_id = 0;
-      if (!iterator_->ReadId(target_id, header_.GetIdSize()))
-        return false;
-
-      class_obj.AddPendingReference(field_name, std::nullopt, target_id);
-    } else {
-      size_t type_size = GetFieldTypeSize(field_type, header_.GetIdSize());
-      if (!iterator_->SkipBytes(type_size))
-        return false;
+    switch (field_type) {
+      case FieldType::kObject: {
+        uint64_t target_id = 0;
+        if (!iterator_->ReadId(target_id, header_.GetIdSize()))
+          return false;
+        class_obj.AddPendingReference(field_name, std::nullopt, target_id);
+        Field field(field_name, field_type, target_id);
+        class_obj.AddField(std::move(field));
+        break;
+      }
+      case FieldType::kBoolean:
+      case FieldType::kByte: {
+        uint8_t value;
+        if (!iterator_->ReadU1(value))
+          return false;
+        Field field(field_name, field_type, value);
+        class_obj.AddField(std::move(field));
+        break;
+      }
+      case FieldType::kChar:
+      case FieldType::kShort: {
+        uint16_t value;
+        if (!iterator_->ReadU2(value))
+          return false;
+        Field field(field_name, field_type, value);
+        class_obj.AddField(std::move(field));
+        break;
+      }
+      case FieldType::kFloat: {
+        uint32_t raw_value;
+        if (!iterator_->ReadU4(raw_value))
+          return false;
+        float value;
+        memcpy(&value, &raw_value, sizeof(float));
+        Field field(field_name, field_type, value);
+        class_obj.AddField(std::move(field));
+        break;
+      }
+      case FieldType::kInt: {
+        uint32_t value;
+        if (!iterator_->ReadU4(value))
+          return false;
+        Field field(field_name, field_type, static_cast<int32_t>(value));
+        class_obj.AddField(std::move(field));
+        break;
+      }
+      case FieldType::kDouble: {
+        uint32_t high, low;
+        if (!iterator_->ReadU4(high) || !iterator_->ReadU4(low))
+          return false;
+        uint64_t raw_value = (static_cast<uint64_t>(high) << 32) | low;
+        double value;
+        memcpy(&value, &raw_value, sizeof(double));
+        Field field(field_name, field_type, value);
+        class_obj.AddField(std::move(field));
+        break;
+      }
+      case FieldType::kLong: {
+        uint32_t high, low;
+        if (!iterator_->ReadU4(high) || !iterator_->ReadU4(low))
+          return false;
+        uint64_t value = (static_cast<uint64_t>(high) << 32) | low;
+        Field field(field_name, field_type, static_cast<int64_t>(value));
+        class_obj.AddField(std::move(field));
+        break;
+      }
     }
   }
 

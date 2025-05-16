@@ -44,6 +44,24 @@ T ReadBigEndian(TraceProcessorContext* context,
   return ReadBigEndian<T>(context, data, offset, sizeof(T));
 }
 
+template <typename T>
+void ExtractTypedArrayValues(TraceProcessorContext* context,
+                             Object& obj,
+                             const std::vector<uint8_t>& data,
+                             size_t element_count,
+                             size_t element_size) {
+  std::vector<T> values;
+  values.reserve(element_count);
+
+  for (size_t i = 0; i < element_count; ++i) {
+    size_t offset = i * element_size;
+    T value = ReadBigEndian<T>(context, data, offset);
+    values.push_back(value);
+  }
+
+  obj.SetArrayData(std::move(values));
+}
+
 HeapGraphResolver::HeapGraphResolver(
     TraceProcessorContext* context,
     HprofHeader& header,
@@ -306,11 +324,6 @@ void HeapGraphResolver::ExtractPrimitiveArrayValues(Object& obj) {
   // Calculate the number of elements
   size_t element_count = data.size() / element_size;
 
-  // Add a field for the array length
-  Field length_field("length", FieldType::kInt,
-                     static_cast<int32_t>(element_count));
-  obj.AddField(std::move(length_field));
-
   // Parse the array based on its element type
   switch (element_type) {
     case FieldType::kBoolean: {
@@ -328,72 +341,28 @@ void HeapGraphResolver::ExtractPrimitiveArrayValues(Object& obj) {
       obj.SetArrayData(std::move(values));
       break;
     }
-    case FieldType::kChar: {
-      std::vector<uint16_t> values;
-      values.reserve(element_count);
-      for (size_t i = 0; i < element_count; ++i) {
-        size_t offset = i * 2;
-        uint16_t value =
-            static_cast<uint16_t>((static_cast<uint16_t>(data[offset]) << 8) |
-                                  static_cast<uint16_t>(data[offset + 1]));
-        values.push_back(value);
-      }
-      obj.SetArrayData(std::move(values));
+    case FieldType::kChar:
+      ExtractTypedArrayValues<uint16_t>(context_, obj, data, element_count,
+                                        element_size);
       break;
-    }
-    case FieldType::kShort: {
-      std::vector<int16_t> values;
-      values.reserve(element_count);
-      for (size_t i = 0; i < element_count; ++i) {
-        size_t offset = i * 2;
-        int16_t value =
-            static_cast<int16_t>((static_cast<int16_t>(data[offset]) << 8) |
-                                 static_cast<int16_t>(data[offset + 1]));
-        values.push_back(value);
-      }
-      obj.SetArrayData(std::move(values));
+    case FieldType::kShort:
+      ExtractTypedArrayValues<int16_t>(context_, obj, data, element_count,
+                                       element_size);
       break;
-    }
-    case FieldType::kInt: {
-      std::vector<int32_t> values;
-      values.reserve(element_count);
-      for (size_t i = 0; i < element_count; ++i) {
-        size_t offset = i * 4;
-        int32_t value = (data[offset] << 24) | (data[offset + 1] << 16) |
-                        (data[offset + 2] << 8) | data[offset + 3];
-        values.push_back(value);
-      }
-      obj.SetArrayData(std::move(values));
+    case FieldType::kInt:
+      ExtractTypedArrayValues<int32_t>(context_, obj, data, element_count,
+                                       element_size);
       break;
-    }
-    case FieldType::kLong: {
-      std::vector<int64_t> values;
-      values.reserve(element_count);
-      for (size_t i = 0; i < element_count; ++i) {
-        size_t offset = i * 8;
-        int64_t value = static_cast<int64_t>(data[offset]) << 56 |
-                        static_cast<int64_t>(data[offset + 1]) << 48 |
-                        static_cast<int64_t>(data[offset + 2]) << 40 |
-                        static_cast<int64_t>(data[offset + 3]) << 32 |
-                        static_cast<int64_t>(data[offset + 4]) << 24 |
-                        static_cast<int64_t>(data[offset + 5]) << 16 |
-                        static_cast<int64_t>(data[offset + 6]) << 8 |
-                        static_cast<int64_t>(data[offset + 7]);
-        values.push_back(value);
-      }
-      obj.SetArrayData(std::move(values));
+    case FieldType::kLong:
+      ExtractTypedArrayValues<int64_t>(context_, obj, data, element_count,
+                                       element_size);
       break;
-    }
     case FieldType::kFloat: {
       std::vector<float> values;
       values.reserve(element_count);
       for (size_t i = 0; i < element_count; ++i) {
-        size_t offset = i * 4;
-        uint32_t raw = static_cast<uint32_t>(
-            (static_cast<uint32_t>(data[offset]) << 24) |
-            (static_cast<uint32_t>(data[offset + 1]) << 16) |
-            (static_cast<uint32_t>(data[offset + 2]) << 8) |
-            static_cast<uint32_t>(data[offset + 3]));
+        size_t offset = i * element_size;
+        uint32_t raw = ReadBigEndian<uint32_t>(context_, data, offset);
         float value;
         memcpy(&value, &raw, sizeof(float));
         values.push_back(value);
@@ -405,15 +374,8 @@ void HeapGraphResolver::ExtractPrimitiveArrayValues(Object& obj) {
       std::vector<double> values;
       values.reserve(element_count);
       for (size_t i = 0; i < element_count; ++i) {
-        size_t offset = i * 8;
-        uint64_t raw = static_cast<uint64_t>(data[offset]) << 56 |
-                       static_cast<uint64_t>(data[offset + 1]) << 48 |
-                       static_cast<uint64_t>(data[offset + 2]) << 40 |
-                       static_cast<uint64_t>(data[offset + 3]) << 32 |
-                       static_cast<uint64_t>(data[offset + 4]) << 24 |
-                       static_cast<uint64_t>(data[offset + 5]) << 16 |
-                       static_cast<uint64_t>(data[offset + 6]) << 8 |
-                       static_cast<uint64_t>(data[offset + 7]);
+        size_t offset = i * element_size;
+        uint64_t raw = ReadBigEndian<uint64_t>(context_, data, offset);
         double value;
         memcpy(&value, &raw, sizeof(double));
         values.push_back(value);
@@ -421,11 +383,9 @@ void HeapGraphResolver::ExtractPrimitiveArrayValues(Object& obj) {
       obj.SetArrayData(std::move(values));
       break;
     }
-    case FieldType::kObject: {
+    case FieldType::kObject:
       // Object arrays should be handled by HandleObjectArrayDumpRecord
-      // but we can add an empty case to avoid the switch-enum warning
       break;
-    }
   }
 }
 
