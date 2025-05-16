@@ -91,6 +91,8 @@ class FtraceProcfs {
   bool ClearFunctionFilters();
   bool AppendFunctionGraphFilters(const std::vector<std::string>& filters);
   bool ClearFunctionGraphFilters();
+  bool SetMaxGraphDepth(uint32_t depth);
+  bool ClearMaxGraphDepth();
 
   // Get all triggers for event with the given |group| and |name|.
   std::vector<std::string> ReadEventTriggers(const std::string& group,
