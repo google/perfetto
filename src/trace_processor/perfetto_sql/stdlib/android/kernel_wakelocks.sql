@@ -76,10 +76,10 @@ WITH
       sum(iif(power_state = 'awake', dur, 0)) AS awake_dur
     FROM _android_kernel_wakelocks_joined
     GROUP BY
-      1,
-      2,
-      3,
-      4
+      ts,
+      name,
+      type,
+      held_dur
   )
 SELECT
   ts,
