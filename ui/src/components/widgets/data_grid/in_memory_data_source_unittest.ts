@@ -256,15 +256,7 @@ describe('InMemoryDataSource', () => {
       const sortBy: SortBy = {column: 'active', direction: 'asc'}; // 0 then 1
       dataSource.notifyUpdate(sortBy, []);
       const result = dataSource.rows;
-      expect(result.rows.map((r) => r.active)).toEqual([
-        0,
-        0,
-        0,
-        1,
-        1,
-        1,
-        1,
-      ]);
+      expect(result.rows.map((r) => r.active)).toEqual([0, 0, 0, 1, 1, 1, 1]);
     });
 
     test('sort by Uint8Array ascending (by length)', () => {
