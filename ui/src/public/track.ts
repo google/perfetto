@@ -138,6 +138,11 @@ export interface Track {
   readonly pluginId?: string;
 }
 
+export interface SearchStrategy {
+  readonly name: string;
+  getWhereClause(searchTerm: string): string; // Returns something like "name GLOB '%searchTerm%'"
+}
+
 /**
  * Contextual information passed to mouse events.
  */
@@ -223,6 +228,8 @@ export interface TrackRenderer {
    * track.
    */
   getDataset?(): SourceDataset | undefined;
+
+  getSearchStrategies?(): ReadonlyArray<SearchStrategy> | undefined;
 
   /**
    * Optional: Get details of a track event given by eventId on this track.

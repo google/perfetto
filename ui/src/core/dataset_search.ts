@@ -59,7 +59,7 @@ export async function searchTrackEvents(
   const ids = await searchIds(trackGroups, searchTerm, engine);
   const results = names.concat(ids);
 
-  // Remove duplicates from the results
+  // Remove duplicates
   const uniqueResults = new Map<string, SearchResult>();
   for (const result of results) {
     const key = `${result.id}-${result.ts}`;
@@ -182,9 +182,11 @@ async function searchIds(
   searchTerm: string,
   engine: Engine,
 ): Promise<SearchResult[]> {
-  // Check if the search term is can be parsed into a number.
+  // Check if the search term is can be parsed as an int.
   const id = Number(searchTerm);
-  if (isNaN(id)) {
+
+  // Note: Number.isInteger also returns false for NaN.
+  if (!Number.isInteger(id)) {
     return [];
   }
 
