@@ -250,7 +250,19 @@ void ExecuteApply(State* state,
     RewriteIntrinsicMacro(frame, name, rp);
     return;
   }
-  if (!macro.expanded_variables.empty()) {
+  // Gross hack to detect if the argument to the macro is a variable. We cannot
+  // use macro.expanded_variables because inside functions, we can have
+  // variables which are intentionally never going to be expanded by the
+  // preprocessor. That's OK to expand, as long as the entire macro argument is
+  // itself not a variable.
+  bool is_arg_variable = false;
+  for (const auto& arg : macro.args) {
+    if (!arg.sql().empty() && arg.sql()[0] == '$') {
+      is_arg_variable = true;
+      break;
+    }
+  }
+  if (is_arg_variable) {
     state->stack.emplace_back(
         Frame::Rewrite{frame.tokenizer, frame.rewriter, name, rp},
         Frame::kIgnore, state,
