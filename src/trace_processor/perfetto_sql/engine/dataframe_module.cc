@@ -80,7 +80,7 @@ std::string ToSqliteCreateTableType(dataframe::StorageType type) {
   }
 }
 
-std::string CreateTableStmt(const dataframe::Dataframe::Spec& spec) {
+std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
   std::string create_stmt = "CREATE TABLE x(";
   for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
     create_stmt += spec.column_names[i] + " " +
@@ -276,24 +276,24 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
     c->last_idx_str = idxStr;
   }
   SqliteValueFetcher fetcher{{}, argv};
-  c->df_cursor->Execute(fetcher);
+  c->df_cursor.Execute(fetcher);
   return SQLITE_OK;
 }
 
 int DataframeModule::Next(sqlite3_vtab_cursor* cur) {
-  GetCursor(cur)->df_cursor->Next();
+  GetCursor(cur)->df_cursor.Next();
   return SQLITE_OK;
 }
 
 int DataframeModule::Eof(sqlite3_vtab_cursor* cur) {
-  return GetCursor(cur)->df_cursor->Eof();
+  return GetCursor(cur)->df_cursor.Eof();
 }
 
 int DataframeModule::Column(sqlite3_vtab_cursor* cur,
                             sqlite3_context* ctx,
                             int raw_n) {
   SqliteResultCallback visitor{{}, ctx};
-  GetCursor(cur)->df_cursor->Cell(static_cast<uint32_t>(raw_n), visitor);
+  GetCursor(cur)->df_cursor.Cell(static_cast<uint32_t>(raw_n), visitor);
   return SQLITE_OK;
 }
 
