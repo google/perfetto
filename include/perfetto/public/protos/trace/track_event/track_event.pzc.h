@@ -171,6 +171,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   terminating_flow_ids,
                   48);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
+                  STRING,
+                  const char*,
+                  color_key,
+                  13);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   MSG,
                   perfetto_protos_DebugAnnotation,
                   debug_annotations,

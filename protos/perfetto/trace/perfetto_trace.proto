@@ -13788,6 +13788,20 @@ message TrackEvent {
   // "terminating_flow_ids" to reduce memory consumption.
   repeated fixed64 terminating_flow_ids = 48;
 
+  // An opaque string to use for coloring the event in the trace viewer.
+  // This is *not* the actual color but instead a key to be used by the UI
+  // to figure out which events should be colored the same. The UI will
+  // assign a color to the key and use that color for all events with
+  // the same key. This is useful to color events that are not in the same
+  // track but are related in some way. For example, all events that
+  // are part of a single request can be colored the same.
+  //
+  // Note: we very intentionally do *not* allow trace writers to specify
+  // the color directly. This is to avoid the situation where a trace
+  // writer specifies a color with poor contrast, clashes with some other UI
+  // decoration and to allow theming of the UI (e.g. dark mode).
+  optional string color_key = 13;
+
   // ---------------------------------------------------------------------------
   // TrackEvent arguments:
   // ---------------------------------------------------------------------------
