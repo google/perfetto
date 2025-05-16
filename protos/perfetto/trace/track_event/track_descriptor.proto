@@ -110,13 +110,17 @@ message TrackDescriptor {
   // |extra_counter_values|).
   optional CounterDescriptor counter = 8;
 
+  // Deprecated: prefer use of `sbling_merge_behavior` instead: this option
+  // is equvaient to `SIBLING_MERGE_BEHAVIOR_NONE` or
+  // `SIBLING_MERGE_BEHAVIOR_BY_MERGE_KEY` with a unique key.
+  //
   // If true, forces Trace Processor to use separate tracks for track events
   // and system events for the same thread.
   //
   // Track events timestamps in Chrome have microsecond resolution, while
   // system events use nanoseconds. It results in broken event nesting when
   // track events and system events share a track.
-  optional bool disallow_merging_with_system_tracks = 9;
+  optional bool disallow_merging_with_system_tracks = 9 [deprecated = true];
 
   // Specifies how the UI should display child tracks of this track (i.e. tracks
   // where `parent_uuid` is specified to this track `uuid`). Note that this
