@@ -52,6 +52,7 @@
 #include "src/trace_processor/importers/archive/gzip_trace_parser.h"
 #include "src/trace_processor/importers/archive/tar_trace_reader.h"
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
+#include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/art_method/art_method_parser_impl.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -468,6 +469,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       kArtMethodTraceType);
   context_.art_method_parser =
       std::make_unique<art_method::ArtMethodParserImpl>(&context_);
+
+  context_.reader_registry->RegisterTraceReader<art_hprof::ArtHprofParser>(
+      kArtHprofTraceType);
 
   context_.reader_registry
       ->RegisterTraceReader<perf_text_importer::PerfTextTraceTokenizer>(

@@ -23,6 +23,8 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/profiler_util.h"
 
+#include "perfetto/base/logging.h"  // For PERFETTO_DLOG/PERFETTO_ELOG
+#include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
