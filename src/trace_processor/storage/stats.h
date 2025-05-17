@@ -492,7 +492,14 @@ namespace perfetto::trace_processor::stats {
       "The trace was collected with the `write_into_file` option set but "     \
       "uses a `DISCARD` buffer. This configuration is strongly discouraged "   \
       "and can cause mysterious data loss in the trace. Please use "           \
-      "`RING_BUFFER` buffers instead.")
+      "`RING_BUFFER` buffers instead."),                                       \
+  F(trace_sorter_negative_timestamp_dropped,       kSingle,  kError,   kTrace, \
+      "A negative timestamp was received by the TraceSorter and was dropped. " \
+      "Negative timestamps are not supported by trace processor and "          \
+      "the presence of one is usually a sign that something went wrong while " \
+      "recording a trace. Common causes of this include incorrect "            \
+      "incremental timestamps, bad clock synchronization or kernel bugs in "   \
+      "drivers emitting timestamps")
 // clang-format on
 
 enum Type {
