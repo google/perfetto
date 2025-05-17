@@ -8,11 +8,11 @@ computation of summary metrics, annotating the trace with user-friendly
 descriptions and deriving new events from the contents of the trace._
 
 ![Trace processor block diagram](/docs/images/trace-processor.png)
-
+<!-- 
 ## Quickstart
 
 The [quickstart](/docs/quickstart/trace-analysis.md) provides a quick overview
-on how to run SQL queries against traces using trace processor.
+on how to run SQL queries against traces using trace processor. -->
 
 ## Introduction
 

@@ -1,109 +1,168 @@
-* [Introduction](README.md)
+- [Getting started](#)
 
-* [Overview](#)
-  * [Tracing 101](tracing-101.md)
-  * [FAQ](faq.md)
+  - [What is Perfetto?](README.md)
+  - [What is Tracing?](tracing-101.md)
+  - [How do I start using Perfetto?](getting-started/start-using-perfetto.md)
 
-* [Quickstart](#)
-  * [Record traces on Android](quickstart/android-tracing.md)
-  * [Record traces on Linux](quickstart/linux-tracing.md)
-  * [Record Chrome traces](quickstart/chrome-tracing.md)
-  * [SQL analysis and metrics](quickstart/trace-analysis.md)
-  * [Trace conversion](quickstart/traceconv.md)
-  * [Heap profiling](quickstart/heap-profiling.md)
-  * [Callstack sampling on Android](quickstart/callstack-sampling.md)
+  - [Tutorials](#)
 
-* [Case studies](#)
-  * [Tracing Android boot](case-studies/android-boot-tracing.md)
-  * [Debugging memory usage](case-studies/memory.md)
+    - [Trace Recording](#)
 
-* [Data sources](#)
-  * [Memory](#)
-    * [Counters and events](data-sources/memory-counters.md)
-    * [Heap profiler](data-sources/native-heap-profiler.md)
-    * [Java heap dumps](data-sources/java-heap-profiler.md)
-  * [CPU](#)
-    * [Scheduling events](data-sources/cpu-scheduling.md)
-    * [System calls](data-sources/syscalls.md)
-    * [Frequency scaling](data-sources/cpu-freq.md)
-  * [Power](#)
-    * [Battery counters and rails](data-sources/battery-counters.md)
-  * [Android system](#)
-    * [Android game intervention list](data-sources/android-game-intervention-list.md)
-    * [Atrace instrumentation](data-sources/atrace.md)
-    * [Android log (logcat)](data-sources/android-log.md)
-    * [Android Janks](data-sources/frametimeline.md)
-  * [Linux system](#)
-    * [Tracing across reboot](data-sources/previous-boot-trace.md)
+      - [System Tracing](getting-started/recording/system-tracing.md)
+      - [In-App Tracing](getting-started/recording/in-app-tracing.md)
+      - [Memory Profiling](getting-started/recording/memory-profiling.md)
+      - [CPU Profiling](getting-started/recording/cpu-profiling.md)
+      - [Chrome Tracing](getting-started/recording/chrome-tracing.md)
 
-* [App Instrumentation](#)
-  * [Tracing SDK](instrumentation/tracing-sdk.md)
-  * [Track events](instrumentation/track-events.md)
-  * [Interceptors](instrumentation/interceptors.md)
+    - [Trace Instrumentation](#)
 
-* [Trace analysis](#)
-  * [Trace Processor](#)
-    * [C++ library](analysis/trace-processor.md)
-    * [Python library](analysis/trace-processor-python.md)
-    * [Trace-based metrics](analysis/metrics.md)
-  * [PerfettoSQL](#)
-    * [Standard Library](analysis/stdlib-docs.autogen)
-    * [Syntax](analysis/perfetto-sql-syntax.md)
-    * [Style Guide](analysis/style-guide.md)
-    * [Prelude tables](analysis/sql-tables.autogen)
-    * [Built-ins](analysis/builtin.md)
-    * [Backwards Compatibility](analysis/perfetto-sql-backcompat.md)
-  * [Analysis at scale](#)
-    * [Batch Trace Processor](analysis/batch-trace-processor.md)
-    * [Bigtrace](deployment/deploying-bigtrace-on-a-single-machine.md)
-    * [Bigtrace on Kubernetes](deployment/deploying-bigtrace-on-kubernetes.md)
+      - [Perfetto SDK](getting-started/instrumentation/sdk.md)
+      - [Android atrace](getting-started/instrumentation/atrace.md)
+      - [Linux ftrace](getting-started/instrumentation/ftrace.md)
 
-* [Trace visualization](#)
-  * [Perfetto UI](visualization/perfetto-ui.md)
-  * [Visualising large traces](visualization/large-traces.md)
-  * [Deep linking to Perfetto UI](visualization/deep-linking-to-perfetto-ui.md)
-  * [Perfetto UI release process](visualization/perfetto-ui-release-process.md)
-  * [Pivot tables](analysis/pivot-tables.md)
-  * [Debug tracks](analysis/debug-tracks.md)
+    - [Custom Analysis & Viz](#)
 
-* [Core concepts](#)
-  * [Trace configuration](concepts/config.md)
-  * [Buffers and dataflow](concepts/buffers.md)
-  * [Service model](concepts/service-model.md)
-  * [Clock synchronization](concepts/clock-sync.md)
-  * [Detached mode](concepts/detached-mode.md)
-  * [Concurrent tracing sessions](concepts/concurrent-tracing-sessions.md)
+      - [Non-Perfetto formats](getting-started/adhoc/other-formats.md)
+      - [Converting to Perfetto](getting-started/adhoc/converting.md)
 
-* [Reference](#)
-  * [Trace Config proto](reference/trace-config-proto.autogen)
-  * [Trace Packet proto](reference/trace-packet-proto.autogen)
-  * [perfetto cmdline](reference/perfetto-cli.md)
-  * [heap_profile cmdline](reference/heap_profile-cli.md)
-  * [Synthetic TrackEvent](reference/synthetic-track-event.md)
-  * [Android Version Notes](reference/android-version-notes.md)
-  * [Stats table](analysis/sql-stats.autogen)
+  - [Case Studies](#)
 
-* [Contributing](#)
-    * [Getting started](contributing/getting-started.md)
-    * [Build instructions](contributing/build-instructions.md)
-    * [Running tests](contributing/testing.md)
-    * [UI plugins](contributing/ui-plugins.md)
-    * [UI development hints](contributing/ui-development.md)
-    * [Embedding Perfetto](contributing/embedding.md)
-    * [Releasing the SDK](contributing/sdk-releasing.md)
-    * [Chrome branches](contributing/chrome-branches.md)
-    * [Common tasks](contributing/common-tasks.md)
-    * [Press](contributing/perfetto-in-the-press.md)
+    - [Android](#)
 
-* [Design documents](#)
-    * [API and ABI surface](design-docs/api-and-abi.md)
-    * [Batch Trace Processor](design-docs/batch-trace-processor.md)
-    * [Heapprofd design](design-docs/heapprofd-design.md)
-    * [Heapprofd wire protocol](design-docs/heapprofd-wire-protocol.md)
-    * [Heapprofd sampling](design-docs/heapprofd-sampling.md)
-    * [Life of a tracing session](design-docs/life-of-a-tracing-session.md)
-    * [Perfetto CI](design-docs/continuous-integration.md)
-    * [ProtoZero](design-docs/protozero.md)
-    * [Security model](design-docs/security-model.md)
-    * [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
+      - [Debugging memory usage](case-studies/memory.md)
 
+- [Learning more](#)
+
+  - [Concepts](#)
+
+    - [Trace configuration](concepts/config.md)
+    - [Buffers and dataflow](concepts/buffers.md)
+    - [Service model](concepts/service-model.md)
+
+  - [Trace Recording](#)
+
+    - [App + System Tracing](learning-more/trace-recording/app-and-system-tracing.md)
+    - [System Tracing on Android](learning-more/trace-recording/android.md)
+
+  - [PerfettoSQL](#)
+
+    - [Syntax](analysis/perfetto-sql-syntax.md)
+    - [Standard Library](analysis/stdlib-docs.autogen)
+
+  - [Single Trace Analysis](#)
+
+    - [Trace Processor (Python)](analysis/trace-processor-python.md)
+    - [Trace Processor (C++)](analysis/trace-processor.md)
+
+  - [Multi Trace Analysis](#)
+
+    - [Batch Trace Processor](analysis/batch-trace-processor.md)
+    - [Bigtrace](deployment/deploying-bigtrace-on-a-single-machine.md)
+    - [Bigtrace on Kubernetes](deployment/deploying-bigtrace-on-kubernetes.md)
+
+  - [Trace Visualization](#)
+
+    - [Perfetto UI](visualization/perfetto-ui.md)
+    - [Perfetto UI plugins](contributing/ui-plugins.md)
+    - [Opening large traces](visualization/large-traces.md)
+    - [Deep linking](visualization/deep-linking-to-perfetto-ui.md)
+    - [Debug tracks](analysis/debug-tracks.md)
+
+- [Diving deep](#)
+
+  - [Data sources](#)
+
+    - [Memory Data sources](#)
+
+      - [Native Heap profiler](data-sources/native-heap-profiler.md)
+      - [Java heap dumps](data-sources/java-heap-profiler.md)
+      - [Counters and events](data-sources/memory-counters.md)
+
+    - [Ftrace Data Sources](#)
+
+      - [Scheduling events](data-sources/cpu-scheduling.md)
+      - [System calls](data-sources/syscalls.md)
+      - [Frequency scaling](data-sources/cpu-freq.md)
+
+    - [Android Data Sources](#)
+
+      - [Atrace](data-sources/atrace.md)
+      - [Logcat](data-sources/android-log.md)
+      - [Frame Timeline](data-sources/frametimeline.md)
+      - [Battery counters and rails](data-sources/battery-counters.md)
+      - [Other data sources](data-sources/android-game-intervention-list.md)
+      - [Android Version Notes](reference/android-version-notes.md)
+
+  - [Trace Recording](#)
+
+    - [Clock synchronization](concepts/clock-sync.md)
+    - [Detached mode](concepts/detached-mode.md)
+    - [Concurrent tracing sessions](concepts/concurrent-tracing-sessions.md)
+
+    - [Android](#)
+
+      - [Boot Tracing](case-studies/android-boot-tracing.md)
+
+    - [Protos Reference](#)
+
+      - [Trace Config Proto](reference/trace-config-proto.autogen)
+      - [Trace Packet Proto](reference/trace-packet-proto.autogen)
+
+    - [Command Line Reference](#)
+
+      - [perfetto cmdline](reference/perfetto-cli.md)
+      - [heap_profile cmdline](reference/heap_profile-cli.md)
+
+  - [Trace Processor](#)
+
+    - [PerfettoSQL Prelude tables](analysis/sql-tables.autogen)
+    - [PerfettoSQL Built-ins](analysis/builtin.md)
+    - [Trace-based Metrics](analysis/metrics.md)
+    - [Stats Table Reference](analysis/sql-stats.autogen)
+
+  - [Perfetto UI](#)
+
+    - [Pivot tables](analysis/pivot-tables.md)
+
+  - [Perfetto SDK](#)
+
+    - [Interceptors](instrumentation/interceptors.md)
+
+  - [Contributing](#)
+
+    - [Getting started](contributing/getting-started.md)
+    - [Build instructions](contributing/build-instructions.md)
+    - [Running tests](contributing/testing.md)
+    - [Common tasks](contributing/common-tasks.md)
+
+  - [Design documents](#)
+
+    - [Recording](#)
+
+      - [API and ABI surface](design-docs/api-and-abi.md)
+      - [Life of a tracing session](design-docs/life-of-a-tracing-session.md)
+      - [ProtoZero](design-docs/protozero.md)
+      - [Security model](design-docs/security-model.md)
+
+    - [Trace analysis](#)
+
+      - [Batch Trace Processor](design-docs/batch-trace-processor.md)
+
+    - [Heap profiling](#)
+
+      - [Heapprofd design](design-docs/heapprofd-design.md)
+      - [Heapprofd wire protocol](design-docs/heapprofd-wire-protocol.md)
+      - [Heapprofd sampling](design-docs/heapprofd-sampling.md)
+
+    - [Infra](#)
+
+      - [Perfetto CI](design-docs/continuous-integration.md)
+
+  - [Team documentation](#)
+
+    - [Releasing the SDK](contributing/sdk-releasing.md)
+    - [UI release process](visualization/perfetto-ui-release-process.md)
+    - [UI development hints](contributing/ui-development.md)
+    - [Chrome branches](contributing/chrome-branches.md)
+    - [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
+    - [Embedding Perfetto](contributing/embedding.md)

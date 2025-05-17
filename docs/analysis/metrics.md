@@ -6,11 +6,11 @@ compute reproducible metrics. It can be used in a wide range of situations;
 examples include benchmarks, lab tests and on large corpuses of traces._
 
 ![Block diagram of metrics](/docs/images/metrics-summary.png)
-
+<!-- 
 ## Quickstart
 
 The [quickstart](/docs/quickstart/trace-analysis.md) provides a quick overview
-on how to compute trace-based metrics traces using trace processor.
+on how to compute trace-based metrics traces using trace processor. -->
 
 ## Introduction
 
@@ -465,9 +465,9 @@ NOTE: The name of the SQL file should be the same as the name of TraceMetrics
       proto extension field with the SQL which needs to be run to generate it.
 
 ### Step 4
-
+<!-- 
 For this step, invoke trace processor shell to run the metrics (see the
-[Quickstart](/docs/quickstart/trace-analysis.md) for downloading instructions):
+[Quickstart](/docs/quickstart/trace-analysis.md) for downloading instructions): -->
 
 ```shell
 $TRACE_PROCESSOR --run-metrics $WORKSPACE/top_five_processes.sql $TRACE 2> /dev/null

@@ -418,7 +418,7 @@ metrics {
 
 There are several options for exploring more of the trace analysis features
 Perfetto provides:
-
+<!-- 
 * The [trace conversion quickstart](/docs/quickstart/traceconv.md) gives an
   overview on how to convert Perfetto traces to legacy formats to integrate with
   existing tooling.
@@ -431,4 +431,4 @@ Perfetto provides:
 * The [SQL table reference](/docs/analysis/sql-tables.autogen) gives a
   comprehensive guide to the all the available tables in trace processor.
 * The [common tasks](/docs/contributing/common-tasks.md) page gives a list of
-  steps on how new metrics can be added to the trace processor.
+  steps on how new metrics can be added to the trace processor. -->
