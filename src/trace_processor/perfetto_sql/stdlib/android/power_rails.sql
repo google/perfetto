@@ -23,7 +23,7 @@ INCLUDE PERFETTO MODULE time.conversion;
 -- NOTE: Requires dedicated hardware - table is only populated on Pixels.
 CREATE PERFETTO TABLE android_power_rails_counters (
   -- `counter.id`
-  id LONG,
+  id ID(counter.id),
   -- Timestamp of the energy measurement.
   ts TIMESTAMP,
   -- Time until the next energy measurement.
