@@ -857,6 +857,14 @@ message SurfaceFlingerTransactionsConfig {
 
 // End of protos/perfetto/config/android/surfaceflinger_transactions_config.proto
 
+// Data source that lists details (such as version code) about users on an
+// Android device.
+message UserListConfig {
+  // If not empty, emit info about only the following list of user types
+  // (exact match, no regex). Otherwise, emit info about all users.
+  repeated string user_name_filter = 1;
+}
+
 // Begin of protos/perfetto/config/android/windowmanager_config.proto
 
 // Custom configuration for the "android.windowmanager" data source.
@@ -3991,6 +3999,9 @@ message DataSourceConfig {
   // Data source name: android.app_wakelocks
   optional AppWakelocksConfig app_wakelocks_config = 135 [lazy = true];
 
+  // Data source name: android.user_list
+  optional UserListConfig user_list_config = 136 [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -6537,6 +6548,25 @@ message DisplayState {
 }
 
 // End of protos/perfetto/trace/android/surfaceflinger_transactions.proto
+
+// Begin of protos/perfetto/trace/android/user_list.proto
+
+message UserList {
+  message UserInfo {
+    optional string name = 1;
+    optional uint64 uid = 2;
+  }
+
+  repeated UserInfo users = 1;
+
+  // At least one error occurred parsing the user.list.
+  optional bool parse_error = 2;
+
+  // Failed to open / read users.list.
+  optional bool read_error = 3;
+}
+
+// End of protos/perfetto/trace/android/user_list.proto
 
 // Begin of protos/perfetto/trace/android/winscope_extensions.proto
 
@@ -16225,7 +16255,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 117.
+// Next id: 118.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -16371,6 +16401,8 @@ message TracePacket {
     KernelWakelockData kernel_wakelock_data = 115;
 
     AppWakelockBundle app_wakelock_bundle = 116;
+
+    UserList user_list = 117;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
