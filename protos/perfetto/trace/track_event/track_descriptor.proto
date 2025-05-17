@@ -110,12 +110,17 @@ message TrackDescriptor {
   // |extra_counter_values|).
   optional CounterDescriptor counter = 8;
 
+  // Deprecated: prefer use of `sbling_merge_behavior` instead: this option
+  // is equvaient to `SIBLING_MERGE_BEHAVIOR_NONE` or
+  // `SIBLING_MERGE_BEHAVIOR_BY_MERGE_KEY` with a unique key.
+  //
   // If true, forces Trace Processor to use separate tracks for track events
   // and system events for the same thread.
+  //
   // Track events timestamps in Chrome have microsecond resolution, while
   // system events use nanoseconds. It results in broken event nesting when
   // track events and system events share a track.
-  optional bool disallow_merging_with_system_tracks = 9;
+  optional bool disallow_merging_with_system_tracks = 9 [deprecated = true];
 
   // Specifies how the UI should display child tracks of this track (i.e. tracks
   // where `parent_uuid` is specified to this track `uuid`). Note that this
@@ -148,7 +153,69 @@ message TrackDescriptor {
   // tracks with higher ranks. An unspecified rank will be treated as a rank of
   // 0.
   //
+  // Note: this option is only relevant for tracks where the parent has
+  // `child_ordering` set to `EXPLICIT`. It is ignored otherwise.
+  //
   // Note: for tracks where the parent has `thread` or `process` are set, this
-  // option is *ignored*. See `parent_uuid` for details.
+  // option is *ignored* (even if the parent's `child_ordering` is `EXPLICIT``).
+  // See `parent_uuid` for details.
   optional int32 sibling_order_rank = 12;
+
+  // Specifies how the UI (and at some point, the trace processor) should
+  // "merge" different the child tracks (of this track) into a single "analysis"
+  // track. This is useful for reducing the vertical space used in the UI when
+  // there are many tracks all showing the same "type" of events (e.g. network
+  // requests, scheduler activity etc).
+  //
+  // Note: for tracks where `thread` or `process` are set, this option is
+  // *ignored*. See `parent_uuid` for details.
+  //
+  // Note: this flag only affects the UI for now but we expect this also to be
+  // respected by the trace processor in the future to allow for consistency
+  // between you see and what you query.
+  enum ChildMergeBehavior {
+    // When unspecified or not set, defaults to `SIBLING_MERGE_BEHAVIOR_LEGACY`.
+    CHILD_MERGE_BEHAVIOR_UNSPECIFIED = 0;
+
+    // The "legacy" behaviour for merging which predates the introduction of
+    // this field. Any child tracks with the same `name` will be merged
+    // together *except* when those tracks have a child *themselves*.
+    //
+    // A bit of history on why this exists: this behaviour was inherited from
+    // chrome://tracing (Catapult) and exists mainly to not break existing
+    // traces. In general, if possible don't use this and prefer to instead
+    // explicitly set the `sibling_merge_behavior` to one of the other
+    // options.
+    CHILD_MERGE_BEHAVIOR_LEGACY = 1;
+
+    // Never merge child tracks together. Useful if each track has a specific
+    // meaning and you want to see them all in the UI individually.
+    CHILD_MERGE_BEHAVIOR_NONE = 2;
+
+    // Merge child tracks together based on their name. Tracks with the same
+    // name will be merged together.
+    CHILD_MERGE_BEHAVIOR_BY_TRACK_NAME = 3;
+
+    // Merge child tracks together based on the value of `sibling_merge_key`.
+    // Tracks with the same `sibling_merge_key` will be merged together.
+    // If `sibling_merge_key` is not set, the track with *not* be merged with
+    // any other track.
+    CHILD_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY = 4;
+  }
+  optional ChildMergeBehavior child_merge_behavior = 14;
+
+  // An opaque value which allows specifying whether two sibling tracks should
+  // be merged together. Tracks with the same `sibling_merge_key` will be merged
+  // together. If `sibling_merge_key` is not set, the track with *not* be
+  // merged with any other track. See `sibling_merge_behavior` for more details.
+  //
+  // Note: this option is only relevant for tracks where the parent has
+  // `sibling_merge_behavior` set to
+  // `CHILD_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`. It is ignored otherwise.
+  //
+  // Note: for tracks where the parent has `thread` or `process` are set, this
+  // option is *ignored* (even if the parent's `sibling_merge_behavior` is
+  // `CHILD_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`). See `parent_uuid` for
+  // details.
+  optional string sibling_merge_key = 15;
 }
