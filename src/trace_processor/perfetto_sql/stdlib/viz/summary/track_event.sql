@@ -114,6 +114,8 @@ SELECT
   track.parent_id,
   track.type GLOB '*counter*' AS is_counter,
   track.name,
+  -- min() here really represents any_value() as counter tracks are never
+  -- merged.
   min(counter_track.unit) AS unit,
   min(extract_arg(track.source_arg_set_id, 'builtin_counter_type')) AS builtin_counter_type,
   max(m.id IS NOT NULL) AS has_data,
