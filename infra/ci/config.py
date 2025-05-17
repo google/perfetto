@@ -41,10 +41,10 @@ LOGS_TTL_DAYS = 15
 TRUSTED_EMAILS = '^.*@google.com$'
 
 GCE_REGIONS = 'us-west1'
-GCE_VM_NAME = 'gh-worker'
+GCE_VM_NAME = 'ci-worker'
 GCE_VM_TYPE = 'c2d-standard-32'
-GCE_TEMPLATE = 'gh-worker-template'
-GCE_GROUP_NAME = 'gh'
+GCE_TEMPLATE = 'ci-worker-template'
+GCE_GROUP_NAME = 'ci'
 MAX_VMS_PER_REGION = 8
 NUM_WORKERS_PER_VM = 4
 AUTOSCALER_MIN = 0

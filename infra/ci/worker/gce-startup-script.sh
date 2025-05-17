@@ -49,3 +49,42 @@ docker run -d \
   -v /tmp:/tmp \
   -v /var/run/docker.sock:/var/run/docker.sock \
   $WORKER_IMG
+
+
+cat<<'EOF'>/tmp/shutdown_when_idle.sh
+# This script initiates a VM shutdown when all the sandboxes have been idle
+# for long time. After b/417658206, we use the autoscaler only to scale up based
+# on the CI queue length.
+# Scale down is triggered by idle detection, to avoid accidentally terminating
+# ongoing CI jobs.
+# sandbox_runner.py updates the timestamp of /run/perfetto_ci_lastrun before
+# each iteration (hence at the end of each).
+# Note that technically we cannot tell the when a sandbox is "idle" because we
+# cannot tell the difference between "the sandbox is waiting for the next job"
+# or "the sandbox picked up a job and is running it (it will terminate after)".
+# But we can rely on the fact that GitHub Action Runners have a 60 min timeout.
+# So the 90 minutes below gives us a 30 min grace period of actual idleness in
+# the worst case.
+
+set -eu -o pipefail
+
+FILE=/tmp/perfetto_ci_lastrun
+
+echo "Starting idle shutdown monitor..."
+
+while true; do
+  if [ -f "$FILE" ]; then
+    if [ "$(find "$FILE" -mmin +90)" ]; then
+      echo "[$(date)] All sandboxes idle. Shutting down..."
+      shutdown -h now
+    fi
+  else
+    echo "[$(date)] File not found: $FILE"
+  fi
+  sleep 60
+done
+EOF
+
+chmod 755 /tmp/shutdown_when_idle.sh
+
+setsid nohup /tmp/shutdown_when_idle.sh > /tmp/shutdown_when_idle.log 2>&1 &
