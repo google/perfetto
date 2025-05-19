@@ -27,7 +27,9 @@ on:
 jobs:
   pr-branch-check:
     if: startsWith(github.base_ref, 'dev/')
-    runs-on: self-hosted
+    # Deliberately run on GitHub's ubuntu-latest pool as it's faster for small
+    # job like this.
+    runs-on: ubuntu-latest
     steps:
       - name: Prevent accidental merge PRs into dev branches
         run: |
