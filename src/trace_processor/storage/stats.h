@@ -493,6 +493,54 @@ namespace perfetto::trace_processor::stats {
       "uses a `DISCARD` buffer. This configuration is strongly discouraged "   \
       "and can cause mysterious data loss in the trace. Please use "           \
       "`RING_BUFFER` buffers instead."),                                       \
+   F(hprof_string_counter,                 kSingle,  kInfo,   kAnalysis,       \
+         "Number of strings encountered."),                                    \
+   F(hprof_class_counter,                  kSingle,  kInfo,   kAnalysis,       \
+         "Number of classes encountered."),                                    \
+   F(hprof_heap_dump_counter,              kSingle,  kInfo,   kAnalysis,       \
+         "Number of heap dumps encountered."),                                 \
+   F(hprof_instance_counter,               kSingle,  kInfo,   kAnalysis,       \
+         "Number of instances encountered."),                                  \
+   F(hprof_object_array_counter,           kSingle,  kInfo,   kAnalysis,       \
+         "Number of object arrays encountered."),                              \
+  F(hprof_primitive_array_counter,         kSingle,  kInfo,   kAnalysis,       \
+        "Number of primitive arrays encountered."),                            \
+  F(hprof_root_counter,                    kSingle,  kInfo,   kAnalysis,       \
+        "Number of roots encountered."),                                       \
+  F(hprof_reference_counter,               kSingle,  kInfo,   kAnalysis,       \
+        "Number of references encountered."),                                  \
+  F(hprof_record_counter,                  kSingle,  kInfo,   kAnalysis,       \
+        "Total number of records parsed."),                                    \
+  F(hprof_field_value_errors,              kSingle,  kError,   kAnalysis,      \
+      "Number of field value parsing errors. This indicates a malformed "      \
+      "hprof file. Check if the hprof opens correctly in a tool like "         \
+      "AHAT. Missing values could yield incorrect native object sizes."),      \
+  F(hprof_class_errors,                    kSingle,  kError,   kAnalysis,      \
+      "Number of class parsing errors encountered. This indicates a "          \
+      "malformed hprof file. Check if the hprof opens correctly in a tool "    \
+      "like AHAT. Missing classes could cause missing references, thus "       \
+      "affecting the overall size of the the heap graph."),                    \
+  F(hprof_header_errors,                   kSingle,  kError,   kAnalysis,      \
+      "Number of header parsing errors. This indicates a malformed hprof "     \
+      "file with invalid or missing header information. The file may be "      \
+      "corrupted or might not be a valid hprof file. There may not be any "    \
+      "heap graph data parsed."),                                              \
+  F(hprof_heap_dump_errors,                kSingle,  kError,   kAnalysis,      \
+      "Number of heap dump parsing errors. This indicates a malformed "        \
+      "hprof file with corrupted heap segments. Check if the hprof opens "     \
+      "correctly in a tool like AHAT. Missing heap dump sections can lead to " \
+      "huge clusters of the heap graph missing, thus affecting the overall "   \
+      "size of the graph"),                                                    \
+  F(hprof_primitive_array_parsing_errors,  kSingle,  kError,   kAnalysis,      \
+      "Number of primitive array parsing errors. This indicates a "            \
+      "malformed hprof file. Check if the hprof opens correctly in a tool "    \
+      "like AHAT. Primitive arrays like bytes[] missing can dramatically "     \
+      "affect the overall size of the heap graph."),                           \
+  F(hprof_reference_errors,                kSingle,  kError,   kAnalysis,      \
+      "Number of object reference errors encountered. This indicates a "       \
+      "malformed hprof file. Check if the hprof opens correctly in a tool "    \
+      "like AHAT. Missing references will affect the overall size of the "     \
+      "heap graph."),                                                          \
   F(trace_sorter_negative_timestamp_dropped,       kSingle,  kError,   kTrace, \
       "A negative timestamp was received by the TraceSorter and was dropped. " \
       "Negative timestamps are not supported by trace processor and "          \
