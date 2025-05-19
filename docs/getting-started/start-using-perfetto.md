@@ -3,8 +3,8 @@
 Perfetto is a large project and it can be daunting for someone new to undestand
 what parts of the documentation relevant to them. By focusing on what technology
 you are using and what you are trying to accomplish, this page will guide you
-through the Perfetto documentation and help you solve problems with Perfetto as
-quickly as possible.
+through our documentation and help you solve problems with Perfetto as quickly
+as possible.
 
 NOTE: If you are unfamiliar with the word "tracing" or in general, are new to
 the world of performance, we suggest reading the
@@ -27,16 +27,16 @@ Based on what technology you are interested in, please choose one of the
 following sections to go next:
 
 - [Android App/Platform developers](#android-app-platform-developer)
-- [Chromium developers](#chromium-developers)
 - [Linux kernel developers](#linux-kernel-developer)
-- [C/C++ developers (non-Android)](#c-c-developer-non-android-)
+- [C/C++ program developers](#c-c-developer-non-android-)
+- [Chromium and related project developers](#chromium-developers)
 - [Anyone with custom "trace-like" data to analyse/visualize](#anyone-with-quot-trace-like-quot-data-to-analyse-visualize)
 - [Anyone not listed above](#anyone-not-listed-above)
 
 ## Android App/Platform Developer
 
-Perfetto is the default tracing system on Android and is a powerful way to
-analyse functional and performance issues on Android and, in general, to
+Perfetto is the **default tracing system** on Android and is a powerful way to
+analyse functional and performance issues on Android and, more generally, to
 understand the behaviour of the whole Android OS.
 
 If you are a developer working on an Android app or on Android platform code
@@ -50,24 +50,50 @@ questions:
 5. Why is my system using so much memory?
 6. How can I reduce the CPU usage of my component?
 
-**For app developers**, you might already be using Perfetto via one of the
-app-focused tools which use Perfetto under the hood:
+<?tabs>
 
-- Android Studio Profiler
-- Macrobenchmark Libraries
-- Android ProfileManager API
+TAB: App Developers
 
-These are wrappers around Perfetto trace tooling to make it more well integrated
-for app developers. However, these wrappers usually only expose one facet of
-Perfetto or simplify it to make it easier for developers getting started.
-Perfetto as a whole is signifcantly more flexible and powerful than any one of
-these tools.
+As an Android App Developer, you might already be using Perfetto via one of
+the app-focused tools which use Perfetto under the hood. Examples include:
 
-**For platform developers**, in Google, Perfetto is deeply integrated with
-Android's [lab testing](http://go/crystalball) and
-[field telemetry](http://go/perfetto-project) systems (links are for Googlers
-only). Many OEMs also collect Perfetto traces in different scenarios: pelase
-consult your internal company documentation for details on this.
+- [Android Studio Profiler](https://developer.android.com/studio/profile)
+- [AndroidX Macrobenchmark Library](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-overview)
+- [ProfilingManager API in Android SDK](https://developer.android.com/reference/android/os/ProfilingManager)
+
+These projects are wrappers around Perfetto trace tooling to make it more well
+integrated for app developers. However, these wrappers usually only expose one
+facet of Perfetto or simplify it to make it easier to get started.
+
+However, Perfetto as a whole is **signifcantly more flexible and powerful** than any
+one of these wrappers. The below tutorials and case studies can help you start
+using Perfetto in a more sophisticated way.
+
+TAB: Platform Developers
+
+As an Android Platform Developer, Perfetto is deeply integrated
+throughout the whole development process for Android platform changes. Platform
+developers can (links are for Googlers only):
+
+- Collect Perfetto traces locally while developing features or fixing bugs
+- Collect, analyse and visualize Perfetto traces in Android
+  [lab tests](http://go/crystalball)
+- Collect, analyse and visualize Perfetto traces from Android
+  [field telemetry](http://go/perfetto-project) systems
+
+The below tutorials and case studies can help you understand the range of low-level tooling
+Perfetto makes available to make your life as a platform developer easier.
+
+TAB: OEM/Partner Platform Developers
+
+Many OEMs and partners also have equivalent to the above local/lab/field systems
+inside their own companies: please consult your internal company documentation
+for details on this.
+
+The below tutorials and case studies can help you understand the range of low-level tooling
+Perfetto makes available to make your life as a platform developer easier.
+
+</tabs?>
 
 ### Tutorials
 

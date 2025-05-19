@@ -13,7 +13,7 @@ It consists of:
 - **High-performance tracing daemon** for capturing tracing information from
   many processes on a single machine into a unified trace file for offline
   analysis and visualization.
-- **Low-overhead tracing SDK** for annotating C/C++/Rust code to capture the
+- **Low-overhead tracing SDK** for annotating C/C++ code to capture the
   execution of functions and the changes in program state over time.
 - **Extensive OS-level probes on Android and Linux** for capturing wider system
   level (e.g. scheduling states, CPU frequencies, memory counters, IO events)

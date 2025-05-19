@@ -1,14 +1,14 @@
 # What is Tracing?
 
-This page provides a birds-eye view of performance analysis. The aim is to
-orient people who have no idea what "tracing" is.
+NOTE: the word "tracing" in this document is used in the context of
+**client-side** side software (e.g. programs running on a single machine). In
+the server world, **tracing** is usually short for _distributed tracing_, a way
+to collect data from many different servers to understand the flow of a
+"request" throughout multiple services. As such, this document will _not_ be
+useful to you if you are interested in such traces.
 
-NOTE: the word "tracing" in this document is used in the context of **client-side**
-side software (e.g. programs running on a single machine). In the server world,
-**tracing** is usually short for *distributed tracing*, a way to collect data from
-many different servers to understand the flow of a "request" throughout multiple
-services. As such, this document will *not* be useful to you if you are interested
-in such traces.
+This page provides a birds-eye view of performance analysis and tracing. The aim
+is to orient people who have no idea what "tracing" is.
 
 ## Introduction to Performance
 
