@@ -38,7 +38,13 @@ concurrency:
 
 jobs:
   analyze:
-    runs-on: self-hosted
+    # Unlike other workflows, this runs on the Github ubuntu-latest pool.
+    # This is deliberate: (1) this workflow doesn't need anything special from
+    # our 'sandbox' docker container, and GitHub's pool is just faster.
+    # (2) when our CI autoscaler ramps down, it can take a long time until we
+    # have some capacity to run this. In turn, delaying analyze.yml further
+    # delays in scaling-up because we didn't queue the child jobs.
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
       TRIVIAL_CHANGE: ${{ steps.trivial.outputs.TRIVIAL_CHANGE }}
