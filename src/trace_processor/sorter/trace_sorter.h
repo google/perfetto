@@ -48,6 +48,7 @@
 #include "src/trace_processor/importers/perf_text/perf_text_event.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
@@ -253,7 +254,7 @@ class TraceSorter {
                     TraceBlobView tbv,
                     RefPtr<PacketSequenceStateGeneration> state,
                     std::optional<MachineId> machine_id = std::nullopt) {
-    if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
+    if (ShouldDropData(timestamp)) {
       return;
     }
     TraceTokenBuffer::Id id =
@@ -269,7 +270,7 @@ class TraceSorter {
                        TraceBlobView tbv,
                        RefPtr<PacketSequenceStateGeneration> state,
                        std::optional<MachineId> machine_id = std::nullopt) {
-    if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
+    if (ShouldDropData(timestamp)) {
       return;
     }
     TraceTokenBuffer::Id id =
@@ -285,7 +286,7 @@ class TraceSorter {
       int64_t timestamp,
       const InlineSchedSwitch& inline_sched_switch,
       std::optional<MachineId> machine_id = std::nullopt) {
-    if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
+    if (ShouldDropData(timestamp)) {
       return;
     }
     // TODO(rsavitski): if a trace has a mix of normal & "compact" events
@@ -307,7 +308,7 @@ class TraceSorter {
       int64_t timestamp,
       const InlineSchedWaking& inline_sched_waking,
       std::optional<MachineId> machine_id = std::nullopt) {
-    if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
+    if (ShouldDropData(timestamp)) {
       return;
     }
     TraceTokenBuffer::Id id = token_buffer_.Append(inline_sched_waking);
@@ -521,20 +522,24 @@ class TraceSorter {
       TimestampedEvent::Type event_type,
       E&& evt,
       std::optional<MachineId> machine_id = std::nullopt) {
-    if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
+    if (ShouldDropData(ts)) {
       return;
     }
     TraceTokenBuffer::Id id = token_buffer_.Append(std::forward<E>(evt));
-    AppendNonFtraceEventWithId(ts, event_type, id, machine_id);
-  }
-
-  void AppendNonFtraceEventWithId(int64_t ts,
-                                  TimestampedEvent::Type event_type,
-                                  TraceTokenBuffer::Id id,
-                                  std::optional<MachineId> machine_id) {
     Queue* queue = GetQueue(0, machine_id);
     queue->Append(ts, event_type, id, use_slow_sorting_);
     UpdateAppendMaxTs(queue);
+  }
+
+  PERFETTO_ALWAYS_INLINE bool ShouldDropData(int64_t timestamp) const {
+    if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
+      return true;
+    }
+    if (PERFETTO_UNLIKELY(timestamp < 0)) {
+      storage_->IncrementStats(stats::trace_sorter_negative_timestamp_dropped);
+      return true;
+    }
+    return false;
   }
 
   void UpdateAppendMaxTs(Queue* queue) {
