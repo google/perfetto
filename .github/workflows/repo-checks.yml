@@ -32,6 +32,13 @@ jobs:
       CI: 1
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Fetch the upstream branch as well, so we can diff and see the list of
+      # changed files.
+      - name: Fetch upstream branch
+        run: git fetch origin ${{ github.base_ref }} --depth=1
 
       - name: Setup ccache
         run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
@@ -41,7 +48,7 @@ jobs:
           install-flags: --ui
 
       - name: Run tools/presubmits
-        run: tools/run_presubmit
+        run: tools/run_presubmit --merge-base ${{ github.base_ref }}
 
       - name: Check merged protos (tools/gen_all)
         run: |
