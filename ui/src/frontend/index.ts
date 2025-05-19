@@ -13,6 +13,7 @@
 // limitations under the License.
 
 // Keep this import first.
+import z from 'zod';
 import '../base/disposable_polyfill';
 import '../base/static_initializers';
 import NON_CORE_PLUGINS from '../gen/all_plugins';
@@ -50,6 +51,12 @@ import {
 import {addVisualizedArgTracks} from '../components/tracks/visualized_args_tracks';
 import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {assetSrc, initAssets} from '../base/assets';
+import {
+  PERFETTO_SETTINGS_STORAGE_KEY,
+  SettingsManagerImpl,
+} from '../core/settings_manager';
+import {LocalStorage} from '../core/local_storage';
+import {DurationPrecision, TimestampFormat} from '../public/timeline';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -143,8 +150,34 @@ function main() {
   // Setup content security policy before anything else.
   setupContentSecurityPolicy();
   initAssets();
+
+  // Create settings Manager
+  const settingsManager = new SettingsManagerImpl(
+    new LocalStorage(PERFETTO_SETTINGS_STORAGE_KEY),
+  );
+
+  // Initialize core settings...
+  const timestampFormatSetting = settingsManager.register({
+    id: 'timestampFormat',
+    name: 'Timestamp format',
+    description: 'The format of timestamps throughout Perfetto.',
+    schema: z.nativeEnum(TimestampFormat),
+    defaultValue: TimestampFormat.Timecode,
+  });
+
+  const durationPrecisionSetting = settingsManager.register({
+    id: 'durationPrecision',
+    name: 'Duration precision',
+    description: 'The precision of durations throughout Perfetto.',
+    schema: z.nativeEnum(DurationPrecision),
+    defaultValue: DurationPrecision.Full,
+  });
+
   AppImpl.initialize({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
+    settingsManager,
+    timestampFormatSetting,
+    durationPrecisionSetting,
   });
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
