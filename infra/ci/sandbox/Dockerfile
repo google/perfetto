@@ -22,10 +22,10 @@ RUN set -ex; \
     dpkg --add-architecture i386; \
     apt-get update; \
     apt-get -y install --no-install-recommends \
-        python3.8 \
+        python3.9 \
         python3-pip \
-        python3.8-dev \
-        python3.8-venv \
+        python3.9-dev \
+        python3.9-venv \
         python-is-python3 \
         git \
         curl \
