@@ -27,30 +27,30 @@ with SQL.
 
 Features of the trace processor include:
 
-* Execution of SQL queries on a custom, in-memory, columnar database backed by
+- Execution of SQL queries on a custom, in-memory, columnar database backed by
   the SQLite query engine.
-* Metrics subsystem which allows computation of summarized view of the trace
+- Metrics subsystem which allows computation of summarized view of the trace
   (e.g. CPU or memory usage of a process, time taken for app startup etc.).
-* Annotating events in the trace with user-friendly descriptions, providing
+- Annotating events in the trace with user-friendly descriptions, providing
   context and explanation of events to newer users.
-* Creation of new events derived from the contents of the trace.
+- Creation of new events derived from the contents of the trace.
 
 The formats supported by trace processor include:
 
-* Perfetto native protobuf format
-* Linux ftrace
-* Android systrace
-* Chrome JSON (including JSON embedding Android systrace text)
-* Fuchsia binary format
-* [Ninja](https://ninja-build.org/) logs (the build system)
+- Perfetto native protobuf format
+- Linux ftrace
+- Android systrace
+- Chrome JSON (including JSON embedding Android systrace text)
+- Fuchsia binary format
+- [Ninja](https://ninja-build.org/) logs (the build system)
 
 The trace processor is embedded in a wide variety of trace analysis tools, including:
 
-* [trace_processor](/docs/analysis/trace-processor.md), a standalone binary
-   providing a shell interface (and the reference embedder).
-* [Perfetto UI](https://ui.perfetto.dev), in the form of a WebAssembly module.
-* [Android GPU Inspector](https://gpuinspector.dev/).
-* [Android Studio](https://developer.android.com/studio/).
+- [trace_processor](/docs/analysis/trace-processor.md), a standalone binary
+  providing a shell interface (and the reference embedder).
+- [Perfetto UI](https://ui.perfetto.dev), in the form of a WebAssembly module.
+- [Android GPU Inspector](https://gpuinspector.dev/).
+- [Android Studio](https://developer.android.com/studio/).
 
 ## Concepts
 
@@ -76,9 +76,9 @@ and counters.
 A slice refers to an interval of time with some data describing what was
 happening in that interval. Some example of slices include:
 
-* Scheduling slices for each CPU
-* Atrace slices on Android
-* Userspace slices from Chrome
+- Scheduling slices for each CPU
+- Atrace slices on Android
+- Userspace slices from Chrome
 
 #### Counters
 
@@ -87,19 +87,19 @@ happening in that interval. Some example of slices include:
 A counter is a continuous value which varies over time. Some examples of
 counters include:
 
-* CPU frequency for each CPU core
-* RSS memory events - both from the kernel and polled from /proc/stats
-* atrace counter events from Android
-* Chrome counter events
+- CPU frequency for each CPU core
+- RSS memory events - both from the kernel and polled from /proc/stats
+- atrace counter events from Android
+- Chrome counter events
 
 ### Tracks
 
 A track is a named partition of events of the same type and the same associated
 context. For example:
 
-* Scheduling slices have one track for each CPU
-* Sync userspace slice have one track for each thread which emitted an event
-* Async userspace slices have one track for each “cookie” linking a set of async
+- Scheduling slices have one track for each CPU
+- Sync userspace slice have one track for each thread which emitted an event
+- Async userspace slices have one track for each “cookie” linking a set of async
   events
 
 The most intuitive way to think of a track is to imagine how they would be drawn
@@ -111,10 +111,10 @@ For example, all the scheduling events for CPU 5 are on the same track:
 Tracks can be split into various types based on the type of event they contain
 and the context they are associated with. Examples include:
 
-* Global tracks are not associated to any context and contain slices
-* Thread tracks are associated to a single thread and contain slices
-* Counter tracks are not associated to any context and contain counters
-* CPU counter tracks are associated to a single CPU and contain counters
+- Global tracks are not associated to any context and contain slices
+- Thread tracks are associated to a single thread and contain slices
+- Counter tracks are not associated to any context and contain counters
+- CPU counter tracks are associated to a single CPU and contain counters
 
 ### Thread and process identifiers
 
@@ -189,10 +189,12 @@ GROUP BY thread_name
 ```
 
 ## Helper functions
+
 Helper functions are functions built into C++ which reduce the amount of
 boilerplate which needs to be written in SQL.
 
 ### Extract args
+
 `EXTRACT_ARG` is a helper function which retrieves a property of an
 event (e.g. slice or counter) from the `args` table.
 
@@ -201,6 +203,7 @@ up in the `args` table.
 
 For example, to retrieve the `prev_comm` field for `sched_switch` events in
 the `ftrace_event` table.
+
 ```sql
 SELECT EXTRACT_ARG(arg_set_id, 'prev_comm')
 FROM ftrace_event
@@ -208,6 +211,7 @@ WHERE name = 'sched_switch'
 ```
 
 Behind the scenes, the above query would desugar to the following:
+
 ```sql
 SELECT
   (
@@ -224,6 +228,7 @@ when working with very large tables; a function call is required for every
 row which will be slower than the batch filters/sorts used by `JOIN`.
 
 ## Operator tables
+
 SQL queries are usually sufficient to retrieve data from trace processor.
 Sometimes though, certain constructs can be difficult to express pure SQL.
 
@@ -232,11 +237,12 @@ a particular problem in C++ but expose an SQL interface for queries to take
 advantage of.
 
 ### Span join
+
 Span join is a custom operator table which computes the intersection of
 spans of time from two tables or views. A span in this concept is a row in a
 table/view which contains a "ts" (timestamp) and "dur" (duration) columns.
 
-A column (called the *partition*) can optionally be specified which divides the
+A column (called the _partition_) can optionally be specified which divides the
 rows from each table into partitions before computing the intersection.
 
 ![Span join block diagram](/docs/images/span-join.png)
@@ -273,16 +279,17 @@ NOTE: A partition can be specified on neither, either or both tables. If
 specified on both, the same column name has to be specified on each table.
 
 WARNING: An important restriction on span joined tables is that spans from
-the same table in the same partition *cannot* overlap. For performance
+the same table in the same partition _cannot_ overlap. For performance
 reasons, span join does not attempt to detect and error out in this situation;
 instead, incorrect rows will silently be produced.
 
-WARNING: Partitions mush be integers. Importantly, string partitions are *not*
-supported; note that strings *can* be converted to integers by
+WARNING: Partitions mush be integers. Importantly, string partitions are _not_
+supported; note that strings _can_ be converted to integers by
 applying the `HASH` function to the string column.
 
 Left and outer span joins are also supported; both function analogously to
 the left and outer joins from SQL.
+
 ```sql
 -- Left table partitioned + right table unpartitioned.
 CREATE VIRTUAL TABLE left_join
@@ -295,11 +302,12 @@ USING SPAN_OUTER_JOIN(table_x, table_y);
 
 NOTE: there is a subtlety if the partitioned table is empty and is
 either a) part of an outer join b) on the right side of a left join.
-In this case, *no* slices will be emitted even if the other table is
+In this case, _no_ slices will be emitted even if the other table is
 non-empty. This approach was decided as being the most natural
 after considering how span joins are used in practice.
 
 ### Ancestor slice
+
 ancestor_slice is a custom operator table that takes a
 [slice table's id column](/docs/analysis/sql-tables.autogen#slice) and computes
 all slices on the same track that are direct parents above that id (i.e. given
@@ -325,6 +333,7 @@ FROM
 ```
 
 ### Ancestor slice by stack
+
 ancestor_slice_by_stack is a custom operator table that takes a
 [slice table's stack_id column](/docs/analysis/sql-tables.autogen#slice) and
 finds all slice ids with that stack_id, then, for each id it computes
@@ -351,6 +360,7 @@ FROM
 ```
 
 ### Descendant slice
+
 descendant_slice is a custom operator table that takes a
 [slice table's id column](/docs/analysis/sql-tables.autogen#slice) and
 computes all slices on the same track that are nested under that id (i.e.
@@ -379,6 +389,7 @@ FROM interesting_slices
 ```
 
 ### Descendant slice by stack
+
 descendant_slice_by_stack is a custom operator table that takes a
 [slice table's stack_id column](/docs/analysis/sql-tables.autogen#slice) and
 finds all slice ids with that stack_id, then, for each id it computes
@@ -454,16 +465,19 @@ The metrics subsystem is a significant part of trace processor and thus is
 documented on its own [page](/docs/analysis/metrics.md).
 
 ## Python API
+
 The trace processor's C++ library is also exposed through Python. This
 is documented on a [separate page](/docs/analysis/trace-processor-python.md).
 
 ## Testing
 
 Trace processor is mainly tested in two ways:
+
 1. Unit tests of low-level building blocks
 2. "Diff" tests which parse traces and check the output of queries
 
 ### Unit tests
+
 Unit testing trace processor is the same as in other parts of Perfetto and
 other C++ projects. However, unlike the rest of Perfetto, unit testing is
 relatively light in trace processor.
@@ -478,10 +492,11 @@ use unit testing for the low-level building blocks on which the rest of
 trace processor is built.
 
 ### Diff tests
+
 Diff tests are essentially integration tests for trace processor and the
 main way trace processor is tested.
 
-Each diff test takes as input a) a trace file b) a query file *or* a metric
+Each diff test takes as input a) a trace file b) a query file _or_ a metric
 name. It runs `trace_processor_shell` to parse the trace and then executes
 the query/metric. The result is then compared to a 'golden' file and any
 difference is highlighted.
@@ -494,19 +509,19 @@ To add a new test its enough to add a new method starting with `test_` in suitab
 python tests file.
 
 Methods can't take arguments and have to return `DiffTestBlueprint`:
+
 ```python
 class DiffTestBlueprint:
   trace: Union[Path, Json, Systrace, TextProto]
   query: Union[str, Path, Metric]
   out: Union[Path, Json, Csv, TextProto]
 ```
-*Trace* and *Out*: For every type apart from `Path`, contents of the object will be treated as
+
+_Trace_ and _Out_: For every type apart from `Path`, contents of the object will be treated as
 file contents so it has to follow the same rules.
 
-*Query*: For metric tests it is enough to provide the metric name. For query tests there
+_Query_: For metric tests it is enough to provide the metric name. For query tests there
 can be a raw SQL statement, for example `"SELECT * FROM SLICE"` or path to an `.sql` file.
-
-
 
 NOTE: `trace_processor_shell` and associated proto descriptors needs to be
 built before running `tools/diff_test_trace_processor.py`. The easiest way
@@ -514,43 +529,89 @@ to do this is to run `tools/ninja -C <out directory>` both initially and on
 every change to trace processor code or builtin metrics.
 
 #### Choosing where to add diff tests
+
 `diff_tests/` folder contains four directories corresponding to different
 areas of trace processor.
-1. __stdlib__: Tests focusing on testing Perfetto Standard Library, both
+
+1. **stdlib**: Tests focusing on testing Perfetto Standard Library, both
    prelude and the regular modules. The subdirectories in this folder
    should generally correspond to directories in `perfetto_sql/stdlib`.
-2. __parser__: Tests focusing on ensuring that different trace files are
+2. **parser**: Tests focusing on ensuring that different trace files are
    parsed correctly and the corresponding built-in tables are populated.
-3. __metrics__: Tests focusing on testing metrics located in
+3. **metrics**: Tests focusing on testing metrics located in
    `trace_processor/metrics/sql`. This organisation is mostly historical
    and code (and corresponding tests) is expected to move to `stdlib` over time.
-4. __syntax__: Tests focusing on testing the core syntax of PerfettoSQL
+4. **syntax**: Tests focusing on testing the core syntax of PerfettoSQL
    (i.e. `CREATE PERFETTO TABLE` or `CREATE PERFETTO FUNCTION`).
 
-__Scenario__: A new stdlib module `foo/bar.sql` is being added.
+**Scenario**: A new stdlib module `foo/bar.sql` is being added.
 
 _Answer_: Add the test to the `stdlib/foo/bar_tests.py` file.
 
-__Scenario__: A new event is being parsed, the focus of the test is to ensure
+**Scenario**: A new event is being parsed, the focus of the test is to ensure
 the event is being parsed correctly.
 
 _Answer_: Add the test in one of the `parser` subdirectories. Prefer adding a
 test to an existing related directory (i.e. `sched`, `power`) if one exists.
 
-__Scenario__: A new metric is being added and the focus of the test is to
+**Scenario**: A new metric is being added and the focus of the test is to
 ensure the metric is being correctly computed.
 
 _Answer_: Add the test in one of the `metrics` subdirectories. Prefer adding a
 test to an existing related directory if one exists. Also consider adding the
 code in question to stdlib.
 
-__Scenario__: A new dynamic table is being added and the focus of the test is to
+**Scenario**: A new dynamic table is being added and the focus of the test is to
 ensure the dynamic table is being correctly computed...
 
 _Answer_: Add the test to the `stdlib/dynamic_tables` folder
 
-__Scenario__: The interals of trace processor are being modified and the test
+**Scenario**: The interals of trace processor are being modified and the test
 is to ensure the trace processor is correctly filtering/sorting important
 built-in tables.
 
 _Answer_: Add the test to the `parser/core_tables` folder.
+
+## Embedding
+
+### Building
+
+As with all components in Perfetto, the trace processor can be built in several build systems:
+
+- GN (the native system)
+- Bazel
+- As part of the Android tree
+
+The trace processor is exposed as a static library `//:trace_processor` to Bazel and `src/trace_processor:trace_processor` in GN; it is not exposed to Android (but patches to add support for this are welcome).
+
+The trace processor is also built as a WASM target `src/trace_processor:trace_processor_wasm` for the Perfetto UI; patches for adding support for other supported build systems are welcome.
+
+The trace processor is also built as a shell binary, `trace_processor_shell` which backs the `trace_processor` tool described in other parts of the documentation. This is exposed as the `trace_processor_shell` target to Android, `//:trace_processor_shell` to Bazel and `src/trace_processor:trace_processor_shell` in GN.
+
+### Library structure
+
+The trace processor library is structured around the `TraceProcessor` class; all API methods exposed by trace processor are member functions on this class.
+
+The C++ header for this class is split between two files: [include/perfetto/trace_processor/trace_processor_storage.h](/include/perfetto/trace_processor/trace_processor_storage.h) and [include/perfetto/trace_processor/trace_processor.h](/include/perfetto/trace_processor/trace_processor.h).
+
+### Reading traces
+
+To ingest a trace into trace processor, the `Parse` function can be called multiple times to with chunks of the trace and `NotifyEndOfFile` can be called at the end.
+
+As this is a common task, a helper function `ReadTrace` is provided in [include/perfetto/trace_processor/read_trace.h](/include/perfetto/trace_processor/read_trace.h). This will read a trace file directly from the filesystem and calls into appropriate `TraceProcessor`functions to perform parsing.
+
+### Executing queries
+
+The `ExecuteQuery` function can be called with an SQL statement to execute. This will return an iterator which can be used to retrieve rows in a streaming fashion.
+
+WARNING: embedders should ensure that the iterator is forwarded using `Next` before any other functions are called on the iterator.
+
+WARNING: embedders should ensure that the status of the iterator is checked after every row and at the end of iteration to verify that the query was successful.
+
+### Metrics
+
+Any registered metrics can be computed using using the `ComputeMetric` function. Any metric in `src/trace_processor/metrics` is built-in to trace processor so can be called without any other steps.
+
+Metrics can also be registered at run time using the `RegisterMetric` and `ExtendMetricsProto` functions. These can subsequently be executed with `ComputeMetric`.
+
+WARNING: embedders should ensure that the path of any registered metric is consistent with the name used to execute the metric and output view in the SQL.

@@ -20,7 +20,7 @@ The trace processor is also built as a shell binary, `trace_processor_shell` whi
 
 The trace processor library is structured around the `TraceProcessor` class; all API methods exposed by trace processor are member functions on this class.
 
-The C++ header for this class is split between two files:  [include/perfetto/trace_processor/trace_processor_storage.h](/include/perfetto/trace_processor/trace_processor_storage.h) and [include/perfetto/trace_processor/trace_processor.h](/include/perfetto/trace_processor/trace_processor.h).
+The C++ header for this class is split between two files: [include/perfetto/trace_processor/trace_processor_storage.h](/include/perfetto/trace_processor/trace_processor_storage.h) and [include/perfetto/trace_processor/trace_processor.h](/include/perfetto/trace_processor/trace_processor.h).
 
 ### Reading traces
 

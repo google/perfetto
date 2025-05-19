@@ -1,30 +1,27 @@
 # UI plugins
+
 The Perfetto UI can be extended with plugins. These plugins are shipped part of
 Perfetto.
 
+If this is your first time contributing to Perfetto, please first follow [Perfetto getting started](getting-started)
+and then setup specific to UI development in [UI getting started](ui-getting-started).
+
 ## Create a plugin
+
 The guide below explains how to create a plugin for the Perfetto UI. You can
 browse the public plugin API [here](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public).
 
-### Prepare for UI development
-First we need to prepare the UI development environment. You will need to use a
-MacOS or Linux machine. Follow the steps below or see the [Getting
-Started](./getting-started) guide for more detail.
-
-```sh
-git clone https://github.com/google/perfetto.git
-cd perfetto
-./tools/install-build-deps --ui
-```
-
 ### Copy the plugin skeleton
+
 ```sh
 cp -r ui/src/plugins/com.example.Skeleton ui/src/plugins/<your-plugin-name>
 ```
+
 Now edit `ui/src/plugins/<your-plugin-name>/index.ts`. Search for all instances
 of `SKELETON: <instruction>` in the file and follow the instructions.
 
 Notes on naming:
+
 - Don't name the directory `XyzPlugin` just `Xyz`.
 - The `pluginId` and directory name must match.
 - Plugins should be prefixed with the reversed components of a domain name you
@@ -40,12 +37,15 @@ Notes on naming:
   - Bad: "Tracks are Displayed if Janky"
 
 ### Start the dev server
+
 ```sh
 ./ui/run-dev-server
 ```
+
 Now navigate to [localhost:10000](http://localhost:10000/)
 
 ### Enable your plugin
+
 - Navigate to the plugins page:
   [localhost:10000/#!/plugins](http://localhost:10000/#!/plugins).
 - Ctrl-F for your plugin name and enable it.
@@ -56,12 +56,14 @@ Later you can request for your plugin to be enabled by default. Follow the
 [default plugins](#default-plugins) section for this.
 
 ### Upload your plugin for review
+
 - Update `ui/src/plugins/<your-plugin-name>/OWNERS` to include your email.
 - Follow the [Contributing](./getting-started#contributing) instructions to
   upload your CL to the codereview tool.
 - Once uploaded add `stevegolton@google.com` as a reviewer for your CL.
 
 ## Plugin Lifecycle
+
 To demonstrate the plugin's lifecycle, this is a minimal plugin that implements
 the key lifecycle hooks:
 
@@ -143,6 +145,7 @@ common pattern in Perfetto plugins.
 > to be doing something out of the ordinary if you need to use `onActivate()`.
 
 ### Performance
+
 `onActivate()` and `onTraceLoad()` should generally complete as quickly as
 possible, however sometimes `onTraceLoad()` may need to perform async operations
 on trace processor such as performing queries and/or creating views and tables.
@@ -153,7 +156,6 @@ fully initialized.
 > Note: It's important that any async operations done in onTraceLoad() are
 > awaited so that all async operations are completed by the time the promise is
 > resolved. This is so that plugins can be properly timed and synchronized.
-
 
 ```ts
 // GOOD
@@ -169,6 +171,7 @@ async onTraceLoad(trace: Trace) {
 ```
 
 ## Extension Points
+
 Plugins can extend functionality of Perfetto by registering capabilities via
 extension points on the `App` or `Trace` objects.
 
@@ -176,6 +179,7 @@ The following sections delve into more detail on each extension point and
 provide examples of how they can be used.
 
 ### Commands
+
 Commands are user issuable shortcuts for actions in the UI. They are invoked via
 the command palette which can be opened by pressing Ctrl+Shift+P (or Cmd+Shift+P
 on Mac), or by typing a '>' into the omnibox.
@@ -186,6 +190,7 @@ commands in `onTraceLoad()` by default unless you very specifically want the
 command to be available before a trace has loaded.
 
 Example of a command that doesn't require a trace.
+
 ```ts
 default export class implements PerfettoPlugin {
   static readonly id = 'com.example.MyPlugin';
@@ -201,6 +206,7 @@ default export class implements PerfettoPlugin {
 
 Example of a command that requires a trace object - in this case the trace
 title.
+
 ```ts
 default export class implements PerfettoPlugin {
   static readonly id = 'com.example.MyPlugin';
@@ -219,14 +225,16 @@ default export class implements PerfettoPlugin {
 > in Perfetto plugins.
 
 Command arguments explained:
+
 - `id` is a unique string which identifies this command. The `id` should be
-prefixed with the plugin id followed by a `#`. All command `id`s must be unique
-system-wide.
+  prefixed with the plugin id followed by a `#`. All command `id`s must be unique
+  system-wide.
 - `name` is a human readable name for the command, which is shown in the command
-palette.
+  palette.
 - `callback()` is the callback which actually performs the action.
 
 #### Async commands
+
 It's common that commands will perform async operations in their callbacks. It's
 recommended to use async/await for this rather than `.then().catch()`. The
 easiest way to do this is to make the callback an async function.
@@ -251,11 +259,13 @@ If the callback is async (i.e. it returns a promise), nothing special happens.
 The command is still fire-n-forget as far as the core is concerned.
 
 Examples:
+
 - [com.example.ExampleSimpleCommand](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/com.example.ExampleSimpleCommand/index.ts).
 - [perfetto.CoreCommands](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/core_plugins/commands/index.ts).
 - [com.example.ExampleState](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/com.example.ExampleState/index.ts).
 
 ### Hotkeys
+
 A hotkey may be associated with a command at registration time.
 
 ```typescript
@@ -279,7 +289,9 @@ feature in the future where users can modify their hotkeys, though this doesn't
 exist at the moment.
 
 ### Tracks
+
 In order to add a new track to the timeline, you'll need to create two entities:
+
 - A track 'renderer' which controls what the track looks like and how it fetches
   data from trace processor.
 - A track 'node' controls where the track appears in the workspace.
@@ -289,6 +301,7 @@ to create your own. Instead, by far the easiest way to get started with tracks
 is to use the `createQuerySliceTrack` and `createQueryCounterTrack` helpers.
 
 Example:
+
 ```ts
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 
@@ -361,15 +374,16 @@ See [the source](https://cs.android.com/android/platform/superproject/main/+/mai
 for detailed usage.
 
 #### Grouping Tracks
+
 Any track can have children. Just add child nodes any `TrackNode` object using
 its `addChildXYZ()` methods. Nested tracks are rendered as a collapsible tree.
 
 ```ts
-const group = new TrackNode({title: 'Group'});
+const group = new TrackNode({ title: "Group" });
 trace.workspace.addChildInOrder(group);
-group.addChildLast(new TrackNode({title: 'Child Track A'}));
-group.addChildLast(new TrackNode({title: 'Child Track B'}));
-group.addChildLast(new TrackNode({title: 'Child Track C'}));
+group.addChildLast(new TrackNode({ title: "Child Track A" }));
+group.addChildLast(new TrackNode({ title: "Child Track B" }));
+group.addChildLast(new TrackNode({ title: "Child Track C" }));
 ```
 
 Tracks nodes with children can be collapsed and expanded manually by the user at
@@ -385,6 +399,7 @@ group.expand();
 
 Summary tracks are behave slightly differently to ordinary tracks. Summary
 tracks:
+
 - Are rendered with a light blue background when collapsed, dark blue when
   expanded.
 - Stick to the top of the viewport when scrolling.
@@ -395,7 +410,7 @@ To create a summary track, set the `isSummary: true` option in its initializer
 list at creation time or set its `isSummary` property to true after creation.
 
 ```ts
-const group = new TrackNode({title: 'Group', isSummary: true});
+const group = new TrackNode({ title: "Group", isSummary: true });
 // ~~~ or ~~~
 group.isSummary = true;
 ```
@@ -403,9 +418,11 @@ group.isSummary = true;
 ![Summary track](../images/ui-plugins/summary_track.png)
 
 Examples
+
 - [com.example.ExampleNestedTracks](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/com.example.ExampleNestedTracks/index.ts).
 
 #### Track Ordering
+
 Tracks can be manually reordered using the `addChildXYZ()` functions available on
 the track node api, including `addChildFirst()`, `addChildLast()`,
 `addChildBefore()`, and `addChildAfter()`.
@@ -424,10 +441,10 @@ higher in the stack).
 
 ```ts
 // PluginA
-workspace.addChildInOrder(new TrackNode({title: 'Foo', sortOrder: 10}));
+workspace.addChildInOrder(new TrackNode({ title: "Foo", sortOrder: 10 }));
 
 // Plugin B
-workspace.addChildInOrder(new TrackNode({title: 'Bar', sortOrder: -10}));
+workspace.addChildInOrder(new TrackNode({ title: "Bar", sortOrder: -10 }));
 ```
 
 Now it doesn't matter which order plugin are initialized, track `Bar` will
@@ -439,8 +456,8 @@ If no `sortOrder` is defined, the track assumes a `sortOrder` of 0.
 > tracks to the `workspace`, especially if you want your plugin to be enabled by
 > default, as this will ensure it respects the sortOrder of other plugins.
 
-
 ### Tabs
+
 Tabs are a useful way to display contextual information about the trace, the
 current selection, or to show the results of an operation.
 
@@ -487,6 +504,7 @@ trace.tabs.hideTab(`${trace.pluginId}#MyTab`);
 ```
 
 Tabs have the following properties:
+
 - Each tab has a unique URI.
 - Only once instance of the tab may be open at a time. Calling showTab multiple
   times with the same URI will only activate the tab, not add a new instance of
@@ -496,10 +514,12 @@ Tabs have the following properties:
 
 By default, tabs are registered as 'permanent' tabs. These tabs have the
 following additional properties:
+
 - They appear in the tab dropdown.
 - They remain once closed. The plugin controls the lifetime of the tab object.
 
 Ephemeral tabs, by contrast, have the following properties:
+
 - They do not appear in the tab dropdown.
 - When they are hidden, they will be automatically unregistered.
 
@@ -519,6 +539,7 @@ running a command. Thus, it's common pattern to register a tab and show the tab
 simultaneously.
 
 Motivating example:
+
 ```ts
 import m from 'mithril';
 import {uuidv4} from '../../base/uuid';
@@ -562,49 +583,57 @@ function handleCommand(trace: Trace): void {
 ```
 
 ### Sidebar Menu Items
+
 Plugins can add new entries to the sidebar menu which appears on the left hand
 side of the UI. These entries can include:
+
 - Commands
 - Links
 - Arbitrary Callbacks
 
 #### Commands
+
 If a command is referenced, the command name and hotkey are displayed on the
 sidebar item.
+
 ```ts
 trace.commands.registerCommand({
-  id: 'sayHi',
-  name: 'Say hi',
-  callback: () => window.alert('hi'),
-  defaultHotkey: 'Shift+H',
+  id: "sayHi",
+  name: "Say hi",
+  callback: () => window.alert("hi"),
+  defaultHotkey: "Shift+H",
 });
 
 trace.sidebar.addMenuItem({
-  commandId: 'sayHi',
-  section: 'support',
-  icon: 'waving_hand',
+  commandId: "sayHi",
+  section: "support",
+  icon: "waving_hand",
 });
 ```
 
 #### Links
+
 If an href is present, the sidebar will be used as a link. This can be an
 internal link to a page, or an external link.
+
 ```ts
 trace.sidebar.addMenuItem({
-  section: 'navigation',
-  text: 'Plugins',
-  href: '#!/plugins',
+  section: "navigation",
+  text: "Plugins",
+  href: "#!/plugins",
 });
 ```
 
 #### Callbacks
+
 Sidebar items can be instructed to execute arbitrary callbacks when the button
 is clicked.
+
 ```ts
 trace.sidebar.addMenuItem({
-  section: 'current_trace',
-  text: 'Copy secrets to clipboard',
-  action: () => copyToClipboard('...'),
+  section: "current_trace",
+  text: "Copy secrets to clipboard",
+  action: () => copyToClipboard("..."),
 });
 ```
 
@@ -613,12 +642,14 @@ animation until the promise returns.
 
 ```ts
 trace.sidebar.addMenuItem({
-  section: 'current_trace',
-  text: 'Prepare the data...',
+  section: "current_trace",
+  text: "Prepare the data...",
   action: () => new Promise((r) => setTimeout(r, 1000)),
 });
 ```
+
 Optional params for all types of sidebar items:
+
 - `icon` - A material design icon to be displayed next to the sidebar menu item.
   See full list [here](https://fonts.google.com/icons).
 - `tooltip` - Displayed on hover
@@ -634,12 +665,14 @@ See the [sidebar source](https://cs.android.com/android/platform/superproject/ma
 for more detailed usage.
 
 ### Pages
+
 Pages are entities that can be routed via the URL args, and whose content take
 up the entire available space to the right of the sidebar and underneath the
 topbar. Examples of pages are the timeline, record page, and query page, just to
 name a few common examples.
 
 E.g.
+
 ```
 http://ui.perfetto.dev/#!/viewer <-- 'viewer' is is the current page.
 ```
@@ -663,9 +696,10 @@ Pages should be mithril components that accept `PageWithTraceAttrs` for
 trace-ful pages or `PageAttrs` for trace-less pages.
 
 Example of a trace-less page:
+
 ```ts
-import m from 'mithril';
-import {PageAttrs} from '../../public/page';
+import m from "mithril";
+import { PageAttrs } from "../../public/page";
 
 class MyPage implements m.ClassComponent<PageAttrs> {
   view(vnode: m.CVnode<PageAttrs>) {
@@ -675,35 +709,38 @@ class MyPage implements m.ClassComponent<PageAttrs> {
 
 // ~~~ snip ~~~
 
-app.pages.registerPage({route: '/mypage', page: MyPage, traceless: true});
+app.pages.registerPage({ route: "/mypage", page: MyPage, traceless: true });
 ```
 
 ```ts
-import m from 'mithril';
-import {PageWithTraceAttrs} from '../../public/page';
+import m from "mithril";
+import { PageWithTraceAttrs } from "../../public/page";
 
 class MyPage implements m.ClassComponent<PageWithTraceAttrs> {
   view(_vnode_: m.CVnode<PageWithTraceAttrs>) {
-    return 'Hello from my page';
+    return "Hello from my page";
   }
 }
 
 // ~~~ snip ~~~
 
-app.pages.registerPage({route: '/mypage', page: MyPage});
+app.pages.registerPage({ route: "/mypage", page: MyPage });
 ```
 
 Examples:
+
 - [dev.perfetto.ExplorePage](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExplorePage/index.ts).
 
-
 ### Metric Visualisations
+
 TBD
 
 Examples:
+
 - [dev.perfetto.AndroidBinderViz](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.AndroidBinderViz/index.ts).
 
 ### State
+
 NOTE: It is important to consider version skew when using persistent state.
 
 Plugins can persist information into permalinks. This allows plugins to
@@ -713,6 +750,7 @@ Persistent plugin state works using a `Store<T>` where `T` is some JSON
 serializable object. `Store` is implemented
 [here](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/base/store.ts).
 `Store` allows for reading and writing `T`. Reading:
+
 ```typescript
 interface Foo {
   bar: string;
@@ -728,6 +766,7 @@ console.log(bar);
 ```
 
 Writing:
+
 ```typescript
 interface Foo {
   bar: string;
@@ -736,7 +775,7 @@ interface Foo {
 const store: Store<Foo> = getFooStoreSomehow();
 
 store.edit((draft) => {
-  draft.foo.bar = 'Hello, world!';
+  draft.foo.bar = "Hello, world!";
 });
 
 console.log(store.state.foo.bar);
@@ -744,6 +783,7 @@ console.log(store.state.foo.bar);
 ```
 
 First define an interface for your specific plugin state.
+
 ```typescript
 interface MyState {
   favouriteSlices: MySliceInfo[];
@@ -752,6 +792,7 @@ interface MyState {
 
 To access permalink state, call `mountStore()` on your `Trace`
 object, passing in a migration function.
+
 ```typescript
 default export class implements PerfettoPlugin {
   static readonly id = 'com.example.MyPlugin';
@@ -766,13 +807,15 @@ function migrate(initialState: unknown): MyState {
 ```
 
 When it comes to migration, there are two cases to consider:
+
 - Loading a new trace
 - Loading from a permalink
 
 In case of a new trace, your migration function is called with `undefined`. In
 this case you should return a default version of `MyState`:
+
 ```typescript
-const DEFAULT = {favouriteSlices: []};
+const DEFAULT = { favouriteSlices: [] };
 
 function migrate(initialState: unknown): MyState {
   if (initialState === undefined) {
@@ -803,10 +846,10 @@ interface MyState {
 }
 
 const VERSION = 3;
-const DEFAULT = {favouriteSlices: []};
+const DEFAULT = { favouriteSlices: [] };
 
 function migrate(initialState: unknown): MyState {
-  if (initialState && (initialState as {version: any}).version === VERSION) {
+  if (initialState && (initialState as { version: any }).version === VERSION) {
     // Version number checks out, assume the structure is correct.
     return initialState as State;
   } else {
@@ -820,19 +863,23 @@ You'll need to remember to update your version number when making changes!
 Migration should be unit-tested to ensure compatibility.
 
 Examples:
+
 - [dev.perfetto.ExampleState](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExampleState/index.ts).
 
 ## Guide to the plugin API
+
 The plugin interfaces are defined in
 [ui/src/public/](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public).
 
 ## Default plugins
+
 Some plugins are enabled by default. These plugins are held to a higher quality
 than non-default plugins since changes to those plugins effect all users of the
 UI. The list of default plugins is specified at
 [ui/src/core/default_plugins.ts](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/core/default_plugins.ts).
 
 ## Misc notes
+
 - Plugins must be licensed under
   [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) the same as all other
   code in the repository.
@@ -840,4 +887,3 @@ UI. The list of default plugins is specified at
   the responsibility of the Perfetto team. All efforts will be made to keep the
   plugin API stable and existing plugins working however plugins that remain
   unmaintained for long periods of time will be disabled and ultimately deleted.
-

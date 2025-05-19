@@ -131,9 +131,14 @@
   - [Contributing](#)
 
     - [Getting started](contributing/getting-started.md)
-    - [Build instructions](contributing/build-instructions.md)
-    - [Running tests](contributing/testing.md)
     - [Common tasks](contributing/common-tasks.md)
+    - [UI](#)
+      - [Getting started](contributing/ui-getting-started.md)
+      - [Plugins](contributing/ui-plugins.md)
+    - [Advanced](#)
+      - [Building](contributing/build-instructions.md)
+      - [Testing](contributing/testing.md)
+      - [Developer tools](contributing/developer-tools.md)
 
   - [Design documents](#)
 
@@ -160,9 +165,7 @@
 
   - [Team documentation](#)
 
-    - [Releasing the SDK](contributing/sdk-releasing.md)
     - [UI release process](visualization/perfetto-ui-release-process.md)
-    - [UI development hints](contributing/ui-development.md)
     - [Chrome branches](contributing/chrome-branches.md)
     - [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
     - [Embedding Perfetto](contributing/embedding.md)
