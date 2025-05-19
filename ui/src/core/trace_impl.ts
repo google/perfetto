@@ -95,18 +95,11 @@ export class TraceContext implements Disposable {
     this.trash.use(engine);
     this.traceInfo = traceInfo;
 
-    // Wrap the core settings manager in a proxy which removes registered
-    // settings when the trace is disposed.
-    // TODO(stevegolton): Dedupe this with the one in TraceImpl.
-    const settingsManagerProxy = createProxy(gctx.settingsManager, {
-      register: <T>(setting: SettingDescriptor<T>): Setting<T> => {
-        const settingInstance = gctx.settingsManager.register(setting);
-        this.trash.use(settingInstance);
-        return settingInstance;
-      },
-    });
-
-    this.timeline = new TimelineImpl(traceInfo, settingsManagerProxy);
+    this.timeline = new TimelineImpl(
+      traceInfo,
+      this.appCtx.timestampFormat,
+      this.appCtx.durationPrecision,
+    );
 
     this.scrollHelper = new ScrollHelper(
       this.traceInfo,
