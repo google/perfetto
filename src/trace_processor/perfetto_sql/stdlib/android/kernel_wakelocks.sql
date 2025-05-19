@@ -76,7 +76,7 @@ WITH
       sum(iif(power_state = 'awake', dur, 0)) AS awake_dur
     FROM _android_kernel_wakelocks_joined
     GROUP BY
-      ts,
+      original_ts,
       name,
       type,
       held_dur
