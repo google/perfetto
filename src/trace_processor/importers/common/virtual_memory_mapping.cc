@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/jit_cache.h"
@@ -104,6 +105,15 @@ std::vector<FrameId> VirtualMemoryMapping::FindFrameIds(uint64_t rel_pc) const {
 std::pair<FrameId, bool> VirtualMemoryMapping::InternFrameImpl(
     uint64_t rel_pc,
     base::StringView function_name) {
+  // Workaround for bad/corrupted frame names: skip non-utf8 bytes. Should be
+  // extremely rare, but mangled ELF debug data does occur.
+  std::string temp_utf8_string;
+  bool is_ascii =
+      base::CheckAsciiAndRemoveInvalidUTF8(function_name, temp_utf8_string);
+  if (PERFETTO_UNLIKELY(!is_ascii)) {
+    function_name = base::StringView(temp_utf8_string);
+  }
+
   const FrameKey frame_key{rel_pc,
                            context_->storage->InternString(function_name)};
   if (FrameId* id = interned_frames_.Find(frame_key); id) {
