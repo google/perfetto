@@ -80,7 +80,7 @@ clean:
 		--maintenance-policy=MIGRATE \
 		--service-account=gce-ci-worker@${PROJECT}.iam.gserviceaccount.com \
 		--scopes=${GCE_SCOPES} \
-		--image=projects/cos-cloud/global/images/cos-117-18613-164-81 \
+		--image=projects/cos-cloud/global/images/cos-121-18867-90-23 \
 		--boot-disk-size=100GB \
 		--boot-disk-type=pd-ssd \
 		--boot-disk-device-name=${GCE_TEMPLATE} \
@@ -101,13 +101,16 @@ gcloud compute --project=${PROJECT} \
 	--region=$1 \
 	--base-instance-name=${GCE_GROUP_NAME}-$1 \
 	--template=${GCE_TEMPLATE} \
-	--size=1
+	--standby-policy-mode=scale-out-pool \
+	--standby-policy-initial-delay=10 \
+	--size 0
 gcloud compute --quiet --project=$(PROJECT) \
 	instance-groups managed set-autoscaling ${GCE_GROUP_NAME}-$1 \
 	--region=$1 \
 	--min-num-replicas=${AUTOSCALER_MIN} \
 	--max-num-replicas=${MAX_VMS_PER_REGION} \
-	--cool-down-period=1800 \
+	--cool-down-period=300 \
+	--mode=only-scale-out \
 	--stackdriver-metric-filter="resource.type = \"global\"" \
 	--update-stackdriver-metric="custom.googleapis.com/$(PROJECT)/ci_job_queue_len" \
 	--stackdriver-metric-single-instance-assignment=${NUM_WORKERS_PER_VM}
@@ -120,7 +123,6 @@ start-workers: .deps/gce-template
 define stop-workers-for-region
 gcloud compute --quiet --project=${PROJECT} \
 	instance-groups managed delete ${GCE_GROUP_NAME}-$1 --region=$1 || true
-
 endef
 
 .PHONY: stop-workers
