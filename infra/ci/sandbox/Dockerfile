@@ -26,6 +26,7 @@ RUN set -ex; \
         python3-pip \
         python3.9-dev \
         python3.9-venv \
+        python3.9-distutils \
         python-is-python3 \
         git \
         curl \
@@ -54,6 +55,7 @@ RUN set -ex; \
         clang-8 \
         libc++-8-dev \
         libc++abi-8-dev; \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1; \
     python3 -m pip install --no-cache-dir protobuf pandas grpcio; \
     python3 --version; \
     python --version; \
