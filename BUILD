@@ -3334,6 +3334,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/metasql:metasql
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_metasql_metasql",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/metasql/unparenthesize.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/pixel:pixel
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_pixel_pixel",
@@ -3520,6 +3528,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_linux_linux",
         ":src_trace_processor_perfetto_sql_stdlib_linux_memory_memory",
         ":src_trace_processor_perfetto_sql_stdlib_linux_perf_perf",
+        ":src_trace_processor_perfetto_sql_stdlib_metasql_metasql",
         ":src_trace_processor_perfetto_sql_stdlib_pixel_pixel",
         ":src_trace_processor_perfetto_sql_stdlib_pkvm_pkvm",
         ":src_trace_processor_perfetto_sql_stdlib_prelude_after_eof_after_eof",
