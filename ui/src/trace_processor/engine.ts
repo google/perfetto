@@ -14,7 +14,7 @@
 
 import protos from '../protos';
 import {defer, Deferred} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue, assertUnreachable} from '../base/logging';
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   createQueryResult,
@@ -429,7 +429,7 @@ export abstract class EngineBase implements Engine, Disposable {
     summarySpecs: protos.TraceSummarySpec[] | string[],
     metricIds: string[],
     metadataId: string | undefined,
-    format: 'json' | 'prototext' | 'proto',
+    format: 'prototext' | 'proto',
   ): Promise<protos.TraceSummaryResult> {
     if (this.pendingTraceSummary) {
       return Promise.reject(new Error('Already summarizing trace'));
@@ -461,9 +461,8 @@ export abstract class EngineBase implements Engine, Disposable {
       case 'proto':
         args.format = protos.TraceSummaryArgs.Format.BINARY_PROTOBUF;
         break;
-      case 'json':
       default:
-        throw new Error(`Unsupported summary format ${format}`);
+        assertUnreachable(format);
     }
     this.pendingTraceSummary = result;
     this.rpcSendRequest(rpc);
@@ -714,7 +713,7 @@ export class EngineProxy implements Engine, Disposable {
     summarySpecs: protos.TraceSummarySpec[] | string[],
     metricIds: string[],
     metadataId: string | undefined,
-    format: 'json' | 'prototext' | 'proto',
+    format: 'prototext' | 'proto',
   ): Promise<protos.TraceSummaryResult> {
     return this.engine.summarizeTrace(
       summarySpecs,

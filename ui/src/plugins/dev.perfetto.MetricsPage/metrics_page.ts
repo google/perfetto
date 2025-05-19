@@ -20,7 +20,7 @@ import {STR} from '../../trace_processor/query_result';
 import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
 import {VegaView} from '../../components/widgets/vega_view';
-import {assertExists} from '../../base/logging';
+import {assertExists, assertUnreachable} from '../../base/logging';
 import {Trace} from '../../public/trace';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Editor} from '../../widgets/editor';
@@ -57,18 +57,18 @@ async function getMetricV2(
   engine: Engine,
   metric: string,
   metricId: string,
-  _format: Format,
+  format: Format,
 ): Promise<string> {
   const result = await engine.summarizeTrace(
     [metric],
     [metricId],
     undefined,
-    _format === 'proto' ? 'proto' : 'prototext',
+    format === 'proto' ? 'proto' : 'prototext',
   );
   if (result.error || result.error.length > 0) {
     throw new Error(result.error);
   }
-  switch (_format) {
+  switch (format) {
     case 'json':
       if (!result.protoSummary) {
         throw new Error('Error fetching Textproto trace summary');
@@ -82,7 +82,7 @@ async function getMetricV2(
     case 'proto':
       throw new Error('Proto format not supported');
     default:
-      throw new Error(`Unknown format ${_format}`);
+      assertUnreachable(format);
   }
 }
 
@@ -303,11 +303,7 @@ query: {
       m(Editor, {
         generation: attrs.editorGeneration,
         initialText: this.text,
-        onUpdate: (text: string) => {
-          if (!this.metricId || this.metricId === '') {
-            return;
-          }
-          attrs.onUpdateText();
+        onExecute: (text: string) => {
           this.text = text;
           getMetricV2(
             attrs.engine,
@@ -321,6 +317,13 @@ query: {
             .catch((e) => {
               attrs.onExecuteRunMetric(errResult(e));
             });
+        },
+        onUpdate: (text: string) => {
+          if (text === this.text) {
+            return;
+          }
+          this.text = text;
+          attrs.onUpdateText();
         },
       }),
     );
