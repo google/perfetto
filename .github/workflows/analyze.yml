@@ -31,6 +31,9 @@ on:
       - main
       - dev/**/*
 
+permissions:
+  pull-requests: read
+
 # If a new commit is pushed, cancel previous jobs for the same PR / branch.
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref }}
@@ -113,3 +116,36 @@ jobs:
   repo-checks:
     needs: analyze
     uses: ./.github/workflows/repo-checks.yml
+
+  # This final step joins the results of the nested workflows and succeeds if
+  # all the non-skipped workflows have suceeded. This job is used by the
+  # "require CI to pass" GitHub ruleset.
+  ensure-ci-is-green:
+    needs:
+      - analyze
+      - linux
+      - android
+      - ui
+      - bazel
+      - fuzzer
+      - repo-checks
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure all non-skipped jobs have suceeded
+        run: |
+          set -e
+          check() {
+            job="$1"
+            result="$2"
+            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              echo "::error::$job failed with result: $result"
+              exit 1
+            fi
+          }
+          check linux ${{ needs.linux.result }}
+          check android ${{ needs.android.result }}
+          check ui ${{ needs.ui.result }}
+          check bazel ${{ needs.bazel.result }}
+          check fuzzer ${{ needs.fuzzer.result }}
+          check repo-checks ${{ needs.repo-checks.result }}
