@@ -48,7 +48,7 @@ jobs:
           install-flags: --ui
 
       - name: Run tools/presubmits
-        run: tools/run_presubmit --merge-base ${{ github.base_ref }}
+        run: tools/run_presubmit --merge-base origin/${{ github.base_ref }}
 
       - name: Check merged protos (tools/gen_all)
         run: |
