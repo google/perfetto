@@ -2367,7 +2367,7 @@ class TrackDecider {
 
     for (const [groupName, tracks] of metricTrackGroupings) {
       const groupId = this.lazyTrackGroup(groupName,
-        {description: `Results from calculation of the {$groupName} metric.`});
+        {description: `Results from calculation of the ${groupName} metric.`});
       // Don't create a group of just one track but do add
       // to a group if it already exists
       if (tracks.size < 2 && !groupId.exists()) {
