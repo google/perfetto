@@ -41,6 +41,8 @@ constexpr char kPerfMagic[] = {'P', 'E', 'R', 'F', 'I', 'L', 'E', '2'};
 constexpr char kZipMagic[] = {'P', 'K', '\x03', '\x04'};
 constexpr char kGzipMagic[] = {'\x1f', '\x8b'};
 constexpr char kArtMethodStreamingMagic[] = {'S', 'L', 'O', 'W'};
+constexpr char kArtHprofStreamingMagic[] = {'J', 'A', 'V', 'A', ' ', 'P',
+                                            'R', 'O', 'F', 'I', 'L', 'E'};
 constexpr char kTarPosixMagic[] = {'u', 's', 't', 'a', 'r', '\0'};
 constexpr char kTarGnuMagic[] = {'u', 's', 't', 'a', 'r', ' ', ' ', '\0'};
 constexpr size_t kTarMagicOffset = 257;
@@ -139,6 +141,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "gecko";
     case kArtMethodTraceType:
       return "art_method";
+    case kArtHprofTraceType:
+      return "art_hprof";
     case kPerfTextTraceType:
       return "perf_text";
     case kUnknownTraceType:
@@ -180,6 +184,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (MatchesMagic(data, size, kArtMethodStreamingMagic)) {
     return kArtMethodTraceType;
+  }
+
+  if (MatchesMagic(data, size, kArtHprofStreamingMagic)) {
+    return kArtHprofTraceType;
   }
 
   std::string start(reinterpret_cast<const char*>(data),

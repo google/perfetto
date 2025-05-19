@@ -33,6 +33,7 @@ class AndroidLogEventParser;
 class ArgsTracker;
 class ArgsTranslationTable;
 class ArtMethodParser;
+class ArtHprofParser;
 class TrackCompressor;
 class ChunkedTraceReader;
 class ClockConverter;
