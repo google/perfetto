@@ -88,8 +88,7 @@ def get_changed_files(merge_base: Optional[str]) -> List[str]:
       ]
 
       diff_result = run_command([
-          'git', 'diff', '--name-only', '--diff-filter=crd',
-          f'{merge_base}...HEAD'
+          'git', 'diff', '--name-only', '--diff-filter=crd', merge_base, 'HEAD'
       ])
       diff_files = diff_result.stdout.splitlines()
 
