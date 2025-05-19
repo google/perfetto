@@ -164,8 +164,7 @@ int Main(int argc, char** argv) {
 
   std::string format(positional_args[0]);
 
-  if ((format != "profile" &&
-       format != "hprof" &&
+  if ((format != "profile" && format != "hprof" &&
        format != "java_heap_profile") &&
       (pid != 0 || !timestamps.empty())) {
     PERFETTO_ELOG(
