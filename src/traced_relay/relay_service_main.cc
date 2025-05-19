@@ -166,5 +166,5 @@ static int RelayServiceMain(int argc, char** argv) {
 }  // namespace perfetto
 
 int main(int argc, char** argv) {
-  return perfetto::RelayServiceMain(argc, argv);
+  return perfetto::RelayServiceMain(argc, argv, 4242);
 }
