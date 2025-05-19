@@ -44,6 +44,10 @@ class DeobfuscationModule : public ProtoImporterModule {
  private:
   void StoreDeobfuscationMapping(protozero::ConstBytes);
 
+  void GuessPackages();
+  void GuessPackageForCallsite(tables::ProcessTable::Id upid,
+                               tables::StackProfileCallsiteTable::Id);
+
   void DeobfuscateHeapGraphClass(
       std::optional<StringPool::Id> package_name_id,
       StringPool::Id obfuscated_class_id,

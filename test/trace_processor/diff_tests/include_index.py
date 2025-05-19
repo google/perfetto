@@ -100,6 +100,7 @@ from diff_tests.parser.profiling.tests import Profiling
 from diff_tests.parser.profiling.tests_heap_graph import ProfilingHeapGraph
 from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfiling
 from diff_tests.parser.profiling.tests_llvm_symbolizer import ProfilingLlvmSymbolizer
+from diff_tests.parser.profiling.tests_profile_unknown_package import Deobfuscation
 from diff_tests.parser.sched.tests import SchedParser
 from diff_tests.parser.simpleperf.tests import Simpleperf
 from diff_tests.parser.smoke.tests import Smoke
@@ -179,6 +180,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       ChromeParser,
       ChromeV8Parser,
       Cros,
+      Deobfuscation,
       Etm,
       Fs,
       Fuchsia,

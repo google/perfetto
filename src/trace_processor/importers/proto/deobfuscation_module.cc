@@ -227,9 +227,86 @@ void DeobfuscationModule::ParseDeobfuscationMappingForProfiles(
       std::move(deobfuscation_mapping_table));
 }
 
+void DeobfuscationModule::GuessPackageForCallsite(
+    tables::ProcessTable::Id upid,
+    tables::StackProfileCallsiteTable::Id callsite_id) {
+  const auto& process_table = context_->storage->process_table();
+  auto* stack_profile_tracker = context_->stack_profile_tracker.get();
+
+  auto process = process_table.FindById(upid);
+  if (!process.has_value()) {
+    return;
+  }
+
+  if (!process->android_appid().has_value()) {
+    return;
+  }
+
+  std::optional<StringId> package;
+
+  for (auto it = context_->storage->package_list_table().IterateRows(); it;
+       ++it) {
+    if (it.uid() == *process->android_appid()) {
+      package = it.package_name();
+      break;
+    }
+  }
+
+  if (!package.has_value()) {
+    return;
+  }
+
+  const auto& callsite_table =
+      context_->storage->stack_profile_callsite_table();
+  auto callsite = callsite_table.FindById(callsite_id);
+  while (callsite.has_value()) {
+    auto frame_id = callsite->frame_id();
+
+    if (stack_profile_tracker->FrameHasUnknownPackage(frame_id) != 0) {
+      if (process->name().has_value()) {
+        stack_profile_tracker->GuessPackageForFrame(*package, frame_id);
+      }
+    }
+
+    auto parent_id = callsite->parent_id();
+    callsite.reset();
+    if (parent_id.has_value()) {
+      callsite = callsite_table.FindById(*parent_id);
+    }
+  }
+}
+
+void DeobfuscationModule::GuessPackages() {
+  const auto& heap_profile_allocation_table =
+      context_->storage->heap_profile_allocation_table();
+  for (auto allocation = heap_profile_allocation_table.IterateRows();
+       allocation; ++allocation) {
+    auto upid = tables::ProcessTable::Id(allocation.upid());
+    auto callsite_id = allocation.callsite_id();
+
+    GuessPackageForCallsite(upid, callsite_id);
+  }
+
+  const auto& perf_sample_table = context_->storage->perf_sample_table();
+  for (auto sample = perf_sample_table.IterateRows(); sample; ++sample) {
+    auto thread = context_->storage->thread_table().FindById(
+        tables::ThreadTable::Id(sample.utid()));
+    if (!thread || !thread->upid().has_value() ||
+        !sample.callsite_id().has_value()) {
+      continue;
+    }
+    GuessPackageForCallsite(tables::ProcessTable::Id(*thread->upid()),
+                            *sample.callsite_id());
+  }
+}
+
 void DeobfuscationModule::NotifyEndOfFile() {
   auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
   heap_graph_tracker->FinalizeAllProfiles();
+
+  if (context_->stack_profile_tracker->UnknownPackageFramesPresent()) {
+    GuessPackages();
+  }
 
   auto packets = DeobfuscationTracker::GetOrCreate(context_)->packets();
   for (ConstBytes packet : packets) {
