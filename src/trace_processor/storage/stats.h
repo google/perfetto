@@ -540,8 +540,14 @@ namespace perfetto::trace_processor::stats {
       "Number of object reference errors encountered. This indicates a "       \
       "malformed hprof file. Check if the hprof opens correctly in a tool "    \
       "like AHAT. Missing references will affect the overall size of the "     \
-      "heap graph.")
-
+      "heap graph."),                                                          \
+  F(trace_sorter_negative_timestamp_dropped,       kSingle,  kError,   kTrace, \
+      "A negative timestamp was received by the TraceSorter and was dropped. " \
+      "Negative timestamps are not supported by trace processor and "          \
+      "the presence of one is usually a sign that something went wrong while " \
+      "recording a trace. Common causes of this include incorrect "            \
+      "incremental timestamps, bad clock synchronization or kernel bugs in "   \
+      "drivers emitting timestamps")
 // clang-format on
 
 enum Type {
