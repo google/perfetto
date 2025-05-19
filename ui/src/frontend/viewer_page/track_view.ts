@@ -275,14 +275,21 @@ export class TrackView {
       right: trackRect.width,
     });
 
-    const start = performance.now();
+    const maybeNewResolution = calculateResolution(
+      visibleWindow,
+      trackRect.width,
+    );
+    if (!maybeNewResolution.ok) {
+      return;
+    }
 
+    const start = performance.now();
     node.uri &&
       renderer?.render({
         trackUri: node.uri,
         visibleWindow,
         size: trackRect,
-        resolution: calculateResolution(visibleWindow, trackRect.width),
+        resolution: maybeNewResolution.value,
         ctx,
         timescale,
       });
