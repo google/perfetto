@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HEAP_GRAPH_BUILDER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HEAP_GRAPH_BUILDER_H_
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_model.h"
@@ -67,21 +66,6 @@ struct DebugStats {
   size_t record_count = 0;
 
   void Write(TraceProcessorContext* context_) {
-    PERFETTO_DLOG(
-        "DebugStats:\n"
-        "  string_count: %zu\n"
-        "  class_count: %zu\n"
-        "  heap_dump_count: %zu\n"
-        "  instance_count: %zu\n"
-        "  object_array_count: %zu\n"
-        "  primitive_array_count: %zu\n"
-        "  root_count: %zu\n"
-        "  reference_count: %zu"
-        "  record_count: %zu",
-        string_count, class_count, heap_dump_count, instance_count,
-        object_array_count, primitive_array_count, root_count, reference_count,
-        record_count);
-
     context_->storage->SetStats(stats::hprof_string_counter,
                                 static_cast<int64_t>(string_count));
     context_->storage->SetStats(stats::hprof_class_counter,

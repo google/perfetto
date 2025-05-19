@@ -25,8 +25,6 @@ ArtHprofParser::ArtHprofParser(TraceProcessorContext* ctx) : context_(ctx) {}
 ArtHprofParser::~ArtHprofParser() = default;
 
 base::Status ArtHprofParser::Parse(TraceBlobView blob) {
-  PERFETTO_DLOG("TBV length: %zu. Size: %zu. Offset: %zu", blob.length(),
-                blob.size(), blob.offset());
   reader_.PushBack(std::move(blob));
   byte_iterator_ = std::make_unique<TraceBlobViewIterator>(std::move(reader_));
   if (!parser_) {
@@ -44,12 +42,8 @@ base::Status ArtHprofParser::NotifyEndOfFile() {
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(0);
 
   if (graph.GetClassCount() == 0 || graph.GetObjectCount() == 0) {
-    PERFETTO_DLOG("Empty heap graph, skipping parsing");
     return base::OkStatus();
   }
-
-  PERFETTO_DLOG("Processing heap graph: %zu classes, %zu objects",
-                graph.GetClassCount(), graph.GetObjectCount());
 
   // Map from HPROF object IDs to table IDs
   base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id> class_map;
@@ -167,13 +161,10 @@ void ArtHprofParser::PopulateClasses(
     const HeapGraph& graph,
     base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id>& class_map) {
   auto& class_table = *context_->storage->mutable_heap_graph_class_table();
-  size_t classes_processed = 0;
-
   // Process each class from the heap graph
   for (auto it = graph.GetClasses().GetIterator(); it; ++it) {
     auto class_id = it.key();
     auto& class_def = it.value();
-    classes_processed++;
 
     // Intern strings for class metadata
     StringId name_id = context_->storage->InternString(class_def.GetName());
@@ -206,8 +197,6 @@ void ArtHprofParser::PopulateClasses(
       }
     }
   }
-
-  PERFETTO_DLOG("Processed %zu classes", classes_processed);
 }
 
 void ArtHprofParser::PopulateObjects(
@@ -218,7 +207,6 @@ void ArtHprofParser::PopulateObjects(
         class_map,
     base::FlatHashMap<uint64_t, tables::HeapGraphObjectTable::Id>& object_map) {
   auto& object_table = *context_->storage->mutable_heap_graph_object_table();
-  size_t objects_processed = 0;
 
   // Create fallback unknown class if needed
   tables::HeapGraphClassTable::Id unknown_class_id;
@@ -227,12 +215,10 @@ void ArtHprofParser::PopulateObjects(
     auto obj_id = it.key();
     auto& obj = it.value();
 
-    objects_processed++;
-
     // Resolve object's type
     auto type = class_map.Find(obj.GetClassId());
     if (!type && obj.GetObjectType() != ObjectType::kPrimitiveArray) {
-      context_->storage->IncrementStats(stats::hprof_unknown_class_errors);
+      context_->storage->IncrementStats(stats::hprof_class_errors);
       continue;
     }
 
@@ -267,8 +253,6 @@ void ArtHprofParser::PopulateObjects(
         object_table.Insert(object_row).id;
     object_map[obj_id] = table_id;
   }
-
-  PERFETTO_DLOG("Processed %zu objects", objects_processed);
 }
 
 void ArtHprofParser::PopulateReferences(
@@ -282,10 +266,8 @@ void ArtHprofParser::PopulateReferences(
 
   // Group references by owner for efficient reference_set_id assignment
   base::FlatHashMap<uint64_t, std::vector<Reference>> refs_by_owner;
-  size_t total_reference_count = 0;
 
   // Step 1: Collect all references
-  PERFETTO_DLOG("Collecting references from objects...");
   for (auto it = graph.GetObjects().GetIterator(); it; ++it) {
     auto obj_id = it.key();
     auto& obj = it.value();
@@ -294,12 +276,8 @@ void ArtHprofParser::PopulateReferences(
     if (!refs.empty()) {
       refs_by_owner[obj_id].insert(refs_by_owner[obj_id].end(), refs.begin(),
                                    refs.end());
-      total_reference_count += refs.size();
     }
   }
-
-  PERFETTO_DLOG("Found %zu total references from %zu objects",
-                total_reference_count, refs_by_owner.size());
 
   // Step 2: Validate we have reference owners in our object map
   size_t missing_owners = 0;
@@ -311,8 +289,7 @@ void ArtHprofParser::PopulateReferences(
   }
 
   if (missing_owners > 0) {
-    PERFETTO_DLOG("Warning: %zu reference owners are missing from object map",
-                  missing_owners);
+    context_->storage->IncrementStats(stats::hprof_reference_errors);
   }
 
   // Step 3: Build class map for type resolution
@@ -333,8 +310,6 @@ void ArtHprofParser::PopulateReferences(
 
   // Step 4: Process references and create reference sets
   uint32_t next_reference_set_id = 1;
-  size_t valid_refs = 0;
-  size_t dangling_refs = 0;
 
   for (auto it = refs_by_owner.GetIterator(); it; ++it) {
     auto owner_id = it.key();
@@ -363,9 +338,8 @@ void ArtHprofParser::PopulateReferences(
         auto owned = object_map.Find(ref.target_id);
         if (owned) {
           owned_table_id = *owned;
-          valid_refs++;
         } else {
-          dangling_refs++;
+          context_->storage->IncrementStats(stats::hprof_reference_errors);
         }
       }
 
@@ -380,7 +354,7 @@ void ArtHprofParser::PopulateReferences(
         StringId class_name_id = class_table.name()[cls->value];
         field_type_id = class_name_id;
       } else {
-        context_->storage->IncrementStats(stats::hprof_unknown_class_errors);
+        context_->storage->IncrementStats(stats::hprof_class_errors);
         continue;
       }
 
@@ -394,33 +368,6 @@ void ArtHprofParser::PopulateReferences(
 
       reference_table.Insert(reference_row);
     }
-  }
-
-  // Check for root objects with references (important for flamegraph)
-  size_t roots_with_refs = 0;
-  size_t roots_without_refs = 0;
-
-  for (uint32_t i = 0; i < object_table.row_count(); i++) {
-    if (object_table.root_type()[i].has_value()) {
-      if (object_table.reference_set_id()[i].has_value()) {
-        roots_with_refs++;
-      } else {
-        roots_without_refs++;
-      }
-    }
-  }
-
-  // Final statistics and warnings
-  PERFETTO_DLOG("Reference processing complete: %zu valid, %zu dangling",
-                valid_refs, dangling_refs);
-
-  if (valid_refs == 0) {
-    PERFETTO_LOG(
-        "WARNING: No valid references found! Flamegraph will not render.");
-  } else if (roots_with_refs == 0 && roots_without_refs > 0) {
-    PERFETTO_LOG(
-        "WARNING: No root objects have references! Flamegraph may not render "
-        "properly.");
   }
 }
 }  // namespace perfetto::trace_processor::art_hprof

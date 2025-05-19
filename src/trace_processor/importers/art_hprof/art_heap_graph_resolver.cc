@@ -26,7 +26,7 @@ T ReadBigEndian(TraceProcessorContext* context,
                 size_t offset,
                 size_t length) {
   if (offset + length > data.size()) {
-    context->storage->IncrementStats(stats::hprof_oob_read_errors);
+    context->storage->IncrementStats(stats::hprof_field_value_errors);
     return 0;
   }
 
@@ -204,7 +204,7 @@ bool HeapGraphResolver::ExtractObjectReferences(Object& obj,
           stats_.reference_count++;
         }
       } else {
-        PERFETTO_DLOG("Insufficient data for reference at offset %zu", offset);
+        context_->storage->IncrementStats(stats::hprof_reference_errors);
         break;
       }
     } else {

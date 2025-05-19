@@ -511,20 +511,37 @@ namespace perfetto::trace_processor::stats {
         "Number of references encountered."),                                  \
   F(hprof_record_counter,                  kSingle,  kInfo,   kAnalysis,       \
         "Total number of records parsed."),                                    \
-  F(hprof_oob_read_errors,                  kSingle,  kError,   kAnalysis,      \
-        "Number of out of bounds reads."),                                     \
-  F(hprof_unknown_class_errors,            kSingle,  kError,   kAnalysis,      \
-        "Number of unknown classes errors"),                                   \
+  F(hprof_field_value_errors,              kSingle,  kError,   kAnalysis,      \
+      "Number of field value parsing errors. This indicates a malformed "      \
+      "hprof file. Check if the hprof opens correctly in a tool like "         \
+      "AHAT. Missing values could yield incorrect native object sizes."),      \
+  F(hprof_class_errors,                    kSingle,  kError,   kAnalysis,      \
+      "Number of class parsing errors encountered. This indicates a "          \
+      "malformed hprof file. Check if the hprof opens correctly in a tool "    \
+      "like AHAT. Missing classes could cause missing references, thus "       \
+      "affecting the overall size of the the heap graph."),                    \
   F(hprof_header_errors,                   kSingle,  kError,   kAnalysis,      \
-        "Number of header parsing errors"),                                    \
+      "Number of header parsing errors. This indicates a malformed hprof "     \
+      "file with invalid or missing header information. The file may be "      \
+      "corrupted or might not be a valid hprof file. There may not be any "    \
+      "heap graph data parsed."),                                              \
   F(hprof_heap_dump_errors,                kSingle,  kError,   kAnalysis,      \
-         "Number of heap dump parsing errors"),                                \
-  F(hprof_class_not_found_errors,          kSingle,  kError,   kAnalysis,      \
-         "Number of class not found errors"),                                  \
+      "Number of heap dump parsing errors. This indicates a malformed "        \
+      "hprof file with corrupted heap segments. Check if the hprof opens "     \
+      "correctly in a tool like AHAT. Missing heap dump sections can lead to " \
+      "huge clusters of the heap graph missing, thus affecting the overall "   \
+      "size of the graph"),                                                    \
   F(hprof_primitive_array_parsing_errors,  kSingle,  kError,   kAnalysis,      \
-        "Number of primitive array parsing errors"),                           \
-  F(hprof_class_name_errors,               kSingle,  kError,   kAnalysis,      \
-        "Number of class name normalization errors")
+      "Number of primitive array parsing errors. This indicates a "            \
+      "malformed hprof file. Check if the hprof opens correctly in a tool "    \
+      "like AHAT. Primitive arrays like bytes[] missing can dramatically "     \
+      "affect the overall size of the heap graph."),                           \
+  F(hprof_reference_errors,                kSingle,  kError,   kAnalysis,      \
+      "Number of object reference errors encountered. This indicates a "       \
+      "malformed hprof file. Check if the hprof opens correctly in a tool "    \
+      "like AHAT. Missing references will affect the overall size of the "     \
+      "heap graph.")
+
 // clang-format on
 
 enum Type {
