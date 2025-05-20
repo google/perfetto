@@ -25,6 +25,7 @@
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/app_wakelock_module.h"
 #include "src/trace_processor/importers/proto/content_analyzer.h"
+#include "src/trace_processor/importers/proto/deobfuscation_module.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/metadata_module.h"
@@ -51,6 +52,7 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new NetworkTraceModule(context));
   context->modules.emplace_back(new GraphicsEventModule(context));
   context->modules.emplace_back(new HeapGraphModule(context));
+  context->modules.emplace_back(new DeobfuscationModule(context));
   context->modules.emplace_back(new SystemProbesModule(context));
   context->modules.emplace_back(new TranslationTableModule(context));
   context->modules.emplace_back(new StatsdModule(context));
