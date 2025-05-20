@@ -79,7 +79,7 @@ TEST(PredefinedTracepointsTest, GetAccessiblePredefinedTracePoints) {
               IsFileWriteable("/root/events/power/gpu_frequency/enable"))
       .WillOnce(Return(true));
 
-  std::map<std::string, std::set<GroupAndName>> tracepoints =
+  std::map<std::string, base::FlatSet<GroupAndName>> tracepoints =
       GetAccessiblePredefinedTracePoints(&table, &ftrace);
 
   EXPECT_THAT(

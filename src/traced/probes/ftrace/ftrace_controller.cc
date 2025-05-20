@@ -186,7 +186,7 @@ std::unique_ptr<FtraceController> FtraceController::Create(
   std::map<std::string, std::vector<GroupAndName>> vendor_evts =
       GetAtraceVendorEvents(ftrace_procfs.get());
 
-  std::map<std::string, std::set<GroupAndName>> predefined_events =
+  std::map<std::string, base::FlatSet<GroupAndName>> predefined_events =
       predefined_tracepoints::GetAccessiblePredefinedTracePoints(
           table.get(), ftrace_procfs.get());
 
@@ -850,7 +850,7 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
     return nullptr;
   }
 
-  std::map<std::string, std::set<GroupAndName>> predefined_events =
+  std::map<std::string, base::FlatSet<GroupAndName>> predefined_events =
       predefined_tracepoints::GetAccessiblePredefinedTracePoints(
           table.get(), ftrace_procfs.get());
 

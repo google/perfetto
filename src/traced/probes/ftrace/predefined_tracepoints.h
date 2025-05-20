@@ -23,11 +23,11 @@
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 namespace perfetto::predefined_tracepoints {
-std::map<std::string, std::set<GroupAndName>> GetPredefinedTracePoints(
+std::map<std::string, base::FlatSet<GroupAndName>> GetPredefinedTracePoints(
     const ProtoTranslationTable* table,
     FtraceProcfs* ftrace);
 
-std::map<std::string, std::set<GroupAndName>>
+std::map<std::string, base::FlatSet<GroupAndName>>
 GetAccessiblePredefinedTracePoints(const ProtoTranslationTable* table,
                                    FtraceProcfs* ftrace);
 

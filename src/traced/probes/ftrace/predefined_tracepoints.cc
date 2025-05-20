@@ -26,7 +26,7 @@ namespace perfetto::predefined_tracepoints {
 namespace {
 void AddEventGroup(const ProtoTranslationTable* table,
                    const std::string& group,
-                   std::set<GroupAndName>* to) {
+                   base::FlatSet<GroupAndName>* to) {
   const std::vector<const Event*>* events = table->GetEventsByGroup(group);
   if (!events)
     return;
@@ -35,17 +35,15 @@ void AddEventGroup(const ProtoTranslationTable* table,
   }
 }
 
-// This is just to reduce the binary size and stack frame size of the
-// insertions. It effectively undoes STL's set::insert inlining.
 void PERFETTO_NO_INLINE InsertEvent(const char* group,
                                     const char* name,
-                                    std::set<GroupAndName>* dst) {
+                                    base::FlatSet<GroupAndName>* dst) {
   dst->insert(GroupAndName(group, name));
 }
 
-std::set<GroupAndName> GenerateGfxTracePoints(
+base::FlatSet<GroupAndName> GenerateGfxTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   AddEventGroup(table, "mdss", &events);
   InsertEvent("mdss", "rotator_bw_ao_as_context", &events);
   InsertEvent("mdss", "mdp_trace_counter", &events);
@@ -96,15 +94,15 @@ std::set<GroupAndName> GenerateGfxTracePoints(
   return events;
 }
 
-std::set<GroupAndName> GenerateIonTracePoints() {
-  std::set<GroupAndName> events;
+base::FlatSet<GroupAndName> GenerateIonTracePoints() {
+  base::FlatSet<GroupAndName> events;
   InsertEvent("kmem", "ion_alloc_buffer_start", &events);
   return events;
 }
 
-std::set<GroupAndName> GenerateSchedTracePoints(
+base::FlatSet<GroupAndName> GenerateSchedTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   // Note: sched_wakeup intentionally removed (diverging from atrace), as it
   // is high-volume, but mostly redundant when sched_waking is also enabled.
   // The event can still be enabled explicitly when necessary.
@@ -137,9 +135,9 @@ std::set<GroupAndName> GenerateSchedTracePoints(
   return events;
 }
 
-std::set<GroupAndName> GenerateIrqTracePoints(
+base::FlatSet<GroupAndName> GenerateIrqTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   AddEventGroup(table, "irq", &events);
   InsertEvent("irq", "tasklet_hi_exit", &events);
   InsertEvent("irq", "tasklet_hi_entry", &events);
@@ -157,23 +155,23 @@ std::set<GroupAndName> GenerateIrqTracePoints(
   return events;
 }
 
-std::set<GroupAndName> GenerateIrqOffTracePoints() {
-  std::set<GroupAndName> events;
+base::FlatSet<GroupAndName> GenerateIrqOffTracePoints() {
+  base::FlatSet<GroupAndName> events;
   InsertEvent("preemptirq", "irq_enable", &events);
   InsertEvent("preemptirq", "irq_disable", &events);
   return events;
 }
 
-std::set<GroupAndName> GeneratePreemptoffTracePoints() {
-  std::set<GroupAndName> events;
+base::FlatSet<GroupAndName> GeneratePreemptoffTracePoints() {
+  base::FlatSet<GroupAndName> events;
   InsertEvent("preemptirq", "preempt_enable", &events);
   InsertEvent("preemptirq", "preempt_disable", &events);
   return events;
 }
 
-std::set<GroupAndName> GenerateI2cTracePoints(
+base::FlatSet<GroupAndName> GenerateI2cTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   AddEventGroup(table, "i2c", &events);
   InsertEvent("i2c", "i2c_read", &events);
   InsertEvent("i2c", "i2c_write", &events);
@@ -186,9 +184,9 @@ std::set<GroupAndName> GenerateI2cTracePoints(
   return events;
 }
 
-std::set<GroupAndName> GenerateFreqTracePoints(
+base::FlatSet<GroupAndName> GenerateFreqTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   InsertEvent("power", "cpu_frequency", &events);
   InsertEvent("power", "gpu_frequency", &events);
   InsertEvent("power", "clock_set_rate", &events);
@@ -215,21 +213,21 @@ std::set<GroupAndName> GenerateFreqTracePoints(
   return events;
 }
 
-std::set<GroupAndName> GenerateMembusTracePoints(
+base::FlatSet<GroupAndName> GenerateMembusTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   AddEventGroup(table, "memory_bus", &events);
   return events;
 }
 
-std::set<GroupAndName> GenerateIdleTracePoints() {
-  std::set<GroupAndName> events;
+base::FlatSet<GroupAndName> GenerateIdleTracePoints() {
+  base::FlatSet<GroupAndName> events;
   InsertEvent("power", "cpu_idle", &events);
   return events;
 }
 
-std::set<GroupAndName> GenerateDiskTracePoints() {
-  std::set<GroupAndName> events;
+base::FlatSet<GroupAndName> GenerateDiskTracePoints() {
+  base::FlatSet<GroupAndName> events;
   InsertEvent("f2fs", "f2fs_sync_file_enter", &events);
   InsertEvent("f2fs", "f2fs_sync_file_exit", &events);
   InsertEvent("f2fs", "f2fs_write_begin", &events);
@@ -246,23 +244,23 @@ std::set<GroupAndName> GenerateDiskTracePoints() {
   return events;
 }
 
-std::set<GroupAndName> GenerateMmcTracePoints(
+base::FlatSet<GroupAndName> GenerateMmcTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   AddEventGroup(table, "mmc", &events);
   return events;
 }
 
-std::set<GroupAndName> GenerateLoadTracePoints(
+base::FlatSet<GroupAndName> GenerateLoadTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   AddEventGroup(table, "cpufreq_interactive", &events);
   return events;
 }
 
-std::set<GroupAndName> GenerateSyncTracePoints(
+base::FlatSet<GroupAndName> GenerateSyncTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   // linux kernel < 4.9
   AddEventGroup(table, "sync", &events);
   InsertEvent("sync", "sync_pt", &events);
@@ -283,9 +281,9 @@ std::set<GroupAndName> GenerateSyncTracePoints(
   return events;
 }
 
-std::set<GroupAndName> GenerateWorkqTracePoints(
+base::FlatSet<GroupAndName> GenerateWorkqTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   AddEventGroup(table, "workqueue", &events);
   InsertEvent("workqueue", "workqueue_queue_work", &events);
   InsertEvent("workqueue", "workqueue_execute_start", &events);
@@ -294,9 +292,9 @@ std::set<GroupAndName> GenerateWorkqTracePoints(
   return events;
 }
 
-std::set<GroupAndName> GenerateMemreclaimTracePoints(
+base::FlatSet<GroupAndName> GenerateMemreclaimTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   InsertEvent("vmscan", "mm_vmscan_direct_reclaim_begin", &events);
   InsertEvent("vmscan", "mm_vmscan_direct_reclaim_end", &events);
   InsertEvent("vmscan", "mm_vmscan_kswapd_wake", &events);
@@ -306,9 +304,9 @@ std::set<GroupAndName> GenerateMemreclaimTracePoints(
   return events;
 }
 
-std::set<GroupAndName> GenerateRegulatorsTracePoints(
+base::FlatSet<GroupAndName> GenerateRegulatorsTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   AddEventGroup(table, "regulator", &events);
   InsertEvent("regulator", "regulator_set_voltage_complete", &events);
   InsertEvent("regulator", "regulator_set_voltage", &events);
@@ -320,8 +318,8 @@ std::set<GroupAndName> GenerateRegulatorsTracePoints(
   return events;
 }
 
-std::set<GroupAndName> GenerateBinderDriverTracePoints() {
-  std::set<GroupAndName> events;
+base::FlatSet<GroupAndName> GenerateBinderDriverTracePoints() {
+  base::FlatSet<GroupAndName> events;
   InsertEvent("binder", "binder_transaction", &events);
   InsertEvent("binder", "binder_transaction_received", &events);
   InsertEvent("binder", "binder_transaction_alloc_buf", &events);
@@ -329,17 +327,17 @@ std::set<GroupAndName> GenerateBinderDriverTracePoints() {
   return events;
 }
 
-std::set<GroupAndName> GenerateBinderLockTracePoints() {
-  std::set<GroupAndName> events;
+base::FlatSet<GroupAndName> GenerateBinderLockTracePoints() {
+  base::FlatSet<GroupAndName> events;
   InsertEvent("binder", "binder_lock", &events);
   InsertEvent("binder", "binder_locked", &events);
   InsertEvent("binder", "binder_unlock", &events);
   return events;
 }
 
-std::set<GroupAndName> GeneratePagecacheTracePoints(
+base::FlatSet<GroupAndName> GeneratePagecacheTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   AddEventGroup(table, "filemap", &events);
   InsertEvent("filemap", "mm_filemap_delete_from_page_cache", &events);
   InsertEvent("filemap", "mm_filemap_add_to_page_cache", &events);
@@ -348,8 +346,8 @@ std::set<GroupAndName> GeneratePagecacheTracePoints(
   return events;
 }
 
-std::set<GroupAndName> GenerateMemoryTracePoints(FtraceProcfs* ftrace) {
-  std::set<GroupAndName> events;
+base::FlatSet<GroupAndName> GenerateMemoryTracePoints(FtraceProcfs* ftrace) {
+  base::FlatSet<GroupAndName> events;
   // Use rss_stat_throttled if supported
   if (ftrace->SupportsRssStatThrottled()) {
     InsertEvent("synthetic", "rss_stat_throttled", &events);
@@ -366,30 +364,30 @@ std::set<GroupAndName> GenerateMemoryTracePoints(FtraceProcfs* ftrace) {
   return events;
 }
 
-std::set<GroupAndName> GenerateThermalTracePoints() {
-  std::set<GroupAndName> events;
+base::FlatSet<GroupAndName> GenerateThermalTracePoints() {
+  base::FlatSet<GroupAndName> events;
   InsertEvent("thermal", "thermal_temperature", &events);
   InsertEvent("thermal", "cdev_update", &events);
   return events;
 }
 
-std::set<GroupAndName> GenerateCameraTracePoints(
+base::FlatSet<GroupAndName> GenerateCameraTracePoints(
     const ProtoTranslationTable* table) {
-  std::set<GroupAndName> events;
+  base::FlatSet<GroupAndName> events;
   AddEventGroup(table, "lwis", &events);
   InsertEvent("lwis", "tracing_mark_write", &events);
   return events;
 }
 
-std::map<std::string, std::set<GroupAndName>> GeneratePredefinedTracePoints(
-    const ProtoTranslationTable* table,
-    FtraceProcfs* ftrace) {
+std::map<std::string, base::FlatSet<GroupAndName>>
+GeneratePredefinedTracePoints(const ProtoTranslationTable* table,
+                              FtraceProcfs* ftrace) {
   // Ideally we should keep this code in sync with:
   // platform/frameworks/native/cmds/atrace/atrace.cpp
   // It's not a disaster if they go out of sync, we can always add the ftrace
   // categories manually server side but this is user friendly and reduces the
   // size of the configs.
-  std::map<std::string, std::set<GroupAndName>> tracepoints;
+  std::map<std::string, base::FlatSet<GroupAndName>> tracepoints;
 
   tracepoints["gfx"] = GenerateGfxTracePoints(table);
   tracepoints["ion"] = GenerateIonTracePoints();
@@ -418,29 +416,26 @@ std::map<std::string, std::set<GroupAndName>> GeneratePredefinedTracePoints(
 }
 }  // namespace
 
-std::map<std::string, std::set<GroupAndName>> GetPredefinedTracePoints(
+std::map<std::string, base::FlatSet<GroupAndName>> GetPredefinedTracePoints(
     const ProtoTranslationTable* table,
     FtraceProcfs* ftrace) {
   return GeneratePredefinedTracePoints(table, ftrace);
 }
 
-std::map<std::string, std::set<GroupAndName>>
+std::map<std::string, base::FlatSet<GroupAndName>>
 GetAccessiblePredefinedTracePoints(const ProtoTranslationTable* table,
                                    FtraceProcfs* ftrace) {
   auto tracepoints = GetPredefinedTracePoints(table, ftrace);
-  std::map<std::string, std::set<GroupAndName>> accessible_tracepoints;
+  std::map<std::string, base::FlatSet<GroupAndName>> accessible_tracepoints;
   for (const auto& [category, events] : tracepoints) {
-    std::vector accessible_events(events.begin(), events.end());
-    accessible_events.erase(
-        std::remove_if(accessible_events.begin(), accessible_events.end(),
-                       [ftrace](const GroupAndName& event) {
-                         return !ftrace->IsEventAccessible(event.group(),
-                                                           event.name());
-                       }),
-        accessible_events.end());
+    base::FlatSet<GroupAndName> accessible_events;
+    for (const auto& event : events) {
+      if (ftrace->IsEventAccessible(event.group(), event.name())) {
+        accessible_events.insert(event);
+      }
+    }
     if (!accessible_events.empty()) {
-      accessible_tracepoints[category] =
-          std::set(accessible_events.begin(), accessible_events.end());
+      accessible_tracepoints[category] = accessible_events;
     }
   }
   return accessible_tracepoints;
