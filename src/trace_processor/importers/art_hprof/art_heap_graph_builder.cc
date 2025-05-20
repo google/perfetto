@@ -303,12 +303,17 @@ bool HeapGraphBuilder::ParseRootRecord(HprofHeapRootTag tag) {
         return false;
       break;
 
+    case HprofHeapRootTag::kVmInternal:
+      // For partity with the perfetto heap graph that only considers:
+      // sticky_class, jni_global and jni_local as roots, we skip including
+      // vmInternal roots as roots. See heap_graph_tracker.cc:
+      // kRootTypePrecedence
+      return true;
     case HprofHeapRootTag::kStickyClass:
     case HprofHeapRootTag::kMonitorUsed:
     case HprofHeapRootTag::kInternedString:
     case HprofHeapRootTag::kFinalizing:
     case HprofHeapRootTag::kDebugger:
-    case HprofHeapRootTag::kVmInternal:
     case HprofHeapRootTag::kUnknown:
       // Most others have no extra data
       break;
