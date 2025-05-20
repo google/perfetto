@@ -21,7 +21,6 @@
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/profiler_util.h"
 
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
@@ -66,7 +65,6 @@ using perfetto::protos::pbzero::TracePacket;
 HeapGraphModule::HeapGraphModule(TraceProcessorContext* context)
     : context_(context) {
   RegisterForField(TracePacket::kHeapGraphFieldNumber, context);
-  RegisterForField(TracePacket::kDeobfuscationMappingFieldNumber, context);
 }
 
 void HeapGraphModule::ParseTracePacketData(
@@ -79,10 +77,8 @@ void HeapGraphModule::ParseTracePacketData(
       ParseHeapGraph(decoder.trusted_packet_sequence_id(), ts,
                      decoder.heap_graph());
       return;
-    case TracePacket::kDeobfuscationMappingFieldNumber:
-      HeapGraphTracker::GetOrCreate(context_)->FinalizeAllProfiles();
-      ParseDeobfuscationMapping(decoder.deobfuscation_mapping());
-      return;
+    default:
+      break;
   }
 }
 
@@ -233,95 +229,6 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
   }
   if (!heap_graph.continued()) {
     heap_graph_tracker->FinalizeProfile(seq_id);
-  }
-}
-
-void HeapGraphModule::DeobfuscateClass(
-    std::optional<StringId> package_name_id,
-    StringId obfuscated_class_name_id,
-    const protos::pbzero::ObfuscatedClass::Decoder& cls) {
-  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
-  const std::vector<ClassTable::RowNumber>* cls_objects =
-      heap_graph_tracker->RowsForType(package_name_id,
-                                      obfuscated_class_name_id);
-  if (cls_objects) {
-    auto* class_table = context_->storage->mutable_heap_graph_class_table();
-    for (ClassTable::RowNumber class_row_num : *cls_objects) {
-      auto class_ref = class_row_num.ToRowReference(class_table);
-      const StringId obfuscated_type_name_id = class_ref.name();
-      const base::StringView obfuscated_type_name =
-          context_->storage->GetString(obfuscated_type_name_id);
-      NormalizedType normalized_type = GetNormalizedType(obfuscated_type_name);
-      std::string deobfuscated_type_name =
-          DenormalizeTypeName(normalized_type, cls.deobfuscated_name());
-      StringId deobfuscated_type_name_id = context_->storage->InternString(
-          base::StringView(deobfuscated_type_name));
-      class_ref.set_deobfuscated_name(deobfuscated_type_name_id);
-    }
-  } else {
-    PERFETTO_DLOG("Class %s not found",
-                  cls.obfuscated_name().ToStdString().c_str());
-  }
-}
-
-void HeapGraphModule::ParseDeobfuscationMapping(protozero::ConstBytes blob) {
-  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
-  protos::pbzero::DeobfuscationMapping::Decoder deobfuscation_mapping(
-      blob.data, blob.size);
-  std::optional<StringId> package_name_id;
-  if (deobfuscation_mapping.package_name().size > 0) {
-    package_name_id = context_->storage->string_pool().GetId(
-        deobfuscation_mapping.package_name());
-  }
-
-  auto* reference_table =
-      context_->storage->mutable_heap_graph_reference_table();
-  for (auto class_it = deobfuscation_mapping.obfuscated_classes(); class_it;
-       ++class_it) {
-    protos::pbzero::ObfuscatedClass::Decoder cls(*class_it);
-    auto obfuscated_class_name_id =
-        context_->storage->string_pool().GetId(cls.obfuscated_name());
-    if (!obfuscated_class_name_id) {
-      PERFETTO_DLOG("Class string %s not found",
-                    cls.obfuscated_name().ToStdString().c_str());
-    } else {
-      // TODO(b/153552977): Remove this work-around for legacy traces.
-      // For traces without location information, deobfuscate all matching
-      // classes.
-      DeobfuscateClass(std::nullopt, *obfuscated_class_name_id, cls);
-      if (package_name_id) {
-        DeobfuscateClass(package_name_id, *obfuscated_class_name_id, cls);
-      }
-    }
-    for (auto member_it = cls.obfuscated_members(); member_it; ++member_it) {
-      protos::pbzero::ObfuscatedMember::Decoder member(*member_it);
-
-      std::string merged_obfuscated = cls.obfuscated_name().ToStdString() +
-                                      "." +
-                                      member.obfuscated_name().ToStdString();
-      std::string merged_deobfuscated =
-          FullyQualifiedDeobfuscatedName(cls, member);
-
-      auto obfuscated_field_name_id = context_->storage->string_pool().GetId(
-          base::StringView(merged_obfuscated));
-      if (!obfuscated_field_name_id) {
-        PERFETTO_DLOG("Field string %s not found", merged_obfuscated.c_str());
-        continue;
-      }
-
-      const std::vector<ReferenceTable::RowNumber>* field_references =
-          heap_graph_tracker->RowsForField(*obfuscated_field_name_id);
-      if (field_references) {
-        auto interned_deobfuscated_name = context_->storage->InternString(
-            base::StringView(merged_deobfuscated));
-        for (ReferenceTable::RowNumber row_number : *field_references) {
-          auto row_ref = row_number.ToRowReference(reference_table);
-          row_ref.set_deobfuscated_field_name(interned_deobfuscated_name);
-        }
-      } else {
-        PERFETTO_DLOG("Field %s not found", merged_obfuscated.c_str());
-      }
-    }
   }
 }
 
