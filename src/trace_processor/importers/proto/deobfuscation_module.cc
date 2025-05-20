@@ -21,7 +21,6 @@
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
-#include "src/trace_processor/importers/proto/deobfuscation_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -54,7 +53,7 @@ void DeobfuscationModule::ParseTracePacketData(
 }
 
 void DeobfuscationModule::StoreDeobfuscationMapping(ConstBytes blob) {
-  DeobfuscationTracker::GetOrCreate(context_)->AddDeobfuscationPacket(blob);
+  packets_.emplace_back(TraceBlob::CopyFrom(blob.data, blob.size));
 }
 
 void DeobfuscationModule::DeobfuscateHeapGraphClass(
@@ -231,9 +230,9 @@ void DeobfuscationModule::NotifyEndOfFile() {
   auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
   heap_graph_tracker->FinalizeAllProfiles();
 
-  auto packets = DeobfuscationTracker::GetOrCreate(context_)->packets();
-  for (ConstBytes packet : packets) {
-    ParseDeobfuscationMapping(packet, heap_graph_tracker);
+  for (const auto& packet : packets_) {
+    ParseDeobfuscationMapping(ConstBytes{packet.data(), packet.size()},
+                              heap_graph_tracker);
   }
 }
 
