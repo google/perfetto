@@ -96,11 +96,11 @@ from diff_tests.parser.power.tests_linux_sysfs_power import LinuxSysfsPower
 from diff_tests.parser.power.tests_power_rails import PowerPowerRails
 from diff_tests.parser.power.tests_voltage_and_scaling import PowerVoltageAndScaling
 from diff_tests.parser.process_tracking.tests import ProcessTracking
+from diff_tests.parser.profiling.deobfuscation_tests import Deobfuscation
 from diff_tests.parser.profiling.tests import Profiling
 from diff_tests.parser.profiling.tests_heap_graph import ProfilingHeapGraph
 from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfiling
 from diff_tests.parser.profiling.tests_llvm_symbolizer import ProfilingLlvmSymbolizer
-from diff_tests.parser.profiling.tests_profile_unknown_package import Deobfuscation
 from diff_tests.parser.sched.tests import SchedParser
 from diff_tests.parser.simpleperf.tests import Simpleperf
 from diff_tests.parser.smoke.tests import Smoke

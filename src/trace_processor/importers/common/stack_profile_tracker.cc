@@ -80,18 +80,16 @@ void StackProfileTracker::OnFrameCreated(FrameId frame_id) {
   }
 }
 
-void StackProfileTracker::GuessPackageForFrame(StringId package,
-                                               FrameId frame_id) {
+void StackProfileTracker::SetPackageForFrame(StringId package,
+                                             FrameId frame_id) {
   auto frame =
       context_->storage->stack_profile_frame_table().FindById(frame_id);
-  if (!frame.has_value()) {
-    return;
-  }
+  PERFETTO_CHECK(frame.has_value());
   NameInPackage nip{frame->name(), package};
   java_frames_for_name_[nip].insert(frame_id);
 }
 
-bool StackProfileTracker::UnknownPackageFramesPresent() const {
+bool StackProfileTracker::HasFramesWithoutKnownPackage() const {
   return !java_frames_with_unknown_packages_.empty();
 }
 

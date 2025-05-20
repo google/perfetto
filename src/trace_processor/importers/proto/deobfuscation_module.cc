@@ -264,7 +264,7 @@ void DeobfuscationModule::GuessPackageForCallsite(
 
     if (stack_profile_tracker->FrameHasUnknownPackage(frame_id) != 0) {
       if (process->name().has_value()) {
-        stack_profile_tracker->GuessPackageForFrame(*package, frame_id);
+        stack_profile_tracker->SetPackageForFrame(*package, frame_id);
       }
     }
 
@@ -304,7 +304,7 @@ void DeobfuscationModule::NotifyEndOfFile() {
   auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
   heap_graph_tracker->FinalizeAllProfiles();
 
-  if (context_->stack_profile_tracker->UnknownPackageFramesPresent()) {
+  if (context_->stack_profile_tracker->HasFramesWithoutKnownPackage()) {
     GuessPackages();
   }
 

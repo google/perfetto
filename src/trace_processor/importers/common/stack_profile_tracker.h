@@ -64,11 +64,11 @@ class StackProfileTracker {
 
   void OnFrameCreated(FrameId frame_id);
 
-  void GuessPackageForFrame(StringId package, FrameId);
+  void SetPackageForFrame(StringId package, FrameId);
 
   bool FrameHasUnknownPackage(FrameId) const;
 
-  bool UnknownPackageFramesPresent() const;
+  bool HasFramesWithoutKnownPackage() const;
 
  private:
   TraceProcessorContext* const context_;
