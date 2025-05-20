@@ -12272,28 +12272,30 @@ enum FtraceClock {
 
 // End of protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
 
-// Begin of protos/perfetto/trace/generic_kernel/generic_event.proto
+// Begin of protos/perfetto/trace/generic_kernel/generic_task_state.proto
 
-enum TaskStateEnum {
-  TASK_STATE_CREATED = 0;
-  TASK_STATE_RUNNABLE = 1;
-  TASK_STATE_RUNNING = 2;
-  TASK_STATE_INTERRUPTIBLE_SLEEP = 3;
-  TASK_STATE_UNINTERRUPTIBLE_SLEEP = 4;
-  TASK_STATE_STOPPED = 5;
-  TASK_STATE_DEAD = 6;
-  TASK_STATE_DESTROYED = 7;
-}
-
-message GenericTaskStateEvent {
+message GenericKernelTaskStateEvent {
   optional int32 cpu = 1;
   optional string comm = 2;
   optional int32 tid = 3;
+
+  enum TaskStateEnum {
+    TASK_STATE_UNKNOWN = 0;
+    TASK_STATE_CREATED = 1;
+    TASK_STATE_RUNNABLE = 2;
+    TASK_STATE_RUNNING = 3;
+    TASK_STATE_INTERRUPTIBLE_SLEEP = 4;
+    TASK_STATE_UNINTERRUPTIBLE_SLEEP = 5;
+    TASK_STATE_STOPPED = 6;
+    TASK_STATE_DEAD = 7;
+    TASK_STATE_DESTROYED = 8;
+  }
   optional TaskStateEnum state = 4;
+
   optional int32 prio = 5;
 }
 
-// End of protos/perfetto/trace/generic_kernel/generic_event.proto
+// End of protos/perfetto/trace/generic_kernel/generic_task_state.proto
 
 // Begin of protos/perfetto/trace/gpu/gpu_counter_event.proto
 
@@ -16372,7 +16374,7 @@ message TracePacket {
     AppWakelockBundle app_wakelock_bundle = 116;
 
     // Generic events for a standard kernel implementation
-    GenericTaskStateEvent generic_task_state_event = 117;
+    GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

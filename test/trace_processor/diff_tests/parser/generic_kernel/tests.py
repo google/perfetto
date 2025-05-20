@@ -25,21 +25,21 @@ class GenericKernelParser(TestSuite):
         trace=TextProto(r"""
         packet {
           timestamp: 360831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 361831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 7
+            state: 8
             prio: 100
           }
         }
@@ -65,21 +65,21 @@ class GenericKernelParser(TestSuite):
         trace=TextProto(r"""
         packet {
           timestamp: 360831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 361831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 7
+            state: 8
             prio: 100
           }
         }
@@ -107,31 +107,31 @@ class GenericKernelParser(TestSuite):
         trace=TextProto(r"""
         packet {
           timestamp: 360831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 361831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task2"
             tid: 102
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 361831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 7
+            state: 8
             prio: 100
           }
         }
@@ -158,31 +158,31 @@ class GenericKernelParser(TestSuite):
         trace=TextProto(r"""
         packet {
           timestamp: 360831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 361831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task2"
             tid: 102
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 361831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 7
+            state: 8
             prio: 100
           }
         }
@@ -212,31 +212,31 @@ class GenericKernelParser(TestSuite):
         trace=TextProto(r"""
         packet {
           timestamp: 360831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 361831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task2"
             tid: 102
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 362831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 7
+            state: 8
             prio: 100
           }
         }
@@ -263,31 +263,31 @@ class GenericKernelParser(TestSuite):
         trace=TextProto(r"""
         packet {
           timestamp: 360831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 361831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task2"
             tid: 102
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 362831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 7
+            state: 8
             prio: 100
           }
         }
@@ -315,30 +315,30 @@ class GenericKernelParser(TestSuite):
         trace=TextProto(r"""
         packet {
           timestamp: 360831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 1
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 361831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task2"
             tid: 2
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 362831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             comm: "task3"
             tid: 3
-            state: 3
+            state: 4
             prio: 100
           }
         }
@@ -365,30 +365,30 @@ class GenericKernelParser(TestSuite):
         trace=TextProto(r"""
         packet {
           timestamp: 360831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 1
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 361831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task2"
             tid: 2
-            state: 2
+            state: 3
             prio: 100
           }
         }
         packet {
           timestamp: 362831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             comm: "task3"
             tid: 3
-            state: 3
+            state: 4
             prio: 100
           }
         }
@@ -416,11 +416,11 @@ class GenericKernelParser(TestSuite):
         trace=TextProto(r"""
         packet {
           timestamp: 360831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 0
+            state: 1
             prio: 100
           }
         }
@@ -445,21 +445,21 @@ class GenericKernelParser(TestSuite):
         trace=TextProto(r"""
         packet {
           timestamp: 360831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task1"
             tid: 101
-            state: 0
+            state: 1
             prio: 100
           }
         }
         packet {
           timestamp: 361831239274
-          generic_task_state_event {
+          generic_kernel_task_state_event {
             cpu: 0
             comm: "task2"
             tid: 102
-            state: 0
+            state: 1
             prio: 100
           }
         }

@@ -23,7 +23,8 @@ using perfetto::protos::pbzero::TracePacket;
 
 GenericKernelModule::GenericKernelModule(TraceProcessorContext* context)
     : parser_(context) {
-  RegisterForField(TracePacket::kGenericTaskStateEventFieldNumber, context);
+  RegisterForField(TracePacket::kGenericKernelTaskStateEventFieldNumber,
+                   context);
 }
 
 void GenericKernelModule::ParseTracePacketData(
@@ -32,9 +33,9 @@ void GenericKernelModule::ParseTracePacketData(
     const TracePacketData&,
     uint32_t field_id) {
   switch (field_id) {
-    case TracePacket::kGenericTaskStateEventFieldNumber:
-      parser_.ParseGenericTaskStateEvent(ts,
-                                         decoder.generic_task_state_event());
+    case TracePacket::kGenericKernelTaskStateEventFieldNumber:
+      parser_.ParseGenericTaskStateEvent(
+          ts, decoder.generic_kernel_task_state_event());
       return;
   }
 }

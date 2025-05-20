@@ -15,5 +15,5 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  sources = [ "generic_event.proto" ]
+  sources = [ "generic_task_state.proto" ]
 }

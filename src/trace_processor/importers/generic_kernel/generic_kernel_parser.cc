@@ -26,7 +26,6 @@
 
 namespace perfetto::trace_processor {
 
-using protos::pbzero::TaskStateEnum;
 using protozero::ConstBytes;
 
 using PendingSchedInfo = SchedEventState::PendingSchedInfo;
@@ -59,6 +58,7 @@ GenericKernelParser::GenericKernelParser(TraceProcessorContext* context)
     : context_(context),
       running_string_id_(context_->storage->InternString("Running")),
       task_states_({
+          context_->storage->InternString("Unknown"),
           context_->storage->InternString("Created"),
           context_->storage->InternString("R"),
           context_->storage->InternString("Running"),
@@ -72,7 +72,7 @@ GenericKernelParser::GenericKernelParser(TraceProcessorContext* context)
 void GenericKernelParser::ParseGenericTaskStateEvent(
     int64_t ts,
     protozero::ConstBytes data) {
-  protos::pbzero::GenericTaskStateEvent::Decoder task_event(data);
+  protos::pbzero::GenericKernelTaskStateEvent::Decoder task_event(data);
 
   StringId comm_id = context_->storage->InternString(task_event.comm());
   const uint32_t cpu = static_cast<uint32_t>(task_event.cpu());
