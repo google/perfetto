@@ -68,7 +68,7 @@ class ArtHprofParser : public ChunkedTraceReader {
     // Whether we can read an entire record from the existing chunk.
     // This method does not advance the iterator.
     bool CanReadRecord() const override;
-    // Pushes more HPROF chunks in for parsing.
+    // Pushes more HPROF chunks in for parsin.
     void PushBlob(TraceBlobView&& data) override;
     // Shrinks the backing HPROF data to discard all consumed bytes.
     void Shrink() override;
@@ -79,6 +79,7 @@ class ArtHprofParser : public ChunkedTraceReader {
   };
 
   TraceProcessorContext* const context_;
+
   // Parser components
   std::unique_ptr<ByteIterator> byte_iterator_;
   std::unique_ptr<HeapGraphBuilder> parser_;

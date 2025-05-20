@@ -199,6 +199,7 @@ bool ArtHprofParser::TraceBlobViewIterator::CanReadRecord() const {
   return false;
 }
 
+
 void ArtHprofParser::TraceBlobViewIterator::PushBlob(TraceBlobView&& blob) {
   reader_.PushBack(std::move(blob));
 }
