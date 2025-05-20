@@ -139,8 +139,8 @@ class FtraceConfigMuxer {
       AtraceWrapper* atrace_wrapper,
       ProtoTranslationTable* table,
       SyscallTable syscalls,
-      std::map<std::string, std::vector<GroupAndName>> vendor_events,
       std::map<std::string, base::FlatSet<GroupAndName>> predefined_events,
+      std::map<std::string, std::vector<GroupAndName>> vendor_events,
       bool secondary_instance = false);
   virtual ~FtraceConfigMuxer();
 
@@ -288,9 +288,9 @@ class FtraceConfigMuxer {
   // enabled iff |active_configs_| is not empty.
   std::set<FtraceConfigId> active_configs_;
 
-  std::map<std::string, std::vector<GroupAndName>> vendor_events_;
-
   std::map<std::string, base::FlatSet<GroupAndName>> predefined_events_;
+
+  std::map<std::string, std::vector<GroupAndName>> vendor_events_;
 
   // If true, this muxer is for a secondary ftrace instance
   // (tracefs/instances/<name>). At the moment, we only support basic ftrace

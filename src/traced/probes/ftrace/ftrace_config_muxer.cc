@@ -350,16 +350,16 @@ FtraceConfigMuxer::FtraceConfigMuxer(
     AtraceWrapper* atrace_wrapper,
     ProtoTranslationTable* table,
     SyscallTable syscalls,
-    std::map<std::string, std::vector<GroupAndName>> vendor_events,
     std::map<std::string, base::FlatSet<GroupAndName>> predefined_events,
+    std::map<std::string, std::vector<GroupAndName>> vendor_events,
     bool secondary_instance)
     : ftrace_(ftrace),
       atrace_wrapper_(atrace_wrapper),
       table_(table),
       syscalls_(syscalls),
       current_state_(),
-      vendor_events_(std::move(vendor_events)),
       predefined_events_(std::move(predefined_events)),
+      vendor_events_(std::move(vendor_events)),
       secondary_instance_(secondary_instance) {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
 

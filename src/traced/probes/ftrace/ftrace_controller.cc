@@ -183,18 +183,18 @@ std::unique_ptr<FtraceController> FtraceController::Create(
 
   auto atrace_wrapper = std::make_unique<AtraceWrapperImpl>();
 
-  std::map<std::string, std::vector<GroupAndName>> vendor_evts =
-      GetAtraceVendorEvents(ftrace_procfs.get());
-
   std::map<std::string, base::FlatSet<GroupAndName>> predefined_events =
       predefined_tracepoints::GetAccessiblePredefinedTracePoints(
           table.get(), ftrace_procfs.get());
+
+  std::map<std::string, std::vector<GroupAndName>> vendor_evts =
+      GetAtraceVendorEvents(ftrace_procfs.get());
 
   SyscallTable syscalls = SyscallTable::FromCurrentArch();
 
   auto muxer = std::make_unique<FtraceConfigMuxer>(
       ftrace_procfs.get(), atrace_wrapper.get(), table.get(), syscalls,
-      vendor_evts, predefined_events);
+      predefined_events, vendor_evts);
   return std::unique_ptr<FtraceController>(new FtraceController(
       std::move(ftrace_procfs), std::move(table), std::move(atrace_wrapper),
       std::move(muxer), runner, observer));
@@ -861,7 +861,7 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
 
   auto muxer = std::make_unique<FtraceConfigMuxer>(
       ftrace_procfs.get(), atrace_wrapper_.get(), table.get(), syscalls,
-      vendor_evts, predefined_events,
+      predefined_events, vendor_evts,
       /* secondary_instance= */ true);
   return std::make_unique<FtraceInstanceState>(
       std::move(ftrace_procfs), std::move(table), std::move(muxer));
