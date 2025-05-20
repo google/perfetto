@@ -140,6 +140,7 @@ class FtraceConfigMuxer {
       ProtoTranslationTable* table,
       SyscallTable syscalls,
       std::map<std::string, std::vector<GroupAndName>> vendor_events,
+      std::map<std::string, std::set<GroupAndName>> predefined_events,
       bool secondary_instance = false);
   virtual ~FtraceConfigMuxer();
 
@@ -288,6 +289,8 @@ class FtraceConfigMuxer {
   std::set<FtraceConfigId> active_configs_;
 
   std::map<std::string, std::vector<GroupAndName>> vendor_events_;
+
+  std::map<std::string, std::set<GroupAndName>> predefined_events_;
 
   // If true, this muxer is for a secondary ftrace instance
   // (tracefs/instances/<name>). At the moment, we only support basic ftrace

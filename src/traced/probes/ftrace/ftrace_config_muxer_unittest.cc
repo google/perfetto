@@ -283,7 +283,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
 TEST_F(FtraceConfigMuxerTest, SecondaryInstanceDoNotSupportAtrace) {
   auto fake_table = CreateFakeTable();
   FtraceConfigMuxer model(&ftrace_, &atrace_wrapper_, fake_table.get(),
-                          GetSyscallTable(), {},
+                          GetSyscallTable(), {}, {},
                           /* secondary_instance= */ true);
 
   FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
@@ -303,7 +303,7 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
   std::unique_ptr<ProtoTranslationTable> table =
       CreateFakeTable(valid_compact_format);
   FtraceConfigMuxer muxer(&ftrace_, &atrace_wrapper_, table.get(),
-                          GetSyscallTable(), {});
+                          GetSyscallTable(), {}, {});
 
   ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
       .WillByDefault(Return("nop"));
@@ -371,6 +371,7 @@ class FtraceConfigMuxerFakeTableTest : public FtraceConfigMuxerTest {
                                                &atrace_wrapper_,
                                                table_.get(),
                                                GetSyscallTable(),
+                                               {},
                                                {});
 };
 
@@ -1227,6 +1228,7 @@ class FtraceConfigMuxerMockTableTest : public FtraceConfigMuxerTest {
                                                &atrace_wrapper_,
                                                mock_table_.get(),
                                                GetSyscallTable(),
+                                               {},
                                                {});
 };
 
