@@ -47,6 +47,8 @@ class DeobfuscationModule : public ProtoImporterModule {
   void ParseDeobfuscationMappingForHeapGraph(
       const protos::pbzero::DeobfuscationMapping::Decoder&,
       HeapGraphTracker*);
+  void ParseDeobfuscationMappingForProfiles(
+      const protos::pbzero::DeobfuscationMapping::Decoder&);
   void ParseDeobfuscationMapping(protozero::ConstBytes);
 
   TraceProcessorContext* context_;
