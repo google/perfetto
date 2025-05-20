@@ -35,22 +35,22 @@ class GenericKernelParser {
  private:
   enum SchedSwitchType {
     // No context switch event was handled.
-    SCHED_SWITCH_NONE = 0,
+    kNone = 0,
     // A new context switch slice was opened
     // without any side effects.
-    SCHED_SWITCH_START,
+    kStart,
     // A new context switch slice was opened
     // and the previous running thread's slice
     // was closed without knowing the end_state.
-    SCHED_SWITCH_START_WITH_PENDING,
+    kStartWithPending,
     // The previously started context switch slice
     // was closed.
-    SCHED_SWITCH_CLOSE,
+    kClose,
     // A closed context switch with unknown end
     // state was updated with a new valid end
     // state. No new context switch slice was
     // opened/closed.
-    SCHED_SWITCH_UPDATE_END_STATE,
+    kUpdateEndState,
   };
 
   SchedSwitchType PushSchedSwitch(int64_t ts,
@@ -78,6 +78,7 @@ class GenericKernelParser {
       pending_state_per_utid_;
 
   StringId running_string_id_;
+  const std::vector<StringId> task_states_;
 };
 
 }  // namespace perfetto::trace_processor

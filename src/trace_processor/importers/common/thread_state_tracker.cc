@@ -209,11 +209,21 @@ void ThreadStateTracker::ClosePendingState(int64_t end_ts,
   }
 }
 
-void ThreadStateTracker::UpdateOpenState(UniqueTid utid,
+void ThreadStateTracker::PushThreadState(int64_t ts,
+                                         UniqueTid utid,
                                          StringId state,
-                                         std::optional<uint16_t> cpu,
-                                         std::optional<UniqueTid> waker_utid,
-                                         std::optional<uint16_t> common_flags) {
+                                         std::optional<uint16_t> cpu) {
+  ClosePendingState(ts, utid, false /*data_loss*/);
+
+  AddOpenState(ts, utid, state, cpu);
+}
+
+void ThreadStateTracker::UpdatePendingState(
+    UniqueTid utid,
+    StringId state,
+    std::optional<uint16_t> cpu,
+    std::optional<UniqueTid> waker_utid,
+    std::optional<uint16_t> common_flags) {
   // Discard update if there is no open state to close.
   if (!HasPreviousRowNumbersForUtid(utid))
     return;

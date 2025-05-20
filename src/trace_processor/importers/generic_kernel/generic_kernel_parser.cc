@@ -31,16 +31,6 @@ using protozero::ConstBytes;
 
 using PendingSchedInfo = SchedEventState::PendingSchedInfo;
 
-constexpr std::array<const char*, 8> kTaskStates = {
-    "Created", "R", "Running", "S", "D", "T", "Z", "X"};
-
-PERFETTO_ALWAYS_INLINE
-StringId GenericKernelParser::TaskStateToStringId(size_t state) {
-  return state < kTaskStates.size()
-             ? context_->storage->InternString(kTaskStates[state])
-             : kNullStringId;
-}
-
 PERFETTO_ALWAYS_INLINE
 void GenericKernelParser::InsertPendingStateInfoForTid(
     UniqueTid utid,
@@ -48,7 +38,6 @@ void GenericKernelParser::InsertPendingStateInfoForTid(
   if (utid >= pending_state_per_utid_.size()) {
     pending_state_per_utid_.resize(utid + 1);
   }
-  // Overrides any old hanging slice for the utid
   pending_state_per_utid_[utid] = sched_info;
 }
 
@@ -68,7 +57,17 @@ void GenericKernelParser::RemovePendingStateInfoForTid(UniqueTid utid) {
 
 GenericKernelParser::GenericKernelParser(TraceProcessorContext* context)
     : context_(context),
-      running_string_id_(context_->storage->InternString("Running")) {}
+      running_string_id_(context_->storage->InternString("Running")),
+      task_states_({
+          context_->storage->InternString("Created"),
+          context_->storage->InternString("R"),
+          context_->storage->InternString("Running"),
+          context_->storage->InternString("S"),
+          context_->storage->InternString("D"),
+          context_->storage->InternString("T"),
+          context_->storage->InternString("Z"),
+          context_->storage->InternString("X"),
+      }) {}
 
 void GenericKernelParser::ParseGenericTaskStateEvent(
     int64_t ts,
@@ -86,7 +85,7 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
       tid, comm_id, ThreadNamePriority::kGenericKernelTask);
 
   StringId state_string_id =
-      TaskStateToStringId(static_cast<size_t>(task_event.state()));
+      task_states_[static_cast<size_t>(task_event.state())];
   if (state_string_id == kNullStringId) {
     context_->storage->IncrementStats(stats::task_state_invalid);
   }
@@ -97,38 +96,32 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
       *sched_event_state_.GetPendingSchedInfoForCpu(cpu);
 
   // Handle context switches
-  auto schedSwitchType =
+  auto sched_switch_type =
       PushSchedSwitch(ts, cpu, tid, utid, state_string_id, prio);
 
   // Update the ThreadState table.
-  switch (schedSwitchType) {
-    case SCHED_SWITCH_UPDATE_END_STATE: {
-      ThreadStateTracker::GetOrCreate(context_)->UpdateOpenState(
+  switch (sched_switch_type) {
+    case kUpdateEndState: {
+      ThreadStateTracker::GetOrCreate(context_)->UpdatePendingState(
           utid, state_string_id);
       break;
     }
-    case SCHED_SWITCH_START_WITH_PENDING: {
-      ThreadStateTracker::GetOrCreate(context_)->ClosePendingState(
-          ts, prev_pending_sched.last_utid, false /*data_loss*/);
-
-      ThreadStateTracker::GetOrCreate(context_)->AddOpenState(
+    case kStartWithPending: {
+      ThreadStateTracker::GetOrCreate(context_)->PushThreadState(
           ts, prev_pending_sched.last_utid, kNullStringId);
 
       // Create the unknown thread state for the previous thread and
       // proceed to update the current thread's state.
       [[fallthrough]];
     }
-    case SCHED_SWITCH_START:
-    case SCHED_SWITCH_CLOSE:
-    case SCHED_SWITCH_NONE: {
-      ThreadStateTracker::GetOrCreate(context_)->ClosePendingState(
-          ts, utid, false /*data_loss*/);
-
+    case kStart:
+    case kClose:
+    case kNone: {
       std::optional<uint16_t> cpu_op = state_string_id == running_string_id_
                                            ? std::optional{cpu}
                                            : std::nullopt;
 
-      ThreadStateTracker::GetOrCreate(context_)->AddOpenState(
+      ThreadStateTracker::GetOrCreate(context_)->PushThreadState(
           ts, utid, state_string_id, cpu_op);
       break;
     }
@@ -160,13 +153,13 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
   auto* pending_sched = sched_event_state_.GetPendingSchedInfoForCpu(cpu);
   uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
   if (state_string_id == running_string_id_) {
-    auto rc = SCHED_SWITCH_START;
+    auto rc = kStart;
     // Close the previous sched slice
     if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
       context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
                                                        kNullStringId);
       InsertPendingStateInfoForTid(pending_sched->last_utid, *pending_sched);
-      rc = SCHED_SWITCH_START_WITH_PENDING;
+      rc = kStartWithPending;
     }
     // Start a new sched slice for the new task.
     auto new_slice_idx =
@@ -185,7 +178,7 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
                                                      state_string_id);
     // Clear the pending slice
     *pending_sched = SchedEventState::PendingSchedInfo();
-    return SCHED_SWITCH_CLOSE;
+    return kClose;
   }
   // Add end state to a previously ended context switch if applicable.
   // For the end state to be added the timestamp of the event must match
@@ -194,14 +187,15 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
   if (hanging_sched.has_value()) {
     auto sched_slice_idx = hanging_sched->pending_slice_storage_idx;
     auto close_ts =
-        context_->sched_event_tracker->GetCloseTimestamp(sched_slice_idx);
+        context_->sched_event_tracker->GetEndTimestampForPendingSlice(
+            sched_slice_idx);
     if (ts == close_ts) {
-      context_->sched_event_tracker->SetEndStateToSlice(sched_slice_idx,
-                                                        state_string_id);
+      context_->sched_event_tracker->SetEndStateForPendingSlice(
+          sched_slice_idx, state_string_id);
       RemovePendingStateInfoForTid(utid);
-      return SCHED_SWITCH_UPDATE_END_STATE;
+      return kUpdateEndState;
     }
   }
-  return SCHED_SWITCH_NONE;
+  return kNone;
 }
 }  // namespace perfetto::trace_processor
