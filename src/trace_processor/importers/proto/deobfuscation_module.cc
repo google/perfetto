@@ -18,6 +18,9 @@
 
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
+#include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
+#include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -30,7 +33,6 @@ using ::protozero::ConstBytes;
 
 DeobfuscationModule::DeobfuscationModule(TraceProcessorContext* context)
     : context_(context) {
-  // note: deobfuscation mappings also handled by ProfileModule.
   RegisterForField(TracePacket::kDeobfuscationMappingFieldNumber, context);
 }
 
@@ -89,6 +91,7 @@ void DeobfuscationModule::ParseDeobfuscationMapping(ConstBytes blob) {
       blob.data, blob.size);
   ParseDeobfuscationMappingForHeapGraph(deobfuscation_mapping,
                                         heap_graph_tracker);
+  ParseDeobfuscationMappingForProfiles(deobfuscation_mapping);
 }
 
 void DeobfuscationModule::ParseDeobfuscationMappingForHeapGraph(
@@ -152,6 +155,73 @@ void DeobfuscationModule::ParseDeobfuscationMappingForHeapGraph(
       }
     }
   }
+}
+
+void DeobfuscationModule::ParseDeobfuscationMappingForProfiles(
+    const protos::pbzero::DeobfuscationMapping::Decoder&
+        deobfuscation_mapping) {
+  DeobfuscationMappingTable deobfuscation_mapping_table;
+  if (deobfuscation_mapping.package_name().size == 0)
+    return;
+
+  auto opt_package_name_id = context_->storage->string_pool().GetId(
+      deobfuscation_mapping.package_name());
+  auto opt_memfd_id = context_->storage->string_pool().GetId("memfd");
+  if (!opt_package_name_id && !opt_memfd_id)
+    return;
+
+  for (auto class_it = deobfuscation_mapping.obfuscated_classes(); class_it;
+       ++class_it) {
+    protos::pbzero::ObfuscatedClass::Decoder cls(*class_it);
+    base::FlatHashMap<StringId, StringId> obfuscated_to_deobfuscated_members;
+    for (auto member_it = cls.obfuscated_methods(); member_it; ++member_it) {
+      protos::pbzero::ObfuscatedMember::Decoder member(*member_it);
+      std::string merged_obfuscated = cls.obfuscated_name().ToStdString() +
+                                      "." +
+                                      member.obfuscated_name().ToStdString();
+      auto merged_obfuscated_id = context_->storage->string_pool().GetId(
+          base::StringView(merged_obfuscated));
+      if (!merged_obfuscated_id)
+        continue;
+      std::string merged_deobfuscated =
+          FullyQualifiedDeobfuscatedName(cls, member);
+
+      std::vector<tables::StackProfileFrameTable::Id> frames;
+      if (opt_package_name_id) {
+        const std::vector<tables::StackProfileFrameTable::Id> pkg_frames =
+            context_->stack_profile_tracker->JavaFramesForName(
+                {*merged_obfuscated_id, *opt_package_name_id});
+        frames.insert(frames.end(), pkg_frames.begin(), pkg_frames.end());
+      }
+      if (opt_memfd_id) {
+        const std::vector<tables::StackProfileFrameTable::Id> memfd_frames =
+            context_->stack_profile_tracker->JavaFramesForName(
+                {*merged_obfuscated_id, *opt_memfd_id});
+        frames.insert(frames.end(), memfd_frames.begin(), memfd_frames.end());
+      }
+
+      for (tables::StackProfileFrameTable::Id frame_id : frames) {
+        auto* frames_tbl =
+            context_->storage->mutable_stack_profile_frame_table();
+        auto rr = *frames_tbl->FindById(frame_id);
+        rr.set_deobfuscated_name(context_->storage->InternString(
+            base::StringView(merged_deobfuscated)));
+      }
+      obfuscated_to_deobfuscated_members[context_->storage->InternString(
+          member.obfuscated_name())] =
+          context_->storage->InternString(member.deobfuscated_name());
+    }
+    // Members can contain a class name (e.g "ClassA.FunctionF")
+    deobfuscation_mapping_table.AddClassTranslation(
+        DeobfuscationMappingTable::PackageId{
+            deobfuscation_mapping.package_name().ToStdString(),
+            deobfuscation_mapping.version_code()},
+        context_->storage->InternString(cls.obfuscated_name()),
+        context_->storage->InternString(cls.deobfuscated_name()),
+        std::move(obfuscated_to_deobfuscated_members));
+  }
+  context_->args_translation_table->AddDeobfuscationMappingTable(
+      std::move(deobfuscation_mapping_table));
 }
 
 }  // namespace perfetto::trace_processor

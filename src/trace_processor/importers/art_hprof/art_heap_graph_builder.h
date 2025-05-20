@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/art_hprof/art_hprof_types.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/trace_blob_view_reader.h"
 
 #include <cstdint>
 #include <memory>
@@ -48,9 +49,11 @@ class ByteIterator {
   virtual bool ReadString(std::string& str, size_t length) = 0;
   virtual bool ReadBytes(std::vector<uint8_t>& data, size_t length) = 0;
   virtual bool SkipBytes(size_t count) = 0;
+  virtual void PushBlob(TraceBlobView&& data) = 0;
 
   virtual size_t GetPosition() const = 0;
-  virtual bool IsEof() const = 0;
+  virtual bool CanReadRecord() const = 0;
+  virtual void Shrink() = 0;
 };
 
 // Statistics collected during heap graph building
@@ -144,6 +147,11 @@ class HeapGraphBuilder {
   // Parse the HPROF file
   bool Parse();
 
+  // Parse the HPROF file header
+  bool ParseHeader();
+
+  void PushBlob(TraceBlobView&& data);
+
   // Build and return the final heap graph
   HeapGraph BuildGraph();
 
@@ -151,9 +159,6 @@ class HeapGraphBuilder {
   //--------------------------------------------------------------------------
   // Phase 1: File Header & Record Parsing
   //--------------------------------------------------------------------------
-  // Parse the HPROF file header
-  bool ParseHeader();
-
   // Parse a top-level HPROF record
   bool ParseRecord();
 

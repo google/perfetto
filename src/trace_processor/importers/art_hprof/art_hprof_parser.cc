@@ -25,12 +25,19 @@ ArtHprofParser::ArtHprofParser(TraceProcessorContext* ctx) : context_(ctx) {}
 ArtHprofParser::~ArtHprofParser() = default;
 
 base::Status ArtHprofParser::Parse(TraceBlobView blob) {
-  reader_.PushBack(std::move(blob));
-  byte_iterator_ = std::make_unique<TraceBlobViewIterator>(std::move(reader_));
+  bool is_init = false;
   if (!parser_) {
+    byte_iterator_ = std::make_unique<TraceBlobViewIterator>();
     parser_ = std::make_unique<HeapGraphBuilder>(
         std::unique_ptr<ByteIterator>(byte_iterator_.release()), context_);
+    is_init = true;
   }
+  parser_->PushBlob(std::move(blob));
+
+  if (is_init && !parser_->ParseHeader()) {
+    context_->storage->IncrementStats(stats::hprof_header_errors);
+  }
+
   parser_->Parse();
 
   return base::OkStatus();
@@ -63,9 +70,8 @@ base::Status ArtHprofParser::NotifyEndOfFile() {
 }
 
 // TraceBlobViewIterator implementation
-ArtHprofParser::TraceBlobViewIterator::TraceBlobViewIterator(
-    util::TraceBlobViewReader&& reader)
-    : reader_(std::move(reader)), current_offset_(0) {}
+ArtHprofParser::TraceBlobViewIterator::TraceBlobViewIterator()
+    : current_offset_(0) {}
 
 ArtHprofParser::TraceBlobViewIterator::~TraceBlobViewIterator() = default;
 
@@ -153,8 +159,37 @@ size_t ArtHprofParser::TraceBlobViewIterator::GetPosition() const {
   return current_offset_;
 }
 
-bool ArtHprofParser::TraceBlobViewIterator::IsEof() const {
-  return !reader_.SliceOff(current_offset_, 1);
+bool ArtHprofParser::TraceBlobViewIterator::CanReadRecord() const {
+  const size_t base_offset = current_offset_ + kRecordLengthOffset;
+  uint8_t bytes[4];
+
+  auto slice = reader_.SliceOff(base_offset, 4);
+  if (!slice) {
+    return false;
+  }
+
+  memcpy(bytes, slice->data(), 4);
+
+  uint64_t record_length = (static_cast<uint32_t>(bytes[0]) << 24) |
+                           (static_cast<uint32_t>(bytes[1]) << 16) |
+                           (static_cast<uint32_t>(bytes[2]) << 8) |
+                           static_cast<uint32_t>(bytes[3]);
+
+  // Check if we can read an entire record from the chunk.
+  // If we can't we should fail so that we can receive another
+  // chunk to continue.
+  if (reader_.SliceOff(current_offset_, record_length)) {
+    return true;
+  }
+  return false;
+}
+
+void ArtHprofParser::TraceBlobViewIterator::PushBlob(TraceBlobView&& blob) {
+  reader_.PushBack(std::move(blob));
+}
+
+void ArtHprofParser::TraceBlobViewIterator::Shrink() {
+  reader_.PopFrontUntil(current_offset_);
 }
 
 void ArtHprofParser::PopulateClasses(
