@@ -266,7 +266,17 @@ class Object {
       return array_elements_.size() * id_size;
     }
 
-    // Default size (e.g., for CLASS objects)
+    // For class objects, calculate size based on static fields
+    if (type_ == ObjectType::kClass) {
+      size_t size = 0;
+      for (const auto& field : fields_) {
+        size += field.GetSize();
+      }
+      // Use a minimum size if there are no static fields
+      return size > 0 ? size : 8;
+    }
+
+    // Default size for other objects
     return 0;
   }
 
