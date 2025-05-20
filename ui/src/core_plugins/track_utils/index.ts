@@ -65,13 +65,15 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
         const track = await ctx.omnibox.prompt('Choose a track...', {
           values: tracksWithUris,
-          getName: (track) => track.title,
+          getName: (track) => track.fullPath.join(' \u2023 '),
         });
         track &&
           ctx.selection.selectTrack(track.uri, {
             scrollToSelection: true,
           });
       },
+      // This is analogous to the 'Find file' hotkey in VSCode.
+      defaultHotkey: '!Mod+P',
     });
 
     ctx.commands.registerCommand({
