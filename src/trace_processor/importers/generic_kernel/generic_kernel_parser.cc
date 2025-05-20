@@ -22,7 +22,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "protos/perfetto/trace/generic_kernel/generic_event.pbzero.h"
+#include "protos/perfetto/trace/generic_kernel/generic_task_state.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -112,7 +112,7 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
 
       // Create the unknown thread state for the previous thread and
       // proceed to update the current thread's state.
-      [[fallthrough]];
+      PERFETTO_FALLTHROUGH;
     }
     case kStart:
     case kClose:
