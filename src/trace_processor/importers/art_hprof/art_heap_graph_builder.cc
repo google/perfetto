@@ -40,24 +40,18 @@ HeapGraphBuilder::HeapGraphBuilder(std::unique_ptr<ByteIterator> iterator,
 HeapGraphBuilder::~HeapGraphBuilder() = default;
 
 bool HeapGraphBuilder::Parse() {
-  // Phase 1: Parse header
-  if (!ParseHeader()) {
-    context_->storage->IncrementStats(stats::hprof_header_errors);
-    return false;
-  }
-
-  // Phase 2: Parse records until end of file
   size_t record_count = 0;
-  while (!iterator_->IsEof()) {
+  while (ParseRecord()) {
     record_count++;
-    if (!ParseRecord()) {
-      break;
-    }
   }
 
   stats_.AddRecordCount(record_count);
 
   return true;
+}
+
+void HeapGraphBuilder::PushBlob(TraceBlobView&& blob) {
+  iterator_->PushBlob(std::move(blob));
 }
 
 HeapGraph HeapGraphBuilder::BuildGraph() {
@@ -113,6 +107,14 @@ bool HeapGraphBuilder::ParseHeader() {
 }
 
 bool HeapGraphBuilder::ParseRecord() {
+  // Shrinks the buffer to the current_offset we've parsed so far.
+  // It doesn't matter if we do it at the start or end of the method.
+  // We'll either shrink the n - 1 last records or n last records.
+  iterator_->Shrink();
+  if (!iterator_->CanReadRecord()) {
+    return false;
+  }
+
   uint8_t tag_value;
   if (!iterator_->ReadU1(tag_value)) {
     return false;
@@ -210,7 +212,7 @@ bool HeapGraphBuilder::ParseHeapDump(size_t length) {
   size_t end_position = iterator_->GetPosition() + length;
 
   // Parse heap dump records until we reach the end of the segment
-  while (iterator_->GetPosition() < end_position && !iterator_->IsEof()) {
+  while (iterator_->GetPosition() < end_position) {
     if (!ParseHeapDumpRecord()) {
       return false;
     }

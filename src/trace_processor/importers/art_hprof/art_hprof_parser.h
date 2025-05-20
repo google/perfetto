@@ -35,6 +35,7 @@
 namespace perfetto::trace_processor::art_hprof {
 constexpr const char* kJavaLangObject = "java.lang.Object";
 constexpr const char* kUnknownClassKind = "[unknown class kind]";
+constexpr size_t kRecordLengthOffset = 5;
 
 class ArtHprofParser : public ChunkedTraceReader {
  public:
@@ -65,7 +66,7 @@ class ArtHprofParser : public ChunkedTraceReader {
 
   class TraceBlobViewIterator : public ByteIterator {
    public:
-    explicit TraceBlobViewIterator(util::TraceBlobViewReader&& reader);
+    explicit TraceBlobViewIterator();
     ~TraceBlobViewIterator() override;
 
     bool ReadU1(uint8_t& value) override;
@@ -76,7 +77,13 @@ class ArtHprofParser : public ChunkedTraceReader {
     bool ReadBytes(std::vector<uint8_t>& data, size_t length) override;
     bool SkipBytes(size_t count) override;
     size_t GetPosition() const override;
-    bool IsEof() const override;
+    // Whether we can read an entire record from the existing chunk.
+    // This method does not advance the iterator.
+    bool CanReadRecord() const override;
+    // Pushes more HPROF chunks in for parsin.
+    void PushBlob(TraceBlobView&& data) override;
+    // Shrinks the backing HPROF data to discard all consumed bytes.
+    void Shrink() override;
 
    private:
     util::TraceBlobViewReader reader_;
@@ -84,7 +91,6 @@ class ArtHprofParser : public ChunkedTraceReader {
   };
 
   TraceProcessorContext* const context_;
-  util::TraceBlobViewReader reader_;
 
   // Parser components
   std::unique_ptr<ByteIterator> byte_iterator_;
