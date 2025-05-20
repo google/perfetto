@@ -12286,7 +12286,7 @@ enum FtraceClock {
 message GenericKernelTaskStateEvent {
   // CPU in which the event occured.
   // This field is only relevant with the TASK_STATE_RUNNING state. There is
-  // specific meaning to the cpu field in a non-running state event.
+  // no specific meaning to the cpu field in a non-running state event.
   optional int32 cpu = 1;
   // Command name for the thread.
   optional string comm = 2;
