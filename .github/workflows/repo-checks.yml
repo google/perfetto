@@ -36,8 +36,9 @@ jobs:
           fetch-depth: 1
 
       # Fetch the upstream branch as well, so we can diff and see the list of
-      # changed files.
+      # changed files (unless this is a post-submit test).
       - name: Fetch upstream branch
+        if: ${{ github.base_ref != '' }}
         run: git fetch origin ${{ github.base_ref }} --depth=1
 
       - name: Setup ccache
@@ -48,6 +49,9 @@ jobs:
           install-flags: --ui
 
       - name: Run tools/presubmits
+        # base_ref is "" in post-submit, skip the presubmit check in postsubmit
+        # as there is nothing do diff against.
+        if: ${{ github.base_ref != '' }}
         run: tools/run_presubmit --merge-base origin/${{ github.base_ref }}
 
       - name: Check merged protos (tools/gen_all)

@@ -84,7 +84,7 @@ function gpuRenderStages(): RecordProbe {
       'Records GPU render stage events. To check if your device supports this feature run:' +
       '```adb shell getprop graphics.gpu.profiler.support```' +
       'To enable the event producer, run:' +
-      '```adb shell setprop debug.graphics.gpu.profiler.perfetto 1\nadb shell gpu_counter_producer```',
+      '```adb shell setprop debug.graphics.gpu.profiler.perfetto 1```',
     supportedPlatforms: ['ANDROID'],
     genConfig: function (tc: TraceConfigBuilder) {
       tc.addDataSource('gpu.renderstages', 'default');
@@ -98,7 +98,7 @@ function gpuMaliCounters(): RecordProbe {
     title: 'Mali GPU Counters',
     description:
       'Records Mali GPU performance counters (Available on Valhall+).' +
-      'To enable the event producer, run: ```adb shell start gpu_probe```',
+      'To enable the event producer, run: ```adb shell gpu_counter_producer```',
     supportedPlatforms: ['ANDROID'],
     genConfig: function (tc: TraceConfigBuilder) {
       const cfg = tc.addDataSource('gpu.counters', 'default');
@@ -144,9 +144,7 @@ function gpuMaliFenceEvents(): RecordProbe {
   return {
     id: 'gpu_mali_fence_events',
     title: 'Mali Fence Events',
-    description:
-      'Records Mali fence events (Available on Valhall+).' +
-      'To enable the event producer, run: ```adb shell start gpu_probe```',
+    description: 'Records Mali fence events (Available on Valhall+).',
     supportedPlatforms: ['ANDROID'],
     genConfig: function (tc: TraceConfigBuilder) {
       const cfg = tc.addDataSource('linux.ftrace', 'default');
