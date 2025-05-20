@@ -96,6 +96,183 @@ is still encountered in several situations:
 - **Original `about:tracing` tool context:**
   [The Trace Event Profiling Tool (Chromium Docs)](https://www.chromium.org/developers/how-tos/trace-event-profiling-tool/)
 
+## Firefox Profiler JSON format
+
+**Description:** The Firefox Profiler JSON format is primarily known for its use
+by the [Firefox Profiler](https://profiler.firefox.com/), a web-based tool for
+performance analysis. While the format can describe various types of timeline
+data including "markers" (similar to trace events), its main strength, and
+Perfetto's primary interest in it, lies in representing **CPU profiling data**,
+especially sampled call stacks. This makes it an excellent target format for
+visualizing flamegraphs and call trees from various profiling sources.
+
+**Common Scenarios:** The most common reason Perfetto users encounter this
+format is for:
+
+- **Visualizing Linux `perf` (or Android `simpleperf`) CPU profiles:**
+  Developers often collect CPU samples using `perf record` on Linux or
+  `simpleperf` on Android. These native profiles can then be converted into the
+  Firefox Profiler JSON format to leverage the interactive and user-friendly
+  visualizations offered by tools like `profiler.firefox.com` or, as relevant
+  here, for import into Perfetto.
+- **Using cross-platform profiling tools:** Some profiling tools and libraries
+  are designed to output or convert their data into this format, facilitating
+  analysis with the Firefox Profiler UI.
+- **Analyzing profiles from Firefox:** Less commonly for Perfetto users, one
+  might have profiles captured directly within the Firefox browser itself.
+
+**Perfetto Support:**
+
+- **Perfetto UI & Trace Processor:** Perfetto provides _partial support_ for the
+  Firefox Profiler JSON format, with a strong focus on **CPU sample data**.
+  - When you open a Firefox Profiler JSON file, Perfetto attempts to parse call
+    stacks, sample timestamps, and thread/process information.
+  - This data is imported into standard Perfetto SQL tables like `perf_sample`,
+    `stack_profile_callsite`, `stack_profile_frame`, and
+    `stack_profile_mapping`.
+  - In the Perfetto UI, this allows for the visualization of CPU profiles as
+    flamegraphs.
+- **Limitations:**
+  - Support for Firefox Profiler "markers" (timeline events like slices or
+    instants) is generally **not available** in Perfetto.
+  - Other advanced features specific to the Firefox Profiler's internal data
+    representation or UI hints (like custom track colors or rich
+    browser-specific metadata) are typically not imported.
+  - **The primary expectation when loading this format into Perfetto should be
+    to analyze CPU callstack samples.**
+
+**How to Generate:** The most relevant generation path for Perfetto users
+involves converting native CPU profiles from Linux `perf` or Android
+`simpleperf`.
+
+<?tabs>
+
+TAB: <code>perf</code> profiles on Linux
+
+1.  **Record a profile with `perf record`:** Capture CPU samples
+    for a specific command/process or  system-wide, generating a `perf.data` file.
+
+    ```bash
+    # Example: Profile at 99Hz for 1 seconds with DWARF call graphs
+    sudo perf record -F 99 -g --call-graph dwarf --output perf.data --  find ~ -name 'foo'
+    ```
+
+    Refer to `man perf-record` for detailed command options. Ensure debug
+    symbols for your binaries are accessible for proper symbolization.
+
+2.  **Convert `perf.data` to Firefox Profiler JSON:** Use the `gecko` report
+    script with `perf script`.
+
+    ```bash
+    sudo perf script report gecko --save-only my_linux_profile.json
+    ```
+
+    This command processes the `perf.data` file and outputs `my_linux_profile.json` in a
+    format compatible with the Firefox Profiler. If `report gecko` is not available
+    in your `perf` version, consult your distribution's documentation for
+    alternatives or additional `perf` scripting packages.
+
+3. **Open this trace in ui.perfetto.dev**
+
+    Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) and upload the `my_linux_profile.json`
+    file into the UI. Once the trace opens, you should be able select either individual
+    CPU samples or ranges of time containing CPU samples to get a flamegraph of all
+    the samples in that region.
+
+    Here's an example of what that looks like
+
+    ![](/docs/images/perf-profile-in-ui.png)
+
+TAB: <code>simpleperf</code> profiles on Android
+
+On Android, `simpleperf` is used for CPU profiling. The necessary Python scripts
+(`app_profiler.py`, `gecko_profile_generator.py`) can be obtained by cloning
+them directly from the Android Open Source Project (AOSP).
+
+1.  **Clone the `simpleperf` scripts from AOSP:** This command performs a
+    shallow clone of the `platform/system/extras` repository, which contains
+    `simpleperf` and its scripts. This helps to minimize the download size.
+
+    ```bash
+    git clone https://android.googlesource.com/platform/system/extras --depth=1
+    ```
+
+    After cloning, the scripts will be located in the `extras/simpleperf/`
+    subdirectory (e.g., `./extras/simpleperf/app_profiler.py`). **Note:** This
+    method provides the scripts. You will also need a compatible `simpleperf`
+    binary. This binary is typically available on your Android device (if it
+    supports profiling) and `app_profiler.py` will attempt to use it. Ensure any
+    Python dependencies for the scripts are also met in your host environment.
+
+2.  **Record a profile using `app_profiler.py`:** This script automates
+    profiling a specific app.
+
+    ```bash
+    # Path to the simpleperf directory from your AOSP clone
+    SIMPLEPERF_SCRIPT_DIR=./extras/simpleperf
+
+    # Replace <your.app.package.name>
+    python ${SIMPLEPERF_SCRIPT_DIR}/app_profiler.py \
+        --app <your.app.package.name> \
+        -r "-g --duration 10" \
+        -o ./simpleperf_output
+    ```
+
+    - This command profiles the specified app for 10 seconds with DWARF call
+      graphs (`-g`).
+    - It saves `perf.data` and a `binary_cache` (for symbols) into the
+      `./simpleperf_output` directory on your host machine.
+    - For more details, run
+      `python ${SIMPLEPERF_SCRIPT_DIR}/app_profiler.py --help` and consult the
+      [Simpleperf documentation](https://android.googlesource.com/platform/system/extras/+/master/simpleperf/README.md).
+
+3.  **Convert `simpleperf` data to Firefox Profiler JSON:** Use the
+    `gecko_profile_generator.py` script from the same AOSP checkout.
+      ```bash
+      # Path to the simpleperf directory from your AOSP clone
+      SIMPLEPERF_SCRIPT_DIR=./extras/simpleperf
+
+      python ${SIMPLEPERF_SCRIPT_DIR}/gecko_profile_generator.py \
+          -i ./simpleperf_output/perf.data \
+          --symfs ./simpleperf_output/binary_cache \
+          -o my_android_profile.json
+      ```
+
+    * This converts the `simpleperf` data, using symbols from the `binary_cache`, into the Firefox Profiler JSON format.
+
+4. **Open this trace in ui.perfetto.dev**
+
+    Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) and upload the `my_android_profile.json`
+    file into the UI. Once the trace opens, you should be able select either individual
+    CPU samples or ranges of time containing CPU samples to get a flamegraph of all
+    the samples in that region.
+
+    Here's an example of what that looks like
+
+    ![](/docs/images/perf-profile-in-ui.png)
+
+</tabs?>
+
+Other methods (less common for Perfetto import scenarios):
+
+- **From Firefox Browser:** Using the built-in profiler (e.g., via
+  `about:profiling` or developer tools) and saving the profile.
+
+**External Resources:**
+
+- **Firefox Profiler Tool:**
+  [profiler.firefox.com](https://profiler.firefox.com/)
+- **Documentation on the format (can be technical):**
+  - [Gecko Profile Format (GitHub)](https://github.com/firefox-devtools/profiler/blob/main/docs-developer/gecko-profile-format.md)
+  - [Processed Profile Format (GitHub)](https://github.com/firefox-devtools/profiler/blob/main/docs-developer/processed-profile-format.md)
+- **Linux `perf` Tool:**
+  [perf Wiki](https://perf.wiki.kernel.org/index.php/Main_Page),
+  [man page](https://man7.org/linux/man-pages/man1/perf.1.html)
+- **Android `simpleperf` (AOSP):** Source and documentation can be found within
+  the `platform/system/extras` repository in AOSP.
+- **Android `simpleperf` Documentation (overview):**
+  [Simpleperf Introduction (Android GoogleSource)](https://android.googlesource.com/platform/system/extras/+/master/simpleperf/README.md)
+
 ## Android systrace format
 
 **Description:** Android Systrace was the **legacy** system-wide tracing tool
@@ -153,6 +330,95 @@ trace collection on Android 9 (Pie) or newer.**
 - **Understanding ATrace (Userspace Annotations - relevant for data in
   Systrace):**
   [ATrace: Android system and app trace events](/docs/data-sources/atrace.md)
+
+## Perf textual format (from `perf script`)
+
+**Description:** The "Perf textual format" typically refers to the
+human-readable textual output generated by the `perf script` command on Linux.
+This command processes a `perf.data` file (created by `perf record`) and prints
+a chronological log of the recorded events. The output is highly configurable
+via `perf script` options but commonly includes CPU samples with their call
+stacks, timestamps, process/thread identifiers, CPU number, and event names.
+
+**Common Scenarios:** This format is often used for:
+
+- Manually inspecting the contents of a `perf.data` file for quick analysis or
+  debugging.
+- As an intermediate input for various third-party scripts and tools, such as
+  Brendan Gregg's [FlameGraph](https://github.com/brendangregg/FlameGraph)
+  scripts, which parse `perf script` output to generate flame graphs.
+- Working with existing `perf script` outputs from older profiling sessions or
+  automated systems.
+
+**Perfetto Support:**
+
+- **Perfetto UI & Trace Processor:** Perfetto's Trace Processor can parse
+  textual output generated by `perf script`.
+  - The primary focus of this importer is on **CPU samples and their associated
+    call stacks**.
+  - When such data is parsed, it populates Perfetto's standard profiling tables
+    (e.g., `cpu_profile_stack_sample_table` for the samples, and
+    `stack_profile_callsite`, `stack_profile_frame`, `stack_profile_mapping` for
+    the call stack information).
+  - This allows the CPU profile data from the `perf script` output to be
+    visualized as a flamegraph in the Perfetto UI and queried using SQL.
+- **Limitations:**
+  - The output format of `perf script` is very flexible depending on the
+    arguments passed to it (e.g., using the `-F` flag). Perfetto's parser likely
+    expects a common or default-like output structure for samples. Highly
+    customized or unusual `perf script` textual outputs might not parse
+    correctly or completely.
+  - Support for other types of events (beyond CPU samples with callstacks) that
+    `perf script` might output (e.g., raw tracepoints if `-D` is used, or other
+    event types) may be limited when importing directly as "Perf textual
+    format."
+  - For robust visualization of CPU profiles from `perf.data` with a
+    feature-rich intermediate format, consider converting `perf.data` to the
+    [Firefox Profiler JSON format](#firefox-profiler-json-format), which
+    Perfetto also supports for sample data.
+
+**How to Generate:**
+
+1.  **Record a profile with `perf record`:** First, capture profiling data using
+    `perf record`. This creates a `perf.data` file.
+
+    ```bash
+    # Example: Profile at 99Hz for 1 seconds with DWARF call graphs
+    sudo perf record -F 99 -g --call-graph dwarf --output perf.data --  find ~ -name 'foo'
+    ```
+
+    Refer to `man perf-record` for detailed command options. Ensure debug
+    symbols for your binaries are accessible for proper symbolization by
+    `perf script`.
+
+2.  **Generate textual output with `perf script`:** Process the `perf.data` file
+    to produce the textual output.
+
+    ```bash
+    # Default output
+    sudo perf script -i perf.data > my_perf_output.txt
+    ```
+
+    For more detailed output that is often useful for other tools (and
+    potentially for Perfetto's parser if it looks for specific fields), you
+    might specify the fields:
+
+    ```bash
+    perf script -i perf.data -F comm,pid,tid,cpu,time,event,ip,sym,dso,trace > my_perf_output_detailed.txt
+    ```
+
+    Refer to `man perf-script` for its extensive formatting options.
+
+3.  **Open this trace in ui.perfetto.dev**
+
+    Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) and upload the
+    `my_perf_output.txt` file into the UI. Once the trace opens, you should be
+    able select either individual CPU samples or ranges of time containing CPU
+    samples to get a flamegraph of all the samples in that region.
+
+    Here's an example of what that looks like
+
+    ![](/docs/images/perf-profile-in-ui.png)
 
 ## Linux ftrace textual format
 
@@ -338,188 +604,262 @@ the method level.
   [developer.android.com/studio/profile/cpu-profiler](https://developer.android.com/studio/profile/cpu-profiler)
   (Provides details on "Trace Java Methods")
 
-8. macOS instruments format
-9. Perf textual format
-10. Ninja logs format
-11. Android logcat textual format
-12. Android bugreport zip format
+## macOS Instruments format (XML export)
 
-## Firefox Profiler JSON format
+**Description:** Apple's Instruments tool, part of Xcode, is used for
+performance analysis on macOS and iOS. While Instruments saves its full data in
+a proprietary `.trace` package format, Perfetto's support focuses on an **XML
+format** that can be exported from these Instruments traces. This XML export is
+primarily useful for extracting CPU profiling data (stack samples).
 
-**Description:** The Firefox Profiler JSON format is primarily known for its use
-by the [Firefox Profiler](https://profiler.firefox.com/), a web-based tool for
-performance analysis. While the format can describe various types of timeline
-data including "markers" (similar to trace events), its main strength, and
-Perfetto's primary interest in it, lies in representing **CPU profiling data**,
-especially sampled call stacks. This makes it an excellent target format for
-visualizing flamegraphs and call trees from various profiling sources.
+**Common Scenarios:** This import path is relevant when:
 
-**Common Scenarios:** The most common reason Perfetto users encounter this
-format is for:
-
-- **Visualizing Linux `perf` (or Android `simpleperf`) CPU profiles:**
-  Developers often collect CPU samples using `perf record` on Linux or
-  `simpleperf` on Android. These native profiles can then be converted into the
-  Firefox Profiler JSON format to leverage the interactive and user-friendly
-  visualizations offered by tools like `profiler.firefox.com` or, as relevant
-  here, for import into Perfetto.
-- **Using cross-platform profiling tools:** Some profiling tools and libraries
-  are designed to output or convert their data into this format, facilitating
-  analysis with the Firefox Profiler UI.
-- **Analyzing profiles from Firefox:** Less commonly for Perfetto users, one
-  might have profiles captured directly within the Firefox browser itself.
+- You have CPU performance data (e.g., from the Time Profiler instrument)
+  collected using Apple's Instruments.
+- You wish to visualize this CPU stack sample data as a flamegraph or analyze it
+  using Perfetto's tools.
 
 **Perfetto Support:**
 
-- **Perfetto UI & Trace Processor:** Perfetto provides _partial support_ for the
-  Firefox Profiler JSON format, with a strong focus on **CPU sample data**.
-  - When you open a Firefox Profiler JSON file, Perfetto attempts to parse call
-    stacks, sample timestamps, and thread/process information.
-  - This data is imported into standard Perfetto SQL tables like `perf_sample`,
-    `stack_profile_callsite`, `stack_profile_frame`, and
-    `stack_profile_mapping`.
-  - In the Perfetto UI, this allows for the visualization of CPU profiles as
-    flamegraphs.
+- **Perfetto UI & Trace Processor:** Perfetto can parse the XML file exported
+  from a macOS Instruments trace.
+  - The primary focus of this import is on **CPU stack samples**.
+  - Data such as call stacks, sample timestamps, and thread information is
+    extracted and loaded into Perfetto's profiling tables, specifically
+    `cpu_profile_stack_sample` for the samples themselves, and
+    `stack_profile_callsite`, `stack_profile_frame`, `stack_profile_mapping` for
+    the call stack information.
+  - This enables the visualization of the CPU profile as a flamegraph within the
+    Perfetto UI and allows for SQL-based querying of the sample data.
 - **Limitations:**
-  - Support for Firefox Profiler "markers" (timeline events like slices or
-    instants) is generally **not available** in Perfetto.
-  - Other advanced features specific to the Firefox Profiler's internal data
-    representation or UI hints (like custom track colors or rich
-    browser-specific metadata) are typically not imported.
-  - **The primary expectation when loading this format into Perfetto should be
-    to analyze CPU callstack samples.**
+  - Support is mainly targeted at CPU stack sample data from the XML export.
+  - Other rich data types or specific features from the diverse set of tools
+    within Instruments (e.g., detailed memory allocations, custom os_signpost
+    data if not in a compatible part of the XML) may not be supported or fully
+    represented through this XML import path.
 
-**How to Generate:** The most relevant generation path for Perfetto users
-involves converting native CPU profiles from Linux `perf` or Android
-`simpleperf`.
-
-<?tabs>
-
-TAB: <code>perf</code> profiles on Linux
-
-1.  **Record a profile with `perf record`:** Capture CPU samples
-    for a specific command/process or  system-wide, generating a `perf.data` file.
-
-    ```bash
-    # Example: Profile at 99Hz for 1 seconds with DWARF call graphs
-    sudo perf record -F 99 -g --call-graph dwarf --output perf.data --  find ~ -name 'foo'
-    ```
-
-    Refer to `man perf-record` for detailed command options. Ensure debug
-    symbols for your binaries are accessible for proper symbolization.
-
-2.  **Convert `perf.data` to Firefox Profiler JSON:** Use the `gecko` report
-    script with `perf script`.
-
-    ```bash
-    sudo perf script report gecko --save-only my_linux_profile.json
-    ```
-
-    This command processes the `perf.data` file and outputs `my_linux_profile.json` in a
-    format compatible with the Firefox Profiler. If `report gecko` is not available
-    in your `perf` version, consult your distribution's documentation for
-    alternatives or additional `perf` scripting packages.
-
-3. **Open this trace in ui.perfetto.dev**
-
-    Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) and upload the `my_linux_profile.json`
-    file into the UI. Once the trace opens, you should be able select either individual
-    CPU samples or ranges of time containing CPU samples to get a flamegraph of all
-    the samples in that region.
-
-    Here's an example of what that looks like
-
-    ![](/docs/images/perf-profile-in-ui.png)
-
-TAB: <code>simpleperf</code> profiles on Android
-
-On Android, `simpleperf` is used for CPU profiling. The necessary Python scripts
-(`app_profiler.py`, `gecko_profile_generator.py`) can be obtained by cloning
-them directly from the Android Open Source Project (AOSP).
-
-1.  **Clone the `simpleperf` scripts from AOSP:** This command performs a
-    shallow clone of the `platform/system/extras` repository, which contains
-    `simpleperf` and its scripts. This helps to minimize the download size.
-
-    ```bash
-    git clone https://android.googlesource.com/platform/system/extras --depth=1
-    ```
-
-    After cloning, the scripts will be located in the `extras/simpleperf/`
-    subdirectory (e.g., `./extras/simpleperf/app_profiler.py`). **Note:** This
-    method provides the scripts. You will also need a compatible `simpleperf`
-    binary. This binary is typically available on your Android device (if it
-    supports profiling) and `app_profiler.py` will attempt to use it. Ensure any
-    Python dependencies for the scripts are also met in your host environment.
-
-2.  **Record a profile using `app_profiler.py`:** This script automates
-    profiling a specific app.
-
-    ```bash
-    # Path to the simpleperf directory from your AOSP clone
-    SIMPLEPERF_SCRIPT_DIR=./extras/simpleperf
-
-    # Replace <your.app.package.name>
-    python ${SIMPLEPERF_SCRIPT_DIR}/app_profiler.py \
-        --app <your.app.package.name> \
-        -r "-g --duration 10" \
-        -o ./simpleperf_output
-    ```
-
-    - This command profiles the specified app for 10 seconds with DWARF call
-      graphs (`-g`).
-    - It saves `perf.data` and a `binary_cache` (for symbols) into the
-      `./simpleperf_output` directory on your host machine.
-    - For more details, run
-      `python ${SIMPLEPERF_SCRIPT_DIR}/app_profiler.py --help` and consult the
-      [Simpleperf documentation](https://android.googlesource.com/platform/system/extras/+/master/simpleperf/README.md).
-
-3.  **Convert `simpleperf` data to Firefox Profiler JSON:** Use the
-    `gecko_profile_generator.py` script from the same AOSP checkout.
-      ```bash
-      # Path to the simpleperf directory from your AOSP clone
-      SIMPLEPERF_SCRIPT_DIR=./extras/simpleperf
-
-      python ${SIMPLEPERF_SCRIPT_DIR}/gecko_profile_generator.py \
-          -i ./simpleperf_output/perf.data \
-          --symfs ./simpleperf_output/binary_cache \
-          -o my_android_profile.json
-      ```
-
-    * This converts the `simpleperf` data, using symbols from the `binary_cache`, into the Firefox Profiler JSON format.
-
-4. **Open this trace in ui.perfetto.dev**
-
-    Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) and upload the `my_android_profile.json`
-    file into the UI. Once the trace opens, you should be able select either individual
-    CPU samples or ranges of time containing CPU samples to get a flamegraph of all
-    the samples in that region.
-
-    Here's an example of what that looks like
-
-    ![](/docs/images/perf-profile-in-ui.png)
-
-</tabs?>
-
-Other methods (less common for Perfetto import scenarios):
-
-- **From Firefox Browser:** Using the built-in profiler (e.g., via
-  `about:profiling` or developer tools) and saving the profile.
+**How to Generate:** Traces are originally collected using the Instruments
+application in Xcode or the `xctrace` command-line utility, which produce a
+`.trace` package. The XML file that Perfetto ingests is an export from such a
+trace. (The specific steps for exporting to this XML format from Instruments
+would need to be followed within the Instruments tool itself; Perfetto then
+consumes the resulting XML file).
 
 **External Resources:**
 
-- **Firefox Profiler Tool:**
-  [profiler.firefox.com](https://profiler.firefox.com/)
-- **Documentation on the format (can be technical):**
-  - [Gecko Profile Format (GitHub)](https://github.com/firefox-devtools/profiler/blob/main/docs-developer/gecko-profile-format.md)
-  - [Processed Profile Format (GitHub)](https://github.com/firefox-devtools/profiler/blob/main/docs-developer/processed-profile-format.md)
-- **Linux `perf` Tool:**
-  [perf Wiki](https://perf.wiki.kernel.org/index.php/Main_Page),
-  [man page](https://man7.org/linux/man-pages/man1/perf.1.html)
-- **Android `simpleperf` (AOSP):** Source and documentation can be found within
-  the `platform/system/extras` repository in AOSP.
-- **Android `simpleperf` Documentation (overview):**
-  [Simpleperf Introduction (Android GoogleSource)](https://android.googlesource.com/platform/system/extras/+/master/simpleperf/README.md)
+- **Apple Developer - Instruments:** For general information on what Instruments
+  can do, refer to the official
+  [Instruments User Guide](https://developer.apple.com/library/archive/documentation/DeveloperTools/Conceptual/InstrumentsUserGuide/)
+  or search for current Instruments documentation on
+  [developer.apple.com](https://developer.apple.com).
+
+**External Resources:**
+
+- **`perf-script` man page:** `man perf-script` (or search online, e.g.,
+  [perf-script Linux man page](https://man7.org/linux/man-pages/man1/perf-script.1.html))
+- **`perf` tool general information:**
+  [perf Wiki (kernel.org)](https://perf.wiki.kernel.org/index.php/Main_Page)
+- **Brendan Gregg's `perf` examples:**
+  [Brendan Gregg's perf page](https://www.brendangregg.com/perf.html) (Contains
+  many examples of `perf script` usage, especially for flame graphs)
+
+## Ninja logs format (`.ninja_log`)
+
+**Description:** The Ninja build system, known for its speed and use in projects
+like Chromium and Android, generates a log file typically named `.ninja_log`.
+This file is a tab-separated text file that records metadata about each command
+(build step) executed during the build process. Key information for each entry
+includes the start time (in milliseconds), end time (in milliseconds), the
+restat mtime (in milliseconds), the primary output file path of the build step,
+and a hash of the command itself. The format is versioned, with new versions
+occasionally adding fields.
+
+**Common Scenarios:** This format is used when:
+
+- Analyzing the performance of software builds that utilize the Ninja build
+  system.
+- Identifying which build steps are taking the longest, understanding the degree
+  of parallelism in the build, and diagnosing potential bottlenecks that slow
+  down compilation or linking.
+- Visualizing the build process over time.
+
+**Perfetto Support:**
+
+- **Perfetto UI & Trace Processor:** Perfetto's Trace Processor can parse
+  `.ninja_log` files.
+  - Each build step recorded in the `.ninja_log` is typically imported as a
+    distinct slice into the `slice` table.
+  - To visualize these build steps on a timeline, Perfetto often synthesizes
+    process and thread information. For instance, all build steps might be
+    grouped under a single "Ninja Build" process, with individual tracks
+    potentially created for each unique output file path or based on other
+    heuristics to represent concurrency.
+  - The timestamps (start and end times) are converted from milliseconds to
+    nanoseconds for consistency within Perfetto.
+  - This allows the build process to be visualized in the Perfetto UI, showing
+    the duration and concurrency of various compilation, linking, and other
+    build tasks, which can be very helpful for understanding the build's
+    critical path.
+- **Limitations:** The `.ninja_log` only records completed commands. It doesn't
+  provide information about dependencies directly in its per-step log format,
+  though this can sometimes be inferred by analyzing the sequence and timing of
+  output files.
+
+**How to Generate:**
+
+- **Automatically by Ninja:** The Ninja build system automatically creates and
+  incrementally updates the `.ninja_log` file in the root of your build output
+  directory (e.g., `out/Default/`, `build/`, etc.) every time it runs a build.
+- No special flags are typically needed to enable the generation of `.ninja_log`
+  as it is a standard feature for build auditing and `ninja -t recompact` usage.
+
+**External Resources:**
+
+- **Ninja Build System Manual - Log File:**
+  [ninja-build.org/manual.html#\_log_file](https://ninja-build.org/manual.html#_log_file)
+- **Ninja Build System Home:** [ninja-build.org](https://ninja-build.org/)
+
+## Android logcat textual format
+
+**Description:** Android logcat is the command-line tool used to access messages
+from Android's system-wide logging service, `logd`. The textual output from
+`adb logcat` is what Perfetto can import. This output can vary significantly
+based on the formatting options specified (e.g., via `adb logcat -v <format>`),
+but typically includes a timestamp, log priority (Verbose, Debug, Info, Warn,
+Error, Fatal/Assert), a tag identifying the source of the log, the Process ID
+(PID), often the Thread ID (TID), and the log message itself.
+
+**Common Scenarios:** You might work with textual logcat files when:
+
+- Performing traditional debugging of Android applications or system services
+  using their textual log output.
+- Analyzing log files previously saved from `adb logcat` sessions.
+- Extracting logcat information from Android bug reports (where logcat data is
+  embedded within `bugreport.txt` or as separate files).
+
+**Perfetto Support:**
+
+- **Perfetto UI & Trace Processor:** Perfetto's Trace Processor can parse
+  textual logcat files.
+  - Imported log messages are populated into the `android_logs` SQL table. This
+    is the same table used when Perfetto collects logcat data natively via its
+    [Android Log data source](/docs/data-sources/android-log.md).
+  - In the Perfetto UI, these logs appear in the "Android Logs" panel, where
+    they are displayed chronologically and can be filtered. This allows
+    correlation of log messages with other trace events on the main timeline.
+- **Supported Formats:** Perfetto's parser is designed to handle common
+  `adb logcat` output formats, with good support for `logcat -v long` and
+  `logcat -v threadtime`. Other, more esoteric or heavily customized logcat
+  formats might not be fully parsed.
+
+**How to Generate Textual Logcat Files:**
+
+- **Using `adb logcat`:** The primary method is via the `adb logcat` command,
+  redirecting its output to a file.
+  - To dump the current contents of the log buffers and then exit (useful for a
+    snapshot):
+    ```bash
+    # Dumps logs in 'long' format
+    adb logcat -d -v long > logcat_dump_long.txt
+    # Dumps logs in 'threadtime' format (timestamp, PID, TID, priority, tag, message)
+    adb logcat -d -v threadtime > logcat_dump_threadtime.txt
+    ```
+  - To stream live logs to a file (press Ctrl-C to stop):
+    ```bash
+    adb logcat -v long > logcat_stream_long.txt
+    # Or, for a more parse-friendly streaming format:
+    adb logcat -v threadtime > logcat_stream_threadtime.txt
+    ```
+- **From Android Bug Reports:** Logcat data is a standard component of bug
+  reports generated by `adb bugreport`. You can often find the logcat output
+  within the main `bugreport.txt` file or as separate log files within the bug
+  report archive.
+
+**External Resources:**
+
+- **`logcat` Command-Line Tool (Official Android Documentation):**
+  [developer.android.com/studio/command-line/logcat](https://developer.android.com/studio/command-line/logcat)
+- **Reading and Writing Logs (General Overview):**
+  [developer.android.com/studio/debug/am-logcat](https://developer.android.com/studio/debug/am-logcat)
+
+## Android bugreport zip format (.zip)
+
+**Description:** An Android bugreport is a `.zip` archive generated by Android
+devices, containing a comprehensive snapshot of diagnostic information from an
+Android device at a particular point in time. This archive bundles various logs
+(like logcat), system properties, process information, stack traces for ANRs and
+crashes, and importantly, a system trace (typically a Perfetto trace on modern
+Android versions). It also contains detailed `dumpstate` output, which includes
+board-level information and specific service dumps like `batterystats`.
+
+**Common Scenarios:** Bugreport zip files are primarily used for:
+
+- Capturing extensive diagnostic data when reporting bugs or analyzing complex
+  issues on Android devices, whether for app development or platform-level
+  debugging.
+- Providing detailed system state information to Google, device manufacturers
+  (OEMs), or other developers to help diagnose problems.
+
+**Perfetto Support:**
+
+- **Perfetto UI & Trace Processor:** Perfetto can directly open and process
+  Android bugreport `.zip` files.
+  - When a bugreport zip is loaded, Perfetto automatically:
+    - Scans the archive for **Perfetto trace files** (`.pftrace`,
+      `.perfetto-trace`) in known locations (e.g.,
+      `FS/data/misc/perfetto-traces/`, `proto/perfetto-trace.gz`). The primary
+      Perfetto trace found is loaded for visualization and SQL querying.
+    - Parses the main **`dumpstate` board-level information** (often found in
+      files like `bugreport-*.txt` or `dumpstate_board.txt`) into the
+      `dumpstate` SQL table. This table includes system properties, kernel
+      version, build fingerprints, and other hardware/software details.
+    - Extracts detailed **battery statistics** from the `batterystats` section
+      of the dumpstate into the `battery_stats` SQL table. This provides
+      information on battery levels, charging status, and power events over
+      time.
+  - This integrated approach allows users to analyze not only the system trace
+    but also key system state (from `dumpstate`) and battery information (from
+    `battery_stats`) from the bugreport within a unified Perfetto environment,
+    without needing to manually extract these components.
+  - **Note:** Perfetto's focus when processing bugreports is on its own native
+    trace format and specific, structured parts of the `dumpstate` like
+    `batterystats`. It generally does **not** attempt to import or parse legacy
+    Systrace files (`systrace.html` or `systrace.txt`) that might be present in
+    older bugreports. For analyzing those, you'd typically extract them manually
+    and open them as per the [Android systrace format](#android-systrace-format)
+    section.
+
+**How to Generate:**
+
+- **Using `adb bugreport` (from a computer connected to the device):** This is
+  the most common method for developers.
+
+  ```bash
+  adb bugreport ./my_bugreport_filename.zip
+  ```
+
+  This command instructs the connected Android device to generate a bug report
+  and saves it as a `.zip` file to the specified path on your computer.
+
+- **From Developer Options on the Android device:**
+  1.  Enable Developer Options on your Android device (usually by going to
+      Settings > About phone and tapping "Build number" seven times).
+  2.  Navigate to Settings > System > Developer options.
+  3.  Find and tap the "Bug report" or "Take bug report" option. The exact
+      wording and sub-menu might vary slightly depending on the Android version
+      and device manufacturer.
+  4.  You might be prompted to choose the type of bug report (e.g., "Interactive
+      report" for more details during capture, or "Full report" for the most
+      comprehensive data).
+  5.  After the bug report is generated (which can take a few minutes), a
+      notification will appear. Tapping this notification typically allows you
+      to share the `.zip` file (e.g., via email, a file sharing app, or by
+      saving it to cloud storage).
+
+**External Resources:**
+
+- **Capture and read bug reports (Official Android Documentation):**
+  [developer.android.com/studio/debug/bug-report](https://developer.android.com/studio/debug/bug-report)
 
 ## Fuchsia tracing format (.fxt)
 
