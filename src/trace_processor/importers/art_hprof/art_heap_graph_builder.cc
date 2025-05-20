@@ -56,8 +56,8 @@ void HeapGraphBuilder::PushBlob(TraceBlobView&& blob) {
 
 HeapGraph HeapGraphBuilder::BuildGraph() {
   // Phase 3: Resolve the heap graph
-  resolver_ = std::make_unique<HeapGraphResolver>(
-      context_, header_, objects_, classes_, pending_roots_, stats_);
+  resolver_ = std::make_unique<HeapGraphResolver>(context_, header_, objects_,
+                                                  classes_, roots_, stats_);
   resolver_->ResolveGraph();
 
   stats_.Write(context_);
@@ -315,7 +315,7 @@ bool HeapGraphBuilder::ParseRootRecord(HprofHeapRootTag tag) {
   }
 
   stats_.root_count++;
-  pending_roots_[object_id] = tag;
+  roots_[object_id] = tag;
   return true;
 }
 

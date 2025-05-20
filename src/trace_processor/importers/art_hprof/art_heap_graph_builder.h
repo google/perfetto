@@ -94,13 +94,12 @@ struct DebugStats {
 // graph
 class HeapGraphResolver {
  public:
-  HeapGraphResolver(
-      TraceProcessorContext* context,
-      HprofHeader& header,
-      base::FlatHashMap<uint64_t, Object>& objects,
-      base::FlatHashMap<uint64_t, ClassDefinition>& classes,
-      base::FlatHashMap<uint64_t, HprofHeapRootTag>& pending_roots,
-      DebugStats& stats);
+  HeapGraphResolver(TraceProcessorContext* context,
+                    HprofHeader& header,
+                    base::FlatHashMap<uint64_t, Object>& objects,
+                    base::FlatHashMap<uint64_t, ClassDefinition>& classes,
+                    base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots,
+                    DebugStats& stats);
 
   // Build the complete object graph with references and field values
   void ResolveGraph();
@@ -131,7 +130,7 @@ class HeapGraphResolver {
   TraceProcessorContext* context_;
   HprofHeader& header_;
   base::FlatHashMap<uint64_t, Object>& objects_;
-  base::FlatHashMap<uint64_t, HprofHeapRootTag>& pending_roots_;
+  base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots_;
   base::FlatHashMap<uint64_t, ClassDefinition>& classes_;
   DebugStats& stats_;
 };
@@ -228,7 +227,7 @@ class HeapGraphBuilder {
 
   // Type mapping and root tracking
   std::array<uint64_t, 12> prim_array_class_ids_ = {};
-  base::FlatHashMap<uint64_t, HprofHeapRootTag> pending_roots_;
+  base::FlatHashMap<uint64_t, HprofHeapRootTag> roots_;
 
   // Debug statistics
   DebugStats stats_;
