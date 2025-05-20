@@ -67,10 +67,12 @@ HeapGraphResolver::HeapGraphResolver(
     HprofHeader& header,
     base::FlatHashMap<uint64_t, Object>& objects,
     base::FlatHashMap<uint64_t, ClassDefinition>& classes,
+    base::FlatHashMap<uint64_t, HprofHeapRootTag>& pending_roots,
     DebugStats& stats)
     : context_(context),
       header_(header),
       objects_(objects),
+      pending_roots_(pending_roots),
       classes_(classes),
       stats_(stats) {}
 
@@ -100,6 +102,13 @@ void HeapGraphResolver::ExtractAllObjectData() {
       ExtractArrayElementReferences(obj);
     } else if (obj.GetObjectType() == ObjectType::kPrimitiveArray) {
       ExtractPrimitiveArrayValues(obj);
+    }
+
+    uint64_t obj_id = obj.GetId();
+    auto pending = pending_roots_.Find(obj_id);
+    if (pending) {
+      obj.SetRootType(*pending);
+      pending_roots_.Erase(obj_id);
     }
   }
 }

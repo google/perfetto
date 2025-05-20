@@ -56,8 +56,8 @@ void HeapGraphBuilder::PushBlob(TraceBlobView&& blob) {
 
 HeapGraph HeapGraphBuilder::BuildGraph() {
   // Phase 3: Resolve the heap graph
-  resolver_ = std::make_unique<HeapGraphResolver>(context_, header_, objects_,
-                                                  classes_, stats_);
+  resolver_ = std::make_unique<HeapGraphResolver>(
+      context_, header_, objects_, classes_, pending_roots_, stats_);
   resolver_->ResolveGraph();
 
   stats_.Write(context_);
@@ -386,12 +386,6 @@ bool HeapGraphBuilder::ParseClassStructure() {
     class_obj.SetHeapType(current_heap_);
   }
 
-  auto pending_root = pending_roots_.Find(class_obj.GetId());
-  if (pending_root) {
-    class_obj.SetRootType(*pending_root);
-    pending_roots_.Erase(class_obj.GetId());
-  }
-
   uint16_t static_field_count;
   if (!iterator_->ReadU2(static_field_count))
     return false;
@@ -546,12 +540,6 @@ bool HeapGraphBuilder::ParseInstanceObject() {
     obj.SetRootType(root_type.value());
   }
 
-  auto pending = pending_roots_.Find(object_id);
-  if (pending) {
-    obj.SetRootType(*pending);
-    pending_roots_.Erase(object_id);
-  }
-
   objects_[object_id] = std::move(obj);
   stats_.instance_count++;
   return true;
@@ -594,12 +582,6 @@ bool HeapGraphBuilder::ParseObjectArrayObject() {
   obj.SetArrayElements(std::move(elements));
   obj.SetArrayElementType(FieldType::kObject);
   obj.SetHeapType(current_heap_);
-
-  auto pending = pending_roots_.Find(obj.GetId());
-  if (pending) {
-    obj.SetRootType(*pending);
-    pending_roots_.Erase(obj.GetId());
-  }
 
   objects_[array_id] = std::move(obj);
   stats_.object_array_count++;
@@ -655,12 +637,6 @@ bool HeapGraphBuilder::ParsePrimitiveArrayObject() {
   obj.SetRawData(std::move(data));
   obj.SetArrayElementType(element_type);
   obj.SetHeapType(current_heap_);
-
-  auto pending = pending_roots_.Find(obj.GetId());
-  if (pending) {
-    obj.SetRootType(*pending);
-    pending_roots_.Erase(obj.GetId());
-  }
 
   objects_[array_id] = std::move(obj);
   stats_.primitive_array_count++;
