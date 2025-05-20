@@ -61,7 +61,7 @@ ProfileModule::ProfileModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kPerfSampleFieldNumber, context);
   RegisterForField(TracePacket::kProfilePacketFieldNumber, context);
   RegisterForField(TracePacket::kModuleSymbolsFieldNumber, context);
-  // note: deobfuscation mappings also handled by HeapGraphModule.
+  // note: deobfuscation mappings also handled by DeobfuscationModule.
   RegisterForField(TracePacket::kDeobfuscationMappingFieldNumber, context);
   RegisterForField(TracePacket::kSmapsPacketFieldNumber, context);
 }
