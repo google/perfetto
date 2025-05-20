@@ -12,15 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {Icons} from '../../base/semantic_icons';
 import {sqliteString} from '../../base/string_utils';
 import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../components/tracks/base_counter_track';
 import {TrackContext} from '../../public/track';
-import {Button} from '../../widgets/button';
 import {Trace} from '../../public/trace';
 
 export enum CPUType {
@@ -35,17 +32,6 @@ export class ActiveCPUCountTrack extends BaseCounterTrack {
   constructor(ctx: TrackContext, trace: Trace, cpuType?: CPUType) {
     super(trace, ctx.trackUri);
     this.cpuType = cpuType;
-  }
-
-  getTrackShellButtons(): m.Children {
-    return m(Button, {
-      onclick: () => {
-        this.trace.workspace.getTrackByUri(this.uri)?.remove();
-      },
-      icon: Icons.Close,
-      title: 'Close',
-      compact: true,
-    });
   }
 
   protected getDefaultCounterOptions(): CounterOptions {
