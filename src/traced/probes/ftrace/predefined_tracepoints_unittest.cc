@@ -65,7 +65,7 @@ TEST(PredefinedTracepointsTest, GetAccessiblePredefinedTracePoints) {
   EXPECT_CALL(table, GetEventsByGroup(_)).WillRepeatedly(Return(nullptr));
   // Add two events to the "gfx" category.
   EXPECT_CALL(table, GetEventsByGroup("mdss"))
-      .WillRepeatedly(Return(&proto_table_events));
+      .WillOnce(Return(&proto_table_events));
 
   EXPECT_CALL(ftrace, IsFileWriteable(_)).WillRepeatedly(Return(false));
   EXPECT_CALL(ftrace, IsFileWriteable(
