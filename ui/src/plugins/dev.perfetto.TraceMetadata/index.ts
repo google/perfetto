@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NUM} from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceMetadata';
   static readonly dependencies = [StandardGroupsPlugin];
 
-  async onTraceLoad(ctx: Trace): Promise<void> {
-    const res = await ctx.engine.query(`
+  async onTraceLoad(trace: Trace): Promise<void> {
+    const res = await trace.engine.query(`
       select count() as cnt from (select 1 from clock_snapshot limit 1)
     `);
     const row = res.firstRow({cnt: NUM});
@@ -33,25 +34,33 @@ export default class implements PerfettoPlugin {
     }
     const uri = `/clock_snapshots`;
     const title = 'Clock Snapshots';
-    const track = await createQuerySliceTrack({
-      trace: ctx,
+    const track = new DatasetSliceTrack({
+      trace,
       uri,
-      data: {
-        sqlSource: `
-          select ts, 0 as dur, 'Snapshot' as name
-          from clock_snapshot
-          `,
-      },
+      dataset: new SourceDataset({
+        src: `
+          SELECT
+            id,
+            ts,
+            'Snapshot' as name
+          FROM clock_snapshot
+        `,
+        schema: {
+          id: NUM,
+          ts: LONG,
+          name: STR,
+        },
+      }),
     });
-    ctx.tracks.registerTrack({
+    trace.tracks.registerTrack({
       uri,
       title,
       track,
     });
     const trackNode = new TrackNode({uri, title});
-    const group = ctx.plugins
+    const group = trace.plugins
       .getPlugin(StandardGroupsPlugin)
-      .getOrCreateStandardGroup(ctx.workspace, 'SYSTEM');
+      .getOrCreateStandardGroup(trace.workspace, 'SYSTEM');
     group.addChildInOrder(trackNode);
   }
 }
