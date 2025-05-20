@@ -72,6 +72,8 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
             scrollToSelection: true,
           });
       },
+      // This is analogous to the 'Find file' hotkey in VSCode.
+      defaultHotkey: '!Mod+P',
     });
 
     ctx.commands.registerCommand({
