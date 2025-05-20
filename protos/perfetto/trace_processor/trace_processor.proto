@@ -403,7 +403,7 @@ message TraceSummaryArgs {
   repeated TraceSummarySpec proto_specs = 1;
   repeated string textproto_specs = 2;
   optional ComputationSpec computation_spec = 3;
-  optional Format format = 4;
+  optional Format output_format = 4;
 }
 
 message TraceSummaryResult {

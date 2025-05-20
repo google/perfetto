@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import http.client
-from typing import List
+from typing import List, Optional
 
 from perfetto.trace_processor.protos import ProtoFactory
 
@@ -48,13 +48,13 @@ class TraceProcessorHttp:
   def trace_summary(self,
                     metric_ids: List[str],
                     specs: List[str],
-                    metadata_query_id: str | None = None):
+                    metadata_query_id: Optional[str] = None):
     args = self.protos.TraceSummaryArgs()
     args.textproto_specs.extend(specs)
     args.computation_spec.metric_ids.extend(metric_ids)
     if (metadata_query_id is not None):
       args.computation_spec.metadata_query_id = metadata_query_id
-    args.format = self.protos.TraceSummaryArgs.Format.BINARY_PROTOBUF
+    args.output_format = self.protos.TraceSummaryArgs.Format.BINARY_PROTOBUF
     byte_data = args.SerializeToString()
     self.conn.request('POST', '/trace_summary', body=byte_data)
     with self.conn.getresponse() as f:

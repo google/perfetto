@@ -104,7 +104,7 @@ export interface Engine {
     summarySpecs: protos.TraceSummarySpec[] | string[],
     metricIds: string[],
     metadataId: string | undefined,
-    format: 'json' | 'prototext' | 'proto',
+    format: 'prototext' | 'proto',
   ): Promise<protos.TraceSummaryResult>;
 
   enableMetatrace(categories?: protos.MetatraceCategories): void;
@@ -456,10 +456,10 @@ export abstract class EngineBase implements Engine, Disposable {
 
     switch (format) {
       case 'prototext':
-        args.format = protos.TraceSummaryArgs.Format.TEXTPROTO;
+        args.outputFormat = protos.TraceSummaryArgs.Format.TEXTPROTO;
         break;
       case 'proto':
-        args.format = protos.TraceSummaryArgs.Format.BINARY_PROTOBUF;
+        args.outputFormat = protos.TraceSummaryArgs.Format.BINARY_PROTOBUF;
         break;
       default:
         assertUnreachable(format);

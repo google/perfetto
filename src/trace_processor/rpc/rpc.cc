@@ -620,7 +620,7 @@ void Rpc::ComputeTraceSummaryInternal(
     result->set_error("TraceSummary missing trace_summary_spec");
     return;
   }
-  if (!args.has_format()) {
+  if (!args.has_output_format()) {
     result->set_error("TraceSummary missing format");
     return;
   }
@@ -658,7 +658,7 @@ void Rpc::ComputeTraceSummaryInternal(
     summary_specs.push_back(spec);
   }
   TraceSummaryOutputSpec output_spec;
-  switch (args.format()) {
+  switch (args.output_format()) {
     case protos::pbzero::TraceSummaryArgs::BINARY_PROTOBUF:
       output_spec.format = TraceSummaryOutputSpec::Format::kBinaryProto;
       break;
@@ -678,7 +678,6 @@ void Rpc::ComputeTraceSummaryInternal(
   }
   switch (output_spec.format) {
     case TraceSummaryOutputSpec::Format::kBinaryProto: {
-      PERFETTO_ELOG("Trace summary as proto");
       result->set_proto_summary(output.data(), output.size());
       break;
     }
@@ -688,7 +687,7 @@ void Rpc::ComputeTraceSummaryInternal(
       break;
     }
   }
-};
+}
 
 void Rpc::EnableMetatrace(const uint8_t* data, size_t len) {
   using protos::pbzero::MetatraceCategories;

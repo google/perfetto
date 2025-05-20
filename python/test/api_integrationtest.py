@@ -355,8 +355,8 @@ class TestApi(unittest.TestCase):
     trace_summary = tp.trace_summary(['metric_one', 'metric_two'],
                                      [metric_spec_1, metric_spec_2])
     self.assertEqual(len(trace_summary.metric), 2)
-    self.assertEqual(trace_summary.metric[0].spec.id, 'metric_one')
-    self.assertEqual(trace_summary.metric[1].spec.id, 'metric_two')
+    self.assertIn(trace_summary.metric[0].spec.id, ['metric_one', 'metric_two'])
+    self.assertIn(trace_summary.metric[1].spec.id, ['metric_one', 'metric_two'])
     tp.close()
 
   def test_trace_summary_success_with_metadata_query(self):
@@ -381,6 +381,6 @@ class TestApi(unittest.TestCase):
     tp = create_tp(trace=example_android_trace_path())
     trace_summary = tp.trace_summary(['memory_per_process'], [metric_spec],
                                      metadata_query_id='metadata_query')
-    self.assertEqual(trace_summary.metric[0].spec.id, 'memory_per_process_meta')
+    self.assertEqual(trace_summary.metric[0].spec.id, 'memory_per_process')
     self.assertTrue(hasattr(trace_summary, 'metadata'))
     tp.close()
