@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from __future__ import print_function
+import argparse
 import fnmatch
 import os
 import re
@@ -26,6 +27,7 @@ from typing import List, Optional, Tuple, Iterable
 # do realpath.
 REPO_ROOT = os.path.dirname(
     os.path.dirname(os.path.abspath(os.path.realpath(__file__))))
+IS_WIN = sys.platform.startswith('win')
 
 
 def RunAndReportIfLong(func, *args, **kargs):
@@ -71,16 +73,6 @@ def run_command(args: List[str],
     raise e
 
 
-def get_merge_base() -> Optional[str]:
-
-  try:
-    _ = run_command(['git', 'show-ref', '--verify', 'refs/remotes/origin/main'],
-                    check=True)
-    return 'origin/main'
-  except subprocess.CalledProcessError:
-    return None
-
-
 def get_changed_files(merge_base: Optional[str]) -> List[str]:
   """Gets list of files changed since merge_base, or all relevant files if
   merge_base is None."""
@@ -97,8 +89,7 @@ def get_changed_files(merge_base: Optional[str]) -> List[str]:
       ]
 
       diff_result = run_command([
-          'git', 'diff', '--name-only', '--diff-filter=crd',
-          f'{merge_base}...HEAD'
+          'git', 'diff', '--name-only', '--diff-filter=crd', merge_base, 'HEAD'
       ])
       diff_files = diff_result.stdout.splitlines()
 
@@ -438,6 +429,20 @@ def CheckAndroidBlueprint(changed_files: List[str]) -> List[str]:
   return []
 
 
+def EnsureProtoBinaryExists():
+  out_dir = os.path.join(REPO_ROOT, 'out', 'presubmits')
+  protoc_path = os.path.join(out_dir, 'protoc') + ('.exe' if IS_WIN else '')
+  if os.path.exists(protoc_path):
+    return protoc_path
+  gn = os.path.join(REPO_ROOT, 'tools', 'gn')
+  ninja = os.path.join(REPO_ROOT, 'tools', 'ninja')
+  gn_args = 'is_debug=false'
+  subprocess.check_call(
+      [sys.executable, gn, 'gen', f'--args={gn_args}', out_dir], cwd=REPO_ROOT)
+  subprocess.check_call([sys.executable, ninja, '-C', out_dir, 'protoc'])
+  return protoc_path
+
+
 def CheckBinaryDescriptors(changed_files: List[str]) -> List[str]:
   if sys.platform == 'win32':
     return []
@@ -456,8 +461,10 @@ def CheckBinaryDescriptors(changed_files: List[str]) -> List[str]:
   if not tool_changed and not source_files_changed:
     return []
 
+  protoc = EnsureProtoBinaryExists()
   try:
-    run_command([sys.executable, tool, '--check-only'], cwd=REPO_ROOT)
+    run_command([sys.executable, tool, '--check-only', f'--protoc={protoc}'],
+                cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
   except subprocess.CalledProcessError:
@@ -829,13 +836,14 @@ def CheckUiRatchet(changed_files: List[str]) -> List[str]:
 
 
 def main():
-  # 1. Determine files to check
-  merge_base = get_merge_base()
-  if not merge_base:
-    print("No upstream branch found. Ensure that an upstream tracking branch "
-          "has been set.")
-    sys.exit(1)
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--merge-base', default='origin/main')
+  # The pre-push hook passes extra cmdline arguments like 'origin git@...'.
+  # Accept and ignore positional args.
+  args, _ = parser.parse_known_args()
 
+  # 1. Determine files to check
+  merge_base = args.merge_base
   changed_files = get_changed_files(merge_base)
 
   if not changed_files:
@@ -843,27 +851,6 @@ def main():
     sys.exit(0)
 
   print(f"Checking {len(changed_files)} files...")  # Optional verbosity
-
-  def long_line_sources_filter(files):
-    return filter_files(
-        files,
-        files_to_check=['*'],  # Check all initially
-        files_to_skip=[
-            'Android.bp',
-            "buildtools/grpc/BUILD.gn",
-            '*.json',
-            '*.sql',
-            '*.out',
-            'test/trace_processor/*/tests*',
-            '*BUILD',
-            'WORKSPACE',
-            '*/Makefile',
-            '*/perfetto_build_flags.h',
-            "infra/luci/*",
-            "ui/*.[jt]s",
-            "ui/pnpm-lock.yaml",
-            'tools/install-build-deps',
-        ])
 
   # 3. Run all checks
   all_results = []
