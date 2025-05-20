@@ -37,20 +37,10 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     // Short circuit if Wattson is not supported for this Perfetto trace
-    if (!(await hasWattsonSupport(ctx.engine))) return;
+    if (!(await hasWattsonCpuSupport(ctx.engine))) return;
 
     const group = new TrackNode({title: 'Wattson', isSummary: true});
     ctx.workspace.addChildInOrder(group);
-
-    // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
-    // if it's seen in sched slices.
-    const queryRes = await ctx.engine.query(
-      `select distinct ucpu from sched order by ucpu;`,
-    );
-    const ucpus = new Set<number>();
-    for (const it = queryRes.iter({ucpu: NUM}); it.valid(); it.next()) {
-      ucpus.add(it.ucpu);
-    }
 
     // Add Wattson markers window track if markers are present
     const checkValue = await ctx.engine.query(`
@@ -77,67 +67,7 @@ export default class implements PerfettoPlugin {
       });
       group.addChildInOrder(new TrackNode({uri, title}));
     }
-
-    // CPUs estimate as part of CPU subsystem
-    const cpus = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
-    for (const cpu of cpus) {
-      const queryKey = `cpu${cpu.ucpu}_mw`;
-      const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu.ucpu}`;
-      const title = `Cpu${cpu.toString()} Estimate`;
-      ctx.tracks.registerTrack({
-        uri,
-        title,
-        track: new CpuSubsystemEstimateTrack(ctx, uri, queryKey),
-        tags: {
-          kind: CPUSS_ESTIMATE_TRACK_KIND,
-          wattson: `CPU${cpu.ucpu}`,
-          groupName: `Wattson`,
-        },
-      });
-      group.addChildInOrder(new TrackNode({uri, title}));
-    }
-
-    const uri = `/wattson/cpu_subsystem_estimate_dsu_scu`;
-    const title = `DSU/SCU Estimate`;
-    ctx.tracks.registerTrack({
-      uri,
-      title,
-      track: new CpuSubsystemEstimateTrack(ctx, uri, `dsu_scu_mw`),
-      tags: {
-        kind: CPUSS_ESTIMATE_TRACK_KIND,
-        wattson: 'Dsu_Scu',
-        groupName: `Wattson`,
-      },
-    });
-    group.addChildInOrder(new TrackNode({uri, title}));
-
-    // Register selection aggregators.
-    // NOTE: the registration order matters because the laste two aggregators
-    // depend on views created by the first two.
-    ctx.selection.registerAreaSelectionTab(
-      createWattsonAggregationToTabAdaptor(
-        ctx,
-        new WattsonEstimateSelectionAggregator(),
-      ),
-    );
-    ctx.selection.registerAreaSelectionTab(
-      createWattsonAggregationToTabAdaptor(
-        ctx,
-        new WattsonThreadSelectionAggregator(),
-      ),
-    );
-    ctx.selection.registerAreaSelectionTab(
-      createWattsonAggregationToTabAdaptor(
-        ctx,
-        new WattsonProcessSelectionAggregator(),
-      ),
-    );
-    ctx.selection.registerAreaSelectionTab(
-      createWattsonAggregationToTabAdaptor(
-        ctx,
-        new WattsonPackageSelectionAggregator(),
-      ),
-    );
+    addWattsonCpuElements(ctx, group);
   }
 }
 
@@ -165,7 +95,7 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
   }
 }
 
-async function hasWattsonSupport(engine: Engine): Promise<boolean> {
+async function hasWattsonCpuSupport(engine: Engine): Promise<boolean> {
   // These tables are hard requirements and are the bare minimum needed for
   // Wattson to run, so check that these tables are populated
   const queryChecks: string[] = [
@@ -188,4 +118,81 @@ async function hasWattsonSupport(engine: Engine): Promise<boolean> {
   }
 
   return true;
+}
+
+async function addWattsonCpuElements(cts: Trace, group: TrackNode) {
+  // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
+  // if it's seen in sched slices.
+  const queryRes = await ctx.engine.query(
+    `select distinct ucpu from sched order by ucpu;`,
+  );
+  const ucpus = new Set<number>();
+  for (
+    const it = queryRes.iter({ucpu: NUM});
+    it.valid() as boolean;
+    it.next()
+  ) {
+    ucpus.add(it.ucpu);
+  }
+
+  // CPUs estimate as part of CPU subsystem
+  const cpus = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
+  for (const cpu of cpus) {
+    const queryKey = `cpu${cpu.ucpu}_mw`;
+    const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu.ucpu}`;
+    const title = `Cpu${cpu.toString()} Estimate`;
+    ctx.tracks.registerTrack({
+      uri,
+      title,
+      track: new CpuSubsystemEstimateTrack(ctx, uri, queryKey),
+      tags: {
+        kind: CPUSS_ESTIMATE_TRACK_KIND,
+        wattson: `CPU${cpu.ucpu}`,
+        groupName: `Wattson`,
+      },
+    });
+    group.addChildInOrder(new TrackNode({uri, title}));
+  }
+
+  const uri = `/wattson/cpu_subsystem_estimate_dsu_scu`;
+  const title = `DSU/SCU Estimate`;
+  ctx.tracks.registerTrack({
+    uri,
+    title,
+    track: new CpuSubsystemEstimateTrack(ctx, uri, `dsu_scu_mw`),
+    tags: {
+      kind: CPUSS_ESTIMATE_TRACK_KIND,
+      wattson: 'Dsu_Scu',
+      groupName: `Wattson`,
+    },
+  });
+  group.addChildInOrder(new TrackNode({uri, title}));
+
+  // Register selection aggregators.
+  // NOTE: the registration order matters because the laste two aggregators
+  // depend on views created by the first two.
+  ctx.selection.registerAreaSelectionTab(
+    createWattsonAggregationToTabAdaptor(
+      ctx,
+      new WattsonEstimateSelectionAggregator(),
+    ),
+  );
+  ctx.selection.registerAreaSelectionTab(
+    createWattsonAggregationToTabAdaptor(
+      ctx,
+      new WattsonThreadSelectionAggregator(),
+    ),
+  );
+  ctx.selection.registerAreaSelectionTab(
+    createWattsonAggregationToTabAdaptor(
+      ctx,
+      new WattsonProcessSelectionAggregator(),
+    ),
+  );
+  ctx.selection.registerAreaSelectionTab(
+    createWattsonAggregationToTabAdaptor(
+      ctx,
+      new WattsonPackageSelectionAggregator(),
+    ),
+  );
 }
