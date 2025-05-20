@@ -169,7 +169,7 @@ class TraceProcessor:
   def trace_summary(self,
                     metric_ids: List[str],
                     specs: List[str],
-                    metadata_query_id: str | None = None):
+                    metadata_query_id: Optional[str] = None):
     """Returns the trace summary data corresponding to the passed in metric
     IDs and specs. Raises TraceProcessorException if the response returns with
     an error.

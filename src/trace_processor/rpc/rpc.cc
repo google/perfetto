@@ -15,7 +15,6 @@
  */
 
 #include "src/trace_processor/rpc/rpc.h"
-#include <sys/types.h>
 
 #include <cinttypes>
 #include <cstdint>
@@ -616,7 +615,6 @@ void Rpc::ComputeTraceSummaryInternal(
     const uint8_t* data,
     size_t len,
     protos::pbzero::TraceSummaryResult* result) {
-  // Parse args
   protos::pbzero::TraceSummaryArgs::Decoder args(data, len);
   if (!args.has_proto_specs() && !args.has_textproto_specs()) {
     result->set_error("TraceSummary missing trace_summary_spec");
@@ -671,7 +669,6 @@ void Rpc::ComputeTraceSummaryInternal(
       PERFETTO_FATAL("Unknown format");
   }
 
-  // Summarize trace
   std::vector<uint8_t> output;
   base::Status status = trace_processor_->Summarize(
       computation_spec, summary_specs, &output, output_spec);
