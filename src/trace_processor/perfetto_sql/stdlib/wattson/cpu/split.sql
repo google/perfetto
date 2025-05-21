@@ -19,9 +19,9 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE time.conversion;
 
-INCLUDE PERFETTO MODULE wattson.arm_dsu;
+INCLUDE PERFETTO MODULE wattson.cpu.arm_dsu;
 
-INCLUDE PERFETTO MODULE wattson.cpu_freq_idle;
+INCLUDE PERFETTO MODULE wattson.cpu.freq_idle;
 
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 
