@@ -44,21 +44,12 @@
     - [App + System Tracing](learning-more/trace-recording/app-and-system-tracing.md)
     - [System Tracing on Android](learning-more/trace-recording/android.md)
 
-  - [PerfettoSQL](#)
+  - [Trace Analysis](#)
 
-    - [Syntax](analysis/perfetto-sql-syntax.md)
-    - [Standard Library](analysis/stdlib-docs.autogen)
-
-  - [Single Trace Analysis](#)
-
+    - [PerfettoSQL Syntax](analysis/perfetto-sql-syntax.md)
+    - [PerfettoSQL Standard Library](analysis/stdlib-docs.autogen)
     - [Trace Processor (Python)](analysis/trace-processor-python.md)
     - [Trace Processor (C++)](analysis/trace-processor.md)
-
-  - [Multi Trace Analysis](#)
-
-    - [Batch Trace Processor](analysis/batch-trace-processor.md)
-    - [Bigtrace](deployment/deploying-bigtrace-on-a-single-machine.md)
-    - [Bigtrace on Kubernetes](deployment/deploying-bigtrace-on-kubernetes.md)
 
   - [Trace Visualization](#)
 
@@ -128,12 +119,23 @@
       - [perfetto cmdline](reference/perfetto-cli.md)
       - [heap_profile cmdline](reference/heap_profile-cli.md)
 
-  - [Trace Processor](#)
+  - [Trace Analysis](#)
 
-    - [PerfettoSQL Prelude tables](analysis/sql-tables.autogen)
-    - [PerfettoSQL Built-ins](analysis/builtin.md)
-    - [Trace-based Metrics](analysis/metrics.md)
-    - [Stats Table Reference](analysis/sql-stats.autogen)
+    - [PerfettoSQL](#)
+
+      - [PerfettoSQL Prelude tables](analysis/sql-tables.autogen)
+      - [PerfettoSQL Built-ins](analysis/builtin.md)
+      - [Stats Table Reference](analysis/sql-stats.autogen)
+
+    - [Single Trace Analysis](#)
+
+      - [Trace-based Metrics](analysis/metrics.md)
+
+    - [Multi Trace Analysis](#)
+
+      - [Batch Trace Processor](analysis/batch-trace-processor.md)
+      - [Bigtrace](deployment/deploying-bigtrace-on-a-single-machine.md)
+      - [Bigtrace on Kubernetes](deployment/deploying-bigtrace-on-kubernetes.md)
 
   - [Perfetto UI](#)
 
