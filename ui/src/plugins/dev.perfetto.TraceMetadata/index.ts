@@ -13,7 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Time} from '../../base/time';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {Timestamp} from '../../components/widgets/timestamp';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
@@ -26,12 +28,10 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
-import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {Timestamp} from '../../components/widgets/timestamp';
-import {Time} from '../../base/time';
+import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceMetadata';
