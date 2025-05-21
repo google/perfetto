@@ -34,6 +34,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Fetch the upstream branch as well, so we can diff and see the list of
+      # changed files (unless this is a post-submit test).
+      - name: Fetch upstream branch
+        if: ${{ github.base_ref != '' }}
+        run: git fetch origin ${{ github.base_ref }} --depth=1
+
       - name: Setup artifacts
         run: |
           PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_ROOT/$PERFETTO_CI_JOB_ID
@@ -81,6 +87,9 @@ jobs:
         # UI code formatting checks must be done here, rather than repo-checks,
         # because they need a out/ui build.
       - name: Check UI code is formatted
+        # base_ref is "" in post-submit, skip the presubmit check in postsubmit
+        # as there is nothing do diff against.
+        if: ${{ github.base_ref != '' }}
         run: ui/format-sources --check-only
 
       - name: Upload artifacts to GCS
