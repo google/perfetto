@@ -96,6 +96,7 @@ from diff_tests.parser.power.tests_linux_sysfs_power import LinuxSysfsPower
 from diff_tests.parser.power.tests_power_rails import PowerPowerRails
 from diff_tests.parser.power.tests_voltage_and_scaling import PowerVoltageAndScaling
 from diff_tests.parser.process_tracking.tests import ProcessTracking
+from diff_tests.parser.profiling.deobfuscation_tests import Deobfuscation
 from diff_tests.parser.profiling.tests import Profiling
 from diff_tests.parser.profiling.tests_heap_graph import ProfilingHeapGraph
 from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfiling
@@ -179,6 +180,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       ChromeParser,
       ChromeV8Parser,
       Cros,
+      Deobfuscation,
       Etm,
       Fs,
       Fuchsia,
