@@ -319,16 +319,16 @@ bool TrackEventInternal::IsCategoryEnabled(
   const std::array<MatchType, 3> match_types = {
       {MatchType::kExact, MatchType::kPattern, MatchType::kWildcard}};
   for (auto match_type : match_types) {
-    // 1. Disabled categories.
-    if (NameMatchesPatternList(config.disabled_categories(), category.name,
-                               match_type)) {
-      return false;
-    }
-
-    // 2. Enabled categories.
+    // 1. Enabled categories.
     if (NameMatchesPatternList(config.enabled_categories(), category.name,
                                match_type)) {
       return true;
+    }
+
+    // 2. Disabled categories.
+    if (NameMatchesPatternList(config.disabled_categories(), category.name,
+                               match_type)) {
+      return false;
     }
 
     // 2.5. A special case for Chrome's legacy disabled-by-default categories.
