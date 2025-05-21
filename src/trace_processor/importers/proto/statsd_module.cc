@@ -112,8 +112,11 @@ StatsdModule::StatsdModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kStatsdAtomFieldNumber, context);
   context_->descriptor_pool_->AddFromFileDescriptorSet(kAtomsDescriptor.data(),
                                                        kAtomsDescriptor.size());
-  descriptor_idx_ =
-      context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName);
+  if (auto i = context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName)) {
+    descriptor_idx_ = *i;
+  } else {
+    PERFETTO_FATAL("Failed to find descriptor for %s", kAtomProtoName);
+  }
 }
 
 StatsdModule::~StatsdModule() = default;
@@ -194,7 +197,7 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
         ArgsParser delegate(ts, *inserter, *context_->storage);
 
         const auto& descriptor =
-            context_->descriptor_pool_->descriptors()[*descriptor_idx_];
+            context_->descriptor_pool_->descriptors()[descriptor_idx_];
         const auto& field_it = descriptor.fields().find(nested_field_id);
         base::Status status;
 
@@ -228,7 +231,7 @@ StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
     }
 
     const auto& descriptor =
-        context_->descriptor_pool_->descriptors()[*descriptor_idx_];
+        context_->descriptor_pool_->descriptors()[descriptor_idx_];
     StringId name_id;
     const auto& field_it = descriptor.fields().find(atom_field_id);
     if (field_it == descriptor.fields().end()) {
