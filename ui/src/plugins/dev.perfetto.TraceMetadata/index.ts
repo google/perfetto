@@ -12,13 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
+import {DetailsShell} from '../../widgets/details_shell';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
+import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
+import {Section} from '../../widgets/section';
+import {Tree, TreeNode} from '../../widgets/tree';
+import {Timestamp} from '../../components/widgets/timestamp';
+import {Time} from '../../base/time';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceMetadata';
@@ -42,15 +55,78 @@ export default class implements PerfettoPlugin {
           SELECT
             id,
             ts,
-            'Snapshot' as name
+            'Snapshot' as name,
+            clock_id,
+            clock_name,
+            clock_value,
+            snapshot_id,
+            machine_id
           FROM clock_snapshot
         `,
         schema: {
           id: NUM,
           ts: LONG,
           name: STR,
+          clock_id: NUM,
+          clock_name: STR_NULL,
+          clock_value: LONG,
+          snapshot_id: NUM,
+          machine_id: NUM_NULL,
         },
       }),
+      detailsPanel: (row) => {
+        return {
+          render() {
+            return m(
+              DetailsShell,
+              {
+                title: 'Clock Snapshot',
+              },
+              m(
+                GridLayout,
+                m(
+                  GridLayoutColumn,
+                  m(
+                    Section,
+                    {title: 'Details'},
+                    m(
+                      Tree,
+                      m(TreeNode, {
+                        left: 'ID',
+                        right: row.id,
+                      }),
+                      m(TreeNode, {
+                        left: 'Timestamp',
+                        right: m(Timestamp, {ts: Time.fromRaw(row.ts)}),
+                      }),
+                      m(TreeNode, {
+                        left: 'clock_id',
+                        right: row.clock_id,
+                      }),
+                      m(TreeNode, {
+                        left: 'clock_name',
+                        right: row.clock_name ?? 'NULL',
+                      }),
+                      m(TreeNode, {
+                        left: 'clock_value',
+                        right: row.clock_value.toLocaleString(),
+                      }),
+                      m(TreeNode, {
+                        left: 'snapshot_id',
+                        right: row.snapshot_id,
+                      }),
+                      m(TreeNode, {
+                        left: 'machine_id ',
+                        right: row.machine_id ?? 'NULL',
+                      }),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        };
+      },
     });
     trace.tracks.registerTrack({
       uri,
