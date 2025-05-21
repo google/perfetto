@@ -4599,7 +4599,7 @@ perfetto_android_jni_library(
         ":src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
         ":src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
     ],
-    binary_name = "libperfetto_jni_lib.so",
+    binary_name = "libperfetto_jni.so",
     linkopts = [
         "-llog",
     ],
