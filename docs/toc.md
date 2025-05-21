@@ -68,6 +68,21 @@
     - [Deep linking](visualization/deep-linking-to-perfetto-ui.md)
     - [Debug tracks](analysis/debug-tracks.md)
 
+  - [Contributing](#)
+
+    - [Getting started](contributing/getting-started.md)
+    - [Common tasks](contributing/common-tasks.md)
+    - [UI](#)
+
+      - [Getting started](contributing/ui-getting-started.md)
+      - [Plugins](contributing/ui-plugins.md)
+
+    - [Advanced](#)
+
+      - [Building](contributing/build-instructions.md)
+      - [Testing](contributing/testing.md)
+      - [Developer tools](contributing/developer-tools.md)
+
 - [Diving deep](#)
 
   - [Data sources](#)
@@ -127,18 +142,6 @@
   - [Perfetto SDK](#)
 
     - [Interceptors](instrumentation/interceptors.md)
-
-  - [Contributing](#)
-
-    - [Getting started](contributing/getting-started.md)
-    - [Common tasks](contributing/common-tasks.md)
-    - [UI](#)
-      - [Getting started](contributing/ui-getting-started.md)
-      - [Plugins](contributing/ui-plugins.md)
-    - [Advanced](#)
-      - [Building](contributing/build-instructions.md)
-      - [Testing](contributing/testing.md)
-      - [Developer tools](contributing/developer-tools.md)
 
   - [Design documents](#)
 
