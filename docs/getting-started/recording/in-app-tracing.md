@@ -1,86 +1,198 @@
 # Recording In-App Traces with Perfetto
 
-_In this page, you'll learn how to use the Perfetto SDK collect a trace from a
-C/C++ app which we instrument. You'll view the collected trace with the Perfetto
-UI and query it's contents programatically with PerfettoSQL._
+*In this page, you'll learn how to use the Perfetto SDK collect a trace from a
+C++ app which we instrument. You'll view the collected trace with the Perfetto
+UI and query its contents programatically with PerfettoSQL.*
 
 ## Adding your first instrumentation
 
 ### Setup
 
+Checkout the latest SDK release
+
+```
+git clone https://github.com/google/perfetto.git -b v50.1
+```
+
+The SDK consists of two files, `sdk/perfetto.h` and `sdk/perfetto.cc`. These are
+an amalgamation of the Client API designed to easy to integrate to existing
+build systems. The sources are self-contained and require only a C++17 compliant
+standard library.
+
+Copy them in your project. The next steps assume they're in the `perfetto/sdk` folder.
+Assuming your build looks like this:
+
+<?tabs>
+
+TAB: CMake
+
+```
+cmake_minimum_required(VERSION 3.13)
+project(Example)
+
+# Main executable
+add_executable(example example.cc)
+```
+
+</tabs?>
+
+You can add the perfetto static library like this:
+
+<?tabs>
+
+TAB: CMake
+
+```
+cmake_minimum_required(VERSION 3.13)
+project(Example)
+find_package(Threads)
+
+# Define a static library for Perfetto.
+include_directories(perfetto/sdk)
+add_library(perfetto STATIC perfetto/sdk/perfetto.cc)
+
+# Main executable
+add_executable(example example.cc)
+
+# Link the library to your main executable.
+target_link_libraries(example perfetto ${CMAKE_THREAD_LIBS_INIT})
+
+if (WIN32)
+  # The perfetto library contains many symbols, so it needs the big object
+  # format.
+  target_compile_options(perfetto PRIVATE "/bigobj")
+  # Disable legacy features in windows.h.
+  add_definitions(-DWIN32_LEAN_AND_MEAN -DNOMINMAX)
+  # On Windows we should link to WinSock2.
+  target_link_libraries(example ws2_32)
+endif (WIN32)
+
+# Enable standards-compliant mode when using the Visual Studio compiler.
+if (MSVC)
+  target_compile_options(example PRIVATE "/permissive-")
+endif (MSVC)
+```
+
+</tabs?>
+
+Initialize perfetto in your program and define your tracing categories:
+
 <?tabs>
 
 TAB: C++
 
-GitHub project
+```
+#include <perfetto.h>
 
-TAB: C
+PERFETTO_DEFINE_CATEGORIES(
+    perfetto::Category("rendering")
+        .SetDescription("Events from the graphics subsystem"),
+    perfetto::Category("network")
+        .SetDescription("Network upload and download statistics"));
 
-GitHub project
+PERFETTO_TRACK_EVENT_STATIC_STORAGE();
+
+int main(int argc, char** argv) {
+  perfetto::TracingInitArgs args;
+  args.backends |= perfetto::kInProcessBackend;
+  perfetto::Tracing::Initialize(args);
+  perfetto::TrackEvent::Register();
+  //...
+}
+```
 
 </tabs?>
 
-### Slices
+You can now add instrumentation points to your code. They will emit events when
+tracing is enabled.
 
 <?tabs>
 
 TAB: C++
 
-Scoped slices
+```
+void DrawPlayer(int player_number) {
+  TRACE_EVENT("rendering", "DrawPlayer", "player_number", player_number);
+  // ...
+}
 
-TAB: C
+void DrawGame() {
+  TRACE_EVENT_BEGIN("rendering", "DrawGame");
+  DrawPlayer(1);
+  DrawPlayer(2);
+  TRACE_EVENT_END("rendering");
 
-Begin/end at the end of each function
+  // ...
+  TRACE_COUNTER("rendering", "Framerate", 120);
+}
+
+```
 
 </tabs?>
-
-### Counters
-
-Annotate counter
 
 ## Collecting your first app trace
 
-Use APIs to fetch a trace
+You can start collecting events with:
+
+<?tabs>
+
+TAB: C++
+
+```
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  perfetto::protos::gen::TrackEventConfig te_cfg;
+  te_cfg.add_disabled_categories("*");
+  te_cfg.add_enabled_categories("rendering");
+  ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+
+  std::unique_ptr<perfetto::TracingSession> tracing_session = perfetto::Tracing::NewTrace();
+  tracing_session->Setup(cfg);
+  tracing_session->StartBlocking();
+  // Keep tracing_session alive
+
+  // ...
+```
+
+</tabs?>
+
+And you can stop and save them into a file with:
+
+<?tabs>
+
+TAB: C++
+
+```
+  tracing_session->StopBlocking();
+  std::vector<char> trace_data(tracing_session->ReadTraceBlocking());
+
+  // Write the result into a file.
+  std::ofstream output;
+  output.open("example.pftrace", std::ios::out | std::ios::binary);
+  output.write(&trace_data[0], std::streamsize(trace_data.size()));
+  output.close();
+```
+
+</tabs?>
 
 ## Visualizing your first app trace
 
-Video: open trace in the UI
+You can now open the `example.pftrace` file with https://ui.perfetto.dev/
+
+It will show the events captured by the execution of your instrumentation
+points:
+
+![Track event example](/docs/images/track_event_draw_game.png)
 
 ## Analysing your first app trace
 
-Video: write queries in the UI
-
-#### Testing the SDK integration in out-of-process tracing mode (system mode)
-
-If you are using the Perfetto [tracing SDK](/docs/instrumentation/tracing-sdk)
-and want to capture a fused trace that contains both system traces events and
-your custom app trace events, you need to start the `traced` and `traced_probes`
-services ahead of time and then use the `perfetto` cmdline client.
-
-For a quick start, the [tools/tmux](/tools/tmux) script takes care of building,
-setting up and running everything. As an example, let's look at the process
-scheduling data, which will be obtained from the Linux kernel via the [ftrace]
-interface.
-
-[ftrace]: https://www.kernel.org/doc/Documentation/trace/ftrace.txt
-
-1. Run the convenience script with an example tracing config (10s duration):
-
-```bash
-tools/tmux -c test/configs/scheduling.cfg -C out/linux -n
-```
-
-This will open a tmux window with three panes, one per the binary involved in
-tracing: `traced`, `traced_probes` and the `perfetto` client cmdline.
-
-2. Start the tracing session by running the pre-filled `perfetto` command in the
-   down-most [consumer] pane.
-
-3. Detach from the tmux session with `Ctrl-B D`,or shut it down with
-   `tmux kill-session -t demo`. The script will then copy the trace to
-   `/tmp/trace.perfetto-trace`, as a binary-encoded protobuf (see
-   [TracePacket reference](/docs/reference/trace-packet-proto.autogen)).
+Example of query in the UI
 
 ## Next steps
 
-Link to instrumentation guide for how to do more instrumentation with SDK.
+* SDK: more instrumentation points.
+* SDK: system mode.
+* SDK: custom data sources.
+* Trace analysis: SQL
