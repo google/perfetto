@@ -26,6 +26,6 @@ perfetto_android_jni_library("libperfetto_jni") {
     "../../../gn:default_deps",
     "../../shared_lib:libperfetto_c",
   ]
-  binary_name = "libperfetto_jni_lib.so"
+  binary_name = "libperfetto_jni.so"
   bazel_linkopts = "-llog"
 }
