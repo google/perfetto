@@ -86,6 +86,7 @@ perfetto_proto_library("non_minimal_@TYPE@") {
     "etw:@TYPE@",
     "filesystem:@TYPE@",
     "ftrace:@TYPE@",
+    "generic_kernel:@TYPE@",
     "gpu:@TYPE@",
     "interned_data:@TYPE@",
     "perfetto:@TYPE@",

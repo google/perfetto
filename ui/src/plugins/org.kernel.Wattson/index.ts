@@ -150,9 +150,7 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
   }
 
   async onInit() {
-    await this.engine.query(
-      `INCLUDE PERFETTO MODULE wattson.curves.estimates;`,
-    );
+    await this.engine.query(`INCLUDE PERFETTO MODULE wattson.estimates;`);
   }
 
   protected getDefaultCounterOptions(): CounterOptions {

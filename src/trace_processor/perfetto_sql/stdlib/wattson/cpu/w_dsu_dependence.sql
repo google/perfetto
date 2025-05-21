@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE linux.devfreq;
 
-INCLUDE PERFETTO MODULE wattson.cpu_split;
+INCLUDE PERFETTO MODULE wattson.cpu.split;
 
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 

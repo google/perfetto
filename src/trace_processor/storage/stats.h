@@ -115,6 +115,11 @@ namespace perfetto::trace_processor::stats {
                                           kSingle,  kDataLoss, kTrace,         \
        "Decreased value received from SuspendControlService. Indicates a "     \
        "transient error in SuspendControlService."),                           \
+  F(kernel_wakelock_implausibly_large_value_reported,                          \
+                                          kSingle,  kDataLoss, kTrace,         \
+       "Implausibly large increment to value received from "                   \
+       "SuspendControlService. Indicates a transient error in "                \
+       "SuspendControlService."),                                              \
   F(app_wakelock_parse_error,             kSingle,  kError,    kAnalysis,      \
        "Parsing packed repeated field. Should never happen."),                 \
   F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis,      \

@@ -35,6 +35,7 @@ source_set("rpc") {
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/trace_processor:zero",
+    "../../../protos/perfetto/trace_summary:zero",
     "../../base",
     "../../base:version",
     "../../protozero",

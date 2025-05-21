@@ -27,6 +27,7 @@ from typing import List, Optional, Tuple, Iterable
 # do realpath.
 REPO_ROOT = os.path.dirname(
     os.path.dirname(os.path.abspath(os.path.realpath(__file__))))
+IS_WIN = sys.platform.startswith('win')
 
 
 def RunAndReportIfLong(func, *args, **kargs):
@@ -428,6 +429,20 @@ def CheckAndroidBlueprint(changed_files: List[str]) -> List[str]:
   return []
 
 
+def EnsureProtoBinaryExists():
+  out_dir = os.path.join(REPO_ROOT, 'out', 'presubmits')
+  protoc_path = os.path.join(out_dir, 'protoc') + ('.exe' if IS_WIN else '')
+  if os.path.exists(protoc_path):
+    return protoc_path
+  gn = os.path.join(REPO_ROOT, 'tools', 'gn')
+  ninja = os.path.join(REPO_ROOT, 'tools', 'ninja')
+  gn_args = 'is_debug=false'
+  subprocess.check_call(
+      [sys.executable, gn, 'gen', f'--args={gn_args}', out_dir], cwd=REPO_ROOT)
+  subprocess.check_call([sys.executable, ninja, '-C', out_dir, 'protoc'])
+  return protoc_path
+
+
 def CheckBinaryDescriptors(changed_files: List[str]) -> List[str]:
   if sys.platform == 'win32':
     return []
@@ -446,8 +461,10 @@ def CheckBinaryDescriptors(changed_files: List[str]) -> List[str]:
   if not tool_changed and not source_files_changed:
     return []
 
+  protoc = EnsureProtoBinaryExists()
   try:
-    run_command([sys.executable, tool, '--check-only'], cwd=REPO_ROOT)
+    run_command([sys.executable, tool, '--check-only', f'--protoc={protoc}'],
+                cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
   except subprocess.CalledProcessError:
