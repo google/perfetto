@@ -78,6 +78,11 @@ jobs:
       - name: UI integrationtests
         run: ui/run-integrationtests --out out/dist --no-build
 
+        # UI code formatting checks must be done here, rather than repo-checks,
+        # because they need a out/ui build.
+      - name: Check UI code is formatted
+        run: ui/format-sources --check-only
+
       - name: Upload artifacts to GCS
         if: ${{ always() }}
         run: |
