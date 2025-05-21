@@ -17,6 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HPROF_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HPROF_PARSER_H_
 
+#include <cinttypes>
+#include <string>
+
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
@@ -26,48 +29,34 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
-#include "src/trace_processor/importers/common/trace_parser.h"
-#include "src/trace_processor/types/trace_processor_context.h"
-
-#include <cinttypes>
-#include <string>
-
 namespace perfetto::trace_processor::art_hprof {
+
 constexpr const char* kJavaLangObject = "java.lang.Object";
 constexpr const char* kUnknownClassKind = "[unknown class kind]";
+constexpr size_t kRecordLengthOffset = 5;
 
 class ArtHprofParser : public ChunkedTraceReader {
  public:
   explicit ArtHprofParser(TraceProcessorContext* context);
   ~ArtHprofParser() override;
-
   base::Status Parse(TraceBlobView blob) override;
   base::Status NotifyEndOfFile() override;
 
  private:
-  void PopulateClasses(
-      const HeapGraph& graph,
-      base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id>& class_map);
+  void PopulateClasses(const HeapGraph& graph);
+  void PopulateObjects(const HeapGraph& graph, int64_t ts, UniquePid upid);
+  void PopulateReferences(const HeapGraph& graph);
 
-  void PopulateObjects(
-      const HeapGraph& graph,
-      int64_t ts,
-      UniquePid upid,
-      const base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id>&
-          class_map,
-      base::FlatHashMap<uint64_t, tables::HeapGraphObjectTable::Id>&
-          object_map);
-
-  void PopulateReferences(
-      const HeapGraph& graph,
-      const base::FlatHashMap<uint64_t, tables::HeapGraphObjectTable::Id>&
-          object_map);
+  // Helper methods
+  tables::HeapGraphClassTable::Id* FindClassId(uint64_t class_id) const;
+  tables::HeapGraphObjectTable::Id* FindObjectId(uint64_t obj_id) const;
+  tables::HeapGraphClassTable::Id* FindClassObjectId(uint64_t obj_id) const;
+  StringId InternClassName(const std::string& class_name);
 
   class TraceBlobViewIterator : public ByteIterator {
    public:
-    explicit TraceBlobViewIterator(util::TraceBlobViewReader&& reader);
+    explicit TraceBlobViewIterator();
     ~TraceBlobViewIterator() override;
-
     bool ReadU1(uint8_t& value) override;
     bool ReadU2(uint16_t& value) override;
     bool ReadU4(uint32_t& value) override;
@@ -76,7 +65,13 @@ class ArtHprofParser : public ChunkedTraceReader {
     bool ReadBytes(std::vector<uint8_t>& data, size_t length) override;
     bool SkipBytes(size_t count) override;
     size_t GetPosition() const override;
-    bool IsEof() const override;
+    // Whether we can read an entire record from the existing chunk.
+    // This method does not advance the iterator.
+    bool CanReadRecord() const override;
+    // Pushes more HPROF chunks in for parsin.
+    void PushBlob(TraceBlobView&& data) override;
+    // Shrinks the backing HPROF data to discard all consumed bytes.
+    void Shrink() override;
 
    private:
     util::TraceBlobViewReader reader_;
@@ -84,13 +79,18 @@ class ArtHprofParser : public ChunkedTraceReader {
   };
 
   TraceProcessorContext* const context_;
-  util::TraceBlobViewReader reader_;
 
   // Parser components
   std::unique_ptr<ByteIterator> byte_iterator_;
   std::unique_ptr<HeapGraphBuilder> parser_;
+
+  // Maps moved to instance variables
+  base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id> class_map_;
+  base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id>
+      class_object_map_;
+  base::FlatHashMap<uint64_t, tables::HeapGraphObjectTable::Id> object_map_;
+  // For class objects that are denoted with "java.lang.Class<"
+  base::FlatHashMap<uint64_t, std::string> class_name_map_;
 };
-
 }  // namespace perfetto::trace_processor::art_hprof
-
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HPROF_PARSER_H_
