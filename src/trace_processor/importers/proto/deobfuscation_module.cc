@@ -44,13 +44,16 @@ void DeobfuscationModule::ParseTracePacketData(
     const TracePacketData&,
     uint32_t field_id) {
   switch (field_id) {
-    case TracePacket::kDeobfuscationMappingFieldNumber: {
-      ParseDeobfuscationMapping(decoder.deobfuscation_mapping());
+    case TracePacket::kDeobfuscationMappingFieldNumber:
+      StoreDeobfuscationMapping(decoder.deobfuscation_mapping());
       return;
-    }
     default:
       break;
   }
+}
+
+void DeobfuscationModule::StoreDeobfuscationMapping(ConstBytes blob) {
+  packets_.emplace_back(TraceBlob::CopyFrom(blob.data, blob.size));
 }
 
 void DeobfuscationModule::DeobfuscateHeapGraphClass(
@@ -83,10 +86,9 @@ void DeobfuscationModule::DeobfuscateHeapGraphClass(
   }
 }
 
-void DeobfuscationModule::ParseDeobfuscationMapping(ConstBytes blob) {
-  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
-  heap_graph_tracker->FinalizeAllProfiles();
-
+void DeobfuscationModule::ParseDeobfuscationMapping(
+    ConstBytes blob,
+    HeapGraphTracker* heap_graph_tracker) {
   protos::pbzero::DeobfuscationMapping::Decoder deobfuscation_mapping(
       blob.data, blob.size);
   ParseDeobfuscationMappingForHeapGraph(deobfuscation_mapping,
@@ -222,6 +224,16 @@ void DeobfuscationModule::ParseDeobfuscationMappingForProfiles(
   }
   context_->args_translation_table->AddDeobfuscationMappingTable(
       std::move(deobfuscation_mapping_table));
+}
+
+void DeobfuscationModule::NotifyEndOfFile() {
+  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
+  heap_graph_tracker->FinalizeAllProfiles();
+
+  for (const auto& packet : packets_) {
+    ParseDeobfuscationMapping(ConstBytes{packet.data(), packet.size()},
+                              heap_graph_tracker);
+  }
 }
 
 }  // namespace perfetto::trace_processor

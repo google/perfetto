@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_DEOBFUSCATION_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_DEOBFUSCATION_MODULE_H_
 
+#include <vector>
+
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -33,12 +35,17 @@ class DeobfuscationModule : public ProtoImporterModule {
   explicit DeobfuscationModule(TraceProcessorContext* context);
   ~DeobfuscationModule() override;
 
+  // TODO (ddiproietto): Is it better to use TokenizePacket instead?
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
                             int64_t ts,
                             const TracePacketData& data,
                             uint32_t field_id) override;
 
+  void NotifyEndOfFile() override;
+
  private:
+  void StoreDeobfuscationMapping(protozero::ConstBytes);
+
   void DeobfuscateHeapGraphClass(
       std::optional<StringPool::Id> package_name_id,
       StringPool::Id obfuscated_class_id,
@@ -49,8 +56,9 @@ class DeobfuscationModule : public ProtoImporterModule {
       HeapGraphTracker*);
   void ParseDeobfuscationMappingForProfiles(
       const protos::pbzero::DeobfuscationMapping::Decoder&);
-  void ParseDeobfuscationMapping(protozero::ConstBytes);
+  void ParseDeobfuscationMapping(protozero::ConstBytes, HeapGraphTracker*);
 
+  std::vector<TraceBlob> packets_;
   TraceProcessorContext* context_;
 };
 
