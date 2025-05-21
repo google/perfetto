@@ -10269,6 +10269,7 @@ genrule {
         ":perfetto_protos_perfetto_common_zero",
         ":perfetto_protos_perfetto_perfetto_sql_zero",
         ":perfetto_protos_perfetto_trace_processor_zero",
+        ":perfetto_protos_perfetto_trace_summary_zero",
     ],
     tools: [
         "aprotoc",
@@ -10290,6 +10291,7 @@ genrule {
         ":perfetto_protos_perfetto_common_zero",
         ":perfetto_protos_perfetto_perfetto_sql_zero",
         ":perfetto_protos_perfetto_trace_processor_zero",
+        ":perfetto_protos_perfetto_trace_summary_zero",
     ],
     tools: [
         "aprotoc",
@@ -18152,6 +18154,7 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
+        ":perfetto_protos_perfetto_trace_summary_zero_gen",
         ":perfetto_protos_perfetto_trace_sys_stats_zero_gen",
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
@@ -18243,6 +18246,7 @@ cc_binary {
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_summary_zero_gen_headers",
         "perfetto_protos_perfetto_trace_sys_stats_zero_gen_headers",
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",

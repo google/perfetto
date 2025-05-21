@@ -306,3 +306,81 @@ class TestApi(unittest.TestCase):
         qr_iterator = tp.query(
             'SELECT IMPORT("ext.module"); SELECT test_value FROM test_table')
         self.assertEqual(next(qr_iterator).test_value, 123)
+
+  def test_trace_summary_failure(self):
+    tp = create_tp(trace=example_android_trace_path())
+    with self.assertRaises(TraceProcessorException):
+      _ = tp.trace_summary(['foo'], ['bar, baz'])
+    tp.close()
+
+  def test_trace_summary_success(self):
+    metric_spec = """metric_spec: {
+        id: "memory_per_process"
+        value: "dur"
+        query: {
+          simple_slices {
+            process_name_glob: "ab*"
+          }
+        }
+      }
+      """
+
+    tp = create_tp(trace=example_android_trace_path())
+    trace_summary = tp.trace_summary(['memory_per_process'], [metric_spec])
+    self.assertEqual(trace_summary.metric[0].spec.id, 'memory_per_process')
+    tp.close()
+
+  def test_trace_summary_success_multiple_metrics(self):
+    metric_spec_1 = """metric_spec: {
+        id: "metric_one"
+        value: "dur"
+        query: {
+          simple_slices {
+            process_name_glob: "ab*"
+          }
+        }
+      }
+      """
+    metric_spec_2 = """metric_spec: {
+        id: "metric_two"
+        value: "ts"
+        query: {
+          simple_slices {
+            process_name_glob: "cd*"
+          }
+        }
+      }
+      """
+    tp = create_tp(trace=example_android_trace_path())
+    trace_summary = tp.trace_summary(['metric_one', 'metric_two'],
+                                     [metric_spec_1, metric_spec_2])
+    self.assertEqual(len(trace_summary.metric), 2)
+    self.assertIn(trace_summary.metric[0].spec.id, ['metric_one', 'metric_two'])
+    self.assertIn(trace_summary.metric[1].spec.id, ['metric_one', 'metric_two'])
+    tp.close()
+
+  def test_trace_summary_success_with_metadata_query(self):
+    metric_spec = """metric_spec: {
+        id: "memory_per_process"
+        value: "dur"
+        query: {
+          simple_slices {
+            process_name_glob: "ab*"
+          }
+        }
+      }
+      query: {
+        id: "metadata_query"
+        sql {
+          sql: "SELECT \'foo\' AS key,  \'bar\' AS value"
+          column_names: "key"
+          column_names: "value"
+        }
+      }
+      """
+    tp = create_tp(trace=example_android_trace_path())
+    trace_summary = tp.trace_summary(['memory_per_process'], [metric_spec],
+                                     metadata_query_id='metadata_query')
+    self.assertEqual(trace_summary.metric[0].spec.id, 'memory_per_process')
+    self.assertTrue(hasattr(trace_summary, 'metadata'))
+    tp.close()
