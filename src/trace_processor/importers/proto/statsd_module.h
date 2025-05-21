@@ -58,7 +58,7 @@ class StatsdModule : public ProtoImporterModule {
 
   TraceProcessorContext* context_;
   base::FlatHashMap<uint32_t, StringId> atom_names_;
-  const ProtoDescriptor* descriptor_ = nullptr;
+  std::optional<uint32_t> descriptor_idx_;
   util::ProtoToArgsParser args_parser_;
   std::optional<TrackId> track_id_;
 };
