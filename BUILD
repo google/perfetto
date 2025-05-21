@@ -3149,6 +3149,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_gpu_gpu",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/gpu/frequency.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/gpu/mali_power_state.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/gpu/memory.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/gpu/work_period.sql",
     ],
