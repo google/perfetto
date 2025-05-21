@@ -60,12 +60,14 @@ export default class implements PerfettoPlugin {
             clock_name,
             clock_value,
             snapshot_id,
-            machine_id
+            machine_id,
+            0 as dur
           FROM clock_snapshot
         `,
         schema: {
           id: NUM,
           ts: LONG,
+          dur: LONG,
           name: STR,
           clock_id: NUM,
           clock_name: STR_NULL,
