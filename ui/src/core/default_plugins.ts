@@ -40,6 +40,7 @@ export const defaultPlugins = [
   'dev.perfetto.CriticalPath',
   'dev.perfetto.DebugTracks',
   'dev.perfetto.DeeplinkQuerystring',
+  'dev.perfetto.EntityStateResidency',
   'dev.perfetto.FlagsPage',
   'dev.perfetto.Frames',
   'dev.perfetto.Ftrace',

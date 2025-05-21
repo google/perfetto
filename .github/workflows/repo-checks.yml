@@ -52,7 +52,9 @@ jobs:
         # base_ref is "" in post-submit, skip the presubmit check in postsubmit
         # as there is nothing do diff against.
         if: ${{ github.base_ref != '' }}
-        run: tools/run_presubmit --merge-base origin/${{ github.base_ref }}
+        run: tools/run_presubmit \
+                --merge-base origin/${{ github.base_ref }} \
+                --skip-formatters=eslint,prettier
 
       - name: Check merged protos (tools/gen_all)
         run: |

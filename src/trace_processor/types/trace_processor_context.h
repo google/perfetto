@@ -40,6 +40,7 @@ class ClockConverter;
 class ClockTracker;
 class CpuTracker;
 class DeobfuscationMappingTable;
+class DeobfuscationTracker;
 class DescriptorPool;
 class EtwModule;
 class EventTracker;

@@ -228,14 +228,15 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
   return errors
 
 
-def CheckCodeFormatted() -> List[str]:
+def CheckCodeFormatted(skip_formatters: str) -> List[str]:
   # NOTE: format-sources does its own invocation of git diff ... to detect
   # changed file. We use that, rather than passing the list here, to avoid
   # ending in a situation where run_presubmit fails, but then
   # tools/format_sources succeeds because they diverge in their diff logic.
   tool = os.path.join(REPO_ROOT, 'tools/format-sources')
   try:
-    run_command([tool, '--quiet', '--check-only'], stderr=subprocess.STDOUT)
+    run_command([tool, '--quiet', '--check-only', '--skip=' + skip_formatters],
+                stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError:
     return [f'Please run {tool} to format sources.']
   return []
@@ -838,6 +839,10 @@ def CheckUiRatchet(changed_files: List[str]) -> List[str]:
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--merge-base', default='origin/main')
+  parser.add_argument(
+      '--skip-formatters',
+      default='',
+      help='Comma-separated list of code formatters to skip')
   # The pre-push hook passes extra cmdline arguments like 'origin git@...'.
   # Accept and ignore positional args.
   args, _ = parser.parse_known_args()
@@ -857,7 +862,7 @@ def main():
 
   # Use RunAndReportIfLong for all checks
   checks_to_run = [
-      (CheckCodeFormatted, []),
+      (CheckCodeFormatted, [args.skip_formatters]),
       (CheckDoNotSubmit, [changed_files]),
       (CheckChangeHasNoTabs, [changed_files]),
       (CheckIncludeGuards, [changed_files]),

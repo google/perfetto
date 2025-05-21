@@ -75,6 +75,7 @@ from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 from diff_tests.parser.ftrace.kprobes_tests import Kprobes
 from diff_tests.parser.fuchsia.tests import Fuchsia
 from diff_tests.parser.gecko.tests import GeckoParser
+from diff_tests.parser.generic_kernel.tests import GenericKernelParser
 from diff_tests.parser.graphics.tests import GraphicsParser
 from diff_tests.parser.graphics.tests_drm_related_ftrace_events import GraphicsDrmRelatedFtraceEvents
 from diff_tests.parser.graphics.tests_gpu_trace import GraphicsGpuTrace
@@ -96,6 +97,7 @@ from diff_tests.parser.power.tests_linux_sysfs_power import LinuxSysfsPower
 from diff_tests.parser.power.tests_power_rails import PowerPowerRails
 from diff_tests.parser.power.tests_voltage_and_scaling import PowerVoltageAndScaling
 from diff_tests.parser.process_tracking.tests import ProcessTracking
+from diff_tests.parser.profiling.deobfuscation_tests import Deobfuscation
 from diff_tests.parser.profiling.tests import Profiling
 from diff_tests.parser.profiling.tests_heap_graph import ProfilingHeapGraph
 from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfiling
@@ -179,9 +181,11 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       ChromeParser,
       ChromeV8Parser,
       Cros,
+      Deobfuscation,
       Etm,
       Fs,
       Fuchsia,
+      GenericKernelParser,
       GraphicsDrmRelatedFtraceEvents,
       GraphicsGpuTrace,
       GraphicsParser,
