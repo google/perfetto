@@ -1,0 +1,364 @@
+packet {
+  clock_snapshot {
+    clocks: {
+      clock_id: 6 # BOOTTIME
+      timestamp: 0
+    }
+    clocks: {
+      clock_id: 4 # MONOTONIC_COARSE
+      timestamp: 10
+    }
+  }
+}
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "/system/bin/init"
+      cmdline: "second_stage"
+      uid: 0
+    }
+    processes {
+      pid: 880
+      ppid: 1
+      cmdline: "zygote"
+      uid: 0
+    }
+    processes {
+      pid: 25587
+      ppid: 880
+      cmdline: "com.google.android.prebuilt1"
+      uid: 10037
+    }
+    processes {
+      pid: 26698
+      ppid: 880
+      cmdline: "com.google.android.prebuilt2"
+      uid: 10038
+    }
+  }
+  trusted_packet_sequence_id: 2
+  trusted_pid: 1229
+}
+packet {
+  packages_list {
+    packages {
+      name: "com.google.android.prebuilt1"
+      uid: 10037
+    }
+    packages {
+      name: "com.google.android.prebuilt2"
+      uid: 10038
+    }
+  }
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 4
+  interned_data {
+    function_names {
+      iid: 0
+      str: ""
+    }
+    build_ids {
+      iid: 0
+      str: ""
+    }
+    mapping_paths {
+      iid: 0
+      str: ""
+    }
+  }
+  sequence_flags: 1
+  previous_packet_dropped: true
+  trusted_pid: 28644
+  first_packet_on_sequence: true
+}
+packet {
+  trusted_uid: 9999
+  timestamp: 1935902520186769
+  trusted_packet_sequence_id: 4
+  interned_data {
+    function_names {
+      iid: 78
+      str: "hwe.a"
+    }
+    function_names {
+      iid: 79
+      str: "hye.a"
+    }
+    function_names {
+      iid: 80
+      str: "aab.a"
+    }
+    function_names {
+      iid: 81
+      str: "aac.a"
+    }
+    frames {
+      iid: 2
+      function_name_id: 78
+      mapping_id: 11
+      rel_pc: 261175
+    }
+    frames {
+      iid: 58
+      function_name_id: 79
+      mapping_id: 11
+      rel_pc: 3370425
+    }
+    frames {
+      iid: 59
+      function_name_id: 80
+      mapping_id: 11
+      rel_pc: 3370445
+    }
+    frames {
+      iid: 60
+      function_name_id: 81
+      mapping_id: 11
+      rel_pc: 3370465
+    }
+    callstacks {
+      iid: 15673
+      frame_ids: 58
+      frame_ids: 2
+    }
+    build_ids {
+      iid: 1
+      str: ""
+    }
+    mapping_paths {
+      iid: 10
+      str: "system"
+    }
+    mapping_paths {
+      iid: 123
+      str: "priv-app"
+    }
+    mapping_paths {
+      iid: 124
+      str: "Prebuilt1"
+    }
+    mapping_paths {
+      iid: 125
+      str: "Prebuilt1.apk"
+    }
+    mappings {
+      iid: 11
+      build_id: 1
+      start_offset: 8294400
+      start: 3128418304
+      end: 3133423616
+      load_bias: 0
+      path_string_ids: 10
+      path_string_ids: 123
+      path_string_ids: 124
+      path_string_ids: 125
+      exact_offset: 8294400
+    }
+  }
+  profile_packet {
+    process_dumps {
+      pid: 25587
+      samples {
+        callstack_id: 15673
+        self_allocated: 32768
+        self_freed: 32768
+        alloc_count: 1
+        free_count: 1
+      }
+      timestamp: 114549565653685
+      heap_name: "libc.malloc"
+      sampling_interval_bytes: 32768
+      orig_sampling_interval_bytes: 32768
+      client_error: CLIENT_ERROR_NONE
+    }
+    continued: true
+    index: 0
+  }
+  trusted_pid: 28644
+}
+packet {
+  trusted_uid: 9999
+  timestamp: 1935902613961509
+  trusted_packet_sequence_id: 4
+  profile_packet {
+    index: 1
+  }
+  trusted_pid: 28644
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 5
+  interned_data {
+    function_names {
+      iid: 0
+      str: ""
+    }
+    build_ids {
+      iid: 0
+      str: ""
+    }
+    mapping_paths {
+      iid: 0
+      str: ""
+    }
+  }
+  sequence_flags: 1
+  previous_packet_dropped: true
+  trusted_pid: 28644
+  first_packet_on_sequence: true
+}
+packet {
+  trusted_uid: 9999
+  timestamp: 1935908520186769
+  trusted_packet_sequence_id: 5
+  interned_data {
+    function_names {
+      iid: 88
+      str: "hwe.a"
+    }
+    function_names {
+      iid: 89
+      str: "hye.a"
+    }
+    function_names {
+      iid: 90
+      str: "aab.a"
+    }
+    function_names {
+      iid: 91
+      str: "aac.a"
+    }
+    frames {
+      iid: 58
+      function_name_id: 88
+      mapping_id: 21
+      rel_pc: 3370425
+    }
+    frames {
+      iid: 59
+      function_name_id: 89
+      mapping_id: 21
+      rel_pc: 3370445
+    }
+    frames {
+      iid: 60
+      function_name_id: 90
+      mapping_id: 21
+      rel_pc: 3370465
+    }
+    frames {
+      iid: 61
+      function_name_id: 91
+      mapping_id: 21
+      rel_pc: 3370485
+    }
+    callstacks {
+      iid: 15675
+      frame_ids: 58
+      frame_ids: 59
+    }
+    callstacks {
+      iid: 15676
+      frame_ids: 60
+      frame_ids: 61
+    }
+    build_ids {
+      iid: 1
+      str: ""
+    }
+    mapping_paths {
+      iid: 20
+      str: "system"
+    }
+    mapping_paths {
+      iid: 223
+      str: "priv-app"
+    }
+    mapping_paths {
+      iid: 224
+      str: "Prebuilt2"
+    }
+    mapping_paths {
+      iid: 225
+      str: "Prebuilt2.apk"
+    }
+    mappings {
+      iid: 21
+      build_id: 1
+      start_offset: 8294400
+      start: 3128418304
+      end: 3133423616
+      load_bias: 0
+      path_string_ids: 20
+      path_string_ids: 223
+      path_string_ids: 224
+      path_string_ids: 225
+      exact_offset: 8294400
+    }
+  }
+  perf_sample {
+    cpu: 0
+    pid: 26698
+    tid: 26698
+    cpu_mode: MODE_USER
+    timebase_count: 42
+    callstack_iid: 15675
+  }
+  trusted_pid: 28644
+}
+packet {
+  deobfuscation_mapping {
+    package_name: "com.google.android.prebuilt1"
+    version_code: 555
+    obfuscated_classes {
+      obfuscated_name: "hye"
+      deobfuscated_name: "com.google.classone"
+      obfuscated_methods {
+        obfuscated_name: "a"
+        deobfuscated_name: "foo"
+      }
+      obfuscated_methods {
+        obfuscated_name: "b"
+        deobfuscated_name: "bar"
+      }
+    }
+    obfuscated_classes {
+      obfuscated_name: "hwe"
+      deobfuscated_name: "com.google.classtwo"
+      obfuscated_methods {
+        obfuscated_name: "a"
+        deobfuscated_name: "foo"
+      }
+    }
+  }
+}
+packet {
+  deobfuscation_mapping {
+    package_name: "com.google.android.prebuilt2"
+    version_code: 444
+    obfuscated_classes {
+      obfuscated_name: "hye"
+      deobfuscated_name: "com.google.classthree"
+      obfuscated_methods {
+        obfuscated_name: "a"
+        deobfuscated_name: "foo"
+      }
+      obfuscated_methods {
+        obfuscated_name: "b"
+        deobfuscated_name: "bar"
+      }
+    }
+    obfuscated_classes {
+      obfuscated_name: "hwe"
+      deobfuscated_name: "com.google.classfour"
+      obfuscated_methods {
+        obfuscated_name: "a"
+        deobfuscated_name: "foo"
+      }
+    }
+  }
+}

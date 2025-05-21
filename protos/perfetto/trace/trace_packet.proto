@@ -49,6 +49,7 @@ import "protos/perfetto/trace/etw/etw_event_bundle.proto";
 import "protos/perfetto/trace/filesystem/inode_file_map.proto";
 import "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto";
 import "protos/perfetto/trace/ftrace/ftrace_stats.proto";
+import "protos/perfetto/trace/generic_kernel/generic_task_state.proto";
 import "protos/perfetto/trace/gpu/gpu_counter_event.proto";
 import "protos/perfetto/trace/gpu/gpu_log.proto";
 import "protos/perfetto/trace/gpu/gpu_render_stage_event.proto";
@@ -107,7 +108,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 117.
+// Next id: 118.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -253,6 +254,9 @@ message TracePacket {
     KernelWakelockData kernel_wakelock_data = 115;
 
     AppWakelockBundle app_wakelock_bundle = 116;
+
+    // Generic events for a standard kernel implementation
+    GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

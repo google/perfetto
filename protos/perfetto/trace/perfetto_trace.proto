@@ -12296,6 +12296,53 @@ enum FtraceClock {
 
 // End of protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
 
+// Begin of protos/perfetto/trace/generic_kernel/generic_task_state.proto
+
+// GenericKernelTaskStateEvent is the standard proto to capture thread state
+// change events in a generic kernel implementation. This is mainly for the
+// case where scheduler events are not directly supported in the kernel's
+// tracing mechanism.
+//
+// By capturing these task state events Perfetto is able to infer higher-level
+// events such as context switches and task waking events, providing as much
+// parity as possible with established tracing frameworks such as
+// Linux's ftrace.
+message GenericKernelTaskStateEvent {
+  // CPU in which the event occured.
+  // This field is only relevant with the TASK_STATE_RUNNING state. There is
+  // no specific meaning to the cpu field in a non-running state event.
+  optional int32 cpu = 1;
+  // Command name for the thread.
+  optional string comm = 2;
+  // Thread id.
+  optional int32 tid = 3;
+
+  // TaskStateEnum represents the valid states of a thread.
+  // These states are a generic representation of the actual thread state and
+  // don't necessarily map one-to-one to the states the actual OS kernel
+  // tracks internally.
+  enum TaskStateEnum {
+    TASK_STATE_UNKNOWN = 0;
+    TASK_STATE_CREATED = 1;
+    TASK_STATE_RUNNABLE = 2;
+    TASK_STATE_RUNNING = 3;
+    TASK_STATE_INTERRUPTIBLE_SLEEP = 4;
+    TASK_STATE_UNINTERRUPTIBLE_SLEEP = 5;
+    TASK_STATE_STOPPED = 6;
+    TASK_STATE_DEAD = 7;
+    TASK_STATE_DESTROYED = 8;
+  }
+  // New state of the thread.
+  optional TaskStateEnum state = 4;
+
+  // Priority of the thread.
+  // This value is OS agnostic and should only be interpreted based on the
+  // kernel who emitted the message.
+  optional int32 prio = 5;
+}
+
+// End of protos/perfetto/trace/generic_kernel/generic_task_state.proto
+
 // Begin of protos/perfetto/trace/gpu/gpu_counter_event.proto
 
 message GpuCounterEvent {
@@ -16225,7 +16272,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 117.
+// Next id: 118.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -16371,6 +16418,9 @@ message TracePacket {
     KernelWakelockData kernel_wakelock_data = 115;
 
     AppWakelockBundle app_wakelock_bundle = 116;
+
+    // Generic events for a standard kernel implementation
+    GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
