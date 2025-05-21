@@ -233,6 +233,12 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     return conn.SendResponse("200 OK", default_headers, Vec2Sv(res));
   }
 
+  if (req.uri == "/trace_summary") {
+    std::vector<uint8_t> res = global_trace_processor_rpc_.ComputeTraceSummary(
+        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
+    return conn.SendResponse("200 OK", default_headers, Vec2Sv(res));
+  }
+
   if (req.uri == "/enable_metatrace") {
     global_trace_processor_rpc_.EnableMetatrace(
         reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());

@@ -31,7 +31,7 @@ namespace trace_processor {
 std::vector<FrameId> StackProfileTracker::JavaFramesForName(
     NameInPackage name) const {
   if (const auto* frames = java_frames_for_name_.Find(name); frames) {
-    return *frames;
+    return std::vector<FrameId>(frames->begin(), frames->end());
   }
   return {};
 }
@@ -70,12 +70,31 @@ void StackProfileTracker::OnFrameCreated(FrameId frame_id) {
     if (package) {
       NameInPackage nip{
           name_id, context_->storage->InternString(base::StringView(*package))};
-      java_frames_for_name_[nip].push_back(frame_id);
+      java_frames_for_name_[nip].insert(frame_id);
     } else if (mapping_name.find("/memfd:") == 0) {
       NameInPackage nip{name_id, context_->storage->InternString("memfd")};
-      java_frames_for_name_[nip].push_back(frame_id);
+      java_frames_for_name_[nip].insert(frame_id);
+    } else {
+      java_frames_with_unknown_packages_.insert(frame_id);
     }
   }
+}
+
+void StackProfileTracker::SetPackageForFrame(StringId package,
+                                             FrameId frame_id) {
+  auto frame =
+      context_->storage->stack_profile_frame_table().FindById(frame_id);
+  PERFETTO_CHECK(frame.has_value());
+  NameInPackage nip{frame->name(), package};
+  java_frames_for_name_[nip].insert(frame_id);
+}
+
+bool StackProfileTracker::HasFramesWithoutKnownPackage() const {
+  return !java_frames_with_unknown_packages_.empty();
+}
+
+bool StackProfileTracker::FrameHasUnknownPackage(FrameId frame_id) const {
+  return java_frames_with_unknown_packages_.count(frame_id) != 0;
 }
 
 }  // namespace trace_processor

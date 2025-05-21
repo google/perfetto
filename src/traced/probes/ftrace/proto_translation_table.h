@@ -117,7 +117,8 @@ class ProtoTranslationTable {
     return group_and_name_to_event_.at(group_and_name);
   }
 
-  const std::vector<const Event*>* GetEventsByGroup(
+  // Virtual for testing.
+  virtual const std::vector<const Event*>* GetEventsByGroup(
       const std::string& group) const {
     if (!group_to_events_.count(group))
       return nullptr;
