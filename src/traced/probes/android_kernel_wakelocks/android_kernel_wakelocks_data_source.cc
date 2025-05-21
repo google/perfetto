@@ -100,6 +100,11 @@ AndroidKernelWakelocksDataSource::AndroidKernelWakelocksDataSource(
                   poll_interval_ms_, kMinPollIntervalMs);
     poll_interval_ms_ = kMinPollIntervalMs;
   }
+
+  // Really it shouldn't be more than poll_interval_ms_ but allow for
+  // some clock skew; the implausible values we receive seem to be very large
+  // in practice.
+  max_plausible_diff_ms_ = 10 * poll_interval_ms_;
 }
 
 AndroidKernelWakelocksDataSource::~AndroidKernelWakelocksDataSource() = default;
@@ -180,9 +185,16 @@ void AndroidKernelWakelocksDataSource::WriteKernelWakelocks() {
       continue;
     }
     if (total != last_value) {
+      uint64_t diff = total - last_value;
+      // From observation, if SuspendControlService gives us a very large
+      // value it's a one-off, so don't let it define the new normal.
+      if (last_value > 0 && diff > max_plausible_diff_ms_) {
+        error_flags |= kKernelWakelockErrorImplausiblyLargeValue;
+        continue;
+      }
       info->last_value = total;
       wakelock_id.Append(info->id);
-      time_held_millis.Append(total - last_value);
+      time_held_millis.Append(diff);
     }
   }
 

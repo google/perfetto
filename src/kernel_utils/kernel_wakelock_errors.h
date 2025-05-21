@@ -21,5 +21,6 @@
 
 constexpr uint64_t kKernelWakelockErrorZeroValue = 1;
 constexpr uint64_t kKernelWakelockErrorNonMonotonicValue = 2;
+constexpr uint64_t kKernelWakelockErrorImplausiblyLargeValue = 4;
 
 #endif  // SRC_KERNEL_UTILS_KERNEL_WAKELOCK_ERRORS_H_
