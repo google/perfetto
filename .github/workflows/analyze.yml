@@ -14,17 +14,12 @@
 
 name: Perfetto CI
 on:
-  # 1. continuous
-  schedule:
-    # Run every 6 hours
-    - cron: '0 */6 * * *'
-
-  # 2. postsubmit
+  # 1. postsubmit
   push:
     branches:
       - main
 
-  # 3. presubmit
+  # 2. presubmit
   pull_request:
     types: [opened, synchronize]
     branches:

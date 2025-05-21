@@ -101,19 +101,17 @@ gcloud compute --project=${PROJECT} \
 	--region=$1 \
 	--base-instance-name=${GCE_GROUP_NAME}-$1 \
 	--template=${GCE_TEMPLATE} \
-	--standby-policy-mode=scale-out-pool \
-	--standby-policy-initial-delay=10 \
 	--size 0
 gcloud compute --quiet --project=$(PROJECT) \
 	instance-groups managed set-autoscaling ${GCE_GROUP_NAME}-$1 \
 	--region=$1 \
 	--min-num-replicas=${AUTOSCALER_MIN} \
 	--max-num-replicas=${MAX_VMS_PER_REGION} \
-	--cool-down-period=300 \
-	--mode=only-scale-out \
+	--cool-down-period=60 \
 	--stackdriver-metric-filter="resource.type = \"global\"" \
 	--update-stackdriver-metric="custom.googleapis.com/$(PROJECT)/ci_job_queue_len" \
-	--stackdriver-metric-single-instance-assignment=${NUM_WORKERS_PER_VM}
+	--stackdriver-metric-utilization-target=0.1 \
+	--stackdriver-metric-utilization-target-type=gauge
 endef
 
 .PHONY: start-workers
@@ -128,6 +126,14 @@ endef
 .PHONY: stop-workers
 stop-workers:
 	$(foreach region,$(GCE_REGIONS),$(call stop-workers-for-region,$(region)))
+
+
+.PHONY: autoscaler-debug
+autoscaler-debug:
+	gcloud compute instance-groups managed describe
+		${GCE_GROUP_NAME}-${GCE_REGIONS} \
+		--project=${PROJECT} \
+		--region=${GCE_REGIONS}
 
 # These are for testing only, start an individual VM. Use start-group for
 # production.

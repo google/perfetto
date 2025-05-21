@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,11 @@
 
 syntax = "proto2";
 
-import "protos/perfetto/trace/android/graphics/insets.proto";
-import "protos/perfetto/trace/android/graphics/rect.proto";
-
 package perfetto.protos;
 
-// Represents a {@link android.view.InsetsSource} object
-message InsetsSourceProto {
-  optional string type = 1 [deprecated = true];
-  optional RectProto frame = 2;
-  optional RectProto visible_frame = 3;
-  optional bool visible = 4;
-  optional int32 type_number = 5;
-  optional InsetsProto attached_insets = 6;
+message InsetsProto {
+  optional int32 left = 1;
+  optional int32 top = 2;
+  optional int32 right = 3;
+  optional int32 bottom = 4;
 }
