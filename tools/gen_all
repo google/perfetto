@@ -62,6 +62,7 @@ def main():
     call('ninja', '-C', out, 'protoc')
     call('gen_binary_descriptors', '--protoc', protoc_path(out), *check_only)
     call('gen_c_protos', *check_only, out)
+    call('gen_python_protos', '--protoc', protoc_path(out), *check_only)
 
     if IS_WIN:
       print('WARNING: Cannot generate BUILD / Android.bp from Windows. ' +
