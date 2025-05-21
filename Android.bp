@@ -2970,6 +2970,7 @@ filegroup {
         "protos/perfetto/trace/android/content/locale.proto",
         "protos/perfetto/trace/android/frame_timeline_event.proto",
         "protos/perfetto/trace/android/gpu_mem_event.proto",
+        "protos/perfetto/trace/android/graphics/insets.proto",
         "protos/perfetto/trace/android/graphics/pixelformat.proto",
         "protos/perfetto/trace/android/graphics/point.proto",
         "protos/perfetto/trace/android/graphics/rect.proto",
@@ -6550,6 +6551,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_winscope_common_cpp",
     srcs: [
+        "protos/perfetto/trace/android/graphics/insets.proto",
         "protos/perfetto/trace/android/graphics/point.proto",
         "protos/perfetto/trace/android/graphics/rect.proto",
         "protos/perfetto/trace/android/winscope_extensions.proto",
@@ -6568,6 +6570,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_winscope_common_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/graphics/insets.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/graphics/point.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/graphics/rect.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/winscope_extensions.gen.cc",
@@ -6586,6 +6589,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_winscope_common_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/graphics/insets.gen.h",
         "external/perfetto/protos/perfetto/trace/android/graphics/point.gen.h",
         "external/perfetto/protos/perfetto/trace/android/graphics/rect.gen.h",
         "external/perfetto/protos/perfetto/trace/android/winscope_extensions.gen.h",
@@ -6600,6 +6604,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_winscope_common_lite",
     srcs: [
+        "protos/perfetto/trace/android/graphics/insets.proto",
         "protos/perfetto/trace/android/graphics/point.proto",
         "protos/perfetto/trace/android/graphics/rect.proto",
         "protos/perfetto/trace/android/winscope_extensions.proto",
@@ -6617,6 +6622,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_winscope_common_lite)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/graphics/insets.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/graphics/point.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/graphics/rect.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/winscope_extensions.pb.cc",
@@ -6634,6 +6640,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_winscope_common_lite)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/graphics/insets.pb.h",
         "external/perfetto/protos/perfetto/trace/android/graphics/point.pb.h",
         "external/perfetto/protos/perfetto/trace/android/graphics/rect.pb.h",
         "external/perfetto/protos/perfetto/trace/android/winscope_extensions.pb.h",
@@ -6648,6 +6655,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_winscope_common_zero",
     srcs: [
+        "protos/perfetto/trace/android/graphics/insets.proto",
         "protos/perfetto/trace/android/graphics/point.proto",
         "protos/perfetto/trace/android/graphics/rect.proto",
         "protos/perfetto/trace/android/winscope_extensions.proto",
@@ -6666,6 +6674,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_winscope_common_zero)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/graphics/insets.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/graphics/point.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/graphics/rect.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/winscope_extensions.pbzero.cc",
@@ -6684,6 +6693,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_winscope_common_zero)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/graphics/insets.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/graphics/point.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/graphics/rect.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/winscope_extensions.pbzero.h",
@@ -6723,6 +6733,7 @@ genrule {
         "protos/perfetto/trace/android/content/activityinfo.proto",
         "protos/perfetto/trace/android/content/configuration.proto",
         "protos/perfetto/trace/android/content/locale.proto",
+        "protos/perfetto/trace/android/graphics/insets.proto",
         "protos/perfetto/trace/android/graphics/pixelformat.proto",
         "protos/perfetto/trace/android/graphics/point.proto",
         "protos/perfetto/trace/android/graphics/rect.proto",
@@ -7447,6 +7458,7 @@ genrule {
         "protos/perfetto/trace/android/camera_event.proto",
         "protos/perfetto/trace/android/frame_timeline_event.proto",
         "protos/perfetto/trace/android/gpu_mem_event.proto",
+        "protos/perfetto/trace/android/graphics/insets.proto",
         "protos/perfetto/trace/android/graphics/point.proto",
         "protos/perfetto/trace/android/graphics/rect.proto",
         "protos/perfetto/trace/android/graphics_frame_event.proto",
@@ -16263,6 +16275,7 @@ java_library {
         "protos/perfetto/trace/android/camera_event.proto",
         "protos/perfetto/trace/android/frame_timeline_event.proto",
         "protos/perfetto/trace/android/gpu_mem_event.proto",
+        "protos/perfetto/trace/android/graphics/insets.proto",
         "protos/perfetto/trace/android/graphics/point.proto",
         "protos/perfetto/trace/android/graphics/rect.proto",
         "protos/perfetto/trace/android/graphics_frame_event.proto",
